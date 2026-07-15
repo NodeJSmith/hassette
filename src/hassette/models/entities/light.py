@@ -31,14 +31,14 @@ class LightEntity(BaseEntity[LightState, str]):
         color_temp_kelvin: int | None = None,
         effect: str | None = None,
         flash: LightFlash | None = None,
-        hs_color: Any | None = None,
+        hs_color: tuple[float, float] | None = None,
         profile: str | None = None,
         rgb_color: tuple[int, int, int] | None = None,
-        rgbw_color: Any | None = None,
-        rgbww_color: Any | None = None,
+        rgbw_color: tuple[int, int, int, int] | None = None,
+        rgbww_color: tuple[int, int, int, int, int] | None = None,
         transition: int | None = None,
-        white: Any | None = None,
-        xy_color: Any | None = None,
+        white: int | None = None,
+        xy_color: tuple[float, float] | None = None,
     ) -> Coroutine[Any, Any, None]:
         """Turns on one or more lights and adjusts their properties, even when they are turned on already.
 
@@ -65,8 +65,6 @@ class LightEntity(BaseEntity[LightState, str]):
             white: Set the light to white mode.
             xy_color: Color in XY-format. A list of two decimal numbers between 0 and 1.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="turn_on",
@@ -101,8 +99,6 @@ class LightEntity(BaseEntity[LightState, str]):
             flash: Tell light to flash, can be either value short or long.
             transition: Duration it takes to get to next state.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="turn_off",
@@ -120,14 +116,14 @@ class LightEntity(BaseEntity[LightState, str]):
         color_temp_kelvin: int | None = None,
         effect: str | None = None,
         flash: LightFlash | None = None,
-        hs_color: Any | None = None,
+        hs_color: tuple[float, float] | None = None,
         profile: str | None = None,
         rgb_color: tuple[int, int, int] | None = None,
-        rgbw_color: Any | None = None,
-        rgbww_color: Any | None = None,
+        rgbw_color: tuple[int, int, int, int] | None = None,
+        rgbww_color: tuple[int, int, int, int, int] | None = None,
         transition: int | None = None,
-        white: Any | None = None,
-        xy_color: Any | None = None,
+        white: int | None = None,
+        xy_color: tuple[float, float] | None = None,
     ) -> Coroutine[Any, Any, None]:
         """Toggles one or more lights, from on to off, or off to on, based on their current state.
 
@@ -152,8 +148,6 @@ class LightEntity(BaseEntity[LightState, str]):
             white: Set the light to white mode.
             xy_color: Color in XY-format. A list of two decimal numbers between 0 and 1.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="toggle",
@@ -189,14 +183,14 @@ class LightEntitySyncFacade(BaseEntitySyncFacade[LightState, str]):
         color_temp_kelvin: int | None = None,
         effect: str | None = None,
         flash: LightFlash | None = None,
-        hs_color: Any | None = None,
+        hs_color: tuple[float, float] | None = None,
         profile: str | None = None,
         rgb_color: tuple[int, int, int] | None = None,
-        rgbw_color: Any | None = None,
-        rgbww_color: Any | None = None,
+        rgbw_color: tuple[int, int, int, int] | None = None,
+        rgbww_color: tuple[int, int, int, int, int] | None = None,
         transition: int | None = None,
-        white: Any | None = None,
-        xy_color: Any | None = None,
+        white: int | None = None,
+        xy_color: tuple[float, float] | None = None,
     ) -> None:
         """Turns on one or more lights and adjusts their properties, even when they are turned on already.
 
@@ -274,14 +268,14 @@ class LightEntitySyncFacade(BaseEntitySyncFacade[LightState, str]):
         color_temp_kelvin: int | None = None,
         effect: str | None = None,
         flash: LightFlash | None = None,
-        hs_color: Any | None = None,
+        hs_color: tuple[float, float] | None = None,
         profile: str | None = None,
         rgb_color: tuple[int, int, int] | None = None,
-        rgbw_color: Any | None = None,
-        rgbww_color: Any | None = None,
+        rgbw_color: tuple[int, int, int, int] | None = None,
+        rgbww_color: tuple[int, int, int, int, int] | None = None,
         transition: int | None = None,
-        white: Any | None = None,
-        xy_color: Any | None = None,
+        white: int | None = None,
+        xy_color: tuple[float, float] | None = None,
     ) -> None:
         """Toggles one or more lights, from on to off, or off to on, based on their current state.
 

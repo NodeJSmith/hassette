@@ -177,25 +177,31 @@ class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
             return ServiceResponse(context=Context(id=None, parent_id=None, user_id=None))
         return None
 
-    def turn_on(self, entity_id: str | StrEnum, domain: str = "homeassistant", **data: Any) -> None:
+    def turn_on(self, entity_id: str | StrEnum, domain: str | None = None, **data: Any) -> None:
         """Record a turn_on call directly under its own method name."""
         entity_id = str(entity_id)
+        if domain is None:
+            domain = entity_id.split(".", 1)[0]
         self._parent.calls.append(
             ApiCall(method="turn_on", args=(entity_id,), kwargs={"entity_id": entity_id, "domain": domain, **data})
         )
 
-    def turn_off(self, entity_id: str | StrEnum, domain: str = "homeassistant") -> None:
+    def turn_off(self, entity_id: str | StrEnum, domain: str | None = None, **data: Any) -> None:
         """Record a turn_off call directly under its own method name."""
         entity_id = str(entity_id)
+        if domain is None:
+            domain = entity_id.split(".", 1)[0]
         self._parent.calls.append(
-            ApiCall(method="turn_off", args=(entity_id,), kwargs={"entity_id": entity_id, "domain": domain})
+            ApiCall(method="turn_off", args=(entity_id,), kwargs={"entity_id": entity_id, "domain": domain, **data})
         )
 
-    def toggle_service(self, entity_id: str | StrEnum, domain: str = "homeassistant") -> None:
-        """Record a toggle_service call directly under its own method name."""
+    def toggle(self, entity_id: str | StrEnum, domain: str | None = None, **data: Any) -> None:
+        """Record a toggle call directly under its own method name."""
         entity_id = str(entity_id)
+        if domain is None:
+            domain = entity_id.split(".", 1)[0]
         self._parent.calls.append(
-            ApiCall(method="toggle_service", args=(entity_id,), kwargs={"entity_id": entity_id, "domain": domain})
+            ApiCall(method="toggle", args=(entity_id,), kwargs={"entity_id": entity_id, "domain": domain, **data})
         )
 
     def get_state_raw(self, entity_id: str) -> "HassStateDict":

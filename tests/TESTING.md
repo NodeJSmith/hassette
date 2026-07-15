@@ -247,10 +247,10 @@ Passes if at least one recorded call for `method` contains **all** specified `kw
 
 ```python
 await api.turn_off("light.x")
-# Recorded: {"entity_id": "light.x", "domain": "homeassistant"}
+# Recorded: {"entity_id": "light.x", "domain": "light"}
 
 api.assert_called("turn_off", entity_id="light.x")          # passes — partial match
-api.assert_called("turn_off", entity_id="light.x", domain="homeassistant")  # also passes
+api.assert_called("turn_off", entity_id="light.x", domain="light")  # also passes
 ```
 
 ### `assert_called_partial(method, **kwargs)` — partial match (explicit alias)
@@ -267,10 +267,10 @@ Passes only when the recorded call's `kwargs` dict is **exactly equal** to the p
 
 ```python
 await api.turn_off("light.x")
-# Recorded: {"entity_id": "light.x", "domain": "homeassistant"}
+# Recorded: {"entity_id": "light.x", "domain": "light"}
 
 api.assert_called_exact("turn_off", entity_id="light.x")                    # FAILS — "domain" is extra
-api.assert_called_exact("turn_off", entity_id="light.x", domain="homeassistant")  # passes
+api.assert_called_exact("turn_off", entity_id="light.x", domain="light")  # passes
 ```
 
 ### `assert_not_called(method, **kwargs)` — negative assertion

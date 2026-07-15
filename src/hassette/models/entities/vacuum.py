@@ -19,8 +19,6 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
 
     def turn_on(self) -> Coroutine[Any, Any, None]:
         """Turns on a vacuum cleaner."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="turn_on",
@@ -29,8 +27,6 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
 
     def turn_off(self) -> Coroutine[Any, Any, None]:
         """Turns off a vacuum cleaner."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="turn_off",
@@ -39,8 +35,6 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
 
     def toggle(self) -> Coroutine[Any, Any, None]:
         """Toggles a vacuum cleaner on/off."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="toggle",
@@ -49,8 +43,6 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
 
     def stop(self) -> Coroutine[Any, Any, None]:
         """Stops a vacuum cleaner's current task."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="stop",
@@ -59,8 +51,6 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
 
     def locate(self) -> Coroutine[Any, Any, None]:
         """Locates a vacuum cleaner."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="locate",
@@ -69,8 +59,6 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
 
     def start_pause(self) -> Coroutine[Any, Any, None]:
         """Starts, pauses, or resumes a vacuum cleaner's cleaning task."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="start_pause",
@@ -79,8 +67,6 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
 
     def start(self) -> Coroutine[Any, Any, None]:
         """Starts or resumes a vacuum cleaner's cleaning task."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="start",
@@ -89,8 +75,6 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
 
     def pause(self) -> Coroutine[Any, Any, None]:
         """Pauses a vacuum cleaner's current task."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="pause",
@@ -99,8 +83,6 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
 
     def return_to_base(self) -> Coroutine[Any, Any, None]:
         """Sends a vacuum cleaner back to its dock."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="return_to_base",
@@ -109,8 +91,6 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
 
     def clean_spot(self) -> Coroutine[Any, Any, None]:
         """Tells a vacuum cleaner to do a spot clean-up."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="clean_spot",
@@ -127,8 +107,6 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
         Args:
             cleaning_area_id: Areas to clean.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="clean_area",
@@ -148,8 +126,6 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
             command: Command to execute. The commands are integration-specific.
             params: Parameters for the command. The parameters are integration-specific.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="send_command",
@@ -169,8 +145,6 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
             fan_speed: Fan speed. The value depends on the integration. Some integrations have speed steps, like
                 'medium'. Some use a percentage, between 0 and 100.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="set_fan_speed",

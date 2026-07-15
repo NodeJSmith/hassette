@@ -12,14 +12,20 @@ dispatch.
 """
 
 import textwrap
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from hassette_codegen.domain_data import ExtractedDomain, domain_to_title
+from hassette_codegen.extractors.features import ExtractedEnum
 from hassette_codegen.generators._env import get_jinja_env
+from hassette_codegen.generators.states import rename_collisions
 from hassette_codegen.type_mapping import map_selector_to_type
 
 DOCSTRING_INDENT = " " * 8
 LINE_LENGTH = 120
+# Metadata enums describe attribute/field names or device categories, not runtime values a
+# service param would accept — exclude them from param-to-StrEnum matching.
+_ENUM_NAME_EXCLUDE_SUFFIXES = ("Attribute", "DeviceClass")
 
 
 @dataclass
@@ -57,7 +63,15 @@ def generate_entity_wrapper(domain: ExtractedDomain) -> str | None:
     type_aliases: list[tuple[str, str]] = []
     literal_shape_to_alias: dict[str, str] = {}
     used_alias_names: set[str] = set()
+    used_enums: set[str] = set()
     domain_title = domain_to_title(domain.name)
+    # The state generator renames StrEnums that collide with the Pydantic class name (e.g.
+    # SceneState → SceneStateValue). Apply the same rename so our import matches.
+    pydantic_class_name = f"{domain_title}State"
+    resolved_strenums, rename_map = rename_collisions(list(domain.strenums), pydantic_class_name)
+    enum_name_lookup, enum_value_lookup = _build_enum_lookups(resolved_strenums)
+    for original, renamed in rename_map.items():
+        enum_name_lookup[original.lower()] = renamed
 
     for service in domain.services:
         params: list[ServiceParam] = []
@@ -66,18 +80,26 @@ def generate_entity_wrapper(domain: ExtractedDomain) -> str | None:
             if domain.override and param_name in domain.override.service_param_renames:
                 param_name = domain.override.service_param_renames[param_name]
 
+            type_from_override = False
             if domain.override and field.name in domain.override.param_type_overrides:
                 python_type = domain.override.param_type_overrides[field.name]
+                type_from_override = True
             else:
                 python_type = map_selector_to_type(field.selector_type, field.selector_data, domain.name)
+
+            if not type_from_override:
+                matched_enum = _match_param_to_enum(param_name, python_type, enum_name_lookup, enum_value_lookup)
+                if matched_enum:
+                    _, was_list = _unwrap_list_type(python_type)
+                    python_type = f"list[{matched_enum}]" if was_list else matched_enum
+                    used_enums.add(matched_enum)
 
             # Promote Literal[...] sets to named aliases for readability — whether the type is
             # a bare Literal[...] or a list[Literal[...]] (from a multiple: true select). Key the
             # cache by literal shape, not param name: two services can share a param name (e.g.
             # "mode") with different Literal sets, so alias names must stay distinct or the second
             # set would silently overwrite the first.
-            list_wrapped = python_type.startswith("list[Literal[") and python_type.endswith("]")
-            literal_shape = python_type[len("list[") : -1] if list_wrapped else python_type
+            literal_shape, list_wrapped = _unwrap_list_type(python_type)
             if literal_shape.startswith("Literal["):
                 alias_name = literal_shape_to_alias.get(literal_shape)
                 if alias_name is None:
@@ -123,6 +145,7 @@ def generate_entity_wrapper(domain: ExtractedDomain) -> str | None:
         services=services_for_template,
         extra_imports=extra_imports,
         type_aliases=type_aliases,
+        enum_imports=sorted(used_enums),
     )
 
 
@@ -177,3 +200,65 @@ def _with_period(text: str) -> str:
     if text and not text.endswith((".", "!", "?")):
         text += "."
     return text
+
+
+def _build_enum_lookups(
+    strenums: Sequence[ExtractedEnum],
+) -> tuple[dict[str, str], dict[frozenset[str], str]]:
+    """Build name-based and value-based lookups for param-to-StrEnum matching.
+
+    Returns (name_lookup, value_lookup) where:
+    - name_lookup maps lowercased enum names to their original names
+    - value_lookup maps frozensets of member values to enum names
+    """
+    name_lookup: dict[str, str] = {}
+    value_lookup: dict[frozenset[str], str] = {}
+    for enum in strenums:
+        if any(enum.name.endswith(suffix) for suffix in _ENUM_NAME_EXCLUDE_SUFFIXES):
+            continue
+        name_lookup[enum.name.lower()] = enum.name
+        values = frozenset(str(v) for _, v in enum.members)
+        if values:
+            value_lookup[values] = enum.name
+    return name_lookup, value_lookup
+
+
+def _unwrap_list_type(python_type: str) -> tuple[str, bool]:
+    """Strip a ``list[...]`` wrapper, returning (inner_type, was_list)."""
+    if python_type.startswith("list[") and python_type.endswith("]"):
+        return python_type[len("list[") : -1], True
+    return python_type, False
+
+
+def _match_param_to_enum(
+    param_name: str,
+    python_type: str,
+    name_lookup: dict[str, str],
+    value_lookup: dict[frozenset[str], str],
+) -> str | None:
+    """Match a service param to a domain StrEnum by name or by Literal values."""
+    if python_type == "str":
+        normalized = param_name.replace("_", "").lower()
+        if normalized in name_lookup:
+            return name_lookup[normalized]
+
+    inner, _ = _unwrap_list_type(python_type)
+    if inner.startswith("Literal["):
+        literal_values = _extract_literal_values(inner)
+        if literal_values and literal_values in value_lookup:
+            return value_lookup[literal_values]
+
+    return None
+
+
+def _extract_literal_values(literal_type: str) -> frozenset[str] | None:
+    """Extract the set of string values from a Literal[...] type annotation."""
+    if not literal_type.startswith("Literal[") or not literal_type.endswith("]"):
+        return None
+    inner = literal_type[len("Literal[") : -1]
+    values: set[str] = set()
+    for part in inner.split(","):
+        part = part.strip().strip('"').strip("'")
+        if part:
+            values.add(part)
+    return frozenset(values) if values else None

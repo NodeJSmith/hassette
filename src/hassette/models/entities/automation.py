@@ -19,8 +19,6 @@ class AutomationEntity(BaseEntity[AutomationState, str]):
 
     def turn_on(self) -> Coroutine[Any, Any, None]:
         """Enables an automation."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="turn_on",
@@ -37,8 +35,6 @@ class AutomationEntity(BaseEntity[AutomationState, str]):
         Args:
             stop_actions: Stops currently running actions.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="turn_off",
@@ -48,8 +44,6 @@ class AutomationEntity(BaseEntity[AutomationState, str]):
 
     def toggle(self) -> Coroutine[Any, Any, None]:
         """Toggles (enable / disable) an automation."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="toggle",
@@ -66,8 +60,6 @@ class AutomationEntity(BaseEntity[AutomationState, str]):
         Args:
             skip_condition: Defines whether or not the conditions will be skipped.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="trigger",

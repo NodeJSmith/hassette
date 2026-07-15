@@ -19,8 +19,6 @@ class ButtonEntity(BaseEntity[ButtonState, str]):
 
     def press(self) -> Coroutine[Any, Any, None]:
         """Presses a button."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="press",

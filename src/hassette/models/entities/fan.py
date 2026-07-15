@@ -29,8 +29,6 @@ class FanEntity(BaseEntity[FanState, str]):
         Args:
             preset_mode: Preset fan mode.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="set_preset_mode",
@@ -48,8 +46,6 @@ class FanEntity(BaseEntity[FanState, str]):
         Args:
             percentage: Speed of the fan.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="set_percentage",
@@ -69,8 +65,6 @@ class FanEntity(BaseEntity[FanState, str]):
             percentage: Speed of the fan.
             preset_mode: Preset fan mode.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="turn_on",
@@ -81,8 +75,6 @@ class FanEntity(BaseEntity[FanState, str]):
 
     def turn_off(self) -> Coroutine[Any, Any, None]:
         """Turns off a fan."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="turn_off",
@@ -99,8 +91,6 @@ class FanEntity(BaseEntity[FanState, str]):
         Args:
             oscillating: Turns oscillation on/off.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="oscillate",
@@ -110,8 +100,6 @@ class FanEntity(BaseEntity[FanState, str]):
 
     def toggle(self) -> Coroutine[Any, Any, None]:
         """Toggles a fan on/off."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="toggle",
@@ -128,8 +116,6 @@ class FanEntity(BaseEntity[FanState, str]):
         Args:
             direction: Direction of the fan rotation.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="set_direction",
@@ -147,8 +133,6 @@ class FanEntity(BaseEntity[FanState, str]):
         Args:
             percentage_step: Percentage step by which the speed should be increased.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="increase_speed",
@@ -166,8 +150,6 @@ class FanEntity(BaseEntity[FanState, str]):
         Args:
             percentage_step: Percentage step by which the speed should be decreased.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="decrease_speed",

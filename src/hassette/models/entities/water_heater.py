@@ -27,8 +27,6 @@ class WaterHeaterEntity(BaseEntity[WaterHeaterState, str]):
         Args:
             away_mode: New value of away mode.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="set_away_mode",
@@ -49,8 +47,6 @@ class WaterHeaterEntity(BaseEntity[WaterHeaterState, str]):
             operation_mode: New value of the operation mode. For a list of possible modes, refer to the integration
                 documentation.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="set_temperature",
@@ -70,8 +66,6 @@ class WaterHeaterEntity(BaseEntity[WaterHeaterState, str]):
             operation_mode: New value of the operation mode. For a list of possible modes, refer to the integration
                 documentation.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="set_operation_mode",
@@ -81,8 +75,6 @@ class WaterHeaterEntity(BaseEntity[WaterHeaterState, str]):
 
     def turn_on(self) -> Coroutine[Any, Any, None]:
         """Turns on a water heater."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="turn_on",
@@ -91,8 +83,6 @@ class WaterHeaterEntity(BaseEntity[WaterHeaterState, str]):
 
     def turn_off(self) -> Coroutine[Any, Any, None]:
         """Turns off a water heater."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="turn_off",

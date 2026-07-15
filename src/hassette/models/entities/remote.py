@@ -29,8 +29,6 @@ class RemoteEntity(BaseEntity[RemoteState, str]):
         Args:
             activity: Activity ID or activity name to be started.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="turn_on",
@@ -40,8 +38,6 @@ class RemoteEntity(BaseEntity[RemoteState, str]):
 
     def toggle(self) -> Coroutine[Any, Any, None]:
         """Sends the toggle command."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="toggle",
@@ -50,8 +46,6 @@ class RemoteEntity(BaseEntity[RemoteState, str]):
 
     def turn_off(self) -> Coroutine[Any, Any, None]:
         """Sends the turn off command."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="turn_off",
@@ -76,8 +70,6 @@ class RemoteEntity(BaseEntity[RemoteState, str]):
             hold_secs: The time you want to have it held before the release is send.
             num_repeats: The number of times you want to repeat the commands.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="send_command",
@@ -109,8 +101,6 @@ class RemoteEntity(BaseEntity[RemoteState, str]):
             device: Device ID to learn command from.
             timeout: Timeout for the command to be learned.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="learn_command",
@@ -134,8 +124,6 @@ class RemoteEntity(BaseEntity[RemoteState, str]):
             command: The single command or the list of commands to be deleted.
             device: Device from which commands will be deleted.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="delete_command",

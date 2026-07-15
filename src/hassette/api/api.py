@@ -5,7 +5,7 @@ state management, service calls, event firing, and data retrieval. Automatically
 authentication, retries, and type conversion for a seamless developer experience.
 
 Fire-and-forget methods (``call_service``, ``fire_event``, ``set_state``, ``turn_on``,
-``turn_off``, ``toggle_service``) return a ``Coroutine`` and must be awaited.
+``turn_off``, ``toggle``) return a ``Coroutine`` and must be awaited.
 
 Examples:
     Getting entity states
@@ -51,7 +51,7 @@ Examples:
     # Turn entities on/off
     await self.api.turn_on("light.kitchen", brightness=150)
     await self.api.turn_off("light.living_room")
-    await self.api.toggle_service("switch.fan")
+    await self.api.toggle("switch.fan")
     ```
 
     Setting states
@@ -552,61 +552,62 @@ class Api(Resource):
         await self.ws_send_json(**payload)
         return None
 
-    def turn_on(
-        self, entity_id: str | StrEnum, domain: str = "homeassistant", **data: Any
-    ) -> "Coroutine[Any, Any, None]":
+    def turn_on(self, entity_id: str | StrEnum, domain: str | None = None, **data: Any) -> "Coroutine[Any, Any, None]":
         """Turn on a specific entity in Home Assistant.
 
         Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn).
 
         Args:
             entity_id: The ID of the entity to turn on (e.g., "light.office").
-            domain: The domain to use for the service call (default: ``"homeassistant"``).
-                This calls the generic ``homeassistant.turn_on`` service, which is deprecated
-                in Home Assistant 2024.x in favor of domain-specific services. For lights,
-                pass ``domain="light"``; for switches, pass ``domain="switch"``.
+            domain: The domain to use for the service call. Defaults to the entity's domain,
+                derived from ``entity_id`` (e.g., ``"light.office"`` derives ``"light"``). Pass
+                explicitly to override — for example, ``domain="homeassistant"`` to use the
+                generic (deprecated) service.
+            **data: Additional service data forwarded to the service call.
 
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at call_service (the true primary). See design/071.
         entity_id = str(entity_id)
+        if domain is None:
+            domain = entity_id.split(".", 1)[0]
         return self.call_service(domain=domain, service="turn_on", target={"entity_id": entity_id}, **data)
 
-    def turn_off(self, entity_id: str | StrEnum, domain: str = "homeassistant") -> "Coroutine[Any, Any, None]":
+    def turn_off(self, entity_id: str | StrEnum, domain: str | None = None, **data: Any) -> "Coroutine[Any, Any, None]":
         """Turn off a specific entity in Home Assistant.
 
         Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn).
 
         Args:
             entity_id: The ID of the entity to turn off (e.g., "light.office").
-            domain: The domain to use for the service call (default: ``"homeassistant"``).
-                This calls the generic ``homeassistant.turn_off`` service, which is deprecated
-                in Home Assistant 2024.x in favor of domain-specific services. For lights,
-                pass ``domain="light"``; for switches, pass ``domain="switch"``.
+            domain: The domain to use for the service call. Defaults to the entity's domain,
+                derived from ``entity_id`` (e.g., ``"light.office"`` derives ``"light"``). Pass
+                explicitly to override — for example, ``domain="homeassistant"`` to use the
+                generic (deprecated) service.
+            **data: Additional service data forwarded to the service call.
 
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at call_service (the true primary). See design/071.
         entity_id = str(entity_id)
-        return self.call_service(domain=domain, service="turn_off", target={"entity_id": entity_id})
+        if domain is None:
+            domain = entity_id.split(".", 1)[0]
+        return self.call_service(domain=domain, service="turn_off", target={"entity_id": entity_id}, **data)
 
-    def toggle_service(self, entity_id: str | StrEnum, domain: str = "homeassistant") -> "Coroutine[Any, Any, None]":
+    def toggle(self, entity_id: str | StrEnum, domain: str | None = None, **data: Any) -> "Coroutine[Any, Any, None]":
         """Toggle a specific entity in Home Assistant.
 
         Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn).
 
         Args:
             entity_id: The ID of the entity to toggle (e.g., "light.office").
-            domain: The domain to use for the service call (default: ``"homeassistant"``).
-                This calls the generic ``homeassistant.toggle`` service, which is deprecated
-                in Home Assistant 2024.x in favor of domain-specific services. For lights,
-                pass ``domain="light"``; for switches, pass ``domain="switch"``.
+            domain: The domain to use for the service call. Defaults to the entity's domain,
+                derived from ``entity_id`` (e.g., ``"light.office"`` derives ``"light"``). Pass
+                explicitly to override — for example, ``domain="homeassistant"`` to use the
+                generic (deprecated) service.
+            **data: Additional service data forwarded to the service call.
 
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at call_service (the true primary). See design/071.
         entity_id = str(entity_id)
-        return self.call_service(domain=domain, service="toggle", target={"entity_id": entity_id})
+        if domain is None:
+            domain = entity_id.split(".", 1)[0]
+        return self.call_service(domain=domain, service="toggle", target={"entity_id": entity_id}, **data)
 
     async def get_state_raw(self, entity_id: str) -> "HassStateDict":
         """Get the state of a specific entity.

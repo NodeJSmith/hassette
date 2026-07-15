@@ -19,8 +19,6 @@ class ScriptEntity(BaseEntity[ScriptState, str]):
 
     def turn_on(self) -> Coroutine[Any, Any, None]:
         """Runs the sequence of actions defined in a script."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="turn_on",
@@ -29,8 +27,6 @@ class ScriptEntity(BaseEntity[ScriptState, str]):
 
     def turn_off(self) -> Coroutine[Any, Any, None]:
         """Stops a running script."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="turn_off",
@@ -39,8 +35,6 @@ class ScriptEntity(BaseEntity[ScriptState, str]):
 
     def toggle(self) -> Coroutine[Any, Any, None]:
         """Starts a script if it isn't running, stops it otherwise."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="toggle",

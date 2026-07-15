@@ -1,3 +1,8 @@
+---
+paths:
+  - "docs/**"
+---
+
 # Documentation Rules
 
 How to write Hassette documentation. `design-completeness.md` governs WHEN docs are needed; this file governs HOW to write them.

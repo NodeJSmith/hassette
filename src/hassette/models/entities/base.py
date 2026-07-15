@@ -1,5 +1,4 @@
 import typing
-from collections.abc import Coroutine
 from typing import Any, Generic, cast
 
 from pydantic import BaseModel, ConfigDict, PrivateAttr
@@ -81,28 +80,6 @@ class BaseEntity(BaseModel, Generic[StateT, StateValueT]):
         """Return the typed synchronous facade for this entity."""
         return self._get_or_create_sync(BaseEntitySyncFacade)
 
-    def turn_off(self) -> Coroutine[Any, Any, None]:
-        """Turn off the entity."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
-        return self.api.turn_off(self.entity_id)
-
-    def turn_on(self, **data: Any) -> Coroutine[Any, Any, None]:
-        """Turn on the entity.
-
-        Args:
-            **data: Service data fields forwarded to the ``homeassistant.turn_on`` service.
-        """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
-        return self.api.turn_on(self.entity_id, **data)
-
-    def toggle(self) -> Coroutine[Any, Any, None]:
-        """Toggle the entity."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
-        return self.api.toggle_service(self.entity_id)
-
 
 class BaseEntitySyncFacade(Generic[StateT, StateValueT]):
     """Synchronous facade for BaseEntity to allow easier access to properties without async/await."""
@@ -111,19 +88,3 @@ class BaseEntitySyncFacade(Generic[StateT, StateValueT]):
 
     def __init__(self, entity: BaseEntity[StateT, StateValueT]) -> None:
         self.entity = entity
-
-    def turn_off(self) -> None:
-        """Turn off the entity."""
-        self.entity.api.sync.turn_off(self.entity.entity_id)
-
-    def turn_on(self, **data: Any) -> None:
-        """Turn on the entity.
-
-        Args:
-            **data: Service data fields forwarded to the ``homeassistant.turn_on`` service.
-        """
-        self.entity.api.sync.turn_on(self.entity.entity_id, **data)
-
-    def toggle(self) -> None:
-        """Toggle the entity."""
-        self.entity.api.sync.toggle_service(self.entity.entity_id)

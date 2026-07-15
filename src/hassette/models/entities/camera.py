@@ -21,8 +21,6 @@ class CameraEntity(BaseEntity[CameraState, str]):
 
     def turn_off(self) -> Coroutine[Any, Any, None]:
         """Turns off a camera."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="turn_off",
@@ -31,8 +29,6 @@ class CameraEntity(BaseEntity[CameraState, str]):
 
     def turn_on(self) -> Coroutine[Any, Any, None]:
         """Turns on a camera."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="turn_on",
@@ -41,8 +37,6 @@ class CameraEntity(BaseEntity[CameraState, str]):
 
     def enable_motion_detection(self) -> Coroutine[Any, Any, None]:
         """Enables the motion detection of a camera."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="enable_motion_detection",
@@ -51,8 +45,6 @@ class CameraEntity(BaseEntity[CameraState, str]):
 
     def disable_motion_detection(self) -> Coroutine[Any, Any, None]:
         """Disables the motion detection of a camera."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="disable_motion_detection",
@@ -69,8 +61,6 @@ class CameraEntity(BaseEntity[CameraState, str]):
         Args:
             filename: Full path to filename.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="snapshot",
@@ -90,8 +80,6 @@ class CameraEntity(BaseEntity[CameraState, str]):
             media_player: Media player to stream to.
             format: Stream format supported by the media player.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="play_stream",
@@ -115,8 +103,6 @@ class CameraEntity(BaseEntity[CameraState, str]):
             lookback: Planned lookback period to include in the recording (in addition to the duration). Only available
                 if there is currently an active HLS stream. The actual length of the lookback period may vary.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="record",

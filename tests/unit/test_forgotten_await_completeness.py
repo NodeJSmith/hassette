@@ -86,7 +86,7 @@ CANONICAL_PROTECTED: dict[type, set[str]] = {
         # Shape B delegates → call_service
         "turn_on",
         "turn_off",
-        "toggle_service",
+        "toggle",
     },
 }
 
@@ -216,7 +216,7 @@ _API_METHOD_CALLS: dict[str, object] = {
     "set_state": lambda api: api.set_state("light.test", "on"),
     "turn_on": lambda api: api.turn_on("light.kitchen"),
     "turn_off": lambda api: api.turn_off("light.kitchen"),
-    "toggle_service": lambda api: api.toggle_service("switch.fan"),
+    "toggle": lambda api: api.toggle("switch.fan"),
 }
 
 

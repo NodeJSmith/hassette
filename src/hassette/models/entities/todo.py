@@ -1,12 +1,10 @@
 from collections.abc import Coroutine
-from typing import Any, Literal
+from typing import Any
 
 from hassette.models.states import TodoState
-from hassette.models.states.todo import TodoAttributes
+from hassette.models.states.todo import TodoAttributes, TodoItemStatus
 
 from .base import BaseEntity, BaseEntitySyncFacade
-
-TodoStatus = Literal["needs_action", "completed"]
 
 
 class TodoEntity(BaseEntity[TodoState, str]):
@@ -22,15 +20,13 @@ class TodoEntity(BaseEntity[TodoState, str]):
     def get_items(
         self,
         *,
-        status: list[TodoStatus] | None = None,
+        status: list[TodoItemStatus] | None = None,
     ) -> Coroutine[Any, Any, None]:
         """Gets items on a to-do list.
 
         Args:
             status: Only return to-do items with the specified statuses. Returns not completed actions by default.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="get_items",
@@ -54,8 +50,6 @@ class TodoEntity(BaseEntity[TodoState, str]):
             due_date: The date the to-do item is expected to be completed.
             due_datetime: The date and time the to-do item is expected to be completed.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="add_item",
@@ -74,7 +68,7 @@ class TodoEntity(BaseEntity[TodoState, str]):
         due_date: str | None = None,
         due_datetime: str | None = None,
         rename: str | None = None,
-        status: TodoStatus | None = None,
+        status: TodoItemStatus | None = None,
     ) -> Coroutine[Any, Any, None]:
         """Updates an existing to-do list item based on its name or UID.
 
@@ -87,8 +81,6 @@ class TodoEntity(BaseEntity[TodoState, str]):
             rename: The new name for the to-do item.
             status: A status for the to-do item.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="update_item",
@@ -112,8 +104,6 @@ class TodoEntity(BaseEntity[TodoState, str]):
             item: The name/summary of the to-do item. If you have items with duplicate names, you can reference specific
                 ones using their UID instead.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="remove_item",
@@ -123,8 +113,6 @@ class TodoEntity(BaseEntity[TodoState, str]):
 
     def remove_completed_items(self) -> Coroutine[Any, Any, None]:
         """Removes all to-do list items that have been completed."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="remove_completed_items",
@@ -138,7 +126,7 @@ class TodoEntitySyncFacade(BaseEntitySyncFacade[TodoState, str]):
     def get_items(
         self,
         *,
-        status: list[TodoStatus] | None = None,
+        status: list[TodoItemStatus] | None = None,
     ) -> None:
         """Gets items on a to-do list.
 
@@ -186,7 +174,7 @@ class TodoEntitySyncFacade(BaseEntitySyncFacade[TodoState, str]):
         due_date: str | None = None,
         due_datetime: str | None = None,
         rename: str | None = None,
-        status: TodoStatus | None = None,
+        status: TodoItemStatus | None = None,
     ) -> None:
         """Updates an existing to-do list item based on its name or UID.
 

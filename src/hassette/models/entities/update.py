@@ -29,8 +29,6 @@ class UpdateEntity(BaseEntity[UpdateState, str]):
             backup: If supported by the integration, this creates a backup before starting the update.
             version: The version to install. If omitted, the latest version will be installed.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="install",
@@ -41,8 +39,6 @@ class UpdateEntity(BaseEntity[UpdateState, str]):
 
     def skip(self) -> Coroutine[Any, Any, None]:
         """Marks a currently available update as skipped."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="skip",
@@ -51,8 +47,6 @@ class UpdateEntity(BaseEntity[UpdateState, str]):
 
     def clear_skipped(self) -> Coroutine[Any, Any, None]:
         """Removes the skipped version marker from an update."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="clear_skipped",
