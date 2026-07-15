@@ -9,7 +9,7 @@ Tests cover:
 - mark_ready called in on_initialize
 - ApiProtocol conformance (smoke test)
 - ApiCall extraction to api_call module
-- StrEnum coercion for turn_on, turn_off, toggle_service
+- StrEnum coercion for turn_on, turn_off, toggle
 - Tailored __getattr__ messages
 - get_entity_or_none BaseEntity subclass path (regression for inline refactor)
 """
@@ -36,7 +36,7 @@ async def test_turn_on_records_call():
     call = api.calls[0]
     assert call.method == "turn_on"
     assert call.args == ("light.test",)
-    assert call.kwargs == {"entity_id": "light.test", "domain": "homeassistant", "brightness": 150}
+    assert call.kwargs == {"entity_id": "light.test", "domain": "light", "brightness": 150}
 
 
 async def test_call_service_records_target():
@@ -91,17 +91,17 @@ async def test_turn_off_records_call():
     call = api.calls[0]
     assert call.method == "turn_off"
     assert call.args == ("switch.fan",)
-    assert call.kwargs == {"entity_id": "switch.fan", "domain": "homeassistant"}
+    assert call.kwargs == {"entity_id": "switch.fan", "domain": "switch"}
 
 
-async def test_toggle_service_records_call():
+async def test_toggle_records_call():
     api = make_recording_api()
-    await api.toggle_service("light.kitchen")
+    await api.toggle("light.kitchen")
     assert len(api.calls) == 1
     call = api.calls[0]
-    assert call.method == "toggle_service"
+    assert call.method == "toggle"
     assert call.args == ("light.kitchen",)
-    assert call.kwargs == {"entity_id": "light.kitchen", "domain": "homeassistant"}
+    assert call.kwargs == {"entity_id": "light.kitchen", "domain": "light"}
 
 
 async def test_get_state_delegates_to_state_proxy():
@@ -372,12 +372,12 @@ async def test_turn_off_accepts_strenum():
     assert entity_id == "light.kitchen"
 
 
-async def test_toggle_service_accepts_strenum():
-    """toggle_service stores entity_id as plain str (not StrEnum) in ApiCall.kwargs."""
+async def test_toggle_accepts_strenum():
+    """Toggle stores entity_id as plain str (not StrEnum) in ApiCall.kwargs."""
     api = make_recording_api()
-    await api.toggle_service(_TestEntityId.KITCHEN)
+    await api.toggle(_TestEntityId.KITCHEN)
     call = api.calls[0]
-    assert call.method == "toggle_service"
+    assert call.method == "toggle"
     entity_id = call.kwargs["entity_id"]
     assert type(entity_id) is str
     assert entity_id == "light.kitchen"
@@ -532,9 +532,9 @@ async def test_assert_called_exact_passes_full_kwargs():
     """assert_called_exact passes when all recorded kwargs are provided exactly."""
     api = make_recording_api()
     await api.turn_off("light.x")
-    # Recorded: {"entity_id": "light.x", "domain": "homeassistant"}
+    # Recorded: {"entity_id": "light.x", "domain": "light"}
     # Must specify all keys to pass exact match.
-    api.assert_called_exact("turn_off", entity_id="light.x", domain="homeassistant")
+    api.assert_called_exact("turn_off", entity_id="light.x", domain="light")
 
 
 async def test_assert_called_partial_is_alias():
@@ -551,3 +551,51 @@ async def test_assert_called_partial_is_alias():
         api.assert_called("turn_off", entity_id="light.nonexistent")
     with pytest.raises(AssertionError):
         api.assert_called_partial("turn_off", entity_id="light.nonexistent")
+
+
+async def test_turn_on_derives_domain_from_entity_id():
+    """turn_on with no domain= arg derives the domain from the entity_id prefix."""
+    api = make_recording_api()
+    await api.turn_on("light.kitchen")
+    call = api.calls[0]
+    assert call.kwargs["domain"] == "light"
+
+
+async def test_turn_on_uses_explicit_domain():
+    """turn_on with an explicit domain= arg uses that value instead of deriving it."""
+    api = make_recording_api()
+    await api.turn_on("light.kitchen", domain="homeassistant")
+    call = api.calls[0]
+    assert call.kwargs["domain"] == "homeassistant"
+
+
+async def test_turn_off_captures_extra_data():
+    """turn_off forwards **data kwargs into the recorded ApiCall.kwargs."""
+    api = make_recording_api()
+    await api.turn_off("light.kitchen", transition=2)
+    call = api.calls[0]
+    assert call.kwargs["transition"] == 2
+
+
+async def test_toggle_captures_extra_data():
+    """Toggle forwards **data kwargs into the recorded ApiCall.kwargs."""
+    api = make_recording_api()
+    await api.toggle("light.kitchen", transition=1)
+    call = api.calls[0]
+    assert call.kwargs["transition"] == 1
+
+
+async def test_turn_off_derives_domain_from_entity_id():
+    """turn_off with no domain= arg derives the domain from the entity_id prefix."""
+    api = make_recording_api()
+    await api.turn_off("switch.fan")
+    call = api.calls[0]
+    assert call.kwargs["domain"] == "switch"
+
+
+async def test_toggle_derives_domain_from_entity_id():
+    """Toggle with no domain= arg derives the domain from the entity_id prefix."""
+    api = make_recording_api()
+    await api.toggle("light.bedroom")
+    call = api.calls[0]
+    assert call.kwargs["domain"] == "light"

@@ -51,7 +51,7 @@ async def test_sync_turn_on_records_with_correct_shape():
     call = api.calls[0]
     assert call.method == "turn_on"
     assert call.args == ("light.kitchen",)
-    assert call.kwargs == {"entity_id": "light.kitchen", "domain": "homeassistant"}
+    assert call.kwargs == {"entity_id": "light.kitchen", "domain": "light"}
 
 
 async def test_sync_turn_on_coerces_strenum():
@@ -75,7 +75,7 @@ async def test_sync_turn_on_passes_extra_data():
     call = api.calls[0]
     assert call.kwargs["brightness"] == 200
     assert call.kwargs["entity_id"] == "light.kitchen"
-    assert call.kwargs["domain"] == "homeassistant"
+    assert call.kwargs["domain"] == "light"
 
 
 async def test_sync_turn_off_records_with_correct_shape():
@@ -86,18 +86,18 @@ async def test_sync_turn_off_records_with_correct_shape():
     call = api.calls[0]
     assert call.method == "turn_off"
     assert call.args == ("switch.fan",)
-    assert call.kwargs == {"entity_id": "switch.fan", "domain": "homeassistant"}
+    assert call.kwargs == {"entity_id": "switch.fan", "domain": "switch"}
 
 
-async def test_sync_toggle_service_records_with_correct_shape():
-    """sync.toggle_service records ApiCall with correct method, args, and kwargs."""
+async def test_sync_toggle_records_with_correct_shape():
+    """sync.toggle records ApiCall with correct method, args, and kwargs."""
     api = make_recording_api()
-    api.sync.toggle_service("light.kitchen")
+    api.sync.toggle("light.kitchen")
     assert len(api.calls) == 1
     call = api.calls[0]
-    assert call.method == "toggle_service"
+    assert call.method == "toggle"
     assert call.args == ("light.kitchen",)
-    assert call.kwargs == {"entity_id": "light.kitchen", "domain": "homeassistant"}
+    assert call.kwargs == {"entity_id": "light.kitchen", "domain": "light"}
 
 
 async def test_sync_call_service_records_with_correct_shape():
@@ -264,7 +264,7 @@ async def test_body_copied_methods_are_sync():
 
     Body-copied methods (keep in sync with the generator's output):
     call_service, entity_exists, fire_event, get_entity, get_entity_or_none,
-    get_state, get_state_or_none, get_states, set_state, toggle_service,
+    get_state, get_state_or_none, get_states, set_state, toggle,
     turn_off, turn_on
     """
     # Seed both a sensor (for get_state-style calls) and a light (for get_entity
@@ -285,7 +285,7 @@ async def test_body_copied_methods_are_sync():
         ("get_state_or_none", ("sensor.test",), {}),
         ("get_states", (), {}),
         ("set_state", ("sensor.test", "off"), {}),
-        ("toggle_service", ("sensor.test",), {}),
+        ("toggle", ("sensor.test",), {}),
         ("turn_off", ("sensor.test",), {}),
         ("turn_on", ("sensor.test",), {}),
         # Helper CRUD — list methods (read-only)
