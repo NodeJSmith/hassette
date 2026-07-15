@@ -1,3 +1,8 @@
+---
+paths:
+  - "docs/**"
+---
+
 # Voice Guide
 
 <reference-voice>

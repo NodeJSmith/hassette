@@ -1,7 +1,7 @@
 # Design: Derive service domain from entity_id in Api convenience methods
 
 **Date:** 2026-07-14
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Research:** /tmp/claude-mine-define-research-yktaKQ/brief.md
 
