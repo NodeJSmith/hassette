@@ -144,6 +144,38 @@ class TestDomainStatesAgainstFakeStateReader:
         for _, state in results:
             assert isinstance(state, state_class)
 
+    def test_keys_returns_iterator_of_entity_ids(self) -> None:
+        state_class = self.make_test_state_class()
+        states = {
+            "fake_widget.one": make_minimal_state_dict("fake_widget.one", "on"),
+            "fake_widget.two": make_minimal_state_dict("fake_widget.two", "off"),
+            "other.entity": make_minimal_state_dict("other.entity"),
+        }
+        reader = FakeStateReader(states)
+        ds = DomainStates(reader, state_class)
+
+        result = ds.keys()
+
+        assert hasattr(result, "__next__")
+        assert set(result) == {"fake_widget.one", "fake_widget.two"}
+
+    def test_values_returns_iterator_of_typed_states(self) -> None:
+        state_class = self.make_test_state_class()
+        states = {
+            "fake_widget.one": make_minimal_state_dict("fake_widget.one", "on"),
+            "fake_widget.two": make_minimal_state_dict("fake_widget.two", "off"),
+        }
+        reader = FakeStateReader(states)
+        ds = DomainStates(reader, state_class)
+
+        result = ds.values()
+
+        assert hasattr(result, "__next__")
+        values_list = list(result)
+        assert len(values_list) == 2
+        for state in values_list:
+            assert isinstance(state, state_class)
+
     def test_no_core_import_needed_to_construct(self) -> None:
         """Constructing DomainStates with a plain dict-backed fake works without any core import.
 

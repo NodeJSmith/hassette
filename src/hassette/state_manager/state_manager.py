@@ -1,5 +1,5 @@
 import typing
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterator
 from logging import getLogger
 from typing import Generic, NamedTuple
 
@@ -115,29 +115,13 @@ class DomainStates(Generic[StateT]):
         """Iterate (entity_id, typed state) pairs lazily."""
         return iter(self)
 
-    def keys(self) -> list[str]:
-        """Return a list of entity IDs for this domain."""
-        return [entity_id for entity_id, _ in self]
-
-    def iterkeys(self) -> Iterator[str]:
-        """Returns an iterator over entity IDs for this domain."""
+    def keys(self) -> Iterator[str]:
+        """Iterate over entity IDs for this domain."""
         for entity_id, _ in self:
             yield entity_id
 
-    def values(self) -> list[StateT]:
-        """Return a list of typed states for this domain.
-
-        This returns an eagerly evaluated list of all typed states in this domain.
-
-        Note:
-            This method will iterate over all states in the domain and validate them,
-            which may be expensive for large domains. Consider using the iterator
-            returned by `__iter__` for lazy evaluation if performance is a concern.
-        """
-        return [value for _, value in self]
-
-    def itervalues(self) -> Iterator[StateT]:
-        """Returns an iterator over typed states for this domain."""
+    def values(self) -> Iterator[StateT]:
+        """Iterate over typed states for this domain."""
         for _, value in self:
             yield value
 
@@ -422,14 +406,14 @@ class StateManager(Resource):
         state = self.get(entity_id)
         return state is not None and state.value == HOME_STATE
 
-    def _presence_states(self) -> Sequence[BaseState]:
+    def _presence_states(self) -> list[BaseState]:
         """Return the states to evaluate for presence.
 
         Uses the ``person`` domain, falling back to ``device_tracker`` when no
         ``person`` entities exist.
         """
         domain = self.person or self.device_tracker
-        return domain.values()
+        return list(domain.values())
 
     def __contains__(self, model: type[StateT]) -> bool:
         """Check the global STATE_REGISTRY, not this proxy's cached instances."""

@@ -131,7 +131,7 @@ The API reference lists all 55 classes with their full attribute signatures. Dom
 --8<-- "pages/core-concepts/states/snippets/states_iteration.py"
 ```
 
-`.items()`, `.iterkeys()`, and `.itervalues()` are lazy — they parse raw HA state dicts into typed objects on demand. `.keys()`, `.values()`, and `.to_dict()` are eager and parse all entities up front. Lazy iteration performs better for large domains like `sensor`.
+`.items()`, `.keys()`, and `.values()` all return lazy iterators — they parse raw HA state dicts into typed objects on demand. `.to_dict()` is the one eager method, parsing all entities up front. Lazy iteration performs better for large domains like `sensor`.
 
 `StateManager` itself is also iterable: `self.states.items()` yields `(key, DomainStates)` pairs for every registered state class, and `MyState in self.states` checks whether a class is registered. Useful for diagnostics and generic helpers that sweep all domains.
 
