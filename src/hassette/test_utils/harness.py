@@ -13,6 +13,7 @@ from unittest.mock import AsyncMock, Mock
 from aiohttp import web
 from yarl import URL
 
+import hassette.utils.date_utils as date_utils
 from hassette import HassetteConfig, context
 from hassette.api import Api
 from hassette.bus import Bus
@@ -347,6 +348,7 @@ class HassetteHarness:
 
         if not skip_global_set:
             self._hassette_ctx_token = context.set_global_hassette(self.hassette)
+        date_utils.configure(self.config.timezone)
         self.config.set_validated_app_manifests()
 
     @property

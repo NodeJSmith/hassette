@@ -81,20 +81,11 @@ class After:
 class Once:
     """One-shot trigger that fires at a specific wall-clock time.
 
-    .. warning::
-        ``"HH:MM"`` string inputs are resolved against the **system process
-        timezone** (``date_utils.now().tz``). Docker containers commonly run
-        with ``TZ=UTC`` while the user's Home Assistant is configured for a
-        local zone — a ``Once(at="07:00")`` written for local time will fire
-        at 07:00 UTC in that environment with no warning. To avoid this: set
-        ``TZ`` on the container to match the HA zone, or pass a
-        ``ZonedDateTime`` directly with the intended timezone.
-
     Args:
         at: Target time. Accepts a ``"HH:MM"`` string (interpreted as today's
-            wall-clock time in the **system process timezone** — see warning
-            above) or a ``ZonedDateTime`` (absolute instant; timezone is
-            explicit).
+            wall-clock time in the configured timezone — see
+            ``HassetteConfig.timezone``) or a ``ZonedDateTime`` (absolute
+            instant; timezone is explicit).
         if_past: Behavior when the computed fire time is in the past.
             - ``"tomorrow"`` (default): For ``"HH:MM"`` string inputs, defers to the next day.
               No effect for ``ZonedDateTime`` inputs (the absolute instant is used as-is;
@@ -251,18 +242,10 @@ class Daily:
     Internally delegates to a 5-field cron expression to ensure DST-correct,
     wall-clock-aligned scheduling.
 
-    .. warning::
-        ``"HH:MM"`` is resolved against the **system process timezone** (from
-        ``date_utils.now().tz``). Docker containers commonly run ``TZ=UTC``
-        while the user's Home Assistant is configured for a local zone — a
-        ``Daily(at="07:00")`` written for local time will fire at 07:00 UTC
-        in that environment with no warning. To avoid this: set ``TZ`` on the
-        container to match the HA zone. A future ``tz=`` parameter is tracked
-        in the design doc follow-up work.
-
     Args:
         at: Target time in ``"HH:MM"`` format (e.g. ``"07:00"``),
-            interpreted in the **system process timezone** — see warning above.
+            interpreted in the configured timezone (see
+            ``HassetteConfig.timezone``).
 
     Example:
         Daily(at="07:00")   # fires every day at 07:00 wall-clock time

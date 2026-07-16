@@ -41,6 +41,19 @@
           "$ref": "#/$defs/BlockingIODetectionConfig",
           "description": "Blocking-I/O detection settings for the shared event loop."
         },
+        "timezone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "IANA timezone name (e.g. ``\"America/Chicago\"``) used for all wall-clock\noperations: scheduler trigger resolution, event timestamp conversion, and\nstate model datetime fields.\n\nWhen ``None`` (default), the system process timezone is used. Set this when\nthe hassette process runs in a different timezone than Home Assistant (e.g.\nDocker containers running UTC while HA is configured for a local zone).",
+          "title": "Timezone"
+        },
         "config_file": {
           "anyOf": [
             {

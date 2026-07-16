@@ -41,7 +41,7 @@ The `delay` parameter accepts seconds as a `float`. The job fires once and does 
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_run_daily.py"
 ```
 
-The `at` parameter accepts `"HH:MM"` strings. Without `at=`, the job fires at midnight local time. `run_daily` is DST-safe — it fires at the local wall-clock time regardless of clock changes.
+The `at` parameter accepts `"HH:MM"` strings. Without `at=`, the job fires at midnight. `run_daily` is DST-safe — it fires at the configured wall-clock time regardless of clock changes. The [`timezone`](../configuration/index.md#timezone) setting in `hassette.toml` controls which timezone "wall-clock" means; when unset, the process timezone applies.
 
 ??? note "Synchronous usage (AppSync only)"
     [`AppSync`][hassette.app.app.AppSync] is an alternative base class for automations that must call blocking libraries. Its lifecycle hooks run in a worker thread outside the async event loop. `self.scheduler.sync` exposes a [`SchedulerSyncFacade`][hassette.scheduler.sync.SchedulerSyncFacade] that mirrors all scheduling methods as blocking calls. The [Apps](../apps/index.md) page covers the `AppSync` pattern.

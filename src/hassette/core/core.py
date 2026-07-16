@@ -6,6 +6,7 @@ from typing import Any, final
 
 from dotenv import load_dotenv
 
+import hassette.utils.date_utils as date_utils
 from hassette import context
 from hassette.api import Api
 from hassette.app.app import App
@@ -171,6 +172,10 @@ class Hassette(Resource):
         Must be called after construction and before run_forever().
         """
         self.logger.info("Starting Hassette...")
+
+        date_utils.configure(self.config.timezone)
+        if self.config.timezone:
+            self.logger.info("Using configured timezone: %s", self.config.timezone)
 
         # set context variables
         context.set_global_hassette(self)

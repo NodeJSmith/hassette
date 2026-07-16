@@ -28,7 +28,7 @@ The `image:` line pulls Hassette from GitHub Container Registry (`ghcr.io`) — 
 - `./config` and `./apps` mount your local directories into the container.
 - `data` and `uv_cache` are named volumes for persistent data and the package cache. Docker Compose creates them automatically — no action needed.
 
-Port `8126` exposes the web UI. It is unauthenticated, so keep it off public networks. Set `TZ` to your local timezone so scheduled automations fire at the right times.
+Port `8126` exposes the web UI. It is unauthenticated, so keep it off public networks. Add `HASSETTE__TIMEZONE=America/Chicago` (with your own timezone) to `config/.env` so scheduled automations fire at the right times. The `TZ` environment variable on the container works as a fallback.
 
 ### Step 3: Create config/.env
 

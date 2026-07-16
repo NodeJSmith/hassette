@@ -116,7 +116,7 @@ The handler runs once at a specific wall-clock time. The [`Once`][hassette.sched
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `func` | callable | *(required)* | The handler to run. |
-| `at` | `str \| ZonedDateTime` | *(required)* | Target time. A `"HH:MM"` string is interpreted as today in the system timezone. A [`ZonedDateTime`](https://whenever.readthedocs.io/) (from the `whenever` library, which ships with Hassette — `from whenever import ZonedDateTime`) fires at the exact instant specified. |
+| `at` | `str \| ZonedDateTime` | *(required)* | Target time. A `"HH:MM"` string is interpreted as today in the configured timezone (see [`timezone`](../configuration/index.md#timezone)). A [`ZonedDateTime`](https://whenever.readthedocs.io/) (from the `whenever` library, which ships with Hassette — `from whenever import ZonedDateTime`) fires at the exact instant specified. |
 | `if_past` | `"tomorrow"` \| `"error"` | `"tomorrow"` | Behavior when the target is already in the past. `"tomorrow"` defers by one day and logs a WARNING. `"error"` raises `ValueError` for both input types. |
 
 Shared parameters apply.

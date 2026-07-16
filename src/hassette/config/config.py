@@ -2,6 +2,7 @@ from contextlib import suppress
 from logging import getLogger
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from pydantic import AliasChoices, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
@@ -106,6 +107,15 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
 
     blocking_io: BlockingIODetectionConfig = Field(default_factory=BlockingIODetectionConfig)
     """Blocking-I/O detection settings for the shared event loop."""
+
+    timezone: str | None = Field(default=None)
+    """IANA timezone name (e.g. ``"America/Chicago"``) used for all wall-clock
+    operations: scheduler trigger resolution, event timestamp conversion, and
+    state model datetime fields.
+
+    When ``None`` (default), the system process timezone is used. Set this when
+    the hassette process runs in a different timezone than Home Assistant (e.g.
+    Docker containers running UTC while HA is configured for a local zone)."""
 
     # note - not actually used here, reflects the --config-file / --env-file flags on the cyclopts default command
     config_file: Path | str | None = Field(default=Path("hassette.toml"))
@@ -275,6 +285,19 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
                 f"database.retention_days ({self.database.retention_days})"
             )
         return self
+
+    @field_validator("timezone", mode="before")
+    @classmethod
+    def validate_timezone(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        try:
+            ZoneInfo(value)
+        except (KeyError, ValueError):
+            raise ValueError(
+                f"Invalid timezone: {value!r}. Use an IANA timezone name (e.g. 'America/Chicago', 'Europe/London')."
+            ) from None
+        return value
 
     @field_validator("config_dir", "data_dir", mode="after")
     @classmethod

@@ -604,8 +604,8 @@ class Scheduler(Resource):
 
         Args:
             func: The function to run.
-            at: Target time. A ``"HH:MM"`` string (today in system timezone, or
-                tomorrow if already past) or a ``ZonedDateTime``.
+            at: Target time. A ``"HH:MM"`` string (today in the configured
+                timezone, or tomorrow if already past) or a ``ZonedDateTime``.
             name: Required stable name for the job.
             group: Optional group name.
             jitter: Optional seconds of random offset to apply at enqueue time.
