@@ -345,6 +345,7 @@ class HassetteHarness:
         self._previous_task_factory: typing.Any = None
         self._hassette_ctx_token: typing.Any = None  # Token[Hassette] | None
         self._original_app_manifests: dict[str, AppManifest] | None = None
+        self._original_tz = date_utils._configured_tz
 
         if not skip_global_set:
             self._hassette_ctx_token = context.set_global_hassette(self.hassette)
@@ -687,6 +688,7 @@ class HassetteHarness:
             # every subsequent test on the worker with "already set" errors.
             if self._hassette_ctx_token is not None:
                 context.HASSETTE_INSTANCE.reset(self._hassette_ctx_token)
+            date_utils.configure(self._original_tz)
 
             if self.hassette._loop is not None:
                 self.hassette._loop.set_task_factory(self._previous_task_factory)

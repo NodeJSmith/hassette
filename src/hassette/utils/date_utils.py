@@ -1,6 +1,6 @@
 from typing import overload
 
-from whenever import OffsetDateTime, ZonedDateTime
+from whenever import OffsetDateTime, PlainDateTime, ZonedDateTime
 
 _configured_tz: str | None = None
 
@@ -43,6 +43,16 @@ def convert_datetime_str_to_tz(value: str | ZonedDateTime | None) -> ZonedDateTi
     if _configured_tz is not None:
         return OffsetDateTime.parse_iso(value).to_tz(_configured_tz)
     return OffsetDateTime.parse_iso(value).to_system_tz()
+
+
+def assume_tz(dt: PlainDateTime) -> ZonedDateTime:
+    """Interpret a naive datetime in the configured timezone.
+
+    Uses the configured timezone if set, otherwise the system process timezone.
+    """
+    if _configured_tz is not None:
+        return dt.assume_tz(_configured_tz)
+    return dt.assume_system_tz()
 
 
 def now() -> ZonedDateTime:

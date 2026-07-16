@@ -10,14 +10,16 @@ from pathlib import Path
 
 
 def _run_ruff_quiet(cmd: list[str], step_name: str) -> None:
-    """Run a ruff subprocess step with stdout suppressed."""
+    """Run a ruff subprocess step, surfacing stdout only on failure."""
     try:
-        subprocess.run(cmd, check=True, timeout=30, stdout=subprocess.DEVNULL)
+        subprocess.run(cmd, check=True, timeout=30, stdout=subprocess.PIPE)
     except FileNotFoundError as exc:
         raise SystemExit("ruff not found on PATH. Install with: uv tool install ruff") from exc
     except subprocess.TimeoutExpired as exc:
         raise SystemExit(f"ruff {step_name} timed out after 30s — check for filesystem stall") from exc
     except subprocess.CalledProcessError as exc:
+        if exc.stdout:
+            sys.stderr.buffer.write(exc.stdout)
         raise SystemExit(f"ruff {step_name} failed with exit code {exc.returncode}.") from exc
 
 

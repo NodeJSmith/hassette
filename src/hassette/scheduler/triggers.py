@@ -84,8 +84,9 @@ class Once:
     Args:
         at: Target time. Accepts a ``"HH:MM"`` string (interpreted as today's
             wall-clock time in the configured timezone — see
-            ``HassetteConfig.timezone``) or a ``ZonedDateTime`` (absolute
-            instant; timezone is explicit).
+            ``HassetteConfig.timezone``; falls back to the process timezone
+            when unset) or a ``ZonedDateTime`` (absolute instant; timezone
+            is explicit).
         if_past: Behavior when the computed fire time is in the past.
             - ``"tomorrow"`` (default): For ``"HH:MM"`` string inputs, defers to the next day.
               No effect for ``ZonedDateTime`` inputs (the absolute instant is used as-is;
@@ -245,7 +246,8 @@ class Daily:
     Args:
         at: Target time in ``"HH:MM"`` format (e.g. ``"07:00"``),
             interpreted in the configured timezone (see
-            ``HassetteConfig.timezone``).
+            ``HassetteConfig.timezone``; falls back to the process timezone
+            when unset).
 
     Example:
         Daily(at="07:00")   # fires every day at 07:00 wall-clock time

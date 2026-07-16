@@ -77,8 +77,7 @@ The `HassetteConfig` reference covers every field, its type, and its default. Th
 Docker containers commonly default to UTC. Home Assistant uses a local zone configured by the user. Without an explicit `timezone`, scheduled jobs fire at UTC wall-clock times. `timezone` in `hassette.toml` (or `HASSETTE__TIMEZONE`) resolves this without modifying the container's `TZ` variable.
 
 ```toml
-[hassette]
-timezone = "America/Chicago"
+--8<-- "pages/core-concepts/configuration/snippets/timezone_config.toml"
 ```
 
 ### Data Directory and Upgrades

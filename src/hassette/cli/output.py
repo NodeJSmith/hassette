@@ -56,6 +56,7 @@ def fmt_relative_time(value: Any) -> str:
                 try:
                     epoch = OffsetDateTime.parse_iso(s).timestamp()
                 except ValueError:
+                    # CLI display: user's terminal timezone, not the configured Hassette timezone
                     epoch = PlainDateTime.parse_iso(s).assume_system_tz().timestamp()
         delta = now_epoch() - epoch
         if delta < 0:

@@ -54,7 +54,7 @@ class InputDatetimeAttributes(InputAttributesBase):
         return Instant.from_timestamp(self.timestamp)
 
     @property
-    def timestamp_as_system_datetime(self) -> ZonedDateTime | None:
+    def timestamp_as_datetime(self) -> ZonedDateTime | None:
         if self.timestamp is None:
             return None
         return convert_utc_timestamp_to_tz(self.timestamp)
