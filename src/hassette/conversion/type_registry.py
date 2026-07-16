@@ -10,7 +10,7 @@ from typing import Any, ClassVar, Generic, TypeVar, overload
 from whenever import Date, Instant, OffsetDateTime, PlainDateTime, Time, ZonedDateTime
 
 from hassette.exceptions import UnableToConvertValueError
-from hassette.utils.date_utils import convert_datetime_str_to_system_tz
+from hassette.utils.date_utils import convert_datetime_str_to_tz
 
 R = TypeVar("R")
 T = TypeVar("T")
@@ -291,7 +291,7 @@ register_simple_type_converter(ZonedDateTime, str, fn=ZonedDateTime.format_iso)
 @register_type_converter_fn(error_message="String must be a datetime-like value, got {from_type}")
 def from_string_to_zoned_date_time(value: str) -> ZonedDateTime:
     with suppress(ValueError):
-        return convert_datetime_str_to_system_tz(value)
+        return convert_datetime_str_to_tz(value)
     with suppress(ValueError):
         return PlainDateTime.parse_iso(value).assume_system_tz()
     with suppress(ValueError):

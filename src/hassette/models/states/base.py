@@ -163,10 +163,10 @@ class BaseState(BaseModel, Generic[StateValueT]):
         if value is None:
             return None
         if isinstance(value, int | float):
-            return date_utils.convert_utc_timestamp_to_system_tz(value)
+            return date_utils.convert_utc_timestamp_to_tz(value)
         if isinstance(value, str):
             # need to use OffsetDateTime since the value is +00:00, not Z or a timezone
-            return date_utils.convert_datetime_str_to_system_tz(value)
+            return date_utils.convert_datetime_str_to_tz(value)
 
         return value
 

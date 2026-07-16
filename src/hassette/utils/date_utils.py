@@ -15,7 +15,7 @@ def configure(tz: str | None) -> None:
     _configured_tz = tz
 
 
-def convert_utc_timestamp_to_system_tz(timestamp: int | float) -> ZonedDateTime:
+def convert_utc_timestamp_to_tz(timestamp: int | float) -> ZonedDateTime:
     """Convert a UTC timestamp to a ZonedDateTime in the configured timezone.
 
     Uses the configured timezone if set, otherwise the system process timezone.
@@ -26,14 +26,14 @@ def convert_utc_timestamp_to_system_tz(timestamp: int | float) -> ZonedDateTime:
 
 
 @overload
-def convert_datetime_str_to_system_tz(value: str | ZonedDateTime) -> ZonedDateTime: ...
+def convert_datetime_str_to_tz(value: str | ZonedDateTime) -> ZonedDateTime: ...
 
 
 @overload
-def convert_datetime_str_to_system_tz(value: None) -> None: ...
+def convert_datetime_str_to_tz(value: None) -> None: ...
 
 
-def convert_datetime_str_to_system_tz(value: str | ZonedDateTime | None) -> ZonedDateTime | None:
+def convert_datetime_str_to_tz(value: str | ZonedDateTime | None) -> ZonedDateTime | None:
     """Convert an ISO 8601 datetime string to a ZonedDateTime in the configured timezone.
 
     Uses the configured timezone if set, otherwise the system process timezone.
