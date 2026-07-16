@@ -3,7 +3,7 @@ task_id: "T04"
 title: "Migrate all test call sites to new HelperClient shape"
 status: "planned"
 depends_on: ["T01", "T02", "T03"]
-implements: ["FR#9", "AC#3"]
+implements: ["FR#9", "AC#3", "AC#7"]
 ---
 
 ## Summary
@@ -74,3 +74,4 @@ Migrate all test call sites from the old flat API to the new `api.helpers.*` sha
 
 - [ ] FR#9: No test file references the old flat method names — `grep -rl 'list_input_\|create_input_\|update_input_\|delete_input_\|list_counter\|create_counter\|update_counter\|delete_counter\|list_timer\|create_timer\|update_timer\|delete_timer\|increment_counter\|decrement_counter\|reset_counter' tests/` returns only `test_bus_dispatch_semaphore.py` (false positive in test name) and `test_api_helper_models.py` (tests models, not Api)
 - [ ] AC#3: `uv run nox -s dev` passes with 0 failures
+- [ ] AC#7: `prek -a` exits 0 (re-check after all test migrations)

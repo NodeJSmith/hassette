@@ -65,6 +65,6 @@ Extend the sync facade codegen to handle `HelperClient`. Read the design doc's `
 
 ## Verify
 
-- [ ] FR#7: `HelperClientSyncFacade` class exists in generated output with `list`, `create`, `update`, `delete`, `increment`, `decrement`, `reset` methods wrapping via `task_bucket.run_sync()`
+- [ ] FR#7: `HelperClientSyncFacade` class exists in generated `sync_helpers.py` with `list`, `create`, `update`, `delete`, `increment`, `decrement`, `reset` methods wrapping via `task_bucket.run_sync()`, and `ApiSyncFacade.__init__` wires `self.helpers = self.add_child(HelperClientSyncFacade, ...)`
 - [ ] FR#9: Regenerated `sync.py` and `test_utils/sync_facade.py` no longer contain any of the 35 flat helper method wrappers — `grep -c 'def list_input_\|def create_input_\|def update_input_\|def delete_input_\|def list_counter\|def create_counter\|def update_counter\|def delete_counter\|def list_timer\|def create_timer\|def update_timer\|def delete_timer\|def increment_counter\|def decrement_counter\|def reset_counter' src/hassette/api/sync.py src/hassette/test_utils/sync_facade.py` returns 0
 - [ ] AC#5: `uv run python codegen/src/hassette_codegen/sync_facade/ --target all --check` exits 0
