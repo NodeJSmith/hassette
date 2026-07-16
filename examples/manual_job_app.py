@@ -32,5 +32,5 @@ class ManualJobApp(App[ManualJobConfig]):
 
     async def light_status_report(self) -> None:
         """Log current state of all lights."""
-        for entity_id, light in self.states.light:
+        for entity_id, light in self.states.light.items():
             self.logger.info("%s: %s", entity_id, light.value)

@@ -6,7 +6,7 @@ on the concrete StateProxy or the core package.
 """
 
 import typing
-from collections.abc import Generator
+from collections.abc import Generator, Mapping
 from uuid import uuid4
 
 import pytest
@@ -126,7 +126,7 @@ class TestDomainStatesAgainstFakeStateReader:
 
         assert len(ds) == 2
 
-    def test_iteration_yields_only_domain_entities(self) -> None:
+    def test_iteration_yields_entity_ids(self) -> None:
         state_class = self.make_test_state_class()
         states = {
             "fake_widget.one": make_minimal_state_dict("fake_widget.one", "on"),
@@ -136,7 +136,23 @@ class TestDomainStatesAgainstFakeStateReader:
         reader = FakeStateReader(states)
         ds = DomainStates(reader, state_class)
 
-        results = list(ds)
+        result = list(ds)
+
+        assert set(result) == {"fake_widget.one", "fake_widget.two"}
+        for entity_id in result:
+            assert isinstance(entity_id, str)
+
+    def test_items_yields_entity_id_state_pairs(self) -> None:
+        state_class = self.make_test_state_class()
+        states = {
+            "fake_widget.one": make_minimal_state_dict("fake_widget.one", "on"),
+            "fake_widget.two": make_minimal_state_dict("fake_widget.two", "off"),
+            "other.entity": make_minimal_state_dict("other.entity"),
+        }
+        reader = FakeStateReader(states)
+        ds = DomainStates(reader, state_class)
+
+        results = list(ds.items())
 
         assert len(results) == 2
         entity_ids = {eid for eid, _ in results}
@@ -144,7 +160,7 @@ class TestDomainStatesAgainstFakeStateReader:
         for _, state in results:
             assert isinstance(state, state_class)
 
-    def test_keys_returns_iterator_of_entity_ids(self) -> None:
+    def test_keys_returns_reiterable_view(self) -> None:
         state_class = self.make_test_state_class()
         states = {
             "fake_widget.one": make_minimal_state_dict("fake_widget.one", "on"),
@@ -154,12 +170,14 @@ class TestDomainStatesAgainstFakeStateReader:
         reader = FakeStateReader(states)
         ds = DomainStates(reader, state_class)
 
-        result = ds.keys()
+        keys = ds.keys()
+        first_pass = set(keys)
+        second_pass = set(keys)
 
-        assert hasattr(result, "__next__")
-        assert set(result) == {"fake_widget.one", "fake_widget.two"}
+        assert first_pass == {"fake_widget.one", "fake_widget.two"}
+        assert first_pass == second_pass
 
-    def test_values_returns_iterator_of_typed_states(self) -> None:
+    def test_values_returns_reiterable_view(self) -> None:
         state_class = self.make_test_state_class()
         states = {
             "fake_widget.one": make_minimal_state_dict("fake_widget.one", "on"),
@@ -168,13 +186,58 @@ class TestDomainStatesAgainstFakeStateReader:
         reader = FakeStateReader(states)
         ds = DomainStates(reader, state_class)
 
-        result = ds.values()
+        values = ds.values()
+        first_pass = list(values)
+        second_pass = list(values)
 
-        assert hasattr(result, "__next__")
-        values_list = list(result)
-        assert len(values_list) == 2
-        for state in values_list:
+        assert len(first_pass) == 2
+        assert len(second_pass) == 2
+        for state in first_pass:
             assert isinstance(state, state_class)
+
+    def test_keys_view_supports_len(self) -> None:
+        state_class = self.make_test_state_class()
+        states = {
+            "fake_widget.one": make_minimal_state_dict("fake_widget.one"),
+            "fake_widget.two": make_minimal_state_dict("fake_widget.two"),
+        }
+        reader = FakeStateReader(states)
+        ds = DomainStates(reader, state_class)
+
+        assert len(ds.keys()) == 2
+        assert len(ds.values()) == 2
+        assert len(ds.items()) == 2
+
+    def test_keys_view_supports_contains(self) -> None:
+        state_class = self.make_test_state_class()
+        states = {"fake_widget.one": make_minimal_state_dict("fake_widget.one")}
+        reader = FakeStateReader(states)
+        ds = DomainStates(reader, state_class)
+
+        assert "fake_widget.one" in ds.keys()  # noqa: SIM118 — testing KeysView.__contains__
+        assert "fake_widget.missing" not in ds.keys()  # noqa: SIM118
+
+    def test_dict_constructor_works(self) -> None:
+        state_class = self.make_test_state_class()
+        states = {
+            "fake_widget.one": make_minimal_state_dict("fake_widget.one", "on"),
+            "fake_widget.two": make_minimal_state_dict("fake_widget.two", "off"),
+        }
+        reader = FakeStateReader(states)
+        ds = DomainStates(reader, state_class)
+
+        result = dict(ds)
+
+        assert set(result.keys()) == {"fake_widget.one", "fake_widget.two"}
+        for state in result.values():
+            assert isinstance(state, state_class)
+
+    def test_is_mapping_instance(self) -> None:
+        state_class = self.make_test_state_class()
+        reader = FakeStateReader({})
+        ds = DomainStates(reader, state_class)
+
+        assert isinstance(ds, Mapping)
 
     def test_no_core_import_needed_to_construct(self) -> None:
         """Constructing DomainStates with a plain dict-backed fake works without any core import.

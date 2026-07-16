@@ -29,7 +29,7 @@ Three access patterns:
 |---|---|
 | `self.states.light.get("light.kitchen")` | `LightState \| None` |
 | `self.states[states.LightState].get("light.kitchen")` | `LightState \| None`, for any domain |
-| `for entity_id, state in self.states.light` | Iterates all cached lights |
+| `for entity_id, state in self.states.light.items()` | Iterates all cached lights |
 
 Use `self.states` for any read inside a handler or scheduled task. The cache is always up-to-date.
 

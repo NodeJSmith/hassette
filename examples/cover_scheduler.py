@@ -86,7 +86,7 @@ class CoverScheduler(App[CoverSchedulerConfig]):
     async def open_all_covers(self) -> None:
         """Open all covers."""
         self.logger.info("Opening all covers (weekday morning schedule)")
-        for entity_id, cover in self.states.cover:
+        for entity_id, cover in self.states.cover.items():
             self.logger.info("Opening %s (current state: %s)", entity_id, cover.value)
             try:
                 await self.api.call_service("cover", "open_cover", target={"entity_id": entity_id})
@@ -96,7 +96,7 @@ class CoverScheduler(App[CoverSchedulerConfig]):
     async def close_all_covers(self) -> None:
         """Close all covers."""
         self.logger.info("Closing all covers (nightly schedule)")
-        for entity_id, cover in self.states.cover:
+        for entity_id, cover in self.states.cover.items():
             self.logger.info("Closing %s (current state: %s)", entity_id, cover.value)
             try:
                 await self.api.call_service("cover", "close_cover", target={"entity_id": entity_id})
@@ -141,6 +141,6 @@ class CoverScheduler(App[CoverSchedulerConfig]):
     async def _get_cover_positions(self) -> dict[str, str | None]:
         """Collect current cover positions."""
         positions: dict[str, str | None] = {}
-        for entity_id, cover in self.states.cover:
+        for entity_id, cover in self.states.cover.items():
             positions[entity_id] = cover.value
         return positions
