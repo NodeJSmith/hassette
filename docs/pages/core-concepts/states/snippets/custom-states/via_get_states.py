@@ -8,7 +8,7 @@ class MyApp(App):
         # Get all reddit entities
         reddit_states = self.states[RedditState]
 
-        for entity_id, state in reddit_states:
+        for entity_id, state in reddit_states.items():
             print(f"{entity_id}: {state.value}")
             if state.attributes.karma:
                 print(f"  Karma: {state.attributes.karma}")

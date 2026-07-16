@@ -63,7 +63,7 @@ class TestStatesDomainAccessors:
 
         # Iterate and verify only lights are returned
         light_ids = []
-        for entity_id, light_state in lights:
+        for entity_id, light_state in lights.items():
             light_ids.append(entity_id)
             assert isinstance(light_state, states.LightState), (
                 f"Expected LightState but got {type(light_state).__name__}"
@@ -92,7 +92,7 @@ class TestStatesDomainAccessors:
         sensors = states_instance.sensor
 
         sensor_ids = []
-        for eid, sensor_state in sensors:
+        for eid, sensor_state in sensors.items():
             sensor_ids.append(eid)
             assert isinstance(sensor_state, states.SensorState), (
                 f"Expected SensorState but got {type(sensor_state).__name__}"
@@ -117,7 +117,7 @@ class TestStatesDomainAccessors:
         switches = states_instance.switch
 
         switch_ids = []
-        for eid, switch_state in switches:
+        for eid, switch_state in switches.items():
             switch_ids.append(eid)
             assert isinstance(switch_state, states.SwitchState), (
                 f"Expected SwitchState but got {type(switch_state).__name__}"
@@ -146,7 +146,7 @@ class TestStatesGenericAccess:
 
         # Should contain light entities with proper types
         light_ids = []
-        for eid, light_state in lights:
+        for eid, light_state in lights.items():
             light_ids.append(eid)
             assert isinstance(light_state, states.LightState), f"get_states returned {type(light_state).__name__}"
             assert type(light_state) is not states.BaseState, "Should be LightState, not bare BaseState"
@@ -210,7 +210,7 @@ class TestDomainStates:
         )
 
     async def test_iteration_over_domain(self, hassette_with_state_proxy: "HassetteHarness") -> None:
-        """DomainStates can be iterated to get (entity_id, state) tuples."""
+        """DomainStates.items() yields (entity_id, state) pairs."""
         hassette = hassette_with_state_proxy
 
         # Add lights
@@ -223,7 +223,7 @@ class TestDomainStates:
 
         # Iterate and collect
         collected = []
-        for entity_id, light_state in lights:
+        for entity_id, light_state in lights.items():
             collected.append((entity_id, light_state))
             assert isinstance(light_state, states.LightState)
             assert entity_id.startswith("light.")
@@ -390,7 +390,7 @@ class TestStatesIntegration:
 
         # Each domain should only contain its entities with proper types
         light_ids = set()
-        for eid, light_state in states_instance.light:
+        for eid, light_state in states_instance.light.items():
             if eid.startswith("light.test_"):
                 light_ids.add(eid)
                 assert isinstance(light_state, states.LightState), (
@@ -398,7 +398,7 @@ class TestStatesIntegration:
                 )
 
         sensor_ids = set()
-        for eid, sensor_state in states_instance.sensor:
+        for eid, sensor_state in states_instance.sensor.items():
             if eid.startswith("sensor.test_"):
                 sensor_ids.add(eid)
                 assert isinstance(sensor_state, states.SensorState), (
@@ -406,7 +406,7 @@ class TestStatesIntegration:
                 )
 
         switch_ids = set()
-        for eid, switch_state in states_instance.switch:
+        for eid, switch_state in states_instance.switch.items():
             if eid.startswith("switch.test_"):
                 switch_ids.add(eid)
                 assert isinstance(switch_state, states.SwitchState), (
@@ -441,14 +441,14 @@ class TestStatesIntegration:
 
         assert len(light_manager._cache) == 0
 
-        for i, (entity_id, light_state) in enumerate(light_manager):
+        for i, (entity_id, light_state) in enumerate(light_manager.items()):
             assert isinstance(light_state, states.LightState)
             assert entity_id.startswith("light.")
             assert len(light_manager._cache) == i + 1
 
-        for _, light_state in light_manager:
+        for light_state in light_manager.values():
             assert isinstance(light_state, states.LightState)
-            # The cache should already be populated from the previous iteritems call
+            # The cache should already be populated from the previous iteration
             assert len(light_manager._cache) == i + 1
 
 

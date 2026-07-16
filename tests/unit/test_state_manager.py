@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from pydantic import ValidationError
 
-from hassette.conversion import STATE_REGISTRY
+from hassette.conversion import STATE_REGISTRY, StateKey
 from hassette.exceptions import RegistryNotReadyError, UnableToConvertStateError
 from hassette.models.states import BaseState, DeviceTrackerState, LightState, PersonState, SensorState
 from hassette.state_manager.state_manager import DomainStates, StateManager
@@ -248,12 +248,11 @@ class TestDomainStatesConversionExceptionType:
 
         ds: DomainStates[LightState] = DomainStates(proxy, LightState)
 
-        results = list(ds)
-        entity_ids = [eid for eid, _ in results]
+        entity_ids = list(ds)
 
         assert "light.bad" not in entity_ids
         assert "light.kitchen" in entity_ids
-        assert len(results) == 1
+        assert len(entity_ids) == 1
 
 
 class TestStateManagerIterationCache:
@@ -275,25 +274,31 @@ class TestStateManagerIterationCache:
         assert values_list == [attr_result]
         assert values_list[0] is attr_result
 
-    def test_iter_returns_cached_domain_states(self, state_manager: StateManager) -> None:
-        """__iter__ returns DomainStates from _domain_states_cache."""
-        # Patch STATE_REGISTRY to have one entry: LightState
+    def test_iter_yields_state_keys(self, state_manager: StateManager) -> None:
+        """__iter__ yields StateKey objects from the registry."""
+        light_key = StateKey(domain="light")
+        with patch.object(STATE_REGISTRY, "keys", return_value=iter([light_key])):
+            keys_list = list(state_manager)
+            assert len(keys_list) == 1
+            assert keys_list[0] == light_key
+
+    def test_items_returns_cached_domain_states(self, state_manager: StateManager) -> None:
+        """items() returns (key, DomainStates) and populates the cache."""
         with patch.object(STATE_REGISTRY, "items", return_value=iter([("light", LightState)])):
-            items_list = list(state_manager)
+            items_list = list(state_manager.items())
             assert len(items_list) == 1
 
-            _key, domain_states_from_iter = items_list[0]
-            assert domain_states_from_iter._model is LightState
+            _key, domain_states_from_items = items_list[0]
+            assert domain_states_from_items._model is LightState
 
-            # The instance should be in the cache now
             assert LightState in state_manager._domain_states_cache
-            assert state_manager._domain_states_cache[LightState] is domain_states_from_iter
+            assert state_manager._domain_states_cache[LightState] is domain_states_from_items
 
     def test_getitem_returns_fresh_uncached_instance(self, state_manager: StateManager) -> None:
         """__getitem__ always returns a fresh DomainStates, not the cached one."""
         with patch.object(STATE_REGISTRY, "items", return_value=iter([("light", LightState)])):
-            # Populate cache via iteration
-            list(state_manager)
+            # Populate cache via items()
+            list(state_manager.items())
             cached = state_manager._domain_states_cache.get(LightState)
             assert cached is not None
 

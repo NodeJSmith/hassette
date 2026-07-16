@@ -136,7 +136,7 @@ from hassette import App
 
 class StateCheckApp(App):
     async def on_initialize(self) -> None:
-        self.light_states = list(self.states.light)
+        self.light_states = list(self.states.light.items())
 """
     (apps_dir / "state_check_app.py").write_text(app_code)
 

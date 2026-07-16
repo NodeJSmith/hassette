@@ -11,7 +11,7 @@ class StateGetter(App):
             self.logger.info("Brightness: %s", office_light.attributes.brightness)
 
         # Iterate over all lights
-        for entity_id, light in self.states.light:
+        for entity_id, light in self.states.light.items():
             self.logger.info("%s: %s", entity_id, light.value)
         # Typed access for any domain
         my_light = self.states[states.LightState].get("light.office_light_1")

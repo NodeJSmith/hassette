@@ -1,5 +1,5 @@
 import typing
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterator, Mapping
 from logging import getLogger
 from typing import Generic, NamedTuple
 
@@ -32,13 +32,17 @@ class CacheValue(Generic[StateT], NamedTuple):
     model: StateT
 
 
-class DomainStates(Generic[StateT]):
+class DomainStates(Mapping[str, StateT]):
     """DomainStates provides access to all states within a specific domain, with automatic type validation and caching.
 
     This class reads through a StateReader under the hood to provide access to the current states from HomeAssistant,
     without needing to make direct calls to the Home Assistant API.
 
     Accessed states are automatically validated against the provided model and cached for efficient repeated access.
+
+    Implements ``collections.abc.Mapping`` — ``keys()``, ``values()``, and ``items()`` return re-iterable views
+    (not one-shot iterators), and ``for entity_id in domain_states`` yields entity ID strings, matching Python
+    convention. Use ``.items()`` for ``(entity_id, state)`` pairs.
 
     Examples:
     ```python
@@ -55,9 +59,8 @@ class DomainStates(Generic[StateT]):
             light_state = self.states.light["bedroom"]
             self.logger.info("Light state: %s", light_state.value)
 
-        # if you are working with a state that isn't defined in Hassette
-        custom_states = self.states[CustomStateClass]
-        for entity_id, state in custom_states:
+        # iterate over all entities in a domain
+        for entity_id, state in self.states.light.items():
             self.logger.info("%s: %s", entity_id, state.value)
     ```
 
@@ -90,57 +93,6 @@ class DomainStates(Generic[StateT]):
         self._cache[entity_id] = CacheValue(context_id, frozen_state, validated)
         return validated
 
-    def get(self, entity_id: str) -> StateT | None:
-        """Get a specific entity state by ID.
-
-        Args:
-            entity_id: The full entity ID (e.g., "light.bedroom") or just the entity name (e.g., "bedroom").
-
-        Returns:
-            The typed state if found and matches domain, None if the entity does not exist.
-
-        Raises:
-            ValueError: If the entity ID does not belong to this domain.
-            UnableToConvertStateError: If the state dict fails to convert to this domain's state class.
-        """
-        entity_id = make_entity_id(entity_id, self._domain)
-
-        state = self._state_proxy.get_state(entity_id)
-        if state is None:
-            return None
-
-        return self._validate_or_return_from_cache(entity_id, state)
-
-    def items(self) -> Iterator[tuple[str, StateT]]:
-        """Iterate (entity_id, typed state) pairs lazily."""
-        return iter(self)
-
-    def keys(self) -> list[str]:
-        """Return a list of entity IDs for this domain."""
-        return [entity_id for entity_id, _ in self]
-
-    def iterkeys(self) -> Iterator[str]:
-        """Returns an iterator over entity IDs for this domain."""
-        for entity_id, _ in self:
-            yield entity_id
-
-    def values(self) -> list[StateT]:
-        """Return a list of typed states for this domain.
-
-        This returns an eagerly evaluated list of all typed states in this domain.
-
-        Note:
-            This method will iterate over all states in the domain and validate them,
-            which may be expensive for large domains. Consider using the iterator
-            returned by `__iter__` for lazy evaluation if performance is a concern.
-        """
-        return [value for _, value in self]
-
-    def itervalues(self) -> Iterator[StateT]:
-        """Returns an iterator over typed states for this domain."""
-        for _, value in self:
-            yield value
-
     def to_dict(self) -> dict[str, StateT]:
         """Return a dictionary of entity_id to typed state for this domain.
 
@@ -153,14 +105,18 @@ class DomainStates(Generic[StateT]):
         """
         return dict(self)
 
-    def __iter__(self) -> typing.Generator[tuple[str, StateT], None, None]:
-        """Iterate over all states in this domain."""
+    def __iter__(self) -> Iterator[str]:
+        """Iterate over entity IDs in this domain, skipping un-convertible entities."""
         for entity_id, state in self._state_proxy.yield_domain_states(self._domain):
             try:
-                yield entity_id, self._validate_or_return_from_cache(entity_id, state)
+                self._validate_or_return_from_cache(entity_id, state)
+                yield entity_id
             except Exception as exc:
                 LOGGER.error(
-                    "Error validating state for entity_id '%s' as type %s: %s", entity_id, self._model.__name__, exc
+                    "Error validating state for entity_id '%s' as type %s: %s",
+                    entity_id,
+                    self._model.__name__,
+                    exc,
                 )
                 continue
 
@@ -168,8 +124,10 @@ class DomainStates(Generic[StateT]):
         """Return the number of entities in this domain."""
         return self._state_proxy.num_domain_states(self._domain)
 
-    def __contains__(self, entity_id: str) -> bool:
+    def __contains__(self, entity_id: object) -> bool:
         """Check if a specific entity ID exists in this domain."""
+        if not isinstance(entity_id, str):
+            return False
         try:
             entity_id = make_entity_id(entity_id, self._domain)
             return entity_id in self._state_proxy
@@ -189,10 +147,11 @@ class DomainStates(Generic[StateT]):
         Returns:
             The typed state.
         """
-        value = self.get(entity_id)
-        if value is None:
+        entity_id = make_entity_id(entity_id, self._domain)
+        state = self._state_proxy.get_state(entity_id)
+        if state is None:
             raise KeyError(f"State for entity_id '{entity_id}' not found in domain '{self._domain}'")
-        return value
+        return self._validate_or_return_from_cache(entity_id, state)
 
     def __repr__(self) -> str:
         """Return a string representation of the DomainStates container."""
@@ -211,7 +170,7 @@ class StateManager(Resource):
     Examples:
     ```python
         # Iterate over all lights
-        for entity_id, light_state in self.states.light:
+        for entity_id, light_state in self.states.light.items():
             self.logger.info("%s: %s", entity_id, light_state.value)
 
         # Get specific entity
@@ -271,12 +230,12 @@ class StateManager(Resource):
         Example:
             ```python
             # Known domain (typed via .pyi stub)
-            for entity_id, light in self.states.light:
+            for entity_id, light in self.states.light.items():
                 print(light.attributes.brightness)
 
             # Custom domain (fallback to BaseState at runtime)
             custom_states = self.states.custom_domain
-            for entity_id, state in custom_states:
+            for entity_id, state in custom_states.items():
                 print(state.value)
             ```
         """
@@ -422,41 +381,35 @@ class StateManager(Resource):
         state = self.get(entity_id)
         return state is not None and state.value == HOME_STATE
 
-    def _presence_states(self) -> Sequence[BaseState]:
+    def _presence_states(self) -> list[BaseState]:
         """Return the states to evaluate for presence.
 
         Uses the ``person`` domain, falling back to ``device_tracker`` when no
         ``person`` entities exist.
         """
         domain = self.person or self.device_tracker
-        return domain.values()
+        return list(domain.values())
 
-    def __contains__(self, model: type[StateT]) -> bool:
+    def __contains__(self, model: object) -> bool:
         """Check the global STATE_REGISTRY, not this proxy's cached instances."""
+        if not isinstance(model, type) or not issubclass(model, BaseState):
+            return False
         return model in STATE_REGISTRY
 
-    def __iter__(self) -> Iterator[tuple[StateKey, DomainStates[states.BaseState]]]:
+    def __iter__(self) -> Iterator[StateKey]:
+        """Iterate over registered state keys."""
+        return iter(STATE_REGISTRY.keys())
+
+    def items(self) -> Iterator[tuple[StateKey, DomainStates[states.BaseState]]]:
         """Iterate over all registered state classes with their keys."""
         for key, state_class in STATE_REGISTRY.items():
             yield key, self._domain_states_for(state_class)
 
-    def items(self) -> Iterator[tuple[StateKey, DomainStates[states.BaseState]]]:
-        """Iterate over all registered state classes with their keys."""
-        return iter(self)
-
     def values(self) -> Iterator[DomainStates[states.BaseState]]:
-        """Iterate over all registered state classes.
-
-        Returns:
-            An iterator over all registered DomainStates instances.
-        """
+        """Iterate over all registered DomainStates instances."""
         for state_class in STATE_REGISTRY.values():
             yield self._domain_states_for(state_class)
 
     def keys(self) -> Iterator[StateKey]:
-        """Iterate over all registered state keys.
-
-        Returns:
-            An iterator over all registered state keys.
-        """
-        return iter(STATE_REGISTRY.keys())
+        """Iterate over all registered state keys."""
+        return iter(self)

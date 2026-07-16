@@ -82,7 +82,7 @@ async def test_state_manager_domain_iteration(ha_container: str, tmp_path) -> No
             timeout=15.0,
             desc="state proxy ready with populated states",
         )
-        entities = list(hassette.states.light)
+        entities = list(hassette.states.light.items())
         assert len(entities) > 0
         for entity_id, state in entities:
             assert isinstance(entity_id, str)

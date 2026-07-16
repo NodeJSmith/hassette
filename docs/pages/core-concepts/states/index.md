@@ -54,7 +54,7 @@ A *conversion* turns the raw state dict HA returns into a typed state object. Wh
 
 `UnableToConvertStateError` (from `hassette.exceptions`) carries `entity_id` and `state_class` fields. They identify which entity and target type failed. The error signals a shape mismatch between the HA state dict and the domain model — for example, an `int` attribute arriving as a string that cannot be coerced.
 
-Domain iteration (`for entity_id, state in self.states.light`) skips un-convertible entities and logs the error. Valid entities still flow through the iterator.
+Domain iteration (`for entity_id, state in self.states.light.items()`) skips un-convertible entities and logs the error. Valid entities still flow through the iterator.
 
 ### Direct Entity Access
 
@@ -125,13 +125,13 @@ The API reference lists all 55 classes with their full attribute signatures. Dom
 
 ## Iterating Over States
 
-`DomainStates` supports direct iteration over `(entity_id, state)` pairs — `for entity_id, state in self.states.sensor` yields tuples, unlike a plain `dict` which yields keys. `.keys()`, `.values()`, `.to_dict()`, containment checks (`"kitchen" in self.states.light`), and `len()` also work.
+`DomainStates` implements `collections.abc.Mapping` — `for entity_id in self.states.sensor` yields entity ID strings, matching Python's `dict` convention. `.items()` yields `(entity_id, state)` pairs. `.keys()`, `.values()`, and `.items()` return re-iterable views that support `len()` and `in`. Containment checks (`"kitchen" in self.states.light`) and `len()` also work.
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/states_iteration.py"
 ```
 
-`.items()`, `.iterkeys()`, and `.itervalues()` are lazy — they parse raw HA state dicts into typed objects on demand. `.keys()`, `.values()`, and `.to_dict()` are eager and parse all entities up front. Lazy iteration performs better for large domains like `sensor`.
+`.keys()`, `.values()`, and `.items()` views are lazy per iteration — each `for` loop parses raw HA state dicts into typed objects on demand. `.to_dict()` is the one eager method, parsing all entities up front. Lazy iteration performs better for large domains like `sensor`.
 
 `StateManager` itself is also iterable: `self.states.items()` yields `(key, DomainStates)` pairs for every registered state class, and `MyState in self.states` checks whether a class is registered. Useful for diagnostics and generic helpers that sweep all domains.
 

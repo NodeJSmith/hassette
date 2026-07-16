@@ -41,7 +41,7 @@ class SecurityMonitor(App[SecurityMonitorConfig]):
         )
 
         # Log current lock states
-        for entity_id, lock_state in self.states.lock:
+        for entity_id, lock_state in self.states.lock.items():
             self.logger.info("Lock %s is currently %s", entity_id, lock_state.value)
 
     def on_lock_service_called(self, event: CallServiceEvent) -> None:
@@ -60,5 +60,5 @@ class SecurityMonitor(App[SecurityMonitorConfig]):
 
         # Log all current lock states for the security report
         self.logger.info("Current lock states during moisture alert:")
-        for entity_id, lock_state in self.states.lock:
+        for entity_id, lock_state in self.states.lock.items():
             self.logger.info("  %s: %s", entity_id, lock_state.value)
