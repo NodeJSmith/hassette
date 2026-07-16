@@ -56,7 +56,7 @@ The `Api` class exposes 35 flat helper CRUD methods (8 domains × 4 ops + 3 coun
 - **FR#5** `HelperClient.delete(domain, helper_id)` accepts a `HelperDomain` literal and helper ID string, returns `None`. 8 overloads (for consistency, though return type doesn't vary).
 - **FR#6** `HelperClient.increment(entity_id)`, `HelperClient.decrement(entity_id)`, and `HelperClient.reset(entity_id)` wrap counter service calls, moved from flat `Api` methods.
 - **FR#7** The sync facade generator produces a `HelperClientSyncFacade` class that wraps all `HelperClient` methods via `task_bucket.run_sync()`. `ApiSyncFacade` exposes `self.helpers` returning this facade.
-- **FR#8** `RecordingApi` exposes a `helpers` property returning a `RecordingHelperClient` that records calls and operates on in-memory `helper_definitions`, preserving existing test recording behavior.
+- **FR#8** `RecordingApi` exposes a `helpers` attribute returning a `RecordingHelperClient` that records calls and operates on in-memory `helper_definitions`, preserving existing test recording behavior.
 - **FR#9** All 35 flat helper methods are removed from `Api`, `ApiSyncFacade`, `RecordingApi`, `RecordingSyncFacade`, and the `Api` protocol stubs.
 - **FR#10** The `HelperClient` and all overloads pass pyright strict mode (`prek pyright -a --stage pre-push`).
 
@@ -231,8 +231,8 @@ No specific implementation preferences — follow codebase conventions.
 |---|---|---|
 | 32 flat CRUD methods on `Api` (api.py:989-1427) | `HelperClient.list/create/update/delete` | Remove outright |
 | 3 counter shortcuts on `Api` (api.py:1437-1477) | `HelperClient.increment/decrement/reset` | Remove outright |
-| 35 flat methods on `ApiSyncFacade` (sync.py, generated) | `HelperClientSyncFacade` methods | Regenerate |
-| 35 flat protocol stubs on `ApiProtocol` (recording_api.py:244-294) | `helpers` property on protocol | Rewrite |
+| 35 flat methods on `ApiSyncFacade` (sync.py, generated) | `HelperClientSyncFacade` in `sync_helpers.py` (generated) | Regenerate |
+| 35 flat protocol stubs on `ApiProtocol` (recording_api.py:244-294) | `helpers` attribute on protocol | Rewrite |
 | 35 flat methods on `RecordingApi` impl (recording_api.py:752-915) | `RecordingHelperClient` class | Rewrite |
 | 35 flat methods on `RecordingSyncFacade` (test_utils/sync_facade.py, generated) | `RecordingHelperClientSyncFacade` | Regenerate |
 | `DOCUMENTED_EXCLUSIONS[Api]` entries for 35 methods (test_forgotten_await_completeness.py) | Updated exclusion list (no helper methods) | Update |
@@ -333,7 +333,8 @@ No tests are removed — all existing tests are adapted, not deleted. The behavi
 - modify `codegen/src/hassette_codegen/sync_facade/generic.py` — add `HELPERS_HEADER`, `HELPERS_CLASS_HEADER`, `generate_sync_helpers()`
 - modify `codegen/src/hassette_codegen/sync_facade/cli.py` — add `helpers` generation target
 - modify `codegen/src/hassette_codegen/sync_facade/recording.py` — add `generate_sync_recording_helpers()`
-- modify `src/hassette/api/sync.py` — regenerated (will include `HelperClientSyncFacade`)
+- create `src/hassette/api/sync_helpers.py` — generated `HelperClientSyncFacade` (one file per facade, matching `api/sync.py`, `bus/sync.py`, `scheduler/sync.py` convention)
+- modify `src/hassette/api/sync.py` — regenerated (helper methods removed; `ApiSyncFacade` wires `self.helpers` to `HelperClientSyncFacade`)
 - modify `src/hassette/test_utils/recording_api.py` — extract `RecordingHelperClient`, update protocol, remove 35 flat methods
 - modify `src/hassette/test_utils/sync_facade.py` — regenerated
 
