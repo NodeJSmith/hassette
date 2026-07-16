@@ -20,8 +20,8 @@ from hassette.scheduler import After, Once, Every, Daily, Cron, TriggerProtocol
 
 `After` also accepts `minutes=` or a `whenever.TimeDelta` via `timedelta=` — `After(minutes=5)` reads better than `After(seconds=300)`. `Every` accepts an optional `start=` anchor (a `ZonedDateTime` from the [`whenever`](https://whenever.readthedocs.io/) library, which ships with Hassette): with `Every(minutes=15, start=anchor)`, runs align to the anchor's minute marks (`:00`, `:15`, `:30`, `:45`) instead of starting from registration time.
 
-!!! warning "Wall-clock times use the process timezone"
-    `Once(at="07:00")` and `Daily(at="07:00")` interpret the time in the *process* timezone. Docker containers commonly run with `TZ=UTC` while Home Assistant uses a local zone — the job then fires at 07:00 UTC with no warning. Set the `TZ` environment variable where Hassette runs — on the container (the [Docker guide](../../getting-started/docker/index.md) compose file does this), or in the host environment for non-Docker installs — so wall-clock times mean local time.
+!!! warning "Wall-clock times use the configured timezone"
+    `Once(at="07:00")` and `Daily(at="07:00")` interpret the time in the configured timezone. The [`timezone`](../configuration/index.md#timezone) field in `hassette.toml` controls which timezone the scheduler uses; when unset, the process timezone applies. Docker containers commonly default to UTC while Home Assistant uses a local zone, so the job fires at 07:00 UTC with no warning. `timezone = "America/Chicago"` in `hassette.toml` (or `HASSETTE__TIMEZONE`) resolves this. The `TZ` environment variable works as a fallback.
 
 Each convenience method on the scheduler maps to one trigger:
 

@@ -4,7 +4,7 @@ from typing import Literal
 from pydantic import Field, field_validator
 from whenever import ZonedDateTime
 
-from hassette.utils.date_utils import convert_datetime_str_to_system_tz
+from hassette.utils.date_utils import convert_datetime_str_to_tz
 
 from .base import AttributesBase, StringBaseState
 
@@ -22,7 +22,7 @@ class ImageAttributes(AttributesBase):
     @field_validator("image_last_updated", mode="before")
     @classmethod
     def _parse_datetime_fields(cls, value: str | ZonedDateTime | None) -> ZonedDateTime | None:
-        return convert_datetime_str_to_system_tz(value)
+        return convert_datetime_str_to_tz(value)
 
 
 class ImageState(StringBaseState):

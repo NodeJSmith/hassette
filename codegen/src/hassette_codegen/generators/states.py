@@ -42,7 +42,7 @@ def generate_state_model(domain: ExtractedDomain) -> str:
 
     datetime_fields = [p.name for p in properties if _is_pure_datetime_field(p.python_type)]
     if datetime_fields:
-        extra_imports.append("from hassette.utils.date_utils import convert_datetime_str_to_system_tz")
+        extra_imports.append("from hassette.utils.date_utils import convert_datetime_str_to_tz")
 
     return template.render(
         domain=domain.name,

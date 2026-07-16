@@ -54,7 +54,7 @@ HASSETTE__TOKEN=your_long_lived_access_token
 
 | TOML section | Controls |
 |---|---|
-| `[hassette]` | Connection (`base_url`, `verify_ssl`, `token`), runtime flags, data directory |
+| `[hassette]` | Connection (`base_url`, `verify_ssl`, `token`), timezone, runtime flags, data directory |
 | `[hassette.apps]` | App discovery, auto-detection, individual app definitions |
 | `[hassette.web_api]` | Web UI and API server host, port, and feature flags |
 | `[hassette.database]` | Storage path, retention, and write-queue settings |
@@ -69,6 +69,16 @@ App definitions live inside `[hassette.apps]` as named subsections, as shown in 
 ## Design Notes
 
 The `HassetteConfig` reference covers every field, its type, and its default. The notes below explain the "why" for fields where the field name alone does not make the intent obvious.
+
+### Timezone {#timezone}
+
+`timezone` sets the IANA timezone name (e.g. `"America/Chicago"`) for wall-clock operations. Scheduler triggers (`Daily`, `Once`, `Cron`), event timestamp conversion, and state model datetime fields all use it. When unset, the process timezone applies.
+
+Docker containers commonly default to UTC. Home Assistant uses a local zone configured by the user. Without an explicit `timezone`, scheduled jobs fire at UTC wall-clock times. `timezone` in `hassette.toml` (or `HASSETTE__TIMEZONE`) resolves this without modifying the container's `TZ` variable.
+
+```toml
+--8<-- "pages/core-concepts/configuration/snippets/timezone_config.toml"
+```
 
 ### Data Directory and Upgrades
 

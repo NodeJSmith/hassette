@@ -3,7 +3,7 @@ from typing import Any, Literal
 from pydantic import Field
 from whenever import Instant, ZonedDateTime
 
-from hassette.utils.date_utils import convert_utc_timestamp_to_system_tz
+from hassette.utils.date_utils import convert_utc_timestamp_to_tz
 
 from .base import AttributesBase, BoolBaseState, DateTimeBaseState, NumericBaseState, StringBaseState
 
@@ -54,10 +54,10 @@ class InputDatetimeAttributes(InputAttributesBase):
         return Instant.from_timestamp(self.timestamp)
 
     @property
-    def timestamp_as_system_datetime(self) -> ZonedDateTime | None:
+    def timestamp_as_datetime(self) -> ZonedDateTime | None:
         if self.timestamp is None:
             return None
-        return convert_utc_timestamp_to_system_tz(self.timestamp)
+        return convert_utc_timestamp_to_tz(self.timestamp)
 
 
 class InputDatetimeState(DateTimeBaseState):
