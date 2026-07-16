@@ -1,5 +1,6 @@
 """Tests for auto-detect apps functionality."""
 
+import logging
 from pathlib import Path
 from textwrap import dedent
 from unittest.mock import patch
@@ -607,6 +608,98 @@ class TestValidateApps:
             # Should only have the manual app
             assert len(result) == 1, f"Expected 1 app, got {len(result)}"
             assert "manual_app" in result, "Expected to find 'manual_app' in detected apps"
+
+    def test_validate_apps_warns_on_cache_key_collision(self, tmp_path: Path, caplog: pytest.LogCaptureFixture):
+        """Two apps with different app_key but the same explicit cache_key log a WARNING."""
+        # Some other test in this session may have left the "hassette" logger's propagate flag
+        # set to False (e.g. via enable_basic_logging()); caplog relies on propagation to the
+        # root logger, so restore it here. See src/hassette/test_utils/harness.py:337-340 for
+        # the same workaround applied elsewhere.
+        logging.getLogger("hassette").propagate = True
+        app_dir = tmp_path / "test_apps"
+        app_dir.mkdir(parents=True, exist_ok=True)
+
+        config = self.make_config(
+            tmp_path,
+            directory=app_dir,
+            apps={
+                "app_one": {
+                    "filename": "app_one.py",
+                    "class_name": "AppOne",
+                    "cache_key": "shared-key",
+                },
+                "app_two": {
+                    "filename": "app_two.py",
+                    "class_name": "AppTwo",
+                    "cache_key": "shared-key",
+                },
+            },
+        )
+
+        with context.use_hassette_config(config), caplog.at_level("WARNING", logger="hassette.config.config"):
+            config.set_validated_app_manifests()
+
+        assert any("shared-key" in record.message for record in caplog.records), (
+            f"Expected a WARNING mentioning the colliding cache_key, got: {[r.message for r in caplog.records]}"
+        )
+
+    def test_validate_apps_no_warning_when_cache_keys_unique(self, tmp_path: Path, caplog: pytest.LogCaptureFixture):
+        """Apps with distinct (or default) cache_keys produce no collision warning."""
+        app_dir = tmp_path / "test_apps"
+        app_dir.mkdir(parents=True, exist_ok=True)
+
+        config = self.make_config(
+            tmp_path,
+            directory=app_dir,
+            apps={
+                "app_one": {"filename": "app_one.py", "class_name": "AppOne"},
+                "app_two": {"filename": "app_two.py", "class_name": "AppTwo"},
+            },
+        )
+
+        with context.use_hassette_config(config), caplog.at_level("WARNING", logger="hassette.config.config"):
+            config.set_validated_app_manifests()
+
+        assert not any("cache_key" in record.message for record in caplog.records), (
+            f"Expected no cache_key collision warning, got: {[r.message for r in caplog.records]}"
+        )
+
+    def test_validate_apps_warns_on_multi_instance_default_key_collision(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ):
+        """A multi-instance app's default `{app_key}/{idx}` key can collide with another
+        app's explicit cache_key — the collision check must expand multi-instance app_config
+        lists to each instance's resolved key, not just check the manifest as a whole.
+        """
+        # See comment in test_validate_apps_warns_on_cache_key_collision above.
+        logging.getLogger("hassette").propagate = True
+        app_dir = tmp_path / "test_apps"
+        app_dir.mkdir(parents=True, exist_ok=True)
+
+        config = self.make_config(
+            tmp_path,
+            directory=app_dir,
+            apps={
+                "weather": {
+                    "filename": "weather.py",
+                    "class_name": "Weather",
+                    "config": [{"city": "nyc"}, {"city": "sf"}],
+                },
+                "other_app": {
+                    "filename": "other_app.py",
+                    "class_name": "OtherApp",
+                    "cache_key": "weather/1",
+                },
+            },
+        )
+
+        with context.use_hassette_config(config), caplog.at_level("WARNING", logger="hassette.config.config"):
+            config.set_validated_app_manifests()
+
+        assert any("weather/1" in record.message for record in caplog.records), (
+            f"Expected a WARNING mentioning the colliding cache_key 'weather/1', "
+            f"got: {[r.message for r in caplog.records]}"
+        )
 
 
 class TestAutoDetectIntegration:

@@ -162,11 +162,18 @@
           "title": "Hassette Event Buffer Size",
           "type": "integer"
         },
-        "default_cache_size": {
-          "default": 104857600,
-          "description": "Default size limit for caches in bytes. Defaults to 100 MiB.",
-          "title": "Default Cache Size",
-          "type": "integer"
+        "default_cache_ttl": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Default TTL for cache entries in seconds. None means entries persist indefinitely.",
+          "title": "Default Cache Ttl"
         },
         "strict_lifecycle": {
           "default": false,
@@ -318,6 +325,12 @@
           "description": "Fully resolved path to the app file",
           "format": "path",
           "title": "Full Path",
+          "type": "string"
+        },
+        "cache_key": {
+          "default": "",
+          "description": "Override the cache directory key. When empty (default), App.cache_key computes\n'{app_key}/{index}'. When set, this value is used as-is.",
+          "title": "Cache Key",
           "type": "string"
         }
       },
@@ -1030,6 +1043,10 @@
         "auto_loaded": {
           "title": "Auto Loaded",
           "type": "boolean"
+        },
+        "cache_key": {
+          "title": "Cache Key",
+          "type": "string"
         }
       },
       "required": [

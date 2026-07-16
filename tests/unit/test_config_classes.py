@@ -8,6 +8,9 @@ import json
 import warnings
 from pathlib import Path
 
+import pytest
+from pydantic import ValidationError
+
 from hassette.config.classes import AppManifest
 
 
@@ -162,6 +165,26 @@ class TestAppManifestAutostart:
         manifest = make_manifest()
         result = manifest.model_dump()
         assert result["autostart"] is True
+
+
+class TestAppManifestCacheKey:
+    """Tests for AppManifest.cache_key field and its framework-prefix validation."""
+
+    def test_cache_key_defaults_to_empty_string(self) -> None:
+        manifest = make_manifest()
+        assert manifest.cache_key == ""
+
+    def test_cache_key_rejects_bare_framework_key(self) -> None:
+        with pytest.raises(ValidationError, match="framework-reserved prefix"):
+            make_manifest(cache_key="__hassette__")
+
+    def test_cache_key_rejects_framework_prefixed_key(self) -> None:
+        with pytest.raises(ValidationError, match="framework-reserved prefix"):
+            make_manifest(cache_key="__hassette__.foo")
+
+    def test_cache_key_accepts_custom_value(self) -> None:
+        manifest = make_manifest(cache_key="my-custom-key")
+        assert manifest.cache_key == "my-custom-key"
 
 
 class TestHassetteConfigModelDump:

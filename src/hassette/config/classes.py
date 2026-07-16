@@ -17,6 +17,8 @@ from pydantic import (
 from pydantic_settings import BaseSettings
 from pydantic_settings.sources import InitSettingsSource, PathType, TomlConfigSettingsSource
 
+from hassette.types.types import is_framework_key
+
 DEFAULT_PATH = Path()
 
 LOGGER = getLogger(__name__)
@@ -142,6 +144,10 @@ class AppManifest(ExcludeExtrasMixin, BaseModel):
     full_path: Path
     """Fully resolved path to the app file"""
 
+    cache_key: str = Field(default="")
+    """Override the cache directory key. When empty (default), App.cache_key computes
+    '{app_key}/{index}'. When set, this value is used as-is."""
+
     def __repr__(self) -> str:
         return (
             f"<AppManifest {self.display_name} ({self.class_name})"
@@ -184,6 +190,13 @@ class AppManifest(ExcludeExtrasMixin, BaseModel):
             if "instance_name" not in item or not item["instance_name"]:
                 item["instance_name"] = f"{class_name}.{idx}"
 
+        return v
+
+    @field_validator("cache_key")
+    @classmethod
+    def validate_cache_key(cls, v: str) -> str:
+        if v and is_framework_key(v):
+            raise ValueError(f"cache_key {v!r} uses a framework-reserved prefix")
         return v
 
     def validate_model_extra(self) -> None:

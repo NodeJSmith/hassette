@@ -182,6 +182,7 @@ def clean_app(app_key: str, app_dict: RawAppDict, app_dir: Path) -> AppDict:
         config=config,
         auto_loaded=app_dict.get("auto_loaded", False),
         full_path=full_path,
+        cache_key=app_dict.get("cache_key", ""),
     )
 
     return clean_app_dict

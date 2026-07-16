@@ -42,8 +42,6 @@ TOKEN_MEDIUM_THRESHOLD = 12
 TOKEN_SHORT_PREFIX_LENGTH = 3
 TOKEN_LONG_PREFIX_LENGTH = 6
 
-DEFAULT_CACHE_SIZE_BYTES = 100 * 1024 * 1024
-
 
 class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     """Configuration for Hassette."""
@@ -167,8 +165,8 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     hassette_event_buffer_size: int = Field(default=1000)
     """Buffer capacity of the internal anyio memory channel used to route events to the bus."""
 
-    default_cache_size: int = Field(default=DEFAULT_CACHE_SIZE_BYTES)
-    """Default size limit for caches in bytes. Defaults to 100 MiB."""
+    default_cache_ttl: int | None = Field(default=None)
+    """Default TTL for cache entries in seconds. None means entries persist indefinitely."""
 
     strict_lifecycle: bool = Field(default=False)
     """Enable strict validation for lifecycle transitions, connection state, and registries.
@@ -409,6 +407,44 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
             app_manifest_dict[k] = AppManifest.model_validate(v)
 
         self.apps.manifests = app_manifest_dict
+
+        warn_on_cache_key_collisions(app_manifest_dict)
+
+
+def resolve_cache_keys(app_key: str, manifest: AppManifest) -> list[str]:
+    """Return the resolved cache_key(s) for every instance of *manifest*.
+
+    When ``manifest.cache_key`` is explicitly set, all instances share that single value
+    (the index is not appended). When unset, each instance gets its own default key
+    ``{app_key}/{idx}`` derived from its position in ``app_config``.
+    """
+    if manifest.cache_key:
+        return [manifest.cache_key]
+
+    instance_count = len(manifest.app_config) if isinstance(manifest.app_config, list) else 1
+    return [f"{app_key}/{idx}" for idx in range(instance_count)]
+
+
+def warn_on_cache_key_collisions(manifests: dict[str, AppManifest]) -> None:
+    """Log a WARNING when different apps resolve to the same cache_key.
+
+    Two apps sharing a resolved cache_key intentionally (e.g. one app renamed to preserve
+    its predecessor's cache) is allowed, but is usually a configuration mistake — this
+    surfaces it at config-load time rather than as silent cross-app cache contamination.
+    """
+    owners_by_resolved_key: dict[str, set[str]] = {}
+    for app_key, manifest in manifests.items():
+        for resolved_key in resolve_cache_keys(app_key, manifest):
+            owners_by_resolved_key.setdefault(resolved_key, set()).add(app_key)
+
+    for resolved_key, owners in owners_by_resolved_key.items():
+        if len(owners) > 1:
+            LOGGER.warning(
+                "Multiple apps resolve to the same cache_key %r: %s. If this is unintentional, "
+                "set an explicit, unique `cache_key` on each app to avoid cache cross-contamination.",
+                resolved_key,
+                sorted(owners),
+            )
 
 
 NESTED_GROUPS: dict[str, type] = {

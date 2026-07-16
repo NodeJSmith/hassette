@@ -188,7 +188,7 @@ def make_ws_hassette_stub(*, strict_lifecycle: bool = False, sealed: bool = True
 
     The ``websocket.*`` overrides use low retry/timeout values (sub-millisecond for backoff,
     low-single-digit seconds for connection timeouts) so tests complete quickly. The
-    non-websocket overrides set DEBUG logging, a small cache, and fast lifecycle timeouts.
+    non-websocket overrides set DEBUG logging and fast lifecycle timeouts.
 
     Args:
         strict_lifecycle: Passed through to ``make_mock_hassette()`` as a config override.
@@ -203,7 +203,6 @@ def make_ws_hassette_stub(*, strict_lifecycle: bool = False, sealed: bool = True
     hassette = make_mock_hassette(
         sealed=False,
         logging={"log_level": "DEBUG", "websocket": "DEBUG", "task_bucket": "DEBUG"},
-        default_cache_size=1024,
         lifecycle={"resource_shutdown_timeout_seconds": 1, "task_cancellation_timeout_seconds": 1},
         verify_ssl=False,
         websocket={

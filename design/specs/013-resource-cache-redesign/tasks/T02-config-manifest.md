@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Add cache_key to AppManifest and TTL config fields"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#7", "FR#8", "FR#13", "FR#15", "AC#8", "AC#9", "AC#15", "AC#21"]
 ---
