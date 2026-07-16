@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.49.0](https://github.com/NodeJSmith/hassette/compare/v0.48.0...v0.49.0) (2026-07-16)
+
+
+### ⚠ BREAKING CHANGES
+
+* `hassette.utils.convert_datetime_str_to_system_tz` and `hassette.utils.convert_utc_timestamp_to_system_tz` are renamed to `convert_datetime_str_to_tz` and `convert_utc_timestamp_to_tz`. Update any direct imports to the new names; behavior is unchanged when `HassetteConfig.timezone` is unset.
+* modernize DomainStates keys/values to lazy iterators ([#1325](https://github.com/NodeJSmith/hassette/issues/1325))
+* `Api.toggle_service` (and its `ApiSyncFacade`/`RecordingApi`/`RecordingApiSyncFacade` equivalents) is renamed to `toggle`. Update calls from `api.toggle_service(...)` to `api.toggle(...)`.
+* Entity type aliases in `src/hassette/models/entities/` are renamed with domain prefixes — `Format` → `CameraFormat`, `Direction` → `FanDirection`, `Flash` → `LightFlash`, `Enqueue` → `MediaPlayerEnqueue`, `Repeat` → `MediaPlayerRepeat`, `CommandType` → `RemoteCommandType`, `Status` → `TodoStatus`, `Type` → `WeatherType`. Update imports to the new names.
+* `name` is now a required keyword-only argument on every Bus and Scheduler registration method (`on_state_change`, `on_attribute_change`, `on_call_service`, `on`, `on_homeassistant_*`, `on_websocket_*`, `on_app_*`, `on_hassette_service_*`, `schedule`, `run_in`, `run_once`, `run_every`, `run_minutely`, `run_hourly`, `run_daily`, `run_cron`) and their sync facades. Omitting `name` now raises a `TypeError` at call time instead of the old `ListenerNameRequiredError` — Pyright will catch this at development time for static callers. Passing an empty string for `name` still raises `ListenerNameRequiredError` (Bus) or the new `SchedulerNameRequiredError` (Scheduler). Positional arguments after the leading required parameters (`handler`/`func`, `where`, `trigger`, etc.) are now rejected — all optional parameters must be passed by keyword. Update call sites to pass `name="..."` explicitly and convert any positional `group=`/`jitter=`/`timeout=`/ `timeout_disabled=`/`if_past=` arguments to keyword form.
+
+### Features
+
+* add configurable timezone for wall-clock scheduling ([#1327](https://github.com/NodeJSmith/hassette/issues/1327)) ([fb374b0](https://github.com/NodeJSmith/hassette/commit/fb374b0107620461acd3ffcd45c65570231871de))
+* auto-derive service domain, tighten entity method typing ([#1321](https://github.com/NodeJSmith/hassette/issues/1321)) ([510fd2d](https://github.com/NodeJSmith/hassette/commit/510fd2dcd93f805a6b856f5d881db4b6f5cab3b7)), closes [#1229](https://github.com/NodeJSmith/hassette/issues/1229) [#718](https://github.com/NodeJSmith/hassette/issues/718)
+* freeze Bus and Scheduler registration signatures ([#1301](https://github.com/NodeJSmith/hassette/issues/1301)) ([66221b7](https://github.com/NodeJSmith/hassette/commit/66221b7f5b1c6e0f3ff4381e1c4b53950f9decb0)), closes [#1228](https://github.com/NodeJSmith/hassette/issues/1228) [#973](https://github.com/NodeJSmith/hassette/issues/973) [#1238](https://github.com/NodeJSmith/hassette/issues/1238)
+
+
+### Bug Fixes
+
+* **cli:** fix --since flag crash on all commands ([#1290](https://github.com/NodeJSmith/hassette/issues/1290)) ([52a59c3](https://github.com/NodeJSmith/hassette/commit/52a59c33c657a31c4f799bab082e0deccf05f387))
+* preserve telemetry data during schema migrations ([#1298](https://github.com/NodeJSmith/hassette/issues/1298)) ([e4605d9](https://github.com/NodeJSmith/hassette/commit/e4605d9f717c2bd8ee3a86f4cc9d1f6f07626b1f)), closes [#1297](https://github.com/NodeJSmith/hassette/issues/1297)
+
+
+### Refactoring
+
+* clean code sweep — dead code, test hygiene, lint coverage ([#1270](https://github.com/NodeJSmith/hassette/issues/1270)) ([05912d8](https://github.com/NodeJSmith/hassette/commit/05912d8d559768c23021be2e0711e3cafa5bf73b))
+* consolidate test factory duplication and add anti-regression linter ([#1289](https://github.com/NodeJSmith/hassette/issues/1289)) ([8c73f1e](https://github.com/NodeJSmith/hassette/commit/8c73f1ec9a32d8e223b8a2970d0a2fae857498b2))
+* extract lifecycle machinery out of App's public API surface ([#1314](https://github.com/NodeJSmith/hassette/issues/1314)) ([63dfc45](https://github.com/NodeJSmith/hassette/commit/63dfc4540d013d0fd08e9687dbcc28df53951731)), closes [#1230](https://github.com/NodeJSmith/hassette/issues/1230)
+* migrate integration tests off coordinator private attributes ([#1291](https://github.com/NodeJSmith/hassette/issues/1291)) ([0eb409d](https://github.com/NodeJSmith/hassette/commit/0eb409d46b55f04d5485ed67098d2963ebe844d5)), closes [#1285](https://github.com/NodeJSmith/hassette/issues/1285)
+* modernize DomainStates keys/values to lazy iterators ([#1325](https://github.com/NodeJSmith/hassette/issues/1325)) ([d2de4a7](https://github.com/NodeJSmith/hassette/commit/d2de4a76519490bbec7915480deb63e4c785b9b6)), closes [#1232](https://github.com/NodeJSmith/hassette/issues/1232)
+* remove pre-v1 backwards compatibility shims ([#1308](https://github.com/NodeJSmith/hassette/issues/1308)) ([1e11d4e](https://github.com/NodeJSmith/hassette/commit/1e11d4e2574663620493bcf1773ed81d0afad14b)), closes [#1202](https://github.com/NodeJSmith/hassette/issues/1202)
+* standardize entity, event, and enum naming for v1.0 ([#1306](https://github.com/NodeJSmith/hassette/issues/1306)) ([cf0a688](https://github.com/NodeJSmith/hassette/commit/cf0a68817c553d5178d339e97484769f5dd1ca9b)), closes [#1239](https://github.com/NodeJSmith/hassette/issues/1239)
+* **ui:** add component-level tokens for em-based padding values ([#1283](https://github.com/NodeJSmith/hassette/issues/1283)) ([f0f0d70](https://github.com/NodeJSmith/hassette/commit/f0f0d70a408b0f7cf445aea9f6b74ddf6e1384b6)), closes [#1277](https://github.com/NodeJSmith/hassette/issues/1277)
+* **ui:** Add tokens for popover and dialog sizing constants ([#1284](https://github.com/NodeJSmith/hassette/issues/1284)) ([c61b04d](https://github.com/NodeJSmith/hassette/commit/c61b04d08eda6aae09e5ebd9538fa6743aba18cd)), closes [#1278](https://github.com/NodeJSmith/hassette/issues/1278)
+* **ui:** replace hardcoded CSS values with design tokens and add /design style guide ([#1288](https://github.com/NodeJSmith/hassette/issues/1288)) ([9f3ab04](https://github.com/NodeJSmith/hassette/commit/9f3ab04749fddefc19e3dfff08fd4483274eb11c))
+
 ## [0.48.0](https://github.com/NodeJSmith/hassette/compare/v0.47.0...v0.48.0) (2026-07-09)
 
 
