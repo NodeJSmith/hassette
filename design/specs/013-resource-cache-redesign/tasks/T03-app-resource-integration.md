@@ -33,7 +33,7 @@ Wire the cache package into App's lifecycle, remove cache from the Resource base
 - `db_path = hassette.config.data_dir / self.cache_key / "cache" / "cache.db"`
 - `default_ttl` resolved from: `cls.default_cache_ttl` if set on the class → `hassette.config.default_cache_ttl` → None
 
-Add `cache` to `_APP_PUBLIC_API` (line 27) — it's already there, so verify it stays.
+Verify `"cache"` is in `_APP_PUBLIC_API` (frozenset starting at line 27, `"cache"` entry at line 46) — it's already there; just confirm it stays.
 
 **Class attribute** — Add `default_cache_ttl: ClassVar[int | None] = None` to the App class body.
 
@@ -114,7 +114,7 @@ Add tests verifying:
 - `Resource.__init__` sets `self._cache = None` at line 165 — this must be removed, not just the property.
 - `cached_property` import at `base.py:5` — verify no other use before removing. `unique_name` (line 232) is a `@property`, not `@cached_property`.
 - The pyright probe file uses `# pyright: ignore[reportAttributeAccessIssue]` liberally on mock setup lines. The probe's own pyrightconfig.json sets `reportAttributeAccessIssue: "none"`, so new cache mock setup won't need these suppressions.
-- AC#12 (`prek -a` passes) — run `prek -a` after all changes to verify no ruff or pyright errors.
+- AC#12 — run `prek -a && prek pyright -a --stage pre-push` after all changes. Plain `prek -a` only runs ruff; pyright is staged as pre-push and requires the explicit second command.
 
 ## Verify
 
@@ -129,7 +129,7 @@ Add tests verifying:
 - [ ] AC#2: Two test App instances with different indices produce different cache directory paths
 - [ ] AC#10: DummyCache injected via constructor makes `app.cache` return it
 - [ ] AC#11: Existing tests in `test_resource_properties.py` and `test_shutdown_edge_cases.py` pass (cache tests removed, other tests unchanged)
-- [ ] AC#12: `prek -a` passes with no new errors
+- [ ] AC#12: `prek -a && prek pyright -a --stage pre-push` passes with no new errors
 - [ ] AC#16: `diskcache` removed from `pyproject.toml` dependencies
 - [ ] AC#19: No `to_thread` calls in the `src/hassette/cache/` package (grep verification)
 - [ ] AC#17: An App subclass with `default_cache_ttl = 60` produces an AsyncCache whose `default_ttl` is 60 — a `set()` without explicit `ttl` uses it

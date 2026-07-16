@@ -25,6 +25,7 @@ Rewrite the cache documentation pages for the new async/sync API, update all cod
 - delete: `docs/pages/core-concepts/cache/snippets/cache_instance_prefix.py`
 - modify: `examples/cover_scheduler.py`
 - modify: `docs/pages/core-concepts/apps/index.md`
+- modify: `docs/pages/core-concepts/apps/snippets/apps_cache_counter.py`
 - modify: `docs/pages/migration/concepts.md`
 - read: `src/hassette/cache/protocol.py` (CacheProtocol interface — from T01)
 - read: `src/hassette/cache/wrapper.py` (AsyncCache API — from T01)
@@ -72,6 +73,11 @@ Convert cache usage from dict-style to async API:
 **`docs/pages/core-concepts/apps/index.md`**:
 - Line 3: Update "a set of typed accessors" description — `self.cache` is now an async cache, not a disk-backed store
 - Line 148: Update the cache description to reflect async API
+
+**`docs/pages/core-concepts/apps/snippets/apps_cache_counter.py`**:
+This snippet is embedded in `apps/index.md` via `--8<-- [start:cache_counter]` section markers. It currently uses dict-style cache access (`self.cache.get("counter", 0)`, `self.cache["counter"] = ...`). Convert to async API:
+- `self.cache.get("counter", 0)` → `await self.cache.get("counter")` (with manual default: `or 0`)
+- `self.cache["counter"] = self.counter` → `await self.cache.set("counter", self.counter)`
 
 **`docs/pages/migration/concepts.md`**:
 - Line 37: Update the `self.cache` row in the concepts table — it's now an async cache backed by aiosqlite, not raw diskcache
