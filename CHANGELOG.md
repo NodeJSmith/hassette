@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.49.0](https://github.com/NodeJSmith/hassette/compare/v0.48.0...v0.49.0) (2026-07-16)
+
+
+### ⚠ BREAKING CHANGES
+
+* **Registration signatures frozen** — `name` is now a required keyword-only argument on every Bus and Scheduler registration method (`on_state_change`, `on_attribute_change`, `on_call_service`, `on`, `on_homeassistant_*`, `on_websocket_*`, `on_app_*`, `on_hassette_service_*`, `schedule`, `run_in`, `run_once`, `run_every`, `run_minutely`, `run_hourly`, `run_daily`, `run_cron`) and their sync facades. Omitting `name` raises `TypeError` instead of the old `ListenerNameRequiredError` — Pyright catches this at development time. All optional parameters must be passed by keyword. Update call sites to pass `name="..."` explicitly and convert any positional `group=`/`jitter=`/`timeout=`/`timeout_disabled=`/`if_past=` arguments to keyword form. ([#1301](https://github.com/NodeJSmith/hassette/issues/1301))
+* **DomainStates keys/values are lazy iterators** — `DomainStates.keys()` and `.values()` now return iterators instead of lists, matching `items()` and `__iter__`. Code that calls `len()`, indexes, or iterates multiple times must wrap the result in `list()`. `iterkeys()` and `itervalues()` are removed. ([#1325](https://github.com/NodeJSmith/hassette/issues/1325))
+* **Entity type aliases renamed with domain prefixes** — `Format` → `CameraFormat`, `Direction` → `FanDirection`, `Flash` → `LightFlash`, `Enqueue` → `MediaPlayerEnqueue`, `Repeat` → `MediaPlayerRepeat`, `CommandType` → `RemoteCommandType`, `Status` → `TodoStatus`, `Type` → `WeatherType`. Update imports to the new names. ([#1306](https://github.com/NodeJSmith/hassette/issues/1306))
+* **`Api.toggle_service` renamed to `toggle`** — also renamed on `ApiSyncFacade`, `RecordingApi`, and `RecordingApiSyncFacade`. Update calls from `api.toggle_service(...)` to `api.toggle(...)`. ([#1321](https://github.com/NodeJSmith/hassette/issues/1321))
+* **Timezone utility functions renamed** — `convert_datetime_str_to_system_tz` → `convert_datetime_str_to_tz`, `convert_utc_timestamp_to_system_tz` → `convert_utc_timestamp_to_tz`. Behavior unchanged when `HassetteConfig.timezone` is unset. ([#1327](https://github.com/NodeJSmith/hassette/issues/1327))
+* **Pre-v1 backwards compatibility shims removed** — deprecated aliases and transitional APIs are gone. ([#1308](https://github.com/NodeJSmith/hassette/issues/1308))
+
+### Features
+
+* add configurable timezone for wall-clock scheduling — `Daily` and `Cron` triggers respect `HassetteConfig.timezone`, defaulting to the system timezone ([#1327](https://github.com/NodeJSmith/hassette/issues/1327))
+* auto-derive service domain from entity ID and return typed results from entity methods — the manual `domain` parameter is no longer needed on `call_service()` ([#1321](https://github.com/NodeJSmith/hassette/issues/1321))
+
+### Bug Fixes
+
+* **cli:** fix `--since` flag crash on all CLI commands ([#1290](https://github.com/NodeJSmith/hassette/issues/1290))
+* preserve telemetry data during schema migrations instead of dropping it ([#1298](https://github.com/NodeJSmith/hassette/issues/1298))
+
+### Refactoring
+
+* **App's public API surface reduced** — lifecycle machinery extracted to module-level functions; `App` exposes ~20 names in autocomplete instead of ~54, hiding framework internals from app authors ([#1314](https://github.com/NodeJSmith/hassette/issues/1314))
+
 ## [0.48.0](https://github.com/NodeJSmith/hassette/compare/v0.47.0...v0.48.0) (2026-07-09)
 
 
