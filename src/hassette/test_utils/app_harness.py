@@ -459,14 +459,16 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
                 f"Unknown helper record type: {type(record).__name__}. "
                 f"Expected one of: {sorted(t.__name__ for t in RECORD_TYPE_TO_DOMAIN)}"
             ) from exc
-        if record.id in self.api_recorder.helper_definitions[domain]:  # pyright: ignore[reportAttributeAccessIssue]
+        if record.id in self.api_recorder.helpers.helper_definitions[domain]:  # pyright: ignore[reportAttributeAccessIssue]
             raise ValueError(
                 f"A {type(record).__name__} with id={record.id!r} is already seeded. "  # pyright: ignore[reportAttributeAccessIssue]
                 f"Use a unique id or call harness.api_recorder.reset() first."
             )
         # Deep-copy to isolate the harness store from later caller-side mutations.
         # Shallow copy is insufficient for InputSelectRecord because of options: list[str].
-        self.api_recorder.helper_definitions[domain][record.id] = record.model_copy(deep=True)  # pyright: ignore[reportAttributeAccessIssue]
+        self.api_recorder.helpers.helper_definitions[domain][record.id] = record.model_copy(  # pyright: ignore[reportAttributeAccessIssue]
+            deep=True
+        )
 
     async def set_states(self, states: dict[str, str | tuple[str, dict]]) -> None:
         """Seed multiple entities at once.

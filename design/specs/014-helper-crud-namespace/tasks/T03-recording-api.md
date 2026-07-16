@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Refactor RecordingApi to expose RecordingHelperClient"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#8", "FR#9"]
 ---

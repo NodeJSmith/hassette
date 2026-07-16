@@ -9,7 +9,7 @@ fidelity should use a full integration test with a live HA connection.
 
 import copy
 from enum import StrEnum
-from typing import TYPE_CHECKING, Any, ClassVar, Never, Protocol, cast, runtime_checkable
+from typing import TYPE_CHECKING, Any, ClassVar, Never, Protocol, runtime_checkable
 
 import aiohttp
 from slugify import slugify as _py_slugify
@@ -87,6 +87,39 @@ RECORD_TYPE_TO_DOMAIN: dict[type, tuple[str, bool]] = {
 if frozenset(domain for domain, _ in RECORD_TYPE_TO_DOMAIN.values()) != SUPPORTED_HELPER_DOMAINS:
     raise ValueError("RECORD_TYPE_TO_DOMAIN and SUPPORTED_HELPER_DOMAINS must enumerate the same set of helper domains")
 
+# Reverse of RECORD_TYPE_TO_DOMAIN — domain string -> Record type. Used by
+# RecordingHelperClient.list()/delete(), which take a domain string rather than a
+# params instance.
+DOMAIN_TO_RECORD_TYPE: dict[str, type] = {
+    domain: record_type for record_type, (domain, _) in RECORD_TYPE_TO_DOMAIN.items()
+}
+
+# Maps Create*Params type -> Record type. Used by RecordingHelperClient.create() to
+# dispatch on type(params), mirroring HelperClient.CREATE_DISPATCH.
+CREATE_PARAMS_TO_RECORD_TYPE: dict[type, type] = {
+    CreateInputBooleanParams: InputBooleanRecord,
+    CreateInputNumberParams: InputNumberRecord,
+    CreateInputTextParams: InputTextRecord,
+    CreateInputSelectParams: InputSelectRecord,
+    CreateInputDatetimeParams: InputDatetimeRecord,
+    CreateInputButtonParams: InputButtonRecord,
+    CreateCounterParams: CounterRecord,
+    CreateTimerParams: TimerRecord,
+}
+
+# Maps Update*Params type -> Record type. Used by RecordingHelperClient.update() to
+# dispatch on type(params), mirroring HelperClient.UPDATE_DISPATCH.
+UPDATE_PARAMS_TO_RECORD_TYPE: dict[type, type] = {
+    UpdateInputBooleanParams: InputBooleanRecord,
+    UpdateInputNumberParams: InputNumberRecord,
+    UpdateInputTextParams: InputTextRecord,
+    UpdateInputSelectParams: InputSelectRecord,
+    UpdateInputDatetimeParams: InputDatetimeRecord,
+    UpdateInputButtonParams: InputButtonRecord,
+    UpdateCounterParams: CounterRecord,
+    UpdateTimerParams: TimerRecord,
+}
+
 
 def slugify_helper_name(name: str | None) -> str:
     """Convert an HA helper name into its stored id, mirroring homeassistant.util.slugify.
@@ -123,6 +156,23 @@ def generate_helper_id(existing_ids: set[str], name: str) -> str:
         if candidate not in existing_ids:
             return candidate
         n += 1
+
+
+@runtime_checkable
+class HelperClientProtocol(Protocol):
+    """Structural protocol for the ``hassette.api.helpers.HelperClient`` interface.
+
+    Used to type ``ApiProtocol.helpers`` without importing the concrete (overloaded)
+    ``HelperClient`` class, which would force nominal (not structural) compatibility.
+    """
+
+    async def list(self, domain: str) -> list[Any]: ...
+    async def create(self, params: Any) -> Any: ...
+    async def update(self, helper_id: str, params: Any) -> Any: ...
+    async def delete(self, domain: str, helper_id: str) -> None: ...
+    async def increment(self, entity_id: str) -> None: ...
+    async def decrement(self, entity_id: str) -> None: ...
+    async def reset(self, entity_id: str) -> None: ...
 
 
 @runtime_checkable
@@ -240,58 +290,9 @@ class ApiProtocol(Protocol):
         variables: dict | None = None,
     ) -> str: ...
 
-    # input_boolean CRUD
-    async def list_input_booleans(self) -> list[InputBooleanRecord]: ...
-    async def create_input_boolean(self, params: CreateInputBooleanParams) -> InputBooleanRecord: ...
-    async def update_input_boolean(self, helper_id: str, params: UpdateInputBooleanParams) -> InputBooleanRecord: ...
-    async def delete_input_boolean(self, helper_id: str) -> None: ...
-
-    # input_number CRUD
-    async def list_input_numbers(self) -> list[InputNumberRecord]: ...
-    async def create_input_number(self, params: CreateInputNumberParams) -> InputNumberRecord: ...
-    async def update_input_number(self, helper_id: str, params: UpdateInputNumberParams) -> InputNumberRecord: ...
-    async def delete_input_number(self, helper_id: str) -> None: ...
-
-    # input_text CRUD
-    async def list_input_texts(self) -> list[InputTextRecord]: ...
-    async def create_input_text(self, params: CreateInputTextParams) -> InputTextRecord: ...
-    async def update_input_text(self, helper_id: str, params: UpdateInputTextParams) -> InputTextRecord: ...
-    async def delete_input_text(self, helper_id: str) -> None: ...
-
-    # input_select CRUD
-    async def list_input_selects(self) -> list[InputSelectRecord]: ...
-    async def create_input_select(self, params: CreateInputSelectParams) -> InputSelectRecord: ...
-    async def update_input_select(self, helper_id: str, params: UpdateInputSelectParams) -> InputSelectRecord: ...
-    async def delete_input_select(self, helper_id: str) -> None: ...
-
-    # input_datetime CRUD
-    async def list_input_datetimes(self) -> list[InputDatetimeRecord]: ...
-    async def create_input_datetime(self, params: CreateInputDatetimeParams) -> InputDatetimeRecord: ...
-    async def update_input_datetime(self, helper_id: str, params: UpdateInputDatetimeParams) -> InputDatetimeRecord: ...
-    async def delete_input_datetime(self, helper_id: str) -> None: ...
-
-    # input_button CRUD
-    async def list_input_buttons(self) -> list[InputButtonRecord]: ...
-    async def create_input_button(self, params: CreateInputButtonParams) -> InputButtonRecord: ...
-    async def update_input_button(self, helper_id: str, params: UpdateInputButtonParams) -> InputButtonRecord: ...
-    async def delete_input_button(self, helper_id: str) -> None: ...
-
-    # counter CRUD
-    async def list_counters(self) -> list[CounterRecord]: ...
-    async def create_counter(self, params: CreateCounterParams) -> CounterRecord: ...
-    async def update_counter(self, helper_id: str, params: UpdateCounterParams) -> CounterRecord: ...
-    async def delete_counter(self, helper_id: str) -> None: ...
-
-    # timer CRUD
-    async def list_timers(self) -> list[TimerRecord]: ...
-    async def create_timer(self, params: CreateTimerParams) -> TimerRecord: ...
-    async def update_timer(self, helper_id: str, params: UpdateTimerParams) -> TimerRecord: ...
-    async def delete_timer(self, helper_id: str) -> None: ...
-
-    # counter action methods
-    async def increment_counter(self, entity_id: str) -> None: ...
-    async def decrement_counter(self, entity_id: str) -> None: ...
-    async def reset_counter(self, entity_id: str) -> None: ...
+    # Helper CRUD — see HelperClientProtocol for the list/create/update/delete/
+    # increment/decrement/reset interface shared with hassette.api.helpers.HelperClient.
+    helpers: HelperClientProtocol
 
 
 def not_implemented(method_name: str) -> Never:
@@ -301,6 +302,203 @@ def not_implemented(method_name: str) -> Never:
         "Seed state via AppTestHarness.set_state() for read methods, "
         "or use a full integration test for methods requiring a live HA connection."
     )
+
+
+class RecordingHelperClient:
+    """Test double for ``hassette.api.helpers.HelperClient``.
+
+    Owns ``helper_definitions`` (the in-memory store of seeded/created helper
+    records) and implements the same 7 public methods as ``HelperClient``
+    (``list``, ``create``, ``update``, ``delete``, ``increment``, ``decrement``,
+    ``reset``). ``RecordingApi.helpers`` returns an instance of this class.
+
+    Generic core methods (``_list_helper``, ``_create_helper``, ``_update_helper``,
+    ``_delete_helper``) implement the shared logic dispatching via
+    ``RECORD_TYPE_TO_DOMAIN`` / ``DOMAIN_TO_RECORD_TYPE`` /
+    ``CREATE_PARAMS_TO_RECORD_TYPE`` / ``UPDATE_PARAMS_TO_RECORD_TYPE``. The 7
+    public methods are thin dispatching delegations; no CRUD logic lives in them.
+
+    Needs a reference to the parent ``RecordingApi`` so that ``create``/``update``/
+    ``delete`` can append to the same ``calls`` list as the rest of the recorder,
+    and so that ``increment``/``decrement``/``reset`` can delegate to
+    ``RecordingApi.call_service`` (matching ``HelperClient``'s real implementation,
+    which uses ``call_service`` for counter actions).
+    """
+
+    helper_definitions: dict[str, dict[str, Any]]
+
+    def __init__(self, parent: "RecordingApi") -> None:
+        self._parent = parent
+        self.helper_definitions = {d: {} for d in SUPPORTED_HELPER_DOMAINS}
+
+    def _new_helper_id(self, domain: str, name: str) -> str:
+        """Generate a unique helper id for domain, mirroring HA's IDManager.generate_id.
+
+        Emits a DEBUG log when the returned id was auto-suffixed due to a
+        collision — otherwise a test author who expected ``vacation_mode`` but
+        got ``vacation_mode_2`` has no log signal explaining why.
+        """
+        existing_ids = set(self.helper_definitions[domain].keys())
+        generated = generate_helper_id(existing_ids, name)
+        base_slug = slugify_helper_name(name)
+        if generated != base_slug:
+            self._parent.logger.debug(
+                "RecordingApi %s: name %r -> id %r (base slug %r was already taken; auto-suffixed)",
+                domain,
+                name,
+                generated,
+                base_slug,
+            )
+        return generated
+
+    def _list_helper(self, record_type: type) -> list[Any]:
+        """Generic list helper — returns shallow or deep copies of stored records.
+
+        Dispatches via ``RECORD_TYPE_TO_DOMAIN`` to determine the domain and
+        whether ``deep=True`` copies are needed.
+
+        Args:
+            record_type: The Record class (e.g. ``InputBooleanRecord``).
+
+        Returns:
+            List of model copies for the domain.
+        """
+        domain, deep_copy = RECORD_TYPE_TO_DOMAIN[record_type]
+        return [r.model_copy(deep=deep_copy) for r in self.helper_definitions[domain].values()]
+
+    def _create_helper(self, record_type: type, method_name: str, params: Any) -> Any:
+        """Generic create helper — records an ApiCall and inserts a new record.
+
+        Dispatches via ``RECORD_TYPE_TO_DOMAIN`` to determine the domain and
+        copy depth. Auto-suffixes the generated id on collision (mirrors HA's
+        IDManager.generate_id).
+
+        Args:
+            record_type: The Record class to instantiate.
+            method_name: The API method name to record (e.g. ``"create_input_boolean"``).
+            params: The Create*Params model instance.
+
+        Returns:
+            A copy of the newly created record.
+        """
+        domain, deep_copy = RECORD_TYPE_TO_DOMAIN[record_type]
+        self._parent.calls.append(
+            ApiCall(
+                method=method_name,
+                args=(),
+                kwargs=params.model_dump(exclude_unset=True),
+            )
+        )
+        generated_id = self._new_helper_id(domain, params.name)
+        record = record_type(id=generated_id, **params.model_dump(exclude_unset=True))
+        self.helper_definitions[domain][record.id] = record
+        return record.model_copy(deep=deep_copy)
+
+    def _update_helper(self, record_type: type, method_name: str, helper_id: str, params: Any) -> Any:
+        """Generic update helper — records an ApiCall and mutates the stored record.
+
+        Dispatches via ``RECORD_TYPE_TO_DOMAIN`` to determine the domain and
+        copy depth.
+
+        Args:
+            record_type: The Record class.
+            method_name: The API method name to record (e.g. ``"update_input_boolean"``).
+            helper_id: The helper id to update.
+            params: The Update*Params model instance.
+
+        Returns:
+            A copy of the updated record.
+
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded.
+        """
+        domain, deep_copy = RECORD_TYPE_TO_DOMAIN[record_type]
+        self._parent.calls.append(
+            ApiCall(
+                method=method_name,
+                args=(helper_id,),
+                kwargs={"helper_id": helper_id, **params.model_dump(exclude_unset=True)},
+            )
+        )
+        if helper_id not in self.helper_definitions[domain]:
+            raise FailedMessageError(
+                f"{domain} helper {helper_id!r} not found. Seed it via harness.seed_helper() first.",
+                code="not_found",
+            )
+        existing = self.helper_definitions[domain][helper_id]
+        updated = existing.model_copy(update=params.model_dump(exclude_unset=True))
+        self.helper_definitions[domain][helper_id] = updated
+        return updated.model_copy(deep=deep_copy)
+
+    def _delete_helper(self, record_type: type, method_name: str, helper_id: str) -> None:
+        """Generic delete helper — records an ApiCall and removes the stored record.
+
+        Dispatches via ``RECORD_TYPE_TO_DOMAIN`` to determine the domain.
+
+        Args:
+            record_type: The Record class.
+            method_name: The API method name to record (e.g. ``"delete_input_boolean"``).
+            helper_id: The helper id to delete.
+
+        Raises:
+            FailedMessageError: With code='not_found' if helper_id is not seeded.
+        """
+        domain, _deep_copy = RECORD_TYPE_TO_DOMAIN[record_type]
+        self._parent.calls.append(
+            ApiCall(
+                method=method_name,
+                args=(helper_id,),
+                kwargs={"helper_id": helper_id},
+            )
+        )
+        if helper_id not in self.helper_definitions[domain]:
+            raise FailedMessageError(
+                f"{domain} helper {helper_id!r} not found.",
+                code="not_found",
+            )
+        del self.helper_definitions[domain][helper_id]
+
+    async def list(self, domain: str) -> list[Any]:
+        """Return all seeded helpers for domain. Delegates to _list_helper."""
+        record_type = DOMAIN_TO_RECORD_TYPE[domain]
+        return self._list_helper(record_type)
+
+    async def create(self, params: Any) -> Any:
+        """Record the call and add a record to helper_definitions. Delegates to _create_helper.
+
+        Dispatches on ``type(params)`` via ``CREATE_PARAMS_TO_RECORD_TYPE``, mirroring
+        ``HelperClient.create``'s dispatch on ``CREATE_DISPATCH``.
+        """
+        record_type = CREATE_PARAMS_TO_RECORD_TYPE[type(params)]
+        domain, _deep_copy = RECORD_TYPE_TO_DOMAIN[record_type]
+        return self._create_helper(record_type, f"create_{domain}", params)
+
+    async def update(self, helper_id: str, params: Any) -> Any:
+        """Record the call and mutate the seeded record. Delegates to _update_helper.
+
+        Dispatches on ``type(params)`` via ``UPDATE_PARAMS_TO_RECORD_TYPE``, mirroring
+        ``HelperClient.update``'s dispatch on ``UPDATE_DISPATCH``.
+        """
+        record_type = UPDATE_PARAMS_TO_RECORD_TYPE[type(params)]
+        domain, _deep_copy = RECORD_TYPE_TO_DOMAIN[record_type]
+        return self._update_helper(record_type, f"update_{domain}", helper_id, params)
+
+    async def delete(self, domain: str, helper_id: str) -> None:
+        """Record the call and remove the seeded record. Delegates to _delete_helper."""
+        record_type = DOMAIN_TO_RECORD_TYPE[domain]
+        self._delete_helper(record_type, f"delete_{domain}", helper_id)
+
+    async def increment(self, entity_id: str) -> None:
+        """Record an increment call via the parent's call_service (matches HelperClient)."""
+        await self._parent.call_service("counter", "increment", target={"entity_id": entity_id}, return_response=True)
+
+    async def decrement(self, entity_id: str) -> None:
+        """Record a decrement call via the parent's call_service (matches HelperClient)."""
+        await self._parent.call_service("counter", "decrement", target={"entity_id": entity_id}, return_response=True)
+
+    async def reset(self, entity_id: str) -> None:
+        """Record a reset call via the parent's call_service (matches HelperClient)."""
+        await self._parent.call_service("counter", "reset", target={"entity_id": entity_id}, return_response=True)
 
 
 class RecordingApi(Resource):
@@ -343,7 +541,8 @@ class RecordingApi(Resource):
     """
 
     calls: list[ApiCall]
-    helper_definitions: dict[str, dict[str, Any]]
+    # Access via `harness.api_recorder.helpers`; do not import the type directly.
+    helpers: "RecordingHelperClient"
     # Access via `harness.api_recorder.sync`; do not import the type directly.
     sync: "RecordingSyncFacade"
 
@@ -367,7 +566,7 @@ class RecordingApi(Resource):
         # lazily from hassette._state_proxy (when created via App.add_child()).
         self._state_proxy_override = state_proxy
         self.calls = []
-        self.helper_definitions = {d: {} for d in SUPPORTED_HELPER_DOMAINS}
+        self.helpers = RecordingHelperClient(self)
         self.sync = RecordingSyncFacade(self)
 
     @property
@@ -385,30 +584,6 @@ class RecordingApi(Resource):
     async def on_initialize(self) -> None:
         """Mark this resource ready. Called by Resource.initialize()."""
         mark_ready(self, reason="RecordingApi initialized")
-
-    def _new_helper_id(self, domain: str, name: str) -> str:
-        """Generate a unique helper id for domain, mirroring HA's IDManager.generate_id.
-
-        Private sync helper called by create_* methods. The sync facade generator
-        rewrites ``self._new_helper_id(...)`` → ``self._parent._new_helper_id(...)``
-        so body-copied create methods in RecordingSyncFacade call this correctly.
-
-        Emits a DEBUG log when the returned id was auto-suffixed due to a
-        collision — otherwise a test author who expected ``vacation_mode`` but
-        got ``vacation_mode_2`` has no log signal explaining why.
-        """
-        existing_ids = set(self.helper_definitions[domain].keys())
-        generated = generate_helper_id(existing_ids, name)
-        base_slug = slugify_helper_name(name)
-        if generated != base_slug:
-            self.logger.debug(
-                "RecordingApi %s: name %r -> id %r (base slug %r was already taken; auto-suffixed)",
-                domain,
-                name,
-                generated,
-                base_slug,
-            )
-        return generated
 
     # Signatures must exactly match hassette.api.Api.
 
@@ -635,293 +810,6 @@ class RecordingApi(Resource):
         """Not implemented — raises NotImplementedError."""
         not_implemented("delete_entity")
 
-    # Signatures match hassette.api.Api exactly.
-    #
-    # Generic core methods (_list_helper, _create_helper, _update_helper,
-    # _delete_helper) implement the shared logic dispatching via
-    # RECORD_TYPE_TO_DOMAIN. The 32 per-domain methods below are thin typed
-    # delegations that call the generic core; no logic lives in them.
-
-    def _list_helper(self, record_type: type) -> list[Any]:
-        """Generic list helper — returns shallow or deep copies of stored records.
-
-        Dispatches via ``RECORD_TYPE_TO_DOMAIN`` to determine the domain and
-        whether ``deep=True`` copies are needed.
-
-        Args:
-            record_type: The Record class (e.g. ``InputBooleanRecord``).
-
-        Returns:
-            List of model copies for the domain.
-        """
-        domain, deep_copy = RECORD_TYPE_TO_DOMAIN[record_type]
-        return [r.model_copy(deep=deep_copy) for r in self.helper_definitions[domain].values()]
-
-    def _create_helper(self, record_type: type, method_name: str, params: Any) -> Any:
-        """Generic create helper — records an ApiCall and inserts a new record.
-
-        Dispatches via ``RECORD_TYPE_TO_DOMAIN`` to determine the domain and
-        copy depth.  Auto-suffixes the generated id on collision (mirrors HA's
-        IDManager.generate_id).
-
-        Args:
-            record_type: The Record class to instantiate.
-            method_name: The API method name to record (e.g. ``"create_input_boolean"``).
-            params: The Create*Params model instance.
-
-        Returns:
-            A copy of the newly created record.
-        """
-        domain, deep_copy = RECORD_TYPE_TO_DOMAIN[record_type]
-        self.calls.append(
-            ApiCall(
-                method=method_name,
-                args=(),
-                kwargs=params.model_dump(exclude_unset=True),
-            )
-        )
-        generated_id = self._new_helper_id(domain, params.name)
-        record = record_type(id=generated_id, **params.model_dump(exclude_unset=True))
-        self.helper_definitions[domain][record.id] = record
-        return record.model_copy(deep=deep_copy)
-
-    def _update_helper(self, record_type: type, method_name: str, helper_id: str, params: Any) -> Any:
-        """Generic update helper — records an ApiCall and mutates the stored record.
-
-        Dispatches via ``RECORD_TYPE_TO_DOMAIN`` to determine the domain and
-        copy depth.
-
-        Args:
-            record_type: The Record class.
-            method_name: The API method name to record (e.g. ``"update_input_boolean"``).
-            helper_id: The helper id to update.
-            params: The Update*Params model instance.
-
-        Returns:
-            A copy of the updated record.
-
-        Raises:
-            FailedMessageError: With code='not_found' if helper_id is not seeded.
-        """
-        domain, deep_copy = RECORD_TYPE_TO_DOMAIN[record_type]
-        self.calls.append(
-            ApiCall(
-                method=method_name,
-                args=(helper_id,),
-                kwargs={"helper_id": helper_id, **params.model_dump(exclude_unset=True)},
-            )
-        )
-        if helper_id not in self.helper_definitions[domain]:
-            raise FailedMessageError(
-                f"{domain} helper {helper_id!r} not found. Seed it via harness.seed_helper() first.",
-                code="not_found",
-            )
-        existing = self.helper_definitions[domain][helper_id]
-        updated = existing.model_copy(update=params.model_dump(exclude_unset=True))
-        self.helper_definitions[domain][helper_id] = updated
-        return updated.model_copy(deep=deep_copy)
-
-    def _delete_helper(self, record_type: type, method_name: str, helper_id: str) -> None:
-        """Generic delete helper — records an ApiCall and removes the stored record.
-
-        Dispatches via ``RECORD_TYPE_TO_DOMAIN`` to determine the domain.
-
-        Args:
-            record_type: The Record class.
-            method_name: The API method name to record (e.g. ``"delete_input_boolean"``).
-            helper_id: The helper id to delete.
-
-        Raises:
-            FailedMessageError: With code='not_found' if helper_id is not seeded.
-        """
-        domain, _deep_copy = RECORD_TYPE_TO_DOMAIN[record_type]
-        self.calls.append(
-            ApiCall(
-                method=method_name,
-                args=(helper_id,),
-                kwargs={"helper_id": helper_id},
-            )
-        )
-        if helper_id not in self.helper_definitions[domain]:
-            raise FailedMessageError(
-                f"{domain} helper {helper_id!r} not found.",
-                code="not_found",
-            )
-        del self.helper_definitions[domain][helper_id]
-
-    async def list_input_booleans(self) -> list[InputBooleanRecord]:
-        """Return all seeded input_boolean helpers. Delegates to _list_helper."""
-        return cast("list[InputBooleanRecord]", self._list_helper(InputBooleanRecord))
-
-    async def create_input_boolean(self, params: CreateInputBooleanParams) -> InputBooleanRecord:
-        """Record the call and add a record to helper_definitions. Delegates to _create_helper."""
-        return cast("InputBooleanRecord", self._create_helper(InputBooleanRecord, "create_input_boolean", params))
-
-    async def update_input_boolean(self, helper_id: str, params: UpdateInputBooleanParams) -> InputBooleanRecord:
-        """Record the call and mutate the seeded record. Delegates to _update_helper."""
-        return cast(
-            "InputBooleanRecord", self._update_helper(InputBooleanRecord, "update_input_boolean", helper_id, params)
-        )
-
-    async def delete_input_boolean(self, helper_id: str) -> None:
-        """Record the call and remove the seeded record. Delegates to _delete_helper."""
-        self._delete_helper(InputBooleanRecord, "delete_input_boolean", helper_id)
-
-    async def list_input_numbers(self) -> list[InputNumberRecord]:
-        """Return all seeded input_number helpers. Delegates to _list_helper."""
-        return cast("list[InputNumberRecord]", self._list_helper(InputNumberRecord))
-
-    async def create_input_number(self, params: CreateInputNumberParams) -> InputNumberRecord:
-        """Record the call and add a record to helper_definitions. Delegates to _create_helper."""
-        return cast("InputNumberRecord", self._create_helper(InputNumberRecord, "create_input_number", params))
-
-    async def update_input_number(self, helper_id: str, params: UpdateInputNumberParams) -> InputNumberRecord:
-        """Record the call and mutate the seeded record. Delegates to _update_helper."""
-        return cast(
-            "InputNumberRecord", self._update_helper(InputNumberRecord, "update_input_number", helper_id, params)
-        )
-
-    async def delete_input_number(self, helper_id: str) -> None:
-        """Record the call and remove the seeded record. Delegates to _delete_helper."""
-        self._delete_helper(InputNumberRecord, "delete_input_number", helper_id)
-
-    async def list_input_texts(self) -> list[InputTextRecord]:
-        """Return all seeded input_text helpers. Delegates to _list_helper."""
-        return cast("list[InputTextRecord]", self._list_helper(InputTextRecord))
-
-    async def create_input_text(self, params: CreateInputTextParams) -> InputTextRecord:
-        """Record the call and add a record to helper_definitions. Delegates to _create_helper."""
-        return cast("InputTextRecord", self._create_helper(InputTextRecord, "create_input_text", params))
-
-    async def update_input_text(self, helper_id: str, params: UpdateInputTextParams) -> InputTextRecord:
-        """Record the call and mutate the seeded record. Delegates to _update_helper."""
-        return cast("InputTextRecord", self._update_helper(InputTextRecord, "update_input_text", helper_id, params))
-
-    async def delete_input_text(self, helper_id: str) -> None:
-        """Record the call and remove the seeded record. Delegates to _delete_helper."""
-        self._delete_helper(InputTextRecord, "delete_input_text", helper_id)
-
-    async def list_input_selects(self) -> list[InputSelectRecord]:
-        """Return all seeded input_select helpers as deep-isolated copies.
-
-        Delegates to _list_helper. Uses ``model_copy(deep=True)`` because
-        ``InputSelectRecord.options`` is a ``list[str]`` — the ``deep_copy=True``
-        flag in ``RECORD_TYPE_TO_DOMAIN`` ensures the list is not aliased.
-        """
-        return cast("list[InputSelectRecord]", self._list_helper(InputSelectRecord))
-
-    async def create_input_select(self, params: CreateInputSelectParams) -> InputSelectRecord:
-        """Record the call and add a record to helper_definitions. Delegates to _create_helper."""
-        return cast("InputSelectRecord", self._create_helper(InputSelectRecord, "create_input_select", params))
-
-    async def update_input_select(self, helper_id: str, params: UpdateInputSelectParams) -> InputSelectRecord:
-        """Record the call and mutate the seeded record. Delegates to _update_helper."""
-        return cast(
-            "InputSelectRecord", self._update_helper(InputSelectRecord, "update_input_select", helper_id, params)
-        )
-
-    async def delete_input_select(self, helper_id: str) -> None:
-        """Record the call and remove the seeded record. Delegates to _delete_helper."""
-        self._delete_helper(InputSelectRecord, "delete_input_select", helper_id)
-
-    async def list_input_datetimes(self) -> list[InputDatetimeRecord]:
-        """Return all seeded input_datetime helpers. Delegates to _list_helper."""
-        return cast("list[InputDatetimeRecord]", self._list_helper(InputDatetimeRecord))
-
-    async def create_input_datetime(self, params: CreateInputDatetimeParams) -> InputDatetimeRecord:
-        """Record the call and add a record to helper_definitions. Delegates to _create_helper."""
-        return cast("InputDatetimeRecord", self._create_helper(InputDatetimeRecord, "create_input_datetime", params))
-
-    async def update_input_datetime(self, helper_id: str, params: UpdateInputDatetimeParams) -> InputDatetimeRecord:
-        """Record the call and mutate the seeded record. Delegates to _update_helper."""
-        return cast(
-            "InputDatetimeRecord", self._update_helper(InputDatetimeRecord, "update_input_datetime", helper_id, params)
-        )
-
-    async def delete_input_datetime(self, helper_id: str) -> None:
-        """Record the call and remove the seeded record. Delegates to _delete_helper."""
-        self._delete_helper(InputDatetimeRecord, "delete_input_datetime", helper_id)
-
-    async def list_input_buttons(self) -> list[InputButtonRecord]:
-        """Return all seeded input_button helpers. Delegates to _list_helper."""
-        return cast("list[InputButtonRecord]", self._list_helper(InputButtonRecord))
-
-    async def create_input_button(self, params: CreateInputButtonParams) -> InputButtonRecord:
-        """Record the call and add a record to helper_definitions. Delegates to _create_helper."""
-        return cast("InputButtonRecord", self._create_helper(InputButtonRecord, "create_input_button", params))
-
-    async def update_input_button(self, helper_id: str, params: UpdateInputButtonParams) -> InputButtonRecord:
-        """Record the call and mutate the seeded record. Delegates to _update_helper."""
-        return cast(
-            "InputButtonRecord", self._update_helper(InputButtonRecord, "update_input_button", helper_id, params)
-        )
-
-    async def delete_input_button(self, helper_id: str) -> None:
-        """Record the call and remove the seeded record. Delegates to _delete_helper."""
-        self._delete_helper(InputButtonRecord, "delete_input_button", helper_id)
-
-    async def list_counters(self) -> list[CounterRecord]:
-        """Return all seeded counter helpers. Delegates to _list_helper."""
-        return cast("list[CounterRecord]", self._list_helper(CounterRecord))
-
-    async def create_counter(self, params: CreateCounterParams) -> CounterRecord:
-        """Record the call and add a record to helper_definitions. Delegates to _create_helper."""
-        return cast("CounterRecord", self._create_helper(CounterRecord, "create_counter", params))
-
-    async def update_counter(self, helper_id: str, params: UpdateCounterParams) -> CounterRecord:
-        """Record the call and mutate the seeded record. Delegates to _update_helper."""
-        return cast("CounterRecord", self._update_helper(CounterRecord, "update_counter", helper_id, params))
-
-    async def delete_counter(self, helper_id: str) -> None:
-        """Record the call and remove the seeded record. Delegates to _delete_helper."""
-        self._delete_helper(CounterRecord, "delete_counter", helper_id)
-
-    async def list_timers(self) -> list[TimerRecord]:
-        """Return all seeded timer helpers. Delegates to _list_helper."""
-        return cast("list[TimerRecord]", self._list_helper(TimerRecord))
-
-    async def create_timer(self, params: CreateTimerParams) -> TimerRecord:
-        """Record the call and add a record to helper_definitions. Delegates to _create_helper."""
-        return cast("TimerRecord", self._create_helper(TimerRecord, "create_timer", params))
-
-    async def update_timer(self, helper_id: str, params: UpdateTimerParams) -> TimerRecord:
-        """Record the call and mutate the seeded record. Delegates to _update_helper."""
-        return cast("TimerRecord", self._update_helper(TimerRecord, "update_timer", helper_id, params))
-
-    async def delete_timer(self, helper_id: str) -> None:
-        """Record the call and remove the seeded record. Delegates to _delete_helper."""
-        self._delete_helper(TimerRecord, "delete_timer", helper_id)
-
-    async def increment_counter(self, entity_id: str) -> None:
-        """Record an increment_counter call directly (not via call_service)."""
-        self.calls.append(
-            ApiCall(
-                method="increment_counter",
-                args=(entity_id,),
-                kwargs={"entity_id": entity_id},
-            )
-        )
-
-    async def decrement_counter(self, entity_id: str) -> None:
-        """Record a decrement_counter call directly (not via call_service)."""
-        self.calls.append(
-            ApiCall(
-                method="decrement_counter",
-                args=(entity_id,),
-                kwargs={"entity_id": entity_id},
-            )
-        )
-
-    async def reset_counter(self, entity_id: str) -> None:
-        """Record a reset_counter call directly (not via call_service)."""
-        self.calls.append(
-            ApiCall(
-                method="reset_counter",
-                args=(entity_id,),
-                kwargs={"entity_id": entity_id},
-            )
-        )
-
     def __getattr__(self, name: str) -> Any:
         """Raise NotImplementedError for public attributes not defined on RecordingApi.
 
@@ -1120,12 +1008,16 @@ class RecordingApi(Resource):
             )
 
     def reset(self) -> None:
-        """Clear all recorded calls and reset helper_definitions to empty-per-domain state.
+        """Clear all recorded calls and reset self.helpers to empty-per-domain state.
 
         Replaces the calls list with a new empty list rather than mutating the
         existing list in place. This preserves any snapshots callers hold
         (e.g., ``saved = api.calls`` before a ``simulate_*`` call) — they
         will still see the original calls after reset, as expected.
+
+        Replaces ``self.helpers`` with a fresh ``RecordingHelperClient`` rather than
+        mutating its ``helper_definitions`` dict in place, for the same snapshot-
+        preservation reason.
         """
         self.calls = []
-        self.helper_definitions = {d: {} for d in SUPPORTED_HELPER_DOMAINS}
+        self.helpers = RecordingHelperClient(self)
