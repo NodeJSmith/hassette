@@ -87,5 +87,5 @@ Update all documentation to use the new `api.helpers.*` call sites. Read the des
 
 ## Verify
 
-- [ ] FR#9: No doc file references old flat method names — `grep -rl 'create_input_boolean\|list_input_booleans\|increment_counter' docs/` returns empty
+- [ ] FR#9: No doc or source docstring file references old flat method names — `grep -rl 'list_input_\|create_input_\|update_input_\|delete_input_\|list_counter\|create_counter\|update_counter\|delete_counter\|list_timer\|create_timer\|update_timer\|delete_timer\|increment_counter\|decrement_counter\|reset_counter' docs/ src/hassette/exceptions.py src/hassette/models/states/counter.py` returns empty
 - [ ] AC#6: `cd docs && pyright --project pyrightconfig.json` exits 0

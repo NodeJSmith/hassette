@@ -208,7 +208,7 @@ Add `generate_sync_helpers(helpers_path: Path)` to `generic.py`, following the e
 - New `HELPERS_HEADER` and `HELPERS_CLASS_HEADER` string constants for `HelperClientSyncFacade`
 - `HelperClientSyncFacade` wraps `HelperClient` methods via `self._helpers` attribute
 - Update `cli.py` to include `helpers` as a generation target
-- Update `ApiSyncFacade` (in the `CLASS_HEADER`) to wire `self.helpers = HelperClientSyncFacade(...)` as a plain attribute in `__init__`, matching the `self.sync` convention
+- Update `ApiSyncFacade` (in the `CLASS_HEADER`) to wire `self.helpers = self.add_child(HelperClientSyncFacade, helpers=self._api.helpers)` in `__init__`, using `add_child` for lifecycle registration
 
 The `recording.py` generator needs a parallel change: `generate_sync_recording_helpers` produces `RecordingHelperClientSyncFacade` from `RecordingHelperClient`.
 
