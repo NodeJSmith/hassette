@@ -1,0 +1,89 @@
+---
+task_id: "T02"
+title: "Add cache_key to AppManifest and TTL config fields"
+status: "planned"
+depends_on: []
+implements: ["FR#7", "FR#8", "FR#13", "FR#15", "AC#8", "AC#9", "AC#15", "AC#21"]
+---
+
+## Summary
+
+Add the `cache_key` field to `AppManifest` with framework-prefix validation, add `default_cache_ttl` to `HassetteConfig`, remove the old `default_cache_size` field and its backing constant, and add a config-load-time collision check that warns when two manifests with different `app_key` values resolve to the same `cache_key`. These changes are independent of the cache package itself — they're pure config/manifest changes.
+
+## Target Files
+
+- modify: `src/hassette/config/classes.py`
+- modify: `src/hassette/config/config.py`
+- modify: `src/hassette/test_utils/mock_hassette.py`
+- read: `src/hassette/types/types.py` (is_framework_key, FRAMEWORK_APP_KEY_PREFIX)
+- read: `design/specs/013-resource-cache-redesign/design.md` (## Architecture → Changes to AppManifest, Changes to HassetteConfig)
+
+## Prompt
+
+**AppManifest changes** (`src/hassette/config/classes.py`):
+
+Add a new field to `AppManifest` (after the existing fields, before `__repr__`):
+
+```python
+cache_key: str = Field(default="")
+"""Override the cache directory key. When empty (default), App.cache_key computes '{app_key}/{index}'. When set, this value is used as-is."""
+```
+
+Add a `field_validator` for `cache_key` that rejects framework-reserved prefixes. Import `is_framework_key` from `hassette.types.types` and use it:
+
+```python
+@field_validator("cache_key")
+@classmethod
+def validate_cache_key(cls, v: str) -> str:
+    if v and is_framework_key(v):
+        raise ValueError(f"cache_key {v!r} uses a framework-reserved prefix")
+    return v
+```
+
+Note: `is_framework_key()` uses dot-prefixed matching (`__hassette__.`), while cache keys use `/` separators. This means `__hassette__/foo` would NOT be caught — this is acceptable per the design doc (AC#21 note).
+
+**HassetteConfig changes** (`src/hassette/config/config.py`):
+
+1. Add new field (near the existing `default_cache_size`):
+   ```python
+   default_cache_ttl: int | None = Field(default=None)
+   """Default TTL for cache entries in seconds. None means entries persist indefinitely."""
+   ```
+
+2. Remove `DEFAULT_CACHE_SIZE_BYTES` constant (line 45) and the `default_cache_size` field (line 170-171).
+
+3. Add cache_key collision check in `set_validated_app_manifests()` — after line 411 where `self.apps.manifests` is set. Iterate all manifests, compute resolved cache_key for each (if `manifest.cache_key` is non-empty use it, else use `f"{app_key}/{idx}"` for each config entry index), and log WARNING when different `app_key` values collide on the same resolved key.
+
+   Note: multi-instance apps have `app_config` as a list. Each list entry is a separate instance with its own index. The collision check must expand these: for a manifest with `app_config = [{...}, {...}]`, compute cache_keys for indices 0 and 1.
+
+**mock_hassette.py changes** (`src/hassette/test_utils/mock_hassette.py`):
+
+Remove `default_cache_size=1024` from the `create_ws_mock()` function (line 206). `HassetteConfig` has `extra="allow"` so the kwarg wouldn't error, but it references a removed field and should be cleaned up.
+
+**Unit tests:** Add tests for:
+- `AppManifest.cache_key` defaults to empty string
+- `AppManifest` with `cache_key="__hassette__"` raises ValidationError
+- `AppManifest` with `cache_key="__hassette__.foo"` raises ValidationError
+- `AppManifest` with `cache_key="my-custom-key"` passes validation
+- `HassetteConfig.default_cache_ttl` defaults to None
+- `HassetteConfig.default_cache_ttl = 60` validates correctly
+- `default_cache_size` is no longer a field on HassetteConfig
+- Collision check: two manifests with different app_key but same resolved cache_key logs WARNING
+
+## Focus
+
+- `is_framework_key()` lives at `src/hassette/types/types.py:92`. It checks both the exact `__hassette__` string and the `__hassette__.` prefix.
+- The collision check needs to handle multi-instance apps. `AppManifest.app_config` can be a `list[dict]` — each dict is one instance. When `cache_key` is empty, the resolved key is `f"{app_key}/{idx}"` where `idx` is the list position. When `cache_key` is set, ALL instances share that key (index not appended).
+- `set_validated_app_manifests()` at `config.py:369` assembles all manifests. The collision check goes right after line 411 (`self.apps.manifests = app_manifest_dict`).
+- `create_ws_mock()` at `mock_hassette.py:195` passes `default_cache_size=1024` to `make_mock_hassette()`. This is the only test-utils reference to the removed field.
+
+## Verify
+
+- [ ] FR#7: `HassetteConfig` has a `default_cache_ttl: int | None` field — the schema-level foundation for the class attribute (end-to-end resolution verified in T03)
+- [ ] FR#8: `HassetteConfig.default_cache_ttl` field exists with default None
+- [ ] FR#13: `AppManifest.cache_key` field exists with default empty string. When empty, the default path is `{app_key}/{index}`. When set, the value is used as-is
+- [ ] FR#15: Config-time WARNING logged when two manifests with different `app_key` resolve to the same `cache_key`
+- [ ] AC#8: AppManifest with `cache_key="custom"` produces cache directory using "custom" (verified by field value — directory construction is in T03)
+- [ ] AC#9: AppManifest without `cache_key` defaults to empty string (verified; directory path `{app_key}/{index}` is computed in T03)
+- [ ] AC#15: Collision check logs WARNING for matching cache_key + different app_key
+- [ ] AC#21: `AppManifest.cache_key` rejects `__hassette__` and `__hassette__.`-prefixed values via `is_framework_key()` validator
