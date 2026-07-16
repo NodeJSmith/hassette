@@ -18,8 +18,11 @@ reportUnusedCoroutine for simple, overloaded, and None-returning methods.
 # ruff: noqa
 # pyright: basic
 
+from pathlib import Path
+
 from hassette.api.api import Api
 from hassette.bus.bus import Bus
+from hassette.cache.wrapper import AsyncCache
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.scheduler import Scheduler
 from unittest.mock import MagicMock, AsyncMock
@@ -73,6 +76,10 @@ def _make_scheduler() -> Scheduler:
     return sched
 
 
+def _make_cache() -> AsyncCache:
+    return AsyncCache(db_path=Path("/tmp/probe_cache.db"))
+
+
 def _make_api() -> Api:
     hassette_mock = MagicMock()
     hassette_mock.config.logging.api = "INFO"
@@ -103,10 +110,15 @@ async def _handler(event: object) -> None:
     pass
 
 
+async def _cache_creator() -> str:
+    return "value"
+
+
 async def probe_cases() -> None:
     bus = _make_bus()
     sched = _make_scheduler()
     api = _make_api()
+    cache = _make_cache()
 
     # Simple bus method (bare call, no await)
     bus.on_state_change(  # PROBE: bus_on_state_change
@@ -124,3 +136,12 @@ async def probe_cases() -> None:
 
     # None-returning method: turn_on
     api.turn_on("light.kitchen")  # PROBE: api_turn_on
+
+    # Cache method (bare call, no await)
+    cache.get("probe_key")  # PROBE: cache_get
+
+    # Cache method (bare call, no await)
+    cache.set("probe_key", "value")  # PROBE: cache_set
+
+    # Cache method (bare call, no await)
+    cache.get_or_set("probe_key", _cache_creator)  # PROBE: cache_get_or_set

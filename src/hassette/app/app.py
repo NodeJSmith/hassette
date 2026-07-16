@@ -7,6 +7,7 @@ from whenever import ZonedDateTime
 import hassette.utils.date_utils as date_utils
 from hassette.api import Api
 from hassette.bus import Bus
+from hassette.cache import AsyncCache, CacheProtocol
 from hassette.config.classes import AppManifest
 from hassette.resources.base import FinalMeta, Resource
 from hassette.scheduler import Scheduler
@@ -44,6 +45,7 @@ _APP_PUBLIC_API: frozenset[str] = frozenset(
         "after_shutdown",
         "task_bucket",
         "cache",
+        "cache_key",
         "is_ready",
         "wait_ready",
     }
@@ -93,6 +95,10 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
     _import_exception: ClassVar[Exception | None] = None
     """Exception raised during import, if any. This prevents having all apps in a module fail due to one exception."""
 
+    default_cache_ttl: ClassVar[int | None] = None
+    """Default TTL (seconds) for this app's cache entries. Falls back to
+    ``hassette.config.default_cache_ttl`` when unset, and to no expiration when both are unset."""
+
     role: ClassVar[ResourceRole] = ResourceRole.APP
     """Role of the resource, e.g. 'App', 'Service', etc."""
 
@@ -134,6 +140,9 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
     index: int
     """Index of this app instance, used for unique naming."""
 
+    cache: "CacheProtocol"
+    """Cache instance for storing arbitrary data, scoped to this app instance."""
+
     def __init__(
         self,
         hassette: "Hassette",
@@ -144,6 +153,7 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         app_manifest: AppManifest | None = None,
         api_factory: type[Resource] | None = None,
         parent: Resource | None = None,
+        cache: CacheProtocol | None = None,
     ) -> None:
         # app_config and index must be set before super().__init__ because
         # unique_name (used by the logger) depends on app_config
@@ -156,6 +166,15 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         self.scheduler = self.add_child(Scheduler)
         self.bus = self.add_child(Bus, priority=0)
         self.states = self.add_child(StateManager)
+
+        if cache is not None:
+            self.cache = cache
+        else:
+            db_path = hassette.config.data_dir / self.cache_key / "cache" / "cache.db"
+            default_ttl = (
+                self.default_cache_ttl if self.default_cache_ttl is not None else hassette.config.default_cache_ttl
+            )
+            self.cache = AsyncCache(db_path, default_ttl)
 
     def __dir__(self) -> list[str]:
         return sorted(_APP_PUBLIC_API)
@@ -190,9 +209,31 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         """Name for the instance of the app. Used for logging and ownership of resources."""
         return self.app_config.instance_name
 
+    @property
+    def cache_key(self) -> str:
+        """Key used to scope this app instance's cache directory.
+
+        Returns the manifest's explicit ``cache_key`` when set; otherwise defaults to
+        ``f"{app_key}/{index}"`` so each app instance gets its own cache directory.
+        """
+        if self.app_manifest and self.app_manifest.cache_key:
+            return self.app_manifest.cache_key
+        return f"{self.app_key}/{self.index}"
+
     def now(self) -> ZonedDateTime:
         """Return the current date and time."""
         return date_utils.now()
+
+    async def before_initialize(self) -> None:
+        """Optional: prepare to accept new work, allocate sockets, queues, temp files, etc.
+
+        Initializes the cache (opens connections, creates schema, checks integrity) when
+        it is a real ``AsyncCache``. When a cache was injected via the constructor (e.g. a
+        ``DummyCache`` in tests), initialization is skipped -- ``DummyCache.initialize()``
+        is a no-op, but the guard avoids the call entirely for clarity.
+        """
+        if isinstance(self.cache, AsyncCache):
+            await self.cache.initialize()
 
     @final
     async def cleanup(self, timeout: float | None = None) -> None:
@@ -204,6 +245,10 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         """
         timeout = timeout or self.hassette.config.lifecycle.app_shutdown_timeout_seconds
         await super().cleanup(timeout=timeout)
+        try:
+            await self.cache.close()
+        except Exception as exc:
+            self.logger.exception("Error closing cache: %s %s", type(exc).__name__, exc)
 
 
 class AppSync(App[AppConfigT]):
@@ -230,6 +275,7 @@ class AppSync(App[AppConfigT]):
     @final
     async def before_initialize(self) -> None:
         """Optional: prepare to accept new work, allocate sockets, queues, temp files, etc."""
+        await super().before_initialize()
         await self.task_bucket.run_in_thread(self.before_initialize_sync)
 
     @final

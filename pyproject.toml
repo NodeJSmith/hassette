@@ -45,7 +45,6 @@ dependencies = [
     "starlette>=1.3.1",  # explicit floor for CVE-2026-48710, CVE-2026-54282/54283 fixes
     "croniter>=6.0.0",
     "deepdiff>=8.6.1",
-    "diskcache>=5.6.3",
     "fair-async-rlock>=1.0.7",
     "frozendict>=2.4.7",
     "glom>=24.11.0",

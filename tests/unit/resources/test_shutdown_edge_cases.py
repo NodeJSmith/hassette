@@ -5,7 +5,6 @@ Verifies:
 - shutdown() skips the STOPPING transition when status is already terminal
 - _finalize_shutdown() swallows an exception raised by handle_stop()
 - _emit_readiness_event() swallows an exception raised while building/sending the event
-- cleanup() closes a present cache, and swallows an exception if close() raises
 """
 
 from unittest.mock import AsyncMock, patch
@@ -15,19 +14,6 @@ from hassette.test_utils import make_mock_hassette
 from hassette.types.enums import ResourceStatus
 
 from .conftest import ConcreteResource
-
-
-class _FakeCacheOk:
-    def __init__(self) -> None:
-        self.closed = False
-
-    def close(self) -> None:
-        self.closed = True
-
-
-class _FakeCacheRaises:
-    def close(self) -> None:
-        raise RuntimeError("cache close boom")
 
 
 class TestInitializeAlreadyInitializing:
@@ -133,27 +119,3 @@ class TestEmitReadinessEventSwallowsException:
 
         # Must not raise despite send_event() blowing up.
         await resource._emit_readiness_event()
-
-
-class TestCleanupCache:
-    async def test_cleanup_closes_present_cache(self) -> None:
-        hassette = make_mock_hassette(sealed=False)
-        resource = ConcreteResource(hassette=hassette)
-        await resource.initialize()
-
-        fake_cache = _FakeCacheOk()
-        resource._cache = fake_cache
-
-        await resource.cleanup()
-
-        assert fake_cache.closed is True
-
-    async def test_cleanup_swallows_cache_close_exception(self) -> None:
-        hassette = make_mock_hassette(sealed=False)
-        resource = ConcreteResource(hassette=hassette)
-        await resource.initialize()
-
-        resource._cache = _FakeCacheRaises()
-
-        # Must not raise despite cache.close() blowing up.
-        await resource.cleanup()

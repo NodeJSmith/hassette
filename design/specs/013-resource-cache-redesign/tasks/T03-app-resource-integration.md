@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Wire cache into App, remove from Resource, update test infra"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02"]
 implements: ["FR#1", "FR#2", "FR#7", "FR#8", "FR#10", "FR#13", "FR#14", "AC#1", "AC#2", "AC#10", "AC#11", "AC#12", "AC#16", "AC#17", "AC#18", "AC#19", "AC#20"]
 ---

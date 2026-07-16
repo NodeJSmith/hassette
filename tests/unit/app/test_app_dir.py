@@ -47,7 +47,7 @@ class TestAppDir:
         design/specs/010-lifecycle-extraction/design.md), not incidental. A size change here
         signals the allowlist drifted without updating the design doc.
         """
-        assert len(_APP_PUBLIC_API) == 20
+        assert len(_APP_PUBLIC_API) == 21
 
     def test_hasattr_handle_failed_is_false(self) -> None:
         """Extracted lifecycle methods are deleted from the class entirely — not just hidden
@@ -78,6 +78,6 @@ class TestAppSyncDir:
 
         assert set(dir(app)) == _APP_PUBLIC_API | _APPSYNC_HOOKS
 
-    def test_appsync_allowlist_has_exactly_26_names(self) -> None:
-        """Regression guard: 20 base names + 6 sync hooks = 26."""
-        assert len(_APP_PUBLIC_API | _APPSYNC_HOOKS) == 26
+    def test_appsync_allowlist_has_exactly_27_names(self) -> None:
+        """Regression guard: 21 base names + 6 sync hooks = 27."""
+        assert len(_APP_PUBLIC_API | _APPSYNC_HOOKS) == 27
