@@ -172,32 +172,6 @@ from hassette.const.misc import FalseySentinel
 from hassette.event_handling.accessors import get_path
 from hassette.exceptions import EntityNotFoundError, FailedMessageError, UnableToConvertStateError
 from hassette.models.entities import BaseEntity
-from hassette.models.helpers import (
-    CounterRecord,
-    CreateCounterParams,
-    CreateInputBooleanParams,
-    CreateInputButtonParams,
-    CreateInputDatetimeParams,
-    CreateInputNumberParams,
-    CreateInputSelectParams,
-    CreateInputTextParams,
-    CreateTimerParams,
-    InputBooleanRecord,
-    InputButtonRecord,
-    InputDatetimeRecord,
-    InputNumberRecord,
-    InputSelectRecord,
-    InputTextRecord,
-    TimerRecord,
-    UpdateCounterParams,
-    UpdateInputBooleanParams,
-    UpdateInputButtonParams,
-    UpdateInputDatetimeParams,
-    UpdateInputNumberParams,
-    UpdateInputSelectParams,
-    UpdateInputTextParams,
-    UpdateTimerParams,
-)
 from hassette.models.history import HistoryEntry
 from hassette.models.services import ServiceResponse
 from hassette.resources.base import Resource
@@ -208,13 +182,6 @@ from hassette.utils.request_utils import format_time_param
 from hassette.utils.source_capture import capture_source_location
 
 from .sync import ApiSyncFacade
-
-if typing.TYPE_CHECKING:
-    from hassette import Hassette
-    from hassette.core.api_resource import ApiResource
-    from hassette.events import HassStateDict
-    from hassette.models.entities import EntityT
-    from hassette.models.states import BaseState
 
 
 def _expect_list(val: Any, context: str) -> list:
@@ -235,7 +202,10 @@ def _expect_dict(val: Any, context: str) -> dict:
     return val
 
 
-async def _ws_helper_call(api: "Api", domain: str, operation: str, **data: Any) -> Any:
+# Only imported by hassette.api.helpers (cross-module) — pyright's reportUnusedFunction does not
+# credit a leading-underscore name's use in another module, so it flags this as unused without
+# the suppression below.
+async def _ws_helper_call(api: "Api", domain: str, operation: str, **data: Any) -> Any:  # pyright: ignore[reportUnusedFunction]
     """Call ws_send_and_wait with domain/operation context on failure.
 
     Preserves ``code`` and ``original_data`` from the original FailedMessageError
@@ -262,6 +232,20 @@ async def _ws_helper_call(api: "Api", domain: str, operation: str, **data: Any) 
         ) from exc
 
 
+# Imported here (rather than with the other top-of-file imports) because `helpers.py` imports
+# `_expect_list`, `_expect_dict`, and `_ws_helper_call` from this module — importing HelperClient
+# any earlier would create a circular import that fails at runtime (those names would not yet be
+# bound on this module when helpers.py's `from .api import ...` executes).
+from hassette.api.helpers import HelperClient  # noqa: E402
+
+if typing.TYPE_CHECKING:
+    from hassette import Hassette
+    from hassette.core.api_resource import ApiResource
+    from hassette.events import HassStateDict
+    from hassette.models.entities import EntityT
+    from hassette.models.states import BaseState
+
+
 class Api(Resource):
     """API service for interacting with Home Assistant.
 
@@ -272,6 +256,9 @@ class Api(Resource):
     sync: ApiSyncFacade
     """Synchronous facade for the API service."""
 
+    helpers: HelperClient
+    """Client for CRUD operations on Home Assistant helper entities."""
+
     _api_service: "ApiResource"
     """Internal API service instance."""
 
@@ -279,6 +266,7 @@ class Api(Resource):
         super().__init__(hassette, parent=parent)
         self._api_service = self.hassette.api_service
         self.sync = self.add_child(ApiSyncFacade, api=self)
+        self.helpers = self.add_child(HelperClient, api=self)
 
     async def on_initialize(self) -> None:
         mark_ready(self, reason="API initialized")
@@ -980,498 +968,3 @@ class Api(Resource):
 
         if response.status != HTTPStatus.NO_CONTENT:
             raise RuntimeError(f"Failed to delete entity {entity_id}: {response.status} - {response.reason}")
-
-    # All 32 methods use _ws_helper_call for consistent error context.
-    # Command pattern: {domain}/{list|create|update|delete}
-    # ID key pattern:  {domain}_id  (uniform across all 8 domains — see design.md
-    #                  § HA WebSocket Commands / Shared infrastructure)
-
-    async def list_input_booleans(self) -> list[InputBooleanRecord]:
-        """List all stored input_boolean helpers.
-
-        Returns:
-            List of InputBooleanRecord instances representing stored configs.
-        """
-        val = await _ws_helper_call(self, "input_boolean", "list")
-        items = _expect_list(val, "input_boolean/list")
-        self.logger.debug("Listed %d input_boolean helpers", len(items))
-        return [InputBooleanRecord.model_validate(item) for item in items]
-
-    async def create_input_boolean(self, params: CreateInputBooleanParams) -> InputBooleanRecord:
-        """Create a new input_boolean helper.
-
-        Args:
-            params: Parameters for the new helper.
-
-        Returns:
-            The stored record returned by Home Assistant.
-        """
-        val = await _ws_helper_call(self, "input_boolean", "create", **params.model_dump(exclude_unset=True))
-        record = InputBooleanRecord.model_validate(_expect_dict(val, "input_boolean/create"))
-        self.logger.info("Created input_boolean helper %r", record.id)
-        return record
-
-    async def update_input_boolean(self, helper_id: str, params: UpdateInputBooleanParams) -> InputBooleanRecord:
-        """Update an existing input_boolean helper.
-
-        Args:
-            helper_id: The ID of the helper to update.
-            params: Fields to update (unset fields are left unchanged).
-
-        Returns:
-            The updated stored record.
-        """
-        val = await _ws_helper_call(
-            self,
-            "input_boolean",
-            "update",
-            input_boolean_id=helper_id,
-            **params.model_dump(exclude_unset=True),
-        )
-        record = InputBooleanRecord.model_validate(_expect_dict(val, "input_boolean/update"))
-        self.logger.debug("Updated input_boolean helper %r", helper_id)
-        return record
-
-    async def delete_input_boolean(self, helper_id: str) -> None:
-        """Delete an input_boolean helper.
-
-        Args:
-            helper_id: The ID of the helper to delete.
-        """
-        await _ws_helper_call(self, "input_boolean", "delete", input_boolean_id=helper_id)
-        self.logger.debug("Deleted input_boolean helper %r", helper_id)
-
-    async def list_input_numbers(self) -> list[InputNumberRecord]:
-        """List all stored input_number helpers.
-
-        Returns:
-            List of InputNumberRecord instances representing stored configs.
-        """
-        val = await _ws_helper_call(self, "input_number", "list")
-        items = _expect_list(val, "input_number/list")
-        self.logger.debug("Listed %d input_number helpers", len(items))
-        return [InputNumberRecord.model_validate(item) for item in items]
-
-    async def create_input_number(self, params: CreateInputNumberParams) -> InputNumberRecord:
-        """Create a new input_number helper.
-
-        Args:
-            params: Parameters for the new helper.
-
-        Returns:
-            The stored record returned by Home Assistant.
-        """
-        val = await _ws_helper_call(self, "input_number", "create", **params.model_dump(exclude_unset=True))
-        record = InputNumberRecord.model_validate(_expect_dict(val, "input_number/create"))
-        self.logger.info("Created input_number helper %r", record.id)
-        return record
-
-    async def update_input_number(self, helper_id: str, params: UpdateInputNumberParams) -> InputNumberRecord:
-        """Update an existing input_number helper.
-
-        Args:
-            helper_id: The ID of the helper to update.
-            params: Fields to update (unset fields are left unchanged).
-
-        Returns:
-            The updated stored record.
-        """
-        val = await _ws_helper_call(
-            self,
-            "input_number",
-            "update",
-            input_number_id=helper_id,
-            **params.model_dump(exclude_unset=True),
-        )
-        record = InputNumberRecord.model_validate(_expect_dict(val, "input_number/update"))
-        self.logger.debug("Updated input_number helper %r", helper_id)
-        return record
-
-    async def delete_input_number(self, helper_id: str) -> None:
-        """Delete an input_number helper.
-
-        Args:
-            helper_id: The ID of the helper to delete.
-        """
-        await _ws_helper_call(self, "input_number", "delete", input_number_id=helper_id)
-        self.logger.debug("Deleted input_number helper %r", helper_id)
-
-    async def list_input_texts(self) -> list[InputTextRecord]:
-        """List all stored input_text helpers.
-
-        Returns:
-            List of InputTextRecord instances representing stored configs.
-        """
-        val = await _ws_helper_call(self, "input_text", "list")
-        items = _expect_list(val, "input_text/list")
-        self.logger.debug("Listed %d input_text helpers", len(items))
-        return [InputTextRecord.model_validate(item) for item in items]
-
-    async def create_input_text(self, params: CreateInputTextParams) -> InputTextRecord:
-        """Create a new input_text helper.
-
-        Args:
-            params: Parameters for the new helper.
-
-        Returns:
-            The stored record returned by Home Assistant.
-        """
-        val = await _ws_helper_call(self, "input_text", "create", **params.model_dump(exclude_unset=True))
-        record = InputTextRecord.model_validate(_expect_dict(val, "input_text/create"))
-        self.logger.info("Created input_text helper %r", record.id)
-        return record
-
-    async def update_input_text(self, helper_id: str, params: UpdateInputTextParams) -> InputTextRecord:
-        """Update an existing input_text helper.
-
-        Args:
-            helper_id: The ID of the helper to update.
-            params: Fields to update (unset fields are left unchanged).
-
-        Returns:
-            The updated stored record.
-        """
-        val = await _ws_helper_call(
-            self,
-            "input_text",
-            "update",
-            input_text_id=helper_id,
-            **params.model_dump(exclude_unset=True),
-        )
-        record = InputTextRecord.model_validate(_expect_dict(val, "input_text/update"))
-        self.logger.debug("Updated input_text helper %r", helper_id)
-        return record
-
-    async def delete_input_text(self, helper_id: str) -> None:
-        """Delete an input_text helper.
-
-        Args:
-            helper_id: The ID of the helper to delete.
-        """
-        await _ws_helper_call(self, "input_text", "delete", input_text_id=helper_id)
-        self.logger.debug("Deleted input_text helper %r", helper_id)
-
-    async def list_input_selects(self) -> list[InputSelectRecord]:
-        """List all stored input_select helpers.
-
-        Returns:
-            List of InputSelectRecord instances representing stored configs.
-        """
-        val = await _ws_helper_call(self, "input_select", "list")
-        items = _expect_list(val, "input_select/list")
-        self.logger.debug("Listed %d input_select helpers", len(items))
-        return [InputSelectRecord.model_validate(item) for item in items]
-
-    async def create_input_select(self, params: CreateInputSelectParams) -> InputSelectRecord:
-        """Create a new input_select helper.
-
-        Args:
-            params: Parameters for the new helper.
-
-        Returns:
-            The stored record returned by Home Assistant.
-        """
-        val = await _ws_helper_call(self, "input_select", "create", **params.model_dump(exclude_unset=True))
-        record = InputSelectRecord.model_validate(_expect_dict(val, "input_select/create"))
-        self.logger.info("Created input_select helper %r", record.id)
-        return record
-
-    async def update_input_select(self, helper_id: str, params: UpdateInputSelectParams) -> InputSelectRecord:
-        """Update an existing input_select helper.
-
-        Args:
-            helper_id: The ID of the helper to update.
-            params: Fields to update (unset fields are left unchanged).
-
-        Returns:
-            The updated stored record.
-        """
-        val = await _ws_helper_call(
-            self,
-            "input_select",
-            "update",
-            input_select_id=helper_id,
-            **params.model_dump(exclude_unset=True),
-        )
-        record = InputSelectRecord.model_validate(_expect_dict(val, "input_select/update"))
-        self.logger.debug("Updated input_select helper %r", helper_id)
-        return record
-
-    async def delete_input_select(self, helper_id: str) -> None:
-        """Delete an input_select helper.
-
-        Args:
-            helper_id: The ID of the helper to delete.
-        """
-        await _ws_helper_call(self, "input_select", "delete", input_select_id=helper_id)
-        self.logger.debug("Deleted input_select helper %r", helper_id)
-
-    async def list_input_datetimes(self) -> list[InputDatetimeRecord]:
-        """List all stored input_datetime helpers.
-
-        Returns:
-            List of InputDatetimeRecord instances representing stored configs.
-        """
-        val = await _ws_helper_call(self, "input_datetime", "list")
-        items = _expect_list(val, "input_datetime/list")
-        self.logger.debug("Listed %d input_datetime helpers", len(items))
-        return [InputDatetimeRecord.model_validate(item) for item in items]
-
-    async def create_input_datetime(self, params: CreateInputDatetimeParams) -> InputDatetimeRecord:
-        """Create a new input_datetime helper.
-
-        Args:
-            params: Parameters for the new helper.
-
-        Returns:
-            The stored record returned by Home Assistant.
-        """
-        val = await _ws_helper_call(self, "input_datetime", "create", **params.model_dump(exclude_unset=True))
-        record = InputDatetimeRecord.model_validate(_expect_dict(val, "input_datetime/create"))
-        self.logger.info("Created input_datetime helper %r", record.id)
-        return record
-
-    async def update_input_datetime(self, helper_id: str, params: UpdateInputDatetimeParams) -> InputDatetimeRecord:
-        """Update an existing input_datetime helper.
-
-        Args:
-            helper_id: The ID of the helper to update.
-            params: Fields to update (unset fields are left unchanged).
-
-        Returns:
-            The updated stored record.
-        """
-        val = await _ws_helper_call(
-            self,
-            "input_datetime",
-            "update",
-            input_datetime_id=helper_id,
-            **params.model_dump(exclude_unset=True),
-        )
-        record = InputDatetimeRecord.model_validate(_expect_dict(val, "input_datetime/update"))
-        self.logger.debug("Updated input_datetime helper %r", helper_id)
-        return record
-
-    async def delete_input_datetime(self, helper_id: str) -> None:
-        """Delete an input_datetime helper.
-
-        Args:
-            helper_id: The ID of the helper to delete.
-        """
-        await _ws_helper_call(self, "input_datetime", "delete", input_datetime_id=helper_id)
-        self.logger.debug("Deleted input_datetime helper %r", helper_id)
-
-    async def list_input_buttons(self) -> list[InputButtonRecord]:
-        """List all stored input_button helpers.
-
-        Returns:
-            List of InputButtonRecord instances representing stored configs.
-        """
-        val = await _ws_helper_call(self, "input_button", "list")
-        items = _expect_list(val, "input_button/list")
-        self.logger.debug("Listed %d input_button helpers", len(items))
-        return [InputButtonRecord.model_validate(item) for item in items]
-
-    async def create_input_button(self, params: CreateInputButtonParams) -> InputButtonRecord:
-        """Create a new input_button helper.
-
-        Args:
-            params: Parameters for the new helper.
-
-        Returns:
-            The stored record returned by Home Assistant.
-        """
-        val = await _ws_helper_call(self, "input_button", "create", **params.model_dump(exclude_unset=True))
-        record = InputButtonRecord.model_validate(_expect_dict(val, "input_button/create"))
-        self.logger.info("Created input_button helper %r", record.id)
-        return record
-
-    async def update_input_button(self, helper_id: str, params: UpdateInputButtonParams) -> InputButtonRecord:
-        """Update an existing input_button helper.
-
-        Args:
-            helper_id: The ID of the helper to update.
-            params: Fields to update (unset fields are left unchanged).
-
-        Returns:
-            The updated stored record.
-        """
-        val = await _ws_helper_call(
-            self,
-            "input_button",
-            "update",
-            input_button_id=helper_id,
-            **params.model_dump(exclude_unset=True),
-        )
-        record = InputButtonRecord.model_validate(_expect_dict(val, "input_button/update"))
-        self.logger.debug("Updated input_button helper %r", helper_id)
-        return record
-
-    async def delete_input_button(self, helper_id: str) -> None:
-        """Delete an input_button helper.
-
-        Args:
-            helper_id: The ID of the helper to delete.
-        """
-        await _ws_helper_call(self, "input_button", "delete", input_button_id=helper_id)
-        self.logger.debug("Deleted input_button helper %r", helper_id)
-
-    async def list_counters(self) -> list[CounterRecord]:
-        """List all stored counter helpers.
-
-        Returns:
-            List of CounterRecord instances representing stored configs.
-        """
-        val = await _ws_helper_call(self, "counter", "list")
-        items = _expect_list(val, "counter/list")
-        self.logger.debug("Listed %d counter helpers", len(items))
-        return [CounterRecord.model_validate(item) for item in items]
-
-    async def create_counter(self, params: CreateCounterParams) -> CounterRecord:
-        """Create a new counter helper.
-
-        Args:
-            params: Parameters for the new helper.
-
-        Returns:
-            The stored record returned by Home Assistant.
-        """
-        val = await _ws_helper_call(self, "counter", "create", **params.model_dump(exclude_unset=True))
-        record = CounterRecord.model_validate(_expect_dict(val, "counter/create"))
-        self.logger.info("Created counter helper %r", record.id)
-        return record
-
-    async def update_counter(self, helper_id: str, params: UpdateCounterParams) -> CounterRecord:
-        """Update an existing counter helper (stored config, not live value).
-
-        Args:
-            helper_id: The ID of the helper to update.
-            params: Fields to update (unset fields are left unchanged).
-
-        Returns:
-            The updated stored record.
-        """
-        val = await _ws_helper_call(
-            self,
-            "counter",
-            "update",
-            counter_id=helper_id,
-            **params.model_dump(exclude_unset=True),
-        )
-        record = CounterRecord.model_validate(_expect_dict(val, "counter/update"))
-        self.logger.debug("Updated counter helper %r", helper_id)
-        return record
-
-    async def delete_counter(self, helper_id: str) -> None:
-        """Delete a counter helper.
-
-        Args:
-            helper_id: The ID of the helper to delete.
-        """
-        await _ws_helper_call(self, "counter", "delete", counter_id=helper_id)
-        self.logger.debug("Deleted counter helper %r", helper_id)
-
-    async def list_timers(self) -> list[TimerRecord]:
-        """List all stored timer helpers.
-
-        Returns:
-            List of TimerRecord instances representing stored configs.
-        """
-        val = await _ws_helper_call(self, "timer", "list")
-        items = _expect_list(val, "timer/list")
-        self.logger.debug("Listed %d timer helpers", len(items))
-        return [TimerRecord.model_validate(item) for item in items]
-
-    async def create_timer(self, params: CreateTimerParams) -> TimerRecord:
-        """Create a new timer helper.
-
-        Args:
-            params: Parameters for the new helper.
-
-        Returns:
-            The stored record returned by Home Assistant.
-        """
-        val = await _ws_helper_call(self, "timer", "create", **params.model_dump(exclude_unset=True))
-        record = TimerRecord.model_validate(_expect_dict(val, "timer/create"))
-        self.logger.info("Created timer helper %r", record.id)
-        return record
-
-    async def update_timer(self, helper_id: str, params: UpdateTimerParams) -> TimerRecord:
-        """Update an existing timer helper.
-
-        Args:
-            helper_id: The ID of the helper to update.
-            params: Fields to update (unset fields are left unchanged).
-
-        Returns:
-            The updated stored record.
-        """
-        val = await _ws_helper_call(
-            self,
-            "timer",
-            "update",
-            timer_id=helper_id,
-            **params.model_dump(exclude_unset=True),
-        )
-        record = TimerRecord.model_validate(_expect_dict(val, "timer/update"))
-        self.logger.debug("Updated timer helper %r", helper_id)
-        return record
-
-    async def delete_timer(self, helper_id: str) -> None:
-        """Delete a timer helper.
-
-        Args:
-            helper_id: The ID of the helper to delete.
-        """
-        await _ws_helper_call(self, "timer", "delete", timer_id=helper_id)
-        self.logger.debug("Deleted timer helper %r", helper_id)
-
-    # Counter service-call shortcuts (operate on live entity state, not stored
-    # config). Use update_counter() to change the stored initial/minimum/maximum.
-    #
-    # timer.start / timer.pause / timer.cancel are deliberately excluded: timer
-    # service actions are one-off calls that benefit from the full call_service()
-    # signature. Counter actions get wrappers because the pattern "increment on
-    # every event" is common enough to warrant a two-word call site.
-
-    async def increment_counter(self, entity_id: str) -> None:
-        """Increment a counter entity's current value (live state, not stored config).
-
-        Args:
-            entity_id: The entity ID of the counter (e.g. ``"counter.motion_count"``).
-        """
-        await self.call_service(
-            "counter",
-            "increment",
-            target={"entity_id": entity_id},
-            return_response=True,  # surfaces HA errors instead of fire-and-forget
-        )
-        self.logger.debug("Incremented counter %r", entity_id)
-
-    async def decrement_counter(self, entity_id: str) -> None:
-        """Decrement a counter entity's current value (live state, not stored config).
-
-        Args:
-            entity_id: The entity ID of the counter (e.g. ``"counter.motion_count"``).
-        """
-        await self.call_service(
-            "counter",
-            "decrement",
-            target={"entity_id": entity_id},
-            return_response=True,
-        )
-        self.logger.debug("Decremented counter %r", entity_id)
-
-    async def reset_counter(self, entity_id: str) -> None:
-        """Reset a counter entity's value to its configured initial (live state, not stored config).
-
-        Args:
-            entity_id: The entity ID of the counter (e.g. ``"counter.motion_count"``).
-        """
-        await self.call_service(
-            "counter",
-            "reset",
-            target={"entity_id": entity_id},
-            return_response=True,
-        )
-        self.logger.debug("Reset counter %r", entity_id)

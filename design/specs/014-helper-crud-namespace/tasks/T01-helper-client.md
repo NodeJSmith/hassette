@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Create HelperClient with dispatch registries and overloads"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#1", "FR#2", "FR#3", "FR#4", "FR#5", "FR#6", "FR#10", "AC#1", "AC#2", "AC#4", "AC#7"]
 ---
