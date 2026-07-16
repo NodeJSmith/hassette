@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Create cache package with async, sync, and dummy implementations"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#1", "FR#3", "FR#4", "FR#5", "FR#6", "FR#9", "FR#11", "FR#12", "AC#3", "AC#4", "AC#5", "AC#6", "AC#7"]
 ---
