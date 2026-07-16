@@ -115,7 +115,7 @@ class TestStateModelGenerator:
         output = generate_state_model(domain)
         assert "field_validator" in output
         assert '"last_triggered"' in output
-        assert "convert_datetime_str_to_system_tz" in output
+        assert "convert_datetime_str_to_tz" in output
         assert "_parse_datetime_fields" in output
 
     def test_mixed_union_datetime_fields_excluded_from_validator(self) -> None:
@@ -145,7 +145,7 @@ class TestStateModelGenerator:
         )
         output = generate_state_model(domain)
         assert "field_validator" not in output
-        assert "convert_datetime_str_to_system_tz" not in output
+        assert "convert_datetime_str_to_tz" not in output
 
 
 class TestNormalizeEnumPrefixes:

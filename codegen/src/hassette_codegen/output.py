@@ -1,6 +1,7 @@
 """Shared output utilities: ruff formatting, per-file validation, atomic write, drift checking."""
 
 import contextlib
+import difflib
 import py_compile
 import subprocess
 import sys
@@ -8,18 +9,16 @@ import tempfile
 from pathlib import Path
 
 
-def run_ruff_step(cmd: list[str], step_name: str) -> None:
-    """Run a single ruff subprocess step, raising SystemExit on failure."""
+def _run_ruff_quiet(cmd: list[str], step_name: str) -> None:
+    """Run a ruff subprocess step with stdout suppressed."""
     try:
-        subprocess.run(cmd, check=True, timeout=30)
+        subprocess.run(cmd, check=True, timeout=30, stdout=subprocess.DEVNULL)
     except FileNotFoundError as exc:
         raise SystemExit("ruff not found on PATH. Install with: uv tool install ruff") from exc
     except subprocess.TimeoutExpired as exc:
         raise SystemExit(f"ruff {step_name} timed out after 30s — check for filesystem stall") from exc
     except subprocess.CalledProcessError as exc:
-        raise SystemExit(
-            f"ruff {step_name} failed with exit code {exc.returncode}. See the ruff output above for details."
-        ) from exc
+        raise SystemExit(f"ruff {step_name} failed with exit code {exc.returncode}.") from exc
 
 
 def format_via_ruff(content: str) -> str:
@@ -40,8 +39,8 @@ def format_via_ruff(content: str) -> str:
             tmp.write(content)
             tmp_path = tmp.name
 
-        run_ruff_step(["ruff", "format", tmp_path], "format")
-        run_ruff_step(["ruff", "check", "--fix", "--ignore", "S105", tmp_path], "fix")
+        _run_ruff_quiet(["ruff", "format", tmp_path], "format")
+        _run_ruff_quiet(["ruff", "check", "--fix", "--ignore", "S105", tmp_path], "fix")
 
         return Path(tmp_path).read_text(encoding="utf-8")
     finally:
@@ -62,7 +61,7 @@ def run_ruff(path: Path, *, logical_path: Path | None = None) -> None:
     operates on the file directly — ruff format output is independent of the
     filename, so per-file-ignores routing via --stdin-filename isn't needed there.
     """
-    run_ruff_step(["ruff", "format", str(path)], "format")
+    _run_ruff_quiet(["ruff", "format", str(path)], "format")
     if logical_path is not None:
         # Pipe through stdin so --stdin-filename controls per-file-ignores lookup.
         # S105 stays ignored for generated code (test-token-like string literals).
@@ -90,7 +89,7 @@ def run_ruff(path: Path, *, logical_path: Path | None = None) -> None:
             sys.stderr.buffer.write(result.stderr)
             raise SystemExit("ruff fix failed with exit code 1 (unfixable violations).")
     else:
-        run_ruff_step(["ruff", "check", "--fix", "--ignore", "S105", str(path)], "fix")
+        _run_ruff_quiet(["ruff", "check", "--fix", "--ignore", "S105", str(path)], "fix")
 
 
 def atomic_write(out_path: Path, content: str) -> bool:
@@ -153,4 +152,12 @@ def check_drift(target_path: Path, generated_content: str, label: str = "") -> b
 
     display = label or target_path.name
     print(f"{display} is out of date.", file=sys.stderr)
+    diff = difflib.unified_diff(
+        normalized_committed.splitlines(keepends=True),
+        normalized_generated.splitlines(keepends=True),
+        fromfile=f"committed/{target_path.name}",
+        tofile=f"generated/{target_path.name}",
+        n=3,
+    )
+    sys.stderr.writelines(diff)
     return False
