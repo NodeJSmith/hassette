@@ -8,10 +8,13 @@ fidelity should use a full integration test with a live HA connection.
 """
 
 import copy
+import inspect
+from difflib import get_close_matches
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, ClassVar, Never, Protocol, cast, runtime_checkable
 
 import aiohttp
+from pydantic import BaseModel
 from slugify import slugify as _py_slugify
 from whenever import Date, PlainDateTime, ZonedDateTime
 
@@ -50,7 +53,7 @@ from hassette.models.states.base import BaseState, Context
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
 from hassette.test_utils.api_call import ApiCall
-from hassette.test_utils.sync_facade import RecordingSyncFacade
+from hassette.test_utils.sync_facade import RECORDED_API_METHODS, RecordingSyncFacade
 
 if TYPE_CHECKING:
     from hassette import Hassette
@@ -417,7 +420,7 @@ class RecordingApi(Resource):
         entity_id = str(entity_id)
         if domain is None:
             domain = entity_id.split(".", 1)[0]
-        self.calls.append(
+        self._record_call(
             ApiCall(
                 method="turn_on",
                 args=(entity_id,),
@@ -430,7 +433,7 @@ class RecordingApi(Resource):
         entity_id = str(entity_id)
         if domain is None:
             domain = entity_id.split(".", 1)[0]
-        self.calls.append(
+        self._record_call(
             ApiCall(
                 method="turn_off",
                 args=(entity_id,),
@@ -443,7 +446,7 @@ class RecordingApi(Resource):
         entity_id = str(entity_id)
         if domain is None:
             domain = entity_id.split(".", 1)[0]
-        self.calls.append(
+        self._record_call(
             ApiCall(
                 method="toggle",
                 args=(entity_id,),
@@ -460,7 +463,7 @@ class RecordingApi(Resource):
         **data: Any,
     ) -> ServiceResponse | None:
         """Record a call_service call. Returns stub ServiceResponse when return_response=True."""
-        self.calls.append(
+        self._record_call(
             ApiCall(
                 method="call_service",
                 args=(domain, service),
@@ -489,7 +492,7 @@ class RecordingApi(Resource):
     ) -> dict:
         """Record a set_state call. Returns an empty dict stub."""
         entity_id = str(entity_id)
-        self.calls.append(
+        self._record_call(
             ApiCall(
                 method="set_state",
                 args=(entity_id, state),
@@ -511,7 +514,7 @@ class RecordingApi(Resource):
         event_data: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Record a fire_event call. Returns an empty dict stub."""
-        self.calls.append(
+        self._record_call(
             ApiCall(
                 method="fire_event",
                 args=(event_type,),
@@ -673,7 +676,7 @@ class RecordingApi(Resource):
             A copy of the newly created record.
         """
         domain, deep_copy = RECORD_TYPE_TO_DOMAIN[record_type]
-        self.calls.append(
+        self._record_call(
             ApiCall(
                 method=method_name,
                 args=(),
@@ -704,7 +707,7 @@ class RecordingApi(Resource):
             FailedMessageError: With code='not_found' if helper_id is not seeded.
         """
         domain, deep_copy = RECORD_TYPE_TO_DOMAIN[record_type]
-        self.calls.append(
+        self._record_call(
             ApiCall(
                 method=method_name,
                 args=(helper_id,),
@@ -735,7 +738,7 @@ class RecordingApi(Resource):
             FailedMessageError: With code='not_found' if helper_id is not seeded.
         """
         domain, _deep_copy = RECORD_TYPE_TO_DOMAIN[record_type]
-        self.calls.append(
+        self._record_call(
             ApiCall(
                 method=method_name,
                 args=(helper_id,),
@@ -894,7 +897,7 @@ class RecordingApi(Resource):
 
     async def increment_counter(self, entity_id: str) -> None:
         """Record an increment_counter call directly (not via call_service)."""
-        self.calls.append(
+        self._record_call(
             ApiCall(
                 method="increment_counter",
                 args=(entity_id,),
@@ -904,7 +907,7 @@ class RecordingApi(Resource):
 
     async def decrement_counter(self, entity_id: str) -> None:
         """Record a decrement_counter call directly (not via call_service)."""
-        self.calls.append(
+        self._record_call(
             ApiCall(
                 method="decrement_counter",
                 args=(entity_id,),
@@ -914,13 +917,77 @@ class RecordingApi(Resource):
 
     async def reset_counter(self, entity_id: str) -> None:
         """Record a reset_counter call directly (not via call_service)."""
-        self.calls.append(
+        self._record_call(
             ApiCall(
                 method="reset_counter",
                 args=(entity_id,),
                 kwargs={"entity_id": entity_id},
             )
         )
+
+    @classmethod
+    def _validate_recorded_method(cls, method: str) -> None:
+        """Reject method names that this test double can never record."""
+        if method in RECORDED_API_METHODS:
+            return
+
+        suggestions = get_close_matches(method, RECORDED_API_METHODS, n=3, cutoff=0.5)
+        hint = f" Did you mean {', '.join(repr(name) for name in suggestions)}?" if suggestions else ""
+        raise ValueError(f"Unknown recorded API method {method!r}.{hint}")
+
+    @classmethod
+    def _validate_expected_kwargs(cls, method: str, expected: dict[str, Any]) -> None:
+        """Reject unknown assertion keys when the recording signature is closed."""
+        parameters = inspect.signature(getattr(cls, method)).parameters.values()
+        if any(parameter.kind is inspect.Parameter.VAR_KEYWORD for parameter in parameters):
+            return
+
+        valid_names: set[str] = set()
+        for parameter in parameters:
+            if parameter.name == "self":
+                continue
+            annotation = parameter.annotation
+            if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+                valid_names.update(annotation.model_fields)
+            else:
+                valid_names.add(parameter.name)
+
+        unknown_names = expected.keys() - valid_names
+        if not unknown_names:
+            return
+
+        hints = []
+        for name in sorted(unknown_names):
+            suggestions = get_close_matches(name, valid_names, n=1, cutoff=0.5)
+            hint = f" (did you mean {suggestions[0]!r}?)" if suggestions else ""
+            hints.append(f"{name!r}{hint}")
+        raise ValueError(f"Unknown assertion keyword(s) for {method!r}: {', '.join(hints)}")
+
+    def _record_call(self, call: ApiCall) -> None:
+        """Record a call after checking it against the assertion contract."""
+        self._validate_recorded_method(call.method)
+        self.calls.append(call)
+
+    @staticmethod
+    def _describe_closest_call(calls: list[ApiCall], expected: dict[str, Any], *, exact: bool = False) -> str:
+        """Describe how the closest recorded call differs from expected kwargs."""
+        candidates: list[tuple[int, int, dict[str, Any], dict[str, Any], dict[str, Any]]] = []
+        for index, call in enumerate(calls, start=1):
+            missing = {key: value for key, value in expected.items() if key not in call.kwargs}
+            mismatched = {
+                key: {"expected": value, "actual": call.kwargs[key]}
+                for key, value in expected.items()
+                if key in call.kwargs and call.kwargs[key] != value
+            }
+            extra = {key: value for key, value in call.kwargs.items() if exact and key not in expected}
+            distance = len(missing) + len(mismatched) + len(extra)
+            candidates.append((distance, index, missing, mismatched, extra))
+
+        _, index, missing, mismatched, extra = min(candidates, key=lambda candidate: candidate[0])
+        differences = [f"missing={missing!r}", f"mismatched={mismatched!r}"]
+        if exact:
+            differences.append(f"extra={extra!r}")
+        return f"Closest call #{index}: {'; '.join(differences)}"
 
     def __getattr__(self, name: str) -> Any:
         """Raise NotImplementedError for public attributes not defined on RecordingApi.
@@ -980,6 +1047,8 @@ class RecordingApi(Resource):
         Raises:
             AssertionError: If no call matches.
         """
+        self._validate_recorded_method(method)
+        self._validate_expected_kwargs(method, kwargs)
         matching = self.get_calls(method)
         if not matching:
             raise AssertionError(f"Expected '{method}' to have been called, but it was never called.")
@@ -991,9 +1060,10 @@ class RecordingApi(Resource):
                 # so kwargs-based assertions work uniformly for all methods.
                 if all(k in call.kwargs and call.kwargs[k] == v for k, v in kwargs.items()):
                     return
+            closest = self._describe_closest_call(matching, kwargs)
             raise AssertionError(
                 f"'{method}' was called {len(matching)} time(s), but none matched kwargs {kwargs!r}. "
-                f"Calls recorded: {[{'args': c.args, 'kwargs': c.kwargs} for c in matching]}"
+                f"{closest}. Calls recorded: {[{'args': c.args, 'kwargs': c.kwargs} for c in matching]}"
             )
 
     def assert_called_partial(self, method: str, **kwargs: Any) -> None:
@@ -1051,6 +1121,8 @@ class RecordingApi(Resource):
             # Passes — matches exactly
             api.assert_called_exact("turn_off", entity_id="light.x", domain="light")
         """
+        self._validate_recorded_method(method)
+        self._validate_expected_kwargs(method, kwargs)
         matching = self.get_calls(method)
         if not matching:
             raise AssertionError(f"Expected '{method}' to have been called, but it was never called.")
@@ -1058,9 +1130,10 @@ class RecordingApi(Resource):
         for call in matching:
             if call.kwargs == kwargs:
                 return
+        closest = self._describe_closest_call(matching, kwargs, exact=True)
         raise AssertionError(
             f"'{method}' was called {len(matching)} time(s), but none matched kwargs exactly {kwargs!r}. "
-            f"Calls recorded: {[{'args': c.args, 'kwargs': c.kwargs} for c in matching]}"
+            f"{closest}. Calls recorded: {[{'args': c.args, 'kwargs': c.kwargs} for c in matching]}"
         )
 
     def assert_not_called(self, method: str, **kwargs: Any) -> None:
@@ -1076,6 +1149,8 @@ class RecordingApi(Resource):
         Raises:
             AssertionError: If a matching call was recorded.
         """
+        self._validate_recorded_method(method)
+        self._validate_expected_kwargs(method, kwargs)
         matching = self.get_calls(method)
         if kwargs:
             matching = [c for c in matching if all(k in c.kwargs and c.kwargs[k] == v for k, v in kwargs.items())]
@@ -1105,6 +1180,11 @@ class RecordingApi(Resource):
         Raises:
             AssertionError: If the call count does not match.
         """
+        self._validate_recorded_method(method)
+        self._validate_expected_kwargs(method, kwargs)
+        if count < 0:
+            raise ValueError(f"assert_call_count() count must be non-negative, got {count}.")
+
         matching = self.get_calls(method)
         if kwargs:
             matching = [c for c in matching if all(k in c.kwargs and c.kwargs[k] == v for k, v in kwargs.items())]

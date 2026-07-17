@@ -50,6 +50,44 @@ from hassette.test_utils.api_call import ApiCall
 if typing.TYPE_CHECKING:
     from hassette.events import HassStateDict
     from hassette.test_utils.recording_api import RecordingApi
+RECORDED_API_METHODS = frozenset(
+    {
+        "call_service",
+        "create_counter",
+        "create_input_boolean",
+        "create_input_button",
+        "create_input_datetime",
+        "create_input_number",
+        "create_input_select",
+        "create_input_text",
+        "create_timer",
+        "decrement_counter",
+        "delete_counter",
+        "delete_input_boolean",
+        "delete_input_button",
+        "delete_input_datetime",
+        "delete_input_number",
+        "delete_input_select",
+        "delete_input_text",
+        "delete_timer",
+        "fire_event",
+        "increment_counter",
+        "reset_counter",
+        "set_state",
+        "toggle",
+        "turn_off",
+        "turn_on",
+        "update_counter",
+        "update_input_boolean",
+        "update_input_button",
+        "update_input_datetime",
+        "update_input_number",
+        "update_input_select",
+        "update_input_text",
+        "update_timer",
+    }
+)
+
 # Stub message templates — imported by tests to avoid brittle substring matches.
 # Must stay byte-identical with the constants in codegen/src/hassette_codegen/sync_facade/.
 STUB_MSG_STATE_CONVERSION = (
@@ -142,7 +180,7 @@ class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
 
     def fire_event(self, event_type: str, event_data: dict[str, Any] | None = None) -> dict[str, Any]:
         """Record a fire_event call. Returns an empty dict stub."""
-        self._parent.calls.append(
+        self._parent._record_call(
             ApiCall(
                 method="fire_event",
                 args=(event_type,),
@@ -160,7 +198,7 @@ class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         **data: Any,
     ) -> ServiceResponse | None:
         """Record a call_service call. Returns stub ServiceResponse when return_response=True."""
-        self._parent.calls.append(
+        self._parent._record_call(
             ApiCall(
                 method="call_service",
                 args=(domain, service),
@@ -182,7 +220,7 @@ class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         entity_id = str(entity_id)
         if domain is None:
             domain = entity_id.split(".", 1)[0]
-        self._parent.calls.append(
+        self._parent._record_call(
             ApiCall(method="turn_on", args=(entity_id,), kwargs={"entity_id": entity_id, "domain": domain, **data})
         )
 
@@ -191,7 +229,7 @@ class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         entity_id = str(entity_id)
         if domain is None:
             domain = entity_id.split(".", 1)[0]
-        self._parent.calls.append(
+        self._parent._record_call(
             ApiCall(method="turn_off", args=(entity_id,), kwargs={"entity_id": entity_id, "domain": domain, **data})
         )
 
@@ -200,7 +238,7 @@ class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         entity_id = str(entity_id)
         if domain is None:
             domain = entity_id.split(".", 1)[0]
-        self._parent.calls.append(
+        self._parent._record_call(
             ApiCall(method="toggle", args=(entity_id,), kwargs={"entity_id": entity_id, "domain": domain, **data})
         )
 
@@ -301,7 +339,7 @@ class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
     def set_state(self, entity_id: str | StrEnum, state: Any, attributes: dict[str, Any] | None = None) -> dict:
         """Record a set_state call. Returns an empty dict stub."""
         entity_id = str(entity_id)
-        self._parent.calls.append(
+        self._parent._record_call(
             ApiCall(
                 method="set_state",
                 args=(entity_id, state),
@@ -488,16 +526,16 @@ class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
 
     def increment_counter(self, entity_id: str) -> None:
         """Record an increment_counter call directly (not via call_service)."""
-        self._parent.calls.append(
+        self._parent._record_call(
             ApiCall(method="increment_counter", args=(entity_id,), kwargs={"entity_id": entity_id})
         )
 
     def decrement_counter(self, entity_id: str) -> None:
         """Record a decrement_counter call directly (not via call_service)."""
-        self._parent.calls.append(
+        self._parent._record_call(
             ApiCall(method="decrement_counter", args=(entity_id,), kwargs={"entity_id": entity_id})
         )
 
     def reset_counter(self, entity_id: str) -> None:
         """Record a reset_counter call directly (not via call_service)."""
-        self._parent.calls.append(ApiCall(method="reset_counter", args=(entity_id,), kwargs={"entity_id": entity_id}))
+        self._parent._record_call(ApiCall(method="reset_counter", args=(entity_id,), kwargs={"entity_id": entity_id}))

@@ -70,6 +70,12 @@ async def test_basic_lifecycle():
         assert harness.app.status == ResourceStatus.RUNNING
 
 
+async def test_empty_config_defaults_when_omitted():
+    """Apps without required settings do not need config={} ceremony."""
+    async with AppTestHarness(SensorApp) as harness:
+        assert harness.app.app_config.test_entity == "sensor.test"
+
+
 async def test_api_recorder_is_recording_api():
     """harness.api_recorder is a RecordingApi instance."""
     async with AppTestHarness(SensorApp, config={}) as harness:

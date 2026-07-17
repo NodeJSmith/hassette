@@ -5,9 +5,30 @@ If this test fails, a new ``on_*`` method was added to ``Bus`` without a corresp
 ``simulate_*`` method to ``hassette.test_utils.simulation.SimulationMixin``.
 """
 
+import pytest
+
 from hassette.bus import Bus
 from hassette.resources.base import Resource
 from hassette.test_utils.app_harness import AppTestHarness
+from hassette.test_utils.simulation import SimulationMixin
+from hassette.types import ResourceStatus
+
+SIMULATION_TIMEOUT_CASES: list[tuple[str, tuple, dict]] = [
+    ("simulate_state_change", ("sensor.test",), {"old_value": "off", "new_value": "on"}),
+    (
+        "simulate_attribute_change",
+        ("sensor.test", "temperature"),
+        {"old_value": 20, "new_value": 21},
+    ),
+    ("simulate_call_service", ("light", "turn_on"), {}),
+    ("simulate_component_loaded", ("mqtt",), {}),
+    ("simulate_service_registered", ("light", "turn_on"), {}),
+    ("simulate_hassette_service_status", ("WebSocketService", ResourceStatus.RUNNING), {}),
+    ("simulate_websocket_connected", (), {}),
+    ("simulate_websocket_disconnected", (), {}),
+    ("simulate_app_state_changed", (ResourceStatus.RUNNING,), {}),
+    ("drain_task_bucket", (), {}),
+]
 
 
 def test_all_bus_subscriptions_have_simulate_counterparts():
@@ -35,3 +56,20 @@ def test_all_bus_subscriptions_have_simulate_counterparts():
         f"{sorted('on_' + m for m in missing)}. "
         f"Add simulate_* methods to SimulationMixin for each."
     )
+
+
+@pytest.mark.parametrize(
+    ("method_name", "args", "kwargs"),
+    SIMULATION_TIMEOUT_CASES,
+    ids=[case[0] for case in SIMULATION_TIMEOUT_CASES],
+)
+async def test_simulation_entry_points_validate_timeout_before_harness_access(
+    method_name: str,
+    args: tuple,
+    kwargs: dict,
+) -> None:
+    """Invalid deadlines fail before a simulation requires or dispatches through a harness."""
+    simulation = SimulationMixin()
+
+    with pytest.raises(ValueError, match="timeout must be finite and non-negative"):
+        await getattr(simulation, method_name)(*args, **kwargs, timeout=-1.0)

@@ -34,7 +34,12 @@ from hassette.models.helpers import (
 from hassette.models.services import ServiceResponse
 from hassette.test_utils.factories import make_recording_api
 from hassette.test_utils.helpers import make_state_dict
-from hassette.test_utils.sync_facade import STUB_MSG_GENERIC, STUB_MSG_STATE_CONVERSION, RecordingSyncFacade
+from hassette.test_utils.sync_facade import (
+    RECORDED_API_METHODS,
+    STUB_MSG_GENERIC,
+    STUB_MSG_STATE_CONVERSION,
+    RecordingSyncFacade,
+)
 
 
 async def test_recording_api_sync_is_recording_sync_facade():
@@ -368,3 +373,5 @@ async def test_body_copied_methods_are_sync():
             raise AssertionError(
                 f"{method_name}() returned a {type(result).__name__} — body-copy produced hidden async call"
             )
+
+    assert {call.method for call in api.calls} == RECORDED_API_METHODS
