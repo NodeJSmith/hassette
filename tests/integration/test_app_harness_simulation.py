@@ -5,10 +5,12 @@ Tests freeze_time, advance_time, trigger_due_jobs, and the _TestClock internals.
 
 import math
 from contextlib import AsyncExitStack
+from unittest.mock import Mock
 
 import pytest
 from whenever import Instant, ZonedDateTime
 
+import hassette.test_utils.time_control as time_control
 import hassette.utils.date_utils as date_utils
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
@@ -139,6 +141,37 @@ async def test_freeze_time_fails_closed_and_releases_lock(monkeypatch: pytest.Mo
         monkeypatch.setattr(harness, "_NOW_PATCH_TARGETS", ("hassette.utils.date_utils.now",))
         harness.freeze_time(frozen)
         assert date_utils.now() == frozen.to_system_tz()
+
+
+async def test_freeze_time_cleans_up_started_patchers_when_start_raises(monkeypatch: pytest.MonkeyPatch):
+    """A non-AttributeError while starting patchers fully cleans up freeze state."""
+    frozen = Instant.from_utc(2026, 4, 7, 6, 0)
+    started_patcher = Mock()
+    failing_patcher = Mock()
+    start_error = RuntimeError("patcher start failed")
+    failing_patcher.start.side_effect = start_error
+    monkeypatch.setattr(time_control, "patch", Mock(side_effect=[started_patcher, failing_patcher]))
+
+    control = TimeControlMixin()
+    exit_stack = AsyncExitStack()
+    control._exit_stack = exit_stack
+    control._NOW_PATCH_TARGETS = ("first.target", "second.target")
+
+    try:
+        with pytest.raises(RuntimeError) as exc_info:
+            control.freeze_time(frozen)
+
+        assert exc_info.value is start_error
+        started_patcher.start.assert_called_once_with()
+        failing_patcher.start.assert_called_once_with()
+        started_patcher.stop.assert_called_once_with()
+        failing_patcher.stop.assert_not_called()
+        assert control._test_clock is None
+        assert control._time_patcher is None
+        assert not control._freeze_time_lock_held
+        assert not time_control.FREEZE_TIME_LOCK.locked()
+    finally:
+        await exit_stack.aclose()
 
 
 async def test_failed_freeze_cleanup_cannot_release_another_owner():
