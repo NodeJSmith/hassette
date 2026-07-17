@@ -1,7 +1,7 @@
 # Design: Namespace Helper CRUD Behind Api.helpers
 
 **Date:** 2026-07-16
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Research:** design/research/2026-07-16-helper-crud-api-shape/research.md
 
