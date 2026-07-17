@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Update codegen to generate HelperClient sync facades"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T03"]
 implements: ["FR#7", "FR#9", "AC#5"]
 ---

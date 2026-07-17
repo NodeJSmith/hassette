@@ -12,6 +12,7 @@ from typing import Any
 import aiohttp
 from whenever import Date, PlainDateTime, ZonedDateTime
 
+from hassette.api.sync_helpers import HelperClientSyncFacade
 from hassette.const.misc import FalseySentinel
 from hassette.models.history import HistoryEntry
 from hassette.models.services import ServiceResponse
@@ -41,6 +42,7 @@ class ApiSyncFacade(Resource):
     def __init__(self, hassette: "Hassette", *, api: "Api", parent: Resource | None = None) -> None:
         super().__init__(hassette, parent=parent)
         self._api = api
+        self.helpers = self.add_child(HelperClientSyncFacade, helpers=self._api.helpers)
 
     async def on_initialize(self) -> None:
         mark_ready(self, reason="Synchronous API facade initialized")
@@ -195,7 +197,7 @@ class ApiSyncFacade(Resource):
         Returns:
             ServiceResponse | None: The response from Home Assistant if return_response is True. Otherwise None.
         """
-        return self.task_bucket.run_sync(self._api.call_service(domain, service, target, return_response, **data))
+        return self.task_bucket.run_sync(self._api.call_service(domain, service, target, return_response, **data))  # pyright: ignore[reportCallIssue, reportArgumentType]
 
     def turn_on(self, entity_id: str | StrEnum, domain: str | None = None, **data: Any) -> None:
         """Turn on a specific entity in Home Assistant.

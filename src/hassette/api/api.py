@@ -181,8 +181,6 @@ from hassette.utils.await_guard import guard_await
 from hassette.utils.request_utils import format_time_param
 from hassette.utils.source_capture import capture_source_location
 
-from .sync import ApiSyncFacade
-
 
 def _expect_list(val: Any, context: str) -> list:
     """Assert that *val* is a list, raising TypeError with context if not.
@@ -238,6 +236,12 @@ async def _ws_helper_call(api: "Api", domain: str, operation: str, **data: Any) 
 # bound on this module when helpers.py's `from .api import ...` executes).
 from hassette.api.helpers import HelperClient  # noqa: E402
 
+# Also deferred until after the helper functions above are defined: `sync.py` imports
+# `sync_helpers.py`, which imports `helpers.py` (for `HelperDomain`) at runtime — the same
+# transitive path as the `HelperClient` import above, so it is subject to the same ordering
+# constraint.
+from .sync import ApiSyncFacade  # noqa: E402
+
 if typing.TYPE_CHECKING:
     from hassette import Hassette
     from hassette.core.api_resource import ApiResource
@@ -265,8 +269,10 @@ class Api(Resource):
     def __init__(self, hassette: "Hassette", *, parent: Resource | None = None) -> None:
         super().__init__(hassette, parent=parent)
         self._api_service = self.hassette.api_service
-        self.sync = self.add_child(ApiSyncFacade, api=self)
+        # helpers must be constructed before sync — ApiSyncFacade.__init__ reads
+        # self._api.helpers to wire its own nested HelperClientSyncFacade.
         self.helpers = self.add_child(HelperClient, api=self)
+        self.sync = self.add_child(ApiSyncFacade, api=self)
 
     async def on_initialize(self) -> None:
         mark_ready(self, reason="API initialized")
