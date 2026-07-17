@@ -1,7 +1,7 @@
 # Design: Redesign Resource.cache
 
 **Date:** 2026-07-16
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Research:** `design/research/2026-07-16-resource-cache-redesign/research.md`, `design/research/2026-07-16-cache-prior-art/research.md`
 
