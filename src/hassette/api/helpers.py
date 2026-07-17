@@ -77,16 +77,17 @@ HelperDomain = Literal[
 ]
 """Literal union of all helper domain strings supported by `HelperClient`."""
 
-# Maps Create*Params type -> (domain_string, Record type, id_key_name)
-CREATE_DISPATCH: dict[type[BaseModel], tuple[str, type[BaseModel], str]] = {
-    CreateInputBooleanParams: ("input_boolean", InputBooleanRecord, "input_boolean_id"),
-    CreateInputNumberParams: ("input_number", InputNumberRecord, "input_number_id"),
-    CreateInputTextParams: ("input_text", InputTextRecord, "input_text_id"),
-    CreateInputSelectParams: ("input_select", InputSelectRecord, "input_select_id"),
-    CreateInputDatetimeParams: ("input_datetime", InputDatetimeRecord, "input_datetime_id"),
-    CreateInputButtonParams: ("input_button", InputButtonRecord, "input_button_id"),
-    CreateCounterParams: ("counter", CounterRecord, "counter_id"),
-    CreateTimerParams: ("timer", TimerRecord, "timer_id"),
+# Maps Create*Params type -> (domain_string, Record type). No id_key here — create() targets
+# a brand-new helper, so there's no existing entity id to look up (unlike update()/delete()).
+CREATE_DISPATCH: dict[type[BaseModel], tuple[str, type[BaseModel]]] = {
+    CreateInputBooleanParams: ("input_boolean", InputBooleanRecord),
+    CreateInputNumberParams: ("input_number", InputNumberRecord),
+    CreateInputTextParams: ("input_text", InputTextRecord),
+    CreateInputSelectParams: ("input_select", InputSelectRecord),
+    CreateInputDatetimeParams: ("input_datetime", InputDatetimeRecord),
+    CreateInputButtonParams: ("input_button", InputButtonRecord),
+    CreateCounterParams: ("counter", CounterRecord),
+    CreateTimerParams: ("timer", TimerRecord),
 }
 
 # Maps Update*Params type -> (domain_string, Record type, id_key_name)
@@ -113,17 +114,10 @@ DOMAIN_DISPATCH: dict[str, type[BaseModel]] = {
     "timer": TimerRecord,
 }
 
-# Maps domain string -> WS id key name (for update()/delete()). Uniform pattern: "{domain}_id".
-ID_KEYS: dict[str, str] = {
-    "input_boolean": "input_boolean_id",
-    "input_number": "input_number_id",
-    "input_text": "input_text_id",
-    "input_select": "input_select_id",
-    "input_datetime": "input_datetime_id",
-    "input_button": "input_button_id",
-    "counter": "counter_id",
-    "timer": "timer_id",
-}
+# Maps domain string -> WS id key name (for delete()). Derived from UPDATE_DISPATCH, which
+# already carries the "{domain}_id" pattern for update()'s per-domain dispatch — avoids a third
+# hand-maintained copy of the same domain-to-id-key mapping.
+ID_KEYS: dict[str, str] = {domain: id_key for domain, _record_type, id_key in UPDATE_DISPATCH.values()}
 
 
 class HelperClient(Resource):
@@ -213,7 +207,7 @@ class HelperClient(Resource):
         Returns:
             The stored record returned by Home Assistant.
         """
-        domain, record_type, _id_key = CREATE_DISPATCH[type(params)]
+        domain, record_type = CREATE_DISPATCH[type(params)]
         val = await _ws_helper_call(self._api, domain, "create", **params.model_dump(exclude_unset=True))
         record = record_type.model_validate(_expect_dict(val, f"{domain}/create"))
         self.logger.info("Created %s helper %r", domain, record.id)  # pyright: ignore[reportAttributeAccessIssue]
