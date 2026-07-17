@@ -260,6 +260,13 @@ async def test_assertions_reject_unknown_keyword_for_closed_method(assertion: st
         getattr(api, assertion)("set_state", entity="sensor.test")
 
 
+async def test_assertions_allow_known_keyword_for_closed_method():
+    """A valid keyword is accepted for a method without arbitrary kwargs."""
+    api = make_recording_api()
+
+    api.assert_not_called("set_state", entity_id="sensor.test")
+
+
 async def test_assertions_validate_flattened_helper_fields():
     """Helper assertions validate the fields recorded from their params model."""
     api = make_recording_api()
