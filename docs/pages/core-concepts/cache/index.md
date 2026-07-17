@@ -95,7 +95,7 @@ Check that cache data persists across restarts with `hassette log`:
 hassette log --app my_app --since 1h
 ```
 
-Set `log_level = "DEBUG"` in `hassette.toml` first — cache reads and writes only appear in the log at that level.
+Corruption and deserialization failures are logged as warnings. Normal cache reads and writes do not produce log output.
 
 ## See Also
 

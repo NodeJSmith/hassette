@@ -87,13 +87,13 @@ If values do not survive a restart, check four common causes:
 - **Missing `await`.** `self.cache.set(...)` without `await` returns a coroutine object and never runs — no error, no write, no log message. Every data method on `self.cache` is a coroutine.
 - **Exception during initialization.** The app may raise before the write executes. Check `hassette log --app <key>` for errors.
 - **Cache directory lacks write permissions.** Check `ls -la {data_dir}/{app_key}/{index}/cache/` — the Hassette process must own the directory.
-- **Stored value is not picklable.** Unpicklable objects raise `PicklingError` at write time. Enable `log_level = "DEBUG"` under `[hassette.logging]` in `hassette.toml` to see the error.
+- **Stored value is not picklable.** Unpicklable objects raise `PicklingError` at write time.
 
 ### Cache Grows Large
 
 The cache has no size limit — entries persist until deleted, expired, or explicitly cleared. Set a `ttl` on entries that don't need to live forever, and call `await self.cache.clear()` to delete all entries and reclaim disk space (it runs `PRAGMA incremental_vacuum` after deleting, so the file actually shrinks). `await self.cache.invalidate(*keys)` deletes a specific set of keys in one call.
 
-Set `log_level = "DEBUG"` under `[hassette.logging]` in `hassette.toml` to enable cache operation logging. The cache directory at `{data_dir}/{app_key}/{index}/cache/` should contain a `cache.db` file after the first successful write.
+The cache directory at `{data_dir}/{app_key}/{index}/cache/` should contain a `cache.db` file after the first successful write.
 
 ## See Also
 
