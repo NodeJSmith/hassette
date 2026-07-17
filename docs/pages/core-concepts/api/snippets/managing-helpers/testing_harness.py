@@ -6,7 +6,8 @@ from myapp import VacationModeApp
 
 async def test_vacation_mode_creates_helper_on_first_run():
     async with AppTestHarness(VacationModeApp, config={}) as harness:
-        harness.api_recorder.assert_call_count("create_input_boolean", 1)
+        records = await harness.api_recorder.helpers.list("input_boolean")
+        assert len(records) == 1
 
 
 async def test_list_returns_seeded_helper():
@@ -14,6 +15,6 @@ async def test_list_returns_seeded_helper():
         harness.seed_helper(
             InputBooleanRecord(id="vacation_mode", name="Vacation Mode", initial=False)
         )
-        records = await harness.api_recorder.list_input_booleans()
+        records = await harness.api_recorder.helpers.list("input_boolean")
         assert len(records) == 1
         assert records[0].name == "Vacation Mode"

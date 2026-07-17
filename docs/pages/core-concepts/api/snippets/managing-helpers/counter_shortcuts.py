@@ -14,12 +14,12 @@ class MotionCycleApp(App[AppConfig]):
         )
 
     async def on_motion(self) -> None:
-        await self.api.increment_counter(f"counter.{self.cycle_counter_id}")
+        await self.api.helpers.increment(f"counter.{self.cycle_counter_id}")
 
     async def ensure_cycle_counter(self) -> None:
-        for record in await self.api.list_counters():
+        for record in await self.api.helpers.list("counter"):
             if record.id == self.cycle_counter_id:
                 return
-        await self.api.create_counter(
+        await self.api.helpers.create(
             CreateCounterParams(name=self.cycle_counter_id, initial=0)
         )

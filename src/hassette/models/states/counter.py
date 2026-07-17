@@ -23,7 +23,7 @@ class CounterState(NumericBaseState):
         entity. For the stored configuration (``initial``, ``minimum``,
         ``maximum``, ``step``, ``restore``), use
         :class:`hassette.models.helpers.CounterRecord` via
-        ``Api.list_counters``/``create_counter``/``update_counter``.
+        ``api.helpers.list("counter")``/``api.helpers.create(...)``/``api.helpers.update(...)``.
     """
 
     domain: Literal["counter"]

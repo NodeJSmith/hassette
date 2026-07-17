@@ -1,7 +1,7 @@
 ---
 task_id: "T05"
 title: "Update docs and docstrings for new helper API shape"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T03"]
 implements: ["FR#9", "AC#6"]
 ---
