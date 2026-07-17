@@ -27,6 +27,7 @@ import pytest
 WORKTREE_ROOT = Path(__file__).resolve().parents[2]
 PROBE_DIR = WORKTREE_ROOT / "tests" / "pyright_probes"
 PROBE_FILE = PROBE_DIR / "forgotten_await_probe.py"
+HARNESS_TYPE_PROBE_FILE = PROBE_DIR / "harness_typing_probe.py"
 
 EXPECTED_PROBE_COUNT = 5
 
@@ -75,6 +76,7 @@ def test_pyright_probe_fires_unused_coroutine() -> None:
                 "pyright",
                 "--project",
                 str(PROBE_DIR),
+                str(PROBE_FILE),
             ],
             capture_output=True,
             text=True,
@@ -117,3 +119,24 @@ def test_pyright_probe_fires_unused_coroutine() -> None:
         "Pyright exited with code 0 on the probe file — expected errors but got none. "
         "The probe file may not have been found, or all bare calls were silently removed."
     )
+
+
+def test_pyright_harness_probe_preserves_concrete_app_type() -> None:
+    """Pyright accepts concrete AppTestHarness and harness.app type assertions."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pyright",
+            "--project",
+            str(PROBE_DIR),
+            str(HARNESS_TYPE_PROBE_FILE),
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(WORKTREE_ROOT),
+        timeout=120,
+    )
+
+    output = result.stdout + result.stderr
+    assert result.returncode == 0, f"AppTestHarness typing probe failed:\n{output}"

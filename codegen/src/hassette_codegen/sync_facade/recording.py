@@ -81,6 +81,12 @@ from typing import Any
 if typing.TYPE_CHECKING:
     from hassette.test_utils.recording_api import RecordingApi
 {type_checking_imports}\
+RECORDED_API_METHODS = frozenset(
+    {{
+{recorded_api_methods}
+    }}
+)
+
 # Stub message templates — imported by tests to avoid brittle substring matches.
 # Must stay byte-identical with the constants in codegen/src/hassette_codegen/sync_facade/.
 STUB_MSG_STATE_CONVERSION = (
@@ -94,6 +100,16 @@ STUB_MSG_GENERIC = (
 )
 
 '''
+
+_RECORDING_HELPERS = frozenset({"_record_call", "_create_helper", "_update_helper", "_delete_helper"})
+
+
+def _records_api_call(func: ast.AsyncFunctionDef | ast.FunctionDef) -> bool:
+    """Return whether a method records through the canonical helper path."""
+    return any(
+        isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr in _RECORDING_HELPERS
+        for node in ast.walk(func)
+    )
 
 
 def _find_class(module: ast.Module, name: str, source_label: str) -> ast.ClassDef:
@@ -169,6 +185,7 @@ def generate_sync_recording(api_path: Path, recording_api_path: Path) -> str:
 
     # Generate each method; track body nodes for import derivation.
     generated_methods: list[str] = []
+    recorded_api_methods: set[str] = set()
     all_body_nodes: list[ast.stmt] = []
     all_runtime_annotation_symbols: set[str] = set()
     all_string_ref_symbols: set[str] = set()
@@ -183,6 +200,8 @@ def generate_sync_recording(api_path: Path, recording_api_path: Path) -> str:
 
         if use_body_copy:
             assert rec_func is not None
+            if _records_api_call(rec_func):
+                recorded_api_methods.add(method_name)
             # Collect annotation symbols from the recording_api signature
             runtime_syms, string_syms = collect_annotation_symbols(rec_func)
             all_runtime_annotation_symbols |= runtime_syms
@@ -250,6 +269,7 @@ def generate_sync_recording(api_path: Path, recording_api_path: Path) -> str:
         _RECORDING_MODULE_HEADER_TEMPLATE.format(
             imports=import_block,
             type_checking_imports=type_checking_imports,
+            recorded_api_methods="\n".join(f'        "{name}",' for name in sorted(recorded_api_methods)),
         )
         + _RECORDING_CLASS_HEADER
         + "\n"

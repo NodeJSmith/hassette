@@ -12,6 +12,7 @@
     "reportUnusedImport": "none",
     "reportUnusedFunction": "none",
     "reportGeneralTypeIssues": "none",
+    "reportAssertTypeFailure": "error",
     "reportAttributeAccessIssue": "none",
     "reportOperatorIssue": "none",
     "reportAssignmentType": "none",

@@ -5,6 +5,7 @@ machinery extracted from ``app_harness.py``.
 """
 
 import asyncio
+import math
 from logging import getLogger
 from typing import TYPE_CHECKING, Any
 
@@ -56,6 +57,12 @@ class SimulationMixin:
             raise RuntimeError("AppTestHarness is not active")
         return harness
 
+    @staticmethod
+    def _validate_timeout(timeout: float) -> None:
+        """Reject deadlines that cannot bound a simulation."""
+        if not math.isfinite(timeout) or timeout < 0:
+            raise ValueError(f"timeout must be finite and non-negative, got {timeout!r}.")
+
     async def simulate_state_change(
         self,
         entity_id: str,
@@ -90,6 +97,7 @@ class SimulationMixin:
             DrainError: If any handler raised an exception.
             DrainTimeout: If drain does not reach quiescence within ``timeout``.
         """
+        self._validate_timeout(timeout)
         harness = self.require_harness()
 
         # Merge seeded attributes from StateProxy when not explicitly provided.
@@ -146,6 +154,7 @@ class SimulationMixin:
             DrainError: If any handler raised an exception.
             DrainTimeout: If drain does not reach quiescence within ``timeout``.
         """
+        self._validate_timeout(timeout)
         harness = self.require_harness()
 
         # Read both state value and existing attributes from the proxy.
@@ -191,6 +200,7 @@ class SimulationMixin:
             DrainError: If any handler raised an exception.
             DrainTimeout: If drain does not reach quiescence within ``timeout``.
         """
+        self._validate_timeout(timeout)
         harness = self.require_harness()
 
         event = create_call_service_event(domain=domain, service=service, service_data=data)
@@ -209,9 +219,11 @@ class SimulationMixin:
             timeout: Maximum seconds to wait for handlers to complete.
 
         Raises:
+            ValueError: If timeout is non-finite or negative.
             DrainError: If any handler task raised a non-cancellation exception.
             DrainTimeout: If the drain does not reach quiescence within ``timeout``.
         """
+        self._validate_timeout(timeout)
         harness = self.require_harness()
 
         event = create_component_loaded_event(component)
@@ -235,6 +247,7 @@ class SimulationMixin:
             DrainError: If any handler task raised a non-cancellation exception.
             DrainTimeout: If the drain does not reach quiescence within ``timeout``.
         """
+        self._validate_timeout(timeout)
         harness = self.require_harness()
 
         event = create_service_registered_event(domain, service)
@@ -274,6 +287,7 @@ class SimulationMixin:
             ``throttle=``, pass a ``timeout=`` larger than the debounce window.
             See :meth:`drain_task_bucket` for details.
         """
+        self._validate_timeout(timeout)
         harness = self.require_harness()
 
         event = HassetteServiceEvent.from_service_status(
@@ -376,6 +390,7 @@ class SimulationMixin:
             ``throttle=``, pass a ``timeout=`` larger than the debounce window.
             See :meth:`drain_task_bucket` for details.
         """
+        self._validate_timeout(timeout)
         harness = self.require_harness()
 
         event = HassetteSimpleEvent.from_topic(topic=Topic.HASSETTE_EVENT_WEBSOCKET_CONNECTED)
@@ -400,6 +415,7 @@ class SimulationMixin:
             ``throttle=``, pass a ``timeout=`` larger than the debounce window.
             See :meth:`drain_task_bucket` for details.
         """
+        self._validate_timeout(timeout)
         harness = self.require_harness()
 
         event = HassetteSimpleEvent.from_topic(topic=Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED)
@@ -435,6 +451,7 @@ class SimulationMixin:
             ``throttle=``, pass a ``timeout=`` larger than the debounce window.
             See :meth:`drain_task_bucket` for details.
         """
+        self._validate_timeout(timeout)
         harness = self.require_harness()
         app = self._app
         if app is None:
@@ -537,6 +554,7 @@ class SimulationMixin:
             through App-level registration via ``self.bus.on_state_change`` inside
             an App.
         """
+        self._validate_timeout(timeout)
         harness = self.require_harness()
 
         bus_service = harness.bus_service

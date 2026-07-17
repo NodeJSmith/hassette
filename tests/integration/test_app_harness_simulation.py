@@ -3,6 +3,9 @@
 Tests freeze_time, advance_time, trigger_due_jobs, and the _TestClock internals.
 """
 
+import math
+from contextlib import AsyncExitStack
+
 import pytest
 from whenever import Instant, ZonedDateTime
 
@@ -11,6 +14,7 @@ from hassette.app.app import App
 from hassette.app.app_config import AppConfig
 from hassette.events import RawStateChangeEvent
 from hassette.test_utils.app_harness import AppTestHarness
+from hassette.test_utils.time_control import TimeControlMixin
 
 
 class SimConfig(AppConfig):
@@ -87,6 +91,80 @@ async def test_advance_time_hours_and_minutes():
         result = date_utils.now()
         expected = frozen.to_system_tz().add(hours=1, minutes=30)
         assert result == expected
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("seconds", math.nan),
+        ("seconds", math.inf),
+        ("minutes", -math.inf),
+    ],
+)
+async def test_advance_time_rejects_non_finite_values(field: str, value: float):
+    """advance_time rejects values that cannot produce a finite clock delta."""
+    frozen = Instant.from_utc(2026, 4, 7, 6, 0)
+    async with AppTestHarness(SimTestApp, config={}) as harness:
+        harness.freeze_time(frozen)
+        with pytest.raises(ValueError, match=rf"{field} must be finite"):
+            harness.advance_time(**{field: value})
+
+
+async def test_advance_time_rejects_negative_total_duration():
+    """advance_time is forward-only even when multiple units are combined."""
+    frozen = Instant.from_utc(2026, 4, 7, 6, 0)
+    async with AppTestHarness(SimTestApp, config={}) as harness:
+        harness.freeze_time(frozen)
+        with pytest.raises(ValueError, match="total duration must be non-negative"):
+            harness.advance_time(minutes=1, seconds=-61)
+
+
+async def test_advance_time_rejects_overflowed_total_duration():
+    """Individually finite units cannot overflow into an infinite total delta."""
+    frozen = Instant.from_utc(2026, 4, 7, 6, 0)
+    async with AppTestHarness(SimTestApp, config={}) as harness:
+        harness.freeze_time(frozen)
+        with pytest.raises(ValueError, match="total duration must be finite"):
+            harness.advance_time(hours=1e308)
+
+
+async def test_freeze_time_fails_closed_and_releases_lock(monkeypatch: pytest.MonkeyPatch):
+    """A missing patch target fails without poisoning later freeze attempts."""
+    frozen = Instant.from_utc(2026, 4, 7, 6, 0)
+    async with AppTestHarness(SimTestApp, config={}) as harness:
+        monkeypatch.setattr(harness, "_NOW_PATCH_TARGETS", ("hassette.utils.date_utils.missing_now",))
+        with pytest.raises(AttributeError, match=r"hassette\.utils\.date_utils\.missing_now"):
+            harness.freeze_time(frozen)
+
+        monkeypatch.setattr(harness, "_NOW_PATCH_TARGETS", ("hassette.utils.date_utils.now",))
+        harness.freeze_time(frozen)
+        assert date_utils.now() == frozen.to_system_tz()
+
+
+async def test_failed_freeze_cleanup_cannot_release_another_owner():
+    """A stale exit callback cannot unlock a later harness's active patch."""
+    frozen = Instant.from_utc(2026, 4, 7, 6, 0)
+    first = TimeControlMixin()
+    second = TimeControlMixin()
+    third = TimeControlMixin()
+    first._exit_stack = AsyncExitStack()
+    second._exit_stack = AsyncExitStack()
+    third._exit_stack = AsyncExitStack()
+    first._NOW_PATCH_TARGETS = ("hassette.utils.date_utils.missing_now",)
+
+    try:
+        with pytest.raises(AttributeError):
+            first.freeze_time(frozen)
+
+        second.freeze_time(frozen)
+        await first._exit_stack.aclose()
+
+        with pytest.raises(RuntimeError, match="freeze_time is already held"):
+            third.freeze_time(frozen)
+    finally:
+        await third._exit_stack.aclose()
+        await second._exit_stack.aclose()
+        await first._exit_stack.aclose()
 
 
 async def test_trigger_due_jobs_fires_scheduled():
