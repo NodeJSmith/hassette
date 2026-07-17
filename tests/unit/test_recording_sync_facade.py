@@ -13,28 +13,15 @@ import pytest
 
 from hassette.exceptions import EntityNotFoundError
 from hassette.models.entities.light import LightEntity
-from hassette.models.helpers import (
-    CreateCounterParams,
-    CreateInputBooleanParams,
-    CreateInputButtonParams,
-    CreateInputDatetimeParams,
-    CreateInputNumberParams,
-    CreateInputSelectParams,
-    CreateInputTextParams,
-    CreateTimerParams,
-    UpdateCounterParams,
-    UpdateInputBooleanParams,
-    UpdateInputButtonParams,
-    UpdateInputDatetimeParams,
-    UpdateInputNumberParams,
-    UpdateInputSelectParams,
-    UpdateInputTextParams,
-    UpdateTimerParams,
-)
 from hassette.models.services import ServiceResponse
 from hassette.test_utils.factories import make_recording_api
 from hassette.test_utils.helpers import make_state_dict
-from hassette.test_utils.sync_facade import STUB_MSG_GENERIC, STUB_MSG_STATE_CONVERSION, RecordingSyncFacade
+from hassette.test_utils.sync_facade import (
+    STUB_MSG_GENERIC,
+    STUB_MSG_STATE_CONVERSION,
+    RecordingHelperClientSyncFacade,
+    RecordingSyncFacade,
+)
 
 
 async def test_recording_api_sync_is_recording_sync_facade():
@@ -288,50 +275,14 @@ async def test_body_copied_methods_are_sync():
         ("toggle", ("sensor.test",), {}),
         ("turn_off", ("sensor.test",), {}),
         ("turn_on", ("sensor.test",), {}),
-        # Helper CRUD — list methods (read-only)
-        ("list_input_booleans", (), {}),
-        ("list_input_numbers", (), {}),
-        ("list_input_texts", (), {}),
-        ("list_input_selects", (), {}),
-        ("list_input_datetimes", (), {}),
-        ("list_input_buttons", (), {}),
-        ("list_counters", (), {}),
-        ("list_timers", (), {}),
-        # Helper CRUD — create methods
-        ("create_input_boolean", (CreateInputBooleanParams(name="test_bool"),), {}),
-        ("create_input_number", (CreateInputNumberParams(name="test_num", min=0.0, max=10.0),), {}),
-        ("create_input_text", (CreateInputTextParams(name="test_text"),), {}),
-        ("create_input_select", (CreateInputSelectParams(name="test_sel", options=["a"]),), {}),
-        (
-            "create_input_datetime",
-            (CreateInputDatetimeParams(name="test_dt", has_date=True),),
-            {},
-        ),
-        ("create_input_button", (CreateInputButtonParams(name="test_btn"),), {}),
-        ("create_counter", (CreateCounterParams(name="test_ctr"),), {}),
-        ("create_timer", (CreateTimerParams(name="test_tmr"),), {}),
-        # Helper CRUD — update methods (using IDs that were just created above)
-        ("update_input_boolean", ("test_bool", UpdateInputBooleanParams(initial=True)), {}),
-        ("update_input_number", ("test_num", UpdateInputNumberParams(step=0.5)), {}),
-        ("update_input_text", ("test_text", UpdateInputTextParams(max=100)), {}),
-        ("update_input_select", ("test_sel", UpdateInputSelectParams(options=["a", "b"])), {}),
-        ("update_input_datetime", ("test_dt", UpdateInputDatetimeParams(has_time=True)), {}),
-        ("update_input_button", ("test_btn", UpdateInputButtonParams(icon="mdi:button")), {}),
-        ("update_counter", ("test_ctr", UpdateCounterParams(step=2)), {}),
-        ("update_timer", ("test_tmr", UpdateTimerParams(duration=60)), {}),
-        # Helper CRUD — delete methods
-        ("delete_input_boolean", ("test_bool",), {}),
-        ("delete_input_number", ("test_num",), {}),
-        ("delete_input_text", ("test_text",), {}),
-        ("delete_input_select", ("test_sel",), {}),
-        ("delete_input_datetime", ("test_dt",), {}),
-        ("delete_input_button", ("test_btn",), {}),
-        ("delete_counter", ("test_ctr",), {}),
-        ("delete_timer", ("test_tmr",), {}),
-        # Counter action methods
-        ("increment_counter", ("counter.test",), {}),
-        ("decrement_counter", ("counter.test",), {}),
-        ("reset_counter", ("counter.test",), {}),
+        # Note: Helper CRUD (list/create/update/delete/increment/decrement/reset) lives
+        # on the nested `RecordingHelperClientSyncFacade` (accessed via `facade.helpers`),
+        # not on `RecordingSyncFacade` itself. Every one of those methods references a
+        # module-level dispatch dict defined in recording_api.py (e.g.
+        # DOMAIN_TO_RECORD_TYPE, CREATE_PARAMS_TO_RECORD_TYPE), which the generator
+        # cannot import into the generated facade module without a circular import — so
+        # all 7 are stubbed with NotImplementedError rather than body-copied. They are
+        # intentionally absent from this top-level RecordingSyncFacade smoke test.
     ]
 
     # Drift guard: the set of methods we invoke above must exactly match the set of
@@ -368,3 +319,36 @@ async def test_body_copied_methods_are_sync():
             raise AssertionError(
                 f"{method_name}() returned a {type(result).__name__} — body-copy produced hidden async call"
             )
+
+
+async def test_sync_helpers_is_recording_helper_client_sync_facade():
+    """RecordingApi.sync.helpers must be a RecordingHelperClientSyncFacade instance (not a Mock)."""
+    api = make_recording_api()
+    assert isinstance(api.sync.helpers, RecordingHelperClientSyncFacade)
+
+
+@pytest.mark.parametrize(
+    ("method_name", "args"),
+    [
+        ("list", ("input_boolean",)),
+        ("create", (object(),)),
+        ("update", ("some_id", object())),
+        ("delete", ("input_boolean", "some_id")),
+        ("increment", ("counter.test",)),
+        ("decrement", ("counter.test",)),
+        ("reset", ("counter.test",)),
+    ],
+)
+def test_sync_helpers_methods_raise_not_implemented(method_name: str, args: tuple):
+    """Every RecordingHelperClientSyncFacade method is stubbed with NotImplementedError.
+
+    All 7 HelperClient methods reference module-level dispatch dicts defined in
+    recording_api.py (DOMAIN_TO_RECORD_TYPE, CREATE_PARAMS_TO_RECORD_TYPE, etc.), which the
+    generator cannot import into the generated facade module without a circular import —
+    so none of them are body-copied.
+    """
+    api = make_recording_api()
+    method = getattr(api.sync.helpers, method_name)
+    with pytest.raises(NotImplementedError) as exc_info:
+        method(*args)
+    assert str(exc_info.value) == STUB_MSG_GENERIC.format(name=method_name)

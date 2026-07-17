@@ -8,7 +8,8 @@ parity check as collateral damage.
 from hassette_codegen.sync_facade import LIFECYCLE_METHODS
 
 from hassette.api.api import Api
-from hassette.test_utils.recording_api import RecordingApi
+from hassette.api.helpers import HelperClient
+from hassette.test_utils.recording_api import RecordingApi, RecordingHelperClient
 from tests.unit.conftest import public_async_methods
 
 # Read-method names — these are excluded from the write-method derivation below.
@@ -46,16 +47,12 @@ KNOWN_READ_METHODS: frozenset[str] = frozenset(
         "get_rest_request",
         "post_rest_request",
         "delete_rest_request",
-        "list_input_booleans",
-        "list_input_numbers",
-        "list_input_texts",
-        "list_input_selects",
-        "list_input_datetimes",
-        "list_input_buttons",
-        "list_counters",
-        "list_timers",
     }
 )
+
+# Read-method names on HelperClient — list() is the only read method; create/update/delete
+# are writes, increment/decrement/reset are writes (they call HA services).
+KNOWN_HELPER_READ_METHODS: frozenset[str] = frozenset({"list"})
 
 
 def test_api_write_methods_covered_by_recording_api() -> None:
@@ -83,4 +80,23 @@ def test_api_write_methods_covered_by_recording_api() -> None:
         f"RecordingApi is missing write methods present in Api: {sorted(missing)}. "
         f"Add them to src/hassette/test_utils/recording_api.py and update "
         f"KNOWN_READ_METHODS in this file if the new method is actually a read method."
+    )
+
+
+def test_helper_client_write_methods_covered_by_recording_helper_client() -> None:
+    """RecordingHelperClient must implement every write method that HelperClient defines.
+
+    Mirrors test_api_write_methods_covered_by_recording_api above, scoped to the
+    HelperClient/RecordingHelperClient pair introduced by 014-helper-crud-namespace.
+    """
+    helper_client_async_methods = public_async_methods(HelperClient)
+    recording_helper_client_async_methods = public_async_methods(RecordingHelperClient)
+
+    write_methods_on_helper_client = helper_client_async_methods - KNOWN_HELPER_READ_METHODS - LIFECYCLE_METHODS
+
+    missing = write_methods_on_helper_client - recording_helper_client_async_methods
+    assert not missing, (
+        f"RecordingHelperClient is missing write methods present in HelperClient: {sorted(missing)}. "
+        f"Add them to src/hassette/test_utils/recording_api.py (RecordingHelperClient) and update "
+        f"KNOWN_HELPER_READ_METHODS in this file if the new method is actually a read method."
     )

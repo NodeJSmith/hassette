@@ -50,9 +50,9 @@ class _HarnessApp(App[_HarnessConfig]):
 async def test_seed_helper_then_list_returns_seeded_record():
     api = make_recording_api()
     record = InputBooleanRecord(id="vacation_mode", name="Vacation Mode")
-    api.helper_definitions["input_boolean"]["vacation_mode"] = record
+    api.helpers.helper_definitions["input_boolean"]["vacation_mode"] = record
 
-    result = await api.list_input_booleans()
+    result = await api.helpers.list("input_boolean")
     assert len(result) == 1
     assert result[0].id == "vacation_mode"
     assert result[0].name == "Vacation Mode"
@@ -88,8 +88,8 @@ async def test_seed_helper_type_map_covers_all_imports():
 
 async def test_create_input_boolean_adds_to_list():
     api = make_recording_api()
-    record = await api.create_input_boolean(CreateInputBooleanParams(name="vacation_mode"))
-    result = await api.list_input_booleans()
+    record = await api.helpers.create(CreateInputBooleanParams(name="vacation_mode"))
+    result = await api.helpers.list("input_boolean")
     assert len(result) == 1
     assert result[0].id == record.id
     assert result[0].name == "vacation_mode"
@@ -97,19 +97,19 @@ async def test_create_input_boolean_adds_to_list():
 
 async def test_create_input_boolean_slugifies_name():
     api = make_recording_api()
-    record = await api.create_input_boolean(CreateInputBooleanParams(name="Vacation Mode"))
+    record = await api.helpers.create(CreateInputBooleanParams(name="Vacation Mode"))
     assert record.id == "vacation_mode"
 
 
 async def test_create_input_boolean_auto_suffixes_collision():
     api = make_recording_api()
-    first = await api.create_input_boolean(CreateInputBooleanParams(name="vacation_mode"))
-    second = await api.create_input_boolean(CreateInputBooleanParams(name="vacation_mode"))
+    first = await api.helpers.create(CreateInputBooleanParams(name="vacation_mode"))
+    second = await api.helpers.create(CreateInputBooleanParams(name="vacation_mode"))
 
     assert first.id == "vacation_mode"
     assert second.id == "vacation_mode_2"
 
-    all_records = await api.list_input_booleans()
+    all_records = await api.helpers.list("input_boolean")
     assert len(all_records) == 2
 
 
@@ -117,7 +117,7 @@ async def test_update_input_boolean_raises_on_missing_id():
     api = make_recording_api()
 
     with pytest.raises(FailedMessageError) as exc_info:
-        await api.update_input_boolean("nonexistent", UpdateInputBooleanParams(initial=True))
+        await api.helpers.update("nonexistent", UpdateInputBooleanParams(initial=True))
 
     assert exc_info.value.code == "not_found"
     assert "input_boolean" in str(exc_info.value)
@@ -125,13 +125,13 @@ async def test_update_input_boolean_raises_on_missing_id():
 
 async def test_update_input_boolean_mutates_seed():
     api = make_recording_api()
-    record = await api.create_input_boolean(CreateInputBooleanParams(name="vacation_mode"))
-    updated = await api.update_input_boolean(record.id, UpdateInputBooleanParams(initial=True))
+    record = await api.helpers.create(CreateInputBooleanParams(name="vacation_mode"))
+    updated = await api.helpers.update(record.id, UpdateInputBooleanParams(initial=True))
 
     assert updated.initial is True
     assert updated.id == record.id
 
-    listed = await api.list_input_booleans()
+    listed = await api.helpers.list("input_boolean")
     assert len(listed) == 1
     assert listed[0].initial is True
 
@@ -140,38 +140,38 @@ async def test_delete_input_boolean_raises_on_missing_id():
     api = make_recording_api()
 
     with pytest.raises(FailedMessageError) as exc_info:
-        await api.delete_input_boolean("nonexistent")
+        await api.helpers.delete("input_boolean", "nonexistent")
 
     assert exc_info.value.code == "not_found"
 
 
 async def test_delete_input_boolean_removes_from_list():
     api = make_recording_api()
-    record = await api.create_input_boolean(CreateInputBooleanParams(name="vacation_mode"))
-    await api.delete_input_boolean(record.id)
+    record = await api.helpers.create(CreateInputBooleanParams(name="vacation_mode"))
+    await api.helpers.delete("input_boolean", record.id)
 
-    result = await api.list_input_booleans()
+    result = await api.helpers.list("input_boolean")
     assert result == []
 
 
 async def test_reset_clears_helper_definitions():
     api = make_recording_api()
     # Seed across multiple domains
-    await api.create_input_boolean(CreateInputBooleanParams(name="vacation_mode"))
-    await api.create_counter(CreateCounterParams(name="my_counter"))
-    api.helper_definitions["timer"]["manual_timer"] = TimerRecord(id="manual_timer", name="Manual Timer")
+    await api.helpers.create(CreateInputBooleanParams(name="vacation_mode"))
+    await api.helpers.create(CreateCounterParams(name="my_counter"))
+    api.helpers.helper_definitions["timer"]["manual_timer"] = TimerRecord(id="manual_timer", name="Manual Timer")
 
     api.reset()
 
-    assert await api.list_input_booleans() == []
-    assert await api.list_counters() == []
-    assert await api.list_timers() == []
+    assert await api.helpers.list("input_boolean") == []
+    assert await api.helpers.list("counter") == []
+    assert await api.helpers.list("timer") == []
     assert api.calls == []
 
 
 async def test_create_records_api_call():
     api = make_recording_api()
-    await api.create_input_boolean(CreateInputBooleanParams(name="vacation_mode"))
+    await api.helpers.create(CreateInputBooleanParams(name="vacation_mode"))
 
     assert len(api.calls) == 1
     call = api.calls[0]
@@ -180,31 +180,38 @@ async def test_create_records_api_call():
 
 
 async def test_counter_action_records_api_call_increment():
+    """Increment delegates to call_service (matches HelperClient's real implementation)."""
     api = make_recording_api()
-    await api.increment_counter("counter.foo")
+    await api.helpers.increment("counter.foo")
 
     assert len(api.calls) == 1
     call = api.calls[0]
-    assert call.method == "increment_counter"
-    assert call.kwargs["entity_id"] == "counter.foo"
+    assert call.method == "call_service"
+    assert call.kwargs["domain"] == "counter"
+    assert call.kwargs["service"] == "increment"
+    assert call.kwargs["target"] == {"entity_id": "counter.foo"}
 
 
 async def test_counter_action_records_api_call_decrement():
     api = make_recording_api()
-    await api.decrement_counter("counter.bar")
+    await api.helpers.decrement("counter.bar")
 
     call = api.calls[0]
-    assert call.method == "decrement_counter"
-    assert call.kwargs["entity_id"] == "counter.bar"
+    assert call.method == "call_service"
+    assert call.kwargs["domain"] == "counter"
+    assert call.kwargs["service"] == "decrement"
+    assert call.kwargs["target"] == {"entity_id": "counter.bar"}
 
 
 async def test_counter_action_records_api_call_reset():
     api = make_recording_api()
-    await api.reset_counter("counter.baz")
+    await api.helpers.reset("counter.baz")
 
     call = api.calls[0]
-    assert call.method == "reset_counter"
-    assert call.kwargs["entity_id"] == "counter.baz"
+    assert call.method == "call_service"
+    assert call.kwargs["domain"] == "counter"
+    assert call.kwargs["service"] == "reset"
+    assert call.kwargs["target"] == {"entity_id": "counter.baz"}
 
 
 def test_slugify_helper_name_fallback_for_empty_slug():
@@ -224,12 +231,12 @@ def test_slugify_helper_name_fallback_for_empty_slug():
 async def test_list_returns_isolated_copies():
     """Mutating records returned by list_* must not affect the stored state."""
     api = make_recording_api()
-    api.helper_definitions["input_boolean"]["x"] = InputBooleanRecord(id="x", name="Original")
+    api.helpers.helper_definitions["input_boolean"]["x"] = InputBooleanRecord(id="x", name="Original")
 
-    returned = (await api.list_input_booleans())[0]
+    returned = (await api.helpers.list("input_boolean"))[0]
     returned.name = "Mutated"
 
-    refetched = (await api.list_input_booleans())[0]
+    refetched = (await api.helpers.list("input_boolean"))[0]
     assert refetched.name == "Original"
 
 
@@ -244,18 +251,20 @@ async def test_list_isolation_preserves_nested_collections():
     """
     api = make_recording_api()
 
-    api.helper_definitions["input_select"]["mode"] = InputSelectRecord(id="mode", name="Mode", options=["a", "b"])
+    api.helpers.helper_definitions["input_select"]["mode"] = InputSelectRecord(
+        id="mode", name="Mode", options=["a", "b"]
+    )
 
-    listed = (await api.list_input_selects())[0]
+    listed = (await api.helpers.list("input_select"))[0]
     listed.options.append("MUTATED")
 
-    refetched = (await api.list_input_selects())[0]
+    refetched = (await api.helpers.list("input_select"))[0]
     assert refetched.options == ["a", "b"]
 
-    created = await api.create_input_select(CreateInputSelectParams(name="Another", options=["x", "y"]))
+    created = await api.helpers.create(CreateInputSelectParams(name="Another", options=["x", "y"]))
     created.options.append("ALSO_MUTATED")
 
-    fetched_after_create = next(r for r in await api.list_input_selects() if r.id == created.id)
+    fetched_after_create = next(r for r in await api.helpers.list("input_select") if r.id == created.id)
     assert fetched_after_create.options == ["x", "y"]
 
 
@@ -303,7 +312,7 @@ async def test_seed_helper_isolates_caller_mutations():
         caller_record.options.append("c")
 
         # The harness store should be untouched.
-        listed = await harness.api_recorder.list_input_selects()
+        listed = await harness.api_recorder.helpers.list("input_select")
         assert len(listed) == 1
         assert listed[0].name == "Mode"
         assert listed[0].options == ["a", "b"]

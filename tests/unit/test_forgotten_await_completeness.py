@@ -117,12 +117,13 @@ INHERITED_LIFECYCLE_EXCLUSIONS: set[str] = {
 #: Bus:       emit        — event delivery failure is observable downstream.
 #:            on_initialize / on_shutdown — internal lifecycle hooks, not user API.
 #: Scheduler: on_initialize / on_shutdown — same.
-#: Api:       get_* / create_* / update_* / delete_* / list_* / reset_* /
-#:            decrement_* / increment_* / entity_exists / *rest_request /
+#: Api:       get_* / entity_exists / *rest_request /
 #:            ws_send_* / render_template / on_initialize
 #:            — all return data that is consumed immediately; a dropped coroutine
 #:            produces an AttributeError downstream (not silent). Also covers
 #:            infrastructure helpers not part of the public automation API.
+#:            Helper CRUD (list/create/update/delete/increment/decrement/reset)
+#:            moved to HelperClient (src/hassette/api/helpers.py) — see 014-helper-crud-namespace.
 DOCUMENTED_EXCLUSIONS: dict[type, set[str]] = {
     Bus: {"emit", "on_initialize", "on_shutdown"},
     Scheduler: {"on_initialize", "on_shutdown"},
@@ -148,49 +149,13 @@ DOCUMENTED_EXCLUSIONS: dict[type, set[str]] = {
         "get_state_value",
         "get_states",
         "get_states_raw",
-        # Input-helper CRUD — return data; not silent on drop
-        "create_counter",
-        "create_input_boolean",
-        "create_input_button",
-        "create_input_datetime",
-        "create_input_number",
-        "create_input_select",
-        "create_input_text",
-        "create_timer",
-        "decrement_counter",
-        "delete_counter",
         "delete_entity",
-        "delete_input_boolean",
-        "delete_input_button",
-        "delete_input_datetime",
-        "delete_input_number",
-        "delete_input_select",
-        "delete_input_text",
         "delete_rest_request",
-        "delete_timer",
         "entity_exists",
-        "increment_counter",
-        "list_counters",
-        "list_input_booleans",
-        "list_input_buttons",
-        "list_input_datetimes",
-        "list_input_numbers",
-        "list_input_selects",
-        "list_input_texts",
-        "list_timers",
         "post_rest_request",
         "render_template",
-        "reset_counter",
         "rest_request",
         "get_rest_request",
-        "update_counter",
-        "update_input_boolean",
-        "update_input_button",
-        "update_input_datetime",
-        "update_input_number",
-        "update_input_select",
-        "update_input_text",
-        "update_timer",
         # Infrastructure helpers — internal transport, not automation API
         "ws_send_and_wait",
         "ws_send_json",
