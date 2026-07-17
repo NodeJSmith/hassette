@@ -224,7 +224,7 @@ async def test_close_closes_both_connections(cache: AsyncCache) -> None:
 async def test_initialize_propagates_non_corruption_errors(tmp_path: Path) -> None:
     """Non-corruption sqlite3 errors propagate without triggering delete-and-recreate."""
     db_path = tmp_path / "cache.db"
-    db_path.write_bytes(b"placeholder")
+    db_path.write_bytes(b"placeholder")  # must pre-exist so the assertion proves it wasn't deleted
 
     instance = AsyncCache(db_path)
 
