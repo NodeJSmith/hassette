@@ -5,6 +5,7 @@ and supporting helpers extracted from ``app_harness.py``.
 """
 
 import contextlib
+import math
 import threading
 from contextlib import AsyncExitStack
 from logging import getLogger
@@ -105,6 +106,7 @@ class TimeControlMixin:
         self._test_clock: _TestClock | None = None
         self._time_patcher: list[object] | None = None
         self._time_patcher_registered: bool = False
+        self._freeze_time_lock_held: bool = False
 
     def _stop_time_patchers(self) -> None:
         """Stop all active time patchers. Called by exit stack on teardown."""
@@ -119,8 +121,9 @@ class TimeControlMixin:
     def _release_freeze_time(self) -> None:
         """Stop time patchers and release the process-global freeze_time lock."""
         self._stop_time_patchers()
-        with contextlib.suppress(RuntimeError):
+        if self._freeze_time_lock_held:
             FREEZE_TIME_LOCK.release()
+            self._freeze_time_lock_held = False
 
     def freeze_time(self, instant: Instant | ZonedDateTime) -> None:
         """Freeze time at the given instant.
@@ -142,17 +145,20 @@ class TimeControlMixin:
         Raises:
             RuntimeError: If called outside the async with block, or if another
                 harness already holds the freeze_time lock.
+            AttributeError: If a configured time patch target does not exist.
         """
         if self._exit_stack is None:
             raise RuntimeError("freeze_time() must be called inside 'async with AppTestHarness(...) as harness:'.")
 
         # Acquire the process-global lock (non-blocking). Idempotent re-freeze
         # from the same harness is allowed (we already hold the lock).
-        if self._time_patcher is None and not FREEZE_TIME_LOCK.acquire(blocking=False):
-            raise RuntimeError(
-                "freeze_time is already held by another harness — "
-                "time-controlling tests must be isolated (e.g., separate xdist workers)."
-            )
+        if not self._freeze_time_lock_held:
+            if not FREEZE_TIME_LOCK.acquire(blocking=False):
+                raise RuntimeError(
+                    "freeze_time is already held by another harness — "
+                    "time-controlling tests must be isolated (e.g., separate xdist workers)."
+                )
+            self._freeze_time_lock_held = True
 
         # Register teardown BEFORE starting patchers — if p.start() raises, the
         # lock is still released on exit. Only register once; subsequent freeze_time
@@ -168,14 +174,21 @@ class TimeControlMixin:
         self._test_clock = clock
 
         patchers: list[object] = []
-        for target in self._NOW_PATCH_TARGETS:
-            try:
+        try:
+            for target in self._NOW_PATCH_TARGETS:
                 p = patch(target, side_effect=clock.current)
                 p.start()
                 patchers.append(p)
-            except AttributeError:
-                # Module may not import `now` — skip gracefully
-                LOGGER.debug("freeze_time: could not patch %s (module does not import now)", target)
+        except Exception as exc:
+            for started_patcher in reversed(patchers):
+                with contextlib.suppress(Exception):
+                    started_patcher.stop()  # pyright: ignore[reportAttributeAccessIssue]
+            self._test_clock = None
+            self._time_patcher = None
+            self._release_freeze_time()
+            if isinstance(exc, AttributeError):
+                raise AttributeError(f"freeze_time() patch target {target!r} does not exist") from exc
+            raise
 
         self._time_patcher = patchers
 
@@ -192,12 +205,24 @@ class TimeControlMixin:
 
         Raises:
             RuntimeError: If :meth:`freeze_time` has not been called first.
+            ValueError: If any delta is non-finite or the combined delta is negative.
         """
         if self._test_clock is None:
             raise RuntimeError(
                 "advance_time() requires freeze_time() to be called first. "
                 "Call harness.freeze_time(instant) before advancing time."
             )
+
+        for field, value in (("seconds", seconds), ("minutes", minutes), ("hours", hours)):
+            if not math.isfinite(value):
+                raise ValueError(f"advance_time() {field} must be finite, got {value!r}.")
+
+        total_seconds = seconds + minutes * 60 + hours * 3600
+        if not math.isfinite(total_seconds):
+            raise ValueError(f"advance_time() total duration must be finite, got {total_seconds!r} seconds.")
+        if total_seconds < 0:
+            raise ValueError(f"advance_time() total duration must be non-negative, got {total_seconds} seconds.")
+
         self._test_clock.advance(seconds=seconds, minutes=minutes, hours=hours)
 
     async def trigger_due_jobs(self) -> int:

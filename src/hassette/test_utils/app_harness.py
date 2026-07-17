@@ -19,10 +19,11 @@ import inspect
 import re
 import shutil
 import tempfile
+from collections.abc import Mapping
 from contextlib import AsyncExitStack
 from logging import getLogger
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Generic, TypeVar, cast
 from unittest.mock import AsyncMock
 
 import pydantic
@@ -52,6 +53,7 @@ if TYPE_CHECKING:
 
 LOGGER = getLogger(__name__)
 EPOCH_TIMESTAMP = "1970-01-01T00:00:00+00:00"
+AppType = TypeVar("AppType", bound=App)
 
 
 # Cache of (hermetic_subclass, init_kwargs_ref) pairs keyed by app_config_cls — avoids
@@ -187,7 +189,7 @@ def synthesize_manifest(app_cls: type[App]) -> AppManifest:
     )
 
 
-class AppTestHarness(SimulationMixin, TimeControlMixin):
+class AppTestHarness(SimulationMixin, TimeControlMixin, Generic[AppType]):
     """Async context manager that wires an App class into Hassette test infrastructure.
 
     Provides a fully initialized app instance with access to its bus, scheduler,
@@ -212,8 +214,8 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
 
     def __init__(
         self,
-        app_cls: type[App],
-        config: dict[str, Any],
+        app_cls: type[AppType],
+        config: Mapping[str, Any] | None = None,
         *,
         tmp_path: Path | None = None,
     ) -> None:
@@ -221,25 +223,27 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
 
         Args:
             app_cls: The App subclass to instantiate and test.
-            config: Dict of config values to validate against app_cls.app_config_cls.
+            config: Config values to validate against app_cls.app_config_cls. Defaults
+                to an empty mapping for apps without required settings.
             tmp_path: Optional directory for Hassette data. Auto-created and cleaned
                 up if not provided.
         """
         self._app_cls = app_cls
-        self._config_dict = config
+        self._config_dict = dict(config or {})
         self._tmp_path = tmp_path
 
         # Set during __aenter__
         self._exit_stack: AsyncExitStack | None = None
         self._harness: HassetteHarness | None = None
-        self._app: App | None = None
+        self._app: AppType | None = None
 
         # Time control (set by freeze_time)
         self._test_clock = None
         self._time_patcher: list[object] | None = None
         self._time_patcher_registered: bool = False
+        self._freeze_time_lock_held: bool = False
 
-    async def __aenter__(self) -> "AppTestHarness":
+    async def __aenter__(self) -> "AppTestHarness[AppType]":
         """Set up the full harness in 11 steps with LIFO teardown via AsyncExitStack."""
         exit_stack = AsyncExitStack()
         self._exit_stack = exit_stack
@@ -372,7 +376,7 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
             self._exit_stack = None
 
     @property
-    def app(self) -> App:
+    def app(self) -> AppType:
         """The fully initialized App instance."""
         if self._app is None:
             raise RuntimeError("AppTestHarness is not active — use 'async with AppTestHarness(...) as harness'")

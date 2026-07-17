@@ -130,6 +130,12 @@ from typing import Any
 if typing.TYPE_CHECKING:
     from hassette.test_utils.recording_api import RecordingApi, RecordingHelperClient
 {type_checking_imports}\
+RECORDED_API_METHODS = frozenset(
+    {{
+{recorded_api_methods}
+    }}
+)
+
 # Stub message templates — imported by tests to avoid brittle substring matches.
 # Must stay byte-identical with the constants in codegen/src/hassette_codegen/sync_facade/.
 STUB_MSG_STATE_CONVERSION = (
@@ -143,6 +149,16 @@ STUB_MSG_GENERIC = (
 )
 
 '''
+
+_RECORDING_HELPERS = frozenset({"_record_call", "_create_helper", "_update_helper", "_delete_helper"})
+
+
+def _records_api_call(func: ast.AsyncFunctionDef | ast.FunctionDef) -> bool:
+    """Return whether a method records through the canonical helper path."""
+    return any(
+        isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr in _RECORDING_HELPERS
+        for node in ast.walk(func)
+    )
 
 
 def _find_class(module: ast.Module, name: str, source_label: str) -> ast.ClassDef:
@@ -170,6 +186,23 @@ def _module_level_assigned_names(module: ast.Module) -> set[str]:
         elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
             names.add(node.target.id)
     return names
+
+
+def _extract_supported_helper_domains(module: ast.Module) -> set[str]:
+    """Extract domain strings from the SUPPORTED_HELPER_DOMAINS frozenset literal in recording_api.py."""
+    for node in module.body:
+        if (
+            isinstance(node, ast.AnnAssign)
+            and isinstance(node.target, ast.Name)
+            and node.target.id == "SUPPORTED_HELPER_DOMAINS"
+        ):
+            if isinstance(node.value, ast.Call) and isinstance(node.value.args[0], ast.Set):
+                return {
+                    elt.value
+                    for elt in node.value.args[0].elts
+                    if isinstance(elt, ast.Constant) and isinstance(elt.value, str)
+                }
+    return set()
 
 
 def _references_names(func: ast.AsyncFunctionDef | ast.FunctionDef, names: set[str]) -> bool:
@@ -216,7 +249,7 @@ def _generate_recording_facade_methods(
     recording_class_name: str,
     recording_source_label: str,
     extra_async_method_names: "set[str] | frozenset[str]" = _NO_EXTRA_ASYNC_METHOD_NAMES,
-) -> tuple[str, set[str], set[str], set[str]]:
+) -> tuple[str, set[str], set[str], set[str], set[str]]:
     """Generate the body-copied/stubbed methods for one (source, recording) class pair.
 
     Called twice by ``generate_sync_recording`` — once for the (Api, RecordingApi) pair and
@@ -230,7 +263,7 @@ def _generate_recording_facade_methods(
     single-level peer-call check in ``gen_recording_method`` cannot see two levels deep.
 
     Returns:
-        Tuple of (methods_source, body_symbols, runtime_annotation_symbols, string_ref_symbols).
+        Tuple of (methods_source, body_symbols, runtime_annotation_symbols, string_ref_symbols, recorded_api_methods).
 
     """
     source = source_path.read_text(encoding="utf8")
@@ -263,6 +296,7 @@ def _generate_recording_facade_methods(
     recording_local_names = _module_level_assigned_names(recording_module)
 
     generated_methods: list[str] = []
+    recorded_api_methods: set[str] = set()
     all_body_nodes: list[ast.stmt] = []
     all_runtime_annotation_symbols: set[str] = set()
     all_string_ref_symbols: set[str] = set()
@@ -281,6 +315,8 @@ def _generate_recording_facade_methods(
 
         if use_body_copy:
             assert rec_func is not None
+            if _records_api_call(rec_func):
+                recorded_api_methods.add(method_name)
             runtime_syms, string_syms = collect_annotation_symbols(rec_func)
             all_runtime_annotation_symbols |= runtime_syms
             all_string_ref_symbols |= string_syms
@@ -318,7 +354,13 @@ def _generate_recording_facade_methods(
                     file=sys.stderr,
                 )
 
-    return "\n".join(generated_methods), body_symbols, all_runtime_annotation_symbols, all_string_ref_symbols
+    return (
+        "\n".join(generated_methods),
+        body_symbols,
+        all_runtime_annotation_symbols,
+        all_string_ref_symbols,
+        recorded_api_methods,
+    )
 
 
 def _build_import_blocks(
@@ -402,10 +444,10 @@ def generate_sync_recording(api_path: Path, recording_api_path: Path) -> str:
     # be passed explicitly rather than discovered from RecordingHelperClient's own body.
     recording_api_async_names = _async_method_names_of(recording_module, "RecordingApi", str(recording_api_path))
 
-    api_methods_str, api_body_syms, api_runtime_syms, api_string_syms = _generate_recording_facade_methods(
-        api_path, "Api", recording_module, "RecordingApi", str(recording_api_path)
+    api_methods_str, api_body_syms, api_runtime_syms, api_string_syms, recorded_api_methods = (
+        _generate_recording_facade_methods(api_path, "Api", recording_module, "RecordingApi", str(recording_api_path))
     )
-    helpers_methods_str, helpers_body_syms, helpers_runtime_syms, helpers_string_syms = (
+    helpers_methods_str, helpers_body_syms, helpers_runtime_syms, helpers_string_syms, helpers_recorded = (
         _generate_recording_facade_methods(
             helpers_path,
             "HelperClient",
@@ -415,6 +457,17 @@ def generate_sync_recording(api_path: Path, recording_api_path: Path) -> str:
             extra_async_method_names=recording_api_async_names,
         )
     )
+    recorded_api_methods |= helpers_recorded
+
+    # HelperClient's public methods (create/update/delete/list) record ApiCalls with
+    # domain-specific names (e.g. "create_input_boolean") constructed at runtime.  The
+    # codegen discovers the facade method names ("create") but RECORDED_API_METHODS must
+    # contain the actual ApiCall.method values.  Expand from SUPPORTED_HELPER_DOMAINS.
+    helper_domains = _extract_supported_helper_domains(recording_module)
+    domain_specific_names = {f"{op}_{domain}" for op in ("create", "update", "delete") for domain in helper_domains}
+    # Replace the generic facade names with domain-specific ones
+    recorded_api_methods -= {"create", "update", "delete", "list"}
+    recorded_api_methods |= domain_specific_names
 
     needed_symbols = (
         api_body_syms | api_runtime_syms | helpers_body_syms | helpers_runtime_syms
@@ -441,6 +494,7 @@ def generate_sync_recording(api_path: Path, recording_api_path: Path) -> str:
         _RECORDING_MODULE_HEADER_TEMPLATE.format(
             imports=import_block,
             type_checking_imports=type_checking_imports,
+            recorded_api_methods="\n".join(f'        "{name}",' for name in sorted(recorded_api_methods)),
         )
         + _RECORDING_CLASS_HEADER
         + "\n"

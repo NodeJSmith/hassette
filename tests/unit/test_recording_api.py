@@ -212,10 +212,89 @@ async def test_assert_called_rejects_absent_key_matching_none():
     """
     api = make_recording_api()
     # Manually record a call with no 'brightness' key at all
-    api.calls.append(ApiCall(method="test_method", kwargs={"entity_id": "light.x"}))
+    api.calls.append(ApiCall(method="turn_on", kwargs={"entity_id": "light.x"}))
     # brightness is absent from kwargs — asserting brightness=None must fail
     with pytest.raises(AssertionError):
-        api.assert_called("test_method", brightness=None)
+        api.assert_called("turn_on", brightness=None)
+
+
+@pytest.mark.parametrize("assertion", ["assert_called", "assert_not_called", "assert_called_exact"])
+async def test_assertions_reject_unknown_method(assertion: str):
+    """A misspelled method cannot make a positive or negative assertion look valid."""
+    api = make_recording_api()
+
+    with pytest.raises(ValueError, match=r"Unknown recorded API method 'turn-on'.*turn_on"):
+        getattr(api, assertion)("turn-on")
+
+
+async def test_assert_call_count_rejects_unknown_method_at_zero():
+    """A zero count for a misspelled method is invalid rather than vacuously true."""
+    api = make_recording_api()
+
+    with pytest.raises(ValueError, match=r"Unknown recorded API method 'turn-on'.*turn_on"):
+        api.assert_call_count("turn-on", 0)
+
+
+async def test_assert_call_count_rejects_negative_count():
+    """Negative expected counts are assertion misuse."""
+    api = make_recording_api()
+
+    with pytest.raises(ValueError, match="count must be non-negative"):
+        api.assert_call_count("turn_on", -1)
+
+
+async def test_recording_rejects_method_outside_assertion_contract():
+    """Recording and assertion validation use the same method-name contract."""
+    api = make_recording_api()
+
+    with pytest.raises(ValueError, match="Unknown recorded API method 'not_recordable'"):
+        api._record_call(ApiCall(method="not_recordable"))
+
+
+@pytest.mark.parametrize("assertion", ["assert_called", "assert_not_called", "assert_called_exact"])
+async def test_assertions_reject_unknown_keyword_for_closed_method(assertion: str):
+    """A misspelled keyword cannot make an assertion look valid."""
+    api = make_recording_api()
+
+    with pytest.raises(ValueError, match=r"'entity'.*'entity_id'"):
+        getattr(api, assertion)("set_state", entity="sensor.test")
+
+
+async def test_assertions_allow_known_keyword_for_closed_method():
+    """A valid keyword is accepted for a method without arbitrary kwargs."""
+    api = make_recording_api()
+
+    api.assert_not_called("set_state", entity_id="sensor.test")
+
+
+async def test_assertions_validate_flattened_helper_fields():
+    """Helper assertions validate the fields recorded from their params model."""
+    api = make_recording_api()
+
+    with pytest.raises(ValueError, match=r"'helper_name'.*'name'"):
+        api.assert_not_called("create_input_boolean", helper_name="Vacation mode")
+
+
+async def test_assertions_allow_arbitrary_service_data_for_open_method():
+    """Methods accepting **data keep supporting domain-specific assertion keys."""
+    api = make_recording_api()
+
+    api.assert_not_called("turn_on", custom_service_field=True)
+
+
+async def test_assert_called_reports_closest_call_differences():
+    """Mismatch output identifies missing and differing values on the closest call."""
+    api = make_recording_api()
+    await api.turn_on("light.hallway", brightness=100)
+    await api.turn_on("light.kitchen", brightness=150)
+
+    with pytest.raises(AssertionError) as exc_info:
+        api.assert_called("turn_on", entity_id="light.kitchen", brightness=200, transition=1)
+
+    message = str(exc_info.value)
+    assert "Closest call #2" in message
+    assert "missing={'transition': 1}" in message
+    assert "mismatched={'brightness': {'expected': 200, 'actual': 150}}" in message
 
 
 async def test_assert_not_called_passes_when_not_called():
@@ -499,10 +578,10 @@ async def test_get_entity_or_none_returns_none_for_missing_entity_with_model():
 async def test_assert_called_exact_match():
     """assert_called_exact passes when the recorded kwargs match exactly."""
     api = make_recording_api()
-    api.calls.append(ApiCall(method="test_method", kwargs={"a": 1, "b": 2}))
+    api.calls.append(ApiCall(method="turn_on", kwargs={"a": 1, "b": 2}))
 
     # Exact match — passes.
-    api.assert_called_exact("test_method", a=1, b=2)
+    api.assert_called_exact("turn_on", a=1, b=2)
 
 
 async def test_assert_called_exact_mismatch_extra_key():

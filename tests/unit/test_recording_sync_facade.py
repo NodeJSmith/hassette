@@ -17,6 +17,7 @@ from hassette.models.services import ServiceResponse
 from hassette.test_utils.factories import make_recording_api
 from hassette.test_utils.helpers import make_state_dict
 from hassette.test_utils.sync_facade import (
+    RECORDED_API_METHODS,
     STUB_MSG_GENERIC,
     STUB_MSG_STATE_CONVERSION,
     RecordingHelperClientSyncFacade,
@@ -319,6 +320,11 @@ async def test_body_copied_methods_are_sync():
             raise AssertionError(
                 f"{method_name}() returned a {type(result).__name__} — body-copy produced hidden async call"
             )
+
+    recorded_methods = {call.method for call in api.calls}
+    assert recorded_methods <= RECORDED_API_METHODS, (
+        f"Facade recorded methods not in RECORDED_API_METHODS: {sorted(recorded_methods - RECORDED_API_METHODS)}"
+    )
 
 
 async def test_sync_helpers_is_recording_helper_client_sync_facade():

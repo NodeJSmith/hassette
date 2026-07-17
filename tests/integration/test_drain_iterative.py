@@ -13,6 +13,8 @@ Covers:
 
 import asyncio
 import inspect
+import math
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -283,6 +285,29 @@ async def test_drain_timeout_message_has_debounce_hint_when_applicable() -> None
             await harness.simulate_state_change("sensor.test", old_value="off", new_value="on", timeout=0.15)
         msg = str(exc_info.value)
         assert "debounce" in msg
+
+
+@pytest.mark.parametrize("timeout", [math.nan, math.inf, -math.inf, -1.0])
+async def test_drain_rejects_invalid_timeout(timeout: float) -> None:
+    """Invalid drain timeouts fail immediately instead of disabling the deadline."""
+    async with AppTestHarness(Depth1App, config={}) as harness:
+        with pytest.raises(ValueError, match="timeout must be finite and non-negative"):
+            await asyncio.wait_for(harness.drain_task_bucket(timeout=timeout), timeout=0.2)
+
+
+async def test_simulation_rejects_invalid_timeout_before_dispatch() -> None:
+    """Timeout validation happens before the simulation can emit an event."""
+    async with AppTestHarness(Depth1App, config={}) as harness:
+        hassette = harness.require_harness().hassette
+        with patch.object(hassette, "send_event", new_callable=AsyncMock) as send_event:
+            with pytest.raises(ValueError, match="timeout must be finite and non-negative"):
+                await harness.simulate_state_change(
+                    "sensor.test",
+                    old_value="off",
+                    new_value="on",
+                    timeout=math.nan,
+                )
+            send_event.assert_not_awaited()
 
 
 def test_drain_error_message_single_exception() -> None:
