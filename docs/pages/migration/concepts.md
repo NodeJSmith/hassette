@@ -34,7 +34,7 @@ Hassette uses composition. Each subsystem is a separate attribute:
 | `self.scheduler` | Schedule jobs by delay, interval, time, or cron expression |
 | `self.api` | Call Home Assistant REST and WebSocket APIs |
 | `self.states` | Read local state cache, automatically kept current |
-| `self.cache` | Persistent disk-backed key-value store |
+| `self.cache` | Async key-value store, backed by aiosqlite |
 | `self.logger` | Standard Python logger scoped to the app |
 
 The upside is discoverability. Typing `self.bus.` in your editor gives you the full event API. Typing `self.scheduler.` gives you the scheduler. Nothing is buried.

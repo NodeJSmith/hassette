@@ -1,13 +1,10 @@
 """Tests for Resource properties not exercised elsewhere.
 
 Verifies:
-- cache: cached_property builds a real diskcache.Cache under data_dir/<class>/cache
-- cache: a pre-set ._cache is returned as-is, without reconstruction
+- cache: Resource no longer exposes a `cache` attribute -- cache moved to App only
 - owner_id: top-level resource (no parent) returns its own unique_name
 - register_task_bucket_factory: module-level function stores the factory on Resource
 """
-
-from diskcache import Cache
 
 from hassette.resources.base import Resource
 from hassette.resources.operations import register_task_bucket_factory
@@ -16,43 +13,14 @@ from hassette.test_utils import make_mock_hassette
 from .conftest import ConcreteResource
 
 
-class TestCache:
-    """Resource.cache lazily builds a disk cache scoped to the resource's class."""
+class TestNoCacheOnResource:
+    """Cache moved from Resource to App-only (design/specs/013-resource-cache-redesign)."""
 
-    def test_cache_builds_directory_and_returns_cache_instance(self, tmp_path) -> None:
-        hassette = make_mock_hassette(data_dir=tmp_path, sealed=False)
+    def test_resource_has_no_cache_attribute(self) -> None:
+        hassette = make_mock_hassette(sealed=False)
         resource = ConcreteResource(hassette=hassette)
 
-        cache = resource.cache
-
-        assert isinstance(cache, Cache)
-        expected_dir = tmp_path / "ConcreteResource" / "cache"
-        assert expected_dir.is_dir()
-        cache.close()
-
-    def test_cache_is_memoized_across_accesses(self, tmp_path) -> None:
-        hassette = make_mock_hassette(data_dir=tmp_path, sealed=False)
-        resource = ConcreteResource(hassette=hassette)
-
-        first = resource.cache
-        second = resource.cache
-
-        assert first is second
-        first.close()
-
-    def test_cache_returns_preset_cache_without_reconstruction(self, tmp_path) -> None:
-        """When ._cache is already set (e.g. injected), the property returns it directly."""
-        hassette = make_mock_hassette(data_dir=tmp_path, sealed=False)
-        resource = ConcreteResource(hassette=hassette)
-
-        preset = Cache(tmp_path / "preset-cache-dir")
-        resource._cache = preset
-
-        # The class-scoped directory must NOT have been created — the preset short-circuits
-        # before the mkdir/Cache(...) construction path runs.
-        assert resource.cache is preset
-        assert not (tmp_path / "ConcreteResource").exists()
-        preset.close()
+        assert not hasattr(resource, "cache")
 
 
 class TestOwnerId:

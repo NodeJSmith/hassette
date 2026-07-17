@@ -573,6 +573,21 @@ class TestErrorHandlerTimeoutSeconds:
             LogLevelTestConfig(lifecycle={"error_handler_timeout_seconds": True})
 
 
+class TestDefaultCacheTtl:
+    """Tests for HassetteConfig.default_cache_ttl field."""
+
+    def test_default_cache_ttl_defaults_to_none(self) -> None:
+        config = LogLevelTestConfig()
+        assert config.default_cache_ttl is None
+
+    def test_default_cache_ttl_accepts_explicit_value(self) -> None:
+        config = LogLevelTestConfig(default_cache_ttl=60)
+        assert config.default_cache_ttl == 60
+
+    def test_default_cache_size_field_removed(self) -> None:
+        assert "default_cache_size" not in HassetteConfig.model_fields
+
+
 def test_websocket_connect_retry_defaults() -> None:
     """Connect-retry fields under websocket group have the correct default values."""
     config = LogLevelTestConfig()

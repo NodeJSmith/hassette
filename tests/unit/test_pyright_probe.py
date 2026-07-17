@@ -29,7 +29,7 @@ PROBE_DIR = WORKTREE_ROOT / "tests" / "pyright_probes"
 PROBE_FILE = PROBE_DIR / "forgotten_await_probe.py"
 HARNESS_TYPE_PROBE_FILE = PROBE_DIR / "harness_typing_probe.py"
 
-EXPECTED_PROBE_COUNT = 5
+EXPECTED_PROBE_COUNT = 8
 
 
 def _extract_probe_lines() -> list[tuple[int, str]]:
@@ -67,6 +67,9 @@ def test_pyright_probe_fires_unused_coroutine() -> None:
       - Overloaded api:    call_service with ServiceResponse overload
       - Overloaded api:    call_service with None overload
       - None-returning:    turn_on
+      - Cache method:      get
+      - Cache method:      set
+      - Cache method:      get_or_set
     """
     try:
         result = subprocess.run(

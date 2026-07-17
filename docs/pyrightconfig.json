@@ -52,17 +52,14 @@
             "reportMissingImports": "none"
         },
         {
-            // diskcache Cache.get/__getitem__ return a broad union type that triggers
-            // false positives on assignment, arithmetic, and returns in cache snippets
+            // Snippets are teaching fragments — incomplete classes trigger
+            // attribute-assignment, operator, and iteration false positives
             "root": "pages/core-concepts/cache/snippets",
             "reportOperatorIssue": "none",
-            "reportAssignmentType": "none",
             "reportGeneralTypeIssues": "none",
-            "reportReturnType": "none",
             "reportAttributeAccessIssue": "none"
         },
         {
-            // apps_cache_counter.py hits the same diskcache Cache.get union false positive
             "root": "pages/core-concepts/apps/snippets",
             "reportAttributeAccessIssue": "none"
         }

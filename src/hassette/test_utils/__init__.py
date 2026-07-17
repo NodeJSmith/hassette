@@ -26,6 +26,7 @@ from .factories import make_recording_api as make_recording_api
 from .factories import make_scheduled_job as make_scheduled_job
 from .factories import make_scheduler as make_scheduler
 from .fixtures import build_harness as build_harness
+from .fixtures import dummy_cache as dummy_cache
 from .fixtures import hassette_harness as hassette_harness
 from .fixtures import hassette_with_app_handler as hassette_with_app_handler
 from .fixtures import hassette_with_bus as hassette_with_bus
@@ -81,6 +82,7 @@ __all__ = [
     "RecordingApi",
     "create_call_service_event",
     "create_state_change_event",
+    "dummy_cache",
     "make_light_state_dict",
     "make_mock_hassette",
     "make_sensor_state_dict",

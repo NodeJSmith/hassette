@@ -2,6 +2,8 @@
 
 An app is a Python class that reacts to Home Assistant events and controls devices. Each app has its own config, state, and a set of typed accessors — `self.bus`, `self.scheduler`, `self.api`, `self.states`, `self.cache`, and `self.task_bucket` — for interacting with HA.
 
+`self.cache` is an async cache, not a raw disk-backed store — every data method is `await`ed.
+
 ## Defining an App
 
 Every app is a Python class that inherits from [`App`][hassette.app.app.App]. `App` manages handlers, scheduling, and the connection to Home Assistant. The `on_initialize` lifecycle hook runs at startup, before any events arrive.
@@ -145,7 +147,7 @@ See the [API](../api/index.md) page for state access, entity management, and mor
 
 ### Persist Data
 
-[`self.cache`](../cache/index.md) stores values that survive app restarts. Reads and writes go through a disk-backed store scoped to the app instance.
+[`self.cache`](../cache/index.md) stores values that survive app restarts. It's an async cache scoped to the app instance — every read and write is `await`ed.
 
 ```python
 --8<-- "pages/core-concepts/apps/snippets/apps_cache_counter.py:cache_counter"

@@ -364,7 +364,6 @@ def make_watcher(hassette: MagicMock) -> ServiceWatcher:
     watcher.shutting_down = False
     watcher.initializing = False
     watcher._init_task = None
-    watcher._cache = None
     watcher.hassette = hassette
     watcher.parent = hassette
     watcher.children = []

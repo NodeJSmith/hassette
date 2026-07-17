@@ -6,8 +6,9 @@ class DataCacheApp(App[AppConfig]):
         """Get data from cache if not expired, or None if expired or absent."""
         cache_key = f"data:{key}"
 
-        if cache_key in self.cache:
-            timestamp, value = self.cache[cache_key]
+        entry = await self.cache.get(cache_key)
+        if entry is not None:
+            timestamp, value = entry
 
             # Return cached data if still within TTL
             if timestamp > self.now().subtract(minutes=ttl_minutes):
@@ -19,4 +20,4 @@ class DataCacheApp(App[AppConfig]):
     async def set_cached_data(self, key: str, value) -> None:
         """Store data alongside a timestamp for TTL tracking."""
         cache_key = f"data:{key}"
-        self.cache[cache_key] = (self.now(), value)
+        await self.cache.set(cache_key, (self.now(), value))

@@ -31,7 +31,7 @@ class CoverScheduler(App[CoverSchedulerConfig]):
         self.logger.info("Cover scheduler started")
 
         # Restore cached positions
-        cached = self.cache.get(CACHE_KEY_POSITIONS)
+        cached = await self.cache.get(CACHE_KEY_POSITIONS)
         if cached:
             self.logger.info("Restored cached cover positions: %s", cached)
 
@@ -80,7 +80,7 @@ class CoverScheduler(App[CoverSchedulerConfig]):
     async def on_shutdown(self) -> None:
         """Persist cover positions to cache before stopping."""
         positions = await self._get_cover_positions()
-        self.cache[CACHE_KEY_POSITIONS] = positions
+        await self.cache.set(CACHE_KEY_POSITIONS, positions)
         self.logger.info("Saved cover positions to cache: %s", positions)
 
     async def open_all_covers(self) -> None:
@@ -107,7 +107,7 @@ class CoverScheduler(App[CoverSchedulerConfig]):
         """Hourly position log."""
         positions = await self._get_cover_positions()
         self.logger.info("Hourly cover positions: %s", positions)
-        self.cache[CACHE_KEY_POSITIONS] = positions
+        await self.cache.set(CACHE_KEY_POSITIONS, positions)
 
     async def report_sun_state(self) -> None:
         """One-time startup report of sun state."""

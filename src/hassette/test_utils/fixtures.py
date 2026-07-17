@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from hassette.cache import DummyCache
 from hassette.core.core import Hassette
 from hassette.events import Event, RawStateChangeEvent, create_event_from_hass
 
@@ -33,6 +34,15 @@ async def build_harness(harness: HassetteHarness) -> "AsyncIterator[HassetteHarn
     finally:
         await harness.stop()
         harness.config.reload()
+
+
+@pytest.fixture
+def dummy_cache() -> DummyCache:
+    """A fresh `DummyCache` instance for injecting into an App's `cache=` constructor parameter.
+
+    Isolates cache state per test -- no temp directory management, no SQLite files.
+    """
+    return DummyCache()
 
 
 @pytest.fixture(scope="module")
