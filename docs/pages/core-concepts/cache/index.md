@@ -1,69 +1,91 @@
 # App Cache
 
-`self.cache` provides persistent key-value storage on every [`App`](../apps/index.md) instance — no setup required. Data written to the cache survives restarts and is available at the next startup. The cache is a [`diskcache.Cache`](https://grantjenks.com/docs/diskcache/) instance backed by a third-party disk-based storage library. The full diskcache API is available directly.
+`self.cache` stores values that survive app restarts — counters, timestamps, API responses, user preferences. Every `App` instance gets one automatically, backed by its own SQLite database file. No setup required.
 
-For real-time Home Assistant entity state, [`self.states`](../states/index.md) (the local state cache) is the right tool. `self.cache` is for app data: counters, timestamps, API responses, preferences.
+For real-time Home Assistant entity state, [`self.states`](../states/index.md) is the right tool. `self.cache` is for app data, not entity state.
 
 ## Basic Usage
 
-The cache exposes a dictionary-like API for get, set, delete, and membership checks. No open, flush, or close call is needed.
+Every data method on `self.cache` is `async` and must be awaited:
 
 ```python
 --8<-- "pages/core-concepts/cache/snippets/cache_basic_usage.py"
 ```
 
-Hassette opens the cache at first access and flushes it to disk at shutdown. All reads and writes happen transparently in between.
+`get` returns `None` when a key is missing, or the value passed as `default` when one is given. `set` stores a value indefinitely unless a `ttl` is given (see [TTL and Expiration](#ttl-and-expiration) below). `delete` removes a key; deleting a missing key is a no-op.
 
-## Shared Cache and Multi-Instance Apps
+## Instance-Scoped Directories
 
-All instances of the same app class share one cache directory, keyed by class name. Two instances of `WeatherApp` with different configurations read from and write to the same cache.
+Each app instance gets its own cache directory and its own SQLite file. Two instances of the same `WeatherApp` class — say, one per city — do not share cache data, so a key like `"last_forecast"` in instance 0 never collides with instance 1's copy.
 
-Hassette can run the same app class multiple times with different configs (see [App Instances](../apps/index.md)). For multi-instance apps, prefixing keys with `self.app_config.instance_name` (set per `[[hassette.apps.<key>.config]]` block in `hassette.toml`; defaults to `ClassName.0`, `ClassName.1`, ... when omitted) avoids collisions:
+The default directory is `{data_dir}/{app_key}/{index}/cache/cache.db`. Set `cache_key` on an app's section in `hassette.toml` to override this — the most common reason is preserving cache data across an app rename:
+
+```toml
+[hassette.apps.weather]
+cache_key = "weather_v1/0"  # keep the cache from before the app was renamed
+```
+
+When `cache_key` is set, Hassette uses it as-is with no index appended. Two apps that intentionally share a `cache_key` share one cache file; Hassette logs a warning at startup if two *different* `app_key` values resolve to the same `cache_key` unintentionally.
+
+## Lazy Population with `get_or_set`
+
+`get_or_set` reads a key, and on a miss, calls an async function to compute the value, stores it, and returns it:
 
 ```python
---8<-- "pages/core-concepts/cache/snippets/cache_instance_prefix.py"
+data = await self.cache.get_or_set("weather", fetch_weather, ttl=3600)
 ```
+
+`fetch_weather` only runs when the cache misses or the entry expired. Subsequent calls within the TTL window return the stored value without calling `fetch_weather` again.
+
+## TTL and Expiration
+
+`set` accepts a `ttl` parameter in seconds:
+
+```python
+--8<-- "pages/core-concepts/cache/snippets/cache_expire.py:expire"
+```
+
+The entry expires after the given number of seconds; `get` returns `None` for an expired key and removes it from storage. Three levels resolve the default when `ttl` is omitted, in order:
+
+1. The per-call `ttl` argument to `set`
+2. The app subclass's `default_cache_ttl` class attribute
+3. `default_cache_ttl` in `hassette.toml` (a global fallback under `[hassette]`)
+
+When none of these are set, entries persist indefinitely. An app that sets a class-level default looks like this:
+
+```python
+--8<-- "pages/core-concepts/cache/snippets/cache_expiring.py"
+```
+
+!!! warning "`ttl=0` deletes, it doesn't store"
+    `set(key, value, ttl=0)` deletes any existing entry at `key` and does not store the new value. Use `delete(key)` if that's the intent — `ttl=0` exists to let a computed TTL of zero (e.g., "already expired") behave the same way.
+
+## Synchronous Access
+
+[`AppSync`](../apps/index.md#synchronous-apps) apps run their lifecycle hooks and handlers in a thread pool, without `async`/`await`. `self.cache.sync` exposes the same methods as plain synchronous calls:
+
+```python
+self.cache.sync.set("temp", reading, ttl=300)
+val = self.cache.sync.get("temp")
+```
+
+`self.cache.sync` opens its own connection to the same SQLite file — it works from `AppSync` handlers, but calling it from inside a running event loop raises `RuntimeError`, matching the safety contract of `self.bus.sync`, `self.scheduler.sync`, and `self.api.sync`.
+
+## Test Isolation with DummyCache
+
+`DummyCache` is an in-memory implementation of the same interface. Pass it to `App.__init__` via the `cache` parameter — or use the `dummy_cache` pytest fixture from `hassette.test_utils` — to exercise cache-using code without touching disk. `DummyCache` supports the full API — `get`, `set`, `delete`, `get_or_set`, `clear`, `invalidate`, and `.sync` — with the same TTL semantics as the real cache.
 
 ## What Can Be Cached
 
-The cache stores any Python object that supports pickling, Python's built-in serialization format. This includes:
+The cache stores any Python object that supports pickling, Python's built-in serialization format:
 
 - Primitives: `str`, `int`, `float`, `bool`, `None`
 - Collections: `list`, `dict`, `tuple`, `set`
-- Timestamps from the [`whenever`](https://whenever.readthedocs.io/) library (Hassette's date/time library): `Instant`, `ZonedDateTime`, `PlainDateTime`, `TimeDelta`
+- Timestamps from the [`whenever`](https://whenever.readthedocs.io/) library: `Instant`, `ZonedDateTime`, `PlainDateTime`, `TimeDelta`
 - Pydantic models and dataclasses (if picklable)
 
 !!! tip "Storing timestamps"
-    `self.now()` — a built-in `App` method returning the current time as a timezone-aware [`ZonedDateTime`](https://whenever.readthedocs.io/) — and all `whenever` types are picklable. Store them directly in the cache without conversion.
-
-## Configuration
-
-`default_cache_size` and `data_dir` are root-level settings in `hassette.toml`:
-
-```toml
-[hassette]
-default_cache_size = 104857600  # 100 MiB (default)
-data_dir = "/path/to/data"
-```
-
-| Setting | Type | Default | Description |
-|---|---|---|---|
-| `default_cache_size` | integer (bytes) | `104857600` | Size limit for each app's cache. Least-recently-used items are evicted when the limit is reached. |
-| `data_dir` | path | platform-dependent | Root directory for all persistent data. See [Global Settings](../configuration/index.md) for platform defaults. |
-
-## How It Works
-
-**Storage location.** Each app's cache lives at `{data_dir}/{ClassName}/cache/`. A `WeatherApp` with `data_dir = /home/user/.hassette` stores its cache at `/home/user/.hassette/WeatherApp/cache/`.
-
-**Lazy initialization.** The cache directory is created on first access. Apps that never use `self.cache` produce no directory.
-
-**Lifecycle.** The cache is available from first access through shutdown. Hassette closes and flushes it to disk when the app stops.
-
-**Automatic cleanup.** Entries with a TTL expire silently. When the cache reaches its size limit (the `default_cache_size` setting), the least-recently-used items are evicted without raising an error. To set a TTL, use `self.cache.set()` instead of bracket assignment:
-
-```python
-self.cache.set("weather_data", payload, expire=3600)  # expires after 1 hour
-```
+    `self.now()` — a built-in `App` method returning the current time as a timezone-aware [`ZonedDateTime`](https://whenever.readthedocs.io/) — and all `whenever` types are picklable. Store them directly without conversion.
 
 ## Verify It Works
 
@@ -73,11 +95,10 @@ Check that cache data persists across restarts with `hassette log`:
 hassette log --app my_app --since 1h
 ```
 
-Set `log_level = "DEBUG"` in `hassette.toml` first — cache reads and writes only appear in the log at that level. The cache directory at `{data_dir}/{ClassName}/cache/` contains SQLite files managed by diskcache after the first successful write; the filenames are internal, not meant for inspection.
+Set `log_level = "DEBUG"` in `hassette.toml` first — cache reads and writes only appear in the log at that level.
 
 ## See Also
 
 - [Patterns & Examples](patterns.md). Rate-limiting, counters, complex data, expiring entries, and troubleshooting.
-- [Global Settings](../configuration/index.md). `data_dir` and `default_cache_size` reference.
+- [Global Settings](../configuration/index.md). `data_dir` reference.
 - [States](../states/index.md). Real-time HA entity state (not the cache).
-- [diskcache documentation](https://grantjenks.com/docs/diskcache/). The underlying library.

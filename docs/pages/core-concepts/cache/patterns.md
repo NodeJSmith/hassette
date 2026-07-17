@@ -1,6 +1,6 @@
 # App Cache: Patterns & Examples
 
-Practical patterns for `self.cache`, the persistent disk-backed key-value store available on every `App` instance. Each pattern addresses a specific problem with a complete, runnable example. The [Overview](index.md) covers setup and basic usage.
+Practical patterns for `self.cache`, the async key-value store available on every `App` instance. Each pattern addresses a specific problem with a complete, runnable example. The [Overview](index.md) covers setup, TTL, and basic usage.
 
 `self.now()` returns the current time as a [`ZonedDateTime`](https://whenever.readthedocs.io/) from the `whenever` library. It is timezone-aware, picklable, and supports arithmetic — all time-based patterns below use it for timestamp comparisons.
 
@@ -14,7 +14,7 @@ A leak or alarm sensor can fire repeatedly during a single incident. Storing a t
 
 `P` is `hassette.event_handling.predicates` — helper functions that filter which events trigger a handler (see [Predicates](../bus/filtering.md)). `P.StateTo("on")` fires the handler only when the entity transitions to `"on"`.
 
-`self.cache.get(cache_key)` returns `None` on the first call, so the notification goes out immediately. The timestamp is written after sending. On subsequent triggers, the handler compares the stored timestamp against the cooldown threshold — `last_sent > self.now().subtract(hours=4)` is true when the last notification was sent less than 4 hours ago. For per-entity rate limiting, include the entity ID in the key: `f"last_notification:{entity_id}"`.
+`await self.cache.get(cache_key)` returns `None` on the first call, so the notification goes out immediately. The timestamp is written after sending. On subsequent triggers, the handler compares the stored timestamp against the cooldown threshold — `last_sent > self.now().subtract(hours=4)` is true when the last notification was sent less than 4 hours ago. For per-entity rate limiting, include the entity ID in the key: `f"last_notification:{entity_id}"`.
 
 ## Persistent Counters
 
@@ -24,7 +24,7 @@ A counter stored only in an instance variable resets to zero whenever Hassette r
 --8<-- "pages/core-concepts/cache/snippets/cache_counter.py"
 ```
 
-`self.cache.get("motion_count", 0)` returns the stored value or `0` when no entry exists. Each call to `on_motion` increments the in-memory counter and immediately writes the new value to disk. Restart Hassette and check the logs — `"Motion count restored: N"` confirms the counter survived.
+`await self.cache.get("motion_count", default=0)` returns the stored value, or `0` when no entry exists yet. Each call to `on_motion` increments the in-memory counter and immediately writes the new value to disk. Restart Hassette and check the logs — `"Motion count restored: N"` confirms the counter survived.
 
 ## API Response Caching
 
@@ -43,7 +43,7 @@ External APIs impose rate limits. Storing the response alongside a timestamp let
 
 Two approaches exist for expiring cache entries, depending on whether access to the timestamp is needed.
 
-For automatic expiry, `self.cache.set()` accepts an `expire` parameter in seconds. The underlying diskcache library removes the entry silently once the timeout elapses:
+For automatic expiry, `self.cache.set()` accepts a `ttl` parameter in seconds. The entry is removed the moment it's read past that window:
 
 ```python
 --8<-- "pages/core-concepts/cache/snippets/cache_expire.py:expire"
@@ -69,13 +69,13 @@ The cache stores any picklable Python object. Dataclasses with typed fields work
 
 ## Load Once, Write on Shutdown
 
-Cache access involves disk I/O. For values read many times per second, loading into an instance variable at initialization avoids repeated disk reads:
+Cache access is a SQLite read. For values read many times per second, loading into an instance variable at initialization avoids repeated reads:
 
 ```python
 --8<-- "pages/core-concepts/cache/snippets/cache_performance.py"
 ```
 
-`on_initialize` reads from disk once. All access during the run uses the in-memory copy. `on_shutdown` — the lifecycle hook that mirrors `on_initialize`, called when Hassette stops cleanly — writes the final state back to disk. diskcache is thread-safe for multi-threaded access; within Hassette's single async event loop, two handlers that touch the same key between `await` points cannot interleave, but when an `await` falls between a read and a write, the last write wins — for counters or accumulators, use instance variables as shown in the [Persistent Counters](#persistent-counters) pattern.
+`on_initialize` reads from the cache once. All access during the run uses the in-memory copy. `on_shutdown` — the lifecycle hook that mirrors `on_initialize`, called when Hassette stops cleanly — writes the final state back. Within Hassette's single async event loop, two handlers that touch the same key between `await` points cannot interleave, but when an `await` falls between a read and a write, the last write wins — for counters or accumulators, use instance variables as shown in the [Persistent Counters](#persistent-counters) pattern.
 
 ## Troubleshooting
 
@@ -83,19 +83,19 @@ Cache access involves disk I/O. For values read many times per second, loading i
 
 If values do not survive a restart, check four common causes:
 
-- **Write targets a local variable instead of `self.cache`.** Verify the assignment uses `self.cache["key"]`, not a local dict.
+- **Write targets a local variable instead of `self.cache`.** Verify the call is `await self.cache.set("key", value)`, not an assignment to a local dict.
+- **Missing `await`.** `self.cache.set(...)` without `await` returns a coroutine object and never runs — no error, no write, no log message. Every data method on `self.cache` is a coroutine.
 - **Exception during initialization.** The app may raise before the write executes. Check `hassette log --app <key>` for errors.
-- **Cache directory lacks write permissions.** Check `ls -la {data_dir}/{ClassName}/cache/` — the Hassette process must own the directory.
+- **Cache directory lacks write permissions.** Check `ls -la {data_dir}/{app_key}/{index}/cache/` — the Hassette process must own the directory.
 - **Stored value is not picklable.** Unpicklable objects raise `PicklingError` at write time. Enable `log_level = "DEBUG"` under `[hassette.logging]` in `hassette.toml` to see the error.
 
-### Cache Size Exceeded
+### Cache Grows Large
 
-When the cache reaches `default_cache_size`, diskcache silently evicts the least recently stored entries (oldest writes first — its default policy). A larger `default_cache_size` in [Global Settings](../configuration/index.md) raises the ceiling. TTL expiry removes stale entries proactively, and storing large objects externally while caching only their identifiers reduces pressure.
+The cache has no size limit — entries persist until deleted, expired, or explicitly cleared. Set a `ttl` on entries that don't need to live forever, and call `await self.cache.clear()` to delete all entries and reclaim disk space (it runs `PRAGMA incremental_vacuum` after deleting, so the file actually shrinks). `await self.cache.invalidate(*keys)` deletes a specific set of keys in one call.
 
-Set `log_level = "DEBUG"` under `[hassette.logging]` in `hassette.toml` to enable cache operation logging. The cache directory at `~/.local/share/hassette/v0/{ClassName}/cache/` (where `{ClassName}` matches the app's class name, e.g. `WaterLeakAlertApp`) should contain data files after the first successful write.
+Set `log_level = "DEBUG"` under `[hassette.logging]` in `hassette.toml` to enable cache operation logging. The cache directory at `{data_dir}/{app_key}/{index}/cache/` should contain a `cache.db` file after the first successful write.
 
 ## See Also
 
-- [App Cache Overview](index.md). How it works, configuration, lifecycle.
-- [Global Settings](../configuration/index.md). `data_dir` and `default_cache_size`.
-- [diskcache documentation](https://grantjenks.com/docs/diskcache/). Full cache library reference.
+- [App Cache Overview](index.md). How it works, TTL configuration, lifecycle.
+- [Global Settings](../configuration/index.md). `data_dir` reference.

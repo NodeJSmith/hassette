@@ -11,8 +11,9 @@ class WeatherApp(App[AppConfig]):
         cache_key = f"weather:{location}"
 
         # Check cache first
-        if cache_key in self.cache:
-            cached_time, data = self.cache[cache_key]
+        entry = await self.cache.get(cache_key)
+        if entry is not None:
+            cached_time, data = entry
             # Return cached data if less than 30 minutes old
             if cached_time > self.now().subtract(minutes=30):
                 self.logger.info("Using cached weather for %s", location)
@@ -21,7 +22,7 @@ class WeatherApp(App[AppConfig]):
         # Fetch fresh data from API
         self.logger.info("Fetching fresh weather for %s", location)
         data = await self.fetch_weather_api(location)
-        self.cache[cache_key] = (self.now(), data)
+        await self.cache.set(cache_key, (self.now(), data))
         return data
 
     async def fetch_weather_api(self, location: str) -> dict:

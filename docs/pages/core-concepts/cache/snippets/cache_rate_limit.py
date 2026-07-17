@@ -15,7 +15,7 @@ class WaterLeakAlertApp(App[AppConfig]):
         cache_key = "last_leak_notification"
 
         # Check when we last sent a notification
-        last_sent = self.cache.get(cache_key)
+        last_sent = await self.cache.get(cache_key)
 
         if last_sent is not None:
             if last_sent > self.now().subtract(hours=4):
@@ -32,5 +32,5 @@ class WaterLeakAlertApp(App[AppConfig]):
         )
 
         # Update cache with current time
-        self.cache[cache_key] = self.now()
+        await self.cache.set(cache_key, self.now())
         self.logger.info("Leak notification sent")

@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Rewrite cache docs, update snippets and example app"
-status: "planned"
+status: "done"
 depends_on: ["T03"]
 implements: ["AC#13", "AC#14"]
 ---

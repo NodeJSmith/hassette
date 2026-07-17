@@ -15,9 +15,9 @@ class EnergyStats:
 class EnergyTrackerApp(App[AppConfig]):
     async def on_initialize(self):
         # Load previous stats or create new ones
-        self.stats: EnergyStats = self.cache.get(
+        self.stats: EnergyStats = await self.cache.get(
             "energy_stats",
-            EnergyStats(0.0, 0.0, self.now()),
+            default=EnergyStats(0.0, 0.0, self.now()),
         )
 
         await self.scheduler.run_hourly(self.update_stats, name="update_stats")
@@ -34,7 +34,7 @@ class EnergyTrackerApp(App[AppConfig]):
         )
 
         # Persist to cache
-        self.cache["energy_stats"] = self.stats
+        await self.cache.set("energy_stats", self.stats)
         self.logger.info("Updated stats: %s", self.stats)
 
     async def get_current_usage(self) -> float:
