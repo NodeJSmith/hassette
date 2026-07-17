@@ -222,20 +222,20 @@ async def test_close_closes_both_connections(cache: AsyncCache) -> None:
 
 
 async def test_initialize_propagates_non_corruption_errors(tmp_path: Path) -> None:
-    """Non-corruption sqlite3 errors (permissions, locking) propagate instead of triggering
-    delete-and-recreate.
-    """
-    db_path = tmp_path / "no_write" / "cache.db"
-    db_path.parent.mkdir()
-    db_path.parent.chmod(0o444)
+    """Non-corruption sqlite3 errors propagate without triggering delete-and-recreate."""
+    db_path = tmp_path / "cache.db"
+    db_path.write_bytes(b"placeholder")
 
     instance = AsyncCache(db_path)
-    try:
-        with pytest.raises(sqlite3.OperationalError):
-            await instance.initialize()
-        assert not db_path.exists()
-    finally:
-        db_path.parent.chmod(0o755)
+
+    async def raise_locked() -> None:
+        raise sqlite3.OperationalError("database is locked")
+
+    instance._open_connections = raise_locked  # pyright: ignore[reportAttributeAccessIssue]
+    with pytest.raises(sqlite3.OperationalError, match="database is locked"):
+        await instance.initialize()
+
+    assert db_path.exists(), "Non-corruption error must not trigger delete-and-recreate"
 
 
 async def test_initialize_recovers_from_corrupt_database(tmp_path: Path) -> None:
