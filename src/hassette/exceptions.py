@@ -98,7 +98,7 @@ class FailedMessageError(HassetteError):
     react programmatically::
 
         try:
-            await api.update_input_boolean(
+            await api.helpers.update(
                 "vacation_mode",
                 UpdateInputBooleanParams(initial=False),
             )

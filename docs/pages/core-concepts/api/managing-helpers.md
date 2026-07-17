@@ -2,9 +2,12 @@
 
 Home Assistant helpers (`input_boolean`, `input_number`, `input_text`, `input_select`,
 `input_datetime`, `input_button`, `counter`, `timer`) are persistent entities stored in
-HA's `.storage/` directory. They survive restarts and appear in the HA UI. The
-[`Api`][hassette.api.Api] exposes 32 typed CRUD methods across 8 domains, plus 3 counter
-shortcuts.
+HA's `.storage/` directory. They survive restarts and appear in the HA UI.
+`self.api.helpers` is a [`HelperClient`][hassette.api.helpers.HelperClient] with 4 generic
+CRUD methods (`list`, `create`, `update`, `delete`) covering all 8 domains, plus 3 counter
+shortcuts (`increment`, `decrement`, `reset`). Each CRUD method dispatches to the right
+domain from its argument — a domain string for `list`/`delete`, a typed params model for
+`create`/`update` — and returns the domain-specific record type.
 
 ## Creating a Helper on Startup
 
@@ -16,7 +19,7 @@ idempotent approach checks for an existing record before creating:
 --8<-- "pages/core-concepts/api/snippets/managing-helpers/crud_operations.py:bootstrap"
 ```
 
-`list_input_booleans()` fetches all `input_boolean` records from Home Assistant. The loop exits early if a matching id is found, so `create_input_boolean` only runs on first startup.
+`helpers.list("input_boolean")` fetches all `input_boolean` records from Home Assistant. The loop exits early if a matching id is found, so `helpers.create(...)` only runs on first startup.
 
 !!! warning "Concurrent provisioning"
     When two apps run the same list-then-create sequence simultaneously, both may pass
@@ -28,7 +31,7 @@ idempotent approach checks for an existing record before creating:
 
 ## Common Pitfalls
 
-**HA auto-suffixes on name collision.** When `create_*` receives a `name` that
+**HA auto-suffixes on name collision.** When `helpers.create(...)` receives a `name` that
 slugifies to an `id` already in storage, HA does not raise an error. It silently
 appends `_2`, `_3`, and so on until it finds a free slot. Two concurrent creators of
 the same-named helper both succeed, leaving two semantically-duplicate records. There
@@ -47,11 +50,11 @@ clear the value on the HA side. Omitting `icon` and passing `icon=None` produce
 different wire payloads.
 
 **`CounterRecord` and [`CounterState`][hassette.models.states.counter.CounterState] are two different models.** `CounterRecord`
-represents stored configuration, returned by `list_counters`, `create_counter`, and
-`update_counter`. `CounterState` represents the live runtime value, returned by
+represents stored configuration, returned by `helpers.list("counter")`, `helpers.create(...)`, and
+`helpers.update(...)`. `CounterState` represents the live runtime value, returned by
 `get_state("counter.mycounter")`. Changes to stored config (for example, updating
-`initial`) take effect after an HA restart. `increment_counter`, `decrement_counter`,
-and `reset_counter` are immediate but do not modify stored config.
+`initial`) take effect after an HA restart. `helpers.increment`, `helpers.decrement`,
+and `helpers.reset` are immediate but do not modify stored config.
 
 **Helper creation persists across HA restarts.** HA stores helpers in `.storage/`.
 A helper created during `on_initialize` is still present on the next run. The
@@ -67,8 +70,9 @@ correctly.
 ## CRUD Operations
 
 The create, list, update, and delete pattern is identical across all 8 domains. The
-examples below use `input_boolean`; the same method names apply to every domain in the
-[reference table](#all-supported-domains).
+examples below use `input_boolean`; the same `helpers.*` methods apply to every domain in
+the [reference table](#all-supported-domains) — only the domain string or params model
+type changes.
 
 ### Create
 
@@ -78,7 +82,7 @@ examples below use `input_boolean`; the same method names apply to every domain 
 
 The returned `InputBooleanRecord` carries the `id` HA assigned, typically the slugified
 form of the `name` passed in, for example `"vacation_mode"`. Storing or logging the `id`
-is useful, as `list_input_booleans()` is the only retrieval path if the id is not cached.
+is useful, as `helpers.list("input_boolean")` is the only retrieval path if the id is not cached.
 
 ### List
 
@@ -86,7 +90,7 @@ is useful, as `list_input_booleans()` is the only retrieval path if the id is no
 --8<-- "pages/core-concepts/api/snippets/managing-helpers/crud_operations.py:list"
 ```
 
-`list_*` returns all records for the domain, regardless of which app created them.
+`helpers.list(domain)` returns all records for the domain, regardless of which app created them.
 
 ### Update
 
@@ -94,7 +98,7 @@ is useful, as `list_input_booleans()` is the only retrieval path if the id is no
 --8<-- "pages/core-concepts/api/snippets/managing-helpers/crud_operations.py:update"
 ```
 
-`update_input_boolean` accepts a `helper_id` string (the stored `id` field, not the
+`helpers.update(helper_id, params)` accepts a `helper_id` string (the stored `id` field, not the
 display name) and a partial params object. Only fields present in the params object are
 sent to HA; absent fields retain their stored values. A `helper_id` that does not exist
 raises `FailedMessageError(code="not_found")`.
@@ -105,27 +109,39 @@ raises `FailedMessageError(code="not_found")`.
 --8<-- "pages/core-concepts/api/snippets/managing-helpers/crud_operations.py:delete"
 ```
 
-`delete_*` returns `None`. It raises `FailedMessageError(code="not_found")` if the id
+`helpers.delete(domain, helper_id)` returns `None`. It raises `FailedMessageError(code="not_found")` if the id
 is absent from storage.
 
 ### All Supported Domains
 
-The pattern above applies to every domain. Method names follow the same convention:
+`HelperClient` exposes 7 methods. `list` and `delete` dispatch on a domain string; `create`
+and `update` dispatch on the params model's type — passing `CreateCounterParams` routes the
+call to the `counter` domain and returns a `CounterRecord`, no domain argument needed.
 
-| Domain | List | Create | Update | Delete |
-|---|---|---|---|---|
-| `input_boolean` | `list_input_booleans` | `create_input_boolean` | `update_input_boolean` | `delete_input_boolean` |
-| `input_number` | `list_input_numbers` | `create_input_number` | `update_input_number` | `delete_input_number` |
-| `input_text` | `list_input_texts` | `create_input_text` | `update_input_text` | `delete_input_text` |
-| `input_select` | `list_input_selects` | `create_input_select` | `update_input_select` | `delete_input_select` |
-| `input_datetime` | `list_input_datetimes` | `create_input_datetime` | `update_input_datetime` | `delete_input_datetime` |
-| `input_button` | `list_input_buttons` | `create_input_button` | `update_input_button` | `delete_input_button` |
-| `counter` | `list_counters` | `create_counter` | `update_counter` | `delete_counter` |
-| `timer` | `list_timers` | `create_timer` | `update_timer` | `delete_timer` |
+| Method | Signature | Dispatches on |
+|---|---|---|
+| `helpers.list` | `list(domain: HelperDomain) -> list[Record]` | `domain` string |
+| `helpers.create` | `create(params: Create*Params) -> Record` | `type(params)` |
+| `helpers.update` | `update(helper_id: str, params: Update*Params) -> Record` | `type(params)` |
+| `helpers.delete` | `delete(domain: HelperDomain, helper_id: str) -> None` | `domain` string |
+| `helpers.increment` | `increment(entity_id: str) -> None` | n/a (counter only) |
+| `helpers.decrement` | `decrement(entity_id: str) -> None` | n/a (counter only) |
+| `helpers.reset` | `reset(entity_id: str) -> None` | n/a (counter only) |
+
+`HelperDomain` is the literal union of the 8 supported domain strings: `input_boolean`,
+`input_number`, `input_text`, `input_select`, `input_datetime`, `input_button`, `counter`,
+`timer`. Passing an unsupported string is a type error under Pyright, since `HelperDomain`
+rejects it at the call site before the code ever runs.
+
+`@overload` declarations on each method narrow the return type per domain — `helpers.list("counter")`
+returns `list[CounterRecord]`, not a generic `list[BaseModel]`. The params models for
+`create` and `update` live in `hassette.models.helpers` (for example
+`CreateInputBooleanParams`, `UpdateCounterParams`) and need an explicit import at each call
+site — see the collapsible reference table below for the full list.
 
 ## Counter Shortcuts
 
-`increment_counter`, `decrement_counter`, and `reset_counter` operate on the live entity
+`helpers.increment`, `helpers.decrement`, and `helpers.reset` operate on the live entity
 state, not stored configuration. They call HA's `counter` service domain and take effect
 immediately:
 
@@ -163,11 +179,11 @@ Seeded records are stored as deep copies. Later mutations to the record passed i
 
     | Model | Purpose | `extra` policy |
     |---|---|---|
-    | `{Domain}Record` | Stored configuration returned by `list_*`, `create_*`, and `update_*` | `"allow"`: unknown HA fields pass through |
+    | `{Domain}Record` | Stored configuration returned by `helpers.list`, `helpers.create`, and `helpers.update` | `"allow"`: unknown HA fields pass through |
     | `Create{Domain}Params` | Required and optional fields for a create call | `"forbid"`: typos raise `ValidationError` at construction |
     | `Update{Domain}Params` | Partial update payload with all fields optional | `"ignore"`: extra fields from round-tripped records are silently dropped |
 
-    The two CRUD methods that accept a params object (`create_*` and `update_*`) serialize it with
+    The two CRUD methods that accept a params object (`helpers.create` and `helpers.update`) serialize it with
     `model_dump(exclude_unset=True)`, not `exclude_none`. Omitting a field and explicitly
     setting it to `None` produce different wire payloads.
 

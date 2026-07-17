@@ -136,7 +136,7 @@ async def test_list_input_booleans(api: Api):
     """list_input_booleans sends correct command and parses response."""
     api.ws_send_and_wait = AsyncMock(return_value=[IB_RECORD])
 
-    result = await api.list_input_booleans()
+    result = await api.helpers.list("input_boolean")
 
     api.ws_send_and_wait.assert_awaited_once_with(type="input_boolean/list")
     assert isinstance(result, list)
@@ -150,7 +150,7 @@ async def test_create_input_boolean(api: Api):
     api.ws_send_and_wait = AsyncMock(return_value=IB_RECORD)
     params = CreateInputBooleanParams(name="Vacation Mode", initial=False)
 
-    result = await api.create_input_boolean(params)
+    result = await api.helpers.create(params)
 
     call_kwargs = api.ws_send_and_wait.call_args.kwargs
     assert call_kwargs["type"] == "input_boolean/create"
@@ -168,7 +168,7 @@ async def test_update_input_boolean(api: Api):
     api.ws_send_and_wait = AsyncMock(return_value=updated)
     params = UpdateInputBooleanParams(name="Holiday Mode")
 
-    result = await api.update_input_boolean("vacation_mode", params)
+    result = await api.helpers.update("vacation_mode", params)
 
     call_kwargs = api.ws_send_and_wait.call_args.kwargs
     assert call_kwargs["type"] == "input_boolean/update"
@@ -182,7 +182,7 @@ async def test_delete_input_boolean(api: Api):
     """delete_input_boolean sends correct command and returns None."""
     api.ws_send_and_wait = AsyncMock(return_value=None)
 
-    result = await api.delete_input_boolean("vacation_mode")
+    result = await api.helpers.delete("input_boolean", "vacation_mode")
 
     call_kwargs = api.ws_send_and_wait.call_args.kwargs
     assert call_kwargs["type"] == "input_boolean/delete"
@@ -193,7 +193,7 @@ async def test_delete_input_boolean(api: Api):
 async def test_list_input_numbers(api: Api):
     api.ws_send_and_wait = AsyncMock(return_value=[IN_RECORD])
 
-    result = await api.list_input_numbers()
+    result = await api.helpers.list("input_number")
 
     api.ws_send_and_wait.assert_awaited_once_with(type="input_number/list")
     assert isinstance(result[0], InputNumberRecord)
@@ -204,7 +204,7 @@ async def test_create_input_number(api: Api):
     api.ws_send_and_wait = AsyncMock(return_value=IN_RECORD)
     params = CreateInputNumberParams(name="Brightness", min=0.0, max=100.0)
 
-    result = await api.create_input_number(params)
+    result = await api.helpers.create(params)
 
     call_kwargs = api.ws_send_and_wait.call_args.kwargs
     assert call_kwargs["type"] == "input_number/create"
@@ -217,7 +217,7 @@ async def test_update_input_number(api: Api):
     api.ws_send_and_wait = AsyncMock(return_value=updated)
     params = UpdateInputNumberParams(max=200.0)
 
-    result = await api.update_input_number("brightness", params)
+    result = await api.helpers.update("brightness", params)
 
     call_kwargs = api.ws_send_and_wait.call_args.kwargs
     assert call_kwargs["type"] == "input_number/update"
@@ -228,7 +228,7 @@ async def test_update_input_number(api: Api):
 async def test_delete_input_number(api: Api):
     api.ws_send_and_wait = AsyncMock(return_value=None)
 
-    result = await api.delete_input_number("brightness")
+    result = await api.helpers.delete("input_number", "brightness")
 
     call_kwargs = api.ws_send_and_wait.call_args.kwargs
     assert call_kwargs["type"] == "input_number/delete"
@@ -239,7 +239,7 @@ async def test_delete_input_number(api: Api):
 async def test_list_input_texts(api: Api):
     api.ws_send_and_wait = AsyncMock(return_value=[IT_RECORD])
 
-    result = await api.list_input_texts()
+    result = await api.helpers.list("input_text")
 
     api.ws_send_and_wait.assert_awaited_once_with(type="input_text/list")
     assert isinstance(result[0], InputTextRecord)
@@ -250,7 +250,7 @@ async def test_create_input_text(api: Api):
     api.ws_send_and_wait = AsyncMock(return_value=IT_RECORD)
     params = CreateInputTextParams(name="WiFi Password")
 
-    result = await api.create_input_text(params)
+    result = await api.helpers.create(params)
 
     call_kwargs = api.ws_send_and_wait.call_args.kwargs
     assert call_kwargs["type"] == "input_text/create"
@@ -262,7 +262,7 @@ async def test_update_input_text(api: Api):
     api.ws_send_and_wait = AsyncMock(return_value=updated)
     params = UpdateInputTextParams(name="Wifi Passphrase")
 
-    result = await api.update_input_text("wifi_password", params)
+    result = await api.helpers.update("wifi_password", params)
 
     call_kwargs = api.ws_send_and_wait.call_args.kwargs
     assert call_kwargs["type"] == "input_text/update"
@@ -273,7 +273,7 @@ async def test_update_input_text(api: Api):
 async def test_delete_input_text(api: Api):
     api.ws_send_and_wait = AsyncMock(return_value=None)
 
-    result = await api.delete_input_text("wifi_password")
+    result = await api.helpers.delete("input_text", "wifi_password")
 
     call_kwargs = api.ws_send_and_wait.call_args.kwargs
     assert call_kwargs["type"] == "input_text/delete"
@@ -284,7 +284,7 @@ async def test_delete_input_text(api: Api):
 async def test_list_input_selects(api: Api):
     api.ws_send_and_wait = AsyncMock(return_value=[IS_RECORD])
 
-    result = await api.list_input_selects()
+    result = await api.helpers.list("input_select")
 
     api.ws_send_and_wait.assert_awaited_once_with(type="input_select/list")
     assert isinstance(result[0], InputSelectRecord)
@@ -296,7 +296,7 @@ async def test_create_input_select(api: Api):
     api.ws_send_and_wait = AsyncMock(return_value=IS_RECORD)
     params = CreateInputSelectParams(name="Theme", options=["light", "dark"])
 
-    result = await api.create_input_select(params)
+    result = await api.helpers.create(params)
 
     call_kwargs = api.ws_send_and_wait.call_args.kwargs
     assert call_kwargs["type"] == "input_select/create"
@@ -309,7 +309,7 @@ async def test_update_input_select(api: Api):
     api.ws_send_and_wait = AsyncMock(return_value=updated)
     params = UpdateInputSelectParams(options=["light", "dark", "auto"])
 
-    result = await api.update_input_select("theme", params)
+    result = await api.helpers.update("theme", params)
 
     call_kwargs = api.ws_send_and_wait.call_args.kwargs
     assert call_kwargs["type"] == "input_select/update"
@@ -320,7 +320,7 @@ async def test_update_input_select(api: Api):
 async def test_delete_input_select(api: Api):
     api.ws_send_and_wait = AsyncMock(return_value=None)
 
-    result = await api.delete_input_select("theme")
+    result = await api.helpers.delete("input_select", "theme")
 
     call_kwargs = api.ws_send_and_wait.call_args.kwargs
     assert call_kwargs["type"] == "input_select/delete"
@@ -331,7 +331,7 @@ async def test_delete_input_select(api: Api):
 async def test_list_input_datetimes(api: Api):
     api.ws_send_and_wait = AsyncMock(return_value=[IDT_RECORD])
 
-    result = await api.list_input_datetimes()
+    result = await api.helpers.list("input_datetime")
 
     api.ws_send_and_wait.assert_awaited_once_with(type="input_datetime/list")
     assert isinstance(result[0], InputDatetimeRecord)
@@ -342,7 +342,7 @@ async def test_create_input_datetime(api: Api):
     api.ws_send_and_wait = AsyncMock(return_value=IDT_RECORD)
     params = CreateInputDatetimeParams(name="Alarm Time", has_time=True)
 
-    result = await api.create_input_datetime(params)
+    result = await api.helpers.create(params)
 
     call_kwargs = api.ws_send_and_wait.call_args.kwargs
     assert call_kwargs["type"] == "input_datetime/create"
@@ -355,7 +355,7 @@ async def test_update_input_datetime(api: Api):
     api.ws_send_and_wait = AsyncMock(return_value=updated)
     params = UpdateInputDatetimeParams(name="Wake Up Time")
 
-    result = await api.update_input_datetime("alarm_time", params)
+    result = await api.helpers.update("alarm_time", params)
 
     call_kwargs = api.ws_send_and_wait.call_args.kwargs
     assert call_kwargs["type"] == "input_datetime/update"
@@ -366,7 +366,7 @@ async def test_update_input_datetime(api: Api):
 async def test_delete_input_datetime(api: Api):
     api.ws_send_and_wait = AsyncMock(return_value=None)
 
-    result = await api.delete_input_datetime("alarm_time")
+    result = await api.helpers.delete("input_datetime", "alarm_time")
 
     call_kwargs = api.ws_send_and_wait.call_args.kwargs
     assert call_kwargs["type"] == "input_datetime/delete"
@@ -377,7 +377,7 @@ async def test_delete_input_datetime(api: Api):
 async def test_list_input_buttons(api: Api):
     api.ws_send_and_wait = AsyncMock(return_value=[IBT_RECORD])
 
-    result = await api.list_input_buttons()
+    result = await api.helpers.list("input_button")
 
     api.ws_send_and_wait.assert_awaited_once_with(type="input_button/list")
     assert isinstance(result[0], InputButtonRecord)
@@ -388,7 +388,7 @@ async def test_create_input_button(api: Api):
     api.ws_send_and_wait = AsyncMock(return_value=IBT_RECORD)
     params = CreateInputButtonParams(name="Restart")
 
-    result = await api.create_input_button(params)
+    result = await api.helpers.create(params)
 
     call_kwargs = api.ws_send_and_wait.call_args.kwargs
     assert call_kwargs["type"] == "input_button/create"
@@ -401,7 +401,7 @@ async def test_update_input_button(api: Api):
     api.ws_send_and_wait = AsyncMock(return_value=updated)
     params = UpdateInputButtonParams(name="Reboot Button")
 
-    result = await api.update_input_button("restart_btn", params)
+    result = await api.helpers.update("restart_btn", params)
 
     call_kwargs = api.ws_send_and_wait.call_args.kwargs
     assert call_kwargs["type"] == "input_button/update"
@@ -412,7 +412,7 @@ async def test_update_input_button(api: Api):
 async def test_delete_input_button(api: Api):
     api.ws_send_and_wait = AsyncMock(return_value=None)
 
-    result = await api.delete_input_button("restart_btn")
+    result = await api.helpers.delete("input_button", "restart_btn")
 
     call_kwargs = api.ws_send_and_wait.call_args.kwargs
     assert call_kwargs["type"] == "input_button/delete"
@@ -423,7 +423,7 @@ async def test_delete_input_button(api: Api):
 async def test_list_counters(api: Api):
     api.ws_send_and_wait = AsyncMock(return_value=[CTR_RECORD])
 
-    result = await api.list_counters()
+    result = await api.helpers.list("counter")
 
     api.ws_send_and_wait.assert_awaited_once_with(type="counter/list")
     assert isinstance(result[0], CounterRecord)
@@ -434,7 +434,7 @@ async def test_create_counter(api: Api):
     api.ws_send_and_wait = AsyncMock(return_value=CTR_RECORD)
     params = CreateCounterParams(name="Motion Count", initial=0)
 
-    result = await api.create_counter(params)
+    result = await api.helpers.create(params)
 
     call_kwargs = api.ws_send_and_wait.call_args.kwargs
     assert call_kwargs["type"] == "counter/create"
@@ -449,7 +449,7 @@ async def test_update_counter(api: Api):
     api.ws_send_and_wait = AsyncMock(return_value=updated)
     params = UpdateCounterParams(maximum=100)
 
-    result = await api.update_counter("motion_count", params)
+    result = await api.helpers.update("motion_count", params)
 
     call_kwargs = api.ws_send_and_wait.call_args.kwargs
     assert call_kwargs["type"] == "counter/update"
@@ -461,7 +461,7 @@ async def test_update_counter(api: Api):
 async def test_delete_counter(api: Api):
     api.ws_send_and_wait = AsyncMock(return_value=None)
 
-    result = await api.delete_counter("motion_count")
+    result = await api.helpers.delete("counter", "motion_count")
 
     call_kwargs = api.ws_send_and_wait.call_args.kwargs
     assert call_kwargs["type"] == "counter/delete"
@@ -472,7 +472,7 @@ async def test_delete_counter(api: Api):
 async def test_list_timers(api: Api):
     api.ws_send_and_wait = AsyncMock(return_value=[TMR_RECORD])
 
-    result = await api.list_timers()
+    result = await api.helpers.list("timer")
 
     api.ws_send_and_wait.assert_awaited_once_with(type="timer/list")
     assert isinstance(result[0], TimerRecord)
@@ -483,7 +483,7 @@ async def test_create_timer(api: Api):
     api.ws_send_and_wait = AsyncMock(return_value=TMR_RECORD)
     params = CreateTimerParams(name="Cooldown Timer", duration="00:05:00")
 
-    result = await api.create_timer(params)
+    result = await api.helpers.create(params)
 
     call_kwargs = api.ws_send_and_wait.call_args.kwargs
     assert call_kwargs["type"] == "timer/create"
@@ -497,7 +497,7 @@ async def test_update_timer(api: Api):
     api.ws_send_and_wait = AsyncMock(return_value=updated)
     params = UpdateTimerParams(duration="00:10:00")
 
-    result = await api.update_timer("cooldown", params)
+    result = await api.helpers.update("cooldown", params)
 
     call_kwargs = api.ws_send_and_wait.call_args.kwargs
     assert call_kwargs["type"] == "timer/update"
@@ -509,7 +509,7 @@ async def test_update_timer(api: Api):
 async def test_delete_timer(api: Api):
     api.ws_send_and_wait = AsyncMock(return_value=None)
 
-    result = await api.delete_timer("cooldown")
+    result = await api.helpers.delete("timer", "cooldown")
 
     call_kwargs = api.ws_send_and_wait.call_args.kwargs
     assert call_kwargs["type"] == "timer/delete"
@@ -521,7 +521,7 @@ async def test_increment_counter_calls_service(api: Api):
     """increment_counter calls call_service with correct args and return_response=True."""
     api.call_service = AsyncMock(return_value=SERVICE_RESPONSE)
 
-    await api.increment_counter("counter.motion_count")
+    await api.helpers.increment("counter.motion_count")
 
     api.call_service.assert_awaited_once_with(
         "counter",
@@ -537,7 +537,7 @@ async def test_increment_counter_propagates_failed_message_error(api: Api):
     api.call_service = AsyncMock(side_effect=error)
 
     with pytest.raises(FailedMessageError) as exc_info:
-        await api.increment_counter("counter.motion_count")
+        await api.helpers.increment("counter.motion_count")
     assert exc_info.value is error
 
 
@@ -545,7 +545,7 @@ async def test_decrement_counter_calls_service(api: Api):
     """decrement_counter calls call_service with correct args and return_response=True."""
     api.call_service = AsyncMock(return_value=SERVICE_RESPONSE)
 
-    await api.decrement_counter("counter.motion_count")
+    await api.helpers.decrement("counter.motion_count")
 
     api.call_service.assert_awaited_once_with(
         "counter",
@@ -561,14 +561,14 @@ async def test_decrement_counter_propagates_failed_message_error(api: Api):
     api.call_service = AsyncMock(side_effect=error)
 
     with pytest.raises(FailedMessageError):
-        await api.decrement_counter("counter.motion_count")
+        await api.helpers.decrement("counter.motion_count")
 
 
 async def test_reset_counter_calls_service(api: Api):
     """reset_counter calls call_service with correct args and return_response=True."""
     api.call_service = AsyncMock(return_value=SERVICE_RESPONSE)
 
-    await api.reset_counter("counter.motion_count")
+    await api.helpers.reset("counter.motion_count")
 
     api.call_service.assert_awaited_once_with(
         "counter",
@@ -584,4 +584,4 @@ async def test_reset_counter_propagates_failed_message_error(api: Api):
     api.call_service = AsyncMock(side_effect=error)
 
     with pytest.raises(FailedMessageError):
-        await api.reset_counter("counter.motion_count")
+        await api.helpers.reset("counter.motion_count")

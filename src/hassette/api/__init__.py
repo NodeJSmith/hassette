@@ -5,6 +5,7 @@ managing WebSocket connections, and handling entity states.
 """
 
 from .api import Api
+from .helpers import HelperClient
 from .sync import ApiSyncFacade
 
-__all__ = ["Api", "ApiSyncFacade"]
+__all__ = ["Api", "ApiSyncFacade", "HelperClient"]

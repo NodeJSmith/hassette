@@ -5,7 +5,12 @@ import sys
 from pathlib import Path
 
 from hassette_codegen.output import atomic_write, format_via_ruff
-from hassette_codegen.sync_facade.generic import generate_sync, generate_sync_bus, generate_sync_scheduler
+from hassette_codegen.sync_facade.generic import (
+    generate_sync,
+    generate_sync_bus,
+    generate_sync_helpers,
+    generate_sync_scheduler,
+)
 from hassette_codegen.sync_facade.recording import generate_sync_recording
 
 _REPO_ROOT = Path(__file__).resolve().parents[4]
@@ -16,6 +21,7 @@ _LABEL_TO_TARGET = {
     "RecordingSyncFacade": "recording",
     "BusSyncFacade": "bus",
     "SchedulerSyncFacade": "scheduler",
+    "HelperClientSyncFacade": "helpers",
 }
 """Maps a facade label to the ``--target`` value that regenerates it (for drift hints)."""
 
@@ -108,9 +114,21 @@ def main(argv: list[str] | None = None) -> None:
     )
     parser.add_argument(
         "--target",
-        choices=["api", "recording", "bus", "scheduler", "all"],
+        choices=["api", "recording", "bus", "scheduler", "helpers", "all"],
         default="all",
         help="Which facade to generate. 'all' = every facade (default: all)",
+    )
+    parser.add_argument(
+        "--helpers-path",
+        type=Path,
+        default=None,
+        help="Path to helpers.py (default: alongside api.py as helpers.py)",
+    )
+    parser.add_argument(
+        "--helpers-out",
+        type=Path,
+        default=None,
+        help="Output path for sync_helpers.py (default: alongside api.py as sync_helpers.py)",
     )
     parser.add_argument(
         "--check",
@@ -129,11 +147,14 @@ def main(argv: list[str] | None = None) -> None:
     out_path: Path = args.out or api_path.with_name("sync.py")
     bus_path: Path = args.bus_path
     scheduler_path: Path = args.scheduler_path
+    helpers_path: Path = args.helpers_path or api_path.with_name("helpers.py")
+    helpers_out: Path = args.helpers_out or api_path.with_name("sync_helpers.py")
 
     run_api = args.target in ("api", "all")
     run_recording = args.target in ("recording", "all")
     run_bus = args.target in ("bus", "all")
     run_scheduler = args.target in ("scheduler", "all")
+    run_helpers = args.target in ("helpers", "all")
 
     any_drift = False
 
@@ -180,6 +201,17 @@ def main(argv: list[str] | None = None) -> None:
         else:
             _atomic_write_generated(scheduler_out, scheduler_code)
             print(f"Wrote {scheduler_out}")
+
+    if run_helpers:
+        if not helpers_path.exists():
+            raise SystemExit(f"helpers.py not found at {helpers_path}")
+        helpers_code = generate_sync_helpers(helpers_path)
+        if args.check:
+            if not _check_drift(helpers_out, helpers_code, "HelperClientSyncFacade"):
+                any_drift = True
+        else:
+            _atomic_write_generated(helpers_out, helpers_code)
+            print(f"Wrote {helpers_out}")
 
     if args.check and any_drift:
         sys.exit(1)

@@ -52,7 +52,7 @@ Both `vacation_start` and `vacation_end` listeners should appear with an invocat
 
 ## Variations
 
-**Provision the helper from code.** Instead of creating `input_boolean.vacation_mode` manually in the HA UI, call `self.api.create_input_boolean` in `on_initialize`. The helper is created on first run and left alone on subsequent starts — see [Managing Helpers](../core-concepts/api/managing-helpers.md) for the pattern.
+**Provision the helper from code.** Instead of creating `input_boolean.vacation_mode` manually in the HA UI, call `self.api.helpers.create` in `on_initialize`. The helper is created on first run and left alone on subsequent starts — see [Managing Helpers](../core-concepts/api/managing-helpers.md) for the pattern.
 
 **Schedule vacation windows.** Replace the manual toggle with `run_cron` entries that start and stop presence simulation at fixed times each day. Evening-only windows are one common pattern. See [`Scheduler` Methods](../core-concepts/scheduler/methods.md) for cron syntax.
 
