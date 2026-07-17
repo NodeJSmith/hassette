@@ -82,6 +82,7 @@ __all__ = [
     "RecordingApi",
     "create_call_service_event",
     "create_state_change_event",
+    "dummy_cache",
     "make_light_state_dict",
     "make_mock_hassette",
     "make_sensor_state_dict",

@@ -42,7 +42,7 @@ class TestAppDir:
         # still callable — extraction hasn't happened yet, __dir__ just hides it
         assert hasattr(app, "add_child")
 
-    def test_public_api_allowlist_has_exactly_20_names(self) -> None:
+    def test_public_api_allowlist_has_exactly_21_names(self) -> None:
         """Regression guard: the App allowlist size is a deliberate design decision (see
         design/specs/010-lifecycle-extraction/design.md), not incidental. A size change here
         signals the allowlist drifted without updating the design doc.

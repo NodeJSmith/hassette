@@ -2,6 +2,7 @@
 
 from collections.abc import AsyncIterator
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -64,6 +65,35 @@ def test_set_ttl_zero_deletes_existing_and_does_not_store(sync_cache: SyncCache)
 
     sync_cache.set("key", "new-value", ttl=0)
     assert sync_cache.get("key") is None
+
+
+def test_set_with_positive_ttl_expires_after_deadline(sync_cache: SyncCache) -> None:
+    """A value stored with a positive TTL is returned before expiry and absent after."""
+    base_time = 1_000_000.0
+    with patch("hassette.cache.sync.time") as mock_time:
+        mock_time.time.return_value = base_time
+        sync_cache.set("key", "value", ttl=60)
+
+        mock_time.time.return_value = base_time + 59
+        assert sync_cache.get("key") == "value"
+
+        mock_time.time.return_value = base_time + 61
+        assert sync_cache.get("key") is None
+
+
+def test_default_ttl_applies_when_no_per_call_ttl(async_cache: AsyncCache) -> None:
+    """SyncCache uses the instance default_ttl when no per-call TTL is given."""
+    sync = SyncCache(async_cache.db_path, default_ttl=30)
+    base_time = 1_000_000.0
+    with patch("hassette.cache.sync.time") as mock_time:
+        mock_time.time.return_value = base_time
+        sync.set("key", "value")
+
+        mock_time.time.return_value = base_time + 29
+        assert sync.get("key") == "value"
+
+        mock_time.time.return_value = base_time + 31
+        assert sync.get("key") is None
 
 
 def test_delete_removes_entry(sync_cache: SyncCache) -> None:
