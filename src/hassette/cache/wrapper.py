@@ -25,6 +25,15 @@ logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
+_CORRUPTION_INDICATORS = ("file is not a database", "database disk image is malformed", "integrity check failed")
+"""Best-effort match on SQLite's error text — not a stable API, but these messages have been unchanged for 15+ years."""
+
+
+def _is_corruption(exc: sqlite3.Error) -> bool:
+    """Return True if *exc* indicates SQLite database corruption."""
+    msg = str(exc).lower()
+    return any(indicator in msg for indicator in _CORRUPTION_INDICATORS)
+
 
 class AsyncCache:
     """Primary async cache implementation.
@@ -70,7 +79,12 @@ class AsyncCache:
             await self._open_connections()
             await self._run_schema()
             await self._check_integrity()
-        except sqlite3.Error:
+        except sqlite3.Error as exc:
+            if not _is_corruption(exc):
+                await self._close_connections()
+                raise
+
+            # Corruption confirmed — delete and retry once.
             logger.warning(
                 "Cache database at %s failed to initialize; deleting and recreating", self.db_path, exc_info=True
             )
@@ -83,12 +97,12 @@ class AsyncCache:
         self.sync = SyncCache(self.db_path, self.default_ttl)
 
     async def _open_connections(self) -> None:
-        self._write = await aiosqlite.connect(self.db_path, isolation_level=None)
+        self._write = await aiosqlite.connect(self.db_path, isolation_level=None, timeout=BUSY_TIMEOUT_MS / 1000)
         self._write.row_factory = aiosqlite.Row
         await self._write.execute("PRAGMA journal_mode = WAL")
         await self._write.execute(f"PRAGMA busy_timeout = {BUSY_TIMEOUT_MS}")
 
-        self._read = await aiosqlite.connect(self.db_path, isolation_level=None)
+        self._read = await aiosqlite.connect(self.db_path, isolation_level=None, timeout=BUSY_TIMEOUT_MS / 1000)
         self._read.row_factory = aiosqlite.Row
         await self._read.execute("PRAGMA query_only = ON")
         await self._read.execute(f"PRAGMA busy_timeout = {BUSY_TIMEOUT_MS}")
@@ -120,6 +134,15 @@ class AsyncCache:
         for suffix in ("-wal", "-shm"):
             Path(str(self.db_path) + suffix).unlink(missing_ok=True)
 
+    async def _delete_stale(self, key: str, value_blob: bytes) -> None:
+        """Delete a cache row only if it still holds the observed value blob.
+
+        Prevents a concurrent writer's fresh value from being removed when this
+        reader observes a stale or corrupt entry.
+        """
+        await self._write_conn.execute("DELETE FROM cache_entries WHERE key = ? AND value = ?", (key, value_blob))
+        await self._write_conn.commit()
+
     async def get(self, key: str, default: T | None = None) -> T | None:
         """Return the cached value for *key*, or *default* if missing or expired."""
         validate_key(key)
@@ -133,12 +156,12 @@ class AsyncCache:
 
         value_blob, expires_at = row
         if expires_at is not None and expires_at < time.time():
-            await self.delete(key)
+            await self._delete_stale(key, value_blob)
             return default
 
         result = deserialize(value_blob, key)
         if result is DESERIALIZE_FAILED:
-            await self.delete(key)
+            await self._delete_stale(key, value_blob)
             return default
         # deserialize() returns the unpickled value untyped (object) since the cache layer
         # never validates what callers stored -- trust the caller's T at this boundary.

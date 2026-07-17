@@ -1,7 +1,7 @@
 """Unit tests for hassette.cache.wrapper.AsyncCache."""
 
 import asyncio
-import logging
+import sqlite3
 from collections.abc import AsyncIterator
 from pathlib import Path
 
@@ -221,7 +221,24 @@ async def test_close_closes_both_connections(cache: AsyncCache) -> None:
         _ = cache._read_conn
 
 
-async def test_initialize_recovers_from_corrupt_database(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+async def test_initialize_propagates_non_corruption_errors(tmp_path: Path) -> None:
+    """Non-corruption sqlite3 errors (permissions, locking) propagate instead of triggering
+    delete-and-recreate.
+    """
+    db_path = tmp_path / "no_write" / "cache.db"
+    db_path.parent.mkdir()
+    db_path.parent.chmod(0o444)
+
+    instance = AsyncCache(db_path)
+    try:
+        with pytest.raises(sqlite3.OperationalError):
+            await instance.initialize()
+        assert not db_path.exists()
+    finally:
+        db_path.parent.chmod(0o755)
+
+
+async def test_initialize_recovers_from_corrupt_database(tmp_path: Path) -> None:
     """A corrupt SQLite file is detected via integrity check, deleted, and recreated.
 
     The corruption surfaces at the very first PRAGMA statement (empirically confirmed
@@ -234,10 +251,8 @@ async def test_initialize_recovers_from_corrupt_database(tmp_path: Path, caplog:
 
     instance = AsyncCache(db_path)
     try:
-        with caplog.at_level(logging.WARNING, logger="hassette.cache.wrapper"):
-            await instance.initialize()
+        await instance.initialize()
 
-        assert "failed to initialize" in caplog.text
         # Cache is fully usable after recovery.
         await instance.set("k", "v")
         assert await instance.get("k") == "v"

@@ -182,9 +182,25 @@ class TestAppManifestCacheKey:
         with pytest.raises(ValidationError, match="framework-reserved prefix"):
             make_manifest(cache_key="__hassette__.foo")
 
+    def test_cache_key_rejects_absolute_path(self) -> None:
+        with pytest.raises(ValidationError, match="relative path"):
+            make_manifest(cache_key="/tmp/evil")
+
+    def test_cache_key_rejects_parent_traversal(self) -> None:
+        with pytest.raises(ValidationError, match="parent-directory traversal"):
+            make_manifest(cache_key="../shared")
+
+    def test_cache_key_rejects_embedded_parent_traversal(self) -> None:
+        with pytest.raises(ValidationError, match="parent-directory traversal"):
+            make_manifest(cache_key="valid/../escape")
+
     def test_cache_key_accepts_custom_value(self) -> None:
         manifest = make_manifest(cache_key="my-custom-key")
         assert manifest.cache_key == "my-custom-key"
+
+    def test_cache_key_accepts_nested_relative_path(self) -> None:
+        manifest = make_manifest(cache_key="app/subcache")
+        assert manifest.cache_key == "app/subcache"
 
 
 class TestHassetteConfigModelDump:

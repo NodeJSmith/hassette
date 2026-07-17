@@ -1,6 +1,6 @@
 from copy import deepcopy
 from logging import getLogger
-from pathlib import Path
+from pathlib import Path, PurePath
 from typing import Any
 from warnings import warn
 
@@ -195,8 +195,15 @@ class AppManifest(ExcludeExtrasMixin, BaseModel):
     @field_validator("cache_key")
     @classmethod
     def validate_cache_key(cls, v: str) -> str:
-        if v and is_framework_key(v):
+        if not v:
+            return v
+        if is_framework_key(v):
             raise ValueError(f"cache_key {v!r} uses a framework-reserved prefix")
+        parsed = PurePath(v)
+        if parsed.is_absolute():
+            raise ValueError(f"cache_key {v!r} must be a relative path")
+        if ".." in parsed.parts:
+            raise ValueError(f"cache_key {v!r} must not contain parent-directory traversal")
         return v
 
     def validate_model_extra(self) -> None:

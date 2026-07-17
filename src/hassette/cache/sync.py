@@ -41,7 +41,7 @@ class SyncCache:
         self.default_ttl = default_ttl
 
     def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path, isolation_level=None)
+        conn = sqlite3.connect(self.db_path, isolation_level=None, timeout=BUSY_TIMEOUT_MS / 1000)
         conn.execute("PRAGMA journal_mode = WAL")
         conn.execute(f"PRAGMA busy_timeout = {BUSY_TIMEOUT_MS}")
         return conn
@@ -61,12 +61,12 @@ class SyncCache:
 
         value_blob, expires_at = row
         if expires_at is not None and expires_at < time.time():
-            self.delete(key)
+            self._delete_stale(key, value_blob)
             return default
 
         result = deserialize(value_blob, key)
         if result is DESERIALIZE_FAILED:
-            self.delete(key)
+            self._delete_stale(key, value_blob)
             return default
         # deserialize() returns the unpickled value untyped (object) since the cache layer
         # never validates what callers stored -- trust the caller's T at this boundary.
@@ -89,6 +89,18 @@ class SyncCache:
                 "ON CONFLICT(key) DO UPDATE SET value = excluded.value, expires_at = excluded.expires_at",
                 (key, blob, expires_at),
             )
+        finally:
+            conn.close()
+
+    def _delete_stale(self, key: str, value_blob: bytes) -> None:
+        """Delete a cache row only if it still holds the observed value blob.
+
+        Prevents a concurrent writer's fresh value from being removed when this
+        reader observes a stale or corrupt entry. Mirrors AsyncCache._delete_stale.
+        """
+        conn = self._connect()
+        try:
+            conn.execute("DELETE FROM cache_entries WHERE key = ? AND value = ?", (key, value_blob))
         finally:
             conn.close()
 
