@@ -86,6 +86,7 @@ nav:
   - Web UI:
       - Overview: pages/web-ui/index.md
       - Debug a Failing Handler: pages/web-ui/debug-handler.md
+      - Execution Detail: pages/web-ui/execution-detail.md
       - Read and Filter Logs: pages/web-ui/logs.md
       - Manage Apps: pages/web-ui/manage-apps.md
       - Inspect Configuration and Code: pages/web-ui/inspect-config-code.md
