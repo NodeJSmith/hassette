@@ -230,3 +230,51 @@ class TestJobExecutionExecutionId:
             count_row = await cursor.fetchone()
         assert count_row is not None
         assert count_row[0] == 1
+
+
+class TestGetExecutionById:
+    """Coverage for TelemetryQueryService.get_execution_by_id (execution_queries.py)."""
+
+    async def test_returns_execution_when_found(
+        self, db: tuple[DatabaseService, int], repo: TelemetryRepository, query_service: TelemetryQueryService
+    ) -> None:
+        db_svc, session_id = db
+        listener_id = await insert_listener(db_svc)
+        record = make_inv_record(
+            listener_id,
+            session_id,
+            execution_id="find-me-abc",
+            trigger_context_id="ctx-999",
+            trigger_origin="REMOTE",
+        )
+        await repo.persist_execution_batch([record])
+
+        result = await query_service.get_execution_by_id("find-me-abc")
+
+        assert result is not None
+        assert result.execution_id == "find-me-abc"
+        assert result.trigger_context_id == "ctx-999"
+        assert result.trigger_origin == "REMOTE"
+        assert result.kind == "handler"
+        assert result.listener_id == listener_id
+
+    async def test_returns_none_when_not_found(
+        self, db: tuple[DatabaseService, int], query_service: TelemetryQueryService
+    ) -> None:
+        result = await query_service.get_execution_by_id("nonexistent-id-xyz")
+        assert result is None
+
+    async def test_returns_job_execution(
+        self, db: tuple[DatabaseService, int], repo: TelemetryRepository, query_service: TelemetryQueryService
+    ) -> None:
+        db_svc, session_id = db
+        job_id = await insert_job(db_svc)
+        record = make_job_record(job_id, session_id, execution_id="job-exec-001")
+        await repo.persist_execution_batch([record])
+
+        result = await query_service.get_execution_by_id("job-exec-001")
+
+        assert result is not None
+        assert result.execution_id == "job-exec-001"
+        assert result.kind == "job"
+        assert result.job_id == job_id
