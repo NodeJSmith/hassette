@@ -17,6 +17,12 @@ vi.mock("../shared/execution-table", () => ({
   ),
 }));
 
+vi.mock("../../pages/execution-detail", () => ({
+  ExecutionDetailFetcher: (props: { executionId: string }) => (
+    <div data-testid="execution-detail-fetcher">{props.executionId}</div>
+  ),
+}));
+
 const mockNavigate = vi.fn();
 const mockCorrectUrl = vi.fn();
 
@@ -669,5 +675,21 @@ describe("HandlersTab", () => {
         expect(button.disabled).toBe(false);
       });
     });
+  });
+
+  it("renders execution detail even when no handlers are registered", () => {
+    const { getByTestId, queryByTestId } = renderWithAppState(
+      <HandlersTab
+        listeners={[]}
+        jobs={[]}
+        selectedHandler="listener/5"
+        selectedExecId="abc-123"
+        appKey="test_app"
+        instanceQs=""
+      />,
+      { stateOverrides: { uptimeSeconds: signal<number | null>(120) } },
+    );
+    expect(getByTestId("execution-detail-fetcher")).toBeTruthy();
+    expect(queryByTestId("handlers-empty")).toBeNull();
   });
 });

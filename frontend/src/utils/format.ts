@@ -126,6 +126,17 @@ export function formatRate(failed: number, total: number): string {
   return total > 0 ? ((failed / total) * 100).toFixed(1) + "%" : "—";
 }
 
+export function hasExecutionLink(entry: {
+  execution_kind?: string | null;
+  listener_id?: number | null;
+  job_id?: number | null;
+}): entry is { execution_kind: "handler" | "job"; listener_id?: number | null; job_id?: number | null } {
+  if (!entry.execution_kind) return false;
+  return entry.execution_kind === "handler"
+    ? entry.listener_id !== null && entry.listener_id !== undefined
+    : entry.job_id !== null && entry.job_id !== undefined;
+}
+
 export function executionDetailHref(
   appKey: string,
   kind: "handler" | "job",

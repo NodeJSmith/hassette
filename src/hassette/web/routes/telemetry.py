@@ -275,6 +275,19 @@ async def job_executions(
     return executions
 
 
+@router.get("/execution/{execution_id}", response_model=Execution | None)
+async def get_execution(
+    execution_id: str,
+    telemetry: TelemetryDep,
+    response: Response,
+) -> Execution | None:
+    """Return a single execution record by its UUID."""
+    result: Execution | None = None
+    with db_degrades_to(response):
+        result = await telemetry.get_execution_by_id(execution_id)
+    return result
+
+
 @router.get("/dashboard/app-grid", response_model=DashboardAppGridResponse)
 async def dashboard_app_grid(
     runtime: RuntimeDep,

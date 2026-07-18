@@ -4,7 +4,7 @@ import { useCallback } from "preact/hooks";
 import { Link } from "wouter";
 
 import type { ExecutionData } from "../api/endpoints";
-import { getJobExecutions, getListenerExecutions } from "../api/endpoints";
+import { getExecutionById } from "../api/endpoints";
 import { Badge } from "../components/shared/badge";
 import type { DetailStatsCell } from "../components/shared/detail-stats";
 import { DetailStats } from "../components/shared/detail-stats";
@@ -17,15 +17,10 @@ import { TracebackViewer } from "../components/shared/traceback-viewer";
 import { useDocumentTitle } from "../hooks/use-document-title";
 import { useSignal } from "../hooks/use-signal";
 import { useSubscribe } from "../hooks/use-subscribe";
-import { DETAIL_FETCH_LIMIT, STATUS_DOT_SIZE } from "../utils/constants";
+import { STATUS_DOT_SIZE } from "../utils/constants";
 import { formatDuration, formatTimestamp, truncateId } from "../utils/format";
 import { executionStatusKind } from "../utils/status";
 import styles from "./execution-detail.module.css";
-
-function findExecution(records: ExecutionData[] | undefined, executionId: string): ExecutionData | null {
-  if (!records) return null;
-  return records.find((r) => r.execution_id === executionId) ?? null;
-}
 
 function buildMetaCells(record: ExecutionData): DetailStatsCell[] {
   return [
@@ -109,7 +104,7 @@ export function ExecutionDetailContent({ record, backHref, handlerName }: Conten
   useDocumentTitle(truncated ? `Execution ${truncated}` : "Execution");
 
   return (
-    <div class={styles.page}>
+    <div>
       <Link href={backHref} class={styles.backLink}>
         ← back to {handlerName ?? "handler"}
       </Link>
@@ -211,19 +206,28 @@ export function ExecutionDetailFetcher({
   instanceQs,
   handlerName,
 }: FetcherProps) {
-  const fetcher =
-    kind === "listener"
-      ? ({ signal }: { signal: AbortSignal }) => getListenerExecutions(handlerId, DETAIL_FETCH_LIMIT, null, signal)
-      : ({ signal }: { signal: AbortSignal }) => getJobExecutions(handlerId, DETAIL_FETCH_LIMIT, null, signal);
-
-  const { data: executions, isPending } = useQuery({
-    queryKey: ["execution-detail", kind, handlerId],
-    queryFn: fetcher,
+  const {
+    data: record,
+    isPending,
+    isError,
+  } = useQuery({
+    queryKey: ["execution-detail", executionId],
+    queryFn: ({ signal }) => getExecutionById(executionId, signal),
   });
-  const record = findExecution(executions, executionId);
   const backHref = `/apps/${appKey}/handlers/${kind}/${handlerId}${instanceQs}`;
 
   if (isPending) return <Spinner />;
+
+  if (isError) {
+    return (
+      <>
+        <Link href={backHref} class={styles.backLink}>
+          ← back to {handlerName ?? "handler"}
+        </Link>
+        <EmptyState title="failed to load execution" body="Could not fetch execution data. Try again later." />
+      </>
+    );
+  }
 
   if (!record) {
     return (

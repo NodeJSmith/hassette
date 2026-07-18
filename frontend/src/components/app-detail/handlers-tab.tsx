@@ -95,6 +95,7 @@ export function HandlersTab({
 
   useEffect(() => {
     if (!selectedHandler || !parsed) return;
+    if (selectedExecId) return;
     if (!hasItems) return;
     const found =
       parsed.kind === "listener"
@@ -103,20 +104,12 @@ export function HandlersTab({
     if (!found) {
       correctUrl(`/apps/${appKey}/handlers${instanceQs}`);
     }
-  }, [selectedHandler, parsed, hasItems, listeners, jobs, appKey, instanceQs, correctUrl]);
+  }, [selectedHandler, parsed, selectedExecId, hasItems, listeners, jobs, appKey, instanceQs, correctUrl]);
 
   const handleSelect = (id: SelectedHandlerId) => {
     const segment = id.kind === "listener" ? `listener/${id.id}` : `job/${id.id}`;
     navigate(`/apps/${appKey}/handlers/${segment}${instanceQs}`);
   };
-
-  if (!hasItems) {
-    return (
-      <div data-testid="handlers-empty">
-        <EmptyState title="no handlers or scheduled jobs registered." />
-      </div>
-    );
-  }
 
   if (selectedExecId && parsed) {
     const handlerName =
@@ -131,6 +124,14 @@ export function HandlersTab({
           instanceQs={instanceQs}
           handlerName={handlerName ?? undefined}
         />
+      </div>
+    );
+  }
+
+  if (!hasItems) {
+    return (
+      <div data-testid="handlers-empty">
+        <EmptyState title="no handlers or scheduled jobs registered." />
       </div>
     );
   }

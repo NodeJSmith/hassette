@@ -5,7 +5,7 @@ import { Link } from "wouter";
 import type { LogEntry } from "../../../api/endpoints";
 import { BREAKPOINT_MOBILE, useMediaQuery } from "../../../hooks/use-media-query";
 import { useRelativeTime } from "../../../hooks/use-relative-time";
-import { executionDetailHref, formatTimestamp, truncateId } from "../../../utils/format";
+import { executionDetailHref, formatTimestamp, hasExecutionLink, truncateId } from "../../../utils/format";
 import { onActivateKeyDown } from "../../../utils/keyboard";
 import { AppLink } from "../app-link";
 import { LEVEL_ABBREV, levelClass } from "./constants";
@@ -68,10 +68,7 @@ export function LogTableRow({ entry, rowKey, visibleColumns, isSelected, onClick
       )}
       {isColumnVisible("execution") && (
         <td class={styles.mono}>
-          {entry.execution_id &&
-          entry.app_key &&
-          entry.execution_kind &&
-          (entry.listener_id ?? entry.job_id) !== null ? (
+          {entry.execution_id && entry.app_key && hasExecutionLink(entry) ? (
             <span onClick={(e: MouseEvent) => e.stopPropagation()}>
               <Link
                 href={executionDetailHref(

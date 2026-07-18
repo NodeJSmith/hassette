@@ -6,7 +6,7 @@ import type { LogEntry } from "../../../api/endpoints";
 import { BREAKPOINT_MOBILE, BREAKPOINT_TABLET, useMediaQuery } from "../../../hooks/use-media-query";
 import { useSignal } from "../../../hooks/use-signal";
 import { useSubscribe } from "../../../hooks/use-subscribe";
-import { executionDetailHref, formatTimestamp } from "../../../utils/format";
+import { executionDetailHref, formatTimestamp, hasExecutionLink } from "../../../utils/format";
 import { COPY_CONFIRM_MS, levelClass } from "./constants";
 import styles from "./log-detail-drawer.module.css";
 import type { RowKey } from "./types";
@@ -185,7 +185,7 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
                 <>
                   <dt>Execution</dt>
                   <dd class={styles.monoValue}>
-                    {entry.app_key && entry.execution_kind && (entry.listener_id ?? entry.job_id) !== null ? (
+                    {entry.app_key && hasExecutionLink(entry) ? (
                       <Link
                         href={executionDetailHref(
                           entry.app_key,

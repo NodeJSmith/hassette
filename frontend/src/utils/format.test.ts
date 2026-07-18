@@ -9,6 +9,7 @@ import {
   formatRelativeTime,
   formatTimestamp,
   formatTriggerDetail,
+  hasExecutionLink,
   pluralize,
 } from "./format";
 
@@ -304,5 +305,31 @@ describe("formatRate", () => {
 
   it("100 failures out of 100 runs returns '100.0%'", () => {
     expect(formatRate(100, 100)).toBe("100.0%");
+  });
+});
+
+describe("hasExecutionLink", () => {
+  it("returns true for handler kind with listener_id", () => {
+    expect(hasExecutionLink({ execution_kind: "handler", listener_id: 5, job_id: null })).toBe(true);
+  });
+
+  it("returns true for job kind with job_id", () => {
+    expect(hasExecutionLink({ execution_kind: "job", listener_id: null, job_id: 3 })).toBe(true);
+  });
+
+  it("returns false for handler kind with null listener_id", () => {
+    expect(hasExecutionLink({ execution_kind: "handler", listener_id: null, job_id: 3 })).toBe(false);
+  });
+
+  it("returns false for job kind with null job_id", () => {
+    expect(hasExecutionLink({ execution_kind: "job", listener_id: 5, job_id: null })).toBe(false);
+  });
+
+  it("returns false when execution_kind is null", () => {
+    expect(hasExecutionLink({ execution_kind: null, listener_id: 5, job_id: 3 })).toBe(false);
+  });
+
+  it("returns false when execution_kind is undefined", () => {
+    expect(hasExecutionLink({ listener_id: 5, job_id: 3 })).toBe(false);
   });
 });
