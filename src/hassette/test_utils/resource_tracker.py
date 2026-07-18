@@ -127,8 +127,8 @@ class ResourceTracker:
             self.record_creation("EventStreamService", self_ess)
 
         async def patched_close(self_ess: typing.Any) -> None:
-            self.record_close("EventStreamService", self_ess)
             await original_close(self_ess)
+            self.record_close("EventStreamService", self_ess)
 
         EventStreamService.__init__ = patched_init  # pyright: ignore[reportAttributeAccessIssue]
         EventStreamService.close_streams = patched_close  # pyright: ignore[reportAttributeAccessIssue]
@@ -152,8 +152,8 @@ class ResourceTracker:
             return cloned
 
         async def patched_aclose(self_stream: typing.Any) -> None:
-            self.record_close("MemoryObjectReceiveStream.clone", self_stream)
             await original_aclose(self_stream)
+            self.record_close("MemoryObjectReceiveStream.clone", self_stream)
 
         MemoryObjectReceiveStream.clone = patched_clone  # pyright: ignore[reportAttributeAccessIssue]
         MemoryObjectReceiveStream.aclose = patched_aclose  # pyright: ignore[reportAttributeAccessIssue]
@@ -177,8 +177,8 @@ class ResourceTracker:
             return conn
 
         async def patched_close(self_conn: typing.Any) -> None:
-            self.record_close("aiosqlite.Connection", self_conn)
             await original_close(self_conn)
+            self.record_close("aiosqlite.Connection", self_conn)
 
         aiosqlite.connect = patched_connect  # pyright: ignore[reportAttributeAccessIssue]
         aiosqlite.Connection.close = patched_close  # pyright: ignore[reportAttributeAccessIssue]
@@ -201,8 +201,8 @@ class ResourceTracker:
             self.record_creation("aiohttp.ClientSession", self_session)
 
         async def patched_close(self_session: typing.Any) -> None:
-            self.record_close("aiohttp.ClientSession", self_session)
             await original_close(self_session)
+            self.record_close("aiohttp.ClientSession", self_session)
 
         aiohttp.ClientSession.__init__ = patched_init  # pyright: ignore[reportAttributeAccessIssue]
         aiohttp.ClientSession.close = patched_close  # pyright: ignore[reportAttributeAccessIssue]
@@ -225,8 +225,8 @@ class ResourceTracker:
             self.record_creation("ThreadPoolExecutor", self_executor)
 
         def patched_shutdown(self_executor: typing.Any, *args: typing.Any, **kwargs: typing.Any) -> None:
-            self.record_close("ThreadPoolExecutor", self_executor)
             original_shutdown(self_executor, *args, **kwargs)
+            self.record_close("ThreadPoolExecutor", self_executor)
 
         ThreadPoolExecutor.__init__ = patched_init  # pyright: ignore[reportAttributeAccessIssue]
         ThreadPoolExecutor.shutdown = patched_shutdown  # pyright: ignore[reportAttributeAccessIssue]
