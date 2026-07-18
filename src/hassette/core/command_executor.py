@@ -324,14 +324,15 @@ class CommandExecutor(Service):
             pass
         # result is available for both success and error paths
         if result.is_timed_out:
-            # Check whether the sync worker thread is still alive after the timeout.
+            # Check whether the sync worker thread is still running the submitted fn.
             # The handle was set by run_in_thread on this same asyncio task (same context),
             # so SYNC_WORKER_HANDLE.get() returns the same SyncWorkerHandle the worker mutates.
-            # handle.thread is None when: (a) the handler is async (no worker), or (b) the
-            # timeout fired before the worker dequeued _call (not-started timeout).
-            # Neither case is a leak; only a live thread after the await is cancelled is.
+            # Three non-leak cases: (a) handle.thread is None — async handler or not-started
+            # timeout; (b) handle.active is False — fn finished just before the timeout check,
+            # but the pool thread is still alive (pool threads persist between jobs); (c) the
+            # thread is no longer alive. Only an active, live thread is a genuine leak.
             handle = SYNC_WORKER_HANDLE.get()
-            if handle is not None and handle.thread is not None and handle.thread.is_alive():
+            if handle is not None and handle.active and handle.thread is not None and handle.thread.is_alive():
                 result.thread_leaked = True
                 self.logger.warning(
                     "Sync worker thread still alive after timeout (%.1fms elapsed, thread=%s) — "

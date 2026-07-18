@@ -74,8 +74,9 @@ def make_mock_hassette(
         - ``.database_service``: ``None``
         - ``.wait_for_ready``: :class:`~unittest.mock.AsyncMock` returning ``True``
         - ``.children``: ``[]``
-        - ``._sync_executor_service``: ``None`` (not wired; tests needing ``run_in_thread``
-            must create their own executor and wire it into their TaskBucket)
+        - ``._sync_executor_service`` / ``.sync_executor_service``: ``None`` (not wired;
+            tests needing ``run_in_thread`` must inject a real ``SyncExecutorService``
+            into both attributes)
 
     Example::
 
@@ -150,10 +151,11 @@ def make_mock_hassette(
     # Resource children
     hassette.children = []
 
-    # SyncExecutorService is not wired in mock hassette. Tests that need run_in_thread
-    # must create their own SyncExecutorService or executor and wire it into their
-    # TaskBucket via task_bucket._sync_service.
+    # SyncExecutorService — set both the backing field and the public accessor (same
+    # pattern as fatal_shutdown_reason above) so _create_task_bucket's
+    # `hassette.sync_executor_service` access works on sealed mocks.
     hassette._sync_executor_service = None
+    hassette.sync_executor_service = None
 
     if sealed:
         seal(hassette)

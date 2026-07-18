@@ -242,6 +242,60 @@ async def test_pure_async_timeout_no_handle_no_thread_leaked(
     assert record.thread_leaked is False
 
 
+# Completed sync handler with user-code TimeoutError → thread_leaked=False
+# (regression test for handle.active guard)
+
+
+async def test_completed_sync_handler_no_false_thread_leaked(
+    executor: CommandExecutor,
+    sync_service: SyncExecutorService,
+) -> None:
+    """A sync handler that raises TimeoutError from user code must not set thread_leaked.
+
+    When a sync handler raises TimeoutError itself (not from the framework timeout),
+    result.is_timed_out is True and the pool thread is still alive (pool threads persist
+    between jobs).  Without the handle.active guard, handle.thread.is_alive() alone
+    would cause a false thread_leaked=True.  The active flag — cleared by _call's finally
+    block when the handler returns/raises — prevents this false positive.
+    """
+    bucket = TaskBucket(make_mock_hassette())
+    bucket._sync_service = sync_service
+
+    def sync_raises_timeout(_event: object) -> None:
+        raise TimeoutError("user-code timeout")
+
+    adapted = bucket.make_async_adapter(sync_raises_timeout)
+
+    async def invoke(event: object) -> None:
+        await adapted(event)
+
+    listener = make_mock_listener()
+    listener.invoker.invoke = invoke
+    listener.invoker.error_handler = None
+    listener.identity.app_key = "test_app"
+    listener.identity.instance_index = 0
+
+    cmd = InvokeHandler(
+        listener=listener,
+        event=MagicMock(),
+        topic="test",
+        listener_id=5,
+        source_tier="app",
+        effective_timeout=None,  # no framework timeout — the TimeoutError is from user code
+    )
+
+    await executor.execute(cmd)
+
+    assert not executor._write_queue.empty()
+    record = executor._write_queue.get_nowait()
+    assert isinstance(record, ExecutionRecord)
+    assert record.status == "timed_out"
+    assert record.thread_leaked is False, (
+        "thread_leaked must be False when the sync handler completed (active=False) "
+        "even though the pool thread is still alive"
+    )
+
+
 # Round-trip persistence — thread_leaked column survives write+read back
 
 

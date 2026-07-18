@@ -64,11 +64,15 @@ class SyncWorkerHandle:
     """Shared handle between the loop thread and a sync worker for thread-identity tracking.
 
     Created by ``submit()`` on the loop thread and stored in ``SYNC_WORKER_HANDLE``.
-    The worker thread sets ``handle.thread`` via closure; ``_execute`` in
-    ``command_executor`` reads it at the timeout site to check liveness.
+    The worker thread sets ``handle.thread`` and ``handle.active`` via closure;
+    ``_execute`` in ``command_executor`` reads both at the timeout site — ``active``
+    distinguishes a genuinely leaked thread from a pool thread that finished the
+    submitted fn but remains alive between jobs.
     """
 
     thread: threading.Thread | None = None
+    active: bool = False
+    """True while ``fn`` is executing on the worker thread; False before and after."""
 
 
 SYNC_WORKER_HANDLE: ContextVar[SyncWorkerHandle | None] = ContextVar("sync_worker_handle", default=None)
@@ -142,7 +146,11 @@ class SyncExecutorService(Service):
 
         def _call() -> R:
             handle.thread = threading.current_thread()
-            return parent_ctx.run(fn, *args, **kwargs)
+            handle.active = True
+            try:
+                return parent_ctx.run(fn, *args, **kwargs)
+            finally:
+                handle.active = False
 
         loop = asyncio.get_running_loop()
         future: asyncio.Future[R] = loop.run_in_executor(self.executor, _call)

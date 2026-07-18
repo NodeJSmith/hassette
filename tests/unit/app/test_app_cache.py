@@ -155,6 +155,7 @@ class TestAppSyncBeforeInitializeCallsSuper:
         hassette = make_mock_hassette(data_dir=tmp_path, sealed=False)
         svc = make_sync_service()
         hassette._sync_executor_service = svc
+        hassette.sync_executor_service = svc
         app = AppSync(hassette, app_config=_make_app_config(), index=0, app_key="kitchen_lights")
         assert isinstance(app.cache, AsyncCache)
         app.cache.initialize = AsyncMock(wraps=app.cache.initialize)  # pyright: ignore[reportAttributeAccessIssue]

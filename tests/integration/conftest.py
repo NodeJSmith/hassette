@@ -83,6 +83,7 @@ def db_hassette(premigrated_db_path: Path, sync_service: SyncExecutorService) ->
         scheduler={"min_delay_seconds": 0.1, "max_delay_seconds": 60.0, "default_delay_seconds": 1.0},
     )
     hassette._sync_executor_service = sync_service
+    hassette.sync_executor_service = sync_service
     return hassette
 
 
