@@ -21,7 +21,7 @@ from hassette.test_utils import make_mock_hassette
 
 @pytest.fixture
 def hassette_mock() -> Iterator[AsyncMock]:
-    hassette = make_mock_hassette()
+    hassette = make_mock_hassette(live_executor=True)
     token = ctx.HASSETTE_INSTANCE.set(hassette)
     config_token = ctx.HASSETTE_CONFIG.set(hassette.config)
     try:

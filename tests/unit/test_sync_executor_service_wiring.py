@@ -184,13 +184,17 @@ def isolated_hassette_context(monkeypatch: pytest.MonkeyPatch):
 
 
 @pytest.fixture
-def wired_hassette(isolated_hassette_context: object) -> Hassette:  # noqa: ARG001
+async def wired_hassette(isolated_hassette_context: object) -> Hassette:  # noqa: ARG001
     config = make_sync_executor_config()
     h = Hassette(config)
     h.wire_services()
     yield h  # pyright: ignore[reportReturnType]
     if h._sync_executor_service is not None and hasattr(h._sync_executor_service, "executor"):
         h._sync_executor_service.executor.shutdown(join_threads_or_timeout=False)
+    if h._bus_service is not None and not h._bus_service.stream._closed:
+        await h._bus_service.stream.aclose()
+    if not h._event_stream_service.event_streams_closed:
+        await h._event_stream_service.close_streams()
 
 
 class TestWireServicesRegistration:

@@ -361,6 +361,10 @@ class AppTestHarness(SimulationMixin, TimeControlMixin, Generic[AppType]):
             await app.shutdown()
         except Exception:
             LOGGER.warning("AppTestHarness: app.shutdown() raised during teardown", exc_info=True)
+        try:
+            await app.cache.close()
+        except Exception:
+            LOGGER.warning("AppTestHarness: app.cache.close() raised during teardown", exc_info=True)
 
     def _cleanup_tmpdir(self, data_dir: Path) -> None:
         """Remove auto-created tmpdir on teardown."""

@@ -250,3 +250,6 @@ coverage.system.xml
 # codegen atomic-write temp files (leaked only if a run is interrupted)
 .*.py.*.tmp
 /ha-core/
+
+# Resource tracker per-worker results (transient, aggregated at session end)
+.resource-tracker/

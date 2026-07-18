@@ -197,6 +197,14 @@ class AppLifecycleService(Resource):
                         inst.app_config.instance_name,
                         exc_info=True,
                     )
+                try:
+                    await inst.cache.close()
+                except Exception:
+                    self.logger.warning(
+                        "Cache cleanup failed for instance '%s'",
+                        inst.app_config.instance_name,
+                        exc_info=True,
+                    )
         except TimeoutError:
             self.logger.warning(
                 "Cleanup timed out for failed instance '%s' — some listeners or jobs may leak until restart",

@@ -127,6 +127,7 @@ The mock is sealed by default. Accessing any attribute not wired by the factory 
 | `set_ready` | `True` | Pre-sets `ready_event` so `wait_for_ready()` resolves immediately. |
 | `set_loop` | `True` | Sets `loop` to `asyncio.get_running_loop()`. `False` suits session-scoped fixtures running outside an event loop. |
 | `sealed` | `True` | Calls `seal()` after wiring. Unlisted attribute access raises `AttributeError`. |
+| `live_executor` | `False` | Keeps the sync executor alive for `run_in_thread` submissions. When `False`, the executor is shut down at creation — tests that only need the attribute to exist use the default. When `True`, the fixture must call `hassette.sync_executor.shutdown(join_threads_or_timeout=False)` at teardown. |
 | `**config_overrides` | | Any `HassetteConfig` field, merged on top of test defaults. |
 
 ## `make_test_config`

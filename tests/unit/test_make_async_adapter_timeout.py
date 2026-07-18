@@ -10,7 +10,7 @@ async def test_sync_fn_timeout_error_propagates_cleanly() -> None:
     """TimeoutError in sync handler propagates without being caught by the except Exception block."""
     # make_mock_hassette provisions a real hassette-sync executor, so run_in_thread
     # can submit via loop.run_in_executor(hassette.sync_executor, ...) without raising.
-    hassette = make_mock_hassette()
+    hassette = make_mock_hassette(live_executor=True)
     bucket = TaskBucket(hassette)
 
     def sync_fn() -> None:

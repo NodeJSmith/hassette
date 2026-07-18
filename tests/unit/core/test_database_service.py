@@ -16,12 +16,14 @@ from hassette.test_utils.mock_hassette import make_mock_hassette
 @pytest.fixture
 def mock_hassette(tmp_path: Path) -> MagicMock:
     """Create a mock Hassette with database config defaults."""
-    return make_mock_hassette(
+    hassette = make_mock_hassette(
         data_dir=tmp_path,
         set_ready=False,
         database={"telemetry_write_queue_max": 500},
         lifecycle={"resource_shutdown_timeout_seconds": 5},
     )
+    yield hassette
+    hassette.sync_executor.shutdown(join_threads_or_timeout=False)
 
 
 @pytest.fixture

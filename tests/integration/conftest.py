@@ -73,14 +73,17 @@ def db_hassette(premigrated_db_path: Path) -> AsyncMock:
 
     Note: telemetry/conftest.py defines a variant with web_api={"run": True} for telemetry tests.
     """
-    return make_mock_hassette(
+    hassette = make_mock_hassette(
         data_dir=premigrated_db_path.parent,
         set_ready=False,
         sealed=False,
+        live_executor=True,
         database={"telemetry_write_queue_max": 500, "max_size_mb": 0},
         lifecycle={"resource_shutdown_timeout_seconds": 5},
         scheduler={"min_delay_seconds": 0.1, "max_delay_seconds": 60.0, "default_delay_seconds": 1.0},
     )
+    yield hassette
+    hassette.sync_executor.shutdown(join_threads_or_timeout=False)
 
 
 @pytest.fixture

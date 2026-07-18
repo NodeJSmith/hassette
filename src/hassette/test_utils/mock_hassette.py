@@ -25,6 +25,7 @@ def make_mock_hassette(
     set_ready: bool = True,
     set_loop: bool = True,
     sealed: bool = True,
+    live_executor: bool = False,
     **config_overrides: Any,
 ) -> AsyncMock:
     """Create a fully-wired :class:`unittest.mock.AsyncMock` that stands in for Hassette.
@@ -50,6 +51,10 @@ def make_mock_hassette(
             fixtures that run outside an async event loop.
         sealed: If ``True`` (default), calls :func:`unittest.mock.seal` after wiring all
             attributes. Pass ``False`` if the test needs to set additional attributes.
+        live_executor: If ``True``, keeps the executor alive via ``weakref.finalize`` for
+            the mock's lifetime so ``TaskBucket.run_in_thread`` can submit real work. If
+            ``False`` (default), the executor is shut down immediately after creation —
+            cheaper for tests that only need ``.sync_executor`` to exist as an attribute.
         **config_overrides: Any :class:`~hassette.config.config.HassetteConfig` field to
             override. Merged on top of ``make_test_config()`` defaults. Nested group fields
             may be passed as dicts::
@@ -78,8 +83,8 @@ def make_mock_hassette(
         - ``.wait_for_ready``: :class:`~unittest.mock.AsyncMock` returning ``True``
         - ``.children``: ``[]``
         - ``.sync_executor``: real :class:`~hassette.task_bucket.interruptible_executor.InterruptibleThreadPoolExecutor`
-            (``max_workers=2``, ``thread_name_prefix="hassette-sync"``) so that tests
-            reaching ``TaskBucket.run_in_thread`` submit work on the correct pool
+            (``max_workers=2``, ``thread_name_prefix="hassette-sync"``). Only usable for
+            ``run_in_thread`` when ``live_executor=True``; otherwise pre-shutdown
         - ``.sync_executor_service``: ``None`` (the service is not wired in unit tests)
 
     Example::
@@ -165,7 +170,10 @@ def make_mock_hassette(
         max_workers=2,
         thread_name_prefix=SYNC_EXECUTOR_THREAD_NAME_PREFIX,
     )
-    weakref.finalize(hassette, executor.shutdown, join_threads_or_timeout=False)
+    if live_executor:
+        weakref.finalize(hassette, executor.shutdown, join_threads_or_timeout=False)
+    else:
+        executor.shutdown(join_threads_or_timeout=False)
     hassette.sync_executor = executor
 
     # SyncExecutorService is not wired in unit tests. Set to None explicitly so the
