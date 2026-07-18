@@ -6,6 +6,7 @@ import type { JobData, ListenerData } from "../../api/endpoints";
 import { useCorrectUrl } from "../../hooks/use-correct-url";
 import { BREAKPOINT_MOBILE } from "../../hooks/use-media-query";
 import { useSignal } from "../../hooks/use-signal";
+import { ExecutionDetailFetcher } from "../../pages/execution-detail";
 import { Button } from "../shared/button";
 import { EmptyState } from "../shared/empty-state";
 import { HandlerList, type SelectedHandlerId } from "./handler-list";
@@ -28,6 +29,7 @@ interface Props {
   listeners: ListenerData[];
   jobs: JobData[];
   selectedHandler: string | null;
+  selectedExecId: string | null;
   appKey: string;
   instanceQs: string;
   onSwitchToCode?: (line?: number) => void;
@@ -36,18 +38,33 @@ interface Props {
 function DetailContent({
   listener,
   job,
+  appKey,
+  instanceQs,
   onSwitchToCode,
 }: {
   listener: ListenerData | null;
   job: JobData | null;
+  appKey: string;
+  instanceQs?: string;
   onSwitchToCode?: (line?: number) => void;
 }) {
-  if (listener) return <ListenerDetail listener={listener} onSwitchToCode={onSwitchToCode} />;
-  if (job) return <JobDetail job={job} onSwitchToCode={onSwitchToCode} />;
+  if (listener)
+    return (
+      <ListenerDetail listener={listener} appKey={appKey} instanceQs={instanceQs} onSwitchToCode={onSwitchToCode} />
+    );
+  if (job) return <JobDetail job={job} appKey={appKey} instanceQs={instanceQs} onSwitchToCode={onSwitchToCode} />;
   return <EmptyState icon="←" title="Select a handler or job to see details." data-testid="detail-placeholder" />;
 }
 
-export function HandlersTab({ listeners, jobs, selectedHandler, appKey, instanceQs, onSwitchToCode }: Props) {
+export function HandlersTab({
+  listeners,
+  jobs,
+  selectedHandler,
+  selectedExecId,
+  appKey,
+  instanceQs,
+  onSwitchToCode,
+}: Props) {
   const [, navigate] = useLocation();
   const correctUrl = useCorrectUrl();
 
@@ -101,6 +118,23 @@ export function HandlersTab({ listeners, jobs, selectedHandler, appKey, instance
     );
   }
 
+  if (selectedExecId && parsed) {
+    const handlerName =
+      parsed.kind === "listener" ? selectedListener?.handler_method?.split(".").pop() : selectedJob?.job_name;
+    return (
+      <div ref={containerRef}>
+        <ExecutionDetailFetcher
+          appKey={appKey}
+          kind={parsed.kind}
+          handlerId={parsed.id}
+          executionId={selectedExecId}
+          instanceQs={instanceQs}
+          handlerName={handlerName ?? undefined}
+        />
+      </div>
+    );
+  }
+
   const showMobileDetail = isMobile.value && selectedHandler !== null;
   const showMasterList = !isMobile.value || selectedHandler === null;
   const showDetailPane = !isMobile.value || selectedHandler !== null;
@@ -133,7 +167,13 @@ export function HandlersTab({ listeners, jobs, selectedHandler, appKey, instance
 
         {showDetailPane && (
           <div class={styles.masterDetailDetail}>
-            <DetailContent listener={selectedListener} job={selectedJob} onSwitchToCode={onSwitchToCode} />
+            <DetailContent
+              listener={selectedListener}
+              job={selectedJob}
+              appKey={appKey}
+              instanceQs={instanceQs}
+              onSwitchToCode={onSwitchToCode}
+            />
           </div>
         )}
       </div>

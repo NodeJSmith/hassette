@@ -126,6 +126,17 @@ export function formatRate(failed: number, total: number): string {
   return total > 0 ? ((failed / total) * 100).toFixed(1) + "%" : "—";
 }
 
+export function executionDetailHref(
+  appKey: string,
+  kind: "handler" | "job",
+  handlerId: number,
+  executionId: string,
+  instanceIndex?: number | null,
+): string {
+  const base = `/apps/${appKey}/handlers/${kind === "handler" ? "listener" : "job"}/${handlerId}/exec/${executionId}`;
+  return instanceIndex !== null && instanceIndex !== undefined ? `${base}?instance=${instanceIndex}` : base;
+}
+
 export function formatUptime(seconds: number): string {
   if (seconds < SECONDS_PER_MINUTE) return `${Math.floor(seconds)}s`;
   if (seconds < SECONDS_PER_HOUR) return `${Math.floor(seconds / SECONDS_PER_MINUTE)}m`;

@@ -41,6 +41,8 @@ interface Props {
   executionTableId: string;
   executionLoading: boolean;
   executionHasData: boolean;
+  execLinkPrefix?: string;
+  instanceQs?: string;
 }
 
 export function HandlerDetailLayout({
@@ -64,6 +66,8 @@ export function HandlerDetailLayout({
   executionTableId,
   executionLoading,
   executionHasData,
+  execLinkPrefix,
+  instanceQs,
 }: Props) {
   const isFailing = statusKind === "err";
   const sourceLine = sourceLocation ? parseSourceLocation(sourceLocation).line : null;
@@ -125,7 +129,13 @@ export function HandlerDetailLayout({
         {executionLoading && !executionHasData ? (
           <Spinner />
         ) : (
-          <ExecutionTable records={executionRecords} kind={executionKind} tableId={executionTableId} />
+          <ExecutionTable
+            records={executionRecords}
+            kind={executionKind}
+            tableId={executionTableId}
+            execLinkPrefix={execLinkPrefix}
+            instanceQs={instanceQs}
+          />
         )}
       </div>
     </div>

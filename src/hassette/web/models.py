@@ -177,6 +177,9 @@ class LogEntryResponse(BaseModel):
     instance_name: str | None = None
     instance_index: int | None = None
     source_tier: SourceTier | None = None
+    execution_kind: Literal["handler", "job"] | None = None
+    listener_id: int | None = None
+    job_id: int | None = None
 
 
 class LogsByExecutionResponse(BaseModel):

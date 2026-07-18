@@ -59,11 +59,13 @@ config = { instance_name = "demo_stimulator", enable_failure = true }
 [hassette.apps.scheduler_overlap]
 filename = "scheduler_overlap.py"
 class_name = "SchedulerOverlapDemo"
+autostart = false
 config = { instance_name = "scheduler_overlap" }
 
 [hassette.apps.bus_overlap]
 filename = "bus_overlap.py"
 class_name = "BusOverlapDemo"
+autostart = false
 config = { instance_name = "bus_overlap" }
 
 [hassette.apps.manual_job_app]
@@ -74,11 +76,13 @@ config = { instance_name = "manual_job_app" }
 [hassette.apps.predicate_demo]
 filename = "predicate_demo.py"
 class_name = "PredicateDemo"
+autostart = false
 config = { instance_name = "predicate_demo", check_interval = 8.0 }
 
 [hassette.apps.backpressure_demo]
 filename = "backpressure_demo.py"
 class_name = "BackpressureDemo"
+autostart = false
 config = { instance_name = "backpressure_demo" }
 
 [hassette.database]

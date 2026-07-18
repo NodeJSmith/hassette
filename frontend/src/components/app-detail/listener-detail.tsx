@@ -75,10 +75,12 @@ function buildListenerStatsCells(listener: ListenerData, lastInvokedLabel: strin
 
 interface Props {
   listener: ListenerData;
+  appKey: string;
+  instanceQs?: string;
   onSwitchToCode?: (line?: number) => void;
 }
 
-export function ListenerDetail({ listener, onSwitchToCode }: Props) {
+export function ListenerDetail({ listener, appKey, instanceQs, onSwitchToCode }: Props) {
   const { data: executions, isPending: loading } = useScopedQuery(
     queryKeys.listenerExecutions(listener.listener_id),
     (since, signal) => getListenerExecutions(listener.listener_id, DETAIL_FETCH_LIMIT, since, signal),
@@ -125,6 +127,8 @@ export function ListenerDetail({ listener, onSwitchToCode }: Props) {
       executionTableId={`invocation-table-${listener.listener_id}`}
       executionLoading={loading}
       executionHasData={executions !== undefined}
+      execLinkPrefix={`/apps/${appKey}/handlers/listener/${listener.listener_id}`}
+      instanceQs={instanceQs}
     />
   );
 }

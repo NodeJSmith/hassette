@@ -91,10 +91,12 @@ function buildJobStatsCells(job: JobData, lastExecutedLabel: string): DetailStat
 
 interface Props {
   job: JobData;
+  appKey: string;
+  instanceQs?: string;
   onSwitchToCode?: (line?: number) => void;
 }
 
-export function JobDetail({ job, onSwitchToCode }: Props) {
+export function JobDetail({ job, appKey, instanceQs, onSwitchToCode }: Props) {
   const { data: executions, isPending: loading } = useScopedQuery(
     queryKeys.jobExecutions(job.job_id),
     (since, signal) => getJobExecutions(job.job_id, DETAIL_FETCH_LIMIT, since, signal),
@@ -167,6 +169,8 @@ export function JobDetail({ job, onSwitchToCode }: Props) {
       executionTableId={`execution-table-${job.job_id}`}
       executionLoading={loading}
       executionHasData={executions !== undefined}
+      execLinkPrefix={`/apps/${appKey}/handlers/job/${job.job_id}`}
+      instanceQs={instanceQs}
     />
   );
 }

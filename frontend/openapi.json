@@ -3275,6 +3275,43 @@
               }
             ],
             "title": "Source Tier"
+          },
+          "execution_kind": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "handler",
+                  "job"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Kind"
+          },
+          "listener_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listener Id"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
           }
         },
         "type": "object",

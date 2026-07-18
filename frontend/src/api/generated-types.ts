@@ -1305,6 +1305,12 @@ export interface components {
             instance_index?: number | null;
             /** Source Tier */
             source_tier?: ("app" | "framework") | null;
+            /** Execution Kind */
+            execution_kind?: ("handler" | "job") | null;
+            /** Listener Id */
+            listener_id?: number | null;
+            /** Job Id */
+            job_id?: number | null;
         };
         /**
          * LogLevelRequest

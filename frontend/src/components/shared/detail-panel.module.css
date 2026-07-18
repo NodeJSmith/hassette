@@ -61,7 +61,7 @@
   font-size: var(--fs-mono-sm);
   color: var(--ink-2);
   white-space: pre-wrap;
-  word-break: break-all;
+  overflow-wrap: break-word;
 }
 
 /* — Logs and misc — */

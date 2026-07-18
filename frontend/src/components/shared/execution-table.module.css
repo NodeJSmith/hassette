@@ -1,17 +1,16 @@
-/* ExecutionTable — shared expandable execution/invocation table */
+/* ExecutionTable — navigable execution/invocation table */
 
 .colArrow {
   width: var(--sp-4);
 }
 
 .row {
-  cursor: pointer;
   transition: background var(--t-fast) var(--ease);
 }
-.rowOpen {
-  background: var(--bg-sunken);
+.rowClickable {
+  cursor: pointer;
 }
-.row:hover {
+.rowClickable:hover {
   background: var(--bg-sunken);
 }
 
@@ -45,8 +44,4 @@
 .cancelledType {
   composes: statusLabel;
   color: var(--cancel);
-}
-
-.detailCell {
-  padding: 0;
 }

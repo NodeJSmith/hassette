@@ -34,7 +34,14 @@ function renderHandlersTab(
   selectedHandler: string | null = null,
 ) {
   return renderWithAppState(
-    <HandlersTab listeners={listeners} jobs={jobs} selectedHandler={selectedHandler} appKey="test_app" instanceQs="" />,
+    <HandlersTab
+      listeners={listeners}
+      jobs={jobs}
+      selectedHandler={selectedHandler}
+      selectedExecId={null}
+      appKey="test_app"
+      instanceQs=""
+    />,
     { stateOverrides: { uptimeSeconds: signal<number | null>(120) } },
   );
 }
@@ -51,7 +58,14 @@ describe("HandlersTab", () => {
 
   it("renders empty state when no listeners or jobs", () => {
     const { getByTestId } = renderWithAppState(
-      <HandlersTab listeners={[]} jobs={[]} selectedHandler={null} appKey="test_app" instanceQs="" />,
+      <HandlersTab
+        listeners={[]}
+        jobs={[]}
+        selectedHandler={null}
+        selectedExecId={null}
+        appKey="test_app"
+        instanceQs=""
+      />,
       { stateOverrides: { uptimeSeconds: signal<number | null>(120) } },
     );
     expect(getByTestId("handlers-empty")).toBeDefined();
@@ -419,7 +433,14 @@ describe("HandlersTab", () => {
   it("clicking a listener row includes instanceQs in deep-link URL", () => {
     const listeners = [createListener({ listener_id: 3 })];
     const { getByTestId } = renderWithAppState(
-      <HandlersTab listeners={listeners} jobs={[]} selectedHandler={null} appKey="test_app" instanceQs="?instance=1" />,
+      <HandlersTab
+        listeners={listeners}
+        jobs={[]}
+        selectedHandler={null}
+        selectedExecId={null}
+        appKey="test_app"
+        instanceQs="?instance=1"
+      />,
       { stateOverrides: { uptimeSeconds: signal<number | null>(120) } },
     );
     fireEvent.click(getByTestId("unified-row-listener-3"));
@@ -585,6 +606,7 @@ describe("HandlersTab", () => {
         listeners={[listener]}
         jobs={[]}
         selectedHandler="listener/45"
+        selectedExecId={null}
         appKey="test_app"
         instanceQs=""
         onSwitchToCode={onSwitch}

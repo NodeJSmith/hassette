@@ -1,3 +1,5 @@
+import { Link } from "wouter";
+
 import styles from "./execution-logs.module.css";
 import { LogTableView, LogTableWithDrawer, useLogTable } from "./log-table";
 import { TableCard } from "./table-card";
@@ -32,9 +34,9 @@ export function ExecutionLogs({ executionId }: Props) {
         </LogTableWithDrawer>
       </TableCard>
       <p class={styles.viewAll}>
-        <a href={viewAllHref} data-testid="view-all-logs-link">
+        <Link href={viewAllHref} data-testid="view-all-logs-link">
           View all logs
-        </a>
+        </Link>
       </p>
     </div>
   );
