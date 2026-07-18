@@ -13,8 +13,11 @@ AppSync hook submits to a closed pool and raises RuntimeError.
 """
 
 import asyncio
+import threading
 import time
-from typing import TYPE_CHECKING, Any, ClassVar
+from contextvars import ContextVar, copy_context
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, ClassVar, ParamSpec, TypeVar, cast
 
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
@@ -23,7 +26,12 @@ from hassette.resources.service import Service
 from hassette.task_bucket.interruptible_executor import InterruptibleThreadPoolExecutor
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from hassette import Hassette
+
+P = ParamSpec("P")
+R = TypeVar("R")
 
 # Pool saturation constants — mirror command_executor._CAPACITY_WARN_THRESHOLD /
 # _CAPACITY_WARN_RATE_LIMIT_SECS but scoped to global pool saturation.
@@ -49,6 +57,31 @@ _SATURATION_PROBE_INTERVAL_SECS = 30.0
 # Worker thread name prefix for the dedicated sync-user-code pool. Shared with the test
 # mock executor so pool-identity assertions match production threads.
 SYNC_EXECUTOR_THREAD_NAME_PREFIX = "hassette-sync"
+
+
+@dataclass
+class SyncWorkerHandle:
+    """Shared handle between the loop thread and a sync worker for thread-identity tracking.
+
+    Created by ``submit()`` on the loop thread and stored in ``SYNC_WORKER_HANDLE``.
+    The worker thread sets ``handle.thread`` via closure; ``_execute`` in
+    ``command_executor`` reads it at the timeout site to check liveness.
+    """
+
+    thread: threading.Thread | None = None
+
+
+SYNC_WORKER_HANDLE: ContextVar[SyncWorkerHandle | None] = ContextVar("sync_worker_handle", default=None)
+"""Carries the worker handle for the current sync submission from the loop thread to _execute.
+
+Set on the loop thread in ``submit()`` immediately after creating the handle.
+``_execute`` (same asyncio task, same context snapshot) reads this ContextVar to check
+``handle.thread.is_alive()`` at the timeout site.
+
+The worker accesses the handle via closure, not via this ContextVar.  The ContextVar exists so
+that ``_execute`` (running on the loop thread, in the same asyncio task) can read back the
+handle reference.
+"""
 
 
 class SyncExecutorService(Service):
@@ -88,6 +121,33 @@ class SyncExecutorService(Service):
         )
         self._active_workers = 0
         self._last_saturation_warn_ts = 0.0
+
+    def submit(self, fn: "Callable[P, R]", *args: "P.args", **kwargs: "P.kwargs") -> "asyncio.Future[R]":
+        """Submit a sync function to the dedicated executor with context propagation.
+
+        Captures the calling thread's contextvars, wraps them into the worker call,
+        and tracks the submission for pool-saturation monitoring.
+
+        Args:
+            fn: The synchronous function to run.
+            *args: Positional arguments to pass to the function.
+            **kwargs: Keyword arguments to pass to the function.
+
+        Returns:
+            An :class:`asyncio.Future` that resolves to the return value of *fn*.
+        """
+        parent_ctx = copy_context()
+        handle = SyncWorkerHandle()
+        SYNC_WORKER_HANDLE.set(handle)
+
+        def _call() -> R:
+            handle.thread = threading.current_thread()
+            return parent_ctx.run(fn, *args, **kwargs)
+
+        loop = asyncio.get_running_loop()
+        future: asyncio.Future[R] = loop.run_in_executor(self.executor, _call)
+        self.track_submission(cast("asyncio.Future[Any]", future))
+        return future
 
     def track_submission(self, future: "asyncio.Future[Any]") -> None:
         """Track an active submission: increment counter and decrement via done-callback.

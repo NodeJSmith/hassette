@@ -2,7 +2,7 @@
 
 Covers:
 - Executor is constructed in on_initialize (survives restart-in-place)
-- Service is registered in wire_services() and reachable via hassette.sync_executor
+- Service is registered in wire_services() and reachable via hassette.sync_executor_service
 - depends_on=[] (leaf dependency — no DB or other service required)
 - BusService, SchedulerService, AppHandler declare depends_on=[SyncExecutorService]
 - Dependency graph validation still passes after registration
@@ -164,7 +164,7 @@ class TestDependencyGraph:
         assert len(SyncExecutorService.depends_on) == 0
 
 
-# wire_services() registration and hassette.sync_executor property
+# wire_services() registration and hassette.sync_executor_service property
 
 
 @pytest.fixture(autouse=False)
@@ -208,20 +208,6 @@ class TestWireServicesRegistration:
         assert wired_hassette._sync_executor_service is not None
         assert isinstance(wired_hassette._sync_executor_service, SyncExecutorService)
 
-    @pytest.mark.anyio
-    async def test_sync_executor_property_returns_executor(self, wired_hassette: Hassette) -> None:
-        """hassette.sync_executor returns the InterruptibleThreadPoolExecutor after initialization."""
-        await wired_hassette._sync_executor_service.on_initialize()
-        executor = wired_hassette.sync_executor
-        assert isinstance(executor, InterruptibleThreadPoolExecutor)
-
-    def test_sync_executor_property_raises_before_wire_services(self) -> None:
-        """hassette.sync_executor raises RuntimeError when wire_services() hasn't been called."""
-        config = make_sync_executor_config()
-        h = Hassette(config)
-        with pytest.raises(RuntimeError, match="wire_services"):
-            _ = h.sync_executor
-
     def test_sync_executor_service_property_returns_service(self, wired_hassette: Hassette) -> None:
         """hassette.sync_executor_service returns the SyncExecutorService instance."""
         svc = wired_hassette.sync_executor_service
@@ -233,6 +219,15 @@ class TestWireServicesRegistration:
         h = Hassette(config)
         with pytest.raises(RuntimeError, match="wire_services"):
             _ = h.sync_executor_service
+
+    def test_task_bucket_sync_service_wired_after_wire_services(self, wired_hassette: Hassette) -> None:
+        """wire_services() sets _sync_service on Hassette's own TaskBucket."""
+        assert wired_hassette.task_bucket._sync_service is wired_hassette._sync_executor_service
+
+    def test_child_task_buckets_get_sync_service_from_factory(self, wired_hassette: Hassette) -> None:
+        """Children created after wire_services() get _sync_service via the TaskBucket factory."""
+        bus_svc = wired_hassette._bus_service
+        assert bus_svc.task_bucket._sync_service is wired_hassette._sync_executor_service
 
     def test_wire_services_graph_validates_without_error(self, wired_hassette: Hassette) -> None:
         """wire_services() completes without ValueError from the dependency graph validator."""

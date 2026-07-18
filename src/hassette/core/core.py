@@ -21,7 +21,6 @@ from hassette.resources.lifecycle import handle_stop, mark_not_ready, start
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
 from hassette.task_bucket import TaskBucket, make_task_factory
-from hassette.task_bucket.interruptible_executor import InterruptibleThreadPoolExecutor
 from hassette.types.enums import ResourceStatus
 from hassette.utils.app_utils import run_apps_pre_check
 from hassette.utils.service_utils import topological_levels, topological_sort, validate_dependency_graph, wait_for_ready
@@ -183,10 +182,15 @@ class Hassette(Resource):
 
         self.startup_tasks()
 
-        # SyncExecutorService: placed early for readability only — depends_on=[] so it has no
-        # ordering constraint here.  Start/stop sequencing is driven by the depends_on graph,
-        # not by registration order.
+        # SyncExecutorService MUST be the first add_child — the _create_task_bucket factory
+        # reads hassette.sync_executor_service to wire it into every subsequently created
+        # TaskBucket. Moving this later would leave intervening services' buckets unwired.
         self._sync_executor_service = self.add_child(SyncExecutorService)
+
+        # Patch the two TaskBuckets created before _sync_executor_service existed
+        # (Hassette's own and SyncExecutorService's own — both created during add_child).
+        self.task_bucket._sync_service = self._sync_executor_service
+        self._sync_executor_service.task_bucket._sync_service = self._sync_executor_service
 
         # private background services — EventStreamService FIRST (BusService needs receive_stream at construction)
         self._event_stream_service = self.add_child(EventStreamService)
@@ -317,26 +321,10 @@ class Hassette(Resource):
 
     @property
     def sync_executor_service(self) -> SyncExecutorService:
-        """The SyncExecutorService instance that owns the dedicated sync thread pool.
-
-        Used by TaskBucket.run_in_thread to track active submissions and emit
-        rate-limited pool-saturation warnings.
-        """
+        """The SyncExecutorService instance that owns the dedicated sync thread pool."""
         if self._sync_executor_service is None:
             raise _service_not_wired_error("SyncExecutorService")
         return self._sync_executor_service
-
-    @property
-    def sync_executor(self) -> InterruptibleThreadPoolExecutor:
-        """Dedicated thread-pool executor for sync user code.
-
-        TaskBucket.run_in_thread routes all sync handler/job/App-lifecycle submissions
-        here.  Framework-internal asyncio.to_thread calls (logging, database) continue
-        using the loop-default executor and are NOT routed through this property.
-        """
-        if self._sync_executor_service is None:
-            raise _service_not_wired_error("SyncExecutorService")
-        return self._sync_executor_service.executor
 
     @property
     def command_executor(self) -> CommandExecutor:

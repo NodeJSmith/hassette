@@ -15,13 +15,14 @@ from unittest.mock import AsyncMock
 import pytest
 
 from hassette import context as ctx
-from hassette.task_bucket.task_bucket import SYNC_WORKER_HANDLE, TaskBucket
+from hassette.core.sync_executor_service import SYNC_WORKER_HANDLE, SyncExecutorService
+from hassette.task_bucket.task_bucket import TaskBucket
 from hassette.test_utils import make_mock_hassette
 
 
 @pytest.fixture
 def hassette_mock() -> Iterator[AsyncMock]:
-    hassette = make_mock_hassette(live_executor=True)
+    hassette = make_mock_hassette()
     token = ctx.HASSETTE_INSTANCE.set(hassette)
     config_token = ctx.HASSETTE_CONFIG.set(hassette.config)
     try:
@@ -29,12 +30,13 @@ def hassette_mock() -> Iterator[AsyncMock]:
     finally:
         ctx.HASSETTE_CONFIG.reset(config_token)
         ctx.HASSETTE_INSTANCE.reset(token)
-        hassette.sync_executor.shutdown(join_threads_or_timeout=True)
 
 
 @pytest.fixture
-def bucket(hassette_mock: AsyncMock) -> TaskBucket:
-    return TaskBucket(hassette_mock)
+def bucket(hassette_mock: AsyncMock, sync_service: SyncExecutorService) -> TaskBucket:
+    tb = TaskBucket(hassette_mock)
+    tb._sync_service = sync_service
+    return tb
 
 
 async def test_hassette_instance_visible_in_worker(hassette_mock: AsyncMock, bucket: TaskBucket) -> None:

@@ -12,6 +12,7 @@ import pytest
 from hassette import Hassette
 from hassette.config.config import HassetteConfig
 from hassette.core.database_service import DatabaseService
+from hassette.core.sync_executor_service import SyncExecutorService
 from hassette.test_utils import make_mock_hassette
 from hassette.test_utils.helpers import cleanup_hassette_streams
 from hassette.types.enums import ExecutionMode
@@ -68,7 +69,7 @@ def premigrated_db_path(_migrated_db_template: Path, tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def db_hassette(premigrated_db_path: Path) -> AsyncMock:
+def db_hassette(premigrated_db_path: Path, sync_service: SyncExecutorService) -> AsyncMock:
     """Provide a mock Hassette with real validated config pointing to a pre-migrated DB.
 
     Note: telemetry/conftest.py defines a variant with web_api={"run": True} for telemetry tests.
@@ -77,13 +78,12 @@ def db_hassette(premigrated_db_path: Path) -> AsyncMock:
         data_dir=premigrated_db_path.parent,
         set_ready=False,
         sealed=False,
-        live_executor=True,
         database={"telemetry_write_queue_max": 500, "max_size_mb": 0},
         lifecycle={"resource_shutdown_timeout_seconds": 5},
         scheduler={"min_delay_seconds": 0.1, "max_delay_seconds": 60.0, "default_delay_seconds": 1.0},
     )
-    yield hassette
-    hassette.sync_executor.shutdown(join_threads_or_timeout=False)
+    hassette._sync_executor_service = sync_service
+    return hassette
 
 
 @pytest.fixture

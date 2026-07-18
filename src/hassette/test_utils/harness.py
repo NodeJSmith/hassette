@@ -700,6 +700,8 @@ class HassetteHarness:
 
     async def _start_sync_executor(self) -> None:
         self.hassette._sync_executor_service = self.hassette.add_child(SyncExecutorService)
+        self.hassette.task_bucket._sync_service = self.hassette._sync_executor_service
+        self.hassette._sync_executor_service.task_bucket._sync_service = self.hassette._sync_executor_service
 
     async def _start_bus(self) -> None:
         # Use _HarnessEventStreamService so that test-initiated hassette.shutdown() calls

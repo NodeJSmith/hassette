@@ -9,13 +9,10 @@ import atexit
 import shutil
 import tempfile
 import threading
-import weakref
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, Mock, seal
 
-from hassette.core.sync_executor_service import SYNC_EXECUTOR_THREAD_NAME_PREFIX
-from hassette.task_bucket.interruptible_executor import InterruptibleThreadPoolExecutor
 from hassette.test_utils.config import TEST_WS_URL, make_test_config
 
 
@@ -25,7 +22,6 @@ def make_mock_hassette(
     set_ready: bool = True,
     set_loop: bool = True,
     sealed: bool = True,
-    live_executor: bool = False,
     **config_overrides: Any,
 ) -> AsyncMock:
     """Create a fully-wired :class:`unittest.mock.AsyncMock` that stands in for Hassette.
@@ -51,10 +47,6 @@ def make_mock_hassette(
             fixtures that run outside an async event loop.
         sealed: If ``True`` (default), calls :func:`unittest.mock.seal` after wiring all
             attributes. Pass ``False`` if the test needs to set additional attributes.
-        live_executor: If ``True``, keeps the executor alive via ``weakref.finalize`` for
-            the mock's lifetime so ``TaskBucket.run_in_thread`` can submit real work. If
-            ``False`` (default), the executor is shut down immediately after creation —
-            cheaper for tests that only need ``.sync_executor`` to exist as an attribute.
         **config_overrides: Any :class:`~hassette.config.config.HassetteConfig` field to
             override. Merged on top of ``make_test_config()`` defaults. Nested group fields
             may be passed as dicts::
@@ -82,10 +74,8 @@ def make_mock_hassette(
         - ``.database_service``: ``None``
         - ``.wait_for_ready``: :class:`~unittest.mock.AsyncMock` returning ``True``
         - ``.children``: ``[]``
-        - ``.sync_executor``: real :class:`~hassette.task_bucket.interruptible_executor.InterruptibleThreadPoolExecutor`
-            (``max_workers=2``, ``thread_name_prefix="hassette-sync"``). Only usable for
-            ``run_in_thread`` when ``live_executor=True``; otherwise pre-shutdown
-        - ``.sync_executor_service``: ``None`` (the service is not wired in unit tests)
+        - ``._sync_executor_service``: ``None`` (not wired; tests needing ``run_in_thread``
+            must create their own executor and wire it into their TaskBucket)
 
     Example::
 
@@ -160,26 +150,10 @@ def make_mock_hassette(
     # Resource children
     hassette.children = []
 
-    # Dedicated sync-user-code executor — a real InterruptibleThreadPoolExecutor so
-    # TaskBucket.run_in_thread can submit work during tests.  Thread names carry the
-    # "hassette-sync" prefix, matching production and allowing pool-identity assertions.
-    # Shutdown is tied to the mock's lifetime via weakref.finalize: each executor is
-    # cleaned up when its mock is garbage-collected, rather than living until process
-    # exit, so repeated factory calls don't accumulate live executors.
-    executor = InterruptibleThreadPoolExecutor(
-        max_workers=2,
-        thread_name_prefix=SYNC_EXECUTOR_THREAD_NAME_PREFIX,
-    )
-    if live_executor:
-        weakref.finalize(hassette, executor.shutdown, join_threads_or_timeout=False)
-    else:
-        executor.shutdown(join_threads_or_timeout=False)
-    hassette.sync_executor = executor
-
-    # SyncExecutorService is not wired in unit tests. Set to None explicitly so the
-    # sealed mock exposes the attribute (run_in_thread reads it for saturation tracking
-    # and skips when None) instead of raising AttributeError on access.
-    hassette.sync_executor_service = None
+    # SyncExecutorService is not wired in mock hassette. Tests that need run_in_thread
+    # must create their own SyncExecutorService or executor and wire it into their
+    # TaskBucket via task_bucket._sync_service.
+    hassette._sync_executor_service = None
 
     if sealed:
         seal(hassette)

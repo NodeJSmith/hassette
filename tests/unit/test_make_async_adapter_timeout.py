@@ -2,16 +2,16 @@
 
 import pytest
 
+from hassette.core.sync_executor_service import SyncExecutorService
 from hassette.task_bucket.task_bucket import TaskBucket
 from hassette.test_utils.mock_hassette import make_mock_hassette
 
 
-async def test_sync_fn_timeout_error_propagates_cleanly() -> None:
+async def test_sync_fn_timeout_error_propagates_cleanly(sync_service: SyncExecutorService) -> None:
     """TimeoutError in sync handler propagates without being caught by the except Exception block."""
-    # make_mock_hassette provisions a real hassette-sync executor, so run_in_thread
-    # can submit via loop.run_in_executor(hassette.sync_executor, ...) without raising.
-    hassette = make_mock_hassette(live_executor=True)
+    hassette = make_mock_hassette()
     bucket = TaskBucket(hassette)
+    bucket._sync_service = sync_service
 
     def sync_fn() -> None:
         raise TimeoutError("timed out")

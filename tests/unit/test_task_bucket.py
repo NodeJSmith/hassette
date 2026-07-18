@@ -29,9 +29,7 @@ from hassette.test_utils.helpers import async_noop
 @pytest.fixture
 def hassette_mock():
     """Minimal Hassette mock sufficient to construct a TaskBucket."""
-    hassette = make_mock_hassette()
-    yield hassette
-    hassette.sync_executor.shutdown(join_threads_or_timeout=False)
+    return make_mock_hassette()
 
 
 @pytest.fixture
