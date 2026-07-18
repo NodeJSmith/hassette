@@ -3,6 +3,7 @@ import json
 import os
 import random
 import typing
+from collections.abc import Iterator
 from logging import getLogger
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -11,8 +12,10 @@ import pytest
 
 from hassette.cache import DummyCache
 from hassette.core.core import Hassette
+from hassette.core.sync_executor_service import SyncExecutorService
 from hassette.events import Event, RawStateChangeEvent, create_event_from_hass
 
+from .factories import make_sync_service
 from .harness import HassetteHarness
 
 LOGGER = getLogger(__name__)
@@ -68,11 +71,21 @@ async def hassette_with_sync_executor(
 ) -> "AsyncIterator[HassetteHarness]":
     """Harness with the sync executor wired, but no bus/scheduler/app components.
 
-    TaskBucket.run_in_thread routes sync work to hassette.sync_executor, so any
+    TaskBucket.run_in_thread delegates to SyncExecutorService.submit(), so any
     test that dispatches a sync handler through the bare task bucket needs it.
     """
     async with hassette_harness(test_config).with_sync_executor() as harness:
         yield harness
+
+
+@pytest.fixture
+def sync_service() -> Iterator[SyncExecutorService]:
+    """Standalone SyncExecutorService with a real executor for tests that need run_in_thread."""
+    svc = make_sync_service()
+    try:
+        yield svc
+    finally:
+        svc.executor.shutdown(join_threads_or_timeout=True)
 
 
 @pytest.fixture(scope="module")

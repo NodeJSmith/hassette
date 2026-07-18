@@ -178,15 +178,13 @@ class TestCheckHealth:
 class TestReadTimeout:
     @pytest.fixture
     def short_timeout_hassette(self, premigrated_db_path: Path) -> MagicMock:
-        hassette = make_mock_hassette(
+        return make_mock_hassette(
             data_dir=premigrated_db_path.parent,
             set_ready=False,
             database={"telemetry_write_queue_max": 500, "max_size_mb": 0, "read_timeout_seconds": 0.1},
             lifecycle={"resource_shutdown_timeout_seconds": 5},
             web_api={"run": True},
         )
-        yield hassette
-        hassette.sync_executor.shutdown(join_threads_or_timeout=False)
 
     @pytest.fixture
     async def short_timeout_db(self, short_timeout_hassette: MagicMock) -> AsyncIterator[tuple[DatabaseService, int]]:

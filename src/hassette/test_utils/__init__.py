@@ -25,6 +25,7 @@ from .factories import make_mock_parent as make_mock_parent
 from .factories import make_recording_api as make_recording_api
 from .factories import make_scheduled_job as make_scheduled_job
 from .factories import make_scheduler as make_scheduler
+from .factories import make_sync_service as make_sync_service
 from .fixtures import build_harness as build_harness
 from .fixtures import dummy_cache as dummy_cache
 from .fixtures import hassette_harness as hassette_harness
@@ -35,6 +36,7 @@ from .fixtures import hassette_with_mock_api as hassette_with_mock_api
 from .fixtures import hassette_with_scheduler as hassette_with_scheduler
 from .fixtures import hassette_with_state_proxy as hassette_with_state_proxy
 from .fixtures import run_hassette_startup_tasks as run_hassette_startup_tasks
+from .fixtures import sync_service as sync_service
 from .harness import HassetteHarness as HassetteHarness
 from .harness import preserve_config as preserve_config
 from .harness import wait_for as wait_for

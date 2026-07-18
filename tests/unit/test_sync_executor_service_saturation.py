@@ -659,8 +659,6 @@ class TestTrackSubmission:
         """After run_in_thread submits work, track_submission is called (which calls log check)."""
         svc = make_service(max_workers=1, shutdown_timeout=5.0)
         mock_hassette = svc.hassette
-        mock_hassette.sync_executor_service = svc
-        mock_hassette.sync_executor = svc.executor
 
         track_calls: list[None] = []
         original = svc.track_submission
@@ -671,8 +669,8 @@ class TestTrackSubmission:
 
         svc.track_submission = counting_track  # pyright: ignore[reportAttributeAccessIssue]
 
-        # Build a minimal TaskBucket using the mock hassette
         tb = TaskBucket(mock_hassette)
+        tb._sync_service = svc
 
         done = threading.Event()
 

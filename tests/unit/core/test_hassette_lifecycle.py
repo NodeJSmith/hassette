@@ -41,7 +41,6 @@ class TestServiceAccessorGuards:
             ("session_manager", "SessionManager"),
             ("event_stream_service", "EventStreamService"),
             ("sync_executor_service", "SyncExecutorService"),
-            ("sync_executor", "SyncExecutorService"),
             ("command_executor", "CommandExecutor"),
             ("logging_service", "LoggingService"),
             ("runtime_query_service", "RuntimeQueryService"),

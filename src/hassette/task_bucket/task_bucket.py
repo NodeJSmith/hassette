@@ -6,8 +6,6 @@ import typing
 from collections.abc import Awaitable, Callable, Coroutine
 from concurrent.futures import Future
 from concurrent.futures import TimeoutError as CfTimeoutError  # aliased to distinguish from builtin TimeoutError
-from contextvars import ContextVar, copy_context
-from dataclasses import dataclass
 from typing import Any, ParamSpec, TypeVar, cast, overload
 
 from hassette import context as ctx
@@ -19,33 +17,9 @@ from hassette.utils.func_utils import is_async_callable
 
 _CROSS_THREAD_SPAWN_TIMEOUT_SECS = 10.0
 
-
-@dataclass
-class SyncWorkerHandle:
-    """Shared handle between the loop thread and a sync worker for thread-identity tracking.
-
-    Created by ``run_in_thread`` on the loop thread and stored in ``SYNC_WORKER_HANDLE``.
-    The worker thread sets ``handle.thread`` via closure; ``_execute`` reads it at the
-    timeout site to check liveness.
-    """
-
-    thread: threading.Thread | None = None
-
-
-SYNC_WORKER_HANDLE: ContextVar[SyncWorkerHandle | None] = ContextVar("sync_worker_handle", default=None)
-"""Carries the worker handle for the current sync submission from the loop thread to _execute.
-
-Set on the loop thread in ``run_in_thread`` immediately after creating the handle.
-``_execute`` (same asyncio task, same context snapshot) reads this ContextVar to check
-``handle.thread.is_alive()`` at the timeout site.
-
-The worker accesses the handle via closure, not via this ContextVar.  The ContextVar exists so
-that ``_execute`` (running on the loop thread, in the same asyncio task) can read back the
-handle reference.
-"""
-
 if typing.TYPE_CHECKING:
     from hassette import Hassette
+    from hassette.core.sync_executor_service import SyncExecutorService
 
 T = TypeVar("T")
 P = ParamSpec("P")
@@ -73,6 +47,7 @@ class TaskBucket(Resource):
         super().__init__(hassette, parent=parent)
         self._tasks: set[asyncio.Task[Any]] = set()
         self._exception_recorders = []
+        self._sync_service: SyncExecutorService | None = None
         mark_ready(self, reason="TaskBucket initialized")
 
     @property
@@ -195,21 +170,8 @@ class TaskBucket(Resource):
     def run_in_thread(self, fn: Callable[P, R], *args: P.args, **kwargs: P.kwargs) -> "asyncio.Future[R]":
         """Run a synchronous function on the dedicated sync-handler executor.
 
-        Routes sync user code (handlers, jobs, App lifecycle hooks) through
-        ``hassette.sync_executor`` (an
-        :class:`~hassette.task_bucket.interruptible_executor.InterruptibleThreadPoolExecutor`)
-        so that slow sync handlers are isolated from framework-internal
-        ``asyncio.to_thread`` calls (logging, database), which continue using the
-        loop-default executor.
-
-        **Context propagation:** ``loop.run_in_executor`` does NOT copy the calling
-        thread's contextvars into the worker (unlike ``asyncio.to_thread``).  This
-        method captures a full snapshot via ``contextvars.copy_context()`` and runs
-        *fn* inside it so that all contextvars set on the loop thread are visible to
-        sync user code.
-
-        **Thread handle:** see :class:`SyncWorkerHandle` and :data:`SYNC_WORKER_HANDLE`
-        for the shared-handle mechanism used by the timeout site.
+        Delegates to :meth:`SyncExecutorService.submit`, which handles context
+        propagation, thread-handle tracking, and pool-saturation monitoring.
 
         Args:
             fn: The synchronous function to run.
@@ -218,37 +180,19 @@ class TaskBucket(Resource):
 
         Returns:
             An :class:`asyncio.Future` that resolves to the return value of *fn*.
+
+        Raises:
+            RuntimeError: If ``SyncExecutorService`` has not been wired into this
+                TaskBucket (indicates a startup ordering bug or a test that needs
+                to inject the service).
         """
-        parent_ctx = copy_context()
-        handle = SyncWorkerHandle()
-        SYNC_WORKER_HANDLE.set(handle)
-
-        def _call() -> R:
-            handle.thread = threading.current_thread()
-            return parent_ctx.run(fn, *args, **kwargs)
-
-        # Submit to the dedicated executor so sync user code is isolated from
-        # framework-internal asyncio.to_thread calls (logging, database).
-        # loop.run_in_executor returns an asyncio.Future (awaitable) — callers
-        # that do ``await self.run_in_thread(...)`` work identically to before.
-        loop = asyncio.get_running_loop()
-        future: asyncio.Future[R] = loop.run_in_executor(self.hassette.sync_executor, _call)
-
-        # Submission-time saturation check: track the active worker count and emit a
-        # rate-limited WARNING if the pool is approaching its ceiling.
-        # The periodic probe in SyncExecutorService.serve() covers the case where
-        # submissions stop (fully-starved pool); this check catches the rising-load
-        # signal on each new submission.
-        try:
-            executor_service = self.hassette.sync_executor_service
-        except RuntimeError:
-            # The property raises RuntimeError until wire_services() wires the service
-            # (early startup, or unit tests that never construct it).
-            executor_service = None
-        if executor_service is not None:
-            executor_service.track_submission(cast("asyncio.Future[Any]", future))
-
-        return future
+        if self._sync_service is None:
+            raise RuntimeError(
+                f"TaskBucket({self.unique_name}).run_in_thread called but no SyncExecutorService "
+                "is wired. In production this means a startup ordering bug; in tests, inject "
+                "a SyncExecutorService or mock via task_bucket._sync_service."
+            )
+        return self._sync_service.submit(fn, *args, **kwargs)
 
     def post_to_loop(self, fn: Callable[..., Any], *args: Any, **kwargs: Any) -> None:
         """Schedule a callable on the event loop from any thread."""
@@ -433,4 +377,13 @@ def make_task_factory(
     return factory
 
 
-register_task_bucket_factory(lambda hassette, owner: TaskBucket(hassette, parent=owner))
+def _create_task_bucket(hassette: "Hassette", owner: "Resource") -> "TaskBucket":
+    bucket = TaskBucket(hassette, parent=owner)
+    # suppress RuntimeError: the property raises before wire_services() runs;
+    # Hassette.wire_services() patches the early-created buckets afterward.
+    with contextlib.suppress(RuntimeError):
+        bucket._sync_service = hassette.sync_executor_service
+    return bucket
+
+
+register_task_bucket_factory(_create_task_bucket)

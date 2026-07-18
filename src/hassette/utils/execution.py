@@ -39,7 +39,7 @@ class ExecutionResult:
     """True when the execution timed out and the sync worker thread was still alive after the timeout.
 
     Set by ``CommandExecutor._execute`` at the timeout site after reading the
-    ``SyncWorkerHandle`` exposed by ``TaskBucket.run_in_thread``.  False for async handlers,
+    ``SyncWorkerHandle`` exposed by ``SyncExecutorService.submit()``.  False for async handlers,
     not-started timeouts (``handle.thread`` is ``None``), and all non-timed-out executions.
 
     Subject to a small race window: if the worker finishes between the timeout cancellation and the

@@ -13,34 +13,25 @@ Covers:
 import asyncio
 import threading
 import time
-from collections.abc import Iterator
 from unittest.mock import AsyncMock
 
 import pytest
 
-from hassette.task_bucket.task_bucket import SYNC_WORKER_HANDLE, TaskBucket
+from hassette.core.sync_executor_service import SYNC_WORKER_HANDLE, SyncExecutorService
+from hassette.task_bucket.task_bucket import TaskBucket
 from hassette.test_utils import make_mock_hassette
 
-# Shared fixture
+
+@pytest.fixture
+def hassette_mock() -> AsyncMock:
+    return make_mock_hassette()
 
 
 @pytest.fixture
-def hassette_mock() -> Iterator[AsyncMock]:
-    """Hassette mock with a real sync executor (thread_name_prefix="hassette-sync").
-
-    The executor is joined at teardown so its worker threads don't outlive the test.
-    """
-    hassette = make_mock_hassette(live_executor=True)
-    try:
-        yield hassette
-    finally:
-        hassette.sync_executor.shutdown(join_threads_or_timeout=True)
-
-
-@pytest.fixture
-def bucket(hassette_mock) -> TaskBucket:
-    """TaskBucket wired to the mock hassette."""
-    return TaskBucket(hassette_mock)
+def bucket(hassette_mock: AsyncMock, sync_service: SyncExecutorService) -> TaskBucket:
+    tb = TaskBucket(hassette_mock)
+    tb._sync_service = sync_service
+    return tb
 
 
 # Sync user code runs on the dedicated pool

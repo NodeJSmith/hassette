@@ -13,9 +13,7 @@ from hassette.test_utils import make_mock_hassette
 @pytest.fixture
 def mock_hassette():
     """Create a mock Hassette with the event buffer size config."""
-    hassette = make_mock_hassette(sealed=False)
-    yield hassette
-    hassette.sync_executor.shutdown(join_threads_or_timeout=False)
+    return make_mock_hassette(sealed=False)
 
 
 @pytest.fixture
@@ -77,7 +75,6 @@ async def test_custom_buffer_size() -> None:
             await task
     finally:
         await service.close_streams()
-        hassette.sync_executor.shutdown(join_threads_or_timeout=False)
 
 
 async def test_default_buffer_size() -> None:
@@ -91,7 +88,6 @@ async def test_default_buffer_size() -> None:
             await service.send_event(SimpleNamespace(topic=f"topic.{i}", n=i))  # pyright: ignore[reportArgumentType]
     finally:
         await service.close_streams()
-        hassette.sync_executor.shutdown(join_threads_or_timeout=False)
 
 
 async def test_receive_stream_returns_correct_end(event_stream_service: EventStreamService) -> None:
