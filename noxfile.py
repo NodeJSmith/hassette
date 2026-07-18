@@ -46,8 +46,6 @@ def dev(session: "Session"):
         "loadscope",
         "-v",
         "--tb=short",
-        "--reruns",
-        "2",
         external=True,
     )
 
@@ -75,8 +73,6 @@ def tests(session: "Session"):
         "60",
         "--timeout-method",
         "thread",
-        "--reruns",
-        "2",
         external=True,
     )
 
@@ -199,6 +195,8 @@ def _run_system_tests(session: "Session", *, marker: str, extra_args: list[str] 
         "120",
         "--timeout-method",
         "thread",
+        # System tests hit real Docker/HA — retry genuine infra flakiness.
+        # Unit/integration sessions intentionally have no reruns (see #1322).
         "--reruns",
         "2",
         "--reruns-delay",
@@ -239,8 +237,6 @@ def tests_with_coverage(session: "Session"):
         "60",
         "--timeout-method",
         "thread",
-        "--reruns",
-        "2",
         external=True,
     )
     session.run("uv", "run", "--active", "coverage", "combine", external=True)

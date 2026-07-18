@@ -331,17 +331,21 @@ class TestOnChildrenStopped:
     async def test_emits_stopped_event_and_closes_streams(self, wired_hassette: Hassette) -> None:
         """_on_children_stopped() calls handle_stop() then closes event streams."""
         h = wired_hassette
+        original_close = h._event_stream_service.close_streams
         close_streams_mock = AsyncMock()
         h._event_stream_service.close_streams = close_streams_mock
 
-        # handle_stop() is a module-level function (hassette.resources.lifecycle), not a
-        # method — patch it at the call site (core.py) rather than reassigning an instance
-        # attribute, since _on_children_stopped() calls the free function directly.
-        with patch("hassette.core.core.handle_stop") as mock_handle_stop:
-            await h._on_children_stopped()
+        try:
+            # handle_stop() is a module-level function (hassette.resources.lifecycle), not a
+            # method — patch it at the call site (core.py) rather than reassigning an instance
+            # attribute, since _on_children_stopped() calls the free function directly.
+            with patch("hassette.core.core.handle_stop") as mock_handle_stop:
+                await h._on_children_stopped()
 
-            mock_handle_stop.assert_awaited_once_with(h)
-        close_streams_mock.assert_awaited_once()
+                mock_handle_stop.assert_awaited_once_with(h)
+            close_streams_mock.assert_awaited_once()
+        finally:
+            h._event_stream_service.close_streams = original_close
 
 
 class TestRecordFatalReason:

@@ -52,9 +52,11 @@ def app_factory(hassette_with_app_handler: "HassetteHarness", app_registry: AppR
 
 
 @pytest.fixture
-def app_lifecycle(hassette_with_app_handler: "HassetteHarness", app_registry: AppRegistry) -> AppLifecycleService:
+async def app_lifecycle(hassette_with_app_handler: "HassetteHarness", app_registry: AppRegistry) -> AppLifecycleService:
     """Create an AppLifecycleService with real Hassette instance."""
-    return AppLifecycleService(hassette_with_app_handler.hassette, parent=None, registry=app_registry)
+    lifecycle = AppLifecycleService(hassette_with_app_handler.hassette, parent=None, registry=app_registry)
+    yield lifecycle
+    await lifecycle.shutdown_all()
 
 
 def make_manifest(  # factory-local: returns AppManifest, not AppManifestInfo
@@ -399,6 +401,8 @@ class TestAppLifecycleServiceIntegration:
         success_instance = get_app(app_registry, "multi_instance", 0)
         assert success_instance.status == ResourceStatus.RUNNING
 
+        await lifecycle.shutdown_all()
+
     async def test_lifecycle_shuts_down_real_app(
         self, app_factory: AppFactory, app_lifecycle: AppLifecycleService, app_registry: AppRegistry
     ):
@@ -458,6 +462,8 @@ class TestFullIntegrationFlow:
         # Verify running
         app = get_app(app_registry, "multi_instance", 0)
         assert app.status == ResourceStatus.RUNNING
+
+        await lifecycle.shutdown_all()
 
     async def test_full_flow_with_registry_state(
         self, hassette_with_app_handler: "HassetteHarness", app_registry: AppRegistry
@@ -524,6 +530,8 @@ class TestFullIntegrationFlow:
         assert multi1_instance.status == ResourceStatus.RUNNING
         assert my_app_instance.status == ResourceStatus.RUNNING
 
+        await lifecycle.shutdown_all()
+
     async def test_snapshot_shows_running_apps(
         self, hassette_with_app_handler: "HassetteHarness", app_registry: AppRegistry
     ):
@@ -542,6 +550,8 @@ class TestFullIntegrationFlow:
         assert snapshot.running_count == 1
         assert "multi_instance" in snapshot.running_apps
 
+        await lifecycle.shutdown_all()
+
     async def test_snapshot_shows_failed_apps(
         self, hassette_with_app_handler: "HassetteHarness", app_registry: AppRegistry
     ):
@@ -559,6 +569,8 @@ class TestFullIntegrationFlow:
         snapshot = app_registry.get_snapshot()
         assert snapshot.failed_count == 1
         assert "failing" in snapshot.failed_apps
+
+        await lifecycle.shutdown_all()
 
 
 class TestAppRestartPreservesChildren:

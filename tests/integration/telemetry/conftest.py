@@ -16,13 +16,16 @@ from hassette.test_utils.mock_hassette import make_mock_hassette
 @pytest.fixture
 def db_hassette(premigrated_db_path: Path) -> MagicMock:
     """Variant of integration/conftest.db_hassette with web_api enabled for telemetry query tests."""
-    return make_mock_hassette(
+    hassette = make_mock_hassette(
         data_dir=premigrated_db_path.parent,
         set_ready=False,
+        live_executor=True,
         database={"telemetry_write_queue_max": 500, "max_size_mb": 0},
         lifecycle={"resource_shutdown_timeout_seconds": 5},
         web_api={"run": True},
     )
+    yield hassette
+    hassette.sync_executor.shutdown(join_threads_or_timeout=False)
 
 
 @pytest.fixture

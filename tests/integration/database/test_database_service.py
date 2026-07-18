@@ -20,13 +20,15 @@ from hassette.test_utils.mock_hassette import make_mock_hassette
 @pytest.fixture
 def mock_hassette_fresh(tmp_path: Path) -> AsyncMock:
     """Create a mock Hassette with a fresh (empty) data_dir for migration-from-scratch tests."""
-    return make_mock_hassette(
+    hassette = make_mock_hassette(
         sealed=False,
         data_dir=tmp_path,
         set_ready=False,
         database={"telemetry_write_queue_max": 500},
         lifecycle={"resource_shutdown_timeout_seconds": 5},
     )
+    yield hassette
+    hassette.sync_executor.shutdown(join_threads_or_timeout=False)
 
 
 @pytest.fixture

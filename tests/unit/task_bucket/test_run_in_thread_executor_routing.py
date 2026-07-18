@@ -30,11 +30,10 @@ def hassette_mock() -> Iterator[AsyncMock]:
 
     The executor is joined at teardown so its worker threads don't outlive the test.
     """
-    hassette = make_mock_hassette()
+    hassette = make_mock_hassette(live_executor=True)
     try:
         yield hassette
     finally:
-        # Deterministically join the worker threads so they don't outlive the test.
         hassette.sync_executor.shutdown(join_threads_or_timeout=True)
 
 

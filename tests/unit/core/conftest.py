@@ -121,6 +121,7 @@ def mock_hassette() -> AsyncMock:
     """Create a mock Hassette instance with config for AppLifecycleService tests."""
     hassette = make_mock_hassette(
         sealed=False,
+        live_executor=True,
         dev_mode=True,
         logging={"app_handler": "DEBUG"},
         lifecycle={"app_startup_timeout_seconds": 30},
@@ -135,7 +136,8 @@ def mock_hassette() -> AsyncMock:
     hassette.scheduler_service.remove_jobs_by_owner = MagicMock(side_effect=lambda _owner: asyncio.sleep(0))
     hassette.session_id = 1
     hassette.try_session_id.return_value = 1
-    return hassette
+    yield hassette
+    hassette.sync_executor.shutdown(join_threads_or_timeout=False)
 
 
 def set_registry_apps(registry: MagicMock, apps: dict[str, dict[int, Any]]) -> None:

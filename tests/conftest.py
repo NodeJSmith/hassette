@@ -44,7 +44,7 @@ assert APPS_TOML_TEMPLATE.exists(), f"Apps TOML template {APPS_TOML_TEMPLATE} do
 
 # this wants package.nested_directories.final_file_name
 # do not include the name of the fixture
-pytest_plugins = ["hassette.test_utils.fixtures"]
+pytest_plugins = ["hassette.test_utils.fixtures", "hassette.test_utils.resource_tracker"]
 
 
 @pytest.fixture(autouse=True)

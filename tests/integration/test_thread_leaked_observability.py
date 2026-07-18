@@ -62,7 +62,7 @@ async def test_not_started_sync_timeout_no_false_positive(
     # The barrier releases only once both fillers have provably started on the pool,
     # replacing a racy fixed sleep.
     started = threading.Barrier(3)
-    hassette_mock = make_mock_hassette()
+    hassette_mock = make_mock_hassette(live_executor=True)
     bucket = TaskBucket(hassette_mock)
 
     def pool_filler() -> None:
@@ -131,7 +131,7 @@ async def test_sync_handler_timeout_sets_thread_leaked(
     # make_mock_hassette provisions a real InterruptibleThreadPoolExecutor so
     # run_in_thread can submit via loop.run_in_executor(hassette.sync_executor, ...)
     # without creating an unawaited AsyncMock coroutine.
-    bucket = TaskBucket(make_mock_hassette())
+    bucket = TaskBucket(make_mock_hassette(live_executor=True))
 
     released = threading.Event()
 

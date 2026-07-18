@@ -151,7 +151,7 @@ class TestCleanupClosesCache:
 class TestAppSyncBeforeInitializeCallsSuper:
     async def test_before_initialize_calls_super_and_initializes_cache(self, tmp_path: Path) -> None:
         """AppSync.before_initialize must call super() first so cache init fires for sync apps."""
-        hassette = make_mock_hassette(data_dir=tmp_path, sealed=False)
+        hassette = make_mock_hassette(data_dir=tmp_path, sealed=False, live_executor=True)
         app = AppSync(hassette, app_config=_make_app_config(), index=0, app_key="kitchen_lights")
         assert isinstance(app.cache, AsyncCache)
         app.cache.initialize = AsyncMock(wraps=app.cache.initialize)  # pyright: ignore[reportAttributeAccessIssue]
