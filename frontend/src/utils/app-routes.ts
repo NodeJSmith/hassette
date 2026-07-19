@@ -1,14 +1,18 @@
 export type AppDetailTab = "overview" | "handlers" | "code" | "logs" | "config";
 
 type QueryValue = string | number | null | undefined;
-type RouteQuery = Record<string, QueryValue>;
+
+interface AppRouteQuery {
+  instance?: QueryValue;
+  line?: QueryValue;
+}
 
 function appendQuery(path: string, queryString: string): string {
   if (!queryString) return path;
   return `${path}${queryString.startsWith("?") ? queryString : `?${queryString}`}`;
 }
 
-function buildQuery(query?: RouteQuery): string {
+function buildQuery(query?: AppRouteQuery): string {
   if (!query) return "";
 
   const params = new URLSearchParams();
@@ -20,15 +24,15 @@ function buildQuery(query?: RouteQuery): string {
   return queryString ? `?${queryString}` : "";
 }
 
-export function appDetailPath(appKey: string, tab?: AppDetailTab, query?: RouteQuery): string {
+export function appDetailPath(appKey: string, tab?: AppDetailTab, query?: AppRouteQuery): string {
   const path = tab ? `/apps/${appKey}/${tab}` : `/apps/${appKey}`;
   return appendQuery(path, buildQuery(query));
 }
 
-export function appHandlersPath(appKey: string, query?: RouteQuery): string {
+export function appHandlersPath(appKey: string, query?: AppRouteQuery): string {
   return appendQuery(`/apps/${appKey}/handlers`, buildQuery(query));
 }
 
-export function appHandlerDetailPath(appKey: string, handlerSegment: string, query?: RouteQuery): string {
+export function appHandlerDetailPath(appKey: string, handlerSegment: string, query?: AppRouteQuery): string {
   return appendQuery(`/apps/${appKey}/handlers/${handlerSegment}`, buildQuery(query));
 }

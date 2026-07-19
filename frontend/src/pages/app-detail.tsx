@@ -25,6 +25,8 @@ import styles from "./app-detail.module.css";
 
 export type TabId = AppDetailTab;
 
+const DECIMAL_INSTANCE_PARAM_RE = /^\d+$/;
+
 interface Props {
   params: { key: string; tab?: TabId; handler?: string; execId?: string };
 }
@@ -32,7 +34,7 @@ interface Props {
 function parseInstanceParam(param: string | null): number | undefined {
   if (param === null) return undefined;
   const trimmed = param.trim();
-  return /^\d+$/.test(trimmed) ? Number(trimmed) : undefined;
+  return DECIMAL_INSTANCE_PARAM_RE.test(trimmed) ? Number(trimmed) : undefined;
 }
 
 function instanceCorrectionUrl(appKey: string, activeTab: TabId, lineParam: string | null): string {
