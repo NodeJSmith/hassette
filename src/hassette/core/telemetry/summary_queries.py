@@ -286,25 +286,30 @@ class SummaryQueriesMixin:
         params: dict[str, Any] = {}
 
         if since is not None:
-            clauses.append("timestamp >= :since")
+            clauses.append("lr.timestamp >= :since")
             params["since"] = since
         if app_key is not None:
-            clauses.append("app_key = :app_key")
+            clauses.append("lr.app_key = :app_key")
             params["app_key"] = app_key
         if level is not None:
-            clauses.append("level = :level")
+            clauses.append("lr.level = :level")
             params["level"] = level
         if execution_id is not None:
-            clauses.append("execution_id = :execution_id")
+            clauses.append("lr.execution_id = :execution_id")
             params["execution_id"] = execution_id
         if source_tier is not None:
-            clauses.append("source_tier = :source_tier")
+            clauses.append("lr.source_tier = :source_tier")
             params["source_tier"] = source_tier
 
         where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
         params["limit"] = limit
 
-        query = f"SELECT * FROM log_records{where} ORDER BY timestamp DESC, seq DESC LIMIT :limit"
+        query = (
+            "SELECT lr.*, e.kind AS execution_kind, e.listener_id, e.job_id"
+            " FROM log_records lr"
+            " LEFT JOIN executions e ON lr.execution_id = e.execution_id"
+            f"{where} ORDER BY lr.timestamp DESC, lr.seq DESC LIMIT :limit"
+        )
         async with self.execute(query, params) as cursor:
             rows = await cursor.fetchall()
         return [row_to_dict(row) for row in rows]
@@ -316,7 +321,12 @@ class SummaryQueriesMixin:
         limit: int = DEFAULT_EXECUTION_LOG_LIMIT,
     ) -> tuple[list[dict[str, Any]], bool]:
         """Fetch all log records for a single execution, ordered by seq ASC."""
-        query = "SELECT * FROM log_records WHERE execution_id = :execution_id ORDER BY seq ASC LIMIT :limit"
+        query = (
+            "SELECT lr.*, e.kind AS execution_kind, e.listener_id, e.job_id"
+            " FROM log_records lr"
+            " LEFT JOIN executions e ON lr.execution_id = e.execution_id"
+            " WHERE lr.execution_id = :execution_id ORDER BY lr.seq ASC LIMIT :limit"
+        )
         async with self.execute(query, {"execution_id": execution_id, "limit": limit + 1}) as cursor:
             rows = list(await cursor.fetchall())
         truncated = len(rows) > limit

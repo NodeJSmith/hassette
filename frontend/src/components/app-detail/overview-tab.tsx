@@ -13,6 +13,7 @@ import { TableFooter } from "../shared/table-footer";
 import { ErrorSpotlight } from "./error-spotlight";
 import { HandlerHealthGrid } from "./handler-health-grid";
 import { buildItems } from "./handler-list";
+import { OverviewHealthStrip } from "./health-strip";
 import styles from "./overview-tab.module.css";
 import { isFailing } from "./overview-tab-helpers";
 import { RecentActivitySection } from "./recent-activity-section";
@@ -82,6 +83,8 @@ export function OverviewTab({ listeners, jobs, appKey, instanceQs, resolvedInsta
 
   return (
     <div class={clsx(styles.overviewTab, !wsConnected && styles.overviewTabStale)} data-testid="overview-tab">
+      <OverviewHealthStrip listeners={listeners} jobs={jobs} />
+
       {failingItems.length > 0 && (
         <ErrorSpotlight failingItems={failingItems} appKey={appKey} instanceQs={instanceQs} />
       )}

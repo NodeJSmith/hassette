@@ -121,8 +121,8 @@ describe("HandlerHealthCard — error rate shown when failed > 0", () => {
     });
     const { container } = renderCard(item);
 
-    // 2/10 = 20.0%
-    expect(container.textContent).toContain("20.0%");
+    // 2/10 = 20%
+    expect(container.textContent).toContain("20%");
   });
 });
 

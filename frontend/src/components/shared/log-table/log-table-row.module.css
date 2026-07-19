@@ -75,6 +75,18 @@
   color: var(--ink-4);
 }
 
+.execLink {
+  color: var(--ink-2);
+  text-decoration: underline;
+  text-decoration-color: var(--ink-4);
+  text-underline-offset: var(--sp-0);
+}
+
+.execLink:hover {
+  color: var(--accent);
+  text-decoration-color: var(--accent);
+}
+
 .truncate {
   display: block;
   overflow: hidden;

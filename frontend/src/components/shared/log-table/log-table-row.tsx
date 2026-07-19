@@ -1,10 +1,11 @@
 import clsx from "clsx";
 import { useMemo } from "preact/hooks";
+import { Link } from "wouter";
 
 import type { LogEntry } from "../../../api/endpoints";
 import { BREAKPOINT_MOBILE, useMediaQuery } from "../../../hooks/use-media-query";
 import { useRelativeTime } from "../../../hooks/use-relative-time";
-import { formatTimestamp, truncateId } from "../../../utils/format";
+import { formatTimestamp, logEntryExecutionHref, truncateId } from "../../../utils/format";
 import { onActivateKeyDown } from "../../../utils/keyboard";
 import { AppLink } from "../app-link";
 import { LEVEL_ABBREV, levelClass } from "./constants";
@@ -67,9 +68,20 @@ export function LogTableRow({ entry, rowKey, visibleColumns, isSelected, onClick
       )}
       {isColumnVisible("execution") && (
         <td class={styles.mono}>
-          <span class={styles.muted} title={entry.execution_id ?? undefined}>
-            {truncateId(entry.execution_id)}
-          </span>
+          {(() => {
+            const execHref = logEntryExecutionHref(entry);
+            return execHref ? (
+              <span onClick={(e: MouseEvent) => e.stopPropagation()}>
+                <Link href={execHref} class={styles.execLink} title={entry.execution_id ?? undefined}>
+                  {truncateId(entry.execution_id)}
+                </Link>
+              </span>
+            ) : (
+              <span class={styles.muted} title={entry.execution_id ?? undefined}>
+                {truncateId(entry.execution_id)}
+              </span>
+            );
+          })()}
         </td>
       )}
       {isColumnVisible("function") && (

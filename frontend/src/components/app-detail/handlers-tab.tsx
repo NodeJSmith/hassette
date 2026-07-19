@@ -6,11 +6,12 @@ import type { JobData, ListenerData } from "../../api/endpoints";
 import { useCorrectUrl } from "../../hooks/use-correct-url";
 import { BREAKPOINT_MOBILE } from "../../hooks/use-media-query";
 import { useSignal } from "../../hooks/use-signal";
+import { lastDotSegment } from "../../utils/format";
 import { Button } from "../shared/button";
 import { EmptyState } from "../shared/empty-state";
+import { ExecutionDetailFetcher } from "./execution-detail";
 import { HandlerList, type SelectedHandlerId } from "./handler-list";
 import styles from "./handlers-tab.module.css";
-import { HandlersHealthStrip } from "./health-strip";
 import { JobDetail } from "./job-detail";
 import { ListenerDetail } from "./listener-detail";
 
@@ -28,6 +29,7 @@ interface Props {
   listeners: ListenerData[];
   jobs: JobData[];
   selectedHandler: string | null;
+  selectedExecId: string | null;
   appKey: string;
   instanceQs: string;
   onSwitchToCode?: (line?: number) => void;
@@ -36,18 +38,33 @@ interface Props {
 function DetailContent({
   listener,
   job,
+  appKey,
+  instanceQs,
   onSwitchToCode,
 }: {
   listener: ListenerData | null;
   job: JobData | null;
+  appKey: string;
+  instanceQs?: string;
   onSwitchToCode?: (line?: number) => void;
 }) {
-  if (listener) return <ListenerDetail listener={listener} onSwitchToCode={onSwitchToCode} />;
-  if (job) return <JobDetail job={job} onSwitchToCode={onSwitchToCode} />;
+  if (listener)
+    return (
+      <ListenerDetail listener={listener} appKey={appKey} instanceQs={instanceQs} onSwitchToCode={onSwitchToCode} />
+    );
+  if (job) return <JobDetail job={job} appKey={appKey} instanceQs={instanceQs} onSwitchToCode={onSwitchToCode} />;
   return <EmptyState icon="←" title="Select a handler or job to see details." data-testid="detail-placeholder" />;
 }
 
-export function HandlersTab({ listeners, jobs, selectedHandler, appKey, instanceQs, onSwitchToCode }: Props) {
+export function HandlersTab({
+  listeners,
+  jobs,
+  selectedHandler,
+  selectedExecId,
+  appKey,
+  instanceQs,
+  onSwitchToCode,
+}: Props) {
   const [, navigate] = useLocation();
   const correctUrl = useCorrectUrl();
 
@@ -78,6 +95,7 @@ export function HandlersTab({ listeners, jobs, selectedHandler, appKey, instance
 
   useEffect(() => {
     if (!selectedHandler || !parsed) return;
+    if (selectedExecId) return;
     if (!hasItems) return;
     const found =
       parsed.kind === "listener"
@@ -86,12 +104,31 @@ export function HandlersTab({ listeners, jobs, selectedHandler, appKey, instance
     if (!found) {
       correctUrl(`/apps/${appKey}/handlers${instanceQs}`);
     }
-  }, [selectedHandler, parsed, hasItems, listeners, jobs, appKey, instanceQs, correctUrl]);
+  }, [selectedHandler, parsed, selectedExecId, hasItems, listeners, jobs, appKey, instanceQs, correctUrl]);
 
   const handleSelect = (id: SelectedHandlerId) => {
     const segment = id.kind === "listener" ? `listener/${id.id}` : `job/${id.id}`;
     navigate(`/apps/${appKey}/handlers/${segment}${instanceQs}`);
   };
+
+  if (selectedExecId && parsed) {
+    const handlerName =
+      parsed.kind === "listener" && selectedListener?.handler_method
+        ? lastDotSegment(selectedListener.handler_method)
+        : selectedJob?.job_name;
+    return (
+      <div ref={containerRef}>
+        <ExecutionDetailFetcher
+          appKey={appKey}
+          kind={parsed.kind}
+          handlerId={parsed.id}
+          executionId={selectedExecId}
+          instanceQs={instanceQs}
+          handlerName={handlerName ?? undefined}
+        />
+      </div>
+    );
+  }
 
   if (!hasItems) {
     return (
@@ -109,8 +146,6 @@ export function HandlersTab({ listeners, jobs, selectedHandler, appKey, instance
 
   return (
     <div ref={containerRef} class={styles.container}>
-      <HandlersHealthStrip listeners={listeners} jobs={jobs} />
-
       {showMobileDetail && (
         <Button
           ghost
@@ -133,7 +168,13 @@ export function HandlersTab({ listeners, jobs, selectedHandler, appKey, instance
 
         {showDetailPane && (
           <div class={styles.masterDetailDetail}>
-            <DetailContent listener={selectedListener} job={selectedJob} onSwitchToCode={onSwitchToCode} />
+            <DetailContent
+              listener={selectedListener}
+              job={selectedJob}
+              appKey={appKey}
+              instanceQs={instanceQs}
+              onSwitchToCode={onSwitchToCode}
+            />
           </div>
         )}
       </div>

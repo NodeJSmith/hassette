@@ -97,6 +97,9 @@ export const getJobExecutions = (
   signal?: AbortSignal,
 ) => apiFetch<ExecutionData[]>(buildUrl(`/telemetry/job/${jobId}/executions`, { limit, since }), { signal });
 
+export const getExecutionById = (executionId: string, signal?: AbortSignal) =>
+  apiFetch<ExecutionData | null>(`/telemetry/execution/${executionId}`, { signal });
+
 export const getExecutions = (
   params?: {
     kind?: "handler" | "job" | null;

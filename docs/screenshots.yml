@@ -218,6 +218,29 @@
   javascript: "document.querySelector('tbody tr')?.click()"
 
 # ===========================================================================
+# Execution detail page
+# Navigates to the detail view for a specific execution. The demo_stimulator
+# has a failing handler, so we click its error row then click through to the
+# execution detail to capture the full page (status, meta stats, traceback,
+# and execution logs).
+# ===========================================================================
+
+- url: "http://localhost:{port}/apps/demo_stimulator/handlers"
+  output: docs/_static/web_ui_execution_detail.png
+  width: 1400
+  height: 1300
+  wait: 4000
+  wait_for: "document.querySelector('[data-testid=\"execution-meta-stats\"]')"
+  javascript: >-
+    (async()=>{
+    const poll=(sel,ms=20000)=>new Promise((res,rej)=>{const t=setTimeout(()=>rej(new Error('timeout: '+sel)),ms);(function c(){const e=document.querySelector(sel);if(e){clearTimeout(t);res(e)}else{requestAnimationFrame(c)}})()});
+    const chip=await poll('[data-testid="handler-failed-count"]');
+    chip.closest('[data-testid^="unified-row-"]').click();
+    const row=await poll('[data-testid="invocation-row"],[data-testid="execution-row"]');
+    row.click();
+    })()
+
+# ===========================================================================
 # Scheduler where= predicate (skipped executions)
 # The predicate_demo app runs a short-interval job gated on motion detection.
 # The demo_stimulator toggles motion on/off, so the job accumulates a mix of

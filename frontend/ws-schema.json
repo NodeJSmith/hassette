@@ -441,6 +441,46 @@
           ],
           "default": null,
           "title": "Source Tier"
+        },
+        "execution_kind": {
+          "anyOf": [
+            {
+              "enum": [
+                "handler",
+                "job"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Execution Kind"
+        },
+        "listener_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Listener Id"
+        },
+        "job_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Job Id"
         }
       },
       "required": [

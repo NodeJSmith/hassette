@@ -489,7 +489,14 @@ class CommandExecutor(Service):
                 )
 
     def bind_execution_context(
-        self, app_key: str | None, instance_index: int, instance_name: str | None
+        self,
+        app_key: str | None,
+        instance_index: int,
+        instance_name: str | None,
+        *,
+        execution_kind: str | None = None,
+        listener_id: int | None = None,
+        job_id: int | None = None,
     ) -> tuple[str, Token[str | None]]:
         """Set CURRENT_EXECUTION_ID and bind structlog context vars for the duration of an execution."""
         execution_id = str(uuid_utils.uuid7())
@@ -499,6 +506,9 @@ class CommandExecutor(Service):
             app_key=resolved_app_key,
             instance_name=instance_name,
             instance_index=instance_index,
+            execution_kind=execution_kind,
+            listener_id=listener_id,
+            job_id=job_id,
         )
         # Capture the owning task identity so a cross-thread reader can confirm this marker
         # names the task actually frozen on the loop, not a displaced one. This runs inside an
@@ -531,7 +541,9 @@ class CommandExecutor(Service):
         """
         self.current_execution = None
         CURRENT_EXECUTION_ID.reset(token)
-        structlog.contextvars.unbind_contextvars("app_key", "instance_name", "instance_index")
+        structlog.contextvars.unbind_contextvars(
+            "app_key", "instance_name", "instance_index", "execution_kind", "listener_id", "job_id"
+        )
 
     async def execute_handler(self, cmd: InvokeHandler) -> None:
         """Execute a listener handler invocation and queue the result record."""
@@ -539,6 +551,8 @@ class CommandExecutor(Service):
             cmd.listener.identity.app_key,
             cmd.listener.identity.instance_index,
             cmd.listener.identity.instance_name,
+            execution_kind="handler",
+            listener_id=cmd.listener_id,
         )
         try:
 
@@ -581,7 +595,11 @@ class CommandExecutor(Service):
     async def execute_job(self, cmd: ExecuteJob) -> None:
         """Execute a scheduled job and queue the result record."""
         execution_id, token = self.bind_execution_context(
-            cmd.job.app_key, cmd.job.instance_index, cmd.job.instance_name
+            cmd.job.app_key,
+            cmd.job.instance_index,
+            cmd.job.instance_name,
+            execution_kind="job",
+            job_id=cmd.job_db_id,
         )
         try:
 

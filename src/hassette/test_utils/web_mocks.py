@@ -57,6 +57,7 @@ def wire_telemetry_stubs(hassette: MagicMock) -> None:
     )
     ts.get_all_app_summaries = AsyncMock(return_value={})
     ts.get_executions = AsyncMock(return_value=[])
+    ts.get_execution_by_id = AsyncMock(return_value=None)
     ts.get_slow_handlers = AsyncMock(return_value=[])
     ts.get_session_list = AsyncMock(return_value=[])
     ts.check_health = AsyncMock(return_value=None)

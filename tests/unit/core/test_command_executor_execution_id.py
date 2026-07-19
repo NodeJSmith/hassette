@@ -351,9 +351,9 @@ class TestBindExecutionContextPrecomputedInstanceName:
         original_bind = executor.bind_execution_context
         captured: list[str | None] = []
 
-        def spy_bind(app_key, instance_index, instance_name):
+        def spy_bind(app_key, instance_index, instance_name, **kwargs):
             captured.append(instance_name)
-            return original_bind(app_key, instance_index, instance_name)
+            return original_bind(app_key, instance_index, instance_name, **kwargs)
 
         with patch.object(executor, "bind_execution_context", side_effect=spy_bind):
             await executor.execute_handler(cmd)
@@ -373,9 +373,9 @@ class TestBindExecutionContextPrecomputedInstanceName:
         original_bind = executor.bind_execution_context
         captured: list[str | None] = []
 
-        def spy_bind(app_key, instance_index, instance_name):
+        def spy_bind(app_key, instance_index, instance_name, **kwargs):
             captured.append(instance_name)
-            return original_bind(app_key, instance_index, instance_name)
+            return original_bind(app_key, instance_index, instance_name, **kwargs)
 
         with patch.object(executor, "bind_execution_context", side_effect=spy_bind):
             await executor.execute_job(cmd)

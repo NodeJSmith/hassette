@@ -497,6 +497,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/telemetry/execution/{execution_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Execution
+         * @description Return a single execution record by its UUID.
+         */
+        get: operations["get_execution_api_telemetry_execution__execution_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/telemetry/dashboard/app-grid": {
         parameters: {
             query?: never;
@@ -1305,6 +1325,12 @@ export interface components {
             instance_index?: number | null;
             /** Source Tier */
             source_tier?: ("app" | "framework") | null;
+            /** Execution Kind */
+            execution_kind?: ("handler" | "job") | null;
+            /** Listener Id */
+            listener_id?: number | null;
+            /** Job Id */
+            job_id?: number | null;
         };
         /**
          * LogLevelRequest
@@ -2179,6 +2205,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Execution"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_execution_api_telemetry_execution__execution_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                execution_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Execution"] | null;
                 };
             };
             /** @description Validation Error */

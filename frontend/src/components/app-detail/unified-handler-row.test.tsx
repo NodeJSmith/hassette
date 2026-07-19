@@ -52,7 +52,7 @@ describe("UnifiedHandlerRow — listener", () => {
     expect(getByText("on_motion_detected()")).toBeDefined();
   });
 
-  it("renders human_description as subtitle", () => {
+  it("exposes human_description via aria-label but not as a rendered line", () => {
     const listener = createListener({ human_description: "When kitchen light changes", listener_id: 1 });
     const item = {
       kind: "listener" as const,
@@ -62,8 +62,14 @@ describe("UnifiedHandlerRow — listener", () => {
       statusKind: "ok" as const,
       data: listener,
     };
-    const { getByText } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, { wrapper });
-    expect(getByText("When kitchen light changes")).toBeDefined();
+    const { getByTestId, queryByText } = render(
+      <UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />,
+      { wrapper },
+    );
+    expect(getByTestId("unified-row-listener-1").getAttribute("aria-label")).toBe(
+      "on_light_change: When kitchen light changes",
+    );
+    expect(queryByText("When kitchen light changes")).toBeNull();
   });
 
   it("does not render subtitle when humanDescription is null", () => {
@@ -151,79 +157,29 @@ describe("UnifiedHandlerRow — listener", () => {
   });
 });
 
-describe("UnifiedHandlerRow — kind glyph", () => {
-  it("renders kind glyph for state listener", () => {
-    const listener = createListener({ listener_id: 1, topic: "state_changed" });
+describe("UnifiedHandlerRow — idle state", () => {
+  it("applies the dimmed idle class when statusKind is mute", () => {
+    const listener = createListener({ listener_id: 1, total_invocations: 0, failed: 0, timed_out: 0 });
     const item = {
       kind: "listener" as const,
       id: 1,
-      name: "on_state",
-      humanDescription: null,
-      statusKind: "ok" as const,
+      name: listener.handler_summary || listener.handler_method,
+      humanDescription: listener.human_description ?? null,
+      statusKind: "mute" as const,
       data: listener,
     };
-    const { container } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, { wrapper });
-    expect(container.querySelector("[data-testid='handler-row-glyph']")).not.toBeNull();
+    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, {
+      wrapper,
+    });
+    expect(getByTestId("unified-row-listener-1").className).toMatch(/rowIdle/);
   });
 
-  it("renders ◆ glyph for event kind", () => {
-    const listener = createListener({ listener_id: 1, topic: "some_event", listener_kind: "event" });
-    const item = {
-      kind: "listener" as const,
-      id: 1,
-      name: "on_event",
-      humanDescription: null,
-      statusKind: "ok" as const,
-      data: listener,
-    };
-    const { container } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, { wrapper });
-    const glyph = container.querySelector("[data-testid='handler-row-glyph']");
-    expect(glyph?.textContent).toBe("◆");
-  });
-
-  it("renders ◇ glyph for state kind", () => {
-    const listener = createListener({ listener_id: 1, topic: "state_changed" });
-    const item = {
-      kind: "listener" as const,
-      id: 1,
-      name: "on_state",
-      humanDescription: null,
-      statusKind: "ok" as const,
-      data: listener,
-    };
-    const { container } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, { wrapper });
-    const glyph = container.querySelector("[data-testid='handler-row-glyph']");
-    expect(glyph?.textContent).toBe("◇");
-  });
-
-  it("renders ↻ glyph for cron job", () => {
-    const job = createJob({ job_id: 1, trigger_type: "Cron" });
-    const item = {
-      kind: "job" as const,
-      id: 1,
-      name: "my_job",
-      humanDescription: null,
-      statusKind: "ok" as const,
-      data: job,
-    };
-    const { container } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, { wrapper });
-    const glyph = container.querySelector("[data-testid='handler-row-glyph']");
-    expect(glyph?.textContent).toBe("↻");
-  });
-
-  it("renders ↻ glyph for interval job", () => {
-    const job = createJob({ job_id: 2, trigger_type: "Every" });
-    const item = {
-      kind: "job" as const,
-      id: 2,
-      name: "poll_job",
-      humanDescription: null,
-      statusKind: "ok" as const,
-      data: job,
-    };
-    const { container } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, { wrapper });
-    const glyph = container.querySelector("[data-testid='handler-row-glyph']");
-    expect(glyph?.textContent).toBe("↻");
+  it("does not apply the dimmed idle class when statusKind is ok", () => {
+    const item = makeListenerItem({ listener_id: 1 });
+    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, {
+      wrapper,
+    });
+    expect(getByTestId("unified-row-listener-1").className).not.toMatch(/rowIdle/);
   });
 });
 
@@ -250,7 +206,7 @@ describe("UnifiedHandlerRow — subline switching", () => {
     expect(errSubline?.textContent).toContain("KeyError");
   });
 
-  it("shows human_description in dim when handler has no errors", () => {
+  it("does not show a description line for healthy handlers (context lives in the detail pane)", () => {
     const listener = createListener({
       listener_id: 1,
       failed: 0,
@@ -266,11 +222,13 @@ describe("UnifiedHandlerRow — subline switching", () => {
       statusKind: "ok" as const,
       data: listener,
     };
-    const { container } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, { wrapper });
-    const descSubline = container.querySelector("[data-testid='handler-row-desc']");
-    expect(descSubline).not.toBeNull();
-    expect(descSubline?.textContent).toContain("Fires on door open");
+    const { container, getByTestId } = render(
+      <UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />,
+      { wrapper },
+    );
+    expect(container.querySelector("[data-testid='handler-row-desc']")).toBeNull();
     expect(container.querySelector("[data-testid='handler-row-subline-err']")).toBeNull();
+    expect(getByTestId("unified-row-listener-1").getAttribute("aria-label")).toBe("on_door: Fires on door open");
   });
 
   it("shows next-run line for schedule jobs", () => {
@@ -343,7 +301,7 @@ describe("UnifiedHandlerRow — job", () => {
     expect(getByText("cleanup_task")).toBeDefined();
   });
 
-  it("renders trigger_label as humanDescription subtitle for jobs", () => {
+  it("exposes trigger_label as humanDescription via aria-label for jobs", () => {
     const job = createJob({ job_id: 1, trigger_label: "every 5 minutes" });
     const item = {
       kind: "job" as const,
@@ -353,8 +311,10 @@ describe("UnifiedHandlerRow — job", () => {
       statusKind: "ok" as const,
       data: job,
     };
-    const { getByText } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, { wrapper });
-    expect(getByText("every 5 minutes")).toBeDefined();
+    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, {
+      wrapper,
+    });
+    expect(getByTestId("unified-row-job-1").getAttribute("aria-label")).toBe("my_job: every 5 minutes");
   });
 
   it("renders execution count in stats", () => {

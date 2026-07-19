@@ -16,6 +16,14 @@ if TYPE_CHECKING:
     import aiosqlite
 
 
+_EXECUTION_SELECT_COLUMNS = """
+    e.kind, e.listener_id, e.job_id, e.execution_start_ts, e.duration_ms,
+    e.status, e.source_tier, e.error_type, e.error_message, e.error_traceback,
+    e.execution_id, e.trigger_context_id, e.trigger_origin, e.trigger_mode,
+    e.retry_count, e.attempt_number, e.args_json, e.kwargs_json, e.thread_leaked
+""".strip()
+
+
 class ExecutionQueriesMixin:
     """Execution-table query methods, mixed into TelemetryQueryService."""
 
@@ -60,26 +68,7 @@ class ExecutionQueriesMixin:
 
         where = " AND ".join(clauses) if clauses else "1=1"
         query = f"""
-            SELECT
-                e.kind,
-                e.listener_id,
-                e.job_id,
-                e.execution_start_ts,
-                e.duration_ms,
-                e.status,
-                e.source_tier,
-                e.error_type,
-                e.error_message,
-                e.error_traceback,
-                e.execution_id,
-                e.trigger_context_id,
-                e.trigger_origin,
-                e.trigger_mode,
-                e.retry_count,
-                e.attempt_number,
-                e.args_json,
-                e.kwargs_json,
-                e.thread_leaked
+            SELECT {_EXECUTION_SELECT_COLUMNS}
             FROM executions e
             WHERE {where} {since_sql}
             ORDER BY e.execution_start_ts DESC
@@ -88,6 +77,20 @@ class ExecutionQueriesMixin:
         async with self.execute(query, params) as cursor:
             rows = await cursor.fetchall()
         return [Execution.model_validate(row_to_dict(row)) for row in rows]
+
+    async def get_execution_by_id(self, execution_id: str) -> Execution | None:
+        """Return a single execution record by its UUID, or None if not found."""
+        query = f"""
+            SELECT {_EXECUTION_SELECT_COLUMNS}
+            FROM executions e
+            WHERE e.execution_id = :execution_id
+            LIMIT 1
+        """
+        async with self.execute(query, {"execution_id": execution_id}) as cursor:
+            row = await cursor.fetchone()
+        if row is None:
+            return None
+        return Execution.model_validate(row_to_dict(row))
 
     async def get_app_recent_activity(
         self,

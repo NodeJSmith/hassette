@@ -47,11 +47,11 @@ Open the app from the sidebar, then select the **Handlers** tab. The left panel 
 Select your handler. The detail panel shows:
 
 - **Registration source**: the exact `bus.on_state_change()` call Hassette recorded at startup, including the entity pattern and any options.
-- **Modifier chips**: any behavioral options in effect: `debounce`, `throttle`, `once`, `priority`, `immediate`, or `duration`. A handler with no modifiers shows no chip row.
+- **Modifier chips**: the handler's mode is always shown, along with any behavioral options in effect: `debounce`, `throttle`, `once`, `priority`, `immediate`, `duration`, or `backpressure`.
 - **Source location**: the file path and line number where the handler is defined. Click **view in code →** to open the Code tab at that line.
 - **Error banner**: appears when the handler has at least one failure. Shows the exception class, the full message, and a **show traceback** toggle that expands the Python traceback inline.
 ![Handler error banner](../../_static/web_ui_detail_handler_error.png)
-- **Stats grid**: calls, successful, failed, timed out, and min/avg/max duration for the current time window.
+- **Stats grid**: calls, failed, error rate, average duration, and conditional counters (timed out, cancelled, thread leaked, suppressed, dropped) when non-zero.
 - **Invocations table**: the 50 most recent invocations, each with a status indicator, timestamp, duration, and execution ID. The table updates in real time.
 
 A gray ring on a handler in the left panel means it has never been invoked. A red square means at least one invocation has failed or timed out.
@@ -64,14 +64,15 @@ The execution history updates with the new run over the WebSocket connection —
 
 ## Tracing a Single Execution
 
-Click an execution ID in the invocations table. Hassette opens the [Logs page](logs.md) filtered to that execution with `?execution_id=<id>` in the URL. Every log line the handler emitted during that run appears together, in order.
+Click a row in the invocations table. Hassette opens the [execution detail page](execution-detail.md) for that run: status, duration, trigger info, and — for a failure — the full traceback. An inline log table shows every line the execution emitted.
 
-You can also construct the URL manually. Grab the execution ID from a CLI command or another log entry.
+A **View all logs** link on the execution detail page opens the [Logs page](logs.md) filtered to the same execution ID, for cross-referencing against nearby framework or app activity.
 
 ## Related Pages
 
 - [Web UI overview](index.md): navigation, layout, and status bar controls
 - [Manage Apps](manage-apps.md): app health, start/stop/reload, and status badges
+- [Execution Detail](execution-detail.md): status, traceback, and logs for a single run
 - [Logs](logs.md): full log view with execution ID filtering
 - [`Bus` handlers](../core-concepts/bus/handlers.md): handler registration, `name=` requirement, and options
 - [Dependency injection](../core-concepts/bus/dependency-injection.md): DI annotation reference

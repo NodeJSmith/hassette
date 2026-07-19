@@ -3,6 +3,10 @@ import { describe, expect, it, vi } from "vitest";
 
 import { ExecutionLogs } from "./execution-logs";
 
+vi.mock("wouter", () => ({
+  Link: (props: Record<string, unknown>) => <a {...props} />,
+}));
+
 vi.mock("./log-table", () => ({
   useLogTable: () => ({
     tableProps: {

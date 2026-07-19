@@ -597,3 +597,44 @@ class TestJobExecutionsExpanded:
         assert len(data) == 3
         timestamps = [entry["execution_start_ts"] for entry in data]
         assert timestamps == sorted(timestamps, reverse=True)
+
+
+class TestGetExecutionById:
+    """Coverage for GET /api/telemetry/execution/{execution_id}."""
+
+    async def test_found(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        """Returns the execution record when found."""
+        execution = Execution(
+            kind="handler",
+            listener_id=5,
+            execution_start_ts=1700000000.0,
+            duration_ms=42.5,
+            status="success",
+            error_type=None,
+            error_message=None,
+            execution_id="abc-123",
+        )
+        mock_hassette.telemetry_query_service.get_execution_by_id = AsyncMock(return_value=execution)
+        response = await client.get("/api/telemetry/execution/abc-123")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["execution_id"] == "abc-123"
+        assert data["kind"] == "handler"
+        assert data["listener_id"] == 5
+        assert data["duration_ms"] == 42.5
+        mock_hassette.telemetry_query_service.get_execution_by_id.assert_awaited_once_with("abc-123")
+
+    async def test_not_found(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        """Returns null when execution does not exist."""
+        mock_hassette.telemetry_query_service.get_execution_by_id = AsyncMock(return_value=None)
+        response = await client.get("/api/telemetry/execution/nonexistent-id")
+        assert response.status_code == 200
+        assert response.json() is None
+
+    async def test_db_unavailable(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        """Returns 503 when telemetry DB is unavailable."""
+        mock_hassette.telemetry_query_service.get_execution_by_id = AsyncMock(
+            side_effect=TelemetryUnavailableError("db down")
+        )
+        response = await client.get("/api/telemetry/execution/abc-123")
+        assert response.status_code == 503

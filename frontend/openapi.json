@@ -1383,6 +1383,57 @@
         }
       }
     },
+    "/api/telemetry/execution/{execution_id}": {
+      "get": {
+        "tags": [
+          "telemetry"
+        ],
+        "summary": "Get Execution",
+        "description": "Return a single execution record by its UUID.",
+        "operationId": "get_execution_api_telemetry_execution__execution_id__get",
+        "parameters": [
+          {
+            "name": "execution_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Execution Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/Execution"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Get Execution Api Telemetry Execution  Execution Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/telemetry/dashboard/app-grid": {
       "get": {
         "tags": [
@@ -3275,6 +3326,43 @@
               }
             ],
             "title": "Source Tier"
+          },
+          "execution_kind": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "handler",
+                  "job"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Kind"
+          },
+          "listener_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listener Id"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
           }
         },
         "type": "object",

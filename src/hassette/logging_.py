@@ -26,7 +26,16 @@ if TYPE_CHECKING:
     from hassette.core.database_service import DatabaseService
 
 
-_RECORD_FIELDS = ("source_tier", "app_key", "execution_id", "instance_name", "instance_index")
+_RECORD_FIELDS = (
+    "source_tier",
+    "app_key",
+    "execution_id",
+    "instance_name",
+    "instance_index",
+    "execution_kind",
+    "listener_id",
+    "job_id",
+)
 
 
 @dataclass
@@ -46,6 +55,9 @@ class LogEntry:
     execution_id: str | None = None
     instance_name: str | None = None
     instance_index: int | None = None
+    execution_kind: str | None = None
+    listener_id: int | None = None
+    job_id: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -62,6 +74,9 @@ class LogEntry:
             "execution_id": self.execution_id,
             "instance_name": self.instance_name,
             "instance_index": self.instance_index,
+            "execution_kind": self.execution_kind,
+            "listener_id": self.listener_id,
+            "job_id": self.job_id,
         }
 
 
@@ -74,6 +89,9 @@ def _extract_correlation_attrs(record: logging.LogRecord) -> dict[str, Any]:
         "instance_name": getattr(record, "instance_name", None),
         "instance_index": getattr(record, "instance_index", None),
         "seq": getattr(record, "seq", 0),
+        "execution_kind": getattr(record, "execution_kind", None),
+        "listener_id": getattr(record, "listener_id", None),
+        "job_id": getattr(record, "job_id", None),
     }
 
 
@@ -161,6 +179,9 @@ class CorrelationFilter(logging.Filter):
         record.app_key = ctx.get("app_key")  # pyright: ignore[reportAttributeAccessIssue]
         record.instance_name = ctx.get("instance_name")  # pyright: ignore[reportAttributeAccessIssue]
         record.instance_index = ctx.get("instance_index")  # pyright: ignore[reportAttributeAccessIssue]
+        record.execution_kind = ctx.get("execution_kind")  # pyright: ignore[reportAttributeAccessIssue]
+        record.listener_id = ctx.get("listener_id")  # pyright: ignore[reportAttributeAccessIssue]
+        record.job_id = ctx.get("job_id")  # pyright: ignore[reportAttributeAccessIssue]
         record.seq = next(self._seq)  # pyright: ignore[reportAttributeAccessIssue]
         if not getattr(record, "source_tier", None):
             record.source_tier = "app" if record.app_key else "framework"  # pyright: ignore[reportAttributeAccessIssue]

@@ -1,18 +1,20 @@
-/* ExecutionTable — shared expandable execution/invocation table */
+/* ExecutionTable — navigable execution/invocation table */
 
 .colArrow {
   width: var(--sp-4);
 }
 
 .row {
-  cursor: pointer;
   transition: background var(--t-fast) var(--ease);
 }
-.rowOpen {
+.rowClickable {
+  cursor: pointer;
+}
+.rowClickable:hover {
   background: var(--bg-sunken);
 }
-.row:hover {
-  background: var(--bg-sunken);
+.rowClickable:hover .arrowCell {
+  color: var(--accent);
 }
 
 .statusCell {
@@ -24,29 +26,34 @@
   gap: var(--sp-2);
 }
 
+.arrowCell {
+  transition: color var(--t-fast) var(--ease);
+}
+
 .statusLabel {
   font-family: var(--font-mono);
   font-size: var(--fs-micro);
   white-space: nowrap;
 }
 
-.errorType {
+.okLabel {
+  composes: statusLabel;
+  color: var(--ok);
+}
+
+.failedLabel {
   composes: statusLabel;
   color: var(--err);
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.timeoutType {
+.timeoutLabel {
   composes: statusLabel;
   color: var(--warn);
 }
 
-.cancelledType {
+.cancelledLabel {
   composes: statusLabel;
   color: var(--cancel);
-}
-
-.detailCell {
-  padding: 0;
 }

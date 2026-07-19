@@ -25,7 +25,7 @@ import styles from "./app-detail.module.css";
 export type TabId = "overview" | "handlers" | "code" | "logs" | "config";
 
 interface Props {
-  params: { key: string; tab?: TabId; handler?: string };
+  params: { key: string; tab?: TabId; handler?: string; execId?: string };
 }
 
 function Tab({
@@ -226,6 +226,7 @@ export function AppDetailPage({ params }: Props) {
             listeners={displayListeners}
             jobs={displayJobs}
             selectedHandler={params.handler ?? null}
+            selectedExecId={params.execId ?? null}
             appKey={appKey}
             instanceQs={instanceQs}
             onSwitchToCode={(line) => {

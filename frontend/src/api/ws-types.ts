@@ -52,6 +52,9 @@ export interface LogEntryResponse {
   instance_name?: string | null;
   instance_index?: number | null;
   source_tier?: ("app" | "framework") | null;
+  execution_kind?: ("handler" | "job") | null;
+  listener_id?: number | null;
+  job_id?: number | null;
 }
 export interface ConnectedWsMessage {
   type: "connected";

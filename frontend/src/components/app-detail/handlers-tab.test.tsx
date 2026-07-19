@@ -17,6 +17,12 @@ vi.mock("../shared/execution-table", () => ({
   ),
 }));
 
+vi.mock("./execution-detail", () => ({
+  ExecutionDetailFetcher: (props: { executionId: string }) => (
+    <div data-testid="execution-detail-fetcher">{props.executionId}</div>
+  ),
+}));
+
 const mockNavigate = vi.fn();
 const mockCorrectUrl = vi.fn();
 
@@ -34,7 +40,14 @@ function renderHandlersTab(
   selectedHandler: string | null = null,
 ) {
   return renderWithAppState(
-    <HandlersTab listeners={listeners} jobs={jobs} selectedHandler={selectedHandler} appKey="test_app" instanceQs="" />,
+    <HandlersTab
+      listeners={listeners}
+      jobs={jobs}
+      selectedHandler={selectedHandler}
+      selectedExecId={null}
+      appKey="test_app"
+      instanceQs=""
+    />,
     { stateOverrides: { uptimeSeconds: signal<number | null>(120) } },
   );
 }
@@ -51,7 +64,14 @@ describe("HandlersTab", () => {
 
   it("renders empty state when no listeners or jobs", () => {
     const { getByTestId } = renderWithAppState(
-      <HandlersTab listeners={[]} jobs={[]} selectedHandler={null} appKey="test_app" instanceQs="" />,
+      <HandlersTab
+        listeners={[]}
+        jobs={[]}
+        selectedHandler={null}
+        selectedExecId={null}
+        appKey="test_app"
+        instanceQs=""
+      />,
       { stateOverrides: { uptimeSeconds: signal<number | null>(120) } },
     );
     expect(getByTestId("handlers-empty")).toBeDefined();
@@ -112,7 +132,9 @@ describe("HandlersTab", () => {
     await waitFor(() => {
       expect(getByTestId("job-detail-9")).toBeDefined();
     });
-    expect(getAllByText("every 5m").length).toBeGreaterThanOrEqual(2);
+    // Master row no longer renders a description line (see design/context.md two-line row layout);
+    // "every 5m" now only appears in the detail pane's schedule chip.
+    expect(getAllByText("every 5m").length).toBeGreaterThanOrEqual(1);
   });
 
   it("job detail: shows only detail when trigger_label is empty", async () => {
@@ -183,10 +205,13 @@ describe("HandlersTab", () => {
       listener_id: 12,
       registration_source: "self.bus.on_state_change('light.kitchen', handler=self.on_light)",
     });
-    const { getByTestId } = renderHandlersTab([listener], [], "listener/12");
+    const { getByTestId, queryByTestId } = renderHandlersTab([listener], [], "listener/12");
     await waitFor(() => {
-      expect(getByTestId("handler-registration-source")).toBeDefined();
+      expect(getByTestId("handler-registration-toggle")).toBeDefined();
     });
+    // Registration is collapsed by default
+    expect(queryByTestId("handler-registration-source")).toBeNull();
+    fireEvent.click(getByTestId("handler-registration-toggle"));
     expect(getByTestId("handler-registration-source").textContent).toContain("on_state_change");
   });
 
@@ -199,7 +224,7 @@ describe("HandlersTab", () => {
     expect(queryByTestId("handler-registration-source")).toBeNull();
   });
 
-  it("handler stats row: renders successful count", async () => {
+  it("handler stats row: renders err rate cell", async () => {
     const listener = createListener({
       listener_id: 20,
       total_invocations: 10,
@@ -211,8 +236,8 @@ describe("HandlersTab", () => {
       expect(getByTestId("handler-stats-row")).toBeDefined();
     });
     const statsRow = getByTestId("handler-stats-row");
-    expect(statsRow.textContent).toContain("Successful");
-    expect(statsRow.textContent).toContain("8");
+    expect(statsRow.textContent).toContain("Err %");
+    expect(statsRow.textContent).toContain("20%");
   });
 
   it("handler stats row: does not show cancelled when zero", async () => {
@@ -266,7 +291,7 @@ describe("HandlersTab", () => {
     expect(warnValue?.textContent).toBe("5 (100%)");
   });
 
-  it("handler stats row: shows — for min/max when null (no executions)", async () => {
+  it("handler stats row: shows — for avg when there are no executions", async () => {
     const listener = createListener({
       listener_id: 23,
       min_duration_ms: null,
@@ -276,15 +301,9 @@ describe("HandlersTab", () => {
     const { getByTestId } = renderHandlersTab([listener], [], "listener/23");
     await waitFor(() => getByTestId("handler-stats-row"));
     const statsRow = getByTestId("handler-stats-row");
-    // Min and Max labels exist
-    expect(statsRow.textContent).toContain("Min");
-    expect(statsRow.textContent).toContain("Max");
-    // Both show dash when null
     const cells = statsRow.querySelectorAll("[data-testid='handler-stats-row-cell']");
-    const minCell = Array.from(cells).find((c) => c.textContent?.includes("Min"));
-    const maxCell = Array.from(cells).find((c) => c.textContent?.includes("Max"));
-    expect(minCell?.textContent).toContain("—");
-    expect(maxCell?.textContent).toContain("—");
+    const avgCell = Array.from(cells).find((c) => c.textContent?.includes("Avg"));
+    expect(avgCell?.textContent).toContain("—");
   });
 
   it("handler error banner: shows expandable traceback when available", async () => {
@@ -329,7 +348,7 @@ describe("HandlersTab", () => {
     expect(banner.textContent).toContain("Traceback (most recent call last)");
   });
 
-  it("job stats row: renders successful count", async () => {
+  it("job stats row: renders err rate cell", async () => {
     const job = createJob({
       job_id: 31,
       total_executions: 10,
@@ -340,8 +359,8 @@ describe("HandlersTab", () => {
     const { getByTestId } = renderHandlersTab([], [job], "job/31");
     await waitFor(() => getByTestId("job-stats-row"));
     const statsRow = getByTestId("job-stats-row");
-    expect(statsRow.textContent).toContain("Successful");
-    expect(statsRow.textContent).toContain("7");
+    expect(statsRow.textContent).toContain("Err %");
+    expect(statsRow.textContent).toContain("20%");
   });
 
   it("job stats row: visually separates failed and timed_out as distinct cells", async () => {
@@ -419,7 +438,14 @@ describe("HandlersTab", () => {
   it("clicking a listener row includes instanceQs in deep-link URL", () => {
     const listeners = [createListener({ listener_id: 3 })];
     const { getByTestId } = renderWithAppState(
-      <HandlersTab listeners={listeners} jobs={[]} selectedHandler={null} appKey="test_app" instanceQs="?instance=1" />,
+      <HandlersTab
+        listeners={listeners}
+        jobs={[]}
+        selectedHandler={null}
+        selectedExecId={null}
+        appKey="test_app"
+        instanceQs="?instance=1"
+      />,
       { stateOverrides: { uptimeSeconds: signal<number | null>(120) } },
     );
     fireEvent.click(getByTestId("unified-row-listener-3"));
@@ -440,18 +466,19 @@ describe("HandlersTab", () => {
     expect(chips.textContent).toContain("group: my-group");
   });
 
-  it("job detail: shows next-run text when next_run is set", async () => {
+  it("job detail: shows next-run text in stats when next_run is set", async () => {
     const job = createJob({
       job_id: 42,
       next_run: Date.now() / 1000 + 300,
     });
     const { getByTestId } = renderHandlersTab([], [job], "job/42");
     await waitFor(() => getByTestId("job-detail-42"));
-    expect(getByTestId("job-next-run")).toBeDefined();
-    expect(getByTestId("job-next-run").textContent).toContain("next");
+    const statsRow = getByTestId("job-stats-row");
+    expect(statsRow.textContent).toContain("Next");
+    expect(statsRow.textContent).toContain("next");
   });
 
-  it("job detail: shows fire-at text when fire_at is set but next_run is null", async () => {
+  it("job detail: shows fire-at text in stats when fire_at is set but next_run is null", async () => {
     const job = createJob({
       job_id: 43,
       next_run: null,
@@ -459,8 +486,9 @@ describe("HandlersTab", () => {
     });
     const { getByTestId } = renderHandlersTab([], [job], "job/43");
     await waitFor(() => getByTestId("job-detail-43"));
-    expect(getByTestId("job-next-run")).toBeDefined();
-    expect(getByTestId("job-next-run").textContent).toContain("fire at");
+    const statsRow = getByTestId("job-stats-row");
+    expect(statsRow.textContent).toContain("Next");
+    expect(statsRow.textContent).toContain("fire at");
   });
 
   it("job detail: shows failing badge when job has errors", async () => {
@@ -475,12 +503,11 @@ describe("HandlersTab", () => {
     expect(getByTestId("handler-status-pill").textContent).toBe("failing");
   });
 
-  it("job stats row: shows mode cell for every job", async () => {
+  it("job detail: shows mode chip for every job", async () => {
     const job = createJob({ job_id: 50, mode: "queued" });
     const { getByTestId } = renderHandlersTab([], [job], "job/50");
-    await waitFor(() => getByTestId("job-stats-row"));
-    expect(getByTestId("job-stats-row").textContent).toContain("Mode");
-    expect(getByTestId("job-stats-row").textContent).toContain("queued");
+    await waitFor(() => getByTestId("job-detail-50"));
+    expect(getByTestId("schedule-chips").textContent).toContain("mode: queued");
   });
 
   it("job stats row: does not show Suppressed or Dropped when counts are zero", async () => {
@@ -585,6 +612,7 @@ describe("HandlersTab", () => {
         listeners={[listener]}
         jobs={[]}
         selectedHandler="listener/45"
+        selectedExecId={null}
         appKey="test_app"
         instanceQs=""
         onSwitchToCode={onSwitch}
@@ -647,5 +675,52 @@ describe("HandlersTab", () => {
         expect(button.disabled).toBe(false);
       });
     });
+  });
+
+  it("listener detail: shows mode chip", async () => {
+    const listener = createListener({ listener_id: 70, mode: "queued" });
+    const { getByTestId } = renderHandlersTab([listener], [], "listener/70");
+    await waitFor(() => getByTestId("listener-detail-70"));
+    expect(getByTestId("modifier-chips").textContent).toContain("mode queued");
+  });
+
+  it("handler detail: registration source stays hidden until the toggle is clicked", async () => {
+    const listener = createListener({
+      listener_id: 71,
+      registration_source: "self.bus.on_state_change('light.kitchen', handler=self.on_light)",
+    });
+    const { getByTestId, queryByTestId } = renderHandlersTab([listener], [], "listener/71");
+    await waitFor(() => getByTestId("listener-detail-71"));
+    expect(queryByTestId("handler-registration-source")).toBeNull();
+    const toggle = getByTestId("handler-registration-toggle");
+    expect(toggle.textContent).toBe("registration");
+    fireEvent.click(toggle);
+    expect(getByTestId("handler-registration-source")).toBeDefined();
+    expect(toggle.textContent).toBe("hide registration");
+  });
+
+  it("handler detail: renders the executions table inside the detail card", async () => {
+    const listener = createListener({ listener_id: 72 });
+    const { getByTestId } = renderHandlersTab([listener], [], "listener/72");
+    await waitFor(() => getByTestId("listener-detail-72"));
+    const table = await waitFor(() => getByTestId("invocation-table-72"));
+    const detailCard = getByTestId("listener-detail-72");
+    expect(detailCard.contains(table)).toBe(true);
+  });
+
+  it("renders execution detail even when no handlers are registered", () => {
+    const { getByTestId, queryByTestId } = renderWithAppState(
+      <HandlersTab
+        listeners={[]}
+        jobs={[]}
+        selectedHandler="listener/5"
+        selectedExecId="abc-123"
+        appKey="test_app"
+        instanceQs=""
+      />,
+      { stateOverrides: { uptimeSeconds: signal<number | null>(120) } },
+    );
+    expect(getByTestId("execution-detail-fetcher")).toBeTruthy();
+    expect(queryByTestId("handlers-empty")).toBeNull();
   });
 });

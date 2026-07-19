@@ -4,6 +4,8 @@ Tests handler list with human_description, modifier chips, timed_out count,
 master/detail layout, action buttons, code tab, config tab.
 """
 
+import re
+
 import pytest
 from playwright.sync_api import Page, expect
 
@@ -19,12 +21,15 @@ pytestmark = pytest.mark.e2e
 
 
 def test_app_detail_renders_health_strip(page: Page, base_url: str) -> None:
-    """Health strip is visible on the handlers tab with correct labels."""
-    page.goto(base_url + "/apps/my_app/handlers")
-    strip = page.locator("[data-testid='handlers-health-strip']")
+    """Health strip is visible on the overview tab with correct labels."""
+    page.goto(base_url + "/apps/my_app")
+    strip = page.locator("[data-testid='overview-health-strip']")
     expect(strip).to_be_visible()
     expect(strip).to_contain_text("Handlers")
-    expect(strip).to_contain_text("Success Rate")
+    expect(strip).to_contain_text("Total Runs")
+    expect(strip).to_contain_text("Failed")
+    expect(strip).to_contain_text("Error Rate")
+    expect(strip).to_contain_text("Avg Duration")
 
 
 def test_running_app_shows_stop_and_reload_buttons(page: Page, base_url: str) -> None:
@@ -72,11 +77,12 @@ def test_app_detail_renders_handler_list(page: Page, base_url: str) -> None:
 
 
 def test_handler_row_shows_human_description(page: Page, base_url: str) -> None:
-    """Handler row with human_description shows it as a subtitle."""
+    """Handler row keeps human_description in its aria-label (dense rows no longer render it as text)."""
     page.goto(base_url + "/apps/my_app/handlers")
-    handler_list = page.locator("[data-testid='handler-list']")
     # Listener 2 (on_temp_update) has human_description
-    expect(handler_list).to_contain_text("React to temperature sensor changes above threshold")
+    row = page.locator("[data-testid='unified-row-listener-2']")
+    expect(row).to_be_visible()
+    expect(row).to_have_attribute("aria-label", re.compile("React to temperature sensor changes above threshold"))
 
 
 def test_handler_row_shows_modifier_chips(page: Page, base_url: str) -> None:
@@ -145,7 +151,7 @@ def test_detail_pane_shows_invocation_history(page: Page, base_url: str) -> None
     detail = page.locator("[data-testid='listener-detail-1']")
     expect(detail).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
     # Should show invocation stats and history from seed data
-    expect(detail).to_contain_text("Successful")
+    expect(detail).to_contain_text("Calls")
     expect(detail).to_contain_text("invocations")
 
 
@@ -157,9 +163,9 @@ def test_empty_detail_placeholder_visible_by_default(page: Page, base_url: str) 
 
 
 def test_stats_strip_renders(page: Page, base_url: str) -> None:
-    """Handlers health strip above handler list shows handler count and call totals."""
-    page.goto(base_url + "/apps/my_app/handlers")
-    stats_strip = page.locator("[data-testid='handlers-health-strip']")
+    """Overview health strip above handler activity shows handler count and call totals."""
+    page.goto(base_url + "/apps/my_app")
+    stats_strip = page.locator("[data-testid='overview-health-strip']")
     expect(stats_strip).to_be_visible()
     expect(stats_strip).to_contain_text("Handler")
 

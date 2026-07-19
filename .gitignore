@@ -211,6 +211,9 @@ volumes/config/.storage/trace.saved_traces
 volumes/config/.storage/frontend.user_data_e9eadd1eefcf4bf698e01bc5083b530f
 volumes/config/.storage/tmp*
 
+# Demo fixture runtime state (tracked files: auth, config, onboarding)
+tests/fixtures/demo-ha-config/.storage/assist_pipeline.pipelines
+
 docs/apidocs
 docs/code-reference
 

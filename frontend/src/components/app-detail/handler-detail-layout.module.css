@@ -19,6 +19,13 @@
   margin-bottom: var(--sp-2);
 }
 
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-left: auto;
+}
+
 .handlerName {
   font-family: var(--font-mono);
   font-size: var(--fs-h3);
@@ -32,15 +39,10 @@
   margin-bottom: var(--sp-3);
 }
 
-.executionsPanel {
-  padding: var(--sp-4);
-  background: var(--bg-surface);
-  border: var(--sp-px) solid var(--line-1);
-  border-radius: var(--r-md);
-}
-
-.nextRun {
-  margin-bottom: var(--sp-3);
+.executionsSection {
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-4);
+  border-top: var(--sp-px) solid var(--line-1);
 }
 
 .runNow {
@@ -48,7 +50,6 @@
   flex-direction: column;
   align-items: flex-start;
   gap: var(--sp-1);
-  margin-bottom: var(--sp-3);
 }
 
 .panelHeading {
@@ -57,4 +58,36 @@
   font-weight: var(--fw-medium);
   color: var(--ink-1);
   margin: 0 0 var(--sp-3);
+}
+
+.footer {
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-3);
+  border-top: var(--sp-px) solid var(--line-1);
+}
+
+.footerRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.registrationToggle {
+  display: inline-flex;
+  align-items: center;
+  margin-top: var(--sp-2);
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono-sm);
+  color: var(--ink-3);
+  cursor: pointer;
+  opacity: var(--op-muted);
+  transition: opacity var(--t-fast) var(--ease);
+}
+
+.registrationToggle:hover {
+  opacity: 1;
 }

@@ -209,6 +209,17 @@
   text-decoration-color: var(--accent);
 }
 
+.execLink {
+  color: var(--ink-1);
+  text-decoration: underline;
+  text-decoration-color: var(--ink-4);
+  text-underline-offset: var(--sp-0);
+}
+
+.execLink:hover {
+  text-decoration-color: var(--accent);
+}
+
 /* Section labels — inline divider style */
 .section {
   padding: 0 var(--sp-3) var(--sp-3);

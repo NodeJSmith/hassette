@@ -7,7 +7,7 @@ import { useScopedQuery } from "../../hooks/use-scoped-query";
 import { queryKeys } from "../../lib/query-keys";
 import { useAppState } from "../../state/context";
 import { DETAIL_FETCH_LIMIT } from "../../utils/constants";
-import { formatDurationOrDash, formatOptionalDuration, formatTriggerDetail } from "../../utils/format";
+import { formatDurationOrDash, formatRate, formatTriggerDetail } from "../../utils/format";
 import { handlerKindLabel } from "../../utils/status";
 import { Button } from "../shared/button";
 import { Chip } from "../shared/chip";
@@ -20,11 +20,10 @@ import layoutStyles from "./handler-detail-layout.module.css";
 import { jobHealthKind } from "./handler-list";
 
 function ScheduleChips({ job }: { job: JobData }) {
-  const chips: Array<{ label: string }> = [];
+  const chips: Array<{ label: string }> = [{ label: `mode: ${job.mode}` }];
   if (job.jitter) chips.push({ label: `±${job.jitter}s jitter` });
   if (job.group) chips.push({ label: `group: ${job.group}` });
 
-  if (chips.length === 0) return null;
   return (
     <div class={chipStyles.chipRow} data-testid="schedule-chips">
       {chips.map((chip) => (
@@ -67,34 +66,39 @@ function RunNowButton({ jobId }: { jobId: number }) {
   );
 }
 
-function buildJobStatsCells(job: JobData, lastExecutedLabel: string): DetailStatsCell[] {
+function buildJobStatsCells(job: JobData, lastExecutedLabel: string, nextRunText: string | null): DetailStatsCell[] {
   const cells: DetailStatsCell[] = [
     { label: "Runs", value: job.total_executions },
-    { label: "Successful", value: job.successful },
-    { label: "Last", value: job.last_executed_at ? lastExecutedLabel || "—" : "—" },
     { label: "Failed", value: job.failed, tone: job.failed > 0 ? "err" : undefined },
-    { label: "Timed Out", value: job.timed_out, tone: job.timed_out > 0 ? "warn" : undefined },
+    {
+      label: "Err %",
+      value: formatRate(job.failed, job.total_executions),
+      tone: job.failed > 0 ? "err" : undefined,
+    },
+    { label: "Avg", value: formatDurationOrDash(job.avg_duration_ms) },
   ];
+  if (nextRunText) {
+    cells.push({ label: "Next", value: nextRunText });
+  } else {
+    cells.push({ label: "Last", value: job.last_executed_at ? lastExecutedLabel || "—" : "—" });
+  }
+  if (job.timed_out > 0) cells.push({ label: "Timed Out", value: job.timed_out, tone: "warn" });
   if (job.cancelled > 0) cells.push({ label: "Cancelled", value: job.cancelled, tone: "cancel" });
   if (job.skipped > 0) cells.push({ label: "Skipped", value: job.skipped, tone: "mute" });
-  cells.push({ label: "Mode", value: job.mode });
   if (job.thread_leaked > 0) cells.push({ label: "Thread Leaked", value: job.thread_leaked, tone: "warn" });
   if (job.suppressed_count > 0) cells.push({ label: "Suppressed", value: job.suppressed_count, tone: "mute" });
   if (job.dropped_count > 0) cells.push({ label: "Dropped", value: job.dropped_count, tone: "warn" });
-  cells.push(
-    { label: "Min", value: formatOptionalDuration(job.min_duration_ms) },
-    { label: "Avg", value: formatDurationOrDash(job.avg_duration_ms) },
-    { label: "Max", value: formatOptionalDuration(job.max_duration_ms) },
-  );
   return cells;
 }
 
 interface Props {
   job: JobData;
+  appKey: string;
+  instanceQs?: string;
   onSwitchToCode?: (line?: number) => void;
 }
 
-export function JobDetail({ job, onSwitchToCode }: Props) {
+export function JobDetail({ job, appKey, instanceQs, onSwitchToCode }: Props) {
   const { data: executions, isPending: loading } = useScopedQuery(
     queryKeys.jobExecutions(job.job_id),
     (since, signal) => getJobExecutions(job.job_id, DETAIL_FETCH_LIMIT, since, signal),
@@ -133,20 +137,13 @@ export function JobDetail({ job, onSwitchToCode }: Props) {
       }
       registrationSource={job.registration_source}
       chips={<ScheduleChips job={job} />}
+      headerActions={<RunNowButton jobId={job.job_id} />}
       extras={
-        <>
-          {predicateDescription && (
-            <p class={layoutStyles.subtitle} data-testid="job-predicate-description">
-              {predicateDescription}
-            </p>
-          )}
-          {nextRunText && (
-            <div class={layoutStyles.nextRun} data-testid="job-next-run">
-              <code class="ht-text-mono ht-text-sm ht-text-muted">{nextRunText}</code>
-            </div>
-          )}
-          <RunNowButton jobId={job.job_id} />
-        </>
+        predicateDescription && (
+          <p class={layoutStyles.subtitle} data-testid="job-predicate-description">
+            {predicateDescription}
+          </p>
+        )
       }
       sourceLocation={job.source_location}
       onViewCode={onSwitchToCode}
@@ -159,7 +156,7 @@ export function JobDetail({ job, onSwitchToCode }: Props) {
             }
           : null
       }
-      statsCells={buildJobStatsCells(job, lastExecutedLabel)}
+      statsCells={buildJobStatsCells(job, lastExecutedLabel, nextRunText)}
       statsTestId="job-stats-row"
       executionHeading="executions"
       executionRecords={executions ?? []}
@@ -167,6 +164,8 @@ export function JobDetail({ job, onSwitchToCode }: Props) {
       executionTableId={`execution-table-${job.job_id}`}
       executionLoading={loading}
       executionHasData={executions !== undefined}
+      execLinkPrefix={`/apps/${appKey}/handlers/job/${job.job_id}`}
+      instanceQs={instanceQs}
     />
   );
 }
