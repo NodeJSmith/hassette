@@ -46,7 +46,6 @@ function renderHandlersTab(
       selectedHandler={selectedHandler}
       selectedExecId={null}
       appKey="test_app"
-      instanceQs=""
     />,
     { stateOverrides: { uptimeSeconds: signal<number | null>(120) } },
   );
@@ -64,14 +63,7 @@ describe("HandlersTab", () => {
 
   it("renders empty state when no listeners or jobs", () => {
     const { getByTestId } = renderWithAppState(
-      <HandlersTab
-        listeners={[]}
-        jobs={[]}
-        selectedHandler={null}
-        selectedExecId={null}
-        appKey="test_app"
-        instanceQs=""
-      />,
+      <HandlersTab listeners={[]} jobs={[]} selectedHandler={null} selectedExecId={null} appKey="test_app" />,
       { stateOverrides: { uptimeSeconds: signal<number | null>(120) } },
     );
     expect(getByTestId("handlers-empty")).toBeDefined();
@@ -444,7 +436,7 @@ describe("HandlersTab", () => {
         selectedHandler={null}
         selectedExecId={null}
         appKey="test_app"
-        instanceQs="?instance=1"
+        instanceIndex={1}
       />,
       { stateOverrides: { uptimeSeconds: signal<number | null>(120) } },
     );
@@ -614,7 +606,6 @@ describe("HandlersTab", () => {
         selectedHandler="listener/45"
         selectedExecId={null}
         appKey="test_app"
-        instanceQs=""
         onSwitchToCode={onSwitch}
       />,
       { stateOverrides: { uptimeSeconds: signal<number | null>(120) } },
@@ -710,14 +701,7 @@ describe("HandlersTab", () => {
 
   it("renders execution detail even when no handlers are registered", () => {
     const { getByTestId, queryByTestId } = renderWithAppState(
-      <HandlersTab
-        listeners={[]}
-        jobs={[]}
-        selectedHandler="listener/5"
-        selectedExecId="abc-123"
-        appKey="test_app"
-        instanceQs=""
-      />,
+      <HandlersTab listeners={[]} jobs={[]} selectedHandler="listener/5" selectedExecId="abc-123" appKey="test_app" />,
       { stateOverrides: { uptimeSeconds: signal<number | null>(120) } },
     );
     expect(getByTestId("execution-detail-fetcher")).toBeTruthy();

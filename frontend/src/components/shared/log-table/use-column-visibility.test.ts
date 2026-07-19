@@ -116,6 +116,21 @@ describe("useColumnVisibility", () => {
       expect(result.current.visibleColumns).toEqual(DEFAULT_COLUMNS_GLOBAL);
       expect(localStorage.getItem("hassette-log-columns-global")).toBeNull();
     });
+
+    it("restores defaults when localStorage removal throws", () => {
+      const removeSpy = vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {
+        throw new Error("storage unavailable");
+      });
+      const { result } = renderHook(() => useColumnVisibility("global"));
+
+      act(() => result.current.toggle("module"));
+      expect(result.current.visibleColumns).not.toContain("module");
+
+      expect(() => act(() => result.current.reset())).not.toThrow();
+      expect(result.current.visibleColumns).toEqual(DEFAULT_COLUMNS_GLOBAL);
+
+      removeSpy.mockRestore();
+    });
   });
 
   describe("viewport-responsive hiding", () => {
