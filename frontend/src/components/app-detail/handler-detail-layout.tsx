@@ -1,4 +1,5 @@
 import type { ComponentChildren } from "preact";
+import { useState } from "preact/hooks";
 
 import { parseSourceLocation } from "../../utils/format";
 import { Badge } from "../shared/badge";
@@ -30,6 +31,7 @@ interface Props {
   registrationSource?: string | null;
   chips?: ComponentChildren;
   extras?: ComponentChildren;
+  headerActions?: ComponentChildren;
   sourceLocation?: string | null;
   onViewCode?: (line?: number) => void;
   error?: ErrorInfo | null;
@@ -55,6 +57,7 @@ export function HandlerDetailLayout({
   registrationSource,
   chips,
   extras,
+  headerActions,
   sourceLocation,
   onViewCode,
   error,
@@ -69,6 +72,7 @@ export function HandlerDetailLayout({
   execLinkPrefix,
   instanceQs,
 }: Props) {
+  const [registrationExpanded, setRegistrationExpanded] = useState(false);
   const isFailing = statusKind === "err";
   const sourceLine = sourceLocation ? parseSourceLocation(sourceLocation).line : null;
 
@@ -86,6 +90,7 @@ export function HandlerDetailLayout({
               failing
             </Badge>
           )}
+          {headerActions && <div class={styles.headerActions}>{headerActions}</div>}
         </div>
 
         {subtitle && (
@@ -94,17 +99,9 @@ export function HandlerDetailLayout({
           </p>
         )}
 
-        {registrationSource && (
-          <RegistrationSource source={registrationSource} data-testid={`${testIdPrefix}-registration-source`} />
-        )}
-
-        {chips}
-
         {extras}
 
-        {sourceLocation && (
-          <SourceLocation sourceLocation={sourceLocation} data-testid={`${testIdPrefix}-source-location`} />
-        )}
+        {chips}
 
         {isFailing && error && (error.message || error.type) && (
           <ErrorBanner
@@ -117,26 +114,55 @@ export function HandlerDetailLayout({
 
         <DetailStats cells={statsCells} data-testid={statsTestId} />
 
-        {onViewCode && sourceLocation && (
-          <Button ghost size="sm" data-testid="view-in-code-btn" onClick={() => onViewCode(sourceLine ?? undefined)}>
-            view in code →
-          </Button>
-        )}
-      </div>
+        <div class={styles.executionsSection}>
+          <h3 class={styles.panelHeading}>{executionHeading}</h3>
+          {executionLoading && !executionHasData ? (
+            <Spinner />
+          ) : (
+            <ExecutionTable
+              records={executionRecords}
+              kind={executionKind}
+              tableId={executionTableId}
+              execLinkPrefix={execLinkPrefix}
+              instanceQs={instanceQs}
+            />
+          )}
+        </div>
 
-      <div class={styles.executionsPanel}>
-        <h3 class={styles.panelHeading}>{executionHeading}</h3>
-        {executionLoading && !executionHasData ? (
-          <Spinner />
-        ) : (
-          <ExecutionTable
-            records={executionRecords}
-            kind={executionKind}
-            tableId={executionTableId}
-            execLinkPrefix={execLinkPrefix}
-            instanceQs={instanceQs}
-          />
-        )}
+        <div class={styles.footer}>
+          <div class={styles.footerRow}>
+            {sourceLocation && (
+              <SourceLocation sourceLocation={sourceLocation} data-testid={`${testIdPrefix}-source-location`} />
+            )}
+            {onViewCode && sourceLocation && (
+              <Button
+                ghost
+                size="sm"
+                data-testid="view-in-code-btn"
+                onClick={() => onViewCode(sourceLine ?? undefined)}
+              >
+                view in code →
+              </Button>
+            )}
+          </div>
+
+          {registrationSource && (
+            <>
+              <button
+                type="button"
+                class={styles.registrationToggle}
+                data-testid={`${testIdPrefix}-registration-toggle`}
+                aria-expanded={registrationExpanded}
+                onClick={() => setRegistrationExpanded((v) => !v)}
+              >
+                {registrationExpanded ? "hide registration" : "registration"}
+              </button>
+              {registrationExpanded && (
+                <RegistrationSource source={registrationSource} data-testid={`${testIdPrefix}-registration-source`} />
+              )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -6,7 +6,7 @@ import { useScopedQuery } from "../../hooks/use-scoped-query";
 import { queryKeys } from "../../lib/query-keys";
 import { useAppState } from "../../state/context";
 import { DETAIL_FETCH_LIMIT } from "../../utils/constants";
-import { formatDurationOrDash, formatOptionalDuration, lastDotSegment, MS_PER_SECOND } from "../../utils/format";
+import { formatDurationOrDash, formatRate, lastDotSegment, MS_PER_SECOND } from "../../utils/format";
 import { handlerKindLabel } from "../../utils/status";
 import { Chip } from "../shared/chip";
 import type { DetailStatsCell } from "../shared/detail-stats";
@@ -15,7 +15,7 @@ import { HandlerDetailLayout } from "./handler-detail-layout";
 import { listenerHealthKind } from "./handler-list";
 
 function ModifierChips({ listener }: { listener: ListenerData }) {
-  const chips: Array<{ label: string; value?: string }> = [];
+  const chips: Array<{ label: string; value?: string }> = [{ label: "mode", value: listener.mode }];
   if (listener.debounce) chips.push({ label: "debounce", value: `${listener.debounce * MS_PER_SECOND}ms` });
   if (listener.throttle) chips.push({ label: "throttle", value: `${listener.throttle * MS_PER_SECOND}ms` });
   if (listener.once) chips.push({ label: "once" });
@@ -40,21 +40,21 @@ function ModifierChips({ listener }: { listener: ListenerData }) {
 function buildListenerStatsCells(listener: ListenerData, lastInvokedLabel: string): DetailStatsCell[] {
   const cells: DetailStatsCell[] = [
     { label: "Calls", value: listener.total_invocations },
-    { label: "Successful", value: listener.successful },
-    { label: "Last", value: listener.last_invoked_at ? lastInvokedLabel || "—" : "—" },
     {
       label: "Failed",
       value: listener.failed,
       tone: listener.failed > 0 ? "err" : undefined,
     },
     {
-      label: "Timed Out",
-      value: listener.timed_out,
-      tone: listener.timed_out > 0 ? "warn" : undefined,
+      label: "Err %",
+      value: formatRate(listener.failed, listener.total_invocations),
+      tone: listener.failed > 0 ? "err" : undefined,
     },
+    { label: "Avg", value: formatDurationOrDash(listener.avg_duration_ms) },
+    { label: "Last", value: listener.last_invoked_at ? lastInvokedLabel || "—" : "—" },
   ];
+  if (listener.timed_out > 0) cells.push({ label: "Timed Out", value: listener.timed_out, tone: "warn" });
   if (listener.cancelled > 0) cells.push({ label: "Cancelled", value: listener.cancelled, tone: "cancel" });
-  cells.push({ label: "Mode", value: listener.mode });
   if (listener.thread_leaked > 0) cells.push({ label: "Thread Leaked", value: listener.thread_leaked, tone: "warn" });
   if (listener.suppressed_count > 0)
     cells.push({ label: "Suppressed", value: listener.suppressed_count, tone: "mute" });
@@ -65,11 +65,6 @@ function buildListenerStatsCells(listener: ListenerData, lastInvokedLabel: strin
     const pct = Math.round((100 * dropped) / attempted);
     cells.push({ label: "Backpressure Dropped", value: `${dropped} (${pct}%)`, tone: "warn" });
   }
-  cells.push(
-    { label: "Min", value: formatOptionalDuration(listener.min_duration_ms) },
-    { label: "Avg", value: formatDurationOrDash(listener.avg_duration_ms) },
-    { label: "Max", value: formatOptionalDuration(listener.max_duration_ms) },
-  );
   return cells;
 }
 

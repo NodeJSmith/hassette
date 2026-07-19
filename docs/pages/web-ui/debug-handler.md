@@ -47,11 +47,11 @@ Open the app from the sidebar, then select the **Handlers** tab. The left panel 
 Select your handler. The detail panel shows:
 
 - **Registration source**: the exact `bus.on_state_change()` call Hassette recorded at startup, including the entity pattern and any options.
-- **Modifier chips**: any behavioral options in effect: `debounce`, `throttle`, `once`, `priority`, `immediate`, or `duration`. A handler with no modifiers shows no chip row.
+- **Modifier chips**: the handler's mode is always shown, along with any behavioral options in effect: `debounce`, `throttle`, `once`, `priority`, `immediate`, `duration`, or `backpressure`.
 - **Source location**: the file path and line number where the handler is defined. Click **view in code →** to open the Code tab at that line.
 - **Error banner**: appears when the handler has at least one failure. Shows the exception class, the full message, and a **show traceback** toggle that expands the Python traceback inline.
 ![Handler error banner](../../_static/web_ui_detail_handler_error.png)
-- **Stats grid**: calls, successful, failed, timed out, and min/avg/max duration for the current time window.
+- **Stats grid**: calls, failed, error rate, average duration, and conditional counters (timed out, cancelled, thread leaked, suppressed, dropped) when non-zero.
 - **Invocations table**: the 50 most recent invocations, each with a status indicator, timestamp, duration, and execution ID. The table updates in real time.
 
 A gray ring on a handler in the left panel means it has never been invoked. A red square means at least one invocation has failed or timed out.

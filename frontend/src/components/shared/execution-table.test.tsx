@@ -30,9 +30,9 @@ describe("ExecutionTable", () => {
   it("renders unified column headers", () => {
     const { getByText } = render(<ExecutionTable records={[createExecution("job")]} kind="job" tableId="t" />);
     expect(getByText("Status")).toBeDefined();
-    expect(getByText("Timestamp")).toBeDefined();
+    expect(getByText("Execution")).toBeDefined();
     expect(getByText("Duration")).toBeDefined();
-    expect(getByText("Execution ID")).toBeDefined();
+    expect(getByText("Time")).toBeDefined();
   });
 
   it("renders correct number of rows", () => {
@@ -45,7 +45,7 @@ describe("ExecutionTable", () => {
     expect(container.querySelectorAll("[data-testid='execution-row']").length).toBe(3);
   });
 
-  it("shows error type inline with status for error rows", () => {
+  it("shows a 'failed' status label for error rows instead of the raw error type", () => {
     const { container } = render(
       <ExecutionTable
         records={[createExecution("job", { status: "error", error_type: "ValueError", error_message: "Task failed" })]}
@@ -53,7 +53,15 @@ describe("ExecutionTable", () => {
         tableId="t"
       />,
     );
-    expect(container.textContent).toContain("ValueError");
+    expect(container.textContent).toContain("failed");
+    expect(container.textContent).not.toContain("ValueError");
+  });
+
+  it("shows an 'ok' status label for successful rows", () => {
+    const { container } = render(
+      <ExecutionTable records={[createExecution("job", { status: "success" })]} kind="job" tableId="t" />,
+    );
+    expect(container.textContent).toContain("ok");
   });
 
   it("shows truncated execution ID in table row", () => {
@@ -62,7 +70,7 @@ describe("ExecutionTable", () => {
       <ExecutionTable records={[createExecution("job", { execution_id: uuid })]} kind="job" tableId="t" />,
     );
     const row = container.querySelector("[data-testid='execution-row']")!;
-    expect(row.textContent).toContain("abc12345");
+    expect(row.textContent).toContain("67890abc");
     expect(row.textContent).not.toContain(uuid);
   });
 

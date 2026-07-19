@@ -16,11 +16,11 @@ A stats row shows duration, timestamp, and status for the run.
 
 ## Trigger
 
-A trigger section appears for executions that carry trigger data. It shows the trigger mode (scheduled, manual, or event-driven), a truncated context ID linking related executions, and the origin, when known.
+A trigger section appears for executions that carry trigger data. It shows the trigger mode (currently only `manual`, for jobs triggered via the run-now button — absent for regular scheduled fires and handler invocations), a truncated context ID linking related executions, and the origin, when known.
 
 ## Error or Outcome
 
-Failed executions show the full Python traceback in an expandable viewer. Timed-out and cancelled executions show duration and error details without a traceback, since no exception was raised. Successful executions show a single line: a green status shape and the completion time.
+Failed executions show the full Python traceback in a dedicated viewer. Timed-out and cancelled executions show duration and error details without a traceback — the framework skips traceback capture for these outcomes. Successful executions show a single line: a green status shape and the elapsed duration.
 
 ## Logs
 

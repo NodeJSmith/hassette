@@ -5,7 +5,7 @@ import { Link } from "wouter";
 import type { LogEntry } from "../../../api/endpoints";
 import { BREAKPOINT_MOBILE, useMediaQuery } from "../../../hooks/use-media-query";
 import { useRelativeTime } from "../../../hooks/use-relative-time";
-import { executionDetailHref, formatTimestamp, hasExecutionLink, truncateId } from "../../../utils/format";
+import { formatTimestamp, logEntryExecutionHref, truncateId } from "../../../utils/format";
 import { onActivateKeyDown } from "../../../utils/keyboard";
 import { AppLink } from "../app-link";
 import { LEVEL_ABBREV, levelClass } from "./constants";
@@ -68,27 +68,20 @@ export function LogTableRow({ entry, rowKey, visibleColumns, isSelected, onClick
       )}
       {isColumnVisible("execution") && (
         <td class={styles.mono}>
-          {entry.execution_id && entry.app_key && hasExecutionLink(entry) ? (
-            <span onClick={(e: MouseEvent) => e.stopPropagation()}>
-              <Link
-                href={executionDetailHref(
-                  entry.app_key,
-                  entry.execution_kind,
-                  (entry.execution_kind === "handler" ? entry.listener_id : entry.job_id)!,
-                  entry.execution_id,
-                  entry.instance_index,
-                )}
-                class={styles.execLink}
-                title={entry.execution_id}
-              >
+          {(() => {
+            const execHref = logEntryExecutionHref(entry);
+            return execHref ? (
+              <span onClick={(e: MouseEvent) => e.stopPropagation()}>
+                <Link href={execHref} class={styles.execLink} title={entry.execution_id ?? undefined}>
+                  {truncateId(entry.execution_id)}
+                </Link>
+              </span>
+            ) : (
+              <span class={styles.muted} title={entry.execution_id ?? undefined}>
                 {truncateId(entry.execution_id)}
-              </Link>
-            </span>
-          ) : (
-            <span class={styles.muted} title={entry.execution_id ?? undefined}>
-              {truncateId(entry.execution_id)}
-            </span>
-          )}
+              </span>
+            );
+          })()}
         </td>
       )}
       {isColumnVisible("function") && (

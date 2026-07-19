@@ -2,7 +2,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--sp-1);
-  font-family: var(--font-sans);
+  font-family: var(--font-body);
   font-size: var(--fs-small);
   color: var(--accent);
   text-decoration: none;
@@ -64,7 +64,7 @@
 }
 
 .sectionHeading {
-  font-family: var(--font-sans);
+  font-family: var(--font-body);
   font-size: var(--fs-small);
   font-weight: var(--fw-semibold);
   color: var(--ink-1);

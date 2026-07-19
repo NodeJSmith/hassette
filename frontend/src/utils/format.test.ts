@@ -9,8 +9,9 @@ import {
   formatRelativeTime,
   formatTimestamp,
   formatTriggerDetail,
-  hasExecutionLink,
+  logEntryExecutionHref,
   pluralize,
+  truncateId,
 } from "./format";
 
 describe("formatTimestamp", () => {
@@ -283,12 +284,12 @@ describe("formatAge", () => {
 });
 
 describe("formatRate", () => {
-  it("0 failures out of 100 runs returns '0.0%'", () => {
-    expect(formatRate(0, 100)).toBe("0.0%");
+  it("0 failures out of 100 runs returns '0%'", () => {
+    expect(formatRate(0, 100)).toBe("0%");
   });
 
-  it("3 failures out of 100 runs returns '3.0%'", () => {
-    expect(formatRate(3, 100)).toBe("3.0%");
+  it("3 failures out of 100 runs returns '3%'", () => {
+    expect(formatRate(3, 100)).toBe("3%");
   });
 
   it("1 failure out of 3 runs returns '33.3%'", () => {
@@ -303,33 +304,74 @@ describe("formatRate", () => {
     expect(formatRate(5, 0)).toBe("—");
   });
 
-  it("100 failures out of 100 runs returns '100.0%'", () => {
-    expect(formatRate(100, 100)).toBe("100.0%");
+  it("100 failures out of 100 runs returns '100%'", () => {
+    expect(formatRate(100, 100)).toBe("100%");
+  });
+
+  it("2 failures out of 3 runs keeps one decimal for non-whole percentages", () => {
+    expect(formatRate(2, 3)).toBe("66.7%");
   });
 });
 
-describe("hasExecutionLink", () => {
-  it("returns true for handler kind with listener_id", () => {
-    expect(hasExecutionLink({ execution_kind: "handler", listener_id: 5, job_id: null })).toBe(true);
+describe("truncateId", () => {
+  it("returns em-dash for null", () => {
+    expect(truncateId(null)).toBe("—");
   });
 
-  it("returns true for job kind with job_id", () => {
-    expect(hasExecutionLink({ execution_kind: "job", listener_id: null, job_id: 3 })).toBe(true);
+  it("returns em-dash for undefined", () => {
+    expect(truncateId(undefined)).toBe("—");
   });
 
-  it("returns false for handler kind with null listener_id", () => {
-    expect(hasExecutionLink({ execution_kind: "handler", listener_id: null, job_id: 3 })).toBe(false);
+  it("returns the id unchanged when 8 chars or fewer", () => {
+    expect(truncateId("abc123")).toBe("abc123");
+    expect(truncateId("12345678")).toBe("12345678");
   });
 
-  it("returns false for job kind with null job_id", () => {
-    expect(hasExecutionLink({ execution_kind: "job", listener_id: 5, job_id: null })).toBe(false);
+  it("truncates to the last 8 chars with a leading ellipsis", () => {
+    expect(truncateId("abc12345-1234-5678-9abc-def012345678")).toBe("…12345678");
   });
 
-  it("returns false when execution_kind is null", () => {
-    expect(hasExecutionLink({ execution_kind: null, listener_id: 5, job_id: 3 })).toBe(false);
+  it("differentiates UUID7 rows that share a time prefix", () => {
+    expect(truncateId("019f7ae9-0000-0000-0000-000000000001")).not.toBe(
+      truncateId("019f7ae9-0000-0000-0000-000000000002"),
+    );
+  });
+});
+
+describe("logEntryExecutionHref", () => {
+  const base = { app_key: "my_app", execution_id: "exec-1", instance_index: null };
+
+  it("returns href for handler kind with listener_id", () => {
+    expect(logEntryExecutionHref({ ...base, execution_kind: "handler", listener_id: 5, job_id: null })).toBe(
+      "/apps/my_app/handlers/listener/5/exec/exec-1",
+    );
   });
 
-  it("returns false when execution_kind is undefined", () => {
-    expect(hasExecutionLink({ listener_id: 5, job_id: 3 })).toBe(false);
+  it("returns href for job kind with job_id", () => {
+    expect(logEntryExecutionHref({ ...base, execution_kind: "job", listener_id: null, job_id: 3 })).toBe(
+      "/apps/my_app/handlers/job/3/exec/exec-1",
+    );
+  });
+
+  it("returns null for handler kind with null listener_id", () => {
+    expect(logEntryExecutionHref({ ...base, execution_kind: "handler", listener_id: null, job_id: 3 })).toBeNull();
+  });
+
+  it("returns null for job kind with null job_id", () => {
+    expect(logEntryExecutionHref({ ...base, execution_kind: "job", listener_id: 5, job_id: null })).toBeNull();
+  });
+
+  it("returns null when execution_kind is null", () => {
+    expect(logEntryExecutionHref({ ...base, execution_kind: null, listener_id: 5, job_id: 3 })).toBeNull();
+  });
+
+  it("returns null when execution_kind is undefined", () => {
+    expect(logEntryExecutionHref({ ...base, listener_id: 5, job_id: 3 })).toBeNull();
+  });
+
+  it("appends instance query param when present", () => {
+    expect(
+      logEntryExecutionHref({ ...base, execution_kind: "handler", listener_id: 5, job_id: null, instance_index: 2 }),
+    ).toBe("/apps/my_app/handlers/listener/5/exec/exec-1?instance=2");
   });
 });

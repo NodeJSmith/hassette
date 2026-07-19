@@ -13,6 +13,9 @@
 .rowClickable:hover {
   background: var(--bg-sunken);
 }
+.rowClickable:hover .arrowCell {
+  color: var(--accent);
+}
 
 .statusCell {
 }
@@ -23,25 +26,34 @@
   gap: var(--sp-2);
 }
 
+.arrowCell {
+  transition: color var(--t-fast) var(--ease);
+}
+
 .statusLabel {
   font-family: var(--font-mono);
   font-size: var(--fs-micro);
   white-space: nowrap;
 }
 
-.errorType {
+.okLabel {
+  composes: statusLabel;
+  color: var(--ok);
+}
+
+.failedLabel {
   composes: statusLabel;
   color: var(--err);
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.timeoutType {
+.timeoutLabel {
   composes: statusLabel;
   color: var(--warn);
 }
 
-.cancelledType {
+.cancelledLabel {
   composes: statusLabel;
   color: var(--cancel);
 }

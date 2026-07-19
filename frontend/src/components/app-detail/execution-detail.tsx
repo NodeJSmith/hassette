@@ -3,23 +3,24 @@ import clsx from "clsx";
 import { useCallback } from "preact/hooks";
 import { Link } from "wouter";
 
-import type { ExecutionData } from "../api/endpoints";
-import { getExecutionById } from "../api/endpoints";
-import { Badge } from "../components/shared/badge";
-import type { DetailStatsCell } from "../components/shared/detail-stats";
-import { DetailStats } from "../components/shared/detail-stats";
-import { EmptyState } from "../components/shared/empty-state";
-import { ErrorDisplay } from "../components/shared/error-display";
-import { ExecutionLogs } from "../components/shared/execution-logs";
-import { Spinner } from "../components/shared/spinner";
-import { StatusShape } from "../components/shared/status-shape";
-import { TracebackViewer } from "../components/shared/traceback-viewer";
-import { useDocumentTitle } from "../hooks/use-document-title";
-import { useSignal } from "../hooks/use-signal";
-import { useSubscribe } from "../hooks/use-subscribe";
-import { STATUS_DOT_SIZE } from "../utils/constants";
-import { formatDuration, formatTimestamp, truncateId } from "../utils/format";
-import { executionStatusKind } from "../utils/status";
+import type { ExecutionData } from "../../api/endpoints";
+import { getExecutionById } from "../../api/endpoints";
+import { useDocumentTitle } from "../../hooks/use-document-title";
+import { useSignal } from "../../hooks/use-signal";
+import { useSubscribe } from "../../hooks/use-subscribe";
+import { STATUS_DOT_SIZE } from "../../utils/constants";
+import { formatDuration, formatTimestamp, truncateId } from "../../utils/format";
+import { executionStatusKind } from "../../utils/status";
+import { Badge } from "../shared/badge";
+import type { DetailStatsCell } from "../shared/detail-stats";
+import { DetailStats } from "../shared/detail-stats";
+import { EmptyState } from "../shared/empty-state";
+import { ErrorDisplay } from "../shared/error-display";
+import { ExecutionLogs } from "../shared/execution-logs";
+import { COPY_CONFIRM_MS } from "../shared/log-table/constants";
+import { Spinner } from "../shared/spinner";
+import { StatusShape } from "../shared/status-shape";
+import { TracebackViewer } from "../shared/traceback-viewer";
 import styles from "./execution-detail.module.css";
 
 function buildMetaCells(record: ExecutionData): DetailStatsCell[] {
@@ -69,7 +70,7 @@ function CopyIdButton({ text }: { text: string }) {
         copied.value = true;
         setTimeout(() => {
           copied.value = false;
-        }, 1500);
+        }, COPY_CONFIRM_MS);
       } catch {
         /* clipboard unavailable */
       }
@@ -90,6 +91,14 @@ function CopyIdButton({ text }: { text: string }) {
   );
 }
 
+function BackLink({ href, handlerName }: { href: string; handlerName?: string }) {
+  return (
+    <Link href={href} class={styles.backLink}>
+      ← back to {handlerName ?? "handler"}
+    </Link>
+  );
+}
+
 interface ContentProps {
   record: ExecutionData;
   backHref: string;
@@ -105,9 +114,7 @@ export function ExecutionDetailContent({ record, backHref, handlerName }: Conten
 
   return (
     <div>
-      <Link href={backHref} class={styles.backLink}>
-        ← back to {handlerName ?? "handler"}
-      </Link>
+      <BackLink href={backHref} handlerName={handlerName} />
 
       <div class={styles.header}>
         <StatusShape kind={statusKind} size={STATUS_DOT_SIZE} />

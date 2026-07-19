@@ -6,12 +6,12 @@ import type { JobData, ListenerData } from "../../api/endpoints";
 import { useCorrectUrl } from "../../hooks/use-correct-url";
 import { BREAKPOINT_MOBILE } from "../../hooks/use-media-query";
 import { useSignal } from "../../hooks/use-signal";
-import { ExecutionDetailFetcher } from "../../pages/execution-detail";
+import { lastDotSegment } from "../../utils/format";
 import { Button } from "../shared/button";
 import { EmptyState } from "../shared/empty-state";
+import { ExecutionDetailFetcher } from "./execution-detail";
 import { HandlerList, type SelectedHandlerId } from "./handler-list";
 import styles from "./handlers-tab.module.css";
-import { HandlersHealthStrip } from "./health-strip";
 import { JobDetail } from "./job-detail";
 import { ListenerDetail } from "./listener-detail";
 
@@ -113,7 +113,9 @@ export function HandlersTab({
 
   if (selectedExecId && parsed) {
     const handlerName =
-      parsed.kind === "listener" ? selectedListener?.handler_method?.split(".").pop() : selectedJob?.job_name;
+      parsed.kind === "listener" && selectedListener?.handler_method
+        ? lastDotSegment(selectedListener.handler_method)
+        : selectedJob?.job_name;
     return (
       <div ref={containerRef}>
         <ExecutionDetailFetcher
@@ -144,8 +146,6 @@ export function HandlersTab({
 
   return (
     <div ref={containerRef} class={styles.container}>
-      <HandlersHealthStrip listeners={listeners} jobs={jobs} />
-
       {showMobileDetail && (
         <Button
           ghost

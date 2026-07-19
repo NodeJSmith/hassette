@@ -43,9 +43,11 @@ export function HandlerHealthCard({ item, appKey, instanceQs, tabIndex }: Handle
 
   const navigateToHandler = () => navigate(href);
 
+  const idle = runCount === 0;
+
   return (
     <div
-      class={clsx(styles.card, failing && styles.cardFailing)}
+      class={clsx(styles.card, failing && styles.cardFailing, idle && styles.cardIdle)}
       data-testid={`overview-health-card-${item.kind}-${item.id}`}
       role="button"
       aria-label={`${item.name} handler details`}

@@ -4,9 +4,9 @@ import { http, HttpResponse } from "msw";
 import type { ComponentChildren } from "preact";
 import { describe, expect, it, vi } from "vitest";
 
-import { createExecution } from "../test/factories";
-import { createTestQueryClient } from "../test/query-test-utils";
-import { server } from "../test/server";
+import { createExecution } from "../../test/factories";
+import { createTestQueryClient } from "../../test/query-test-utils";
+import { server } from "../../test/server";
 import { ExecutionDetailContent, ExecutionDetailFetcher } from "./execution-detail";
 
 vi.mock("wouter", () => ({
@@ -17,13 +17,13 @@ vi.mock("wouter", () => ({
   ),
 }));
 
-vi.mock("../components/shared/execution-logs", () => ({
+vi.mock("../shared/execution-logs", () => ({
   ExecutionLogs: ({ executionId }: { executionId: string }) => (
     <div data-testid="execution-logs">logs for {executionId}</div>
   ),
 }));
 
-vi.mock("../hooks/use-document-title", () => ({
+vi.mock("../../hooks/use-document-title", () => ({
   useDocumentTitle: vi.fn(),
 }));
 
@@ -50,7 +50,7 @@ describe("ExecutionDetailContent", () => {
   it("renders truncated execution ID in heading", () => {
     const record = createExecution("handler", { execution_id: "abc12345-1234-5678-9abc-def012345678" });
     const { getByRole } = render(<ExecutionDetailContent record={record} backHref={backHref} />);
-    expect(getByRole("heading").textContent).toContain("abc12345");
+    expect(getByRole("heading").textContent).toContain("12345678");
   });
 
   it("renders full execution ID in code element", () => {

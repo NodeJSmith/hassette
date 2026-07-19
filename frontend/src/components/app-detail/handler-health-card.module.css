@@ -33,6 +33,15 @@
   background: color-mix(in srgb, var(--err-bg) 40%, var(--bg-sunken));
 }
 
+.cardIdle {
+  opacity: 0.6;
+}
+
+.cardIdle:hover,
+.cardIdle:focus-visible {
+  opacity: 1;
+}
+
 /* Header row: status shape + handler name link */
 .header {
   display: flex;

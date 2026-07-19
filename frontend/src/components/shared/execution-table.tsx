@@ -4,9 +4,9 @@ import { useLocation } from "wouter";
 import { useRovingTabIndex } from "../../hooks/use-roving-tab-index";
 import { useSignal } from "../../hooks/use-signal";
 import { STATUS_DOT_SIZE } from "../../utils/constants";
-import { formatDuration, formatTimestamp, truncateId } from "../../utils/format";
+import { formatDuration, formatRelativeTime, formatTimestamp, truncateId } from "../../utils/format";
 import { onActivateKeyDown } from "../../utils/keyboard";
-import { executionStatusKind } from "../../utils/status";
+import { executionStatusKind, type StatusKind } from "../../utils/status";
 import { Badge } from "./badge";
 import { EmptyState } from "./empty-state";
 import styles from "./execution-table.module.css";
@@ -14,6 +14,14 @@ import { ShowMoreButton } from "./show-more-button";
 import { StatusShape } from "./status-shape";
 
 const INITIAL_ROWS = 5;
+
+const STATUS_LABEL: Record<StatusKind, string> = {
+  ok: "ok",
+  err: "failed",
+  warn: "timed out",
+  cancel: "cancelled",
+  mute: "skipped",
+};
 
 export interface ExecutionRecord {
   execution_start_ts: number;
@@ -67,14 +75,14 @@ export function ExecutionTable({ records, kind, tableId, execLinkPrefix, instanc
             <th class="ht-col-status" scope="col">
               Status
             </th>
-            <th class="ht-col-time" scope="col">
-              Timestamp
+            <th class="ht-col-trace" scope="col">
+              Execution
             </th>
             <th class="ht-col-duration" scope="col">
               Duration
             </th>
-            <th class="ht-col-trace" scope="col">
-              Execution ID
+            <th class="ht-col-time" scope="col">
+              Time
             </th>
             <th class={styles.colArrow} scope="col">
               <span class="ht-visually-hidden">Details</span>
@@ -100,6 +108,7 @@ export function ExecutionTable({ records, kind, tableId, execLinkPrefix, instanc
                 data-testid={kind === "handler" ? "invocation-row" : "execution-row"}
                 tabIndex={getTabIndex(i)}
                 role="row"
+                aria-label={canNavigate ? "View execution detail" : undefined}
                 data-roving-item
                 onClick={() => {
                   setActiveIndex(i);
@@ -110,11 +119,7 @@ export function ExecutionTable({ records, kind, tableId, execLinkPrefix, instanc
                 <td class={styles.statusCell}>
                   <div class={styles.statusCellInner}>
                     <StatusShape kind={statusKind} size={STATUS_DOT_SIZE} />
-                    {statusKind === "err" && record.error_type && (
-                      <span class={styles.errorType}>{record.error_type}</span>
-                    )}
-                    {statusKind === "warn" && <span class={styles.timeoutType}>timed out</span>}
-                    {statusKind === "cancel" && <span class={styles.cancelledType}>cancelled</span>}
+                    <span class={statusLabelClass(statusKind)}>{STATUS_LABEL[statusKind]}</span>
                     {isThreadLeaked && (
                       <Badge variant="warning" size="sm" aria-label="thread leaked past timeout">
                         thread leaked
@@ -127,10 +132,12 @@ export function ExecutionTable({ records, kind, tableId, execLinkPrefix, instanc
                     )}
                   </div>
                 </td>
-                <td class="ht-text-mono ht-text-xs">{formatTimestamp(record.execution_start_ts)}</td>
-                <td>{formatDuration(record.duration_ms)}</td>
                 <td class="ht-col-trace ht-text-mono ht-text-xs">{truncateId(record.execution_id)}</td>
-                <td class="ht-text-muted" aria-label="View execution detail">
+                <td>{formatDuration(record.duration_ms)}</td>
+                <td class="ht-text-mono ht-text-xs" title={formatTimestamp(record.execution_start_ts)}>
+                  {formatRelativeTime(record.execution_start_ts)}
+                </td>
+                <td class={clsx("ht-text-muted", styles.arrowCell)} aria-label="View execution detail">
                   →
                 </td>
               </tr>
@@ -141,4 +148,19 @@ export function ExecutionTable({ records, kind, tableId, execLinkPrefix, instanc
       {hasMore && <ShowMoreButton showAll={showAll} totalCount={records.length} />}
     </>
   );
+}
+
+function statusLabelClass(kind: StatusKind): string {
+  switch (kind) {
+    case "ok":
+      return styles.okLabel;
+    case "err":
+      return styles.failedLabel;
+    case "warn":
+      return styles.timeoutLabel;
+    case "cancel":
+      return styles.cancelledLabel;
+    case "mute":
+      return styles.statusLabel;
+  }
 }

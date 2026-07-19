@@ -58,6 +58,13 @@ function renderOverviewTab({
   );
 }
 
+describe("OverviewTab — Health Strip", () => {
+  it("renders the overview health strip as the first section", () => {
+    const { getByTestId } = renderOverviewTab();
+    expect(getByTestId("overview-health-strip")).toBeDefined();
+  });
+});
+
 describe("OverviewTab — Error Spotlight", () => {
   it("is absent when no listeners or jobs are failing", () => {
     const { queryByTestId } = renderOverviewTab({

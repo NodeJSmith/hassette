@@ -64,11 +64,15 @@ export function formatTriggerDetail(detail: string): string {
   return parts.join(" ");
 }
 
-/** Truncate a UUID or ID string to 8 chars with ellipsis, or "—" for null/undefined. */
+/**
+ * Truncate a UUID or ID string to its last 8 chars with a leading ellipsis, or "—" for
+ * null/undefined. Execution IDs are UUID7 (time-prefixed), so the leading chars are
+ * identical across rows in a session — the suffix is what varies and is worth showing.
+ */
 export function truncateId(id: string | null | undefined): string {
   if (!id) return "—";
   if (id.length <= 8) return id;
-  return id.slice(0, 8) + "…";
+  return "…" + id.slice(-8);
 }
 
 /** Parse source_location "filename.py:LINE" into { filename, line }. */
@@ -121,22 +125,18 @@ export function lastDotSegment(s: string): string {
   return idx === -1 ? s : s.slice(idx + 1);
 }
 
-/** Format a failure rate as a percentage string (e.g., "3.0%"), or "—" if total is 0. */
+/**
+ * Format a failure rate as a percentage string. Whole percentages render without a decimal
+ * (e.g., "100%", "33%"); non-whole values keep one decimal (e.g., "42.9%"). Returns "—" if
+ * total is 0.
+ */
 export function formatRate(failed: number, total: number): string {
-  return total > 0 ? ((failed / total) * 100).toFixed(1) + "%" : "—";
+  if (total <= 0) return "—";
+  const fixed = ((failed / total) * 100).toFixed(1);
+  return (fixed.endsWith(".0") ? fixed.slice(0, -2) : fixed) + "%";
 }
 
-export function hasExecutionLink(entry: {
-  execution_kind?: string | null;
-  listener_id?: number | null;
-  job_id?: number | null;
-}): entry is { execution_kind: "handler" | "job"; listener_id?: number | null; job_id?: number | null } {
-  if (!entry.execution_kind) return false;
-  return entry.execution_kind === "handler"
-    ? entry.listener_id !== null && entry.listener_id !== undefined
-    : entry.job_id !== null && entry.job_id !== undefined;
-}
-
+// URL segments use "listener"/"job" (the DB entity name), while execution_kind uses "handler"/"job" (the execution type).
 export function executionDetailHref(
   appKey: string,
   kind: "handler" | "job",
@@ -146,6 +146,24 @@ export function executionDetailHref(
 ): string {
   const base = `/apps/${appKey}/handlers/${kind === "handler" ? "listener" : "job"}/${handlerId}/exec/${executionId}`;
   return instanceIndex !== null && instanceIndex !== undefined ? `${base}?instance=${instanceIndex}` : base;
+}
+
+export function logEntryExecutionHref(entry: {
+  app_key?: string | null;
+  execution_kind?: string | null;
+  listener_id?: number | null;
+  job_id?: number | null;
+  execution_id?: string | null;
+  instance_index?: number | null;
+}): string | null {
+  if (!entry.app_key || !entry.execution_id || !entry.execution_kind) return null;
+  if (entry.execution_kind === "handler" && entry.listener_id !== null && entry.listener_id !== undefined) {
+    return executionDetailHref(entry.app_key, "handler", entry.listener_id, entry.execution_id, entry.instance_index);
+  }
+  if (entry.execution_kind === "job" && entry.job_id !== null && entry.job_id !== undefined) {
+    return executionDetailHref(entry.app_key, "job", entry.job_id, entry.execution_id, entry.instance_index);
+  }
+  return null;
 }
 
 export function formatUptime(seconds: number): string {

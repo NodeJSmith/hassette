@@ -25,17 +25,13 @@ function SpotlightEntry({ item, appKey, instanceQs }: SpotlightEntryProps) {
       <span aria-hidden="true">
         <StatusShape kind={item.statusKind} size={12} />
       </span>
-      <div class={styles.spotlightBody}>
-        <div class={styles.spotlightHeader}>
-          <span class={styles.spotlightName}>{item.name}</span>
-          {errorType && <span class={styles.spotlightErrorType}>{errorType}</span>}
-        </div>
-        {errorMessage && (
-          <div class={styles.spotlightErrorMsg} title={errorMessage}>
-            {errorMessage}
-          </div>
-        )}
-      </div>
+      <span class={styles.spotlightName}>{item.name}</span>
+      {errorType && <span class={styles.spotlightErrorType}>{errorType}</span>}
+      {errorMessage && (
+        <span class={styles.spotlightErrorMsg} title={errorMessage}>
+          {errorMessage}
+        </span>
+      )}
       <Link href={href} class={styles.spotlightLink}>
         view
       </Link>
@@ -58,8 +54,11 @@ export function ErrorSpotlight({
   const hiddenCount = failingItems.length - SPOTLIGHT_LIMIT;
 
   return (
-    <section class={clsx(styles.section, styles.spotlight)} data-testid="overview-error-spotlight">
-      <h3 class="ht-section-label">failing handlers</h3>
+    <section
+      class={clsx(styles.section, styles.spotlight)}
+      aria-label="failing handlers"
+      data-testid="overview-error-spotlight"
+    >
       {visibleItems.map((item) => (
         <SpotlightEntry key={`${item.kind}-${item.id}`} item={item} appKey={appKey} instanceQs={instanceQs} />
       ))}

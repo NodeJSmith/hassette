@@ -193,13 +193,13 @@ describe("LogTableRow", () => {
   });
 
   describe("execution column", () => {
-    it("shows first 8 chars + ellipsis when execution_id is present", () => {
+    it("shows last 8 chars + leading ellipsis when execution_id is present", () => {
       const { container } = renderRow({
         entry: createLogEntry({ execution_id: "abcdef1234567890" }),
         visibleColumns: ["execution"],
       });
       const text = container.querySelector("td")!.textContent;
-      expect(text).toContain("abcdef12");
+      expect(text).toContain("34567890");
       expect(text).toContain("…");
       expect(text).not.toContain("abcdef1234567890");
     });
@@ -226,7 +226,7 @@ describe("LogTableRow", () => {
       const link = container.querySelector("a");
       expect(link).not.toBeNull();
       expect(link!.getAttribute("href")).toContain("/apps/my_app/handlers/listener/5/exec/abcdef1234567890");
-      expect(link!.textContent).toContain("abcdef12");
+      expect(link!.textContent).toContain("34567890");
     });
 
     it("renders as a link for job execution_kind", () => {
@@ -256,7 +256,7 @@ describe("LogTableRow", () => {
         visibleColumns: ["execution"],
       });
       expect(container.querySelector("a")).toBeNull();
-      expect(container.querySelector("td")!.textContent).toContain("abcdef12");
+      expect(container.querySelector("td")!.textContent).toContain("34567890");
     });
 
     it("click on execution link does not trigger row click", () => {
