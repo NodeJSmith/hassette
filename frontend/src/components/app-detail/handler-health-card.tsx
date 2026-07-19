@@ -43,7 +43,7 @@ export function HandlerHealthCard({ item, appKey, instanceQs, tabIndex }: Handle
 
   const navigateToHandler = () => navigate(href);
 
-  const idle = runCount === 0;
+  const idle = item.statusKind === "mute";
 
   return (
     <div

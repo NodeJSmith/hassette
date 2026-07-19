@@ -228,9 +228,7 @@ export function ExecutionDetailFetcher({
   if (isError) {
     return (
       <>
-        <Link href={backHref} class={styles.backLink}>
-          ← back to {handlerName ?? "handler"}
-        </Link>
+        <BackLink href={backHref} handlerName={handlerName} />
         <EmptyState title="failed to load execution" body="Could not fetch execution data. Try again later." />
       </>
     );
@@ -239,9 +237,7 @@ export function ExecutionDetailFetcher({
   if (!record) {
     return (
       <>
-        <Link href={backHref} class={styles.backLink}>
-          ← back to {handlerName ?? "handler"}
-        </Link>
+        <BackLink href={backHref} handlerName={handlerName} />
         <EmptyState title="execution not found" body="This execution may have expired from the telemetry window." />
       </>
     );

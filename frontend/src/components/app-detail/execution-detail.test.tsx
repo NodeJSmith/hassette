@@ -215,7 +215,7 @@ describe("ExecutionDetailFetcher", () => {
         <ExecutionDetailFetcher appKey="my_app" kind="listener" handlerId={1} executionId="abc-123" instanceQs="" />
       </Wrapper>,
     );
-    expect(container.querySelector("[aria-label]") || container.textContent).toBeDefined();
+    expect(container.querySelector("[role='status']")).not.toBeNull();
   });
 
   it("renders error state on fetch failure", async () => {

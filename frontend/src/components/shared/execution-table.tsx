@@ -114,7 +114,7 @@ export function ExecutionTable({ records, kind, tableId, execLinkPrefix, instanc
                   setActiveIndex(i);
                   goToDetail();
                 }}
-                onKeyDown={onActivateKeyDown(goToDetail)}
+                onKeyDown={canNavigate ? onActivateKeyDown(goToDetail) : undefined}
               >
                 <td class={styles.statusCell}>
                   <div class={styles.statusCellInner}>
@@ -137,8 +137,11 @@ export function ExecutionTable({ records, kind, tableId, execLinkPrefix, instanc
                 <td class="ht-text-mono ht-text-xs" title={formatTimestamp(record.execution_start_ts)}>
                   {formatRelativeTime(record.execution_start_ts)}
                 </td>
-                <td class={clsx("ht-text-muted", styles.arrowCell)} aria-label="View execution detail">
-                  →
+                <td
+                  class={clsx("ht-text-muted", styles.arrowCell)}
+                  aria-label={canNavigate ? "View execution detail" : undefined}
+                >
+                  {canNavigate ? "→" : ""}
                 </td>
               </tr>
             );

@@ -24,7 +24,6 @@ function ModifierChips({ listener }: { listener: ListenerData }) {
   if (listener.duration) chips.push({ label: "duration", value: `${listener.duration}s` });
   if (listener.backpressure === "drop_newest") chips.push({ label: "backpressure", value: "drop_newest" });
 
-  if (chips.length === 0) return null;
   return (
     <div class={chipStyles.chipRow} data-testid="modifier-chips">
       {chips.map((chip) => (
