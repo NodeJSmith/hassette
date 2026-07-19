@@ -130,6 +130,16 @@ describe("LogDetailDrawer", () => {
       expect(drawer.textContent).toContain("Traceback");
     });
 
+    it("shows message and exception before metadata", () => {
+      const entry = makeEntry({ exc_info: "Traceback (most recent call last):\nValueError: bad" });
+      const { queryByRole } = renderDrawer({ entries: [entry] });
+      const text = queryByRole("complementary")!.textContent ?? "";
+
+      expect(text.indexOf("message")).toBeLessThan(text.indexOf("exception"));
+      expect(text.indexOf("exception")).toBeLessThan(text.indexOf("App"));
+      expect(text.indexOf("test message")).toBeLessThan(text.indexOf("on_ready()"));
+    });
+
     it("does not show exception section when exc_info is null", () => {
       const { queryByRole } = renderDrawer();
       const drawer = queryByRole("complementary")!;

@@ -127,12 +127,20 @@ describe("App — hamburger button", () => {
     expect(drawer!.className).not.toContain("is-open");
   });
 
+  it("keeps the closed drawer inert", () => {
+    const { container } = render(<App />);
+    const drawer = container.querySelector(".ht-drawer");
+    expect(drawer).not.toBeNull();
+    expect(drawer!.hasAttribute("inert")).toBe(true);
+  });
+
   it("clicking the hamburger opens the drawer", () => {
     const { container } = render(<App />);
     const btn = container.querySelector("[data-testid='hamburger']")!;
     fireEvent.click(btn);
     const drawer = container.querySelector(".ht-drawer");
     expect(drawer!.className).toContain("is-open");
+    expect(drawer!.hasAttribute("inert")).toBe(false);
   });
 
   it("hamburger aria-expanded updates to true when drawer is open", () => {

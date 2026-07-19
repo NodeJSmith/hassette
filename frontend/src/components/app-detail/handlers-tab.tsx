@@ -6,6 +6,7 @@ import type { JobData, ListenerData } from "../../api/endpoints";
 import { useCorrectUrl } from "../../hooks/use-correct-url";
 import { BREAKPOINT_MOBILE } from "../../hooks/use-media-query";
 import { useSignal } from "../../hooks/use-signal";
+import { appHandlerDetailPath, appHandlersPath } from "../../utils/app-routes";
 import { lastDotSegment } from "../../utils/format";
 import { Button } from "../shared/button";
 import { EmptyState } from "../shared/empty-state";
@@ -31,7 +32,7 @@ interface Props {
   selectedHandler: string | null;
   selectedExecId: string | null;
   appKey: string;
-  instanceQs: string;
+  instanceIndex?: number;
   onSwitchToCode?: (line?: number) => void;
 }
 
@@ -62,7 +63,7 @@ export function HandlersTab({
   selectedHandler,
   selectedExecId,
   appKey,
-  instanceQs,
+  instanceIndex,
   onSwitchToCode,
 }: Props) {
   const [, navigate] = useLocation();
@@ -86,6 +87,7 @@ export function HandlersTab({
   }, [isMobile]);
 
   const hasItems = listeners.length > 0 || jobs.length > 0;
+  const instanceQs = instanceIndex !== undefined ? `?instance=${instanceIndex}` : "";
 
   const parsed = parseSelectedHandler(selectedHandler);
 
@@ -102,13 +104,13 @@ export function HandlersTab({
         ? listeners.some((l) => l.listener_id === parsed.id)
         : jobs.some((j) => j.job_id === parsed.id);
     if (!found) {
-      correctUrl(`/apps/${appKey}/handlers${instanceQs}`);
+      correctUrl(appHandlersPath(appKey, { instance: instanceIndex }));
     }
-  }, [selectedHandler, parsed, selectedExecId, hasItems, listeners, jobs, appKey, instanceQs, correctUrl]);
+  }, [selectedHandler, parsed, selectedExecId, hasItems, listeners, jobs, appKey, instanceIndex, correctUrl]);
 
   const handleSelect = (id: SelectedHandlerId) => {
     const segment = id.kind === "listener" ? `listener/${id.id}` : `job/${id.id}`;
-    navigate(`/apps/${appKey}/handlers/${segment}${instanceQs}`);
+    navigate(appHandlerDetailPath(appKey, segment, { instance: instanceIndex }));
   };
 
   if (selectedExecId && parsed) {
@@ -152,7 +154,7 @@ export function HandlersTab({
           size="sm"
           class="ht-mb-3"
           data-testid="back-to-list"
-          onClick={() => navigate(`/apps/${appKey}/handlers${instanceQs}`)}
+          onClick={() => navigate(appHandlersPath(appKey, { instance: instanceIndex }))}
           aria-label="Back to handler list"
         >
           ← back

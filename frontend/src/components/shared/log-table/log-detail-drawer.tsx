@@ -164,6 +164,28 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
               <span class={styles.timestamp}>{formatTimestamp(entry.timestamp)}</span>
             </div>
 
+            <div class={styles.section}>
+              <div class={styles.sectionHeader}>
+                <span class={styles.sectionLabel}>message</span>
+                <CopyButton text={entry.message} label="Copy message" />
+              </div>
+              <pre class={styles.codeBlock} data-log-scrollable>
+                {entry.message}
+              </pre>
+            </div>
+
+            {entry.exc_info && (
+              <div class={styles.section}>
+                <div class={styles.sectionHeader}>
+                  <span class={styles.sectionLabel}>exception</span>
+                  <CopyButton text={entry.exc_info} label="Copy exception" />
+                </div>
+                <pre class={clsx(styles.codeBlock, styles.exceptionBlock)} data-log-scrollable>
+                  {entry.exc_info}
+                </pre>
+              </div>
+            )}
+
             <dl class={styles.metaGrid}>
               {entry.app_key && (
                 <>
@@ -208,28 +230,6 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
               <dt>Logger</dt>
               <dd class={styles.monoValue}>{entry.logger_name}</dd>
             </dl>
-
-            <div class={styles.section}>
-              <div class={styles.sectionHeader}>
-                <span class={styles.sectionLabel}>message</span>
-                <CopyButton text={entry.message} label="Copy message" />
-              </div>
-              <pre class={styles.codeBlock} data-log-scrollable>
-                {entry.message}
-              </pre>
-            </div>
-
-            {entry.exc_info && (
-              <div class={styles.section}>
-                <div class={styles.sectionHeader}>
-                  <span class={styles.sectionLabel}>exception</span>
-                  <CopyButton text={entry.exc_info} label="Copy exception" />
-                </div>
-                <pre class={clsx(styles.codeBlock, styles.exceptionBlock)} data-log-scrollable>
-                  {entry.exc_info}
-                </pre>
-              </div>
-            )}
           </div>
         ) : null}
       </aside>

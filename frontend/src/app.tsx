@@ -94,7 +94,12 @@ export function App() {
         </a>
 
         {/* Off-canvas drawer (mobile) */}
-        <div ref={drawerRef} class={`ht-drawer${drawerOpen ? " is-open" : ""}`} aria-hidden={!drawerOpen}>
+        <div
+          ref={drawerRef}
+          class={`ht-drawer${drawerOpen ? " is-open" : ""}`}
+          aria-hidden={!drawerOpen}
+          {...(!drawerOpen ? { inert: true } : {})}
+        >
           {drawerMounted && <Sidebar onOpenPalette={() => setPaletteOpen(true)} />}
         </div>
         {drawerOpen && <div class="ht-drawer-backdrop" role="presentation" onClick={() => setDrawerOpen(false)} />}

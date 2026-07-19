@@ -20,12 +20,28 @@ import { useQueryParams } from "../hooks/use-query-params";
 import { useScopedQuery } from "../hooks/use-scoped-query";
 import { queryKeys } from "../lib/query-keys";
 import { useAppState } from "../state/context";
+import { appDetailPath, type AppDetailTab } from "../utils/app-routes";
 import styles from "./app-detail.module.css";
 
-export type TabId = "overview" | "handlers" | "code" | "logs" | "config";
+export type TabId = AppDetailTab;
+
+const DECIMAL_INSTANCE_PARAM_RE = /^\d+$/;
 
 interface Props {
   params: { key: string; tab?: TabId; handler?: string; execId?: string };
+}
+
+function parseInstanceParam(param: string | null): number | undefined {
+  if (param === null) return undefined;
+  const trimmed = param.trim();
+  return DECIMAL_INSTANCE_PARAM_RE.test(trimmed) ? Number(trimmed) : undefined;
+}
+
+function instanceCorrectionUrl(appKey: string, activeTab: TabId, lineParam: string | null): string {
+  return appDetailPath(appKey, activeTab, {
+    line: activeTab === "code" ? lineParam : null,
+    instance: 0,
+  });
 }
 
 function Tab({
@@ -33,18 +49,18 @@ function Tab({
   label,
   badge,
   appKey,
-  instanceQs,
+  instanceIndex,
   activeTab,
 }: {
   id: TabId;
   label: string;
   badge?: number;
   appKey: string;
-  instanceQs: string;
+  instanceIndex?: number;
   activeTab: TabId;
 }) {
   const isActive = activeTab === id;
-  const href = `/apps/${appKey}/${id}${instanceQs}`;
+  const href = appDetailPath(appKey, id, { instance: instanceIndex });
   return (
     <Link
       href={href}
@@ -71,8 +87,8 @@ export function AppDetailPage({ params }: Props) {
   const correctUrl = useCorrectUrl();
 
   const instanceParam = queryParams.get("instance");
-  const parsedInstance = instanceParam !== null ? parseInt(instanceParam, 10) : undefined;
-  const instanceIndex = parsedInstance !== undefined && Number.isFinite(parsedInstance) ? parsedInstance : undefined;
+  const lineParam = queryParams.get("line");
+  const instanceIndex = parseInstanceParam(instanceParam);
 
   const resolvedInstanceIndex = instanceIndex ?? 0;
 
@@ -126,16 +142,20 @@ export function AppDetailPage({ params }: Props) {
 
   useEffect(() => {
     if (initialLoading) return;
-    if (manifest && instanceIndex !== undefined && instanceIndex >= manifest.instance_count) {
-      correctUrl(`/apps/${appKey}/${activeTab}?instance=0`);
+    if (manifest && instanceParam !== null && instanceIndex === undefined) {
+      correctUrl(instanceCorrectionUrl(appKey, activeTab, lineParam));
+      return;
     }
-  }, [initialLoading, manifest, instanceIndex, appKey, activeTab, correctUrl]);
+    if (manifest && instanceIndex !== undefined && instanceIndex >= manifest.instance_count) {
+      correctUrl(instanceCorrectionUrl(appKey, activeTab, lineParam));
+    }
+  }, [initialLoading, manifest, instanceParam, instanceIndex, appKey, activeTab, lineParam, correctUrl]);
 
   useEffect(() => {
-    if (showParentOverview && activeTab === "handlers") {
-      correctUrl(`/apps/${appKey}/overview`);
+    if (showParentOverview && activeTab === "handlers" && instanceParam === null) {
+      correctUrl(appDetailPath(appKey, "overview"));
     }
-  }, [showParentOverview, activeTab, appKey, correctUrl]);
+  }, [showParentOverview, activeTab, appKey, correctUrl, instanceParam]);
 
   if (initialLoading) return <Spinner />;
 
@@ -147,8 +167,8 @@ export function AppDetailPage({ params }: Props) {
     );
   }
 
-  const instanceQs = instanceParam !== null && instanceParam !== "" ? `?instance=${instanceParam}` : "";
-  const tabProps = { appKey, instanceQs, activeTab };
+  const instanceQs = instanceIndex !== undefined ? `?instance=${instanceIndex}` : "";
+  const tabProps = { appKey, instanceIndex, activeTab };
   const handlerCount = (listenersData?.length ?? 0) + (jobsData?.length ?? 0);
 
   return (
@@ -159,7 +179,7 @@ export function AppDetailPage({ params }: Props) {
             instances={manifest.instances}
             currentIndex={resolvedInstanceIndex}
             onNavigate={(idx) => {
-              navigate(`/apps/${appKey}/${activeTab}?instance=${idx}`);
+              navigate(appDetailPath(appKey, activeTab, { instance: idx }));
             }}
           />
         )}
@@ -205,7 +225,7 @@ export function AppDetailPage({ params }: Props) {
               instances={manifest.instances ?? []}
               instanceCount={manifest.instance_count}
               onNavigate={(idx) => {
-                navigate(`/apps/${appKey}/overview?instance=${idx}`);
+                navigate(appDetailPath(appKey, "overview", { instance: idx }));
               }}
             />
           ) : (
@@ -228,13 +248,9 @@ export function AppDetailPage({ params }: Props) {
             selectedHandler={params.handler ?? null}
             selectedExecId={params.execId ?? null}
             appKey={appKey}
-            instanceQs={instanceQs}
+            instanceIndex={instanceIndex}
             onSwitchToCode={(line) => {
-              const qs = new URLSearchParams();
-              if (line !== undefined) qs.set("line", String(line));
-              if (instanceParam) qs.set("instance", instanceParam);
-              const query = qs.toString();
-              navigate(`/apps/${appKey}/code${query ? `?${query}` : ""}`);
+              navigate(appDetailPath(appKey, "code", { line, instance: instanceIndex }));
             }}
           />
         </div>

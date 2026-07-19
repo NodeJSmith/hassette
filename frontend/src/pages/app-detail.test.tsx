@@ -491,6 +491,88 @@ describe("AppDetailPage", () => {
     });
   });
 
+  it("corrects negative instance query params before preserving them in links", async () => {
+    const manifest = createManifest({
+      instance_count: 2,
+      instances: [
+        createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
+        createInstance({ index: 1, instance_name: "inst_1", status: "running" }),
+      ],
+    });
+    setupApi(manifest);
+    mockSearchString = "instance=-1";
+
+    const { findByRole } = render(<AppDetailPage params={{ key: "test_app", tab: "logs" }} />, {
+      wrapper: createWrapper(state),
+    });
+
+    await vi.waitFor(() => {
+      expect(mockCorrectUrl).toHaveBeenCalledWith("/apps/test_app/logs?instance=0");
+    });
+    expect((await findByRole("tab", { name: /overview/i })).getAttribute("href")).toBe("/apps/test_app/overview");
+  });
+
+  it.each(["0x1", "1e2"])("corrects malformed instance query param %s", async (instanceParam) => {
+    const manifest = createManifest({
+      instance_count: 2,
+      instances: [
+        createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
+        createInstance({ index: 1, instance_name: "inst_1", status: "running" }),
+      ],
+    });
+    setupApi(manifest);
+    mockSearchString = `instance=${instanceParam}`;
+
+    render(<AppDetailPage params={{ key: "test_app", tab: "logs" }} />, {
+      wrapper: createWrapper(state),
+    });
+
+    await vi.waitFor(() => {
+      expect(mockCorrectUrl).toHaveBeenCalledWith("/apps/test_app/logs?instance=0");
+    });
+  });
+
+  it("preserves code line deep links when correcting invalid instance params", async () => {
+    const manifest = createManifest({
+      instance_count: 2,
+      instances: [
+        createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
+        createInstance({ index: 1, instance_name: "inst_1", status: "running" }),
+      ],
+    });
+    setupApi(manifest);
+    mockSearchString = "line=42&instance=-1";
+
+    render(<AppDetailPage params={{ key: "test_app", tab: "code" }} />, {
+      wrapper: createWrapper(state),
+    });
+
+    await vi.waitFor(() => {
+      expect(mockCorrectUrl).toHaveBeenCalledWith("/apps/test_app/code?line=42&instance=0");
+    });
+  });
+
+  it("corrects negative instance query params on handlers without redirecting to parent overview", async () => {
+    const manifest = createManifest({
+      instance_count: 2,
+      instances: [
+        createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
+        createInstance({ index: 1, instance_name: "inst_1", status: "running" }),
+      ],
+    });
+    setupApi(manifest);
+    mockSearchString = "instance=-1";
+
+    render(<AppDetailPage params={{ key: "test_app", tab: "handlers" }} />, {
+      wrapper: createWrapper(state),
+    });
+
+    await vi.waitFor(() => {
+      expect(mockCorrectUrl).toHaveBeenCalledWith("/apps/test_app/handlers?instance=0");
+    });
+    expect(mockCorrectUrl).not.toHaveBeenCalledWith("/apps/test_app/overview");
+  });
+
   // T03: "view in code" navigates to /apps/:key/code?line=N instead of mutating signal
   it("onSwitchToCode navigates to code tab with ?line= param", async () => {
     setupApi(createManifest());
@@ -522,6 +604,17 @@ describe("AppDetailPage", () => {
     await findByTestId("handlers-tab");
     capturedOnSwitchToCode?.(15);
     expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app/code?line=15&instance=1");
+  });
+
+  it("onSwitchToCode drops invalid instance params", async () => {
+    setupApi(createManifest());
+    mockSearchString = "instance=-1";
+    const { findByTestId } = render(<AppDetailPage params={{ key: "test_app", tab: "handlers" }} />, {
+      wrapper: createWrapper(state),
+    });
+    await findByTestId("handlers-tab");
+    capturedOnSwitchToCode?.(15);
+    expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app/code?line=15");
   });
 
   it("passes selectedHandler prop from params.handler to HandlersTab", async () => {

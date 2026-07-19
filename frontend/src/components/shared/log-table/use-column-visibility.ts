@@ -104,7 +104,11 @@ export function useColumnVisibility(context: ViewContext): UseColumnVisibilityRe
   const reset = useCallback(() => {
     const defaults = defaultColumns(context);
     userColumns.value = defaults;
-    localStorage.removeItem(storageKey(context));
+    try {
+      localStorage.removeItem(storageKey(context));
+    } catch {
+      // localStorage unavailable — degrade silently
+    }
   }, [context]);
 
   return { visibleColumns, selectedColumns: userColumns.value, viewportHidden, toggle, reset };
