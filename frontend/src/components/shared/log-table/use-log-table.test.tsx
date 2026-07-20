@@ -82,7 +82,7 @@ vi.mock("./use-column-visibility", () => ({
   }),
 }));
 
-vi.mock("../../../hooks/use-media-query", () => ({
+vi.mock("@/hooks/use-media-query", () => ({
   useMediaQuery: vi.fn(() => false),
   BREAKPOINT_MOBILE: 768,
 }));

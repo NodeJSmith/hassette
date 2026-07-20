@@ -205,7 +205,8 @@ export function useLogFilters({
 
   const filtered = useMemo<FilteredLogEntriesResult>(
     () => filterLogEntries(source, { level, tier, app, search, func, sort }),
-    [source, level, tier, app, search, func, sort.key, sort.dir], // eslint-disable-line react-hooks-configurable/exhaustive-deps -- sort is destructured; .key/.dir are the actual deps
+    // eslint-disable-next-line react-hooks-configurable/exhaustive-deps -- sort is destructured; .key/.dir are the actual deps
+    [source, level, tier, app, search, func, sort.key, sort.dir],
   );
 
   function setLevel(level: LevelFilter) {

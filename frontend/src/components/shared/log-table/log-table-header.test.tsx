@@ -5,7 +5,7 @@ import type { ColumnFilters } from "../table-types";
 import { DEFAULT_SORT } from "./constants";
 import type { ColumnId } from "./types";
 
-vi.mock("../../../hooks/use-media-query", () => ({
+vi.mock("@/hooks/use-media-query", () => ({
   useMediaQuery: vi.fn(() => false),
   BREAKPOINT_MOBILE: 768,
 }));
