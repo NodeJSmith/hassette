@@ -30,6 +30,10 @@ EXPR_HREF = re.compile(r"\bhref\s*=\s*\{([^}]+)\}")
 EXTERNAL_PREFIXES = ("http://", "https://", "mailto:", "tel:", "#")
 
 # file:line exemptions for cases where a native <a> is intentional
+# JSX tags can span multiple lines when attributes are wrapped. 5 lines covers
+# the longest realistic <a ... > opening tag in this codebase.
+MAX_TAG_LINES = 5
+
 EXEMPTIONS: dict[str, str] = {
     # "frontend/src/path.tsx:42": "reason",
 }
@@ -46,45 +50,45 @@ def scan_file(tsx_path: Path) -> list[tuple[Path, int, str]]:
     except OSError:
         return findings
 
-    # Build a buffer of consecutive lines for multi-line tag matching
-    i = 0
-    while i < len(lines):
-        line = lines[i]
-        line_num = i + 1
-
+    for i, line in enumerate(lines):
         if not ANCHOR_TAG.search(line):
-            i += 1
             continue
 
-        # Gather the full tag (up to 5 lines to handle multi-line JSX attributes)
-        tag_lines = line
-        end = i + 1
-        while end < min(i + 5, len(lines)) and ">" not in tag_lines.split("<a", 1)[-1]:
-            tag_lines += " " + lines[end]
-            end += 1
+        line_num = i + 1
+        tag_buf = line
+        for j in range(i + 1, min(i + MAX_TAG_LINES, len(lines))):
+            # Stop once the opening tag is closed (first > after the <a)
+            after_tag = tag_buf.split("<a", 1)[-1]
+            if ">" in after_tag:
+                break
+            tag_buf += " " + lines[j]
 
-        # Check for literal internal hrefs
-        lit = LITERAL_HREF.search(tag_lines)
-        if lit:
-            href_val = lit.group(1)
-            if href_val.startswith("/") and not any(href_val.startswith(p) for p in EXTERNAL_PREFIXES):
-                findings.append((tsx_path, line_num, f'"{href_val}"'))
-            i = end
-            continue
-
-        # Check for expression hrefs — any dynamic href on an <a> is suspect
-        expr = EXPR_HREF.search(tag_lines)
-        if expr:
-            expr_text = expr.group(1).strip()
-            # Template literals starting with / are clearly internal
-            # Bare variables are also suspect — they're usually computed internal paths
-            # Only skip if the expression is clearly external (starts with http literal)
-            if not (expr_text.startswith("`http") or expr_text.startswith('"http')):
-                findings.append((tsx_path, line_num, f"{{{expr_text}}}"))
-
-        i = end if end > i + 1 else i + 1
+        finding = _check_tag(tag_buf, tsx_path, line_num)
+        if finding:
+            findings.append(finding)
 
     return findings
+
+
+def _check_tag(tag: str, path: Path, line_num: int) -> tuple[Path, int, str] | None:
+    lit = LITERAL_HREF.search(tag)
+    if lit:
+        href_val = lit.group(1)
+        if href_val.startswith("/") and not any(href_val.startswith(p) for p in EXTERNAL_PREFIXES):
+            return (path, line_num, f'"{href_val}"')
+        return None
+
+    expr = EXPR_HREF.search(tag)
+    if expr:
+        expr_text = expr.group(1).strip()
+        # Flag all dynamic hrefs unless the expression is clearly an external URL.
+        # This is intentionally broad: a false positive is a CI failure with an
+        # actionable EXEMPTIONS entry, while a false negative is a silent full-page
+        # reload on an internal route.
+        if not (expr_text.startswith("`http") or expr_text.startswith('"http')):
+            return (path, line_num, f"{{{expr_text}}}")
+
+    return None
 
 
 def main() -> int:

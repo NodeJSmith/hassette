@@ -1,6 +1,11 @@
 import eslint from "@eslint/js";
 import tseslint from "typescript-eslint";
 import simpleImportSort from "eslint-plugin-simple-import-sort";
+// Fork of eslint-plugin-react-hooks that adds `additionalStableHooks` — lets us
+// teach exhaustive-deps that useSignal/useComputed return stable refs, avoiding
+// ~14 false-positive suppressions. Wraps the upstream plugin for all other rules.
+// Single-maintainer fork (Donov4n); if it falls behind upstream, fall back to
+// the original plugin + per-line eslint-disable comments.
 import reactHooks from "eslint-plugin-react-hooks-configurable";
 import eslintConfigPrettier from "eslint-config-prettier";
 
