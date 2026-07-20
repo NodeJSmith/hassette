@@ -92,7 +92,7 @@ jobs:
             - name: Run lint checks
               run: |
                   uv tool install ruff==0.14.9
-                  SKIP=eslint,tsc,prettier prek run --all-files --hook-stage pre-push
+                  prek run --no-group frontend --all-files --hook-stage pre-push
 
             - name: Fail if generators produced drift
               # Uses the generator's --check mode, which runs ruff on both the committed
