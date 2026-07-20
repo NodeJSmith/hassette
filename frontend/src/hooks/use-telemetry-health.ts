@@ -82,6 +82,7 @@ export function useTelemetryHealth(appState: AppState): void {
         clearInterval(intervalRef.current);
       }
     };
+    // eslint-disable-next-line react-hooks-configurable/exhaustive-deps -- mount-only; poll is a ref-stable closure
   }, []);
 
   // On page navigation: cancel in-flight, poll immediately, reset backoff
@@ -94,5 +95,6 @@ export function useTelemetryHealth(appState: AppState): void {
       restartInterval();
       void poll();
     }
+    // eslint-disable-next-line react-hooks-configurable/exhaustive-deps -- poll is ref-stable; restartInterval only closes over refs
   }, [location]);
 }

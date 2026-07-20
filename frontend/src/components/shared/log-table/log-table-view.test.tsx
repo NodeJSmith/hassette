@@ -1,7 +1,8 @@
 import { fireEvent, render } from "@testing-library/preact";
 import { describe, expect, it, vi } from "vitest";
 
-import { createLogEntry } from "../../../test/factories";
+import { createLogEntry } from "@/test/factories";
+
 import type { ColumnFilters } from "../table-types";
 import { DEFAULT_SORT } from "./constants";
 import type { ColumnId } from "./types";

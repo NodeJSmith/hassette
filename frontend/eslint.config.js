@@ -1,7 +1,7 @@
 import eslint from "@eslint/js";
 import tseslint from "typescript-eslint";
 import simpleImportSort from "eslint-plugin-simple-import-sort";
-import reactHooks from "eslint-plugin-react-hooks";
+import reactHooks from "eslint-plugin-react-hooks-configurable";
 import eslintConfigPrettier from "eslint-config-prettier";
 
 export default tseslint.config(
@@ -14,7 +14,7 @@ export default tseslint.config(
     files: ["**/*.{ts,tsx}"],
     plugins: {
       "simple-import-sort": simpleImportSort,
-      "react-hooks": reactHooks,
+      "react-hooks-configurable": reactHooks,
     },
     languageOptions: {
       parserOptions: {
@@ -29,7 +29,27 @@ export default tseslint.config(
       "no-console": ["warn", { allow: ["warn", "error"] }],
       "simple-import-sort/imports": "error",
       "simple-import-sort/exports": "error",
-      "react-hooks/rules-of-hooks": "error",
+      "react-hooks-configurable/rules-of-hooks": "error",
+      "react-hooks-configurable/exhaustive-deps": [
+        "warn",
+        {
+          additionalStableHooks: {
+            useSignal: true,
+            useComputed: true,
+          },
+        },
+      ],
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              regex: "^\\.\\.\\/\\.\\.\\/\\.\\.\\/.+",
+              message: "Use the @/ path alias instead of deep relative imports (3+ levels).",
+            },
+          ],
+        },
+      ],
     },
   },
   {

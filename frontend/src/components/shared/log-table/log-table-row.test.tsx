@@ -1,7 +1,8 @@
 import { fireEvent, render } from "@testing-library/preact";
 import { describe, expect, it, vi } from "vitest";
 
-import { createLogEntry } from "../../../test/factories";
+import { createLogEntry } from "@/test/factories";
+
 import type { ColumnId } from "./types";
 
 vi.mock("../../../hooks/use-media-query", () => ({
@@ -21,7 +22,8 @@ vi.mock("wouter", () => ({
   ),
 }));
 
-import { formatTimestamp } from "../../../utils/format";
+import { formatTimestamp } from "@/utils/format";
+
 import { LogTableRow } from "./log-table-row";
 
 function renderRow(props: Partial<Parameters<typeof LogTableRow>[0]> = {}) {

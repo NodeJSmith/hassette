@@ -29,6 +29,7 @@ export function TimePresetSelector() {
     } else {
       urlWindowParam.value = null;
     }
+    // eslint-disable-next-line react-hooks-configurable/exhaustive-deps -- mount-only; qp/urlWindowParam are stable signals
   }, []);
 
   const current = timePreset.value;

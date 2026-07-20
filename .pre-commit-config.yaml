@@ -61,6 +61,13 @@ repos:
         types_or: [ts, tsx]
         files: ^frontend/src/
 
+      - id: stylelint
+        name: stylelint (frontend)
+        language: system
+        entry: npx --prefix frontend stylelint
+        types: [css]
+        files: ^frontend/src/
+
       - id: tsc
         name: tsc (frontend)
         language: system
@@ -234,6 +241,15 @@ repos:
         entry: ./tools/frontend/check_breakpoint_drift.py
         pass_filenames: false
         types_or: [ts, tsx, css]
+        files: ^frontend/src/
+        stages: [pre-commit, pre-push]
+
+      - id: check-internal-anchor-links
+        name: Check native <a> tags for internal routes
+        language: system
+        entry: ./tools/frontend/check_internal_anchor_links.py
+        pass_filenames: false
+        types_or: [ts, tsx]
         files: ^frontend/src/
         stages: [pre-commit, pre-push]
 

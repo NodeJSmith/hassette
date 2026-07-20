@@ -1,4 +1,5 @@
-import { useRovingTabIndex } from "../../../hooks/use-roving-tab-index";
+import { useRovingTabIndex } from "@/hooks/use-roving-tab-index";
+
 import { COLUMN_MAP } from "./constants";
 import { LogTableHeader } from "./log-table-header";
 import { LogTableRow } from "./log-table-row";

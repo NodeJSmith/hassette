@@ -21,7 +21,8 @@ export function ErrorBoundary({ children, resetKey }: Props) {
 
   useEffect(() => {
     if (error) resetErrorRef.current();
-  }, [resetKey]); // intentionally omits resetErrorRef — it's a stable ref, not a dep
+    // eslint-disable-next-line react-hooks-configurable/exhaustive-deps -- error is read but not a dep; resetKey change triggers the reset
+  }, [resetKey]);
 
   if (error) {
     return (

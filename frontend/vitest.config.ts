@@ -1,8 +1,14 @@
+import path from "node:path";
 import preact from "@preact/preset-vite";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   plugins: [preact()],
+  resolve: {
+    alias: {
+      "@": path.resolve(import.meta.dirname, "src"),
+    },
+  },
   test: {
     environment: "jsdom",
     globals: true,

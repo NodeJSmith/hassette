@@ -2,11 +2,12 @@ import clsx from "clsx";
 import { useMemo } from "preact/hooks";
 import { Link } from "wouter";
 
-import type { LogEntry } from "../../../api/endpoints";
-import { BREAKPOINT_MOBILE, useMediaQuery } from "../../../hooks/use-media-query";
-import { useRelativeTime } from "../../../hooks/use-relative-time";
-import { formatTimestamp, logEntryExecutionHref, truncateId } from "../../../utils/format";
-import { onActivateKeyDown } from "../../../utils/keyboard";
+import type { LogEntry } from "@/api/endpoints";
+import { BREAKPOINT_MOBILE, useMediaQuery } from "@/hooks/use-media-query";
+import { useRelativeTime } from "@/hooks/use-relative-time";
+import { formatTimestamp, logEntryExecutionHref, truncateId } from "@/utils/format";
+import { onActivateKeyDown } from "@/utils/keyboard";
+
 import { AppLink } from "../app-link";
 import { LEVEL_ABBREV, levelClass } from "./constants";
 import styles from "./log-table-row.module.css";

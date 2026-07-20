@@ -6,8 +6,8 @@ import type { UnifiedRow } from "../utils/handler-rows";
 import { HandlerMobileRow, HandlerTableRow } from "./handlers-rows";
 
 vi.mock("wouter", () => ({
-  Link: ({ href, children, class: cls }: Record<string, unknown>) => (
-    <a href={href as string} class={cls as string}>
+  Link: ({ href, children, class: cls, ...rest }: Record<string, unknown>) => (
+    <a href={href as string} class={cls as string} {...rest}>
       {children as never}
     </a>
   ),
