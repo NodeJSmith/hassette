@@ -5,11 +5,12 @@ import type { ComponentChildren } from "preact";
 import { h } from "preact";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { WsLogPayload } from "../../../api/ws-types";
-import { AppStateContext } from "../../../state/context";
-import { type AppState, createAppState } from "../../../state/create-app-state";
-import { createTestQueryClient } from "../../../test/query-test-utils";
-import { server } from "../../../test/server";
+import type { WsLogPayload } from "@/api/ws-types";
+import { AppStateContext } from "@/state/context";
+import { type AppState, createAppState } from "@/state/create-app-state";
+import { createTestQueryClient } from "@/test/query-test-utils";
+import { server } from "@/test/server";
+
 import { LIVE_LOG_UPDATE_INTERVAL_MS, REST_FETCH_LIMIT } from "./constants";
 import { useLogData } from "./use-log-data";
 

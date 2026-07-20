@@ -1,8 +1,9 @@
 import { useCallback } from "preact/hooks";
 
-import { BREAKPOINT_MOBILE, BREAKPOINT_TABLET, useMediaQuery } from "../../../hooks/use-media-query";
-import { useSignal } from "../../../hooks/use-signal";
-import { useSubscribe } from "../../../hooks/use-subscribe";
+import { BREAKPOINT_MOBILE, BREAKPOINT_TABLET, useMediaQuery } from "@/hooks/use-media-query";
+import { useSignal } from "@/hooks/use-signal";
+import { useSubscribe } from "@/hooks/use-subscribe";
+
 import {
   COLUMNS,
   DEFAULT_COLUMNS_APP,

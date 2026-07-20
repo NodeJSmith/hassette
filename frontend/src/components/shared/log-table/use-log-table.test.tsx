@@ -4,10 +4,11 @@ import type { ComponentChildren } from "preact";
 import { h } from "preact";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { LogEntry } from "../../../api/endpoints";
-import { AppStateContext } from "../../../state/context";
-import { createAppState } from "../../../state/create-app-state";
-import { createLogEntry } from "../../../test/factories";
+import type { LogEntry } from "@/api/endpoints";
+import { AppStateContext } from "@/state/context";
+import { createAppState } from "@/state/create-app-state";
+import { createLogEntry } from "@/test/factories";
+
 import { RENDER_CAP } from "./constants";
 import type { FilterState } from "./types";
 import { useLogTable } from "./use-log-table";
@@ -81,7 +82,7 @@ vi.mock("./use-column-visibility", () => ({
   }),
 }));
 
-vi.mock("../../../hooks/use-media-query", () => ({
+vi.mock("@/hooks/use-media-query", () => ({
   useMediaQuery: vi.fn(() => false),
   BREAKPOINT_MOBILE: 768,
 }));

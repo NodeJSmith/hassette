@@ -1,7 +1,8 @@
 import { fireEvent, render } from "@testing-library/preact";
 import { describe, expect, it, vi } from "vitest";
 
-import { createLogEntry } from "../../../test/factories";
+import { createLogEntry } from "@/test/factories";
+
 import type { ColumnFilters } from "../table-types";
 import { DEFAULT_SORT } from "./constants";
 import type { ColumnId } from "./types";
@@ -19,7 +20,7 @@ vi.mock("./log-table-row", () => ({
 
 // The test-setup.ts stubs matchMedia to always return false (desktop).
 // For the isMobile=true tests we import the real hook and spy on it instead.
-vi.mock("../../../hooks/use-media-query", () => ({
+vi.mock("@/hooks/use-media-query", () => ({
   useMediaQuery: vi.fn(() => false),
   BREAKPOINT_MOBILE: 768,
 }));

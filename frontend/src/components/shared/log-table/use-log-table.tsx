@@ -2,12 +2,13 @@ import { useSignalEffect } from "@preact/signals";
 import clsx from "clsx";
 import { useCallback, useEffect, useMemo, useRef } from "preact/hooks";
 
-import type { LogEntry } from "../../../api/endpoints";
-import { BREAKPOINT_MOBILE, useMediaQuery } from "../../../hooks/use-media-query";
-import { useSignal } from "../../../hooks/use-signal";
-import { useSubscribe } from "../../../hooks/use-subscribe";
-import { useAppState } from "../../../state/context";
-import { pluralize } from "../../../utils/format";
+import type { LogEntry } from "@/api/endpoints";
+import { BREAKPOINT_MOBILE, useMediaQuery } from "@/hooks/use-media-query";
+import { useSignal } from "@/hooks/use-signal";
+import { useSubscribe } from "@/hooks/use-subscribe";
+import { useAppState } from "@/state/context";
+import { pluralize } from "@/utils/format";
+
 import filterStyles from "../column-filter-popover/index.module.css";
 import type { ColumnFilters } from "../table-types";
 import { DEFAULT_LEVEL, LEVEL_OPTIONS, RENDER_CAP, TIER_OPTIONS } from "./constants";

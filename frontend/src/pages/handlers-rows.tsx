@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import { Link } from "wouter";
 
 import { AppLink } from "../components/shared/app-link";
 import { Chip } from "../components/shared/chip";
@@ -33,14 +34,14 @@ interface MobileCardProps {
 
 function MobileCard({ href, appKey, name, failing, metrics, footer, "data-testid": testId }: MobileCardProps) {
   return (
-    <a href={href} class={clsx(styles.mobileCard, failing && styles.mobileCardFailing)} data-testid={testId}>
+    <Link href={href} class={clsx(styles.mobileCard, failing && styles.mobileCardFailing)} data-testid={testId}>
       <div class={styles.mobileCardHeader}>
         <span class="ht-text-mono ht-text-sm">{appKey}</span>
         <span class="ht-text-mono ht-text-sm ht-text-semibold">{name}</span>
       </div>
       <div class={styles.mobileCardMetrics}>{metrics}</div>
       {footer && <div class={styles.mobileCardFooter}>{footer}</div>}
-    </a>
+    </Link>
   );
 }
 

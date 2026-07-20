@@ -193,5 +193,6 @@ export function useWebSocket(state: AppState): void {
       wsRef.current?.close();
       state.connection.value = "disconnected";
     };
+    // eslint-disable-next-line react-hooks-configurable/exhaustive-deps -- queryClient is a stable singleton from useQueryClient()
   }, [state]);
 }

@@ -178,7 +178,7 @@
   border-radius: var(--r-sm);
   font-size: var(--fs-mono-sm);
   white-space: pre-wrap;
-  word-break: break-word;
+  overflow-wrap: break-word;
   max-height: 200px;
   overflow-y: auto;
   text-align: left;

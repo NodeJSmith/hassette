@@ -1,4 +1,5 @@
-import { BREAKPOINT_MOBILE, useMediaQuery } from "../../../hooks/use-media-query";
+import { BREAKPOINT_MOBILE, useMediaQuery } from "@/hooks/use-media-query";
+
 import { SortHeader } from "../sort-header";
 import type { ColumnFilters } from "../table-types";
 import { COLUMN_MAP, DEFAULT_SORT } from "./constants";

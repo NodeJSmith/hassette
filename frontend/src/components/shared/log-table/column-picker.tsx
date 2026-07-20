@@ -1,7 +1,8 @@
 import { useRef } from "preact/hooks";
 
-import { useSignal } from "../../../hooks/use-signal";
-import { useSubscribe } from "../../../hooks/use-subscribe";
+import { useSignal } from "@/hooks/use-signal";
+import { useSubscribe } from "@/hooks/use-subscribe";
+
 import { ColumnFilterPopover } from "../column-filter-popover/index";
 import styles from "./column-picker.module.css";
 import { COLUMNS, REQUIRED_COLUMNS } from "./constants";

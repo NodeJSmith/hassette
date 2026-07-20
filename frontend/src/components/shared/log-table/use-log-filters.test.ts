@@ -1,8 +1,9 @@
 import { act, renderHook } from "@testing-library/preact";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { LogEntry } from "../../../api/endpoints";
-import { createLogEntry } from "../../../test/factories";
+import type { LogEntry } from "@/api/endpoints";
+import { createLogEntry } from "@/test/factories";
+
 import { DEFAULT_SORT, RENDER_CAP, SEARCH_DEBOUNCE_MS } from "./constants";
 import type { FilterState, LevelFilter } from "./types";
 import { filterLogEntries, useLogFilters } from "./use-log-filters";

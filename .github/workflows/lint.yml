@@ -92,7 +92,7 @@ jobs:
             - name: Run lint checks
               run: |
                   uv tool install ruff==0.14.9
-                  SKIP=eslint,tsc,prettier prek run --all-files --hook-stage pre-push
+                  prek run --no-group frontend --all-files --hook-stage pre-push
 
             - name: Fail if generators produced drift
               # Uses the generator's --check mode, which runs ruff on both the committed
@@ -147,6 +147,10 @@ jobs:
               run: npm run lint
               working-directory: frontend
 
+            - name: Lint CSS
+              run: npm run lint:css
+              working-directory: frontend
+
             - name: Build frontend (generates CSS module .d.ts files)
               run: npm run build
               working-directory: frontend
@@ -175,6 +179,9 @@ jobs:
 
             - name: Check breakpoint drift (JS constants vs CSS media queries)
               run: uv run python tools/frontend/check_breakpoint_drift.py
+
+            - name: Check native anchor tags for internal routes
+              run: uv run python tools/frontend/check_internal_anchor_links.py
 
     codegen-freshness:
         needs: changes

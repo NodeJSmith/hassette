@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import type { LogEntry } from "../../../api/endpoints";
-import { createLogEntry } from "../../../test/factories";
+import type { LogEntry } from "@/api/endpoints";
+import { createLogEntry } from "@/test/factories";
+
 import { levelClass, resolveSortKey } from "./constants";
 import { rowKey } from "./types";
 import { sortEntries } from "./use-log-filters";

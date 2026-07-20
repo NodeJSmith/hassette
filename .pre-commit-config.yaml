@@ -46,6 +46,8 @@ repos:
 
   - repo: local
     hooks:
+      # Hooks requiring node_modules — excluded from CI's python lint job
+      # via `--no-group frontend`. New npm-dependent hooks must add this group.
       - id: prettier
         name: prettier (frontend)
         language: system
@@ -53,6 +55,7 @@ repos:
         types_or: [ts, tsx, css]
         files: ^frontend/src/
         exclude: (generated-types\.ts|\.module\.css\.d\.ts)$
+        groups: [frontend]
 
       - id: eslint
         name: eslint (frontend)
@@ -60,6 +63,15 @@ repos:
         entry: npx --prefix frontend eslint
         types_or: [ts, tsx]
         files: ^frontend/src/
+        groups: [frontend]
+
+      - id: stylelint
+        name: stylelint (frontend)
+        language: system
+        entry: npx --prefix frontend stylelint
+        types: [css]
+        files: ^frontend/src/
+        groups: [frontend]
 
       - id: tsc
         name: tsc (frontend)
@@ -68,6 +80,7 @@ repos:
         types_or: [ts, tsx]
         files: ^frontend/src/
         pass_filenames: false
+        groups: [frontend]
 
 
       # regenerate sync.py
@@ -234,6 +247,15 @@ repos:
         entry: ./tools/frontend/check_breakpoint_drift.py
         pass_filenames: false
         types_or: [ts, tsx, css]
+        files: ^frontend/src/
+        stages: [pre-commit, pre-push]
+
+      - id: check-internal-anchor-links
+        name: Check native <a> tags for internal routes
+        language: system
+        entry: ./tools/frontend/check_internal_anchor_links.py
+        pass_filenames: false
+        types_or: [ts, tsx]
         files: ^frontend/src/
         stages: [pre-commit, pre-push]
 

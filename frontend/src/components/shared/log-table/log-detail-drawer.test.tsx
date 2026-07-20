@@ -1,13 +1,14 @@
 import { act, fireEvent, render } from "@testing-library/preact";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { LogEntry } from "../../../api/endpoints";
-import { createLogEntry } from "../../../test/factories";
+import type { LogEntry } from "@/api/endpoints";
+import { createLogEntry } from "@/test/factories";
+
 import { COPY_CONFIRM_MS } from "./constants";
 import { LogDetailDrawer } from "./log-detail-drawer";
 import { rowKey } from "./types";
 
-vi.mock("../../../hooks/use-media-query", () => ({
+vi.mock("@/hooks/use-media-query", () => ({
   useMediaQuery: () => false,
   BREAKPOINT_MOBILE: 768,
   BREAKPOINT_TABLET: 1024,

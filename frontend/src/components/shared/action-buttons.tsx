@@ -24,6 +24,7 @@ export function ActionButtons({ appKey, status, variant = "icon", confirmStop = 
   // Clear stale error when app status changes (e.g., WS event arrives after failed action)
   useEffect(() => {
     error.value = null;
+    // eslint-disable-next-line react-hooks-configurable/exhaustive-deps -- error is a Preact signal (stable ref)
   }, [status]);
 
   const canStart = status === "stopped" || status === "failed" || status === "disabled";

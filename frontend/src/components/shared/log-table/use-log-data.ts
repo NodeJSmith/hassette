@@ -3,9 +3,10 @@ import { useQuery } from "@tanstack/preact-query";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { toast } from "sonner";
 
-import { getRecentLogs, type LogEntry } from "../../../api/endpoints";
-import { queryKeys } from "../../../lib/query-keys";
-import { useAppState } from "../../../state/context";
+import { getRecentLogs, type LogEntry } from "@/api/endpoints";
+import { queryKeys } from "@/lib/query-keys";
+import { useAppState } from "@/state/context";
+
 import { LIVE_LOG_UPDATE_INTERVAL_MS, REST_FETCH_LIMIT } from "./constants";
 
 interface UseLogDataParams {
@@ -68,7 +69,7 @@ export function useLogData({ appKey, executionId }: UseLogDataParams): UseLogDat
     }
   }, [isError, error]);
 
-  const restEntries: LogEntry[] = data ?? [];
+  const restEntries = useMemo<LogEntry[]>(() => data ?? [], [data]);
 
   // Watermark: highest timestamp in the REST batch. WS entries must be strictly
   // above this to be included, preventing duplicates.
@@ -85,6 +86,7 @@ export function useLogData({ appKey, executionId }: UseLogDataParams): UseLogDat
     }) as LogEntry[];
 
     return [...wsEntries.reverse(), ...restEntries];
+    // eslint-disable-next-line react-hooks-configurable/exhaustive-deps -- logs is a stable ring-buffer ref; logsVersion drives recomputation
   }, [data, restEntries, watermark, logsVersion, appKey, executionId]);
 
   return { allEntries, restEntries, loading: isPending };

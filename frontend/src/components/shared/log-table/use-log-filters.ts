@@ -1,9 +1,10 @@
 import { computed, type ReadonlySignal } from "@preact/signals";
 import { useEffect, useMemo, useRef } from "preact/hooks";
 
-import type { LogEntry } from "../../../api/endpoints";
-import { useQueryParams } from "../../../hooks/use-query-params";
-import { useSignal } from "../../../hooks/use-signal";
+import type { LogEntry } from "@/api/endpoints";
+import { useQueryParams } from "@/hooks/use-query-params";
+import { useSignal } from "@/hooks/use-signal";
+
 import {
   ALL_LEVELS,
   DEFAULT_LEVEL,
@@ -204,6 +205,7 @@ export function useLogFilters({
 
   const filtered = useMemo<FilteredLogEntriesResult>(
     () => filterLogEntries(source, { level, tier, app, search, func, sort }),
+    // eslint-disable-next-line react-hooks-configurable/exhaustive-deps -- sort is destructured; .key/.dir are the actual deps
     [source, level, tier, app, search, func, sort.key, sort.dir],
   );
 

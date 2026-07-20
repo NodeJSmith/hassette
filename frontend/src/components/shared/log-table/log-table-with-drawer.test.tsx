@@ -1,7 +1,7 @@
 import { render } from "@testing-library/preact";
 import { describe, expect, it, vi } from "vitest";
 
-import { createLogEntry } from "../../../test/factories";
+import { createLogEntry } from "@/test/factories";
 
 // CSS modules in this project use vite-css-modules which generates hashed class
 // names even in vitest (e.g. "_wrapper_abc123").  Query with attribute substring

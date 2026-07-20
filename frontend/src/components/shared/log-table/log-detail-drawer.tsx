@@ -2,11 +2,12 @@ import clsx from "clsx";
 import { useCallback, useEffect, useRef } from "preact/hooks";
 import { Link } from "wouter";
 
-import type { LogEntry } from "../../../api/endpoints";
-import { BREAKPOINT_MOBILE, BREAKPOINT_TABLET, useMediaQuery } from "../../../hooks/use-media-query";
-import { useSignal } from "../../../hooks/use-signal";
-import { useSubscribe } from "../../../hooks/use-subscribe";
-import { formatTimestamp, logEntryExecutionHref } from "../../../utils/format";
+import type { LogEntry } from "@/api/endpoints";
+import { BREAKPOINT_MOBILE, BREAKPOINT_TABLET, useMediaQuery } from "@/hooks/use-media-query";
+import { useSignal } from "@/hooks/use-signal";
+import { useSubscribe } from "@/hooks/use-subscribe";
+import { formatTimestamp, logEntryExecutionHref } from "@/utils/format";
+
 import { COPY_CONFIRM_MS, levelClass } from "./constants";
 import styles from "./log-detail-drawer.module.css";
 import type { RowKey } from "./types";
