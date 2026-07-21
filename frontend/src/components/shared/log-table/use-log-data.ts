@@ -76,10 +76,10 @@ export function useLogData({ appKey, executionId }: UseLogDataParams): UseLogDat
   const allEntries = useMemo(() => {
     if (!data) return [];
 
-    const wsEntries = (logs.toArray() as LogEntry[]).filter((e) => {
-      if (restKeys.has(rowKey(e))) return false;
-      if (appKey && e.app_key !== appKey) return false;
-      if (executionId && e.execution_id !== executionId) return false;
+    const wsEntries = (logs.toArray() as LogEntry[]).filter((entry) => {
+      if (restKeys.has(rowKey(entry))) return false;
+      if (appKey && entry.app_key !== appKey) return false;
+      if (executionId && entry.execution_id !== executionId) return false;
       return true;
     });
 

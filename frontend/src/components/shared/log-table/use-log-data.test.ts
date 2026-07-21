@@ -300,7 +300,7 @@ describe("useLogData", () => {
       });
     });
 
-    it("includes all WS entries above the watermark when no filters are provided", async () => {
+    it("includes all WS entries not in the REST set when no filters are provided", async () => {
       const state = makeState();
 
       server.use(http.get("/api/logs/recent", () => HttpResponse.json([])));
