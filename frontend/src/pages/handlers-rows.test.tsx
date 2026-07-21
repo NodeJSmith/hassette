@@ -17,6 +17,7 @@ function createRow(overrides: Partial<UnifiedRow> = {}): UnifiedRow {
   return {
     kind: "listener",
     id: "listener/1",
+    handlerId: 1,
     app_key: "my_app",
     name: "on_light_change",
     handler_method: "my_app.MyApp.on_light_change",

@@ -8,6 +8,7 @@ import { getExecutionById } from "../../api/endpoints";
 import { useDocumentTitle } from "../../hooks/use-document-title";
 import { useSignal } from "../../hooks/use-signal";
 import { useSubscribe } from "../../hooks/use-subscribe";
+import { type HandlerKind, handlerPath } from "../../utils/app-routes";
 import { STATUS_DOT_SIZE } from "../../utils/constants";
 import { formatDuration, formatTimestamp, truncateId } from "../../utils/format";
 import { executionStatusKind } from "../../utils/status";
@@ -221,7 +222,7 @@ export function ExecutionDetailFetcher({
     queryKey: ["execution-detail", executionId],
     queryFn: ({ signal }) => getExecutionById(executionId, signal),
   });
-  const backHref = `/apps/${appKey}/handlers/${kind}/${handlerId}${instanceQs}`;
+  const backHref = handlerPath(appKey, kind as HandlerKind, handlerId) + instanceQs;
 
   if (isPending) return <Spinner />;
 

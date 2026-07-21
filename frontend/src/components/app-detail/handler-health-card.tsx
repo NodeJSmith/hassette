@@ -10,7 +10,7 @@ import { StatusShape } from "../shared/status-shape";
 import { Tooltip } from "../shared/tooltip";
 import styles from "./handler-health-card.module.css";
 import {
-  handlerPath,
+  handlerHref,
   isFailing,
   itemErrorMessage,
   itemErrorType,
@@ -29,7 +29,7 @@ interface HandlerHealthCardProps {
 
 export function HandlerHealthCard({ item, appKey, instanceQs, tabIndex }: HandlerHealthCardProps) {
   const [, navigate] = useLocation();
-  const href = handlerPath(appKey, item, instanceQs);
+  const href = handlerHref(appKey, item, instanceQs);
   const failing = isFailing(item);
   const chipLabel = itemKindChip(item);
   const errorType = failing ? itemErrorType(item) : null;

@@ -5,6 +5,7 @@ import { Link, useLocation, useSearch } from "wouter";
 import type { components } from "../../api/generated-types";
 import { useManifests } from "../../hooks/use-manifests";
 import { useAppState } from "../../state/context";
+import { appDetailPath, HOME_PATH, NAV_PAGES } from "../../utils/app-routes";
 import { statusToKind } from "../../utils/status";
 import { Chip } from "../shared/chip";
 import { Spinner } from "../shared/spinner";
@@ -27,14 +28,6 @@ function SidebarChevron({ open, class: className }: { open: boolean; class?: str
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.userAgent);
 const SHORTCUT_HINT = IS_MAC ? "⌘K" : "Ctrl+K";
 
-const NAV_ITEMS = [
-  { path: "/apps", label: "apps", testId: "nav-apps" },
-  { path: "/handlers", label: "handlers", testId: "nav-handlers" },
-  { path: "/logs", label: "logs", testId: "nav-logs" },
-  { path: "/config", label: "config", testId: "nav-config" },
-  { path: "/diagnostics", label: "diagnostics", testId: "nav-diagnostics" },
-] as const;
-
 interface AppEntryProps {
   manifest: AppManifest;
   location: string;
@@ -49,7 +42,7 @@ function AppEntry({ manifest, location, searchString }: AppEntryProps) {
   const isBlocked = displayStatus === "blocked";
 
   // Active when on any sub-path of this app
-  const appPath = `/apps/${manifest.app_key}`;
+  const appPath = appDetailPath(manifest.app_key);
   const isActive = location.startsWith(appPath);
 
   return (
@@ -84,7 +77,7 @@ function AppEntry({ manifest, location, searchString }: AppEntryProps) {
       {isMulti && expanded && (
         <ul class={styles.instanceList} data-testid="instance-list">
           {(manifest.instances ?? []).map((inst) => {
-            const instHref = `/apps/${manifest.app_key}?instance=${inst.index}`;
+            const instHref = appDetailPath(manifest.app_key, undefined, { instance: inst.index });
             const pathMatches = location === appPath || location.startsWith(appPath + "/");
             const instanceParam = new URLSearchParams(searchString).get("instance");
             const instActive = pathMatches && instanceParam === String(inst.index);
@@ -183,7 +176,7 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
   return (
     <aside class={styles.sidebar} data-testid="sidebar">
       <div class={styles.sidebarBrand}>
-        <Link href="/apps" class={styles.brandLink} aria-label="Hassette home">
+        <Link href={HOME_PATH} class={styles.brandLink} aria-label="Hassette home">
           <span class={styles.wordmark}>hassette</span>
         </Link>
         {version !== null && (
@@ -206,7 +199,7 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
 
       <nav aria-label="Main navigation">
         <ul class={styles.navList}>
-          {NAV_ITEMS.map((item) => {
+          {NAV_PAGES.map((item) => {
             const isActive = location.startsWith(item.path);
             return (
               <li key={item.path}>

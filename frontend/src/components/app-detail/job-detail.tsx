@@ -164,7 +164,9 @@ export function JobDetail({ job, appKey, instanceQs, onSwitchToCode }: Props) {
       executionTableId={`execution-table-${job.job_id}`}
       executionLoading={loading}
       executionHasData={executions !== undefined}
-      execLinkPrefix={`/apps/${appKey}/handlers/job/${job.job_id}`}
+      appKey={appKey}
+      handlerKind="job"
+      handlerId={job.job_id}
       instanceQs={instanceQs}
     />
   );

@@ -1,5 +1,6 @@
 import type { AppManifest, ListenerData } from "../../api/endpoints";
 import { reloadApp, stopApp } from "../../api/endpoints";
+import { appDetailPath, handlerPath, NAV_PAGES } from "../../utils/app-routes";
 
 const DOCS_URL = "https://hassette.readthedocs.io";
 
@@ -25,43 +26,13 @@ export interface PaletteItem {
 }
 
 export function buildStaticPageItems(navigate: (path: string) => void): PaletteItem[] {
-  return [
-    {
-      id: "page-apps",
-      kind: "page",
-      label: "apps",
-      sub: "/apps",
-      action: () => navigate("/apps"),
-    },
-    {
-      id: "page-handlers",
-      kind: "page",
-      label: "handlers",
-      sub: "/handlers",
-      action: () => navigate("/handlers"),
-    },
-    {
-      id: "page-logs",
-      kind: "page",
-      label: "logs",
-      sub: "/logs",
-      action: () => navigate("/logs"),
-    },
-    {
-      id: "page-config",
-      kind: "page",
-      label: "config",
-      sub: "/config",
-      action: () => navigate("/config"),
-    },
-    {
-      id: "page-diagnostics",
-      kind: "page",
-      label: "diagnostics",
-      sub: "/diagnostics",
-      action: () => navigate("/diagnostics"),
-    },
-  ];
+  return NAV_PAGES.map((page) => ({
+    id: `page-${page.label}`,
+    kind: "page" as const,
+    label: page.label,
+    sub: page.path,
+    action: () => navigate(page.path),
+  }));
 }
 
 export function buildActionItems(manifests: AppManifest[], onClose: () => void): PaletteItem[] {
@@ -113,7 +84,7 @@ export function buildAppItems(
       sub: m.app_key,
       status: m.status,
       action: () => {
-        navigate(`/apps/${m.app_key}`);
+        navigate(appDetailPath(m.app_key));
         onClose();
       },
     });
@@ -126,7 +97,7 @@ export function buildAppItems(
           sub: `${m.app_key} · #${inst.index}`,
           status: inst.status,
           action: () => {
-            navigate(`/apps/${m.app_key}?instance=${inst.index}`);
+            navigate(appDetailPath(m.app_key, undefined, { instance: inst.index }));
             onClose();
           },
         });
@@ -147,7 +118,7 @@ export function buildHandlerItems(
     label: l.handler_method,
     sub: `${l.app_key} · ${l.topic}`,
     action: () => {
-      navigate(`/apps/${l.app_key}/handlers/listener/${l.listener_id}`);
+      navigate(handlerPath(l.app_key, "listener", l.listener_id));
       onClose();
     },
   }));

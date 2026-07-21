@@ -6,7 +6,8 @@ import type { LogEntry } from "@/api/endpoints";
 import { BREAKPOINT_MOBILE, BREAKPOINT_TABLET, useMediaQuery } from "@/hooks/use-media-query";
 import { useSignal } from "@/hooks/use-signal";
 import { useSubscribe } from "@/hooks/use-subscribe";
-import { formatTimestamp, logEntryExecutionHref } from "@/utils/format";
+import { appDetailPath, logEntryExecutionHref } from "@/utils/app-routes";
+import { formatTimestamp } from "@/utils/format";
 
 import { COPY_CONFIRM_MS, levelClass } from "./constants";
 import styles from "./log-detail-drawer.module.css";
@@ -192,7 +193,7 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
                 <>
                   <dt>App</dt>
                   <dd>
-                    <Link href={`/apps/${entry.app_key}`} class={styles.appLink}>
+                    <Link href={appDetailPath(entry.app_key)} class={styles.appLink}>
                       {entry.app_key} ↗
                     </Link>
                   </dd>

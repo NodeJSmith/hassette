@@ -142,7 +142,7 @@ describe("ExecutionTable", () => {
     expect(queryByRole("button", { name: /show all/i })).toBeNull();
   });
 
-  it("clicking row navigates to execution detail page when execLinkPrefix is set", () => {
+  it("clicking row navigates to execution detail page when handler props are set", () => {
     mockNavigate.mockClear();
     const execId = "abc12345-6789-abcd-ef01-234567890abc";
     const { container } = render(
@@ -150,14 +150,16 @@ describe("ExecutionTable", () => {
         records={[createExecution("job", { execution_id: execId })]}
         kind="job"
         tableId="t"
-        execLinkPrefix="/apps/my_app/handlers/job/1"
+        appKey="my_app"
+        handlerKind="job"
+        handlerId={1}
       />,
     );
     fireEvent.click(container.querySelector("[data-testid='execution-row']")!);
     expect(mockNavigate).toHaveBeenCalledWith(`/apps/my_app/handlers/job/1/exec/${execId}`);
   });
 
-  it("clicking row does not navigate when execLinkPrefix is not set", () => {
+  it("clicking row does not navigate when handler props are not set", () => {
     mockNavigate.mockClear();
     const { container } = render(
       <ExecutionTable records={[createExecution("job", { execution_id: "some-id" })]} kind="job" tableId="t" />,

@@ -136,36 +136,6 @@ export function formatRate(failed: number, total: number): string {
   return (fixed.endsWith(".0") ? fixed.slice(0, -2) : fixed) + "%";
 }
 
-// URL segments use "listener"/"job" (the DB entity name), while execution_kind uses "handler"/"job" (the execution type).
-export function executionDetailHref(
-  appKey: string,
-  kind: "handler" | "job",
-  handlerId: number,
-  executionId: string,
-  instanceIndex?: number | null,
-): string {
-  const base = `/apps/${appKey}/handlers/${kind === "handler" ? "listener" : "job"}/${handlerId}/exec/${executionId}`;
-  return instanceIndex !== null && instanceIndex !== undefined ? `${base}?instance=${instanceIndex}` : base;
-}
-
-export function logEntryExecutionHref(entry: {
-  app_key?: string | null;
-  execution_kind?: string | null;
-  listener_id?: number | null;
-  job_id?: number | null;
-  execution_id?: string | null;
-  instance_index?: number | null;
-}): string | null {
-  if (!entry.app_key || !entry.execution_id || !entry.execution_kind) return null;
-  if (entry.execution_kind === "handler" && entry.listener_id !== null && entry.listener_id !== undefined) {
-    return executionDetailHref(entry.app_key, "handler", entry.listener_id, entry.execution_id, entry.instance_index);
-  }
-  if (entry.execution_kind === "job" && entry.job_id !== null && entry.job_id !== undefined) {
-    return executionDetailHref(entry.app_key, "job", entry.job_id, entry.execution_id, entry.instance_index);
-  }
-  return null;
-}
-
 export function formatUptime(seconds: number): string {
   if (seconds < SECONDS_PER_MINUTE) return `${Math.floor(seconds)}s`;
   if (seconds < SECONDS_PER_HOUR) return `${Math.floor(seconds / SECONDS_PER_MINUTE)}m`;

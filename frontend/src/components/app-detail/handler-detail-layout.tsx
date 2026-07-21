@@ -1,6 +1,7 @@
 import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
 
+import type { HandlerKind } from "../../utils/app-routes";
 import { parseSourceLocation } from "../../utils/format";
 import { Badge } from "../shared/badge";
 import { Button } from "../shared/button";
@@ -43,7 +44,9 @@ interface Props {
   executionTableId: string;
   executionLoading: boolean;
   executionHasData: boolean;
-  execLinkPrefix?: string;
+  appKey?: string;
+  handlerKind?: HandlerKind;
+  handlerId?: number;
   instanceQs?: string;
 }
 
@@ -69,7 +72,9 @@ export function HandlerDetailLayout({
   executionTableId,
   executionLoading,
   executionHasData,
-  execLinkPrefix,
+  appKey,
+  handlerKind,
+  handlerId,
   instanceQs,
 }: Props) {
   const [registrationExpanded, setRegistrationExpanded] = useState(false);
@@ -123,7 +128,9 @@ export function HandlerDetailLayout({
               records={executionRecords}
               kind={executionKind}
               tableId={executionTableId}
-              execLinkPrefix={execLinkPrefix}
+              appKey={appKey}
+              handlerKind={handlerKind}
+              handlerId={handlerId}
               instanceQs={instanceQs}
             />
           )}
