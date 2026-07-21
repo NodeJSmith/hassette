@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 
 import { useRovingTabIndex } from "../../hooks/use-roving-tab-index";
 import { useSignal } from "../../hooks/use-signal";
+import { executionPath, type HandlerKind } from "../../utils/app-routes";
 import { STATUS_DOT_SIZE } from "../../utils/constants";
 import { formatDuration, formatRelativeTime, formatTimestamp, truncateId } from "../../utils/format";
 import { onActivateKeyDown } from "../../utils/keyboard";
@@ -41,11 +42,21 @@ interface ExecutionTableProps {
   records: ExecutionRecord[];
   kind: "handler" | "job";
   tableId: string;
-  execLinkPrefix?: string;
+  appKey?: string;
+  handlerKind?: HandlerKind;
+  handlerId?: number;
   instanceQs?: string;
 }
 
-export function ExecutionTable({ records, kind, tableId, execLinkPrefix, instanceQs }: ExecutionTableProps) {
+export function ExecutionTable({
+  records,
+  kind,
+  tableId,
+  appKey,
+  handlerKind,
+  handlerId,
+  instanceQs,
+}: ExecutionTableProps) {
   const showAll = useSignal(false);
   const visible = showAll.value ? records : records.slice(0, INITIAL_ROWS);
   const { containerRef, onContainerKeyDown, getTabIndex, setActiveIndex } = useRovingTabIndex<HTMLTableSectionElement>(
@@ -94,10 +105,10 @@ export function ExecutionTable({ records, kind, tableId, execLinkPrefix, instanc
             const rowKey = record.execution_id ?? `${kind}-${i}`;
             const statusKind = executionStatusKind(record.status);
             const isThreadLeaked = record.thread_leaked;
-            const canNavigate = execLinkPrefix && record.execution_id;
+            const canNavigate = appKey && handlerKind && handlerId !== undefined && record.execution_id;
             const goToDetail = () => {
               if (canNavigate) {
-                navigate(`${execLinkPrefix}/exec/${record.execution_id}${instanceQs ?? ""}`);
+                navigate(executionPath(appKey, handlerKind, handlerId, record.execution_id!) + (instanceQs ?? ""));
               }
             };
 

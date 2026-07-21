@@ -121,7 +121,9 @@ export function ListenerDetail({ listener, appKey, instanceQs, onSwitchToCode }:
       executionTableId={`invocation-table-${listener.listener_id}`}
       executionLoading={loading}
       executionHasData={executions !== undefined}
-      execLinkPrefix={`/apps/${appKey}/handlers/listener/${listener.listener_id}`}
+      appKey={appKey}
+      handlerKind="listener"
+      handlerId={listener.listener_id}
       instanceQs={instanceQs}
     />
   );

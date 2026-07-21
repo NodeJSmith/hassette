@@ -1,9 +1,15 @@
+import { type HandlerKind, handlerPath } from "../../utils/app-routes";
 import { handlerKindLabel } from "../../utils/status";
 import type { UnifiedItem } from "./unified-handler-row";
 
-export function handlerPath(appKey: string, item: UnifiedItem, instanceQs: string): string {
-  const segment = item.kind === "listener" ? `listener/${item.id}` : `job/${item.id}`;
-  return `/apps/${appKey}/handlers/${segment}${instanceQs}`;
+export function handlerHref(appKey: string, item: UnifiedItem, instanceQs: string): string {
+  const kind: HandlerKind = item.kind === "listener" ? "listener" : "job";
+  return handlerPath(
+    appKey,
+    kind,
+    item.id,
+    instanceQs ? { instance: new URLSearchParams(instanceQs).get("instance") } : undefined,
+  );
 }
 
 export function isFailing(item: UnifiedItem): boolean {

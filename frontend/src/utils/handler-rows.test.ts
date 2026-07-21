@@ -171,6 +171,7 @@ function row(overrides: Partial<UnifiedRow>): UnifiedRow {
   return {
     kind: "listener",
     id: "listener/1",
+    handlerId: 1,
     app_key: "app_a",
     name: "handler",
     handler_method: "app.Handler.handler",

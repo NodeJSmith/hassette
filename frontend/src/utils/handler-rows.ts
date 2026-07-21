@@ -5,6 +5,7 @@ import { lastDotSegment } from "./format";
 export interface UnifiedRow {
   kind: "listener" | "job";
   id: string;
+  handlerId: number;
   app_key: string;
   name: string;
   handler_method: string;
@@ -22,6 +23,7 @@ export function listenerToRow(l: ListenerData): UnifiedRow {
   return {
     kind: "listener",
     id: `listener/${l.listener_id}`,
+    handlerId: l.listener_id,
     app_key: l.app_key,
     name: lastDotSegment(l.handler_method),
     handler_method: l.handler_method,
@@ -40,6 +42,7 @@ export function jobToRow(j: JobData): UnifiedRow {
   return {
     kind: "job",
     id: `job/${j.job_id}`,
+    handlerId: j.job_id,
     app_key: j.app_key,
     name: j.job_name,
     handler_method: j.handler_method,

@@ -4,6 +4,7 @@ import { Link } from "wouter";
 import { AppLink } from "../components/shared/app-link";
 import { Chip } from "../components/shared/chip";
 import { useRelativeTime } from "../hooks/use-relative-time";
+import { handlerPath } from "../utils/app-routes";
 import { formatDurationOrDash, formatRate, MS_PER_SECOND } from "../utils/format";
 import type { UnifiedRow } from "../utils/handler-rows";
 import styles from "./handlers.module.css";
@@ -71,7 +72,7 @@ export function HandlerTableRow({ row }: HandlerRowProps) {
         <AppLink appKey={row.app_key} />
       </td>
       <td class="ht-text-mono ht-text-sm" title={row.handler_method}>
-        <AppLink appKey={row.app_key} handlerId={row.id}>
+        <AppLink appKey={row.app_key} handlerKind={row.kind} handlerId={row.handlerId}>
           {row.name}
         </AppLink>
       </td>
@@ -92,7 +93,7 @@ export function HandlerMobileRow({ row }: HandlerRowProps) {
 
   return (
     <MobileCard
-      href={`/apps/${row.app_key}/handlers/${row.id}`}
+      href={handlerPath(row.app_key, row.kind, row.handlerId)}
       appKey={row.app_key}
       name={row.name}
       failing={row.failed > 0}

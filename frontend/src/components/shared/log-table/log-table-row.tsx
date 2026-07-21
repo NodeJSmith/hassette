@@ -5,7 +5,8 @@ import { Link } from "wouter";
 import type { LogEntry } from "@/api/endpoints";
 import { BREAKPOINT_MOBILE, useMediaQuery } from "@/hooks/use-media-query";
 import { useRelativeTime } from "@/hooks/use-relative-time";
-import { formatTimestamp, logEntryExecutionHref, truncateId } from "@/utils/format";
+import { logEntryExecutionHref } from "@/utils/app-routes";
+import { formatTimestamp, truncateId } from "@/utils/format";
 import { onActivateKeyDown } from "@/utils/keyboard";
 
 import { AppLink } from "../app-link";

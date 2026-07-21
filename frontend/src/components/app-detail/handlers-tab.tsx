@@ -6,7 +6,7 @@ import type { JobData, ListenerData } from "../../api/endpoints";
 import { useCorrectUrl } from "../../hooks/use-correct-url";
 import { BREAKPOINT_MOBILE } from "../../hooks/use-media-query";
 import { useSignal } from "../../hooks/use-signal";
-import { appHandlerDetailPath, appHandlersPath } from "../../utils/app-routes";
+import { appHandlersPath, handlerPath } from "../../utils/app-routes";
 import { lastDotSegment } from "../../utils/format";
 import { Button } from "../shared/button";
 import { EmptyState } from "../shared/empty-state";
@@ -109,8 +109,7 @@ export function HandlersTab({
   }, [selectedHandler, parsed, selectedExecId, hasItems, listeners, jobs, appKey, instanceIndex, correctUrl]);
 
   const handleSelect = (id: SelectedHandlerId) => {
-    const segment = id.kind === "listener" ? `listener/${id.id}` : `job/${id.id}`;
-    navigate(appHandlerDetailPath(appKey, segment, { instance: instanceIndex }));
+    navigate(handlerPath(appKey, id.kind, id.id, { instance: instanceIndex }));
   };
 
   if (selectedExecId && parsed) {

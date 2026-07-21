@@ -4,7 +4,7 @@ import { Link } from "wouter";
 
 import { StatusShape } from "../shared/status-shape";
 import styles from "./overview-tab.module.css";
-import { handlerPath, itemErrorMessage, itemErrorType } from "./overview-tab-helpers";
+import { handlerHref, itemErrorMessage, itemErrorType } from "./overview-tab-helpers";
 import type { UnifiedItem } from "./unified-handler-row";
 
 const SPOTLIGHT_LIMIT = 3;
@@ -18,7 +18,7 @@ interface SpotlightEntryProps {
 function SpotlightEntry({ item, appKey, instanceQs }: SpotlightEntryProps) {
   const errorType = itemErrorType(item);
   const errorMessage = itemErrorMessage(item);
-  const href = handlerPath(appKey, item, instanceQs);
+  const href = handlerHref(appKey, item, instanceQs);
 
   return (
     <div class={styles.spotlightEntry} data-testid={`overview-spotlight-entry-${item.kind}-${item.id}`}>

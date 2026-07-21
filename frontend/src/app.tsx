@@ -22,6 +22,7 @@ import { LogsPage } from "./pages/logs";
 import { NotFoundPage } from "./pages/not-found";
 import { AppStateContext } from "./state/context";
 import { createAppState, RELATIVE_TIME_TICK_MS } from "./state/create-app-state";
+import { HOME_PATH } from "./utils/app-routes";
 
 export function App() {
   const queryClient = useMemo(() => createQueryClient(), []);
@@ -119,7 +120,7 @@ export function App() {
               <ErrorBoundary resetKey={location}>
                 <Switch>
                   <Route path="/">
-                    <Redirect to="/apps" />
+                    <Redirect to={HOME_PATH} />
                   </Route>
                   {(["listener", "job"] as const).map((kind) => [
                     <Route key={`${kind}-exec`} path={`/apps/:key/handlers/${kind}/:id/exec/:execId`}>
