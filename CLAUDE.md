@@ -36,7 +36,7 @@ uv run pytest tests/integration/test_api.py
 # Run a specific test
 uv run pytest tests/integration/test_api.py::test_function_name -v
 
-# Lint + type check (all pre-commit hooks)
+# Lint + type check (all prek hooks)
 prek -a
 
 # Serve documentation locally
@@ -244,7 +244,7 @@ After a UI change that alters a view documented with a screenshot, regenerate th
 
 ## Pre-Ship Verification for Core Changes
 
-When a branch modifies core service infrastructure — files in `src/hassette/core/`, `src/hassette/resources/`, or `src/hassette/types/enums.py` — the system and e2e suites are the real safety net: unit and integration tests mock the very boundaries where these regressions hide. **CI runs both on every push/PR** — `nox -s system_with_coverage` (`.github/workflows/tests.yml`) and `nox -s e2e` (`.github/workflows/e2e-tests.yml`) — so you do **not** need to run them locally before pushing. The local dev gate for a core change is the cheaper set: the unit/integration suite, lint (`prek -a` — runs ruff, pyright, and all other pre-commit hooks), and the schema-freshness check.
+When a branch modifies core service infrastructure — files in `src/hassette/core/`, `src/hassette/resources/`, or `src/hassette/types/enums.py` — the system and e2e suites are the real safety net: unit and integration tests mock the very boundaries where these regressions hide. **CI runs both on every push/PR** — `nox -s system_with_coverage` (`.github/workflows/tests.yml`) and `nox -s e2e` (`.github/workflows/e2e-tests.yml`) — so you do **not** need to run them locally before pushing. The local dev gate for a core change is the cheaper set: the unit/integration suite, lint (`prek -a` — runs ruff, pyright, and all other prek hooks), and the schema-freshness check.
 
 Run the heavy suites locally only when you want a faster signal on a core change you're actively debugging:
 
