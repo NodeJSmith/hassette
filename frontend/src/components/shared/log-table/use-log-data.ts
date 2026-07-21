@@ -1,13 +1,14 @@
 import { useSignalEffect } from "@preact/signals";
-import { useQuery } from "@tanstack/preact-query";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { toast } from "sonner";
 
 import { getRecentLogs, type LogEntry } from "@/api/endpoints";
+import { useScopedQuery } from "@/hooks/use-scoped-query";
 import { queryKeys } from "@/lib/query-keys";
 import { useAppState } from "@/state/context";
 
 import { LIVE_LOG_UPDATE_INTERVAL_MS, REST_FETCH_LIMIT } from "./constants";
+import { rowKey } from "./types";
 
 interface UseLogDataParams {
   appKey?: string;
@@ -15,7 +16,7 @@ interface UseLogDataParams {
 }
 
 interface UseLogDataResult {
-  /** REST + WS entries combined, deduped by timestamp watermark. */
+  /** REST + WS entries combined, deduped by row key identity. */
   allEntries: LogEntry[];
   /** REST-only entries (used when live-paused to exclude WS stream). */
   restEntries: LogEntry[];
@@ -54,14 +55,13 @@ function useThrottledLogVersion(): number {
 
 export function useLogData({ appKey, executionId }: UseLogDataParams): UseLogDataResult {
   const { logs } = useAppState();
-  // Drives recomputation from a throttled view of the live WS buffer.
   const logsVersion = useThrottledLogVersion();
 
-  const { data, isPending, isError, error } = useQuery({
-    queryKey: queryKeys.recentLogs(appKey, executionId),
-    queryFn: ({ signal }) =>
-      getRecentLogs({ app_key: appKey, limit: REST_FETCH_LIMIT, execution_id: executionId }, signal),
-  });
+  const { data, isPending, isError, error } = useScopedQuery(
+    queryKeys.recentLogs(appKey, executionId),
+    (since, signal) =>
+      getRecentLogs({ app_key: appKey, limit: REST_FETCH_LIMIT, execution_id: executionId, since }, signal),
+  );
 
   useEffect(() => {
     if (isError && error) {
@@ -71,23 +71,21 @@ export function useLogData({ appKey, executionId }: UseLogDataParams): UseLogDat
 
   const restEntries = useMemo<LogEntry[]>(() => data ?? [], [data]);
 
-  // Watermark: highest timestamp in the REST batch. WS entries must be strictly
-  // above this to be included, preventing duplicates.
-  const watermark = useMemo(() => restEntries.reduce((max, e) => Math.max(max, e.timestamp), 0), [restEntries]);
+  const restKeys = useMemo(() => new Set(restEntries.map(rowKey)), [restEntries]);
 
   const allEntries = useMemo(() => {
     if (!data) return [];
 
-    const wsEntries = logs.toArray().filter((e) => {
-      if (e.timestamp <= watermark) return false;
+    const wsEntries = (logs.toArray() as LogEntry[]).filter((e) => {
+      if (restKeys.has(rowKey(e))) return false;
       if (appKey && e.app_key !== appKey) return false;
       if (executionId && e.execution_id !== executionId) return false;
       return true;
-    }) as LogEntry[];
+    });
 
     return [...wsEntries.reverse(), ...restEntries];
     // eslint-disable-next-line react-hooks-configurable/exhaustive-deps -- logs is a stable ring-buffer ref; logsVersion drives recomputation
-  }, [data, restEntries, watermark, logsVersion, appKey, executionId]);
+  }, [data, restEntries, restKeys, logsVersion, appKey, executionId]);
 
   return { allEntries, restEntries, loading: isPending };
 }
