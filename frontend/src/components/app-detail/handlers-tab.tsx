@@ -16,10 +16,8 @@ import styles from "./handlers-tab.module.css";
 import { JobDetail } from "./job-detail";
 import { ListenerDetail } from "./listener-detail";
 
-type ParsedHandler = SelectedHandlerId;
-
 /** Parse a path-based handler segment like "listener/123" or "job/456". */
-function parseSelectedHandler(raw: string | null): ParsedHandler | null {
+function parseSelectedHandler(raw: string | null): SelectedHandlerId | null {
   if (!raw) return null;
   const listenerMatch = /^listener\/(\d+)$/.exec(raw);
   if (listenerMatch) return { kind: "listener", id: parseInt(listenerMatch[1], 10) };
@@ -29,13 +27,13 @@ function parseSelectedHandler(raw: string | null): ParsedHandler | null {
 }
 
 type ContentMode =
-  | { mode: "execution-detail"; parsed: ParsedHandler; execId: string }
+  | { mode: "execution-detail"; parsed: SelectedHandlerId; execId: string }
   | { mode: "empty" }
-  | { mode: "master-detail"; parsed: ParsedHandler | null };
+  | { mode: "master-detail"; parsed: SelectedHandlerId | null };
 
 function deriveContentMode(
   selectedExecId: string | null,
-  parsed: ParsedHandler | null,
+  parsed: SelectedHandlerId | null,
   hasItems: boolean,
 ): ContentMode {
   if (selectedExecId && parsed) return { mode: "execution-detail", parsed, execId: selectedExecId };
