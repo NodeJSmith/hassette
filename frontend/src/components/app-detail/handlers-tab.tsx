@@ -16,14 +16,31 @@ import styles from "./handlers-tab.module.css";
 import { JobDetail } from "./job-detail";
 import { ListenerDetail } from "./listener-detail";
 
+type ParsedHandler = SelectedHandlerId;
+
 /** Parse a path-based handler segment like "listener/123" or "job/456". */
-function parseSelectedHandler(raw: string | null): { kind: "listener" | "job"; id: number } | null {
+function parseSelectedHandler(raw: string | null): ParsedHandler | null {
   if (!raw) return null;
   const listenerMatch = /^listener\/(\d+)$/.exec(raw);
   if (listenerMatch) return { kind: "listener", id: parseInt(listenerMatch[1], 10) };
   const jobMatch = /^job\/(\d+)$/.exec(raw);
   if (jobMatch) return { kind: "job", id: parseInt(jobMatch[1], 10) };
   return null;
+}
+
+type ContentMode =
+  | { mode: "execution-detail"; parsed: ParsedHandler; execId: string }
+  | { mode: "empty" }
+  | { mode: "master-detail"; parsed: ParsedHandler | null };
+
+function deriveContentMode(
+  selectedExecId: string | null,
+  parsed: ParsedHandler | null,
+  hasItems: boolean,
+): ContentMode {
+  if (selectedExecId && parsed) return { mode: "execution-detail", parsed, execId: selectedExecId };
+  if (!hasItems) return { mode: "empty" };
+  return { mode: "master-detail", parsed };
 }
 
 interface Props {
@@ -112,73 +129,83 @@ export function HandlersTab({
     navigate(handlerPath(appKey, id.kind, id.id, { instance: instanceIndex }));
   };
 
-  if (selectedExecId && parsed) {
-    const handlerName =
-      parsed.kind === "listener" && selectedListener?.handler_method
-        ? lastDotSegment(selectedListener.handler_method)
-        : selectedJob?.job_name;
-    return (
-      <div ref={containerRef}>
-        <ExecutionDetailFetcher
-          appKey={appKey}
-          kind={parsed.kind}
-          handlerId={parsed.id}
-          executionId={selectedExecId}
-          instanceQs={instanceQs}
-          handlerName={handlerName ?? undefined}
-        />
-      </div>
-    );
-  }
+  const contentMode = deriveContentMode(selectedExecId, parsed, hasItems);
 
-  if (!hasItems) {
-    return (
-      <div data-testid="handlers-empty">
-        <EmptyState title="no handlers or scheduled jobs registered." />
-      </div>
-    );
-  }
+  switch (contentMode.mode) {
+    case "execution-detail": {
+      const handlerName =
+        contentMode.parsed.kind === "listener" && selectedListener?.handler_method
+          ? lastDotSegment(selectedListener.handler_method)
+          : selectedJob?.job_name;
+      return (
+        <div ref={containerRef}>
+          <ExecutionDetailFetcher
+            appKey={appKey}
+            kind={contentMode.parsed.kind}
+            handlerId={contentMode.parsed.id}
+            executionId={contentMode.execId}
+            instanceQs={instanceQs}
+            handlerName={handlerName ?? undefined}
+          />
+        </div>
+      );
+    }
 
-  const showMobileDetail = isMobile.value && selectedHandler !== null;
-  const showMasterList = !isMobile.value || selectedHandler === null;
-  const showDetailPane = !isMobile.value || selectedHandler !== null;
+    case "empty":
+      return (
+        <div data-testid="handlers-empty">
+          <EmptyState title="no handlers or scheduled jobs registered." />
+        </div>
+      );
 
-  const selectedId: SelectedHandlerId | null = parsed ? { kind: parsed.kind, id: parsed.id } : null;
+    case "master-detail": {
+      const showMobileDetail = isMobile.value && selectedHandler !== null;
+      const showMasterList = !isMobile.value || selectedHandler === null;
+      const showDetailPane = !isMobile.value || selectedHandler !== null;
 
-  return (
-    <div ref={containerRef} class={styles.container}>
-      {showMobileDetail && (
-        <Button
-          ghost
-          size="sm"
-          class="ht-mb-3"
-          data-testid="back-to-list"
-          onClick={() => navigate(appHandlersPath(appKey, { instance: instanceIndex }))}
-          aria-label="Back to handler list"
-        >
-          ← back
-        </Button>
-      )}
+      const selectedId: SelectedHandlerId | null = parsed ? { kind: parsed.kind, id: parsed.id } : null;
 
-      <div class={clsx(styles.masterDetail, isMobile.value && styles.masterDetailMobile)}>
-        {showMasterList && (
-          <div class={styles.masterDetailList}>
-            <HandlerList listeners={listeners} jobs={jobs} selectedId={selectedId} onSelect={handleSelect} />
+      return (
+        <div ref={containerRef} class={styles.container}>
+          {showMobileDetail && (
+            <Button
+              ghost
+              size="sm"
+              class="ht-mb-3"
+              data-testid="back-to-list"
+              onClick={() => navigate(appHandlersPath(appKey, { instance: instanceIndex }))}
+              aria-label="Back to handler list"
+            >
+              ← back
+            </Button>
+          )}
+
+          <div class={clsx(styles.masterDetail, isMobile.value && styles.masterDetailMobile)}>
+            {showMasterList && (
+              <div class={styles.masterDetailList}>
+                <HandlerList listeners={listeners} jobs={jobs} selectedId={selectedId} onSelect={handleSelect} />
+              </div>
+            )}
+
+            {showDetailPane && (
+              <div class={styles.masterDetailDetail}>
+                <DetailContent
+                  listener={selectedListener}
+                  job={selectedJob}
+                  appKey={appKey}
+                  instanceQs={instanceQs}
+                  onSwitchToCode={onSwitchToCode}
+                />
+              </div>
+            )}
           </div>
-        )}
+        </div>
+      );
+    }
 
-        {showDetailPane && (
-          <div class={styles.masterDetailDetail}>
-            <DetailContent
-              listener={selectedListener}
-              job={selectedJob}
-              appKey={appKey}
-              instanceQs={instanceQs}
-              onSwitchToCode={onSwitchToCode}
-            />
-          </div>
-        )}
-      </div>
-    </div>
-  );
+    default: {
+      const _exhaustive: never = contentMode;
+      return _exhaustive;
+    }
+  }
 }
