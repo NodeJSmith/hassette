@@ -42,7 +42,7 @@ jobs:
                         - 'uv.lock'
                         - 'ruff.toml'
                         - '_typos.toml'
-                        - '.pre-commit-config.yaml'
+                        - 'prek.toml'
                         - 'mise.toml'
                         - 'tools/**'
                         - '.github/workflows/lint.yml'
@@ -87,19 +87,19 @@ jobs:
               uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
               with:
                   path: ~/.cache/prek
-                  key: prek-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
+                  key: prek-${{ runner.os }}-${{ hashFiles('prek.toml') }}
 
             - name: Run lint checks
               run: |
                   uv tool install ruff==0.14.9
-                  prek run --no-group frontend --all-files --hook-stage pre-push
+                  prek run --no-group frontend --all-files --stage pre-push
 
             - name: Fail if generators produced drift
               # Uses the generator's --check mode, which runs ruff on both the committed
               # file and the freshly generated content inside the same invocation. This
               # makes the comparison ruff-version-agnostic — the same ruff binary
               # normalizes both sides. A plain `git diff` approach would depend on the
-              # pre-commit hook and `uv tool install ruff==X` staying in lockstep.
+              # prek hook and `uv tool install ruff==X` staying in lockstep.
               run: |
                   if ! uv run python codegen/src/hassette_codegen/sync_facade/ --target all --check; then
                     echo ""
@@ -135,53 +135,26 @@ jobs:
             - name: Install uv
               uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
 
+            - name: Install prek
+              uses: j178/prek-action@8a0e9d7b7d92cbc0139d6b1d1130aa3855ca9172 # v2
+              with:
+                  install-only: true
+
             - name: Install frontend dependencies
               run: npm ci
-              working-directory: frontend
-
-            - name: Check formatting
-              run: npm run format:check
-              working-directory: frontend
-
-            - name: Lint frontend
-              run: npm run lint
-              working-directory: frontend
-
-            - name: Lint CSS
-              run: npm run lint:css
               working-directory: frontend
 
             - name: Build frontend (generates CSS module .d.ts files)
               run: npm run build
               working-directory: frontend
 
-            - name: Type check frontend
-              run: npx tsc --noEmit
-              working-directory: frontend
-
-            - name: Check CSS module :global() correctness
-              run: uv run python tools/frontend/check_css_module_globals.py
-
+            # Self-test of the allowlist tool's own logic — not a lint check, so
+            # it stays outside the prek group and runs before the hooks.
             - name: Smoke test CSS allowlist logic
               run: uv run python tools/frontend/check_global_css_allowlist.py --smoke-test
 
-            - name: Check global CSS allowlist (full file)
-              run: uv run python tools/frontend/check_global_css_allowlist.py
-
-            - name: Check dead global CSS (blocking)
-              run: uv run python tools/frontend/check_dead_global_css.py
-
-            - name: Check for dead CSS tokens
-              run: uv run python tools/frontend/check_dead_tokens.py
-
-            - name: Check undefined CSS refs in TSX (blocking)
-              run: uv run python tools/frontend/check_undefined_css_refs.py
-
-            - name: Check breakpoint drift (JS constants vs CSS media queries)
-              run: uv run python tools/frontend/check_breakpoint_drift.py
-
-            - name: Check native anchor tags for internal routes
-              run: uv run python tools/frontend/check_internal_anchor_links.py
+            - name: Run frontend lint checks
+              run: prek run --group frontend --all-files --show-diff-on-failure
 
     codegen-freshness:
         needs: changes
