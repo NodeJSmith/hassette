@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { WsLogPayload } from "@/api/ws-types";
 import { AppStateContext } from "@/state/context";
-import { type AppState, createAppState } from "@/state/create-app-state";
+import { type AppState, createAppState, type TimePreset } from "@/state/create-app-state";
 import { createTestQueryClient } from "@/test/query-test-utils";
 import { server } from "@/test/server";
 
@@ -26,6 +26,13 @@ function createWrapper(state: AppState) {
   return function Wrapper({ children }: { children: ComponentChildren }) {
     return h(QueryClientProvider, { client }, h(AppStateContext.Provider, { value: state }, children));
   };
+}
+
+function makeState(preset: TimePreset = "1h"): AppState {
+  const state = createAppState();
+  state.timePreset.value = preset;
+  if (preset === "since-restart") state.uptimeSeconds.value = 100;
+  return state;
 }
 
 function makeLogEntry(overrides: Partial<WsLogPayload> = {}): WsLogPayload {
@@ -60,7 +67,7 @@ beforeEach(() => {
 describe("useLogData", () => {
   describe("loading state", () => {
     it("is true initially before REST resolves", () => {
-      const state = createAppState();
+      const state = makeState();
       // Override with a never-resolving handler to freeze the fetch in-flight.
       server.use(http.get("/api/logs/recent", () => new Promise(() => {})));
 
@@ -72,7 +79,7 @@ describe("useLogData", () => {
     });
 
     it("becomes false after REST resolves", async () => {
-      const state = createAppState();
+      const state = makeState();
 
       const { result } = renderHook(() => useLogData({}), {
         wrapper: createWrapper(state),
@@ -84,7 +91,7 @@ describe("useLogData", () => {
 
   describe("REST fetch", () => {
     it("calls the /api/logs/recent endpoint with appKey, executionId, and limit", async () => {
-      const state = createAppState();
+      const state = makeState();
       let capturedUrl: string | undefined;
 
       server.use(
@@ -110,7 +117,7 @@ describe("useLogData", () => {
     });
 
     it("populates restEntries with the fetched entries", async () => {
-      const state = createAppState();
+      const state = makeState();
       const entries = [
         makeLogEntry({ seq: 1, timestamp: 1000, message: "first" }),
         makeLogEntry({ seq: 2, timestamp: 2000, message: "second" }),
@@ -132,7 +139,7 @@ describe("useLogData", () => {
     });
 
     it("includes REST entries in allEntries", async () => {
-      const state = createAppState();
+      const state = makeState();
       const entries = [makeLogEntry({ seq: 1, timestamp: 1000, message: "rest-entry" })];
 
       server.use(http.get("/api/logs/recent", () => HttpResponse.json(entries)));
@@ -151,7 +158,7 @@ describe("useLogData", () => {
 
   describe("WS merge", () => {
     it("prepends WS entries above the REST watermark to keep timestamp-desc order", async () => {
-      const state = createAppState();
+      const state = makeState();
       const restEntry = makeLogEntry({ seq: 1, timestamp: 1000, message: "rest" });
 
       server.use(http.get("/api/logs/recent", () => HttpResponse.json([restEntry])));
@@ -176,7 +183,7 @@ describe("useLogData", () => {
     });
 
     it("orders multiple WS entries newest first before REST entries", async () => {
-      const state = createAppState();
+      const state = makeState();
       const restEntry = makeLogEntry({ seq: 1, timestamp: 1000, message: "rest" });
 
       server.use(http.get("/api/logs/recent", () => HttpResponse.json([restEntry])));
@@ -197,8 +204,8 @@ describe("useLogData", () => {
       });
     });
 
-    it("does not include WS entries at or below the REST watermark (deduplication)", async () => {
-      const state = createAppState();
+    it("excludes WS entries whose rowKey matches a REST entry (deduplication)", async () => {
+      const state = makeState();
       const restEntry = makeLogEntry({ seq: 1, timestamp: 5000, message: "rest" });
 
       server.use(http.get("/api/logs/recent", () => HttpResponse.json([restEntry])));
@@ -210,21 +217,49 @@ describe("useLogData", () => {
       await waitForLoaded(result);
 
       act(() => {
-        state.logs.push(makeLogEntry({ seq: 2, timestamp: 5000, message: "dup-at-watermark" }));
-        state.logs.push(makeLogEntry({ seq: 3, timestamp: 3000, message: "dup-below-watermark" }));
-        state.logs.push(makeLogEntry({ seq: 4, timestamp: 6000, message: "valid-after-watermark" }));
+        // Same seq+timestamp as REST entry → same rowKey → excluded
+        state.logs.push(makeLogEntry({ seq: 1, timestamp: 5000, message: "exact-dup" }));
+        // Different seq → different rowKey → included
+        state.logs.push(makeLogEntry({ seq: 2, timestamp: 5000, message: "same-ts-diff-seq" }));
+        state.logs.push(makeLogEntry({ seq: 3, timestamp: 6000, message: "newer" }));
       });
 
       await vi.waitFor(() => {
         const messages = result.current.allEntries.map((e) => e.message);
-        expect(messages).toContain("valid-after-watermark");
-        expect(messages).not.toContain("dup-at-watermark");
-        expect(messages).not.toContain("dup-below-watermark");
+        expect(messages).toContain("same-ts-diff-seq");
+        expect(messages).toContain("newer");
+        expect(messages).not.toContain("exact-dup");
+      });
+    });
+
+    it("preserves distinct records that share a timestamp (same-timestamp dedup fix)", async () => {
+      const state = makeState();
+
+      server.use(http.get("/api/logs/recent", () => HttpResponse.json([])));
+
+      const { result } = renderHook(() => useLogData({}), {
+        wrapper: createWrapper(state),
+      });
+
+      await waitForLoaded(result);
+
+      act(() => {
+        state.logs.push(makeLogEntry({ seq: 10, timestamp: 9000, message: "first" }));
+        state.logs.push(makeLogEntry({ seq: 11, timestamp: 9000, message: "second" }));
+        state.logs.push(makeLogEntry({ seq: 12, timestamp: 9000, message: "third" }));
+      });
+
+      await vi.waitFor(() => {
+        const messages = result.current.allEntries.map((e) => e.message);
+        expect(messages).toHaveLength(3);
+        expect(messages).toContain("first");
+        expect(messages).toContain("second");
+        expect(messages).toContain("third");
       });
     });
 
     it("excludes WS entries for a different app_key when appKey is provided", async () => {
-      const state = createAppState();
+      const state = makeState();
 
       server.use(http.get("/api/logs/recent", () => HttpResponse.json([])));
 
@@ -245,7 +280,7 @@ describe("useLogData", () => {
     });
 
     it("excludes WS entries for a different execution_id when executionId is provided", async () => {
-      const state = createAppState();
+      const state = makeState();
 
       server.use(http.get("/api/logs/recent", () => HttpResponse.json([])));
 
@@ -265,8 +300,8 @@ describe("useLogData", () => {
       });
     });
 
-    it("includes all WS entries above the watermark when no filters are provided", async () => {
-      const state = createAppState();
+    it("includes all WS entries not in the REST set when no filters are provided", async () => {
+      const state = makeState();
 
       server.use(http.get("/api/logs/recent", () => HttpResponse.json([])));
 
@@ -289,7 +324,7 @@ describe("useLogData", () => {
     });
 
     it("throttles live WS entries before exposing them to the table", async () => {
-      const state = createAppState();
+      const state = makeState();
 
       server.use(http.get("/api/logs/recent", () => HttpResponse.json([])));
 
@@ -322,9 +357,86 @@ describe("useLogData", () => {
     });
   });
 
+  describe("time-window filtering", () => {
+    it("passes the since parameter to the REST fetch", async () => {
+      const state = makeState("1h");
+      let capturedUrl: string | undefined;
+
+      server.use(
+        http.get("/api/logs/recent", ({ request }) => {
+          capturedUrl = request.url;
+          return HttpResponse.json([]);
+        }),
+      );
+
+      const { result } = renderHook(() => useLogData({}), {
+        wrapper: createWrapper(state),
+      });
+
+      await waitForLoaded(result);
+
+      expect(capturedUrl).toBeDefined();
+      const url = new URL(capturedUrl!);
+      const since = Number(url.searchParams.get("since"));
+      expect(since).toBeGreaterThan(0);
+      // 1h preset: since should be within ~1h of now
+      const nowSeconds = Date.now() / 1000;
+      expect(since).toBeGreaterThan(nowSeconds - 3700);
+      expect(since).toBeLessThan(nowSeconds);
+    });
+
+    it("refetches when the time preset changes", async () => {
+      const state = makeState("1h");
+      let fetchCount = 0;
+
+      server.use(
+        http.get("/api/logs/recent", () => {
+          fetchCount++;
+          return HttpResponse.json([]);
+        }),
+      );
+
+      const { result } = renderHook(() => useLogData({}), {
+        wrapper: createWrapper(state),
+      });
+
+      await waitForLoaded(result);
+      const firstFetchCount = fetchCount;
+
+      await act(() => {
+        state.timePreset.value = "24h";
+      });
+
+      await vi.waitFor(() => {
+        expect(fetchCount).toBeGreaterThan(firstFetchCount);
+      });
+    });
+
+    it("gates fetching until uptimeSeconds is available for since-restart", async () => {
+      const state = createAppState();
+      // Default: since-restart with null uptime → should not fetch
+
+      server.use(http.get("/api/logs/recent", () => HttpResponse.json([])));
+
+      const { result } = renderHook(() => useLogData({}), {
+        wrapper: createWrapper(state),
+      });
+
+      // Should stay in loading state because fetching is disabled
+      expect(result.current.loading).toBe(true);
+
+      // Provide uptime → unblocks fetch
+      await act(() => {
+        state.uptimeSeconds.value = 60;
+      });
+
+      await waitForLoaded(result);
+    });
+  });
+
   describe("error handling", () => {
     it("shows a toast error and sets loading to false when the REST fetch rejects", async () => {
-      const state = createAppState();
+      const state = makeState();
 
       server.use(http.get("/api/logs/recent", () => HttpResponse.error()));
 
