@@ -19,10 +19,6 @@ function buildQuery(query?: RouteQuery): string {
   return queryString ? `?${queryString}` : "";
 }
 
-// ---------------------------------------------------------------------------
-// Top-level page metadata
-// ---------------------------------------------------------------------------
-
 export interface NavPage {
   path: string;
   label: string;
@@ -39,10 +35,6 @@ export const NAV_PAGES: readonly NavPage[] = [
 
 export const HOME_PATH = "/apps";
 
-// ---------------------------------------------------------------------------
-// App-level paths
-// ---------------------------------------------------------------------------
-
 export function appDetailPath(appKey: string, tab?: AppDetailTab, query?: RouteQuery): string {
   const path = tab ? `/apps/${appKey}/${tab}` : `/apps/${appKey}`;
   return path + buildQuery(query);
@@ -52,19 +44,11 @@ export function appHandlersPath(appKey: string, query?: RouteQuery): string {
   return `/apps/${appKey}/handlers` + buildQuery(query);
 }
 
-// ---------------------------------------------------------------------------
-// Handler-level paths
-// ---------------------------------------------------------------------------
-
 export type HandlerKind = "listener" | "job";
 
 export function handlerPath(appKey: string, kind: HandlerKind, handlerId: number | string, query?: RouteQuery): string {
   return `/apps/${appKey}/handlers/${kind}/${handlerId}` + buildQuery(query);
 }
-
-// ---------------------------------------------------------------------------
-// Execution-level paths
-// ---------------------------------------------------------------------------
 
 export function executionPath(
   appKey: string,
