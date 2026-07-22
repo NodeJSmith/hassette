@@ -17,6 +17,7 @@ This is the core swap. Construct `SyncExecutor` in `Hassette.__init__` before `s
 - modify: `src/hassette/task_bucket/task_bucket.py`
 - modify: `src/hassette/core/command_executor.py`
 - modify: `tests/unit/test_sync_executor_service_wiring.py`
+- modify: `tests/unit/test_sync_executor_service_saturation.py`
 - modify: `tests/unit/conftest.py`
 - read: `src/hassette/core/sync_executor.py` (created in T01)
 - read: `src/hassette/resources/base.py` (Resource.__init__ reference)
@@ -36,7 +37,7 @@ This is the core swap. Construct `SyncExecutor` in `Hassette.__init__` before `s
 - **Delete** the post-hoc patching block (lines 190-193): the two lines that patch `self.task_bucket._sync_service` and `self._sync_executor_service.task_bucket._sync_service`, plus the comment above them. These are no longer needed.
 - The "MUST be the first add_child" ordering comment (lines 185-187) can be relaxed or removed — `SyncExecutorService` no longer needs to be first because the factory reads `hassette._sync_executor` (set in `__init__`), not `hassette.sync_executor_service` (set in `wire_services()`).
 
-**Add a `sync_executor` property or attribute** — expose `self._sync_executor` as a public attribute. Since it's set in `__init__` (always available), a plain attribute is fine — no guard needed. If the existing convention is to use properties for all accessors, add a property without a guard.
+**Add a `sync_executor` plain attribute** — expose `self._sync_executor` as a public attribute. Since it's set in `__init__` (always available), a plain attribute is correct — no property, no guard. This differs from the existing `@property` convention for service accessors because those need guards (they're wired later in `wire_services()`). `sync_executor` is set in `__init__` and is always available.
 
 ### 2. Modify `src/hassette/core/sync_executor_service.py`
 
@@ -90,6 +91,15 @@ Read the current file (287 lines). This file tests:
 **Docstring/error message updates in `task_bucket.py`:**
 - `run_in_thread()`'s docstring references `SyncExecutorService.submit` — update to `SyncExecutor.submit`.
 - `run_in_thread()`'s `RuntimeError` message references `SyncExecutorService` and `_sync_service` — update to `SyncExecutor` and `_sync_executor`.
+
+### 7. Update lifecycle tests in `tests/unit/test_sync_executor_service_saturation.py`
+
+T01 updates the capability tests in this file (saturation monitoring, threshold checks) to use `SyncExecutor` directly. But this file also contains lifecycle tests that construct `SyncExecutorService` via `make_service()`/`make_sync_executor_hassette()` from conftest — and this task (T02) replaces those conftest helpers. These lifecycle tests must be updated here to avoid breaking:
+
+- `TestOnShutdown` (lines 57-82) — tests `svc.on_shutdown()` and `svc.executor.shutdown()`. Update to use the thinned `SyncExecutorService` with its `SyncExecutor`. `test_on_shutdown_skips_when_executor_not_initialized` (line 78) tests the `hasattr(self, "executor")` guard that this task deletes — **remove or rewrite this test** since the guard no longer exists (the pool is always present via `SyncExecutor`).
+- `TestPeriodicSaturationProbe` (lines 272-371) — tests the `serve()` probe loop. Update to construct a real `SyncExecutorService` that wraps a `SyncExecutor`, or mock appropriately.
+- `TestShutdownInterruptsPythonWorker` and `TestShutdownCBlockedWorker` (lines 374+, 484+) — shutdown-under-load tests. Update `svc.executor` references to `svc.sync_executor.executor`.
+- `TestConfigBehavior` (lines 571-621) — tests config-driven max_workers/shutdown_timeout. Update construction from `make_service()` to use `SyncExecutor` + `SyncExecutorService`.
 
 Add new tests:
 - **TC#1**: `hassette.sync_executor` is a `SyncExecutor` instance immediately after `Hassette.__init__()`, before `wire_services()`.

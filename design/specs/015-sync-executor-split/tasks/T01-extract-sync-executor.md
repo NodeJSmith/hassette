@@ -45,7 +45,7 @@ Create `src/hassette/core/sync_executor.py` with a plain `SyncExecutor` class fo
 - `submit()` captures `copy_context()` and wraps with `SyncWorkerHandle` — preserve this behavior exactly from `sync_executor_service.py:129-158`.
 - `log_saturation_rate_limited()` reads `self.executor._max_workers` and `self.executor._work_queue.qsize()` (private CPython attributes). Keep the existing `pyright: ignore` suppression comments.
 - The `InterruptibleThreadPoolExecutor` import comes from `src/hassette/task_bucket/interruptible_executor.py`.
-- The saturation test file has parametrized tests with `make_service()` from conftest — each of these call sites needs updating.
+- The saturation test file has parametrized tests with `make_service()` from conftest. Only update call sites in test classes that exercise **capability** behavior (saturation thresholds, submit, active workers). Leave test classes that exercise **lifecycle** behavior (shutdown, serve loop, config) untouched — those construct `SyncExecutorService` and are updated in T02 alongside the conftest helper replacement.
 
 ## Verify
 
