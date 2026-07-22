@@ -34,6 +34,7 @@ from hassette.core.command_executor import (  # pyright: ignore[reportPrivateUsa
     _CAPACITY_WARN_RATE_LIMIT_SECS,
     _CAPACITY_WARN_THRESHOLD,
 )
+from hassette.core.sync_executor import SyncExecutor
 from hassette.core.sync_executor_service import (
     _SATURATION_PROBE_INTERVAL_SECS,
     _SATURATION_WARN_RATE_LIMIT_SECS,
@@ -42,7 +43,23 @@ from hassette.core.sync_executor_service import (
 )
 from hassette.task_bucket.interruptible_executor import InterruptibleThreadPoolExecutor
 from hassette.task_bucket.task_bucket import TaskBucket
-from tests.unit.conftest import TEST_TOKEN, capture_saturation_warnings, make_service, make_sync_executor_hassette
+from tests.unit.conftest import TEST_TOKEN, make_service, make_sync_executor_hassette
+
+
+def _capture_saturation_warnings(sync_executor: SyncExecutor) -> list[tuple]:
+    """Patch sync_executor.logger.warning to capture saturation warning calls.
+
+    Local to this file, mirroring conftest's `capture_saturation_warnings` (which stays
+    typed for `SyncExecutorService` and is still used by the lifecycle tests in this
+    file). `log_saturation_rate_limited` is now owned by the plain `SyncExecutor`
+    capability class (moved in the SyncExecutor/SyncExecutorService split — see
+    design/specs/015-sync-executor-split), so capability tests construct `SyncExecutor`
+    directly rather than going through `make_service()`.
+    """
+    calls: list[tuple] = []
+    sync_executor.logger.warning = lambda msg, *a: calls.append((msg, *a))  # pyright: ignore[reportAttributeAccessIssue]
+    return calls
+
 
 # async_raise(SystemExit) into a worker stuck in a C-level call (time.sleep) deadlocks under
 # coverage's settrace tracer on Python 3.11. Python 3.12+ trace via sys.monitoring (PEP 669)
@@ -123,15 +140,18 @@ class TestConstantInvariant:
 class TestSubmissionTimeSaturationWarning:
     """log_saturation_rate_limited() fires on submission when pool is near ceiling.
 
-    These tests mock svc.logger.warning directly rather than using caplog, because
-    the project uses structlog which routes log output to JSON stdout rather than
-    the standard Python logging handler that caplog intercepts.  Mocking the logger's
+    These tests construct SyncExecutor directly (the capability class that now owns
+    submit()/track_submission()/log_saturation_rate_limited(), moved from
+    SyncExecutorService — see design/specs/015-sync-executor-split). They mock
+    sync_executor.logger.warning directly rather than using caplog, because the
+    project uses structlog which routes log output to JSON stdout rather than the
+    standard Python logging handler that caplog intercepts.  Mocking the logger's
     warning method gives a clean, ordering-independent signal.
     """
 
     def test_warning_fires_at_threshold(self) -> None:
         """A WARNING is emitted when active workers reach/exceed the 75% threshold."""
-        svc = make_service(max_workers=2)
+        sync_executor = SyncExecutor(max_workers=2)
         gate = threading.Event()
 
         try:
@@ -146,17 +166,17 @@ class TestSubmissionTimeSaturationWarning:
                 ready2.set()
                 gate.wait(timeout=5)
 
-            svc.executor.submit(block1)
-            svc.executor.submit(block2)
+            sync_executor.executor.submit(block1)
+            sync_executor.executor.submit(block2)
             ready1.wait(timeout=2)
             ready2.wait(timeout=2)
 
             # Manually set active_workers to simulate what track_submission does.
-            svc._active_workers = 2
+            sync_executor._active_workers = 2
 
-            warning_calls = capture_saturation_warnings(svc)
+            warning_calls = _capture_saturation_warnings(sync_executor)
 
-            svc.log_saturation_rate_limited()
+            sync_executor.log_saturation_rate_limited()
 
             assert any("approaching saturation" in str(c) for c in warning_calls), (
                 f"Expected saturation WARNING; got calls: {warning_calls}"
@@ -164,145 +184,155 @@ class TestSubmissionTimeSaturationWarning:
 
         finally:
             gate.set()
-            svc.executor.shutdown(join_threads_or_timeout=False)
+            sync_executor.executor.shutdown(join_threads_or_timeout=False)
 
     def test_warning_not_fired_below_threshold(self) -> None:
         """No WARNING is emitted when pool occupancy is below 75%."""
-        svc = make_service(max_workers=4)
+        sync_executor = SyncExecutor(max_workers=4)
         # active_workers=0, max_workers=4 → 0% occupancy (well below 75%)
-        warning_calls = capture_saturation_warnings(svc)
+        warning_calls = _capture_saturation_warnings(sync_executor)
 
-        svc.log_saturation_rate_limited()
+        sync_executor.log_saturation_rate_limited()
 
         assert not any("approaching saturation" in str(c) for c in warning_calls), (
             "No WARNING expected when pool is below threshold"
         )
-        svc.executor.shutdown(join_threads_or_timeout=False)
+        sync_executor.executor.shutdown(join_threads_or_timeout=False)
 
     def test_warning_not_fired_just_below_threshold(self) -> None:
         """No WARNING at exactly 74% occupancy (3/4 workers on max_workers=4 pool)."""
-        svc = make_service(max_workers=4)
+        sync_executor = SyncExecutor(max_workers=4)
         # 3/4 = 75% — but threshold is strictly >=0.75, so 3/4 = 0.75 should fire.
         # Test the boundary below: 2/4 = 50% must NOT fire.
-        svc._active_workers = 2  # 50% occupancy — below threshold
+        sync_executor._active_workers = 2  # 50% occupancy — below threshold
 
-        warning_calls = capture_saturation_warnings(svc)
+        warning_calls = _capture_saturation_warnings(sync_executor)
 
-        svc.log_saturation_rate_limited()
+        sync_executor.log_saturation_rate_limited()
 
         assert not any("approaching saturation" in str(c) for c in warning_calls), (
             "No WARNING expected at 50% occupancy (below 75% threshold)"
         )
-        svc.executor.shutdown(join_threads_or_timeout=False)
+        sync_executor.executor.shutdown(join_threads_or_timeout=False)
 
     def test_warning_fires_at_exact_threshold(self) -> None:
         """WARNING fires at exactly 75% occupancy (3/4 workers on max_workers=4 pool)."""
-        svc = make_service(max_workers=4)
-        svc._active_workers = 3  # 3/4 = 75% — exactly at threshold
+        sync_executor = SyncExecutor(max_workers=4)
+        sync_executor._active_workers = 3  # 3/4 = 75% — exactly at threshold
 
-        warning_calls = capture_saturation_warnings(svc)
+        warning_calls = _capture_saturation_warnings(sync_executor)
 
-        svc.log_saturation_rate_limited()
+        sync_executor.log_saturation_rate_limited()
 
         assert any("approaching saturation" in str(c) for c in warning_calls), (
             "WARNING must fire at exactly 75% occupancy (at-threshold case)"
         )
-        svc.executor.shutdown(join_threads_or_timeout=False)
+        sync_executor.executor.shutdown(join_threads_or_timeout=False)
 
     def test_warning_rate_limited_not_spammed(self) -> None:
         """Saturation WARNING is rate-limited: second call within window is suppressed."""
-        svc = make_service(max_workers=1)
-        svc._active_workers = 1  # 100% — above threshold
+        sync_executor = SyncExecutor(max_workers=1)
+        sync_executor._active_workers = 1  # 100% — above threshold
 
-        warning_calls = capture_saturation_warnings(svc)
+        warning_calls = _capture_saturation_warnings(sync_executor)
 
         # First call — should log
-        svc.log_saturation_rate_limited()
+        sync_executor.log_saturation_rate_limited()
         first_count = len(warning_calls)
         assert first_count >= 1, "Expected at least one WARNING on first call"
 
         # Second call immediately — should be suppressed by rate-limit
-        svc.log_saturation_rate_limited()
+        sync_executor.log_saturation_rate_limited()
         second_count = len(warning_calls)
 
         assert second_count == first_count, (
             f"Second call within rate-limit window should be suppressed; got {second_count - first_count} extra calls"
         )
 
-        svc.executor.shutdown(join_threads_or_timeout=False)
+        sync_executor.executor.shutdown(join_threads_or_timeout=False)
 
     def test_warning_fires_again_after_window_expires(self) -> None:
         """After the rate-limit window expires, the WARNING fires again."""
-        svc = make_service(max_workers=1)
-        svc._active_workers = 1  # 100% — above threshold
+        sync_executor = SyncExecutor(max_workers=1)
+        sync_executor._active_workers = 1  # 100% — above threshold
 
-        warning_calls = capture_saturation_warnings(svc)
+        warning_calls = _capture_saturation_warnings(sync_executor)
 
-        svc.log_saturation_rate_limited()
+        sync_executor.log_saturation_rate_limited()
         first_count = len(warning_calls)
 
         # Manually expire the rate-limit window
-        svc._last_saturation_warn_ts = time.monotonic() - _SATURATION_WARN_RATE_LIMIT_SECS - 1.0
+        sync_executor._last_saturation_warn_ts = time.monotonic() - _SATURATION_WARN_RATE_LIMIT_SECS - 1.0
 
-        svc.log_saturation_rate_limited()
+        sync_executor.log_saturation_rate_limited()
         second_count = len(warning_calls)
 
         assert second_count > first_count, "WARNING should fire again after the rate-limit window expires"
 
-        svc.executor.shutdown(join_threads_or_timeout=False)
+        sync_executor.executor.shutdown(join_threads_or_timeout=False)
 
     def test_warning_includes_worker_and_queue_counts(self) -> None:
         """The WARNING message includes active worker count and queue depth."""
-        svc = make_service(max_workers=1)
-        svc._active_workers = 1  # 100% — above threshold
+        sync_executor = SyncExecutor(max_workers=1)
+        sync_executor._active_workers = 1  # 100% — above threshold
 
         warning_calls: list[str] = []
-        svc.logger.warning = lambda msg, *a: warning_calls.append(msg % a if a else msg)  # pyright: ignore[reportAttributeAccessIssue]
+        sync_executor.logger.warning = lambda msg, *a: warning_calls.append(msg % a if a else msg)  # pyright: ignore[reportAttributeAccessIssue]
 
-        svc.log_saturation_rate_limited()
+        sync_executor.log_saturation_rate_limited()
 
         assert warning_calls, "Expected at least one saturation WARNING"
         msg = str(warning_calls[0])
         # Message should contain worker counts and pool size
         assert "workers active" in msg or "1/1" in msg, f"Expected worker count in WARNING; got: {msg}"
 
-        svc.executor.shutdown(join_threads_or_timeout=False)
+        sync_executor.executor.shutdown(join_threads_or_timeout=False)
 
-
-class TestPeriodicSaturationProbe:
-    """serve() loop emits the saturation WARNING via the periodic probe."""
-
-    @pytest.mark.anyio
-    async def test_probe_fires_when_pool_saturated_and_no_submissions(self) -> None:
+    def test_probe_fires_when_pool_saturated_and_no_submissions(self) -> None:
         """Periodic probe emits saturation WARNING even when no submissions arrive.
 
         This is the "8/8 workers stuck" scenario — all workers blocked, no new
         submissions, so the submission-time check never fires.  The probe in
-        serve() must still surface the saturation WARNING.
+        SyncExecutorService.serve() must still surface the saturation WARNING;
+        we simulate one probe cycle by calling log_saturation_rate_limited()
+        directly (which is exactly what serve()'s TimeoutError branch does),
+        since waiting 30s for the real probe is impractical in a unit test.
 
-        We simulate one probe cycle by calling log_saturation_rate_limited() directly
-        (which is exactly what serve()'s TimeoutError branch does), since waiting 30s
-        for the real probe is impractical in a unit test.
+        This test moved here (from TestPeriodicSaturationProbe) because it
+        exercises SyncExecutor capability directly, not the serve() lifecycle
+        loop — see TestPeriodicSaturationProbe below for the serve()-loop tests
+        that remain on SyncExecutorService.
         """
-        svc = make_service(max_workers=2, shutdown_timeout=5.0)
+        sync_executor = SyncExecutor(max_workers=2)
 
         try:
             # Simulate fully-saturated pool via the active counter (no real submissions needed).
-            svc._active_workers = 2
+            sync_executor._active_workers = 2
 
             # Pre-expire the rate-limit so the probe can fire immediately
-            svc._last_saturation_warn_ts = 0.0
+            sync_executor._last_saturation_warn_ts = 0.0
 
-            warning_calls = capture_saturation_warnings(svc)
+            warning_calls = _capture_saturation_warnings(sync_executor)
 
-            svc.log_saturation_rate_limited()
+            sync_executor.log_saturation_rate_limited()
 
             assert any("approaching saturation" in str(c) for c in warning_calls), (
                 "Probe must fire saturation WARNING when pool is fully saturated"
             )
 
         finally:
-            svc.executor.shutdown(join_threads_or_timeout=False)
+            sync_executor.executor.shutdown(join_threads_or_timeout=False)
+
+
+class TestPeriodicSaturationProbe:
+    """serve() loop emits the saturation WARNING via the periodic probe.
+
+    The capability-level version of this scenario (calling log_saturation_rate_limited()
+    directly against a plain SyncExecutor, without the serve() loop) now lives in
+    TestSubmissionTimeSaturationWarning.test_probe_fires_when_pool_saturated_and_no_submissions
+    — these remaining tests exercise the SyncExecutorService lifecycle (serve() task,
+    shutdown_event, mark_ready) and stay on SyncExecutorService.
+    """
 
     @pytest.mark.anyio
     async def test_serve_exits_on_shutdown_event(self) -> None:
@@ -625,11 +655,15 @@ class TestTrackSubmission:
 
     @pytest.mark.anyio
     async def test_track_submission_increments_active_workers(self) -> None:
-        """track_submission increments active_workers and decrements via done-callback."""
-        svc = make_service(max_workers=2, shutdown_timeout=5.0)
+        """track_submission increments active_workers and decrements via done-callback.
+
+        Constructs SyncExecutor directly — track_submission is a capability method that
+        moved from SyncExecutorService to SyncExecutor (see design/specs/015-sync-executor-split).
+        """
+        sync_executor = SyncExecutor(max_workers=2)
 
         try:
-            assert svc._active_workers == 0
+            assert sync_executor._active_workers == 0
 
             blocking_gate = threading.Event()
             ready = threading.Event()
@@ -639,20 +673,20 @@ class TestTrackSubmission:
                 blocking_gate.wait(timeout=5)
 
             loop = asyncio.get_running_loop()
-            future: asyncio.Future[None] = loop.run_in_executor(svc.executor, blocking_work)
-            svc.track_submission(future)
+            future: asyncio.Future[None] = loop.run_in_executor(sync_executor.executor, blocking_work)
+            sync_executor.track_submission(future)
 
             ready.wait(timeout=2)
-            assert svc._active_workers == 1, "Active workers must be 1 while work is running"
+            assert sync_executor._active_workers == 1, "Active workers must be 1 while work is running"
 
             blocking_gate.set()
             await asyncio.wrap_future(future)
             # Give the done-callback a chance to fire on the loop thread
             await asyncio.sleep(0)
-            assert svc._active_workers == 0, "Active workers must return to 0 after work completes"
+            assert sync_executor._active_workers == 0, "Active workers must return to 0 after work completes"
 
         finally:
-            svc.executor.shutdown(join_threads_or_timeout=False)
+            sync_executor.executor.shutdown(join_threads_or_timeout=False)
 
     @pytest.mark.anyio
     async def test_run_in_thread_calls_saturation_check(self) -> None:

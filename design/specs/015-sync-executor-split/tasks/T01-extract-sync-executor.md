@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Extract SyncExecutor capability class"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#1", "AC#6"]
 ---
