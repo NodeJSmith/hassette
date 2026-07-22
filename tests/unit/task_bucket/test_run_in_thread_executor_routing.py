@@ -29,9 +29,7 @@ def hassette_mock() -> AsyncMock:
 
 @pytest.fixture
 def bucket(hassette_mock: AsyncMock, sync_executor: SyncExecutor) -> TaskBucket:
-    tb = TaskBucket(hassette_mock)
-    tb._sync_executor = sync_executor
-    return tb
+    return TaskBucket(hassette_mock, sync_executor=sync_executor)
 
 
 # Sync user code runs on the dedicated pool

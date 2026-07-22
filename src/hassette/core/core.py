@@ -95,15 +95,14 @@ class Hassette(Resource):
         # SyncExecutor is built before super().__init__() so it exists before the first
         # TaskBucket is constructed (super().__init__() constructs Hassette's own bucket).
         # A plain class (no Resource/Service base) — see hassette.core.sync_executor.
-        self._sync_executor = SyncExecutor(config.lifecycle.sync_executor_max_workers)
+        # The pool is not created here — SyncExecutorService.on_initialize() calls
+        # rebuild_pool() on both first start and restart-in-place.
+        self._sync_executor = SyncExecutor()
         self.sync_executor = self._sync_executor
 
-        super().__init__(self, task_bucket=TaskBucket(self, parent=self), parent=self)
-
-        # Hassette's own TaskBucket is constructed explicitly above, bypassing the
-        # _create_task_bucket factory — wire it here. Every other TaskBucket (created
-        # via add_child()) is wired by the factory itself.
-        self.task_bucket._sync_executor = self._sync_executor
+        super().__init__(
+            self, task_bucket=TaskBucket(self, parent=self, sync_executor=self._sync_executor), parent=self
+        )
 
         self._loop: asyncio.AbstractEventLoop | None = None
         self._loop_thread_id: int | None = None

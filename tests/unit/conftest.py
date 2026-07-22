@@ -65,7 +65,10 @@ def make_sync_executor_hassette(max_workers: int = 4, shutdown_timeout: float = 
     mock_hassette._should_skip_dependency_check = MagicMock(return_value=True)
     # SyncExecutorService.__init__ reads hassette.sync_executor — the pre-built capability
     # that in production is constructed in Hassette.__init__() before the lifecycle starts.
-    mock_hassette.sync_executor = SyncExecutor(max_workers=max_workers)
+    # Tests call rebuild_pool() explicitly since the constructor no longer creates one.
+    sync_executor = SyncExecutor()
+    sync_executor.rebuild_pool(max_workers=max_workers)
+    mock_hassette.sync_executor = sync_executor
     return mock_hassette
 
 

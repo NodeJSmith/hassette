@@ -158,7 +158,8 @@ class TestSubmissionTimeSaturationWarning:
 
     def test_warning_fires_at_threshold(self) -> None:
         """A WARNING is emitted when active workers reach/exceed the 75% threshold."""
-        sync_executor = SyncExecutor(max_workers=2)
+        sync_executor = SyncExecutor()
+        sync_executor.rebuild_pool(max_workers=2)
         gate = threading.Event()
 
         try:
@@ -179,7 +180,7 @@ class TestSubmissionTimeSaturationWarning:
             ready2.wait(timeout=2)
 
             # Manually set active_workers to simulate what track_submission does.
-            sync_executor._active_workers = 2
+            sync_executor._outstanding_submissions = 2
 
             warning_calls = _capture_saturation_warnings(sync_executor)
 
@@ -195,7 +196,8 @@ class TestSubmissionTimeSaturationWarning:
 
     def test_warning_not_fired_below_threshold(self) -> None:
         """No WARNING is emitted when pool occupancy is below 75%."""
-        sync_executor = SyncExecutor(max_workers=4)
+        sync_executor = SyncExecutor()
+        sync_executor.rebuild_pool(max_workers=4)
         # active_workers=0, max_workers=4 → 0% occupancy (well below 75%)
         warning_calls = _capture_saturation_warnings(sync_executor)
 
@@ -208,10 +210,11 @@ class TestSubmissionTimeSaturationWarning:
 
     def test_warning_not_fired_just_below_threshold(self) -> None:
         """No WARNING at exactly 74% occupancy (3/4 workers on max_workers=4 pool)."""
-        sync_executor = SyncExecutor(max_workers=4)
+        sync_executor = SyncExecutor()
+        sync_executor.rebuild_pool(max_workers=4)
         # 3/4 = 75% — but threshold is strictly >=0.75, so 3/4 = 0.75 should fire.
         # Test the boundary below: 2/4 = 50% must NOT fire.
-        sync_executor._active_workers = 2  # 50% occupancy — below threshold
+        sync_executor._outstanding_submissions = 2  # 50% occupancy — below threshold
 
         warning_calls = _capture_saturation_warnings(sync_executor)
 
@@ -224,8 +227,9 @@ class TestSubmissionTimeSaturationWarning:
 
     def test_warning_fires_at_exact_threshold(self) -> None:
         """WARNING fires at exactly 75% occupancy (3/4 workers on max_workers=4 pool)."""
-        sync_executor = SyncExecutor(max_workers=4)
-        sync_executor._active_workers = 3  # 3/4 = 75% — exactly at threshold
+        sync_executor = SyncExecutor()
+        sync_executor.rebuild_pool(max_workers=4)
+        sync_executor._outstanding_submissions = 3  # 3/4 = 75% — exactly at threshold
 
         warning_calls = _capture_saturation_warnings(sync_executor)
 
@@ -238,8 +242,9 @@ class TestSubmissionTimeSaturationWarning:
 
     def test_warning_rate_limited_not_spammed(self) -> None:
         """Saturation WARNING is rate-limited: second call within window is suppressed."""
-        sync_executor = SyncExecutor(max_workers=1)
-        sync_executor._active_workers = 1  # 100% — above threshold
+        sync_executor = SyncExecutor()
+        sync_executor.rebuild_pool(max_workers=1)
+        sync_executor._outstanding_submissions = 1  # 100% — above threshold
 
         warning_calls = _capture_saturation_warnings(sync_executor)
 
@@ -260,8 +265,9 @@ class TestSubmissionTimeSaturationWarning:
 
     def test_warning_fires_again_after_window_expires(self) -> None:
         """After the rate-limit window expires, the WARNING fires again."""
-        sync_executor = SyncExecutor(max_workers=1)
-        sync_executor._active_workers = 1  # 100% — above threshold
+        sync_executor = SyncExecutor()
+        sync_executor.rebuild_pool(max_workers=1)
+        sync_executor._outstanding_submissions = 1  # 100% — above threshold
 
         warning_calls = _capture_saturation_warnings(sync_executor)
 
@@ -280,8 +286,9 @@ class TestSubmissionTimeSaturationWarning:
 
     def test_warning_includes_worker_and_queue_counts(self) -> None:
         """The WARNING message includes active worker count and queue depth."""
-        sync_executor = SyncExecutor(max_workers=1)
-        sync_executor._active_workers = 1  # 100% — above threshold
+        sync_executor = SyncExecutor()
+        sync_executor.rebuild_pool(max_workers=1)
+        sync_executor._outstanding_submissions = 1  # 100% — above threshold
 
         warning_calls: list[str] = []
         sync_executor.logger.warning = lambda msg, *a: warning_calls.append(msg % a if a else msg)  # pyright: ignore[reportAttributeAccessIssue]
@@ -310,11 +317,12 @@ class TestSubmissionTimeSaturationWarning:
         loop — see TestPeriodicSaturationProbe below for the serve()-loop tests
         that remain on SyncExecutorService.
         """
-        sync_executor = SyncExecutor(max_workers=2)
+        sync_executor = SyncExecutor()
+        sync_executor.rebuild_pool(max_workers=2)
 
         try:
             # Simulate fully-saturated pool via the active counter (no real submissions needed).
-            sync_executor._active_workers = 2
+            sync_executor._outstanding_submissions = 2
 
             # Pre-expire the rate-limit so the probe can fire immediately
             sync_executor._last_saturation_warn_ts = 0.0
@@ -376,7 +384,7 @@ class TestPeriodicSaturationProbe:
             svc.sync_executor.executor.submit(lambda: (ready.set(), gate.wait(timeout=10)))
             ready.wait(timeout=2)
             # Simulate full saturation via active counter
-            svc.sync_executor._active_workers = 1
+            svc.sync_executor._outstanding_submissions = 1
             # Pre-expire rate-limit
             svc.sync_executor._last_saturation_warn_ts = 0.0
 
@@ -658,19 +666,20 @@ class TestConfigBehavior:
 
 
 class TestTrackSubmission:
-    """track_submission accurately tracks active workers via done-callback."""
+    """track_submission accurately tracks outstanding submissions via done-callback."""
 
     @pytest.mark.anyio
-    async def test_track_submission_increments_active_workers(self) -> None:
-        """track_submission increments active_workers and decrements via done-callback.
+    async def test_track_submission_increments_outstanding_submissions(self) -> None:
+        """track_submission increments _outstanding_submissions and decrements via done-callback.
 
         Constructs SyncExecutor directly — track_submission is a capability method that
         moved from SyncExecutorService to SyncExecutor (see design/specs/015-sync-executor-split).
         """
-        sync_executor = SyncExecutor(max_workers=2)
+        sync_executor = SyncExecutor()
+        sync_executor.rebuild_pool(max_workers=2)
 
         try:
-            assert sync_executor._active_workers == 0
+            assert sync_executor._outstanding_submissions == 0
 
             blocking_gate = threading.Event()
             ready = threading.Event()
@@ -684,13 +693,17 @@ class TestTrackSubmission:
             sync_executor.track_submission(future)
 
             ready.wait(timeout=2)
-            assert sync_executor._active_workers == 1, "Active workers must be 1 while work is running"
+            assert sync_executor._outstanding_submissions == 1, (
+                "Outstanding submissions must be 1 while work is running"
+            )
 
             blocking_gate.set()
             await asyncio.wrap_future(future)
             # Give the done-callback a chance to fire on the loop thread
             await asyncio.sleep(0)
-            assert sync_executor._active_workers == 0, "Active workers must return to 0 after work completes"
+            assert sync_executor._outstanding_submissions == 0, (
+                "Outstanding submissions must return to 0 after work completes"
+            )
 
         finally:
             sync_executor.executor.shutdown(join_threads_or_timeout=False)

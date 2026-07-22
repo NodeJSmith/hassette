@@ -213,7 +213,7 @@ async def wired_hassette(isolated_hassette_context: object) -> Hassette:  # noqa
     h = Hassette(config)
     h.wire_services()
     yield h  # pyright: ignore[reportReturnType]
-    if h._sync_executor_service is not None:
+    if h._sync_executor_service is not None and h._sync_executor_service.sync_executor.executor is not None:
         h._sync_executor_service.sync_executor.executor.shutdown(join_threads_or_timeout=False)
     if h._bus_service is not None and not h._bus_service.stream._closed:
         await h._bus_service.stream.aclose()
@@ -243,7 +243,6 @@ class TestWireServicesRegistration:
         h = Hassette(config)
         with pytest.raises(RuntimeError, match="wire_services"):
             _ = h.sync_executor_service
-        h.sync_executor.executor.shutdown(join_threads_or_timeout=False)
 
     def test_task_bucket_sync_executor_wired_after_wire_services(self, wired_hassette: Hassette) -> None:
         """Hassette's own TaskBucket has _sync_executor set (wired in __init__, not wire_services())."""
@@ -268,12 +267,12 @@ class TestSyncExecutorWiredFromBirth:
 
     def test_sync_executor_available_before_wire_services(self) -> None:
         """hassette.sync_executor is a SyncExecutor instance immediately after __init__,
-        before wire_services() runs (TC#1).
+        before wire_services() runs (TC#1). The pool is None until on_initialize().
         """
         config = make_sync_executor_config()
         h = Hassette(config)
         assert isinstance(h.sync_executor, SyncExecutor)
-        h.sync_executor.executor.shutdown(join_threads_or_timeout=False)
+        assert h.sync_executor.executor is None
 
     def test_hassette_task_bucket_wired_before_wire_services(self) -> None:
         """Hassette's own TaskBucket has _sync_executor set immediately after __init__,
@@ -282,7 +281,6 @@ class TestSyncExecutorWiredFromBirth:
         config = make_sync_executor_config()
         h = Hassette(config)
         assert h.task_bucket._sync_executor is h.sync_executor
-        h.sync_executor.executor.shutdown(join_threads_or_timeout=False)
 
     def test_child_task_bucket_wired_from_birth_without_wire_services(self) -> None:
         """A child resource's TaskBucket is wired by the factory at construction time,
@@ -292,7 +290,6 @@ class TestSyncExecutorWiredFromBirth:
         h = Hassette(config)
         child = h.add_child(SyncExecutorService)
         assert child.task_bucket._sync_executor is h.sync_executor
-        h.sync_executor.executor.shutdown(join_threads_or_timeout=False)
 
 
 class TestShutdownOrderingRegression:

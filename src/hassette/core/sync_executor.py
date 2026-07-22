@@ -8,10 +8,12 @@ the loop-default executor.
 SyncExecutor is a plain class (no Resource/Service base), following the Router
 (hassette.bus.router) and AppRegistry (hassette.core.app_registry) precedent — it is
 constructed during Hassette.__init__() before the Resource lifecycle starts, so every
-TaskBucket has a working sync executor from birth.
+TaskBucket has a working sync executor from birth. The pool is not created at
+construction — rebuild_pool() is the sole pool constructor, called by
+SyncExecutorService.on_initialize() on both first start and restart-in-place.
 
 SyncExecutorService (hassette.core.sync_executor_service) wraps this capability for
-lifecycle concerns: on_initialize() rebuilds the pool via rebuild_pool(), serve() runs
+lifecycle concerns: on_initialize() creates the pool via rebuild_pool(), serve() runs
 the saturation probe loop, and on_shutdown() tears the pool down via shutdown_pool().
 """
 
@@ -94,35 +96,32 @@ class SyncExecutor:
     hooks. This is what makes it constructable during ``Hassette.__init__()`` before the
     Resource lifecycle starts, so every ``TaskBucket`` has a working sync executor from birth.
 
-    ``rebuild_pool()`` and ``shutdown_pool()`` exist for lifecycle delegation — callers that
-    need pool-rebuild-on-restart or budgeted teardown (``SyncExecutorService``) call these
-    rather than reaching into ``executor`` directly.
+    The pool is not created at construction — ``rebuild_pool()`` is the sole pool constructor,
+    called by ``SyncExecutorService.on_initialize()`` on both first start and restart-in-place.
+    ``shutdown_pool()`` tears it down within a budgeted timeout.
     """
 
-    executor: InterruptibleThreadPoolExecutor
-    """The dedicated thread-pool executor for all sync user code."""
+    executor: InterruptibleThreadPoolExecutor | None
+    """The dedicated thread-pool executor for all sync user code. None until rebuild_pool()."""
 
-    _active_workers: int
-    """Count of futures currently running on the executor (loop-thread-only, no lock needed)."""
+    _outstanding_submissions: int
+    """Count of futures submitted but not yet completed (loop-thread-only, no lock needed)."""
 
     _last_saturation_warn_ts: float
     """Monotonic timestamp of the last pool-saturation WARNING (global rate-limit)."""
 
-    def __init__(self, max_workers: int, thread_name_prefix: str = SYNC_EXECUTOR_THREAD_NAME_PREFIX) -> None:
-        self.executor = InterruptibleThreadPoolExecutor(
-            max_workers=max_workers,
-            thread_name_prefix=thread_name_prefix,
-        )
-        self._active_workers = 0
+    def __init__(self) -> None:
+        self.executor = None
+        self._outstanding_submissions = 0
         self._last_saturation_warn_ts = 0.0
         self.logger = getLogger(f"{__name__}.SyncExecutor")
 
     def rebuild_pool(self, max_workers: int, thread_name_prefix: str = SYNC_EXECUTOR_THREAD_NAME_PREFIX) -> None:
-        """Create a fresh thread pool and reset saturation state, for restart-in-place.
+        """Create a fresh thread pool and reset saturation state.
 
-        Does not shut down any existing pool — the caller (``SyncExecutorService.on_initialize()``
-        via ``restart()`` in ``resources/operations.py``) always calls ``shutdown()`` before
-        ``initialize()``, so the old pool is already shut down by the time this runs.
+        Sole pool constructor — called by ``SyncExecutorService.on_initialize()`` on both
+        first start and restart-in-place. Does not shut down any existing pool; the caller
+        always calls ``shutdown_pool()`` before re-initializing on restart.
 
         Args:
             max_workers: Maximum number of worker threads for the new pool.
@@ -132,7 +131,7 @@ class SyncExecutor:
             max_workers=max_workers,
             thread_name_prefix=thread_name_prefix,
         )
-        self._active_workers = 0
+        self._outstanding_submissions = 0
         self._last_saturation_warn_ts = 0.0
 
     def shutdown_pool(self, timeout: float) -> None:
@@ -141,7 +140,8 @@ class SyncExecutor:
         Args:
             timeout: Total seconds budgeted for the join/interrupt loop.
         """
-        self.executor.shutdown(timeout=timeout)
+        if self.executor is not None:
+            self.executor.shutdown(timeout=timeout)
 
     def submit(self, fn: "Callable[P, R]", *args: "P.args", **kwargs: "P.kwargs") -> "asyncio.Future[R]":
         """Submit a sync function to the dedicated executor with context propagation.
@@ -156,7 +156,12 @@ class SyncExecutor:
 
         Returns:
             An :class:`asyncio.Future` that resolves to the return value of *fn*.
+
+        Raises:
+            RuntimeError: If the pool has not been created via ``rebuild_pool()``.
         """
+        if self.executor is None:
+            raise RuntimeError("SyncExecutor.submit() called before rebuild_pool() — no pool available")
         parent_ctx = copy_context()
         handle = SyncWorkerHandle()
         SYNC_WORKER_HANDLE.set(handle)
@@ -175,7 +180,7 @@ class SyncExecutor:
         return future
 
     def track_submission(self, future: "asyncio.Future[Any]") -> None:
-        """Track an active submission: increment counter and decrement via done-callback.
+        """Track an outstanding submission: increment counter and decrement via done-callback.
 
         Both the increment (called on the event loop thread, immediately after
         run_in_executor returns) and the done-callback decrement (delivered to the
@@ -185,31 +190,32 @@ class SyncExecutor:
         Args:
             future: The asyncio.Future returned by loop.run_in_executor.
         """
-        self._active_workers += 1
+        self._outstanding_submissions += 1
 
         def _on_done(_f: "asyncio.Future[Any]") -> None:
-            # run_in_executor done callbacks fire on the event loop thread.
-            self._active_workers = max(0, self._active_workers - 1)
+            self._outstanding_submissions = max(0, self._outstanding_submissions - 1)
 
         future.add_done_callback(_on_done)
         self.log_saturation_rate_limited()
 
     def log_saturation_rate_limited(self) -> None:
-        """Emit a pool-saturation WARNING when active workers cross ~75%, rate-limited.
+        """Emit a pool-saturation WARNING when outstanding submissions cross ~75%, rate-limited.
 
         Uses a single global timestamp for rate-limiting — pool saturation is a global
         condition, not per-entity, so the global-timestamp model from enqueue_record
         (command_executor.py) is the right fit here (not the per-entity dict in
         log_timeout_rate_limited).
 
-        Active-worker count is tracked via a dedicated counter incremented on submission
-        and decremented in the future's done-callback.  Both operations run on the event
-        loop thread, so the counter needs no lock.  The queue depth is read for log
-        context only — it does not gate the warning.
+        Outstanding-submission count is tracked via a dedicated counter incremented on
+        submission and decremented in the future's done-callback. Both operations run on
+        the event loop thread, so the counter needs no lock. The queue depth is read for
+        log context only — it does not gate the warning.
         """
+        if self.executor is None:
+            return
         max_workers: int = self.executor._max_workers  # pyright: ignore[reportAttributeAccessIssue]
 
-        occupancy = self._active_workers / max_workers
+        occupancy = self._outstanding_submissions / max_workers
         if occupancy < _SATURATION_WARN_THRESHOLD:
             return  # below threshold — nothing to warn about
 
@@ -223,9 +229,9 @@ class SyncExecutor:
         queue_depth: int = self.executor._work_queue.qsize()  # pyright: ignore[reportAttributeAccessIssue]
 
         self.logger.warning(
-            "Sync-handler pool approaching saturation: ~%d/%d workers active, %d queued "
+            "Sync-handler pool approaching saturation: ~%d/%d outstanding submissions, %d queued "
             "— consider raising lifecycle.sync_executor_max_workers or async-ifying slow handlers",
-            self._active_workers,
+            self._outstanding_submissions,
             max_workers,
             queue_depth,
         )

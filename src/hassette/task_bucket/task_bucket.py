@@ -43,11 +43,17 @@ class TaskBucket(Resource):
     _exception_recorders: "list[ExceptionRecorderT]"
     """List of recorders called for each non-CancelledError task exception."""
 
-    def __init__(self, hassette: "Hassette", *, parent: "Resource | None" = None) -> None:
+    def __init__(
+        self,
+        hassette: "Hassette",
+        *,
+        parent: "Resource | None" = None,
+        sync_executor: "SyncExecutor | None" = None,
+    ) -> None:
         super().__init__(hassette, parent=parent)
         self._tasks: set[asyncio.Task[Any]] = set()
         self._exception_recorders = []
-        self._sync_executor: SyncExecutor | None = None
+        self._sync_executor = sync_executor
         mark_ready(self, reason="TaskBucket initialized")
 
     @property
@@ -189,8 +195,8 @@ class TaskBucket(Resource):
         if self._sync_executor is None:
             raise RuntimeError(
                 f"TaskBucket({self.unique_name}).run_in_thread called but no SyncExecutor "
-                "is wired. In production this means a startup ordering bug; in tests, inject "
-                "a SyncExecutor or mock via task_bucket._sync_executor."
+                "is wired. In production this means a startup ordering bug; in tests, pass "
+                "sync_executor= to the TaskBucket constructor."
             )
         return self._sync_executor.submit(fn, *args, **kwargs)
 
@@ -378,9 +384,7 @@ def make_task_factory(
 
 
 def _create_task_bucket(hassette: "Hassette", owner: "Resource") -> "TaskBucket":
-    bucket = TaskBucket(hassette, parent=owner)
-    bucket._sync_executor = hassette.sync_executor
-    return bucket
+    return TaskBucket(hassette, parent=owner, sync_executor=hassette.sync_executor)
 
 
 register_task_bucket_factory(_create_task_bucket)

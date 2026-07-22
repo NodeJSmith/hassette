@@ -359,4 +359,6 @@ def make_sync_executor(*, max_workers: int = 2) -> SyncExecutor:
 
     Caller is responsible for calling ``executor.shutdown_pool(timeout=...)`` at teardown.
     """
-    return SyncExecutor(max_workers=max_workers)
+    executor = SyncExecutor()
+    executor.rebuild_pool(max_workers=max_workers)
+    return executor
