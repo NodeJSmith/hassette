@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Update test infrastructure, remaining tests, and docs"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02"]
 implements: ["AC#3", "AC#4", "AC#5"]
 ---

@@ -576,7 +576,12 @@ class HassetteHarness:
         self.hassette._loop = loop
         self._previous_task_factory = loop.get_task_factory()
         self.hassette._loop_thread_id = loop_thread_id
-        self.hassette.task_bucket = TaskBucket(cast("Hassette", self.hassette), parent=self.hassette)  # pyright: ignore[reportArgumentType]
+        bucket = TaskBucket(cast("Hassette", self.hassette), parent=self.hassette)  # pyright: ignore[reportArgumentType]
+        # Mirrors Hassette.__init__'s explicit wiring — this bucket bypasses the
+        # _create_task_bucket factory (constructed directly, not via add_child), so it
+        # needs _sync_executor wired here rather than relying on post-hoc patching.
+        bucket._sync_executor = self.hassette._sync_executor
+        self.hassette.task_bucket = bucket
         loop.set_task_factory(make_task_factory(self.hassette.task_bucket))  # pyright: ignore[reportArgumentType]
         return loop, loop_thread_id
 
@@ -700,8 +705,6 @@ class HassetteHarness:
 
     async def _start_sync_executor(self) -> None:
         self.hassette._sync_executor_service = self.hassette.add_child(SyncExecutorService)
-        self.hassette.task_bucket._sync_service = self.hassette._sync_executor_service
-        self.hassette._sync_executor_service.task_bucket._sync_service = self.hassette._sync_executor_service
 
     async def _start_bus(self) -> None:
         # Use _HarnessEventStreamService so that test-initiated hassette.shutdown() calls

@@ -18,7 +18,7 @@ from hassette.app.app_config import AppConfig
 from hassette.cache import AsyncCache, DummyCache
 from hassette.config.classes import AppManifest
 from hassette.test_utils import make_mock_hassette
-from hassette.test_utils.factories import make_sync_service
+from hassette.test_utils.factories import make_sync_executor
 
 
 def _make_app_config(name: str = "kitchen") -> AppConfig:
@@ -153,9 +153,9 @@ class TestAppSyncBeforeInitializeCallsSuper:
     async def test_before_initialize_calls_super_and_initializes_cache(self, tmp_path: Path) -> None:
         """AppSync.before_initialize must call super() first so cache init fires for sync apps."""
         hassette = make_mock_hassette(data_dir=tmp_path, sealed=False)
-        svc = make_sync_service()
-        hassette._sync_executor_service = svc
-        hassette.sync_executor_service = svc
+        svc = make_sync_executor()
+        hassette._sync_executor = svc
+        hassette.sync_executor = svc
         app = AppSync(hassette, app_config=_make_app_config(), index=0, app_key="kitchen_lights")
         assert isinstance(app.cache, AsyncCache)
         app.cache.initialize = AsyncMock(wraps=app.cache.initialize)  # pyright: ignore[reportAttributeAccessIssue]
@@ -165,7 +165,7 @@ class TestAppSyncBeforeInitializeCallsSuper:
             app.cache.initialize.assert_awaited_once()  # pyright: ignore[reportAttributeAccessIssue]
         finally:
             await app.cache.close()
-            svc.executor.shutdown(join_threads_or_timeout=True)
+            svc.shutdown_pool(timeout=5)
 
 
 class TestDefaultCacheTtlResolution:

@@ -4,7 +4,6 @@ Override-friendly factories that replace per-file duplicates. Every field has
 a sensible default; callers pass only the fields they care about.
 """
 
-import logging
 from typing import Any, Literal
 from unittest.mock import AsyncMock, MagicMock, Mock
 
@@ -15,11 +14,10 @@ from hassette.commands import InvokeHandler
 from hassette.conversion import STATE_REGISTRY
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.core.state_proxy import StateProxy
-from hassette.core.sync_executor_service import SYNC_EXECUTOR_THREAD_NAME_PREFIX, SyncExecutorService
+from hassette.core.sync_executor import SyncExecutor
 from hassette.events.base import Event, HassContext, HassettePayload, HassPayload
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.scheduler import Scheduler
-from hassette.task_bucket.interruptible_executor import InterruptibleThreadPoolExecutor
 from hassette.test_utils.config import DEFAULT_TEST_APP_KEY, TEST_SOURCE_LOCATION
 from hassette.test_utils.mock_hassette import make_mock_hassette
 from hassette.test_utils.recording_api import RecordingApi
@@ -350,25 +348,15 @@ def make_mock_parent(
     return parent
 
 
-def make_sync_service(*, max_workers: int = 2) -> SyncExecutorService:
-    """Build a standalone SyncExecutorService for tests that need run_in_thread.
+def make_sync_executor(*, max_workers: int = 2) -> SyncExecutor:
+    """Build a standalone SyncExecutor for tests that need run_in_thread.
 
-    Bypasses ``__init__`` (which requires a real Hassette) and wires only the
-    attributes needed for ``submit()``: executor, saturation counters, logger.
-    Does NOT set ``hassette``, ``parent``, ``children``, or ``unique_name`` —
-    those require a real Resource chain.  Use ``tests/unit/conftest.py:make_service``
-    (which goes through real ``__init__``) for tests that exercise the full
-    Service lifecycle or config-driven max_workers.
+    ``SyncExecutor`` is a plain capability class (no Resource/Service base, no
+    ``hassette``/``parent`` requirement), so this is a direct constructor call —
+    no ``__new__`` bypass, no manual field wiring.  Use ``tests/unit/conftest.py:make_service``
+    for tests that exercise the full ``SyncExecutorService`` lifecycle or
+    config-driven max_workers.
 
-    Caller is responsible for calling
-    ``svc.executor.shutdown(join_threads_or_timeout=True)`` at teardown.
+    Caller is responsible for calling ``executor.shutdown_pool(timeout=...)`` at teardown.
     """
-    svc = SyncExecutorService.__new__(SyncExecutorService)
-    svc.executor = InterruptibleThreadPoolExecutor(
-        max_workers=max_workers,
-        thread_name_prefix=SYNC_EXECUTOR_THREAD_NAME_PREFIX,
-    )
-    svc._active_workers = 0
-    svc._last_saturation_warn_ts = 0.0
-    svc.logger = logging.getLogger("test.sync_executor_service")
-    return svc
+    return SyncExecutor(max_workers=max_workers)

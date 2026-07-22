@@ -15,7 +15,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from hassette import context as ctx
-from hassette.core.sync_executor_service import SYNC_WORKER_HANDLE, SyncExecutorService
+from hassette.core.sync_executor import SYNC_WORKER_HANDLE, SyncExecutor
 from hassette.task_bucket.task_bucket import TaskBucket
 from hassette.test_utils import make_mock_hassette
 
@@ -33,9 +33,9 @@ def hassette_mock() -> Iterator[AsyncMock]:
 
 
 @pytest.fixture
-def bucket(hassette_mock: AsyncMock, sync_service: SyncExecutorService) -> TaskBucket:
+def bucket(hassette_mock: AsyncMock, sync_executor: SyncExecutor) -> TaskBucket:
     tb = TaskBucket(hassette_mock)
-    tb._sync_service = sync_service
+    tb._sync_executor = sync_executor
     return tb
 
 

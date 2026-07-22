@@ -77,6 +77,9 @@ def make_mock_hassette(
         - ``._sync_executor_service`` / ``.sync_executor_service``: ``None`` (not wired;
             tests needing ``run_in_thread`` must inject a real ``SyncExecutorService``
             into both attributes)
+        - ``._sync_executor`` / ``.sync_executor``: ``None`` (not wired; tests needing
+            ``run_in_thread`` must inject a real ``SyncExecutor`` into both attributes —
+            ``_create_task_bucket`` reads the public ``sync_executor`` attribute)
 
     Example::
 
@@ -156,6 +159,12 @@ def make_mock_hassette(
     # `hassette.sync_executor_service` access works on sealed mocks.
     hassette._sync_executor_service = None
     hassette.sync_executor_service = None
+
+    # SyncExecutor — the plain capability class (not the Service wrapper above).
+    # _create_task_bucket reads `hassette.sync_executor` unconditionally, so sealed
+    # mocks need it stubbed or every TaskBucket construction raises AttributeError.
+    hassette._sync_executor = None
+    hassette.sync_executor = None
 
     if sealed:
         seal(hassette)

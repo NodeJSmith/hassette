@@ -12,10 +12,10 @@ import pytest
 
 from hassette.cache import DummyCache
 from hassette.core.core import Hassette
-from hassette.core.sync_executor_service import SyncExecutorService
+from hassette.core.sync_executor import SyncExecutor
 from hassette.events import Event, RawStateChangeEvent, create_event_from_hass
 
-from .factories import make_sync_service
+from .factories import make_sync_executor
 from .harness import HassetteHarness
 
 LOGGER = getLogger(__name__)
@@ -71,7 +71,7 @@ async def hassette_with_sync_executor(
 ) -> "AsyncIterator[HassetteHarness]":
     """Harness with the sync executor wired, but no bus/scheduler/app components.
 
-    TaskBucket.run_in_thread delegates to SyncExecutorService.submit(), so any
+    TaskBucket.run_in_thread delegates to SyncExecutor.submit(), so any
     test that dispatches a sync handler through the bare task bucket needs it.
     """
     async with hassette_harness(test_config).with_sync_executor() as harness:
@@ -79,13 +79,13 @@ async def hassette_with_sync_executor(
 
 
 @pytest.fixture
-def sync_service() -> Iterator[SyncExecutorService]:
-    """Standalone SyncExecutorService with a real executor for tests that need run_in_thread."""
-    svc = make_sync_service()
+def sync_executor() -> Iterator[SyncExecutor]:
+    """Standalone SyncExecutor with a real thread pool for tests that need run_in_thread."""
+    executor = make_sync_executor()
     try:
-        yield svc
+        yield executor
     finally:
-        svc.executor.shutdown(join_threads_or_timeout=True)
+        executor.shutdown_pool(timeout=5)
 
 
 @pytest.fixture(scope="module")
