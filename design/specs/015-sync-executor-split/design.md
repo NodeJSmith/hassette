@@ -1,7 +1,7 @@
 # Design: Split SyncExecutor capability from SyncExecutorService lifecycle wrapper
 
 **Date:** 2026-07-21
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Research:** /tmp/claude-mine-define-research-8TPzNu/brief.md
 
