@@ -34,13 +34,13 @@ from hassette.core.command_executor import (  # pyright: ignore[reportPrivateUsa
     _CAPACITY_WARN_RATE_LIMIT_SECS,
     _CAPACITY_WARN_THRESHOLD,
 )
-from hassette.core.sync_executor import SyncExecutor
-from hassette.core.sync_executor_service import (
+from hassette.core.sync_executor import (  # pyright: ignore[reportPrivateUsage]
     _SATURATION_PROBE_INTERVAL_SECS,
     _SATURATION_WARN_RATE_LIMIT_SECS,
     _SATURATION_WARN_THRESHOLD,
-    SyncExecutorService,
+    SyncExecutor,
 )
+from hassette.core.sync_executor_service import SyncExecutorService
 from hassette.task_bucket.interruptible_executor import InterruptibleThreadPoolExecutor
 from hassette.task_bucket.task_bucket import TaskBucket
 from tests.unit.conftest import TEST_TOKEN, make_service, make_sync_executor_hassette
@@ -78,13 +78,13 @@ class TestOnShutdown:
         svc = make_service(shutdown_timeout=7.5)
 
         shutdown_calls: list[dict] = []
-        original_shutdown = svc.executor.shutdown
+        original_shutdown = svc.sync_executor.executor.shutdown
 
         def recording_shutdown(*args: object, **kwargs: object) -> None:
             shutdown_calls.append({"args": args, "kwargs": kwargs})
             original_shutdown(join_threads_or_timeout=False)
 
-        svc.executor.shutdown = recording_shutdown  # pyright: ignore[reportAttributeAccessIssue]
+        svc.sync_executor.executor.shutdown = recording_shutdown  # pyright: ignore[reportAttributeAccessIssue]
 
         await svc.on_shutdown()
 
@@ -92,11 +92,20 @@ class TestOnShutdown:
         assert shutdown_calls[0]["kwargs"].get("timeout") == 7.5
 
     @pytest.mark.anyio
-    async def test_on_shutdown_skips_when_executor_not_initialized(self) -> None:
-        """on_shutdown is a no-op if on_initialize was never called."""
+    async def test_on_shutdown_works_without_on_initialize(self) -> None:
+        """on_shutdown tears down the pool even if on_initialize was never called.
+
+        Unlike the old SyncExecutorService (which guarded on `hasattr(self, "executor")`
+        because the pool didn't exist until on_initialize ran), the thinned service wraps
+        a SyncExecutor whose pool is built at construction time — there is no window where
+        the pool is absent, so on_shutdown has no no-op guard to test.
+        """
         mock_hassette = make_sync_executor_hassette()
         svc = SyncExecutorService(mock_hassette)
         await svc.on_shutdown()
+
+        with pytest.raises(RuntimeError, match="cannot schedule new futures after shutdown"):
+            svc.sync_executor.executor.submit(lambda: None)
 
 
 # Module-level constant relationship (probe interval >= suppress window)
@@ -355,32 +364,32 @@ class TestPeriodicSaturationProbe:
                 await asyncio.gather(serve_task, return_exceptions=True)
             assert serve_task.done()
 
-        svc.executor.shutdown(join_threads_or_timeout=False)
+        svc.sync_executor.executor.shutdown(join_threads_or_timeout=False)
 
     @pytest.mark.anyio
     async def test_serve_calls_probe_on_each_cycle(self, caplog: pytest.LogCaptureFixture) -> None:
-        """serve() calls log_saturation_rate_limited() on each probe cycle."""
+        """serve() calls sync_executor.log_saturation_rate_limited() on each probe cycle."""
         svc = make_service(max_workers=1, shutdown_timeout=5.0)
         gate = threading.Event()
         ready = threading.Event()
 
         try:
             # Fill pool so saturation check would fire
-            svc.executor.submit(lambda: (ready.set(), gate.wait(timeout=10)))
+            svc.sync_executor.executor.submit(lambda: (ready.set(), gate.wait(timeout=10)))
             ready.wait(timeout=2)
             # Simulate full saturation via active counter
-            svc._active_workers = 1
+            svc.sync_executor._active_workers = 1
             # Pre-expire rate-limit
-            svc._last_saturation_warn_ts = 0.0
+            svc.sync_executor._last_saturation_warn_ts = 0.0
 
             probe_calls: list[None] = []
-            original_log = svc.log_saturation_rate_limited
+            original_log = svc.sync_executor.log_saturation_rate_limited
 
             def counting_probe() -> None:
                 probe_calls.append(None)
                 original_log()
 
-            svc.log_saturation_rate_limited = counting_probe  # pyright: ignore[reportAttributeAccessIssue]
+            svc.sync_executor.log_saturation_rate_limited = counting_probe  # pyright: ignore[reportAttributeAccessIssue]
 
             with patch("hassette.core.sync_executor_service._SATURATION_PROBE_INTERVAL_SECS", 0.05):
                 serve_task = asyncio.create_task(svc.serve())
@@ -398,7 +407,7 @@ class TestPeriodicSaturationProbe:
 
         finally:
             gate.set()
-            svc.executor.shutdown(join_threads_or_timeout=False)
+            svc.sync_executor.executor.shutdown(join_threads_or_timeout=False)
 
 
 class TestShutdownInterruptsPythonWorker:
@@ -501,7 +510,7 @@ class TestShutdownInterruptsPythonWorker:
                 terminated.set()
                 raise
 
-        svc.executor.submit(busy_loop)
+        svc.sync_executor.executor.submit(busy_loop)
         ready.wait(timeout=2)
 
         # on_shutdown runs executor.shutdown in a thread so the event loop stays live
@@ -585,7 +594,7 @@ class TestShutdownCBlockedWorker:
             ready.set()
             time.sleep(60)
 
-        svc.executor.submit(c_blocked)
+        svc.sync_executor.executor.submit(c_blocked)
         ready.wait(timeout=2)
 
         wall_start = time.monotonic()
@@ -604,8 +613,8 @@ class TestConfigBehavior:
     def test_custom_max_workers_is_respected(self) -> None:
         """Executor uses the configured max_workers ceiling."""
         svc = make_service(max_workers=3)
-        assert svc.executor._max_workers == 3  # pyright: ignore[reportAttributeAccessIssue]
-        svc.executor.shutdown(join_threads_or_timeout=False)
+        assert svc.sync_executor.executor._max_workers == 3  # pyright: ignore[reportAttributeAccessIssue]
+        svc.sync_executor.executor.shutdown(join_threads_or_timeout=False)
 
     def test_default_max_workers_is_reasonable(self) -> None:
         """Default max_workers is min(32, cpu_count + 4) — a reasonable pool ceiling."""
@@ -618,13 +627,13 @@ class TestConfigBehavior:
         svc = make_service(max_workers=2, shutdown_timeout=3.7)
 
         shutdown_kwargs: list[dict[str, Any]] = []
-        original = svc.executor.shutdown
+        original = svc.sync_executor.executor.shutdown
 
         def recording_shutdown(**kwargs: Any) -> None:
             shutdown_kwargs.append(kwargs)
             original(join_threads_or_timeout=False)
 
-        svc.executor.shutdown = recording_shutdown  # pyright: ignore[reportAttributeAccessIssue]
+        svc.sync_executor.executor.shutdown = recording_shutdown  # pyright: ignore[reportAttributeAccessIssue]
 
         asyncio.run(svc.on_shutdown())
 
@@ -695,16 +704,16 @@ class TestTrackSubmission:
         mock_hassette = svc.hassette
 
         track_calls: list[None] = []
-        original = svc.track_submission
+        original = svc.sync_executor.track_submission
 
         def counting_track(future: object) -> None:
             track_calls.append(None)
             original(future)  # pyright: ignore[reportArgumentType]
 
-        svc.track_submission = counting_track  # pyright: ignore[reportAttributeAccessIssue]
+        svc.sync_executor.track_submission = counting_track  # pyright: ignore[reportAttributeAccessIssue]
 
         tb = TaskBucket(mock_hassette)
-        tb._sync_service = svc
+        tb._sync_executor = svc.sync_executor
 
         done = threading.Event()
 
@@ -718,4 +727,4 @@ class TestTrackSubmission:
         assert len(track_calls) >= 1, "run_in_thread must call track_submission after submitting"
 
         await asyncio.wrap_future(future)
-        svc.executor.shutdown(join_threads_or_timeout=False)
+        svc.sync_executor.executor.shutdown(join_threads_or_timeout=False)

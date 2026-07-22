@@ -42,6 +42,7 @@ from .scheduler_service import SchedulerService
 from .service_watcher import ServiceWatcher
 from .session_manager import SessionManager
 from .state_proxy import StateProxy
+from .sync_executor import SyncExecutor
 from .sync_executor_service import SyncExecutorService
 from .telemetry.query_service import TelemetryQueryService
 from .web_api_service import WebApiService
@@ -91,7 +92,18 @@ class Hassette(Resource):
             log_format=self.config.logging.log_format,
         )
 
+        # SyncExecutor is built before super().__init__() so it exists before the first
+        # TaskBucket is constructed (super().__init__() constructs Hassette's own bucket).
+        # A plain class (no Resource/Service base) — see hassette.core.sync_executor.
+        self._sync_executor = SyncExecutor(config.lifecycle.sync_executor_max_workers)
+        self.sync_executor = self._sync_executor
+
         super().__init__(self, task_bucket=TaskBucket(self, parent=self), parent=self)
+
+        # Hassette's own TaskBucket is constructed explicitly above, bypassing the
+        # _create_task_bucket factory — wire it here. Every other TaskBucket (created
+        # via add_child()) is wired by the factory itself.
+        self.task_bucket._sync_executor = self._sync_executor
 
         self._loop: asyncio.AbstractEventLoop | None = None
         self._loop_thread_id: int | None = None
@@ -182,15 +194,7 @@ class Hassette(Resource):
 
         self.startup_tasks()
 
-        # SyncExecutorService MUST be the first add_child — the _create_task_bucket factory
-        # reads hassette.sync_executor_service to wire it into every subsequently created
-        # TaskBucket. Moving this later would leave intervening services' buckets unwired.
         self._sync_executor_service = self.add_child(SyncExecutorService)
-
-        # Patch the two TaskBuckets created before _sync_executor_service existed
-        # (Hassette's own and SyncExecutorService's own — both created during add_child).
-        self.task_bucket._sync_service = self._sync_executor_service
-        self._sync_executor_service.task_bucket._sync_service = self._sync_executor_service
 
         # private background services — EventStreamService FIRST (BusService needs receive_stream at construction)
         self._event_stream_service = self.add_child(EventStreamService)
