@@ -18,6 +18,7 @@ from hassette.app.app_config import AppConfig
 from hassette.cache import AsyncCache, DummyCache
 from hassette.config.classes import AppManifest
 from hassette.test_utils import make_mock_hassette
+from hassette.test_utils.config import TEST_SYNC_EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS
 from hassette.test_utils.factories import make_sync_executor
 
 
@@ -165,7 +166,7 @@ class TestAppSyncBeforeInitializeCallsSuper:
             app.cache.initialize.assert_awaited_once()  # pyright: ignore[reportAttributeAccessIssue]
         finally:
             await app.cache.close()
-            svc.shutdown_pool(timeout=5)
+            svc.shutdown_pool(timeout=TEST_SYNC_EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS)
 
 
 class TestDefaultCacheTtlResolution:

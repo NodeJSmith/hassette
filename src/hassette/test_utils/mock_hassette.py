@@ -155,8 +155,10 @@ def make_mock_hassette(
     hassette.children = []
 
     # SyncExecutorService — set both the backing field and the public accessor (same
-    # pattern as fatal_shutdown_reason above) so _create_task_bucket's
-    # `hassette.sync_executor_service` access works on sealed mocks.
+    # pattern as fatal_shutdown_reason above) so tests that reference
+    # `hassette.sync_executor_service`/`hassette._sync_executor_service` directly don't
+    # raise AttributeError on sealed mocks. `_create_task_bucket` itself only reads
+    # `hassette.sync_executor` (the capability class, wired below) — never this attribute.
     hassette._sync_executor_service = None
     hassette.sync_executor_service = None
 

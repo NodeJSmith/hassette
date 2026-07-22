@@ -49,10 +49,8 @@ from tests.unit.conftest import TEST_TOKEN, make_service, make_sync_executor_has
 def _capture_saturation_warnings(sync_executor: SyncExecutor) -> list[tuple]:
     """Patch sync_executor.logger.warning to capture saturation warning calls.
 
-    Local to this file, mirroring conftest's `capture_saturation_warnings` (which stays
-    typed for `SyncExecutorService` and is still used by the lifecycle tests in this
-    file). `log_saturation_rate_limited` is now owned by the plain `SyncExecutor`
-    capability class (moved in the SyncExecutor/SyncExecutorService split — see
+    `log_saturation_rate_limited` is owned by the plain `SyncExecutor` capability class
+    (moved in the SyncExecutor/SyncExecutorService split — see
     design/specs/015-sync-executor-split), so capability tests construct `SyncExecutor`
     directly rather than going through `make_service()`.
     """

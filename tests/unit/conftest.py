@@ -74,13 +74,6 @@ def make_service(max_workers: int = 4, shutdown_timeout: float = 5.0) -> SyncExe
     return SyncExecutorService(mock_hassette)
 
 
-def capture_saturation_warnings(svc: SyncExecutorService) -> list[tuple]:
-    """Patch svc.logger.warning to capture saturation warning calls."""
-    calls: list[tuple] = []
-    svc.logger.warning = lambda msg, *a: calls.append((msg, *a))  # pyright: ignore[reportAttributeAccessIssue]
-    return calls
-
-
 def make_api() -> Api:
     """Create an Api instance with mocked WebSocket and REST layers.
 

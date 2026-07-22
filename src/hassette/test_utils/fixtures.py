@@ -15,6 +15,7 @@ from hassette.core.core import Hassette
 from hassette.core.sync_executor import SyncExecutor
 from hassette.events import Event, RawStateChangeEvent, create_event_from_hass
 
+from .config import TEST_SYNC_EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS
 from .factories import make_sync_executor
 from .harness import HassetteHarness
 
@@ -85,7 +86,7 @@ def sync_executor() -> Iterator[SyncExecutor]:
     try:
         yield executor
     finally:
-        executor.shutdown_pool(timeout=5)
+        executor.shutdown_pool(timeout=TEST_SYNC_EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS)
 
 
 @pytest.fixture(scope="module")
