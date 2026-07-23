@@ -11,7 +11,7 @@ import { formatTimestamp, truncateId } from "@/utils/format";
 import { AppLink } from "../app-link";
 import { Button } from "../button";
 import { IconChevron } from "../icons";
-import { LEVEL_ABBREV, levelClass } from "./constants";
+import { DETAIL_DRAWER_ID, LEVEL_ABBREV, levelClass } from "./constants";
 import styles from "./log-table-row.module.css";
 import type { ColumnId, RowKey } from "./types";
 
@@ -114,7 +114,7 @@ export function LogTableRow({ entry, rowKey, visibleColumns, isSelected, onClick
           data-roving-item
           aria-label="View log detail"
           aria-expanded={isSelected}
-          aria-controls="log-detail-drawer"
+          aria-controls={DETAIL_DRAWER_ID}
         >
           <IconChevron open={isSelected} />
         </Button>

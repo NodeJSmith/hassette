@@ -9,7 +9,7 @@ import { useSubscribe } from "@/hooks/use-subscribe";
 import { appDetailPath, logEntryExecutionHref } from "@/utils/app-routes";
 import { formatTimestamp } from "@/utils/format";
 
-import { COPY_CONFIRM_MS, levelClass } from "./constants";
+import { COPY_CONFIRM_MS, DETAIL_DRAWER_ID, levelClass } from "./constants";
 import styles from "./log-detail-drawer.module.css";
 import type { RowKey } from "./types";
 import { rowKey } from "./types";
@@ -122,7 +122,7 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
       <aside
         ref={drawerRef}
         class={clsx(styles.drawer, isMobile ? styles.bottomSheet : styles.sidePanel)}
-        id="log-detail-drawer"
+        id={DETAIL_DRAWER_ID}
         role="complementary"
         aria-label="Log entry detail"
         data-testid="log-detail-drawer"
