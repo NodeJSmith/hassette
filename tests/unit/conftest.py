@@ -22,7 +22,8 @@ import structlog.stdlib
 from hassette import context
 from hassette.api.api import Api
 from hassette.config import HassetteConfig
-from hassette.core.sync_executor_service import SYNC_EXECUTOR_THREAD_NAME_PREFIX, SyncExecutorService
+from hassette.core.sync_executor import SyncExecutor
+from hassette.core.sync_executor_service import SyncExecutorService
 from hassette.exceptions import HassetteForgottenAwaitWarning
 from hassette.logging_ import (
     CorrelationFilter,
@@ -34,7 +35,6 @@ from hassette.logging_ import (
 )
 from hassette.models.entities.light import LightEntity
 from hassette.models.states import LightState
-from hassette.task_bucket.interruptible_executor import InterruptibleThreadPoolExecutor
 from hassette.test_utils.factories import make_mock_parent
 
 if TYPE_CHECKING:
@@ -63,24 +63,18 @@ def make_sync_executor_hassette(max_workers: int = 4, shutdown_timeout: float = 
     mock_hassette.shutdown_event = asyncio.Event()
     mock_hassette.children = []
     mock_hassette._should_skip_dependency_check = MagicMock(return_value=True)
+    # SyncExecutorService.__init__ reads hassette.sync_executor — the pre-built capability
+    # that in production is constructed in Hassette.__init__() before the lifecycle starts.
+    # Tests call rebuild_pool() explicitly since the constructor no longer creates one.
+    sync_executor = SyncExecutor()
+    sync_executor.rebuild_pool(max_workers=max_workers)
+    mock_hassette.sync_executor = sync_executor
     return mock_hassette
 
 
 def make_service(max_workers: int = 4, shutdown_timeout: float = 5.0) -> SyncExecutorService:
     mock_hassette = make_sync_executor_hassette(max_workers=max_workers, shutdown_timeout=shutdown_timeout)
-    svc = SyncExecutorService(mock_hassette)
-    svc.executor = InterruptibleThreadPoolExecutor(
-        max_workers=mock_hassette.config.lifecycle.sync_executor_max_workers,
-        thread_name_prefix=SYNC_EXECUTOR_THREAD_NAME_PREFIX,
-    )
-    return svc
-
-
-def capture_saturation_warnings(svc: SyncExecutorService) -> list[tuple]:
-    """Patch svc.logger.warning to capture saturation warning calls."""
-    calls: list[tuple] = []
-    svc.logger.warning = lambda msg, *a: calls.append((msg, *a))  # pyright: ignore[reportAttributeAccessIssue]
-    return calls
+    return SyncExecutorService(mock_hassette)
 
 
 def make_api() -> Api:

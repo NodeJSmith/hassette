@@ -19,7 +19,7 @@ _CROSS_THREAD_SPAWN_TIMEOUT_SECS = 10.0
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
-    from hassette.core.sync_executor_service import SyncExecutorService
+    from hassette.core.sync_executor import SyncExecutor
 
 T = TypeVar("T")
 P = ParamSpec("P")
@@ -40,14 +40,22 @@ class TaskBucket(Resource):
 
     _tasks: "set[asyncio.Task[Any]]"
 
+    _sync_executor: "SyncExecutor | None"
+
     _exception_recorders: "list[ExceptionRecorderT]"
     """List of recorders called for each non-CancelledError task exception."""
 
-    def __init__(self, hassette: "Hassette", *, parent: "Resource | None" = None) -> None:
+    def __init__(
+        self,
+        hassette: "Hassette",
+        *,
+        parent: "Resource | None" = None,
+        sync_executor: "SyncExecutor | None" = None,
+    ) -> None:
         super().__init__(hassette, parent=parent)
         self._tasks: set[asyncio.Task[Any]] = set()
         self._exception_recorders = []
-        self._sync_service: SyncExecutorService | None = None
+        self._sync_executor = sync_executor
         mark_ready(self, reason="TaskBucket initialized")
 
     @property
@@ -170,7 +178,7 @@ class TaskBucket(Resource):
     def run_in_thread(self, fn: Callable[P, R], *args: P.args, **kwargs: P.kwargs) -> "asyncio.Future[R]":
         """Run a synchronous function on the dedicated sync-handler executor.
 
-        Delegates to :meth:`SyncExecutorService.submit`, which handles context
+        Delegates to :meth:`SyncExecutor.submit`, which handles context
         propagation, thread-handle tracking, and pool-saturation monitoring.
 
         Args:
@@ -182,17 +190,17 @@ class TaskBucket(Resource):
             An :class:`asyncio.Future` that resolves to the return value of *fn*.
 
         Raises:
-            RuntimeError: If ``SyncExecutorService`` has not been wired into this
+            RuntimeError: If ``SyncExecutor`` has not been wired into this
                 TaskBucket (indicates a startup ordering bug or a test that needs
-                to inject the service).
+                to inject the capability).
         """
-        if self._sync_service is None:
+        if self._sync_executor is None:
             raise RuntimeError(
-                f"TaskBucket({self.unique_name}).run_in_thread called but no SyncExecutorService "
-                "is wired. In production this means a startup ordering bug; in tests, inject "
-                "a SyncExecutorService or mock via task_bucket._sync_service."
+                f"TaskBucket({self.unique_name}).run_in_thread called but no SyncExecutor "
+                "is wired. In production this means a startup ordering bug; in tests, pass "
+                "sync_executor= to the TaskBucket constructor."
             )
-        return self._sync_service.submit(fn, *args, **kwargs)
+        return self._sync_executor.submit(fn, *args, **kwargs)
 
     def post_to_loop(self, fn: Callable[..., Any], *args: Any, **kwargs: Any) -> None:
         """Schedule a callable on the event loop from any thread."""
@@ -378,12 +386,7 @@ def make_task_factory(
 
 
 def _create_task_bucket(hassette: "Hassette", owner: "Resource") -> "TaskBucket":
-    bucket = TaskBucket(hassette, parent=owner)
-    # suppress RuntimeError: the property raises before wire_services() runs;
-    # Hassette.wire_services() patches the early-created buckets afterward.
-    with contextlib.suppress(RuntimeError):
-        bucket._sync_service = hassette.sync_executor_service
-    return bucket
+    return TaskBucket(hassette, parent=owner, sync_executor=hassette.sync_executor)
 
 
 register_task_bucket_factory(_create_task_bucket)

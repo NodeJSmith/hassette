@@ -12,7 +12,7 @@ import pytest
 from hassette import Hassette
 from hassette.config.config import HassetteConfig
 from hassette.core.database_service import DatabaseService
-from hassette.core.sync_executor_service import SyncExecutorService
+from hassette.core.sync_executor import SyncExecutor
 from hassette.test_utils import make_mock_hassette
 from hassette.test_utils.helpers import cleanup_hassette_streams
 from hassette.types.enums import ExecutionMode
@@ -69,7 +69,7 @@ def premigrated_db_path(_migrated_db_template: Path, tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def db_hassette(premigrated_db_path: Path, sync_service: SyncExecutorService) -> AsyncMock:
+def db_hassette(premigrated_db_path: Path, sync_executor: SyncExecutor) -> AsyncMock:
     """Provide a mock Hassette with real validated config pointing to a pre-migrated DB.
 
     Note: telemetry/conftest.py defines a variant with web_api={"run": True} for telemetry tests.
@@ -82,8 +82,11 @@ def db_hassette(premigrated_db_path: Path, sync_service: SyncExecutorService) ->
         lifecycle={"resource_shutdown_timeout_seconds": 5},
         scheduler={"min_delay_seconds": 0.1, "max_delay_seconds": 60.0, "default_delay_seconds": 1.0},
     )
-    hassette._sync_executor_service = sync_service
-    hassette.sync_executor_service = sync_service
+    # _create_task_bucket reads hassette.sync_executor when wiring every Resource built
+    # from this mock (CommandExecutor, BusService, SchedulerService) — wire the real
+    # SyncExecutor so run_in_thread works instead of raising on a None executor.
+    hassette._sync_executor = sync_executor
+    hassette.sync_executor = sync_executor
     return hassette
 
 

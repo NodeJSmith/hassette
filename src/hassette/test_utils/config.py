@@ -21,6 +21,10 @@ DEFAULT_TEST_APP_KEY = "test_app"
 TEST_EPOCH_A = 1_234_567_890.0
 TEST_EPOCH_B = 1_700_000_000.0
 
+# Shutdown budget for a directly-constructed SyncExecutor's `shutdown_pool(timeout=...)`
+# at test teardown. Generous relative to test workloads so it never masks a real hang.
+TEST_SYNC_EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS = 5.0
+
 # Cached (hermetic_subclass, init_kwargs_ref) pair — avoids creating a new class per
 # make_test_config call, which would accumulate permanently in __subclasses__()
 # and Pydantic's internal model cache.
