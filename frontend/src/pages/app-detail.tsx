@@ -21,6 +21,7 @@ import { useScopedQuery } from "../hooks/use-scoped-query";
 import { queryKeys } from "../lib/query-keys";
 import { useAppState } from "../state/context";
 import { appStatusKey } from "../state/create-app-state";
+import { appLiveStatus } from "../utils/app-data";
 import { appDetailPath, type AppDetailTab } from "../utils/app-routes";
 import styles from "./app-detail.module.css";
 
@@ -136,7 +137,11 @@ export function AppDetailPage({ params }: Props) {
     : undefined;
   const wsStatus = appStatus.value[appStatusKey(appKey, resolvedInstanceIndex)]?.status;
   const instanceStatus = wsStatus ?? currentInstance?.status ?? manifest?.status ?? "unknown";
-  const liveStatus = showParentOverview ? (manifest?.status ?? "unknown") : instanceStatus;
+  const liveStatus = showParentOverview
+    ? manifest
+      ? appLiveStatus(appStatus.value, manifest)
+      : "unknown"
+    : instanceStatus;
 
   const hasData = !manifestLoading && listenersData !== undefined && jobsData !== undefined;
   const initialLoading = !hasData && (listenersLoading || jobsLoading || manifestLoading);

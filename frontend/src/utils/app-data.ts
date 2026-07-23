@@ -73,15 +73,16 @@ export type AppSortState = SortState<AppSortKey>;
 /** Resolve the live status for an app row's parent view.
  *  Single-instance: WS status for index 0.
  *  Multi-instance: worst status across all instances (lower priority = worse). */
-export function appLiveStatus(appStatuses: Record<string, AppStatusEntry>, row: AppRow): string {
+export function appLiveStatus(
+  appStatuses: Record<string, AppStatusEntry>,
+  row: Pick<AppRow, "app_key" | "status"> & { instances?: AppRow["instances"] },
+): string {
   const instances = row.instances ?? [];
   if (instances.length <= 1) {
     return appStatuses[appStatusKey(row.app_key, 0)]?.status ?? row.status;
   }
-  return instances.reduce<string>((worst, inst) => {
-    const live = appStatuses[appStatusKey(row.app_key, inst.index)]?.status ?? inst.status;
-    return statusPriority(live) < statusPriority(worst) ? live : worst;
-  }, row.status);
+  const statuses = instances.map((inst) => appStatuses[appStatusKey(row.app_key, inst.index)]?.status ?? inst.status);
+  return statuses.reduce((worst, live) => (statusPriority(live) < statusPriority(worst) ? live : worst));
 }
 
 export function compareAppRows(

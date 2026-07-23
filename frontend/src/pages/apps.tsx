@@ -20,6 +20,7 @@ import { useScopedQuery } from "../hooks/use-scoped-query";
 import { useSignal } from "../hooks/use-signal";
 import { queryKeys } from "../lib/query-keys";
 import { useAppState } from "../state/context";
+import type { AppStatusEntry } from "../state/create-app-state";
 import {
   appLiveStatus,
   type AppRow,
@@ -48,12 +49,18 @@ const FILTER_TONES: Record<FilterId, StatusKind | null> = {
 const MIN_WINDOW_FOR_RATE_CALC = 60;
 const VALID_SORT_KEYS: ReadonlySet<string> = new Set<AppSortState["key"]>(["name", "status", "error", "runs", "last"]);
 
-function buildAppsCells(apps: AppRow[], windowSeconds: number | null, isMobile: boolean): StatsStripCell[] {
+function buildAppsCells(
+  apps: AppRow[],
+  appStatuses: Record<string, AppStatusEntry>,
+  windowSeconds: number | null,
+  isMobile: boolean,
+): StatsStripCell[] {
   const statusCounts: Record<string, number> = { running: 0, failed: 0, stopped: 0, disabled: 0, blocked: 0 };
   let totalHandlers = 0;
   let totalRuns = 0;
   for (const a of apps) {
-    if (a.status in statusCounts) statusCounts[a.status]++;
+    const live = appLiveStatus(appStatuses, a);
+    if (live in statusCounts) statusCounts[live]++;
     totalHandlers += a.handler_count + a.job_count;
     totalRuns += a.total_invocations + a.total_executions;
   }
@@ -246,7 +253,10 @@ export function AppsPage() {
       </div>
 
       <div class="ht-table-section">
-        <StatsStrip cells={buildAppsCells(allApps, windowSeconds, isMobile)} data-testid="apps-stats-strip" />
+        <StatsStrip
+          cells={buildAppsCells(allApps, appStatus.value, windowSeconds, isMobile)}
+          data-testid="apps-stats-strip"
+        />
         {searchInput}
         <TableCard footer={footer}>
           {filtered.length === 0 ? (
