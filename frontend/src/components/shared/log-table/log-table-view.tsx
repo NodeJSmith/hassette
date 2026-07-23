@@ -3,6 +3,7 @@ import { useRovingTabIndex } from "@/hooks/use-roving-tab-index";
 import { COLUMN_MAP } from "./constants";
 import { LogTableHeader } from "./log-table-header";
 import { LogTableRow } from "./log-table-row";
+import rowStyles from "./log-table-row.module.css";
 import { rowKey } from "./types";
 import type { LogTableViewProps } from "./use-log-table";
 
@@ -28,6 +29,7 @@ export function LogTableView({
           const w = isMobile ? col.mobileWidth : col.width;
           return <col key={id} style={w ? { width: w } : undefined} />;
         })}
+        <col class={rowStyles.detailCol} />
       </colgroup>
       <LogTableHeader visibleColumns={visibleColumns} sort={sort} onSort={onSort} columnFilters={columnFilters} />
       <tbody ref={containerRef} onKeyDown={onContainerKeyDown}>

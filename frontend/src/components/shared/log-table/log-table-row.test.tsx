@@ -46,24 +46,23 @@ function renderRow(props: Partial<Parameters<typeof LogTableRow>[0]> = {}) {
 
 describe("LogTableRow", () => {
   describe("row element", () => {
-    it("renders a <tr> with role='button' and the provided tabIndex", () => {
-      const { container } = renderRow({ tabIndex: 0 });
-      const tr = container.querySelector("tr");
-      expect(tr).not.toBeNull();
-      expect(tr!.getAttribute("role")).toBe("button");
-      expect(tr!.getAttribute("tabindex")).toBe("0");
-    });
-
-    it("renders tabIndex=-1 when passed", () => {
-      const { container } = renderRow({ tabIndex: -1 });
-      const tr = container.querySelector("tr");
-      expect(tr!.getAttribute("tabindex")).toBe("-1");
-    });
-
-    it("has data-roving-item attribute", () => {
+    it("renders a <tr> without role='button' (proper table semantics)", () => {
       const { container } = renderRow();
       const tr = container.querySelector("tr");
-      expect(tr!.hasAttribute("data-roving-item")).toBe(true);
+      expect(tr).not.toBeNull();
+      expect(tr!.getAttribute("role")).toBeNull();
+    });
+
+    it("does not have tabIndex on the row", () => {
+      const { container } = renderRow({ tabIndex: 0 });
+      const tr = container.querySelector("tr");
+      expect(tr!.getAttribute("tabindex")).toBeNull();
+    });
+
+    it("does not have data-roving-item on the row", () => {
+      const { container } = renderRow();
+      const tr = container.querySelector("tr");
+      expect(tr!.hasAttribute("data-roving-item")).toBe(false);
     });
 
     it("does not have aria-current when not selected", () => {
@@ -94,15 +93,15 @@ describe("LogTableRow", () => {
   });
 
   describe("column visibility", () => {
-    it("only renders <td> elements for columns in visibleColumns", () => {
+    it("only renders <td> elements for visible columns plus the detail cell", () => {
       const { container } = renderRow({
         visibleColumns: ["level", "message"],
       });
       const tds = container.querySelectorAll("td");
-      expect(tds.length).toBe(2);
+      expect(tds.length).toBe(3);
     });
 
-    it("renders all 8 columns when all are visible", () => {
+    it("renders all 8 columns plus the detail cell when all are visible", () => {
       const { container } = renderRow({
         entry: createLogEntry({
           app_key: "my_app",
@@ -112,13 +111,13 @@ describe("LogTableRow", () => {
         visibleColumns: ["level", "timestamp", "app", "instance", "execution", "function", "module", "message"],
       });
       const tds = container.querySelectorAll("td");
-      expect(tds.length).toBe(8);
+      expect(tds.length).toBe(9);
     });
 
-    it("renders no cells when visibleColumns is empty", () => {
+    it("renders only the detail cell when visibleColumns is empty", () => {
       const { container } = renderRow({ visibleColumns: [] });
       const tds = container.querySelectorAll("td");
-      expect(tds.length).toBe(0);
+      expect(tds.length).toBe(1);
     });
   });
 
@@ -269,6 +268,7 @@ describe("LogTableRow", () => {
           app_key: "my_app",
           execution_kind: "handler",
           listener_id: 5,
+          instance_index: 0,
         }),
         visibleColumns: ["execution"],
         onClick,
@@ -307,32 +307,68 @@ describe("LogTableRow", () => {
     });
   });
 
-  describe("click and keyboard interaction", () => {
-    it("calls onClick when the row is clicked", () => {
+  describe("detail button", () => {
+    it("renders a detail button with data-roving-item and tabIndex", () => {
+      const { container } = renderRow({ tabIndex: 0 });
+      const btn = container.querySelector("button[aria-label='View log detail']");
+      expect(btn).not.toBeNull();
+      expect(btn!.getAttribute("tabindex")).toBe("0");
+      expect(btn!.hasAttribute("data-roving-item")).toBe(true);
+    });
+
+    it("passes tabIndex=-1 to the detail button", () => {
+      const { container } = renderRow({ tabIndex: -1 });
+      const btn = container.querySelector("button[aria-label='View log detail']");
+      expect(btn!.getAttribute("tabindex")).toBe("-1");
+    });
+
+    it("has aria-expanded=false when not selected", () => {
+      const { container } = renderRow({ isSelected: false });
+      const btn = container.querySelector("button[aria-label='View log detail']");
+      expect(btn!.getAttribute("aria-expanded")).toBe("false");
+    });
+
+    it("has aria-expanded=true when selected", () => {
+      const { container } = renderRow({ isSelected: true });
+      const btn = container.querySelector("button[aria-label='View log detail']");
+      expect(btn!.getAttribute("aria-expanded")).toBe("true");
+    });
+
+    it("calls onClick when the detail button is clicked", () => {
       const onClick = vi.fn();
       const { container } = renderRow({ onClick });
-      fireEvent.click(container.querySelector("tr")!);
+      fireEvent.click(container.querySelector("button[aria-label='View log detail']")!);
       expect(onClick).toHaveBeenCalledTimes(1);
     });
 
-    it("calls onClick on Enter keypress", () => {
+    it("has aria-controls pointing to the drawer", () => {
+      const { container } = renderRow();
+      const btn = container.querySelector("button[aria-label='View log detail']");
+      expect(btn!.getAttribute("aria-controls")).toBe("log-detail-drawer");
+    });
+  });
+
+  describe("row click behavior", () => {
+    it("calls onClick when a non-interactive area of the row is clicked", () => {
       const onClick = vi.fn();
-      const { container } = renderRow({ onClick });
-      fireEvent.keyDown(container.querySelector("tr")!, { key: "Enter" });
+      const { container } = renderRow({
+        onClick,
+        visibleColumns: ["message"],
+      });
+      const messageCell = container.querySelectorAll("td")[0];
+      fireEvent.click(messageCell);
       expect(onClick).toHaveBeenCalledTimes(1);
     });
 
-    it("calls onClick on Space keypress", () => {
+    it("does not call onClick when a link inside the row is clicked", () => {
       const onClick = vi.fn();
-      const { container } = renderRow({ onClick });
-      fireEvent.keyDown(container.querySelector("tr")!, { key: " " });
-      expect(onClick).toHaveBeenCalledTimes(1);
-    });
-
-    it("does not call onClick for other keys", () => {
-      const onClick = vi.fn();
-      const { container } = renderRow({ onClick });
-      fireEvent.keyDown(container.querySelector("tr")!, { key: "Tab" });
+      const { container } = renderRow({
+        entry: createLogEntry({ app_key: "my_app" }),
+        visibleColumns: ["app"],
+        onClick,
+      });
+      const link = container.querySelector("a")!;
+      fireEvent.click(link);
       expect(onClick).not.toHaveBeenCalled();
     });
   });

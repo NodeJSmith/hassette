@@ -122,6 +122,7 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
       <aside
         ref={drawerRef}
         class={clsx(styles.drawer, isMobile ? styles.bottomSheet : styles.sidePanel)}
+        id="log-detail-drawer"
         role="complementary"
         aria-label="Log entry detail"
         data-testid="log-detail-drawer"

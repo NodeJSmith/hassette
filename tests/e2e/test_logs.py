@@ -104,10 +104,10 @@ def test_log_expand_button_toggles_message(page: Page, base_url: str) -> None:
     """Clicking a log row opens the detail drawer; close button dismisses it."""
     page.goto(base_url + "/logs")
     wait_for_log_entries(page)
-    # Rows have role="button" — click the first to open the detail drawer
-    first_row = page.locator("[data-testid='log-table'] tbody tr").first
-    expect(first_row).to_be_visible()
-    first_row.click()
+    # Click the first row's detail button to open the detail drawer
+    detail_btn = page.locator("[data-testid='log-table'] tbody tr button[aria-label='View log detail']").first
+    expect(detail_btn).to_be_visible()
+    detail_btn.click()
     page.wait_for_timeout(200)
     drawer = page.locator("aside[role='complementary'][aria-label='Log entry detail']")
     expect(drawer).to_be_visible()

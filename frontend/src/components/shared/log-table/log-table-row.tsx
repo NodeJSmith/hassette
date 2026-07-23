@@ -7,9 +7,10 @@ import { BREAKPOINT_MOBILE, useMediaQuery } from "@/hooks/use-media-query";
 import { useRelativeTime } from "@/hooks/use-relative-time";
 import { logEntryExecutionHref } from "@/utils/app-routes";
 import { formatTimestamp, truncateId } from "@/utils/format";
-import { onActivateKeyDown } from "@/utils/keyboard";
 
 import { AppLink } from "../app-link";
+import { Button } from "../button";
+import { IconChevron } from "../icons";
 import { LEVEL_ABBREV, levelClass } from "./constants";
 import styles from "./log-table-row.module.css";
 import type { ColumnId, RowKey } from "./types";
@@ -30,16 +31,19 @@ export function LogTableRow({ entry, rowKey, visibleColumns, isSelected, onClick
   const visibleSet = useMemo(() => new Set(visibleColumns), [visibleColumns]);
   const isColumnVisible = (id: ColumnId) => visibleSet.has(id);
 
+  const handleRowClick = (e: MouseEvent) => {
+    // Let native interactive elements (links, detail button) handle their own clicks.
+    const target = e.target as HTMLElement;
+    if (target.closest("a, button")) return;
+    onClick();
+  };
+
   return (
     <tr
       key={rowKey}
       class={clsx(styles.row, isSelected && styles.selected)}
       data-level={entry.level}
-      onClick={onClick}
-      onKeyDown={onActivateKeyDown(onClick)}
-      tabIndex={tabIndex}
-      role="button"
-      data-roving-item
+      onClick={handleRowClick}
       aria-current={isSelected ? "true" : undefined}
     >
       {isColumnVisible("level") && (
@@ -53,15 +57,7 @@ export function LogTableRow({ entry, rowKey, visibleColumns, isSelected, onClick
         <td class={styles.mono}>{isMobile ? relativeTime : formatTimestamp(entry.timestamp)}</td>
       )}
       {isColumnVisible("app") && (
-        <td>
-          {entry.app_key ? (
-            <span onClick={(e: MouseEvent) => e.stopPropagation()}>
-              <AppLink appKey={entry.app_key} />
-            </span>
-          ) : (
-            <span class={styles.muted}>&mdash;</span>
-          )}
-        </td>
+        <td>{entry.app_key ? <AppLink appKey={entry.app_key} /> : <span class={styles.muted}>&mdash;</span>}</td>
       )}
       {isColumnVisible("instance") && (
         <td class={styles.mono} title={entry.instance_name ?? undefined}>
@@ -73,11 +69,9 @@ export function LogTableRow({ entry, rowKey, visibleColumns, isSelected, onClick
           {(() => {
             const execHref = logEntryExecutionHref(entry);
             return execHref ? (
-              <span onClick={(e: MouseEvent) => e.stopPropagation()}>
-                <Link href={execHref} class={styles.execLink} title={entry.execution_id ?? undefined}>
-                  {truncateId(entry.execution_id)}
-                </Link>
-              </span>
+              <Link href={execHref} class={styles.execLink} title={entry.execution_id ?? undefined}>
+                {truncateId(entry.execution_id)}
+              </Link>
             ) : (
               <span class={styles.muted} title={entry.execution_id ?? undefined}>
                 {truncateId(entry.execution_id)}
@@ -109,6 +103,22 @@ export function LogTableRow({ entry, rowKey, visibleColumns, isSelected, onClick
           <div class={styles.messageText}>{entry.message}</div>
         </td>
       )}
+      <td class={styles.detailCell}>
+        <Button
+          ghost
+          icon
+          size="xs"
+          class={styles.detailBtn}
+          onClick={onClick}
+          tabIndex={tabIndex}
+          data-roving-item
+          aria-label="View log detail"
+          aria-expanded={isSelected}
+          aria-controls="log-detail-drawer"
+        >
+          <IconChevron open={isSelected} />
+        </Button>
+      </td>
     </tr>
   );
 }

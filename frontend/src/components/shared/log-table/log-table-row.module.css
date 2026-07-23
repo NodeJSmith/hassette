@@ -4,8 +4,7 @@
   transition: background var(--t-fast) var(--ease);
 }
 
-.row:hover,
-.row:focus-visible {
+.row:hover {
   background: var(--bg-sunken);
 }
 
@@ -22,15 +21,12 @@
   background: var(--err-bg);
 }
 
-.row[data-level="WARNING"]:hover,
-.row[data-level="WARNING"]:focus-visible {
+.row[data-level="WARNING"]:hover {
   background: var(--warn-bg);
   filter: brightness(0.97);
 }
 .row[data-level="ERROR"]:hover,
-.row[data-level="ERROR"]:focus-visible,
-.row[data-level="CRITICAL"]:hover,
-.row[data-level="CRITICAL"]:focus-visible {
+.row[data-level="CRITICAL"]:hover {
   background: var(--err-bg);
   filter: brightness(0.97);
 }
@@ -116,4 +112,17 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   margin-bottom: var(--sp-0);
+}
+
+.detailCol {
+  width: var(--sp-7);
+}
+
+.detailCell {
+  padding: 0;
+  text-align: center;
+}
+
+.detailBtn {
+  color: var(--ink-4);
 }
