@@ -1,101 +1,43 @@
-"""SyncExecutorService — owns the dedicated InterruptibleThreadPoolExecutor for sync user code.
+"""SyncExecutorService — lifecycle wrapper around the SyncExecutor thread-pool capability.
 
-This service constructs and tears down the executor used by TaskBucket.run_in_thread
-for all sync user code (handlers, jobs, App sync lifecycle hooks).  Framework-internal
-asyncio.to_thread calls (logging, database) are NOT routed here — they continue using
-the loop-default executor.
+The thread pool used by TaskBucket.run_in_thread for all sync user code (handlers, jobs,
+App sync lifecycle hooks) is owned by SyncExecutor (hassette.core.sync_executor) — a plain
+capability class constructed in Hassette.__init__() before the Resource lifecycle starts, so
+every TaskBucket has a working sync executor from birth. This service wraps that capability
+for Resource/Service lifecycle concerns only: on_initialize() creates the pool (covering both
+initial start and restart-in-place), serve() runs the periodic saturation probe, and
+on_shutdown() tears the pool down within its configured budget.
 
 Shutdown ordering is declarative: BusService, SchedulerService, and AppHandler all
 declare depends_on=[SyncExecutorService], so wave-based shutdown tears them down
-*before* this service.  The executor's shutdown hook therefore runs only after every
+*before* this service.  The pool's shutdown hook therefore runs only after every
 component that can submit sync work has already stopped — closing the race where an
 AppSync hook submits to a closed pool and raises RuntimeError.
 """
 
 import asyncio
-import threading
-import time
-from contextvars import ContextVar, copy_context
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, ClassVar, ParamSpec, TypeVar, cast
+from typing import TYPE_CHECKING, ClassVar
 
+from hassette.core.sync_executor import _SATURATION_PROBE_INTERVAL_SECS, SYNC_EXECUTOR_THREAD_NAME_PREFIX
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
 from hassette.resources.restart import CORE_PERMANENT_RESTART
 from hassette.resources.service import Service
-from hassette.task_bucket.interruptible_executor import InterruptibleThreadPoolExecutor
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-
     from hassette import Hassette
-
-P = ParamSpec("P")
-R = TypeVar("R")
-
-# Pool saturation constants — mirror command_executor._CAPACITY_WARN_THRESHOLD /
-# _CAPACITY_WARN_RATE_LIMIT_SECS but scoped to global pool saturation.
-# Pool saturation is a global condition (not per-entity), so a single global
-# timestamp is the right rate-limit model (cf. enqueue_record in command_executor).
-_SATURATION_WARN_THRESHOLD = 0.75
-
-# Suppression window: rate-limit repeated saturation WARNINGs to at most once per
-# this many seconds.  The periodic probe fires every _SATURATION_PROBE_INTERVAL_SECS;
-# keeping the probe interval >= this window ensures the probe does NOT self-suppress —
-# i.e. the probe always has a chance to fire even when submissions have stopped.
-# WARNING: if you shorten _SATURATION_PROBE_INTERVAL_SECS below _SATURATION_WARN_RATE_LIMIT_SECS
-# the probe will silently suppress itself and operators will see no signal during total
-# pool starvation.  Keep probe interval >= suppress window.
-_SATURATION_WARN_RATE_LIMIT_SECS = 30.0
-
-# Probe cadence — how often serve() reads pool occupancy when there are no new submissions.
-# This is the "8/8 workers stuck" detection signal: a submission-only check goes silent
-# exactly when the pool is fully starved, so the probe fires regardless of submission rate.
-# Must be >= _SATURATION_WARN_RATE_LIMIT_SECS to avoid self-suppression (see above).
-_SATURATION_PROBE_INTERVAL_SECS = 30.0
-
-# Worker thread name prefix for the dedicated sync-user-code pool. Shared with the test
-# mock executor so pool-identity assertions match production threads.
-SYNC_EXECUTOR_THREAD_NAME_PREFIX = "hassette-sync"
-
-
-@dataclass
-class SyncWorkerHandle:
-    """Shared handle between the loop thread and a sync worker for thread-identity tracking.
-
-    Created by ``submit()`` on the loop thread and stored in ``SYNC_WORKER_HANDLE``.
-    The worker thread sets ``handle.thread`` and ``handle.active`` via closure;
-    ``_execute`` in ``command_executor`` reads both at the timeout site — ``active``
-    distinguishes a genuinely leaked thread from a pool thread that finished the
-    submitted fn but remains alive between jobs.
-    """
-
-    thread: threading.Thread | None = None
-    active: bool = False
-    """True while ``fn`` is executing on the worker thread; False before and after."""
-
-
-SYNC_WORKER_HANDLE: ContextVar[SyncWorkerHandle | None] = ContextVar("sync_worker_handle", default=None)
-"""Carries the worker handle for the current sync submission from the loop thread to _execute.
-
-Set on the loop thread in ``submit()`` immediately after creating the handle.
-``_execute`` (same asyncio task, same context snapshot) reads this ContextVar to check
-``handle.thread.is_alive()`` at the timeout site.
-
-The worker accesses the handle via closure, not via this ContextVar.  The ContextVar exists so
-that ``_execute`` (running on the loop thread, in the same asyncio task) can read back the
-handle reference.
-"""
+    from hassette.core.sync_executor import SyncExecutor
 
 
 class SyncExecutorService(Service):
-    """Service that owns the dedicated thread-pool executor for sync user code.
+    """Lifecycle wrapper around the SyncExecutor thread-pool capability.
 
-    The executor is constructed in ``on_initialize()`` so that restart-in-place
-    (``shutdown`` → ``initialize`` on the same instance, driven by ServiceWatcher)
-    rebuilds the thread pool.  Consumers (BusService, SchedulerService, AppHandler)
-    declare ``depends_on=[SyncExecutorService]`` and wait for readiness, so no
-    consumer can submit work before the pool exists.
+    Wraps the SyncExecutor built in Hassette.__init__() for Resource/Service lifecycle
+    concerns: on_initialize() creates the pool (first start and restart-in-place alike),
+    serve() runs the periodic saturation probe, and on_shutdown() tears the pool down.
+    Consumers (BusService, SchedulerService, AppHandler) declare
+    depends_on=[SyncExecutorService] and wait for readiness, so no consumer can submit
+    work before the pool exists.
 
     SyncExecutorService declares depends_on=[] (it needs no DB or other service).
     Wave-based shutdown tears consumers down before this service.
@@ -104,113 +46,18 @@ class SyncExecutorService(Service):
     depends_on: ClassVar[list[type[Resource]]] = []
     restart_spec = CORE_PERMANENT_RESTART
 
-    executor: InterruptibleThreadPoolExecutor
-    """The dedicated thread-pool executor for all sync user code."""
-
-    _active_workers: int
-    """Count of futures currently running on the executor (loop-thread-only, no lock needed)."""
-
-    _last_saturation_warn_ts: float
-    """Monotonic timestamp of the last pool-saturation WARNING (global rate-limit)."""
+    sync_executor: "SyncExecutor"
+    """The SyncExecutor capability instance whose lifecycle this service manages."""
 
     def __init__(self, hassette: "Hassette", *, parent: Resource | None = None) -> None:
         super().__init__(hassette, parent=parent)
-        self._active_workers = 0
-        self._last_saturation_warn_ts = 0.0
+        self.sync_executor = hassette.sync_executor
 
     async def on_initialize(self) -> None:
-        self.executor = InterruptibleThreadPoolExecutor(
-            max_workers=self.hassette.config.lifecycle.sync_executor_max_workers,
-            thread_name_prefix=SYNC_EXECUTOR_THREAD_NAME_PREFIX,
-        )
-        self._active_workers = 0
-        self._last_saturation_warn_ts = 0.0
-
-    def submit(self, fn: "Callable[P, R]", *args: "P.args", **kwargs: "P.kwargs") -> "asyncio.Future[R]":
-        """Submit a sync function to the dedicated executor with context propagation.
-
-        Captures the calling thread's contextvars, wraps them into the worker call,
-        and tracks the submission for pool-saturation monitoring.
-
-        Args:
-            fn: The synchronous function to run.
-            *args: Positional arguments to pass to the function.
-            **kwargs: Keyword arguments to pass to the function.
-
-        Returns:
-            An :class:`asyncio.Future` that resolves to the return value of *fn*.
-        """
-        parent_ctx = copy_context()
-        handle = SyncWorkerHandle()
-        SYNC_WORKER_HANDLE.set(handle)
-
-        def _call() -> R:
-            handle.thread = threading.current_thread()
-            handle.active = True
-            try:
-                return parent_ctx.run(fn, *args, **kwargs)
-            finally:
-                handle.active = False
-
-        loop = asyncio.get_running_loop()
-        future: asyncio.Future[R] = loop.run_in_executor(self.executor, _call)
-        self.track_submission(cast("asyncio.Future[Any]", future))
-        return future
-
-    def track_submission(self, future: "asyncio.Future[Any]") -> None:
-        """Track an active submission: increment counter and decrement via done-callback.
-
-        Both the increment (called on the event loop thread, immediately after
-        run_in_executor returns) and the done-callback decrement (delivered to the
-        event loop thread when the future resolves) run on the same thread, so
-        no lock is needed.
-
-        Args:
-            future: The asyncio.Future returned by loop.run_in_executor.
-        """
-        self._active_workers += 1
-
-        def _on_done(_f: "asyncio.Future[Any]") -> None:
-            # run_in_executor done callbacks fire on the event loop thread.
-            self._active_workers = max(0, self._active_workers - 1)
-
-        future.add_done_callback(_on_done)
-        self.log_saturation_rate_limited()
-
-    def log_saturation_rate_limited(self) -> None:
-        """Emit a pool-saturation WARNING when active workers cross ~75%, rate-limited.
-
-        Uses a single global timestamp for rate-limiting — pool saturation is a global
-        condition, not per-entity, so the global-timestamp model from enqueue_record
-        (command_executor.py) is the right fit here (not the per-entity dict in
-        log_timeout_rate_limited).
-
-        Active-worker count is tracked via a dedicated counter incremented on submission
-        and decremented in the future's done-callback.  Both operations run on the event
-        loop thread, so the counter needs no lock.  The queue depth is read for log
-        context only — it does not gate the warning.
-        """
-        max_workers: int = self.executor._max_workers  # pyright: ignore[reportAttributeAccessIssue]
-
-        occupancy = self._active_workers / max_workers
-        if occupancy < _SATURATION_WARN_THRESHOLD:
-            return  # below threshold — nothing to warn about
-
-        now = time.monotonic()
-        if now - self._last_saturation_warn_ts < _SATURATION_WARN_RATE_LIMIT_SECS:
-            return  # rate-limited — suppress until window expires
-        self._last_saturation_warn_ts = now
-
-        # Read queue depth for context only — not a gating condition.
-        # _work_queue is a SimpleQueue; qsize() is accurate under the GIL.
-        queue_depth: int = self.executor._work_queue.qsize()  # pyright: ignore[reportAttributeAccessIssue]
-
-        self.logger.warning(
-            "Sync-handler pool approaching saturation: ~%d/%d workers active, %d queued "
-            "— consider raising lifecycle.sync_executor_max_workers or async-ifying slow handlers",
-            self._active_workers,
-            max_workers,
-            queue_depth,
+        """Create the thread pool — covers both initial start and restart-in-place."""
+        self.sync_executor.rebuild_pool(
+            self.hassette.config.lifecycle.sync_executor_max_workers,
+            SYNC_EXECUTOR_THREAD_NAME_PREFIX,
         )
 
     async def serve(self) -> None:
@@ -222,10 +69,9 @@ class SyncExecutorService(Service):
         rate so the operator still sees the WARNING at the configured cadence.
 
         Probe cadence (_SATURATION_PROBE_INTERVAL_SECS) is set equal to the rate-limit
-        suppress window (_SATURATION_WARN_RATE_LIMIT_SECS).  Shortening the probe
-        interval below the suppress window would cause self-suppression — the probe
-        fires but the WARNING is swallowed because the rate-limit hasn't expired.
-        See module-level constant comments for the coupling invariant.
+        suppress window — see the module-level constant comments in sync_executor.py
+        for the coupling invariant (shortening the probe interval below the suppress
+        window causes self-suppression).
         """
         mark_ready(self, reason="SyncExecutorService started")
         while not self.shutdown_event.is_set():
@@ -244,16 +90,16 @@ class SyncExecutorService(Service):
                 return
             except TimeoutError:
                 # Probe interval elapsed — check saturation and loop.
-                self.log_saturation_rate_limited()
+                self.sync_executor.log_saturation_rate_limited()
 
     async def on_shutdown(self) -> None:
-        """Shut down the executor within the configured interruption budget.
+        """Shut down the thread pool within the configured interruption budget.
 
         Called by Service.shutdown() after the serve task has been cancelled, so no new
-        work can be submitted by the time this runs.  ``executor.shutdown`` is a blocking
+        work can be submitted by the time this runs. ``shutdown_pool`` is a blocking
         call (it joins/interrupts worker threads), so it runs in a worker thread via
         ``asyncio.to_thread`` to avoid parking the event loop while other services in the
-        shutdown wave finish.  The budget is capped at ``resource_shutdown_timeout_seconds``
+        shutdown wave finish. The budget is capped at ``resource_shutdown_timeout_seconds``
         — the per-wave bound on how long this hook may run — so the join/interrupt phase
         cannot push the wave (and thus the total shutdown) past its budget.
 
@@ -262,13 +108,11 @@ class SyncExecutorService(Service):
         ``sync_executor_shutdown_timeout_seconds`` below ``resource_shutdown_timeout_seconds``
         to give the wave explicit headroom.
         """
-        if not hasattr(self, "executor"):
-            return
         lifecycle = self.hassette.config.lifecycle
         budget = min(
             lifecycle.sync_executor_shutdown_timeout_seconds,
             float(lifecycle.resource_shutdown_timeout_seconds),
         )
         self.logger.debug("Shutting down SyncExecutorService executor (budget=%.1fs)", budget)
-        await asyncio.to_thread(self.executor.shutdown, timeout=budget)
+        await asyncio.to_thread(self.sync_executor.shutdown_pool, budget)
         self.logger.debug("SyncExecutorService executor shut down")

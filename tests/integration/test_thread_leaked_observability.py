@@ -20,7 +20,7 @@ from hassette.commands import InvokeHandler
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
 from hassette.core.execution_record import ExecutionRecord
-from hassette.core.sync_executor_service import SyncExecutorService
+from hassette.core.sync_executor import SyncExecutor
 from hassette.task_bucket.task_bucket import TaskBucket
 from hassette.test_utils.factories import make_listener_registration, make_mock_listener
 from hassette.test_utils.mock_hassette import make_mock_hassette
@@ -47,7 +47,7 @@ async def executor(
 
 async def test_not_started_sync_timeout_no_false_positive(
     executor: CommandExecutor,
-    sync_service: SyncExecutorService,
+    sync_executor: SyncExecutor,
 ) -> None:
     """run_in_thread is called but worker hasn't dequeued before timeout → thread_leaked=False.
 
@@ -59,18 +59,17 @@ async def test_not_started_sync_timeout_no_false_positive(
     pool_gate = threading.Event()
     started = threading.Barrier(3)
     hassette_mock = make_mock_hassette()
-    bucket = TaskBucket(hassette_mock)
-    bucket._sync_service = sync_service
+    bucket = TaskBucket(hassette_mock, sync_executor=sync_executor)
 
     def pool_filler() -> None:
         started.wait(timeout=2.0)
         pool_gate.wait(timeout=10.0)
 
-    # Submit two jobs to saturate both workers (max_workers=2 on the sync service's executor).
+    # Submit two jobs to saturate both workers (max_workers=2 on the sync executor's pool).
     # Use the underlying executor directly so these don't touch SYNC_WORKER_HANDLE.
     loop = asyncio.get_running_loop()
-    filler_f1 = loop.run_in_executor(sync_service.executor, pool_filler)
-    filler_f2 = loop.run_in_executor(sync_service.executor, pool_filler)
+    filler_f1 = loop.run_in_executor(sync_executor.executor, pool_filler)
+    filler_f2 = loop.run_in_executor(sync_executor.executor, pool_filler)
 
     # Wait until both fillers have definitely dequeued and started.
     await asyncio.to_thread(started.wait, 2.0)
@@ -119,15 +118,14 @@ async def test_not_started_sync_timeout_no_false_positive(
 
 async def test_sync_handler_timeout_sets_thread_leaked(
     executor: CommandExecutor,
-    sync_service: SyncExecutorService,
+    sync_executor: SyncExecutor,
 ) -> None:
     """A sync handler blocking past its timeout produces thread_leaked=True.
 
     The handler sleeps for much longer than the timeout; when asyncio cancels
     the await the worker thread is still alive, so the liveness check fires.
     """
-    bucket = TaskBucket(make_mock_hassette())
-    bucket._sync_service = sync_service
+    bucket = TaskBucket(make_mock_hassette(), sync_executor=sync_executor)
 
     released = threading.Event()
 
@@ -248,7 +246,7 @@ async def test_pure_async_timeout_no_handle_no_thread_leaked(
 
 async def test_completed_sync_handler_no_false_thread_leaked(
     executor: CommandExecutor,
-    sync_service: SyncExecutorService,
+    sync_executor: SyncExecutor,
 ) -> None:
     """A sync handler that raises TimeoutError from user code must not set thread_leaked.
 
@@ -258,8 +256,7 @@ async def test_completed_sync_handler_no_false_thread_leaked(
     would cause a false thread_leaked=True.  The active flag — cleared by _call's finally
     block when the handler returns/raises — prevents this false positive.
     """
-    bucket = TaskBucket(make_mock_hassette())
-    bucket._sync_service = sync_service
+    bucket = TaskBucket(make_mock_hassette(), sync_executor=sync_executor)
 
     def sync_raises_timeout(_event: object) -> None:
         raise TimeoutError("user-code timeout")
