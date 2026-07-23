@@ -27,6 +27,10 @@ export interface AppStatusEntry {
   exception?: string | null;
 }
 
+export function appStatusKey(appKey: string, index: number): string {
+  return `${appKey}:${index}`;
+}
+
 export interface ServiceStatusEntry {
   resource_name: string;
   role: string;
@@ -91,7 +95,7 @@ export function createAppState() {
 
   return {
     /**
-     * Per-app status keyed by app_key, updated via WS.
+     * Per-instance app status keyed by `appStatusKey(app_key, index)`, updated via WS.
      *
      * INVARIANT: appStatus changes trigger *debounced* cache invalidation
      * (via useQueryInvalidator in page components). This is intentionally separate
