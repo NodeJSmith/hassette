@@ -297,8 +297,7 @@ class TestSubmissionTimeSaturationWarning:
 
         assert warning_calls, "Expected at least one saturation WARNING"
         msg = str(warning_calls[0])
-        # Message should contain worker counts and pool size
-        assert "workers active" in msg or "1/1" in msg, f"Expected worker count in WARNING; got: {msg}"
+        assert "outstanding submissions" in msg or "1/1" in msg, f"Expected saturation detail in WARNING; got: {msg}"
 
         sync_executor.executor.shutdown(join_threads_or_timeout=False)
 

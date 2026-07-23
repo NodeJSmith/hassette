@@ -67,12 +67,11 @@ class TestSyncExecutorServiceClassAttrs:
 
 class TestExecutorConstruction:
     def test_executor_available_immediately_after_init(self) -> None:
-        """The SyncExecutor's pool exists as soon as the service is constructed.
+        """The SyncExecutor's pool is available on the service immediately after construction.
 
-        Unlike the old SyncExecutorService (which built its own executor lazily in
-        on_initialize), the thinned service wraps a SyncExecutor that is already
-        fully built by the time Hassette.__init__() runs — construction alone is
-        enough to have a working pool (see TC#1 in wired_hassette_construction tests).
+        The test factory pre-builds the pool via rebuild_pool() on the mock hassette's
+        SyncExecutor — mirroring production, where Hassette.__init__() constructs the
+        SyncExecutor and on_initialize() calls rebuild_pool() before any service uses it.
         """
         mock_hassette = make_sync_executor_hassette(max_workers=3)
         svc = SyncExecutorService(mock_hassette)

@@ -40,6 +40,8 @@ class TaskBucket(Resource):
 
     _tasks: "set[asyncio.Task[Any]]"
 
+    _sync_executor: "SyncExecutor | None"
+
     _exception_recorders: "list[ExceptionRecorderT]"
     """List of recorders called for each non-CancelledError task exception."""
 
