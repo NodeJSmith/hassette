@@ -20,7 +20,13 @@ import { useScopedQuery } from "../hooks/use-scoped-query";
 import { useSignal } from "../hooks/use-signal";
 import { queryKeys } from "../lib/query-keys";
 import { useAppState } from "../state/context";
-import { type AppRow, type AppSortState, compareAppRows, mergeManifestsAndGrid } from "../utils/app-data";
+import {
+  appLiveStatus,
+  type AppRow,
+  type AppSortState,
+  compareAppRows,
+  mergeManifestsAndGrid,
+} from "../utils/app-data";
 import { pluralize } from "../utils/format";
 import { type StatusKind } from "../utils/status";
 import { PRESET_WINDOW_SECONDS } from "../utils/time-window";
@@ -159,7 +165,7 @@ export function AppsPage() {
 
   const statusCounts: Record<string, number> = {};
   for (const a of allApps) {
-    const liveStatus = appStatus.value[a.app_key]?.status ?? a.status;
+    const liveStatus = appLiveStatus(appStatus.value, a);
     statusCounts[liveStatus] = (statusCounts[liveStatus] ?? 0) + 1;
   }
 
@@ -185,7 +191,7 @@ export function AppsPage() {
   const searchLower = search.toLowerCase();
   const filtered = allApps
     .filter((a) => {
-      const liveStatus = appStatus.value[a.app_key]?.status ?? a.status;
+      const liveStatus = appLiveStatus(appStatus.value, a);
       if (filter !== "all" && liveStatus !== filter) return false;
       if (
         searchLower &&
@@ -293,7 +299,7 @@ export function AppsPage() {
                   <AppTableRow
                     key={app.app_key}
                     app={app}
-                    liveStatus={appStatus.value[app.app_key]?.status}
+                    appStatuses={appStatus.value}
                     isExpanded={app.instance_count > 1 && expanded.value.has(app.app_key)}
                     onToggle={() => toggleExpand(app.app_key)}
                     muteStatus={allSameStatus}

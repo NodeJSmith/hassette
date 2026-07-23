@@ -1,5 +1,6 @@
 import type { AppManifest, DashboardAppGridEntry } from "../api/endpoints";
 import type { SortState } from "../components/shared/sort-header";
+import { type AppStatusEntry, appStatusKey } from "../state/create-app-state";
 import { statusPriority } from "./status-priority";
 
 export interface AppRow {
@@ -69,15 +70,29 @@ export function mergeManifestsAndGrid(manifests: AppManifest[], gridEntries: Das
 export type AppSortKey = "name" | "status" | "error" | "runs" | "last";
 export type AppSortState = SortState<AppSortKey>;
 
+/** Resolve the live status for an app row's parent view.
+ *  Single-instance: WS status for index 0.
+ *  Multi-instance: worst status across all instances (lower priority = worse). */
+export function appLiveStatus(appStatuses: Record<string, AppStatusEntry>, row: AppRow): string {
+  const instances = row.instances ?? [];
+  if (instances.length <= 1) {
+    return appStatuses[appStatusKey(row.app_key, 0)]?.status ?? row.status;
+  }
+  return instances.reduce<string>((worst, inst) => {
+    const live = appStatuses[appStatusKey(row.app_key, inst.index)]?.status ?? inst.status;
+    return statusPriority(live) < statusPriority(worst) ? live : worst;
+  }, row.status);
+}
+
 export function compareAppRows(
   a: AppRow,
   b: AppRow,
   sort: AppSortState,
-  liveStatuses: Record<string, { status: string } | undefined>,
+  appStatuses: Record<string, AppStatusEntry>,
 ): number {
   const dir = sort.dir === "asc" ? 1 : -1;
-  const aStatus = liveStatuses[a.app_key]?.status ?? a.status;
-  const bStatus = liveStatuses[b.app_key]?.status ?? b.status;
+  const aStatus = appLiveStatus(appStatuses, a);
+  const bStatus = appLiveStatus(appStatuses, b);
   switch (sort.key) {
     case "name":
       return dir * a.app_key.localeCompare(b.app_key);

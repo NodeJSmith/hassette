@@ -1,6 +1,7 @@
 import { fireEvent } from "@testing-library/preact";
 import { describe, expect, it, vi } from "vitest";
 
+import { type AppStatusEntry, appStatusKey } from "../state/create-app-state";
 import { renderWithAppState } from "../test/render-helpers";
 import type { AppRow } from "../utils/app-data";
 import { INACTIVE_STATUSES } from "../utils/status";
@@ -55,7 +56,7 @@ function createAppRow(overrides: Partial<AppRow> = {}): AppRow {
 }
 
 function renderRow(props: Partial<Parameters<typeof AppTableRow>[0]> = {}) {
-  const defaults = { app: createAppRow(), isExpanded: false, onToggle: vi.fn() };
+  const defaults = { app: createAppRow(), appStatuses: {}, isExpanded: false, onToggle: vi.fn() };
   return renderWithAppState(
     <table>
       <tbody>
@@ -148,10 +149,11 @@ describe("AppTableRow", () => {
     expect(errorCell.getAttribute("aria-label")).toMatch(/^collapse error/i);
   });
 
-  it("liveStatus overrides app.status in the badge", () => {
+  it("appStatuses overrides app.status in the badge", () => {
+    const entry: AppStatusEntry = { status: "running", index: 0 };
     const { getByTestId } = renderRow({
-      app: createAppRow({ status: "stopped" }),
-      liveStatus: "running",
+      app: createAppRow({ app_key: "my_app", status: "stopped" }),
+      appStatuses: { [appStatusKey("my_app", 0)]: entry },
     });
     expect(getByTestId("status-pill").textContent).toBe("running");
   });
@@ -205,6 +207,42 @@ describe("AppTableRow", () => {
     const { getByTestId } = renderRow({ app, isExpanded: true });
     expect(getByTestId("instance-row-my_app-0")).toBeDefined();
     expect(getByTestId("instance-row-my_app-1")).toBeDefined();
+  });
+
+  it("expanded instance rows show per-instance live status", () => {
+    const app = createAppRow({
+      app_key: "my_app",
+      instance_count: 2,
+      instances: [
+        {
+          app_key: "my_app",
+          class_name: "MyApp",
+          index: 0,
+          instance_name: "my_app[0]",
+          status: "stopped",
+          error_message: null,
+        },
+        {
+          app_key: "my_app",
+          class_name: "MyApp",
+          index: 1,
+          instance_name: "my_app[1]",
+          status: "stopped",
+          error_message: null,
+        },
+      ],
+    });
+    const appStatuses: Record<string, AppStatusEntry> = {
+      [appStatusKey("my_app", 0)]: { status: "running", index: 0 },
+      [appStatusKey("my_app", 1)]: { status: "failed", index: 1 },
+    };
+    const { getByTestId } = renderRow({ app, appStatuses, isExpanded: true });
+    const row0 = getByTestId("instance-row-my_app-0");
+    const row1 = getByTestId("instance-row-my_app-1");
+    expect(row0.textContent).toContain("running");
+    expect(row0.textContent).not.toContain("stopped");
+    expect(row1.textContent).toContain("failed");
+    expect(row1.textContent).not.toContain("stopped");
   });
 
   it("does not show instance rows when isExpanded is false", () => {

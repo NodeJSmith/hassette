@@ -5,7 +5,7 @@ import { useEffect, useRef } from "preact/hooks";
 import { WS_PATH } from "../api/endpoints";
 import type { WsServerMessage } from "../api/ws-types";
 import { validateWsMessage, WsValidationError } from "../api/ws-validator";
-import type { AppState } from "../state/create-app-state";
+import { type AppState, appStatusKey } from "../state/create-app-state";
 
 const MAX_BACKOFF_MS = 30_000;
 const INITIAL_BACKOFF_MS = 1_000;
@@ -110,7 +110,7 @@ export function useWebSocket(state: AppState): void {
             case "app_status_changed":
               state.appStatus.value = {
                 ...state.appStatus.value,
-                [msg.data.app_key]: {
+                [appStatusKey(msg.data.app_key, msg.data.index)]: {
                   status: msg.data.status,
                   index: msg.data.index,
                   previous_status: msg.data.previous_status,

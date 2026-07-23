@@ -9,7 +9,8 @@ import { IconChevron } from "../components/shared/icons";
 import { MiniSparkline } from "../components/shared/mini-sparkline";
 import { StatusShape } from "../components/shared/status-shape";
 import { useRelativeTime } from "../hooks/use-relative-time";
-import { type AppRow } from "../utils/app-data";
+import { type AppStatusEntry, appStatusKey } from "../state/create-app-state";
+import { appLiveStatus, type AppRow } from "../utils/app-data";
 import { formatTimestamp } from "../utils/format";
 import { onActivateKeyDown } from "../utils/keyboard";
 import { INACTIVE_STATUSES, statusToKind, statusToVariant } from "../utils/status";
@@ -17,13 +18,13 @@ import styles from "./apps.module.css";
 
 export function AppTableRow({
   app,
-  liveStatus,
+  appStatuses,
   isExpanded,
   onToggle,
   muteStatus = false,
 }: {
   app: AppRow;
-  liveStatus?: string;
+  appStatuses: Record<string, AppStatusEntry>;
   isExpanded: boolean;
   onToggle: () => void;
   muteStatus?: boolean;
@@ -32,7 +33,7 @@ export function AppTableRow({
   const showErrorExpanded = errorExpanded && !!app.error_message;
   const lastErrorLabel = useRelativeTime(app.last_error_ts ?? null);
   const lastActivityLabel = useRelativeTime(app.last_activity_ts ?? null);
-  const status = liveStatus ?? app.status;
+  const status = appLiveStatus(appStatuses, app);
   const kind = statusToKind(status);
   const isMulti = app.instance_count > 1;
   const isDimmed = INACTIVE_STATUSES.has(status);
@@ -120,7 +121,7 @@ export function AppTableRow({
       {isMulti &&
         isExpanded &&
         app.instances?.map((inst) => {
-          const instStatus = liveStatus ?? inst.status;
+          const instStatus = appStatuses[appStatusKey(app.app_key, inst.index)]?.status ?? inst.status;
           const instKind = statusToKind(instStatus);
           return (
             <tr
