@@ -104,10 +104,10 @@ def test_log_expand_button_toggles_message(page: Page, base_url: str) -> None:
     """Clicking a log row opens the detail drawer; close button dismisses it."""
     page.goto(base_url + "/logs")
     wait_for_log_entries(page)
-    # Rows have role="button" — click the first to open the detail drawer
-    first_row = page.locator("[data-testid='log-table'] tbody tr").first
-    expect(first_row).to_be_visible()
-    first_row.click()
+    # Click the first row's detail button to open the detail drawer
+    detail_btn = page.locator("[data-testid='log-table'] tbody tr button[aria-label='View log detail']").first
+    expect(detail_btn).to_be_visible()
+    detail_btn.click()
     page.wait_for_timeout(200)
     drawer = page.locator("aside[role='complementary'][aria-label='Log entry detail']")
     expect(drawer).to_be_visible()
@@ -155,7 +155,7 @@ def test_source_column_has_overflow_hidden(page: Page, base_url: str) -> None:
     page.goto(base_url + "/logs")
     wait_for_log_entries(page)
     # Check the message cell td which has overflow:hidden via the .messageCell CSS module class
-    msg_cell = page.locator("[data-testid='log-table'] tbody tr:first-child td:last-child").first
+    msg_cell = page.locator("[data-testid='log-table'] tbody tr:first-child [data-testid='log-message-cell']").first
     overflow = msg_cell.evaluate("el => getComputedStyle(el).overflow")
     assert overflow == "hidden", f"Expected overflow:hidden on message cell, got {overflow}"
 
@@ -167,7 +167,9 @@ def test_truncation_affordance_appears_on_narrow_viewport(page: Page, base_url: 
     wait_for_log_entries(page)
     page.wait_for_timeout(EXTENDED_SETTLE_MS)
     # The messageText div has text-overflow: ellipsis — verify at least one exists
-    msg_text_div = page.locator("[data-testid='log-table'] tbody tr:first-child td:last-child div").first
+    msg_text_div = page.locator(
+        "[data-testid='log-table'] tbody tr:first-child [data-testid='log-message-cell'] div"
+    ).first
     expect(msg_text_div).to_be_attached()
     text_overflow = msg_text_div.evaluate("el => getComputedStyle(el).textOverflow")
     assert text_overflow == "ellipsis", f"Expected text-overflow:ellipsis on messageText, got {text_overflow}"
@@ -182,7 +184,8 @@ def test_truncation_affordance_disappears_on_wide_viewport(page: Page, base_url:
 
     # Measure scroll overflow on message text divs at narrow viewport
     narrow_overflow = page.evaluate("""() => {
-        const els = document.querySelectorAll('[data-testid="log-table"] tbody tr td:last-child div');
+        const sel = '[data-testid="log-message-cell"] div';
+        const els = document.querySelectorAll(sel);
         let maxOverflow = 0;
         els.forEach(el => {
             const overflow = el.scrollWidth - el.clientWidth;
@@ -196,7 +199,8 @@ def test_truncation_affordance_disappears_on_wide_viewport(page: Page, base_url:
 
     # Measure scroll overflow at wide viewport
     wide_overflow = page.evaluate("""() => {
-        const els = document.querySelectorAll('[data-testid="log-table"] tbody tr td:last-child div');
+        const sel = '[data-testid="log-message-cell"] div';
+        const els = document.querySelectorAll(sel);
         let maxOverflow = 0;
         els.forEach(el => {
             const overflow = el.scrollWidth - el.clientWidth;
@@ -215,7 +219,7 @@ def test_log_message_truncates_with_ellipsis(page: Page, base_url: str) -> None:
     page.goto(base_url + "/logs")
     wait_for_log_entries(page)
     # The .messageText div (last td, first div) has overflow:clip, white-space:nowrap, text-overflow:ellipsis
-    msg_text = page.locator("[data-testid='log-table'] tbody tr:first-child td:last-child div").first
+    msg_text = page.locator("[data-testid='log-table'] tbody tr:first-child [data-testid='log-message-cell'] div").first
     overflow = msg_text.evaluate("el => getComputedStyle(el).overflow")
     white_space = msg_text.evaluate("el => getComputedStyle(el).whiteSpace")
     text_overflow = msg_text.evaluate("el => getComputedStyle(el).textOverflow")

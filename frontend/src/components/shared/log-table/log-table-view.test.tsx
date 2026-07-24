@@ -62,19 +62,19 @@ describe("LogTableView", () => {
   });
 
   describe("colgroup", () => {
-    it("renders a <colgroup> with one <col> per visible column", () => {
+    it("renders a <colgroup> with one <col> per visible column plus the detail column", () => {
       const { getByTestId } = renderView({ visibleColumns: ["level", "timestamp", "app", "message"] });
       const table = getByTestId("log-table");
       const colgroup = table.querySelector("colgroup");
       expect(colgroup).not.toBeNull();
       const cols = colgroup!.querySelectorAll("col");
-      expect(cols.length).toBe(4);
+      expect(cols.length).toBe(5);
     });
 
     it("colgroup col count adjusts when fewer columns are provided", () => {
       const { getByTestId } = renderView({ visibleColumns: ["level", "message"] });
       const cols = getByTestId("log-table").querySelectorAll("colgroup col");
-      expect(cols.length).toBe(2);
+      expect(cols.length).toBe(3);
     });
   });
 

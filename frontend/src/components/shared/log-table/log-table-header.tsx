@@ -45,6 +45,7 @@ export function LogTableHeader({ visibleColumns, sort, onSort, columnFilters }: 
             </SortHeader>
           );
         })}
+        <th aria-label="Detail" />
       </tr>
     </thead>
   );

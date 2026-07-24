@@ -70,24 +70,24 @@ describe("LogTableHeader", () => {
       expect(container.querySelector("thead")).not.toBeNull();
     });
 
-    it("renders one <th> per visible column", () => {
+    it("renders one <th> per visible column plus the detail header", () => {
       const { container } = renderHeader({
         visibleColumns: ["level", "timestamp", "app", "message"],
       });
       const ths = container.querySelectorAll("th");
-      expect(ths.length).toBe(4);
+      expect(ths.length).toBe(5);
     });
 
-    it("renders two <th> elements when only two columns are visible", () => {
+    it("renders three <th> elements when only two columns are visible (plus detail)", () => {
       const { container } = renderHeader({ visibleColumns: ["level", "message"] });
-      expect(container.querySelectorAll("th").length).toBe(2);
+      expect(container.querySelectorAll("th").length).toBe(3);
     });
 
-    it("renders all 8 <th> elements when all columns are visible", () => {
+    it("renders all 8 column <th> elements plus the detail header when all columns are visible", () => {
       const { container } = renderHeader({
         visibleColumns: ["level", "timestamp", "app", "instance", "execution", "function", "module", "message"],
       });
-      expect(container.querySelectorAll("th").length).toBe(8);
+      expect(container.querySelectorAll("th").length).toBe(9);
     });
   });
 
@@ -95,7 +95,7 @@ describe("LogTableHeader", () => {
     it("does not render a header for columns absent from visibleColumns", () => {
       const { container } = renderHeader({ visibleColumns: ["level", "message"] });
       const ths = Array.from(container.querySelectorAll("th"));
-      const labels = ths.map((th) => th.getAttribute("aria-label"));
+      const labels = ths.map((th) => th.getAttribute("aria-label")).filter(Boolean);
       expect(labels).not.toContain("Timestamp");
       expect(labels).not.toContain("Application");
     });
