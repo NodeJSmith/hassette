@@ -84,6 +84,12 @@ describe("HandlersTab", () => {
     expect(getByTestId("job-detail-20")).toBeDefined();
   });
 
+  it("uses a semantic heading for the selected handler name", () => {
+    const listener = createListener({ listener_id: 6, handler_method: "on_garage_opened" });
+    const { getByRole } = renderHandlersTab([listener], [], "listener/6");
+    expect(getByRole("heading", { level: 2, name: "on_garage_opened" })).toBeDefined();
+  });
+
   it("renders modifier chips for listener in detail pane", async () => {
     const listener = createListener({
       listener_id: 3,
@@ -197,14 +203,20 @@ describe("HandlersTab", () => {
       listener_id: 12,
       registration_source: "self.bus.on_state_change('light.kitchen', handler=self.on_light)",
     });
-    const { getByTestId, queryByTestId } = renderHandlersTab([listener], [], "listener/12");
+    const { getByRole, getByTestId, queryByTestId } = renderHandlersTab([listener], [], "listener/12");
     await waitFor(() => {
       expect(getByTestId("handler-registration-toggle")).toBeDefined();
     });
+    expect(getByRole("region", { name: "Registration" })).toBeDefined();
+    const toggle = getByTestId("handler-registration-toggle");
+    expect(toggle.getAttribute("aria-controls")).toBe("listener-detail-12-registration-source-panel");
+    expect(toggle.textContent).toContain("show call");
     // Registration is collapsed by default
     expect(queryByTestId("handler-registration-source")).toBeNull();
-    fireEvent.click(getByTestId("handler-registration-toggle"));
-    expect(getByTestId("handler-registration-source").textContent).toContain("on_state_change");
+    fireEvent.click(toggle);
+    const registrationSource = getByTestId("handler-registration-source");
+    expect(registrationSource.id).toBe(toggle.getAttribute("aria-controls"));
+    expect(registrationSource.textContent).toContain("on_state_change");
   });
 
   it("handler detail: omits registration source when null", async () => {
@@ -499,7 +511,9 @@ describe("HandlersTab", () => {
     const job = createJob({ job_id: 50, mode: "queued" });
     const { getByTestId } = renderHandlersTab([], [job], "job/50");
     await waitFor(() => getByTestId("job-detail-50"));
-    expect(getByTestId("schedule-chips").textContent).toContain("mode: queued");
+    const modeChip = getByTestId("handler-mode-chip");
+    expect(modeChip.textContent).toBe("mode: queued");
+    expect(modeChip.getAttribute("data-variant")).toBe("schedule");
   });
 
   it("job stats row: does not show Suppressed or Dropped when counts are zero", async () => {
@@ -672,7 +686,9 @@ describe("HandlersTab", () => {
     const listener = createListener({ listener_id: 70, mode: "queued" });
     const { getByTestId } = renderHandlersTab([listener], [], "listener/70");
     await waitFor(() => getByTestId("listener-detail-70"));
-    expect(getByTestId("modifier-chips").textContent).toContain("mode queued");
+    const modeChip = getByTestId("handler-mode-chip");
+    expect(modeChip.textContent).toBe("mode: queued");
+    expect(modeChip.getAttribute("data-variant")).toBe("schedule");
   });
 
   it("handler detail: registration source stays hidden until the toggle is clicked", async () => {
@@ -684,10 +700,10 @@ describe("HandlersTab", () => {
     await waitFor(() => getByTestId("listener-detail-71"));
     expect(queryByTestId("handler-registration-source")).toBeNull();
     const toggle = getByTestId("handler-registration-toggle");
-    expect(toggle.textContent).toBe("registration");
+    expect(toggle.textContent).toContain("show call");
     fireEvent.click(toggle);
     expect(getByTestId("handler-registration-source")).toBeDefined();
-    expect(toggle.textContent).toBe("hide registration");
+    expect(toggle.textContent).toContain("hide call");
   });
 
   it("handler detail: renders the executions table inside the detail card", async () => {

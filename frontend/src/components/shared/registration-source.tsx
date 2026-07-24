@@ -1,14 +1,14 @@
 import styles from "./registration-source.module.css";
 
 interface Props {
+  id?: string;
   source: string;
   "data-testid"?: string;
 }
 
-export function RegistrationSource({ source, "data-testid": testId }: Props) {
+export function RegistrationSource({ id, source, "data-testid": testId }: Props) {
   return (
-    <div class={styles.wrapper} data-testid={testId}>
-      <span class="ht-detail-label">Registration</span>
+    <div id={id} class={styles.wrapper} data-testid={testId}>
       <pre class={styles.codeSnippet}>
         <code>{source}</code>
       </pre>

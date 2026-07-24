@@ -1,5 +1,6 @@
 import { type HandlerKind, handlerPath } from "../../utils/app-routes";
 import { handlerKindLabel } from "../../utils/status";
+import { compareFailingFirst } from "./handler-sort";
 import type { UnifiedItem } from "./unified-handler-row";
 
 export function handlerHref(appKey: string, item: UnifiedItem, instanceQs: string): string {
@@ -22,9 +23,8 @@ export function itemRunCount(item: UnifiedItem): number {
 
 export function sortedByFailingFirst(items: UnifiedItem[]): UnifiedItem[] {
   return [...items].sort((a, b) => {
-    const aFails = isFailing(a) ? 1 : 0;
-    const bFails = isFailing(b) ? 1 : 0;
-    if (bFails !== aFails) return bFails - aFails;
+    const healthOrder = compareFailingFirst(a, b);
+    if (healthOrder !== 0) return healthOrder;
     return itemRunCount(b) - itemRunCount(a);
   });
 }

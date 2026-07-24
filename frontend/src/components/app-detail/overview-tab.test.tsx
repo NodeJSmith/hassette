@@ -357,6 +357,7 @@ describe("OverviewTab — Recent Activity", () => {
         status: "success",
         timestamp: 1700000100,
         app_key: "test_app",
+        handler_id: 1,
         handler_name: "on_motion",
         duration_ms: 42,
         error_type: null,
@@ -391,6 +392,7 @@ describe("OverviewTab — Recent Activity", () => {
         status: "error",
         timestamp: 1700000200,
         app_key: "test_app",
+        handler_id: 1,
         handler_name: "on_door_open",
         duration_ms: 155,
         error_type: "ValueError",
@@ -407,13 +409,14 @@ describe("OverviewTab — Recent Activity", () => {
     });
   });
 
-  it("groups consecutive same-handler same-status entries", async () => {
+  it("groups repeated activity into one row per runtime handler", async () => {
     const entries: ActivityFeedEntry[] = [
       {
         row_id: "r1",
         status: "success",
         timestamp: 1700000300,
         app_key: "test_app",
+        handler_id: 1,
         handler_name: "check",
         duration_ms: 10,
         error_type: null,
@@ -424,6 +427,7 @@ describe("OverviewTab — Recent Activity", () => {
         status: "success",
         timestamp: 1700000200,
         app_key: "test_app",
+        handler_id: 1,
         handler_name: "check",
         duration_ms: 20,
         error_type: null,
@@ -434,6 +438,7 @@ describe("OverviewTab — Recent Activity", () => {
         status: "success",
         timestamp: 1700000100,
         app_key: "test_app",
+        handler_id: 1,
         handler_name: "check",
         duration_ms: 30,
         error_type: null,
@@ -444,6 +449,7 @@ describe("OverviewTab — Recent Activity", () => {
         status: "error",
         timestamp: 1700000050,
         app_key: "test_app",
+        handler_id: 2,
         handler_name: "on_event",
         duration_ms: 5,
         error_type: "ValueError",
@@ -454,6 +460,7 @@ describe("OverviewTab — Recent Activity", () => {
         status: "success",
         timestamp: 1700000000,
         app_key: "test_app",
+        handler_id: 1,
         handler_name: "check",
         duration_ms: 15,
         error_type: null,
@@ -465,11 +472,61 @@ describe("OverviewTab — Recent Activity", () => {
     const { getByTestId, getAllByTestId } = renderOverviewTab({ appKey: "test_app" });
     await waitFor(() => {
       const rows = getAllByTestId("overview-activity-row");
-      expect(rows.length).toBe(3);
+      expect(rows.length).toBe(2);
     });
     const section = getByTestId("overview-activity-section");
-    expect(section.textContent).toContain("× 3");
+    expect(section.textContent).toContain("× 4");
     expect(section.textContent).toContain("on_event");
+  });
+
+  it("keeps separate registrations that share a handler name", async () => {
+    const entries: ActivityFeedEntry[] = [
+      {
+        row_id: "r1",
+        status: "success",
+        timestamp: 1700000300,
+        app_key: "test_app",
+        handler_id: 1,
+        handler_name: "shared_handler",
+        duration_ms: 10,
+        error_type: null,
+        kind: "handler",
+      },
+      {
+        row_id: "r2",
+        status: "success",
+        timestamp: 1700000200,
+        app_key: "test_app",
+        handler_id: 2,
+        handler_name: "shared_handler",
+        duration_ms: 20,
+        error_type: null,
+        kind: "handler",
+      },
+    ];
+    server.use(http.get("/api/telemetry/app/:app_key/activity", () => HttpResponse.json<ActivityFeedEntry[]>(entries)));
+
+    const { getAllByTestId } = renderOverviewTab({ appKey: "test_app" });
+    await waitFor(() => expect(getAllByTestId("overview-activity-row")).toHaveLength(2));
+  });
+
+  it("shows at most eight unique activity rows", async () => {
+    const entries: ActivityFeedEntry[] = Array.from({ length: 10 }, (_, index) => ({
+      row_id: `row-${index}`,
+      status: "success",
+      timestamp: 1700001000 - index,
+      app_key: "test_app",
+      handler_id: index,
+      handler_name: `handler_${index}`,
+      duration_ms: 10,
+      error_type: null,
+      kind: "handler",
+    }));
+    server.use(http.get("/api/telemetry/app/:app_key/activity", () => HttpResponse.json<ActivityFeedEntry[]>(entries)));
+
+    const { getAllByTestId, queryByText } = renderOverviewTab({ appKey: "test_app" });
+    await waitFor(() => expect(getAllByTestId("overview-activity-row")).toHaveLength(8));
+    expect(queryByText("handler_8")).toBeNull();
   });
 });
 

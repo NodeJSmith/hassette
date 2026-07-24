@@ -637,6 +637,8 @@ export interface components {
             timestamp: number;
             /** App Key */
             app_key: string;
+            /** Handler Id */
+            handler_id: number;
             /** Handler Name */
             handler_name: string;
             /** Duration Ms */

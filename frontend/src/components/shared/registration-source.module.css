@@ -1,16 +1,16 @@
 .wrapper {
-  margin-bottom: var(--sp-3);
+  min-width: 0;
 }
 
 .codeSnippet {
-  margin: var(--sp-1) 0 0;
+  margin: 0;
   padding: var(--sp-3);
-  background: var(--bg-sunken);
-  border: var(--sp-px) dashed var(--line-1);
+  background: var(--bg-surface);
+  border: var(--sp-px) solid var(--line-1);
   border-radius: var(--r-sm);
   font-family: var(--font-mono);
   font-size: var(--fs-micro);
   line-height: var(--lh-small);
-  overflow-x: auto;
-  white-space: pre;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }

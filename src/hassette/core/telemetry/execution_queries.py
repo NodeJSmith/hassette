@@ -136,13 +136,14 @@ class ExecutionQueriesMixin:
 
         # row_id carries the execution_id UUID, falling back to 'h-'/'j-' + rowid for older rows.
         query = f"""
-            SELECT row_id, status, timestamp, app_key, handler_name, duration_ms, error_type, kind
+            SELECT row_id, status, timestamp, app_key, handler_id, handler_name, duration_ms, error_type, kind
             FROM (
                 SELECT
                     COALESCE(e_h.execution_id, 'h-' || CAST(e_h.rowid AS TEXT)) AS row_id,
                     e_h.status,
                     e_h.execution_start_ts AS timestamp,
                     l.app_key,
+                    l.id AS handler_id,
                     l.handler_method AS handler_name,
                     e_h.duration_ms,
                     e_h.error_type,
@@ -162,6 +163,7 @@ class ExecutionQueriesMixin:
                     e_j.status,
                     e_j.execution_start_ts AS timestamp,
                     sj.app_key,
+                    sj.id AS handler_id,
                     sj.handler_method AS handler_name,
                     e_j.duration_ms,
                     e_j.error_type,

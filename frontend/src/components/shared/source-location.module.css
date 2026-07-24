@@ -1,3 +1,4 @@
 .wrapper {
-  margin-bottom: var(--sp-3);
+  display: inline-flex;
+  align-items: center;
 }

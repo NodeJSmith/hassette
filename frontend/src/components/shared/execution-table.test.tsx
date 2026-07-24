@@ -64,14 +64,28 @@ describe("ExecutionTable", () => {
     expect(container.textContent).toContain("ok");
   });
 
-  it("shows truncated execution ID in table row", () => {
+  it("shows the full execution ID in table rows", () => {
     const uuid = "abc12345-6789-abcd-ef01-234567890abc";
     const { container } = render(
       <ExecutionTable records={[createExecution("job", { execution_id: uuid })]} kind="job" tableId="t" />,
     );
     const row = container.querySelector("[data-testid='execution-row']")!;
-    expect(row.textContent).toContain("67890abc");
-    expect(row.textContent).not.toContain(uuid);
+    expect(row.textContent).toContain(uuid);
+  });
+
+  it("renders a complete details icon for navigable rows", () => {
+    const { getByTestId } = render(
+      <ExecutionTable
+        records={[createExecution("job", { execution_id: "execution-id" })]}
+        kind="job"
+        tableId="t"
+        appKey="my_app"
+        handlerKind="job"
+        handlerId={1}
+      />,
+    );
+
+    expect(getByTestId("execution-detail-indicator").querySelector("svg")).not.toBeNull();
   });
 
   it("shows thread leaked badge when thread_leaked is true on a timed-out row", () => {

@@ -2,6 +2,7 @@ import type { JobData, ListenerData } from "../../api/endpoints";
 import { formatTriggerDetail, lastDotSegment } from "../../utils/format";
 import { statusToKind } from "../../utils/status";
 import styles from "./handler-list.module.css";
+import { compareFailingFirst } from "./handler-sort";
 import { UnifiedHandlerRow, type UnifiedItem, type UnifiedItemKind } from "./unified-handler-row";
 
 export interface SelectedHandlerId {
@@ -51,8 +52,10 @@ export function buildItems(listeners: ListenerData[], jobs: JobData[]): UnifiedI
     };
   });
 
-  // Listeners first, then jobs
-  return [...listenerItems, ...jobItems];
+  const items = [...listenerItems, ...jobItems];
+
+  // Surface exceptions first, while stable sorting preserves registration order within each health group.
+  return items.sort(compareFailingFirst);
 }
 
 export function HandlerList({ listeners, jobs, selectedId, onSelect }: Props) {

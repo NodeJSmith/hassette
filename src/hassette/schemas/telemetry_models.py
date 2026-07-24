@@ -322,6 +322,9 @@ class ActivityFeedEntry(BaseModel):
     """Unix epoch float for when the invocation/execution started."""
 
     app_key: str
+    handler_id: int
+    """Listener or scheduled-job registration ID, interpreted according to ``kind``."""
+
     handler_name: str
     duration_ms: float | None = None
     error_type: str | None = None

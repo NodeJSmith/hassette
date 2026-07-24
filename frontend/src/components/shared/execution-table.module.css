@@ -1,7 +1,23 @@
 /* ExecutionTable — navigable execution/invocation table */
 
+.statusColumn {
+  width: 18%;
+}
+
+.durationColumn {
+  width: 14%;
+}
+
+.timeColumn {
+  width: 18%;
+}
+
+.executionColumn {
+  overflow-wrap: anywhere;
+}
+
 .colArrow {
-  width: var(--sp-4);
+  width: var(--sp-7);
 }
 
 .row {
@@ -27,7 +43,16 @@
 }
 
 .arrowCell {
+  text-align: center;
+  vertical-align: middle;
   transition: color var(--t-fast) var(--ease);
+}
+
+.arrowIndicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
 }
 
 .statusLabel {
@@ -56,4 +81,21 @@
 .cancelledLabel {
   composes: statusLabel;
   color: var(--cancel);
+}
+
+@media screen and (max-width: 768px) {
+  .statusColumn,
+  .durationColumn,
+  .timeColumn {
+    width: auto;
+  }
+
+  .durationColumn,
+  .timeColumn {
+    white-space: nowrap;
+  }
+
+  .executionColumn {
+    display: none;
+  }
 }

@@ -13,9 +13,10 @@ import type { DetailStatsCell } from "../shared/detail-stats";
 import chipStyles from "./handler-chips.module.css";
 import { HandlerDetailLayout } from "./handler-detail-layout";
 import { listenerHealthKind } from "./handler-list";
+import { HandlerModeChip } from "./handler-mode-chip";
 
 function ModifierChips({ listener }: { listener: ListenerData }) {
-  const chips: Array<{ label: string; value?: string }> = [{ label: "mode", value: listener.mode }];
+  const chips: Array<{ label: string; value?: string }> = [];
   if (listener.debounce) chips.push({ label: "debounce", value: `${listener.debounce * MS_PER_SECOND}ms` });
   if (listener.throttle) chips.push({ label: "throttle", value: `${listener.throttle * MS_PER_SECOND}ms` });
   if (listener.once) chips.push({ label: "once" });
@@ -26,6 +27,7 @@ function ModifierChips({ listener }: { listener: ListenerData }) {
 
   return (
     <div class={chipStyles.chipRow} data-testid="modifier-chips">
+      <HandlerModeChip mode={listener.mode} />
       {chips.map((chip) => (
         <Chip key={chip.label} variant="modifier">
           {chip.label}

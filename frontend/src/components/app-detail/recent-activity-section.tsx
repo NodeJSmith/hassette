@@ -13,82 +13,85 @@ import { executionStatusKind } from "../../utils/status";
 import { StatusShape } from "../shared/status-shape";
 import styles from "./overview-tab.module.css";
 
-const ACTIVITY_LIMIT = 20;
+const ACTIVITY_FETCH_LIMIT = 20;
+const ACTIVITY_ROW_LIMIT = 8;
 
 interface ActivityGroup {
   key: string;
   handlerName: string;
-  status: string;
+  latestStatus: string;
   count: number;
   avgDurationMs: number | null;
-  firstTs: number;
-  lastTs: number;
+  newestTs: number;
+  oldestTs: number;
 }
 
 interface Accumulator {
   key: string;
   handlerName: string;
-  status: string;
+  latestStatus: string;
   count: number;
   durationSum: number;
   durationCount: number;
-  firstTs: number;
-  lastTs: number;
+  newestTs: number;
+  oldestTs: number;
 }
 
-function groupConsecutiveActivity(entries: ActivityFeedEntryData[]): ActivityGroup[] {
-  const accumulators: Accumulator[] = [];
-  for (const entry of entries) {
-    const prev = accumulators[accumulators.length - 1];
-    if (prev && prev.handlerName === entry.handler_name && prev.status === entry.status) {
+function summarizeActivityByHandler(entries: ActivityFeedEntryData[]): ActivityGroup[] {
+  const accumulators = new Map<string, Accumulator>();
+  const newestFirst = [...entries].sort((a, b) => b.timestamp - a.timestamp);
+  for (const entry of newestFirst) {
+    const key = `${entry.kind}:${entry.handler_id}`;
+    const prev = accumulators.get(key);
+    if (prev) {
       const dur = entry.duration_ms ?? null;
-      accumulators[accumulators.length - 1] = {
+      accumulators.set(key, {
         ...prev,
         count: prev.count + 1,
-        lastTs: entry.timestamp,
+        oldestTs: Math.min(prev.oldestTs, entry.timestamp),
         durationSum: prev.durationSum + (dur !== null ? dur : 0),
         durationCount: prev.durationCount + (dur !== null ? 1 : 0),
-      };
+      });
     } else {
       const dur = entry.duration_ms ?? null;
-      accumulators.push({
-        key: entry.row_id,
+      accumulators.set(key, {
+        key,
         handlerName: entry.handler_name,
-        status: entry.status,
+        latestStatus: entry.status,
         count: 1,
         durationSum: dur !== null ? dur : 0,
         durationCount: dur !== null ? 1 : 0,
-        firstTs: entry.timestamp,
-        lastTs: entry.timestamp,
+        newestTs: entry.timestamp,
+        oldestTs: entry.timestamp,
       });
     }
   }
-  return accumulators.map((acc) => ({
+  return Array.from(accumulators.values()).map((acc) => ({
     key: acc.key,
     handlerName: acc.handlerName,
-    status: acc.status,
+    latestStatus: acc.latestStatus,
     count: acc.count,
     avgDurationMs: acc.durationCount > 0 ? acc.durationSum / acc.durationCount : null,
-    firstTs: acc.firstTs,
-    lastTs: acc.lastTs,
+    newestTs: acc.newestTs,
+    oldestTs: acc.oldestTs,
   }));
 }
 
 function ActivityGroupRow({ group }: { group: ActivityGroup }) {
-  const kind = executionStatusKind(group.status);
+  const kind = executionStatusKind(group.latestStatus);
   const isGrouped = group.count > 1;
   const durationLabel =
     isGrouped && group.avgDurationMs !== null
       ? `avg ${formatDurationOrDash(group.avgDurationMs)}`
       : formatDurationOrDash(group.avgDurationMs);
+  const newestTimeLabel = formatRelativeTime(group.newestTs);
+  const oldestTimeLabel = formatRelativeTime(group.oldestTs);
   const timeLabel =
-    isGrouped && group.firstTs !== group.lastTs
-      ? `${formatRelativeTime(group.firstTs)}–${formatRelativeTime(group.lastTs)}`
-      : formatRelativeTime(group.firstTs);
+    isGrouped && newestTimeLabel !== oldestTimeLabel ? `${newestTimeLabel}–${oldestTimeLabel}` : newestTimeLabel;
 
   return (
     <tr data-testid="overview-activity-row">
-      <td aria-label={`status: ${group.status}`}>
+      <td aria-label={`latest status: ${group.latestStatus}`}>
         <span class="ht-log-level-badge">
           <StatusShape kind={kind} size={8} />
         </span>
@@ -115,7 +118,7 @@ export function RecentActivitySection({
     isPending: loading,
     error: activityError,
   } = useScopedQuery(queryKeys.appActivity.base(appKey, resolvedInstanceIndex), (since, signal) =>
-    getAppActivity(appKey, resolvedInstanceIndex, ACTIVITY_LIMIT, since, signal),
+    getAppActivity(appKey, resolvedInstanceIndex, ACTIVITY_FETCH_LIMIT, since, signal),
   );
 
   const { executionCompleted, tick } = useAppState();
@@ -127,7 +130,7 @@ export function RecentActivitySection({
     queryKeys.appActivity.prefix(appKey),
   );
 
-  const groups = useMemo(() => groupConsecutiveActivity(activity ?? []), [activity]);
+  const groups = useMemo(() => summarizeActivityByHandler(activity ?? []).slice(0, ACTIVITY_ROW_LIMIT), [activity]);
 
   return (
     <section class={styles.section} data-testid="overview-activity-section">
