@@ -14,8 +14,9 @@ These build manifest and snapshot objects used by both e2e and integration web t
 import re
 from collections.abc import Sequence
 from types import SimpleNamespace
-from typing import Literal
+from typing import Any, Literal
 
+import tomli_w
 from whenever import ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
@@ -412,6 +413,19 @@ def make_activity_feed_entry(
     )
 
 
+def _strip_none(obj: Any) -> Any:
+    if isinstance(obj, dict):
+        return {k: _strip_none(v) for k, v in obj.items() if v is not None}
+    if isinstance(obj, list):
+        return [_strip_none(v) for v in obj]
+    return obj
+
+
+def _config_to_toml(app_key: str, app_config: dict[str, Any] | list[dict[str, Any]]) -> str:
+    toml_wrapper: dict[str, Any] = {"hassette": {"apps": {app_key: {"config": _strip_none(app_config)}}}}
+    return tomli_w.dumps(toml_wrapper)
+
+
 def make_app_config_response(
     app_key: str = DEFAULT_TEST_APP_KEY,
     filename: str = "test_app.py",
@@ -423,13 +437,15 @@ def make_app_config_response(
     framework_fields: list[str] | None = None,
 ) -> AppConfigResponse:
     """Build an AppConfigResponse with sensible defaults."""
+    resolved_config = app_config if app_config is not None else {"setting_name": "default"}
     return AppConfigResponse(
         app_key=app_key,
         filename=filename,
         class_name=class_name,
         enabled=enabled,
         autostart=autostart,
-        app_config=app_config if app_config is not None else {"setting_name": "default"},
+        app_config=resolved_config,
+        config_toml=_config_to_toml(app_key, resolved_config),
         config_schema=config_schema,
         framework_fields=framework_fields if framework_fields is not None else [],
     )

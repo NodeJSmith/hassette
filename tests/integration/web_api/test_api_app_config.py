@@ -1,6 +1,7 @@
 """Integration tests for GET /api/apps/{app_key}/config."""
 
 import json
+import tomllib
 from typing import Any
 
 from pydantic import BaseModel, SecretStr
@@ -35,6 +36,10 @@ class TestAppConfigEndpoint:
         # Plain (non-secret) fields render unmasked through the schema-driven path.
         assert data["app_config"]["brightness"] == 100
         assert data["app_config"]["instance_name"] == "MyApp.0"
+        # config_toml is a valid TOML string wrapping the masked config.
+        assert "config_toml" in data
+        parsed = tomllib.loads(data["config_toml"])
+        assert parsed["hassette"]["apps"]["my_app"]["config"]["brightness"] == 100
 
     async def test_unknown_app_returns_404(self, client, mock_hassette) -> None:
         """Returns 404 when app_key is not in the registry."""
@@ -66,6 +71,31 @@ class TestAppConfigEndpoint:
         assert len(data["app_config"]) == 2
         assert data["app_config"][0]["zone"] == "kitchen"
         assert data["app_config"][1]["zone"] == "bedroom"
+        # Multi-instance config roundtrips through TOML as a list under the app key.
+        parsed = tomllib.loads(data["config_toml"])
+        instances = parsed["hassette"]["apps"]["my_app"]["config"]
+        assert isinstance(instances, list)
+        assert len(instances) == 2
+        assert instances[0]["zone"] == "kitchen"
+
+    async def test_multi_instance_array_of_tables_syntax(self, client, mock_hassette) -> None:
+        """Multi-instance config with enough fields renders as [[section]] array-of-tables."""
+        list_config = [
+            {"instance_name": "MyApp.0", "zone": "kitchen", "host": "192.168.1.1", "port": 8080, "enabled": True},
+            {"instance_name": "MyApp.1", "zone": "bedroom", "host": "192.168.1.2", "port": 8081, "enabled": False},
+        ]
+        manifest = make_manifest_mock(
+            app_key="my_app",
+            class_name="MyApp",
+            app_config=list_config,
+        )
+        mock_hassette._app_handler.registry.get_manifest.return_value = manifest
+        mock_hassette._app_handler.registry.get.return_value = AppWithBasicConfig()
+
+        response = await client.get("/api/apps/my_app/config")
+
+        toml_str = response.json()["config_toml"]
+        assert "[[hassette.apps.my_app.config]]" in toml_str
 
     async def test_disabled_app_secrets_masked_without_schema(self, client, mock_hassette) -> None:
         """A disabled app has no running instance and no loaded class, so no schema is
@@ -91,6 +121,9 @@ class TestAppConfigEndpoint:
         # Non-string values (which can never be a secret) stay visible.
         assert data["app_config"]["retries"] == 3
         assert data["config_schema"] is None
+        # Secrets stay masked in the TOML output too.
+        assert "hunter2" not in data["config_toml"]
+        assert MASK_SENTINEL in data["config_toml"]
 
     async def test_invalid_app_key_returns_400(self, client) -> None:
         """Invalid app_key format returns 400."""
@@ -114,6 +147,25 @@ class TestAppConfigEndpoint:
         assert "enabled" in framework_fields
         assert "autostart" in framework_fields
         assert "brightness" not in framework_fields
+
+    async def test_none_values_omitted_from_toml(self, client, mock_hassette) -> None:
+        """None-valued config fields are stripped from TOML — TOML has no null type."""
+        manifest = make_manifest_mock(
+            app_key="my_app",
+            app_config={"host": "localhost", "token": None, "port": 8080},
+        )
+        mock_hassette._app_handler.registry.get_manifest.return_value = manifest
+        mock_hassette._app_handler.registry.get.return_value = AppWithBasicConfig()
+
+        response = await client.get("/api/apps/my_app/config")
+
+        assert response.status_code == 200
+        data = response.json()
+        parsed = tomllib.loads(data["config_toml"])
+        cfg = parsed["hassette"]["apps"]["my_app"]["config"]
+        assert cfg["host"] == "localhost"
+        assert cfg["port"] == 8080
+        assert "token" not in cfg
 
     async def test_autostart_returned(self, client, mock_hassette) -> None:
         """Response includes autostart from the manifest."""

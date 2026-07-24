@@ -1,9 +1,19 @@
 import { render, screen, waitFor } from "@testing-library/preact";
 import { delay, http, HttpResponse } from "msw";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { server } from "../../test/server";
 import { ConfigTab } from "./config-tab";
+
+vi.mock("shiki", () => ({
+  createHighlighter: vi.fn().mockResolvedValue({
+    codeToHtml: vi.fn().mockImplementation((code: string) => {
+      const escaped = code.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      return `<pre class="shiki"><code>${escaped}</code></pre>`;
+    }),
+    dispose: vi.fn(),
+  }),
+}));
 
 const MASK_SENTINEL = "••••••••";
 
@@ -19,6 +29,7 @@ const defaultConfig = {
     host: "192.168.1.1",
     port: 8080,
   },
+  config_toml: `[hassette.apps.test_app.config]\ntoken = "${MASK_SENTINEL}"\nhost = "192.168.1.1"\nport = 8080\n`,
   config_schema: {
     type: "object",
     properties: {
@@ -43,6 +54,7 @@ const noSchemaConfig = {
   app_config: {
     api_key: "some-value",
   },
+  config_toml: '[hassette.apps.test_app.config]\napi_key = "some-value"\n',
 };
 
 describe("ConfigTab", () => {
@@ -153,6 +165,8 @@ describe("ConfigTab", () => {
             { instance: 0, room: "kitchen" },
             { instance: 1, room: "bedroom" },
           ],
+          config_toml:
+            '[[hassette.apps.test_app.config]]\ninstance = 0\nroom = "kitchen"\n\n[[hassette.apps.test_app.config]]\ninstance = 1\nroom = "bedroom"\n',
         });
       }),
     );
@@ -161,5 +175,17 @@ describe("ConfigTab", () => {
       expect(screen.getByTestId("config-instance-0")).toBeDefined();
     });
     expect(screen.getByTestId("config-instance-1")).toBeDefined();
+  });
+
+  it("renders raw config as TOML with syntax highlighting", async () => {
+    render(<ConfigTab appKey="test_app" />);
+    await waitFor(() => {
+      expect(screen.getByTestId("raw-config-toml")).toBeDefined();
+    });
+    const rawBlock = screen.getByTestId("raw-config-toml");
+    expect(rawBlock.innerHTML).toContain("shiki");
+    expect(rawBlock.textContent).toContain("hassette.apps.test_app.config");
+    expect(rawBlock.textContent).toContain('host = "192.168.1.1"');
+    expect(rawBlock.textContent).toContain("port = 8080");
   });
 });

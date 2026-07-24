@@ -670,6 +670,8 @@ export interface components {
             } | {
                 [key: string]: unknown;
             }[];
+            /** Config Toml */
+            config_toml: string;
             /** Config Schema */
             config_schema?: {
                 [key: string]: unknown;

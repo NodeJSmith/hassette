@@ -1,5 +1,6 @@
 import clsx from "clsx";
 import { useEffect } from "preact/hooks";
+import type { HighlighterGeneric } from "shiki";
 
 import type { ConfigRecord, SchemaNode } from "../../api/config-view-types";
 import type { AppConfigData } from "../../api/endpoints";
@@ -10,6 +11,25 @@ import { ConfigSchemaView, ExpandableValue } from "../shared/config-schema-view"
 import { EmptyState } from "../shared/empty-state";
 import { Spinner } from "../shared/spinner";
 import styles from "./config-tab.module.css";
+
+let tomlHighlighterPromise: Promise<HighlighterGeneric<never, never>> | null = null;
+
+function getTomlHighlighter() {
+  if (!tomlHighlighterPromise) {
+    tomlHighlighterPromise = import("shiki")
+      .then(({ createHighlighter }) =>
+        createHighlighter({
+          langs: ["toml"],
+          themes: ["github-light", "github-dark"],
+        }),
+      )
+      .catch((e) => {
+        tomlHighlighterPromise = null;
+        throw e;
+      });
+  }
+  return tomlHighlighterPromise;
+}
 
 interface Props {
   appKey: string;
@@ -95,18 +115,32 @@ export function ConfigTab({ appKey }: Props) {
   const loading = useSignal(true);
   const error = useSignal<string | null>(null);
   const configData = useSignal<AppConfigData | null>(null);
+  const tomlHtml = useSignal<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
     loading.value = true;
     error.value = null;
     configData.value = null;
+    tomlHtml.value = null;
 
     async function load() {
       try {
         const data = await getAppConfig(appKey, controller.signal);
         if (controller.signal.aborted) return;
         configData.value = data;
+
+        try {
+          const hl = await getTomlHighlighter();
+          if (controller.signal.aborted) return;
+          tomlHtml.value = hl.codeToHtml(data.config_toml, {
+            lang: "toml",
+            themes: { light: "github-light", dark: "github-dark" },
+            defaultColor: false,
+          });
+        } catch {
+          // Highlighting is best-effort — the plain-text fallback renders config_toml as-is.
+        }
       } catch (err) {
         if (controller.signal.aborted) return;
         error.value = err instanceof Error ? err.message : String(err);
@@ -182,7 +216,17 @@ export function ConfigTab({ appKey }: Props) {
           <h3 class="ht-section-label">raw config</h3>
           <Card variant="config">
             <span class="ht-text-mono ht-text-xs ht-text-muted">hassette.toml → apps.{appKey}.config</span>
-            <pre class={styles.rawCode}>{JSON.stringify(appConfig, null, 2)}</pre>
+            {tomlHtml.value ? (
+              <div
+                class={styles.rawCode}
+                data-testid="raw-config-toml"
+                dangerouslySetInnerHTML={{ __html: tomlHtml.value }}
+              />
+            ) : (
+              <pre class={styles.rawCode} data-testid="raw-config-toml">
+                {cfg.config_toml}
+              </pre>
+            )}
           </Card>
         </div>
       </div>
