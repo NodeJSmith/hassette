@@ -16,6 +16,7 @@ from hassette.core.sync_executor import SyncExecutor
 from hassette.events import Event, RawStateChangeEvent, create_event_from_hass
 
 from .config import TEST_SYNC_EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS
+from .event_capture import EventCapture
 from .factories import make_sync_executor
 from .harness import HassetteHarness
 
@@ -47,6 +48,12 @@ def dummy_cache() -> DummyCache:
     Isolates cache state per test -- no temp directory management, no SQLite files.
     """
     return DummyCache()
+
+
+@pytest.fixture
+def event_capture() -> EventCapture:
+    """A fresh `EventCapture` for intercepting `send_event` calls. Call `install(target)` to arm it."""
+    return EventCapture()
 
 
 @pytest.fixture(scope="module")

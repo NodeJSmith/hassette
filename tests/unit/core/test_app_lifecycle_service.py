@@ -7,6 +7,7 @@ import pytest
 from hassette.bus import Bus
 from hassette.core.app_change_detector import ChangeSet
 from hassette.core.app_lifecycle_service import AppLifecycleService
+from hassette.test_utils import EventCapture
 from hassette.types import Topic
 from hassette.types.enums import ResourceStatus
 
@@ -192,18 +193,18 @@ class TestInitializeInstances:
         mock_app_instance: AsyncMock,
         mock_manifest: MagicMock,
         mock_hassette: MagicMock,
+        event_capture: EventCapture,
     ) -> None:
         """Emits HASSETTE_EVENT_APP_STATE_CHANGED with RUNNING status on success."""
+        event_capture.install(mock_hassette)
         instances = {0: mock_app_instance}
 
         await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
 
-        calls = mock_hassette.send_event.call_args_list
         running_calls = [
-            call
-            for call in calls
-            if call[0][0].topic == Topic.HASSETTE_EVENT_APP_STATE_CHANGED
-            and call[0][0].payload.data.status == ResourceStatus.RUNNING
+            payload
+            for payload in event_capture.payloads(Topic.HASSETTE_EVENT_APP_STATE_CHANGED)
+            if payload.status == ResourceStatus.RUNNING
         ]
         assert len(running_calls) == 1
 
@@ -213,19 +214,19 @@ class TestInitializeInstances:
         mock_app_instance: AsyncMock,
         mock_manifest: MagicMock,
         mock_hassette: MagicMock,
+        event_capture: EventCapture,
     ) -> None:
         """Emits HASSETTE_EVENT_APP_STATE_CHANGED with FAILED status on error."""
+        event_capture.install(mock_hassette)
         mock_app_instance.initialize.side_effect = ValueError("boom")
         instances = {0: mock_app_instance}
 
         await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
 
-        calls = mock_hassette.send_event.call_args_list
         failed_calls = [
-            call
-            for call in calls
-            if call[0][0].topic == Topic.HASSETTE_EVENT_APP_STATE_CHANGED
-            and call[0][0].payload.data.status == ResourceStatus.FAILED
+            payload
+            for payload in event_capture.payloads(Topic.HASSETTE_EVENT_APP_STATE_CHANGED)
+            if payload.status == ResourceStatus.FAILED
         ]
         assert len(failed_calls) == 1
 
@@ -350,34 +351,40 @@ class TestShutdownInstance:
         mock_app_instance.shutdown.assert_called_once()
 
     async def test_catches_exceptions(
-        self, lifecycle_service: AppLifecycleService, mock_app_instance: AsyncMock, mock_hassette: MagicMock
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_app_instance: AsyncMock,
+        mock_hassette: MagicMock,
+        event_capture: EventCapture,
     ) -> None:
         """Doesn't raise on shutdown failure; emits FAILED state event."""
+        event_capture.install(mock_hassette)
         mock_app_instance.shutdown.side_effect = RuntimeError("Shutdown failed")
 
         await lifecycle_service.shutdown_instance(mock_app_instance)
 
-        calls = mock_hassette.send_event.call_args_list
         failed_calls = [
-            call
-            for call in calls
-            if call[0][0].topic == Topic.HASSETTE_EVENT_APP_STATE_CHANGED
-            and call[0][0].payload.data.status == ResourceStatus.FAILED
+            payload
+            for payload in event_capture.payloads(Topic.HASSETTE_EVENT_APP_STATE_CHANGED)
+            if payload.status == ResourceStatus.FAILED
         ]
         assert len(failed_calls) == 1
 
     async def test_emits_stopped_event(
-        self, lifecycle_service: AppLifecycleService, mock_app_instance: AsyncMock, mock_hassette: MagicMock
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_app_instance: AsyncMock,
+        mock_hassette: MagicMock,
+        event_capture: EventCapture,
     ) -> None:
         """Emits HASSETTE_EVENT_APP_STATE_CHANGED with STOPPED status."""
+        event_capture.install(mock_hassette)
         await lifecycle_service.shutdown_instance(mock_app_instance)
 
-        calls = mock_hassette.send_event.call_args_list
         stopped_calls = [
-            call
-            for call in calls
-            if call[0][0].topic == Topic.HASSETTE_EVENT_APP_STATE_CHANGED
-            and call[0][0].payload.data.status == ResourceStatus.STOPPED
+            payload
+            for payload in event_capture.payloads(Topic.HASSETTE_EVENT_APP_STATE_CHANGED)
+            if payload.status == ResourceStatus.STOPPED
         ]
         assert len(stopped_calls) == 1
 
@@ -402,17 +409,22 @@ class TestShutdownInstances:
         app2.shutdown.assert_called_once()
 
     async def test_emits_stopping_event(
-        self, lifecycle_service: AppLifecycleService, mock_app_instance: AsyncMock, mock_hassette: MagicMock
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_app_instance: AsyncMock,
+        mock_hassette: MagicMock,
+        event_capture: EventCapture,
     ) -> None:
         """Emits STOPPING event for each instance before shutting down."""
+        event_capture.install(mock_hassette)
         mock_app_instance.status = ResourceStatus.RUNNING
         instances = {0: mock_app_instance}
 
         await lifecycle_service.shutdown_instances(instances)
 
-        first_call = mock_hassette.send_event.call_args_list[0]
-        assert first_call[0][0].topic == Topic.HASSETTE_EVENT_APP_STATE_CHANGED
-        assert first_call[0][0].payload.data.status == ResourceStatus.STOPPING
+        first_event = event_capture.events[0]
+        assert first_event.topic == Topic.HASSETTE_EVENT_APP_STATE_CHANGED
+        assert first_event.payload.data.status == ResourceStatus.STOPPING
 
 
 class TestShutdownAll:
@@ -453,17 +465,21 @@ class TestBootstrapApps:
         mock_hassette.send_event.assert_not_called()
 
     async def test_emits_load_completed_event(
-        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock, mock_hassette: MagicMock
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        mock_hassette: MagicMock,
+        event_capture: EventCapture,
     ) -> None:
         """Emits APP_LOAD_COMPLETED after starting apps."""
+        event_capture.install(mock_hassette)
         mock_registry.manifests = {"app_a": MagicMock()}
         mock_registry.active_manifests = {}
         mock_registry.get_snapshot = Mock(return_value=MagicMock(running_count=0, failed_count=0))
 
         await lifecycle_service.bootstrap_apps()
 
-        calls = mock_hassette.send_event.call_args_list
-        completed_calls = [call for call in calls if call[0][0].topic == Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED]
+        completed_calls = event_capture.by_topic(Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED)
         assert len(completed_calls) == 1
 
     async def test_handles_crash(self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock) -> None:
