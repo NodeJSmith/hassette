@@ -62,41 +62,14 @@
   text-overflow: ellipsis;
 }
 
-.ht-table--compact .ht-col-status {
-  width: 14%;
-}
-
-.ht-table--compact .ht-col-time {
-  width: 25%;
-}
-
-.ht-table--compact .ht-col-duration {
-  width: 14%;
-}
-
 /* Compact tables flip to auto layout on mobile. This is safe only when
-   every column visible at this breakpoint holds short bounded values —
-   execution tables qualify because status/time/duration are bounded and
-   the wide trace column is hidden below. --fixed tables stay fixed at
-   every breakpoint and reallocate colgroup widths instead — see
+   every column visible at this breakpoint holds short bounded values.
+   Components with unbounded columns must hide or constrain them in their
+   module CSS. --fixed tables stay fixed at every breakpoint — see
    DESIGN_RULES.md, "Table Behavior at 768px". */
 @media screen and (max-width: 768px) {
   .ht-table--compact {
     table-layout: auto;
-  }
-  .ht-table--compact .ht-col-status {
-    width: auto;
-  }
-  .ht-table--compact .ht-col-time {
-    width: auto;
-    white-space: nowrap;
-  }
-  .ht-table--compact .ht-col-duration {
-    width: auto;
-    white-space: nowrap;
-  }
-  .ht-table--compact .ht-col-trace {
-    display: none;
   }
   .ht-table--compact td {
     padding: var(--sp-1);

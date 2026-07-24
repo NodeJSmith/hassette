@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { RegistrationSource } from "./registration-source";
 
 describe("RegistrationSource", () => {
-  it("renders the label and code snippet", () => {
+  it("renders the code snippet", () => {
     const { getByTestId } = render(
       <RegistrationSource
         source="self.bus.on_state_change('light.kitchen', handler=self.on_light)"
@@ -12,7 +12,6 @@ describe("RegistrationSource", () => {
       />,
     );
     const el = getByTestId("reg-src");
-    expect(el.textContent).toContain("Registration");
     expect(el.textContent).toContain("on_state_change");
   });
 

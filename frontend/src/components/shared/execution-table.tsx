@@ -5,12 +5,13 @@ import { useRovingTabIndex } from "../../hooks/use-roving-tab-index";
 import { useSignal } from "../../hooks/use-signal";
 import { executionPath, type HandlerKind } from "../../utils/app-routes";
 import { STATUS_DOT_SIZE } from "../../utils/constants";
-import { formatDuration, formatRelativeTime, formatTimestamp, truncateId } from "../../utils/format";
+import { formatDuration, formatRelativeTime, formatTimestamp } from "../../utils/format";
 import { onActivateKeyDown } from "../../utils/keyboard";
 import { executionStatusKind, type StatusKind } from "../../utils/status";
 import { Badge } from "./badge";
 import { EmptyState } from "./empty-state";
 import styles from "./execution-table.module.css";
+import { IconArrowRight } from "./icons";
 import { ShowMoreButton } from "./show-more-button";
 import { StatusShape } from "./status-shape";
 
@@ -83,16 +84,16 @@ export function ExecutionTable({
       <table class="ht-table ht-table--compact" data-testid={tableId}>
         <thead>
           <tr>
-            <th class="ht-col-status" scope="col">
+            <th class={styles.statusColumn} scope="col">
               Status
             </th>
-            <th class="ht-col-trace" scope="col">
+            <th class={styles.executionColumn} scope="col">
               Execution
             </th>
-            <th class="ht-col-duration" scope="col">
+            <th class={styles.durationColumn} scope="col">
               Duration
             </th>
-            <th class="ht-col-time" scope="col">
+            <th class={styles.timeColumn} scope="col">
               Time
             </th>
             <th class={styles.colArrow} scope="col">
@@ -127,7 +128,7 @@ export function ExecutionTable({
                 }}
                 onKeyDown={canNavigate ? onActivateKeyDown(goToDetail) : undefined}
               >
-                <td class={styles.statusCell}>
+                <td class={clsx(styles.statusCell, styles.statusColumn)}>
                   <div class={styles.statusCellInner}>
                     <StatusShape kind={statusKind} size={STATUS_DOT_SIZE} />
                     <span class={statusLabelClass(statusKind)}>{STATUS_LABEL[statusKind]}</span>
@@ -143,16 +144,23 @@ export function ExecutionTable({
                     )}
                   </div>
                 </td>
-                <td class="ht-col-trace ht-text-mono ht-text-xs">{truncateId(record.execution_id)}</td>
-                <td>{formatDuration(record.duration_ms)}</td>
-                <td class="ht-text-mono ht-text-xs" title={formatTimestamp(record.execution_start_ts)}>
+                <td class={clsx(styles.executionColumn, "ht-text-mono ht-text-xs")}>{record.execution_id ?? "—"}</td>
+                <td class={styles.durationColumn}>{formatDuration(record.duration_ms)}</td>
+                <td
+                  class={clsx(styles.timeColumn, "ht-text-mono ht-text-xs")}
+                  title={formatTimestamp(record.execution_start_ts)}
+                >
                   {formatRelativeTime(record.execution_start_ts)}
                 </td>
                 <td
                   class={clsx("ht-text-muted", styles.arrowCell)}
                   aria-label={canNavigate ? "View execution detail" : undefined}
                 >
-                  {canNavigate ? "→" : ""}
+                  {canNavigate && (
+                    <span class={styles.arrowIndicator} data-testid="execution-detail-indicator">
+                      <IconArrowRight />
+                    </span>
+                  )}
                 </td>
               </tr>
             );

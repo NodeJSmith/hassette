@@ -83,14 +83,26 @@ describe("HandlerList", () => {
     expect(getByTestId("unified-row-listener-2").getAttribute("data-selected")).toBe("false");
   });
 
-  it("listeners are rendered before jobs in the list", () => {
-    const listeners = [createListener({ listener_id: 1, handler_method: "on_motion" })];
-    const jobs = [createJob({ job_id: 5, job_name: "cleanup" })];
+  it("renders issues first while preserving source order within each health group", () => {
+    const listeners = [
+      createListener({ listener_id: 1, handler_method: "healthy_listener", total_invocations: 1 }),
+      createListener({ listener_id: 2, handler_method: "failing_listener", failed: 1 }),
+    ];
+    const jobs = [
+      createJob({ job_id: 5, job_name: "healthy_job", total_executions: 1 }),
+      createJob({ job_id: 6, job_name: "failing_job", failed: 1 }),
+      createJob({ job_id: 7, job_name: "idle_job", total_executions: 0 }),
+    ];
     const { container } = render(
       <HandlerList listeners={listeners} jobs={jobs} selectedId={null} onSelect={() => {}} />,
     );
     const rows = container.querySelectorAll("[data-testid^='unified-row-']");
-    expect(rows[0].getAttribute("data-testid")).toBe("unified-row-listener-1");
-    expect(rows[1].getAttribute("data-testid")).toBe("unified-row-job-5");
+    expect(Array.from(rows, (row) => row.getAttribute("data-testid"))).toEqual([
+      "unified-row-listener-2",
+      "unified-row-job-6",
+      "unified-row-listener-1",
+      "unified-row-job-5",
+      "unified-row-job-7",
+    ]);
   });
 });

@@ -128,7 +128,8 @@
 .nextRun {
   font-family: var(--font-mono);
   font-size: var(--fs-micro);
-  color: var(--ink-4);
+  font-weight: var(--fw-medium);
+  color: var(--ink-2);
   white-space: nowrap;
 }
 

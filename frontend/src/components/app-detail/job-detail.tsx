@@ -18,14 +18,16 @@ import chipStyles from "./handler-chips.module.css";
 import { HandlerDetailLayout } from "./handler-detail-layout";
 import layoutStyles from "./handler-detail-layout.module.css";
 import { jobHealthKind } from "./handler-list";
+import { HandlerModeChip } from "./handler-mode-chip";
 
 function ScheduleChips({ job }: { job: JobData }) {
-  const chips: Array<{ label: string }> = [{ label: `mode: ${job.mode}` }];
+  const chips: Array<{ label: string }> = [];
   if (job.jitter) chips.push({ label: `±${job.jitter}s jitter` });
   if (job.group) chips.push({ label: `group: ${job.group}` });
 
   return (
     <div class={chipStyles.chipRow} data-testid="schedule-chips">
+      <HandlerModeChip mode={job.mode} />
       {chips.map((chip) => (
         <Chip key={chip.label} variant="schedule">
           {chip.label}

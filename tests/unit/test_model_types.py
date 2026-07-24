@@ -65,6 +65,7 @@ class TestExecutionStatus:
                 status="bogus",
                 timestamp=1.0,
                 app_key="my_app",
+                handler_id=1,
                 handler_name="on_event",
                 kind="handler",
             )

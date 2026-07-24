@@ -1665,6 +1665,10 @@
             "type": "string",
             "title": "App Key"
           },
+          "handler_id": {
+            "type": "integer",
+            "title": "Handler Id"
+          },
           "handler_name": {
             "type": "string",
             "title": "Handler Name"
@@ -1706,6 +1710,7 @@
           "status",
           "timestamp",
           "app_key",
+          "handler_id",
           "handler_name",
           "kind"
         ],

@@ -10,6 +10,7 @@ import type { DetailStatsCell } from "../shared/detail-stats";
 import { DetailStats } from "../shared/detail-stats";
 import { ErrorBanner } from "../shared/error-banner";
 import { type ExecutionRecord, ExecutionTable } from "../shared/execution-table";
+import { IconArrowRight, IconChevron } from "../shared/icons";
 import { RegistrationSource } from "../shared/registration-source";
 import { SourceLocation } from "../shared/source-location";
 import { Spinner } from "../shared/spinner";
@@ -80,16 +81,14 @@ export function HandlerDetailLayout({
   const [registrationExpanded, setRegistrationExpanded] = useState(false);
   const isFailing = statusKind === "err";
   const sourceLine = sourceLocation ? parseSourceLocation(sourceLocation).line : null;
+  const registrationPanelId = `${testId}-registration-source-panel`;
+  const registrationHeadingId = `${testId}-registration-heading`;
 
   return (
     <div class={styles.wrapper} data-testid={testId}>
       <div class={styles.content}>
         <div class={styles.header}>
-          <Chip variant="kind" kind={statusKind} aria-label={`kind: ${kindLabel}`}>
-            <StatusShape kind={statusKind} size={8} />
-            {kindLabel}
-          </Chip>
-          <span class={styles.handlerName}>{name}</span>
+          <h2 class={styles.handlerName}>{name}</h2>
           {isFailing && (
             <Badge variant="danger" size="sm" data-testid="handler-status-pill">
               failing
@@ -98,11 +97,13 @@ export function HandlerDetailLayout({
           {headerActions && <div class={styles.headerActions}>{headerActions}</div>}
         </div>
 
-        {subtitle && (
-          <p class={styles.subtitle} data-testid={`${testIdPrefix}-human-description`}>
-            {subtitle}
-          </p>
-        )}
+        <div class={styles.subtitle}>
+          <Chip variant="kind" kind={statusKind} aria-label={`kind: ${kindLabel}`}>
+            <StatusShape kind={statusKind} size={8} />
+            {kindLabel}
+          </Chip>
+          {subtitle && <span data-testid={`${testIdPrefix}-human-description`}>{subtitle}</span>}
+        </div>
 
         {extras}
 
@@ -136,40 +137,57 @@ export function HandlerDetailLayout({
           )}
         </div>
 
-        <div class={styles.footer}>
-          <div class={styles.footerRow}>
-            {sourceLocation && (
-              <SourceLocation sourceLocation={sourceLocation} data-testid={`${testIdPrefix}-source-location`} />
-            )}
-            {onViewCode && sourceLocation && (
-              <Button
-                ghost
-                size="sm"
-                data-testid="view-in-code-btn"
-                onClick={() => onViewCode(sourceLine ?? undefined)}
-              >
-                view in code →
-              </Button>
-            )}
-          </div>
+        {(sourceLocation || registrationSource) && (
+          <section class={styles.footer} aria-labelledby={registrationHeadingId}>
+            <div class={styles.footerSummary}>
+              <div class={styles.footerIdentity}>
+                <h3 id={registrationHeadingId} class={styles.footerLabel}>
+                  Registration
+                </h3>
+                {sourceLocation && (
+                  <SourceLocation sourceLocation={sourceLocation} data-testid={`${testIdPrefix}-source-location`} />
+                )}
+              </div>
 
-          {registrationSource && (
-            <>
-              <button
-                type="button"
-                class={styles.registrationToggle}
-                data-testid={`${testIdPrefix}-registration-toggle`}
-                aria-expanded={registrationExpanded}
-                onClick={() => setRegistrationExpanded((v) => !v)}
-              >
-                {registrationExpanded ? "hide registration" : "registration"}
-              </button>
-              {registrationExpanded && (
-                <RegistrationSource source={registrationSource} data-testid={`${testIdPrefix}-registration-source`} />
-              )}
-            </>
-          )}
-        </div>
+              <div class={styles.footerActions}>
+                {onViewCode && sourceLocation && (
+                  <Button
+                    variant="info"
+                    ghost
+                    size="sm"
+                    data-testid="view-in-code-btn"
+                    onClick={() => onViewCode(sourceLine ?? undefined)}
+                  >
+                    view in code
+                    <IconArrowRight />
+                  </Button>
+                )}
+                {registrationSource && (
+                  <Button
+                    variant="info"
+                    ghost
+                    size="sm"
+                    data-testid={`${testIdPrefix}-registration-toggle`}
+                    aria-expanded={registrationExpanded}
+                    aria-controls={registrationPanelId}
+                    onClick={() => setRegistrationExpanded((v) => !v)}
+                  >
+                    {registrationExpanded ? "hide call" : "show call"}
+                    <IconChevron open={registrationExpanded} />
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {registrationSource && registrationExpanded && (
+              <RegistrationSource
+                id={registrationPanelId}
+                source={registrationSource}
+                data-testid={`${testIdPrefix}-registration-source`}
+              />
+            )}
+          </section>
+        )}
       </div>
     </div>
   );

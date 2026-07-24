@@ -298,7 +298,9 @@ class TestGetAppRecentActivity:
 
         assert len(results) == 2
         assert results[0].kind == "handler"
+        assert results[0].handler_id == listener_id
         assert results[1].kind == "job"
+        assert results[1].handler_id == job_id
 
     async def test_limit_is_respected(
         self,
