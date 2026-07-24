@@ -20,7 +20,7 @@ from hassette.core.websocket_service import WebsocketService
 from hassette.exceptions import FailedMessageError, InvalidAuthError, RetryableConnectionClosedError
 from hassette.resources.lifecycle import mark_ready
 from hassette.resources.service import Service
-from hassette.test_utils import build_fake_ws, make_ws_hassette_stub
+from hassette.test_utils import EventCapture, build_fake_ws, make_ws_hassette_stub
 from hassette.types import Topic
 
 
@@ -167,26 +167,24 @@ class TestBeforeShutdown:
     async def test_before_shutdown_sends_connection_lost_event(self, websocket_service: WebsocketService) -> None:
         """before_shutdown fires the WEBSOCKET_DISCONNECTED event via send_connection_lost_event."""
         mark_ready(websocket_service, reason="test: pre-shutdown ready state")
-        send_event_mock = AsyncMock()
-        websocket_service.hassette.send_event = send_event_mock
+        capture = EventCapture()
+        capture.install(websocket_service.hassette)
 
         await websocket_service.before_shutdown()
 
-        topics = [call.args[0].topic for call in send_event_mock.await_args_list]
-        assert Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED in topics
+        assert Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED in capture.topics
 
 
 class TestSendConnectionEstablishedEvent:
     async def test_sends_connected_topic(self, websocket_service: WebsocketService) -> None:
         """send_connection_established_event fires exactly one WEBSOCKET_CONNECTED event."""
-        send_event_mock = AsyncMock()
-        websocket_service.hassette.send_event = send_event_mock
+        capture = EventCapture()
+        capture.install(websocket_service.hassette)
 
         await websocket_service.send_connection_established_event()
 
-        send_event_mock.assert_awaited_once()
-        sent_event = send_event_mock.await_args.args[0]
-        assert sent_event.topic == Topic.HASSETTE_EVENT_WEBSOCKET_CONNECTED
+        assert len(capture.events) == 1
+        assert capture.events[0].topic == Topic.HASSETTE_EVENT_WEBSOCKET_CONNECTED
 
 
 class TestCleanup:

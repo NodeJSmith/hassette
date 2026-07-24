@@ -19,7 +19,7 @@ from hassette.exceptions import (
     RetryableConnectionClosedError,
 )
 from hassette.resources.base import ResourceStatus
-from hassette.test_utils import build_fake_ws
+from hassette.test_utils import EventCapture, build_fake_ws
 from hassette.types import Topic
 from hassette.types.enums import ConnectionState
 
@@ -348,8 +348,8 @@ def make_failing_recv_task(error: Exception) -> asyncio.Task:
 
 async def test_disconnect_event_fires_on_recv_loop_failure(websocket_service: WebsocketService) -> None:
     """Fire WEBSOCKET_DISCONNECTED when the recv loop dies unexpectedly."""
-    send_event_mock = AsyncMock()
-    websocket_service.hassette.send_event = send_event_mock
+    capture = EventCapture()
+    capture.install(websocket_service.hassette)
     # The real make_connection calls mark_ready() via start_recv_and_subscribe; mirror that here
     lifecycle_module.mark_ready(websocket_service, reason="test: simulating successful connection")
 
@@ -365,8 +365,7 @@ async def test_disconnect_event_fires_on_recv_loop_failure(websocket_service: We
     ):
         await websocket_service.serve()
 
-    topics_sent = [call.args[0].topic for call in send_event_mock.await_args_list]
-    assert Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED in topics_sent
+    assert Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED in capture.topics
 
 
 async def test_marked_not_ready_on_recv_loop_failure(websocket_service: WebsocketService) -> None:
@@ -556,8 +555,8 @@ async def test_early_drop_retries_and_succeeds(
     partial_cleanup called 2 times, DISCONNECTED event emitted 2 times,
     mark_not_ready called twice.
     """
-    send_event_mock = AsyncMock()
-    websocket_service.hassette.send_event = send_event_mock
+    capture = EventCapture()
+    capture.install(websocket_service.hassette)
 
     # First two make_connection calls succeed but recv task fails immediately.
     # Third call succeeds with clean exit.
@@ -601,11 +600,7 @@ async def test_early_drop_retries_and_succeeds(
     assert partial_cleanup_count == 2, f"Expected 2 partial_cleanup calls, got {partial_cleanup_count}"
 
     # DISCONNECTED should have been sent 2 times (once per early drop)
-    disconnected_count = sum(
-        1
-        for call in send_event_mock.await_args_list
-        if call.args[0].topic == Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED
-    )
+    disconnected_count = len(capture.by_topic(Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED))
     assert disconnected_count == 2, f"Expected 2 DISCONNECTED events, got {disconnected_count}"
 
 
@@ -780,18 +775,14 @@ async def test_auth_failure_on_reconnect_logs_distinctive_message(
 
 async def test_send_connection_lost_event_idempotent(websocket_service: WebsocketService) -> None:
     """send_connection_lost_event is a no-op when service is already not-ready."""
-    send_event_mock = AsyncMock()
-    websocket_service.hassette.send_event = send_event_mock
+    capture = EventCapture()
+    capture.install(websocket_service.hassette)
 
     # Service starts not-ready; calling send_connection_lost_event should be a no-op
     assert not websocket_service.is_ready()
     await websocket_service.send_connection_lost_event()
 
-    disconnected_count = sum(
-        1
-        for call in send_event_mock.await_args_list
-        if call.args[0].topic == Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED
-    )
+    disconnected_count = len(capture.by_topic(Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED))
     assert disconnected_count == 0, "Expected no DISCONNECTED events when already not-ready"
 
 

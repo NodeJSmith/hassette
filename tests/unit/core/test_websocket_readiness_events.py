@@ -13,7 +13,7 @@ import pytest
 from hassette.core.websocket_service import WebsocketService
 from hassette.exceptions import RetryableConnectionClosedError
 from hassette.resources.lifecycle import mark_ready
-from hassette.test_utils import make_ws_hassette_stub
+from hassette.test_utils import EventCapture, make_ws_hassette_stub
 from hassette.types import Topic
 from hassette.types.enums import ConnectionState
 
@@ -31,14 +31,10 @@ class TestWebsocketReadinessEvents:
     async def test_mark_not_ready_early_drop_emits_event(
         self,
         websocket_service: WebsocketService,
+        event_capture: EventCapture,
     ) -> None:
         """Early-drop path emits a service_status event with ready=False after mark_not_ready()."""
-        send_event_calls: list = []
-
-        async def capture_send_event(event):
-            send_event_calls.append(event)
-
-        websocket_service.hassette.send_event = capture_send_event  # pyright: ignore[reportAttributeAccessIssue]
+        event_capture.install(websocket_service.hassette)
 
         # Arrange: service starts ready, _connected_at in stable window
         mark_ready(websocket_service, reason="test: pre-state")
@@ -73,11 +69,9 @@ class TestWebsocketReadinessEvents:
         await websocket_service.serve()
 
         # Assert: a service_status event with ready=False was emitted during the early-drop path
-        service_status_calls = [
-            event for event in send_event_calls if event.topic == Topic.HASSETTE_EVENT_SERVICE_STATUS
-        ]
+        service_status_calls = event_capture.by_topic(Topic.HASSETTE_EVENT_SERVICE_STATUS)
         assert len(service_status_calls) >= 1, (
-            f"Expected at least one service_status event, got: {[e.topic for e in send_event_calls]}"
+            f"Expected at least one service_status event, got: {event_capture.topics}"
         )
 
         # Find the not-ready emission (early-drop path)
@@ -93,14 +87,10 @@ class TestWebsocketReadinessEvents:
     async def test_mark_not_ready_recv_loop_failed_emits_event(
         self,
         websocket_service: WebsocketService,
+        event_capture: EventCapture,
     ) -> None:
         """Recv-loop-failure path emits a service_status event with ready=False."""
-        send_event_calls: list = []
-
-        async def capture_send_event(event):
-            send_event_calls.append(event)
-
-        websocket_service.hassette.send_event = capture_send_event  # pyright: ignore[reportAttributeAccessIssue]
+        event_capture.install(websocket_service.hassette)
 
         # Arrange: service starts ready, _connected_at set to 60s ago (outside stable window)
         mark_ready(websocket_service, reason="test: pre-state")
@@ -120,9 +110,7 @@ class TestWebsocketReadinessEvents:
         with pytest.raises(RetryableConnectionClosedError):
             await websocket_service.serve()
 
-        service_status_calls = [
-            event for event in send_event_calls if event.topic == Topic.HASSETTE_EVENT_SERVICE_STATUS
-        ]
+        service_status_calls = event_capture.by_topic(Topic.HASSETTE_EVENT_SERVICE_STATUS)
         assert len(service_status_calls) >= 1, "Expected at least one service_status event"
 
         not_ready_events = [event for event in service_status_calls if not event.payload.data.ready]
@@ -132,6 +120,7 @@ class TestWebsocketReadinessEvents:
     async def test_mark_ready_after_connect_emits_event(
         self,
         websocket_service: WebsocketService,
+        event_capture: EventCapture,
     ) -> None:
         """Successful connect path emits a service_status event with ready=True after mark_ready().
 
@@ -141,12 +130,7 @@ class TestWebsocketReadinessEvents:
         Companion: test_websocket_service.py::test_start_recv_and_subscribe_marks_ready asserts
         the structural side (recv task spawned, _connected_at set) of the same method.
         """
-        send_event_calls: list = []
-
-        async def capture_send_event(event):
-            send_event_calls.append(event)
-
-        websocket_service.hassette.send_event = capture_send_event  # pyright: ignore[reportAttributeAccessIssue]
+        event_capture.install(websocket_service.hassette)
 
         # Stub out the sub-methods that start_recv_and_subscribe calls so we can run the
         # real method and observe whether it calls _emit_readiness_event() after mark_ready().
@@ -173,11 +157,9 @@ class TestWebsocketReadinessEvents:
         result_task.cancel()
 
         # Assert: _emit_readiness_event() was called → a service_status event with ready=True was sent
-        service_status_calls = [
-            event for event in send_event_calls if event.topic == Topic.HASSETTE_EVENT_SERVICE_STATUS
-        ]
+        service_status_calls = event_capture.by_topic(Topic.HASSETTE_EVENT_SERVICE_STATUS)
         assert len(service_status_calls) >= 1, (
-            f"Expected at least one service_status event, got topics: {[e.topic for e in send_event_calls]}"
+            f"Expected at least one service_status event, got topics: {event_capture.topics}"
         )
 
         ready_events = [event for event in service_status_calls if event.payload.data.ready]
