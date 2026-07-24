@@ -32,9 +32,7 @@ export function LogTableRow({ entry, rowKey, visibleColumns, isSelected, onClick
   const isColumnVisible = (id: ColumnId) => visibleSet.has(id);
 
   const handleRowClick = (e: MouseEvent) => {
-    // Let native interactive elements (links, detail button) handle their own clicks.
-    const target = e.target as HTMLElement;
-    if (target.closest("a, button")) return;
+    if (e.target instanceof Element && e.target.closest("a, button")) return;
     onClick();
   };
 
@@ -93,7 +91,7 @@ export function LogTableRow({ entry, rowKey, visibleColumns, isSelected, onClick
         </td>
       )}
       {isColumnVisible("message") && (
-        <td class={styles.messageCell}>
+        <td class={styles.messageCell} data-testid="log-message-cell">
           {isMobile && !isColumnVisible("app") && entry.func_name && (
             <div class={styles.sourceInline}>
               {entry.app_key ? `${entry.app_key}.` : ""}
