@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.50.0](https://github.com/NodeJSmith/hassette/compare/v0.49.0...v0.50.0) (2026-07-24)
+
+
+### ⚠ BREAKING CHANGES
+
+* **`Resource.cache` replaced by instance-scoped `App.cache`** — cache access moves to `App` only. The API is now async (`await self.cache.get(key)`, `await self.cache.set(key, value, ttl=...)`, `await self.cache.get_or_set(key, creator, ttl=...)`, `.clear()`, `.invalidate(*keys)`), with a `self.cache.sync` accessor for sync equivalents. `HassetteConfig.default_cache_size` is replaced by `HassetteConfig.default_cache_ttl` (seconds). `diskcache` is no longer a dependency, and existing on-disk cache data is orphaned on upgrade. ([#1361](https://github.com/NodeJSmith/hassette/issues/1361))
+* **Helper CRUD methods namespaced under `Api.helpers`** — all 35 flat helper methods (`list_input_booleans()`, `create_input_boolean()`, `update_counter()`, `delete_timer()`, `increment_counter()`, etc.) are removed from `Api`, `ApiSyncFacade`, `RecordingApi`, and `RecordingApiSyncFacade`. Use `api.helpers.list("input_boolean")`, `api.helpers.create(CreateInputBooleanParams(...))`, `api.helpers.update(helper_id, UpdateCounterParams(...))`, `api.helpers.delete("timer", helper_id)`. The sync facade mirrors this at `api.sync.helpers.*`. ([#1362](https://github.com/NodeJSmith/hassette/issues/1362))
+
+### Features
+
+* replace `Resource.cache` with instance-scoped async `App.cache` — per-app cache with TTL support, WAL-mode SQLite, and corruption recovery ([#1361](https://github.com/NodeJSmith/hassette/issues/1361))
+* render raw config as TOML with syntax highlighting on the config tab ([#1405](https://github.com/NodeJSmith/hassette/issues/1405))
+* **ui:** add execution detail page with linked execution IDs ([#1375](https://github.com/NodeJSmith/hassette/issues/1375))
+* **ui:** refine app detail handler diagnostics ([#1411](https://github.com/NodeJSmith/hassette/issues/1411))
+
+### Bug Fixes
+
+* key appStatus WebSocket state per app instance — app detail pages now show status for the correct instance ([#1399](https://github.com/NodeJSmith/hassette/issues/1399))
+* move `tomli-w` to production dependencies to fix Docker crash ([#1409](https://github.com/NodeJSmith/hassette/issues/1409))
+* replace clickable log table rows with explicit detail controls ([#1403](https://github.com/NodeJSmith/hassette/issues/1403))
+* thread time-window into log fetch and deduplicate by row key ([#1397](https://github.com/NodeJSmith/hassette/issues/1397))
+* **ui:** fix column picker popover clipping at viewport bottom ([#1406](https://github.com/NodeJSmith/hassette/issues/1406))
+
+### Refactoring
+
+* namespace helper CRUD behind `Api.helpers` — replaces 35 flat methods with 4 generic overloaded methods plus counter shortcuts ([#1362](https://github.com/NodeJSmith/hassette/issues/1362))
+
 ## [0.49.0](https://github.com/NodeJSmith/hassette/compare/v0.48.0...v0.49.0) (2026-07-16)
 
 
@@ -13,6 +40,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **Registration signatures frozen** — `name` is now a required keyword-only argument on every Bus and Scheduler registration method (`on_state_change`, `on_attribute_change`, `on_call_service`, `on`, `on_homeassistant_*`, `on_websocket_*`, `on_app_*`, `on_hassette_service_*`, `schedule`, `run_in`, `run_once`, `run_every`, `run_minutely`, `run_hourly`, `run_daily`, `run_cron`) and their sync facades. Omitting `name` raises `TypeError` instead of the old `ListenerNameRequiredError` — Pyright catches this at development time. All optional parameters must be passed by keyword. Update call sites to pass `name="..."` explicitly and convert any positional `group=`/`jitter=`/`timeout=`/`timeout_disabled=`/`if_past=` arguments to keyword form. ([#1301](https://github.com/NodeJSmith/hassette/issues/1301))
 * **DomainStates keys/values are lazy iterators** — `DomainStates.keys()` and `.values()` now return iterators instead of lists, matching `items()` and `__iter__`. Code that calls `len()`, indexes, or iterates multiple times must wrap the result in `list()`. `iterkeys()` and `itervalues()` are removed. ([#1325](https://github.com/NodeJSmith/hassette/issues/1325))
 * **Entity type aliases renamed with domain prefixes** — `Format` → `CameraFormat`, `Direction` → `FanDirection`, `Flash` → `LightFlash`, `Enqueue` → `MediaPlayerEnqueue`, `Repeat` → `MediaPlayerRepeat`, `CommandType` → `RemoteCommandType`, `Status` → `TodoStatus`, `Type` → `WeatherType`. Update imports to the new names. ([#1306](https://github.com/NodeJSmith/hassette/issues/1306))
+* **Event factory classmethods renamed** — `HassetteServiceEvent.from_data()` → `from_service_status()`, `HassetteAppStateEvent.from_data()` → `from_app()`, `HassetteSimpleEvent.create_event()` → `from_topic()`, `HassetteFileWatcherEvent.create_event()` → `from_paths()`. Update any code constructing these events directly. ([#1306](https://github.com/NodeJSmith/hassette/issues/1306))
+* **`ResourceRole` string values lowercased** — `"Core"`, `"Service"`, `"App"`, `"Base"`, `"Resource"`, `"Unknown"` changed to `"core"`, `"service"`, `"app"`, `"base"`, `"resource"`, `"unknown"`. Code comparing `role == "Core"` must switch to lowercase. Enum member names are unchanged. ([#1306](https://github.com/NodeJSmith/hassette/issues/1306))
+* **`Api.get_state_value_typed()` removed** — also removed from `ApiSyncFacade`, `RecordingApi`, and `RecordingApiSyncFacade`. Use `get_state().value` for a typed value or `get_state_value()` for the raw string. ([#1306](https://github.com/NodeJSmith/hassette/issues/1306))
 * **`Api.toggle_service` renamed to `toggle`** — also renamed on `ApiSyncFacade`, `RecordingApi`, and `RecordingApiSyncFacade`. Update calls from `api.toggle_service(...)` to `api.toggle(...)`. ([#1321](https://github.com/NodeJSmith/hassette/issues/1321))
 * **Timezone utility functions renamed** — `convert_datetime_str_to_system_tz` → `convert_datetime_str_to_tz`, `convert_utc_timestamp_to_system_tz` → `convert_utc_timestamp_to_tz`. Behavior unchanged when `HassetteConfig.timezone` is unset. ([#1327](https://github.com/NodeJSmith/hassette/issues/1327))
 * **Pre-v1 backwards compatibility shims removed** — deprecated aliases and transitional APIs are gone. ([#1308](https://github.com/NodeJSmith/hassette/issues/1308))
