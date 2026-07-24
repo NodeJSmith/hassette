@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.50.0](https://github.com/NodeJSmith/hassette/compare/v0.49.0...v0.50.0) (2026-07-24)
+
+
+### ⚠ BREAKING CHANGES
+
+* `Resource.cache` no longer exists. Cache access moves to `App.cache` (async: `await self.cache.get(key)`, `await self.cache.set(key, value, ttl=...)`, `await self.cache.get_or_set(key, creator, ttl=...)`, `.clear()`, `.invalidate(*keys)`), with a `self.cache.sync` accessor for sync equivalents. `HassetteConfig.default_cache_size` is replaced by `HassetteConfig.default_cache_ttl` (seconds). `diskcache` is no longer a dependency, and old diskcache-format cache directories are not migrated — they are orphaned on upgrade.
+
+### Features
+
+* render raw config as TOML with syntax highlighting on config tab ([#1405](https://github.com/NodeJSmith/hassette/issues/1405)) ([cb85fa4](https://github.com/NodeJSmith/hassette/commit/cb85fa40d4fc501851f104611e4e69dde7f078f6)), closes [#913](https://github.com/NodeJSmith/hassette/issues/913)
+* replace Resource.cache with instance-scoped async App.cache ([#1361](https://github.com/NodeJSmith/hassette/issues/1361)) ([beb1c38](https://github.com/NodeJSmith/hassette/commit/beb1c38abd6c5484d0765495a59dc0e95fda4e22)), closes [#595](https://github.com/NodeJSmith/hassette/issues/595)
+* **ui:** add execution detail page with linked execution IDs ([#1375](https://github.com/NodeJSmith/hassette/issues/1375)) ([6105110](https://github.com/NodeJSmith/hassette/commit/6105110cf2383c8a8321301e84bdf1dfd8fe6efa))
+* **ui:** add stylelint, anchor link checker, and exhaustive-deps enforcement ([#1393](https://github.com/NodeJSmith/hassette/issues/1393)) ([3f8244b](https://github.com/NodeJSmith/hassette/commit/3f8244bb53efa7c638de8fa02d212f258d18efae)), closes [#1303](https://github.com/NodeJSmith/hassette/issues/1303) [#1371](https://github.com/NodeJSmith/hassette/issues/1371) [#1377](https://github.com/NodeJSmith/hassette/issues/1377)
+
+
+### Bug Fixes
+
+* key appStatus WS state per app instance ([#1399](https://github.com/NodeJSmith/hassette/issues/1399)) ([c83ad43](https://github.com/NodeJSmith/hassette/commit/c83ad4398039982e785e2f8e2b789ca693835dee)), closes [#754](https://github.com/NodeJSmith/hassette/issues/754)
+* move tomli-w to production dependencies to fix Docker crash ([#1409](https://github.com/NodeJSmith/hassette/issues/1409)) ([bd0e395](https://github.com/NodeJSmith/hassette/commit/bd0e39578fd98e5dbf0490d9ca54c7e23990106a))
+* remove --reruns from unit/integration nox sessions ([#1366](https://github.com/NodeJSmith/hassette/issues/1366)) ([88773fb](https://github.com/NodeJSmith/hassette/commit/88773fbba8b7a8f31e431050a2d848f0f4f1d3e5)), closes [#1322](https://github.com/NodeJSmith/hassette/issues/1322)
+* replace clickable log table rows with explicit detail controls ([#1403](https://github.com/NodeJSmith/hassette/issues/1403)) ([a6667a0](https://github.com/NodeJSmith/hassette/commit/a6667a0962bc4bd2444ba55b558f27c8336a9b14)), closes [#1382](https://github.com/NodeJSmith/hassette/issues/1382)
+* resolve @/ path aliases in Vite dev server ([#1404](https://github.com/NodeJSmith/hassette/issues/1404)) ([50d6dfc](https://github.com/NodeJSmith/hassette/commit/50d6dfcd1638f0cb3acdf970f0954c3c3390d52b)), closes [#1402](https://github.com/NodeJSmith/hassette/issues/1402)
+* **testing:** Harden app testing helpers ([#1364](https://github.com/NodeJSmith/hassette/issues/1364)) ([f68bdb2](https://github.com/NodeJSmith/hassette/commit/f68bdb257fd280779a87b4bc5994d8c95bb35f39)), closes [#1332](https://github.com/NodeJSmith/hassette/issues/1332) [#1337](https://github.com/NodeJSmith/hassette/issues/1337) [#1343](https://github.com/NodeJSmith/hassette/issues/1343) [#1354](https://github.com/NodeJSmith/hassette/issues/1354)
+* thread time-window into log fetch and dedupe by row key ([#1397](https://github.com/NodeJSmith/hassette/issues/1397)) ([1d21848](https://github.com/NodeJSmith/hassette/commit/1d21848df4a245bb3c334e923b467921334bdca8)), closes [#1387](https://github.com/NodeJSmith/hassette/issues/1387)
+* **ui:** use size() middleware to fix column picker popover clipping at viewport bottom ([#1406](https://github.com/NodeJSmith/hassette/issues/1406)) ([c747792](https://github.com/NodeJSmith/hassette/commit/c7477929b5d6c42d90bcb7d8f2402fae1e4d2508)), closes [#914](https://github.com/NodeJSmith/hassette/issues/914)
+
+
+### Refactoring
+
+* **frontend:** centralize route metadata and path builders ([#1395](https://github.com/NodeJSmith/hassette/issues/1395)) ([6e9d033](https://github.com/NodeJSmith/hassette/commit/6e9d0334c2b99ff377d239f3c3c0633638087189)), closes [#1386](https://github.com/NodeJSmith/hassette/issues/1386)
+* simplify HandlersTab render branching with ContentMode discriminant ([#1396](https://github.com/NodeJSmith/hassette/issues/1396)) ([c6df002](https://github.com/NodeJSmith/hassette/commit/c6df00223de9b7c4fecb8df444dc24a79150bc67)), closes [#1376](https://github.com/NodeJSmith/hassette/issues/1376)
+* split SyncExecutor capability from its lifecycle wrapper ([#1398](https://github.com/NodeJSmith/hassette/issues/1398)) ([963c40e](https://github.com/NodeJSmith/hassette/commit/963c40e36e8afe3c593c796e0b3404eb6ad1c859)), closes [#1369](https://github.com/NodeJSmith/hassette/issues/1369)
+
 ## [0.49.0](https://github.com/NodeJSmith/hassette/compare/v0.48.0...v0.49.0) (2026-07-16)
 
 
