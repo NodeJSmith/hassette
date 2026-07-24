@@ -5,8 +5,6 @@ Tests use RestartSpec-based per-service configuration rather than global config 
 
 import asyncio
 import time
-from collections.abc import Generator
-from contextlib import contextmanager
 from typing import ClassVar
 from unittest.mock import patch
 
@@ -43,18 +41,6 @@ def make_fast_spec(**overrides: object) -> RestartSpec:
     defaults: dict[str, object] = {"backoff_base_seconds": 0}
     defaults.update(overrides)
     return RestartSpec(**defaults)  # pyright: ignore[reportCallIssue]
-
-
-@contextmanager
-def capture_events(hassette) -> Generator[EventCapture, None, None]:
-    """Install an EventCapture on hassette.send_event, restoring the original on exit."""
-    original = hassette.send_event
-    capture = EventCapture()
-    capture.install(hassette)
-    try:
-        yield capture
-    finally:
-        hassette.send_event = original  # pyright: ignore[reportAttributeAccessIssue]
 
 
 @pytest.fixture
@@ -197,7 +183,7 @@ async def test_crashed_event_emitted_before_shutdown(get_service_watcher_mock: S
     await restart_and_await(watcher, event)
 
     # Second call exceeds budget — should emit CRASHED then shutdown
-    with capture_events(hassette) as capture:
+    with EventCapture.capturing(hassette) as capture:
         await watcher.restart_service(event)
 
     # First send_event call should be the CRASHED event (shutdown may emit STOPPED after)
@@ -360,7 +346,7 @@ async def test_transient_exhaustion_enters_cooldown(get_service_watcher_mock: Se
     await restart_and_await(watcher, event)
 
     # Exhaust budget (budget check is synchronous — no spawn needed)
-    with capture_events(hassette) as capture:
+    with EventCapture.capturing(hassette) as capture:
         await watcher.restart_service(event)
 
     assert not hassette.shutdown_event.is_set(), "TRANSIENT exhaustion should NOT trigger shutdown"
@@ -395,7 +381,7 @@ async def test_temporary_exhaustion_stays_dead(get_service_watcher_mock: Service
     await restart_and_await(watcher, event)
 
     # Exhaust budget (budget check is synchronous — no spawn needed)
-    with capture_events(hassette) as capture:
+    with EventCapture.capturing(hassette) as capture:
         await watcher.restart_service(event)
 
     assert not hassette.shutdown_event.is_set()
@@ -437,7 +423,7 @@ async def test_fatal_error_triggers_immediate_shutdown(get_service_watcher_mock:
         ),
     )
 
-    with capture_events(hassette) as capture:
+    with EventCapture.capturing(hassette) as capture:
         await watcher.restart_service(fatal_event)
 
     # Should have emitted CRASHED and triggered shutdown
@@ -479,7 +465,7 @@ async def test_non_retryable_error_skips_restart(get_service_watcher_mock: Servi
         ),
     )
 
-    with capture_events(hassette) as capture:
+    with EventCapture.capturing(hassette) as capture:
         await watcher.restart_service(nr_event)
 
     # No restart attempt made
@@ -670,7 +656,7 @@ async def test_max_cooldown_cycles_exceeded(get_service_watcher_mock: ServiceWat
     dummy_service._status = ResourceStatus.EXHAUSTED_COOLING
 
     # Run cooldown_and_retry directly — should detect exceeded cycles and emit EXHAUSTED_DEAD
-    with capture_events(hassette) as capture:
+    with EventCapture.capturing(hassette) as capture:
         await watcher.cooldown_and_retry(dummy_service.class_name, dummy_service.role, key, spec)
 
     assert len(capture.events) == 1

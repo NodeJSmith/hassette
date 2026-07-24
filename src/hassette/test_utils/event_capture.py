@@ -7,12 +7,14 @@ positional ``call_args`` indexing (``call[0][0]`` / ``call.args[0]``) on a
 keeps tests resilient to future signature changes.
 """
 
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from hassette.events import Event
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
     from unittest.mock import MagicMock
 
     from hassette.core.core import Hassette
@@ -27,11 +29,13 @@ class EventCapture:
     assert against :attr:`events`, :meth:`by_topic`, :meth:`payloads`, or
     :attr:`topics`.
 
-    Example:
-        capture = EventCapture()
-        capture.install(hassette)
-        # ... run code that emits events ...
-        not_ready = [p for p in capture.payloads(Topic.HASSETTE_EVENT_SERVICE_STATUS) if not p.ready]
+    For mocks (fresh per test), use :meth:`install` directly. For real
+    ``Hassette`` instances where the original must be restored, use
+    :meth:`capturing` as a context manager::
+
+        with EventCapture.capturing(hassette) as capture:
+            await code_that_emits()
+        assert capture.by_topic(Topic.X)
     """
 
     events: list[Event[Any]] = field(default_factory=list)
@@ -43,6 +47,18 @@ class EventCapture:
             self.events.append(event)
 
         target.send_event = capture  # pyright: ignore[reportAttributeAccessIssue]
+
+    @classmethod
+    @contextmanager
+    def capturing(cls, target: "Hassette | MagicMock") -> "Iterator[EventCapture]":
+        """Install a capture, yield it, then restore the original ``send_event``."""
+        original = target.send_event
+        capture = cls()
+        capture.install(target)
+        try:
+            yield capture
+        finally:
+            target.send_event = original  # pyright: ignore[reportAttributeAccessIssue]
 
     def by_topic(self, topic: "Topic | str") -> list[Event[Any]]:
         """Return captured events matching ``topic``, in emission order."""

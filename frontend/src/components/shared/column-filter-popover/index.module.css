@@ -8,7 +8,8 @@
   padding: var(--sp-2);
   min-width: var(--sz-popover-min);
   max-width: var(--sz-popover-max);
-  max-height: 60vh;
+  /* size() middleware in index.tsx sets a tighter max-height at runtime */
+  max-height: 90vh;
   overflow: hidden auto;
 }
 
