@@ -1,7 +1,8 @@
 import { fireEvent, render } from "@testing-library/preact";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createExecution } from "../../test/factories";
+import { formatTimestamp } from "../../utils/format";
 import { ExecutionTable } from "./execution-table";
 
 const mockNavigate = vi.fn();
@@ -10,6 +11,10 @@ vi.mock("wouter", () => ({
 }));
 
 describe("ExecutionTable", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("renders handler empty state when records are empty", () => {
     const { getByText } = render(<ExecutionTable records={[]} kind="handler" tableId="invocation-table-1" />);
     expect(getByText("no invocations recorded")).toBeDefined();
@@ -71,6 +76,26 @@ describe("ExecutionTable", () => {
     );
     const row = container.querySelector("[data-testid='execution-row']")!;
     expect(row.textContent).toContain(uuid);
+  });
+
+  it("renders formatted duration, relative time, and timestamp tooltip", () => {
+    const now = 1_700_000_600;
+    const executionStart = 1_700_000_000;
+    vi.useFakeTimers();
+    vi.setSystemTime(now * 1000);
+
+    const { getByTestId, getByText } = render(
+      <ExecutionTable
+        records={[createExecution("job", { duration_ms: 1234, execution_start_ts: executionStart })]}
+        kind="job"
+        tableId="t"
+      />,
+    );
+    const timeCell = getByTestId("execution-row").querySelector("td[title]");
+
+    expect(getByText("1.2s")).toBeDefined();
+    expect(timeCell?.textContent).toBe("10m ago");
+    expect(timeCell?.getAttribute("title")).toBe(formatTimestamp(executionStart));
   });
 
   it("renders a complete details icon for navigable rows", () => {
@@ -173,12 +198,17 @@ describe("ExecutionTable", () => {
     expect(mockNavigate).toHaveBeenCalledWith(`/apps/my_app/handlers/job/1/exec/${execId}`);
   });
 
-  it("clicking row does not navigate when handler props are not set", () => {
+  it("renders no detail affordances or navigation when handler props are not set", () => {
     mockNavigate.mockClear();
-    const { container } = render(
+    const { getByTestId, queryByLabelText, queryByTestId } = render(
       <ExecutionTable records={[createExecution("job", { execution_id: "some-id" })]} kind="job" tableId="t" />,
     );
-    fireEvent.click(container.querySelector("[data-testid='execution-row']")!);
+    const row = getByTestId("execution-row");
+
+    expect(queryByTestId("execution-detail-indicator")).toBeNull();
+    expect(queryByLabelText("View execution detail")).toBeNull();
+
+    fireEvent.click(row);
     expect(mockNavigate).not.toHaveBeenCalled();
   });
 });
