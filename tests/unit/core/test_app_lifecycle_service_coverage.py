@@ -15,6 +15,7 @@ import pytest
 from hassette.core.app_change_detector import ChangeSet
 from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.exceptions import InvalidInheritanceError, UndefinedUserConfigError
+from hassette.test_utils import EventCapture
 from hassette.types import Topic
 
 from .conftest import set_registry_apps
@@ -22,17 +23,21 @@ from .conftest import set_registry_apps
 
 class TestBootstrapAppsSuccessLogging:
     async def test_emits_load_completed_when_apps_running(
-        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock, mock_hassette: MagicMock
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        mock_hassette: MagicMock,
+        event_capture: EventCapture,
     ) -> None:
         """The successful-initialization branch (running_count > 0) still emits APP_LOAD_COMPLETED."""
+        event_capture.install(mock_hassette)
         mock_registry.manifests = {"app_a": MagicMock()}
         mock_registry.active_manifests = {}
         mock_registry.get_snapshot = Mock(return_value=MagicMock(running_count=1, failed_count=0))
 
         await lifecycle_service.bootstrap_apps()
 
-        calls = mock_hassette.send_event.call_args_list
-        completed_calls = [call for call in calls if call[0][0].topic == Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED]
+        completed_calls = event_capture.by_topic(Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED)
         assert len(completed_calls) == 1
 
 
@@ -121,9 +126,14 @@ class TestStartAppsErrorAggregation:
 
 class TestHandleChangeEventBranches:
     async def test_no_changes_returns_without_applying_or_emitting(
-        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock, mock_hassette: MagicMock
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        mock_hassette: MagicMock,
+        event_capture: EventCapture,
     ) -> None:
         """When detect_changes reports no changes, apply_changes is skipped and no event fires."""
+        event_capture.install(mock_hassette)
         lifecycle_service.change_detector.detect_changes = Mock(  # pyright: ignore[reportAttributeAccessIssue]
             return_value=ChangeSet(
                 orphans=frozenset(), new_apps=frozenset(), reimport_apps=frozenset(), reload_apps=frozenset()
@@ -134,17 +144,18 @@ class TestHandleChangeEventBranches:
         await lifecycle_service.handle_change_event()
 
         lifecycle_service.apply_changes.assert_not_called()
-        completed_calls = [
-            call
-            for call in mock_hassette.send_event.call_args_list
-            if call[0][0].topic == Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED
-        ]
+        completed_calls = event_capture.by_topic(Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED)
         assert len(completed_calls) == 0
 
     async def test_unblocked_apps_are_folded_into_new_apps(
-        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock, mock_hassette: MagicMock
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        mock_hassette: MagicMock,
+        event_capture: EventCapture,
     ) -> None:
         """Apps unblocked by reconcile_blocked_apps (and not already running/changing) are started."""
+        event_capture.install(mock_hassette)
         lifecycle_service.change_detector.detect_changes = Mock(  # pyright: ignore[reportAttributeAccessIssue]
             return_value=ChangeSet(
                 orphans=frozenset(), new_apps=frozenset(), reimport_apps=frozenset(), reload_apps=frozenset()
@@ -165,11 +176,7 @@ class TestHandleChangeEventBranches:
         assert len(applied) == 1
         assert applied[0].new_apps == frozenset({"unblocked_app"})
 
-        completed_calls = [
-            call
-            for call in mock_hassette.send_event.call_args_list
-            if call[0][0].topic == Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED
-        ]
+        completed_calls = event_capture.by_topic(Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED)
         assert len(completed_calls) == 1
 
 

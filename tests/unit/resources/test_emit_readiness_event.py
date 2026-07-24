@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock
 
 from hassette.resources.lifecycle import handle_running, mark_ready
-from hassette.test_utils import make_mock_hassette
+from hassette.test_utils import EventCapture, make_mock_hassette
 from hassette.types.enums import ResourceStatus
 
 from .conftest import ConcreteResource
@@ -23,9 +23,10 @@ async def make_resource() -> tuple[ConcreteResource, AsyncMock]:
 class TestEmitReadinessEvent:
     """Tests for Resource._emit_readiness_event()."""
 
-    async def test_emit_readiness_event_sends_service_status(self) -> None:
+    async def test_emit_readiness_event_sends_service_status(self, event_capture: EventCapture) -> None:
         """_emit_readiness_event sends a service_status event with current readiness state."""
         resource, hassette = await make_resource()
+        event_capture.install(hassette)
 
         # Set up RUNNING state + readiness
         resource._status = ResourceStatus.RUNNING
@@ -33,19 +34,18 @@ class TestEmitReadinessEvent:
 
         await resource._emit_readiness_event()
 
-        assert hassette.send_event.called
+        assert event_capture.events
 
-        call_args = hassette.send_event.call_args
-        event = call_args[0][0]
-        payload: ServiceStatusPayload = event.payload.data
+        payload: ServiceStatusPayload = event_capture.events[-1].payload.data
 
         assert payload.ready is True
         assert payload.ready_phase == "test reason"
         assert payload.status == ResourceStatus.RUNNING
 
-    async def test_handle_running_includes_readiness(self) -> None:
+    async def test_handle_running_includes_readiness(self, event_capture: EventCapture) -> None:
         """handle_running emits an event carrying the current readiness state."""
         resource, hassette = await make_resource()
+        event_capture.install(hassette)
 
         # Resource is not ready before handle_running
         assert resource.is_ready() is False
@@ -55,10 +55,8 @@ class TestEmitReadinessEvent:
 
         await handle_running(resource)
 
-        assert hassette.send_event.called
-        call_args = hassette.send_event.call_args
-        event = call_args[0][0]
-        payload: ServiceStatusPayload = event.payload.data
+        assert event_capture.events
+        payload: ServiceStatusPayload = event_capture.events[-1].payload.data
 
         assert payload.ready is False
         assert payload.status == ResourceStatus.RUNNING

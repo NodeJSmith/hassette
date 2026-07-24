@@ -15,6 +15,7 @@ in ``__all__`` and may change without notice.
 from .api_call import ApiCall
 from .app_harness import AppConfigurationError, AppTestHarness
 from .config import make_test_config as make_test_config
+from .event_capture import EventCapture as EventCapture
 from .exceptions import DrainError, DrainFailure, DrainTimeout
 from .factories import make_hass_event as make_hass_event
 from .factories import make_hassette_event as make_hassette_event
@@ -28,6 +29,7 @@ from .factories import make_scheduler as make_scheduler
 from .factories import make_sync_executor as make_sync_executor
 from .fixtures import build_harness as build_harness
 from .fixtures import dummy_cache as dummy_cache
+from .fixtures import event_capture as event_capture
 from .fixtures import hassette_harness as hassette_harness
 from .fixtures import hassette_with_app_handler as hassette_with_app_handler
 from .fixtures import hassette_with_bus as hassette_with_bus

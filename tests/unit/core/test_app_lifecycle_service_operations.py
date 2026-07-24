@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, Mock
 
 from hassette.core.app_change_detector import ChangeSet
 from hassette.core.app_lifecycle_service import AppLifecycleService
+from hassette.test_utils import EventCapture
 from hassette.types import Topic
 from hassette.types.enums import BlockReason, ResourceStatus
 
@@ -57,19 +58,19 @@ class TestStartApp:
         mock_manifest: MagicMock,
         mock_app_instance: AsyncMock,
         mock_hassette: MagicMock,
+        event_capture: EventCapture,
     ) -> None:
         """Emits NOT_STARTED event for each created instance."""
+        event_capture.install(mock_hassette)
         mock_registry.get_manifest = Mock(return_value=mock_manifest)
         mock_registry.get_apps_by_key = Mock(return_value={0: mock_app_instance})
 
         await lifecycle_service.start_app("test_app")
 
-        calls = mock_hassette.send_event.call_args_list
         not_started_calls = [
-            call
-            for call in calls
-            if call[0][0].topic == Topic.HASSETTE_EVENT_APP_STATE_CHANGED
-            and call[0][0].payload.data.status == ResourceStatus.NOT_STARTED
+            payload
+            for payload in event_capture.payloads(Topic.HASSETTE_EVENT_APP_STATE_CHANGED)
+            if payload.status == ResourceStatus.NOT_STARTED
         ]
         assert len(not_started_calls) == 1
 
