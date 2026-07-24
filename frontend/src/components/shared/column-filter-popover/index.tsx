@@ -1,4 +1,4 @@
-import { autoUpdate, computePosition, flip, offset, shift } from "@floating-ui/dom";
+import { autoUpdate, computePosition, flip, offset, shift, size } from "@floating-ui/dom";
 import type { ComponentChildren } from "preact";
 import { useEffect, useRef } from "preact/hooks";
 
@@ -41,7 +41,18 @@ export function ColumnFilterPopover({ open, onClose, triggerRef, label, children
       void computePosition(trigger, popover, {
         strategy: "fixed",
         placement: "bottom-start",
-        middleware: [offset(4), flip(), shift({ padding: 8 })],
+        middleware: [
+          offset(4),
+          flip(),
+          shift({ padding: 8 }),
+          // static CSS max-height defeats flip() — size() sets it dynamically after placement is chosen
+          size({
+            padding: 8,
+            apply({ availableHeight, elements }) {
+              elements.floating.style.maxHeight = `${Math.max(0, availableHeight)}px`;
+            },
+          }),
+        ],
       }).then(({ x, y }) => {
         popover.style.left = `${x}px`;
         popover.style.top = `${y}px`;
