@@ -167,6 +167,24 @@ class TestAppConfigEndpoint:
         assert cfg["port"] == 8080
         assert "token" not in cfg
 
+    async def test_none_values_in_lists_omitted_from_toml(self, client, mock_hassette) -> None:
+        """None entries inside arrays are filtered out — TOML has no null type."""
+        manifest = make_manifest_mock(
+            app_key="my_app",
+            app_config={"tags": ["a", None, "b"], "nested": [{"x": 1}, None]},
+        )
+        mock_hassette._app_handler.registry.get_manifest.return_value = manifest
+        mock_hassette._app_handler.registry.get.return_value = AppWithBasicConfig()
+
+        response = await client.get("/api/apps/my_app/config")
+
+        assert response.status_code == 200
+        data = response.json()
+        parsed = tomllib.loads(data["config_toml"])
+        cfg = parsed["hassette"]["apps"]["my_app"]["config"]
+        assert cfg["tags"] == ["a", "b"]
+        assert cfg["nested"] == [{"x": 1}]
+
     async def test_autostart_returned(self, client, mock_hassette) -> None:
         """Response includes autostart from the manifest."""
         manifest = make_manifest_mock(app_key="my_app", autostart=False, app_config={"brightness": 100})

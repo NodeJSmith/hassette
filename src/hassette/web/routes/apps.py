@@ -178,7 +178,7 @@ def _strip_none(obj: Any) -> Any:
     if isinstance(obj, dict):
         return {k: _strip_none(v) for k, v in obj.items() if v is not None}
     if isinstance(obj, list):
-        return [_strip_none(v) for v in obj]
+        return [_strip_none(v) for v in obj if v is not None]
     return obj
 
 
