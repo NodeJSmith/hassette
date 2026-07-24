@@ -4,6 +4,7 @@ import re
 from logging import getLogger
 from typing import Any
 
+import tomli_w
 from fastapi import APIRouter, HTTPException
 
 from hassette.app.app_config import AppConfig
@@ -172,12 +173,27 @@ async def get_app_config(app_key: str, hassette: HassetteDep) -> AppConfigRespon
     return _build_config_response(app_key, manifest, mask_app_config(None, manifest.app_config), None)
 
 
+def _strip_none(obj: Any) -> Any:
+    """Recursively drop None-valued keys — TOML has no null type."""
+    if isinstance(obj, dict):
+        return {k: _strip_none(v) for k, v in obj.items() if v is not None}
+    if isinstance(obj, list):
+        return [_strip_none(v) for v in obj if v is not None]
+    return obj
+
+
 def _build_config_response(
     app_key: str,
     manifest: AppManifest,
     app_config: dict[str, Any] | list[dict[str, Any]],
     config_schema: dict[str, Any] | None,
 ) -> AppConfigResponse:
+    toml_wrapper: dict[str, Any] = {"hassette": {"apps": {app_key: {"config": _strip_none(app_config)}}}}
+    try:
+        config_toml = tomli_w.dumps(toml_wrapper)
+    except (TypeError, ValueError):
+        LOGGER.warning("Failed to render TOML for %s", app_key, exc_info=True)
+        config_toml = ""
     return AppConfigResponse(
         app_key=app_key,
         filename=manifest.filename,
@@ -186,6 +202,7 @@ def _build_config_response(
         autostart=manifest.autostart,
         framework_fields=_FRAMEWORK_FIELDS,
         app_config=app_config,
+        config_toml=config_toml,
         config_schema=config_schema,
     )
 

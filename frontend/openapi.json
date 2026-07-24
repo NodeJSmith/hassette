@@ -1750,6 +1750,10 @@
             ],
             "title": "App Config"
           },
+          "config_toml": {
+            "type": "string",
+            "title": "Config Toml"
+          },
           "config_schema": {
             "anyOf": [
               {
@@ -1778,6 +1782,7 @@
           "enabled",
           "autostart",
           "app_config",
+          "config_toml",
           "framework_fields"
         ],
         "title": "AppConfigResponse",
