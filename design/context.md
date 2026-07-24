@@ -82,9 +82,9 @@ This should appear in visual structure, not only navigation:
 
 - Keep the UI information-dense, but do not let density flatten hierarchy.
 - Prefer readable diagnostic grouping over adding new navigation depth.
-- Use color semantically and sparingly: green for healthy, red for failure, amber for warning/degraded, muted gray for inactive/unknown.
+- Use color semantically: green for healthy, red for failure, amber for warning/degraded, muted gray for inactive/unknown. Richer palettes (surface tints, category coding) are welcome when each color carries meaning.
 - Do not introduce visual variants by passing ad hoc CSS classes into shared components. Add semantic component variants when a visual distinction is needed.
-- Tables should share the same interaction model wherever practical: search above, filters in column headers or mobile footer, count in footer, contained table card.
+- Tables should share the same interaction model wherever practical: search above, filters in column headers or mobile footer, count in footer, `TableCard` scroll container.
 - Mobile should prioritize quick checks: health, error rate/failures, and whether critical apps are running.
 - Code/config/log views should feel like evidence surfaces, not separate developer toys.
 - All component-specific styles belong in CSS Modules. Global styles are reserved for tokens, reset, typography, layout, tables, and utilities.
