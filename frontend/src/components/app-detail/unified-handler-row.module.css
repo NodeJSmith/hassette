@@ -101,16 +101,18 @@
   line-height: var(--lh-micro);
 }
 
-/* Family hue, matching the Chip job/listener variants. */
+/* Family hue, matching the Chip job/listener variants. The row chip keeps its
+   own denser base (--fs-xs, lowercase, --lh-micro) for table density, so it
+   shares the fill tokens rather than the component. */
 .kindChip[data-kind="job"] {
-  background: color-mix(in srgb, var(--job) var(--chip-tint), transparent);
-  border-color: color-mix(in srgb, var(--job) 30%, transparent);
+  background: var(--job-bg);
+  border-color: var(--job-border);
   color: var(--job);
 }
 
 .kindChip[data-kind="listener"] {
-  background: color-mix(in srgb, var(--listener) var(--chip-tint), transparent);
-  border-color: color-mix(in srgb, var(--listener) 30%, transparent);
+  background: var(--listener-bg);
+  border-color: var(--listener-border);
   color: var(--listener);
 }
 
