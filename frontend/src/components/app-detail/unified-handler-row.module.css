@@ -35,6 +35,7 @@
 
 .rowSelected {
   background: var(--accent-soft);
+  box-shadow: inset var(--border-thick) 0 0 0 var(--accent);
   font-weight: var(--fw-medium);
   opacity: 1;
 }
@@ -98,6 +99,19 @@
   text-transform: lowercase;
   letter-spacing: var(--tr-label-tight);
   line-height: var(--lh-micro);
+}
+
+/* Family hue, matching the Chip job/listener variants. */
+.kindChip[data-kind="job"] {
+  background: color-mix(in srgb, var(--job) var(--chip-tint), transparent);
+  border-color: color-mix(in srgb, var(--job) 30%, transparent);
+  color: var(--job);
+}
+
+.kindChip[data-kind="listener"] {
+  background: color-mix(in srgb, var(--listener) var(--chip-tint), transparent);
+  border-color: color-mix(in srgb, var(--listener) 30%, transparent);
+  color: var(--listener);
 }
 
 .modeChip {

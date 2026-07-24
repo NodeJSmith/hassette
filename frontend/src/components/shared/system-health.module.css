@@ -1,0 +1,64 @@
+.cluster {
+  display: flex;
+  min-width: 0;
+}
+
+.clusterStacked {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-2);
+}
+
+.clusterCompact {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.indicator {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.pulseDot {
+  width: var(--sp-2);
+  height: var(--sp-2);
+  border-radius: var(--r-pill);
+  display: inline-block;
+  background: var(--ok-vivid);
+  animation: breathe 2.5s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 0.35; /* raw: @keyframes can't interpolate CSS vars */
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.pulseDotConnecting {
+  background: var(--mute);
+  animation: none;
+}
+
+.pulseDotDisconnected {
+  background: var(--err-vivid);
+  animation: none;
+}
+
+.pulseDotDegraded {
+  background: var(--warn-vivid);
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulseDot {
+    animation: none;
+  }
+}

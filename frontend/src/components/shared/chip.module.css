@@ -11,17 +11,20 @@
   line-height: var(--lh-small);
 }
 
-.modifier {
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  color: var(--ink-1);
-  border: var(--sp-px) solid color-mix(in srgb, var(--accent) 30%, transparent);
+/* Handler-family variants. These mirror UnifiedRow.kind, so a chip's hue tells
+   you whether you are looking at a scheduled job or a bus listener. Kept clear
+   of --accent (links) and --ok (status) so the signal stays unambiguous. */
+.job {
+  background: color-mix(in srgb, var(--job) var(--chip-tint), transparent);
+  color: var(--job);
+  border: var(--sp-px) solid color-mix(in srgb, var(--job) 30%, transparent);
   font-family: var(--font-mono);
 }
 
-.schedule {
-  background: color-mix(in srgb, var(--ok) 10%, transparent);
-  color: var(--ink-3);
-  border: var(--sp-px) solid color-mix(in srgb, var(--ok) 25%, transparent);
+.listener {
+  background: color-mix(in srgb, var(--listener) var(--chip-tint), transparent);
+  color: var(--listener);
+  border: var(--sp-px) solid color-mix(in srgb, var(--listener) 30%, transparent);
   font-family: var(--font-mono);
 }
 

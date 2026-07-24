@@ -17,7 +17,7 @@ const KIND_LABELS: Record<"listener" | "job", string> = {
 
 function KindBadge({ kind }: { kind: "listener" | "job" }) {
   return (
-    <Chip variant="muted" size="sm">
+    <Chip variant={kind} size="sm">
       {KIND_LABELS[kind]}
     </Chip>
   );

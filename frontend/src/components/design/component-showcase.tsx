@@ -54,8 +54,8 @@ export function ComponentShowcase() {
       <div class={s.group}>
         <h3 class={s.groupLabel}>Chip</h3>
         <div class={styles.row}>
-          <Chip variant="modifier">Modifier</Chip>
-          <Chip variant="schedule">Schedule</Chip>
+          <Chip variant="listener">Listener</Chip>
+          <Chip variant="job">Job</Chip>
           <Chip variant="kind" kind="ok">
             Kind
           </Chip>
@@ -63,7 +63,7 @@ export function ComponentShowcase() {
           <Chip variant="muted">Muted</Chip>
         </div>
         <div class={styles.row}>
-          <Chip variant="modifier" size="sm">
+          <Chip variant="listener" size="sm">
             Small
           </Chip>
         </div>

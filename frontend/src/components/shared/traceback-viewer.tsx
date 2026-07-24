@@ -1,10 +1,60 @@
-import styles from "./detail-panel.module.css";
+import type { JSX } from "preact";
 
-function splitTraceback(tb: string): { frames: string; errorLine: string } | null {
-  const trimmed = tb.trimEnd();
+import styles from "./detail-panel.module.css";
+import tb from "./traceback-viewer.module.css";
+
+/** `  File "/app/x.py", line 42, in handler` — the only structured line in a traceback. */
+const FRAME_RE = /^(\s*)File "(.*)", line (\d+), in (.*)$/;
+
+function splitTraceback(traceback: string): { frames: string; errorLine: string } | null {
+  const trimmed = traceback.trimEnd();
   const lastNewline = trimmed.lastIndexOf("\n");
   if (lastNewline <= 0) return null;
   return { frames: trimmed.slice(0, lastNewline), errorLine: trimmed.slice(lastNewline + 1) };
+}
+
+/**
+ * Colour one traceback line by its role.
+ *
+ * Rendered as JSX rather than injected HTML — traceback text originates in
+ * exception messages, so it must never be interpreted as markup.
+ */
+function renderLine(line: string, key: number): JSX.Element {
+  const frame = FRAME_RE.exec(line);
+  if (frame) {
+    const [, indent, path, lineNo, func] = frame;
+    return (
+      <div key={key}>
+        {indent}
+        <span class={tb.frameKeyword}>File </span>
+        <span class={tb.path}>"{path}"</span>
+        <span class={tb.frameKeyword}>, line </span>
+        <span class={tb.lineNo}>{lineNo}</span>
+        <span class={tb.frameKeyword}>, in </span>
+        <span class={tb.func}>{func}</span>
+      </div>
+    );
+  }
+
+  if (line.startsWith("Traceback")) {
+    return (
+      <div key={key} class={tb.header}>
+        {line}
+      </div>
+    );
+  }
+
+  // Everything else is the echoed source line under a frame.
+  return (
+    <div key={key} class={tb.sourceLine}>
+      {line}
+    </div>
+  );
+}
+
+/** The coloured lines on their own, for callers that supply their own framing. */
+export function TracebackLines({ traceback }: { traceback: string }) {
+  return <>{traceback.trimEnd().split("\n").map(renderLine)}</>;
 }
 
 interface Props {
@@ -24,7 +74,7 @@ export function TracebackViewer({ traceback, testIdPrefix }: Props) {
             <pre class="ht-text-mono">{split.errorLine}</pre>
           </div>
           <pre class={styles.tracebackFrames} data-testid={`${testIdPrefix}-traceback`}>
-            {split.frames}
+            {split.frames.split("\n").map(renderLine)}
           </pre>
         </>
       ) : (

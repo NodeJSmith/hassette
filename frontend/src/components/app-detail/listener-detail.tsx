@@ -29,7 +29,7 @@ function ModifierChips({ listener }: { listener: ListenerData }) {
     <div class={chipStyles.chipRow} data-testid="modifier-chips">
       <HandlerModeChip mode={listener.mode} />
       {chips.map((chip) => (
-        <Chip key={chip.label} variant="modifier">
+        <Chip key={chip.label} variant="listener">
           {chip.label}
           {chip.value ? ` ${chip.value}` : ""}
         </Chip>

@@ -4,7 +4,7 @@ import type { JSX } from "preact";
 import type { StatusKind } from "../../utils/status";
 import styles from "./chip.module.css";
 
-export type ChipVariant = "modifier" | "schedule" | "kind" | "origin" | "muted";
+export type ChipVariant = "job" | "listener" | "kind" | "origin" | "muted";
 export type ChipKind = StatusKind;
 export type ChipSize = "default" | "sm";
 

@@ -6,21 +6,42 @@
   display: flex;
   flex-direction: column;
   position: sticky;
-  top: 0;
-  height: 100vh;
+  /* .ht-layout pads sp-2 above and below; a full 100vh here would overflow the viewport
+     by exactly that padding and put a scrollbar on every page. */
+  top: var(--sp-2);
+  height: calc(100vh - var(--sp-2) * 2);
   flex-shrink: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
+  /* The app list (.appNav) is the scroller, so the footer stays pinned to the bottom. */
+  overflow: hidden;
   z-index: var(--z-sidebar);
 }
 
 /* — Brand / wordmark —————————————————————————————————— */
 .sidebarBrand {
   display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding: var(--sp-4) var(--sp-3) var(--sp-2) 0;
+  border-bottom: var(--sp-px) solid var(--line-2);
+  flex-shrink: 0;
+}
+
+.brandText {
+  display: flex;
   flex-direction: column;
   align-items: flex-start;
-  padding: var(--sp-4) 0 var(--sp-2);
-  border-bottom: var(--sp-px) solid var(--line-2);
+  min-width: 0;
+}
+
+/* — Footer: system health + theme ————————————————————— */
+.sidebarFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-top: var(--sp-px) solid var(--line-2);
   flex-shrink: 0;
 }
 
@@ -409,8 +430,16 @@
     display: none;
   }
 
+  /* .ht-layout drops its padding here, so the drawer gets the full viewport back. */
   :global(.ht-drawer) .sidebar {
     display: flex;
+    top: 0;
+    height: 100vh;
+  }
+
+  /* Collapsing is a desktop affordance — the drawer closes via the backdrop or Escape. */
+  .collapseToggle {
+    display: none;
   }
 
   .appExpand {

@@ -198,26 +198,18 @@
   white-space: nowrap;
 }
 
-.appLink {
-  color: var(--ink-1);
-  text-decoration: underline;
-  text-decoration-color: var(--ink-4);
-  text-underline-offset: var(--sp-0);
-}
-
-.appLink:hover {
-  text-decoration-color: var(--accent);
-}
-
+.appLink,
 .execLink {
-  color: var(--ink-1);
+  color: var(--accent);
   text-decoration: underline;
-  text-decoration-color: var(--ink-4);
+  text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent);
   text-underline-offset: var(--sp-0);
 }
 
+.appLink:hover,
 .execLink:hover {
-  text-decoration-color: var(--accent);
+  color: var(--accent-hover);
+  text-decoration-color: var(--accent-hover);
 }
 
 /* Section labels — inline divider style */

@@ -101,7 +101,7 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
           )}
         </div>
         <div class={styles.meta}>
-          <span class={styles.kindChip} aria-label={`kind: ${chipLabel}`}>
+          <span class={styles.kindChip} data-kind={item.kind} aria-label={`kind: ${chipLabel}`}>
             {chipLabel}
           </span>
           {item.kind === "listener" && item.data.mode && (

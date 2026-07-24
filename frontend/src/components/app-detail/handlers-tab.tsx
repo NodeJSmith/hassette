@@ -7,7 +7,6 @@ import { useCorrectUrl } from "../../hooks/use-correct-url";
 import { BREAKPOINT_MOBILE } from "../../hooks/use-media-query";
 import { useSignal } from "../../hooks/use-signal";
 import { appHandlersPath, handlerPath } from "../../utils/app-routes";
-import { lastDotSegment } from "../../utils/format";
 import { Button } from "../shared/button";
 import { EmptyState } from "../shared/empty-state";
 import { ExecutionDetailFetcher } from "./execution-detail";
@@ -131,20 +130,9 @@ export function HandlersTab({
 
   switch (contentMode.mode) {
     case "execution-detail": {
-      const handlerName =
-        contentMode.parsed.kind === "listener" && selectedListener?.handler_method
-          ? lastDotSegment(selectedListener.handler_method)
-          : selectedJob?.job_name;
       return (
         <div ref={containerRef}>
-          <ExecutionDetailFetcher
-            appKey={appKey}
-            kind={contentMode.parsed.kind}
-            handlerId={contentMode.parsed.id}
-            executionId={contentMode.execId}
-            instanceQs={instanceQs}
-            handlerName={handlerName ?? undefined}
-          />
+          <ExecutionDetailFetcher executionId={contentMode.execId} />
         </div>
       );
     }

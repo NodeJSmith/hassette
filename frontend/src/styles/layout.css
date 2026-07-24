@@ -11,6 +11,19 @@
   padding: var(--sp-2) var(--sp-2) var(--sp-2) 0;
 }
 
+/* Collapsed desktop sidebar. Scoped above the breakpoint because below it the sidebar is
+   already a drawer — and `.ht-layout.is-collapsed` would otherwise outrank the max-width
+   rules on specificity regardless of source order.
+   901 = BREAKPOINT_SIDEBAR + 1, so this never overlaps the max-width: 900px rules.
+   sync: BREAKPOINT_SIDEBAR in use-media-query.ts */
+@media screen and (min-width: 901px) {
+  .ht-layout.is-collapsed {
+    grid-template-columns: 0 1fr;
+    gap: 0;
+    padding-left: var(--sp-2);
+  }
+}
+
 .ht-main {
   grid-column: 2;
   background: var(--bg-surface);

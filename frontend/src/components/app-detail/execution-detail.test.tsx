@@ -32,31 +32,16 @@ function Wrapper({ children }: { children: ComponentChildren }) {
 }
 
 describe("ExecutionDetailContent", () => {
-  const backHref = "/apps/my_app/handlers/listener/1";
-
-  it("renders back link with handler name", () => {
-    const record = createExecution("handler", { execution_id: "abc12345-1234-5678-9abc-def012345678" });
-    const { getByText } = render(<ExecutionDetailContent record={record} backHref={backHref} handlerName="on_light" />);
-    const link = getByText("← back to on_light");
-    expect(link.getAttribute("href")).toBe(backHref);
-  });
-
-  it("renders back link with default text when no handlerName", () => {
-    const record = createExecution("handler", { execution_id: "abc12345-1234-5678-9abc-def012345678" });
-    const { getByText } = render(<ExecutionDetailContent record={record} backHref={backHref} />);
-    expect(getByText("← back to handler")).toBeDefined();
-  });
-
   it("renders truncated execution ID in heading", () => {
     const record = createExecution("handler", { execution_id: "abc12345-1234-5678-9abc-def012345678" });
-    const { getByRole } = render(<ExecutionDetailContent record={record} backHref={backHref} />);
+    const { getByRole } = render(<ExecutionDetailContent record={record} />);
     expect(getByRole("heading").textContent).toContain("12345678");
   });
 
   it("renders full execution ID in code element", () => {
     const uuid = "abc12345-1234-5678-9abc-def012345678";
     const record = createExecution("handler", { execution_id: uuid });
-    const { container } = render(<ExecutionDetailContent record={record} backHref={backHref} />);
+    const { container } = render(<ExecutionDetailContent record={record} />);
     const code = container.querySelector("code");
     expect(code?.textContent).toBe(uuid);
   });
@@ -67,7 +52,7 @@ describe("ExecutionDetailContent", () => {
       duration_ms: 150,
       status: "success",
     });
-    const { getByTestId } = render(<ExecutionDetailContent record={record} backHref={backHref} />);
+    const { getByTestId } = render(<ExecutionDetailContent record={record} />);
     expect(getByTestId("execution-meta-stats")).toBeDefined();
   });
 
@@ -77,7 +62,7 @@ describe("ExecutionDetailContent", () => {
       status: "success",
       duration_ms: 42,
     });
-    const { container } = render(<ExecutionDetailContent record={record} backHref={backHref} />);
+    const { container } = render(<ExecutionDetailContent record={record} />);
     expect(container.textContent).toContain("completed in");
   });
 
@@ -89,7 +74,7 @@ describe("ExecutionDetailContent", () => {
       error_message: "bad input",
       error_traceback: "Traceback (most recent call last):\n  File ...\nValueError: bad input",
     });
-    const { container } = render(<ExecutionDetailContent record={record} backHref={backHref} />);
+    const { container } = render(<ExecutionDetailContent record={record} />);
     expect(container.textContent).toContain("failed");
   });
 
@@ -99,7 +84,7 @@ describe("ExecutionDetailContent", () => {
       status: "error",
       error_traceback: "Traceback (most recent call last):\n  File ...\nValueError: bad input",
     });
-    const { container } = render(<ExecutionDetailContent record={record} backHref={backHref} />);
+    const { container } = render(<ExecutionDetailContent record={record} />);
     expect(container.textContent).toContain("Traceback");
   });
 
@@ -109,7 +94,7 @@ describe("ExecutionDetailContent", () => {
       status: "timed_out",
       thread_leaked: false,
     });
-    const { container } = render(<ExecutionDetailContent record={record} backHref={backHref} />);
+    const { container } = render(<ExecutionDetailContent record={record} />);
     expect(container.textContent).toContain("timed out");
   });
 
@@ -119,7 +104,7 @@ describe("ExecutionDetailContent", () => {
       status: "timed_out",
       thread_leaked: true,
     });
-    const { container } = render(<ExecutionDetailContent record={record} backHref={backHref} />);
+    const { container } = render(<ExecutionDetailContent record={record} />);
     expect(container.textContent).toContain("timed out");
     expect(container.textContent).toContain("thread leaked");
   });
@@ -129,7 +114,7 @@ describe("ExecutionDetailContent", () => {
       execution_id: "abc12345-1234-5678-9abc-def012345678",
       status: "cancelled",
     });
-    const { container } = render(<ExecutionDetailContent record={record} backHref={backHref} />);
+    const { container } = render(<ExecutionDetailContent record={record} />);
     expect(container.textContent).toContain("cancelled");
   });
 
@@ -138,7 +123,7 @@ describe("ExecutionDetailContent", () => {
       execution_id: "abc12345-1234-5678-9abc-def012345678",
       trigger_mode: "manual",
     });
-    const { container } = render(<ExecutionDetailContent record={record} backHref={backHref} />);
+    const { container } = render(<ExecutionDetailContent record={record} />);
     expect(container.textContent).toContain("trigger");
     expect(container.textContent).toContain("manual");
   });
@@ -150,7 +135,7 @@ describe("ExecutionDetailContent", () => {
       trigger_origin: "LOCAL",
       trigger_mode: "event",
     });
-    const { container } = render(<ExecutionDetailContent record={record} backHref={backHref} />);
+    const { container } = render(<ExecutionDetailContent record={record} />);
     expect(container.textContent).toContain("context");
     expect(container.textContent).toContain("LOCAL");
   });
@@ -161,20 +146,20 @@ describe("ExecutionDetailContent", () => {
       trigger_mode: null,
       trigger_context_id: null,
     });
-    const { container } = render(<ExecutionDetailContent record={record} backHref={backHref} />);
+    const { container } = render(<ExecutionDetailContent record={record} />);
     expect(container.textContent).not.toContain("trigger");
   });
 
   it("renders ExecutionLogs component with execution ID", () => {
     const uuid = "abc12345-1234-5678-9abc-def012345678";
     const record = createExecution("handler", { execution_id: uuid });
-    const { getByTestId } = render(<ExecutionDetailContent record={record} backHref={backHref} />);
+    const { getByTestId } = render(<ExecutionDetailContent record={record} />);
     expect(getByTestId("execution-logs").textContent).toContain(uuid);
   });
 
   it("renders empty state when execution_id is null", () => {
     const record = createExecution("handler", { execution_id: null });
-    const { container } = render(<ExecutionDetailContent record={record} backHref={backHref} />);
+    const { container } = render(<ExecutionDetailContent record={record} />);
     expect(container.textContent).toContain("no execution ID");
   });
 
@@ -184,7 +169,7 @@ describe("ExecutionDetailContent", () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.assign(navigator, { clipboard: { writeText } });
 
-    const { container } = render(<ExecutionDetailContent record={record} backHref={backHref} />);
+    const { container } = render(<ExecutionDetailContent record={record} />);
     const btn = container.querySelector("[aria-label='Copy execution ID']")!;
     fireEvent.click(btn);
 
@@ -198,7 +183,7 @@ describe("ExecutionDetailContent", () => {
       error_type: "TimeoutError",
       error_message: "Handler exceeded deadline",
     });
-    const { container } = render(<ExecutionDetailContent record={record} backHref={backHref} />);
+    const { container } = render(<ExecutionDetailContent record={record} />);
     expect(container.textContent).not.toContain("completed in");
   });
 });
@@ -212,7 +197,7 @@ describe("ExecutionDetailFetcher", () => {
     );
     const { container } = render(
       <Wrapper>
-        <ExecutionDetailFetcher appKey="my_app" kind="listener" handlerId={1} executionId="abc-123" instanceQs="" />
+        <ExecutionDetailFetcher executionId="abc-123" />
       </Wrapper>,
     );
     expect(container.querySelector("[role='status']")).not.toBeNull();
@@ -226,7 +211,7 @@ describe("ExecutionDetailFetcher", () => {
     );
     const { findByText } = render(
       <Wrapper>
-        <ExecutionDetailFetcher appKey="my_app" kind="listener" handlerId={1} executionId="abc-123" instanceQs="" />
+        <ExecutionDetailFetcher executionId="abc-123" />
       </Wrapper>,
     );
     expect(await findByText("failed to load execution")).toBeDefined();
@@ -240,7 +225,7 @@ describe("ExecutionDetailFetcher", () => {
     );
     const { findByText } = render(
       <Wrapper>
-        <ExecutionDetailFetcher appKey="my_app" kind="listener" handlerId={1} executionId="abc-123" instanceQs="" />
+        <ExecutionDetailFetcher executionId="abc-123" />
       </Wrapper>,
     );
     expect(await findByText("execution not found")).toBeDefined();
@@ -259,54 +244,9 @@ describe("ExecutionDetailFetcher", () => {
     );
     const { findByText } = render(
       <Wrapper>
-        <ExecutionDetailFetcher appKey="my_app" kind="listener" handlerId={1} executionId="abc-123" instanceQs="" />
+        <ExecutionDetailFetcher executionId="abc-123" />
       </Wrapper>,
     );
     expect(await findByText(/completed in/)).toBeDefined();
-  });
-
-  it("builds correct back href with instance query string", async () => {
-    const execution = createExecution("handler", { execution_id: "abc-123", status: "success" });
-    server.use(
-      http.get("/api/telemetry/execution/:id", () => {
-        return HttpResponse.json(execution);
-      }),
-    );
-    const { findByText } = render(
-      <Wrapper>
-        <ExecutionDetailFetcher
-          appKey="my_app"
-          kind="listener"
-          handlerId={5}
-          executionId="abc-123"
-          instanceQs="?instance=2"
-          handlerName="on_motion"
-        />
-      </Wrapper>,
-    );
-    const link = await findByText("← back to on_motion");
-    expect(link.getAttribute("href")).toBe("/apps/my_app/handlers/listener/5?instance=2");
-  });
-
-  it("error state back link uses correct href", async () => {
-    server.use(
-      http.get("/api/telemetry/execution/:id", () => {
-        return HttpResponse.error();
-      }),
-    );
-    const { findByText } = render(
-      <Wrapper>
-        <ExecutionDetailFetcher
-          appKey="my_app"
-          kind="job"
-          handlerId={3}
-          executionId="abc-123"
-          instanceQs=""
-          handlerName="daily_check"
-        />
-      </Wrapper>,
-    );
-    const link = await findByText("← back to daily_check");
-    expect(link.getAttribute("href")).toBe("/apps/my_app/handlers/job/3");
   });
 });
