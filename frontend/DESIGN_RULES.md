@@ -2,9 +2,9 @@
 
 Concrete visual rules for hassette's web UI. Claude reads this when making frontend changes.
 
-These rules codify what's already working and fix what's inconsistent. They reference the existing token system in `src/styles/tokens.css`. Every rule uses specific tokens or values — no subjective judgment required.
+These rules codify what's already working and fix what's inconsistent. They reference the existing token system in `src/tokens.css`. Every rule uses specific tokens or values — no subjective judgment required.
 
-For the token catalog, component specifications, and status system reference, see `design/context.md`.
+**Canonical hierarchy:** `design/context.md` is the primary design system reference — it defines tokens, component specs, structural patterns, and product direction. This file provides implementation-level rules that apply those decisions to specific UI patterns. When these two files conflict, `design/context.md` wins.
 
 ## Typography Hierarchy
 
@@ -101,20 +101,17 @@ Search sits between the section heading and the table, part of the section flow.
 
 ## Cards and Containers
 
-### Tables Are Not Cards
+### Table Containment
 
-Tables provide their own visual structure — the header row (uppercase mono, `--bg-sunken`) creates a clear top edge, row borders create internal structure, and the footer text provides closure. Wrapping a table in a card adds border + shadow + padding for no information gain. It also creates whitespace problems (search input positioning, padding around already-padded table cells).
+All data tables use `TableCard` — a scroll container that provides a structural border (`--line-strong`), radius (`--r-md`), scroll height, and a footer slot. This is not a decorative card: it has no shadow, no padding, and no visual chrome beyond the border that defines the scroll area. See `design/context.md` for the full structural pattern.
 
-**Rule: tables sit directly on the page surface.** No card wrapper, no border, no shadow. The table header row is the visual anchor.
+Do not wrap tables in the decorative `Card` component. `Card` adds shadow + padding for visual grouping — appropriate for stats strips and handler health tiles, not for tables. The `TableCard` scroll container is the only wrapper tables need.
 
-### When to Use a Card
+### When to Use Each Container
 
-- **Stats strips** — distinct summary data blocks. Card styling built in.
-- **Handler health tiles** — mini-dashboards per handler. Cards.
-- **Config key-value groups** — grouped entities that benefit from visual containment.
-- **Empty states** — when a section has no content to show.
-- **Tables** — no. The table IS the structure.
-- **Inline content** (section heading + text, diagnostics lists) — no card.
+- **`TableCard`** — all data tables. Provides scroll containment + footer slot.
+- **`Card`** — stats strips, handler health tiles, config key-value groups, empty states. Provides visual grouping with shadow.
+- **Neither** — inline content (section heading + text, diagnostics lists). No container needed.
 
 ### Nesting
 
@@ -233,14 +230,16 @@ The accent (oklch hue 255, blue-purple) is used for:
 - **In handler health tiles:** the status dot is the indicator; the tile border stays `--line-strong`
 - **For the Stop button:** outlined with `--err` text and border, not filled `--err-bg`. Destructive but not urgent — it shouldn't dominate the page.
 
-### Color Restraint
+### Color Use
 
-A professional dashboard uses color sparingly. On any given page, the visible colors should be:
-- Neutrals (ink scale + surfaces) for 90% of the content
-- One accent color for interactive elements
-- Status colors only where status is being communicated
+Color should be semantic — every non-neutral color communicates something (status, interactivity, category). Avoid purely decorative color, but don't default to near-monochrome either. An operational dashboard can carry a richer palette when each color earns its place through meaning.
 
-If a page screenshot looks colorful, something is wrong. The default state of a healthy system is mostly neutral with small pops of green and blue.
+The current baseline is:
+- Neutrals (ink scale + surfaces) for most content
+- Accent color for interactive elements
+- Status colors where status is being communicated
+
+This baseline is a floor, not a ceiling. Richer surface tints, category-coded sections, or a warmer accent palette are all valid directions as long as color remains tied to information, not decoration.
 
 ## Borders and Lines
 
