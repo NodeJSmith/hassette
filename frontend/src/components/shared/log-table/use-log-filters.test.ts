@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { LogEntry } from "@/api/endpoints";
 import { createLogEntry } from "@/test/factories";
+import { createWouterMock } from "@/test/mock-wouter";
 
 import { DEFAULT_SORT, RENDER_CAP, SEARCH_DEBOUNCE_MS } from "./constants";
 import type { FilterState, LevelFilter } from "./types";
@@ -11,10 +12,12 @@ import { filterLogEntries, useLogFilters } from "./use-log-filters";
 let mockSearch = "";
 const mockNavigate = vi.fn();
 
-vi.mock("wouter", () => ({
-  useSearch: () => mockSearch,
-  useLocation: () => ["/logs", mockNavigate],
-}));
+vi.mock("wouter", () =>
+  createWouterMock({
+    useSearch: () => mockSearch,
+    useLocation: () => ["/logs", mockNavigate],
+  }),
+);
 
 function entry(overrides: Partial<LogEntry> = {}) {
   return createLogEntry({ app_key: "my_app", source_tier: "app", message: "hello world", ...overrides });
