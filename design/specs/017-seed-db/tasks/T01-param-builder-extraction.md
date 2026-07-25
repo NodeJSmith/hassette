@@ -26,11 +26,11 @@ In `src/hassette/core/telemetry/repository.py`:
 
 2. **Rename `_listener_insert_params` → `listener_insert_params`**. Module-level function (line 90). Update the internal caller in `register_listener` (line 325).
 
-3. **Extract `job_insert_params` as a new module-level function**. Currently the INSERT parameter dict is built inline inside `register_job()` (around lines 396-399). Extract it to a standalone function `job_insert_params(registration: ScheduledJobRegistration) -> dict[str, Any]` following the same pattern as the other two builders. **Critical**: hardcode `"repeat": 0` in the extracted function — this is an invariant (`repeat` is always 0 for new-style jobs, and `ScheduledJobRegistration` has no `repeat` field). Call the new function from `register_job()`.
+3. **Extract `job_insert_params` as a new module-level function**. Currently the INSERT parameter dict is built inline inside `register_job()` (around lines 391-409). Extract it to a standalone function `job_insert_params(registration: ScheduledJobRegistration) -> dict[str, Any]` following the same pattern as the other two builders. **Critical**: hardcode `"repeat": 0` in the extracted function — this is an invariant (`repeat` is always 0 for new-style jobs, and `ScheduledJobRegistration` has no `repeat` field). Call the new function from `register_job()`.
 
 In `tests/integration/telemetry/test_telemetry_execution_id.py`:
 
-4. **Update the import** on line 13: change `_execution_insert_params` to `execution_insert_params`. Update the two call sites at lines 149 and 208.
+4. **Update the import** on line 13: change `_execution_insert_params` to `execution_insert_params`. Update the two call sites at lines 149 and 208. Also update the docstring references at lines 135 and 196 that mention `_execution_insert_params()` in prose.
 
 In `tests/integration/test_thread_leaked_observability.py`:
 

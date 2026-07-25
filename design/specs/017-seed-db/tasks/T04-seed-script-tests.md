@@ -14,6 +14,7 @@ Write the test suite that validates the seed script end-to-end: param builder ex
 
 - create: `tests/unit/core/test_param_builders.py`
 - create: `tests/integration/test_seed_db.py`
+- modify: `CLAUDE.md`
 - read: `src/hassette/core/telemetry/repository.py`
 - read: `scripts/seed_db.py`
 - read: `src/hassette/test_utils/factories.py`
@@ -49,6 +50,17 @@ Test the seed script end-to-end by running it as a subprocess or importing `main
 10. **`test_cli_queries_against_seeded_db` (AC#6)** — this test is more complex: it requires a running hassette instance pointed at the seeded DB. If this is not feasible in the integration test layer (hassette requires HA to start — see #1435), write this as a manual verification step documented in the test file with `@pytest.mark.skip(reason="requires running hassette instance — verify manually")` and a docstring explaining the manual steps. Alternatively, if the CLI client can be tested by mocking the HTTP layer, do that.
 
 11. **`test_lint_passes` (AC#7)** — this is verified by `prek -a` during the pre-commit review, not by a test. No test file needed for this AC. Include it in the Verify section as "verified by pre-commit lint."
+
+### Documentation update
+
+Add seed script usage to `CLAUDE.md` under the Common Commands section:
+
+```bash
+# Seed a telemetry database for dev/QA
+uv run python scripts/seed_db.py --scenario healthy --output /tmp/hassette-healthy.db
+```
+
+List the available scenarios (healthy, empty, degraded, error, large-volume, lifecycle, adversarial).
 
 ### Test conventions
 
