@@ -50,7 +50,7 @@ vi.mock("./pages/app-detail", () => ({
 
 vi.mock("sonner", () => ({
   Toaster: () => null,
-  toast: { error: vi.fn() },
+  toast: { success: vi.fn(), error: vi.fn() },
 }));
 
 // Mock hooks that make network/WS connections

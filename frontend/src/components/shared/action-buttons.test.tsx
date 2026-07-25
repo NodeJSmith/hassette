@@ -1,6 +1,7 @@
 import { fireEvent, render, waitFor } from "@testing-library/preact";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { ActionResponse } from "../../api/endpoints";
 import { ActionButtons } from "./action-buttons";
 
 // Mock the API endpoints — we test the component logic, not the network.
@@ -10,10 +11,17 @@ vi.mock("../../api/endpoints", () => ({
   reloadApp: vi.fn(),
 }));
 
+vi.mock("sonner", () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
+}));
+
 const endpoints = await import("../../api/endpoints");
-const startApp = endpoints.startApp as unknown as ReturnType<typeof vi.fn>;
-const stopApp = endpoints.stopApp as unknown as ReturnType<typeof vi.fn>;
-const reloadApp = endpoints.reloadApp as unknown as ReturnType<typeof vi.fn>;
+const startApp = vi.mocked(endpoints.startApp);
+const stopApp = vi.mocked(endpoints.stopApp);
+const reloadApp = vi.mocked(endpoints.reloadApp);
+
+// Import after mock so the spy reference is captured.
+const { toast } = await import("sonner");
 
 describe("ActionButtons", () => {
   beforeEach(() => {
@@ -57,7 +65,7 @@ describe("ActionButtons", () => {
   // -- Action execution --
 
   it("calls startApp and disables button during loading", async () => {
-    startApp.mockResolvedValue({ status: "accepted" });
+    startApp.mockResolvedValue({ status: "accepted", app_key: "my_app", action: "start" });
 
     const { getByTestId } = render(<ActionButtons appKey="my_app" status="stopped" />);
 
@@ -73,10 +81,12 @@ describe("ActionButtons", () => {
     await waitFor(() => {
       expect(btn.disabled).toBe(false);
     });
+
+    expect(toast.success).toHaveBeenCalledWith('App "my_app" started');
   });
 
   it("calls stopApp when Stop is clicked", async () => {
-    stopApp.mockResolvedValue({ status: "accepted" });
+    stopApp.mockResolvedValue({ status: "accepted", app_key: "my_app", action: "stop" });
 
     const { getByTestId } = render(<ActionButtons appKey="my_app" status="running" />);
 
@@ -86,10 +96,12 @@ describe("ActionButtons", () => {
     await waitFor(() => {
       expect((getByTestId("btn-stop-my_app") as HTMLButtonElement).disabled).toBe(false);
     });
+
+    expect(toast.success).toHaveBeenCalledWith('App "my_app" stopped');
   });
 
   it("calls reloadApp when Reload is clicked", async () => {
-    reloadApp.mockResolvedValue({ status: "accepted" });
+    reloadApp.mockResolvedValue({ status: "accepted", app_key: "my_app", action: "reload" });
 
     const { getByTestId } = render(<ActionButtons appKey="my_app" status="running" />);
 
@@ -99,43 +111,45 @@ describe("ActionButtons", () => {
     await waitFor(() => {
       expect((getByTestId("btn-reload-my_app") as HTMLButtonElement).disabled).toBe(false);
     });
+
+    expect(toast.success).toHaveBeenCalledWith('App "my_app" reloaded');
   });
 
   // -- Error handling --
 
-  it("shows error message when action fails and re-enables button", async () => {
+  it("toasts error and re-enables button when action fails", async () => {
     startApp.mockRejectedValue(new Error("Connection refused"));
 
-    const { getByTestId, getByText } = render(<ActionButtons appKey="my_app" status="stopped" />);
+    const { getByTestId } = render(<ActionButtons appKey="my_app" status="stopped" />);
 
     const btn = getByTestId("btn-start-my_app") as HTMLButtonElement;
     fireEvent.click(btn);
 
     await waitFor(() => {
-      expect(getByText("Connection refused")).toBeDefined();
+      expect(btn.disabled).toBe(false);
     });
 
-    // Button must re-enable after error (finally block)
-    expect(btn.disabled).toBe(false);
+    expect(toast.error).toHaveBeenCalledWith('Failed to start "my_app": Connection refused');
+    expect(toast.success).not.toHaveBeenCalled();
   });
 
-  it("shows stringified error for non-Error throws", async () => {
+  it("toasts stringified error for non-Error throws", async () => {
     startApp.mockRejectedValue("raw string error");
 
-    const { getByTestId, getByText } = render(<ActionButtons appKey="my_app" status="stopped" />);
+    const { getByTestId } = render(<ActionButtons appKey="my_app" status="stopped" />);
 
     const btn = getByTestId("btn-start-my_app") as HTMLButtonElement;
     fireEvent.click(btn);
 
     await waitFor(() => {
-      expect(getByText("raw string error")).toBeDefined();
+      expect(btn.disabled).toBe(false);
     });
 
-    expect(btn.disabled).toBe(false);
+    expect(toast.error).toHaveBeenCalledWith('Failed to start "my_app": raw string error');
   });
 
   it("ignores second click while first action is in-flight", async () => {
-    let resolveAction!: (value: unknown) => void;
+    let resolveAction!: (value: ActionResponse) => void;
     startApp.mockImplementation(
       () =>
         new Promise((resolve) => {
@@ -156,28 +170,12 @@ describe("ActionButtons", () => {
     expect(startApp).toHaveBeenCalledTimes(1);
 
     // Resolve the pending action to clean up
-    resolveAction({ status: "accepted" });
+    resolveAction({ status: "accepted", app_key: "my_app", action: "start" });
     await waitFor(() => {
       expect(btn.disabled).toBe(false);
     });
-  });
 
-  it("clears error when status changes", async () => {
-    startApp.mockRejectedValue(new Error("fail"));
-
-    const { getByTestId, getByText, queryByText, rerender } = render(
-      <ActionButtons appKey="my_app" status="stopped" />,
-    );
-
-    fireEvent.click(getByTestId("btn-start-my_app"));
-
-    await waitFor(() => {
-      expect(getByText("fail")).toBeDefined();
-    });
-
-    // Status changes (e.g., WS event arrives) — error should clear
-    rerender(<ActionButtons appKey="my_app" status="running" />);
-
-    expect(queryByText("fail")).toBeNull();
+    // Only the action that actually ran toasts
+    expect(toast.success).toHaveBeenCalledTimes(1);
   });
 });
