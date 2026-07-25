@@ -31,6 +31,28 @@ export function worstStatus(manifest: AppManifest): string {
   }, manifest.status);
 }
 
+export interface GroupedApps {
+  groups: Map<GroupKey, AppManifest[]>;
+  allHealthy: boolean;
+}
+
+export function groupAndSortApps(manifests: AppManifest[]): GroupedApps {
+  const groups = new Map<GroupKey, AppManifest[]>(GROUP_DEFS.map((g) => [g.key, []]));
+  for (const m of manifests) {
+    const key = getGroupKey(m);
+    groups.get(key)!.push(m);
+  }
+  for (const [, apps] of groups) {
+    apps.sort((a, b) => a.display_name.localeCompare(b.display_name));
+  }
+  const allHealthy =
+    (groups.get("err")?.length ?? 0) === 0 &&
+    (groups.get("blocked")?.length ?? 0) === 0 &&
+    (groups.get("warn")?.length ?? 0) === 0 &&
+    (groups.get("stopped")?.length ?? 0) === 0;
+  return { groups, allHealthy };
+}
+
 export function getGroupKey(manifest: AppManifest): GroupKey {
   const status = manifest.instance_count > 1 ? worstStatus(manifest) : manifest.status;
 

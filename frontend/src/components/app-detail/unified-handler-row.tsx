@@ -5,9 +5,9 @@ import { useRelativeTime } from "../../hooks/use-relative-time";
 import { STATUS_DOT_SIZE } from "../../utils/constants";
 import { formatTimestamp, pluralize } from "../../utils/format";
 import type { StatusKind } from "../../utils/status";
-import { handlerKindLabel } from "../../utils/status";
 import { Badge } from "../shared/badge";
 import { StatusShape } from "../shared/status-shape";
+import { isFailing, itemErrorMessage, itemKindChip, itemRunCount } from "./overview-tab-helpers";
 import styles from "./unified-handler-row.module.css";
 
 export type UnifiedItemKind = "listener" | "job";
@@ -38,41 +38,25 @@ interface Props {
  * line two. Failing rows gain a third line with the last error message.
  */
 export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
-  // Hooks must be called unconditionally — null yields "".
   const jobData = item.kind === "job" ? item.data : null;
   const nextRunRelative = useRelativeTime(jobData?.next_run ?? null);
   const fireAtRelative = useRelativeTime(jobData?.fire_at ?? null);
 
-  let invocationsOrRuns: number;
-  let failed: number;
-  let timedOut: number;
-  let chipLabel: string;
-  let isFailing: boolean;
-  let lastErrorMessage: string | null = null;
+  const chipLabel = itemKindChip(item);
+  const runCount = itemRunCount(item);
+  const failing = isFailing(item);
+  const errorMessage = failing ? itemErrorMessage(item) : null;
+  const { failed, timed_out: timedOut } = item.data;
+
   let nextRunLabel: string | null = null;
   let nextRunTitle: string | null = null;
-
-  if (item.kind === "listener") {
-    const listener = item.data;
-    chipLabel = handlerKindLabel("listener", listener.listener_kind, null);
-    invocationsOrRuns = listener.total_invocations;
-    failed = listener.failed;
-    timedOut = listener.timed_out;
-    isFailing = item.statusKind === "err";
-    lastErrorMessage = isFailing ? (listener.last_error_message ?? null) : null;
-  } else {
-    const job = item.data;
-    chipLabel = handlerKindLabel("job", null, job.trigger_type);
-    invocationsOrRuns = job.total_executions;
-    failed = job.failed;
-    timedOut = job.timed_out;
-    isFailing = item.statusKind === "err";
-    if (job.next_run) {
+  if (item.kind === "job") {
+    if (item.data.next_run) {
       nextRunLabel = `next ${nextRunRelative}`;
-      nextRunTitle = formatTimestamp(job.next_run);
-    } else if (job.fire_at) {
+      nextRunTitle = formatTimestamp(item.data.next_run);
+    } else if (item.data.fire_at) {
       nextRunLabel = `fire at ${fireAtRelative}`;
-      nextRunTitle = formatTimestamp(job.fire_at);
+      nextRunTitle = formatTimestamp(item.data.fire_at);
     }
   }
 
@@ -95,7 +79,7 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
       <div class={styles.body}>
         <div class={styles.header}>
           <span class={styles.name}>{item.name}</span>
-          {isFailing && (
+          {failing && (
             <Badge variant="danger" size="xs">
               failing
             </Badge>
@@ -110,7 +94,7 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
               {item.data.mode}
             </span>
           )}
-          <span title={`Total ${callLabel}s`}>{pluralize(invocationsOrRuns, callLabel)}</span>
+          <span title={`Total ${callLabel}s`}>{pluralize(runCount, callLabel)}</span>
           {failed > 0 && (
             <span class={styles.statsErr} data-testid="handler-failed-count">
               {failed} failed
@@ -123,9 +107,9 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
             </span>
           )}
         </div>
-        {isFailing && lastErrorMessage && (
-          <span class={styles.sublineErr} title={lastErrorMessage} data-testid="handler-row-subline-err">
-            {lastErrorMessage}
+        {failing && errorMessage && (
+          <span class={styles.sublineErr} title={errorMessage} data-testid="handler-row-subline-err">
+            {errorMessage}
           </span>
         )}
       </div>

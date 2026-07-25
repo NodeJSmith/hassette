@@ -49,11 +49,16 @@ function MobileCard({ href, appKey, name, failing, metrics, footer, "data-testid
 function useHandlerRowData(row: UnifiedRow) {
   const nextRunRelative = useRelativeTime(row.next_run_ts);
   const errorRate = formatRate(row.failed, row.runs);
-  const avgDur = formatDurationOrDash(row.avg_duration_ms);
+  const avgDuration = formatDurationOrDash(row.avg_duration_ms);
   const now = Date.now() / MS_PER_SECOND;
   const isOverdue = row.next_run_ts !== null && row.next_run_ts < now;
-  const nextRunDisplay = row.next_run_ts !== null ? (isOverdue ? "overdue" : nextRunRelative) : null;
-  return { errorRate, avgDur, isOverdue, nextRunDisplay };
+
+  let nextRunDisplay: string | null = null;
+  if (row.next_run_ts !== null) {
+    nextRunDisplay = isOverdue ? "overdue" : nextRunRelative;
+  }
+
+  return { errorRate, avgDuration, isOverdue, nextRunDisplay };
 }
 
 interface HandlerRowProps {
@@ -61,7 +66,7 @@ interface HandlerRowProps {
 }
 
 export function HandlerTableRow({ row }: HandlerRowProps) {
-  const { errorRate, avgDur, isOverdue, nextRunDisplay } = useHandlerRowData(row);
+  const { errorRate, avgDuration, isOverdue, nextRunDisplay } = useHandlerRowData(row);
 
   return (
     <tr class={clsx(styles.row, row.failed > 0 && styles.rowFailing)} data-testid={`${row.kind}-row-${row.id}`}>
@@ -82,14 +87,14 @@ export function HandlerTableRow({ row }: HandlerRowProps) {
       <td class={clsx("ht-text-mono ht-text-sm", row.timed_out > 0 && "ht-text-warning")}>{row.timed_out}</td>
       <td class={clsx("ht-text-mono ht-text-sm", row.cancelled > 0 && "ht-text-cancel")}>{row.cancelled}</td>
       <td class={clsx("ht-text-mono ht-text-sm", row.failed > 0 && "ht-text-danger")}>{errorRate}</td>
-      <td class="ht-text-mono ht-text-sm">{avgDur}</td>
+      <td class="ht-text-mono ht-text-sm">{avgDuration}</td>
       <td class={clsx("ht-text-mono ht-text-sm", isOverdue && "ht-text-warning")}>{nextRunDisplay ?? "—"}</td>
     </tr>
   );
 }
 
 export function HandlerMobileRow({ row }: HandlerRowProps) {
-  const { errorRate, avgDur, nextRunDisplay } = useHandlerRowData(row);
+  const { errorRate, avgDuration, nextRunDisplay } = useHandlerRowData(row);
 
   return (
     <MobileCard
@@ -107,7 +112,7 @@ export function HandlerMobileRow({ row }: HandlerRowProps) {
           {row.timed_out > 0 && <span class="ht-text-warning">{row.timed_out} timed out</span>}
           {row.cancelled > 0 && <span class="ht-text-cancel">{row.cancelled} cancelled</span>}
           {row.runs > 0 && <span>{errorRate} err</span>}
-          {row.avg_duration_ms > 0 && <span>avg {avgDur}</span>}
+          {row.avg_duration_ms > 0 && <span>avg {avgDuration}</span>}
         </>
       }
       footer={
