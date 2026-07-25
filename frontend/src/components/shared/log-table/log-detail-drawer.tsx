@@ -6,10 +6,11 @@ import type { LogEntry } from "@/api/endpoints";
 import { BREAKPOINT_MOBILE, BREAKPOINT_TABLET, useMediaQuery } from "@/hooks/use-media-query";
 import { useSignal } from "@/hooks/use-signal";
 import { useSubscribe } from "@/hooks/use-subscribe";
-import { appDetailPath, logEntryExecutionHref } from "@/utils/app-routes";
+import { appDetailPath } from "@/utils/app-routes";
 import { formatTimestamp } from "@/utils/format";
 
 import { COPY_CONFIRM_MS, DETAIL_DRAWER_ID, levelClass } from "./constants";
+import { ExecutionIdLink } from "./execution-id-link";
 import styles from "./log-detail-drawer.module.css";
 import type { RowKey } from "./types";
 import { rowKey } from "./types";
@@ -210,16 +211,9 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
                 <>
                   <dt>Execution</dt>
                   <dd class={styles.monoValue}>
-                    {(() => {
-                      const execHref = logEntryExecutionHref(entry);
-                      return execHref ? (
-                        <Link href={execHref} class={styles.execLink}>
-                          {entry.execution_id}
-                        </Link>
-                      ) : (
-                        entry.execution_id
-                      );
-                    })()}
+                    <ExecutionIdLink entry={entry} linkClassName={styles.execLink}>
+                      {entry.execution_id}
+                    </ExecutionIdLink>
                     <CopyButton text={entry.execution_id} label="Copy execution ID" />
                   </dd>
                 </>

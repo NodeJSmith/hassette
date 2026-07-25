@@ -3,7 +3,12 @@
 import pytest
 from playwright.sync_api import Page, expect
 
-from tests.e2e.conftest import ANIMATION_SETTLE_MS, DATA_LOAD_TIMEOUT_MS, EXTENDED_SETTLE_MS
+from tests.e2e.conftest import (
+    ANIMATION_SETTLE_MS,
+    DATA_LOAD_TIMEOUT_MS,
+    DRAWER_SETTLE_MS,
+    EXTENDED_SETTLE_MS,
+)
 
 pytestmark = pytest.mark.e2e
 
@@ -108,12 +113,12 @@ def test_log_expand_button_toggles_message(page: Page, base_url: str) -> None:
     detail_btn = page.locator("[data-testid='log-table'] tbody tr button[aria-label='View log detail']").first
     expect(detail_btn).to_be_visible()
     detail_btn.click()
-    page.wait_for_timeout(200)
+    page.wait_for_timeout(DRAWER_SETTLE_MS)
     drawer = page.locator("aside[role='complementary'][aria-label='Log entry detail']")
     expect(drawer).to_be_visible()
     # Close the drawer via the close button
     page.locator("button[aria-label='Close detail panel']").click()
-    page.wait_for_timeout(200)
+    page.wait_for_timeout(DRAWER_SETTLE_MS)
     expect(drawer).not_to_be_attached()
 
 
