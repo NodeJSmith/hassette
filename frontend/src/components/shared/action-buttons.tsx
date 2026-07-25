@@ -1,4 +1,3 @@
-import { useEffect } from "preact/hooks";
 import { toast } from "sonner";
 
 import { reloadApp, startApp, stopApp } from "../../api/endpoints";
@@ -26,7 +25,7 @@ interface Props {
 }
 
 export function ActionButtons({ appKey, status, variant = "icon", confirmStop = false }: Props) {
-  const { loading, error, run } = useAsyncAction();
+  const { loading, run } = useAsyncAction();
   const showStopConfirm = useSignal(false);
 
   // The request returns 202 — the toast confirms the action was accepted, the
@@ -44,12 +43,6 @@ export function ActionButtons({ appKey, status, variant = "icon", confirmStop = 
       toast.success(`App "${appKey}" ${outcome}`);
     });
   };
-
-  // Clear stale error when app status changes (e.g., WS event arrives after failed action)
-  useEffect(() => {
-    error.value = null;
-    // eslint-disable-next-line react-hooks-configurable/exhaustive-deps -- error is a Preact signal (stable ref)
-  }, [status]);
 
   const canStart = status === "stopped" || status === "failed" || status === "disabled";
   const canStop = status === "running";
@@ -146,11 +139,6 @@ export function ActionButtons({ appKey, status, variant = "icon", confirmStop = 
             showStopConfirm.value = false;
           }}
         />
-      )}
-      {error.value && (
-        <p class="ht-text-danger ht-text-sm" role="alert" data-testid="action-buttons-error">
-          {error.value}
-        </p>
       )}
     </>
   );

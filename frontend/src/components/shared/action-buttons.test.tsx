@@ -116,38 +116,34 @@ describe("ActionButtons", () => {
 
   // -- Error handling --
 
-  it("shows error message when action fails and re-enables button", async () => {
+  it("toasts error and re-enables button when action fails", async () => {
     startApp.mockRejectedValue(new Error("Connection refused"));
 
-    const { getByTestId, getByText } = render(<ActionButtons appKey="my_app" status="stopped" />);
+    const { getByTestId } = render(<ActionButtons appKey="my_app" status="stopped" />);
 
     const btn = getByTestId("btn-start-my_app") as HTMLButtonElement;
     fireEvent.click(btn);
 
     await waitFor(() => {
-      expect(getByText("Connection refused")).toBeDefined();
+      expect(btn.disabled).toBe(false);
     });
-
-    // Button must re-enable after error (finally block)
-    expect(btn.disabled).toBe(false);
 
     expect(toast.error).toHaveBeenCalledWith('Failed to start "my_app": Connection refused');
     expect(toast.success).not.toHaveBeenCalled();
   });
 
-  it("shows stringified error for non-Error throws", async () => {
+  it("toasts stringified error for non-Error throws", async () => {
     startApp.mockRejectedValue("raw string error");
 
-    const { getByTestId, getByText } = render(<ActionButtons appKey="my_app" status="stopped" />);
+    const { getByTestId } = render(<ActionButtons appKey="my_app" status="stopped" />);
 
     const btn = getByTestId("btn-start-my_app") as HTMLButtonElement;
     fireEvent.click(btn);
 
     await waitFor(() => {
-      expect(getByText("raw string error")).toBeDefined();
+      expect(btn.disabled).toBe(false);
     });
 
-    expect(btn.disabled).toBe(false);
     expect(toast.error).toHaveBeenCalledWith('Failed to start "my_app": raw string error');
   });
 
@@ -180,24 +176,5 @@ describe("ActionButtons", () => {
 
     // Only the action that actually ran toasts
     expect(toast.success).toHaveBeenCalledTimes(1);
-  });
-
-  it("clears error when status changes", async () => {
-    startApp.mockRejectedValue(new Error("fail"));
-
-    const { getByTestId, getByText, queryByText, rerender } = render(
-      <ActionButtons appKey="my_app" status="stopped" />,
-    );
-
-    fireEvent.click(getByTestId("btn-start-my_app"));
-
-    await waitFor(() => {
-      expect(getByText("fail")).toBeDefined();
-    });
-
-    // Status changes (e.g., WS event arrives) — error should clear
-    rerender(<ActionButtons appKey="my_app" status="running" />);
-
-    expect(queryByText("fail")).toBeNull();
   });
 });
