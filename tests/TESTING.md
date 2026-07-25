@@ -146,19 +146,19 @@ Reset functions are defined in `src/hassette/test_utils/reset.py`.
 
 The `make_`/`create_`/`build_` prefix signals what a factory returns, not just that it builds something:
 
-- **`make_<real object>()`** — returns a real, fully-constructed instance of the production type. `make_scheduled_job()` returns a real `ScheduledJob` for unit/scheduler tests that exercise `ScheduledJob` behavior directly (`__post_init__`, `matches()`, `sort_index`). `make_real_job()` (`web_helpers.py`) also returns a real `ScheduledJob`, but with web-layer defaults (`app_key`, `instance_index`) for tests that exercise web-layer behavior against a real job.
-- **`make_<name>()` returning `SimpleNamespace`** — a duck-typed stand-in, not a real instance. `make_job()` (`web_helpers.py`) returns a `SimpleNamespace` job for serialization tests that only need attribute access, not real `ScheduledJob` methods.
+- **`make_<real object>()`** — returns a real, fully-constructed instance of the production type. `make_scheduled_job()` returns a real `ScheduledJob` for unit/scheduler tests that exercise `ScheduledJob` behavior directly (`__post_init__`, `matches()`, `sort_index`). `make_real_job()` (`web_job_helpers.py`) also returns a real `ScheduledJob`, but with web-layer defaults (`app_key`, `instance_index`) for tests that exercise web-layer behavior against a real job.
+- **`make_<name>()` returning `SimpleNamespace`** — a duck-typed stand-in, not a real instance. `make_job()` (`web_job_helpers.py`) returns a `SimpleNamespace` job for serialization tests that only need attribute access, not real `ScheduledJob` methods.
 - **`make_mock_*()`** — always returns a `Mock`/`MagicMock`/`AsyncMock`. `make_mock_executor()`, `make_mock_event()`, `make_mock_parent()` never construct the real production type.
 
 Three factories share the word "job" but return three different things — check the return type, not just the name, before reusing one: `make_scheduled_job()` (real `ScheduledJob`, scheduler-test defaults), `make_real_job()` (real `ScheduledJob`, web-test defaults), `make_job()` (`SimpleNamespace`, serialization tests).
 
-Similarly, `make_manifest()` in `web_helpers.py` returns `AppManifestInfo` (the runtime snapshot model) — this is a different type from local `make_manifest()` helpers in `test_config_classes.py` and `test_app_factory_lifecycle.py` that build `AppManifest` (the config-layer registration model). Those stay local; they are not consolidation targets.
+Similarly, `make_manifest()` in `web_manifest_helpers.py` returns `AppManifestInfo` (the runtime snapshot model) — this is a different type from local `make_manifest()` helpers in `test_config_classes.py` and `test_app_factory_lifecycle.py` that build `AppManifest` (the config-layer registration model). Those stay local; they are not consolidation targets.
 
 ## Before Writing a New Factory
 
 1. Check `src/hassette/test_utils/factories.py` for an existing factory returning the type you need.
 2. Check `src/hassette/test_utils/helpers.py` for event/state builders and misc helpers.
-3. Check `src/hassette/test_utils/web_helpers.py` for web/API response and snapshot factories.
+3. Check `src/hassette/test_utils/web_manifest_helpers.py`, `src/hassette/test_utils/web_job_helpers.py`, `src/hassette/test_utils/web_response_helpers.py`, and `src/hassette/test_utils/web_telemetry_helpers.py` for web/API response and snapshot factories.
 4. If a matching factory exists, import it — don't redefine it locally, even with a different name for the same shape.
 5. If it doesn't exist and you need it in 3+ files, add it to the appropriate shared file instead of writing a fourth local copy.
 6. If the factory is genuinely local — a different return type, a narrower purpose than any shared factory with a similar name — annotate the `def` line with `# factory-local: <reason>` so `tools/check_test_factories.py` doesn't flag it as shadowing.
@@ -185,19 +185,19 @@ Builds a RuntimeQueryService bypassing `__init__`. Use `use_real_lock=False` for
 
 Thin wrapper around `create_fastapi_app()` with optional log handler patch.
 
-### `make_manifest(**kwargs)` — `test_utils/web_helpers.py`
+### `make_manifest(**kwargs)` — `test_utils/web_manifest_helpers.py`
 
 Builds an `AppManifestInfo` with sensible defaults.
 
-### `make_full_snapshot(manifests)` — `test_utils/web_helpers.py`
+### `make_full_snapshot(manifests)` — `test_utils/web_manifest_helpers.py`
 
 Builds an `AppFullSnapshot` from a list of manifests with auto-computed status counts.
 
-### `make_job(**kwargs)` — `test_utils/web_helpers.py`
+### `make_job(**kwargs)` — `test_utils/web_job_helpers.py`
 
 Builds a `SimpleNamespace` scheduler job with sensible defaults (job_id, name, owner, next_run, repeat, trigger).
 
-### `make_real_job(**kwargs)` — `test_utils/web_helpers.py`
+### `make_real_job(**kwargs)` — `test_utils/web_job_helpers.py`
 
 Builds a real `ScheduledJob` with web-layer defaults (`app_key`, `instance_index`). Use for web-layer tests that exercise real `ScheduledJob` behavior; use `make_job()` instead for pure serialization tests.
 

@@ -1,7 +1,7 @@
 ---
 task_id: "T13"
 title: "Update documentation for split files"
-status: "planned"
+status: "done"
 depends_on: ["T02", "T05", "T10", "T11", "T12"]
 implements: ["AC#9"]
 ---
