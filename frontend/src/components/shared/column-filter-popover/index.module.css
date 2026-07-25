@@ -1,5 +1,13 @@
 .popover {
   position: fixed;
+  /* Anchor the first frame: computePosition() is async, so without an explicit origin the
+     popover paints at its static position before the computed one lands. Kept invisible until
+     .positioned so that frame is never seen. Opacity (not visibility) so the focus-on-open
+     effect can still reach the children. */
+  left: 0;
+  top: 0;
+  opacity: 0;
+  pointer-events: none;
   z-index: var(--z-drawer);
   background: var(--bg-surface);
   border: var(--sp-px) solid var(--line-1);
@@ -11,6 +19,11 @@
   /* size() middleware in index.tsx sets a tighter max-height at runtime */
   max-height: 90vh;
   overflow: hidden auto;
+}
+
+.positioned {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .popover select,

@@ -1,6 +1,7 @@
 import { autoUpdate, computePosition, flip, offset, shift, size } from "@floating-ui/dom";
+import clsx from "clsx";
 import type { ComponentChildren } from "preact";
-import { useEffect, useRef } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 
 import styles from "./index.module.css";
 
@@ -29,13 +30,22 @@ export function ColumnFilterPopover({ open, onClose, triggerRef, label, children
   const popoverRef = useRef<HTMLDivElement>(null);
   const ignoreNextClick = useRef(false);
   const wasOpen = useRef(false);
+  // Gates visibility until computePosition() lands, so the popover is never painted at its
+  // pre-computation origin.
+  const [positioned, setPositioned] = useState(false);
 
   // Floating-ui position management
   useEffect(() => {
-    if (!open || !triggerRef.current || !popoverRef.current) return;
+    if (!open || !triggerRef.current || !popoverRef.current) {
+      setPositioned(false);
+      return;
+    }
 
     const trigger = triggerRef.current;
     const popover = popoverRef.current;
+    // A computePosition() promise can resolve after close; without this the next open would
+    // start already-visible and paint at the stale position for a frame.
+    let closed = false;
 
     const cleanup = autoUpdate(trigger, popover, () => {
       void computePosition(trigger, popover, {
@@ -54,12 +64,17 @@ export function ColumnFilterPopover({ open, onClose, triggerRef, label, children
           }),
         ],
       }).then(({ x, y }) => {
+        if (closed) return;
         popover.style.left = `${x}px`;
         popover.style.top = `${y}px`;
+        setPositioned(true);
       });
     });
 
-    return cleanup;
+    return () => {
+      closed = true;
+      cleanup();
+    };
   }, [open, triggerRef]);
 
   // Focus management: focus first focusable child on open
@@ -145,7 +160,7 @@ export function ColumnFilterPopover({ open, onClose, triggerRef, label, children
   return (
     <div
       ref={popoverRef}
-      class={styles.popover}
+      class={clsx(styles.popover, positioned && styles.positioned)}
       role="dialog"
       aria-label={label ?? "Column filter"}
       tabIndex={-1}
