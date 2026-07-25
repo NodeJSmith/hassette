@@ -17,12 +17,15 @@ vi.mock("wouter", async () => {
       useLocation: vi.fn().mockReturnValue(["/", vi.fn()]),
       useSearch: vi.fn().mockReturnValue(""),
     }),
-    Route: ({ component, children }: Record<string, unknown>) => {
-      if (component) {
-        const Component = component as () => preact.JSX.Element;
-        return <Component />;
-      }
-      if (children) return children as preact.JSX.Element;
+    Route: ({
+      component: Component,
+      children,
+    }: {
+      component?: preact.FunctionComponent;
+      children?: preact.ComponentChildren;
+    }) => {
+      if (Component) return <Component />;
+      if (children) return children;
       return null;
     },
     Redirect: () => null,

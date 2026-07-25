@@ -1,12 +1,12 @@
-import { h } from "preact";
+import { type ComponentChildren, h } from "preact";
 
 // Some callers only need the current path and omit the navigate function, so the tuple only
 // pins the first element.
 type LocationTuple = readonly [string, ...unknown[]];
-type LinkProps = Record<string, unknown> & { href?: string };
+type LinkProps = Record<string, unknown> & { href?: string; children?: ComponentChildren };
 
 function defaultLink({ href, children, class: cls, ...rest }: LinkProps) {
-  return h("a", { href, class: cls, ...rest }, children as never);
+  return h("a", { href, class: cls, ...rest }, children);
 }
 
 interface CreateWouterMockOptions {
