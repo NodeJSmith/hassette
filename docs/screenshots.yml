@@ -275,31 +275,10 @@
 # before capture.
 # ===========================================================================
 
-# App handler list: restart mode chip with cancelled invocations visible.
-# bus_overlap is autostart=false (too noisy for the log page), so the JS
-# starts it via the API and waits for handlers to accumulate call data.
-- url: "http://localhost:{port}/apps/bus_overlap/handlers"
-  output: docs/_static/web_ui_cancelled_strip.png
-  selector: "[data-testid='handler-list']"
-  width: 1400
-  height: 900
-  wait: 2000
-  wait_for: "document.querySelector('[data-testid^=\"unified-row-\"]')?.textContent.match(/\\d+ calls/)"
-  javascript: >-
-    (async()=>{
-    await fetch('/api/apps/bus_overlap/start',{method:'POST'});
-    await fetch('/api/apps/scheduler_overlap/start',{method:'POST'});
-    for(let i=0;i<60;i++){
-    const row=document.querySelector('[data-testid^="unified-row-"]');
-    if(row&&row.textContent.match(/[1-9]\d* calls/))return;
-    await new Promise(r=>setTimeout(r,500));
-    }
-    })()
-
 # Bus restart handler detail — blue diamond invocation rows, "cancelled"
-# labels, and the Cancelled stat cell. bus_overlap was started by the
-# cancelled_strip entry above; this entry waits for invocation data then
-# clicks the restart handler row.
+# labels, and the Cancelled stat cell. bus_overlap is autostart=false (too
+# noisy for the log page), so the JS starts it via the API, waits for
+# invocation data, then clicks the restart handler row.
 - url: "http://localhost:{port}/apps/bus_overlap/handlers"
   output: docs/_static/web_ui_cancelled_detail.png
   selector: "[data-testid^='listener-detail-']"
@@ -309,6 +288,8 @@
   wait_for: "document.querySelector('[data-testid^=\"listener-detail-\"]')?.textContent.includes('Cancelled')"
   javascript: >-
     (async()=>{
+    await fetch('/api/apps/bus_overlap/start',{method:'POST'});
+    await fetch('/api/apps/scheduler_overlap/start',{method:'POST'});
     for(let i=0;i<60;i++){
     const c=[...document.querySelectorAll('[data-testid="handler-row-mode-chip"]')].find(e=>e.getAttribute('aria-label')==='mode: restart');
     const row=c?.closest('[data-testid^="unified-row-"]');
