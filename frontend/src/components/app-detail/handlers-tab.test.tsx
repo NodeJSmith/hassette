@@ -513,7 +513,7 @@ describe("HandlersTab", () => {
     await waitFor(() => getByTestId("job-detail-50"));
     const modeChip = getByTestId("handler-mode-chip");
     expect(modeChip.textContent).toBe("mode: queued");
-    expect(modeChip.getAttribute("data-variant")).toBe("schedule");
+    expect(modeChip.getAttribute("data-variant")).toBe("muted");
   });
 
   it("job stats row: does not show Suppressed or Dropped when counts are zero", async () => {
@@ -688,7 +688,7 @@ describe("HandlersTab", () => {
     await waitFor(() => getByTestId("listener-detail-70"));
     const modeChip = getByTestId("handler-mode-chip");
     expect(modeChip.textContent).toBe("mode: queued");
-    expect(modeChip.getAttribute("data-variant")).toBe("schedule");
+    expect(modeChip.getAttribute("data-variant")).toBe("muted");
   });
 
   it("handler detail: registration source stays hidden until the toggle is clicked", async () => {

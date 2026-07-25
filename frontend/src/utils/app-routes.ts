@@ -35,6 +35,21 @@ export const NAV_PAGES: readonly NavPage[] = [
 
 export const HOME_PATH = "/apps";
 
+const DECIMAL_INSTANCE_PARAM_RE = /^\d+$/;
+
+/**
+ * Parse an `?instance=` query value into an instance index.
+ *
+ * Returns undefined for absent or malformed values, which callers treat as "the user did
+ * not pick an instance" — distinct from index 0, so links can omit the param entirely.
+ */
+export function parseInstanceParam(param: string | null): number | undefined {
+  if (param === null) return undefined;
+  const trimmed = param.trim();
+
+  return DECIMAL_INSTANCE_PARAM_RE.test(trimmed) ? Number(trimmed) : undefined;
+}
+
 export function appDetailPath(appKey: string, tab?: AppDetailTab, query?: RouteQuery): string {
   const path = tab ? `/apps/${appKey}/${tab}` : `/apps/${appKey}`;
   return path + buildQuery(query);

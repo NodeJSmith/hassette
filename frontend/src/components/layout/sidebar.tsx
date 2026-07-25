@@ -4,12 +4,17 @@ import { Link, useLocation, useSearch } from "wouter";
 
 import type { components } from "../../api/generated-types";
 import { useManifests } from "../../hooks/use-manifests";
+import { useSidebarHidden } from "../../hooks/use-sidebar-hidden";
 import { useAppState } from "../../state/context";
 import { appDetailPath, HOME_PATH, NAV_PAGES } from "../../utils/app-routes";
+import { setStoredValue } from "../../utils/local-storage";
 import { statusToKind } from "../../utils/status";
+import { Button } from "../shared/button";
 import { Chip } from "../shared/chip";
 import { Spinner } from "../shared/spinner";
 import { StatusShape } from "../shared/status-shape";
+import { SystemHealth } from "../shared/system-health";
+import { ThemeToggle } from "../shared/theme-toggle";
 import styles from "./sidebar.module.css";
 import { getGroupKey, GROUP_DEFS, type GroupDef, type GroupKey, worstStatus } from "./sidebar-groups";
 import { useGroupOpen } from "./use-group-open";
@@ -135,7 +140,11 @@ interface SidebarProps {
 export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
   const [location] = useLocation();
   const searchString = useSearch();
-  const { systemVersion } = useAppState();
+  const { systemVersion, sidebarCollapsed } = useAppState();
+  // When the sidebar is off screen the status bar owns this chrome instead; rendering it in
+  // both places would duplicate the testids and give screen readers two live regions for
+  // one connection event.
+  const chromeLivesInStatusBar = useSidebarHidden();
   const { data: allManifests = [], isPending: manifestsLoading } = useManifests();
   const [search, setSearch] = useState("");
 
@@ -176,14 +185,33 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
   return (
     <aside class={styles.sidebar} data-testid="sidebar">
       <div class={styles.sidebarBrand}>
-        <Link href={HOME_PATH} class={styles.brandLink} aria-label="Hassette home">
-          <span class={styles.wordmark}>hassette</span>
-        </Link>
-        {version !== null && (
-          <div class={styles.version}>
-            <span class={styles.versionText}>v{version}</span>
-          </div>
-        )}
+        <div class={styles.brandText}>
+          <Link href={HOME_PATH} class={styles.brandLink} aria-label="Hassette home">
+            <span class={styles.wordmark}>hassette</span>
+          </Link>
+          {version !== null && (
+            <div class={styles.version}>
+              <span class={styles.versionText}>v{version}</span>
+            </div>
+          )}
+        </div>
+        <Button
+          icon
+          ghost
+          size="sm"
+          class={styles.collapseToggle}
+          title="Collapse sidebar ([)"
+          aria-label="Collapse sidebar"
+          data-testid="sidebar-collapse"
+          onClick={() => {
+            sidebarCollapsed.value = true;
+            setStoredValue("sidebarCollapsed", true);
+          }}
+        >
+          <svg viewBox="0 0 16 16" aria-hidden="true">
+            <polyline points="10,3 5,8 10,13" fill="none" stroke="currentColor" stroke-width="1.5" />
+          </svg>
+        </Button>
       </div>
 
       <button
@@ -254,6 +282,13 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
           );
         })}
       </div>
+
+      {!chromeLivesInStatusBar && (
+        <div class={styles.sidebarFooter} data-testid="sidebar-footer">
+          <SystemHealth variant="stacked" />
+          <ThemeToggle />
+        </div>
+      )}
     </aside>
   );
 }

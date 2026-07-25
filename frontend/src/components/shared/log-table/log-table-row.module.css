@@ -8,10 +8,6 @@
   background: var(--bg-sunken);
 }
 
-.row.selected {
-  background: var(--bg-active);
-}
-
 /* Severity row tinting */
 .row[data-level="WARNING"] {
   background: var(--warn-bg);
@@ -31,6 +27,15 @@
   filter: brightness(0.97);
 }
 
+/* Selection last, and specific enough to outrank the severity tints above —
+   otherwise selecting an ERROR row shows no change at all. The inset edge
+   carries the signal even where the row keeps its severity background. */
+.row.selected,
+.row.selected[data-level] {
+  background: var(--accent-soft);
+  box-shadow: inset var(--border-thick) 0 0 0 var(--accent);
+}
+
 /* Level text coloring */
 .levelCell {
   white-space: nowrap;
@@ -46,7 +51,7 @@
   color: var(--mute);
 }
 .levelINFO {
-  color: var(--ok);
+  color: var(--accent);
 }
 .levelWARNING {
   color: var(--warn);
@@ -72,15 +77,15 @@
 }
 
 .execLink {
-  color: var(--ink-2);
+  color: var(--accent);
   text-decoration: underline;
-  text-decoration-color: var(--ink-4);
+  text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent);
   text-underline-offset: var(--sp-0);
 }
 
 .execLink:hover {
-  color: var(--accent);
-  text-decoration-color: var(--accent);
+  color: var(--accent-hover);
+  text-decoration-color: var(--accent-hover);
 }
 
 .truncate {

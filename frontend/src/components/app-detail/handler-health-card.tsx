@@ -66,7 +66,7 @@ export function HandlerHealthCard({ item, appKey, instanceQs, tabIndex }: Handle
       </div>
 
       <div class={styles.subtitle}>
-        <Chip variant="muted" size="sm" aria-label={`kind: ${chipLabel}`}>
+        <Chip variant={item.kind} size="sm" aria-label={`kind: ${chipLabel}`}>
           {chipLabel}
         </Chip>
         {errorType && <span class={styles.errorType}>{errorType}</span>}

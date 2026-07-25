@@ -443,6 +443,14 @@ describe("Sidebar — status groups", () => {
     expect(screen.queryByText("Failed App")).not.toBeNull();
   });
 
+  it("collapse button collapses the sidebar", async () => {
+    withManifests([]);
+    const collapsed = signal(false);
+    renderWithAppState(<Sidebar />, { stateOverrides: { sidebarCollapsed: collapsed } });
+    fireEvent.click(await screen.findByTestId("sidebar-collapse"));
+    expect(collapsed.value).toBe(true);
+  });
+
   it("forces RUNNING group open when all apps are healthy", async () => {
     withManifests([
       createManifest({ app_key: "app1", display_name: "App One", status: "running" }),

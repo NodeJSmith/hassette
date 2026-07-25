@@ -26,7 +26,7 @@
 
   /* Accent — derived from hue + chroma */
   --accent-hue: 255;
-  --accent-chroma: 0.09;
+  --accent-chroma: 0.14;
   --accent: oklch(0.5 var(--accent-chroma) var(--accent-hue));
   --accent-hover: oklch(0.42 var(--accent-chroma) var(--accent-hue));
   --accent-ink: oklch(0.98 0.005 var(--accent-hue));
@@ -34,16 +34,45 @@
   --accent-border: oklch(0.65 calc(var(--accent-chroma) * 0.6) var(--accent-hue)); /* phase 2: depth */
   --accent-bg: oklch(0.97 calc(var(--accent-chroma) * 0.15) var(--accent-hue)); /* phase 2: depth */
 
-  /* Status */
-  --ok: #1f7a4d;
+  /* Status — text weight. Held at L~0.515 so each clears AA 4.5:1 on
+     --bg-surface and --bg-page; chroma sits just under the sRGB ceiling
+     for its hue, which is why green and teal read less saturated than red. */
+  --ok: oklch(0.515 0.118 157);
   --ok-bg: #eaf3ee;
-  --warn: #9a6a12;
+  --warn: oklch(0.53 0.108 75);
   --warn-bg: #f5eedd;
-  --err: #b53024;
+  --err: oklch(0.514 0.19 28);
   --err-bg: #f5dedc;
-  --cancel: #1f6f9a;
+  --cancel: oklch(0.515 0.108 237);
   --mute: #9097a0;
   --mute-bg: #eff0ec;
+
+  /* Status — fill weight. Dots, edges and other non-text marks always sit
+     beside a text label, so these are bounded by the sRGB gamut alone and
+     can carry the chroma that AA denies the text tokens above. */
+  --ok-vivid: oklch(0.72 0.18 150);
+  --warn-vivid: oklch(0.78 0.15 78);
+  --err-vivid: oklch(0.6 0.205 28);
+  --cancel-vivid: oklch(0.66 0.132 237);
+
+  /* Handler families — the job/listener split the data model already makes.
+     Deliberately clear of --ok (157) and --accent (255) so a trigger chip is
+     never mistaken for a status or a link. */
+  --job: oklch(0.5 0.17 292);
+  --listener: oklch(0.5 0.082 200);
+
+  /* Tint strength for chip backgrounds mixed from a family colour.
+     Light mode can carry more before the label drops below AA. */
+  --chip-tint: 12%;
+
+  /* Derived family fills, so the mix formula lives in one place rather than
+     once per chip variant. Declared only here: [data-theme="dark"] overrides
+     --job, --listener and --chip-tint on this same element, and custom
+     properties substitute at use time, so these resolve per theme unaided. */
+  --job-bg: color-mix(in srgb, var(--job) var(--chip-tint), transparent);
+  --job-border: color-mix(in srgb, var(--job) 30%, transparent);
+  --listener-bg: color-mix(in srgb, var(--listener) var(--chip-tint), transparent);
+  --listener-border: color-mix(in srgb, var(--listener) 30%, transparent);
 
   /* Inputs */
   --input-bg: #ffffff;
@@ -202,7 +231,7 @@
 
   /* Accent — same hue, shifted lightness for dark mode */
   --accent-hue: 255;
-  --accent-chroma: 0.09;
+  --accent-chroma: 0.13;
   --accent: oklch(0.72 var(--accent-chroma) var(--accent-hue));
   --accent-hover: oklch(0.8 var(--accent-chroma) var(--accent-hue));
   --accent-ink: oklch(0.15 0.01 var(--accent-hue));
@@ -210,16 +239,31 @@
   --accent-border: oklch(0.55 calc(var(--accent-chroma) * 0.6) var(--accent-hue));
   --accent-bg: oklch(0.18 calc(var(--accent-chroma) * 0.2) var(--accent-hue));
 
-  /* Status */
-  --ok: #5fb988;
+  /* Status — text weight (see light theme for the AA/gamut reasoning). */
+  --ok: oklch(0.78 0.17 152);
   --ok-bg: #19241e;
-  --warn: #d9b36e;
+  --warn: oklch(0.82 0.145 78);
   --warn-bg: #272219;
-  --err: #e08278;
+  --err: oklch(0.72 0.16 25);
   --err-bg: #28191a;
-  --cancel: #6fb8d9;
+  --cancel: oklch(0.78 0.12 237);
   --mute: #6a707a;
   --mute-bg: #1d1f23;
+
+  /* Status — fill weight. */
+  --ok-vivid: oklch(0.76 0.185 150);
+  --warn-vivid: oklch(0.8 0.15 78);
+  --err-vivid: oklch(0.66 0.2 28);
+  --cancel-vivid: oklch(0.74 0.14 237);
+
+  /* Handler families. */
+  --job: oklch(0.76 0.125 292);
+  --listener: oklch(0.78 0.12 200);
+
+  /* Tinting a light family colour over a dark surface raises the background
+     luminance, so dark mode has less headroom than light before the label
+     drops below AA. */
+  --chip-tint: 8%;
 
   /* Inputs */
   --input-bg: #1f2227;

@@ -18,6 +18,10 @@ export function isTimePreset(v: unknown): v is TimePreset {
   return v === "since-restart" || v === "1h" || v === "24h" || v === "7d";
 }
 
+function isBoolean(v: unknown): v is boolean {
+  return typeof v === "boolean";
+}
+
 export interface AppStatusEntry {
   status: string;
   index: number;
@@ -123,6 +127,16 @@ export function createAppState() {
 
     /** Dark/light theme (initialized from localStorage via local-storage utility). */
     theme: signal<"dark" | "light">(getStoredValue<"dark" | "light">("theme", "light", isTheme)),
+
+    /**
+     * Whether the desktop sidebar is collapsed to zero width. Persisted to localStorage.
+     *
+     * Only meaningful above BREAKPOINT_SIDEBAR — below it the sidebar is an off-canvas
+     * drawer and this signal is ignored. Consumers that need "is the sidebar reachable
+     * right now" should use `useSidebarHidden()` rather than reading this directly, since
+     * a collapsed sidebar and a below-breakpoint sidebar both hide the footer contents.
+     */
+    sidebarCollapsed: signal<boolean>(getStoredValue<boolean>("sidebarCollapsed", false, isBoolean)),
 
     /**
      * Selected time-window preset for telemetry queries.

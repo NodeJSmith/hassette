@@ -5,6 +5,8 @@ import { resolveSince } from "../utils/time-window";
 
 export interface UseScopedQueryOptions {
   placeholderData?: typeof keepPreviousData;
+  /** Skip the query entirely (e.g. the current route has no need for this data). */
+  enabled?: boolean;
 }
 
 /**
@@ -47,7 +49,7 @@ export function useScopedQuery<T>(
       const since = resolveSince(preset, uptime)!;
       return fetcher(since, signal);
     },
-    enabled: !waitingForUptime,
     ...options,
+    enabled: !waitingForUptime && (options?.enabled ?? true),
   });
 }

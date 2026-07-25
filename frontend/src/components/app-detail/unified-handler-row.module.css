@@ -35,6 +35,7 @@
 
 .rowSelected {
   background: var(--accent-soft);
+  box-shadow: inset var(--border-thick) 0 0 0 var(--accent);
   font-weight: var(--fw-medium);
   opacity: 1;
 }
@@ -98,6 +99,21 @@
   text-transform: lowercase;
   letter-spacing: var(--tr-label-tight);
   line-height: var(--lh-micro);
+}
+
+/* Family hue, matching the Chip job/listener variants. The row chip keeps its
+   own denser base (--fs-xs, lowercase, --lh-micro) for table density, so it
+   shares the fill tokens rather than the component. */
+.kindChip[data-kind="job"] {
+  background: var(--job-bg);
+  border-color: var(--job-border);
+  color: var(--job);
+}
+
+.kindChip[data-kind="listener"] {
+  background: var(--listener-bg);
+  border-color: var(--listener-border);
+  color: var(--listener);
 }
 
 .modeChip {

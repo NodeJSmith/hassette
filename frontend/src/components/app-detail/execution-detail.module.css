@@ -1,18 +1,3 @@
-.backLink {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-1);
-  font-family: var(--font-body);
-  font-size: var(--fs-small);
-  color: var(--accent);
-  text-decoration: none;
-  margin-bottom: var(--sp-3);
-}
-
-.backLink:hover {
-  text-decoration: underline;
-}
-
 .header {
   display: flex;
   align-items: center;

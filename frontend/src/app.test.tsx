@@ -209,6 +209,53 @@ describe("App — visibilitychange tick recovery", () => {
   });
 });
 
+describe("App — sidebar collapse", () => {
+  // The collapsed flag is persisted, so a leaked value would silently start the next
+  // test with the sidebar already gone.
+  beforeEach(() => localStorage.clear());
+  afterEach(() => localStorage.clear());
+
+  const layoutOf = (container: Element) => container.querySelector<HTMLElement>("[data-testid='layout']")!;
+
+  it("pressing [ collapses the sidebar out of the layout", () => {
+    const { container } = render(<App />);
+    expect(layoutOf(container).querySelector("aside")).not.toBeNull();
+
+    fireEvent.keyDown(document, { key: "[" });
+
+    expect(layoutOf(container).className).toContain("is-collapsed");
+    expect(layoutOf(container).querySelector("aside")).toBeNull();
+  });
+
+  it("pressing [ again restores the sidebar", () => {
+    const { container } = render(<App />);
+    fireEvent.keyDown(document, { key: "[" });
+    expect(layoutOf(container).className).toContain("is-collapsed");
+
+    fireEvent.keyDown(document, { key: "[" });
+
+    expect(layoutOf(container).className).not.toContain("is-collapsed");
+    expect(layoutOf(container).querySelector("aside")).not.toBeNull();
+  });
+
+  it("ignores [ typed into the app filter input", () => {
+    const { container } = render(<App />);
+    const filter = layoutOf(container).querySelector("input")!;
+
+    fireEvent.keyDown(filter, { key: "[" });
+
+    expect(layoutOf(container).className).not.toContain("is-collapsed");
+  });
+
+  it("ignores [ when it carries a modifier", () => {
+    const { container } = render(<App />);
+
+    fireEvent.keyDown(document, { key: "[", metaKey: true });
+
+    expect(layoutOf(container).className).not.toContain("is-collapsed");
+  });
+});
+
 describe("App — drawer close mechanisms", () => {
   it("backdrop click closes the drawer", () => {
     const { container } = render(<App />);

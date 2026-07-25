@@ -29,7 +29,7 @@ function ScheduleChips({ job }: { job: JobData }) {
     <div class={chipStyles.chipRow} data-testid="schedule-chips">
       <HandlerModeChip mode={job.mode} />
       {chips.map((chip) => (
-        <Chip key={chip.label} variant="schedule">
+        <Chip key={chip.label} variant="job">
           {chip.label}
         </Chip>
       ))}

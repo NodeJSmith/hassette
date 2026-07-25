@@ -1,6 +1,7 @@
 import { useState } from "preact/hooks";
 
 import styles from "./error-banner.module.css";
+import { TracebackLines } from "./traceback-viewer";
 
 interface ErrorBannerProps {
   heading?: string;
@@ -37,7 +38,11 @@ export function ErrorBanner({
           >
             {traceExpanded ? "hide traceback" : "show traceback"}
           </button>
-          {traceExpanded && <pre class="ht-traceback">{traceback}</pre>}
+          {traceExpanded && (
+            <pre class="ht-traceback">
+              <TracebackLines traceback={traceback} />
+            </pre>
+          )}
         </div>
       )}
     </div>

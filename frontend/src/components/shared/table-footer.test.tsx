@@ -1,23 +1,9 @@
 import { act, fireEvent, render, screen } from "@testing-library/preact";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { mockMediaQueryMatches } from "../../test/render-helpers";
 import { TableFooter } from "./table-footer";
 import type { ColumnFilters } from "./table-types";
-
-// useMediaQuery reads window.matchMedia; jsdom returns false by default (desktop).
-// We mock it to simulate mobile when needed.
-function mockMobile(isMobile: boolean) {
-  vi.spyOn(window, "matchMedia").mockImplementation((query: string) => ({
-    matches: isMobile,
-    media: query,
-    onchange: null,
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn(),
-  }));
-}
 
 describe("TableFooter", () => {
   afterEach(() => {
@@ -59,7 +45,7 @@ describe("TableFooter", () => {
 
   describe("mobile filter panel", () => {
     it("does not show the mobile filter button on desktop", () => {
-      mockMobile(false);
+      mockMediaQueryMatches(false);
       const filters: ColumnFilters = {
         status: {
           active: false,
@@ -72,7 +58,7 @@ describe("TableFooter", () => {
     });
 
     it("shows the mobile filter button on mobile when columnFilters provided", () => {
-      mockMobile(true);
+      mockMediaQueryMatches(true);
       const filters: ColumnFilters = {
         status: {
           active: false,
@@ -85,7 +71,7 @@ describe("TableFooter", () => {
     });
 
     it("opens the mobile filter panel when filter button is clicked", async () => {
-      mockMobile(true);
+      mockMediaQueryMatches(true);
       const filters: ColumnFilters = {
         status: {
           active: false,
@@ -101,7 +87,7 @@ describe("TableFooter", () => {
     });
 
     it("renders column filter label in mobile panel", async () => {
-      mockMobile(true);
+      mockMediaQueryMatches(true);
       const filters: ColumnFilters = {
         status: {
           active: false,
@@ -117,7 +103,7 @@ describe("TableFooter", () => {
     });
 
     it("shows active dot on filter button when any filter is active", () => {
-      mockMobile(true);
+      mockMediaQueryMatches(true);
       const filters: ColumnFilters = {
         status: {
           active: true,
@@ -130,7 +116,7 @@ describe("TableFooter", () => {
     });
 
     it("shows reset button in mobile panel when onResetFilters provided and a filter is active", async () => {
-      mockMobile(true);
+      mockMediaQueryMatches(true);
       const onReset = vi.fn();
       const filters: ColumnFilters = {
         status: { active: true, label: "Status", content: <div>opts</div> },
@@ -145,7 +131,7 @@ describe("TableFooter", () => {
     });
 
     it("renders multiple filter groups from columnFilters", async () => {
-      mockMobile(true);
+      mockMediaQueryMatches(true);
       const filters: ColumnFilters = {
         status: {
           active: false,

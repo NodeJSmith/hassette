@@ -7,7 +7,7 @@ import time
 import pytest
 from playwright.sync_api import Page, expect
 
-from tests.e2e.conftest import DATA_LOAD_TIMEOUT_MS
+from tests.e2e.conftest import DATA_LOAD_TIMEOUT_MS, DESKTOP_VIEWPORT, MOBILE_VIEWPORT
 
 pytestmark = pytest.mark.e2e
 
@@ -23,16 +23,32 @@ def test_ws_connection_indicator_renders(page: Page, base_url: str) -> None:
     expect(page.locator("[data-testid='apps-page']")).to_be_visible()
 
 
-def test_status_bar_shows_disconnected_state(page: Page, base_url: str) -> None:
-    """Status bar reflects the WS connection state.
+def test_sidebar_shows_disconnected_state_at_desktop(page: Page, base_url: str) -> None:
+    """The sidebar footer reflects the WS connection state on desktop.
 
     With ws='none' in the test server, the WebSocket never connects,
-    so the status bar should show 'Disconnected' or 'Reconnecting'.
+    so the indicator should show 'Disconnected' or 'Reconnecting'.
     """
+    page.set_viewport_size(DESKTOP_VIEWPORT)
     page.goto(base_url + "/")
-    status_bar = page.locator("[data-testid='status-bar']")
-    expect(status_bar).to_be_visible()
-    expect(status_bar).to_contain_text("onnect")
+    indicator = page.locator("[data-testid='sidebar'] [data-testid='ws-indicator']")
+    expect(indicator).to_be_visible()
+    expect(indicator).to_contain_text("onnect")
+
+
+def test_status_bar_shows_disconnected_state_at_mobile(page: Page, base_url: str) -> None:
+    """The status bar carries connection state whenever the sidebar is off screen.
+
+    Below the sidebar breakpoint the sidebar becomes a closed drawer, so its footer
+    indicator is unreachable — the status bar has to show the state instead. The label
+    is clipped to a bare dot at this width, so it stays in the accessibility tree
+    (and in ``textContent``) rather than on screen.
+    """
+    page.set_viewport_size(MOBILE_VIEWPORT)
+    page.goto(base_url + "/")
+    indicator = page.locator("[data-testid='status-bar'] [data-testid='ws-indicator']")
+    expect(indicator).to_be_visible()
+    expect(indicator).to_contain_text("onnect")
 
 
 def test_apps_page_renders_without_ws(page: Page, base_url: str) -> None:

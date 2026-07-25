@@ -1,14 +1,12 @@
 import { useQuery } from "@tanstack/preact-query";
 import clsx from "clsx";
 import { useCallback } from "preact/hooks";
-import { Link } from "wouter";
 
 import type { ExecutionData } from "../../api/endpoints";
 import { getExecutionById } from "../../api/endpoints";
 import { useDocumentTitle } from "../../hooks/use-document-title";
 import { useSignal } from "../../hooks/use-signal";
 import { useSubscribe } from "../../hooks/use-subscribe";
-import { type HandlerKind, handlerPath } from "../../utils/app-routes";
 import { STATUS_DOT_SIZE } from "../../utils/constants";
 import { formatDuration, formatTimestamp, truncateId } from "../../utils/format";
 import { executionStatusKind } from "../../utils/status";
@@ -92,21 +90,11 @@ function CopyIdButton({ text }: { text: string }) {
   );
 }
 
-function BackLink({ href, handlerName }: { href: string; handlerName?: string }) {
-  return (
-    <Link href={href} class={styles.backLink}>
-      ← back to {handlerName ?? "handler"}
-    </Link>
-  );
-}
-
 interface ContentProps {
   record: ExecutionData;
-  backHref: string;
-  handlerName?: string;
 }
 
-export function ExecutionDetailContent({ record, backHref, handlerName }: ContentProps) {
+export function ExecutionDetailContent({ record }: ContentProps) {
   const truncated = truncateId(record.execution_id);
   const statusKind = executionStatusKind(record.status);
   const hasTraceback = record.status === "error" && !!record.error_traceback;
@@ -115,8 +103,6 @@ export function ExecutionDetailContent({ record, backHref, handlerName }: Conten
 
   return (
     <div>
-      <BackLink href={backHref} handlerName={handlerName} />
-
       <div class={styles.header}>
         <StatusShape kind={statusKind} size={STATUS_DOT_SIZE} />
         <h2 class={styles.heading}>Execution {truncated}</h2>
@@ -198,22 +184,10 @@ export function ExecutionDetailContent({ record, backHref, handlerName }: Conten
 }
 
 interface FetcherProps {
-  appKey: string;
-  kind: "listener" | "job";
-  handlerId: number;
   executionId: string;
-  instanceQs: string;
-  handlerName?: string;
 }
 
-export function ExecutionDetailFetcher({
-  appKey,
-  kind,
-  handlerId,
-  executionId,
-  instanceQs,
-  handlerName,
-}: FetcherProps) {
+export function ExecutionDetailFetcher({ executionId }: FetcherProps) {
   const {
     data: record,
     isPending,
@@ -222,27 +196,16 @@ export function ExecutionDetailFetcher({
     queryKey: ["execution-detail", executionId],
     queryFn: ({ signal }) => getExecutionById(executionId, signal),
   });
-  const backHref = handlerPath(appKey, kind as HandlerKind, handlerId) + instanceQs;
 
   if (isPending) return <Spinner />;
 
   if (isError) {
-    return (
-      <>
-        <BackLink href={backHref} handlerName={handlerName} />
-        <EmptyState title="failed to load execution" body="Could not fetch execution data. Try again later." />
-      </>
-    );
+    return <EmptyState title="failed to load execution" body="Could not fetch execution data. Try again later." />;
   }
 
   if (!record) {
-    return (
-      <>
-        <BackLink href={backHref} handlerName={handlerName} />
-        <EmptyState title="execution not found" body="This execution may have expired from the telemetry window." />
-      </>
-    );
+    return <EmptyState title="execution not found" body="This execution may have expired from the telemetry window." />;
   }
 
-  return <ExecutionDetailContent record={record} backHref={backHref} handlerName={handlerName} />;
+  return <ExecutionDetailContent record={record} />;
 }

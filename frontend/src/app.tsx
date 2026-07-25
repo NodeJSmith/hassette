@@ -9,6 +9,7 @@ import { ErrorBoundary } from "./components/layout/error-boundary";
 import { Sidebar } from "./components/layout/sidebar";
 import { StatusBar } from "./components/layout/status-bar";
 import { useManifests } from "./hooks/use-manifests";
+import { BREAKPOINT_SIDEBAR, useMediaQuery } from "./hooks/use-media-query";
 import { useTelemetryHealth } from "./hooks/use-telemetry-health";
 import { useWebSocket } from "./hooks/use-websocket";
 import { createQueryClient } from "./lib/query-client";
@@ -23,11 +24,25 @@ import { NotFoundPage } from "./pages/not-found";
 import { AppStateContext } from "./state/context";
 import { createAppState, RELATIVE_TIME_TICK_MS } from "./state/create-app-state";
 import { HOME_PATH } from "./utils/app-routes";
+import { setStoredValue } from "./utils/local-storage";
+
+/** Bare-key shortcuts must not fire while the user is typing into the app filter or palette. */
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+
+  return (
+    target.isContentEditable ||
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement
+  );
+}
 
 export function App() {
   const queryClient = useMemo(() => createQueryClient(), []);
   const state = useMemo(() => createAppState(), []);
   const [location] = useLocation();
+  const belowSidebarBreakpoint = useMediaQuery(BREAKPOINT_SIDEBAR);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerMounted, setDrawerMounted] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -76,10 +91,26 @@ export function App() {
       if (e.key === "Escape" && drawerOpen) {
         setDrawerOpen(false);
       }
+      // Collapsing is desktop-only: below the breakpoint the sidebar is a drawer and its
+      // collapse toggle is hidden, so honoring [ there would silently flip persisted state
+      // the user cannot see until they resize back.
+      if (
+        e.key === "[" &&
+        !belowSidebarBreakpoint &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.altKey &&
+        !isTypingTarget(e.target)
+      ) {
+        e.preventDefault();
+        const next = !state.sidebarCollapsed.value;
+        state.sidebarCollapsed.value = next;
+        setStoredValue("sidebarCollapsed", next);
+      }
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [drawerOpen]);
+  }, [drawerOpen, state, belowSidebarBreakpoint]);
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -106,8 +137,8 @@ export function App() {
         {drawerOpen && <div class="ht-drawer-backdrop" role="presentation" onClick={() => setDrawerOpen(false)} />}
 
         {/* Desktop layout */}
-        <div class="ht-layout" data-testid="layout">
-          <Sidebar onOpenPalette={() => setPaletteOpen(true)} />
+        <div class={`ht-layout${state.sidebarCollapsed.value ? " is-collapsed" : ""}`} data-testid="layout">
+          {!state.sidebarCollapsed.value && <Sidebar onOpenPalette={() => setPaletteOpen(true)} />}
           <main class="ht-main" id="main-content" tabIndex={-1}>
             <StatusBar
               onMenuClick={() => setDrawerOpen((prev) => !prev)}

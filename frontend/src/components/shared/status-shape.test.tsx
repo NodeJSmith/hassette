@@ -9,21 +9,21 @@ describe("StatusShape", () => {
     const circle = container.querySelector("circle");
     expect(circle).not.toBeNull();
     // Filled: no stroke or fill="none"
-    expect(circle!.getAttribute("fill")).toBe("var(--ok)");
+    expect(circle!.getAttribute("fill")).toBe("var(--ok-vivid)");
   });
 
   it("renders a triangle for kind=warn", () => {
     const { container } = render(<StatusShape kind="warn" />);
     const triangle = container.querySelector("polygon");
     expect(triangle).not.toBeNull();
-    expect(triangle!.getAttribute("fill")).toBe("var(--warn)");
+    expect(triangle!.getAttribute("fill")).toBe("var(--warn-vivid)");
   });
 
   it("renders a rounded square for kind=err", () => {
     const { container } = render(<StatusShape kind="err" />);
     const rect = container.querySelector("rect");
     expect(rect).not.toBeNull();
-    expect(rect!.getAttribute("fill")).toBe("var(--err)");
+    expect(rect!.getAttribute("fill")).toBe("var(--err-vivid)");
     // Should have rounded corners
     const rx = rect!.getAttribute("rx");
     expect(Number(rx)).toBeGreaterThan(0);
@@ -33,7 +33,7 @@ describe("StatusShape", () => {
     const { container } = render(<StatusShape kind="cancel" />);
     const diamond = container.querySelector("polygon");
     expect(diamond).not.toBeNull();
-    expect(diamond!.getAttribute("fill")).toBe("var(--cancel)");
+    expect(diamond!.getAttribute("fill")).toBe("var(--cancel-vivid)");
     // Diamond has four vertices (vs the warn triangle's three)
     expect(diamond!.getAttribute("points")!.trim().split(/\s+/)).toHaveLength(4);
   });
@@ -68,22 +68,22 @@ describe("StatusShape", () => {
 
   it("uses correct color token for ok", () => {
     const { container } = render(<StatusShape kind="ok" />);
-    expect(container.querySelector("circle")!.getAttribute("fill")).toBe("var(--ok)");
+    expect(container.querySelector("circle")!.getAttribute("fill")).toBe("var(--ok-vivid)");
   });
 
   it("uses correct color token for warn", () => {
     const { container } = render(<StatusShape kind="warn" />);
-    expect(container.querySelector("polygon")!.getAttribute("fill")).toBe("var(--warn)");
+    expect(container.querySelector("polygon")!.getAttribute("fill")).toBe("var(--warn-vivid)");
   });
 
   it("uses correct color token for err", () => {
     const { container } = render(<StatusShape kind="err" />);
-    expect(container.querySelector("rect")!.getAttribute("fill")).toBe("var(--err)");
+    expect(container.querySelector("rect")!.getAttribute("fill")).toBe("var(--err-vivid)");
   });
 
   it("uses correct color token for cancel", () => {
     const { container } = render(<StatusShape kind="cancel" />);
-    expect(container.querySelector("polygon")!.getAttribute("fill")).toBe("var(--cancel)");
+    expect(container.querySelector("polygon")!.getAttribute("fill")).toBe("var(--cancel-vivid)");
   });
 
   it("uses correct color token for mute", () => {

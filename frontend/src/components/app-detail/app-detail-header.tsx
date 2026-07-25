@@ -27,7 +27,6 @@ export function AppDetailHeader({
   resolvedInstanceIndex,
   showParentOverview,
 }: Props) {
-  const showStatusBadge = liveStatus !== "running" && liveStatus !== "starting";
   const errorMsg = currentInstance?.error_message ?? manifest?.error_message ?? null;
 
   return (
@@ -42,11 +41,11 @@ export function AppDetailHeader({
           </div>
         </div>
         <div class="ht-level-end">
-          {showStatusBadge && (
-            <Badge variant={statusToVariant(liveStatus)} size="sm" data-testid="app-status-pill">
-              <StatusShape kind={statusToKind(liveStatus)} size={8} /> {liveStatus}
-            </Badge>
-          )}
+          {/* Shown for every status, healthy included — "running" should be a
+              statement, not the absence of a pill. */}
+          <Badge variant={statusToVariant(liveStatus)} size="sm" data-testid="app-status-pill">
+            <StatusShape kind={statusToKind(liveStatus)} size={8} /> {liveStatus}
+          </Badge>
           <ActionButtons appKey={appKey} status={liveStatus} variant="text" confirmStop />
         </div>
       </div>

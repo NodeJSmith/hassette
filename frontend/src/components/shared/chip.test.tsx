@@ -7,7 +7,7 @@ describe("Chip", () => {
   describe("renders as span", () => {
     it("renders a <span> element", () => {
       const { getByTestId } = render(
-        <Chip variant="modifier" data-testid="c">
+        <Chip variant="listener" data-testid="c">
           text
         </Chip>,
       );
@@ -16,22 +16,22 @@ describe("Chip", () => {
   });
 
   describe("variant prop", () => {
-    it("applies modifier class when variant='modifier'", () => {
+    it("applies listener class when variant='listener'", () => {
       const { getByTestId } = render(
-        <Chip variant="modifier" data-testid="c">
+        <Chip variant="listener" data-testid="c">
           mod
         </Chip>,
       );
-      expect(getByTestId("c").className).toMatch(/modifier/);
+      expect(getByTestId("c").className).toMatch(/listener/);
     });
 
-    it("applies schedule class when variant='schedule'", () => {
+    it("applies job class when variant='job'", () => {
       const { getByTestId } = render(
-        <Chip variant="schedule" data-testid="c">
+        <Chip variant="job" data-testid="c">
           sched
         </Chip>,
       );
-      expect(getByTestId("c").className).toMatch(/schedule/);
+      expect(getByTestId("c").className).toMatch(/job/);
     });
 
     it("applies kind base class when variant='kind'", () => {
@@ -111,13 +111,13 @@ describe("Chip", () => {
   });
 
   describe("data-variant attribute", () => {
-    it("emits data-variant='modifier' on the root span", () => {
+    it("emits data-variant='listener' on the root span", () => {
       const { getByTestId } = render(
-        <Chip variant="modifier" data-testid="c">
-          mod
+        <Chip variant="listener" data-testid="c">
+          listener
         </Chip>,
       );
-      expect(getByTestId("c").getAttribute("data-variant")).toBe("modifier");
+      expect(getByTestId("c").getAttribute("data-variant")).toBe("listener");
     });
 
     it("emits data-variant='muted' on the root span", () => {
@@ -138,13 +138,13 @@ describe("Chip", () => {
       expect(getByTestId("c").getAttribute("data-variant")).toBe("kind");
     });
 
-    it("emits data-variant='schedule' on the root span", () => {
+    it("emits data-variant='job' on the root span", () => {
       const { getByTestId } = render(
-        <Chip variant="schedule" data-testid="c">
-          sched
+        <Chip variant="job" data-testid="c">
+          job
         </Chip>,
       );
-      expect(getByTestId("c").getAttribute("data-variant")).toBe("schedule");
+      expect(getByTestId("c").getAttribute("data-variant")).toBe("job");
     });
 
     it("emits data-variant='origin' on the root span", () => {
@@ -160,7 +160,7 @@ describe("Chip", () => {
   describe("size prop", () => {
     it("applies no size class when size is 'default'", () => {
       const { getByTestId } = render(
-        <Chip variant="modifier" size="default" data-testid="c">
+        <Chip variant="listener" size="default" data-testid="c">
           mod
         </Chip>,
       );
@@ -169,7 +169,7 @@ describe("Chip", () => {
 
     it("applies sm class when size='sm'", () => {
       const { getByTestId } = render(
-        <Chip variant="modifier" size="sm" data-testid="c">
+        <Chip variant="listener" size="sm" data-testid="c">
           mod
         </Chip>,
       );
@@ -202,7 +202,7 @@ describe("Chip", () => {
   describe("children", () => {
     it("renders text children", () => {
       const { getByTestId } = render(
-        <Chip variant="modifier" data-testid="c">
+        <Chip variant="listener" data-testid="c">
           hello
         </Chip>,
       );

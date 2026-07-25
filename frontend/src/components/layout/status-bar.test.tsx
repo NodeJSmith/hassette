@@ -13,7 +13,7 @@ const baseProps: ComponentProps<typeof StatusBar> = {
   hamburgerRef: createRef(),
 };
 
-// Mock setStoredValue so theme changes don't hit localStorage
+// Mock setStoredValue so collapse changes don't hit localStorage
 vi.mock("../../utils/local-storage", () => ({
   setStoredValue: vi.fn(),
   getStoredValue: vi.fn(),
@@ -25,171 +25,69 @@ vi.mock("../../hooks/use-query-params", () => ({
   useQueryParams: () => ({ get: () => null, set: vi.fn() }),
 }));
 
-describe("StatusBar — connection states", () => {
-  it("renders connected state with visually-hidden status text", () => {
-    const { getByTestId } = renderWithAppState(<StatusBar {...baseProps} />, {
-      stateOverrides: { connection: signal("connected") },
-    });
-    const indicator = getByTestId("ws-indicator");
-    expect(indicator.getAttribute("role")).toBe("status");
-    expect(indicator.textContent).toBe("Connected");
-  });
+// Breadcrumbs renders wouter's Link, which needs a Router this render lacks.
+vi.mock("wouter", () => ({
+  Link: ({ href, children, class: cls }: Record<string, unknown>) => (
+    <a href={href as string} class={cls as string}>
+      {children as never}
+    </a>
+  ),
+}));
 
-  it("renders connecting state with visible text label", () => {
-    const { getByText } = renderWithAppState(<StatusBar {...baseProps} />, {
-      stateOverrides: { connection: signal("connecting") },
-    });
-    expect(getByText("Connecting...")).toBeDefined();
-  });
+// useBreadcrumbs reads wouter's location, which needs a Router this render lacks.
+vi.mock("../../hooks/use-breadcrumbs", () => ({
+  useBreadcrumbs: () => [{ label: "apps", href: "/apps" }, { label: "demo_app" }],
+}));
 
-  it("renders disconnected state with visible text label", () => {
-    const { getByText, getByTestId } = renderWithAppState(<StatusBar {...baseProps} />, {
-      stateOverrides: { connection: signal("disconnected") },
-    });
-    expect(getByText("Disconnected")).toBeDefined();
-    const indicator = getByTestId("ws-indicator");
-    expect(indicator.getAttribute("role")).toBe("status");
-  });
+// Drives the "is the sidebar on screen" branch without a real matchMedia.
+const sidebarHidden = signal(false);
+vi.mock("../../hooks/use-sidebar-hidden", () => ({
+  useSidebarHidden: () => sidebarHidden.value,
+}));
 
-  it("renders reconnecting state with visible text label", () => {
-    const { getByText, getByTestId } = renderWithAppState(<StatusBar {...baseProps} />, {
-      stateOverrides: { connection: signal("reconnecting") },
-    });
-    expect(getByText("Reconnecting...")).toBeDefined();
-    const indicator = getByTestId("ws-indicator");
-    expect(indicator.getAttribute("role")).toBe("status");
-  });
-
-  it("uses role=status for screen reader announcements", () => {
-    const { getByTestId } = renderWithAppState(<StatusBar {...baseProps} />, {
-      stateOverrides: { connection: signal("connected") },
-    });
-    const indicator = getByTestId("ws-indicator");
-    expect(indicator.getAttribute("role")).toBe("status");
-  });
-
-  it("always includes status text for screen readers", () => {
-    const { getByTestId } = renderWithAppState(<StatusBar {...baseProps} />, {
-      stateOverrides: { connection: signal("disconnected") },
-    });
-    const indicator = getByTestId("ws-indicator");
-    expect(indicator.textContent).toBe("Disconnected");
-  });
-});
-
-describe("StatusBar — database degraded indicator", () => {
-  it("shows database degraded indicator when connected and degraded", () => {
-    const { getByLabelText } = renderWithAppState(<StatusBar {...baseProps} />, {
-      stateOverrides: {
-        connection: signal("connected"),
-        telemetryDegraded: signal(true),
-      },
-    });
-    expect(getByLabelText("database degraded")).toBeDefined();
-  });
-
-  it("hides database degraded indicator when disconnected even if degraded", () => {
-    const { queryByLabelText } = renderWithAppState(<StatusBar {...baseProps} />, {
-      stateOverrides: {
-        connection: signal("disconnected"),
-        telemetryDegraded: signal(true),
-      },
-    });
-    expect(queryByLabelText("database degraded")).toBeNull();
-  });
-
-  it("hides database degraded indicator when not degraded", () => {
-    const { queryByLabelText } = renderWithAppState(<StatusBar {...baseProps} />, {
-      stateOverrides: {
-        connection: signal("connected"),
-        telemetryDegraded: signal(false),
-      },
-    });
-    expect(queryByLabelText("database degraded")).toBeNull();
-  });
-});
-
-describe("StatusBar — dropped events indicator", () => {
-  it("shows dropped events when overflow > 0", () => {
-    const { getByTestId } = renderWithAppState(<StatusBar {...baseProps} />, {
-      stateOverrides: {
-        connection: signal("connected"),
-        droppedOverflow: signal(3),
-        droppedExhausted: signal(0),
-        droppedShutdown: signal(0),
-      },
-    });
-    const indicator = getByTestId("dropped-events-indicator");
-    expect(indicator.textContent).toContain("3 dropped");
-  });
-
-  it("sums all drop counters in the label", () => {
-    const { getByTestId } = renderWithAppState(<StatusBar {...baseProps} />, {
-      stateOverrides: {
-        connection: signal("connected"),
-        droppedOverflow: signal(1),
-        droppedExhausted: signal(2),
-        droppedShutdown: signal(1),
-      },
-    });
-    const indicator = getByTestId("dropped-events-indicator");
-    expect(indicator.textContent).toContain("4 dropped");
-  });
-
-  it("hides dropped events indicator when total is 0", () => {
-    const { queryByTestId } = renderWithAppState(<StatusBar {...baseProps} />, {
-      stateOverrides: {
-        droppedOverflow: signal(0),
-        droppedExhausted: signal(0),
-        droppedShutdown: signal(0),
-      },
-    });
-    expect(queryByTestId("dropped-events-indicator")).toBeNull();
-  });
-});
-
-describe("StatusBar — error handler failures indicator", () => {
-  it("shows error handler failures when > 0", () => {
-    const { getByTestId } = renderWithAppState(<StatusBar {...baseProps} />, {
-      stateOverrides: { errorHandlerFailures: signal(2) },
-    });
-    expect(getByTestId("error-handler-failures-indicator")).toBeDefined();
-  });
-
-  it("hides error handler failures when 0", () => {
-    const { queryByTestId } = renderWithAppState(<StatusBar {...baseProps} />, {
-      stateOverrides: { errorHandlerFailures: signal(0) },
-    });
-    expect(queryByTestId("error-handler-failures-indicator")).toBeNull();
-  });
-});
-
-describe("StatusBar — theme toggle", () => {
-  it("renders theme toggle button", () => {
+describe("StatusBar — breadcrumbs", () => {
+  it("renders the ancestor trail for the current route", () => {
     const { getByTestId } = renderWithAppState(<StatusBar {...baseProps} />);
-    expect(getByTestId("theme-toggle")).toBeDefined();
+    const trail = getByTestId("breadcrumbs");
+    expect(trail.textContent).toContain("apps");
+    expect(trail.textContent).toContain("demo_app");
+  });
+});
+
+describe("StatusBar — system health fallback", () => {
+  it("renders the health cluster when the sidebar is hidden", () => {
+    sidebarHidden.value = true;
+    const { getByTestId } = renderWithAppState(<StatusBar {...baseProps} />, {
+      stateOverrides: { connection: signal("disconnected") },
+    });
+    expect(getByTestId("ws-indicator").textContent).toBe("Disconnected");
+    sidebarHidden.value = false;
   });
 
-  it("toggles theme from dark to light on click", () => {
-    const themeSignal = signal<"dark" | "light">("dark");
-    const { getByTestId } = renderWithAppState(<StatusBar {...baseProps} />, {
-      stateOverrides: { theme: themeSignal },
+  it("omits the health cluster when the sidebar owns it", () => {
+    sidebarHidden.value = false;
+    const { queryByTestId } = renderWithAppState(<StatusBar {...baseProps} />, {
+      stateOverrides: { connection: signal("disconnected") },
     });
-    const button = getByTestId("theme-toggle");
-    expect(button.getAttribute("aria-label")).toBe("Switch to light mode");
-    fireEvent.click(button);
-    expect(themeSignal.value).toBe("light");
+    expect(queryByTestId("ws-indicator")).toBeNull();
+  });
+});
+
+describe("StatusBar — sidebar expand control", () => {
+  it("is absent while the sidebar is expanded", () => {
+    const { queryByTestId } = renderWithAppState(<StatusBar {...baseProps} />, {
+      stateOverrides: { sidebarCollapsed: signal(false) },
+    });
+    expect(queryByTestId("sidebar-expand")).toBeNull();
   });
 
-  it("toggles theme from light to dark on click", () => {
-    const themeSignal = signal<"dark" | "light">("light");
+  it("expands the sidebar on click when collapsed", () => {
+    const collapsed = signal(true);
     const { getByTestId } = renderWithAppState(<StatusBar {...baseProps} />, {
-      stateOverrides: { theme: themeSignal },
+      stateOverrides: { sidebarCollapsed: collapsed },
     });
-    const button = getByTestId("theme-toggle");
-    expect(button.getAttribute("aria-label")).toBe("Switch to dark mode");
-    fireEvent.click(button);
-    expect(themeSignal.value).toBe("dark");
+    fireEvent.click(getByTestId("sidebar-expand"));
+    expect(collapsed.value).toBe(false);
   });
 });
 

@@ -43,7 +43,7 @@ export function StatusShape({ kind, size = 12, muted = false }: Props) {
         focusable="false"
         style={{ flexShrink: 0 }}
       >
-        <circle cx={half} cy={half} r={half} fill="var(--ok)" />
+        <circle cx={half} cy={half} r={half} fill="var(--ok-vivid)" />
       </svg>
     );
   }
@@ -60,7 +60,7 @@ export function StatusShape({ kind, size = 12, muted = false }: Props) {
         focusable="false"
         style={{ flexShrink: 0 }}
       >
-        <polygon points={pts} fill="var(--warn)" />
+        <polygon points={pts} fill="var(--warn-vivid)" />
       </svg>
     );
   }
@@ -76,7 +76,7 @@ export function StatusShape({ kind, size = 12, muted = false }: Props) {
         focusable="false"
         style={{ flexShrink: 0 }}
       >
-        <rect x="1" y="1" width={size - 2} height={size - 2} rx={r} ry={r} fill="var(--err)" />
+        <rect x="1" y="1" width={size - 2} height={size - 2} rx={r} ry={r} fill="var(--err-vivid)" />
       </svg>
     );
   }
@@ -93,7 +93,7 @@ export function StatusShape({ kind, size = 12, muted = false }: Props) {
         focusable="false"
         style={{ flexShrink: 0 }}
       >
-        <polygon points={pts} fill="var(--cancel)" />
+        <polygon points={pts} fill="var(--cancel-vivid)" />
       </svg>
     );
   }
