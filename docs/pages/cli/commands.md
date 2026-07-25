@@ -33,7 +33,7 @@ hassette run --app kitchen_lights --app porch_motion
 hassette run --app kitchen_lights,porch_motion
 ```
 
-It replaces the deprecated `@only_app` decorator — see [Restricting Which Apps Run](../core-concepts/apps/index.md#restricting-which-apps-run).
+See [Restricting Which Apps Run](../core-concepts/apps/index.md#restricting-which-apps-run) for details.
 
 `run` exits with code 1 when startup fails: an app fails its precheck (`AppPrecheckFailedError`), a fatal error fires (bad token, unreachable HA — see [Troubleshooting](../troubleshooting.md)), or the web API port is already taken (`Port 8126 is already in use — is another hassette instance running?`). Process managers can treat exit 1 as a startup error rather than a crash.
 

@@ -65,7 +65,7 @@ The **STATUS** badge on each row reflects the app's current lifecycle state.
 | `FAILED` | The app encountered an unhandled error. Check the **LAST ERROR** column or the App Detail error banner for the traceback. |
 | `CRASHED` | The app crashed and cannot recover. Check the error details and restart manually. |
 | `DISABLED` | The app has `enabled = false` in `hassette.toml`. **Start** enables it for this session. Setting `enabled = true` in config makes the change permanent. |
-| `BLOCKED` | Hassette is restricted to a different set of apps — via [`hassette run --app <key>`](../core-concepts/apps/index.md#restricting-which-apps-run) or the deprecated `@only_app` decorator — so this app is excluded. A decorator-driven block resolves automatically when the blocking app is removed or reloaded; a `--app` block lasts for the life of the process. |
+| `BLOCKED` | Hassette is restricted to a different set of apps via [`hassette run --app <key>`](../core-concepts/apps/index.md#restricting-which-apps-run), so this app is excluded. The block lasts for the life of the process. |
 
 ![A STOPPED app row with the "no autostart" chip](../../_static/web_ui_no_autostart_chip.png)
 

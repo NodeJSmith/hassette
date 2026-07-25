@@ -182,12 +182,6 @@ hassette run --app kitchen_lights,porch_motion
 
 Nothing in the source changes, so there is nothing to remember to remove before deploying. The flag is honored in production mode as well — typing it is an explicit choice, made once, for one process. A key that matches no enabled app is reported as an error and matches nothing, so a typo starts no apps rather than silently starting all of them.
 
-!!! warning "`@only_app` is deprecated"
-
-    The [`@only_app`][hassette.app.app.only_app] decorator does the same thing from source code and still works, but it emits a `DeprecationWarning` and will be removed in a future release. Replace it with `hassette run --app <key>`.
-
-    Only one class in the project may carry `@only_app` at a time; Hassette raises an error at startup if more than one is found. In production mode the decorator is ignored unless `allow_only_app_in_prod = true` is set in `hassette.toml`. `--app` takes precedence when both are present.
-
 ## Broadcasting Between Apps
 
 [`self.bus.emit()`](../bus/index.md) broadcasts an in-process event to all apps subscribed to a given topic. The event never reaches Home Assistant and is not persisted across restarts.

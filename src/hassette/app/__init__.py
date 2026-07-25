@@ -6,7 +6,7 @@ applications with typed configuration.
 
 from hassette.types.enums import BlockingIOBehavior, ForgottenAwaitBehavior
 
-from .app import App, AppSync, only_app
+from .app import App, AppSync
 from .app_config import AppConfig
 
 __all__ = [
@@ -15,5 +15,4 @@ __all__ = [
     "AppSync",
     "BlockingIOBehavior",
     "ForgottenAwaitBehavior",
-    "only_app",
 ]

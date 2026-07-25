@@ -461,7 +461,7 @@ class AppLifecycleService(Resource):
         self.logger.debug("Handling app change event for files: %s", changed_file_paths)
 
         original_apps_config, curr_apps_config = await self.refresh_config()
-        await self.resolve_only_apps(changed_file_paths)
+        await self.resolve_only_apps()
 
         changes = self.change_detector.detect_changes(
             original_apps_config, curr_apps_config, changed_file_paths, only_apps=self.registry.only_apps
@@ -522,24 +522,11 @@ class AppLifecycleService(Resource):
             "Found %d apps in configuration: %s", len(self.registry.manifests), list(self.registry.manifests.keys())
         )
 
-    async def resolve_only_apps(self, changed_file_paths: frozenset[Path] | None = None) -> None:
-        """Resolve which apps run exclusively, from ``--app`` if given and the decorator otherwise."""
-        configured = self.resolve_only_apps_from_config()
-        if configured is not None:
-            self.registry.set_only_apps(configured)
-            return
-
-        self.registry.set_only_apps(self.resolve_only_apps_from_decorator(changed_file_paths))
-
-    def resolve_only_apps_from_config(self) -> set[str] | None:
-        """Return the app keys requested via ``hassette run --app``, or None when the flag was not used.
-
-        Unknown keys stay in the filter so they match nothing: starting every app because a key was
-        mistyped would contradict the flag the user typed. They are reported so the typo is visible.
-        """
+    async def resolve_only_apps(self) -> None:
+        """Apply the ``--app`` exclusive-app filter, if given."""
         requested = set(self.hassette.config.only_apps)
         if not requested:
-            return None
+            return
 
         known = requested & set(self.registry.enabled_manifests)
         unknown = requested - known
@@ -554,44 +541,7 @@ class AppLifecycleService(Resource):
 
         # Deliberately `requested`, not `known` — narrowing to `known` would turn an all-typo
         # request into an empty filter, which means "no filter" and starts every app.
-        return requested
-
-    def resolve_only_apps_from_decorator(self, changed_file_paths: frozenset[Path] | None = None) -> set[str]:
-        """Return the app key carrying the deprecated ``@only_app`` decorator, if it applies."""
-        decorated: list[str] = []
-        changed = changed_file_paths or frozenset()
-
-        for app_manifest in self.registry.active_manifests.values():
-            try:
-                force_reload = app_manifest.full_path in changed
-                if self.factory.check_only_app_decorator(app_manifest, force_reload=force_reload):
-                    decorated.append(app_manifest.app_key)
-            except (UndefinedUserConfigError, InvalidInheritanceError):
-                self.logger.error(
-                    "Failed to load app '%s' due to bad configuration - check previous logs for details",
-                    app_manifest.display_name,
-                )
-
-        if not decorated:
-            return set()
-
-        if not self.hassette.config.dev_mode:
-            if not self.hassette.config.allow_only_app_in_prod:
-                self.logger.warning("Disallowing use of `only_app` decorator in production mode")
-                return set()
-            self.logger.warning("Allowing use of `only_app` decorator in production mode due to config")
-
-        if len(decorated) > 1:
-            keys = ", ".join(decorated)
-            raise RuntimeError(f"Multiple apps marked as only: {keys}")
-
-        self.logger.warning(
-            "App %s is marked as only, skipping all others. `@only_app` is deprecated — "
-            "use `hassette run --app %s` instead.",
-            decorated[0],
-            decorated[0],
-        )
-        return set(decorated)
+        self.registry.set_only_apps(requested)
 
     def reconcile_blocked_apps(self) -> set[str]:
         """Synchronize blocked state with the current exclusive-app filter.

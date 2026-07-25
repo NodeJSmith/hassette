@@ -202,15 +202,11 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     regardless of this setting. Defaults to False.
     """
 
-    allow_only_app_in_prod: bool = Field(default=False)
-    """Whether to allow the deprecated `only_app` decorator in production mode. Defaults to False."""
-
     only_apps: tuple[str, ...] = Field(default_factory=tuple)
     """App keys to run exclusively — every other configured app is excluded.
 
-    Set by `hassette run --app <key>` (repeat the flag or pass a comma-separated list). Unlike the
-    deprecated `@only_app` decorator, this is honored in production mode too: passing the flag is an
-    explicit choice, not something that can be left behind in source."""
+    Set by ``hassette run --app <key>`` (repeat the flag or pass a comma-separated list).
+    Honored in both dev and production mode."""
 
     forgotten_await_behavior: ForgottenAwaitBehavior | None = Field(default=None)
     """Global default for forgotten-await detection behavior.

@@ -10,8 +10,6 @@ paths, and reconcile_app_registrations' degraded-mode fallbacks.
 
 from unittest.mock import AsyncMock, MagicMock, Mock, seal
 
-import pytest
-
 from hassette.core.app_change_detector import ChangeSet
 from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.exceptions import InvalidInheritanceError, UndefinedUserConfigError
@@ -195,81 +193,6 @@ class TestRefreshConfigFailure:
 
         assert "app_a" in original
         assert "app_a" in current
-
-
-class TestResolveOnlyAppErrorAndEdgeCases:
-    async def test_bad_config_app_is_skipped_and_logged(
-        self,
-        lifecycle_service: AppLifecycleService,
-        mock_registry: MagicMock,
-        mock_factory: MagicMock,
-        mock_manifest: MagicMock,
-    ) -> None:
-        """An app whose only-decorator check raises UndefinedUserConfigError is skipped, not fatal."""
-        mock_registry.active_manifests = {"test_app": mock_manifest}
-        mock_factory.check_only_app_decorator = Mock(side_effect=UndefinedUserConfigError("bad config"))
-
-        await lifecycle_service.resolve_only_apps()
-
-        mock_registry.set_only_apps.assert_called_with(set())
-
-    async def test_allowed_in_prod_when_explicitly_enabled(
-        self,
-        lifecycle_service: AppLifecycleService,
-        mock_hassette: MagicMock,
-        mock_registry: MagicMock,
-        mock_factory: MagicMock,
-        mock_manifest: MagicMock,
-    ) -> None:
-        """The only_app decorator is honored in prod mode when allow_only_app_in_prod=True."""
-        mock_hassette.config.dev_mode = False
-        mock_hassette.config.allow_only_app_in_prod = True
-        mock_registry.active_manifests = {"test_app": mock_manifest}
-        mock_factory.check_only_app_decorator = Mock(return_value=True)
-
-        await lifecycle_service.resolve_only_apps()
-
-        mock_registry.set_only_apps.assert_called_with({"test_app"})
-
-    async def test_multiple_only_apps_raises(
-        self,
-        lifecycle_service: AppLifecycleService,
-        mock_registry: MagicMock,
-        mock_factory: MagicMock,
-    ) -> None:
-        """Two apps both marked @only raises RuntimeError naming both."""
-        manifest_a = MagicMock()
-        manifest_a.app_key = "app_a"
-        manifest_a.full_path = None
-        manifest_b = MagicMock()
-        manifest_b.app_key = "app_b"
-        manifest_b.full_path = None
-        mock_registry.active_manifests = {"app_a": manifest_a, "app_b": manifest_b}
-        mock_factory.check_only_app_decorator = Mock(return_value=True)
-
-        with pytest.raises(RuntimeError, match="Multiple apps marked as only"):
-            await lifecycle_service.resolve_only_apps()
-
-    async def test_force_reload_passed_for_changed_files(
-        self,
-        lifecycle_service: AppLifecycleService,
-        mock_registry: MagicMock,
-        mock_factory: MagicMock,
-        mock_manifest: MagicMock,
-    ) -> None:
-        """A manifest whose full_path is in changed_file_paths triggers force_reload=True."""
-        mock_registry.active_manifests = {"test_app": mock_manifest}
-        calls: list[bool] = []
-
-        def capture_force_reload(_manifest: MagicMock, *, force_reload: bool) -> bool:
-            calls.append(force_reload)
-            return False
-
-        mock_factory.check_only_app_decorator = Mock(side_effect=capture_force_reload)
-
-        await lifecycle_service.resolve_only_apps(changed_file_paths=frozenset({mock_manifest.full_path}))
-
-        assert calls == [True]
 
 
 class TestReconcileAppRegistrationsDegradedPaths:

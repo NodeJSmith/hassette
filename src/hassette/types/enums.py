@@ -188,8 +188,7 @@ class BlockReason(StrEnum):
     """Reasons an app may be intentionally blocked from starting."""
 
     ONLY_APP = auto()
-    """Hassette is restricted to other apps (via `run --app` or the deprecated `@only_app` decorator),
-    so this app is excluded."""
+    """Hassette is restricted to specific apps via ``run --app``, so this app is excluded."""
 
 
 class ResourceStatus(StrEnum):

@@ -1,5 +1,4 @@
 import typing
-import warnings
 from logging import Logger, getLogger
 from typing import ClassVar, Generic, TypeVar, cast, final
 
@@ -71,25 +70,6 @@ _APPSYNC_HOOKS: frozenset[str] = frozenset(
 """AppSync's additional app-author-visible sync hooks, layered on top of `_APP_PUBLIC_API`."""
 
 
-def only_app(app_cls: type[AppT]) -> type[AppT]:
-    """Decorator to mark an app class as the only one to run. If more than one app is marked with this decorator,
-    an exception will be raised during initialization.
-
-    .. deprecated::
-        Use ``hassette run --app <key>`` instead. The CLI flag isolates apps without editing source,
-        so there is nothing to remember to remove before deploying, and it accepts more than one key.
-    """
-    warnings.warn(
-        "@only_app is deprecated and will be removed in a future release. "
-        "Use `hassette run --app <key>` instead (repeat --app or pass a comma-separated list "
-        "to isolate more than one app).",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    app_cls._only_app = True
-    return app_cls
-
-
 class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
     """Base class for applications in the Hassette framework.
 
@@ -97,9 +77,6 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
     within the Hassette ecosystem. Lifecycle will generally be managed for you via the service status events,
     which send an event to the Bus and set the `status` attribute, based on the app's lifecycle.
     """
-
-    _only_app: ClassVar[bool] = False
-    """If True, only this app will be run. Only one app can be marked as only."""
 
     _import_exception: ClassVar[Exception | None] = None
     """Exception raised during import, if any. This prevents having all apps in a module fail due to one exception."""

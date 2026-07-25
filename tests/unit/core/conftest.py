@@ -181,7 +181,6 @@ def mock_factory() -> MagicMock:
     """Create a mock AppFactory."""
     factory = MagicMock()
     factory.create_instances = Mock()
-    factory.check_only_app_decorator = Mock(return_value=False)
     return factory
 
 

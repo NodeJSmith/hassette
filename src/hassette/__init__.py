@@ -1,7 +1,7 @@
 import logging
 
 from .api import Api
-from .app import App, AppConfig, AppSync, only_app
+from .app import App, AppConfig, AppSync
 from .bus import Bus
 from .config import HassetteConfig
 from .const import ANY_VALUE, MISSING_VALUE, NOT_PROVIDED
@@ -61,7 +61,6 @@ __all__ = [
     "conditions",
     "dependencies",
     "entities",
-    "only_app",
     "predicates",
     "register_simple_type_converter",
     "register_type_converter_fn",

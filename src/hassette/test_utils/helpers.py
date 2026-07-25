@@ -385,12 +385,10 @@ def write_app_toml(
 def write_test_app_with_decorator(
     app_file: Path,
     class_name: str,
-    has_only_app: bool = False,
     config_fields: dict | None = None,
 ) -> None:
-    """Write a test app Python file with optional @only_app decorator."""
+    """Write a test app Python file."""
     getLogger(__name__).debug("Writing test app to %s", app_file)
-    decorator = "@only_app\n" if has_only_app else ""
     config_fields_str = ""
 
     if config_fields:
@@ -398,12 +396,12 @@ def write_test_app_with_decorator(
             config_fields_str += f"\n    {field_name}: {field_type} = None"
 
     content = f'''
-from hassette import App, AppConfig, only_app
+from hassette import App, AppConfig
 
 class {class_name}Config(AppConfig):
     """Config for {class_name}."""{config_fields_str}
 
-{decorator}class {class_name}(App[{class_name}Config]):
+class {class_name}(App[{class_name}Config]):
     """Test app."""
 
     async def on_initialize(self) -> None:

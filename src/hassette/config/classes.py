@@ -112,7 +112,7 @@ class AppManifest(ExcludeExtrasMixin, BaseModel):
     """Reflects the key for this app in hassette.toml"""
 
     enabled: bool = Field(default=True)
-    """Whether the app is enabled or not, will default to True if not set. Does not consider @only_app decorator."""
+    """Whether the app is enabled or not, will default to True if not set. Does not consider ``--app`` filter."""
 
     autostart: bool = Field(default=True)
     """Whether the app starts automatically when Hassette starts. Orthogonal to

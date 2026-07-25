@@ -218,59 +218,7 @@ class TestReconcileBlockedApps:
         assert result == {"app_b"}
 
 
-class TestResolveOnlyApp:
-    async def test_sets_only_apps_when_decorated(
-        self,
-        lifecycle_service: AppLifecycleService,
-        mock_registry: MagicMock,
-        mock_factory: MagicMock,
-        mock_manifest: MagicMock,
-    ) -> None:
-        """Sets the exclusive-app filter when a decorated app is found."""
-        mock_registry.active_manifests = {"test_app": mock_manifest}
-        mock_factory.check_only_app_decorator = Mock(return_value=True)
-
-        await lifecycle_service.resolve_only_apps()
-
-        mock_registry.set_only_apps.assert_called_with({"test_app"})
-
-    async def test_clears_only_apps_when_none_decorated(
-        self,
-        lifecycle_service: AppLifecycleService,
-        mock_registry: MagicMock,
-        mock_factory: MagicMock,
-        mock_manifest: MagicMock,
-    ) -> None:
-        """Clears the exclusive-app filter when no decorated app is found."""
-        mock_registry.active_manifests = {"test_app": mock_manifest}
-        mock_factory.check_only_app_decorator = Mock(return_value=False)
-
-        await lifecycle_service.resolve_only_apps()
-
-        mock_registry.set_only_apps.assert_called_with(set())
-
-    async def test_disallows_only_app_in_prod_by_default(
-        self,
-        lifecycle_service: AppLifecycleService,
-        mock_hassette: MagicMock,
-        mock_registry: MagicMock,
-        mock_factory: MagicMock,
-        mock_manifest: MagicMock,
-    ) -> None:
-        """Disallows only_app in production mode when not explicitly allowed."""
-        mock_hassette.config.dev_mode = False
-        mock_hassette.config.allow_only_app_in_prod = False
-        mock_registry.active_manifests = {"test_app": mock_manifest}
-        mock_factory.check_only_app_decorator = Mock(return_value=True)
-
-        await lifecycle_service.resolve_only_apps()
-
-        mock_registry.set_only_apps.assert_called_with(set())
-
-
-class TestResolveOnlyAppsFromConfig:
-    """`hassette run --app` populates config.only_apps, which outranks the decorator."""
-
+class TestResolveOnlyApps:
     async def test_config_keys_set_the_filter(
         self,
         lifecycle_service: AppLifecycleService,
@@ -284,25 +232,6 @@ class TestResolveOnlyAppsFromConfig:
         await lifecycle_service.resolve_only_apps()
 
         mock_registry.set_only_apps.assert_called_with({"app_a", "app_b"})
-
-    async def test_config_outranks_decorator(
-        self,
-        lifecycle_service: AppLifecycleService,
-        mock_hassette: MagicMock,
-        mock_registry: MagicMock,
-        mock_factory: MagicMock,
-        mock_manifest: MagicMock,
-    ) -> None:
-        """The CLI flag wins over @only_app, and the decorator is never consulted."""
-        mock_hassette.config.only_apps = ("app_a",)
-        mock_registry.enabled_manifests = {"app_a": MagicMock(), "test_app": mock_manifest}
-        mock_registry.active_manifests = {"test_app": mock_manifest}
-        mock_factory.check_only_app_decorator = Mock(return_value=True)
-
-        await lifecycle_service.resolve_only_apps()
-
-        mock_registry.set_only_apps.assert_called_with({"app_a"})
-        mock_factory.check_only_app_decorator.assert_not_called()
 
     async def test_unknown_key_still_filters_everything_out(
         self,
@@ -324,9 +253,8 @@ class TestResolveOnlyAppsFromConfig:
         mock_hassette: MagicMock,
         mock_registry: MagicMock,
     ) -> None:
-        """Unlike the decorator, the CLI flag is not gated on dev_mode."""
+        """The --app flag works in both dev and production mode."""
         mock_hassette.config.dev_mode = False
-        mock_hassette.config.allow_only_app_in_prod = False
         mock_hassette.config.only_apps = ("app_a",)
         mock_registry.enabled_manifests = {"app_a": MagicMock(), "app_b": MagicMock()}
 
