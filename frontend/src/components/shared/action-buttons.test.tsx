@@ -1,6 +1,7 @@
 import { fireEvent, render, waitFor } from "@testing-library/preact";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { ActionResponse } from "../../api/endpoints";
 import { ActionButtons } from "./action-buttons";
 
 // Mock the API endpoints — we test the component logic, not the network.
@@ -15,9 +16,9 @@ vi.mock("sonner", () => ({
 }));
 
 const endpoints = await import("../../api/endpoints");
-const startApp = endpoints.startApp as unknown as ReturnType<typeof vi.fn>;
-const stopApp = endpoints.stopApp as unknown as ReturnType<typeof vi.fn>;
-const reloadApp = endpoints.reloadApp as unknown as ReturnType<typeof vi.fn>;
+const startApp = vi.mocked(endpoints.startApp);
+const stopApp = vi.mocked(endpoints.stopApp);
+const reloadApp = vi.mocked(endpoints.reloadApp);
 
 // Import after mock so the spy reference is captured.
 const { toast } = await import("sonner");
@@ -64,7 +65,7 @@ describe("ActionButtons", () => {
   // -- Action execution --
 
   it("calls startApp and disables button during loading", async () => {
-    startApp.mockResolvedValue({ status: "accepted" });
+    startApp.mockResolvedValue({ status: "accepted", app_key: "my_app", action: "start" });
 
     const { getByTestId } = render(<ActionButtons appKey="my_app" status="stopped" />);
 
@@ -85,7 +86,7 @@ describe("ActionButtons", () => {
   });
 
   it("calls stopApp when Stop is clicked", async () => {
-    stopApp.mockResolvedValue({ status: "accepted" });
+    stopApp.mockResolvedValue({ status: "accepted", app_key: "my_app", action: "stop" });
 
     const { getByTestId } = render(<ActionButtons appKey="my_app" status="running" />);
 
@@ -100,7 +101,7 @@ describe("ActionButtons", () => {
   });
 
   it("calls reloadApp when Reload is clicked", async () => {
-    reloadApp.mockResolvedValue({ status: "accepted" });
+    reloadApp.mockResolvedValue({ status: "accepted", app_key: "my_app", action: "reload" });
 
     const { getByTestId } = render(<ActionButtons appKey="my_app" status="running" />);
 
@@ -148,7 +149,7 @@ describe("ActionButtons", () => {
   });
 
   it("ignores second click while first action is in-flight", async () => {
-    let resolveAction!: (value: unknown) => void;
+    let resolveAction!: (value: ActionResponse) => void;
     startApp.mockImplementation(
       () =>
         new Promise((resolve) => {
@@ -169,7 +170,7 @@ describe("ActionButtons", () => {
     expect(startApp).toHaveBeenCalledTimes(1);
 
     // Resolve the pending action to clean up
-    resolveAction({ status: "accepted" });
+    resolveAction({ status: "accepted", app_key: "my_app", action: "start" });
     await waitFor(() => {
       expect(btn.disabled).toBe(false);
     });
