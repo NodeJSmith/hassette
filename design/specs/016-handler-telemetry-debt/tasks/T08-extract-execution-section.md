@@ -1,7 +1,7 @@
 ---
 task_id: "T08"
 title: "Extract ExecutionSection sub-component + tests"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#5", "AC#2"]
 ---

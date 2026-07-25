@@ -1,0 +1,13 @@
+.executionsSection {
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-4);
+  border-top: var(--sp-px) solid var(--line-1);
+}
+
+.panelHeading {
+  font-family: var(--font-body);
+  font-size: var(--fs-h3);
+  font-weight: var(--fw-medium);
+  color: var(--ink-1);
+  margin: 0 0 var(--sp-3);
+}
