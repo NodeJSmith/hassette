@@ -6,16 +6,10 @@ import { App } from "./app";
 
 // Mock wouter so we control routing without a real browser history.
 //
-// `vi.mock` hoists the *registration* of this factory above all imports, but the factory
-// *body* only runs later, the first time something actually imports "wouter" — here, that's
-// triggered by the `./app` import below (App imports wouter transitively). If `createWouterMock`
-// were a static top-level import instead, its binding would only be initialized once that
-// import statement's own line has executed — and eslint's import-sorter alphabetizes this
-// file's same-level imports ("./app" vs "./test/mock-wouter"), so it can place `./app` first.
-// That ordering makes `./app` resolve "wouter" (running this factory) before
-// `./test/mock-wouter` has finished initializing, throwing "Cannot access before
-// initialization". Importing it dynamically inside the factory sidesteps that: the import
-// only starts once the factory itself is invoked, so it can never race the outer import order.
+// createWouterMock is imported dynamically inside the factory (instead of a static top-level
+// import) because this file and `test/mock-wouter` are both direct children of `src/` — see the
+// "Import-order hazard" note on createWouterMock's JSDoc for why that specific layout is unsafe
+// with a plain import.
 vi.mock("wouter", async () => {
   const { createWouterMock } = await import("./test/mock-wouter");
   return {
