@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Add tests for untested UNION methods"
-status: "planned"
+status: "done"
 depends_on: ["T03"]
 implements: ["FR#12", "AC#8"]
 ---
