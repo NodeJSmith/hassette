@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Extract UNION arm builder helper"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#9", "AC#6"]
 ---
