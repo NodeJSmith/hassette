@@ -1,6 +1,9 @@
 import { formatDurationOrDash, formatRate } from "../../utils/format";
 import type { DetailStatsCell } from "../shared/detail-stats";
 
+/** Number of fixed cells `buildCommonStatCells` always produces, before any conditional cells. */
+export const COMMON_STAT_CELL_COUNT = 5;
+
 export interface CommonStatInput {
   totalLabel: string;
   total: number;

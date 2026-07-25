@@ -1,6 +1,7 @@
 """Unit tests for TelemetryQueryService module-level SQL helper functions."""
 
 from hassette.core.telemetry.helpers import handler_job_union_arms, since_clause
+from hassette.test_utils.config import TEST_EPOCH_B
 
 
 class TestSinceClause:
@@ -14,10 +15,10 @@ class TestSinceClause:
 
     def test_float_returns_parameterized_fragment(self) -> None:
         """When since is a float, returns AND clause and bind param."""
-        fragment, params = since_clause(1_700_000_000.0, "hi.execution_start_ts")
+        fragment, params = since_clause(TEST_EPOCH_B, "hi.execution_start_ts")
         assert "hi.execution_start_ts" in fragment
         assert ">= :since" in fragment
-        assert params == {"since": 1_700_000_000.0}
+        assert params == {"since": TEST_EPOCH_B}
 
     def test_fragment_starts_with_and(self) -> None:
         """Fragment starts with AND when since is provided."""
@@ -69,9 +70,9 @@ class TestHandlerJobUnionArms:
 
     def test_since_param_deduplicated(self) -> None:
         """Both arms bind :since, but the merged params dict has a single entry."""
-        fragment, params = handler_job_union_arms("SELECT 1", "SELECT 1", since=1_700_000_000.0)
+        fragment, params = handler_job_union_arms("SELECT 1", "SELECT 1", since=TEST_EPOCH_B)
         assert fragment.count(":since") == 2
-        assert params == {"since": 1_700_000_000.0, "source_tier": "app"}
+        assert params == {"since": TEST_EPOCH_B, "source_tier": "app"}
 
     def test_since_none_omits_since_param(self) -> None:
         """since=None means no since_clause filter and no :since param."""

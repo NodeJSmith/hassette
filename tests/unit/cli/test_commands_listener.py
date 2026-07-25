@@ -21,6 +21,8 @@ from tests.unit.cli.conftest import (
     capture_stdout,
 )
 
+MAKE_CLIENT_PATH = "hassette.cli.commands.listener.make_client"
+
 # cmd_listener (bare — list all listeners)
 
 
@@ -34,7 +36,7 @@ class TestCmdListener:
         with (
             patch.object(client, "get", side_effect=spy),
             capture_stdout(),
-            patch("hassette.cli.commands.listener.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_listener()
 
@@ -51,7 +53,7 @@ class TestCmdListener:
         with (
             patch.object(client, "get", side_effect=spy),
             capture_stdout(),
-            patch("hassette.cli.commands.listener.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_listener(app="my-app")
 
@@ -68,7 +70,7 @@ class TestCmdListener:
         with (
             patch.object(client, "get", side_effect=spy),
             capture_stdout(),
-            patch("hassette.cli.commands.listener.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_listener(app="my-app", instance="0")
 
@@ -82,7 +84,7 @@ class TestCmdListener:
 
         with (
             capture_stderr(),
-            patch("hassette.cli.commands.listener.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
             pytest.raises(SystemExit) as exc_info,
         ):
             cmd_listener(instance="0")
@@ -98,7 +100,7 @@ class TestCmdListener:
         with (
             patch.object(client, "get", side_effect=spy),
             capture_stdout(),
-            patch("hassette.cli.commands.listener.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_listener(source_tier="app")
 
@@ -112,7 +114,7 @@ class TestCmdListener:
         client = cli_client_factory.build_with_routes([("GET", "/api/bus/listeners", 200, [listener.model_dump()])])
         with (
             capture_stdout() as buf,
-            patch("hassette.cli.commands.listener.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_listener()
 
@@ -126,7 +128,7 @@ class TestCmdListener:
         client = cli_client_factory.build_with_routes([("GET", "/api/bus/listeners", 200, [listener.model_dump()])])
 
         with (
-            patch("hassette.cli.commands.listener.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
             capture_json_stdout() as captured,
         ):
             cmd_listener(ctx=CLIContext(json_mode=True))
@@ -141,7 +143,7 @@ class TestCmdListener:
         with (
             capture_stdout(),
             capture_stderr() as err_buf,
-            patch("hassette.cli.commands.listener.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_listener()
 
@@ -173,7 +175,7 @@ class TestCmdListenerDetail:
         with (
             patch.object(client, "get", side_effect=spy),
             capture_stdout(),
-            patch("hassette.cli.commands.listener.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_listener(listener_id=42)
 
@@ -190,7 +192,7 @@ class TestCmdListenerDetail:
         with (
             patch.object(client, "get", side_effect=spy),
             capture_stdout(),
-            patch("hassette.cli.commands.listener.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_listener(listener_id=42, limit=5)
 
@@ -210,7 +212,7 @@ class TestCmdListenerDetail:
         with (
             patch.object(client, "get", side_effect=spy),
             capture_stdout(),
-            patch("hassette.cli.commands.listener.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_listener(listener_id=42, since=since_epoch)
 
@@ -226,7 +228,7 @@ class TestCmdListenerDetail:
         )
         with (
             capture_stdout() as buf,
-            patch("hassette.cli.commands.listener.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_listener(listener_id=1)
 
@@ -241,7 +243,7 @@ class TestCmdListenerDetail:
         )
 
         with (
-            patch("hassette.cli.commands.listener.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
             capture_json_stdout() as captured,
         ):
             cmd_listener(listener_id=1, ctx=CLIContext(json_mode=True))

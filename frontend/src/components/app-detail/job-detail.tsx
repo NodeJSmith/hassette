@@ -17,15 +17,15 @@ import { ErrorBanner } from "../shared/error-banner";
 import { IconPlay } from "../shared/icons";
 import { Spinner } from "../shared/spinner";
 import { DetailHeader } from "./detail-header";
-import detailHeaderStyles from "./detail-header.module.css";
 import { ExecutionSection } from "./execution-section";
 import chipStyles from "./handler-chips.module.css";
 import { HandlerDetailLayout } from "./handler-detail-layout";
 import layoutStyles from "./handler-detail-layout.module.css";
 import { jobHealthKind } from "./handler-list";
 import { HandlerModeChip } from "./handler-mode-chip";
+import styles from "./job-detail.module.css";
 import { RegistrationFooter } from "./registration-footer";
-import { buildCommonStatCells, type CommonStatInput } from "./stat-cell-builders";
+import { buildCommonStatCells, COMMON_STAT_CELL_COUNT, type CommonStatInput } from "./stat-cell-builders";
 
 function ScheduleChips({ job }: { job: JobData }) {
   const chips: Array<{ label: string }> = [];
@@ -100,7 +100,7 @@ function buildJobStatsCells(job: JobData, lastExecutedLabel: string, nextRunText
       insertAt = cancelledIndex + 1;
     } else {
       const timedOutIndex = cells.findIndex((cell) => cell.label === "Timed Out");
-      insertAt = timedOutIndex >= 0 ? timedOutIndex + 1 : 5;
+      insertAt = timedOutIndex >= 0 ? timedOutIndex + 1 : COMMON_STAT_CELL_COUNT;
     }
     cells.splice(insertAt, 0, { label: "Skipped", value: job.skipped, tone: "mute" });
   }
@@ -155,7 +155,7 @@ export function JobDetail({ job, appKey, instanceQs, onSwitchToCode }: Props) {
       />
 
       {predicateDescription && (
-        <p class={detailHeaderStyles.subtitle} data-testid="job-predicate-description">
+        <p class={styles.predicateDescription} data-testid="job-predicate-description">
           {predicateDescription}
         </p>
       )}

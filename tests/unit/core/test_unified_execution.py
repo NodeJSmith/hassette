@@ -12,6 +12,7 @@ from pydantic import ValidationError
 
 from hassette.core.execution_record import ExecutionRecord
 from hassette.schemas.execution_models import Execution
+from hassette.test_utils.config import TEST_EPOCH_B
 
 
 class TestExecutionModelKindHandler:
@@ -19,7 +20,7 @@ class TestExecutionModelKindHandler:
         """kind='handler' is a valid discriminator value."""
         model = Execution(
             kind="handler",
-            execution_start_ts=1700000000.0,
+            execution_start_ts=TEST_EPOCH_B,
             duration_ms=12.5,
             status="success",
             error_type=None,
@@ -31,7 +32,7 @@ class TestExecutionModelKindHandler:
         """kind='job' is a valid discriminator value."""
         model = Execution(
             kind="job",
-            execution_start_ts=1700000000.0,
+            execution_start_ts=TEST_EPOCH_B,
             duration_ms=20.0,
             status="error",
             error_type="RuntimeError",
@@ -43,7 +44,7 @@ class TestExecutionModelKindHandler:
         """Handler-only fields can be set when kind='handler'."""
         model = Execution(
             kind="handler",
-            execution_start_ts=1700000000.0,
+            execution_start_ts=TEST_EPOCH_B,
             duration_ms=5.0,
             status="success",
             error_type=None,
@@ -58,7 +59,7 @@ class TestExecutionModelKindHandler:
         """trigger_context_id and trigger_origin default to None when kind='job'."""
         model = Execution(
             kind="job",
-            execution_start_ts=1700000000.0,
+            execution_start_ts=TEST_EPOCH_B,
             duration_ms=8.0,
             status="success",
             error_type=None,
@@ -72,7 +73,7 @@ class TestExecutionModelKindHandler:
         handler = Execution(
             kind="handler",
             listener_id=42,
-            execution_start_ts=1700000000.0,
+            execution_start_ts=TEST_EPOCH_B,
             duration_ms=5.0,
             status="success",
             error_type=None,
@@ -84,7 +85,7 @@ class TestExecutionModelKindHandler:
         job = Execution(
             kind="job",
             job_id=7,
-            execution_start_ts=1700000000.0,
+            execution_start_ts=TEST_EPOCH_B,
             duration_ms=5.0,
             status="success",
             error_type=None,
@@ -100,7 +101,7 @@ class TestExecutionModelInvalidKind:
         with pytest.raises(ValidationError):
             Execution(
                 kind="invocation",  # pyright: ignore[reportArgumentType]
-                execution_start_ts=1700000000.0,
+                execution_start_ts=TEST_EPOCH_B,
                 duration_ms=5.0,
                 status="success",
                 error_type=None,
@@ -112,7 +113,7 @@ class TestExecutionModelInvalidKind:
         with pytest.raises(ValidationError):
             Execution(
                 kind="",  # pyright: ignore[reportArgumentType]
-                execution_start_ts=1700000000.0,
+                execution_start_ts=TEST_EPOCH_B,
                 duration_ms=5.0,
                 status="success",
                 error_type=None,
@@ -124,7 +125,7 @@ class TestExecutionModelInvalidKind:
         with pytest.raises(ValidationError):
             Execution(
                 kind=1,  # pyright: ignore[reportArgumentType]
-                execution_start_ts=1700000000.0,
+                execution_start_ts=TEST_EPOCH_B,
                 duration_ms=5.0,
                 status="success",
                 error_type=None,
@@ -138,7 +139,7 @@ class TestExecutionModelNewColumns:
     def test_trigger_mode_defaults_none(self) -> None:
         model = Execution(
             kind="handler",
-            execution_start_ts=1700000000.0,
+            execution_start_ts=TEST_EPOCH_B,
             duration_ms=5.0,
             status="success",
             error_type=None,
@@ -149,7 +150,7 @@ class TestExecutionModelNewColumns:
     def test_retry_count_defaults_zero(self) -> None:
         model = Execution(
             kind="job",
-            execution_start_ts=1700000000.0,
+            execution_start_ts=TEST_EPOCH_B,
             duration_ms=5.0,
             status="success",
             error_type=None,
@@ -160,7 +161,7 @@ class TestExecutionModelNewColumns:
     def test_attempt_number_defaults_one(self) -> None:
         model = Execution(
             kind="handler",
-            execution_start_ts=1700000000.0,
+            execution_start_ts=TEST_EPOCH_B,
             duration_ms=5.0,
             status="success",
             error_type=None,
@@ -171,7 +172,7 @@ class TestExecutionModelNewColumns:
     def test_args_json_defaults_empty_list(self) -> None:
         model = Execution(
             kind="job",
-            execution_start_ts=1700000000.0,
+            execution_start_ts=TEST_EPOCH_B,
             duration_ms=5.0,
             status="success",
             error_type=None,
@@ -182,7 +183,7 @@ class TestExecutionModelNewColumns:
     def test_kwargs_json_defaults_empty_dict(self) -> None:
         model = Execution(
             kind="handler",
-            execution_start_ts=1700000000.0,
+            execution_start_ts=TEST_EPOCH_B,
             duration_ms=5.0,
             status="success",
             error_type=None,
@@ -194,7 +195,7 @@ class TestExecutionModelNewColumns:
         """All new columns accept non-default values."""
         model = Execution(
             kind="job",
-            execution_start_ts=1700000000.0,
+            execution_start_ts=TEST_EPOCH_B,
             duration_ms=5.0,
             status="success",
             error_type=None,
@@ -218,7 +219,7 @@ class TestExecutionRecordKind:
         record = ExecutionRecord(
             kind="handler",
             session_id=1,
-            execution_start_ts=1700000000.0,
+            execution_start_ts=TEST_EPOCH_B,
             duration_ms=10.0,
             status="success",
             listener_id=42,
@@ -232,7 +233,7 @@ class TestExecutionRecordKind:
         record = ExecutionRecord(
             kind="job",
             session_id=1,
-            execution_start_ts=1700000000.0,
+            execution_start_ts=TEST_EPOCH_B,
             duration_ms=10.0,
             status="success",
             job_id=7,
@@ -246,7 +247,7 @@ class TestExecutionRecordKind:
         record = ExecutionRecord(
             kind="job",
             session_id=1,
-            execution_start_ts=1700000000.0,
+            execution_start_ts=TEST_EPOCH_B,
             duration_ms=5.0,
             status="success",
             job_id=3,
@@ -259,7 +260,7 @@ class TestExecutionRecordKind:
         record = ExecutionRecord(
             kind="handler",
             session_id=1,
-            execution_start_ts=1700000000.0,
+            execution_start_ts=TEST_EPOCH_B,
             duration_ms=5.0,
             status="success",
             listener_id=1,
@@ -277,7 +278,7 @@ class TestExecutionRecordNewColumns:
         record = ExecutionRecord(
             kind="handler",
             session_id=1,
-            execution_start_ts=1700000000.0,
+            execution_start_ts=TEST_EPOCH_B,
             duration_ms=5.0,
             status="success",
         )
@@ -287,7 +288,7 @@ class TestExecutionRecordNewColumns:
         record = ExecutionRecord(
             kind="job",
             session_id=1,
-            execution_start_ts=1700000000.0,
+            execution_start_ts=TEST_EPOCH_B,
             duration_ms=5.0,
             status="success",
         )
@@ -297,7 +298,7 @@ class TestExecutionRecordNewColumns:
         record = ExecutionRecord(
             kind="handler",
             session_id=1,
-            execution_start_ts=1700000000.0,
+            execution_start_ts=TEST_EPOCH_B,
             duration_ms=5.0,
             status="success",
         )
@@ -307,7 +308,7 @@ class TestExecutionRecordNewColumns:
         record = ExecutionRecord(
             kind="job",
             session_id=1,
-            execution_start_ts=1700000000.0,
+            execution_start_ts=TEST_EPOCH_B,
             duration_ms=5.0,
             status="success",
         )
@@ -317,7 +318,7 @@ class TestExecutionRecordNewColumns:
         record = ExecutionRecord(
             kind="handler",
             session_id=1,
-            execution_start_ts=1700000000.0,
+            execution_start_ts=TEST_EPOCH_B,
             duration_ms=5.0,
             status="success",
         )
@@ -327,7 +328,7 @@ class TestExecutionRecordNewColumns:
         record = ExecutionRecord(
             kind="job",
             session_id=1,
-            execution_start_ts=1700000000.0,
+            execution_start_ts=TEST_EPOCH_B,
             duration_ms=5.0,
             status="error",
             job_id=99,
@@ -348,7 +349,7 @@ class TestExecutionRecordNewColumns:
         record = ExecutionRecord(
             kind="handler",
             session_id=1,
-            execution_start_ts=1700000000.0,
+            execution_start_ts=TEST_EPOCH_B,
             duration_ms=5.0,
             status="success",
         )

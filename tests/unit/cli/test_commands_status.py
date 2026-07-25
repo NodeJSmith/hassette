@@ -17,6 +17,8 @@ from hassette.test_utils.web_response_helpers import (
 )
 from tests.unit.cli.conftest import CLIClientFactory, GetSpy, capture_json_stdout, capture_stdout
 
+MAKE_CLIENT_PATH = "hassette.cli.commands.status.make_client"
+
 # cmd_status
 
 
@@ -30,7 +32,7 @@ class TestCmdStatus:
         with (
             patch.object(client, "get", side_effect=spy),
             capture_stdout(),
-            patch("hassette.cli.commands.status.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_status()
 
@@ -42,7 +44,7 @@ class TestCmdStatus:
         client = cli_client_factory.build_with_routes([("GET", "/api/health", 200, status_data.model_dump())])
         with (
             capture_stdout() as buf,
-            patch("hassette.cli.commands.status.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_status()
         output = buf.getvalue()
@@ -55,7 +57,7 @@ class TestCmdStatus:
         client = cli_client_factory.build_with_routes([("GET", "/api/health", 200, status_data.model_dump())])
 
         with (
-            patch("hassette.cli.commands.status.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
             capture_json_stdout() as captured,
         ):
             cmd_status(ctx=CLIContext(json_mode=True))
@@ -70,7 +72,7 @@ class TestCmdStatus:
         client = cli_client_factory.build_with_routes([("GET", "/api/health", 200, status_data.model_dump())])
         with (
             capture_stdout() as buf,
-            patch("hassette.cli.commands.status.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_status()
         output = buf.getvalue()
@@ -82,7 +84,7 @@ class TestCmdStatus:
         client = cli_client_factory.build_with_routes([("GET", "/api/health", 200, status_data.model_dump())])
         with (
             capture_stdout() as buf,
-            patch("hassette.cli.commands.status.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_status()
         output = buf.getvalue()
@@ -94,7 +96,7 @@ class TestCmdStatus:
         client = cli_client_factory.build_with_routes([("GET", "/api/health", 200, status_data.model_dump())])
         with (
             capture_stdout() as buf,
-            patch("hassette.cli.commands.status.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_status()
         output = buf.getvalue()
@@ -114,7 +116,7 @@ class TestCmdTelemetry:
         with (
             patch.object(client, "get", side_effect=spy),
             capture_stdout(),
-            patch("hassette.cli.commands.status.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_telemetry()
 
@@ -126,7 +128,7 @@ class TestCmdTelemetry:
         client = cli_client_factory.build_with_routes([("GET", "/api/telemetry/status", 200, tel_data.model_dump())])
         with (
             capture_stdout() as buf,
-            patch("hassette.cli.commands.status.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_telemetry()
         output = buf.getvalue()
@@ -138,7 +140,7 @@ class TestCmdTelemetry:
         client = cli_client_factory.build_with_routes([("GET", "/api/telemetry/status", 200, tel_data.model_dump())])
 
         with (
-            patch("hassette.cli.commands.status.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
             capture_json_stdout() as captured,
         ):
             cmd_telemetry(ctx=CLIContext(json_mode=True))
@@ -152,7 +154,7 @@ class TestCmdTelemetry:
         client = cli_client_factory.build_with_routes([("GET", "/api/telemetry/status", 503, tel_data.model_dump())])
         with (
             capture_stdout() as buf,
-            patch("hassette.cli.commands.status.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_telemetry()
         assert "degraded" in buf.getvalue()
@@ -163,7 +165,7 @@ class TestCmdTelemetry:
         client = cli_client_factory.build_with_routes([("GET", "/api/telemetry/status", 503, tel_data.model_dump())])
 
         with (
-            patch("hassette.cli.commands.status.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
             capture_json_stdout() as captured,
         ):
             cmd_telemetry(ctx=CLIContext(json_mode=True))
@@ -188,7 +190,7 @@ class TestCmdDashboard:
         with (
             patch.object(client, "get", side_effect=spy),
             capture_stdout(),
-            patch("hassette.cli.commands.status.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_dashboard()
 
@@ -202,7 +204,7 @@ class TestCmdDashboard:
         )
         with (
             capture_stdout() as buf,
-            patch("hassette.cli.commands.status.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_dashboard()
         output = buf.getvalue()
@@ -220,7 +222,7 @@ class TestCmdDashboard:
         )
 
         with (
-            patch("hassette.cli.commands.status.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
             capture_json_stdout() as captured,
         ):
             cmd_dashboard(ctx=CLIContext(json_mode=True))

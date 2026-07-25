@@ -8,6 +8,8 @@ from hassette.cli.context import CLIContext
 from hassette.test_utils.web_response_helpers import make_config_schema_response
 from tests.unit.cli.conftest import CLIClientFactory, GetSpy, capture_json_stdout, capture_stdout
 
+MAKE_CLIENT_PATH = "hassette.cli.commands.misc.make_client"
+
 # cmd_config
 
 
@@ -21,7 +23,7 @@ class TestCmdConfig:
         with (
             patch.object(client, "get", side_effect=spy),
             capture_stdout(),
-            patch("hassette.cli.commands.misc.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_config()
 
@@ -33,7 +35,7 @@ class TestCmdConfig:
         client = cli_client_factory.build_with_routes([("GET", "/api/config", 200, config_data.model_dump())])
         with (
             capture_stdout() as buf,
-            patch("hassette.cli.commands.misc.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_config()
         output = buf.getvalue()
@@ -46,7 +48,7 @@ class TestCmdConfig:
         client = cli_client_factory.build_with_routes([("GET", "/api/config", 200, config_data.model_dump())])
 
         with (
-            patch("hassette.cli.commands.misc.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
             capture_json_stdout() as captured,
         ):
             cmd_config(ctx=CLIContext(json_mode=True))
@@ -61,7 +63,7 @@ class TestCmdConfig:
         client = cli_client_factory.build_with_routes([("GET", "/api/config", 200, config_data.model_dump())])
 
         with (
-            patch("hassette.cli.commands.misc.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
             capture_json_stdout() as captured,
         ):
             cmd_config(ctx=CLIContext(json_mode=True))

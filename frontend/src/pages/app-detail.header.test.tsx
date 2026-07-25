@@ -123,13 +123,6 @@ describe("AppDetailPage header", () => {
     expect(queryByTestId("error-display")).toBeNull();
   });
 
-  it("renders filename in subtitle meta", async () => {
-    const manifest = createManifest({ app_key: "motion_sensor_app", filename: "apps/motion_sensor.py" });
-    setupApi(manifest);
-    const { findByTestId } = renderPage({ key: "motion_sensor_app" });
-    expect((await findByTestId("app-subtitle-meta")).textContent).toContain("apps/motion_sensor.py");
-  });
-
   it("renders auto-loaded badge when auto_loaded is true", async () => {
     const manifest = createManifest({ auto_loaded: true });
     setupApi(manifest);
@@ -161,7 +154,7 @@ describe("AppDetailPage header", () => {
     expect(queryByTestId("no-autostart-badge")).toBeNull();
   });
 
-  it("shows filename in subtitle meta", async () => {
+  it("shows filename and class name in subtitle meta", async () => {
     const manifest = createManifest({
       app_key: "test_app",
       filename: "apps/test_app.py",

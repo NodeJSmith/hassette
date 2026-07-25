@@ -23,6 +23,8 @@ from hassette.web.models import (
     SystemStatusResponse,
 )
 
+STANDARD_LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
+
 
 class TestExecutionStatus:
     def test_rejects_bogus_status(self) -> None:
@@ -351,7 +353,7 @@ class TestLogLevelType:
             )
 
     def test_accepts_all_five_standard_levels_on_log_record(self) -> None:
-        for level in ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"):
+        for level in STANDARD_LOG_LEVELS:
             obj = LogRecord(
                 id=1,
                 seq=1,
@@ -402,7 +404,7 @@ class TestLogLevelType:
             assert obj.source_tier == tier
 
     def test_accepts_all_five_standard_levels_on_log_entry_response(self) -> None:
-        for level in ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"):
+        for level in STANDARD_LOG_LEVELS:
             obj = LogEntryResponse(
                 seq=1,
                 timestamp=1.0,
