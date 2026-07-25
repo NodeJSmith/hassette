@@ -24,7 +24,7 @@ function makeManifestResponse(overrides: Partial<ManifestListResponse> = {}): Ma
     disabled: 0,
     blocked: 0,
     manifests: [],
-    only_app: null,
+    only_apps: [],
     ...overrides,
   };
 }

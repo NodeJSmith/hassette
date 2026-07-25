@@ -1,4 +1,5 @@
 import typing
+import warnings
 from logging import Logger, getLogger
 from typing import ClassVar, Generic, TypeVar, cast, final
 
@@ -74,9 +75,17 @@ def only_app(app_cls: type[AppT]) -> type[AppT]:
     """Decorator to mark an app class as the only one to run. If more than one app is marked with this decorator,
     an exception will be raised during initialization.
 
-    This is useful for development and testing, where you may want to run only a specific app without
-    modifying configuration files.
+    .. deprecated::
+        Use ``hassette run --app <key>`` instead. The CLI flag isolates apps without editing source,
+        so there is nothing to remember to remove before deploying, and it accepts more than one key.
     """
+    warnings.warn(
+        "@only_app is deprecated and will be removed in a future release. "
+        "Use `hassette run --app <key>` instead (repeat --app or pass a comma-separated list "
+        "to isolate more than one app).",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     app_cls._only_app = True
     return app_cls
 

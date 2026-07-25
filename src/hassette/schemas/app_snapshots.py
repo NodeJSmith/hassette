@@ -31,7 +31,7 @@ class AppStatusSnapshot:
 
     running: list[AppInstanceInfo] = field(default_factory=list)
     failed: list[AppInstanceInfo] = field(default_factory=list)
-    only_app: str | None = None
+    only_apps: list[str] = field(default_factory=list)
 
     @property
     def total_count(self) -> int:
@@ -85,7 +85,7 @@ class AppFullSnapshot:
     """Full manifest-based snapshot including all configured apps."""
 
     manifests: list[AppManifestInfo] = field(default_factory=list)
-    only_app: str | None = None
+    only_apps: list[str] = field(default_factory=list)
     total: int = 0
     running: int = 0
     failed: int = 0

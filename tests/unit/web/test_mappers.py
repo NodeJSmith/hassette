@@ -122,13 +122,13 @@ def test_app_status_response_from_empty_snapshot():
     assert result.apps == []
 
 
-def test_app_status_response_from_preserves_only_app():
-    """only_app field is propagated from snapshot."""
-    snapshot = AppStatusSnapshot(only_app="special_app")
+def test_app_status_response_from_preserves_only_apps():
+    """only_apps field is propagated from snapshot."""
+    snapshot = AppStatusSnapshot(only_apps=["special_app"])
 
     result = app_status_response_from(snapshot)
 
-    assert result.only_app == "special_app"
+    assert result.only_apps == ["special_app"]
 
 
 def test_app_status_response_from_coerces_resource_status_enum():

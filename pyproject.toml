@@ -150,6 +150,9 @@ filterwarnings = [
     # test_reconnection.py) so a crashed instance's tasks are reaped at loop teardown. Keeping
     # ResourceWarning fatal ensures the leak can't return silently.
     "default:Top-level \\[apps\\.\\*\\]:DeprecationWarning:hassette\\.config\\.classes",
+    # @only_app is deprecated in favor of `hassette run --app`, but the decorator still has to work
+    # (and stay under test) until it is removed. Tests asserting the warning opt in locally.
+    "default:@only_app is deprecated:DeprecationWarning",
 ]
 # Skip Docker/system/e2e tests by default (run explicitly: pytest -m docker / -m e2e / nox -s system).
 # e2e must not mix into ad-hoc runs: Playwright breaks the session-scoped asyncio loop for every

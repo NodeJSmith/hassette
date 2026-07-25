@@ -1948,16 +1948,12 @@
             "type": "array",
             "title": "Manifests"
           },
-          "only_app": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Only App"
+          "only_apps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Only Apps"
           }
         },
         "type": "object",
@@ -2129,16 +2125,12 @@
             "type": "array",
             "title": "Apps"
           },
-          "only_app": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Only App"
+          "only_apps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Only Apps"
           }
         },
         "type": "object",

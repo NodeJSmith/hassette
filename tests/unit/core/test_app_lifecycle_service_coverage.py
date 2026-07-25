@@ -2,9 +2,9 @@
 
 Complements test_app_lifecycle_service.py (init/properties/initialize/shutdown/bootstrap/
 apply-changes gating) and test_app_lifecycle_service_operations.py (start/stop/reload/
-resolve_only_app/refresh_config/reconcile). This file targets the remaining branches:
+resolve_only_apps/refresh_config/reconcile). This file targets the remaining branches:
 specific factory exceptions, stop/reload failure paths, start_apps error aggregation,
-handle_change_event's unblock-and-no-op branches, resolve_only_app's error/prod/multi-only
+handle_change_event's unblock-and-no-op branches, resolve_only_apps's error/prod/multi-only
 paths, and reconcile_app_registrations' degraded-mode fallbacks.
 """
 
@@ -209,9 +209,9 @@ class TestResolveOnlyAppErrorAndEdgeCases:
         mock_registry.active_manifests = {"test_app": mock_manifest}
         mock_factory.check_only_app_decorator = Mock(side_effect=UndefinedUserConfigError("bad config"))
 
-        await lifecycle_service.resolve_only_app()
+        await lifecycle_service.resolve_only_apps()
 
-        mock_registry.set_only_app.assert_called_with(None)
+        mock_registry.set_only_apps.assert_called_with(set())
 
     async def test_allowed_in_prod_when_explicitly_enabled(
         self,
@@ -221,15 +221,15 @@ class TestResolveOnlyAppErrorAndEdgeCases:
         mock_factory: MagicMock,
         mock_manifest: MagicMock,
     ) -> None:
-        """only_app decorator is honored in prod mode when allow_only_app_in_prod=True."""
+        """The only_app decorator is honored in prod mode when allow_only_app_in_prod=True."""
         mock_hassette.config.dev_mode = False
         mock_hassette.config.allow_only_app_in_prod = True
         mock_registry.active_manifests = {"test_app": mock_manifest}
         mock_factory.check_only_app_decorator = Mock(return_value=True)
 
-        await lifecycle_service.resolve_only_app()
+        await lifecycle_service.resolve_only_apps()
 
-        mock_registry.set_only_app.assert_called_with("test_app")
+        mock_registry.set_only_apps.assert_called_with({"test_app"})
 
     async def test_multiple_only_apps_raises(
         self,
@@ -248,7 +248,7 @@ class TestResolveOnlyAppErrorAndEdgeCases:
         mock_factory.check_only_app_decorator = Mock(return_value=True)
 
         with pytest.raises(RuntimeError, match="Multiple apps marked as only"):
-            await lifecycle_service.resolve_only_app()
+            await lifecycle_service.resolve_only_apps()
 
     async def test_force_reload_passed_for_changed_files(
         self,
@@ -267,7 +267,7 @@ class TestResolveOnlyAppErrorAndEdgeCases:
 
         mock_factory.check_only_app_decorator = Mock(side_effect=capture_force_reload)
 
-        await lifecycle_service.resolve_only_app(changed_file_paths=frozenset({mock_manifest.full_path}))
+        await lifecycle_service.resolve_only_apps(changed_file_paths=frozenset({mock_manifest.full_path}))
 
         assert calls == [True]
 

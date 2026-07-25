@@ -739,8 +739,8 @@ export interface components {
             blocked: number;
             /** Manifests */
             manifests: components["schemas"]["AppManifestResponse"][];
-            /** Only App */
-            only_app?: string | null;
+            /** Only Apps */
+            only_apps?: string[];
         };
         /** AppManifestResponse */
         AppManifestResponse: {
@@ -811,8 +811,8 @@ export interface components {
             failed: number;
             /** Apps */
             apps: components["schemas"]["AppInstanceResponse"][];
-            /** Only App */
-            only_app?: string | null;
+            /** Only Apps */
+            only_apps?: string[];
         };
         /**
          * BackpressurePolicy

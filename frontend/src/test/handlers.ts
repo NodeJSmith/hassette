@@ -41,7 +41,7 @@ export function withManifests(manifests: components["schemas"]["AppManifestRespo
         disabled: 0,
         blocked: 0,
         manifests,
-        only_app: null,
+        only_apps: [],
       }),
     ),
   );
@@ -58,7 +58,7 @@ export const handlers = [
       disabled: 0,
       blocked: 0,
       manifests: [],
-      only_app: null,
+      only_apps: [],
     });
   }),
 

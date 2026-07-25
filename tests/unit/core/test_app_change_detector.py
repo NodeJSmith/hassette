@@ -196,37 +196,42 @@ class TestAppChangeDetector:
         assert "app1" in changes.reimport_apps
         assert "app1" not in changes.reload_apps
 
-    def test_only_app_parameter_excludes_other_apps(self, detector: AppChangeDetector, make_manifest: Callable) -> None:
-        """Passing only_app to detect_changes excludes other apps from current."""
+    def test_only_apps_parameter_excludes_other_apps(
+        self, detector: AppChangeDetector, make_manifest: Callable
+    ) -> None:
+        """Passing only_apps to detect_changes excludes other apps from current."""
         original = {"app1": make_manifest("app1"), "app2": make_manifest("app2")}
         current = {"app1": make_manifest("app1"), "app2": make_manifest("app2")}
 
-        changes = detector.detect_changes(original, current, only_app="app1")
+        changes = detector.detect_changes(original, current, only_apps=frozenset({"app1"}))
 
         # app2 should be seen as orphan since it's filtered out of current
         assert "app2" in changes.orphans
 
-    def test_only_app_parameter_allows_target_app(self, detector: AppChangeDetector, make_manifest: Callable) -> None:
-        """Passing only_app to detect_changes allows the target app through the filter."""
+    def test_only_apps_parameter_allows_target_apps(self, detector: AppChangeDetector, make_manifest: Callable) -> None:
+        """Passing only_apps to detect_changes allows every named app through the filter."""
+        original: dict = {}
+        current = {
+            "app1": make_manifest("app1"),
+            "app2": make_manifest("app2"),
+            "app3": make_manifest("app3"),
+        }
+
+        changes = detector.detect_changes(original, current, only_apps=frozenset({"app1", "app2"}))
+
+        assert changes.new_apps == frozenset({"app1", "app2"})
+
+    def test_only_apps_none_allows_all_apps(self, detector: AppChangeDetector, make_manifest: Callable) -> None:
+        """Passing only_apps=None (the default) applies no filter."""
         original: dict = {}
         current = {"app1": make_manifest("app1"), "app2": make_manifest("app2")}
 
-        changes = detector.detect_changes(original, current, only_app="app1")
-
-        assert "app1" in changes.new_apps
-        assert "app2" not in changes.new_apps
-
-    def test_only_app_none_allows_all_apps(self, detector: AppChangeDetector, make_manifest: Callable) -> None:
-        """Passing only_app=None (the default) applies no filter."""
-        original: dict = {}
-        current = {"app1": make_manifest("app1"), "app2": make_manifest("app2")}
-
-        changes = detector.detect_changes(original, current, only_app=None)
+        changes = detector.detect_changes(original, current, only_apps=None)
 
         assert "app1" in changes.new_apps
         assert "app2" in changes.new_apps
 
-    def test_detector_holds_no_only_app_state(self) -> None:
+    def test_detector_holds_no_only_apps_state(self) -> None:
         """AppChangeDetector has no only_app_filter instance field or set_only_app_filter method."""
         detector = AppChangeDetector()
         assert not hasattr(detector, "only_app_filter"), "only_app_filter field must not exist"
@@ -245,10 +250,10 @@ class TestAppChangeDetector:
         assert "new_app" in changes.new_apps
         assert "new_app" not in changes.reimport_apps
 
-    def test_only_app_parameter_excludes_reimport_for_non_target(
+    def test_only_apps_parameter_excludes_reimport_for_non_target(
         self, detector: AppChangeDetector, make_manifest: Callable
     ) -> None:
-        """Apps filtered out by only_app should not appear in reimport_apps."""
+        """Apps filtered out by only_apps should not appear in reimport_apps."""
         changed_path_1 = Path("/apps/app1.py")
         changed_path_2 = Path("/apps/app2.py")
 
@@ -262,7 +267,10 @@ class TestAppChangeDetector:
         }
 
         changes = detector.detect_changes(
-            original, current, changed_file_paths=frozenset({changed_path_1, changed_path_2}), only_app="app1"
+            original,
+            current,
+            changed_file_paths=frozenset({changed_path_1, changed_path_2}),
+            only_apps=frozenset({"app1"}),
         )
 
         assert "app1" in changes.reimport_apps

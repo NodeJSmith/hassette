@@ -1,6 +1,7 @@
 """App registry for tracking app state with queryable interface."""
 
 from collections import defaultdict
+from collections.abc import Iterable
 from logging import getLogger
 from typing import TYPE_CHECKING
 
@@ -25,7 +26,7 @@ class AppRegistry:
         self._failed_apps: dict[str, list[tuple[int, Exception]]] = defaultdict(list)
         self._blocked_apps: dict[str, BlockReason] = {}
         self._manifests: dict[str, AppManifest] = {}
-        self._only_app: str | None = None
+        self._only_apps: frozenset[str] = frozenset()
         self.logger = getLogger(f"{__name__}.AppRegistry")
 
     def register_app(self, app_key: str, index: int, app: "App[AppConfig]") -> None:
@@ -98,9 +99,9 @@ class AppRegistry:
         """Update the app manifests configuration."""
         self._manifests = manifests.copy()
 
-    def set_only_app(self, app_key: str | None) -> None:
-        """Set the only_app filter."""
-        self._only_app = app_key
+    def set_only_apps(self, app_keys: Iterable[str]) -> None:
+        """Set the exclusive-app filter. An empty iterable clears it."""
+        self._only_apps = frozenset(app_keys)
 
     def __contains__(self, app_key: str) -> bool:
         return app_key in self._apps
@@ -170,7 +171,7 @@ class AppRegistry:
         return AppStatusSnapshot(
             running=running,
             failed=failed,
-            only_app=self._only_app,
+            only_apps=sorted(self._only_apps),
         )
 
     def get_manifest_snapshot(self, app_key: str) -> AppManifestInfo | None:
@@ -192,7 +193,7 @@ class AppRegistry:
 
         return AppFullSnapshot(
             manifests=manifests,
-            only_app=self._only_app,
+            only_apps=sorted(self._only_apps),
             total=len(manifests),
             **counts,
         )
@@ -244,8 +245,8 @@ class AppRegistry:
         )
 
     @property
-    def only_app(self) -> str | None:
-        return self._only_app
+    def only_apps(self) -> frozenset[str]:
+        return self._only_apps
 
     @property
     def manifests(self) -> dict[str, "AppManifest"]:
@@ -253,15 +254,15 @@ class AppRegistry:
 
     @property
     def enabled_manifests(self) -> dict[str, "AppManifest"]:
-        """All enabled app manifests, regardless of only_app filter."""
+        """All enabled app manifests, regardless of the exclusive-app filter."""
         return {k: v for k, v in self.manifests.items() if v.enabled}
 
     @property
     def active_manifests(self) -> dict[str, "AppManifest"]:
-        """All active app manifests, considering only_app filter."""
-        enabled_apps = {k: v for k, v in self.manifests.items() if v.enabled}
-        if self.only_app:
-            enabled_apps = {k: v for k, v in enabled_apps.items() if k == self.only_app}
+        """All active app manifests, considering the exclusive-app filter."""
+        enabled_apps = self.enabled_manifests
+        if self._only_apps:
+            enabled_apps = {k: v for k, v in enabled_apps.items() if k in self._only_apps}
         return enabled_apps
 
     @property

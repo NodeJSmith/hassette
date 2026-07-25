@@ -101,6 +101,20 @@ class TestFlagCombinations:
         assert bound.arguments["uuid"] == "abc-123-def"
         assert bound.arguments["limit"] == 100
 
+    @pytest.mark.parametrize(
+        ("argv", "expected"),
+        [
+            pytest.param(["run", "--app", "kitchen"], ["kitchen"], id="single"),
+            pytest.param(["run", "-a", "kitchen"], ["kitchen"], id="short-flag"),
+            pytest.param(["run", "--app", "kitchen", "--app", "porch"], ["kitchen", "porch"], id="repeated"),
+            pytest.param(["run", "--app", "kitchen,porch"], ["kitchen,porch"], id="comma-separated"),
+        ],
+    )
+    def test_run_app_flag(self, argv: list[str], expected: list[str]) -> None:
+        _cmd, bound, _ = app.parse_args(argv)
+
+        assert bound.arguments["app"] == expected
+
 
 class TestInvalidInputRejection:
     @pytest.mark.parametrize(

@@ -163,13 +163,13 @@ def mock_registry() -> MagicMock:
     registry.register_app = Mock()
     registry.unregister_app = Mock(return_value=None)
     registry.set_manifests = Mock()
-    registry.set_only_app = Mock()
+    registry.set_only_apps = Mock()
     set_registry_apps(registry, {})
     registry.manifests = {}
     registry.enabled_manifests = {}
     registry.active_manifests = {}
     registry.autostart_manifests = {}
-    registry.only_app = None
+    registry.only_apps = frozenset()
     registry.get_snapshot = Mock()
     registry.block_app = Mock()
     registry.unblock_apps = Mock(return_value=set())

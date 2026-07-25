@@ -52,7 +52,7 @@ describe("AppsPage", () => {
           disabled: 0,
           blocked: 0,
           manifests: [createManifest()],
-          only_app: null,
+          only_apps: [],
         }),
       ),
     );
@@ -74,7 +74,7 @@ describe("AppsPage", () => {
             createManifest({ app_key: "a", status: "running" }),
             createManifest({ app_key: "b", status: "disabled" }),
           ],
-          only_app: null,
+          only_apps: [],
         }),
       ),
     );
@@ -93,7 +93,7 @@ describe("AppsPage", () => {
           disabled: 0,
           blocked: 0,
           manifests: [createManifest()],
-          only_app: null,
+          only_apps: [],
         }),
       ),
     );
@@ -117,7 +117,7 @@ describe("AppsPage", () => {
             createManifest({ app_key: "app_a", status: "running" }),
             createManifest({ app_key: "app_b", status: "running" }),
           ],
-          only_app: null,
+          only_apps: [],
         }),
       ),
     );
@@ -137,7 +137,7 @@ describe("AppsPage", () => {
           disabled: 0,
           blocked: 0,
           manifests: [createManifest()],
-          only_app: null,
+          only_apps: [],
         }),
       ),
     );
@@ -166,7 +166,7 @@ describe("AppsPage", () => {
             createManifest({ app_key: "app_a", status: "running" }),
             createManifest({ app_key: "app_b", status: "running" }),
           ],
-          only_app: null,
+          only_apps: [],
         }),
       ),
     );
@@ -189,7 +189,7 @@ describe("AppsPage", () => {
             createManifest({ app_key: "motion_lights", status: "running" }),
             createManifest({ app_key: "alarm_app", status: "running" }),
           ],
-          only_app: null,
+          only_apps: [],
         }),
       ),
     );
@@ -209,7 +209,7 @@ describe("AppsPage", () => {
             disabled: 0,
             blocked: 0,
             manifests: [createManifest({ app_key: "app_a", status: "running" })],
-            only_app: null,
+            only_apps: [],
           }),
         ),
       );
@@ -233,7 +233,7 @@ describe("AppsPage", () => {
               createManifest({ app_key: "running_app", status: "running" }),
               createManifest({ app_key: "failed_app", status: "failed" }),
             ],
-            only_app: null,
+            only_apps: [],
           }),
         ),
       );
@@ -261,7 +261,7 @@ describe("AppsPage", () => {
               createManifest({ app_key: "running_app", status: "running" }),
               createManifest({ app_key: "failed_app", status: "failed" }),
             ],
-            only_app: null,
+            only_apps: [],
           }),
         ),
       );
@@ -287,7 +287,7 @@ describe("AppsPage", () => {
               createManifest({ app_key: "motion_lights", status: "running" }),
               createManifest({ app_key: "alarm_app", status: "running" }),
             ],
-            only_app: null,
+            only_apps: [],
           }),
         ),
       );
@@ -310,7 +310,7 @@ describe("AppsPage", () => {
             disabled: 0,
             blocked: 0,
             manifests: [createManifest({ app_key: "app_a", status: "running" })],
-            only_app: null,
+            only_apps: [],
           }),
         ),
       );
@@ -332,7 +332,7 @@ describe("AppsPage", () => {
             disabled: 0,
             blocked: 0,
             manifests: [createManifest({ app_key: "running_app", status: "running" })],
-            only_app: null,
+            only_apps: [],
           }),
         ),
       );
@@ -352,7 +352,7 @@ describe("AppsPage", () => {
             disabled: 0,
             blocked: 0,
             manifests: [createManifest({ app_key: "running_app", status: "running" })],
-            only_app: null,
+            only_apps: [],
           }),
         ),
       );
@@ -372,7 +372,7 @@ describe("AppsPage", () => {
             disabled: 0,
             blocked: 0,
             manifests: [createManifest({ app_key: "running_app", status: "running" })],
-            only_app: null,
+            only_apps: [],
           }),
         ),
       );

@@ -64,7 +64,7 @@ def app_status_response_from(snapshot: AppStatusSnapshot) -> AppStatusResponse:
         running=snapshot.running_count,
         failed=snapshot.failed_count,
         apps=apps,
-        only_app=snapshot.only_app,
+        only_apps=snapshot.only_apps,
     )
 
 
@@ -98,7 +98,7 @@ def app_manifest_list_response_from(full: AppFullSnapshot) -> AppManifestListRes
         disabled=full.disabled,
         blocked=full.blocked,
         manifests=[app_manifest_response_from(manifest) for manifest in full.manifests],
-        only_app=full.only_app,
+        only_apps=full.only_apps,
     )
 
 

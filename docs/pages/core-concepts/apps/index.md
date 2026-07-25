@@ -165,17 +165,28 @@ See the [Cache](../cache/index.md) page for typed access, TTL, and cache invalid
 
 See the [Task Bucket](task-bucket.md) page for `run_in_thread`, `make_async_adapter`, and cross-thread communication.
 
-## Restricting to a Single App
+## Restricting Which Apps Run
 
-The [`@only_app`][hassette.app.app.only_app] decorator prevents all other apps from loading while the decorated class is present. It is intended for development isolation: one app runs while the rest are silenced, without editing `hassette.toml`.
+`hassette run --app <key>` starts Hassette with only the named app. Every other configured app is excluded and reports status `blocked` — shown as [`BLOCKED`](../../web-ui/manage-apps.md) in the web UI and listed by [`hassette app`](../../cli/commands.md#hassette-app). A startup log line names the apps that will run. The key is the `[hassette.apps.<key>]` section name from `hassette.toml`.
 
-```python
---8<-- "pages/core-concepts/apps/snippets/apps_only_app.py"
+```bash
+hassette run --app kitchen_lights
 ```
 
-Only one class in the project may carry `@only_app` at a time. Hassette raises an error at startup if more than one is found.
+Repeat the flag, or pass a comma-separated list, to isolate more than one app:
 
-In production mode, the decorator is ignored by default. `allow_only_app_in_prod = true` in `hassette.toml` overrides this behavior.
+```bash
+hassette run --app kitchen_lights --app porch_motion
+hassette run --app kitchen_lights,porch_motion
+```
+
+Nothing in the source changes, so there is nothing to remember to remove before deploying. The flag is honored in production mode as well — typing it is an explicit choice, made once, for one process. A key that matches no enabled app is reported as an error and matches nothing, so a typo starts no apps rather than silently starting all of them.
+
+!!! warning "`@only_app` is deprecated"
+
+    The [`@only_app`][hassette.app.app.only_app] decorator does the same thing from source code and still works, but it emits a `DeprecationWarning` and will be removed in a future release. Replace it with `hassette run --app <key>`.
+
+    Only one class in the project may carry `@only_app` at a time; Hassette raises an error at startup if more than one is found. In production mode the decorator is ignored unless `allow_only_app_in_prod = true` is set in `hassette.toml`. `--app` takes precedence when both are present.
 
 ## Broadcasting Between Apps
 

@@ -14,6 +14,12 @@ from hassette.server import main as run_server
 LOGGER = getLogger("hassette.cli")
 
 
+def split_app_keys(values: list[str]) -> tuple[str, ...]:
+    """Flatten repeated and comma-separated ``--app`` values into unique keys, preserving order."""
+    keys = [key.strip() for value in values for key in value.split(",") if key.strip()]
+    return tuple(dict.fromkeys(keys))
+
+
 def cmd_run(
     token: Annotated[str | None, Parameter(name=["--token", "-t"], help="Home Assistant access token.")] = None,
     base_url: Annotated[
@@ -27,6 +33,14 @@ def cmd_run(
         bool | None,
         Parameter(name=["--dev-mode"], help="Enable developer mode.", negative=[]),
     ] = None,
+    app: Annotated[
+        list[str] | None,
+        Parameter(
+            name=["--app", "-a"],
+            help="Run only this app key, excluding all others. Repeatable, or comma-separated.",
+            negative=[],
+        ),
+    ] = None,
 ) -> None:
     """Start the Hassette framework server."""
     init_kwargs: dict[str, Any] = {}
@@ -38,6 +52,8 @@ def cmd_run(
         init_kwargs["verify_ssl"] = verify_ssl
     if dev_mode is not None:
         init_kwargs["dev_mode"] = dev_mode
+    if app:
+        init_kwargs["only_apps"] = split_app_keys(app)
 
     config = HassetteConfig(**init_kwargs)
 
