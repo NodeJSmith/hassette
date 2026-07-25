@@ -18,6 +18,12 @@
   color: var(--ink-3);
 }
 
+/* Every consumer renders these lines inside a `<pre>`, which takes phrasing content only —
+   so each line is a span forced onto its own row rather than a block-level element. */
+.line {
+  display: block;
+}
+
 .sourceLine {
   color: var(--ink-1);
 }

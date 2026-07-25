@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import type { JSX } from "preact";
 
 import styles from "./detail-panel.module.css";
@@ -24,7 +25,7 @@ function renderLine(line: string, key: number): JSX.Element {
   if (frame) {
     const [, indent, path, lineNo, func] = frame;
     return (
-      <div key={key}>
+      <span key={key} class={tb.line}>
         {indent}
         <span class={tb.frameKeyword}>File </span>
         <span class={tb.path}>"{path}"</span>
@@ -32,23 +33,23 @@ function renderLine(line: string, key: number): JSX.Element {
         <span class={tb.lineNo}>{lineNo}</span>
         <span class={tb.frameKeyword}>, in </span>
         <span class={tb.func}>{func}</span>
-      </div>
+      </span>
     );
   }
 
   if (line.startsWith("Traceback")) {
     return (
-      <div key={key} class={tb.header}>
+      <span key={key} class={clsx(tb.line, tb.header)}>
         {line}
-      </div>
+      </span>
     );
   }
 
   // Everything else is the echoed source line under a frame.
   return (
-    <div key={key} class={tb.sourceLine}>
+    <span key={key} class={clsx(tb.line, tb.sourceLine)}>
       {line}
-    </div>
+    </span>
   );
 }
 

@@ -16,10 +16,10 @@ interface Props {
 /**
  * Ancestor trail. Linked crumbs carry the accent so the path reads as navigation.
  *
- * Below 768px all but the last two crumbs are hidden with CSS and an ellipsis stands in
- * for them, so a deep trail cannot crowd the hamburger and time selector out of the
- * status bar. The full trail stays in the DOM — screen readers get the whole path at
- * every width, and no layout-dependent state has to be tracked in JS.
+ * Below 768px all but the last two crumbs are visually clipped by CSS and an ellipsis
+ * stands in for them, so a deep trail cannot crowd the hamburger and time selector out of
+ * the status bar. They are clipped rather than removed, so screen readers still get the
+ * whole path at every width and no layout-dependent state has to be tracked in JS.
  */
 export function Breadcrumbs({ items, "data-testid": testId = "breadcrumbs" }: Props) {
   if (items.length === 0) return null;

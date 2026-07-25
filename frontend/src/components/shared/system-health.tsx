@@ -1,5 +1,6 @@
 import clsx from "clsx";
 
+import { BREAKPOINT_MOBILE, useMediaQuery } from "../../hooks/use-media-query";
 import { useAppState } from "../../state/context";
 import type { ConnectionStatus } from "../../state/create-app-state";
 import styles from "./system-health.module.css";
@@ -47,21 +48,39 @@ export function SystemHealth({ variant }: Props) {
   const showDegraded = telemetryDegraded.value && status === "connected";
   const stacked = variant === "stacked";
 
+  /*
+   * On a phone the status bar already carries the hamburger, the breadcrumb trail and the
+   * time selector, and the labels below run to ~200px on their own — enough to push this
+   * cluster clean off the edge. Compact drops to bare dots there.
+   *
+   * The labels are clipped rather than dropped: `display: none` would also pull them out
+   * of the accessibility tree, and the connection span is a live region whose whole job is
+   * announcing that it changed.
+   */
+  const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
+  const clipLabels = !stacked && isMobile;
+  // Compact on desktop keeps the old behavior: spell the connection out only when
+  // something is wrong, and clip it the rest of the time.
+  const clipConnectionLabel = clipLabels || (!stacked && status === "connected");
+
+  const labelClass = clipLabels ? "ht-visually-hidden" : "ht-text-xs";
+  const connectionLabelClass = clipConnectionLabel ? "ht-visually-hidden" : "ht-text-xs";
+
   return (
     <div class={clsx(styles.cluster, stacked ? styles.clusterStacked : styles.clusterCompact)}>
       <span class={styles.indicator} role="status" data-testid="ws-indicator">
         <span class={dotClass} />
-        {stacked || status !== "connected" ? (
-          <span class="ht-text-xs">{label}</span>
-        ) : (
-          <span class="ht-visually-hidden">{label}</span>
-        )}
+        <span class={connectionLabelClass} data-testid="health-label">
+          {label}
+        </span>
       </span>
 
       {showDegraded && (
         <span class={styles.indicator} aria-label="database degraded">
           <span class={clsx(styles.pulseDot, styles.pulseDotDegraded)} />
-          <span class="ht-text-xs">database degraded</span>
+          <span class={labelClass} data-testid="health-label">
+            database degraded
+          </span>
         </span>
       )}
 
@@ -73,7 +92,9 @@ export function SystemHealth({ variant }: Props) {
           data-testid="dropped-events-indicator"
         >
           <span class={clsx(styles.pulseDot, styles.pulseDotDegraded)} />
-          <span class="ht-text-xs">{droppedTotal} dropped</span>
+          <span class={labelClass} data-testid="health-label">
+            {droppedTotal} dropped
+          </span>
         </span>
       )}
 
@@ -85,7 +106,7 @@ export function SystemHealth({ variant }: Props) {
           data-testid="error-handler-failures-indicator"
         >
           <span class={clsx(styles.pulseDot, styles.pulseDotDegraded)} />
-          <span class="ht-text-xs">
+          <span class={labelClass} data-testid="health-label">
             {ehFailures} handler error{ehFailures !== 1 ? "s" : ""}
           </span>
         </span>

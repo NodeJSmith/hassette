@@ -111,10 +111,10 @@ describe("Chip", () => {
   });
 
   describe("data-variant attribute", () => {
-    it("emits data-variant='modifier' on the root span", () => {
+    it("emits data-variant='listener' on the root span", () => {
       const { getByTestId } = render(
         <Chip variant="listener" data-testid="c">
-          mod
+          listener
         </Chip>,
       );
       expect(getByTestId("c").getAttribute("data-variant")).toBe("listener");
@@ -138,10 +138,10 @@ describe("Chip", () => {
       expect(getByTestId("c").getAttribute("data-variant")).toBe("kind");
     });
 
-    it("emits data-variant='schedule' on the root span", () => {
+    it("emits data-variant='job' on the root span", () => {
       const { getByTestId } = render(
         <Chip variant="job" data-testid="c">
-          sched
+          job
         </Chip>,
       );
       expect(getByTestId("c").getAttribute("data-variant")).toBe("job");

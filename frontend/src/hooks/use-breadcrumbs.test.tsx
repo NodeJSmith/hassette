@@ -2,14 +2,15 @@ import { signal } from "@preact/signals";
 import { QueryClient, QueryClientProvider } from "@tanstack/preact-query";
 import { render, waitFor } from "@testing-library/preact";
 import { http, HttpResponse } from "msw";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AppStateContext } from "../state/context";
 import { createAppState } from "../state/create-app-state";
 import { server } from "../test/server";
 import { useBreadcrumbs } from "./use-breadcrumbs";
 
-const location = signal("/apps/demo_app/handlers/job/7");
+const DEFAULT_LOCATION = "/apps/demo_app/handlers/job/7";
+const location = signal(DEFAULT_LOCATION);
 
 // Repo convention: mock wouter's hooks rather than mounting a real Router.
 vi.mock("wouter", () => ({
@@ -39,6 +40,13 @@ function renderProbe() {
 }
 
 describe("useBreadcrumbs", () => {
+  // `location` is module-level shared state. Resetting it here rather than at the end of
+  // each test body means a test that throws mid-way cannot leak its route into the next
+  // one and turn one failure into a confusing cascade.
+  afterEach(() => {
+    location.value = DEFAULT_LOCATION;
+  });
+
   it("falls back to the handler id while the fetch is in flight", () => {
     const { getByTestId } = renderProbe();
     expect(getByTestId("trail").textContent).toBe("apps / demo_app / handlers / job 7");
@@ -71,7 +79,6 @@ describe("useBreadcrumbs", () => {
     const { getByTestId } = renderProbe();
 
     await waitFor(() => expect(getByTestId("trail").textContent).toBe("apps / demo_app / handlers / on_kitchen_light"));
-    location.value = "/apps/demo_app/handlers/job/7";
   });
 
   it("does not query on routes with no handler crumb", async () => {
@@ -88,6 +95,5 @@ describe("useBreadcrumbs", () => {
     expect(getByTestId("trail").textContent).toBe("apps / demo_app");
     await new Promise((r) => setTimeout(r, 50));
     expect(listenerCalls).toBe(0);
-    location.value = "/apps/demo_app/handlers/job/7";
   });
 });

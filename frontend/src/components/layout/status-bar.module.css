@@ -17,9 +17,19 @@
   gap: var(--sp-3);
 }
 
-/* The trail can be long; the time selector must never be pushed off the edge. */
+/* The trail can be long; the time selector must never be pushed off the edge, so this
+   group is the one that gives — but it must never shrink past the hamburger, which would
+   leave that button overflowing its own box and covered by `.statusBarRight`, silently
+   swallowing every tap on it.
+   What floors it is `min-width: auto`, whose flex-item content-based minimum resolves to
+   the hamburger's width (the breadcrumb nav sets `min-width: 0`, so the nav contributes
+   nothing to that minimum and absorbs all the shrinking instead). Do not set `min-width`
+   or an `overflow` other than `visible` here: per CSS Box Sizing, a flex item's automatic
+   minimum size resolves to zero unless `overflow` is `visible`, so either one silently
+   removes the floor and brings the tap-swallowing bug back. Clipping belongs on the nav. */
 .statusBarLeft {
-  min-width: 0;
+  min-width: auto;
+  overflow: visible;
 }
 
 .statusBarRight {

@@ -25,6 +25,39 @@ def test_hamburger_visible_at_375px(page: Page, base_url: str) -> None:
     expect(hamburger).to_be_visible()
 
 
+def test_hamburger_is_not_covered_on_deep_route_at_narrowest_viewport(page: Page, base_url: str) -> None:
+    """Nothing in the status bar may overlap the hamburger, however tight the space.
+
+    Regression: the status bar's left group carried ``min-width: 0``, so a wide right-hand
+    group squeezed it to zero width. The hamburger then overflowed its own box and the
+    connection indicator rendered on top of it, silently swallowing every tap. Playwright
+    reported this as a 30s click timeout rather than anything layout-shaped, so this test
+    hit-tests the button's centre point directly. The deepest route at the smallest
+    supported viewport is the worst case for that squeeze.
+    """
+    page.set_viewport_size(SMALL_MOBILE_VIEWPORT)
+    page.goto(base_url + "/apps/my_app/handlers/job/1")
+    page.wait_for_selector("[data-testid='hamburger']")
+
+    # The current layout happens to fit at this width, so squeezing has to be forced —
+    # otherwise this passes whether or not the left group's minimum still holds. The
+    # injected block stands in for the right group growing (more alert indicators firing,
+    # a wider time selector, a longer preset label).
+    topmost = page.evaluate("""() => {
+        const ham = document.querySelector("[data-testid='hamburger']");
+        const right = ham.parentElement.nextElementSibling;
+        const hog = document.createElement('div');
+        hog.style.cssText = 'width:600px;flex-shrink:0;height:10px';
+        right.appendChild(hog);
+        const r = ham.getBoundingClientRect();
+        const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+        hog.remove();
+        return hit ? hit.closest('[data-testid]')?.getAttribute('data-testid') : null;
+    }""")
+
+    assert topmost == "hamburger", f"something is covering the hamburger: {topmost}"
+
+
 def test_hamburger_opens_drawer_at_mobile(page: Page, base_url: str) -> None:
     """Tapping the hamburger opens the off-canvas drawer."""
     page.set_viewport_size(MOBILE_VIEWPORT)

@@ -9,10 +9,31 @@
 import { QueryClientProvider } from "@tanstack/preact-query";
 import { render } from "@testing-library/preact";
 import type { ComponentChildren } from "preact";
+import { vi } from "vitest";
 
 import { AppStateContext } from "../state/context";
 import { type AppState, createAppState } from "../state/create-app-state";
 import { createTestQueryClient } from "./query-test-utils";
+
+/**
+ * Forces `useMediaQuery` to report mobile or desktop.
+ *
+ * jsdom has no `matchMedia`; `test-setup.ts` stubs it to always report desktop, so any
+ * test exercising a responsive branch has to override it. Pair with
+ * `afterEach(() => vi.restoreAllMocks())`.
+ */
+export function mockMediaQueryMatches(matches: boolean) {
+  vi.spyOn(window, "matchMedia").mockImplementation((query: string) => ({
+    matches,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  }));
+}
 
 interface RenderWithAppStateOptions {
   stateOverrides?: Partial<AppState>;

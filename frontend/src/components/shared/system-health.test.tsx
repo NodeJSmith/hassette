@@ -1,7 +1,7 @@
 import { signal } from "@preact/signals";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { renderWithAppState } from "../../test/render-helpers";
+import { mockMediaQueryMatches, renderWithAppState } from "../../test/render-helpers";
 import { SystemHealth } from "./system-health";
 
 describe("SystemHealth — connection states", () => {
@@ -49,6 +49,41 @@ describe("SystemHealth — connection states", () => {
       stateOverrides: { connection: signal("connected") },
     });
     expect(getByText("Connected").className).not.toContain("visually-hidden");
+  });
+});
+
+describe("SystemHealth — compact labels at mobile widths", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("clips the connection label instead of dropping it", () => {
+    mockMediaQueryMatches(true);
+    const { getByTestId } = renderWithAppState(<SystemHealth variant="compact" />, {
+      stateOverrides: { connection: signal("disconnected") },
+    });
+    const label = getByTestId("ws-indicator").querySelector("[data-testid='health-label']");
+    // Clipped, not removed — the live region still has to announce the change.
+    expect(label?.className).toContain("visually-hidden");
+    expect(getByTestId("ws-indicator").textContent).toBe("Disconnected");
+  });
+
+  it("clips the alert labels so the cluster reads as bare dots", () => {
+    mockMediaQueryMatches(true);
+    const { getByTestId } = renderWithAppState(<SystemHealth variant="compact" />, {
+      stateOverrides: { errorHandlerFailures: signal(2) },
+    });
+    const indicator = getByTestId("error-handler-failures-indicator");
+    expect(indicator.querySelector("[data-testid='health-label']")?.className).toContain("visually-hidden");
+    expect(indicator.getAttribute("aria-label")).toBe("2 handler errors");
+  });
+
+  it("keeps labels visible in the stacked variant at the same width", () => {
+    mockMediaQueryMatches(true);
+    const { getByText } = renderWithAppState(<SystemHealth variant="stacked" />, {
+      stateOverrides: { connection: signal("disconnected") },
+    });
+    expect(getByText("Disconnected").className).not.toContain("visually-hidden");
   });
 });
 
