@@ -30,6 +30,9 @@
   border-radius: var(--r-lg) var(--r-lg) 0 0;
   box-shadow: var(--shadow-2);
   overflow-y: auto;
+  /* Reserve the scrollbar track always — otherwise content jumps horizontally the moment a page
+     grows tall enough to scroll. */
+  scrollbar-gutter: stable;
   min-width: 0;
   display: flex;
   flex-direction: column;

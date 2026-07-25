@@ -3,6 +3,14 @@ import { useRef } from "preact/hooks";
 import { describe, expect, it, vi } from "vitest";
 
 import { ColumnFilterPopover } from "./index";
+import styles from "./index.module.css";
+
+/** floating-ui positions on an animation frame, so a microtask flush alone is not enough. */
+async function flushPositioning() {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+}
 
 // Wrapper that exposes a trigger button and the popover under test
 function PopoverHarness({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -126,6 +134,35 @@ describe("ColumnFilterPopover", () => {
       render(<PopoverHarness open={true} onClose={vi.fn()} />);
       const dialog = screen.getByRole("dialog");
       expect(dialog).toBeTruthy();
+    });
+
+    it("stays unpositioned (hidden) until computePosition resolves", () => {
+      render(<PopoverHarness open={true} onClose={vi.fn()} />);
+      // computePosition is async — on the mount frame the popover must not be visible yet,
+      // otherwise it paints at its pre-computation origin and then jumps.
+      expect(screen.getByRole("dialog").classList.contains(styles.positioned)).toBe(false);
+    });
+
+    it("marks the popover positioned and sets inline coordinates once computePosition resolves", async () => {
+      render(<PopoverHarness open={true} onClose={vi.fn()} />);
+      await flushPositioning();
+      const dialog = screen.getByRole("dialog") as HTMLElement;
+      expect(dialog.classList.contains(styles.positioned)).toBe(true);
+      expect(dialog.style.left).not.toBe("");
+      expect(dialog.style.top).not.toBe("");
+    });
+
+    it("starts unpositioned again when reopened", async () => {
+      const onClose = vi.fn();
+      const { rerender } = render(<PopoverHarness open={true} onClose={onClose} />);
+      await flushPositioning();
+      expect(screen.getByRole("dialog").classList.contains(styles.positioned)).toBe(true);
+
+      rerender(<PopoverHarness open={false} onClose={onClose} />);
+      await flushPositioning();
+      rerender(<PopoverHarness open={true} onClose={onClose} />);
+
+      expect(screen.getByRole("dialog").classList.contains(styles.positioned)).toBe(false);
     });
   });
 });
