@@ -1,4 +1,5 @@
 import { autoUpdate, computePosition, flip, offset, shift } from "@floating-ui/dom";
+import clsx from "clsx";
 import { useEffect, useId, useRef, useState } from "preact/hooks";
 
 import styles from "./info-popover.module.css";
@@ -23,21 +24,39 @@ export function InfoPopover({ text, label = "field" }: Props) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
 
+  // Gates visibility until computePosition() lands, so the popover is never painted at its
+  // pre-computation origin.
+  const [positioned, setPositioned] = useState(false);
+
   // Position the popover under the trigger and keep it anchored on scroll/resize.
   useEffect(() => {
-    if (!open || !triggerRef.current || !popRef.current) return;
+    if (!open || !triggerRef.current || !popRef.current) {
+      setPositioned(false);
+      return;
+    }
     const trigger = triggerRef.current;
     const pop = popRef.current;
-    return autoUpdate(trigger, pop, () => {
+    // A computePosition() promise can resolve after close; without this the next open would
+    // start already-visible and paint at the stale position for a frame.
+    let closed = false;
+
+    const cleanup = autoUpdate(trigger, pop, () => {
       void computePosition(trigger, pop, {
         strategy: "fixed",
         placement: "bottom",
         middleware: [offset(6), flip(), shift({ padding: 8 })],
       }).then(({ x, y }) => {
+        if (closed) return;
         pop.style.left = `${x}px`;
         pop.style.top = `${y}px`;
+        setPositioned(true);
       });
     });
+
+    return () => {
+      closed = true;
+      cleanup();
+    };
   }, [open]);
 
   // Dismiss on Escape or a click outside the trigger/popover.
@@ -86,7 +105,13 @@ export function InfoPopover({ text, label = "field" }: Props) {
         </svg>
       </button>
       {open && (
-        <div id={popId} ref={popRef} class={styles.pop} role="note" data-testid="field-help">
+        <div
+          id={popId}
+          ref={popRef}
+          class={clsx(styles.pop, positioned && styles.positioned)}
+          role="note"
+          data-testid="field-help"
+        >
           {text}
         </div>
       )}

@@ -34,6 +34,12 @@
    absolute would break the positioning. */
 .pop {
   position: fixed;
+  /* Anchor the first frame: computePosition() is async, so without an explicit origin the
+     popover paints at its static position before the computed one lands. Kept invisible until
+     .positioned so that frame is never seen. */
+  left: 0;
+  top: 0;
+  opacity: 0;
   z-index: var(--z-tooltip);
   max-width: var(--sz-popover-max);
   max-height: 60vh;
@@ -47,4 +53,8 @@
   border: var(--sp-px) solid var(--line-strong);
   border-radius: var(--r-md);
   box-shadow: var(--shadow-3);
+}
+
+.positioned {
+  opacity: 1;
 }
