@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Create seed script with SeedContext and integrity checks"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#1", "FR#2", "FR#4", "FR#5", "FR#6", "FR#7", "FR#8", "FR#9", "FR#10"]
 ---
