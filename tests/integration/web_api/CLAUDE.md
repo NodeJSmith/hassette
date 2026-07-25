@@ -9,7 +9,7 @@
 
 ## Shared helpers
 
-- `make_log_record(seq, **kw)` (local) — builds a raw log record dict for log-endpoint tests
+- `make_log_record(seq, **kw)` (local, deliberately — see `# factory-local:` annotation) — builds a raw log record dict for log-endpoint tests; derives `timestamp` from `seq` so ordering tests get distinct, predictable timestamps. Shadows `hassette.test_utils.factories.make_log_record`, which uses a fixed `timestamp=0.0` default and does not fit this file's ordering tests.
 
 ## Key conventions
 

@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Implement all 7 scenario generators and new factories"
-status: "planned"
+status: "done"
 depends_on: ["T02"]
 implements: ["FR#3", "FR#10", "FR#11", "AC#5"]
 ---
