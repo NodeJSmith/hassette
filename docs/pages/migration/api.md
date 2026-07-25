@@ -64,6 +64,27 @@ AppDaemon uses a single `domain/service` string. Hassette splits them into two a
 
 Two signature differences from AppDaemon: the entity belongs in the `target` dict (`target={"entity_id": "light.kitchen"}`) rather than AppDaemon's bare `entity_id=` keyword, and Hassette handlers don't take `**kwargs` — event data arrives through typed parameters instead (see [Bus & Events](bus.md)).
 
+## Sending Notifications
+
+AppDaemon's `self.notify()` defaults to the `notify` service. Hassette's `notify()` lives on
+`self.api` and requires the notifier explicitly, so there is no implicit default target.
+
+=== "AppDaemon"
+
+    ```python
+    --8<-- "pages/migration/snippets/api_appdaemon_notify.py"
+    ```
+
+=== "Hassette"
+
+    ```python
+    --8<-- "pages/migration/snippets/api_hassette_notify.py"
+    ```
+
+The notifier accepts both `"mobile_app_phone"` and `"notify.mobile_app_phone"`.
+[`get_notify_services()`](../core-concepts/api/methods.md#get_notify_services) lists the
+notifiers registered on the connected instance.
+
 ## Setting States
 
 === "AppDaemon"

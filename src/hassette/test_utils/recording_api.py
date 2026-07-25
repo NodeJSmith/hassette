@@ -18,6 +18,7 @@ from pydantic import BaseModel
 from slugify import slugify as _py_slugify
 from whenever import Date, PlainDateTime, ZonedDateTime
 
+from hassette.api.api import normalize_notifier
 from hassette.const.misc import FalseySentinel
 from hassette.exceptions import EntityNotFoundError, FailedMessageError
 from hassette.models.entities.base import BaseEntity
@@ -232,6 +233,13 @@ class ApiProtocol(Protocol):
         event_data: dict[str, Any] | None = None,
     ) -> dict[str, Any]: ...
     async def delete_entity(self, entity_id: str) -> None: ...
+    async def notify(
+        self,
+        message: str,
+        notifier: str,
+        title: str | None = None,
+        data: dict[str, Any] | None = None,
+    ) -> None: ...
 
     # Read methods
     async def get_state(self, entity_id: str) -> BaseState: ...
@@ -248,6 +256,7 @@ class ApiProtocol(Protocol):
     # Configuration and metadata
     async def get_config(self) -> dict[str, Any]: ...
     async def get_services(self) -> dict[str, Any]: ...
+    async def get_notify_services(self) -> list[str]: ...
     async def get_panels(self) -> dict[str, Any]: ...
 
     # History, logbook, calendars, camera, template
@@ -544,6 +553,8 @@ class RecordingApi(Resource):
     """
 
     calls: list[ApiCall]
+    notify_services: list[str]
+    """Notifier names returned by ``get_notify_services()``. Seed it in tests: ``api.notify_services = [...]``."""
     # Access via `harness.api_recorder.helpers`; do not import the type directly.
     helpers: "RecordingHelperClient"
     # Access via `harness.api_recorder.sync`; do not import the type directly.
@@ -569,6 +580,7 @@ class RecordingApi(Resource):
         # lazily from hassette._state_proxy (when created via App.add_child()).
         self._state_proxy_override = state_proxy
         self.calls = []
+        self.notify_services = []
         self.helpers = RecordingHelperClient(self)
         self.sync = RecordingSyncFacade(self)
 
@@ -654,6 +666,36 @@ class RecordingApi(Resource):
         if return_response:
             return ServiceResponse(context=Context(id=None, parent_id=None, user_id=None))
         return None
+
+    async def notify(
+        self,
+        message: str,
+        notifier: str,
+        title: str | None = None,
+        data: dict[str, Any] | None = None,
+    ) -> None:
+        """Record a notify call directly under its own method name.
+
+        ``notifier`` is normalized the same way the real ``Api.notify`` normalizes it, so
+        assertions match on the bare service name regardless of which form the app passed.
+        """
+        notifier = normalize_notifier(notifier)
+        self._record_call(
+            ApiCall(
+                method="notify",
+                args=(message, notifier),
+                kwargs={
+                    "message": message,
+                    "notifier": notifier,
+                    "title": title,
+                    "data": copy.deepcopy(data),
+                },
+            )
+        )
+
+    async def get_notify_services(self) -> list[str]:
+        """Return the notifier names seeded on ``notify_services`` (empty by default)."""
+        return sorted(self.notify_services)
 
     async def set_state(
         self,
@@ -1104,7 +1146,7 @@ class RecordingApi(Resource):
             )
 
     def reset(self) -> None:
-        """Clear all recorded calls and reset self.helpers to empty-per-domain state.
+        """Clear all recorded calls and reset seeded state (helpers, notifiers).
 
         Replaces the calls list with a new empty list rather than mutating the
         existing list in place. This preserves any snapshots callers hold
@@ -1113,7 +1155,8 @@ class RecordingApi(Resource):
 
         Replaces ``self.helpers`` with a fresh ``RecordingHelperClient`` rather than
         mutating its ``helper_definitions`` dict in place, for the same snapshot-
-        preservation reason.
+        preservation reason. ``notify_services`` is replaced for the same reason.
         """
         self.calls = []
+        self.notify_services = []
         self.helpers = RecordingHelperClient(self)
