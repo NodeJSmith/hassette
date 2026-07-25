@@ -7,7 +7,7 @@ import { useScopedQuery } from "../../hooks/use-scoped-query";
 import { queryKeys } from "../../lib/query-keys";
 import { useAppState } from "../../state/context";
 import { DETAIL_FETCH_LIMIT } from "../../utils/constants";
-import { formatDurationOrDash, formatRate, formatTriggerDetail } from "../../utils/format";
+import { formatTriggerDetail } from "../../utils/format";
 import { handlerKindLabel } from "../../utils/status";
 import { Button } from "../shared/button";
 import { Chip } from "../shared/chip";
@@ -19,6 +19,7 @@ import { HandlerDetailLayout } from "./handler-detail-layout";
 import layoutStyles from "./handler-detail-layout.module.css";
 import { jobHealthKind } from "./handler-list";
 import { HandlerModeChip } from "./handler-mode-chip";
+import { buildCommonStatCells, type CommonStatInput } from "./stat-cell-builders";
 
 function ScheduleChips({ job }: { job: JobData }) {
   const chips: Array<{ label: string }> = [];
@@ -69,27 +70,34 @@ function RunNowButton({ jobId }: { jobId: number }) {
 }
 
 function buildJobStatsCells(job: JobData, lastExecutedLabel: string, nextRunText: string | null): DetailStatsCell[] {
-  const cells: DetailStatsCell[] = [
-    { label: "Runs", value: job.total_executions },
-    { label: "Failed", value: job.failed, tone: job.failed > 0 ? "err" : undefined },
-    {
-      label: "Err %",
-      value: formatRate(job.failed, job.total_executions),
-      tone: job.failed > 0 ? "err" : undefined,
-    },
-    { label: "Avg", value: formatDurationOrDash(job.avg_duration_ms) },
-  ];
-  if (nextRunText) {
-    cells.push({ label: "Next", value: nextRunText });
-  } else {
-    cells.push({ label: "Last", value: job.last_executed_at ? lastExecutedLabel || "—" : "—" });
+  const input: CommonStatInput = {
+    totalLabel: "Runs",
+    total: job.total_executions,
+    failed: job.failed,
+    avgDurationMs: job.avg_duration_ms,
+    lastLabel: nextRunText ?? (job.last_executed_at ? lastExecutedLabel || "—" : "—"),
+    lastFieldLabel: nextRunText ? "Next" : "Last",
+    timedOut: job.timed_out,
+    cancelled: job.cancelled,
+    threadLeaked: job.thread_leaked,
+    suppressedCount: job.suppressed_count,
+    droppedCount: job.dropped_count,
+  };
+  const cells = buildCommonStatCells(input);
+  if (job.skipped > 0) {
+    // Mirror the original conditional-push order (Timed Out, Cancelled, Skipped, Thread Leaked, ...):
+    // insert right after Cancelled if present, else right after Timed Out, else at the start of the
+    // conditional-cell zone (index 5, immediately after the 5 fixed common cells).
+    const cancelledIndex = cells.findIndex((cell) => cell.label === "Cancelled");
+    let insertAt: number;
+    if (cancelledIndex >= 0) {
+      insertAt = cancelledIndex + 1;
+    } else {
+      const timedOutIndex = cells.findIndex((cell) => cell.label === "Timed Out");
+      insertAt = timedOutIndex >= 0 ? timedOutIndex + 1 : 5;
+    }
+    cells.splice(insertAt, 0, { label: "Skipped", value: job.skipped, tone: "mute" });
   }
-  if (job.timed_out > 0) cells.push({ label: "Timed Out", value: job.timed_out, tone: "warn" });
-  if (job.cancelled > 0) cells.push({ label: "Cancelled", value: job.cancelled, tone: "cancel" });
-  if (job.skipped > 0) cells.push({ label: "Skipped", value: job.skipped, tone: "mute" });
-  if (job.thread_leaked > 0) cells.push({ label: "Thread Leaked", value: job.thread_leaked, tone: "warn" });
-  if (job.suppressed_count > 0) cells.push({ label: "Suppressed", value: job.suppressed_count, tone: "mute" });
-  if (job.dropped_count > 0) cells.push({ label: "Dropped", value: job.dropped_count, tone: "warn" });
   return cells;
 }
 

@@ -497,7 +497,7 @@ No tests to remove. All existing tests are preserved in their split destinations
 - create `frontend/src/components/app-detail/detail-header.test.tsx`
 - create `frontend/src/components/app-detail/execution-section.test.tsx`
 - create `frontend/src/components/app-detail/registration-footer.test.tsx`
-- create `frontend/src/components/app-detail/stat-cell-builders.test.tsx`
+- create `frontend/src/components/app-detail/stat-cell-builders.test.ts`
 
 **Frontend deletes:**
 - delete `frontend/src/pages/app-detail.test.tsx`

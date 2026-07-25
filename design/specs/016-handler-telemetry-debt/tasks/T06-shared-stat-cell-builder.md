@@ -1,7 +1,7 @@
 ---
 task_id: "T06"
 title: "Extract shared stat-cell builder + tests"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#1", "FR#2", "AC#1"]
 ---
@@ -13,7 +13,7 @@ Create a shared `buildCommonStatCells` function that consolidates the 8 structur
 ## Target Files
 
 - create: `frontend/src/components/app-detail/stat-cell-builders.ts`
-- create: `frontend/src/components/app-detail/stat-cell-builders.test.tsx`
+- create: `frontend/src/components/app-detail/stat-cell-builders.test.ts`
 - modify: `frontend/src/components/app-detail/listener-detail.tsx`
 - modify: `frontend/src/components/app-detail/job-detail.tsx`
 - read: `frontend/src/components/shared/detail-stats.tsx`
@@ -44,7 +44,7 @@ Update `job-detail.tsx`:
 - **Splice Skipped after Cancelled, NOT at the end** — the current order is `Timed Out, Cancelled, Skipped, Thread Leaked, Suppressed, Dropped`. Find the Cancelled cell's index and insert Skipped immediately after it to preserve the existing row order. Appending at the end would reorder to `..., Dropped, Skipped` which is a visual regression.
 - Import `buildCommonStatCells` and `CommonStatInput` from `./stat-cell-builders`
 
-Create `stat-cell-builders.test.tsx`:
+Create `stat-cell-builders.test.ts`:
 - Test shared cell construction with representative input
 - Test conditional cells appear only when count > 0
 - Test tones are correct (err for failed, warn for timed_out, etc.)
