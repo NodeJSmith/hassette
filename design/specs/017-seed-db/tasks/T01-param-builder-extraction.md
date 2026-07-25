@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Extract and publicize param builder functions"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#3", "FR#4"]
 ---
