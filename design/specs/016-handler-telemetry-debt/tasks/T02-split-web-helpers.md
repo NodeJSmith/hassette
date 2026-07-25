@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Split web_helpers.py into domain files"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#8", "AC#5"]
 ---

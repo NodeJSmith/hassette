@@ -11,7 +11,8 @@ from hassette.cli.commands.job import (
     cmd_job,
 )
 from hassette.cli.context import CLIContext
-from hassette.test_utils.web_helpers import make_execution, make_job_summary
+from hassette.test_utils.web_job_helpers import make_job_summary
+from hassette.test_utils.web_telemetry_helpers import make_execution
 from tests.unit.cli.conftest import (
     SINCE_EPOCH,
     CLIClientFactory,

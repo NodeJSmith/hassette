@@ -16,7 +16,8 @@ from hassette.schemas.execution_models import Execution
 from hassette.schemas.job_models import JobErrorRecord, JobGlobalStats, JobSummary
 from hassette.schemas.listener_models import HandlerErrorRecord, ListenerGlobalStats, ListenerSummary
 from hassette.schemas.summary_models import AppHealthSummary, GlobalSummary, SessionRecord
-from hassette.test_utils.web_helpers import make_job, make_manifest
+from hassette.test_utils.web_job_helpers import make_job
+from hassette.test_utils.web_manifest_helpers import make_manifest
 from hassette.types.enums import ResourceStatus
 
 TS_BASE = 1_704_067_200.0

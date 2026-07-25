@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from hassette.test_utils.web_helpers import make_job_summary
+from hassette.test_utils.web_job_helpers import make_job_summary
 from hassette.web.utils import enrich_jobs_with_live_heap
 
 

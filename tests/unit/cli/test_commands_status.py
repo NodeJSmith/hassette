@@ -10,7 +10,7 @@ from hassette.cli.commands.status import (
     cmd_telemetry,
 )
 from hassette.cli.context import CLIContext
-from hassette.test_utils.web_helpers import (
+from hassette.test_utils.web_response_helpers import (
     make_dashboard_app_grid_response,
     make_system_status_response,
     make_telemetry_status_response,

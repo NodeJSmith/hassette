@@ -16,14 +16,13 @@ from hassette.cli.commands.app import (
     cmd_app_source,
 )
 from hassette.cli.context import CLIContext
-from hassette.test_utils.web_helpers import (
-    make_activity_feed_entry,
+from hassette.test_utils.web_manifest_helpers import make_manifest_list_response, make_manifest_response
+from hassette.test_utils.web_response_helpers import (
     make_app_config_response,
     make_app_health_response,
     make_app_source_response,
-    make_manifest_list_response,
-    make_manifest_response,
 )
+from hassette.test_utils.web_telemetry_helpers import make_activity_feed_entry
 from hassette.web.models import AppInstanceResponse, AppManifestListResponse
 from tests.unit.cli.conftest import (
     SINCE_EPOCH,

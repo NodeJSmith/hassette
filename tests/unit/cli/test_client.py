@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from hassette.cli.client import HassetteCLIClient
 from hassette.config.config import HassetteConfig
 from hassette.config.models import WebApiConfig
-from hassette.test_utils.web_helpers import make_manifest_list_response, make_manifest_response
+from hassette.test_utils.web_manifest_helpers import make_manifest_list_response, make_manifest_response
 from hassette.web.models import AppInstanceResponse
 from tests.unit.cli.conftest import capture_stderr
 

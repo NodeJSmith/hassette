@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 from hassette.cli.commands.misc import cmd_config
 from hassette.cli.context import CLIContext
-from hassette.test_utils.web_helpers import make_config_schema_response
+from hassette.test_utils.web_response_helpers import make_config_schema_response
 from tests.unit.cli.conftest import CLIClientFactory, GetSpy, capture_json_stdout, capture_stdout
 
 # cmd_config

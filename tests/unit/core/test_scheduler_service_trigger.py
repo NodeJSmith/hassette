@@ -15,7 +15,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from hassette.commands import ExecuteJob
-from hassette.test_utils.web_helpers import make_real_job
+from hassette.test_utils.web_job_helpers import make_real_job
 from hassette.types.enums import ExecutionMode
 
 from .conftest import make_scheduler_service

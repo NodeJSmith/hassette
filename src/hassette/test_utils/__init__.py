@@ -66,10 +66,10 @@ from .mock_hassette import make_mock_hassette as make_mock_hassette
 from .mock_hassette import make_ws_hassette_stub as make_ws_hassette_stub
 from .recording_api import RecordingApi
 from .test_server import SimpleTestServer as SimpleTestServer
-from .web_helpers import make_full_snapshot as make_full_snapshot
-from .web_helpers import make_job as make_job
-from .web_helpers import make_manifest as make_manifest
-from .web_helpers import make_real_job as make_real_job
+from .web_job_helpers import make_job as make_job
+from .web_job_helpers import make_real_job as make_real_job
+from .web_manifest_helpers import make_full_snapshot as make_full_snapshot
+from .web_manifest_helpers import make_manifest as make_manifest
 from .web_mocks import create_hassette_stub as create_hassette_stub
 from .web_mocks import create_mock_runtime_query_service as create_mock_runtime_query_service
 from .web_mocks import create_test_fastapi_app as create_test_fastapi_app

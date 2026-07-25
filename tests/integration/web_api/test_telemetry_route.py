@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from hassette.scheduler.triggers import Every
-from hassette.test_utils.web_helpers import make_job_summary, make_real_job
+from hassette.test_utils.web_job_helpers import make_job_summary, make_real_job
 from hassette.types.enums import ExecutionMode
 
 

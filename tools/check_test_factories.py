@@ -2,7 +2,7 @@
 """CI guard: detect local test factories that shadow a shared factory.
 
 The test suite has a shared factory registry (``hassette.test_utils.factories``,
-``web_helpers``, ``helpers``) built to absorb the same handful of conceptual
+the ``web_*_helpers`` modules, ``helpers``) built to absorb the same handful of conceptual
 objects — ``ScheduledJob``, ``Event``, a mock ``CommandExecutor`` — that kept
 getting hand-rolled again in each new test file. Left unchecked, an LLM (or a
 developer in a hurry) reinvents the same ``make_*`` function in a new file
@@ -55,7 +55,7 @@ SHARED_FACTORIES = {
     "make_invoke_handler_cmd": "hassette.test_utils.factories",
     "make_mock_listener": "hassette.test_utils.factories",
     "make_scheduler": "hassette.test_utils.factories",
-    "make_manifest": "hassette.test_utils.web_helpers",
+    "make_manifest": "hassette.test_utils.web_manifest_helpers",
     "make_crashed_event": "hassette.test_utils.helpers",
     "make_task_bucket": "hassette.test_utils.helpers",
     "async_noop": "hassette.test_utils.helpers",

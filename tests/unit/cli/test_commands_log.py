@@ -12,7 +12,7 @@ from hassette.cli.commands.log import (
     cmd_log,
 )
 from hassette.cli.context import CLIContext
-from hassette.test_utils.web_helpers import make_log_entry_response, make_logs_by_execution_response
+from hassette.test_utils.web_telemetry_helpers import make_log_entry_response, make_logs_by_execution_response
 from tests.unit.cli.conftest import (
     SINCE_EPOCH,
     CLIClientFactory,

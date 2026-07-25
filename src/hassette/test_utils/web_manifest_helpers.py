@@ -1,0 +1,116 @@
+"""Reusable factory functions for app manifest and snapshot test data.
+
+These build manifest and snapshot objects used by both e2e and integration web tests.
+"""
+
+from collections.abc import Sequence
+
+from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo
+from hassette.test_utils.config import DEFAULT_TEST_APP_KEY
+from hassette.web.models import (
+    AppInstanceResponse,
+    AppManifestListResponse,
+    AppManifestResponse,
+    ManifestStatus,
+)
+
+_STATUS_KEYS = ("running", "failed", "stopped", "disabled", "blocked")
+
+
+def _tally_statuses(manifests: Sequence[AppManifestInfo | AppManifestResponse]) -> dict[str, int]:
+    """Count manifests by status."""
+    counts: dict[str, int] = dict.fromkeys(_STATUS_KEYS, 0)
+    for m in manifests:
+        if m.status in counts:
+            counts[m.status] += 1
+    return counts
+
+
+def make_full_snapshot(
+    manifests: list[AppManifestInfo] | None = None,
+    only_apps: list[str] | None = None,
+) -> AppFullSnapshot:
+    """Build an AppFullSnapshot from a list of manifests."""
+    manifests = manifests or []
+    counts = _tally_statuses(manifests)
+    return AppFullSnapshot(
+        manifests=manifests,
+        only_apps=only_apps or [],
+        total=len(manifests),
+        **counts,
+    )
+
+
+def make_manifest(
+    app_key: str = DEFAULT_TEST_APP_KEY,
+    class_name: str = "TestApp",
+    display_name: str = "Test App",
+    filename: str = "test_app.py",
+    enabled: bool = True,
+    auto_loaded: bool = False,
+    status: str = "running",
+    block_reason: str | None = None,
+    instance_count: int = 1,
+    instances: list[AppInstanceInfo] | None = None,
+    error_message: str | None = None,
+    error_traceback: str | None = None,
+    autostart: bool = True,
+) -> AppManifestInfo:
+    """Build an AppManifestInfo with sensible defaults."""
+    return AppManifestInfo(
+        app_key=app_key,
+        class_name=class_name,
+        display_name=display_name,
+        filename=filename,
+        enabled=enabled,
+        auto_loaded=auto_loaded,
+        status=status,
+        block_reason=block_reason,
+        instance_count=instance_count,
+        instances=instances or [],
+        error_message=error_message,
+        error_traceback=error_traceback,
+        autostart=autostart,
+    )
+
+
+def make_manifest_response(
+    app_key: str = DEFAULT_TEST_APP_KEY,
+    class_name: str = "TestApp",
+    display_name: str = "Test App",
+    filename: str = "test_app.py",
+    enabled: bool = True,
+    auto_loaded: bool = False,
+    status: ManifestStatus = "running",
+    instance_count: int = 1,
+    instances: list[AppInstanceResponse] | None = None,
+) -> AppManifestResponse:
+    """Build an AppManifestResponse with sensible defaults."""
+    return AppManifestResponse(
+        app_key=app_key,
+        class_name=class_name,
+        display_name=display_name,
+        filename=filename,
+        enabled=enabled,
+        auto_loaded=auto_loaded,
+        status=status,
+        instance_count=instance_count,
+        instances=instances or [],
+    )
+
+
+def make_manifest_list_response(
+    manifests: list[AppManifestResponse] | None = None,
+) -> AppManifestListResponse:
+    """Build an AppManifestListResponse from a list of manifests."""
+    manifests = manifests or []
+    counts = _tally_statuses(manifests)
+    return AppManifestListResponse(
+        manifests=manifests,
+        total=len(manifests),
+        running=counts["running"],
+        failed=counts["failed"],
+        stopped=counts["stopped"],
+        disabled=counts["disabled"],
+        blocked=counts["blocked"],
+    )
