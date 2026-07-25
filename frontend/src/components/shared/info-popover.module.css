@@ -40,6 +40,7 @@
   left: 0;
   top: 0;
   opacity: 0;
+  pointer-events: none;
   z-index: var(--z-tooltip);
   max-width: var(--sz-popover-max);
   max-height: 60vh;
@@ -57,4 +58,5 @@
 
 .positioned {
   opacity: 1;
+  pointer-events: auto;
 }

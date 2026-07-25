@@ -146,7 +146,7 @@ describe("ColumnFilterPopover", () => {
     it("marks the popover positioned and sets inline coordinates once computePosition resolves", async () => {
       render(<PopoverHarness open={true} onClose={vi.fn()} />);
       await flushPositioning();
-      const dialog = screen.getByRole("dialog") as HTMLElement;
+      const dialog = screen.getByRole("dialog");
       expect(dialog.classList.contains(styles.positioned)).toBe(true);
       expect(dialog.style.left).not.toBe("");
       expect(dialog.style.top).not.toBe("");

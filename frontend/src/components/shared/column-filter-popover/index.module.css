@@ -7,6 +7,7 @@
   left: 0;
   top: 0;
   opacity: 0;
+  pointer-events: none;
   z-index: var(--z-drawer);
   background: var(--bg-surface);
   border: var(--sp-px) solid var(--line-1);
@@ -22,6 +23,7 @@
 
 .positioned {
   opacity: 1;
+  pointer-events: auto;
 }
 
 .popover select,
