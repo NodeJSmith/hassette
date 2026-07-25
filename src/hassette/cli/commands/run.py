@@ -53,7 +53,10 @@ def cmd_run(
     if dev_mode is not None:
         init_kwargs["dev_mode"] = dev_mode
     if app:
-        init_kwargs["only_apps"] = split_app_keys(app)
+        only = split_app_keys(app)
+        if not only:
+            raise SystemExit("error: --app requires at least one non-empty app key")
+        init_kwargs["only_apps"] = only
 
     config = HassetteConfig(**init_kwargs)
 

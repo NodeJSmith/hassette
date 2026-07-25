@@ -26,7 +26,7 @@ hassette run
 
 All flags are optional. Values resolve from `hassette.toml` (see [Configuration](../core-concepts/configuration/index.md)) and environment variables when not provided on the command line.
 
-`--app` isolates one app during development without editing `hassette.toml` or the app's source. Every other configured app is excluded and reports status `blocked` in [`hassette app`](#hassette-app) — that is the expected result of the flag, not a failure. Repeat the flag or pass a comma-separated list to keep more than one app running:
+`--app` isolates one app during development without editing `hassette.toml` or the app's source. Every other enabled app is excluded and reports status `blocked` in [`hassette app`](#hassette-app) — that is the expected result of the flag, not a failure. Disabled apps remain `disabled`. Repeat the flag or pass a comma-separated list to keep more than one app running:
 
 ```bash
 hassette run --app kitchen_lights --app porch_motion

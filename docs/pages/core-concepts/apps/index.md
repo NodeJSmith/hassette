@@ -167,7 +167,7 @@ See the [Task Bucket](task-bucket.md) page for `run_in_thread`, `make_async_adap
 
 ## Restricting Which Apps Run
 
-`hassette run --app <key>` starts Hassette with only the named app. Every other configured app is excluded and reports status `blocked` — shown as [`BLOCKED`](../../web-ui/manage-apps.md) in the web UI and listed by [`hassette app`](../../cli/commands.md#hassette-app). A startup log line names the apps that will run. The key is the `[hassette.apps.<key>]` section name from `hassette.toml`.
+`hassette run --app <key>` starts Hassette with only the named app. Every other enabled app is excluded and reports status `blocked` — shown as [`BLOCKED`](../../web-ui/manage-apps.md) in the web UI and listed by [`hassette app`](../../cli/commands.md#hassette-app). Disabled apps remain `disabled`. A startup log line names the apps that will run. The key is the `[hassette.apps.<key>]` section name from `hassette.toml`.
 
 ```bash
 hassette run --app kitchen_lights

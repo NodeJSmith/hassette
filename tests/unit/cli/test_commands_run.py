@@ -85,3 +85,17 @@ class TestCmdRun:
         cmd_run()
         config = mock_run_server.call_args[0][0]
         assert config.only_apps == ()
+
+    @pytest.mark.parametrize(
+        "app_values",
+        [
+            pytest.param([""], id="empty-string"),
+            pytest.param([","], id="bare-comma"),
+            pytest.param([",,"], id="multiple-commas"),
+            pytest.param([" "], id="whitespace"),
+        ],
+    )
+    def test_empty_app_values_rejected(self, mock_run_server: AsyncMock, app_values: list[str]) -> None:
+        with pytest.raises(SystemExit):
+            cmd_run(app=app_values)
+        mock_run_server.assert_not_called()

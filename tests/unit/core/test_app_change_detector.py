@@ -299,3 +299,24 @@ class TestAppChangeDetector:
         assert changes.new_apps == frozenset({"app4"})
         assert changes.reimport_apps == frozenset({"app2"})
         assert changes.reload_apps == frozenset({"app3"})
+
+    def test_only_apps_excludes_reload_for_non_target(
+        self, detector: AppChangeDetector, make_manifest: Callable
+    ) -> None:
+        """Config changes on apps filtered out by only_apps must not appear in reload_apps."""
+        original = {
+            "app1": make_manifest("app1", app_config={"setting": "old"}),
+            "app2": make_manifest("app2", app_config={"setting": "old"}),
+            "app3": make_manifest("app3", app_config={"setting": "old"}),
+        }
+        current = {
+            "app1": make_manifest("app1", app_config={"setting": "new"}),
+            "app2": make_manifest("app2", app_config={"setting": "new"}),
+            "app3": make_manifest("app3", app_config={"setting": "new"}),
+        }
+
+        changes = detector.detect_changes(original, current, only_apps=frozenset({"app1"}))
+
+        assert "app1" in changes.reload_apps
+        assert "app2" not in changes.reload_apps
+        assert "app3" not in changes.reload_apps

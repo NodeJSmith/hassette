@@ -94,7 +94,10 @@ class AppChangeDetector:
         reload_apps = {
             app_key
             for app_key in config_diff.affected_root_keys
-            if app_key not in new_apps and app_key not in orphans and app_key not in reimport_apps
+            if app_key in current_keys
+            and app_key not in new_apps
+            and app_key not in orphans
+            and app_key not in reimport_apps
         }
 
         return ChangeSet(
