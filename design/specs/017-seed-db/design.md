@@ -59,7 +59,7 @@ There is no way to see the hassette monitoring dashboard in edge-case states (em
 - **FR#2** The script accepts `--output <path>` to specify where to write the SQLite database (defaults to a path in the current directory)
 - **FR#3** Each scenario produces a complete dataset across all 6 telemetry tables: `sessions`, `listeners`, `scheduled_jobs`, `executions`, `log_records`, `blocking_events`
 - **FR#4** All data within a scenario is referentially consistent: every `executions.listener_id`/`job_id`/`session_id` points to a real row; every `log_records`/`blocking_events` `execution_id` matches a real `executions.execution_id`
-- **FR#5** Running the script twice for the same scenario produces byte-identical database state (deterministic timestamps, deterministic IDs, no wall-clock dependencies)
+- **FR#5** Running the script twice for the same scenario produces identical database content — same rows in the same order across all tables (deterministic timestamps, deterministic IDs, no wall-clock dependencies). SQLite internal page layout may vary; logical equality (row-by-row query comparison) is the verification standard.
 - **FR#6** The script sets `PRAGMA foreign_keys = ON` on its connection and runs `PRAGMA foreign_key_check` after all inserts complete; FK violations abort the run
 - **FR#7** A post-seed consistency assertion checks that all non-null `execution_id` values in `log_records` and `blocking_events` match an existing `executions.execution_id`; mismatches abort the run
 - **FR#8** Each scenario's insert sequence is wrapped in a single transaction (`BEGIN IMMEDIATE`/`COMMIT`) with rollback on error; the output file is written to a temp path and atomically swapped via `os.replace()` only after integrity checks pass
@@ -166,7 +166,9 @@ Three param builder functions, all module-level in `repository.py`:
 - `listener_insert_params(registration: ListenerRegistration) -> dict[str, Any]` — exists as `_listener_insert_params`, drop prefix
 - `job_insert_params(registration: ScheduledJobRegistration) -> dict[str, Any]` — extract from inline dict in `register_job()`, hardcode `repeat=0`
 
-`_EXECUTION_INSERT_SQL` already exists as an importable constant. For listeners and jobs, no standalone INSERT SQL string exists (the SQL is embedded inline in `register_listener`/`register_job` alongside `ON CONFLICT ... DO UPDATE` clauses). The seed script constructs its own plain INSERT SQL from the param dict keys for these two tables.
+`_EXECUTION_INSERT_SQL` exists in `repository.py` but does NOT include `RETURNING id` — it is used only for `executemany` batch inserts. The seed script constructs its own INSERT SQL for all three record types:
+- For listeners and jobs: plain `INSERT INTO ... (...) VALUES (...) RETURNING id` built from the param dict keys (need the autoincrement `id` for FK references in executions)
+- For executions: plain `INSERT INTO ... (...) VALUES (...)` built from the param dict keys — no `RETURNING` needed since the `execution_id` string is already known from the `ExecutionRecord` and is what `log_records`/`blocking_events` reference
 
 ### Log records write path
 

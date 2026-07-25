@@ -63,8 +63,8 @@ For tables without RETURNING (log_records, blocking_events), return `cursor.last
 ### INSERT SQL strings
 
 - Import `execution_insert_params`, `listener_insert_params`, `job_insert_params` from `hassette.core.telemetry.repository` (T01 output).
-- Import `_EXECUTION_INSERT_SQL` from `hassette.core.telemetry.repository` (already importable — uses `RETURNING id`).
-- For listeners and jobs: construct plain `INSERT INTO ... (...) VALUES (...) RETURNING id` SQL from the param dict keys. Do NOT include `ON CONFLICT` — the seed script always writes a fresh file.
+- For listeners and jobs: construct plain `INSERT INTO ... (...) VALUES (...) RETURNING id` SQL from the param dict keys. The autoincrement `id` is needed for FK references in executions. Do NOT include `ON CONFLICT` — the seed script always writes a fresh file.
+- For executions: construct plain `INSERT INTO ... (...) VALUES (...)` SQL from the param dict keys. No `RETURNING` needed — the `execution_id` string (used for log/blocking correlation) is already known from the `ExecutionRecord`. Note: do NOT import `_EXECUTION_INSERT_SQL` from `repository.py` — it lacks `RETURNING` and is designed for `executemany` batch inserts.
 - For log_records: import `_LOG_INSERT_SQL` from `hassette.core.database_service` (or construct from `_LOG_COLUMNS`). Note: 13 columns, not 7.
 - For sessions and blocking_events: hand-write INSERT SQL matching the schema columns.
 
@@ -107,7 +107,7 @@ Implement `scenario_empty` here (it does nothing — just the bare schema with z
 - [ ] FR#1: `uv run python scripts/seed_db.py --scenario empty --output /tmp/test-empty.db` exits 0
 - [ ] FR#2: `--output /tmp/custom-path.db` writes to the specified path
 - [ ] FR#4: SeedContext tracks IDs across all 6 tables (sessions, listeners, jobs, executions, log_records, blocking_events)
-- [ ] FR#5: running the script twice for `--scenario empty` produces identical files
+- [ ] FR#5: running the script twice for `--scenario empty` produces identical database content (same rows in same order — compare at SQL level, not file bytes)
 - [ ] FR#6: PRAGMA foreign_keys is ON and PRAGMA foreign_key_check runs post-seed
 - [ ] FR#7: post-seed consistency assertion runs (LEFT JOIN check for log_records and blocking_events)
 - [ ] FR#8: inserts are wrapped in a transaction; output file is atomically swapped
