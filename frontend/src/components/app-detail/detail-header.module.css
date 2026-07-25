@@ -1,0 +1,31 @@
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--sp-3);
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-left: auto;
+}
+
+.handlerName {
+  font-family: var(--font-mono);
+  font-size: var(--fs-h2);
+  font-weight: var(--fw-semibold);
+  color: var(--ink-1);
+}
+
+.subtitle {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  font-size: var(--fs-small);
+  color: var(--ink-3);
+  margin-bottom: var(--sp-3);
+}

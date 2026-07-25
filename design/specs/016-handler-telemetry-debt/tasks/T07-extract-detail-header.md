@@ -1,7 +1,7 @@
 ---
 task_id: "T07"
 title: "Extract DetailHeader sub-component + tests"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#4", "AC#2"]
 ---
