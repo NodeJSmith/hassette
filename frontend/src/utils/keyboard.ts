@@ -7,3 +7,6 @@ export function onActivateKeyDown(callback: () => void): (e: KeyboardEvent) => v
     }
   };
 }
+
+const IS_MAC = /Mac|iPhone|iPad/.test(navigator.userAgent);
+export const SHORTCUT_HINT = IS_MAC ? "⌘K" : "Ctrl+K";

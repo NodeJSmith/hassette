@@ -71,6 +71,32 @@ function Tab({
   );
 }
 
+function TabPanel({
+  id,
+  children,
+  class: className,
+}: {
+  id: TabId;
+  children: preact.ComponentChildren;
+  class?: string;
+}) {
+  return (
+    <div class={className} role="tabpanel" id={`tabpanel-${id}`} aria-labelledby={`tab-${id}`}>
+      {children}
+    </div>
+  );
+}
+
+function handleTabKeyDown(e: KeyboardEvent) {
+  if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+  e.preventDefault();
+  const tabs = (e.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('[role="tab"]');
+  const current = Array.from(tabs).findIndex((t) => t.getAttribute("aria-selected") === "true");
+  const next = e.key === "ArrowRight" ? (current + 1) % tabs.length : (current - 1 + tabs.length) % tabs.length;
+  tabs[next]?.focus();
+  tabs[next]?.click();
+}
+
 export function AppDetailPage({ params }: Props) {
   const appKey = params.key;
   const activeTab: TabId = params.tab ?? "overview";
@@ -129,11 +155,14 @@ export function AppDetailPage({ params }: Props) {
     : undefined;
   const wsStatus = appStatus.value[appStatusKey(appKey, resolvedInstanceIndex)]?.status;
   const instanceStatus = wsStatus ?? currentInstance?.status ?? manifest?.status ?? "unknown";
-  const liveStatus = showParentOverview
-    ? manifest
-      ? appLiveStatus(appStatus.value, manifest)
-      : "unknown"
-    : instanceStatus;
+  let liveStatus: string;
+  if (!showParentOverview) {
+    liveStatus = instanceStatus;
+  } else if (manifest) {
+    liveStatus = appLiveStatus(appStatus.value, manifest);
+  } else {
+    liveStatus = "unknown";
+  }
 
   const hasData = !manifestLoading && listenersData !== undefined && jobsData !== undefined;
   const initialLoading = !hasData && (listenersLoading || jobsLoading || manifestLoading);
@@ -165,7 +194,7 @@ export function AppDetailPage({ params }: Props) {
     );
   }
 
-  const instanceQs = instanceIndex !== undefined ? `?instance=${instanceIndex}` : "";
+  const instanceQueryString = instanceIndex !== undefined ? `?instance=${instanceIndex}` : "";
   const tabProps = { appKey, instanceIndex, activeTab };
   const handlerCount = (listenersData?.length ?? 0) + (jobsData?.length ?? 0);
 
@@ -191,21 +220,7 @@ export function AppDetailPage({ params }: Props) {
           showParentOverview={showParentOverview}
         />
 
-        <div
-          class={styles.tabStrip}
-          role="tablist"
-          aria-label="App sections"
-          onKeyDown={(e: KeyboardEvent) => {
-            if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
-            e.preventDefault();
-            const tabs = (e.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('[role="tab"]');
-            const current = Array.from(tabs).findIndex((t) => t.getAttribute("aria-selected") === "true");
-            const next =
-              e.key === "ArrowRight" ? (current + 1) % tabs.length : (current - 1 + tabs.length) % tabs.length;
-            tabs[next]?.focus();
-            tabs[next]?.click();
-          }}
-        >
+        <div class={styles.tabStrip} role="tablist" aria-label="App sections" onKeyDown={handleTabKeyDown}>
           <Tab id="overview" label="overview" {...tabProps} />
           {!showParentOverview && <Tab id="handlers" label="handlers" badge={handlerCount} {...tabProps} />}
           <Tab id="code" label="code" {...tabProps} />
@@ -215,7 +230,7 @@ export function AppDetailPage({ params }: Props) {
       </div>
 
       {activeTab === "overview" && (
-        <div role="tabpanel" id="tabpanel-overview" aria-labelledby="tab-overview">
+        <TabPanel id="overview">
           {showParentOverview && manifest ? (
             <MultiInstanceOverview
               appKey={appKey}
@@ -231,15 +246,15 @@ export function AppDetailPage({ params }: Props) {
               listeners={displayListeners}
               jobs={displayJobs}
               appKey={appKey}
-              instanceQs={instanceQs}
+              instanceQs={instanceQueryString}
               resolvedInstanceIndex={resolvedInstanceIndex}
               appStatus={liveStatus}
             />
           )}
-        </div>
+        </TabPanel>
       )}
       {activeTab === "handlers" && (
-        <div role="tabpanel" id="tabpanel-handlers" aria-labelledby="tab-handlers">
+        <TabPanel id="handlers">
           <HandlersTab
             listeners={displayListeners}
             jobs={displayJobs}
@@ -251,22 +266,22 @@ export function AppDetailPage({ params }: Props) {
               navigate(appDetailPath(appKey, "code", { line, instance: instanceIndex }));
             }}
           />
-        </div>
+        </TabPanel>
       )}
       {activeTab === "code" && (
-        <div role="tabpanel" id="tabpanel-code" aria-labelledby="tab-code">
+        <TabPanel id="code">
           <CodeTab appKey={appKey} listeners={displayListeners} />
-        </div>
+        </TabPanel>
       )}
       {activeTab === "logs" && (
-        <div class={styles.tabPanel} role="tabpanel" id="tabpanel-logs" aria-labelledby="tab-logs">
+        <TabPanel id="logs" class={styles.tabPanel}>
           <AppLogsPanel appKey={appKey} />
-        </div>
+        </TabPanel>
       )}
       {activeTab === "config" && (
-        <div role="tabpanel" id="tabpanel-config" aria-labelledby="tab-config">
+        <TabPanel id="config">
           <ConfigTab appKey={appKey} />
-        </div>
+        </TabPanel>
       )}
     </div>
   );

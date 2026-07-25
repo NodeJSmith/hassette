@@ -3,6 +3,7 @@ import clsx from "clsx";
 import { BREAKPOINT_MOBILE, useMediaQuery } from "../../hooks/use-media-query";
 import { useAppState } from "../../state/context";
 import type { ConnectionStatus } from "../../state/create-app-state";
+import { pluralize } from "../../utils/format";
 import styles from "./system-health.module.css";
 
 const STATUS_CONFIG: Record<ConnectionStatus, { dotClass: string; label: string }> = {
@@ -40,7 +41,7 @@ export function SystemHealth({ variant }: Props) {
   const exhausted = droppedExhausted.value;
   const shutdown = droppedShutdown.value;
   const droppedTotal = overflow + exhausted + shutdown;
-  const ehFailures = errorHandlerFailures.value;
+  const handlerFailures = errorHandlerFailures.value;
 
   const { dotClass, label } = STATUS_CONFIG[status];
 
@@ -87,7 +88,7 @@ export function SystemHealth({ variant }: Props) {
       {droppedTotal > 0 && (
         <span
           class={styles.indicator}
-          aria-label={`${droppedTotal} telemetry event${droppedTotal !== 1 ? "s" : ""} dropped`}
+          aria-label={`${pluralize(droppedTotal, "telemetry event")} dropped`}
           title={`buffer full: ${overflow}, write failed: ${exhausted}, during shutdown: ${shutdown}`}
           data-testid="dropped-events-indicator"
         >
@@ -98,16 +99,16 @@ export function SystemHealth({ variant }: Props) {
         </span>
       )}
 
-      {ehFailures > 0 && (
+      {handlerFailures > 0 && (
         <span
           class={styles.indicator}
-          aria-label={`${ehFailures} handler error${ehFailures !== 1 ? "s" : ""}`}
-          title={`${ehFailures} user error handler invocation${ehFailures !== 1 ? "s" : ""} raised or timed out`}
+          aria-label={pluralize(handlerFailures, "handler error")}
+          title={`${pluralize(handlerFailures, "user error handler invocation")} raised or timed out`}
           data-testid="error-handler-failures-indicator"
         >
           <span class={clsx(styles.pulseDot, styles.pulseDotDegraded)} />
           <span class={labelClass} data-testid="health-label">
-            {ehFailures} handler error{ehFailures !== 1 ? "s" : ""}
+            {pluralize(handlerFailures, "handler error")}
           </span>
         </span>
       )}

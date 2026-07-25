@@ -7,6 +7,7 @@ import { useManifests } from "../../hooks/use-manifests";
 import { useSidebarHidden } from "../../hooks/use-sidebar-hidden";
 import { useAppState } from "../../state/context";
 import { appDetailPath, HOME_PATH, NAV_PAGES } from "../../utils/app-routes";
+import { SHORTCUT_HINT } from "../../utils/keyboard";
 import { setStoredValue } from "../../utils/local-storage";
 import { statusToKind } from "../../utils/status";
 import { Button } from "../shared/button";
@@ -16,7 +17,7 @@ import { StatusShape } from "../shared/status-shape";
 import { SystemHealth } from "../shared/system-health";
 import { ThemeToggle } from "../shared/theme-toggle";
 import styles from "./sidebar.module.css";
-import { getGroupKey, GROUP_DEFS, type GroupDef, type GroupKey, worstStatus } from "./sidebar-groups";
+import { GROUP_DEFS, groupAndSortApps, type GroupDef, worstStatus } from "./sidebar-groups";
 import { useGroupOpen } from "./use-group-open";
 
 type AppManifest = components["schemas"]["AppManifestResponse"];
@@ -29,9 +30,6 @@ function SidebarChevron({ open, class: className }: { open: boolean; class?: str
     </svg>
   );
 }
-
-const IS_MAC = /Mac|iPhone|iPad/.test(navigator.userAgent);
-const SHORTCUT_HINT = IS_MAC ? "⌘K" : "Ctrl+K";
 
 interface AppEntryProps {
   manifest: AppManifest;
@@ -158,24 +156,7 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
       )
     : allManifests;
 
-  // Group apps by status
-  const groups = new Map<GroupKey, AppManifest[]>(GROUP_DEFS.map((g) => [g.key, []]));
-  for (const m of filtered) {
-    const key = getGroupKey(m);
-    groups.get(key)!.push(m);
-  }
-
-  // Sort each group alphabetically
-  for (const [, apps] of groups) {
-    apps.sort((a, b) => a.display_name.localeCompare(b.display_name));
-  }
-
-  // "All healthy" check: only ok group has apps (force RUNNING open)
-  const allHealthy =
-    (groups.get("err")?.length ?? 0) === 0 &&
-    (groups.get("blocked")?.length ?? 0) === 0 &&
-    (groups.get("warn")?.length ?? 0) === 0 &&
-    (groups.get("stopped")?.length ?? 0) === 0;
+  const { groups, allHealthy } = groupAndSortApps(filtered);
 
   const { isOpen: isGroupOpen, toggle: toggleGroup } = useGroupOpen(allHealthy);
 
