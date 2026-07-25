@@ -10,10 +10,17 @@ vi.mock("../../api/endpoints", () => ({
   reloadApp: vi.fn(),
 }));
 
+vi.mock("sonner", () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
+}));
+
 const endpoints = await import("../../api/endpoints");
 const startApp = endpoints.startApp as unknown as ReturnType<typeof vi.fn>;
 const stopApp = endpoints.stopApp as unknown as ReturnType<typeof vi.fn>;
 const reloadApp = endpoints.reloadApp as unknown as ReturnType<typeof vi.fn>;
+
+// Import after mock so the spy reference is captured.
+const { toast } = await import("sonner");
 
 describe("ActionButtons", () => {
   beforeEach(() => {
@@ -73,6 +80,8 @@ describe("ActionButtons", () => {
     await waitFor(() => {
       expect(btn.disabled).toBe(false);
     });
+
+    expect(toast.success).toHaveBeenCalledWith('App "my_app" started');
   });
 
   it("calls stopApp when Stop is clicked", async () => {
@@ -86,6 +95,8 @@ describe("ActionButtons", () => {
     await waitFor(() => {
       expect((getByTestId("btn-stop-my_app") as HTMLButtonElement).disabled).toBe(false);
     });
+
+    expect(toast.success).toHaveBeenCalledWith('App "my_app" stopped');
   });
 
   it("calls reloadApp when Reload is clicked", async () => {
@@ -99,6 +110,8 @@ describe("ActionButtons", () => {
     await waitFor(() => {
       expect((getByTestId("btn-reload-my_app") as HTMLButtonElement).disabled).toBe(false);
     });
+
+    expect(toast.success).toHaveBeenCalledWith('App "my_app" reloaded');
   });
 
   // -- Error handling --
@@ -117,6 +130,9 @@ describe("ActionButtons", () => {
 
     // Button must re-enable after error (finally block)
     expect(btn.disabled).toBe(false);
+
+    expect(toast.error).toHaveBeenCalledWith('Failed to start "my_app": Connection refused');
+    expect(toast.success).not.toHaveBeenCalled();
   });
 
   it("shows stringified error for non-Error throws", async () => {
@@ -132,6 +148,7 @@ describe("ActionButtons", () => {
     });
 
     expect(btn.disabled).toBe(false);
+    expect(toast.error).toHaveBeenCalledWith('Failed to start "my_app": raw string error');
   });
 
   it("ignores second click while first action is in-flight", async () => {
@@ -160,6 +177,9 @@ describe("ActionButtons", () => {
     await waitFor(() => {
       expect(btn.disabled).toBe(false);
     });
+
+    // Only the action that actually ran toasts
+    expect(toast.success).toHaveBeenCalledTimes(1);
   });
 
   it("clears error when status changes", async () => {
