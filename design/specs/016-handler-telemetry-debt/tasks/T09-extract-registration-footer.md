@@ -1,7 +1,7 @@
 ---
 task_id: "T09"
 title: "Extract RegistrationFooter sub-component + tests"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#6", "AC#2"]
 ---
