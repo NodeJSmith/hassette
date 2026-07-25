@@ -1,0 +1,201 @@
+"""Integration tests for TelemetryQueryService.get_listener_summary()."""
+
+import pytest
+
+from hassette.core.database_service import DatabaseService
+from hassette.core.telemetry.query_service import TelemetryQueryService
+from hassette.schemas.listener_models import ListenerSummary
+
+from .helpers import BASE_TS, insert_invocation, insert_listener
+
+
+class TestGetListenerSummary:
+    async def test_get_listener_summary_aggregates(
+        self,
+        query_service: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """2 listeners, 3 invocations (2 success, 1 error) — correct aggregates."""
+        db_svc, session_id = db
+
+        listener_id_1 = await insert_listener(db_svc, handler_method="on_a")
+        _listener_id_2 = await insert_listener(db_svc, handler_method="on_b")
+
+        await insert_invocation(db_svc, listener_id_1, session_id, status="success", duration_ms=10.0)
+        await insert_invocation(db_svc, listener_id_1, session_id, status="success", duration_ms=20.0)
+        await insert_invocation(
+            db_svc, listener_id_1, session_id, status="error", duration_ms=5.0, error_type="ValueError"
+        )
+
+        rows = await query_service.get_listener_summary("test_app", 0)
+        assert len(rows) == 2
+
+        assert all(isinstance(r, ListenerSummary) for r in rows)
+        row = next(r for r in rows if r.handler_method == "on_a")
+        assert row.total_invocations == 3
+        assert row.successful == 2
+        assert row.failed == 1
+        assert row.avg_duration_ms == pytest.approx((10.0 + 20.0 + 5.0) / 3)
+
+    async def test_get_listener_summary_empty(
+        self,
+        query_service: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """1 listener with no invocations — appears in results with zero counts."""
+        db_svc, _session_id = db
+        await insert_listener(db_svc, handler_method="on_idle")
+
+        rows = await query_service.get_listener_summary("test_app", 0)
+        assert len(rows) == 1
+        row = rows[0]
+        assert row.total_invocations == 0
+        assert row.successful == 0
+        assert row.failed == 0
+
+    async def test_get_listener_summary_excludes_cancelled(
+        self,
+        query_service: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """get_listener_summary excludes listeners with cancelled_at set (replace/cancel)."""
+        db_svc, _session_id = db
+        live = await insert_listener(db_svc, handler_method="on_live")
+        cancelled = await insert_listener(db_svc, handler_method="on_cancelled")
+        await db_svc.db.execute("UPDATE listeners SET cancelled_at = ? WHERE id = ?", (BASE_TS, cancelled))
+        await db_svc.db.commit()
+
+        scoped = await query_service.get_listener_summary("test_app", 0)
+        assert {r.listener_id for r in scoped} == {live}
+
+    async def test_get_listener_summary_global_excludes_cancelled(
+        self,
+        query_service: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """get_listener_summary(app_key=None) excludes listeners with cancelled_at set."""
+        db_svc, _session_id = db
+        live = await insert_listener(db_svc, handler_method="on_live")
+        cancelled = await insert_listener(db_svc, handler_method="on_cancelled")
+        await db_svc.db.execute("UPDATE listeners SET cancelled_at = ? WHERE id = ?", (BASE_TS, cancelled))
+        await db_svc.db.commit()
+
+        all_rows = await query_service.get_listener_summary()
+        assert {r.listener_id for r in all_rows} == {live}
+
+    async def test_get_listener_summary_since_scoped(
+        self,
+        query_service: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """2 invocations after since, 1 before — since filter returns only the 2 recent ones."""
+        db_svc, session_id = db
+
+        base_ts = BASE_TS
+        since_ts = base_ts + 5.0
+
+        listener_id = await insert_listener(db_svc, handler_method="on_event")
+        # Two invocations after since_ts — should count
+        await insert_invocation(db_svc, listener_id, session_id, status="success", execution_start_ts=base_ts + 10.0)
+        await insert_invocation(db_svc, listener_id, session_id, status="success", execution_start_ts=base_ts + 20.0)
+        # One invocation before since_ts — should NOT count
+        await insert_invocation(db_svc, listener_id, session_id, status="error", execution_start_ts=base_ts + 1.0)
+
+        rows = await query_service.get_listener_summary("test_app", 0, since=since_ts)
+        assert len(rows) == 1
+        row = rows[0]
+        assert row.total_invocations == 2
+        assert row.successful == 2
+        assert row.failed == 0
+
+    async def test_get_listener_summary_min_max_none_when_no_invocations(
+        self,
+        query_service: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """Handler with no invocations returns None for min_duration_ms and max_duration_ms."""
+        db_svc, _session_id = db
+        await insert_listener(db_svc, handler_method="on_idle")
+
+        rows = await query_service.get_listener_summary("test_app", 0)
+        assert len(rows) == 1
+        row = rows[0]
+        assert row.min_duration_ms is None
+        assert row.max_duration_ms is None
+
+    async def test_get_listener_summary_min_max_correct_with_invocations(
+        self,
+        query_service: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """Handler with invocations returns correct min and max duration."""
+        db_svc, session_id = db
+        listener_id = await insert_listener(db_svc, handler_method="on_varied")
+
+        await insert_invocation(db_svc, listener_id, session_id, status="success", duration_ms=15.0)
+        await insert_invocation(db_svc, listener_id, session_id, status="success", duration_ms=5.0)
+        await insert_invocation(db_svc, listener_id, session_id, status="error", duration_ms=100.0)
+
+        rows = await query_service.get_listener_summary("test_app", 0)
+        assert len(rows) == 1
+        row = rows[0]
+        assert row.min_duration_ms == pytest.approx(5.0)
+        assert row.max_duration_ms == pytest.approx(100.0)
+
+    async def test_get_listener_summary_last_error_traceback_populated(
+        self,
+        query_service: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """Handler with errors includes last_error_traceback from the most recent error."""
+        db_svc, session_id = db
+        listener_id = await insert_listener(db_svc, handler_method="on_err")
+
+        base_ts = BASE_TS
+        # Older error — not the most recent
+        await insert_invocation(
+            db_svc,
+            listener_id,
+            session_id,
+            status="error",
+            error_type="OldError",
+            error_message="old message",
+            error_traceback="old traceback\n  at old.py:1",
+            execution_start_ts=base_ts + 1.0,
+        )
+        # Most recent error — traceback should be returned
+        await insert_invocation(
+            db_svc,
+            listener_id,
+            session_id,
+            status="error",
+            error_type="ValueError",
+            error_message="latest message",
+            error_traceback="Traceback (most recent call last):\n  File test.py, line 42\nValueError: oops",
+            execution_start_ts=base_ts + 10.0,
+        )
+
+        rows = await query_service.get_listener_summary("test_app", 0)
+        assert len(rows) == 1
+        row = rows[0]
+        assert (
+            row.last_error_traceback == "Traceback (most recent call last):\n  File test.py, line 42\nValueError: oops"
+        )
+        assert row.last_error_type == "ValueError"
+
+    async def test_get_listener_summary_last_error_traceback_none_when_no_errors(
+        self,
+        query_service: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """Handler with no errors has None for last_error_traceback."""
+        db_svc, session_id = db
+        listener_id = await insert_listener(db_svc, handler_method="on_clean")
+
+        await insert_invocation(db_svc, listener_id, session_id, status="success", duration_ms=10.0)
+        await insert_invocation(db_svc, listener_id, session_id, status="success", duration_ms=20.0)
+
+        rows = await query_service.get_listener_summary("test_app", 0)
+        assert len(rows) == 1
+        row = rows[0]
+        assert row.last_error_traceback is None

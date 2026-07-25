@@ -1,7 +1,7 @@
 ---
 task_id: "T05"
 title: "Reorganize backend telemetry test files"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T04"]
 implements: ["FR#10", "AC#7"]
 ---
