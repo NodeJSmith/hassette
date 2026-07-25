@@ -7,6 +7,7 @@ import { useManifests } from "../../hooks/use-manifests";
 import { useSidebarHidden } from "../../hooks/use-sidebar-hidden";
 import { useAppState } from "../../state/context";
 import { appDetailPath, HOME_PATH, NAV_PAGES } from "../../utils/app-routes";
+import { STATUS_DOT_SIZE } from "../../utils/constants";
 import { setStoredValue } from "../../utils/local-storage";
 import { statusToKind } from "../../utils/status";
 import { Button } from "../shared/button";
@@ -58,7 +59,7 @@ function AppEntry({ manifest, location, searchString }: AppEntryProps) {
         data-testid={`app-item-${manifest.app_key}`}
       >
         <Link href={appPath} class={styles.appLink} aria-current={isActive ? "page" : undefined} data-testid="app-link">
-          <StatusShape kind={kind} size={10} />
+          <StatusShape kind={kind} size={STATUS_DOT_SIZE} />
           <span class={styles.appName}>{manifest.display_name}</span>
           {manifest.auto_loaded && (
             <Chip variant="muted" title="Auto-loaded">

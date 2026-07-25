@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { LogEntry } from "@/api/endpoints";
 import { createLogEntry } from "@/test/factories";
+import { createWouterMock } from "@/test/mock-wouter";
 
 import { COPY_CONFIRM_MS } from "./constants";
 import { LogDetailDrawer } from "./log-detail-drawer";
@@ -14,13 +15,7 @@ vi.mock("@/hooks/use-media-query", () => ({
   BREAKPOINT_TABLET: 1024,
 }));
 
-vi.mock("wouter", () => ({
-  Link: ({ href, children, class: cls }: Record<string, unknown>) => (
-    <a href={href as string} class={cls as string}>
-      {children as never}
-    </a>
-  ),
-}));
+vi.mock("wouter", () => createWouterMock());
 
 function makeEntry(overrides: Partial<LogEntry> = {}) {
   return createLogEntry({

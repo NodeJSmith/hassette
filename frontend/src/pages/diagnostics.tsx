@@ -15,6 +15,7 @@ import { useRelativeTime } from "../hooks/use-relative-time";
 import { queryKeys } from "../lib/query-keys";
 import { useAppState } from "../state/context";
 import type { ServiceStatusEntry } from "../state/create-app-state";
+import { STATUS_DOT_SIZE } from "../utils/constants";
 import { statusToKind } from "../utils/status";
 import styles from "./diagnostics.module.css";
 
@@ -192,7 +193,7 @@ function BootIssuesPanel({ bootIssues }: BootIssuesPanelProps) {
               class={styles.bootRow}
               data-testid={`diag-boot-issue-${i}`}
             >
-              <StatusShape kind={kind} size={10} />
+              <StatusShape kind={kind} size={STATUS_DOT_SIZE} />
               <div class={styles.bootContent}>
                 <span class={styles.bootLabel} data-testid={`diag-boot-label-${i}`}>
                   {issue.label}

@@ -2,18 +2,13 @@ import { fireEvent } from "@testing-library/preact";
 import { describe, expect, it, vi } from "vitest";
 
 import { type AppStatusEntry, appStatusKey } from "../state/create-app-state";
+import { createWouterMock } from "../test/mock-wouter";
 import { renderWithAppState } from "../test/render-helpers";
 import type { AppRow } from "../utils/app-data";
 import { INACTIVE_STATUSES } from "../utils/status";
 import { AppTableRow } from "./apps-table-row";
 
-vi.mock("wouter", () => ({
-  Link: ({ href, children, class: cls }: Record<string, unknown>) => (
-    <a href={href as string} class={cls as string}>
-      {children as never}
-    </a>
-  ),
-}));
+vi.mock("wouter", () => createWouterMock());
 
 vi.mock("../components/shared/action-buttons", () => ({
   ActionButtons: () => <div data-testid="action-buttons" />,

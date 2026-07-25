@@ -5,17 +5,12 @@ import type { ComponentChildren } from "preact";
 import { describe, expect, it, vi } from "vitest";
 
 import { createExecution } from "../../test/factories";
+import { createWouterMock } from "../../test/mock-wouter";
 import { createTestQueryClient } from "../../test/query-test-utils";
 import { server } from "../../test/server";
 import { ExecutionDetailContent, ExecutionDetailFetcher } from "./execution-detail";
 
-vi.mock("wouter", () => ({
-  Link: ({ href, children, class: cls }: Record<string, unknown>) => (
-    <a href={href as string} class={cls as string}>
-      {children as never}
-    </a>
-  ),
-}));
+vi.mock("wouter", () => createWouterMock());
 
 vi.mock("../shared/execution-logs", () => ({
   ExecutionLogs: ({ executionId }: { executionId: string }) => (

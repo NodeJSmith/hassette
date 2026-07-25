@@ -2,13 +2,12 @@ import { fireEvent, render } from "@testing-library/preact";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createExecution } from "../../test/factories";
+import { createWouterMock } from "../../test/mock-wouter";
 import { formatTimestamp } from "../../utils/format";
 import { ExecutionTable } from "./execution-table";
 
 const mockNavigate = vi.fn();
-vi.mock("wouter", () => ({
-  useLocation: () => ["/", mockNavigate],
-}));
+vi.mock("wouter", () => createWouterMock({ useLocation: () => ["/", mockNavigate] }));
 
 describe("ExecutionTable", () => {
   afterEach(() => {

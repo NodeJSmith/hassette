@@ -1,11 +1,10 @@
 import { render } from "@testing-library/preact";
 import { describe, expect, it, vi } from "vitest";
 
+import { createWouterMock } from "../../test/mock-wouter";
 import { ExecutionLogs } from "./execution-logs";
 
-vi.mock("wouter", () => ({
-  Link: (props: Record<string, unknown>) => <a {...props} />,
-}));
+vi.mock("wouter", () => createWouterMock());
 
 vi.mock("./log-table", () => ({
   useLogTable: () => ({

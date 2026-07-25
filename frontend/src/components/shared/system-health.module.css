@@ -28,7 +28,7 @@
   border-radius: var(--r-pill);
   display: inline-block;
   background: var(--ok-vivid);
-  animation: breathe 2.5s ease-in-out infinite;
+  animation: breathe var(--t-breathe) ease-in-out infinite;
   flex-shrink: 0;
 }
 

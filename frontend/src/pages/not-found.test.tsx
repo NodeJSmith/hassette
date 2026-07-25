@@ -1,11 +1,10 @@
 import { render } from "@testing-library/preact";
 import { describe, expect, it, vi } from "vitest";
 
+import { createWouterMock } from "../test/mock-wouter";
 import { NotFoundPage } from "./not-found";
 
-vi.mock("wouter", () => ({
-  Link: (props: Record<string, unknown>) => <a {...props} />,
-}));
+vi.mock("wouter", () => createWouterMock());
 
 describe("NotFoundPage", () => {
   it("renders 404 heading", () => {

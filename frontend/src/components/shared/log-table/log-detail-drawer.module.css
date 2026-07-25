@@ -78,8 +78,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: var(--sz-icon-btn);
+  height: var(--sz-icon-btn);
   border-radius: var(--r-sm);
   font-size: var(--fs-body);
   color: var(--ink-3);

@@ -8,6 +8,7 @@ import type { AppManifest, JobData, ListenerData } from "../api/endpoints";
 import { AppStateContext } from "../state/context";
 import { type AppState, createAppState } from "../state/create-app-state";
 import { createInstance, createManifest } from "../test/factories";
+import { createWouterMock } from "../test/mock-wouter";
 import { createTestQueryClient } from "../test/query-test-utils";
 import { server } from "../test/server";
 import { AppDetailPage } from "./app-detail";
@@ -17,34 +18,12 @@ let mockSearchString = "";
 const mockNavigate = vi.fn();
 
 // Stub wouter navigation
-vi.mock("wouter", () => ({
-  useLocation: () => ["/apps/test_app", mockNavigate],
-  useSearch: () => mockSearchString,
-  Link: ({
-    href,
-    children,
-    role,
-    "aria-selected": ariaSelected,
-    "aria-controls": ariaControls,
-    id,
-    class: cls,
-    "data-testid": testId,
-    onKeyDown,
-  }: Record<string, unknown>) => (
-    <a
-      href={href as string}
-      role={role as import("preact").JSX.AriaRole}
-      aria-selected={ariaSelected as boolean}
-      aria-controls={ariaControls as string}
-      id={id as string}
-      class={cls as string}
-      data-testid={testId as string}
-      onKeyDown={onKeyDown as never}
-    >
-      {children as never}
-    </a>
-  ),
-}));
+vi.mock("wouter", () =>
+  createWouterMock({
+    useLocation: () => ["/apps/test_app", mockNavigate],
+    useSearch: () => mockSearchString,
+  }),
+);
 
 // Stub child components not under test
 vi.mock("../components/shared/error-banner", () => ({

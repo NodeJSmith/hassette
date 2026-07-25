@@ -1,17 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { createWouterMock } from "../test/mock-wouter";
 import { renderWithAppState } from "../test/render-helpers";
 import { formatRate, SECONDS_PER_HOUR } from "../utils/format";
 import type { UnifiedRow } from "../utils/handler-rows";
 import { HandlerMobileRow, HandlerTableRow } from "./handlers-rows";
 
-vi.mock("wouter", () => ({
-  Link: ({ href, children, class: cls, ...rest }: Record<string, unknown>) => (
-    <a href={href as string} class={cls as string} {...rest}>
-      {children as never}
-    </a>
-  ),
-}));
+vi.mock("wouter", () => createWouterMock());
 
 function createRow(overrides: Partial<UnifiedRow> = {}): UnifiedRow {
   return {

@@ -1,16 +1,18 @@
 import { act, renderHook } from "@testing-library/preact";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createWouterMock } from "../test/mock-wouter";
 import { useQueryParams } from "./use-query-params";
 
-// Mutable state for the wouter mock
 let mockSearch = "";
 const mockNavigate = vi.fn();
 
-vi.mock("wouter", () => ({
-  useSearch: () => mockSearch,
-  useLocation: () => ["/", mockNavigate],
-}));
+vi.mock("wouter", () =>
+  createWouterMock({
+    useSearch: () => mockSearch,
+    useLocation: () => ["/", mockNavigate],
+  }),
+);
 
 beforeEach(() => {
   mockSearch = "";
