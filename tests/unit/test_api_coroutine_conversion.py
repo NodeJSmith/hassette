@@ -31,6 +31,7 @@ _API_METHODS = [
     pytest.param(lambda a: a.turn_on("light.kitchen"), id="turn_on"),
     pytest.param(lambda a: a.turn_off("light.kitchen"), id="turn_off"),
     pytest.param(lambda a: a.toggle("switch.fan"), id="toggle"),
+    pytest.param(lambda a: a.notify("hi", "mobile_app_test"), id="notify"),
 ]
 
 
@@ -65,6 +66,7 @@ def test_converted_method_is_plain_def(method_name: str) -> None:
         pytest.param(lambda a: a.turn_on("light.kitchen"), id="turn_on"),
         pytest.param(lambda a: a.turn_off("light.kitchen"), id="turn_off"),
         pytest.param(lambda a: a.toggle("switch.fan"), id="toggle"),
+        pytest.param(lambda a: a.notify("hi", "mobile_app_test"), id="notify"),
     ],
 )
 async def test_await_returns_none(call) -> None:

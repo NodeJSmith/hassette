@@ -4,6 +4,7 @@ import type { ComponentProps } from "preact";
 import { createRef } from "preact";
 import { describe, expect, it, vi } from "vitest";
 
+import { createWouterMock } from "../../test/mock-wouter";
 import { renderWithAppState } from "../../test/render-helpers";
 import { StatusBar } from "./status-bar";
 
@@ -26,13 +27,7 @@ vi.mock("../../hooks/use-query-params", () => ({
 }));
 
 // Breadcrumbs renders wouter's Link, which needs a Router this render lacks.
-vi.mock("wouter", () => ({
-  Link: ({ href, children, class: cls }: Record<string, unknown>) => (
-    <a href={href as string} class={cls as string}>
-      {children as never}
-    </a>
-  ),
-}));
+vi.mock("wouter", () => createWouterMock());
 
 // useBreadcrumbs reads wouter's location, which needs a Router this render lacks.
 vi.mock("../../hooks/use-breadcrumbs", () => ({

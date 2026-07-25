@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AppStateContext } from "../state/context";
 import { createAppState } from "../state/create-app-state";
+import { createWouterMock } from "../test/mock-wouter";
 import { server } from "../test/server";
 import { useBreadcrumbs } from "./use-breadcrumbs";
 
@@ -13,10 +14,12 @@ const DEFAULT_LOCATION = "/apps/demo_app/handlers/job/7";
 const location = signal(DEFAULT_LOCATION);
 
 // Repo convention: mock wouter's hooks rather than mounting a real Router.
-vi.mock("wouter", () => ({
-  useLocation: () => [location.value],
-  useSearch: () => "",
-}));
+vi.mock("wouter", () =>
+  createWouterMock({
+    useLocation: () => [location.value],
+    useSearch: () => "",
+  }),
+);
 
 function Probe() {
   const crumbs = useBreadcrumbs();

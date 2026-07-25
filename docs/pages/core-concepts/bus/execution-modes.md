@@ -143,12 +143,9 @@ monitoring UI surfaces a cancelled count separate from failures.
 
 A `restart` handler working as designed shows a high cancelled count and a
 100% success rate. Cancellation is the intended outcome, so it never counts
-against the success rate.
-
-![Handler strip showing a cancelled count beside a 100% success rate](../../../_static/web_ui_cancelled_strip.png)
-
-The handler detail pane marks each cancelled invocation with a blue diamond.
-A `cancelled` label sets it apart from the red square of an error.
+against the success rate. The handler detail pane surfaces the cancelled
+count alongside the error rate, and marks each cancelled invocation with a
+blue diamond to set it apart from the red square of an error.
 
 ![Restart handler detail with cancelled invocations](../../../_static/web_ui_cancelled_detail.png)
 

@@ -2,16 +2,11 @@ import { signal } from "@preact/signals";
 import { render } from "@testing-library/preact";
 import { describe, expect, it, vi } from "vitest";
 
+import { createWouterMock } from "../../test/mock-wouter";
 import { renderWithAppState } from "../../test/render-helpers";
 import { AlertBanner, TelemetryDegradedBanner } from "./alert-banner";
 
-vi.mock("wouter", () => ({
-  Link: ({ href, children, class: cls }: Record<string, unknown>) => (
-    <a href={href as string} class={cls as string}>
-      {children as never}
-    </a>
-  ),
-}));
+vi.mock("wouter", () => createWouterMock());
 
 describe("AlertBanner", () => {
   it("renders nothing when no failed apps", () => {

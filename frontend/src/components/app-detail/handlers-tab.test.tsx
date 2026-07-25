@@ -4,6 +4,7 @@ import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createJob, createListener } from "../../test/factories";
+import { createWouterMock } from "../../test/mock-wouter";
 import { renderWithAppState } from "../../test/render-helpers";
 import { server } from "../../test/server";
 import { HandlersTab } from "./handlers-tab";
@@ -26,9 +27,7 @@ vi.mock("./execution-detail", () => ({
 const mockNavigate = vi.fn();
 const mockCorrectUrl = vi.fn();
 
-vi.mock("wouter", () => ({
-  useLocation: () => ["/apps/test_app/handlers", mockNavigate],
-}));
+vi.mock("wouter", () => createWouterMock({ useLocation: () => ["/apps/test_app/handlers", mockNavigate] }));
 
 vi.mock("../../hooks/use-correct-url", () => ({
   useCorrectUrl: () => mockCorrectUrl,

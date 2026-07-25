@@ -87,6 +87,7 @@ CANONICAL_PROTECTED: dict[type, set[str]] = {
         "turn_on",
         "turn_off",
         "toggle",
+        "notify",
     },
 }
 
@@ -141,6 +142,7 @@ DOCUMENTED_EXCLUSIONS: dict[type, set[str]] = {
         "get_histories",
         "get_history",
         "get_logbook",
+        "get_notify_services",
         "get_panels",
         "get_services",
         "get_state",

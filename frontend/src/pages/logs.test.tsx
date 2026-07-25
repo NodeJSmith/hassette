@@ -1,6 +1,7 @@
 import { signal } from "@preact/signals";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createWouterMock } from "../test/mock-wouter";
 import { renderWithAppState } from "../test/render-helpers";
 import { LogsPage } from "./logs";
 
@@ -10,15 +11,12 @@ const mockNavigate = vi.fn((url: string) => {
   mockSearchSignal.value = qIdx >= 0 ? url.slice(qIdx + 1) : "";
 });
 
-vi.mock("wouter", () => ({
-  useSearch: () => mockSearchSignal.value,
-  useLocation: () => ["/logs", mockNavigate],
-  Link: ({ href, children, class: cls }: Record<string, unknown>) => (
-    <a href={href as string} class={cls as string}>
-      {children as never}
-    </a>
-  ),
-}));
+vi.mock("wouter", () =>
+  createWouterMock({
+    useSearch: () => mockSearchSignal.value,
+    useLocation: () => ["/logs", mockNavigate],
+  }),
+);
 
 vi.mock("../components/shared/log-table", () => ({
   useLogTable: () => ({

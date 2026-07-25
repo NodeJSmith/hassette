@@ -1,11 +1,11 @@
 import { fireEvent, screen } from "@testing-library/preact";
 import { http, HttpResponse } from "msw";
-import { h } from "preact";
 import { describe, expect, it, vi } from "vitest";
 
 import type { components } from "../../api/generated-types";
 import { createInstance, createListener, createManifest } from "../../test/factories";
 import { withManifests as installManifests } from "../../test/handlers";
+import { createWouterMock } from "../../test/mock-wouter";
 import { renderWithAppState } from "../../test/render-helpers";
 import { server } from "../../test/server";
 import { CommandPalette } from "./command-palette";
@@ -14,11 +14,7 @@ type AppManifest = components["schemas"]["AppManifestResponse"];
 type ListenerWithSummary = components["schemas"]["ListenerWithSummary"];
 
 // Mock wouter — factory cannot reference top-level variables (hoisting)
-vi.mock("wouter", () => ({
-  useLocation: vi.fn().mockReturnValue(["/", vi.fn()]),
-  Link: ({ href, children, class: cls, ...rest }: Record<string, unknown>) =>
-    h("a", { href, class: cls, ...rest }, children as never),
-}));
+vi.mock("wouter", () => createWouterMock({ useLocation: vi.fn().mockReturnValue(["/", vi.fn()]) }));
 
 // Import after mock is set up so useLocation is already mocked
 const wouter = await import("wouter");

@@ -33,6 +33,7 @@ KNOWN_READ_METHODS: frozenset[str] = frozenset(
         "get_states_raw",
         "get_config",
         "get_services",
+        "get_notify_services",
         "get_panels",
         "get_history",
         "get_histories",

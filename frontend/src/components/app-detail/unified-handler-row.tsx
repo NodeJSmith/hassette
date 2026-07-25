@@ -2,6 +2,7 @@ import clsx from "clsx";
 
 import type { JobData, ListenerData } from "../../api/endpoints";
 import { useRelativeTime } from "../../hooks/use-relative-time";
+import { STATUS_DOT_SIZE } from "../../utils/constants";
 import { formatTimestamp, pluralize } from "../../utils/format";
 import type { StatusKind } from "../../utils/status";
 import { Badge } from "../shared/badge";
@@ -73,7 +74,7 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
       onClick={onSelect}
     >
       <span class={styles.status} aria-hidden="true">
-        <StatusShape kind={item.statusKind} size={10} />
+        <StatusShape kind={item.statusKind} size={STATUS_DOT_SIZE} />
       </span>
       <div class={styles.body}>
         <div class={styles.header}>

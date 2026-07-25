@@ -1,13 +1,16 @@
 import { act, renderHook } from "@testing-library/preact";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createWouterMock } from "../test/mock-wouter";
 import { useCorrectUrl } from "./use-correct-url";
 
 const mockNavigate = vi.fn();
 
-vi.mock("wouter", () => ({
-  useLocation: () => ["/apps/foo/handlers/listener/999", mockNavigate],
-}));
+vi.mock("wouter", () =>
+  createWouterMock({
+    useLocation: () => ["/apps/foo/handlers/listener/999", mockNavigate],
+  }),
+);
 
 beforeEach(() => {
   mockNavigate.mockReset();

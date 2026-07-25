@@ -139,6 +139,7 @@
   /* Component sizing */
   --sz-touch: 44px;
   --sz-icon-sm: 14px;
+  --sz-icon-btn: 28px;
   --sz-sidebar: 240px;
   --sz-search-min: 160px;
   --sz-popover-min: 200px;
@@ -182,6 +183,7 @@
   --t-fast: 120ms;
   --t-med: 200ms;
   --t-spin: 0.8s;
+  --t-breathe: 2.5s;
 
   /* Effects */
   --blur-overlay: 2px;

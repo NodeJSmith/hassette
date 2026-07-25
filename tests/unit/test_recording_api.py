@@ -10,6 +10,7 @@ Tests cover:
 - ApiProtocol conformance (smoke test)
 - ApiCall extraction to api_call module
 - StrEnum coercion for turn_on, turn_off, toggle
+- notify recording, notifier normalization, and seeded get_notify_services
 - Tailored __getattr__ messages
 - get_entity_or_none BaseEntity subclass path (regression for inline refactor)
 """
@@ -381,6 +382,59 @@ async def test_get_calls_filtered():
     assert turn_on_calls[0].method == "turn_on"
     set_state_calls = api.get_calls("set_state")
     assert len(set_state_calls) == 1
+
+
+async def test_notify_records_call():
+    api = make_recording_api()
+    await api.notify("door open", "mobile_app_phone", title="Alert", data={"push": {"sound": "alarm.caf"}})
+    assert len(api.calls) == 1
+    call = api.calls[0]
+    assert call.method == "notify"
+    assert call.args == ("door open", "mobile_app_phone")
+    assert call.kwargs == {
+        "message": "door open",
+        "notifier": "mobile_app_phone",
+        "title": "Alert",
+        "data": {"push": {"sound": "alarm.caf"}},
+    }
+
+
+async def test_notify_normalizes_fully_qualified_notifier():
+    """A 'notify.'-qualified notifier is recorded under its bare name, matching the real Api."""
+    api = make_recording_api()
+    await api.notify("hello", "notify.mobile_app_phone")
+    api.assert_called("notify", notifier="mobile_app_phone", message="hello")
+
+
+async def test_notify_rejects_invalid_notifier():
+    api = make_recording_api()
+    with pytest.raises(ValueError, match="notifier"):
+        await api.notify("hello", "light.kitchen")
+    assert api.calls == []
+
+
+async def test_notify_deep_copies_data():
+    """Mutating the caller's data dict after the call must not rewrite the recorded call."""
+    api = make_recording_api()
+    data = {"push": {"sound": "alarm.caf"}}
+    await api.notify("hello", "mobile_app_phone", data=data)
+    data["push"]["sound"] = "changed.caf"
+    assert api.calls[0].kwargs["data"] == {"push": {"sound": "alarm.caf"}}
+
+
+async def test_get_notify_services_returns_seeded_notifiers():
+    api = make_recording_api()
+    assert await api.get_notify_services() == []
+
+    api.notify_services = ["mobile_app_phone", "alexa_media"]
+    assert await api.get_notify_services() == ["alexa_media", "mobile_app_phone"]
+
+
+async def test_reset_clears_notify_services():
+    api = make_recording_api()
+    api.notify_services = ["mobile_app_phone"]
+    api.reset()
+    assert await api.get_notify_services() == []
 
 
 async def test_reset_clears_calls():

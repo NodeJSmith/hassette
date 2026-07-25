@@ -2,14 +2,16 @@ import { act, renderHook } from "@testing-library/preact";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createAppState } from "../state/create-app-state";
+import { createWouterMock } from "../test/mock-wouter";
 
-// Track the mock location and its setter so tests can simulate navigation
 let mockLocation = "/";
 const mockSetLocation = vi.fn();
 
-vi.mock("wouter", () => ({
-  useLocation: () => [mockLocation, mockSetLocation],
-}));
+vi.mock("wouter", () =>
+  createWouterMock({
+    useLocation: () => [mockLocation, mockSetLocation],
+  }),
+);
 
 vi.mock("../api/endpoints", () => ({
   getTelemetryStatus: vi.fn(),

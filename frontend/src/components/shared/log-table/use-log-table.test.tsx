@@ -8,6 +8,7 @@ import type { LogEntry } from "@/api/endpoints";
 import { AppStateContext } from "@/state/context";
 import { createAppState } from "@/state/create-app-state";
 import { createLogEntry } from "@/test/factories";
+import { createWouterMock } from "@/test/mock-wouter";
 
 import { RENDER_CAP } from "./constants";
 import type { FilterState } from "./types";
@@ -87,10 +88,12 @@ vi.mock("@/hooks/use-media-query", () => ({
   BREAKPOINT_MOBILE: 768,
 }));
 
-vi.mock("wouter", () => ({
-  useSearch: () => "",
-  useLocation: () => ["/", vi.fn()],
-}));
+vi.mock("wouter", () =>
+  createWouterMock({
+    useSearch: () => "",
+    useLocation: () => ["/", vi.fn()],
+  }),
+);
 
 // The mock factories above close over these bindings via getter functions;
 // because getters are evaluated at call time (not at factory evaluation time),

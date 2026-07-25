@@ -4,6 +4,7 @@ import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createManifest } from "../test/factories";
+import { createWouterMock } from "../test/mock-wouter";
 import { renderWithAppState } from "../test/render-helpers";
 import { server } from "../test/server";
 import { AppsPage } from "./apps";
@@ -12,15 +13,12 @@ import { AppsPage } from "./apps";
 let mockSearch = "";
 const mockNavigate = vi.fn();
 
-vi.mock("wouter", () => ({
-  useSearch: () => mockSearch,
-  useLocation: () => ["/apps", mockNavigate],
-  Link: ({ href, children, class: cls }: Record<string, unknown>) => (
-    <a href={href as string} class={cls as string}>
-      {children as never}
-    </a>
-  ),
-}));
+vi.mock("wouter", () =>
+  createWouterMock({
+    useSearch: () => mockSearch,
+    useLocation: () => ["/apps", mockNavigate],
+  }),
+);
 
 vi.mock("../components/shared/spinner", () => ({
   Spinner: () => <div data-testid="spinner" />,

@@ -1,15 +1,10 @@
 import { render } from "@testing-library/preact";
 import { describe, expect, it, vi } from "vitest";
 
+import { createWouterMock } from "../../test/mock-wouter";
 import { Breadcrumbs } from "./breadcrumbs";
 
-vi.mock("wouter", () => ({
-  Link: ({ href, children, class: cls }: Record<string, unknown>) => (
-    <a href={href as string} class={cls as string}>
-      {children as never}
-    </a>
-  ),
-}));
+vi.mock("wouter", () => createWouterMock());
 
 describe("Breadcrumbs", () => {
   it("renders nothing when the trail is empty", () => {

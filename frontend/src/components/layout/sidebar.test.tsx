@@ -1,11 +1,11 @@
 import { signal } from "@preact/signals";
 import { fireEvent, screen } from "@testing-library/preact";
-import { h } from "preact";
 import { describe, expect, it, vi } from "vitest";
 
 import type { components } from "../../api/generated-types";
 import { createInstance, createManifest } from "../../test/factories";
 import { withManifests as installManifests } from "../../test/handlers";
+import { createWouterMock } from "../../test/mock-wouter";
 import { renderWithAppState } from "../../test/render-helpers";
 import { server } from "../../test/server";
 import { Sidebar } from "./sidebar";
@@ -16,25 +16,15 @@ function withManifests(manifests: AppManifest[]) {
   installManifests(manifests, server);
 }
 
-// Mock wouter to control the current location
-vi.mock("wouter", () => ({
-  Link: ({
-    href,
-    class: cls,
-    children,
-    "aria-label": ariaLabel,
-    "aria-current": ariaCurrent,
-    "data-testid": testId,
-    ...rest
-  }: Record<string, unknown>) =>
-    h(
-      "a",
-      { href, class: cls, "aria-label": ariaLabel, "aria-current": ariaCurrent, "data-testid": testId, ...rest },
-      children as never,
-    ),
-  useLocation: vi.fn().mockReturnValue(["/", vi.fn()]),
-  useSearch: vi.fn().mockReturnValue(""),
-}));
+// Mock wouter to control the current location. The shared Link stub already spreads
+// unrecognized props (aria-label, aria-current, data-testid, etc.) onto the <a>, so no
+// sidebar-specific extension is needed here.
+vi.mock("wouter", () =>
+  createWouterMock({
+    useLocation: vi.fn().mockReturnValue(["/", vi.fn()]),
+    useSearch: vi.fn().mockReturnValue(""),
+  }),
+);
 
 const wouter = await import("wouter");
 const useLocation = wouter.useLocation as ReturnType<typeof vi.fn>;

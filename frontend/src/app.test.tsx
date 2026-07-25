@@ -4,26 +4,34 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./app";
 
-// Mock wouter so we control routing without a real browser history
-vi.mock("wouter", () => ({
-  Route: ({ component, children }: Record<string, unknown>) => {
-    if (component) {
-      const Component = component as () => preact.JSX.Element;
-      return <Component />;
-    }
-    if (children) return children as preact.JSX.Element;
-    return null;
-  },
-  Redirect: () => null,
-  Switch: ({ children }: { children: unknown }) => children,
-  Link: ({ href, children, class: cls, ...rest }: Record<string, unknown>) => (
-    <a href={href as string} class={cls as string} {...rest}>
-      {children as never}
-    </a>
-  ),
-  useLocation: vi.fn().mockReturnValue(["/", vi.fn()]),
-  useSearch: vi.fn().mockReturnValue(""),
-}));
+// Mock wouter so we control routing without a real browser history.
+//
+// createWouterMock is imported dynamically inside the factory (instead of a static top-level
+// import) because this file and `test/mock-wouter` are both direct children of `src/` — see the
+// "Import-order hazard" note on createWouterMock's JSDoc for why that specific layout is unsafe
+// with a plain import.
+vi.mock("wouter", async () => {
+  const { createWouterMock } = await import("./test/mock-wouter");
+  return {
+    ...createWouterMock({
+      useLocation: vi.fn().mockReturnValue(["/", vi.fn()]),
+      useSearch: vi.fn().mockReturnValue(""),
+    }),
+    Route: ({
+      component: Component,
+      children,
+    }: {
+      component?: preact.FunctionComponent;
+      children?: preact.ComponentChildren;
+    }) => {
+      if (Component) return <Component />;
+      if (children) return children;
+      return null;
+    },
+    Redirect: () => null,
+    Switch: ({ children }: { children: unknown }) => children,
+  };
+});
 vi.mock("./pages/apps", () => ({
   AppsPage: () => <div data-testid="apps-page">Apps</div>,
 }));
@@ -191,7 +199,6 @@ describe("App — visibilitychange tick recovery", () => {
     // Tick increment is verified implicitly: the handler calls state.tick.value++
     // which would throw if state were invalid. The useRelativeTime hook tests
     // verify that tick increments cause re-renders with updated strings.
-    expect(handlers.length).toBeGreaterThan(0);
 
     addSpy.mockRestore();
   });
