@@ -44,7 +44,7 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
   const chipLabel = itemKindChip(item);
   const runCount = itemRunCount(item);
   const failing = isFailing(item);
-  const errorMessage = failing && item.kind === "listener" ? itemErrorMessage(item) : null;
+  const errorMessage = failing ? itemErrorMessage(item) : null;
   const { failed, timed_out: timedOut } = item.data;
 
   let nextRunLabel: string | null = null;

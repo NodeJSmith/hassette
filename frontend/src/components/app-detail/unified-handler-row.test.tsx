@@ -206,6 +206,26 @@ describe("UnifiedHandlerRow — subline switching", () => {
     expect(errSubline?.textContent).toContain("KeyError");
   });
 
+  it("shows last_error_message when a failing job has errors", () => {
+    const job = createJob({
+      job_id: 1,
+      failed: 3,
+      last_error_message: "ConnectionError: timeout",
+    });
+    const item = {
+      kind: "job" as const,
+      id: 1,
+      name: "sync_data",
+      humanDescription: null,
+      statusKind: "err" as const,
+      data: job,
+    };
+    const { container } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, { wrapper });
+    const errSubline = container.querySelector("[data-testid='handler-row-subline-err']");
+    expect(errSubline).not.toBeNull();
+    expect(errSubline?.textContent).toContain("ConnectionError");
+  });
+
   it("does not show a description line for healthy handlers (context lives in the detail pane)", () => {
     const listener = createListener({
       listener_id: 1,
