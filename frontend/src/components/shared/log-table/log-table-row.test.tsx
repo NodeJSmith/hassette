@@ -2,6 +2,7 @@ import { fireEvent, render } from "@testing-library/preact";
 import { describe, expect, it, vi } from "vitest";
 
 import { createLogEntry } from "@/test/factories";
+import { createWouterMock } from "@/test/mock-wouter";
 
 import type { ColumnId } from "./types";
 
@@ -14,13 +15,7 @@ vi.mock("@/hooks/use-relative-time", () => ({
   useRelativeTime: () => "2m ago",
 }));
 
-vi.mock("wouter", () => ({
-  Link: ({ href, children, class: cls }: Record<string, unknown>) => (
-    <a href={href as string} class={cls as string}>
-      {children as never}
-    </a>
-  ),
-}));
+vi.mock("wouter", () => createWouterMock());
 
 import { formatTimestamp } from "@/utils/format";
 

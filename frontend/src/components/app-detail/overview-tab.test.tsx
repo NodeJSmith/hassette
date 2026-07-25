@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { components } from "../../api/generated-types";
 import { WS_DEBOUNCE_MAX_WAIT_MS } from "../../hooks/use-query-invalidator";
 import { createJob, createListener, createLogEntry } from "../../test/factories";
+import { createWouterMock } from "../../test/mock-wouter";
 import { renderWithAppState } from "../../test/render-helpers";
 import { server } from "../../test/server";
 import { OverviewTab } from "./overview-tab";
@@ -29,15 +30,12 @@ type ExecutionEvent = {
 
 const mockNavigate = vi.fn();
 
-vi.mock("wouter", () => ({
-  Link: ({ href, children, ...rest }: { href: string; children: preact.ComponentChildren; [k: string]: unknown }) => (
-    <a href={href} {...rest}>
-      {children}
-    </a>
-  ),
-  useSearch: () => "",
-  useLocation: () => ["/", mockNavigate],
-}));
+vi.mock("wouter", () =>
+  createWouterMock({
+    useSearch: () => "",
+    useLocation: () => ["/", mockNavigate],
+  }),
+);
 
 function renderOverviewTab({
   listeners = [createListener()],

@@ -2,6 +2,7 @@ import { fireEvent } from "@testing-library/preact";
 import { describe, expect, it, vi } from "vitest";
 
 import { createJob, createListener } from "../../test/factories";
+import { createWouterMock } from "../../test/mock-wouter";
 import { renderWithAppState } from "../../test/render-helpers";
 import { HandlerHealthCard } from "./handler-health-card";
 import { buildItems } from "./handler-list";
@@ -9,9 +10,7 @@ import { buildItems } from "./handler-list";
 // Mock wouter for navigation assertions
 const mockNavigate = vi.fn();
 
-vi.mock("wouter", () => ({
-  useLocation: () => ["/", mockNavigate],
-}));
+vi.mock("wouter", () => createWouterMock({ useLocation: () => ["/", mockNavigate] }));
 
 function makeListenerItem(overrides: Parameters<typeof createListener>[0] = {}) {
   const listener = createListener({ listener_id: 1, ...overrides });

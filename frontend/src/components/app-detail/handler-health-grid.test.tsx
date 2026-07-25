@@ -2,19 +2,17 @@ import { render } from "@testing-library/preact";
 import { describe, expect, it, vi } from "vitest";
 
 import { createJob, createListener } from "../../test/factories";
+import { createWouterMock } from "../../test/mock-wouter";
 import { renderWithAppState } from "../../test/render-helpers";
 import { HandlerHealthGrid } from "./handler-health-grid";
 import { buildItems } from "./handler-list";
 
-vi.mock("wouter", () => ({
-  Link: ({ href, children, ...rest }: { href: string; children: preact.ComponentChildren; [k: string]: unknown }) => (
-    <a href={href} {...rest}>
-      {children}
-    </a>
-  ),
-  useLocation: () => ["/", vi.fn()],
-  useSearch: () => "",
-}));
+vi.mock("wouter", () =>
+  createWouterMock({
+    useLocation: () => ["/", vi.fn()],
+    useSearch: () => "",
+  }),
+);
 
 function makeListenerItem(overrides: Parameters<typeof createListener>[0] = {}) {
   const listener = createListener({ listener_id: 1, total_invocations: 1, ...overrides });

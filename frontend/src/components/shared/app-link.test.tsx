@@ -1,13 +1,9 @@
 import { render } from "@testing-library/preact";
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("wouter", () => ({
-  Link: ({ href, children, class: cls }: Record<string, unknown>) => (
-    <a href={href as string} class={cls as string}>
-      {children as never}
-    </a>
-  ),
-}));
+import { createWouterMock } from "../../test/mock-wouter";
+
+vi.mock("wouter", () => createWouterMock());
 
 import { AppLink } from "./app-link";
 

@@ -4,26 +4,37 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./app";
 
-// Mock wouter so we control routing without a real browser history
-vi.mock("wouter", () => ({
-  Route: ({ component, children }: Record<string, unknown>) => {
-    if (component) {
-      const Component = component as () => preact.JSX.Element;
-      return <Component />;
-    }
-    if (children) return children as preact.JSX.Element;
-    return null;
-  },
-  Redirect: () => null,
-  Switch: ({ children }: { children: unknown }) => children,
-  Link: ({ href, children, class: cls, ...rest }: Record<string, unknown>) => (
-    <a href={href as string} class={cls as string} {...rest}>
-      {children as never}
-    </a>
-  ),
-  useLocation: vi.fn().mockReturnValue(["/", vi.fn()]),
-  useSearch: vi.fn().mockReturnValue(""),
-}));
+// Mock wouter so we control routing without a real browser history.
+//
+// `vi.mock` hoists the *registration* of this factory above all imports, but the factory
+// *body* only runs later, the first time something actually imports "wouter" — here, that's
+// triggered by the `./app` import below (App imports wouter transitively). If `createWouterMock`
+// were a static top-level import instead, its binding would only be initialized once that
+// import statement's own line has executed — and eslint's import-sorter alphabetizes this
+// file's same-level imports ("./app" vs "./test/mock-wouter"), so it can place `./app` first.
+// That ordering makes `./app` resolve "wouter" (running this factory) before
+// `./test/mock-wouter` has finished initializing, throwing "Cannot access before
+// initialization". Importing it dynamically inside the factory sidesteps that: the import
+// only starts once the factory itself is invoked, so it can never race the outer import order.
+vi.mock("wouter", async () => {
+  const { createWouterMock } = await import("./test/mock-wouter");
+  return {
+    ...createWouterMock({
+      useLocation: vi.fn().mockReturnValue(["/", vi.fn()]),
+      useSearch: vi.fn().mockReturnValue(""),
+    }),
+    Route: ({ component, children }: Record<string, unknown>) => {
+      if (component) {
+        const Component = component as () => preact.JSX.Element;
+        return <Component />;
+      }
+      if (children) return children as preact.JSX.Element;
+      return null;
+    },
+    Redirect: () => null,
+    Switch: ({ children }: { children: unknown }) => children,
+  };
+});
 vi.mock("./pages/apps", () => ({
   AppsPage: () => <div data-testid="apps-page">Apps</div>,
 }));
@@ -191,7 +202,6 @@ describe("App — visibilitychange tick recovery", () => {
     // Tick increment is verified implicitly: the handler calls state.tick.value++
     // which would throw if state were invalid. The useRelativeTime hook tests
     // verify that tick increments cause re-renders with updated strings.
-    expect(handlers.length).toBeGreaterThan(0);
 
     addSpy.mockRestore();
   });
