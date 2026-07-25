@@ -11,7 +11,7 @@ import pytest
 from pydantic import ValidationError
 
 from hassette.core.execution_record import ExecutionRecord
-from hassette.schemas.telemetry_models import Execution
+from hassette.schemas.execution_models import Execution
 
 
 class TestExecutionModelKindHandler:

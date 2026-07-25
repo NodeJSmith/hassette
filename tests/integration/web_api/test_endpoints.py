@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from hassette.exceptions import TelemetryUnavailableError
-from hassette.schemas.telemetry_models import ListenerSummary
+from hassette.schemas.listener_models import ListenerSummary
 from hassette.test_utils.web_helpers import make_manifest
 from hassette.web.config_view import MASK_SENTINEL
 

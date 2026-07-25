@@ -4,12 +4,18 @@ This module contains Pydantic ``BaseModel`` classes representing live system
 state and WebSocket event data. These are domain objects returned by
 ``RuntimeQueryService`` and are independent of the web presentation layer.
 
-For DB query result models, see ``telemetry_models.py``.
+For DB query result models, see the domain-grouped sibling files:
+``listener_models.py``, ``execution_models.py``, ``job_models.py``,
+``summary_models.py``, and ``log_models.py``.
 
 Separation rationale
 --------------------
 - ``domain_models.py`` — live state snapshots and WS event payloads (this module)
-- ``telemetry_models.py`` — DB query result models (historical/aggregated data)
+- ``listener_models.py`` — per-listener summaries, stats, and error records
+- ``execution_models.py`` — unified execution records and activity feed
+- ``job_models.py`` — per-job summaries, stats, and error records
+- ``summary_models.py`` — app-health and global aggregates
+- ``log_models.py`` — log records and blocking events
 
 The web layer (``hassette.web``) maps these domain objects to HTTP/WS response
 models via ``hassette.web.mappers``. Core services must NOT import from

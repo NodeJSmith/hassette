@@ -13,14 +13,10 @@ from fastapi import APIRouter, Query, Response
 
 from hassette.const.misc import SECONDS_PER_DAY
 from hassette.exceptions import TelemetryUnavailableError
+from hassette.schemas.execution_models import ActivityFeedEntry, AppLastError, Execution
+from hassette.schemas.job_models import JobSummary
 from hassette.schemas.query_constants import DEFAULT_QUERY_LIMIT, DEFAULT_SPARKLINE_BUCKETS, MAX_QUERY_LIMIT
-from hassette.schemas.telemetry_models import (
-    ActivityFeedEntry,
-    AppHealthSummary,
-    AppLastError,
-    Execution,
-    JobSummary,
-)
+from hassette.schemas.summary_models import AppHealthSummary
 from hassette.types.types import QuerySourceTier
 from hassette.web.dependencies import (
     APP_KEY_PARAM,

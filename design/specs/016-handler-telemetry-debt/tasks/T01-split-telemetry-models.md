@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Split telemetry_models.py into domain files"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#7", "AC#4"]
 ---

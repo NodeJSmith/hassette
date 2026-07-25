@@ -1,6 +1,6 @@
 """Unit tests for telemetry Pydantic models."""
 
-from hassette.schemas.telemetry_models import JobSummary
+from hassette.schemas.job_models import JobSummary
 from hassette.test_utils.config import TEST_SOURCE_LOCATION
 from hassette.types.enums import DEFAULT_OVERLAP_MODE
 

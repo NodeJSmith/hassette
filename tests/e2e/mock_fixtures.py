@@ -12,18 +12,10 @@ from unittest.mock import AsyncMock, MagicMock
 from hassette.config import HassetteConfig
 from hassette.config.models import DEFAULT_WEB_API_PORT
 from hassette.schemas.app_snapshots import AppInstanceInfo, AppManifestInfo, AppStatusSnapshot
-from hassette.schemas.telemetry_models import (
-    AppHealthSummary,
-    Execution,
-    GlobalSummary,
-    HandlerErrorRecord,
-    JobErrorRecord,
-    JobGlobalStats,
-    JobSummary,
-    ListenerGlobalStats,
-    ListenerSummary,
-    SessionRecord,
-)
+from hassette.schemas.execution_models import Execution
+from hassette.schemas.job_models import JobErrorRecord, JobGlobalStats, JobSummary
+from hassette.schemas.listener_models import HandlerErrorRecord, ListenerGlobalStats, ListenerSummary
+from hassette.schemas.summary_models import AppHealthSummary, GlobalSummary, SessionRecord
 from hassette.test_utils.web_helpers import make_job, make_manifest
 from hassette.types.enums import ResourceStatus
 

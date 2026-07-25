@@ -6,12 +6,10 @@ import pytest
 
 from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry.query_service import TelemetryQueryService
-from hassette.schemas.telemetry_models import (
-    Execution,
-    JobSummary,
-    ListenerSummary,
-    SessionRecord,
-)
+from hassette.schemas.execution_models import Execution
+from hassette.schemas.job_models import JobSummary
+from hassette.schemas.listener_models import ListenerSummary
+from hassette.schemas.summary_models import SessionRecord
 
 from .helpers import (
     BASE_TS,

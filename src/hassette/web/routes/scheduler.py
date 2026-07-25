@@ -6,7 +6,7 @@ Returns all scheduled jobs across all apps, enriched with live heap data.
 from fastapi import APIRouter, HTTPException, Query, Response
 
 import hassette.utils.date_utils as date_utils
-from hassette.schemas.telemetry_models import JobSummary
+from hassette.schemas.job_models import JobSummary
 from hassette.types.enums import ExecutionMode
 from hassette.types.types import QuerySourceTier
 from hassette.web.dependencies import SOURCE_TIER_PARAM, SchedulerDep, TelemetryDep, db_degrades_to

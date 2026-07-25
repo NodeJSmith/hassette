@@ -2,8 +2,8 @@
 
 from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppStatusSnapshot
 from hassette.schemas.domain_models import SystemStatus
+from hassette.schemas.listener_models import ListenerSummary
 from hassette.schemas.live_counts import LiveCounts
-from hassette.schemas.telemetry_models import ListenerSummary
 from hassette.test_utils.config import TEST_SOURCE_LOCATION
 from hassette.test_utils.web_helpers import make_manifest
 from hassette.types.enums import ResourceStatus

@@ -5,8 +5,8 @@ from typing import TYPE_CHECKING, Any
 
 from hassette.const.misc import SECONDS_PER_HOUR
 from hassette.core.telemetry.helpers import row_to_dict, since_clause, source_tier_clause
+from hassette.schemas.execution_models import ActivityFeedEntry, AppLastError, Execution
 from hassette.schemas.query_constants import DEFAULT_QUERY_LIMIT, DEFAULT_SPARKLINE_BUCKETS
-from hassette.schemas.telemetry_models import ActivityFeedEntry, AppLastError, Execution
 from hassette.types.types import QuerySourceTier
 
 if TYPE_CHECKING:

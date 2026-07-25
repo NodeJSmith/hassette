@@ -7,7 +7,8 @@ values outside that set at validation time.
 import pytest
 from pydantic import ValidationError
 
-from hassette.schemas.telemetry_models import ActivityFeedEntry, Execution, LogRecord
+from hassette.schemas.execution_models import ActivityFeedEntry, Execution
+from hassette.schemas.log_models import LogRecord
 from hassette.types.enums import ResourceStatus
 from hassette.types.types import ExecutionStatus
 from hassette.web.models import (

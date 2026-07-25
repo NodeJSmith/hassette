@@ -24,7 +24,8 @@ from hassette.config.models import DEFAULT_WEB_API_PORT
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.triggers import After, Cron, Every, Once
 from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo
-from hassette.schemas.telemetry_models import ActivityFeedEntry, Execution, JobSummary
+from hassette.schemas.execution_models import ActivityFeedEntry, Execution
+from hassette.schemas.job_models import JobSummary
 from hassette.test_utils.config import DEFAULT_TEST_APP_KEY, TEST_EPOCH_B
 from hassette.types.enums import ExecutionMode
 from hassette.types.types import ExecutionStatus, SchedulerPredicate

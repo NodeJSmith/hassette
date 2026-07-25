@@ -11,7 +11,7 @@ from typing import Any, assert_never
 
 import aiosqlite
 
-from hassette.schemas.telemetry_models import AppHealthSummary
+from hassette.schemas.summary_models import AppHealthSummary
 from hassette.types.types import QuerySourceTier, is_framework_key
 
 # Storage-layer exceptions translated to TelemetryUnavailableError at the read boundary.
