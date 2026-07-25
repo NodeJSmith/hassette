@@ -22,6 +22,7 @@ from typing import Any, Literal
 
 from whenever import Instant
 
+from hassette.core.database_service import LOG_RECORD_COLUMNS
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.migration_runner import run_migrations
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
@@ -39,6 +40,25 @@ REFERENCE_INSTANT = Instant.from_utc(2026, 1, 15, 12, 0)
 """Deterministic reference point. All scenario timestamps are fixed offsets from this
 instant — never wall-clock — so re-running a scenario produces identical data."""
 
+# Repeated seed-data conventions, named once instead of retyped at each scenario call site.
+APP_TIME_SPACING_SECONDS = 3600.0
+"""One hour of timeline separation between each fictional app within a scenario."""
+
+HEARTBEAT_OFFSET_SECONDS = 1800.0
+"""30-minute heartbeat offset used for a 'running' session's last_heartbeat_at."""
+
+STATE_CHANGED_TOPIC = "hass.event.state_changed"
+"""Canonical topic string for a state-change listener."""
+
+WATCHDOG_TIER = "watchdog"
+MONKEYPATCH_TIER = "monkeypatch"
+"""The two ``blocking_events.tier`` values (see ``BlockingEvent`` in telemetry_models.py)."""
+
+REASON_FRAMEWORK = "framework"
+REASON_ATTRIBUTED = "attributed"
+"""Two of the three ``blocking_events.reason`` values this seed script generates (the third,
+"displaced", has no scenario call site today)."""
+
 # SQLite reserved words that appear as column names and must be quoted when building
 # dynamic INSERT statements. Only "group" (scheduled_jobs.group) needs this today.
 _RESERVED_COLUMNS = frozenset({"group"})
@@ -55,30 +75,6 @@ _SESSION_COLUMNS = (
     "dropped_overflow",
     "dropped_exhausted",
     "dropped_shutdown",
-)
-
-# log_records table columns (see migrations_sql/001.sql), excluding the autoincrement id.
-# 13 columns — not to be confused with the 7-ish shape of other event tables.
-# NOTE: this tuple is a hand-kept duplicate of `_LOG_COLUMNS` in
-# src/hassette/core/database_service.py:53. That copy is underscore-prefixed (private) and
-# out of this script's read-only scope, so it can't be imported directly. If a migration
-# changes log_records' columns, update both copies — a mismatch here won't be caught by a
-# column-count check, only by the post-seed integrity checks (and only if the drift also
-# breaks a constraint).
-_LOG_COLUMNS = (
-    "seq",
-    "timestamp",
-    "level",
-    "logger_name",
-    "func_name",
-    "lineno",
-    "message",
-    "exc_info",
-    "app_key",
-    "instance_name",
-    "instance_index",
-    "execution_id",
-    "source_tier",
 )
 
 # blocking_events table columns (see migrations_sql/005.sql, 007.sql), excluding the
@@ -148,7 +144,7 @@ def _build_insert_sql(table: str, columns: Iterable[str], *, returning: bool = F
 
 
 _SESSION_INSERT_SQL = _build_insert_sql("sessions", _SESSION_COLUMNS, returning=True)
-_LOG_INSERT_SQL = _build_insert_sql("log_records", _LOG_COLUMNS)
+_LOG_INSERT_SQL = _build_insert_sql("log_records", LOG_RECORD_COLUMNS)
 _BLOCKING_EVENT_INSERT_SQL = _build_insert_sql("blocking_events", _BLOCKING_EVENT_COLUMNS)
 
 
@@ -478,13 +474,15 @@ def _seed_simple_app(
     is exhausted — the total error count is what matters for health computation, not which
     slice they land in.
     """
-    session_id = ctx.add_session(started_at=ts(base_offset), last_heartbeat_at=ts(base_offset + 1800.0))
+    session_id = ctx.add_session(
+        started_at=ts(base_offset), last_heartbeat_at=ts(base_offset + HEARTBEAT_OFFSET_SECONDS)
+    )
     listener_id = ctx.add_listener(
         make_listener_registration(
             app_key=app_key,
             instance_index=0,
             handler_method=f"{class_name}.on_state_change",
-            topic="hass.event.state_changed",
+            topic=STATE_CHANGED_TOPIC,
             name=f"{app_key}_state_listener",
             source_location=f"{app_key}.py:12",
         )
@@ -502,7 +500,7 @@ def _seed_simple_app(
     )
 
     n_listener_execs = max(1, exec_count * 2 // 3)
-    n_job_execs = max(1, exec_count - n_listener_execs) if exec_count - n_listener_execs > 0 else 0
+    n_job_execs = max(0, exec_count - n_listener_execs)
     listener_errors = min(n_errors, n_listener_execs)
     job_errors = min(max(0, n_errors - n_listener_execs), n_job_execs)
     _seed_executions(
@@ -549,7 +547,7 @@ def scenario_healthy(ctx: SeedContext) -> None:
     ]
     seq = 1
     for i, (app_key, class_name, n_errors) in enumerate(apps):
-        base = i * 3600.0
+        base = i * APP_TIME_SPACING_SECONDS
         _seed_simple_app(
             ctx,
             scenario="healthy",
@@ -586,8 +584,8 @@ def scenario_healthy(ctx: SeedContext) -> None:
     # (blocking events don't factor into compute_error_rate/classify_health_bar).
     ctx.add_blocking_event(
         **make_blocking_event(
-            tier="watchdog",
-            reason="framework",
+            tier=WATCHDOG_TIER,
+            reason=REASON_FRAMEWORK,
             session_id=None,
             app_key=None,
             instance_name=None,
@@ -611,7 +609,7 @@ def scenario_degraded(ctx: SeedContext) -> None:
     for i, (app_key, class_name, n_errors) in enumerate(
         [("weather_watcher", "WeatherWatcher", 0), ("garage_door", "GarageDoor", 0)]
     ):
-        base = i * 3600.0
+        base = i * APP_TIME_SPACING_SECONDS
         _seed_simple_app(
             ctx,
             scenario="degraded",
@@ -633,7 +631,7 @@ def scenario_degraded(ctx: SeedContext) -> None:
 
     # leaky_faucet_monitor and hallway_thermostat are seeded individually (not in a loop) so
     # hallway_thermostat's session_id is captured directly, for the blocking event below.
-    base = 2 * 3600.0
+    base = 2 * APP_TIME_SPACING_SECONDS
     _seed_simple_app(
         ctx,
         scenario="degraded",
@@ -655,7 +653,7 @@ def scenario_degraded(ctx: SeedContext) -> None:
         message_prefix="Repeated connection failures",
     )
 
-    hallway_base = 3 * 3600.0
+    hallway_base = 3 * APP_TIME_SPACING_SECONDS
     hallway_session_id, _listener_id, _job_id = _seed_simple_app(
         ctx,
         scenario="degraded",
@@ -679,7 +677,7 @@ def scenario_degraded(ctx: SeedContext) -> None:
 
     # Boot-issue app: first boot fails outright, second boot recovers to 'running'.
     app_key, class_name = "boiler_controller", "BoilerController"
-    base = 4 * 3600.0
+    base = 4 * APP_TIME_SPACING_SECONDS
     failed_session_id = ctx.add_session(
         started_at=ts(base),
         last_heartbeat_at=ts(base + 5.0),
@@ -688,13 +686,15 @@ def scenario_degraded(ctx: SeedContext) -> None:
         error_type="ConnectionError",
         error_message="Could not reach Home Assistant",
     )
-    running_session_id = ctx.add_session(started_at=ts(base + 60.0), last_heartbeat_at=ts(base + 1800.0))
+    running_session_id = ctx.add_session(
+        started_at=ts(base + 60.0), last_heartbeat_at=ts(base + HEARTBEAT_OFFSET_SECONDS)
+    )
     listener_id = ctx.add_listener(
         make_listener_registration(
             app_key=app_key,
             instance_index=0,
             handler_method=f"{class_name}.on_temperature_change",
-            topic="hass.event.state_changed",
+            topic=STATE_CHANGED_TOPIC,
             name=f"{app_key}_temp_listener",
             source_location=f"{app_key}.py:20",
         )
@@ -762,8 +762,8 @@ def scenario_degraded(ctx: SeedContext) -> None:
 
     ctx.add_blocking_event(
         **make_blocking_event(
-            tier="watchdog",
-            reason="attributed",
+            tier=WATCHDOG_TIER,
+            reason=REASON_ATTRIBUTED,
             session_id=hallway_session_id,
             app_key="hallway_thermostat",
             instance_name=make_instance_name("HallwayThermostat", 0),
@@ -789,7 +789,7 @@ def scenario_error(ctx: SeedContext) -> None:
     ]
     seq = 1
     for i, (app_key, class_name) in enumerate(apps):
-        base = i * 3600.0
+        base = i * APP_TIME_SPACING_SECONDS
         if i == 0:
             # Boot failure followed by a crash on the retry -- the worst-case narrative.
             ctx.add_session(
@@ -829,7 +829,7 @@ def scenario_error(ctx: SeedContext) -> None:
                 app_key=app_key,
                 instance_index=0,
                 handler_method=f"{class_name}.on_state_change",
-                topic="hass.event.state_changed",
+                topic=STATE_CHANGED_TOPIC,
                 name=f"{app_key}_state_listener",
                 source_location=f"{app_key}.py:10",
             )
@@ -900,8 +900,8 @@ def scenario_error(ctx: SeedContext) -> None:
 
         ctx.add_blocking_event(
             **make_blocking_event(
-                tier="watchdog",
-                reason="attributed",
+                tier=WATCHDOG_TIER,
+                reason=REASON_ATTRIBUTED,
                 session_id=session_id,
                 app_key=app_key,
                 instance_name=make_instance_name(class_name, 0),
@@ -935,7 +935,7 @@ def scenario_large_volume(ctx: SeedContext) -> None:
     seq = 1
     session_ids_by_app: dict[str, int] = {}
     for i, (app_key, class_name, error_pct) in enumerate(apps):
-        base = i * 3600.0
+        base = i * APP_TIME_SPACING_SECONDS
         session_id, listener_id, _job_id = _seed_simple_app(
             ctx,
             scenario="large-volume",
@@ -972,13 +972,13 @@ def scenario_large_volume(ctx: SeedContext) -> None:
 
     ctx.add_blocking_event(
         **make_blocking_event(
-            tier="watchdog",
-            reason="attributed",
+            tier=WATCHDOG_TIER,
+            reason=REASON_ATTRIBUTED,
             session_id=session_ids_by_app["hvac_zone_g"],
             app_key="hvac_zone_g",
             instance_name=make_instance_name("HvacZoneG", 0),
             instance_index=0,
-            detected_ts=ts(6 * 3600.0 + 500.0),
+            detected_ts=ts(6 * APP_TIME_SPACING_SECONDS + 500.0),
             source_tier="app",
             stall_duration_ms=1500.0,
         )
@@ -1026,7 +1026,7 @@ def scenario_lifecycle(ctx: SeedContext) -> None:
 
     # -- alarm_system: active listener, a cancelled-only job, crashed session then a restart --
     app_key, class_name = "alarm_system", "AlarmSystem"
-    base = 3600.0
+    base = APP_TIME_SPACING_SECONDS
     ctx.add_session(
         started_at=ts(base),
         last_heartbeat_at=ts(base + 30.0),
@@ -1036,13 +1036,15 @@ def scenario_lifecycle(ctx: SeedContext) -> None:
         error_message="Unhandled exception in event loop",
         error_traceback="Traceback (most recent call last):\n  ...\nRuntimeError: Unhandled exception in event loop",
     )
-    running_session_id = ctx.add_session(started_at=ts(base + 90.0), last_heartbeat_at=ts(base + 1800.0))
+    running_session_id = ctx.add_session(
+        started_at=ts(base + 90.0), last_heartbeat_at=ts(base + HEARTBEAT_OFFSET_SECONDS)
+    )
     listener_id = ctx.add_listener(
         make_listener_registration(
             app_key=app_key,
             instance_index=0,
             handler_method=f"{class_name}.on_motion",
-            topic="hass.event.state_changed",
+            topic=STATE_CHANGED_TOPIC,
             name=f"{app_key}_motion_listener",
             source_location=f"{app_key}.py:15",
         )
@@ -1083,24 +1085,24 @@ def scenario_lifecycle(ctx: SeedContext) -> None:
     # -- camera_array: multi-instance app; instance 1 has a retired+cancelled listener --
     app_key, class_name = "camera_array", "CameraArray"
     base = 7200.0
-    session_id_0 = ctx.add_session(started_at=ts(base), last_heartbeat_at=ts(base + 1800.0))
+    session_id_0 = ctx.add_session(started_at=ts(base), last_heartbeat_at=ts(base + HEARTBEAT_OFFSET_SECONDS))
     listener_id_0 = ctx.add_listener(
         make_listener_registration(
             app_key=app_key,
             instance_index=0,
             handler_method=f"{class_name}.on_motion",
-            topic="hass.event.state_changed",
+            topic=STATE_CHANGED_TOPIC,
             name=f"{app_key}_motion_listener",
             source_location=f"{app_key}.py:18",
         )
     )
-    session_id_1 = ctx.add_session(started_at=ts(base), last_heartbeat_at=ts(base + 1800.0))
+    session_id_1 = ctx.add_session(started_at=ts(base), last_heartbeat_at=ts(base + HEARTBEAT_OFFSET_SECONDS))
     listener_id_1 = ctx.add_listener(
         make_listener_registration(
             app_key=app_key,
             instance_index=1,
             handler_method=f"{class_name}.on_motion",
-            topic="hass.event.state_changed",
+            topic=STATE_CHANGED_TOPIC,
             name=f"{app_key}_motion_listener",
             source_location=f"{app_key}.py:18",
         )
@@ -1180,8 +1182,8 @@ def scenario_lifecycle(ctx: SeedContext) -> None:
     )
     ctx.add_blocking_event(
         **make_blocking_event(
-            tier="watchdog",
-            reason="attributed",
+            tier=WATCHDOG_TIER,
+            reason=REASON_ATTRIBUTED,
             session_id=session_id,
             app_key=app_key,
             instance_name=make_instance_name(class_name, 0),
@@ -1203,7 +1205,7 @@ def scenario_adversarial(ctx: SeedContext) -> None:
     # -- long_handler_names_app: 100+ character handler names, long nested-predicate topics --
     app_key, class_name = "long_handler_names_app", "LongHandlerNamesApp"
     base = 0.0
-    session_id = ctx.add_session(started_at=ts(base), last_heartbeat_at=ts(base + 1800.0))
+    session_id = ctx.add_session(started_at=ts(base), last_heartbeat_at=ts(base + HEARTBEAT_OFFSET_SECONDS))
     long_handler = (
         f"{class_name}.on_extremely_verbose_state_change_handler_that_describes_"
         "exactly_what_it_does_in_the_method_name_itself_for_maximum_clarity_and_length"
@@ -1252,8 +1254,8 @@ def scenario_adversarial(ctx: SeedContext) -> None:
 
     # -- many_listeners_app: 120 listeners on one app --
     app_key, class_name = "many_listeners_app", "ManyListenersApp"
-    base = 3600.0
-    session_id = ctx.add_session(started_at=ts(base), last_heartbeat_at=ts(base + 1800.0))
+    base = APP_TIME_SPACING_SECONDS
+    session_id = ctx.add_session(started_at=ts(base), last_heartbeat_at=ts(base + HEARTBEAT_OFFSET_SECONDS))
     n_listeners = 120
     listener_ids = [
         ctx.add_listener(
@@ -1290,13 +1292,13 @@ def scenario_adversarial(ctx: SeedContext) -> None:
     # -- Unicode app key, listener name, and job name (Japanese + emoji) --
     app_key, class_name = "モーションセンサー_\U0001f3e0", "MotionSensor"
     base = 7200.0
-    session_id = ctx.add_session(started_at=ts(base), last_heartbeat_at=ts(base + 1800.0))
+    session_id = ctx.add_session(started_at=ts(base), last_heartbeat_at=ts(base + HEARTBEAT_OFFSET_SECONDS))
     listener_id = ctx.add_listener(
         make_listener_registration(
             app_key=app_key,
             instance_index=0,
             handler_method=f"{class_name}.on_motion_detected",
-            topic="hass.event.state_changed",
+            topic=STATE_CHANGED_TOPIC,
             name="動作検知リスナー_\U0001f6b6",
             source_location=f"{class_name}.py:5",
         )
@@ -1346,8 +1348,8 @@ def scenario_adversarial(ctx: SeedContext) -> None:
     # -- Blocking events: both tiers -- one attributed to the Unicode app, one unresolved --
     ctx.add_blocking_event(
         **make_blocking_event(
-            tier="watchdog",
-            reason="attributed",
+            tier=WATCHDOG_TIER,
+            reason=REASON_ATTRIBUTED,
             session_id=session_id,
             app_key=app_key,
             instance_name=make_instance_name(class_name, 0),
@@ -1359,8 +1361,8 @@ def scenario_adversarial(ctx: SeedContext) -> None:
     )
     ctx.add_blocking_event(
         **make_blocking_event(
-            tier="monkeypatch",
-            reason="framework",
+            tier=MONKEYPATCH_TIER,
+            reason=REASON_FRAMEWORK,
             session_id=None,
             app_key=None,
             instance_name=None,
