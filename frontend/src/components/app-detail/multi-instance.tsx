@@ -2,6 +2,7 @@ import clsx from "clsx";
 
 import type { AppInstance } from "../../api/endpoints";
 import styles from "../../pages/app-detail.module.css";
+import { STATUS_DOT_SIZE } from "../../utils/constants";
 import { statusToKind, statusToVariant } from "../../utils/status";
 import { Badge } from "../shared/badge";
 import { StatusShape } from "../shared/status-shape";
@@ -52,7 +53,7 @@ function InstanceCard({ instance, onNavigate }: { instance: AppInstance; onNavig
       aria-label={`View ${instance.instance_name}`}
     >
       <div class={styles.instanceCardHeader}>
-        <StatusShape kind={statusToKind(instance.status)} size={10} />
+        <StatusShape kind={statusToKind(instance.status)} size={STATUS_DOT_SIZE} />
         <span class={styles.instanceCardName}>{instance.instance_name}</span>
         <Badge variant={statusToVariant(instance.status)} size="sm" class={styles.instanceCardStatusBadge}>
           {instance.status}
