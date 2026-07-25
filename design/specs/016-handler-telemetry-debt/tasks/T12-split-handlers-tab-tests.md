@@ -1,7 +1,7 @@
 ---
 task_id: "T12"
 title: "Split handlers-tab.test.tsx"
-status: "planned"
+status: "done"
 depends_on: ["T10"]
 implements: ["FR#11", "AC#3"]
 ---
