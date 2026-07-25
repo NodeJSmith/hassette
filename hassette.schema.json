@@ -221,11 +221,13 @@
           "title": "Allow Reload In Prod",
           "type": "boolean"
         },
-        "allow_only_app_in_prod": {
-          "default": false,
-          "description": "Whether to allow the `only_app` decorator in production mode. Defaults to False.",
-          "title": "Allow Only App In Prod",
-          "type": "boolean"
+        "only_apps": {
+          "description": "App keys to run exclusively \u2014 every other configured app is excluded.\n\nSet by ``hassette run --app <key>`` (repeat the flag or pass a comma-separated list).\nHonored in both dev and production mode.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Only Apps",
+          "type": "array"
         },
         "forgotten_await_behavior": {
           "anyOf": [
@@ -255,7 +257,7 @@
         },
         "enabled": {
           "default": true,
-          "description": "Whether the app is enabled or not, will default to True if not set. Does not consider @only_app decorator.",
+          "description": "Whether the app is enabled or not, will default to True if not set. Does not consider ``--app`` filter.",
           "title": "Enabled",
           "type": "boolean"
         },

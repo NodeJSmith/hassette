@@ -62,14 +62,14 @@ def _tally_statuses(manifests: Sequence[AppManifestInfo | AppManifestResponse]) 
 
 def make_full_snapshot(
     manifests: list[AppManifestInfo] | None = None,
-    only_app: str | None = None,
+    only_apps: list[str] | None = None,
 ) -> AppFullSnapshot:
     """Build an AppFullSnapshot from a list of manifests."""
     manifests = manifests or []
     counts = _tally_statuses(manifests)
     return AppFullSnapshot(
         manifests=manifests,
-        only_app=only_app,
+        only_apps=only_apps or [],
         total=len(manifests),
         **counts,
     )

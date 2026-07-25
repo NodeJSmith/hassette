@@ -16,7 +16,7 @@ class TestAppStatusSnapshot:
         snapshot = AppStatusSnapshot()
         assert snapshot.running == []
         assert snapshot.failed == []
-        assert snapshot.only_app is None
+        assert snapshot.only_apps == []
         assert snapshot.total_count == 0
         assert snapshot.running_count == 0
         assert snapshot.failed_count == 0
@@ -30,12 +30,12 @@ class TestAppStatusSnapshot:
         failed = [
             AppInstanceInfo("app3", 0, "app3.0", "App3", ResourceStatus.FAILED, error=Exception("test")),
         ]
-        snapshot = AppStatusSnapshot(running=running, failed=failed, only_app="app1")
+        snapshot = AppStatusSnapshot(running=running, failed=failed, only_apps=["app1"])
 
         assert snapshot.running_count == 2
         assert snapshot.failed_count == 1
         assert snapshot.total_count == 3
-        assert snapshot.only_app == "app1"
+        assert snapshot.only_apps == ["app1"]
 
 
 class TestAppRegistry:
@@ -217,7 +217,7 @@ class TestAppRegistry:
 
         assert snapshot.running == []
         assert snapshot.failed == []
-        assert snapshot.only_app is None
+        assert snapshot.only_apps == []
 
     def test_get_snapshot_with_running_apps(self, registry: AppRegistry, mock_app: MagicMock) -> None:
         """Test snapshot includes running apps."""
@@ -250,13 +250,13 @@ class TestAppRegistry:
         assert info.error is error
         assert info.error_message == "startup failed"
 
-    def test_get_snapshot_with_only_app(self, registry: AppRegistry) -> None:
-        """Test snapshot includes only_app."""
-        registry.set_only_app("special_app")
+    def test_get_snapshot_with_only_apps(self, registry: AppRegistry) -> None:
+        """Test snapshot includes only_apps, sorted for stable output."""
+        registry.set_only_apps(["special_app", "other_app"])
 
         snapshot = registry.get_snapshot()
 
-        assert snapshot.only_app == "special_app"
+        assert snapshot.only_apps == ["other_app", "special_app"]
 
     def test_get_snapshot_preserves_resource_status(self, registry: AppRegistry) -> None:
         """Test that snapshot uses ResourceStatus directly from app."""
@@ -290,13 +290,13 @@ class TestAppRegistry:
         manifests["app2"] = MagicMock()
         assert "app2" not in registry.manifests
 
-    def test_set_only_app(self, registry: AppRegistry) -> None:
-        """Test setting only_app."""
-        registry.set_only_app("my_app")
-        assert registry.only_app == "my_app"
+    def test_set_only_apps(self, registry: AppRegistry) -> None:
+        """Test setting and clearing the exclusive-app filter."""
+        registry.set_only_apps(["my_app", "other_app"])
+        assert registry.only_apps == frozenset({"my_app", "other_app"})
 
-        registry.set_only_app(None)
-        assert registry.only_app is None
+        registry.set_only_apps(())
+        assert registry.only_apps == frozenset()
 
     def test_enabled_manifests(self, registry: AppRegistry) -> None:
         """Test enabled_manifests returns only enabled apps."""
@@ -310,6 +310,26 @@ class TestAppRegistry:
         result = registry.enabled_manifests
         assert "app1" in result
         assert "app2" not in result
+
+    def test_active_manifests_narrows_to_only_apps(self, registry: AppRegistry) -> None:
+        """active_manifests keeps every key in the filter and drops the rest."""
+        manifests = {}
+        for key in ("app1", "app2", "app3"):
+            manifest = MagicMock()
+            manifest.enabled = True
+            manifests[key] = manifest
+        registry.set_manifests(manifests)
+        registry.set_only_apps(["app1", "app3"])
+
+        assert set(registry.active_manifests) == {"app1", "app3"}
+
+    def test_active_manifests_unfiltered_when_only_apps_empty(self, registry: AppRegistry) -> None:
+        """An empty filter means every enabled app is active."""
+        manifest = MagicMock()
+        manifest.enabled = True
+        registry.set_manifests({"app1": manifest, "app2": manifest})
+
+        assert set(registry.active_manifests) == {"app1", "app2"}
 
 
 class TestBlockedApps:

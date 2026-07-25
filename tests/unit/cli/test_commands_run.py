@@ -63,3 +63,39 @@ class TestCmdRun:
         assert config.token.get_secret_value() == "test-token"
         assert str(config.base_url) == "http://ha:8123"
         assert config.dev_mode is True
+
+    @pytest.mark.parametrize(
+        ("app_values", "expected"),
+        [
+            pytest.param(["kitchen"], ("kitchen",), id="single"),
+            pytest.param(["kitchen", "porch"], ("kitchen", "porch"), id="repeated"),
+            pytest.param(["kitchen,porch"], ("kitchen", "porch"), id="comma-separated"),
+            pytest.param(["kitchen, porch"], ("kitchen", "porch"), id="comma-separated-with-space"),
+            pytest.param(["kitchen", "kitchen,porch"], ("kitchen", "porch"), id="deduplicated"),
+        ],
+    )
+    def test_app_flag_populates_only_apps(
+        self, mock_run_server: AsyncMock, app_values: list[str], expected: tuple[str, ...]
+    ) -> None:
+        cmd_run(app=app_values)
+        config = mock_run_server.call_args[0][0]
+        assert config.only_apps == expected
+
+    def test_no_app_flag_leaves_only_apps_empty(self, mock_run_server: AsyncMock) -> None:
+        cmd_run()
+        config = mock_run_server.call_args[0][0]
+        assert config.only_apps == ()
+
+    @pytest.mark.parametrize(
+        "app_values",
+        [
+            pytest.param([""], id="empty-string"),
+            pytest.param([","], id="bare-comma"),
+            pytest.param([",,"], id="multiple-commas"),
+            pytest.param([" "], id="whitespace"),
+        ],
+    )
+    def test_empty_app_values_rejected(self, mock_run_server: AsyncMock, app_values: list[str]) -> None:
+        with pytest.raises(SystemExit):
+            cmd_run(app=app_values)
+        mock_run_server.assert_not_called()

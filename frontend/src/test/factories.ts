@@ -67,7 +67,7 @@ export function createManifestList(overrides: Partial<AppManifestListResponse> =
     disabled: 0,
     blocked: 0,
     manifests: [createManifest()],
-    only_app: null,
+    only_apps: [],
     ...overrides,
   } satisfies AppManifestListResponse;
 }

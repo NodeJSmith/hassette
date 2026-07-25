@@ -62,18 +62,18 @@ class TestAppLifecycleServiceInit:
 
 
 class TestOnlyAppRegistryAgreement:
-    """Pin: registry.only_app must equal the value passed to detect_changes."""
+    """Pin: registry.only_apps must equal the value passed to detect_changes."""
 
-    async def test_detect_changes_receives_registry_only_app(
+    async def test_detect_changes_receives_registry_only_apps(
         self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
     ) -> None:
-        """The value passed as only_app to detect_changes matches registry.only_app at call time."""
-        mock_registry.only_app = "pinned_app"
+        """The value passed as only_apps to detect_changes matches registry.only_apps at call time."""
+        mock_registry.only_apps = frozenset({"pinned_app"})
 
-        captured_only_app: list[str | None] = []
+        captured_only_apps: list[frozenset[str] | None] = []
 
-        def capture_only_app(_original, _current, _changed_paths, *, only_app=None):
-            captured_only_app.append(only_app)
+        def capture_only_apps(_original, _current, _changed_paths, *, only_apps=None):
+            captured_only_apps.append(only_apps)
             return ChangeSet(
                 orphans=frozenset(),
                 new_apps=frozenset(),
@@ -81,12 +81,12 @@ class TestOnlyAppRegistryAgreement:
                 reload_apps=frozenset(),
             )
 
-        lifecycle_service.change_detector.detect_changes = capture_only_app  # pyright: ignore[reportAttributeAccessIssue]
+        lifecycle_service.change_detector.detect_changes = capture_only_apps  # pyright: ignore[reportAttributeAccessIssue]
 
         await lifecycle_service.handle_change_event()
 
-        assert len(captured_only_app) == 1
-        assert captured_only_app[0] == mock_registry.only_app
+        assert len(captured_only_apps) == 1
+        assert captured_only_apps[0] == mock_registry.only_apps
 
 
 class TestAppLifecycleServiceProperties:
@@ -485,7 +485,7 @@ class TestBootstrapApps:
     async def test_handles_crash(self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock) -> None:
         """Calls handle_crash and re-raises on exception."""
         mock_registry.manifests = {"app_a": MagicMock()}
-        lifecycle_service.resolve_only_app = AsyncMock(side_effect=RuntimeError("crash"))
+        lifecycle_service.resolve_only_apps = AsyncMock(side_effect=RuntimeError("crash"))
 
         with patch("hassette.core.app_lifecycle_service.handle_crash") as mock_handle_crash:
             with pytest.raises(RuntimeError, match="crash"):

@@ -588,6 +588,47 @@ class TestDefaultCacheTtl:
         assert "default_cache_size" not in HassetteConfig.model_fields
 
 
+class TestOnlyApps:
+    """Tests for HassetteConfig.only_apps, populated by `hassette run --app`."""
+
+    def test_defaults_to_empty(self) -> None:
+        assert LogLevelTestConfig().only_apps == ()
+
+    def test_accepts_explicit_keys(self) -> None:
+        assert LogLevelTestConfig(only_apps=("kitchen", "porch")).only_apps == ("kitchen", "porch")
+
+    def test_reload_preserves_init_kwargs(self) -> None:
+        """The file watcher reloads config on every save — CLI flags must survive that."""
+        config = LogLevelTestConfig(only_apps=("kitchen",), dev_mode=True)
+
+        config.reload()
+
+        assert config.only_apps == ("kitchen",)
+        assert config.dev_mode is True
+
+    def test_reload_without_init_kwargs_rereads_sources(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Replaying init kwargs must not pin values that were never passed in."""
+        config = LogLevelTestConfig()
+        assert config.only_apps == ()
+
+        monkeypatch.setenv("HASSETTE__ONLY_APPS", '["porch"]')
+        config.reload()
+
+        assert config.only_apps == ("porch",)
+
+    def test_replayed_kwargs_keep_secrets_wrapped(self) -> None:
+        """The retained kwargs must not hold a second, unmasked copy of the token."""
+        config = LogLevelTestConfig(token=TEST_TOKEN)
+
+        assert isinstance(config._init_kwargs["token"], SecretStr)
+        assert TEST_TOKEN not in repr(config._init_kwargs)
+
+        config.reload()
+
+        assert config.token is not None
+        assert config.token.get_secret_value() == TEST_TOKEN
+
+
 def test_websocket_connect_retry_defaults() -> None:
     """Connect-retry fields under websocket group have the correct default values."""
     config = LogLevelTestConfig()

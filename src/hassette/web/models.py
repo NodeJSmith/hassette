@@ -121,7 +121,7 @@ class AppStatusResponse(BaseModel):
     running: int
     failed: int
     apps: list[AppInstanceResponse]
-    only_app: str | None = None
+    only_apps: list[str] = Field(default_factory=list)
 
 
 class AppManifestResponse(BaseModel):
@@ -155,7 +155,7 @@ class AppManifestListResponse(BaseModel):
     disabled: int
     blocked: int
     manifests: list[AppManifestResponse]
-    only_app: str | None = None
+    only_apps: list[str] = Field(default_factory=list)
 
 
 class WsMessage(BaseModel):

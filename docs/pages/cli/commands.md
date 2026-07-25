@@ -22,8 +22,18 @@ hassette run
 | `--base-url`, `-u`, `--url` | Base URL of the Home Assistant instance.                            |
 | `--verify-ssl`              | Whether to verify SSL certificates.                                 |
 | `--dev-mode`                | Enables developer mode.                                             |
+| `--app`, `-a`               | Run only this app key, excluding all others. Repeatable.            |
 
 All flags are optional. Values resolve from `hassette.toml` (see [Configuration](../core-concepts/configuration/index.md)) and environment variables when not provided on the command line.
+
+`--app` isolates one app during development without editing `hassette.toml` or the app's source. Every other enabled app is excluded and reports status `blocked` in [`hassette app`](#hassette-app) — that is the expected result of the flag, not a failure. Disabled apps remain `disabled`. Repeat the flag or pass a comma-separated list to keep more than one app running:
+
+```bash
+hassette run --app kitchen_lights --app porch_motion
+hassette run --app kitchen_lights,porch_motion
+```
+
+See [Restricting Which Apps Run](../core-concepts/apps/index.md#restricting-which-apps-run) for details.
 
 `run` exits with code 1 when startup fails: an app fails its precheck (`AppPrecheckFailedError`), a fatal error fires (bad token, unreachable HA — see [Troubleshooting](../troubleshooting.md)), or the web API port is already taken (`Port 8126 is already in use — is another hassette instance running?`). Process managers can treat exit 1 as a startup error rather than a crash.
 

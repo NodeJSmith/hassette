@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from pydantic import AliasChoices, Field, SecretStr, field_validator, model_validator
+from pydantic import AliasChoices, Field, PrivateAttr, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
 from hassette import context as ctx
@@ -202,8 +202,11 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     regardless of this setting. Defaults to False.
     """
 
-    allow_only_app_in_prod: bool = Field(default=False)
-    """Whether to allow the `only_app` decorator in production mode. Defaults to False."""
+    only_apps: tuple[str, ...] = Field(default_factory=tuple)
+    """App keys to run exclusively — every other configured app is excluded.
+
+    Set by ``hassette run --app <key>`` (repeat the flag or pass a comma-separated list).
+    Honored in both dev and production mode."""
 
     forgotten_await_behavior: ForgottenAwaitBehavior | None = Field(default=None)
     """Global default for forgotten-await detection behavior.
@@ -314,10 +317,27 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
                 LOGGER.debug("Creating directory %s as it does not exist", directory)
                 directory.mkdir(parents=True, exist_ok=True)
 
+    _init_kwargs: dict[str, Any] = PrivateAttr(default_factory=dict)
+    """Kwargs this config was constructed with, replayed by `reload()`."""
+
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        # Swap raw secrets for their validated SecretStr so the plaintext isn't kept alive in a
+        # second, unmasked place for the life of the config. SecretStr round-trips as an init kwarg.
+        self._init_kwargs = {
+            name: value if not isinstance(getattr(self, name, None), SecretStr) else getattr(self, name)
+            for name, value in kwargs.items()
+        }
+
     def reload(self) -> None:
-        """Reload the configuration from all sources."""
+        """Reload the configuration from all sources.
+
+        Init kwargs are replayed because they are the highest-priority source: they carry the
+        `hassette run` flags, and a file-watcher reload that dropped them would silently undo
+        `--app` on the first save.
+        """
         # see: https://docs.pydantic.dev/latest/concepts/pydantic_settings/#in-place-reloading
-        self.__init__()
+        self.__init__(**self._init_kwargs)
         self.set_validated_app_manifests()
 
     def model_post_init(self, *args: Any) -> None:

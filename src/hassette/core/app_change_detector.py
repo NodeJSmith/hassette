@@ -52,7 +52,7 @@ class AppChangeDetector:
         original_config: dict[str, "AppManifest"],
         current_config: dict[str, "AppManifest"],
         changed_file_paths: frozenset[Path] | None = None,
-        only_app: str | None = None,
+        only_apps: frozenset[str] | None = None,
     ) -> ChangeSet:
         """Calculate the difference between two configurations.
 
@@ -60,7 +60,7 @@ class AppChangeDetector:
             original_config: The previous app configuration
             current_config: The new app configuration
             changed_file_paths: Paths of files that triggered the change (if any)
-            only_app: When set, restrict change detection to this app key only
+            only_apps: When non-empty, restrict change detection to these app keys only
 
         Returns:
             ChangeSet with categorized changes
@@ -75,14 +75,14 @@ class AppChangeDetector:
         original_keys = set(original_config.keys())
         current_keys = set(current_config.keys())
 
-        if only_app:
-            current_keys = {k for k in current_keys if k == only_app}
+        if only_apps:
+            current_keys = current_keys & only_apps
 
         orphans = original_keys - current_keys
         new_apps = current_keys - original_keys
 
         # Apps that need reimport due to file change
-        # Exclude new apps (they haven't been imported yet) and apps not in current_keys (filtered by only_app)
+        # Exclude new apps (they haven't been imported yet) and apps not in current_keys (filtered by only_apps)
         changed = changed_file_paths or frozenset()
         reimport_apps = {
             app.app_key
@@ -94,7 +94,10 @@ class AppChangeDetector:
         reload_apps = {
             app_key
             for app_key in config_diff.affected_root_keys
-            if app_key not in new_apps and app_key not in orphans and app_key not in reimport_apps
+            if app_key in current_keys
+            and app_key not in new_apps
+            and app_key not in orphans
+            and app_key not in reimport_apps
         }
 
         return ChangeSet(
