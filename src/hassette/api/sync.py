@@ -238,6 +238,35 @@ class ApiSyncFacade(Resource):
         """
         return self.task_bucket.run_sync(self._api.toggle(entity_id, domain, **data))
 
+    def notify(self, message: str, notifier: str, title: str | None = None, data: dict[str, Any] | None = None) -> None:
+        """Send a notification through a Home Assistant notify service.
+
+        Shorthand for ``call_service("notify", notifier, message=..., title=..., data=...)``.
+
+        Args:
+            message: The notification body.
+            notifier: The notify service to send through. Accepts a bare name
+                (``"mobile_app_phone"``) or a fully-qualified one
+                (``"notify.mobile_app_phone"``). Call :meth:`get_notify_services`
+                to discover which notifiers exist on your instance.
+            title: Optional notification title. Omitted from the service call when None.
+            data: Optional platform-specific payload (e.g. Android/iOS push options),
+                forwarded as the service's ``data`` field. Omitted when None.
+
+        Raises:
+            ValueError: If ``notifier`` is blank, or qualified with a domain other than ``notify``.
+        """
+        return self.task_bucket.run_sync(self._api.notify(message, notifier, title, data))
+
+    def get_notify_services(self) -> list[str]:
+        """Get the notify services available on this Home Assistant instance.
+
+        Returns:
+            Sorted bare service names (without the ``notify.`` prefix), ready to pass
+            straight to :meth:`notify` — e.g. ``["mobile_app_phone", "persistent_notification"]``.
+        """
+        return self.task_bucket.run_sync(self._api.get_notify_services())
+
     def get_state_raw(self, entity_id: str) -> "HassStateDict":
         """Get the state of a specific entity.
 

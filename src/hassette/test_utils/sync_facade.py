@@ -15,6 +15,7 @@ import aiohttp
 from pydantic import BaseModel
 from whenever import Date, PlainDateTime, ZonedDateTime
 
+from hassette.api.api import normalize_notifier
 from hassette.api.helpers import HelperDomain
 from hassette.const.misc import FalseySentinel
 from hassette.exceptions import EntityNotFoundError
@@ -47,6 +48,7 @@ RECORDED_API_METHODS = frozenset(
         "delete_input_text",
         "delete_timer",
         "fire_event",
+        "notify",
         "set_state",
         "toggle",
         "turn_off",
@@ -217,6 +219,25 @@ class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         self._parent._record_call(
             ApiCall(method="toggle", args=(entity_id,), kwargs={"entity_id": entity_id, "domain": domain, **data})
         )
+
+    def notify(self, message: str, notifier: str, title: str | None = None, data: dict[str, Any] | None = None) -> None:
+        """Record a notify call directly under its own method name.
+
+        ``notifier`` is normalized the same way the real ``Api.notify`` normalizes it, so
+        assertions match on the bare service name regardless of which form the app passed.
+        """
+        notifier = normalize_notifier(notifier)
+        self._parent._record_call(
+            ApiCall(
+                method="notify",
+                args=(message, notifier),
+                kwargs={"message": message, "notifier": notifier, "title": title, "data": copy.deepcopy(data)},
+            )
+        )
+
+    def get_notify_services(self) -> list[str]:
+        """Return the notifier names seeded on ``notify_services`` (empty by default)."""
+        return sorted(self._parent.notify_services)
 
     def get_state_raw(self, entity_id: str) -> "HassStateDict":
         raise NotImplementedError(STUB_MSG_GENERIC.format(name="get_state_raw"))

@@ -196,7 +196,7 @@ Same as `get_states`, but returns a list of untyped `HassStateDict` dicts instea
 ## Calling Services
 
 !!! warning "Service methods must be awaited"
-    `call_service`, `fire_event`, `set_state`, `turn_on`, `turn_off`, and `toggle` all return coroutines. Without `await`, the call is never sent and no error is raised at the call site. A forgotten `await` produces a [`HassetteForgottenAwaitWarning`][hassette.exceptions.HassetteForgottenAwaitWarning] naming the offending app when the coroutine is GC'd (subject to [configuration](../../troubleshooting.md#forgotten-await)). Pyright's `reportUnusedCoroutine` catches this at edit time — see [Enabling Pyright](../../troubleshooting.md#enabling-pyright).
+    `call_service`, `fire_event`, `set_state`, `turn_on`, `turn_off`, `toggle`, and `notify` all return coroutines. Without `await`, the call is never sent and no error is raised at the call site. A forgotten `await` produces a [`HassetteForgottenAwaitWarning`][hassette.exceptions.HassetteForgottenAwaitWarning] naming the offending app when the coroutine is GC'd (subject to [configuration](../../troubleshooting.md#forgotten-await)). Pyright's `reportUnusedCoroutine` catches this at edit time — see [Enabling Pyright](../../troubleshooting.md#enabling-pyright).
 
 ### `call_service(domain, service, ...)`
 
@@ -259,6 +259,40 @@ on/off state. Extra keyword arguments pass through as service data.
 
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_helpers.py:toggle"
+```
+
+### `notify(message, notifier, title=None, data=None)`
+
+Shorthand for `call_service("notify", notifier, ...)`. Every Home Assistant notifier — a
+phone running the companion app, a chat integration, `persistent_notification` — is a
+service in the `notify` domain, so the notifier name is the only routing detail the call
+needs.
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `message` | `str` | — | The notification body. |
+| `notifier` | `str` | — | Notify service name, with or without the `notify.` prefix. |
+| `title` | `str \| None` | `None` | Optional title. Omitted from the call when `None`. |
+| `data` | `dict \| None` | `None` | Platform-specific payload (push sounds, actions, images). Omitted when `None`. |
+
+`notifier` accepts either form: `"mobile_app_phone"` and `"notify.mobile_app_phone"`
+produce the same call. Anything else (a blank name, or another domain like
+`"light.kitchen"`) raises `ValueError` at the call site rather than failing silently in
+Home Assistant.
+
+```python
+--8<-- "pages/core-concepts/api/snippets/api_notify.py"
+```
+
+### `get_notify_services()`
+
+Returns the notify service names registered on the connected Home Assistant instance,
+sorted and stripped of the `notify.` prefix, so each value passes straight to `notify()`.
+Checking a notifier name against this list at startup surfaces a typo there rather than
+at send time.
+
+```python
+--8<-- "pages/core-concepts/api/snippets/api_notify_services.py"
 ```
 
 ### Getting a response

@@ -5,7 +5,7 @@ state management, service calls, event firing, and data retrieval. Automatically
 authentication, retries, and type conversion for a seamless developer experience.
 
 Fire-and-forget methods (``call_service``, ``fire_event``, ``set_state``, ``turn_on``,
-``turn_off``, ``toggle``) return a ``Coroutine`` and must be awaited.
+``turn_off``, ``toggle``, ``notify``) return a ``Coroutine`` and must be awaited.
 
 Examples:
     Getting entity states
@@ -52,6 +52,9 @@ Examples:
     await self.api.turn_on("light.kitchen", brightness=150)
     await self.api.turn_off("light.living_room")
     await self.api.toggle("switch.fan")
+
+    # Send a notification through notify.<notifier>
+    await self.api.notify("The garage door is still open", "mobile_app_phone")
     ```
 
     Setting states
@@ -181,6 +184,9 @@ from hassette.utils.await_guard import guard_await
 from hassette.utils.request_utils import format_time_param
 from hassette.utils.source_capture import capture_source_location
 
+NOTIFY_DOMAIN = "notify"
+"""Home Assistant service domain that hosts every notifier (``notify.<notifier>``)."""
+
 
 def _expect_list(val: Any, context: str) -> list:
     """Assert that *val* is a list, raising TypeError with context if not.
@@ -198,6 +204,38 @@ def _expect_dict(val: Any, context: str) -> dict:
     if not isinstance(val, dict):
         raise TypeError(f"Expected dict from {context}, got {type(val).__name__}: {val!r}")
     return val
+
+
+def normalize_notifier(notifier: str) -> str:
+    """Return the bare notify service name for *notifier*.
+
+    Accepts either a bare name (``"mobile_app_phone"``) or a fully-qualified one
+    (``"notify.mobile_app_phone"``), so users can paste whichever form they see in
+    Home Assistant's developer tools.
+
+    Args:
+        notifier: The notify service name, with or without the ``notify.`` prefix.
+
+    Returns:
+        The service name without the ``notify.`` prefix.
+
+    Raises:
+        ValueError: If *notifier* is blank, or qualified with a domain other than ``notify``.
+    """
+    name = notifier.strip()
+    if not name:
+        raise ValueError("notifier must be a non-empty notify service name, e.g. 'mobile_app_phone'.")
+
+    if "." not in name:
+        return name
+
+    domain, _, service = name.partition(".")
+    if domain != NOTIFY_DOMAIN or not service or "." in service:
+        raise ValueError(
+            f"Invalid notifier {notifier!r}: expected a bare service name (e.g. 'mobile_app_phone') "
+            "or a 'notify.'-qualified one (e.g. 'notify.mobile_app_phone')."
+        )
+    return service
 
 
 # Only imported by hassette.api.helpers (cross-module) — pyright's reportUnusedFunction does not
@@ -602,6 +640,45 @@ class Api(Resource):
         if domain is None:
             domain = entity_id.split(".", 1)[0]
         return self.call_service(domain=domain, service="toggle", target={"entity_id": entity_id}, **data)
+
+    def notify(
+        self,
+        message: str,
+        notifier: str,
+        title: str | None = None,
+        data: dict[str, Any] | None = None,
+    ) -> "Coroutine[Any, Any, None]":
+        """Send a notification through a Home Assistant notify service.
+
+        Shorthand for ``call_service("notify", notifier, message=..., title=..., data=...)``.
+
+        Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn).
+
+        Args:
+            message: The notification body.
+            notifier: The notify service to send through. Accepts a bare name
+                (``"mobile_app_phone"``) or a fully-qualified one
+                (``"notify.mobile_app_phone"``). Call :meth:`get_notify_services`
+                to discover which notifiers exist on your instance.
+            title: Optional notification title. Omitted from the service call when None.
+            data: Optional platform-specific payload (e.g. Android/iOS push options),
+                forwarded as the service's ``data`` field. Omitted when None.
+
+        Raises:
+            ValueError: If ``notifier`` is blank, or qualified with a domain other than ``notify``.
+        """
+        service = normalize_notifier(notifier)
+        return self.call_service(NOTIFY_DOMAIN, service, message=message, title=title, data=data)
+
+    async def get_notify_services(self) -> list[str]:
+        """Get the notify services available on this Home Assistant instance.
+
+        Returns:
+            Sorted bare service names (without the ``notify.`` prefix), ready to pass
+            straight to :meth:`notify` — e.g. ``["mobile_app_phone", "persistent_notification"]``.
+        """
+        services = await self.get_services()
+        return sorted(services.get(NOTIFY_DOMAIN, {}).keys())
 
     async def get_state_raw(self, entity_id: str) -> "HassStateDict":
         """Get the state of a specific entity.
