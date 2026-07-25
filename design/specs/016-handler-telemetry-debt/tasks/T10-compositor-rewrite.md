@@ -1,7 +1,7 @@
 ---
 task_id: "T10"
 title: "Rewrite callers to compositor pattern"
-status: "planned"
+status: "done"
 depends_on: ["T06", "T07", "T08", "T09"]
 implements: ["FR#3", "AC#2"]
 ---

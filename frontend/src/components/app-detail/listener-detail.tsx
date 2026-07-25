@@ -10,10 +10,15 @@ import { lastDotSegment, MS_PER_SECOND } from "../../utils/format";
 import { handlerKindLabel } from "../../utils/status";
 import { Chip } from "../shared/chip";
 import type { DetailStatsCell } from "../shared/detail-stats";
+import { DetailStats } from "../shared/detail-stats";
+import { ErrorBanner } from "../shared/error-banner";
+import { DetailHeader } from "./detail-header";
+import { ExecutionSection } from "./execution-section";
 import chipStyles from "./handler-chips.module.css";
 import { HandlerDetailLayout } from "./handler-detail-layout";
 import { listenerHealthKind } from "./handler-list";
 import { HandlerModeChip } from "./handler-mode-chip";
+import { RegistrationFooter } from "./registration-footer";
 import { buildCommonStatCells, type CommonStatInput } from "./stat-cell-builders";
 
 function ModifierChips({ listener }: { listener: ListenerData }) {
@@ -88,38 +93,47 @@ export function ListenerDetail({ listener, appKey, instanceQs, onSwitchToCode }:
   const listenerKind = listenerHealthKind(listener);
 
   return (
-    <HandlerDetailLayout
-      testId={`listener-detail-${listener.listener_id}`}
-      testIdPrefix="handler"
-      kindLabel={kindLabel}
-      statusKind={listenerKind}
-      name={lastDotSegment(listener.handler_method)}
-      subtitle={listener.human_description}
-      registrationSource={listener.registration_source}
-      chips={<ModifierChips listener={listener} />}
-      sourceLocation={listener.source_location}
-      onViewCode={onSwitchToCode}
-      error={
-        listenerKind === "err"
-          ? {
-              type: listener.last_error_type ?? null,
-              message: listener.last_error_message ?? null,
-              traceback: listener.last_error_traceback ?? null,
-            }
-          : null
-      }
-      statsCells={buildListenerStatsCells(listener, lastInvokedLabel)}
-      statsTestId="handler-stats-row"
-      executionHeading="invocations"
-      executionRecords={executions ?? []}
-      executionKind="handler"
-      executionTableId={`invocation-table-${listener.listener_id}`}
-      executionLoading={loading}
-      executionHasData={executions !== undefined}
-      appKey={appKey}
-      handlerKind="listener"
-      handlerId={listener.listener_id}
-      instanceQs={instanceQs}
-    />
+    <HandlerDetailLayout testId={`listener-detail-${listener.listener_id}`}>
+      <DetailHeader
+        name={lastDotSegment(listener.handler_method)}
+        kindLabel={kindLabel}
+        statusKind={listenerKind}
+        kind="handler"
+        subtitle={listener.human_description}
+      />
+
+      <ModifierChips listener={listener} />
+
+      {listenerKind === "err" && (listener.last_error_message || listener.last_error_type) && (
+        <ErrorBanner
+          errorType={listener.last_error_type ?? null}
+          errorMessage={listener.last_error_message ?? null}
+          traceback={listener.last_error_traceback ?? null}
+          data-testid="handler-error-banner"
+        />
+      )}
+
+      <DetailStats cells={buildListenerStatsCells(listener, lastInvokedLabel)} data-testid="handler-stats-row" />
+
+      <ExecutionSection
+        heading="invocations"
+        records={executions}
+        kind="handler"
+        tableId={`invocation-table-${listener.listener_id}`}
+        loading={loading}
+        appKey={appKey}
+        handlerKind="listener"
+        handlerId={listener.listener_id}
+        instanceQs={instanceQs}
+      />
+
+      <RegistrationFooter
+        kind="handler"
+        testId={`listener-detail-${listener.listener_id}`}
+        sourceLocation={listener.source_location}
+        registrationSource={listener.registration_source}
+        onViewCode={onSwitchToCode}
+      />
+    </HandlerDetailLayout>
   );
 }

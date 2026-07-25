@@ -12,13 +12,19 @@ import { handlerKindLabel } from "../../utils/status";
 import { Button } from "../shared/button";
 import { Chip } from "../shared/chip";
 import type { DetailStatsCell } from "../shared/detail-stats";
+import { DetailStats } from "../shared/detail-stats";
+import { ErrorBanner } from "../shared/error-banner";
 import { IconPlay } from "../shared/icons";
 import { Spinner } from "../shared/spinner";
+import { DetailHeader } from "./detail-header";
+import detailHeaderStyles from "./detail-header.module.css";
+import { ExecutionSection } from "./execution-section";
 import chipStyles from "./handler-chips.module.css";
 import { HandlerDetailLayout } from "./handler-detail-layout";
 import layoutStyles from "./handler-detail-layout.module.css";
 import { jobHealthKind } from "./handler-list";
 import { HandlerModeChip } from "./handler-mode-chip";
+import { RegistrationFooter } from "./registration-footer";
 import { buildCommonStatCells, type CommonStatInput } from "./stat-cell-builders";
 
 function ScheduleChips({ job }: { job: JobData }) {
@@ -134,50 +140,58 @@ export function JobDetail({ job, appKey, instanceQs, onSwitchToCode }: Props) {
   else if (job.fire_at) nextRunText = `fire at ${fireAtLabel}`;
 
   return (
-    <HandlerDetailLayout
-      testId={`job-detail-${job.job_id}`}
-      testIdPrefix="job"
-      kindLabel={kindLabel}
-      statusKind={jobKind}
-      name={job.job_name}
-      subtitle={
-        [job.trigger_label, job.trigger_detail ? formatTriggerDetail(job.trigger_detail) : null]
-          .filter(Boolean)
-          .join(" ") || null
-      }
-      registrationSource={job.registration_source}
-      chips={<ScheduleChips job={job} />}
-      headerActions={<RunNowButton jobId={job.job_id} />}
-      extras={
-        predicateDescription && (
-          <p class={layoutStyles.subtitle} data-testid="job-predicate-description">
-            {predicateDescription}
-          </p>
-        )
-      }
-      sourceLocation={job.source_location}
-      onViewCode={onSwitchToCode}
-      error={
-        jobKind === "err"
-          ? {
-              type: job.last_error_type ?? null,
-              message: job.last_error_message ?? null,
-              traceback: job.last_error_traceback ?? null,
-            }
-          : null
-      }
-      statsCells={buildJobStatsCells(job, lastExecutedLabel, nextRunText)}
-      statsTestId="job-stats-row"
-      executionHeading="executions"
-      executionRecords={executions ?? []}
-      executionKind="job"
-      executionTableId={`execution-table-${job.job_id}`}
-      executionLoading={loading}
-      executionHasData={executions !== undefined}
-      appKey={appKey}
-      handlerKind="job"
-      handlerId={job.job_id}
-      instanceQs={instanceQs}
-    />
+    <HandlerDetailLayout testId={`job-detail-${job.job_id}`}>
+      <DetailHeader
+        name={job.job_name}
+        kindLabel={kindLabel}
+        statusKind={jobKind}
+        kind="job"
+        subtitle={
+          [job.trigger_label, job.trigger_detail ? formatTriggerDetail(job.trigger_detail) : null]
+            .filter(Boolean)
+            .join(" ") || null
+        }
+        headerActions={<RunNowButton jobId={job.job_id} />}
+      />
+
+      {predicateDescription && (
+        <p class={detailHeaderStyles.subtitle} data-testid="job-predicate-description">
+          {predicateDescription}
+        </p>
+      )}
+
+      <ScheduleChips job={job} />
+
+      {jobKind === "err" && (job.last_error_message || job.last_error_type) && (
+        <ErrorBanner
+          errorType={job.last_error_type ?? null}
+          errorMessage={job.last_error_message ?? null}
+          traceback={job.last_error_traceback ?? null}
+          data-testid="job-error-banner"
+        />
+      )}
+
+      <DetailStats cells={buildJobStatsCells(job, lastExecutedLabel, nextRunText)} data-testid="job-stats-row" />
+
+      <ExecutionSection
+        heading="executions"
+        records={executions}
+        kind="job"
+        tableId={`execution-table-${job.job_id}`}
+        loading={loading}
+        appKey={appKey}
+        handlerKind="job"
+        handlerId={job.job_id}
+        instanceQs={instanceQs}
+      />
+
+      <RegistrationFooter
+        kind="job"
+        testId={`job-detail-${job.job_id}`}
+        sourceLocation={job.source_location}
+        registrationSource={job.registration_source}
+        onViewCode={onSwitchToCode}
+      />
+    </HandlerDetailLayout>
   );
 }
