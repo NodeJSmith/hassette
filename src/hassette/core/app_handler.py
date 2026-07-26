@@ -83,9 +83,9 @@ class AppHandler(Resource):
     async def on_initialize(self) -> None:
         """Set up file-watcher subscription.
 
-        All declared dependencies (ApiResource, BusService, SchedulerService, StateProxy)
-        are guaranteed ready by depends_on auto-wait. Readiness is deferred to
-        after_initialize once bootstrap_apps completes.
+        All declared dependencies (ApiResource, BusService, SchedulerService, StateProxy,
+        SyncExecutorService) are guaranteed ready by depends_on auto-wait. Readiness is
+        deferred to after_initialize once bootstrap_apps completes.
         """
         if self.hassette.config.dev_mode or self.hassette.config.allow_reload_in_prod:
             if self.hassette.config.allow_reload_in_prod:
