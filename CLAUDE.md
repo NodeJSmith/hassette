@@ -55,7 +55,18 @@ hassette job --json
 # Instance-specific queries
 hassette listener --app <key> --instance 0
 hassette app health <key> --instance office
+
+# Seed a telemetry database for dev/QA
+uv run python scripts/seed_db.py --scenario healthy --output /tmp/hassette-healthy.db
 ```
+
+`seed_db.py` generates a deterministic SQLite telemetry database for one of 7 named
+scenarios — useful for frontend QA, CLI doc generation, visual regression screenshots, and
+demos that need the monitoring dashboard in a specific state without waiting on a live Home
+Assistant instance. Available scenarios: `healthy`, `empty`, `degraded`, `error`,
+`large-volume`, `lifecycle`, `adversarial`. Running the script twice for the same scenario
+produces identical database content. See `design/specs/017-seed-db/design.md` for the full
+design.
 
 ## Architecture
 

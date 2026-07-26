@@ -303,7 +303,7 @@ async def test_thread_leaked_persists_to_db(
     """thread_leaked=True on an execution record persists to the DB and reads back correctly.
 
     Verifies the 004.sql migration column is wired end-to-end: build_record →
-    _execution_insert_params → INSERT → SELECT.
+    execution_insert_params → INSERT → SELECT.
     """
     db_service, _session_id = initialized_db
 
@@ -314,7 +314,7 @@ async def test_thread_leaked_persists_to_db(
     # Build the record directly so we avoid calling build_record with a MagicMock event
     # (cmd.event.payload.origin would be a MagicMock and SQLite can't bind it).
     # The persistence path is independent of how the flag is set — we're testing the
-    # _execution_insert_params → INSERT → SELECT round-trip, not build_record itself.
+    # execution_insert_params → INSERT → SELECT round-trip, not build_record itself.
     record = ExecutionRecord(
         kind="handler",
         listener_id=listener_id,

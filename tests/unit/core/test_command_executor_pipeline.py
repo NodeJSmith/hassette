@@ -24,30 +24,13 @@ from hassette.core.block_io_guard import MonkeypatchEvent
 from hassette.core.command_executor import CommandExecutor, RetryableBatch
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.telemetry.repository import TelemetryRepository
+from hassette.test_utils.factories import make_execution_record
 
 
-def make_execution_record(
-    kind: str = "handler",
-    listener_id: int | None = 1,
-    job_id: int | None = None,
-    session_id: int = 1,
-    source_tier: str = "app",
-    is_di_failure: bool = False,
-) -> ExecutionRecord:
-    return ExecutionRecord(
-        kind=kind,
-        listener_id=listener_id,
-        job_id=job_id,
-        session_id=session_id,
-        execution_start_ts=time.time(),
-        duration_ms=1.0,
-        status="success",
-        source_tier=source_tier,  # pyright: ignore[reportArgumentType]
-        is_di_failure=is_di_failure,
-    )
-
-
-# Convenience aliases for readability in tests
+# Convenience aliases for readability in tests. Delegate to the shared factory but pin
+# execution_start_ts/execution_id to this file's original values (wall-clock timestamp,
+# unset execution_id) — no test here asserts on either, so this is not a load-bearing
+# override, just a faithful behavior-preserving migration off the old local duplicate.
 def make_invocation(
     listener_id: int | None = 1,
     session_id: int = 1,
@@ -59,8 +42,11 @@ def make_invocation(
         listener_id=listener_id,
         job_id=None,
         session_id=session_id,
-        source_tier=source_tier,
+        source_tier=source_tier,  # pyright: ignore[reportArgumentType]
         is_di_failure=is_di_failure,
+        execution_start_ts=time.time(),
+        duration_ms=1.0,
+        execution_id=None,
     )
 
 
@@ -74,7 +60,10 @@ def make_job_record(
         listener_id=None,
         job_id=job_id,
         session_id=session_id,
-        source_tier=source_tier,
+        source_tier=source_tier,  # pyright: ignore[reportArgumentType]
+        execution_start_ts=time.time(),
+        duration_ms=1.0,
+        execution_id=None,
     )
 
 

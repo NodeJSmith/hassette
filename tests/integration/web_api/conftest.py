@@ -64,7 +64,7 @@ async def client(app):
         yield ac
 
 
-def make_log_record(
+def make_log_record(  # factory-local: timestamp=float(seq) is load-bearing for ordering tests
     seq: int,
     level: str = "INFO",
     message: str = "test",

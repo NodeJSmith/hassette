@@ -8,11 +8,16 @@ getting hand-rolled again in each new test file. Left unchecked, an LLM (or a
 developer in a hurry) reinvents the same ``make_*`` function in a new file
 instead of importing the shared one, and the duplication compounds silently.
 
-Detection is name-based, not import-based: any ``def``/``async def`` whose name
-matches a key in ``SHARED_FACTORIES`` is flagged, whether or not the file also
-imports the real thing. A name match is the primary signal — an LLM writing a
-brand-new duplicate has no import to check against, so waiting for one would
-miss exactly the case this guard exists to catch.
+Detection is name-based, not import-based: any ``def``/``async def`` reachable from
+module scope without crossing a class or function boundary — including one nested
+inside an ``if``/``try``/``with`` block — is flagged if its name matches a key in
+``SHARED_FACTORIES``, whether or not the file also imports the real thing. A name
+match is the primary signal — an LLM writing a brand-new duplicate has no import to
+check against, so waiting for one would miss exactly the case this guard exists to
+catch. Class methods and functions nested inside another function are never
+flagged — a method or closure named ``noop`` isn't importable as a drop-in
+replacement for the shared factory, so it carries none of the duplication risk this
+guard polices.
 
 The ``# factory-local:`` annotation is the escape hatch for local factories that
 legitimately share a name with a registry entry but build something different
@@ -55,6 +60,7 @@ SHARED_FACTORIES = {
     "make_invoke_handler_cmd": "hassette.test_utils.factories",
     "make_mock_listener": "hassette.test_utils.factories",
     "make_scheduler": "hassette.test_utils.factories",
+    "make_execution_record": "hassette.test_utils.factories",
     "make_manifest": "hassette.test_utils.web_helpers",
     "make_crashed_event": "hassette.test_utils.helpers",
     "make_task_bucket": "hassette.test_utils.helpers",
@@ -69,21 +75,27 @@ ANNOTATION = "# factory-local:"
 ANNOTATION_RE = re.compile(r"#\s*factory-local:\s*\S")
 
 
-class FactoryVisitor(ast.NodeVisitor):
-    """Collect (name, lineno) for every function definition matching a registry name."""
+def _collect_module_level_shadows(node: ast.AST, flagged: list[tuple[str, int]] | None = None) -> list[tuple[str, int]]:
+    """Collect (name, lineno) for function defs reachable from module scope matching a
+    registry name, without crossing a class or function boundary.
 
-    def __init__(self) -> None:
-        self.flagged: list[tuple[str, int]] = []
-
-    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
-        if node.name in SHARED_FACTORIES:
-            self.flagged.append((node.name, node.lineno))
-        self.generic_visit(node)
-
-    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
-        if node.name in SHARED_FACTORIES:
-            self.flagged.append((node.name, node.lineno))
-        self.generic_visit(node)
+    Descends into compound statements (``if``/``try``/``with``/``for``/...) since a ``def``
+    inside one is still bound at module level and just as importable as a bare top-level
+    ``def``. Stops at ``ClassDef`` and ``FunctionDef``/``AsyncFunctionDef`` bodies -- a class
+    method or a closure nested inside another function shares the module's function-definition
+    syntax but not its shadowing risk, since neither is importable as a top-level replacement
+    for the shared factory.
+    """
+    flagged = [] if flagged is None else flagged
+    for child in ast.iter_child_nodes(node):
+        if isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef):
+            if child.name in SHARED_FACTORIES:
+                flagged.append((child.name, child.lineno))
+            continue
+        if isinstance(child, ast.ClassDef):
+            continue
+        _collect_module_level_shadows(child, flagged)
+    return flagged
 
 
 def is_exempt(lines: list[str], lineno: int) -> bool:
@@ -96,12 +108,11 @@ def check_file(path: Path) -> list[tuple[int, str]]:
     """Return a sorted list of (1-based line number, message) for un-exempt factory shadows."""
     source = path.read_text()
     lines = source.splitlines()
-    visitor = FactoryVisitor()
-    visitor.visit(ast.parse(source))
+    flagged = _collect_module_level_shadows(ast.parse(source))
 
     violations = [
         (lineno, f"Local '{name}()' shadows shared factory — use 'from {SHARED_FACTORIES[name]} import {name}'")
-        for name, lineno in visitor.flagged
+        for name, lineno in flagged
         if not is_exempt(lines, lineno)
     ]
     return sorted(violations)

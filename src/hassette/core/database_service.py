@@ -50,7 +50,7 @@ _MAX_CONSECUTIVE_HEARTBEAT_FAILURES = 3
 _BUSY_TIMEOUT_MS = 5000
 """SQLite busy_timeout (ms) applied to both read and write connections."""
 
-_LOG_COLUMNS = (
+LOG_RECORD_COLUMNS = (
     "seq",
     "timestamp",
     "level",
@@ -65,8 +65,12 @@ _LOG_COLUMNS = (
     "execution_id",
     "source_tier",
 )
+"""log_records table columns (excluding the autoincrement id). Public so `scripts/seed_db.py`
+can import the single source of truth instead of hand-keeping a duplicate tuple."""
+
 _LOG_INSERT_SQL = (
-    f"INSERT INTO log_records ({', '.join(_LOG_COLUMNS)}) VALUES ({', '.join(':' + c for c in _LOG_COLUMNS)})"
+    f"INSERT INTO log_records ({', '.join(LOG_RECORD_COLUMNS)}) "
+    f"VALUES ({', '.join(':' + c for c in LOG_RECORD_COLUMNS)})"
 )
 
 

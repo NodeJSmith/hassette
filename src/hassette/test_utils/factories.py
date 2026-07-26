@@ -12,6 +12,7 @@ from whenever import ZonedDateTime
 import hassette.utils.date_utils as date_utils
 from hassette.commands import InvokeHandler
 from hassette.conversion import STATE_REGISTRY
+from hassette.core.execution_record import ExecutionRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.core.state_proxy import StateProxy
 from hassette.core.sync_executor import SyncExecutor
@@ -99,6 +100,65 @@ def make_job_registration(
         mode=mode,
         predicate_description=predicate_description,
         human_description=human_description,
+    )
+
+
+def make_execution_record(
+    *,
+    kind: Literal["handler", "job"] = "handler",
+    session_id: int | None = 1,
+    execution_start_ts: float = 0.0,
+    duration_ms: float = 100.0,
+    status: str = "success",
+    listener_id: int | None = 1,
+    job_id: int | None = None,
+    app_key: str = DEFAULT_TEST_APP_KEY,
+    instance_index: int = 0,
+    source_tier: SourceTier = "app",
+    is_di_failure: bool = False,
+    thread_leaked: bool = False,
+    error_type: str | None = None,
+    error_message: str | None = None,
+    error_traceback: str | None = None,
+    execution_id: str | None = "test_exec_0001",
+    trigger_context_id: str | None = None,
+    trigger_origin: str | None = None,
+    trigger_mode: str | None = None,
+    retry_count: int = 0,
+    attempt_number: int = 1,
+    args_json: str = "[]",
+    kwargs_json: str = "{}",
+) -> ExecutionRecord:
+    """Build a frozen ExecutionRecord with deterministic defaults (no wall-clock reads).
+
+    Defaults describe a single successful handler execution. Override ``kind``/``job_id``
+    together to build a job execution (the DB CHECK constraint requires exactly one of
+    ``listener_id``/``job_id`` to be set).
+    """
+    return ExecutionRecord(
+        kind=kind,
+        session_id=session_id,
+        execution_start_ts=execution_start_ts,
+        duration_ms=duration_ms,
+        status=status,
+        listener_id=listener_id,
+        job_id=job_id,
+        app_key=app_key,
+        instance_index=instance_index,
+        source_tier=source_tier,
+        is_di_failure=is_di_failure,
+        thread_leaked=thread_leaked,
+        error_type=error_type,
+        error_message=error_message,
+        error_traceback=error_traceback,
+        execution_id=execution_id,
+        trigger_context_id=trigger_context_id,
+        trigger_origin=trigger_origin,
+        trigger_mode=trigger_mode,
+        retry_count=retry_count,
+        attempt_number=attempt_number,
+        args_json=args_json,
+        kwargs_json=kwargs_json,
     )
 
 
