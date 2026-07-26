@@ -53,6 +53,10 @@ class CliFormat:
     """
 
     style: CliFormatStyle
+    none_text: str | None = None
+    """Display text to use when the field value is ``None``, overriding the render layer's default
+    placeholder (``""`` in tables, ``"—"`` in detail panels). E.g. ``none_text="done"`` for a
+    ``next_run`` field that reads ``None`` once a one-shot job has fired."""
 
 
 SourceTier = Literal["app", "framework"]
