@@ -277,38 +277,39 @@ class TestSystemStatus:
         assert status.app_count == 1
 
     def test_system_status_ws_connected_reflects_readiness(self, runtime: RuntimeQueryService) -> None:
-        """ws_connected is False when websocket_service.is_ready() returns False.
+        """ws_connected is False when websocket_service.is_connected returns False.
 
-        This covers the early-drop retry case: status is RUNNING but the service
-        is not ready (the WebSocket dropped post-auth and a retry is in progress).
+        This covers the early-drop retry case: status is RUNNING but the connection
+        is not currently established (the WebSocket dropped post-auth and a retry is
+        in progress).
         """
-        runtime.hassette.websocket_service.is_ready.return_value = False
+        runtime.hassette.websocket_service.is_connected = False
         status = runtime.get_system_status()
         assert status.websocket_connected is False
 
     def test_system_status_ws_connected_true_when_ready(self, runtime: RuntimeQueryService) -> None:
-        """ws_connected is True when websocket_service.is_ready() returns True."""
-        runtime.hassette.websocket_service.is_ready.return_value = True
+        """ws_connected is True when websocket_service.is_connected is True."""
+        runtime.hassette.websocket_service.is_connected = True
         status = runtime.get_system_status()
         assert status.websocket_connected is True
 
     def test_system_status_degraded_when_has_ever_connected_and_not_ready(self, runtime: RuntimeQueryService) -> None:
         """Status is 'degraded' when latch is set and WS is not currently connected."""
-        runtime.hassette.websocket_service.is_ready.return_value = False
+        runtime.hassette.websocket_service.is_connected = False
         runtime.hassette.websocket_service.has_ever_connected = True
         status = runtime.get_system_status()
         assert status.status == "degraded"
 
     def test_system_status_starting_when_never_connected(self, runtime: RuntimeQueryService) -> None:
         """Status is 'starting' when the latch has never been set."""
-        runtime.hassette.websocket_service.is_ready.return_value = False
+        runtime.hassette.websocket_service.is_connected = False
         runtime.hassette.websocket_service.has_ever_connected = False
         status = runtime.get_system_status()
         assert status.status == "starting"
 
     def test_system_status_ok_when_ws_ready(self, runtime: RuntimeQueryService) -> None:
-        """Status is 'ok' when websocket_service.is_ready() is True."""
-        runtime.hassette.websocket_service.is_ready.return_value = True
+        """Status is 'ok' when websocket_service.is_connected is True."""
+        runtime.hassette.websocket_service.is_connected = True
         runtime.hassette.websocket_service.has_ever_connected = True
         status = runtime.get_system_status()
         assert status.status == "ok"

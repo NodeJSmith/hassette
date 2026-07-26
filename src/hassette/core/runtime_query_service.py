@@ -255,7 +255,7 @@ class RuntimeQueryService(Resource):
 
     def get_system_status(self) -> SystemStatus:
         ws = self.hassette.websocket_service
-        ws_connected = ws.is_ready()
+        ws_connected = ws.is_connected
         uptime = time.time() - self._start_time
 
         try:

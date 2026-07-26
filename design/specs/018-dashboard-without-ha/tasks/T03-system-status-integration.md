@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Fix system status and add integration tests"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02"]
 implements: ["FR#1", "FR#6", "AC#1", "AC#2", "AC#3", "AC#6"]
 ---
