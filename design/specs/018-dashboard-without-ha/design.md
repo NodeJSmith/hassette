@@ -1,7 +1,7 @@
 # Design: Dashboard Without HA
 
 **Date:** 2026-07-26
-**Status:** draft
+**Status:** approved
 **Scope-mode:** hold
 
 ## Problem
