@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Remove WebsocketService from depends_on chains"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#2", "FR#3", "FR#5", "FR#7", "AC#4"]
 ---

@@ -18,7 +18,6 @@ from tenacity import (
 )
 from whenever import Date, PlainDateTime, ZonedDateTime
 
-from hassette.core.websocket_service import WebsocketService
 from hassette.exceptions import (
     ConnectionClosedError,
     EntityNotFoundError,
@@ -35,6 +34,7 @@ _SSL_SHUTDOWN_DELAY = 0.25
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
+    from hassette.core.websocket_service import WebsocketService
 
 
 MAX_RETRY_ATTEMPTS = 5
@@ -52,7 +52,7 @@ RETRYABLE = (aiohttp.ClientError, ResourceNotReadyError)
 
 
 class ApiResource(Resource):
-    depends_on: ClassVar[list[type[Resource]]] = [WebsocketService]
+    depends_on: ClassVar[list[type[Resource]]] = []
 
     _stack: AsyncExitStack
     """Async context stack for managing resources."""
@@ -75,10 +75,7 @@ class ApiResource(Resource):
         self._headers_factory: Callable[[], dict[str, str]] | None = headers_factory
 
     async def on_initialize(self) -> None:
-        """Start the API service.
-
-        WebsocketService is guaranteed ready by depends_on auto-wait.
-        """
+        """Start the API service."""
         # Use injected overrides when provided; fall back to config-derived properties.
         rest_url = self._rest_url_override if self._rest_url_override is not None else self.rest_url
         headers = self._headers_factory() if self._headers_factory is not None else self.headers

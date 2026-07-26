@@ -9,7 +9,6 @@ from hassette.bus import Bus
 from hassette.core.api_resource import ApiResource
 from hassette.core.bus_service import BusService
 from hassette.core.scheduler_service import SchedulerService
-from hassette.core.websocket_service import WebsocketService
 from hassette.events import RawStateChangeEvent
 from hassette.exceptions import ResourceNotReadyError
 from hassette.resources.base import Resource
@@ -35,7 +34,7 @@ if TYPE_CHECKING:
 
 
 class StateProxy(Resource):
-    depends_on: ClassVar[list[type[Resource]]] = [WebsocketService, ApiResource, BusService, SchedulerService]
+    depends_on: ClassVar[list[type[Resource]]] = [ApiResource, BusService, SchedulerService]
 
     states: dict[str, "HassStateDict"]
     lock: FairAsyncRLock
@@ -62,8 +61,8 @@ class StateProxy(Resource):
     async def on_initialize(self) -> None:
         """Initialize the state proxy.
 
-        WebsocketService, ApiResource, BusService, and SchedulerService are guaranteed
-        ready by depends_on auto-wait. Performs initial state sync and subscribes to
+        ApiResource, BusService, and SchedulerService are guaranteed ready by
+        depends_on auto-wait. Performs initial state sync and subscribes to
         state change and registry events with high priority.
         """
         self.logger.debug("Dependencies ready, performing initial state sync")
@@ -73,15 +72,17 @@ class StateProxy(Resource):
         await self.bus.on_websocket_connected(handler=self.on_reconnect, name="hassette.state_proxy.on_reconnect")
         await self.bus.on_websocket_disconnected(handler=self.on_disconnect, name="hassette.state_proxy.on_disconnect")
 
-        # Perform initial state sync
+        # Perform initial state sync. Non-fatal: if HA is unreachable at startup, mark
+        # ready with an empty cache so the dashboard still serves. get_state() returns
+        # None (not ResourceNotReadyError) once is_ready() is True, even with an empty cache.
         try:
             await self.load_cache()
 
             mark_ready(self, reason="Initial state sync complete")
 
         except Exception as exc:
-            self.logger.exception("Failed to perform initial state sync: %s", exc)
-            raise
+            self.logger.warning("Failed to perform initial state sync, starting with empty cache: %s", exc)
+            mark_ready(self, reason="Started with empty state cache")
 
     async def subscribe_to_events(self) -> None:
         # Cancel existing subscriptions to prevent leaks on rapid reconnect

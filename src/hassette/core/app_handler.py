@@ -16,7 +16,6 @@ from hassette.core.bus_service import BusService
 from hassette.core.scheduler_service import SchedulerService
 from hassette.core.state_proxy import StateProxy
 from hassette.core.sync_executor_service import SyncExecutorService
-from hassette.core.websocket_service import WebsocketService
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_not_ready, mark_ready
 from hassette.schemas.app_snapshots import AppStatusSnapshot
@@ -40,7 +39,6 @@ class AppHandler(Resource):
     # flow through CommandExecutor, but CommandExecutor's internal wait_for_ready
     # guards protect those calls.  AppHandler does not call CommandExecutor directly.
     depends_on: ClassVar[list[type[Resource]]] = [
-        WebsocketService,
         ApiResource,
         BusService,
         SchedulerService,
@@ -85,9 +83,9 @@ class AppHandler(Resource):
     async def on_initialize(self) -> None:
         """Set up file-watcher subscription.
 
-        All declared dependencies (WebsocketService, ApiResource, BusService,
-        SchedulerService, StateProxy) are guaranteed ready by depends_on auto-wait.
-        Readiness is deferred to after_initialize once bootstrap_apps completes.
+        All declared dependencies (ApiResource, BusService, SchedulerService, StateProxy)
+        are guaranteed ready by depends_on auto-wait. Readiness is deferred to
+        after_initialize once bootstrap_apps completes.
         """
         if self.hassette.config.dev_mode or self.hassette.config.allow_reload_in_prod:
             if self.hassette.config.allow_reload_in_prod:
