@@ -167,6 +167,9 @@ class TestBeforeShutdown:
     async def test_before_shutdown_sends_connection_lost_event(self, websocket_service: WebsocketService) -> None:
         """before_shutdown fires the WEBSOCKET_DISCONNECTED event via send_connection_lost_event."""
         mark_ready(websocket_service, reason="test: pre-shutdown ready state")
+        # send_connection_lost_event() gates on has_ever_connected, not is_ready() — simulate a
+        # prior successful connection so the event actually fires.
+        websocket_service._ever_connected = True
         capture = EventCapture()
         capture.install(websocket_service.hassette)
 

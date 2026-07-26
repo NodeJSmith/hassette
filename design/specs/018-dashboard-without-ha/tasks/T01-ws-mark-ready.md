@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Make WebsocketService unconditionally lifecycle-ready"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#4", "AC#5"]
 ---

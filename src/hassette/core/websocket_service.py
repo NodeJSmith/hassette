@@ -131,6 +131,17 @@ class WebsocketService(Service):
         self._connection_state: ConnectionState = ConnectionState.DISCONNECTED
         self._ever_connected: bool = False
 
+    async def on_initialize(self) -> None:
+        """Mark the service lifecycle-ready unconditionally, independent of HA reachability.
+
+        This separates "service lifecycle ready" (the service is running and will attempt
+        connections) from "HA connected" (the WebSocket handshake succeeded). Without this,
+        WebsocketService's wave in run_forever() times out when HA is unreachable, triggering
+        a fatal shutdown before later waves (e.g. WebApiService) ever start. serve() begins
+        the actual connection loop afterward.
+        """
+        mark_ready(self, reason="WebSocket service initialized")
+
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
         return self.hassette.config.logging.websocket
@@ -727,12 +738,16 @@ class WebsocketService(Service):
     async def send_connection_lost_event(self) -> None:
         """Send a connection lost event to the event bus.
 
-        Idempotent: skips if the service is already not-ready (prevents duplicate
-        DISCONNECTED events during early-drop retry cycles and before_shutdown calls).
+        Idempotent: skips if the connection has never been established (prevents spurious
+        DISCONNECTED events before the first successful connection, and duplicate events
+        during early-drop retry cycles and before_shutdown calls). Gated on
+        `has_ever_connected` rather than `is_ready()` because `mark_ready()` now fires
+        unconditionally in `on_initialize()` — readiness no longer implies a connection
+        was ever established.
         Self-suppressing: bus dispatch errors are silently swallowed so callers never
         need external suppress() wrappers and a bus failure cannot mask a network error.
         """
-        if not self.is_ready():
+        if not self.has_ever_connected:
             return
         event = HassetteSimpleEvent.from_topic(topic=Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED)
         with suppress(Exception):
