@@ -2,7 +2,7 @@
 
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from hassette.schemas.domain_models import AppStatusChangedData, ConnectivityData, ServiceStatusData, StateChangedData
 from hassette.types.enums import (
@@ -298,6 +298,8 @@ class AppHealthResponse(BaseModel):
 class ListenerWithSummary(BaseModel):
     """Listener metrics enriched with human-readable handler summary."""
 
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
     listener_id: int
     app_key: str
     instance_index: int = 0
@@ -331,7 +333,8 @@ class ListenerWithSummary(BaseModel):
     source_tier: SourceTier = "app"
     immediate: int = 0
     duration: float | None = None
-    entity_id: str | None = None
+    target: str | None = None
+    """What the listener is watching: an HA entity ID, or the topic's last segment for event listeners."""
     mode: ExecutionMode = DEFAULT_OVERLAP_MODE
     suppressed_count: int = 0
     dropped_count: int = 0

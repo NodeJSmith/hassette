@@ -138,7 +138,7 @@ export function createListener(overrides: Partial<ListenerWithSummary> = {}): Li
     source_tier: "app",
     immediate: 0,
     duration: null,
-    entity_id: null,
+    target: null,
     last_error_traceback: null,
     ...overrides,
   } satisfies ListenerWithSummary;
