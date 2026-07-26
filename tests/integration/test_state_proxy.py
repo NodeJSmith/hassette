@@ -106,9 +106,11 @@ class TestStateProxyInit:
         with patch.object(hassette.api, "get_states_raw", new_callable=AsyncMock) as mock_get_states:
             mock_get_states.side_effect = Exception("API failure during init")
 
-            # Clear collision-detection state so re-subscribing (from the fixture's
-            # earlier on_initialize() call) doesn't raise "duplicate listener".
-            proxy.bus._registered_listeners.clear()
+            # Remove the fixture's earlier listeners so re-subscribing doesn't raise
+            # "duplicate listener". Clearing only _registered_listeners (the collision-
+            # detection dict) leaves the old listeners registered in bus_service, which
+            # duplicates the websocket-connected/disconnected handlers on re-init.
+            proxy.bus.remove_all_listeners()
             await proxy.on_initialize()
 
         return proxy
@@ -510,7 +512,7 @@ class TestStateProxyWebsocketListeners:
         proxy = hassette_with_state_proxy.state_proxy
 
         # Re-initialize with polling enabled
-        proxy.bus._registered_listeners.clear()
+        proxy.bus.remove_all_listeners()
         await proxy.on_initialize()
 
         assert proxy.poll_job is not None
