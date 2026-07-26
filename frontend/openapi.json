@@ -3145,7 +3145,7 @@
             ],
             "title": "Duration"
           },
-          "entity_id": {
+          "target": {
             "anyOf": [
               {
                 "type": "string"
@@ -3154,7 +3154,7 @@
                 "type": "null"
               }
             ],
-            "title": "Entity Id"
+            "title": "Target"
           },
           "mode": {
             "$ref": "#/components/schemas/ExecutionMode",

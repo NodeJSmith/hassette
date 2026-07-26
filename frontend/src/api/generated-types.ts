@@ -1264,8 +1264,8 @@ export interface components {
             immediate: number;
             /** Duration */
             duration?: number | null;
-            /** Entity Id */
-            entity_id?: string | null;
+            /** Target */
+            target?: string | null;
             /** @default single */
             mode: components["schemas"]["ExecutionMode"];
             /**

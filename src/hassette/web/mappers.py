@@ -160,6 +160,16 @@ def listener_kind_from_topic(topic: str) -> ListenerKind:
     return "event"
 
 
+def event_name_from_topic(topic: str) -> str:
+    """Derive a display name for an event-type listener from its topic.
+
+    Every internal topic follows a ``<namespace>.event.<name>`` shape (see ``Topic``), so the
+    last dot-separated segment is the event name (e.g. ``service_status`` from
+    ``hassette.event.service_status``). A topic with no dots is returned unchanged.
+    """
+    return topic.rsplit(".", 1)[-1]
+
+
 def to_listener_with_summary(
     listener: ListenerSummary,
     live_counts: dict[int, LiveCounts] | None = None,
@@ -168,6 +178,9 @@ def to_listener_with_summary(
 
     Copies every field from the summary and appends a computed
     ``handler_summary`` string via :func:`~hassette.web.telemetry_helpers.format_handler_summary`.
+    ``target`` is also computed: it is the summary's ``entity_id`` for state/attribute listeners,
+    or (since ``entity_id`` is ``None`` for event listeners) falls back to
+    :func:`event_name_from_topic`.
 
     Args:
         listener: The persisted listener summary from the telemetry DB.
@@ -177,12 +190,13 @@ def to_listener_with_summary(
     """
     suppressed, dropped, backpressure_dropped = (live_counts or {}).get(listener.listener_id, LiveCounts(0, 0, 0))
     # Every ListenerSummary field has a same-named field on ListenerWithSummary, so
-    # from_attributes copies them 1:1. The five fields below have no source attribute
+    # from_attributes copies them 1:1. The six fields below have no source attribute
     # (they are computed or sourced from live_counts) and are set via model_copy.
     return ListenerWithSummary.model_validate(listener, from_attributes=True).model_copy(
         update={
             "listener_kind": listener_kind_from_topic(listener.topic),
             "handler_summary": format_handler_summary(listener),
+            "target": listener.entity_id or event_name_from_topic(listener.topic),
             "suppressed_count": suppressed,
             "dropped_count": dropped,
             "backpressure_dropped_count": backpressure_dropped,
