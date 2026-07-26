@@ -3,11 +3,9 @@
 from typing import Literal
 
 from hassette.schemas.execution_models import ActivityFeedEntry, Execution
-from hassette.test_utils.config import DEFAULT_TEST_APP_KEY, TEST_EPOCH_B
+from hassette.test_utils.config import DEFAULT_TEST_APP_KEY, SYNTHETIC_TIMESTAMP
 from hassette.types.types import ExecutionStatus
 from hassette.web.models import ListenerWithSummary, LogEntryResponse, LogsByExecutionResponse
-
-SYNTHETIC_TIMESTAMP = TEST_EPOCH_B
 
 
 def make_activity_feed_entry(

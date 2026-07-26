@@ -8,6 +8,15 @@ Import policy: within ``hassette``, ``schemas`` may import ONLY ``hassette.types
 ``hassette.const``, and ``hassette.utils`` — no ``core``, no service logic. Third-party
 (pydantic) and stdlib (``importlib.metadata``) imports are fine; the rule is about
 keeping ``schemas`` below ``core``/``web`` in the layer DAG.
+
+Telemetry DB query-result models are split by domain across sibling modules:
+
+- ``listener_models.py`` — per-listener summaries, stats, and error records
+- ``execution_models.py`` — unified execution records and activity feed
+- ``job_models.py`` — per-job summaries, stats, and error records
+- ``summary_models.py`` — app-health and global aggregates
+- ``log_models.py`` — log records and blocking events
+- ``domain_models.py`` — live state snapshots and WS event payloads
 """
 
 from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo, AppStatusSnapshot

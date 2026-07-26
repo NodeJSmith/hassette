@@ -18,8 +18,7 @@ import hassette.utils.date_utils as date_utils
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.triggers import After, Cron, Every, Once
 from hassette.schemas.job_models import JobSummary
-from hassette.test_utils.config import DEFAULT_TEST_APP_KEY
-from hassette.test_utils.web_telemetry_helpers import SYNTHETIC_TIMESTAMP
+from hassette.test_utils.config import DEFAULT_TEST_APP_KEY, SYNTHETIC_TIMESTAMP
 from hassette.types.enums import ExecutionMode
 from hassette.types.types import SchedulerPredicate
 

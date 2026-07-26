@@ -5,8 +5,7 @@ from typing import Any
 import tomli_w
 
 from hassette.config.models import DEFAULT_WEB_API_PORT
-from hassette.test_utils.config import DEFAULT_TEST_APP_KEY
-from hassette.test_utils.web_telemetry_helpers import SYNTHETIC_TIMESTAMP
+from hassette.test_utils.config import DEFAULT_TEST_APP_KEY, SYNTHETIC_TIMESTAMP
 from hassette.web.models import (
     AppConfigResponse,
     AppHealthResponse,

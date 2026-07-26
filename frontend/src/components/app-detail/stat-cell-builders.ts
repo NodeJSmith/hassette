@@ -17,6 +17,14 @@ export interface CommonStatInput {
   threadLeaked: number;
   suppressedCount: number;
   droppedCount: number;
+  /**
+   * Extra cell to splice into the conditional zone, positioned right after
+   * "Cancelled" if it renders, else right after "Timed Out" if it renders,
+   * else at the start of the conditional zone. Callers never compute this
+   * position themselves — the builder owns both the cell labels and the
+   * insertion point. Only `JobDetail`'s "Skipped" cell needs this today.
+   */
+  insertAfterCancelledOrTimedOut?: DetailStatsCell;
 }
 
 export function buildCommonStatCells(input: CommonStatInput): DetailStatsCell[] {
@@ -33,6 +41,13 @@ export function buildCommonStatCells(input: CommonStatInput): DetailStatsCell[] 
   ];
   if (input.timedOut > 0) cells.push({ label: "Timed Out", value: input.timedOut, tone: "warn" });
   if (input.cancelled > 0) cells.push({ label: "Cancelled", value: input.cancelled, tone: "cancel" });
+  if (input.insertAfterCancelledOrTimedOut) {
+    const cancelledIndex = cells.findIndex((cell) => cell.label === "Cancelled");
+    const timedOutIndex = cells.findIndex((cell) => cell.label === "Timed Out");
+    const insertAt =
+      cancelledIndex >= 0 ? cancelledIndex + 1 : timedOutIndex >= 0 ? timedOutIndex + 1 : COMMON_STAT_CELL_COUNT;
+    cells.splice(insertAt, 0, input.insertAfterCancelledOrTimedOut);
+  }
   if (input.threadLeaked > 0) cells.push({ label: "Thread Leaked", value: input.threadLeaked, tone: "warn" });
   if (input.suppressedCount > 0) cells.push({ label: "Suppressed", value: input.suppressedCount, tone: "mute" });
   if (input.droppedCount > 0) cells.push({ label: "Dropped", value: input.droppedCount, tone: "warn" });

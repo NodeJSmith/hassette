@@ -21,6 +21,10 @@ DEFAULT_TEST_APP_KEY = "test_app"
 TEST_EPOCH_A = 1_234_567_890.0
 TEST_EPOCH_B = 1_700_000_000.0
 
+# Alias used by the web_*_helpers factories — a fixed, deterministic timestamp for
+# synthesized web-layer fixture data (job/listener/execution response models).
+SYNTHETIC_TIMESTAMP = TEST_EPOCH_B
+
 # Shutdown budget for a directly-constructed SyncExecutor's `shutdown_pool(timeout=...)`
 # at test teardown. Generous relative to test workloads so it never masks a real hang.
 TEST_SYNC_EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS = 5.0

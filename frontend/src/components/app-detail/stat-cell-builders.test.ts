@@ -115,4 +115,49 @@ describe("buildCommonStatCells", () => {
 
     expect(conditionalLabels).toEqual(["Timed Out", "Cancelled", "Thread Leaked", "Suppressed", "Dropped"]);
   });
+
+  describe("insertAfterCancelledOrTimedOut", () => {
+    it("inserts right after Cancelled when both Timed Out and Cancelled render", () => {
+      const cells = buildCommonStatCells(
+        baseInput({
+          timedOut: 1,
+          cancelled: 1,
+          insertAfterCancelledOrTimedOut: { label: "Skipped", value: 3, tone: "mute" },
+        }),
+      );
+
+      expect(cells.slice(5).map((c) => c.label)).toEqual(["Timed Out", "Cancelled", "Skipped"]);
+    });
+
+    it("inserts right after Timed Out when Cancelled does not render", () => {
+      const cells = buildCommonStatCells(
+        baseInput({
+          timedOut: 1,
+          cancelled: 0,
+          insertAfterCancelledOrTimedOut: { label: "Skipped", value: 3, tone: "mute" },
+        }),
+      );
+
+      expect(cells.slice(5).map((c) => c.label)).toEqual(["Timed Out", "Skipped"]);
+    });
+
+    it("inserts at the start of the conditional zone when neither Timed Out nor Cancelled render", () => {
+      const cells = buildCommonStatCells(
+        baseInput({
+          timedOut: 0,
+          cancelled: 0,
+          threadLeaked: 1,
+          insertAfterCancelledOrTimedOut: { label: "Skipped", value: 3, tone: "mute" },
+        }),
+      );
+
+      expect(cells.slice(5).map((c) => c.label)).toEqual(["Skipped", "Thread Leaked"]);
+    });
+
+    it("omits the cell entirely when not provided", () => {
+      const cells = buildCommonStatCells(baseInput({ timedOut: 1, cancelled: 1 }));
+
+      expect(cells.map((c) => c.label)).not.toContain("Skipped");
+    });
+  });
 });

@@ -5,14 +5,7 @@ These typed models replace raw ``dict`` returns, preventing the
 
 For live runtime state models, see ``domain_models.py``.
 
-Separation rationale
---------------------
-- ``listener_models.py`` — per-listener summaries, stats, and error records
-- ``execution_models.py`` — unified execution records and activity feed (this module)
-- ``job_models.py`` — per-job summaries, stats, and error records
-- ``summary_models.py`` — app-health and global aggregates
-- ``log_models.py`` — log records and blocking events
-- ``domain_models.py`` — live state snapshots and WS event payloads
+See ``schemas/__init__.py`` for the domain-file map.
 """
 
 from typing import Literal, NamedTuple

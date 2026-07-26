@@ -25,7 +25,7 @@ import { jobHealthKind } from "./handler-list";
 import { HandlerModeChip } from "./handler-mode-chip";
 import styles from "./job-detail.module.css";
 import { RegistrationFooter } from "./registration-footer";
-import { buildCommonStatCells, COMMON_STAT_CELL_COUNT, type CommonStatInput } from "./stat-cell-builders";
+import { buildCommonStatCells, type CommonStatInput } from "./stat-cell-builders";
 
 function ScheduleChips({ job }: { job: JobData }) {
   const chips: Array<{ label: string }> = [];
@@ -88,23 +88,10 @@ function buildJobStatsCells(job: JobData, lastExecutedLabel: string, nextRunText
     threadLeaked: job.thread_leaked,
     suppressedCount: job.suppressed_count,
     droppedCount: job.dropped_count,
+    insertAfterCancelledOrTimedOut:
+      job.skipped > 0 ? { label: "Skipped", value: job.skipped, tone: "mute" } : undefined,
   };
-  const cells = buildCommonStatCells(input);
-  if (job.skipped > 0) {
-    // Mirror the original conditional-push order (Timed Out, Cancelled, Skipped, Thread Leaked, ...):
-    // insert right after Cancelled if present, else right after Timed Out, else at the start of the
-    // conditional-cell zone (index 5, immediately after the 5 fixed common cells).
-    const cancelledIndex = cells.findIndex((cell) => cell.label === "Cancelled");
-    let insertAt: number;
-    if (cancelledIndex >= 0) {
-      insertAt = cancelledIndex + 1;
-    } else {
-      const timedOutIndex = cells.findIndex((cell) => cell.label === "Timed Out");
-      insertAt = timedOutIndex >= 0 ? timedOutIndex + 1 : COMMON_STAT_CELL_COUNT;
-    }
-    cells.splice(insertAt, 0, { label: "Skipped", value: job.skipped, tone: "mute" });
-  }
-  return cells;
+  return buildCommonStatCells(input);
 }
 
 interface Props {
