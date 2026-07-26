@@ -31,6 +31,7 @@ import pkgutil
 import sys
 from pathlib import Path
 
+from cyclopts import App as CycloptsApp
 from rich.console import Console
 
 import hassette.cli.commands as commands_pkg
@@ -54,7 +55,7 @@ def discover_command_paths() -> list[tuple[str, ...]]:
     subcommands and are skipped.
     """
 
-    def walk(node, prefix: tuple[str, ...]) -> list[tuple[str, ...]]:
+    def walk(node: CycloptsApp, prefix: tuple[str, ...]) -> list[tuple[str, ...]]:
         paths = []
         for name, sub in node.resolved_commands().items():
             if name.startswith("-"):
@@ -112,7 +113,7 @@ def build_columns_snapshot() -> dict[str, dict[str, list[dict[str, object]]]]:
     return result
 
 
-def _unified_diff(label: str, committed: str, current: str) -> str:
+def unified_diff(label: str, committed: str, current: str) -> str:
     diff = difflib.unified_diff(
         committed.splitlines(keepends=True),
         current.splitlines(keepends=True),
@@ -136,27 +137,27 @@ def main() -> int:
 
     if args.update:
         SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
-        HELP_SNAPSHOT.write_text(help_text)
-        COLUMNS_SNAPSHOT.write_text(columns_json)
+        HELP_SNAPSHOT.write_text(help_text, encoding="utf-8")
+        COLUMNS_SNAPSHOT.write_text(columns_json, encoding="utf-8")
         print(f"Updated {HELP_SNAPSHOT.relative_to(REPO_ROOT)} and {COLUMNS_SNAPSHOT.relative_to(REPO_ROOT)}")
         return 0
 
     problems: list[str] = []
 
-    if not HELP_SNAPSHOT.exists():
-        problems.append(f"{HELP_SNAPSHOT.relative_to(REPO_ROOT)} does not exist")
-    elif (committed := HELP_SNAPSHOT.read_text()) != help_text:
-        problems.append(_unified_diff("cli_help.txt", committed, help_text))
-
-    if not COLUMNS_SNAPSHOT.exists():
-        problems.append(f"{COLUMNS_SNAPSHOT.relative_to(REPO_ROOT)} does not exist")
-    elif (committed := COLUMNS_SNAPSHOT.read_text()) != columns_json:
-        problems.append(_unified_diff("cli_columns.json", committed, columns_json))
+    for snapshot, label, expected in [
+        (HELP_SNAPSHOT, "cli_help.txt", help_text),
+        (COLUMNS_SNAPSHOT, "cli_columns.json", columns_json),
+    ]:
+        if not snapshot.exists():
+            problems.append(f"{snapshot.relative_to(REPO_ROOT)} does not exist")
+        elif (committed := snapshot.read_text(encoding="utf-8")) != expected:
+            problems.append(unified_diff(label, committed, expected))
 
     if problems:
         print("CLI surface drift detected:\n")
         print("\n".join(problems))
         print("Re-run: uv run python tools/check_cli_drift.py --update")
+        print("Then update docs/pages/cli/commands.md and docs/pages/cli/index.md to match.")
         return 1
 
     return 0

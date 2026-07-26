@@ -13,11 +13,11 @@ from pathlib import Path
 import check_cli_drift
 import pytest
 from check_cli_drift import (
-    _unified_diff,
     build_columns_snapshot,
     build_help_snapshot,
     discover_command_paths,
     main,
+    unified_diff,
 )
 
 
@@ -66,11 +66,11 @@ def test_build_columns_snapshot_serializes_formatter_by_name() -> None:
 
 
 def test_unified_diff_empty_when_equal() -> None:
-    assert _unified_diff("label", "same\n", "same\n") == ""
+    assert unified_diff("label", "same\n", "same\n") == ""
 
 
 def test_unified_diff_reports_added_and_removed_lines() -> None:
-    diff = _unified_diff("cli_help.txt", "old line\n", "new line\n")
+    diff = unified_diff("cli_help.txt", "old line\n", "new line\n")
 
     assert "cli_help.txt (committed)" in diff
     assert "cli_help.txt (current)" in diff

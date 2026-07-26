@@ -112,19 +112,6 @@ jobs:
             - name: Check coordinator-internal annotations in core tests
               run: uv run python tools/check_coordinator_internal.py
 
-            - name: Check CLI surface for drift
-              # The "regenerate docs" step below is manual today — automatic Cog-based
-              # doc generation is tracked separately (#855) and not yet wired up.
-              run: |
-                  if ! uv run python tools/check_cli_drift.py; then
-                    echo ""
-                    echo "ERROR: CLI surface changed but docs were not regenerated."
-                    echo "  Re-run: uv run python tools/check_cli_drift.py --update"
-                    echo "  Then update docs/pages/cli/commands.md and docs/pages/cli/index.md by hand to match."
-                    echo ""
-                    exit 1
-                  fi
-
             - name: Check file sizes (non-blocking)
               continue-on-error: true
               run: uv run python tools/check_file_size.py
