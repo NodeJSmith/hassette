@@ -1,5 +1,7 @@
 """Shared fixtures and helpers for web API integration tests."""
 
+from unittest.mock import MagicMock
+
 import pytest
 from httpx2 import ASGITransport, AsyncClient
 
@@ -64,7 +66,7 @@ async def client(app):
         yield ac
 
 
-def set_websocket_state(mock_hassette, *, connected: bool, ever_connected: bool) -> None:
+def set_websocket_state(mock_hassette: MagicMock, *, connected: bool, ever_connected: bool) -> None:
     """Set the mock websocket service's connection state for system-status tests."""
     mock_hassette._websocket_service.is_connected = connected
     mock_hassette._websocket_service.has_ever_connected = ever_connected
