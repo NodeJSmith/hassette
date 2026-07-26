@@ -12,7 +12,7 @@ from hassette.web.models import ListenerWithSummary
 LISTENER_LIST_COLUMNS: list[Column] = [
     Column("listener_id", "ID", max_width=6),
     Column("app_key", "App", max_width=18),
-    Column("entity_id", "Target", max_width=26),
+    Column("target", "Target", max_width=26),
     Column("listener_kind", "Kind", max_width=12),
     Column("handler_method", "Handler", max_width=22, formatter=fmt_handler_short),
     Column("total_invocations", "Total", max_width=7),

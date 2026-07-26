@@ -3145,7 +3145,7 @@
             ],
             "title": "Duration"
           },
-          "entity_id": {
+          "target": {
             "anyOf": [
               {
                 "type": "string"
@@ -3154,7 +3154,8 @@
                 "type": "null"
               }
             ],
-            "title": "Entity Id"
+            "title": "Target",
+            "description": "What the listener is watching: an HA entity ID, or the topic's last segment for event listeners."
           },
           "mode": {
             "$ref": "#/components/schemas/ExecutionMode",

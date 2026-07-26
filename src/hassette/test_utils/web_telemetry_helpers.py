@@ -47,7 +47,7 @@ def make_listener_with_summary(
     last_invoked_at: float | None = TEST_EPOCH_B,
     last_error_type: str | None = None,
     last_error_message: str | None = None,
-    entity_id: str | None = None,
+    target: str | None = None,
 ) -> ListenerWithSummary:
     """Build a ListenerWithSummary with sensible defaults."""
     return ListenerWithSummary(
@@ -66,7 +66,7 @@ def make_listener_with_summary(
         last_invoked_at=last_invoked_at,
         last_error_type=last_error_type,
         last_error_message=last_error_message,
-        entity_id=entity_id,
+        target=target,
     )
 
 

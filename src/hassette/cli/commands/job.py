@@ -4,7 +4,7 @@ from typing import Any
 
 from hassette.cli.client import make_client
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
-from hassette.cli.output import Column, fmt_duration_ms, fmt_next_run, fmt_relative_time, render_table
+from hassette.cli.output import Column, fmt_duration_ms, fmt_relative_time, render_table
 from hassette.cli.types import AppKeyArg, InstanceArg, LimitArg, SinceArg, SourceTierArg
 from hassette.schemas.execution_models import Execution
 from hassette.schemas.job_models import JobSummary
@@ -20,7 +20,7 @@ JOB_LIST_COLUMNS: list[Column] = [
     Column("successful", "OK", max_width=6),
     Column("failed", "Fail", max_width=6),
     Column("avg_duration_ms", "Avg", max_width=7, formatter=fmt_duration_ms),
-    Column("next_run", "Next Run", max_width=11, formatter=fmt_next_run),
+    Column("next_run", "Next Run", max_width=11),
 ]
 
 JOB_EXECUTION_COLUMNS: list[Column] = [

@@ -109,8 +109,8 @@ class TestCmdListener:
         assert listeners_call["params"]["source_tier"] == "app"
 
     def test_human_mode_renders_table(self, cli_client_factory: CLIClientFactory) -> None:
-        """Listener renders a table with listener_id and entity_id."""
-        listener = make_listener_with_summary(listener_id=42, entity_id="light.kitchen")
+        """Listener renders a table with listener_id and target."""
+        listener = make_listener_with_summary(listener_id=42, target="light.kitchen")
         client = cli_client_factory.build_with_routes([("GET", "/api/bus/listeners", 200, [listener.model_dump()])])
         with (
             capture_stdout() as buf,
@@ -120,6 +120,7 @@ class TestCmdListener:
 
         output = buf.getvalue()
         assert "42" in output
+        assert "light" in output
         assert "test_" in output
 
     def test_json_mode_outputs_list(self, cli_client_factory: CLIClientFactory) -> None:
@@ -154,7 +155,7 @@ class TestCmdListener:
         field_names = [c.field for c in LISTENER_LIST_COLUMNS]
         assert "listener_id" in field_names
         assert "app_key" in field_names
-        assert "entity_id" in field_names
+        assert "target" in field_names
         assert "handler_method" in field_names
         assert "total_invocations" in field_names
 

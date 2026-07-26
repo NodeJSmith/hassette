@@ -60,10 +60,16 @@
   display: flex;
   align-items: baseline;
   gap: var(--sp-4);
+  /* Grounds the title against the page instead of letting it float above the first card. */
+  padding-bottom: var(--sp-3);
+  border-bottom: var(--sp-px) solid var(--line-1);
 }
 
 .ht-page-header .ht-display {
   margin: 0;
+  font-size: var(--fs-display);
+  line-height: var(--lh-display);
+  letter-spacing: var(--tr-display);
 }
 
 /* Level (horizontal bar) */

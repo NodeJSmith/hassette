@@ -8,12 +8,12 @@ For live runtime state models, see ``domain_models.py``.
 See ``schemas/__init__.py`` for the domain-file map.
 """
 
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel
 
 from hassette.types.enums import DEFAULT_OVERLAP_MODE, ExecutionMode
-from hassette.types.types import SourceTier
+from hassette.types.types import CliFormat, SourceTier
 
 
 class JobSummary(BaseModel):
@@ -58,7 +58,7 @@ class JobSummary(BaseModel):
     avg_duration_ms: float
     group: str | None = None
     """Scheduler group name, persisted at registration."""
-    next_run: float | None = None
+    next_run: Annotated[float | None, CliFormat("relative_time", none_text="done")] = None
     """Unix epoch seconds of the next scheduled fire time (unjittered); sourced from live heap."""
     fire_at: float | None = None
     """Unix epoch seconds of actual dispatch time when jitter applied; sourced from live heap."""

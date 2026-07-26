@@ -1,0 +1,276 @@
+$ hassette --help
+Usage: hassette COMMAND [OPTIONS]
+
+Hassette — async-first Home Assistant automation framework.
+
+╭─ Commands ───────────────────────────────────────────────────────────────────────────────────────╮
+│ app                    List and inspect apps.                                                    │
+│ config                 Show current configuration.                                               │
+│ dashboard              Show app dashboard grid.                                                  │
+│ execution              Show logs for a specific execution.                                       │
+│ job                    List scheduled jobs and execution history.                                │
+│ listener               List listeners and invocation history.                                    │
+│ log                    Show recent log entries.                                                  │
+│ run                    Start the Hassette framework server.                                      │
+│ status                 Show system status.                                                       │
+│ telemetry              Show telemetry status.                                                    │
+│ --generate-completion  Print shell completion script to stdout.                                  │
+│ --help (-h)            Display this message and exit.                                            │
+│ --install-completion   Install shell completion for this application.                            │
+│ --version (-v)         Display application version.                                              │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
+│ --config-file -c     Path to the TOML configuration file.                                        │
+│ --env-file --env -e  Path to the .env file.                                                      │
+│ --json               Output results as JSON. [default: False]                                    │
+│ --debug              Show full HTTP response on CLI errors. [default: False]                     │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+$ hassette app --help
+Usage: hassette app COMMAND [OPTIONS]
+
+List and inspect apps.
+
+╭─ Commands ───────────────────────────────────────────────────────────────────────────────────────╮
+│ activity  Show recent activity for an app (GET /api/telemetry/app/{key}/activity).               │
+│ config    Show app configuration (GET /api/apps/{key}/config).                                   │
+│ health    Show health metrics for an app instance (GET /api/telemetry/app/{key}/health).         │
+│ source    Show app source code (GET /api/apps/{key}/source).                                     │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
+│ --config-file -c     Path to the TOML configuration file.                                        │
+│ --env-file --env -e  Path to the .env file.                                                      │
+│ --json               Output results as JSON. [default: False]                                    │
+│ --debug              Show full HTTP response on CLI errors. [default: False]                     │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+$ hassette app activity --help
+Usage: hassette app activity [OPTIONS] KEY [ARGS]
+
+Show recent activity for an app (GET /api/telemetry/app/{key}/activity).
+
+╭─ Parameters ─────────────────────────────────────────────────────────────────────────────────────╮
+│ *  KEY --key            [required]                                                               │
+│    INSTANCE --instance  Filter by app instance (integer index or instance name). Requires --app. │
+│    SINCE --since        Filter by time. Accepts relative (1h, 7d, 30m, 2w, 30s) or absolute      │
+│                         (2026-05-22, 2026-05-22T14:00:00) timestamps. Naive timestamps use local │
+│                         time.                                                                    │
+│    LIMIT --limit        Maximum number of results to return.                                     │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
+│ --config-file -c     Path to the TOML configuration file.                                        │
+│ --env-file --env -e  Path to the .env file.                                                      │
+│ --json               Output results as JSON. [default: False]                                    │
+│ --debug              Show full HTTP response on CLI errors. [default: False]                     │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+$ hassette app config --help
+Usage: hassette app config [OPTIONS] KEY
+
+Show app configuration (GET /api/apps/{key}/config).
+
+Renders the app's metadata and masked config values. The fully-inlined config_schema is part of the
+response but is intentionally not shown — it is a large machine-oriented blob, not something a CLI
+reader needs.
+
+╭─ Parameters ─────────────────────────────────────────────────────────────────────────────────────╮
+│ *  KEY --key  [required]                                                                         │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
+│ --config-file -c     Path to the TOML configuration file.                                        │
+│ --env-file --env -e  Path to the .env file.                                                      │
+│ --json               Output results as JSON. [default: False]                                    │
+│ --debug              Show full HTTP response on CLI errors. [default: False]                     │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+$ hassette app health --help
+Usage: hassette app health [OPTIONS] KEY [ARGS]
+
+Show health metrics for an app instance (GET /api/telemetry/app/{key}/health).
+
+╭─ Parameters ─────────────────────────────────────────────────────────────────────────────────────╮
+│ *  KEY --key                  [required]                                                         │
+│    INSTANCE --instance        Filter by app instance (integer index or instance name). Requires  │
+│                               --app.                                                             │
+│    SINCE --since              Filter by time. Accepts relative (1h, 7d, 30m, 2w, 30s) or         │
+│                               absolute (2026-05-22, 2026-05-22T14:00:00) timestamps. Naive       │
+│                               timestamps use local time.                                         │
+│    SOURCE-TIER --source-tier  Filter by telemetry source tier: 'app', 'framework', or 'all'.     │
+│                               [choices: app, framework, all]                                     │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
+│ --config-file -c     Path to the TOML configuration file.                                        │
+│ --env-file --env -e  Path to the .env file.                                                      │
+│ --json               Output results as JSON. [default: False]                                    │
+│ --debug              Show full HTTP response on CLI errors. [default: False]                     │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+$ hassette app source --help
+Usage: hassette app source [OPTIONS] KEY
+
+Show app source code (GET /api/apps/{key}/source).
+
+╭─ Parameters ─────────────────────────────────────────────────────────────────────────────────────╮
+│ *  KEY --key  [required]                                                                         │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
+│ --config-file -c     Path to the TOML configuration file.                                        │
+│ --env-file --env -e  Path to the .env file.                                                      │
+│ --json               Output results as JSON. [default: False]                                    │
+│ --debug              Show full HTTP response on CLI errors. [default: False]                     │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+$ hassette config --help
+Usage: hassette config [OPTIONS]
+
+Show current configuration.
+
+╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
+│ --config-file -c     Path to the TOML configuration file.                                        │
+│ --env-file --env -e  Path to the .env file.                                                      │
+│ --json               Output results as JSON. [default: False]                                    │
+│ --debug              Show full HTTP response on CLI errors. [default: False]                     │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+$ hassette dashboard --help
+Usage: hassette dashboard [OPTIONS]
+
+Show app dashboard grid.
+
+╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
+│ --config-file -c     Path to the TOML configuration file.                                        │
+│ --env-file --env -e  Path to the .env file.                                                      │
+│ --json               Output results as JSON. [default: False]                                    │
+│ --debug              Show full HTTP response on CLI errors. [default: False]                     │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+$ hassette execution --help
+Usage: hassette execution [OPTIONS] UUID [ARGS]
+
+Show logs for a specific execution.
+
+╭─ Parameters ─────────────────────────────────────────────────────────────────────────────────────╮
+│ *  UUID --uuid    [required]                                                                     │
+│    LIMIT --limit  Maximum number of results to return.                                           │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
+│ --config-file -c     Path to the TOML configuration file.                                        │
+│ --env-file --env -e  Path to the .env file.                                                      │
+│ --json               Output results as JSON. [default: False]                                    │
+│ --debug              Show full HTTP response on CLI errors. [default: False]                     │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+$ hassette job --help
+Usage: hassette job [OPTIONS] [ARGS]
+
+List scheduled jobs and execution history.
+
+╭─ Parameters ─────────────────────────────────────────────────────────────────────────────────────╮
+│ JOB-ID --job-id                                                                                  │
+│ APP --app                  Filter by app key.                                                    │
+│ INSTANCE --instance        Filter by app instance (integer index or instance name). Requires     │
+│                            --app.                                                                │
+│ SINCE --since              Filter by time. Accepts relative (1h, 7d, 30m, 2w, 30s) or absolute   │
+│                            (2026-05-22, 2026-05-22T14:00:00) timestamps. Naive timestamps use    │
+│                            local time.                                                           │
+│ SOURCE-TIER --source-tier  Filter by telemetry source tier: 'app', 'framework', or 'all'.        │
+│                            [choices: app, framework, all]                                        │
+│ LIMIT --limit              Maximum number of results to return.                                  │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
+│ --config-file -c     Path to the TOML configuration file.                                        │
+│ --env-file --env -e  Path to the .env file.                                                      │
+│ --json               Output results as JSON. [default: False]                                    │
+│ --debug              Show full HTTP response on CLI errors. [default: False]                     │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+$ hassette listener --help
+Usage: hassette listener [OPTIONS] [ARGS]
+
+List listeners and invocation history.
+
+╭─ Parameters ─────────────────────────────────────────────────────────────────────────────────────╮
+│ LISTENER-ID --listener-id                                                                        │
+│ APP --app                  Filter by app key.                                                    │
+│ INSTANCE --instance        Filter by app instance (integer index or instance name). Requires     │
+│                            --app.                                                                │
+│ SINCE --since              Filter by time. Accepts relative (1h, 7d, 30m, 2w, 30s) or absolute   │
+│                            (2026-05-22, 2026-05-22T14:00:00) timestamps. Naive timestamps use    │
+│                            local time.                                                           │
+│ SOURCE-TIER --source-tier  Filter by telemetry source tier: 'app', 'framework', or 'all'.        │
+│                            [choices: app, framework, all]                                        │
+│ LIMIT --limit              Maximum number of results to return.                                  │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
+│ --config-file -c     Path to the TOML configuration file.                                        │
+│ --env-file --env -e  Path to the .env file.                                                      │
+│ --json               Output results as JSON. [default: False]                                    │
+│ --debug              Show full HTTP response on CLI errors. [default: False]                     │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+$ hassette log --help
+Usage: hassette log [OPTIONS] [ARGS]
+
+Show recent log entries.
+
+╭─ Parameters ─────────────────────────────────────────────────────────────────────────────────────╮
+│ APP --app                  Filter by app key.                                                    │
+│ INSTANCE --instance        Filter by app instance (integer index or instance name). Requires     │
+│                            --app.                                                                │
+│ SINCE --since              Filter by time. Accepts relative (1h, 7d, 30m, 2w, 30s) or absolute   │
+│                            (2026-05-22, 2026-05-22T14:00:00) timestamps. Naive timestamps use    │
+│                            local time.                                                           │
+│ LIMIT --limit              Maximum number of results to return.                                  │
+│ SOURCE-TIER --source-tier  Filter by telemetry source tier: 'app', 'framework', or 'all'.        │
+│                            [choices: app, framework, all]                                        │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
+│ --config-file -c     Path to the TOML configuration file.                                        │
+│ --env-file --env -e  Path to the .env file.                                                      │
+│ --json               Output results as JSON. [default: False]                                    │
+│ --debug              Show full HTTP response on CLI errors. [default: False]                     │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+$ hassette run --help
+Usage: hassette run [OPTIONS] [ARGS]
+
+Start the Hassette framework server.
+
+╭─ Parameters ─────────────────────────────────────────────────────────────────────────────────────╮
+│ TOKEN --token -t              Home Assistant access token.                                       │
+│ BASE-URL --base-url --url -u  Base URL of the Home Assistant instance.                           │
+│ VERIFY-SSL --verify-ssl       Whether to verify SSL certificates.                                │
+│ DEV-MODE --dev-mode           Enable developer mode.                                             │
+│ APP --app -a                  Run only this app key, excluding all others. Repeatable, or        │
+│                               comma-separated.                                                   │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
+│ --config-file -c     Path to the TOML configuration file.                                        │
+│ --env-file --env -e  Path to the .env file.                                                      │
+│ --json               Output results as JSON. [default: False]                                    │
+│ --debug              Show full HTTP response on CLI errors. [default: False]                     │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+$ hassette status --help
+Usage: hassette status [OPTIONS]
+
+Show system status.
+
+╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
+│ --config-file -c     Path to the TOML configuration file.                                        │
+│ --env-file --env -e  Path to the .env file.                                                      │
+│ --json               Output results as JSON. [default: False]                                    │
+│ --debug              Show full HTTP response on CLI errors. [default: False]                     │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+$ hassette telemetry --help
+Usage: hassette telemetry [OPTIONS]
+
+Show telemetry status.
+
+╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
+│ --config-file -c     Path to the TOML configuration file.                                        │
+│ --env-file --env -e  Path to the .env file.                                                      │
+│ --json               Output results as JSON. [default: False]                                    │
+│ --debug              Show full HTTP response on CLI errors. [default: False]                     │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯

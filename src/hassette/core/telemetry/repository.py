@@ -25,7 +25,7 @@ _RECONCILE_TABLES = frozenset({"listeners", "scheduled_jobs"})
 _RECONCILE_FK_COLUMNS = frozenset({"listener_id", "job_id"})
 
 
-def _execution_insert_params(record: ExecutionRecord) -> dict[str, Any]:
+def execution_insert_params(record: ExecutionRecord) -> dict[str, Any]:
     """Build the named-parameter dict for an executions INSERT.
 
     All booleans are converted to int (SQLite has no native bool type).
@@ -67,7 +67,7 @@ def _execution_insert_params(record: ExecutionRecord) -> dict[str, Any]:
 # representative record's parameter keys. The batch and FK-fallback paths share this constant,
 # which makes it impossible for them to build mismatched column lists.
 _EXECUTION_INSERT_COLUMNS = tuple(
-    _execution_insert_params(
+    execution_insert_params(
         ExecutionRecord(kind="handler", session_id=None, execution_start_ts=0.0, duration_ms=0.0, status="success")
     )
 )
@@ -87,7 +87,7 @@ def _is_fk_violation(exc: sqlite3.IntegrityError) -> bool:
     return "FOREIGN KEY" in str(exc).upper()
 
 
-def _listener_insert_params(registration: ListenerRegistration) -> dict[str, Any]:
+def listener_insert_params(registration: ListenerRegistration) -> dict[str, Any]:
     """Build the named-parameter dict for a listeners INSERT.
 
     Args:
@@ -116,6 +116,36 @@ def _listener_insert_params(registration: ListenerRegistration) -> dict[str, Any
         "entity_id": registration.entity_id,
         "mode": registration.mode,
         "backpressure": registration.backpressure,
+    }
+
+
+def job_insert_params(registration: ScheduledJobRegistration) -> dict[str, Any]:
+    """Build the named-parameter dict for a scheduled_jobs INSERT.
+
+    Args:
+        registration: The scheduled job registration data.
+
+    Returns:
+        A dict of named parameters ready for ``db.execute()``.
+    """
+    return {
+        "app_key": registration.app_key,
+        "instance_index": registration.instance_index,
+        "job_name": registration.job_name,
+        "handler_method": registration.handler_method,
+        "trigger_type": registration.trigger_type,
+        "trigger_label": registration.trigger_label,
+        "trigger_detail": registration.trigger_detail,
+        "repeat": 0,  # repeat is always 0 for new-style jobs; triggers handle recurrence
+        "args_json": registration.args_json,
+        "kwargs_json": registration.kwargs_json,
+        "source_location": registration.source_location,
+        "registration_source": registration.registration_source,
+        "source_tier": registration.source_tier,
+        "group": registration.group,
+        "mode": registration.mode,
+        "predicate_description": registration.predicate_description,
+        "human_description": registration.human_description,
     }
 
 
@@ -322,7 +352,7 @@ class TelemetryRepository:
                 cancelled_at = NULL  -- re-registration clears cancellation
             RETURNING id
             """,
-            _listener_insert_params(registration),
+            listener_insert_params(registration),
         )
 
         row = await cursor.fetchone()
@@ -388,25 +418,7 @@ class TelemetryRepository:
                 cancelled_at = NULL  -- re-registration clears cancellation
             RETURNING id
             """,
-            {
-                "app_key": registration.app_key,
-                "instance_index": registration.instance_index,
-                "job_name": registration.job_name,
-                "handler_method": registration.handler_method,
-                "trigger_type": registration.trigger_type,
-                "trigger_label": registration.trigger_label,
-                "trigger_detail": registration.trigger_detail,
-                "repeat": 0,  # repeat is always 0 for new-style jobs; triggers handle recurrence
-                "args_json": registration.args_json,
-                "kwargs_json": registration.kwargs_json,
-                "source_location": registration.source_location,
-                "registration_source": registration.registration_source,
-                "source_tier": registration.source_tier,
-                "group": registration.group,
-                "mode": registration.mode,
-                "predicate_description": registration.predicate_description,
-                "human_description": registration.human_description,
-            },
+            job_insert_params(registration),
         )
         row = await cursor.fetchone()
         await db.commit()
@@ -620,7 +632,7 @@ class TelemetryRepository:
 
         try:
             await db.execute("BEGIN")
-            params_list = [_execution_insert_params(r) for r in records]
+            params_list = [execution_insert_params(r) for r in records]
             await db.executemany(_EXECUTION_INSERT_SQL, params_list)
             await db.commit()
         except Exception:
@@ -650,7 +662,7 @@ class TelemetryRepository:
             await db.execute("BEGIN")
 
             for record in records:
-                params = _execution_insert_params(record)
+                params = execution_insert_params(record)
                 fk_field = "listener_id" if record.kind == "handler" else "job_id"
                 if await _insert_row_with_fk_fallback(db, params, fk_field, LOGGER):
                     dropped += 1

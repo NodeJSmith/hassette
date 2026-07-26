@@ -76,14 +76,18 @@ def test_instance_response_from_ignores_source_error_attribute():
 
 
 def test_listener_summary_fields_are_subset_of_response():
-    """Every ListenerSummary field exists on ListenerWithSummary.
+    """Every ListenerSummary field exists on ListenerWithSummary, with one documented exception.
 
     Guards the from_attributes mapper: a field added to ListenerSummary but
     missing from ListenerWithSummary would silently drop instead of surfacing.
+    ``entity_id`` is the one intentional exception — the mapper consumes it (falling
+    back to the topic's last segment when unset) to populate ``target`` instead of
+    copying it through 1:1.
     """
+    consumed_by_mapper = {"entity_id"}
     summary_fields = set(ListenerSummary.model_fields)
     response_fields = set(ListenerWithSummary.model_fields)
-    missing = summary_fields - response_fields
+    missing = summary_fields - response_fields - consumed_by_mapper
     assert not missing, f"ListenerSummary fields not present on ListenerWithSummary: {missing}"
 
 
@@ -463,6 +467,24 @@ def test_to_listener_with_summary_min_max_numeric_passthrough():
 
     assert result.min_duration_ms == 5.0
     assert result.max_duration_ms == 100.0
+
+
+def test_to_listener_with_summary_target_uses_entity_id_when_present():
+    """Target is the entity ID for state/attribute listeners."""
+    summary = make_listener_summary(entity_id="light.kitchen", topic="hass.event.state_changed")
+
+    result = to_listener_with_summary(summary)
+
+    assert result.target == "light.kitchen"
+
+
+def test_to_listener_with_summary_target_falls_back_to_topic_last_segment():
+    """Target falls back to the topic's last segment when entity_id is None (event listeners)."""
+    summary = make_listener_summary(entity_id=None, topic="hassette.event.service_status")
+
+    result = to_listener_with_summary(summary)
+
+    assert result.target == "service_status"
 
 
 # LivenessResponse and ReadinessResponse

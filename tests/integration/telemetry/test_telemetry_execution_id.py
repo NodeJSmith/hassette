@@ -10,7 +10,7 @@ import pytest
 from hassette.core.database_service import DatabaseService
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.telemetry.query_service import TelemetryQueryService
-from hassette.core.telemetry.repository import TelemetryRepository, _execution_insert_params
+from hassette.core.telemetry.repository import TelemetryRepository, execution_insert_params
 
 from .helpers import (
     insert_job,
@@ -132,7 +132,7 @@ class TestHandlerInvocationExecutionId:
         assert count_row[0] == 0  # no orphan row written
 
     async def test_shared_params_match_persist_batch_columns(self, db: tuple[DatabaseService, int]) -> None:
-        """_execution_insert_params() keys must match the executions table columns used in persist_batch()."""
+        """execution_insert_params() keys must match the executions table columns used in persist_batch()."""
         db_svc, session_id = db
         listener_id = await insert_listener(db_svc)
         record = ExecutionRecord(
@@ -146,7 +146,7 @@ class TestHandlerInvocationExecutionId:
             trigger_context_id="ctx-test",
             trigger_origin="LOCAL",
         )
-        params = _execution_insert_params(record)
+        params = execution_insert_params(record)
 
         assert "kind" in params
         assert "execution_id" in params
@@ -193,7 +193,7 @@ class TestJobExecutionExecutionId:
         assert je.trigger_context_id is None, "Job executions must have trigger_context_id=None"
 
     async def test_job_shared_params_match_persist_batch_columns(self, db: tuple[DatabaseService, int]) -> None:
-        """_execution_insert_params() keys for kind=job must match the executions table columns."""
+        """execution_insert_params() keys for kind=job must match the executions table columns."""
         db_svc, session_id = db
         job_id = await insert_job(db_svc)
         record = ExecutionRecord(
@@ -205,7 +205,7 @@ class TestJobExecutionExecutionId:
             status="success",
             execution_id="def-test",
         )
-        params = _execution_insert_params(record)
+        params = execution_insert_params(record)
 
         assert "kind" in params
         assert "execution_id" in params
