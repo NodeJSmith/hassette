@@ -427,7 +427,7 @@ These constants are synced between CSS media queries and `use-media-query.ts`.
       TableFooter (count + mobile filters)
 ```
 
-Page gap: `--sp-7`. Table section gap: `--sp-3`. Display heading: `--font-display`, `--fs-h1`.
+Page gap: `--sp-7`. Table section gap: `--sp-3`. Display heading: `--font-display`, `--fs-display`. `.ht-page-header` carries a `--line-1` bottom border with `--sp-3` padding-bottom, grounding the title against the page instead of letting it float.
 
 Column widths are set per-page via `<colgroup>`. Mobile (≤900px) hides lower-priority columns and reallocates widths.
 
