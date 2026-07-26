@@ -1,7 +1,7 @@
 # Design: Handler UI and Telemetry Structural Debt
 
 **Date:** 2026-07-25
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Research:** design/research/2026-07-25-handler-telemetry-debt/research.md
 
