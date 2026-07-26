@@ -18,7 +18,7 @@ import hassette.utils.date_utils as date_utils
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.triggers import After, Cron, Every, Once
 from hassette.schemas.job_models import JobSummary
-from hassette.test_utils.config import DEFAULT_TEST_APP_KEY, SYNTHETIC_TIMESTAMP
+from hassette.test_utils.config import DEFAULT_TEST_APP_KEY, TEST_EPOCH_B
 from hassette.types.enums import ExecutionMode
 from hassette.types.types import SchedulerPredicate
 
@@ -132,8 +132,8 @@ def make_job_summary(
     failed: int = 0,
     total_duration_ms: float | None = None,
     avg_duration_ms: float = 8.0,
-    next_run: float | None = SYNTHETIC_TIMESTAMP + 3600,
-    last_executed_at: float | None = SYNTHETIC_TIMESTAMP,
+    next_run: float | None = TEST_EPOCH_B + 3600,
+    last_executed_at: float | None = TEST_EPOCH_B,
     last_error_type: str | None = None,
     last_error_message: str | None = None,
     group: str | None = None,

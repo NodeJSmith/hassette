@@ -88,8 +88,7 @@ function buildJobStatsCells(job: JobData, lastExecutedLabel: string, nextRunText
     threadLeaked: job.thread_leaked,
     suppressedCount: job.suppressed_count,
     droppedCount: job.dropped_count,
-    insertAfterCancelledOrTimedOut:
-      job.skipped > 0 ? { label: "Skipped", value: job.skipped, tone: "mute" } : undefined,
+    extraCell: job.skipped > 0 ? { label: "Skipped", value: job.skipped, tone: "mute" } : undefined,
   };
   return buildCommonStatCells(input);
 }

@@ -116,13 +116,13 @@ describe("buildCommonStatCells", () => {
     expect(conditionalLabels).toEqual(["Timed Out", "Cancelled", "Thread Leaked", "Suppressed", "Dropped"]);
   });
 
-  describe("insertAfterCancelledOrTimedOut", () => {
+  describe("extraCell", () => {
     it("inserts right after Cancelled when both Timed Out and Cancelled render", () => {
       const cells = buildCommonStatCells(
         baseInput({
           timedOut: 1,
           cancelled: 1,
-          insertAfterCancelledOrTimedOut: { label: "Skipped", value: 3, tone: "mute" },
+          extraCell: { label: "Skipped", value: 3, tone: "mute" },
         }),
       );
 
@@ -134,7 +134,7 @@ describe("buildCommonStatCells", () => {
         baseInput({
           timedOut: 1,
           cancelled: 0,
-          insertAfterCancelledOrTimedOut: { label: "Skipped", value: 3, tone: "mute" },
+          extraCell: { label: "Skipped", value: 3, tone: "mute" },
         }),
       );
 
@@ -147,7 +147,7 @@ describe("buildCommonStatCells", () => {
           timedOut: 0,
           cancelled: 0,
           threadLeaked: 1,
-          insertAfterCancelledOrTimedOut: { label: "Skipped", value: 3, tone: "mute" },
+          extraCell: { label: "Skipped", value: 3, tone: "mute" },
         }),
       );
 

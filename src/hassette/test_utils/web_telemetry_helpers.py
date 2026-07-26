@@ -3,7 +3,7 @@
 from typing import Literal
 
 from hassette.schemas.execution_models import ActivityFeedEntry, Execution
-from hassette.test_utils.config import DEFAULT_TEST_APP_KEY, SYNTHETIC_TIMESTAMP
+from hassette.test_utils.config import DEFAULT_TEST_APP_KEY, TEST_EPOCH_B
 from hassette.types.types import ExecutionStatus
 from hassette.web.models import ListenerWithSummary, LogEntryResponse, LogsByExecutionResponse
 
@@ -11,7 +11,7 @@ from hassette.web.models import ListenerWithSummary, LogEntryResponse, LogsByExe
 def make_activity_feed_entry(
     row_id: str = "h-1",
     status: ExecutionStatus = ExecutionStatus.SUCCESS,
-    timestamp: float = SYNTHETIC_TIMESTAMP,
+    timestamp: float = TEST_EPOCH_B,
     app_key: str = DEFAULT_TEST_APP_KEY,
     handler_id: int = 1,
     handler_name: str = "on_state_change",
@@ -44,7 +44,7 @@ def make_listener_with_summary(
     successful: int = 9,
     failed: int = 1,
     avg_duration_ms: float = 25.0,
-    last_invoked_at: float | None = SYNTHETIC_TIMESTAMP,
+    last_invoked_at: float | None = TEST_EPOCH_B,
     last_error_type: str | None = None,
     last_error_message: str | None = None,
     entity_id: str | None = None,
@@ -72,7 +72,7 @@ def make_listener_with_summary(
 
 def make_execution(
     kind: Literal["handler", "job"] = "handler",
-    execution_start_ts: float = SYNTHETIC_TIMESTAMP,
+    execution_start_ts: float = TEST_EPOCH_B,
     duration_ms: float = 12.5,
     status: ExecutionStatus = ExecutionStatus.SUCCESS,
     error_type: str | None = None,
@@ -97,7 +97,7 @@ def make_execution(
 
 def make_log_entry_response(
     seq: int = 1,
-    timestamp: float = SYNTHETIC_TIMESTAMP,
+    timestamp: float = TEST_EPOCH_B,
     level: str = "INFO",
     logger_name: str = "hassette.app.test_app",
     func_name: str | None = "on_state_change",

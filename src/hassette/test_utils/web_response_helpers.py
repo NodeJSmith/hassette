@@ -5,7 +5,7 @@ from typing import Any
 import tomli_w
 
 from hassette.config.models import DEFAULT_WEB_API_PORT
-from hassette.test_utils.config import DEFAULT_TEST_APP_KEY, SYNTHETIC_TIMESTAMP
+from hassette.test_utils.config import DEFAULT_TEST_APP_KEY, TEST_EPOCH_B
 from hassette.web.models import (
     AppConfigResponse,
     AppHealthResponse,
@@ -149,7 +149,7 @@ def make_app_health_response(
     error_rate_class: str = "good",
     handler_avg_duration: float = 5.0,
     job_avg_duration: float = 10.0,
-    last_activity_ts: float | None = SYNTHETIC_TIMESTAMP,
+    last_activity_ts: float | None = TEST_EPOCH_B,
     health_status: str = "excellent",
 ) -> AppHealthResponse:
     """Build an AppHealthResponse with sensible defaults."""
