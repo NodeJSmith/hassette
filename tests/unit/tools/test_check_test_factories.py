@@ -83,11 +83,44 @@ def test_async_def_exempted_not_flagged(write_sample: Callable[[str], Path]) -> 
     assert check_file(path) == []
 
 
-def test_nested_method_shadow_flagged(write_sample: Callable[[str], Path]) -> None:
+def test_class_method_shadow_not_flagged(write_sample: Callable[[str], Path]) -> None:
+    """A class method sharing a registry name is not a top-level shadow -- it isn't importable
+    as a drop-in replacement for the shared factory, so it carries none of the duplication risk
+    this guard exists to catch.
+    """
     path = write_sample(
         """\
         class Helper:
             def make_manifest(self):
+                return None
+        """
+    )
+    assert check_file(path) == []
+
+
+def test_nested_function_shadow_not_flagged(write_sample: Callable[[str], Path]) -> None:
+    """A closure nested inside another function is scoped to its enclosing call, not a
+    module-level duplicate of the shared factory.
+    """
+    path = write_sample(
+        """\
+        def outer():
+            def noop():
+                pass
+            return noop
+        """
+    )
+    assert check_file(path) == []
+
+
+def test_conditional_def_shadow_flagged(write_sample: Callable[[str], Path]) -> None:
+    """A def inside an if/try/with block is still bound at module level -- and just as
+    importable as a bare top-level def -- so it must still be flagged.
+    """
+    path = write_sample(
+        """\
+        if True:
+            def make_execution_record():
                 return None
         """
     )

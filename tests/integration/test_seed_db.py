@@ -19,12 +19,13 @@ temporary scenario registered via `monkeypatch.setitem`.
 
 import sqlite3
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 import seed_db
 
-from hassette.test_utils.factories import make_execution_record, make_log_record
+from hassette.test_utils.factories import make_execution_record
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -158,14 +159,12 @@ def test_fk_violation_detected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 def _bad_log_record_scenario(ctx: seed_db.SeedContext) -> None:
     """Scenario that deliberately inserts a log_records row with a dangling execution_id."""
     ctx.add_log_record(
-        **make_log_record(
-            seq=1,
-            timestamp=0.0,
-            level="INFO",
-            logger_name="hassette.test",
-            message="dangling execution_id",
-            execution_id="test_dangling_exec_0001",  # no executions row has this execution_id
-        )
+        seq=1,
+        timestamp=0.0,
+        level="INFO",
+        logger_name="hassette.test",
+        message="dangling execution_id",
+        execution_id="test_dangling_exec_0001",  # no executions row has this execution_id
     )
 
 
@@ -186,6 +185,40 @@ def test_consistency_assertion_catches_dangling_execution_id(tmp_path: Path, mon
         seed_db.generate_scenario("test_bad_log", output, tmp)
 
     assert not output.exists(), "output file must not be written when a scenario fails integrity checks"
+
+
+def test_main_reports_clean_message_for_migration_lock_contention(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """A same-path collision surfaces as a RuntimeError wrapping a real sqlite3.OperationalError
+    (the shape migration_runner.py actually produces, not a raw OperationalError) -- main()
+    must recognize this via the exception's __cause__ and print a clear message instead of
+    letting the raw traceback leak.
+    """
+    lock_error = sqlite3.OperationalError("attempt to write a readonly database")
+
+    def _fake_generate_scenario(*_args: object, **_kwargs: object) -> None:
+        raise RuntimeError("Migration 3 (003.sql) failed: attempt to write a readonly database") from lock_error
+
+    monkeypatch.setattr(seed_db, "generate_scenario", _fake_generate_scenario)
+    monkeypatch.setattr(sys, "argv", ["seed_db.py", "--scenario", "healthy", "--output", str(tmp_path / "out.db")])
+
+    with pytest.raises(SystemExit, match=r"Another seed_db\.py run may be writing"):
+        seed_db.main()
+
+
+def test_main_reraises_unrelated_migration_runtime_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """A RuntimeError not caused by lock contention (a real migration bug) must propagate with
+    its own message, not get swallowed into the friendly concurrent-run message -- proves the
+    __cause__ check is narrow, not a blanket RuntimeError catch.
+    """
+
+    def _fake_generate_scenario(*_args: object, **_kwargs: object) -> None:
+        raise RuntimeError("Migration 3 (003.sql) failed: unexpected token in CREATE TABLE statement")
+
+    monkeypatch.setattr(seed_db, "generate_scenario", _fake_generate_scenario)
+    monkeypatch.setattr(sys, "argv", ["seed_db.py", "--scenario", "healthy", "--output", str(tmp_path / "out.db")])
+
+    with pytest.raises(RuntimeError, match="unexpected token"):
+        seed_db.main()
 
 
 @pytest.mark.skip(reason="requires a running hassette instance pointed at the seeded DB -- see issue #1435")

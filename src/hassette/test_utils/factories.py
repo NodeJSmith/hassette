@@ -24,7 +24,7 @@ from hassette.test_utils.mock_hassette import make_mock_hassette
 from hassette.test_utils.recording_api import RecordingApi
 from hassette.types import JobCallable, SchedulerErrorHandlerType, TriggerProtocol
 from hassette.types.enums import DEFAULT_OVERLAP_MODE, ExecutionMode
-from hassette.types.types import LOG_LEVEL_TYPE, BlockingAttributionReason, SchedulerPredicate, SourceTier
+from hassette.types.types import SchedulerPredicate, SourceTier
 
 
 def make_listener_registration(
@@ -160,80 +160,6 @@ def make_execution_record(
         args_json=args_json,
         kwargs_json=kwargs_json,
     )
-
-
-def make_blocking_event(
-    *,
-    session_id: int | None = 1,
-    app_key: str | None = DEFAULT_TEST_APP_KEY,
-    instance_name: str | None = "TestApp.0",
-    instance_index: int | None = 0,
-    execution_id: str | None = None,
-    tier: Literal["watchdog", "monkeypatch"] = "watchdog",
-    primitive: str | None = None,
-    source_location: str | None = None,
-    stall_duration_ms: float | None = 250.0,
-    detected_ts: float = 0.0,
-    source_tier: SourceTier = "app",
-    reason: BlockingAttributionReason | None = "attributed",
-) -> dict[str, Any]:
-    """Build a dict matching the ``blocking_events`` table column shape (005.sql + 007.sql).
-
-    Returns a plain dict (not a ``BlockingEvent`` model instance) so callers can pass it
-    straight into a sync INSERT's named parameters — see ``schemas.telemetry_models.BlockingEvent``
-    for the full field reference this shape mirrors.
-    """
-    return {
-        "session_id": session_id,
-        "app_key": app_key,
-        "instance_name": instance_name,
-        "instance_index": instance_index,
-        "execution_id": execution_id,
-        "tier": tier,
-        "primitive": primitive,
-        "source_location": source_location,
-        "stall_duration_ms": stall_duration_ms,
-        "detected_ts": detected_ts,
-        "source_tier": source_tier,
-        "reason": reason,
-    }
-
-
-def make_log_record(
-    *,
-    seq: int = 1,
-    timestamp: float = 0.0,
-    level: LOG_LEVEL_TYPE = "INFO",
-    logger_name: str = "hassette.test",
-    func_name: str | None = None,
-    lineno: int | None = None,
-    message: str = "test log",
-    exc_info: str | None = None,
-    app_key: str | None = DEFAULT_TEST_APP_KEY,
-    instance_name: str | None = "TestApp.0",
-    instance_index: int | None = 0,
-    execution_id: str | None = None,
-    source_tier: SourceTier | None = "app",
-) -> dict[str, Any]:
-    """Build a dict matching the 13-column ``log_records`` shape (``_LOG_COLUMNS`` in
-    ``database_service.py``). Returns a plain dict so callers can pass it straight into a
-    sync INSERT's named parameters.
-    """
-    return {
-        "seq": seq,
-        "timestamp": timestamp,
-        "level": level,
-        "logger_name": logger_name,
-        "func_name": func_name,
-        "lineno": lineno,
-        "message": message,
-        "exc_info": exc_info,
-        "app_key": app_key,
-        "instance_name": instance_name,
-        "instance_index": instance_index,
-        "execution_id": execution_id,
-        "source_tier": source_tier,
-    }
 
 
 def make_invoke_handler_cmd(

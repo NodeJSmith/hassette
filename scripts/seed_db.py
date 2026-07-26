@@ -16,7 +16,7 @@ Usage::
 import argparse
 import sqlite3
 from collections.abc import Callable, Iterable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
@@ -28,11 +28,9 @@ from hassette.core.migration_runner import run_migrations
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.core.telemetry.repository import execution_insert_params, job_insert_params, listener_insert_params
 from hassette.test_utils.factories import (
-    make_blocking_event,
     make_execution_record,
     make_job_registration,
     make_listener_registration,
-    make_log_record,
 )
 from hassette.types.types import LOG_LEVEL_TYPE
 
@@ -178,18 +176,15 @@ def insert_row(cursor: sqlite3.Cursor, sql: str, params: dict[str, Any]) -> int:
 
 @dataclass
 class SeedContext:
-    """Owns cross-table ID bookkeeping and insert ordering for one scenario run.
+    """Binds a cursor for one scenario run's inserts.
 
     Scenario generators interact exclusively through these methods — they never write
     raw SQL. Each ``add_*`` method builds INSERT params, executes via ``insert_row``,
-    and tracks the returned id in the appropriate dict/list for later FK references.
+    and returns the inserted id; generators thread FK references through their own
+    local variables (see e.g. ``scenario_large_volume``'s ``session_ids_by_app``).
     """
 
     cursor: sqlite3.Cursor
-    session_ids: list[int] = field(default_factory=list)
-    listener_ids: dict[tuple[str, int, str], int] = field(default_factory=dict)
-    job_ids: dict[tuple[str, int, str], int] = field(default_factory=dict)
-    execution_ids: list[str] = field(default_factory=list)
 
     def add_session(
         self,
@@ -205,7 +200,7 @@ class SeedContext:
         dropped_exhausted: int = 0,
         dropped_shutdown: int = 0,
     ) -> int:
-        """Insert a sessions row and track its id in ``session_ids``."""
+        """Insert a sessions row and return its id."""
         params = {
             "started_at": started_at,
             "stopped_at": stopped_at,
@@ -218,9 +213,7 @@ class SeedContext:
             "dropped_exhausted": dropped_exhausted,
             "dropped_shutdown": dropped_shutdown,
         }
-        session_id = insert_row(self.cursor, _SESSION_INSERT_SQL, params)
-        self.session_ids.append(session_id)
-        return session_id
+        return insert_row(self.cursor, _SESSION_INSERT_SQL, params)
 
     def add_listener(
         self,
@@ -229,7 +222,7 @@ class SeedContext:
         retired_at: float | None = None,
         cancelled_at: float | None = None,
     ) -> int:
-        """Insert a listeners row and track its id under (app_key, instance_index, name).
+        """Insert a listeners row and return its id.
 
         ``retired_at``/``cancelled_at`` are not part of ``ListenerRegistration`` (they are
         post-registration lifecycle state) so they are accepted separately here — see the
@@ -241,9 +234,7 @@ class SeedContext:
         params["retired_at"] = retired_at
         params["cancelled_at"] = cancelled_at
         sql = _build_insert_sql("listeners", params, returning=True)
-        listener_id = insert_row(self.cursor, sql, params)
-        self.listener_ids[(registration.app_key, registration.instance_index, registration.name)] = listener_id
-        return listener_id
+        return insert_row(self.cursor, sql, params)
 
     def add_job(
         self,
@@ -252,17 +243,15 @@ class SeedContext:
         retired_at: float | None = None,
         cancelled_at: float | None = None,
     ) -> int:
-        """Insert a scheduled_jobs row and track its id under (app_key, instance_index, job_name)."""
+        """Insert a scheduled_jobs row and return its id."""
         params = job_insert_params(registration)
         params["retired_at"] = retired_at
         params["cancelled_at"] = cancelled_at
         sql = _build_insert_sql("scheduled_jobs", params, returning=True)
-        job_id = insert_row(self.cursor, sql, params)
-        self.job_ids[(registration.app_key, registration.instance_index, registration.job_name)] = job_id
-        return job_id
+        return insert_row(self.cursor, sql, params)
 
     def add_execution(self, record: ExecutionRecord) -> str:
-        """Insert an executions row and track its execution_id in ``execution_ids``.
+        """Insert an executions row and return its execution_id.
 
         No RETURNING needed — the execution_id string is already known from ``record``
         and is what ``log_records``/``blocking_events`` correlate against.
@@ -272,7 +261,6 @@ class SeedContext:
         params = execution_insert_params(record)
         sql = _build_insert_sql("executions", params)
         insert_row(self.cursor, sql, params)
-        self.execution_ids.append(record.execution_id)
         return record.execution_id
 
     def add_log_record(
@@ -438,17 +426,15 @@ def _seed_log_records(
     for i in range(count):
         seq = start_seq + i
         ctx.add_log_record(
-            **make_log_record(
-                seq=seq,
-                timestamp=ts(base_offset + i * interval_seconds),
-                level=level,
-                logger_name=logger_name,
-                message=f"{message_prefix} #{i + 1}",
-                app_key=app_key,
-                instance_name=instance_name,
-                instance_index=instance_index,
-                source_tier="app",
-            )
+            seq=seq,
+            timestamp=ts(base_offset + i * interval_seconds),
+            level=level,
+            logger_name=logger_name,
+            message=f"{message_prefix} #{i + 1}",
+            app_key=app_key,
+            instance_name=instance_name,
+            instance_index=instance_index,
+            source_tier="app",
         )
     return start_seq + count
 
@@ -583,17 +569,15 @@ def scenario_healthy(ctx: SeedContext) -> None:
     # See docstring: populates the blocking_events table without affecting health scoring
     # (blocking events don't factor into compute_error_rate/classify_health_bar).
     ctx.add_blocking_event(
-        **make_blocking_event(
-            tier=WATCHDOG_TIER,
-            reason=REASON_FRAMEWORK,
-            session_id=None,
-            app_key=None,
-            instance_name=None,
-            instance_index=None,
-            detected_ts=ts(60.0),
-            source_tier="framework",
-            stall_duration_ms=120.0,
-        )
+        tier=WATCHDOG_TIER,
+        reason=REASON_FRAMEWORK,
+        session_id=None,
+        app_key=None,
+        instance_name=None,
+        instance_index=None,
+        detected_ts=ts(60.0),
+        source_tier="framework",
+        stall_duration_ms=120.0,
     )
 
 
@@ -761,17 +745,15 @@ def scenario_degraded(ctx: SeedContext) -> None:
     )
 
     ctx.add_blocking_event(
-        **make_blocking_event(
-            tier=WATCHDOG_TIER,
-            reason=REASON_ATTRIBUTED,
-            session_id=hallway_session_id,
-            app_key="hallway_thermostat",
-            instance_name=make_instance_name("HallwayThermostat", 0),
-            instance_index=0,
-            detected_ts=ts(hallway_base + 500.0),
-            source_tier="app",
-            stall_duration_ms=1800.0,
-        )
+        tier=WATCHDOG_TIER,
+        reason=REASON_ATTRIBUTED,
+        session_id=hallway_session_id,
+        app_key="hallway_thermostat",
+        instance_name=make_instance_name("HallwayThermostat", 0),
+        instance_index=0,
+        detected_ts=ts(hallway_base + 500.0),
+        source_tier="app",
+        stall_duration_ms=1800.0,
     )
 
 
@@ -885,31 +867,28 @@ def scenario_error(ctx: SeedContext) -> None:
             message_prefix=f"{class_name} handler error",
         )
         ctx.add_log_record(
-            **make_log_record(
-                seq=seq,
-                timestamp=ts(base + 95.0),
-                level="CRITICAL",
-                logger_name=f"hassette.apps.{app_key}",
-                message=f"{class_name} session crashed",
-                app_key=app_key,
-                instance_name=make_instance_name(class_name, 0),
-                instance_index=0,
-            )
+            seq=seq,
+            timestamp=ts(base + 95.0),
+            level="CRITICAL",
+            logger_name=f"hassette.apps.{app_key}",
+            message=f"{class_name} session crashed",
+            app_key=app_key,
+            instance_name=make_instance_name(class_name, 0),
+            instance_index=0,
+            source_tier="app",
         )
         seq += 1
 
         ctx.add_blocking_event(
-            **make_blocking_event(
-                tier=WATCHDOG_TIER,
-                reason=REASON_ATTRIBUTED,
-                session_id=session_id,
-                app_key=app_key,
-                instance_name=make_instance_name(class_name, 0),
-                instance_index=0,
-                detected_ts=ts(base + 50.0),
-                source_tier="app",
-                stall_duration_ms=3000.0,
-            )
+            tier=WATCHDOG_TIER,
+            reason=REASON_ATTRIBUTED,
+            session_id=session_id,
+            app_key=app_key,
+            instance_name=make_instance_name(class_name, 0),
+            instance_index=0,
+            detected_ts=ts(base + 50.0),
+            source_tier="app",
+            stall_duration_ms=3000.0,
         )
 
 
@@ -971,17 +950,15 @@ def scenario_large_volume(ctx: SeedContext) -> None:
         )
 
     ctx.add_blocking_event(
-        **make_blocking_event(
-            tier=WATCHDOG_TIER,
-            reason=REASON_ATTRIBUTED,
-            session_id=session_ids_by_app["hvac_zone_g"],
-            app_key="hvac_zone_g",
-            instance_name=make_instance_name("HvacZoneG", 0),
-            instance_index=0,
-            detected_ts=ts(6 * APP_TIME_SPACING_SECONDS + 500.0),
-            source_tier="app",
-            stall_duration_ms=1500.0,
-        )
+        tier=WATCHDOG_TIER,
+        reason=REASON_ATTRIBUTED,
+        session_id=session_ids_by_app["hvac_zone_g"],
+        app_key="hvac_zone_g",
+        instance_name=make_instance_name("HvacZoneG", 0),
+        instance_index=0,
+        detected_ts=ts(6 * APP_TIME_SPACING_SECONDS + 500.0),
+        source_tier="app",
+        stall_duration_ms=1500.0,
     )
 
 
@@ -1181,17 +1158,15 @@ def scenario_lifecycle(ctx: SeedContext) -> None:
         base_offset=base,
     )
     ctx.add_blocking_event(
-        **make_blocking_event(
-            tier=WATCHDOG_TIER,
-            reason=REASON_ATTRIBUTED,
-            session_id=session_id,
-            app_key=app_key,
-            instance_name=make_instance_name(class_name, 0),
-            instance_index=0,
-            detected_ts=ts(base + 500.0),
-            source_tier="app",
-            stall_duration_ms=900.0,
-        )
+        tier=WATCHDOG_TIER,
+        reason=REASON_ATTRIBUTED,
+        session_id=session_id,
+        app_key=app_key,
+        instance_name=make_instance_name(class_name, 0),
+        instance_index=0,
+        detected_ts=ts(base + 500.0),
+        source_tier="app",
+        stall_duration_ms=900.0,
     )
 
 
@@ -1347,32 +1322,28 @@ def scenario_adversarial(ctx: SeedContext) -> None:
 
     # -- Blocking events: both tiers -- one attributed to the Unicode app, one unresolved --
     ctx.add_blocking_event(
-        **make_blocking_event(
-            tier=WATCHDOG_TIER,
-            reason=REASON_ATTRIBUTED,
-            session_id=session_id,
-            app_key=app_key,
-            instance_name=make_instance_name(class_name, 0),
-            instance_index=0,
-            detected_ts=ts(base + 500.0),
-            source_tier="app",
-            stall_duration_ms=2500.0,
-        )
+        tier=WATCHDOG_TIER,
+        reason=REASON_ATTRIBUTED,
+        session_id=session_id,
+        app_key=app_key,
+        instance_name=make_instance_name(class_name, 0),
+        instance_index=0,
+        detected_ts=ts(base + 500.0),
+        source_tier="app",
+        stall_duration_ms=2500.0,
     )
     ctx.add_blocking_event(
-        **make_blocking_event(
-            tier=MONKEYPATCH_TIER,
-            reason=REASON_FRAMEWORK,
-            session_id=None,
-            app_key=None,
-            instance_name=None,
-            instance_index=None,
-            primitive="time.sleep",
-            source_location="hassette/core/executor.py:88",
-            detected_ts=ts(base + 600.0),
-            source_tier="framework",
-            stall_duration_ms=None,
-        )
+        tier=MONKEYPATCH_TIER,
+        reason=REASON_FRAMEWORK,
+        session_id=None,
+        app_key=None,
+        instance_name=None,
+        instance_index=None,
+        primitive="time.sleep",
+        source_location="hassette/core/executor.py:88",
+        detected_ts=ts(base + 600.0),
+        source_tier="framework",
+        stall_duration_ms=None,
     )
 
 
@@ -1509,6 +1480,19 @@ def main() -> None:
         summary = generate_scenario(args.scenario, output_path, tmp_path)
     except SeedIntegrityError as exc:
         raise SystemExit(f"Seed integrity check failed: {exc}") from exc
+    except (sqlite3.OperationalError, RuntimeError) as exc:
+        # A same-path collision most often surfaces during run_migrations(), which wraps any
+        # sqlite3.Error (migration_runner.py) in a RuntimeError -- check the cause chain, not
+        # just the raised type, and narrow to OperationalError specifically so an unrelated
+        # migration bug still propagates with its real traceback instead of this friendlier
+        # message.
+        cause = exc if isinstance(exc, sqlite3.OperationalError) else exc.__cause__
+        if not isinstance(cause, sqlite3.OperationalError):
+            raise
+        raise SystemExit(
+            f"Database error while seeding {output_path}: {cause}\n"
+            f"Another seed_db.py run may be writing to this path — wait for it to finish and retry."
+        ) from exc
 
     _print_summary(args.scenario, output_path, summary)
 
