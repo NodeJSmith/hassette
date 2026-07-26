@@ -55,55 +55,62 @@ DATA_LOAD_TIMEOUT_MS = 5000
 
 MOCK_LAST_CHANGED = "2024-01-01T00:00:00"
 
+_READY_STATES = {
+    "light.kitchen": {
+        "entity_id": "light.kitchen",
+        "state": "on",
+        "attributes": {"brightness": 255, "friendly_name": "Kitchen Light"},
+        "last_changed": MOCK_LAST_CHANGED,
+        "last_updated": MOCK_LAST_CHANGED,
+    },
+    "light.bedroom": {
+        "entity_id": "light.bedroom",
+        "state": "off",
+        "attributes": {"brightness": 0, "friendly_name": "Bedroom Light"},
+        "last_changed": MOCK_LAST_CHANGED,
+        "last_updated": MOCK_LAST_CHANGED,
+    },
+    "sensor.temperature": {
+        "entity_id": "sensor.temperature",
+        "state": "22.5",
+        "attributes": {"unit_of_measurement": "°C", "friendly_name": "Temperature"},
+        "last_changed": MOCK_LAST_CHANGED,
+        "last_updated": MOCK_LAST_CHANGED,
+    },
+    "switch.fan": {
+        "entity_id": "switch.fan",
+        "state": "on",
+        "attributes": {"friendly_name": "Fan"},
+        "last_changed": MOCK_LAST_CHANGED,
+        "last_updated": MOCK_LAST_CHANGED,
+    },
+    "binary_sensor.door": {
+        "entity_id": "binary_sensor.door",
+        "state": "off",
+        "attributes": {"device_class": "door", "friendly_name": "Front Door"},
+        "last_changed": MOCK_LAST_CHANGED,
+        "last_updated": MOCK_LAST_CHANGED,
+    },
+}
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SPA_INDEX = REPO_ROOT / "src" / "hassette" / "web" / "static" / "spa" / "index.html"
 
 
-@pytest.fixture(scope="session")
-def mock_hassette():
-    """Create a session-scoped mock Hassette with rich seed data."""
+def build_mock_hassette(*, is_ready: bool = True):
+    """Build a fully-wired mock Hassette stub with rich seed telemetry data.
+
+    ``is_ready=False`` simulates WebsocketService never having connected to HA
+    (the "starting" system-status scenario) — states are empty, matching what
+    StateProxy.on_initialize() produces in that case (see
+    design/specs/018-dashboard-without-ha/design.md).
+    """
     hassette = create_hassette_stub(
-        states={
-            "light.kitchen": {
-                "entity_id": "light.kitchen",
-                "state": "on",
-                "attributes": {"brightness": 255, "friendly_name": "Kitchen Light"},
-                "last_changed": MOCK_LAST_CHANGED,
-                "last_updated": MOCK_LAST_CHANGED,
-            },
-            "light.bedroom": {
-                "entity_id": "light.bedroom",
-                "state": "off",
-                "attributes": {"brightness": 0, "friendly_name": "Bedroom Light"},
-                "last_changed": MOCK_LAST_CHANGED,
-                "last_updated": MOCK_LAST_CHANGED,
-            },
-            "sensor.temperature": {
-                "entity_id": "sensor.temperature",
-                "state": "22.5",
-                "attributes": {"unit_of_measurement": "°C", "friendly_name": "Temperature"},
-                "last_changed": MOCK_LAST_CHANGED,
-                "last_updated": MOCK_LAST_CHANGED,
-            },
-            "switch.fan": {
-                "entity_id": "switch.fan",
-                "state": "on",
-                "attributes": {"friendly_name": "Fan"},
-                "last_changed": MOCK_LAST_CHANGED,
-                "last_updated": MOCK_LAST_CHANGED,
-            },
-            "binary_sensor.door": {
-                "entity_id": "binary_sensor.door",
-                "state": "off",
-                "attributes": {"device_class": "door", "friendly_name": "Front Door"},
-                "last_changed": MOCK_LAST_CHANGED,
-                "last_updated": MOCK_LAST_CHANGED,
-            },
-        },
+        states=_READY_STATES if is_ready else {},
         manifests=build_manifests(),
         old_snapshot=build_old_snapshot(),
         scheduler_jobs=build_scheduler_jobs(),
+        is_ready=is_ready,
     )
 
     # Wire telemetry seed data.
@@ -134,9 +141,32 @@ def mock_hassette():
 
 
 @pytest.fixture(scope="session")
+def mock_hassette():
+    """Create a session-scoped mock Hassette with rich seed data."""
+    return build_mock_hassette(is_ready=True)
+
+
+@pytest.fixture(scope="session")
+def mock_hassette_starting():
+    """Mock Hassette with WebsocketService never connected — drives the 'starting' status scenario.
+
+    Backs a separate live server (``live_server_starting``) so this degraded-status scenario
+    doesn't affect the shared happy-path ``mock_hassette``/``live_server`` used by every other
+    e2e test.
+    """
+    return build_mock_hassette(is_ready=False)
+
+
+@pytest.fixture(scope="session")
 def runtime_query_service(mock_hassette):
     """Create a session-scoped RuntimeQueryService wired to mock_hassette."""
     return create_mock_runtime_query_service(mock_hassette, use_real_lock=False)
+
+
+@pytest.fixture(scope="session")
+def runtime_query_service_starting(mock_hassette_starting):
+    """Create a session-scoped RuntimeQueryService wired to mock_hassette_starting."""
+    return create_mock_runtime_query_service(mock_hassette_starting, use_real_lock=False)
 
 
 @pytest.fixture(scope="session")
@@ -243,19 +273,30 @@ def fastapi_app(mock_hassette, runtime_query_service, log_handler, ensure_spa_bu
     return create_fastapi_app(mock_hassette)
 
 
+@pytest.fixture(scope="session")
+def fastapi_app_starting(mock_hassette_starting, runtime_query_service_starting, log_handler, ensure_spa_built):  # noqa: ARG001
+    """Create the FastAPI app instance backed by the 'starting'-status mock Hassette."""
+    mock_hassette_starting.telemetry_query_service.get_log_records = make_log_records_from_buffer(log_handler)
+    mock_hassette_starting.logging_service.capture_handler = log_handler
+
+    return create_fastapi_app(mock_hassette_starting)
+
+
 def get_free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]
 
 
-@pytest.fixture(scope="session")
-def live_server(fastapi_app):
-    """Start a real uvicorn server in a daemon thread and yield its base URL."""
+def start_uvicorn_server(app, *, ws: str = "none") -> tuple[uvicorn.Server, threading.Thread, str]:
+    """Start `app` under uvicorn in a daemon thread; block until it accepts connections.
+
+    Returns (server, thread, base_url). Caller tears down via `stop_uvicorn_server`.
+    """
     port = get_free_port()
     # Disable WS protocol to avoid websockets.legacy DeprecationWarning (which
     # becomes an error under pytest's filterwarnings=["error"] setting).
-    config = uvicorn.Config(app=fastapi_app, host="127.0.0.1", port=port, log_level="warning", ws="none")
+    config = uvicorn.Config(app=app, host="127.0.0.1", port=port, log_level="warning", ws=ws)
     server = uvicorn.Server(config)
 
     thread = threading.Thread(target=server.run, daemon=True)
@@ -274,12 +315,35 @@ def live_server(fastapi_app):
     else:
         raise RuntimeError(f"Live server did not start within 10s on port {port}")
 
-    yield f"http://127.0.0.1:{port}"
+    return server, thread, f"http://127.0.0.1:{port}"
 
+
+def stop_uvicorn_server(server: uvicorn.Server, thread: threading.Thread) -> None:
     server.should_exit = True
     thread.join(timeout=5)
     if thread.is_alive():
         raise RuntimeError("Live server did not stop within 5s")
+
+
+@pytest.fixture(scope="session")
+def live_server(fastapi_app):
+    """Start a real uvicorn server in a daemon thread and yield its base URL."""
+    server, thread, url = start_uvicorn_server(fastapi_app, ws="none")
+    yield url
+    stop_uvicorn_server(server, thread)
+
+
+@pytest.fixture(scope="session")
+def live_server_starting(fastapi_app_starting):
+    """Start a separate uvicorn server backed by the 'starting'-status mock Hassette.
+
+    Kept independent from ``live_server`` (own port, own mock) so tests exercising the
+    HA-unreachable scenario cannot bleed state into the happy-path server every other
+    e2e test uses.
+    """
+    server, thread, url = start_uvicorn_server(fastapi_app_starting, ws="none")
+    yield url
+    stop_uvicorn_server(server, thread)
 
 
 @pytest.fixture(scope="session")
@@ -288,12 +352,11 @@ def base_url(live_server: str) -> str:
     return live_server
 
 
-@pytest.fixture(autouse=True)
-def set_time_preset_to_1h(request: pytest.FixtureRequest, page, base_url: str) -> None:
-    """Force timePreset='1h' in localStorage before every test page load.
+def seed_time_preset_1h(page, origin_url: str) -> None:
+    """Seed timePreset='1h' in localStorage for origin_url's origin.
 
     The new UI uses useScopedApi which gates fetches on uptimeSeconds received
-    from the WebSocket connected message.  When ws='none' (the default test
+    from the WebSocket connected message. When ws='none' (the default test
     server), the WS never connects and uptimeSeconds stays null, so the default
     preset "since-restart" permanently blocks all scoped API calls and app detail
     pages never finish loading.
@@ -301,21 +364,30 @@ def set_time_preset_to_1h(request: pytest.FixtureRequest, page, base_url: str) -
     Switching to the "1h" preset unblocks useScopedApi: resolveSince("1h", null)
     returns Date.now()/1000 - 3600, which is a valid timestamp regardless of WS.
 
+    localStorage is origin-scoped, so this must run once per distinct server
+    origin (e.g. live_server and live_server_starting run on different ports —
+    different origins — and each needs its own seed call).
+
+    Strategy: navigate to the origin first (to establish the right localStorage
+    scope), set the key, then let the caller navigate freely. The SPA reads
+    timePreset from localStorage on each mount, so any subsequent page.goto()
+    will see the pre-set value.
+    """
+    page.goto(origin_url + "/")
+    page.evaluate("localStorage.setItem('hassette:timePreset', JSON.stringify('1h'));")
+
+
+@pytest.fixture(autouse=True)
+def set_time_preset_to_1h(request: pytest.FixtureRequest, page, base_url: str) -> None:
+    """Force timePreset='1h' in localStorage before every test page load.
+
     Tests that use live_server_ws explicitly exercise the WS path and must NOT
     have the preset forced — they receive uptimeSeconds from the real WS
     connected message and test the "since-restart" gate.
-
-    Strategy: navigate to the app's origin first (to establish the right
-    localStorage origin), set the key, then let the test navigate freely.
-    The SPA reads timePreset from localStorage on each mount, so any subsequent
-    page.goto() will see the pre-set value.
     """
     if "live_server_ws" in request.fixturenames or "live_server_ws_inject" in request.fixturenames:
         return
-    # Navigate to the origin to establish correct localStorage scope, then seed
-    # the timePreset key so useScopedApi is unblocked from the first render.
-    page.goto(base_url + "/")
-    page.evaluate("localStorage.setItem('hassette:timePreset', JSON.stringify('1h'));")
+    seed_time_preset_1h(page, base_url)
 
 
 #

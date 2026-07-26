@@ -64,7 +64,7 @@ class TestStateProxyInit:
         )
 
     async def test_waits_for_dependencies(self, hassette_with_state_proxy: "HassetteHarness") -> None:
-        """State proxy waits for WebSocket, API, and Bus services before initializing."""
+        """State proxy waits for API, Bus, and Scheduler services before initializing."""
         self.setup_hassette(hassette_with_state_proxy)
 
         # Verify proxy is ready (which means all dependencies were awaited)
@@ -95,21 +95,42 @@ class TestStateProxyInit:
         topic_set = {listener.topic for listener in listeners}
         assert Topic.HASS_EVENT_STATE_CHANGED in topic_set, "Should subscribe to state_changed"
 
-    async def test_raises_on_api_failure_during_init(self, hassette_with_state_proxy: "HassetteHarness") -> None:
-        """State proxy raises exception if API fails during initial sync."""
-        hassette = hassette_with_state_proxy
+    async def init_with_failed_cache(self, hassette: "HassetteHarness") -> "StateProxy":
+        """Run on_initialize() with get_states_raw patched to raise, and return the resulting proxy.
+
+        Args:
+            hassette: The HassetteHarness instance from fixture
+        """
+        proxy = hassette.state_proxy
 
         with patch.object(hassette.api, "get_states_raw", new_callable=AsyncMock) as mock_get_states:
             mock_get_states.side_effect = Exception("API failure during init")
 
-            proxy = hassette.state_proxy
+            # Remove the fixture's earlier listeners so re-subscribing doesn't raise
+            # "duplicate listener". Clearing only _registered_listeners (the collision-
+            # detection dict) leaves the old listeners registered in bus_service, which
+            # duplicates the websocket-connected/disconnected handlers on re-init.
+            proxy.bus.remove_all_listeners()
+            await proxy.on_initialize()
 
-            with pytest.raises(Exception, match="API failure during init"):
-                await proxy.on_initialize()
+        return proxy
 
-        # Clear collision-detection state so the retry doesn't raise "duplicate listener"
-        proxy.bus._registered_listeners.clear()
-        await proxy.on_initialize()  # Ensure it can be used in later tests
+    async def test_marks_ready_with_empty_cache_on_api_failure_during_init(
+        self, hassette_with_state_proxy: "HassetteHarness"
+    ) -> None:
+        """State proxy marks ready with an empty cache if API fails during initial sync."""
+        proxy = await self.init_with_failed_cache(hassette_with_state_proxy)
+
+        assert proxy.is_ready()
+        assert proxy.states == {}
+
+    async def test_get_state_returns_none_when_cache_empty_after_init_failure(
+        self, hassette_with_state_proxy: "HassetteHarness"
+    ) -> None:
+        """get_state returns None (not ResourceNotReadyError) when cache is empty after a failed initial sync."""
+        proxy = await self.init_with_failed_cache(hassette_with_state_proxy)
+
+        assert proxy.get_state("light.nonexistent") is None
 
 
 @pytest.fixture
@@ -491,7 +512,7 @@ class TestStateProxyWebsocketListeners:
         proxy = hassette_with_state_proxy.state_proxy
 
         # Re-initialize with polling enabled
-        proxy.bus._registered_listeners.clear()
+        proxy.bus.remove_all_listeners()
         await proxy.on_initialize()
 
         assert proxy.poll_job is not None

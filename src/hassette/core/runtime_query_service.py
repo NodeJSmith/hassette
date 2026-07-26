@@ -254,8 +254,8 @@ class RuntimeQueryService(Resource):
         return self.hassette.app_handler.registry.get_full_snapshot()
 
     def get_system_status(self) -> SystemStatus:
-        ws = self.hassette.websocket_service
-        ws_connected = ws.is_ready()
+        websocket_service = self.hassette.websocket_service
+        is_connected = websocket_service.is_connected
         uptime = time.time() - self._start_time
 
         try:
@@ -279,9 +279,9 @@ class RuntimeQueryService(Resource):
             )
             for child in self.hassette.children
         ]
-        if ws_connected:
+        if is_connected:
             status = "ok"
-        elif ws.has_ever_connected:
+        elif websocket_service.has_ever_connected:
             status = "degraded"
         else:
             status = "starting"
@@ -290,7 +290,7 @@ class RuntimeQueryService(Resource):
 
         return SystemStatus(
             status=status,
-            websocket_connected=ws_connected,
+            websocket_connected=is_connected,
             uptime_seconds=uptime,
             entity_count=entity_count,
             app_count=app_count,
