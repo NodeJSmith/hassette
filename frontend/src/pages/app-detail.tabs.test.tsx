@@ -20,13 +20,15 @@ vi.mock("wouter", () =>
   }),
 );
 
-// Stub child components not under test
-vi.mock("../components/shared/error-banner", () => ({
-  ErrorBanner: ({ "data-testid": testId }: { "data-testid"?: string }) => (
-    <div data-testid={testId ?? "error-banner"} />
-  ),
-}));
-// Capture props from HandlersTab so tests can invoke callbacks and assert prop values
+// Stub child components not under test. Shared stub factories live in app-detail.test-helpers —
+// imported dynamically (not as a static top-level import) because these vi.mock factories run
+// while this file's own real "./app-detail" import is still resolving, and a static import here
+// would be in the TDZ at that point.
+vi.mock("../components/shared/error-banner", async () =>
+  (await import("./app-detail.test-helpers")).createErrorBannerStub(),
+);
+// Capture props from HandlersTab so tests can invoke callbacks and assert prop values — kept local
+// (unlike the other stubs here) because it captures per-test state the shared stub doesn't expose.
 let capturedOnSwitchToCode: ((line?: number) => void) | undefined;
 let capturedSelectedHandler: string | null | undefined;
 vi.mock("../components/app-detail/handlers-tab", () => ({
@@ -42,50 +44,20 @@ vi.mock("../components/app-detail/handlers-tab", () => ({
     return <div data-testid="handlers-tab" />;
   },
 }));
-vi.mock("../components/app-detail/code-tab", () => ({
-  CodeTab: () => <div data-testid="code-tab" />,
-}));
-vi.mock("../components/app-detail/config-tab", () => ({
-  ConfigTab: () => <div data-testid="config-tab" />,
-}));
-vi.mock("../components/app-detail/overview-tab", () => ({
-  OverviewTab: () => <div data-testid="overview-tab" />,
-}));
-vi.mock("../components/shared/log-table", () => ({
-  useLogTable: () => ({
-    tableProps: {
-      visibleColumns: [],
-      sort: { key: "timestamp", dir: "desc" },
-      onSort: () => {},
-      columnFilters: {},
-      entries: [],
-      selectedKey: null,
-      onRowClick: () => {},
-      isMobile: false,
-    },
-    drawerProps: { selectedKey: null, entries: [], onClose: () => {}, onNavigate: () => {} },
-    columnFilters: {},
-    countLabel: "0 entries",
-    hasActiveFilter: false,
-    resetFilters: () => {},
-    livePaused: false,
-    resetSort: () => {},
-    columnPickerProps: { selectedColumns: [], viewportHidden: new Set(), onToggle: () => {}, onReset: () => {} },
-    isMobile: false,
-    isEmpty: true,
-    isLoading: false,
-  }),
-  LogTableView: () => <div data-testid="log-table" />,
-  LogTableWithDrawer: ({ children }: { children: preact.ComponentChildren }) => (
-    <div data-testid="log-table-drawer">{children}</div>
-  ),
-}));
-vi.mock("../components/shared/spinner", () => ({
-  Spinner: () => <div data-testid="spinner" />,
-}));
-vi.mock("../components/shared/confirm-dialog", () => ({
-  ConfirmDialog: () => <div data-testid="confirm-dialog" />,
-}));
+vi.mock("../components/app-detail/code-tab", async () =>
+  (await import("./app-detail.test-helpers")).createCodeTabStub(),
+);
+vi.mock("../components/app-detail/config-tab", async () =>
+  (await import("./app-detail.test-helpers")).createConfigTabStub(),
+);
+vi.mock("../components/app-detail/overview-tab", async () =>
+  (await import("./app-detail.test-helpers")).createOverviewTabStub(),
+);
+vi.mock("../components/shared/log-table", async () => (await import("./app-detail.test-helpers")).createLogTableStub());
+vi.mock("../components/shared/spinner", async () => (await import("./app-detail.test-helpers")).createSpinnerStub());
+vi.mock("../components/shared/confirm-dialog", async () =>
+  (await import("./app-detail.test-helpers")).createConfirmDialogStub(),
+);
 
 const mockCorrectUrl = vi.fn();
 vi.mock("../hooks/use-correct-url", () => ({

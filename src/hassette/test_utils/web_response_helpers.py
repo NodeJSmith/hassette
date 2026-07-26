@@ -95,7 +95,7 @@ def make_dashboard_app_grid_response(
     entries: list[DashboardAppGridEntry] | None = None,
 ) -> DashboardAppGridResponse:
     """Build a DashboardAppGridResponse from a list of entries."""
-    return DashboardAppGridResponse(apps=entries or [make_dashboard_app_grid_entry()])
+    return DashboardAppGridResponse(apps=entries if entries is not None else [make_dashboard_app_grid_entry()])
 
 
 def make_config_schema_response() -> ConfigSchemaResponse:

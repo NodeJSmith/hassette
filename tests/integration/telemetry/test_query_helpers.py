@@ -65,8 +65,15 @@ class TestGetAllAppSummariesFrameworkTier:
 
         result = await query_service.get_all_app_summaries(source_tier="framework")
 
-        # Framework data lives under __hassette__ key, which is discarded by FRAMEWORK_APP_KEY guard
-        # So result should be empty (the __hassette__ key is excluded)
+        # __hassette__ has framework-tier registrations and activity, so it appears in the result
+        assert "__hassette__" in result
+        summary = result["__hassette__"]
+        assert summary.handler_count == 1
+        assert summary.job_count == 1
+        assert summary.total_invocations == 1
+        assert summary.total_executions == 1
+
+        # my_app's registrations and activity are all app-tier, so it has no framework-tier data
         assert "my_app" not in result
 
     async def test_get_all_app_summaries_framework_tier_non_hassette_app_key(
