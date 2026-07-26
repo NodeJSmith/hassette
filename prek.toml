@@ -270,6 +270,15 @@ files = "^src/hassette/(web/|config/)"
 stages = ["pre-push"]
 
 [[repos.hooks]]
+id = "check-cli-drift"
+name = "Check CLI surface for drift"
+language = "system"
+entry = "tools/check_cli_drift.py"
+pass_filenames = false
+files = "^(src/hassette/cli/|tests/snapshots/cli_)"
+stages = ["pre-push"]
+
+[[repos.hooks]]
 id = "check-missing-attribute"
 name = "Check for missing 'attributes' in State classes"
 language = "system"

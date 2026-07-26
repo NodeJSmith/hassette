@@ -1,0 +1,543 @@
+{
+  "app": {
+    "APP_ACTIVITY_COLUMNS": [
+      {
+        "field": "row_id",
+        "formatter": null,
+        "header": "ID",
+        "max_width": 10,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "kind",
+        "formatter": null,
+        "header": "Kind",
+        "max_width": 8,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "status",
+        "formatter": null,
+        "header": "Status",
+        "max_width": 10,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "app_key",
+        "formatter": null,
+        "header": "App",
+        "max_width": 16,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "handler_name",
+        "formatter": null,
+        "header": "Handler",
+        "max_width": 22,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "duration_ms",
+        "formatter": "fmt_duration_ms",
+        "header": "Duration",
+        "max_width": 9,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "timestamp",
+        "formatter": "fmt_relative_time",
+        "header": "When",
+        "max_width": 11,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "error_type",
+        "formatter": null,
+        "header": "Error",
+        "max_width": 16,
+        "overflow": "ellipsis"
+      }
+    ],
+    "APP_HEALTH_COLUMNS": [
+      {
+        "field": "health_status",
+        "formatter": null,
+        "header": "Health",
+        "max_width": 10,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "error_rate",
+        "formatter": null,
+        "header": "Error Rate",
+        "max_width": 10,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "error_rate_class",
+        "formatter": null,
+        "header": "Rate Class",
+        "max_width": 10,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "handler_avg_duration",
+        "formatter": "fmt_duration_ms",
+        "header": "Handler Avg",
+        "max_width": 11,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "job_avg_duration",
+        "formatter": "fmt_duration_ms",
+        "header": "Job Avg",
+        "max_width": 9,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "last_activity_ts",
+        "formatter": "fmt_relative_time",
+        "header": "Last Active",
+        "max_width": 11,
+        "overflow": "ellipsis"
+      }
+    ],
+    "APP_LIST_COLUMNS": [
+      {
+        "field": "app_key",
+        "formatter": null,
+        "header": "App Key",
+        "max_width": 20,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "status",
+        "formatter": null,
+        "header": "Status",
+        "max_width": 10,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "display_name",
+        "formatter": null,
+        "header": "Display Name",
+        "max_width": 22,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "instance_count",
+        "formatter": null,
+        "header": "Instances",
+        "max_width": 9,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "recent_invocations_1h",
+        "formatter": null,
+        "header": "Invoc/1h",
+        "max_width": 8,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "enabled",
+        "formatter": null,
+        "header": "Enabled",
+        "max_width": 7,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "autostart",
+        "formatter": null,
+        "header": "Autostart",
+        "max_width": 9,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "filename",
+        "formatter": null,
+        "header": "File",
+        "max_width": 20,
+        "overflow": "ellipsis"
+      }
+    ]
+  },
+  "job": {
+    "JOB_EXECUTION_COLUMNS": [
+      {
+        "field": "status",
+        "formatter": null,
+        "header": "Status",
+        "max_width": 10,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "duration_ms",
+        "formatter": "fmt_duration_ms",
+        "header": "Duration",
+        "max_width": 9,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "error_type",
+        "formatter": null,
+        "header": "Error Type",
+        "max_width": 20,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "error_message",
+        "formatter": null,
+        "header": "Error Message",
+        "max_width": 28,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "execution_start_ts",
+        "formatter": "fmt_relative_time",
+        "header": "When",
+        "max_width": 11,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "execution_id",
+        "formatter": null,
+        "header": "Execution ID",
+        "max_width": 14,
+        "overflow": "ellipsis"
+      }
+    ],
+    "JOB_LIST_COLUMNS": [
+      {
+        "field": "job_id",
+        "formatter": null,
+        "header": "ID",
+        "max_width": 6,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "app_key",
+        "formatter": null,
+        "header": "App",
+        "max_width": 18,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "job_name",
+        "formatter": null,
+        "header": "Handler",
+        "max_width": 22,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "trigger_type",
+        "formatter": null,
+        "header": "Trigger",
+        "max_width": 10,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "trigger_detail",
+        "formatter": null,
+        "header": "Schedule",
+        "max_width": 20,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "mode",
+        "formatter": null,
+        "header": "Mode",
+        "max_width": 9,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "total_executions",
+        "formatter": null,
+        "header": "Total",
+        "max_width": 7,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "successful",
+        "formatter": null,
+        "header": "OK",
+        "max_width": 6,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "failed",
+        "formatter": null,
+        "header": "Fail",
+        "max_width": 6,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "avg_duration_ms",
+        "formatter": "fmt_duration_ms",
+        "header": "Avg",
+        "max_width": 7,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "next_run",
+        "formatter": "fmt_next_run",
+        "header": "Next Run",
+        "max_width": 11,
+        "overflow": "ellipsis"
+      }
+    ]
+  },
+  "listener": {
+    "LISTENER_INVOCATION_COLUMNS": [
+      {
+        "field": "status",
+        "formatter": null,
+        "header": "Status",
+        "max_width": 10,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "duration_ms",
+        "formatter": "fmt_duration_ms",
+        "header": "Duration",
+        "max_width": 9,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "error_type",
+        "formatter": null,
+        "header": "Error Type",
+        "max_width": 20,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "error_message",
+        "formatter": null,
+        "header": "Error Message",
+        "max_width": 28,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "execution_start_ts",
+        "formatter": "fmt_relative_time",
+        "header": "When",
+        "max_width": 11,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "execution_id",
+        "formatter": null,
+        "header": "Execution ID",
+        "max_width": 14,
+        "overflow": "ellipsis"
+      }
+    ],
+    "LISTENER_LIST_COLUMNS": [
+      {
+        "field": "listener_id",
+        "formatter": null,
+        "header": "ID",
+        "max_width": 6,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "app_key",
+        "formatter": null,
+        "header": "App",
+        "max_width": 18,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "entity_id",
+        "formatter": null,
+        "header": "Target",
+        "max_width": 26,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "listener_kind",
+        "formatter": null,
+        "header": "Kind",
+        "max_width": 12,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "handler_method",
+        "formatter": "fmt_handler_short",
+        "header": "Handler",
+        "max_width": 22,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "total_invocations",
+        "formatter": null,
+        "header": "Total",
+        "max_width": 7,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "successful",
+        "formatter": null,
+        "header": "OK",
+        "max_width": 6,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "failed",
+        "formatter": null,
+        "header": "Fail",
+        "max_width": 6,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "avg_duration_ms",
+        "formatter": "fmt_duration_ms",
+        "header": "Avg",
+        "max_width": 7,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "last_invoked_at",
+        "formatter": "fmt_relative_time",
+        "header": "Last",
+        "max_width": 9,
+        "overflow": "ellipsis"
+      }
+    ]
+  },
+  "log": {
+    "EXECUTION_LOG_COLUMNS": [
+      {
+        "field": "timestamp",
+        "formatter": "fmt_relative_time",
+        "header": "When",
+        "max_width": null,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "level",
+        "formatter": null,
+        "header": "Level",
+        "max_width": null,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "func_name",
+        "formatter": null,
+        "header": "Function",
+        "max_width": null,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "lineno",
+        "formatter": null,
+        "header": "Line",
+        "max_width": null,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "message",
+        "formatter": null,
+        "header": "Message",
+        "max_width": null,
+        "overflow": "ellipsis"
+      }
+    ],
+    "LOG_COLUMNS": [
+      {
+        "field": "timestamp",
+        "formatter": "fmt_relative_time",
+        "header": "When",
+        "max_width": null,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "level",
+        "formatter": null,
+        "header": "Level",
+        "max_width": null,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "app_key",
+        "formatter": null,
+        "header": "App",
+        "max_width": null,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "instance_name",
+        "formatter": null,
+        "header": "Instance",
+        "max_width": null,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "func_name",
+        "formatter": null,
+        "header": "Function",
+        "max_width": null,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "message",
+        "formatter": null,
+        "header": "Message",
+        "max_width": null,
+        "overflow": "ellipsis"
+      }
+    ]
+  },
+  "status": {
+    "DASHBOARD_COLUMNS": [
+      {
+        "field": "app_key",
+        "formatter": null,
+        "header": "App",
+        "max_width": 20,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "status",
+        "formatter": null,
+        "header": "Status",
+        "max_width": 8,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "total_invocations",
+        "formatter": null,
+        "header": "Invoc",
+        "max_width": 6,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "total_errors",
+        "formatter": null,
+        "header": "Errs",
+        "max_width": 5,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "avg_duration_ms",
+        "formatter": "fmt_duration_ms",
+        "header": "Avg Dur",
+        "max_width": 8,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "last_activity_ts",
+        "formatter": "fmt_relative_time",
+        "header": "Last Active",
+        "max_width": 11,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "health_status",
+        "formatter": null,
+        "header": "Health",
+        "max_width": 9,
+        "overflow": "ellipsis"
+      }
+    ]
+  }
+}
