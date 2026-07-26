@@ -2,7 +2,7 @@
 
 ## Problem & Motivation
 
-The hassette web dashboard is unusable when Home Assistant is offline. WebsocketService failure triggers a fatal error that tears down the entire process before the web server starts. The dependency chain `WebsocketService → ApiResource → StateProxy → RuntimeQueryService → WebApiService` blocks wave-based startup — and WebsocketService itself is a node in the wave graph, so if it doesn't call `mark_ready()` within the 30s startup timeout, `run_forever()` records a fatal reason and shuts down. The fix decouples service lifecycle readiness from HA connection status so the dashboard serves regardless of HA availability.
+The hassette web dashboard is unusable when Home Assistant is offline. WebsocketService failure triggers a fatal error that tears down the entire process before the web server starts. The dependency chain `WebsocketService → ApiResource → StateProxy → RuntimeQueryService → WebApiService` blocks wave-based startup — and WebsocketService itself is a node in the wave graph, so if it doesn't call `mark_ready()` within the startup timeout, `run_forever()` records a fatal reason and shuts down. The fix decouples service lifecycle readiness from HA connection status so the dashboard serves regardless of HA availability.
 
 ## Visual Artifacts
 

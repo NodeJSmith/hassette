@@ -8,7 +8,7 @@ implements: ["FR#4", "AC#5"]
 
 ## Summary
 
-WebsocketService must call `mark_ready()` unconditionally during initialization so that wave-based startup proceeds even when HA is unreachable. Without this, the 30s startup timeout fires and `run_forever()` records a fatal reason and tears down the process. The idempotency guard on `send_connection_lost_event()` must also change from `is_ready()` to `has_ever_connected` — otherwise the first failed connection attempt after unconditional `mark_ready()` fires a spurious disconnect event that causes StateProxy to un-ready itself.
+WebsocketService must call `mark_ready()` unconditionally during initialization so that wave-based startup proceeds even when HA is unreachable. Without this, the startup timeout fires and `run_forever()` records a fatal reason and tears down the process. The idempotency guard on `send_connection_lost_event()` must also change from `is_ready()` to `has_ever_connected` — otherwise the first failed connection attempt after unconditional `mark_ready()` fires a spurious disconnect event that causes StateProxy to un-ready itself.
 
 ## Target Files
 

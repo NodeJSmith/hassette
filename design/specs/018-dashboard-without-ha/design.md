@@ -6,7 +6,7 @@
 
 ## Problem
 
-The hassette web dashboard is unusable when Home Assistant is offline. WebsocketService failure triggers a fatal error that tears down the entire process before the web server starts, because the dependency chain `WebsocketService → ApiResource → StateProxy → RuntimeQueryService → WebApiService` blocks wave-based startup. Additionally, WebsocketService itself is a node in the wave graph — if it doesn't call `mark_ready()` within the 30s startup timeout, `run_forever()` records a fatal reason and shuts down before any later wave starts.
+The hassette web dashboard is unusable when Home Assistant is offline. WebsocketService failure triggers a fatal error that tears down the entire process before the web server starts, because the dependency chain `WebsocketService → ApiResource → StateProxy → RuntimeQueryService → WebApiService` blocks wave-based startup. Additionally, WebsocketService itself is a node in the wave graph — if it doesn't call `mark_ready()` within the startup timeout, `run_forever()` records a fatal reason and shuts down before any later wave starts.
 
 ## Goals
 
@@ -86,7 +86,7 @@ The hassette web dashboard is unusable when Home Assistant is offline. Websocket
 
 Five changes decouple the dashboard from HA availability:
 
-1. **`WebsocketService`** (`src/hassette/core/websocket_service.py`): Add an `on_initialize()` override that calls `mark_ready()` unconditionally before `serve()` starts the connection loop. This separates "service lifecycle ready" (the service is running and will attempt connections) from "HA connected" (the WebSocket handshake succeeded). Without this, WebsocketService's wave in `run_forever()` times out after 30s when HA is unreachable, triggering `record_fatal_reason()` and tearing down the process before WebApiService's wave starts — the depends_on changes alone don't help because WS is still a node in the wave graph.
+1. **`WebsocketService`** (`src/hassette/core/websocket_service.py`): Add an `on_initialize()` override that calls `mark_ready()` unconditionally before `serve()` starts the connection loop. This separates "service lifecycle ready" (the service is running and will attempt connections) from "HA connected" (the WebSocket handshake succeeded). Without this, WebsocketService's wave in `run_forever()` times out when HA is unreachable, triggering `record_fatal_reason()` and tearing down the process before WebApiService's wave starts — the depends_on changes alone don't help because WS is still a node in the wave graph.
 
    **Idempotency guard fix**: `send_connection_lost_event()` (`websocket_service.py:735`) currently gates on `is_ready()`, which was safe when `mark_ready()` only fired post-handshake. With unconditional `mark_ready()`, the first failed connection attempt would fire a spurious "disconnected" event, causing `StateProxy.on_disconnect()` to un-ready itself and break the "returns None" contract. Fix: gate `send_connection_lost_event()` on `has_ever_connected` instead of `is_ready()` — the property already exists (line 144) and never reverts.
 
@@ -175,6 +175,9 @@ This guard will change from `is_ready()` to `has_ever_connected` to prevent spur
 - `tests/integration/test_fatal_shutdown.py` — tests generic fatal-shutdown mechanics. Should still pass — they don't test WS-specific failure paths.
 - `tests/integration/test_websocket_service.py` — `test_connect_ws_wraps_connection_refused` tests error wrapping. Should still pass; WS retry behavior is unchanged.
 - `src/hassette/core/runtime_query_service.py` — `get_system_status()` uses `ws.is_ready()` for connection status. Must switch to `ws.is_connected`.
+- `tests/unit/core/test_runtime_query_service.py` — `TestSystemStatus` tests set `is_ready.return_value` to drive system status logic. Must switch to `is_connected`.
+- `tests/integration/web_api/test_endpoints.py` — health endpoint tests use `create_hassette_stub()` which sets `is_ready.return_value`. The stub (`src/hassette/test_utils/web_mocks.py`) must also set `is_connected`.
+- `tests/integration/test_state_proxy.py` — `test_raises_on_api_failure_during_init` asserts `on_initialize()` raises on API failure. Must update to verify non-fatal behavior.
 
 ### New Test Coverage
 
