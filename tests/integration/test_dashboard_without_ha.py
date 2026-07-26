@@ -16,7 +16,7 @@ from collections.abc import AsyncIterator, Callable
 from pathlib import Path
 from unittest.mock import AsyncMock
 
-from httpx2 import ASGITransport, AsyncClient
+from httpx2 import ASGITransport, AsyncClient, Response
 
 from hassette import Hassette
 from hassette.test_utils import wait_for
@@ -24,6 +24,13 @@ from hassette.test_utils.helpers import cleanup_hassette_streams
 from hassette.web.app import create_fastapi_app
 
 WEBAPI_READY_TIMEOUT = 10.0
+HEALTH_ENDPOINT = "/api/health"
+
+
+async def _get_health(hassette: Hassette) -> Response:
+    transport = ASGITransport(app=create_fastapi_app(hassette))
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        return await client.get(HEALTH_ENDPOINT)
 
 
 @contextlib.asynccontextmanager
@@ -102,9 +109,7 @@ class TestDashboardWithoutHA:
             assert snapshot.total >= 1
             assert any(manifest.app_key == "my_app" for manifest in snapshot.manifests)
 
-            transport = ASGITransport(app=create_fastapi_app(hassette))
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
-                response = await client.get("/api/health")
+            response = await _get_health(hassette)
 
             assert response.status_code == 200
 
@@ -117,9 +122,7 @@ class TestDashboardWithoutHA:
             assert status.status == "starting"
             assert status.websocket_connected is False
 
-            transport = ASGITransport(app=create_fastapi_app(hassette))
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
-                response = await client.get("/api/health")
+            response = await _get_health(hassette)
 
             assert response.status_code == 200
             body = response.json()
