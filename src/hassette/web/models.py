@@ -2,7 +2,7 @@
 
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from hassette.schemas.domain_models import AppStatusChangedData, ConnectivityData, ServiceStatusData, StateChangedData
 from hassette.types.enums import (
@@ -297,6 +297,8 @@ class AppHealthResponse(BaseModel):
 
 class ListenerWithSummary(BaseModel):
     """Listener metrics enriched with human-readable handler summary."""
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
 
     listener_id: int
     app_key: str

@@ -154,7 +154,7 @@ $ hassette listener
 └────┴──────────────────┴───────────────────────────┴────────────┴──────────────────────┴───────┴────┴──────┴─────┴──────┘
 ```
 
-Each row shows the listener ID, app key, target (the entity ID for state/attribute listeners, or the event name for event listeners), listener kind, handler method, invocation counts (total, successful, failed), average duration, and last invocation time.
+Each row shows the listener ID, app key, target, listener kind, handler, counts, duration, and last invocation time. State and attribute listeners use the entity ID as target; event listeners use the event name.
 
 Passing a listener ID shows its invocation history:
 

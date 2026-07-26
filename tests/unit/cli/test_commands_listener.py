@@ -118,6 +118,7 @@ class TestCmdListener:
 
         output = buf.getvalue()
         assert "42" in output
+        assert "light" in output
         assert "test_" in output
 
     def test_json_mode_outputs_list(self, cli_client_factory: CLIClientFactory) -> None:

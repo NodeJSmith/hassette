@@ -1264,7 +1264,10 @@ export interface components {
             immediate: number;
             /** Duration */
             duration?: number | null;
-            /** Target */
+            /**
+             * Target
+             * @description What the listener is watching: an HA entity ID, or the topic's last segment for event listeners.
+             */
             target?: string | null;
             /** @default single */
             mode: components["schemas"]["ExecutionMode"];
