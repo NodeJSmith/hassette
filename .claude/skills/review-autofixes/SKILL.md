@@ -89,6 +89,16 @@ If fixes were applied (from 2b or 2e):
 2. Stage, commit: `refactor: address review findings in {short description}`
 3. Push: `git push origin {branch}`
 
+### 2g. Enable Auto-Merge
+
+After the PR is reviewed and any fixes are pushed:
+
+```bash
+gh pr merge --auto --squash {PR}
+```
+
+This queues the PR to merge automatically once CI passes. If the command fails with a merge conflict (base branch was modified), the PR needs a rebase — note it in the summary and move on.
+
 ## Phase 3: Summary
 
 After all PRs are processed, present a summary table:
