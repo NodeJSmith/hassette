@@ -11,7 +11,7 @@ from typing import Any, assert_never
 
 import aiosqlite
 
-from hassette.schemas.telemetry_models import AppHealthSummary
+from hassette.schemas.summary_models import AppHealthSummary
 from hassette.types.types import QuerySourceTier, is_framework_key
 
 # Storage-layer exceptions translated to TelemetryUnavailableError at the read boundary.
@@ -39,6 +39,7 @@ __all__ = [
     "STORAGE_ERRORS",
     "AppHealthAggregates",
     "build_app_summaries",
+    "handler_job_union_arms",
     "row_to_dict",
     "since_clause",
     "source_tier_clause",
@@ -104,6 +105,89 @@ def since_clause(since: float | None, timestamp_col: str) -> tuple[str, dict[str
         return ("", {})
     # timestamp_col is an internal SQL column reference; no user data flows here
     return (f"AND {timestamp_col} >= :since", {"since": since})
+
+
+def handler_job_union_arms(
+    handler_select: str,
+    job_select: str,
+    *,
+    extra_handler_where: str = "",
+    extra_job_where: str = "",
+    since: float | None = None,
+    source_tier: QuerySourceTier = "app",
+    instance_index: int | None = None,
+) -> tuple[str, dict[str, Any]]:
+    """Build handler UNION ALL job SQL fragment with merged params.
+
+    Both arms query the unified ``executions`` table: the handler arm (aliased ``e_h``)
+    joins ``listeners`` as ``l``, and the job arm (aliased ``e_j``) joins ``scheduled_jobs``
+    as ``sj``. Callers supply the SELECT column list for each arm (``handler_select`` /
+    ``job_select``, including the leading ``SELECT`` keyword) and any arm-specific WHERE
+    fragments (``extra_handler_where`` / ``extra_job_where``, e.g. an ``app_key`` filter).
+
+    ``since_clause`` and ``source_tier_clause`` are called once per alias so each arm's
+    fragment references the correct column, but both arms bind the same parameter names
+    (``:since``, ``:source_tier``) - the second call's params dict is a duplicate and is
+    intentionally discarded, matching the convention documented on the UNION methods in
+    ``execution_queries.py``.
+
+    Args:
+        handler_select: Full ``SELECT ...`` column list for the handler arm.
+        job_select: Full ``SELECT ...`` column list for the job arm.
+        extra_handler_where: Additional ``AND ...`` fragment appended to the handler arm's
+            WHERE clause (e.g. an ``app_key`` or ``status`` filter). Caller supplies any
+            bind params this fragment references.
+        extra_job_where: Additional ``AND ...`` fragment appended to the job arm's WHERE
+            clause. Caller supplies any bind params this fragment references.
+        since: Unix epoch float lower bound for ``execution_start_ts``, or ``None`` to skip
+            the ``since_clause`` filter (e.g. when the caller expresses time bounds itself
+            via ``extra_handler_where``/``extra_job_where``).
+        source_tier: Filter by source tier.
+        instance_index: When provided, restricts each arm to that instance only.
+
+    Returns:
+        A ``(sql_fragment, params)`` tuple. ``sql_fragment`` is the two-arm ``UNION ALL``
+        body (no enclosing ``SELECT ... FROM (`` wrapper); ``params`` merges the
+        deduplicated ``since``/``source_tier`` bind values with the ``instance_index`` value
+        when applicable.
+    """
+    tier_hi_clause, tier_params = source_tier_clause(source_tier, "e_h")
+    tier_je_clause, _ = source_tier_clause(source_tier, "e_j")
+    since_hi_clause, since_params = since_clause(since, "e_h.execution_start_ts")
+    since_je_clause, _ = since_clause(since, "e_j.execution_start_ts")
+
+    instance_hi_clause = ""
+    instance_je_clause = ""
+    instance_params: dict[str, int] = {}
+    if instance_index is not None:
+        instance_hi_clause = "AND l.instance_index = :instance_index"
+        instance_je_clause = "AND sj.instance_index = :instance_index"
+        instance_params = {"instance_index": instance_index}
+
+    fragment = f"""
+        {handler_select}
+        FROM executions e_h
+        JOIN listeners l ON l.id = e_h.listener_id
+        WHERE e_h.kind = 'handler'
+          {extra_handler_where}
+          {instance_hi_clause}
+          {since_hi_clause}
+          {tier_hi_clause}
+
+        UNION ALL
+
+        {job_select}
+        FROM executions e_j
+        JOIN scheduled_jobs sj ON sj.id = e_j.job_id
+        WHERE e_j.kind = 'job'
+          {extra_job_where}
+          {instance_je_clause}
+          {since_je_clause}
+          {tier_je_clause}
+    """
+
+    params: dict[str, Any] = {**since_params, **tier_params, **instance_params}
+    return (fragment, params)
 
 
 def build_app_summaries(

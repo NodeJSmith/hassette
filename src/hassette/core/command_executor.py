@@ -33,7 +33,7 @@ from hassette.resources.lifecycle import mark_ready
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.scheduler.error_context import SchedulerErrorContext
-from hassette.schemas.telemetry_models import BlockingEvent
+from hassette.schemas.log_models import BlockingEvent
 from hassette.types.enums import RestartType
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.execution import ExecutionResult, track_execution

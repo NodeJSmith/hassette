@@ -7,7 +7,8 @@ values outside that set at validation time.
 import pytest
 from pydantic import ValidationError
 
-from hassette.schemas.telemetry_models import ActivityFeedEntry, Execution, LogRecord
+from hassette.schemas.execution_models import ActivityFeedEntry, Execution
+from hassette.schemas.log_models import LogRecord
 from hassette.types.enums import ResourceStatus
 from hassette.types.types import ExecutionStatus
 from hassette.web.models import (
@@ -21,6 +22,8 @@ from hassette.web.models import (
     ServiceInfoResponse,
     SystemStatusResponse,
 )
+
+STANDARD_LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
 
 
 class TestExecutionStatus:
@@ -350,7 +353,7 @@ class TestLogLevelType:
             )
 
     def test_accepts_all_five_standard_levels_on_log_record(self) -> None:
-        for level in ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"):
+        for level in STANDARD_LOG_LEVELS:
             obj = LogRecord(
                 id=1,
                 seq=1,
@@ -401,7 +404,7 @@ class TestLogLevelType:
             assert obj.source_tier == tier
 
     def test_accepts_all_five_standard_levels_on_log_entry_response(self) -> None:
-        for level in ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"):
+        for level in STANDARD_LOG_LEVELS:
             obj = LogEntryResponse(
                 seq=1,
                 timestamp=1.0,

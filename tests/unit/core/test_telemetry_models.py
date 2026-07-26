@@ -1,7 +1,7 @@
 """Unit tests for telemetry Pydantic models."""
 
-from hassette.schemas.telemetry_models import JobSummary
-from hassette.test_utils.config import TEST_SOURCE_LOCATION
+from hassette.schemas.job_models import JobSummary
+from hassette.test_utils.config import TEST_EPOCH_B, TEST_SOURCE_LOCATION
 from hassette.types.enums import DEFAULT_OVERLAP_MODE
 
 
@@ -71,7 +71,7 @@ def test_job_summary_group_can_be_set() -> None:
         total_executions=5,
         successful=5,
         failed=0,
-        last_executed_at=1700000000.0,
+        last_executed_at=TEST_EPOCH_B,
         total_duration_ms=500.0,
         avg_duration_ms=100.0,
         group="morning",
@@ -84,12 +84,6 @@ def test_job_summary_cancelled_field_present() -> None:
     """Cancelled field surfaces cancelled execution counts; defaults to 0."""
     assert "cancelled" in JobSummary.model_fields
     assert JobSummary.model_fields["cancelled"].default == 0
-
-
-def test_job_summary_skipped_field_present() -> None:
-    """Skipped field surfaces predicate-skip execution counts; defaults to 0."""
-    assert "skipped" in JobSummary.model_fields
-    assert JobSummary.model_fields["skipped"].default == 0
 
 
 def test_job_summary_predicate_description_fields_present() -> None:
@@ -121,7 +115,7 @@ def test_job_summary_invariant_with_skipped() -> None:
         cancelled=1,
         timed_out=0,
         skipped=1,
-        last_executed_at=1700000000.0,
+        last_executed_at=TEST_EPOCH_B,
         total_duration_ms=300.0,
         avg_duration_ms=100.0,
     )
@@ -132,7 +126,7 @@ def test_job_summary_invariant_with_skipped() -> None:
 
 def test_job_summary_next_run_and_fire_at_are_floats() -> None:
     """next_run and fire_at fields accept float epoch values."""
-    ts1 = 1700000000.0
+    ts1 = TEST_EPOCH_B
     ts2 = 1700000015.0
 
     summary = JobSummary(

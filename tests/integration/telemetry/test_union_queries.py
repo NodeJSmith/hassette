@@ -1,241 +1,17 @@
-"""Integration tests for TelemetryQueryService — source tier, job summary, health, and activity feed."""
+"""Integration tests for TelemetryQueryService's 3 UNION methods.
 
-import asyncio
-import time
-from collections.abc import AsyncIterator
-from pathlib import Path
-from unittest.mock import MagicMock
+Covers ``get_app_recent_activity``, ``get_per_app_activity_buckets``, and
+``get_per_app_last_errors`` — all three build their SQL via the shared
+``handler_job_union_arms`` helper (see ``core/telemetry/helpers.py``).
+"""
 
-import aiosqlite
 import pytest
 
 from hassette.core.database_service import DatabaseService
-from hassette.core.telemetry.helpers import source_tier_clause
 from hassette.core.telemetry.query_service import TelemetryQueryService
-from hassette.exceptions import TelemetryUnavailableError
-from hassette.schemas.telemetry_models import (
-    ActivityFeedEntry,
-)
-from hassette.test_utils.mock_hassette import make_mock_hassette
+from hassette.schemas.execution_models import ActivityFeedEntry
 
-from .helpers import (
-    BASE_TS,
-    insert_execution,
-    insert_invocation,
-    insert_job,
-    insert_listener,
-)
-
-
-class TestSourceTierClause:
-    def test_any_alias_accepted(self) -> None:
-        """source_tier_clause accepts any alias (developer-controlled, not user input)."""
-        fragment, params = source_tier_clause("app", "custom_alias")
-        assert "custom_alias.source_tier" in fragment
-        assert params == {"source_tier": "app"}
-
-    def test_framework_tier_returns_filter_fragment(self) -> None:
-        """source_tier_clause('framework', ...) returns an AND clause with 'framework' param."""
-        fragment, params = source_tier_clause("framework", "l")
-        assert "source_tier" in fragment
-        assert params == {"source_tier": "framework"}
-
-    def test_all_tier_returns_empty(self) -> None:
-        """source_tier_clause('all', ...) returns an empty fragment and empty params."""
-        fragment, params = source_tier_clause("all", "hi")
-        assert fragment == ""
-        assert params == {}
-
-    def test_app_tier_returns_filter_fragment(self) -> None:
-        """source_tier_clause('app', ...) returns an AND clause with 'app' param."""
-        fragment, params = source_tier_clause("app", "je")
-        assert "source_tier" in fragment
-        assert params == {"source_tier": "app"}
-
-    def test_all_valid_aliases_accepted(self) -> None:
-        """All four valid aliases are accepted without raising."""
-        for alias in ("l", "hi", "je", "sj"):
-            # Should not raise
-            source_tier_clause("app", alias)
-
-
-class TestGetJobSummarySinceScoped:
-    async def test_get_job_summary_since_scoped(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
-        """Since filter restricts job execution counts to records after the threshold."""
-        db_svc, session_id = db
-
-        base_ts = BASE_TS
-        since_ts = base_ts + 5.0
-
-        j1 = await insert_job(db_svc, job_name="job_a")
-
-        # 2 executions after since_ts — should count
-        await insert_execution(
-            db_svc, j1, session_id, status="success", duration_ms=10.0, execution_start_ts=base_ts + 10.0
-        )
-        await insert_execution(
-            db_svc, j1, session_id, status="error", duration_ms=20.0, execution_start_ts=base_ts + 20.0
-        )
-        # 1 execution before since_ts — should NOT be counted
-        await insert_execution(
-            db_svc, j1, session_id, status="success", duration_ms=30.0, execution_start_ts=base_ts + 1.0
-        )
-
-        rows = await query_service.get_job_summary("test_app", 0, since=since_ts)
-        assert len(rows) == 1
-        row = rows[0]
-        assert row.total_executions == 2
-        assert row.successful == 1
-        assert row.failed == 1
-
-
-class TestGetAllAppSummariesFrameworkTier:
-    async def test_get_all_app_summaries_framework_tier(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
-        """source_tier='framework' selects active_framework_listeners and active_framework_scheduled_jobs."""
-        db_svc, session_id = db
-
-        # Framework-tier listener and job under __hassette__
-        fw_listener = await insert_listener(
-            db_svc, app_key="__hassette__", handler_method="on_fw", source_tier="framework"
-        )
-        fw_job = await insert_job(db_svc, app_key="__hassette__", job_name="fw_job", source_tier="framework")
-
-        # App-tier listener and job (should NOT appear for framework query)
-        _app_listener = await insert_listener(db_svc, app_key="my_app", handler_method="on_app", source_tier="app")
-        _app_job = await insert_job(db_svc, app_key="my_app", job_name="app_job", source_tier="app")
-
-        await insert_invocation(
-            db_svc, fw_listener, session_id, status="success", duration_ms=5.0, source_tier="framework"
-        )
-        await insert_execution(db_svc, fw_job, session_id, status="success", duration_ms=10.0, source_tier="framework")
-
-        result = await query_service.get_all_app_summaries(source_tier="framework")
-
-        # Framework data lives under __hassette__ key, which is discarded by FRAMEWORK_APP_KEY guard
-        # So result should be empty (the __hassette__ key is excluded)
-        assert "my_app" not in result
-
-    async def test_get_all_app_summaries_framework_tier_non_hassette_app_key(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
-        """source_tier='framework' shows framework-tier records for non-__hassette__ app_key."""
-        db_svc, session_id = db
-
-        # A regular app with mixed-tier listeners
-        fw_listener = await insert_listener(db_svc, app_key="my_app", handler_method="on_fw", source_tier="framework")
-        await insert_listener(db_svc, app_key="my_app", handler_method="on_app", source_tier="app")
-
-        await insert_invocation(
-            db_svc, fw_listener, session_id, status="success", duration_ms=5.0, source_tier="framework"
-        )
-
-        result = await query_service.get_all_app_summaries(source_tier="framework")
-        # my_app has 1 framework-tier listener (instance 0)
-        assert "my_app" in result
-        summary = result["my_app"]
-        assert summary.handler_count == 1  # only the framework listener
-        assert summary.total_invocations == 1
-
-
-class TestCheckHealth:
-    async def test_check_health_succeeds_on_live_db(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
-        """check_health() completes without raising when the database is live."""
-        # Should not raise
-        await query_service.check_health()
-
-    async def test_check_health_raises_on_closed_db(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
-        """check_health() raises TelemetryUnavailableError when the read_db connection is closed."""
-        db_svc, _session_id = db
-        # Close the read connection to simulate a failed connection
-        await db_svc._read_db.close()
-        try:
-            with pytest.raises(TelemetryUnavailableError):
-                await query_service.check_health()
-        finally:
-            # Restore so fixture teardown doesn't crash
-            db_svc._read_db = await aiosqlite.connect(db_svc._db_path, isolation_level=None)
-            db_svc._read_db.row_factory = aiosqlite.Row
-
-
-class TestReadTimeout:
-    @pytest.fixture
-    def short_timeout_hassette(self, premigrated_db_path: Path) -> MagicMock:
-        return make_mock_hassette(
-            data_dir=premigrated_db_path.parent,
-            set_ready=False,
-            database={"telemetry_write_queue_max": 500, "max_size_mb": 0, "read_timeout_seconds": 0.1},
-            lifecycle={"resource_shutdown_timeout_seconds": 5},
-            web_api={"run": True},
-        )
-
-    @pytest.fixture
-    async def short_timeout_db(self, short_timeout_hassette: MagicMock) -> AsyncIterator[tuple[DatabaseService, int]]:
-        db_service = DatabaseService(short_timeout_hassette, parent=None)
-        await db_service.on_initialize()
-        cursor = await db_service.db.execute(
-            "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'running')",
-            (time.time(), time.time()),
-        )
-        session_id = cursor.lastrowid
-        await db_service.db.commit()
-        short_timeout_hassette.session_id = session_id
-        short_timeout_hassette.try_session_id.return_value = session_id
-        short_timeout_hassette.database_service = db_service
-        yield db_service, session_id
-        await db_service.on_shutdown()
-
-    @pytest.fixture
-    def short_timeout_query_service(
-        self,
-        short_timeout_hassette: MagicMock,
-        short_timeout_db: tuple[DatabaseService, int],
-    ) -> TelemetryQueryService:
-        service = TelemetryQueryService.__new__(TelemetryQueryService)
-        service.hassette = short_timeout_hassette
-        service.logger = MagicMock()
-        service._snapshot_lock = asyncio.Lock()
-        return service
-
-    async def test_execute_raises_timeout_error(
-        self,
-        short_timeout_query_service: TelemetryQueryService,
-        short_timeout_db: tuple[DatabaseService, int],
-    ) -> None:
-        """execute() raises TelemetryUnavailableError when a query exceeds read_timeout_seconds."""
-        db_svc, _ = short_timeout_db
-
-        # Register a custom SQLite function that sleeps, forcing the query to exceed the 100ms timeout
-        await db_svc.read_db.create_function("sleep_ms", 1, lambda ms: time.sleep(ms / 1000))
-
-        with pytest.raises(TelemetryUnavailableError):
-            async with short_timeout_query_service.execute("SELECT sleep_ms(300)") as cursor:
-                await cursor.fetchone()
-
-    async def test_normal_query_succeeds_within_timeout(
-        self,
-        short_timeout_query_service: TelemetryQueryService,
-        short_timeout_db: tuple[DatabaseService, int],
-    ) -> None:
-        """A fast query completes within even a short timeout."""
-        await short_timeout_query_service.check_health()
+from .helpers import BASE_TS, insert_execution, insert_invocation, insert_job, insert_listener
 
 
 class TestGetAppRecentActivity:
@@ -518,3 +294,279 @@ class TestGetAppRecentActivity:
             assert r.row_id.startswith("h-"), f"Handler row_id should start with 'h-', got: {r.row_id!r}"
         for r in job_rows:
             assert r.row_id.startswith("j-"), f"Job row_id should start with 'j-', got: {r.row_id!r}"
+
+
+class TestGetPerAppActivityBuckets:
+    async def test_basic_bucketed_ok_err_counts(
+        self,
+        query_service: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """Executions across 2 apps are bucketed into (ok, err) counts per app_key."""
+        db_svc, session_id = db
+
+        base_ts = BASE_TS
+        listener_a = await insert_listener(db_svc, app_key="app_a", handler_method="on_a")
+        job_a = await insert_job(db_svc, app_key="app_a", job_name="job_a")
+        listener_b = await insert_listener(db_svc, app_key="app_b", handler_method="on_b")
+
+        since = base_ts
+        now = base_ts + 100.0
+        num_buckets = 10  # bucket_width == 10.0
+
+        # app_a bucket 0: 1 success (handler)
+        await insert_invocation(db_svc, listener_a, session_id, status="success", execution_start_ts=base_ts + 5.0)
+        # app_a bucket 1: 1 error (handler) + 1 success (job)
+        await insert_invocation(
+            db_svc, listener_a, session_id, status="error", execution_start_ts=base_ts + 15.0, error_type="ValueError"
+        )
+        await insert_execution(db_svc, job_a, session_id, status="success", execution_start_ts=base_ts + 16.0)
+        # app_b bucket 2: 1 success (handler)
+        await insert_invocation(db_svc, listener_b, session_id, status="success", execution_start_ts=base_ts + 25.0)
+
+        result = await query_service.get_per_app_activity_buckets(since, now, num_buckets=num_buckets)
+
+        assert set(result.keys()) == {"app_a", "app_b"}
+        assert len(result["app_a"]) == num_buckets
+        assert len(result["app_b"]) == num_buckets
+
+        assert result["app_a"][0] == (1, 0)
+        assert result["app_a"][1] == (1, 1)
+        assert result["app_b"][2] == (1, 0)
+
+        # All other buckets are (0, 0)
+        for idx in range(num_buckets):
+            if idx not in (0, 1):
+                assert result["app_a"][idx] == (0, 0)
+            if idx != 2:
+                assert result["app_b"][idx] == (0, 0)
+
+    async def test_empty_time_range_returns_empty_dict(
+        self,
+        query_service: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """Now <= since short-circuits to an empty dict without querying."""
+        db_svc, session_id = db
+        listener_a = await insert_listener(db_svc, app_key="app_a", handler_method="on_a")
+        await insert_invocation(db_svc, listener_a, session_id, status="success", execution_start_ts=BASE_TS + 5.0)
+
+        result = await query_service.get_per_app_activity_buckets(since=BASE_TS + 50.0, now=BASE_TS + 50.0)
+        assert result == {}
+
+        result = await query_service.get_per_app_activity_buckets(since=BASE_TS + 50.0, now=BASE_TS)
+        assert result == {}
+
+    async def test_single_bucket_covers_entire_range(
+        self,
+        query_service: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """num_buckets=1 aggregates the whole [since, now) window into one (ok, err) tuple."""
+        db_svc, session_id = db
+
+        base_ts = BASE_TS
+        listener_a = await insert_listener(db_svc, app_key="app_a", handler_method="on_a")
+
+        await insert_invocation(db_svc, listener_a, session_id, status="success", execution_start_ts=base_ts + 5.0)
+        await insert_invocation(db_svc, listener_a, session_id, status="success", execution_start_ts=base_ts + 50.0)
+        await insert_invocation(
+            db_svc, listener_a, session_id, status="error", execution_start_ts=base_ts + 90.0, error_type="ValueError"
+        )
+
+        result = await query_service.get_per_app_activity_buckets(since=base_ts, now=base_ts + 100.0, num_buckets=1)
+
+        assert result["app_a"] == [(2, 1)]
+
+    async def test_cross_app_isolation(
+        self,
+        query_service: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """One app's errors do not leak into another app's buckets."""
+        db_svc, session_id = db
+
+        base_ts = BASE_TS
+        listener_a = await insert_listener(db_svc, app_key="app_a", handler_method="on_a")
+        listener_b = await insert_listener(db_svc, app_key="app_b", handler_method="on_b")
+
+        # Same bucket (bucket 0) for both apps
+        await insert_invocation(
+            db_svc, listener_a, session_id, status="error", execution_start_ts=base_ts + 1.0, error_type="ValueError"
+        )
+        await insert_invocation(db_svc, listener_b, session_id, status="success", execution_start_ts=base_ts + 2.0)
+
+        result = await query_service.get_per_app_activity_buckets(since=base_ts, now=base_ts + 10.0, num_buckets=1)
+
+        assert result["app_a"] == [(0, 1)]
+        assert result["app_b"] == [(1, 0)]
+
+    async def test_source_tier_app_excludes_framework(
+        self,
+        query_service: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """source_tier='app' (the default) excludes framework-tier executions."""
+        db_svc, session_id = db
+
+        base_ts = BASE_TS
+        app_listener = await insert_listener(db_svc, app_key="test_app", handler_method="on_app", source_tier="app")
+        fw_listener = await insert_listener(db_svc, app_key="test_app", handler_method="on_fw", source_tier="framework")
+
+        await insert_invocation(
+            db_svc, app_listener, session_id, status="success", execution_start_ts=base_ts + 5.0, source_tier="app"
+        )
+        await insert_invocation(
+            db_svc,
+            fw_listener,
+            session_id,
+            status="success",
+            execution_start_ts=base_ts + 5.0,
+            source_tier="framework",
+        )
+
+        result = await query_service.get_per_app_activity_buckets(
+            since=base_ts, now=base_ts + 10.0, num_buckets=1, source_tier="app"
+        )
+
+        assert result["test_app"] == [(1, 0)]
+
+
+class TestGetPerAppLastErrors:
+    async def test_returns_most_recent_error_per_app(
+        self,
+        query_service: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """Multiple errors per app resolve to the one with the latest timestamp."""
+        db_svc, session_id = db
+
+        base_ts = BASE_TS
+        listener_a = await insert_listener(db_svc, app_key="app_a", handler_method="on_a")
+        listener_b = await insert_listener(db_svc, app_key="app_b", handler_method="on_b")
+
+        await insert_invocation(
+            db_svc,
+            listener_a,
+            session_id,
+            status="error",
+            execution_start_ts=base_ts + 10.0,
+            error_type="ValueError",
+            error_message="first",
+        )
+        await insert_invocation(
+            db_svc,
+            listener_a,
+            session_id,
+            status="error",
+            execution_start_ts=base_ts + 20.0,
+            error_type="RuntimeError",
+            error_message="second",
+        )
+        await insert_invocation(
+            db_svc,
+            listener_b,
+            session_id,
+            status="error",
+            execution_start_ts=base_ts + 15.0,
+            error_type="KeyError",
+            error_message="b_error",
+        )
+
+        result = await query_service.get_per_app_last_errors()
+
+        assert result["app_a"].error_message == "second"
+        assert result["app_a"].error_type == "RuntimeError"
+        assert result["app_a"].timestamp == pytest.approx(base_ts + 20.0)
+
+        assert result["app_b"].error_message == "b_error"
+        assert result["app_b"].timestamp == pytest.approx(base_ts + 15.0)
+
+    async def test_since_window_filtering_excludes_apps_with_no_recent_errors(
+        self,
+        query_service: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """An app whose only error predates the since threshold is excluded entirely."""
+        db_svc, session_id = db
+
+        base_ts = BASE_TS
+        listener_a = await insert_listener(db_svc, app_key="app_a", handler_method="on_a")
+        listener_b = await insert_listener(db_svc, app_key="app_b", handler_method="on_b")
+
+        await insert_invocation(
+            db_svc,
+            listener_a,
+            session_id,
+            status="error",
+            execution_start_ts=base_ts + 10.0,
+            error_type="ValueError",
+            error_message="before_window",
+        )
+        await insert_invocation(
+            db_svc,
+            listener_b,
+            session_id,
+            status="error",
+            execution_start_ts=base_ts + 20.0,
+            error_type="KeyError",
+            error_message="in_window",
+        )
+
+        result = await query_service.get_per_app_last_errors(since=base_ts + 15.0)
+
+        assert "app_a" not in result
+        assert result["app_b"].error_message == "in_window"
+
+    async def test_source_tier_app_excludes_framework_errors(
+        self,
+        query_service: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """source_tier='app' (the default) ignores later framework-tier errors."""
+        db_svc, session_id = db
+
+        base_ts = BASE_TS
+        app_listener = await insert_listener(db_svc, app_key="test_app", handler_method="on_app", source_tier="app")
+        fw_listener = await insert_listener(db_svc, app_key="test_app", handler_method="on_fw", source_tier="framework")
+
+        await insert_invocation(
+            db_svc,
+            app_listener,
+            session_id,
+            status="error",
+            execution_start_ts=base_ts + 10.0,
+            error_type="ValueError",
+            error_message="app_err",
+            source_tier="app",
+        )
+        # Later timestamp, but framework tier — must not win over app_err when source_tier="app"
+        await insert_invocation(
+            db_svc,
+            fw_listener,
+            session_id,
+            status="error",
+            execution_start_ts=base_ts + 20.0,
+            error_type="RuntimeError",
+            error_message="fw_err",
+            source_tier="framework",
+        )
+
+        result = await query_service.get_per_app_last_errors(source_tier="app")
+
+        assert result["test_app"].error_message == "app_err"
+
+    async def test_apps_with_only_successful_executions_are_excluded(
+        self,
+        query_service: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """An app with no errors at all does not appear in the result."""
+        db_svc, session_id = db
+
+        listener_a = await insert_listener(db_svc, app_key="app_a", handler_method="on_a")
+        await insert_invocation(db_svc, listener_a, session_id, status="success", execution_start_ts=BASE_TS + 5.0)
+
+        result = await query_service.get_per_app_last_errors()
+
+        assert result == {}

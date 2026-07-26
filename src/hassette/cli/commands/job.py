@@ -6,7 +6,8 @@ from hassette.cli.client import make_client
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
 from hassette.cli.output import Column, fmt_duration_ms, fmt_relative_time, render_table
 from hassette.cli.types import AppKeyArg, InstanceArg, LimitArg, SinceArg, SourceTierArg
-from hassette.schemas.telemetry_models import Execution, JobSummary
+from hassette.schemas.execution_models import Execution
+from hassette.schemas.job_models import JobSummary
 
 JOB_LIST_COLUMNS: list[Column] = [
     Column("job_id", "ID", max_width=6),

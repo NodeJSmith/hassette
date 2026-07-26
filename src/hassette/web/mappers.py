@@ -17,8 +17,8 @@ from typing import cast
 
 from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo, AppStatusSnapshot
 from hassette.schemas.domain_models import SystemStatus
+from hassette.schemas.listener_models import ListenerSummary
 from hassette.schemas.live_counts import LiveCounts
-from hassette.schemas.telemetry_models import ListenerSummary
 from hassette.types.enums import ResourceStatus, Topic
 from hassette.web.models import (
     AppInstanceResponse,

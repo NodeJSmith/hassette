@@ -7,7 +7,7 @@ import pytest
 
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.triggers import After, Every
-from hassette.test_utils.web_helpers import make_real_job
+from hassette.test_utils.web_job_helpers import make_real_job
 from hassette.types.enums import ExecutionMode
 
 if TYPE_CHECKING:

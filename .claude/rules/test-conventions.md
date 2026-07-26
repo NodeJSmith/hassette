@@ -4,9 +4,9 @@ Closes the discovery gap for test infrastructure: this file is loaded on every s
 
 ## Before writing a local factory (BLOCKING)
 
-Before defining a local `make_*` or `build_*` function in a test file, check `src/hassette/test_utils/factories.py` and `src/hassette/test_utils/helpers.py` for an existing factory. Also check `src/hassette/test_utils/web_helpers.py` for web-layer factories. A name match against the shared registry is treated as a duplicate even without an import — `tools/check_test_factories.py` (pre-commit hook) flags local `def make_*`/`def build_*` definitions that shadow a shared factory name, unless annotated `# factory-local: <reason>` for a genuinely different return type or purpose.
+Before defining a local `make_*` or `build_*` function in a test file, check `src/hassette/test_utils/factories.py` and `src/hassette/test_utils/helpers.py` for an existing factory. Also check `src/hassette/test_utils/web_manifest_helpers.py`, `src/hassette/test_utils/web_job_helpers.py`, `src/hassette/test_utils/web_response_helpers.py`, and `src/hassette/test_utils/web_telemetry_helpers.py` for web-layer factories. A name match against the shared registry is treated as a duplicate even without an import — `tools/check_test_factories.py` (pre-commit hook) flags local `def make_*`/`def build_*` definitions that shadow a shared factory name, unless annotated `# factory-local: <reason>` for a genuinely different return type or purpose.
 
-If a matching factory exists, import it instead of redefining it. If it doesn't exist and the same shape is needed in 3+ files, add it to `factories.py` (or `web_helpers.py` for web-layer models) rather than letting a fourth local copy accumulate.
+If a matching factory exists, import it instead of redefining it. If it doesn't exist and the same shape is needed in 3+ files, add it to `factories.py` (or the appropriate `web_*_helpers.py` submodule for web-layer models) rather than letting a fourth local copy accumulate.
 
 ## Choosing a mock strategy
 
@@ -42,11 +42,18 @@ Full decision table: `tests/TESTING.md` (Choosing a Mock Strategy, lines 27-37).
 - `noop()` — sync no-op, default handler for `create_listener()` and scheduler job tests
 - `async_noop()` — async no-op, call it to get a coroutine object (e.g. `bucket.spawn(async_noop())`)
 
-`src/hassette/test_utils/web_helpers.py` — web/API response and snapshot models:
+`src/hassette/test_utils/web_manifest_helpers.py` — app manifest and snapshot models:
 
 - `make_manifest(**kw)` — `AppManifestInfo`; `make_full_snapshot(manifests)` — `AppFullSnapshot`
+
+`src/hassette/test_utils/web_job_helpers.py` — job/scheduler web-layer models:
+
 - `make_job(**kw)` — `SimpleNamespace` job stub for serialization tests
 - `make_real_job(**kw)` — real `ScheduledJob` for web-layer behavior tests
+
+`src/hassette/test_utils/web_response_helpers.py` — system/app status and config response models
+
+`src/hassette/test_utils/web_telemetry_helpers.py` — telemetry/execution response models
 
 See `tests/TESTING.md` (`make_*/create_*/build_*` naming convention) for how to tell `make_scheduled_job`, `make_real_job`, and `make_job` apart — they build different things despite the similar names.
 

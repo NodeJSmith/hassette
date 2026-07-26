@@ -279,7 +279,7 @@
       },
       {
         "field": "next_run",
-        "formatter": "fmt_next_run",
+        "formatter": null,
         "header": "Next Run",
         "max_width": 11,
         "overflow": "ellipsis"
@@ -347,7 +347,7 @@
         "overflow": "ellipsis"
       },
       {
-        "field": "entity_id",
+        "field": "target",
         "formatter": null,
         "header": "Target",
         "max_width": 26,

@@ -13,7 +13,7 @@ from hassette.cli.output import (
     render_table,
 )
 from hassette.cli.types import InstanceArg, LimitArg, SinceArg, SourceTierArg
-from hassette.schemas.telemetry_models import ActivityFeedEntry
+from hassette.schemas.execution_models import ActivityFeedEntry
 from hassette.web.models import AppConfigResponse, AppHealthResponse, AppManifestListResponse, AppSourceResponse
 
 APP_LIST_COLUMNS: list[Column] = [

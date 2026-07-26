@@ -11,7 +11,8 @@ from hassette.cli.commands.job import (
     cmd_job,
 )
 from hassette.cli.context import CLIContext
-from hassette.test_utils.web_helpers import make_execution, make_job_summary
+from hassette.test_utils.web_job_helpers import make_job_summary
+from hassette.test_utils.web_telemetry_helpers import make_execution
 from tests.unit.cli.conftest import (
     SINCE_EPOCH,
     CLIClientFactory,
@@ -20,6 +21,8 @@ from tests.unit.cli.conftest import (
     capture_stderr,
     capture_stdout,
 )
+
+MAKE_CLIENT_PATH = "hassette.cli.commands.job.make_client"
 
 # cmd_job (bare — list all jobs)
 
@@ -34,7 +37,7 @@ class TestCmdJob:
         with (
             patch.object(client, "get", side_effect=spy),
             capture_stdout(),
-            patch("hassette.cli.commands.job.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_job()
 
@@ -51,7 +54,7 @@ class TestCmdJob:
         with (
             patch.object(client, "get", side_effect=spy),
             capture_stdout(),
-            patch("hassette.cli.commands.job.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_job(app="my-app")
 
@@ -68,7 +71,7 @@ class TestCmdJob:
         with (
             patch.object(client, "get", side_effect=spy),
             capture_stdout(),
-            patch("hassette.cli.commands.job.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_job(app="my-app", instance="0")
 
@@ -82,7 +85,7 @@ class TestCmdJob:
 
         with (
             capture_stderr(),
-            patch("hassette.cli.commands.job.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
             pytest.raises(SystemExit) as exc_info,
         ):
             cmd_job(instance="0")
@@ -98,7 +101,7 @@ class TestCmdJob:
         with (
             patch.object(client, "get", side_effect=spy),
             capture_stdout(),
-            patch("hassette.cli.commands.job.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_job(source_tier="app")
 
@@ -112,7 +115,7 @@ class TestCmdJob:
         client = cli_client_factory.build_with_routes([("GET", "/api/scheduler/jobs", 200, [job.model_dump()])])
         with (
             capture_stdout() as buf,
-            patch("hassette.cli.commands.job.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_job()
 
@@ -127,7 +130,7 @@ class TestCmdJob:
         client = cli_client_factory.build_with_routes([("GET", "/api/scheduler/jobs", 200, [job.model_dump()])])
 
         with (
-            patch("hassette.cli.commands.job.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
             capture_json_stdout() as captured,
         ):
             cmd_job(ctx=CLIContext(json_mode=True))
@@ -142,7 +145,7 @@ class TestCmdJob:
         with (
             capture_stdout(),
             capture_stderr() as err_buf,
-            patch("hassette.cli.commands.job.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_job()
 
@@ -175,7 +178,7 @@ class TestCmdJobDetail:
         with (
             patch.object(client, "get", side_effect=spy),
             capture_stdout(),
-            patch("hassette.cli.commands.job.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_job(job_id=5)
 
@@ -192,7 +195,7 @@ class TestCmdJobDetail:
         with (
             patch.object(client, "get", side_effect=spy),
             capture_stdout(),
-            patch("hassette.cli.commands.job.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_job(job_id=5, limit=5)
 
@@ -212,7 +215,7 @@ class TestCmdJobDetail:
         with (
             patch.object(client, "get", side_effect=spy),
             capture_stdout(),
-            patch("hassette.cli.commands.job.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_job(job_id=5, since=since_epoch)
 
@@ -228,7 +231,7 @@ class TestCmdJobDetail:
         )
         with (
             capture_stdout() as buf,
-            patch("hassette.cli.commands.job.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_job(job_id=1)
 
@@ -243,7 +246,7 @@ class TestCmdJobDetail:
         )
 
         with (
-            patch("hassette.cli.commands.job.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
             capture_json_stdout() as captured,
         ):
             cmd_job(job_id=1, ctx=CLIContext(json_mode=True))

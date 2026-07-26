@@ -10,7 +10,8 @@ from hassette.commands import ExecuteJob, InvokeHandler
 from hassette.core.execution_record import ExecutionRecord
 from hassette.exceptions import DependencyError, DependencyInjectionError
 from hassette.scheduler.classes import ScheduledJob
-from hassette.schemas.telemetry_models import HandlerErrorRecord, JobErrorRecord
+from hassette.schemas.job_models import JobErrorRecord
+from hassette.schemas.listener_models import HandlerErrorRecord
 from hassette.test_utils.config import TEST_EPOCH_A
 from hassette.test_utils.factories import make_job_registration, make_listener_registration
 from hassette.test_utils.helpers import create_listener

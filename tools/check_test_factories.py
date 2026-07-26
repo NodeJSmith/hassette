@@ -2,7 +2,7 @@
 """CI guard: detect local test factories that shadow a shared factory.
 
 The test suite has a shared factory registry (``hassette.test_utils.factories``,
-``web_helpers``, ``helpers``) built to absorb the same handful of conceptual
+the ``web_*_helpers`` modules, ``helpers``) built to absorb the same handful of conceptual
 objects — ``ScheduledJob``, ``Event``, a mock ``CommandExecutor`` — that kept
 getting hand-rolled again in each new test file. Left unchecked, an LLM (or a
 developer in a hurry) reinvents the same ``make_*`` function in a new file
@@ -61,7 +61,26 @@ SHARED_FACTORIES = {
     "make_mock_listener": "hassette.test_utils.factories",
     "make_scheduler": "hassette.test_utils.factories",
     "make_execution_record": "hassette.test_utils.factories",
-    "make_manifest": "hassette.test_utils.web_helpers",
+    "make_manifest": "hassette.test_utils.web_manifest_helpers",
+    "make_full_snapshot": "hassette.test_utils.web_manifest_helpers",
+    "make_manifest_response": "hassette.test_utils.web_manifest_helpers",
+    "make_manifest_list_response": "hassette.test_utils.web_manifest_helpers",
+    "make_job": "hassette.test_utils.web_job_helpers",
+    "make_real_job": "hassette.test_utils.web_job_helpers",
+    "make_job_summary": "hassette.test_utils.web_job_helpers",
+    "make_system_status_response": "hassette.test_utils.web_response_helpers",
+    "make_telemetry_status_response": "hassette.test_utils.web_response_helpers",
+    "make_dashboard_app_grid_entry": "hassette.test_utils.web_response_helpers",
+    "make_dashboard_app_grid_response": "hassette.test_utils.web_response_helpers",
+    "make_config_schema_response": "hassette.test_utils.web_response_helpers",
+    "make_app_health_response": "hassette.test_utils.web_response_helpers",
+    "make_app_config_response": "hassette.test_utils.web_response_helpers",
+    "make_app_source_response": "hassette.test_utils.web_response_helpers",
+    "make_activity_feed_entry": "hassette.test_utils.web_telemetry_helpers",
+    "make_listener_with_summary": "hassette.test_utils.web_telemetry_helpers",
+    "make_execution": "hassette.test_utils.web_telemetry_helpers",
+    "make_log_entry_response": "hassette.test_utils.web_telemetry_helpers",
+    "make_logs_by_execution_response": "hassette.test_utils.web_telemetry_helpers",
     "make_crashed_event": "hassette.test_utils.helpers",
     "make_task_bucket": "hassette.test_utils.helpers",
     "async_noop": "hassette.test_utils.helpers",

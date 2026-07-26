@@ -4,9 +4,9 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from hassette.const.misc import SECONDS_PER_HOUR
-from hassette.core.telemetry.helpers import row_to_dict, since_clause, source_tier_clause
+from hassette.core.telemetry.helpers import handler_job_union_arms, row_to_dict, since_clause, source_tier_clause
+from hassette.schemas.execution_models import ActivityFeedEntry, AppLastError, Execution
 from hassette.schemas.query_constants import DEFAULT_QUERY_LIMIT, DEFAULT_SPARKLINE_BUCKETS
-from hassette.schemas.telemetry_models import ActivityFeedEntry, AppLastError, Execution
 from hassette.types.types import QuerySourceTier
 
 if TYPE_CHECKING:
@@ -116,65 +116,45 @@ class ExecutionQueriesMixin:
         Returns:
             List of :class:`ActivityFeedEntry` sorted by ``timestamp`` descending.
         """
-        # The query is a UNION ALL of two arms: the handler arm (executions aliased `e_h`,
-        # suffix `_hi`) and the job arm (executions aliased `e_j`, suffix `_je`). Each clause
-        # builder embeds the alias in its fragment but always binds the same parameter name
-        # (`:source_tier`, `:since`), so both arms share one bind value — the second call's
-        # params dict is a duplicate and is intentionally discarded.
-        tier_hi_clause, tier_params = source_tier_clause(source_tier, "e_h")
-        tier_je_clause, _ = source_tier_clause(source_tier, "e_j")
-        since_hi_clause, since_params = since_clause(since, "e_h.execution_start_ts")
-        since_je_clause, _ = since_clause(since, "e_j.execution_start_ts")
-
-        instance_hi_clause = ""
-        instance_je_clause = ""
-        instance_params: dict[str, int] = {}
-        if instance_index is not None:
-            instance_hi_clause = "AND l.instance_index = :instance_index"
-            instance_je_clause = "AND sj.instance_index = :instance_index"
-            instance_params = {"instance_index": instance_index}
-
         # row_id carries the execution_id UUID, falling back to 'h-'/'j-' + rowid for older rows.
+        handler_select = """
+            SELECT
+                COALESCE(e_h.execution_id, 'h-' || CAST(e_h.rowid AS TEXT)) AS row_id,
+                e_h.status,
+                e_h.execution_start_ts AS timestamp,
+                l.app_key,
+                l.id AS handler_id,
+                l.handler_method AS handler_name,
+                e_h.duration_ms,
+                e_h.error_type,
+                'handler' AS kind
+        """
+        job_select = """
+            SELECT
+                COALESCE(e_j.execution_id, 'j-' || CAST(e_j.rowid AS TEXT)) AS row_id,
+                e_j.status,
+                e_j.execution_start_ts AS timestamp,
+                sj.app_key,
+                sj.id AS handler_id,
+                sj.handler_method AS handler_name,
+                e_j.duration_ms,
+                e_j.error_type,
+                'job' AS kind
+        """
+        union_fragment, union_params = handler_job_union_arms(
+            handler_select,
+            job_select,
+            extra_handler_where="AND l.app_key = :app_key",
+            extra_job_where="AND sj.app_key = :app_key",
+            since=since,
+            source_tier=source_tier,
+            instance_index=instance_index,
+        )
+
         query = f"""
             SELECT row_id, status, timestamp, app_key, handler_id, handler_name, duration_ms, error_type, kind
             FROM (
-                SELECT
-                    COALESCE(e_h.execution_id, 'h-' || CAST(e_h.rowid AS TEXT)) AS row_id,
-                    e_h.status,
-                    e_h.execution_start_ts AS timestamp,
-                    l.app_key,
-                    l.id AS handler_id,
-                    l.handler_method AS handler_name,
-                    e_h.duration_ms,
-                    e_h.error_type,
-                    'handler' AS kind
-                FROM executions e_h
-                JOIN listeners l ON l.id = e_h.listener_id
-                WHERE e_h.kind = 'handler'
-                  AND l.app_key = :app_key
-                  {instance_hi_clause}
-                  {since_hi_clause}
-                  {tier_hi_clause}
-
-                UNION ALL
-
-                SELECT
-                    COALESCE(e_j.execution_id, 'j-' || CAST(e_j.rowid AS TEXT)) AS row_id,
-                    e_j.status,
-                    e_j.execution_start_ts AS timestamp,
-                    sj.app_key,
-                    sj.id AS handler_id,
-                    sj.handler_method AS handler_name,
-                    e_j.duration_ms,
-                    e_j.error_type,
-                    'job' AS kind
-                FROM executions e_j
-                JOIN scheduled_jobs sj ON sj.id = e_j.job_id
-                WHERE e_j.kind = 'job'
-                  AND sj.app_key = :app_key
-                  {instance_je_clause}
-                  {since_je_clause}
-                  {tier_je_clause}
+                {union_fragment}
             ) combined
             ORDER BY timestamp DESC
             LIMIT :limit
@@ -183,9 +163,7 @@ class ExecutionQueriesMixin:
         params: dict[str, Any] = {
             "app_key": app_key,
             "limit": limit,
-            **since_params,
-            **tier_params,
-            **instance_params,
+            **union_params,
         }
 
         async with self.execute(query, params) as cursor:
@@ -212,31 +190,30 @@ class ExecutionQueriesMixin:
             return {}
 
         bucket_width = (now - since) / num_buckets
-        tier_hi_clause, tier_params = source_tier_clause(source_tier, "e_h")
-        tier_je_clause, _ = source_tier_clause(source_tier, "e_j")
+
+        handler_select = """
+            SELECT l.app_key, e_h.status,
+                CAST((e_h.execution_start_ts - :since) / :bucket_width AS INTEGER) AS bucket_idx
+        """
+        job_select = """
+            SELECT sj.app_key, e_j.status,
+                CAST((e_j.execution_start_ts - :since) / :bucket_width AS INTEGER) AS bucket_idx
+        """
+        union_fragment, union_params = handler_job_union_arms(
+            handler_select,
+            job_select,
+            extra_handler_where="AND e_h.execution_start_ts >= :since AND e_h.execution_start_ts < :now",
+            extra_job_where="AND e_j.execution_start_ts >= :since AND e_j.execution_start_ts < :now",
+            since=None,
+            source_tier=source_tier,
+        )
 
         query = f"""
             SELECT app_key, bucket_idx,
                 SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) AS ok,
                 SUM(CASE WHEN status IN ('error', 'timed_out') THEN 1 ELSE 0 END) AS err
             FROM (
-                SELECT l.app_key, e_h.status,
-                    CAST((e_h.execution_start_ts - :since) / :bucket_width AS INTEGER) AS bucket_idx
-                FROM executions e_h
-                JOIN listeners l ON l.id = e_h.listener_id
-                WHERE e_h.kind = 'handler'
-                  AND e_h.execution_start_ts >= :since AND e_h.execution_start_ts < :now
-                  {tier_hi_clause}
-
-                UNION ALL
-
-                SELECT sj.app_key, e_j.status,
-                    CAST((e_j.execution_start_ts - :since) / :bucket_width AS INTEGER) AS bucket_idx
-                FROM executions e_j
-                JOIN scheduled_jobs sj ON sj.id = e_j.job_id
-                WHERE e_j.kind = 'job'
-                  AND e_j.execution_start_ts >= :since AND e_j.execution_start_ts < :now
-                  {tier_je_clause}
+                {union_fragment}
             ) combined
             WHERE bucket_idx >= 0 AND bucket_idx < :num_buckets
             GROUP BY app_key, bucket_idx
@@ -247,7 +224,7 @@ class ExecutionQueriesMixin:
             "now": now,
             "bucket_width": bucket_width,
             "num_buckets": num_buckets,
-            **tier_params,
+            **union_params,
         }
 
         async with self.execute(query, params) as cursor:
@@ -276,10 +253,16 @@ class ExecutionQueriesMixin:
             Dict mapping app_key to ``AppLastError``.
             Only apps with at least one error in the window are included.
         """
-        since_hi_clause, since_params = since_clause(since, "e_h.execution_start_ts")
-        since_je_clause, _ = since_clause(since, "e_j.execution_start_ts")
-        tier_hi_clause, tier_params = source_tier_clause(source_tier, "e_h")
-        tier_je_clause, _ = source_tier_clause(source_tier, "e_j")
+        handler_select = "SELECT l.app_key, e_h.error_message, e_h.error_type, e_h.execution_start_ts"
+        job_select = "SELECT sj.app_key, e_j.error_message, e_j.error_type, e_j.execution_start_ts"
+        union_fragment, union_params = handler_job_union_arms(
+            handler_select,
+            job_select,
+            extra_handler_where="AND e_h.status IN ('error', 'timed_out')",
+            extra_job_where="AND e_j.status IN ('error', 'timed_out')",
+            since=since,
+            source_tier=source_tier,
+        )
 
         query = f"""
             SELECT app_key, error_message, error_type, execution_start_ts
@@ -288,26 +271,12 @@ class ExecutionQueriesMixin:
                     app_key, error_message, error_type, execution_start_ts,
                     ROW_NUMBER() OVER (PARTITION BY app_key ORDER BY execution_start_ts DESC) AS rn
                 FROM (
-                    SELECT l.app_key, e_h.error_message, e_h.error_type, e_h.execution_start_ts
-                    FROM executions e_h
-                    JOIN listeners l ON l.id = e_h.listener_id
-                    WHERE e_h.kind = 'handler'
-                      AND e_h.status IN ('error', 'timed_out')
-                      {since_hi_clause} {tier_hi_clause}
-
-                    UNION ALL
-
-                    SELECT sj.app_key, e_j.error_message, e_j.error_type, e_j.execution_start_ts
-                    FROM executions e_j
-                    JOIN scheduled_jobs sj ON sj.id = e_j.job_id
-                    WHERE e_j.kind = 'job'
-                      AND e_j.status IN ('error', 'timed_out')
-                      {since_je_clause} {tier_je_clause}
+                    {union_fragment}
                 ) combined_inner
             )
             WHERE rn = 1
         """
-        params: dict[str, Any] = {**since_params, **tier_params}
+        params: dict[str, Any] = {**union_params}
         async with self.execute(query, params) as cursor:
             rows = await cursor.fetchall()
         return {

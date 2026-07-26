@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from hassette.cli.client import HassetteCLIClient
 from hassette.config.config import HassetteConfig
 from hassette.config.models import WebApiConfig
-from hassette.test_utils.web_helpers import make_manifest_list_response, make_manifest_response
+from hassette.test_utils.web_manifest_helpers import make_manifest_list_response, make_manifest_response
 from hassette.web.models import AppInstanceResponse
 from tests.unit.cli.conftest import capture_stderr
 
@@ -54,6 +54,17 @@ def _make_config(host: str = "127.0.0.1", port: int = 8126) -> HassetteConfig:
 def _make_manifest_list(instances: list[AppInstanceResponse], app_key: str = "my_app"):
     manifest = make_manifest_response(app_key=app_key, instance_count=len(instances), instances=instances)
     return make_manifest_list_response(manifests=[manifest])
+
+
+def url_capturing_transport() -> tuple[httpx.MockTransport, list[str]]:
+    """Build a MockTransport that records every request URL and returns an empty JSON array."""
+    captured_urls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured_urls.append(str(request.url))
+        return httpx.Response(200, content=b"[]", headers={"content-type": "application/json"})
+
+    return httpx.MockTransport(handler), captured_urls
 
 
 # Base URL construction & address substitution
@@ -279,13 +290,9 @@ class TestNetworkErrors:
 class TestAppKeyRouting:
     def test_no_app_uses_global_listener_url(self) -> None:
         config = _make_config()
-        captured_urls: list[str] = []
+        transport, captured_urls = url_capturing_transport()
 
-        def handler(request: httpx.Request) -> httpx.Response:
-            captured_urls.append(str(request.url))
-            return httpx.Response(200, content=b"[]", headers={"content-type": "application/json"})
-
-        client = HassetteCLIClient(config, json_mode=False, transport=httpx.MockTransport(handler))
+        client = HassetteCLIClient(config, json_mode=False, transport=transport)
         client.get_with_app_routing(
             global_path="/api/bus/listeners",
             per_app_path_template="/api/telemetry/app/{app_key}/listeners",
@@ -296,13 +303,9 @@ class TestAppKeyRouting:
 
     def test_app_key_uses_per_app_listener_url(self) -> None:
         config = _make_config()
-        captured_urls: list[str] = []
+        transport, captured_urls = url_capturing_transport()
 
-        def handler(request: httpx.Request) -> httpx.Response:
-            captured_urls.append(str(request.url))
-            return httpx.Response(200, content=b"[]", headers={"content-type": "application/json"})
-
-        client = HassetteCLIClient(config, json_mode=False, transport=httpx.MockTransport(handler))
+        client = HassetteCLIClient(config, json_mode=False, transport=transport)
         client.get_with_app_routing(
             global_path="/api/bus/listeners",
             per_app_path_template="/api/telemetry/app/{app_key}/listeners",
@@ -318,13 +321,9 @@ class TestAppKeyRouting:
 class TestInstanceRouting:
     def test_integer_instance_passes_index_as_query_param(self) -> None:
         config = _make_config()
-        captured_urls: list[str] = []
+        transport, captured_urls = url_capturing_transport()
 
-        def handler(request: httpx.Request) -> httpx.Response:
-            captured_urls.append(str(request.url))
-            return httpx.Response(200, content=b"[]", headers={"content-type": "application/json"})
-
-        client = HassetteCLIClient(config, json_mode=False, transport=httpx.MockTransport(handler))
+        client = HassetteCLIClient(config, json_mode=False, transport=transport)
         client.get_with_app_routing(
             global_path="/api/bus/listeners",
             per_app_path_template="/api/telemetry/app/{app_key}/listeners",

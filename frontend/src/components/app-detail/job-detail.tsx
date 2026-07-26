@@ -7,18 +7,25 @@ import { useScopedQuery } from "../../hooks/use-scoped-query";
 import { queryKeys } from "../../lib/query-keys";
 import { useAppState } from "../../state/context";
 import { DETAIL_FETCH_LIMIT } from "../../utils/constants";
-import { formatDurationOrDash, formatRate, formatTriggerDetail } from "../../utils/format";
+import { formatTriggerDetail } from "../../utils/format";
 import { handlerKindLabel } from "../../utils/status";
 import { Button } from "../shared/button";
 import { Chip } from "../shared/chip";
 import type { DetailStatsCell } from "../shared/detail-stats";
+import { DetailStats } from "../shared/detail-stats";
+import { ErrorBanner } from "../shared/error-banner";
 import { IconPlay } from "../shared/icons";
 import { Spinner } from "../shared/spinner";
+import { DetailHeader } from "./detail-header";
+import { ExecutionSection } from "./execution-section";
 import chipStyles from "./handler-chips.module.css";
 import { HandlerDetailLayout } from "./handler-detail-layout";
 import layoutStyles from "./handler-detail-layout.module.css";
 import { jobHealthKind } from "./handler-list";
 import { HandlerModeChip } from "./handler-mode-chip";
+import styles from "./job-detail.module.css";
+import { RegistrationFooter } from "./registration-footer";
+import { buildCommonStatCells, type CommonStatInput } from "./stat-cell-builders";
 
 function ScheduleChips({ job }: { job: JobData }) {
   const chips: Array<{ label: string }> = [];
@@ -69,28 +76,21 @@ function RunNowButton({ jobId }: { jobId: number }) {
 }
 
 function buildJobStatsCells(job: JobData, lastExecutedLabel: string, nextRunText: string | null): DetailStatsCell[] {
-  const cells: DetailStatsCell[] = [
-    { label: "Runs", value: job.total_executions },
-    { label: "Failed", value: job.failed, tone: job.failed > 0 ? "err" : undefined },
-    {
-      label: "Err %",
-      value: formatRate(job.failed, job.total_executions),
-      tone: job.failed > 0 ? "err" : undefined,
-    },
-    { label: "Avg", value: formatDurationOrDash(job.avg_duration_ms) },
-  ];
-  if (nextRunText) {
-    cells.push({ label: "Next", value: nextRunText });
-  } else {
-    cells.push({ label: "Last", value: job.last_executed_at ? lastExecutedLabel || "—" : "—" });
-  }
-  if (job.timed_out > 0) cells.push({ label: "Timed Out", value: job.timed_out, tone: "warn" });
-  if (job.cancelled > 0) cells.push({ label: "Cancelled", value: job.cancelled, tone: "cancel" });
-  if (job.skipped > 0) cells.push({ label: "Skipped", value: job.skipped, tone: "mute" });
-  if (job.thread_leaked > 0) cells.push({ label: "Thread Leaked", value: job.thread_leaked, tone: "warn" });
-  if (job.suppressed_count > 0) cells.push({ label: "Suppressed", value: job.suppressed_count, tone: "mute" });
-  if (job.dropped_count > 0) cells.push({ label: "Dropped", value: job.dropped_count, tone: "warn" });
-  return cells;
+  const input: CommonStatInput = {
+    totalLabel: "Runs",
+    total: job.total_executions,
+    failed: job.failed,
+    avgDurationMs: job.avg_duration_ms,
+    lastLabel: nextRunText ?? (job.last_executed_at ? lastExecutedLabel || "—" : "—"),
+    lastFieldLabel: nextRunText ? "Next" : "Last",
+    timedOut: job.timed_out,
+    cancelled: job.cancelled,
+    threadLeaked: job.thread_leaked,
+    suppressedCount: job.suppressed_count,
+    droppedCount: job.dropped_count,
+    extraCell: job.skipped > 0 ? { label: "Skipped", value: job.skipped, tone: "mute" } : undefined,
+  };
+  return buildCommonStatCells(input);
 }
 
 interface Props {
@@ -126,50 +126,58 @@ export function JobDetail({ job, appKey, instanceQs, onSwitchToCode }: Props) {
   else if (job.fire_at) nextRunText = `fire at ${fireAtLabel}`;
 
   return (
-    <HandlerDetailLayout
-      testId={`job-detail-${job.job_id}`}
-      testIdPrefix="job"
-      kindLabel={kindLabel}
-      statusKind={jobKind}
-      name={job.job_name}
-      subtitle={
-        [job.trigger_label, job.trigger_detail ? formatTriggerDetail(job.trigger_detail) : null]
-          .filter(Boolean)
-          .join(" ") || null
-      }
-      registrationSource={job.registration_source}
-      chips={<ScheduleChips job={job} />}
-      headerActions={<RunNowButton jobId={job.job_id} />}
-      extras={
-        predicateDescription && (
-          <p class={layoutStyles.subtitle} data-testid="job-predicate-description">
-            {predicateDescription}
-          </p>
-        )
-      }
-      sourceLocation={job.source_location}
-      onViewCode={onSwitchToCode}
-      error={
-        jobKind === "err"
-          ? {
-              type: job.last_error_type ?? null,
-              message: job.last_error_message ?? null,
-              traceback: job.last_error_traceback ?? null,
-            }
-          : null
-      }
-      statsCells={buildJobStatsCells(job, lastExecutedLabel, nextRunText)}
-      statsTestId="job-stats-row"
-      executionHeading="executions"
-      executionRecords={executions ?? []}
-      executionKind="job"
-      executionTableId={`execution-table-${job.job_id}`}
-      executionLoading={loading}
-      executionHasData={executions !== undefined}
-      appKey={appKey}
-      handlerKind="job"
-      handlerId={job.job_id}
-      instanceQs={instanceQs}
-    />
+    <HandlerDetailLayout testId={`job-detail-${job.job_id}`}>
+      <DetailHeader
+        name={job.job_name}
+        kindLabel={kindLabel}
+        statusKind={jobKind}
+        kind="job"
+        subtitle={
+          [job.trigger_label, job.trigger_detail ? formatTriggerDetail(job.trigger_detail) : null]
+            .filter(Boolean)
+            .join(" ") || null
+        }
+        headerActions={<RunNowButton jobId={job.job_id} />}
+      />
+
+      {predicateDescription && (
+        <p class={styles.predicateDescription} data-testid="job-predicate-description">
+          {predicateDescription}
+        </p>
+      )}
+
+      <ScheduleChips job={job} />
+
+      {jobKind === "err" && (job.last_error_message || job.last_error_type) && (
+        <ErrorBanner
+          errorType={job.last_error_type ?? null}
+          errorMessage={job.last_error_message ?? null}
+          traceback={job.last_error_traceback ?? null}
+          data-testid="job-error-banner"
+        />
+      )}
+
+      <DetailStats cells={buildJobStatsCells(job, lastExecutedLabel, nextRunText)} data-testid="job-stats-row" />
+
+      <ExecutionSection
+        heading="executions"
+        records={executions}
+        kind="job"
+        tableId={`execution-table-${job.job_id}`}
+        loading={loading}
+        appKey={appKey}
+        handlerKind="job"
+        handlerId={job.job_id}
+        instanceQs={instanceQs}
+      />
+
+      <RegistrationFooter
+        kind="job"
+        testId={`job-detail-${job.job_id}`}
+        sourceLocation={job.source_location}
+        registrationSource={job.registration_source}
+        onViewCode={onSwitchToCode}
+      />
+    </HandlerDetailLayout>
   );
 }

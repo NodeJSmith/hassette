@@ -16,14 +16,13 @@ from hassette.cli.commands.app import (
     cmd_app_source,
 )
 from hassette.cli.context import CLIContext
-from hassette.test_utils.web_helpers import (
-    make_activity_feed_entry,
+from hassette.test_utils.web_manifest_helpers import make_manifest_list_response, make_manifest_response
+from hassette.test_utils.web_response_helpers import (
     make_app_config_response,
     make_app_health_response,
     make_app_source_response,
-    make_manifest_list_response,
-    make_manifest_response,
 )
+from hassette.test_utils.web_telemetry_helpers import make_activity_feed_entry
 from hassette.web.models import AppInstanceResponse, AppManifestListResponse
 from tests.unit.cli.conftest import (
     SINCE_EPOCH,
@@ -33,6 +32,8 @@ from tests.unit.cli.conftest import (
     capture_stderr,
     capture_stdout,
 )
+
+MAKE_CLIENT_PATH = "hassette.cli.commands.app.make_client"
 
 # cmd_app (bare — list all apps)
 
@@ -48,7 +49,7 @@ class TestCmdApp:
         with (
             patch.object(client, "get", side_effect=spy),
             capture_stdout(),
-            patch("hassette.cli.commands.app.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_app()
 
@@ -61,7 +62,7 @@ class TestCmdApp:
         client = cli_client_factory.build_with_routes([("GET", "/api/apps/manifests", 200, data.model_dump())])
         with (
             capture_stdout() as buf,
-            patch("hassette.cli.commands.app.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_app()
         output = buf.getvalue()
@@ -75,7 +76,7 @@ class TestCmdApp:
         client = cli_client_factory.build_with_routes([("GET", "/api/apps/manifests", 200, data.model_dump())])
 
         with (
-            patch("hassette.cli.commands.app.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
             capture_json_stdout() as captured,
         ):
             cmd_app(ctx=CLIContext(json_mode=True))
@@ -91,7 +92,7 @@ class TestCmdApp:
         with (
             capture_stdout(),
             capture_stderr() as err_buf,
-            patch("hassette.cli.commands.app.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_app()
         assert "No results" in err_buf.getvalue()
@@ -125,7 +126,7 @@ class TestCmdAppHealth:
         with (
             patch.object(client, "get", side_effect=spy),
             capture_stdout(),
-            patch("hassette.cli.commands.app.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_app_health("my-app")
 
@@ -142,7 +143,7 @@ class TestCmdAppHealth:
         with (
             patch.object(client, "get", side_effect=spy),
             capture_stdout(),
-            patch("hassette.cli.commands.app.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_app_health("my-app", instance="1")
 
@@ -175,7 +176,7 @@ class TestCmdAppHealth:
         with (
             patch.object(client, "get", side_effect=spy),
             capture_stdout(),
-            patch("hassette.cli.commands.app.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_app_health("my-app", instance="office")
 
@@ -191,7 +192,7 @@ class TestCmdAppHealth:
         )
         with (
             capture_stdout() as buf,
-            patch("hassette.cli.commands.app.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_app_health("my-app")
         output = buf.getvalue()
@@ -206,7 +207,7 @@ class TestCmdAppHealth:
         )
 
         with (
-            patch("hassette.cli.commands.app.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
             capture_json_stdout() as captured,
         ):
             cmd_app_health("my-app", ctx=CLIContext(json_mode=True))
@@ -238,7 +239,7 @@ class TestCmdAppActivity:
         with (
             patch.object(client, "get", side_effect=spy),
             capture_stdout(),
-            patch("hassette.cli.commands.app.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_app_activity("my-app")
 
@@ -255,7 +256,7 @@ class TestCmdAppActivity:
         with (
             patch.object(client, "get", side_effect=spy),
             capture_stdout(),
-            patch("hassette.cli.commands.app.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_app_activity("my-app")
 
@@ -276,7 +277,7 @@ class TestCmdAppActivity:
         with (
             patch.object(client, "get", side_effect=spy),
             capture_stdout(),
-            patch("hassette.cli.commands.app.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_app_activity("my-app", since=since_epoch, limit=10)
 
@@ -296,7 +297,7 @@ class TestCmdAppActivity:
         with (
             patch.object(client, "get", side_effect=spy),
             capture_stdout(),
-            patch("hassette.cli.commands.app.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_app_activity("my-app", instance="2")
 
@@ -312,7 +313,7 @@ class TestCmdAppActivity:
         )
         with (
             capture_stdout() as buf,
-            patch("hassette.cli.commands.app.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_app_activity("my-app")
         output = buf.getvalue()
@@ -327,7 +328,7 @@ class TestCmdAppActivity:
         )
 
         with (
-            patch("hassette.cli.commands.app.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
             capture_json_stdout() as captured,
         ):
             cmd_app_activity("my-app", ctx=CLIContext(json_mode=True))
@@ -362,7 +363,7 @@ class TestCmdAppConfig:
         with (
             patch.object(client, "get", side_effect=spy),
             capture_stdout(),
-            patch("hassette.cli.commands.app.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_app_config("my-app")
 
@@ -374,7 +375,7 @@ class TestCmdAppConfig:
         client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/config", 200, cfg.model_dump())])
         with (
             capture_stdout() as buf,
-            patch("hassette.cli.commands.app.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_app_config("my-app")
         output = buf.getvalue()
@@ -387,7 +388,7 @@ class TestCmdAppConfig:
         client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/config", 200, cfg.model_dump())])
 
         with (
-            patch("hassette.cli.commands.app.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
             capture_json_stdout() as captured,
         ):
             cmd_app_config("my-app", ctx=CLIContext(json_mode=True))
@@ -406,7 +407,7 @@ class TestCmdAppConfig:
         client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/config", 200, cfg.model_dump())])
         with (
             capture_stdout() as buf,
-            patch("hassette.cli.commands.app.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_app_config("my-app")
         output = buf.getvalue()
@@ -422,7 +423,7 @@ class TestCmdAppConfig:
         )
         client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/config", 200, cfg.model_dump())])
         with (
-            patch("hassette.cli.commands.app.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
             capture_json_stdout() as captured,
         ):
             cmd_app_config("my-app", ctx=CLIContext(json_mode=True))
@@ -443,7 +444,7 @@ class TestCmdAppConfig:
         )
         client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/config", 200, cfg.model_dump())])
         with (
-            patch("hassette.cli.commands.app.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
             capture_json_stdout() as captured,
         ):
             cmd_app_config("my-app", ctx=CLIContext(json_mode=True))
@@ -464,7 +465,7 @@ class TestCmdAppConfig:
         )
         client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/config", 200, cfg.model_dump())])
         with (
-            patch("hassette.cli.commands.app.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
             capture_json_stdout() as captured,
         ):
             cmd_app_config("my-app", ctx=CLIContext(json_mode=True))
@@ -487,7 +488,7 @@ class TestCmdAppSource:
         with (
             patch.object(client, "get", side_effect=spy),
             capture_stdout(),
-            patch("hassette.cli.commands.app.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_app_source("my-app")
 
@@ -499,7 +500,7 @@ class TestCmdAppSource:
         client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/source", 200, src.model_dump())])
         with (
             capture_stdout() as buf,
-            patch("hassette.cli.commands.app.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_app_source("my-app")
         output = buf.getvalue()
@@ -511,7 +512,7 @@ class TestCmdAppSource:
         client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/source", 200, src.model_dump())])
 
         with (
-            patch("hassette.cli.commands.app.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
             capture_json_stdout() as captured,
         ):
             cmd_app_source("my-app", ctx=CLIContext(json_mode=True))

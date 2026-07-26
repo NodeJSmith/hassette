@@ -12,7 +12,7 @@ from hassette.cli.commands.log import (
     cmd_log,
 )
 from hassette.cli.context import CLIContext
-from hassette.test_utils.web_helpers import make_log_entry_response, make_logs_by_execution_response
+from hassette.test_utils.web_telemetry_helpers import make_log_entry_response, make_logs_by_execution_response
 from tests.unit.cli.conftest import (
     SINCE_EPOCH,
     CLIClientFactory,
@@ -21,6 +21,8 @@ from tests.unit.cli.conftest import (
     capture_stderr,
     capture_stdout,
 )
+
+MAKE_CLIENT_PATH = "hassette.cli.commands.log.make_client"
 
 # cmd_log — recent log entries
 
@@ -35,7 +37,7 @@ class TestCmdLog:
         with (
             patch.object(client, "get", side_effect=spy),
             capture_stdout(),
-            patch("hassette.cli.commands.log.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_log()
 
@@ -50,7 +52,7 @@ class TestCmdLog:
         with (
             patch.object(client, "get", side_effect=spy),
             capture_stdout(),
-            patch("hassette.cli.commands.log.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_log(app="my-app")
 
@@ -67,7 +69,7 @@ class TestCmdLog:
         with (
             patch.object(client, "get", side_effect=spy),
             capture_stdout(),
-            patch("hassette.cli.commands.log.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_log(app="my-app")
 
@@ -84,7 +86,7 @@ class TestCmdLog:
         with (
             patch.object(client, "get", side_effect=spy),
             capture_stdout(),
-            patch("hassette.cli.commands.log.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_log(since=since_epoch, limit=20)
 
@@ -102,7 +104,7 @@ class TestCmdLog:
         with (
             patch.object(client, "get", side_effect=spy),
             capture_stdout(),
-            patch("hassette.cli.commands.log.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_log(source_tier="framework")
 
@@ -116,7 +118,7 @@ class TestCmdLog:
 
         with (
             capture_stderr() as err_buf,
-            patch("hassette.cli.commands.log.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
             pytest.raises(SystemExit) as exc_info,
         ):
             cmd_log(instance="0")
@@ -130,7 +132,7 @@ class TestCmdLog:
         client = cli_client_factory.build_with_routes([("GET", "/api/logs/recent", 200, [entry.model_dump()])])
         with (
             capture_stdout() as buf,
-            patch("hassette.cli.commands.log.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_log()
 
@@ -144,7 +146,7 @@ class TestCmdLog:
         client = cli_client_factory.build_with_routes([("GET", "/api/logs/recent", 200, [entry.model_dump()])])
 
         with (
-            patch("hassette.cli.commands.log.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
             capture_json_stdout() as captured,
         ):
             cmd_log(ctx=CLIContext(json_mode=True))
@@ -160,7 +162,7 @@ class TestCmdLog:
         with (
             capture_stdout(),
             capture_stderr() as err_buf,
-            patch("hassette.cli.commands.log.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_log()
 
@@ -195,7 +197,7 @@ class TestCmdExecution:
         with (
             patch.object(client, "get", side_effect=spy),
             capture_stdout(),
-            patch("hassette.cli.commands.log.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_execution(uuid="abc-123-def")
 
@@ -212,7 +214,7 @@ class TestCmdExecution:
         with (
             patch.object(client, "get", side_effect=spy),
             capture_stdout(),
-            patch("hassette.cli.commands.log.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_execution(uuid="abc-123", limit=50)
 
@@ -229,7 +231,7 @@ class TestCmdExecution:
         )
         with (
             capture_stdout() as buf,
-            patch("hassette.cli.commands.log.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_execution(uuid="exec-1")
 
@@ -246,7 +248,7 @@ class TestCmdExecution:
         )
         with (
             capture_stdout() as buf,
-            patch("hassette.cli.commands.log.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_execution(uuid="exec-2")
 
@@ -262,7 +264,7 @@ class TestCmdExecution:
         )
 
         with (
-            patch("hassette.cli.commands.log.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
             capture_json_stdout() as captured,
         ):
             cmd_execution(uuid="exec-3", ctx=CLIContext(json_mode=True))
@@ -280,7 +282,7 @@ class TestCmdExecution:
         with (
             capture_stdout(),
             capture_stderr() as err_buf,
-            patch("hassette.cli.commands.log.make_client", return_value=client),
+            patch(MAKE_CLIENT_PATH, return_value=client),
         ):
             cmd_execution(uuid="exec-4")
 

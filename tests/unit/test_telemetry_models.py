@@ -1,13 +1,9 @@
 """Tests for Pydantic telemetry models."""
 
-from hassette.schemas.telemetry_models import (
-    AppHealthSummary,
-    Execution,
-    GlobalSummary,
-    JobSummary,
-    ListenerSummary,
-    SessionSummary,
-)
+from hassette.schemas.execution_models import Execution
+from hassette.schemas.job_models import JobSummary
+from hassette.schemas.listener_models import ListenerSummary
+from hassette.schemas.summary_models import AppHealthSummary, GlobalSummary, SessionSummary
 from hassette.test_utils.config import TEST_EPOCH_B, TEST_SOURCE_LOCATION
 from hassette.types.enums import DEFAULT_OVERLAP_MODE
 

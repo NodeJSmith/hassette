@@ -7,11 +7,9 @@ import pytest
 
 from hassette.core.telemetry.query_service import AppHealthAggregates
 from hassette.exceptions import TelemetryUnavailableError
+from hassette.schemas.execution_models import Execution
+from hassette.schemas.listener_models import ListenerSummary
 from hassette.schemas.live_counts import LiveCounts
-from hassette.schemas.telemetry_models import (
-    Execution,
-    ListenerSummary,
-)
 
 MOCK_TS = 1_234_567_890.0
 

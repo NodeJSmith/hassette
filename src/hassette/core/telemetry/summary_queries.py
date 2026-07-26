@@ -16,7 +16,7 @@ from hassette.core.telemetry.helpers import (
     source_tier_clause,
 )
 from hassette.exceptions import TelemetryUnavailableError
-from hassette.schemas.telemetry_models import AppHealthSummary, SessionRecord
+from hassette.schemas.summary_models import AppHealthSummary, SessionRecord
 from hassette.types.types import QuerySourceTier
 
 if TYPE_CHECKING:
