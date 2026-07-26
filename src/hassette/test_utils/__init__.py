@@ -58,6 +58,7 @@ from .helpers import make_full_state_change_event as make_full_state_change_even
 from .helpers import make_service_failed_event as make_service_failed_event
 from .helpers import make_service_running_event as make_service_running_event
 from .helpers import make_task_bucket as make_task_bucket
+from .helpers import mark_websocket_service_connected as mark_websocket_service_connected
 from .helpers import wire_up_app_running_listener as wire_up_app_running_listener
 from .helpers import wire_up_app_state_listener as wire_up_app_state_listener
 from .helpers import write_app_toml as write_app_toml

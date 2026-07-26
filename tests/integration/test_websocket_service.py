@@ -19,7 +19,7 @@ from hassette.exceptions import (
     RetryableConnectionClosedError,
 )
 from hassette.resources.base import ResourceStatus
-from hassette.test_utils import EventCapture, build_fake_ws
+from hassette.test_utils import EventCapture, build_fake_ws, mark_websocket_service_connected
 from hassette.types import Topic
 from hassette.types.enums import ConnectionState
 
@@ -353,8 +353,7 @@ async def test_disconnect_event_fires_on_recv_loop_failure(websocket_service: We
     # The real make_connection calls mark_ready() and sets _ever_connected via
     # start_recv_and_subscribe's set_connection_state(CONNECTED); mirror that here so the
     # has_ever_connected guard on send_connection_lost_event() lets the event through.
-    lifecycle_module.mark_ready(websocket_service, reason="test: simulating successful connection")
-    websocket_service._ever_connected = True
+    mark_websocket_service_connected(websocket_service, reason="test: simulating successful connection")
 
     with (
         patch.object(
@@ -573,10 +572,9 @@ async def test_early_drop_retries_and_succeeds(
         make_connection_count += 1
         # Simulate _connected_at being set (within stable window) and mark_ready
         websocket_service._connected_at = time.monotonic()
-        lifecycle_module.mark_ready(websocket_service, reason="test: simulating successful connection")
         # Real start_recv_and_subscribe sets CONNECTED via set_connection_state, which flips
         # _ever_connected; mirror that so the has_ever_connected guard lets DISCONNECTED through.
-        websocket_service._ever_connected = True
+        mark_websocket_service_connected(websocket_service, reason="test: simulating successful connection")
         if call_count <= 2:
 
             async def _fail():
@@ -829,10 +827,9 @@ async def test_on_initialize_marks_ready_unconditionally(websocket_service: Webs
 async def test_send_connection_lost_event_self_suppressing(websocket_service: WebsocketService) -> None:
     """send_connection_lost_event does not propagate bus exceptions."""
     websocket_service.hassette.send_event = AsyncMock(side_effect=RuntimeError("bus is down"))
-    lifecycle_module.mark_ready(websocket_service, reason="test: make service ready so event fires")
     # The guard now keys off has_ever_connected, not is_ready() — simulate a prior successful
     # connection so the event actually attempts to fire and self-suppression is exercised.
-    websocket_service._ever_connected = True
+    mark_websocket_service_connected(websocket_service, reason="test: make service ready so event fires")
 
     # Should not raise even though the bus raises
     await websocket_service.send_connection_lost_event()

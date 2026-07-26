@@ -378,6 +378,10 @@ class SimulationMixin:
     ) -> None:
         """Create a websocket connected event and send it through the bus.
 
+        For a lighter-weight alternative that flips connection state directly without
+        dispatching a bus event, see ``mark_websocket_service_connected()`` in
+        ``hassette.test_utils.helpers``.
+
         Args:
             timeout: Maximum seconds to wait for handlers to complete.
 
