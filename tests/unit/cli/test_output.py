@@ -3,7 +3,7 @@
 import json
 import time
 from io import StringIO
-from typing import Any
+from typing import Annotated, Any
 from unittest.mock import patch
 
 import pytest
@@ -23,6 +23,7 @@ from hassette.cli.output import (
     render_detail,
     render_table,
 )
+from hassette.types.types import CliFormat
 from tests.unit.cli.conftest import capture_human
 
 # Simple test models
@@ -33,6 +34,12 @@ class SimpleItem(BaseModel):
     count: int
     active: bool = True
     note: str | None = None
+
+
+class AnnotatedTableItem(BaseModel):
+    name: str
+    avg_duration_ms: Annotated[float, CliFormat("duration_ms")]
+    next_run: Annotated[float | None, CliFormat("relative_time", none_text="done")] = None
 
 
 class NestedItem(BaseModel):
@@ -226,6 +233,26 @@ class TestCellText:
         result = _cell_text("raw", col)
         assert result == "raw"
 
+    def test_fallback_meta_used_when_no_formatter(self) -> None:
+        col = Column(field="avg_duration_ms", header="Avg")
+        meta = CliFormat("duration_ms")
+        assert _cell_text(450.0, col, meta) == "450ms"
+
+    def test_explicit_formatter_overrides_fallback_meta(self) -> None:
+        col = Column(field="avg_duration_ms", header="Avg", formatter=lambda v: f"~{v}")
+        meta = CliFormat("duration_ms")
+        assert _cell_text(450.0, col, meta) == "~450.0"
+
+    def test_fallback_meta_none_text(self) -> None:
+        col = Column(field="next_run", header="Next Run")
+        meta = CliFormat("relative_time", none_text="done")
+        assert _cell_text(None, col, meta) == "done"
+
+    def test_fallback_meta_none_without_none_text_returns_empty(self) -> None:
+        col = Column(field="next_run", header="Next Run")
+        meta = CliFormat("relative_time")
+        assert _cell_text(None, col, meta) == ""
+
 
 # render_table — JSON mode
 
@@ -340,6 +367,39 @@ class TestRenderTableHumanMode:
         assert "alpha" in stdout
         assert "beta" in stdout
         assert "gamma" in stdout
+
+
+# render_table — CliFormat metadata fallback
+
+
+class TestRenderTableCliFormatFallback:
+    def test_column_without_formatter_uses_model_metadata(self) -> None:
+        items = [AnnotatedTableItem(name="job1", avg_duration_ms=450.0)]
+        columns = [Column("name", "Name"), Column("avg_duration_ms", "Avg")]
+        stdout, _stderr = capture_human(render_table, items, columns, json_mode=False)
+        assert "450ms" in stdout
+
+    def test_explicit_column_formatter_overrides_metadata(self) -> None:
+        items = [AnnotatedTableItem(name="job1", avg_duration_ms=450.0)]
+        columns = [Column("avg_duration_ms", "Avg", formatter=lambda v: f"custom:{v}")]
+        stdout, _stderr = capture_human(render_table, items, columns, json_mode=False)
+        assert "custom:450.0" in stdout
+        assert "450ms" not in stdout
+
+    def test_none_text_used_for_none_value(self) -> None:
+        items = [AnnotatedTableItem(name="job1", avg_duration_ms=450.0, next_run=None)]
+        columns = [Column("next_run", "Next Run")]
+        stdout, _stderr = capture_human(render_table, items, columns, json_mode=False)
+        assert "done" in stdout
+
+    def test_json_mode_ignores_metadata(self, capsys: pytest.CaptureFixture[str]) -> None:
+        items = [AnnotatedTableItem(name="job1", avg_duration_ms=450.0, next_run=None)]
+        columns = [Column("avg_duration_ms", "Avg"), Column("next_run", "Next Run")]
+        render_table(items, columns, json_mode=True)
+        captured = capsys.readouterr()
+        parsed = json.loads(captured.out)
+        assert parsed[0]["avg_duration_ms"] == 450.0
+        assert parsed[0]["next_run"] is None
 
 
 # render_table — pipe detection

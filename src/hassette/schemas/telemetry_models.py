@@ -11,12 +11,12 @@ Separation rationale
 - ``domain_models.py`` — live state snapshots and WS event payloads
 """
 
-from typing import Literal, NamedTuple
+from typing import Annotated, Literal, NamedTuple
 
 from pydantic import BaseModel
 
 from hassette.types.enums import DEFAULT_BACKPRESSURE_POLICY, DEFAULT_OVERLAP_MODE, BackpressurePolicy, ExecutionMode
-from hassette.types.types import LOG_LEVEL_TYPE, BlockingAttributionReason, ExecutionStatus, SourceTier
+from hassette.types.types import LOG_LEVEL_TYPE, BlockingAttributionReason, CliFormat, ExecutionStatus, SourceTier
 
 _BlockingTier = Literal["watchdog", "monkeypatch"]
 
@@ -183,7 +183,7 @@ class JobSummary(BaseModel):
     avg_duration_ms: float
     group: str | None = None
     """Scheduler group name, persisted at registration."""
-    next_run: float | None = None
+    next_run: Annotated[float | None, CliFormat("relative_time", none_text="done")] = None
     """Unix epoch seconds of the next scheduled fire time (unjittered); sourced from live heap."""
     fire_at: float | None = None
     """Unix epoch seconds of actual dispatch time when jitter applied; sourced from live heap."""

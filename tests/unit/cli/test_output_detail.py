@@ -12,9 +12,8 @@ from hassette.cli.output import (
     _format_list_inline,
     _humanize_key,
     _humanize_model_name,
-    _resolve_cli_formatters,
+    _resolve_cli_format_meta,
     fmt_handler_short,
-    fmt_next_run,
     fmt_uptime,
     render_detail,
     render_detail_dict,
@@ -36,6 +35,11 @@ class AnnotatedModel(BaseModel):
     avg_duration: Annotated[float, CliFormat("duration_ms")]
     last_seen: Annotated[float | None, CliFormat("relative_time")]
     plain_float: float = 1.5
+
+
+class NoneTextModel(BaseModel):
+    name: str
+    next_run: Annotated[float | None, CliFormat("relative_time", none_text="done")] = None
 
 
 class TestHumanizeModelName:
@@ -150,15 +154,6 @@ class TestFmtUptime:
         assert fmt_uptime("invalid") == "invalid"
 
 
-class TestFmtNextRun:
-    def test_none_returns_done(self) -> None:
-        assert fmt_next_run(None) == "done"
-
-    def test_delegates_to_relative_time(self) -> None:
-        result = fmt_next_run(time.time() - 120)
-        assert "ago" in result
-
-
 class TestFmtHandlerShort:
     def test_extracts_method_name(self) -> None:
         assert fmt_handler_short("hautomate.meeting_app.MeetingApp.on_light_changed") == "on_light_changed"
@@ -170,26 +165,26 @@ class TestFmtHandlerShort:
         assert fmt_handler_short("simple") == "simple"
 
 
-class TestResolveCliFormatters:
-    def test_annotated_model_resolves_formatters(self) -> None:
-        result = _resolve_cli_formatters(AnnotatedModel)
+class TestResolveCliFormatMeta:
+    def test_annotated_model_resolves_meta(self) -> None:
+        result = _resolve_cli_format_meta(AnnotatedModel)
         assert "uptime_seconds" in result
         assert "avg_duration" in result
         assert "last_seen" in result
 
     def test_unannotated_fields_excluded(self) -> None:
-        result = _resolve_cli_formatters(AnnotatedModel)
+        result = _resolve_cli_format_meta(AnnotatedModel)
         assert "name" not in result
         assert "plain_float" not in result
 
     def test_model_without_annotations_returns_empty(self) -> None:
-        result = _resolve_cli_formatters(SimpleItem)
+        result = _resolve_cli_format_meta(SimpleItem)
         assert result == {}
 
-    def test_resolved_formatters_are_callable(self) -> None:
-        result = _resolve_cli_formatters(AnnotatedModel)
-        assert result["uptime_seconds"](9005) == "2h 30m 5s"
-        assert result["avg_duration"](450) == "450ms"
+    def test_resolved_meta_carries_style(self) -> None:
+        result = _resolve_cli_format_meta(AnnotatedModel)
+        assert result["uptime_seconds"].style == "uptime"
+        assert result["avg_duration"].style == "duration_ms"
 
 
 class TestRenderDetailCliFormat:
@@ -228,6 +223,18 @@ class TestRenderDetailCliFormat:
         parsed = json.loads(captured.out)
         assert parsed["uptime_seconds"] == 9005.0
         assert parsed["avg_duration"] == 450.0
+
+    def test_none_text_used_for_none_value(self) -> None:
+        item = NoneTextModel(name="job1", next_run=None)
+        stdout, _stderr = capture_human(render_detail, item, json_mode=False)
+        assert "done" in stdout
+        assert "—" not in stdout
+
+    def test_none_text_not_used_when_value_present(self) -> None:
+        item = NoneTextModel(name="job1", next_run=time.time() - 120)
+        stdout, _stderr = capture_human(render_detail, item, json_mode=False)
+        assert "done" not in stdout
+        assert "ago" in stdout
 
 
 class TestRenderDetailDict:

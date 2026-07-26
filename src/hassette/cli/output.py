@@ -107,13 +107,6 @@ def fmt_duration_s(value: Any) -> str:
     return f"{num:.1f}s"
 
 
-def fmt_next_run(value: Any) -> str:
-    """Format a next-run timestamp: ``None`` → ``'done'``, otherwise relative time."""
-    if value is None:
-        return "done"
-    return fmt_relative_time(value)
-
-
 def fmt_handler_short(value: Any) -> str:
     """Extract just the method name from a fully qualified handler path."""
     if value is None:
@@ -193,15 +186,24 @@ def _extract_field(item: Any, field_path: str) -> Any:
     return value
 
 
-def _cell_text(value: Any, col: Column) -> str:
+def _cell_text(value: Any, col: Column, fallback_meta: CliFormat | None = None) -> str:
     """Convert a raw field value to a table cell string (blank for None).
 
     Tables use empty string for missing values so cells stay visually clean.
     Detail panels use ``_format_detail_value`` which shows "—" instead.
+
+    When ``col.formatter`` is unset, ``fallback_meta`` — a :class:`CliFormat` resolved
+    from the model field's annotation metadata — is used instead. An explicit
+    ``Column.formatter`` always takes precedence over model metadata.
     """
     if col.formatter is not None:
         try:
             return col.formatter(value)
+        except (TypeError, ValueError):
+            return str(value) if value is not None else ""
+    if fallback_meta is not None:
+        try:
+            return _apply_cli_format(value, fallback_meta, none_default="")
         except (TypeError, ValueError):
             return str(value) if value is not None else ""
     if value is None:
@@ -215,6 +217,11 @@ def render_table(
     json_mode: bool,
 ) -> None:
     """Render a list of Pydantic models as a table or JSON array.
+
+    Columns without an explicit ``formatter`` fall back to the :class:`CliFormat`
+    metadata annotated on the matching model field, if any (see
+    :func:`_resolve_cli_format_meta`). An explicit ``Column.formatter`` always
+    takes precedence over model metadata.
 
     Args:
         items: List of Pydantic models to render.
@@ -234,8 +241,9 @@ def render_table(
 
     is_terminal = stdout_console.is_terminal
     table = _build_table(columns, is_terminal)
+    fallback_meta = _resolve_cli_format_meta(type(items[0]))
     for item in items:
-        row = [_cell_text(_extract_field(item, col.field), col) for col in columns]
+        row = [_cell_text(_extract_field(item, col.field), col, fallback_meta.get(col.field)) for col in columns]
         table.add_row(*row)
 
     stdout_console.print(table)
@@ -259,8 +267,8 @@ def render_detail(
 
     display_title = _humanize_model_name(type(item).__name__)
     data = item.model_dump(mode="json")
-    field_formatters = _resolve_cli_formatters(type(item))
-    _render_detail_panel(data, display_title, field_formatters)
+    field_meta = _resolve_cli_format_meta(type(item))
+    _render_detail_panel(data, display_title, field_meta)
 
 
 def render_detail_dict(data: dict[str, Any], title: str, json_mode: bool) -> None:
@@ -286,16 +294,17 @@ def render_detail_dict(data: dict[str, Any], title: str, json_mode: bool) -> Non
 def _render_detail_panel(
     data: dict[str, Any],
     title: str,
-    field_formatters: dict[str, Callable[[Any], str]] | None = None,
+    field_meta: dict[str, CliFormat] | None = None,
 ) -> None:
     """Render a values dict as a key-value Rich panel (shared human-mode body).
 
     Nested non-empty dicts render as labeled sections with indented key-value rows;
     empty dicts are skipped so no orphaned section header appears. When sections
     exist, scalar fields are indented under a "General" header. Fields whose key is
-    in ``field_formatters`` are formatted via that callable in place of the default.
+    in ``field_meta`` are formatted via the matching :class:`CliFormat` in place of
+    the default.
     """
-    formatters = field_formatters or {}
+    meta_map = field_meta or {}
 
     table = Table(show_header=False, box=None, padding=(0, 1))
     table.add_column("key", style="bold", no_wrap=True)
@@ -316,8 +325,9 @@ def _render_detail_panel(
             if has_sections and not general_header_emitted:
                 table.add_row("[bold cyan]General[/bold cyan]", "")
                 general_header_emitted = True
-            if key in formatters and value is not None:
-                formatted = formatters[key](value)
+            meta = meta_map.get(key)
+            if meta is not None:
+                formatted = _apply_cli_format(value, meta, none_default=_format_detail_value(None))
             else:
                 formatted = _format_detail_value(value)
             table.add_row(f"  {key}" if has_sections else key, formatted)
@@ -386,12 +396,19 @@ def _scalar_str(value: Any) -> str:
     return str(value)
 
 
-def _resolve_cli_formatters(model_cls: type[BaseModel]) -> dict[str, Callable[[Any], str]]:
-    """Build a field-name → formatter mapping from CliFormat annotations on a model."""
-    result: dict[str, Callable[[Any], str]] = {}
+def _resolve_cli_format_meta(model_cls: type[BaseModel]) -> dict[str, CliFormat]:
+    """Build a field-name → CliFormat mapping from annotations on a model's fields."""
+    result: dict[str, CliFormat] = {}
     for name, field_info in model_cls.model_fields.items():
         for meta in field_info.metadata:
             if isinstance(meta, CliFormat) and meta.style in CLI_FORMATTERS:
-                result[name] = CLI_FORMATTERS[meta.style]
+                result[name] = meta
                 break
     return result
+
+
+def _apply_cli_format(value: Any, meta: CliFormat, none_default: str) -> str:
+    """Apply a CliFormat's style formatter, using ``meta.none_text`` (or ``none_default``) for None."""
+    if value is None:
+        return meta.none_text if meta.none_text is not None else none_default
+    return CLI_FORMATTERS[meta.style](value)
