@@ -344,6 +344,11 @@ def ts(offset_seconds: float) -> float:
     return float(REFERENCE_INSTANT.add(seconds=offset_seconds).timestamp())
 
 
+def _add_running_session(ctx: SeedContext, base: float) -> int:
+    """Insert a ``sessions`` row in the default 'running' state starting at ``base``."""
+    return ctx.add_session(started_at=ts(base), last_heartbeat_at=ts(base + HEARTBEAT_OFFSET_SECONDS))
+
+
 def _seed_executions(
     ctx: SeedContext,
     *,
@@ -1061,8 +1066,8 @@ def scenario_lifecycle(ctx: SeedContext) -> None:
 
     # -- camera_array: multi-instance app; instance 1 has a retired+cancelled listener --
     app_key, class_name = "camera_array", "CameraArray"
-    base = 7200.0
-    session_id_0 = ctx.add_session(started_at=ts(base), last_heartbeat_at=ts(base + HEARTBEAT_OFFSET_SECONDS))
+    base = 2 * APP_TIME_SPACING_SECONDS
+    session_id_0 = _add_running_session(ctx, base)
     listener_id_0 = ctx.add_listener(
         make_listener_registration(
             app_key=app_key,
@@ -1073,7 +1078,7 @@ def scenario_lifecycle(ctx: SeedContext) -> None:
             source_location=f"{app_key}.py:18",
         )
     )
-    session_id_1 = ctx.add_session(started_at=ts(base), last_heartbeat_at=ts(base + HEARTBEAT_OFFSET_SECONDS))
+    session_id_1 = _add_running_session(ctx, base)
     listener_id_1 = ctx.add_listener(
         make_listener_registration(
             app_key=app_key,
@@ -1139,7 +1144,7 @@ def scenario_lifecycle(ctx: SeedContext) -> None:
 
     # -- mail_notifier: normal app, carries the scenario's one blocking event --
     app_key, class_name = "mail_notifier", "MailNotifier"
-    base = 10800.0
+    base = 3 * APP_TIME_SPACING_SECONDS
     session_id, _listener_id, _job_id = _seed_simple_app(
         ctx,
         scenario="lifecycle",
@@ -1180,7 +1185,7 @@ def scenario_adversarial(ctx: SeedContext) -> None:
     # -- long_handler_names_app: 100+ character handler names, long nested-predicate topics --
     app_key, class_name = "long_handler_names_app", "LongHandlerNamesApp"
     base = 0.0
-    session_id = ctx.add_session(started_at=ts(base), last_heartbeat_at=ts(base + HEARTBEAT_OFFSET_SECONDS))
+    session_id = _add_running_session(ctx, base)
     long_handler = (
         f"{class_name}.on_extremely_verbose_state_change_handler_that_describes_"
         "exactly_what_it_does_in_the_method_name_itself_for_maximum_clarity_and_length"
@@ -1230,7 +1235,7 @@ def scenario_adversarial(ctx: SeedContext) -> None:
     # -- many_listeners_app: 120 listeners on one app --
     app_key, class_name = "many_listeners_app", "ManyListenersApp"
     base = APP_TIME_SPACING_SECONDS
-    session_id = ctx.add_session(started_at=ts(base), last_heartbeat_at=ts(base + HEARTBEAT_OFFSET_SECONDS))
+    session_id = _add_running_session(ctx, base)
     n_listeners = 120
     listener_ids = [
         ctx.add_listener(
@@ -1266,8 +1271,8 @@ def scenario_adversarial(ctx: SeedContext) -> None:
 
     # -- Unicode app key, listener name, and job name (Japanese + emoji) --
     app_key, class_name = "モーションセンサー_\U0001f3e0", "MotionSensor"
-    base = 7200.0
-    session_id = ctx.add_session(started_at=ts(base), last_heartbeat_at=ts(base + HEARTBEAT_OFFSET_SECONDS))
+    base = 2 * APP_TIME_SPACING_SECONDS
+    session_id = _add_running_session(ctx, base)
     listener_id = ctx.add_listener(
         make_listener_registration(
             app_key=app_key,
