@@ -2,7 +2,7 @@
 task_id: "T03"
 title: "Refactor web routes to use DB spine and overlay"
 status: "planned"
-depends_on: ["T01", "T02"]
+depends_on: ["T01", "T02", "T04"]
 implements: ["FR#2", "FR#3", "FR#4", "FR#7", "FR#11", "AC#2", "AC#3", "AC#6", "AC#11"]
 ---
 
@@ -35,7 +35,7 @@ New flow:
 1. Pre-initialize empty response default
 2. `with db_degrades_to(response):` — query `app_manifests` table for all rows, call `overlay_runtime_state(db_rows, registry)` to get manifest entries with live status
 3. The three enrichment queries (`get_all_app_summaries`, `get_per_app_activity_buckets`, `get_per_app_last_errors`) stay in their existing per-query `try/except TelemetryUnavailableError` blocks (Category C unchanged)
-4. Build `DashboardAppGridEntry` for each overlaid manifest, enriching with telemetry data as before
+4. Build `DashboardAppGridEntry` for each overlaid manifest. Populate the new manifest metadata fields added by T04 (`class_name`, `filename`, `enabled`, `auto_loaded`, `autostart`, `block_reason`, `instances`, `error_message`, `error_traceback`, `in_current_config`) from the overlay result, alongside the existing telemetry enrichment fields
 
 The `only_apps` field on the list response is sourced from `AppRegistry` via `RuntimeQueryService`, not from DB.
 

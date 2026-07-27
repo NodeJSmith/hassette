@@ -2,7 +2,7 @@
 task_id: "T02"
 title: "Add manifest persist triggers and overlay function"
 status: "planned"
-depends_on: ["T01"]
+depends_on: ["T01", "T04"]
 implements: ["FR#1", "FR#5", "FR#6", "FR#10", "AC#1", "AC#4", "AC#5", "AC#9", "AC#10", "AC#12"]
 ---
 
@@ -16,6 +16,7 @@ Wire the manifest upsert into the app lifecycle (bootstrap and hot-reload paths)
 - modify: `src/hassette/core/app_registry.py`
 - read: `src/hassette/core/app_handler.py` (lifecycle hooks, depends_on)
 - read: `src/hassette/core/database_service.py` (submit() API)
+- modify: `src/hassette/core/command_executor.py` (add manifest upsert wrapper method)
 - read: `src/hassette/core/telemetry/repository.py` (upsert method from T01)
 - read: `src/hassette/schemas/app_snapshots.py` (AppManifestInfo fields)
 - create: `tests/unit/core/test_overlay_runtime_state.py`
