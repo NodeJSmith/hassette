@@ -1,11 +1,12 @@
 import path from "node:path";
+import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 const apiTarget = process.env.VITE_PROXY_TARGET || "http://localhost:8126";
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   // Match tsconfig.json paths["@/*"] so the dev server resolves @/ imports
   resolve: {
     alias: {

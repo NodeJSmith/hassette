@@ -391,7 +391,7 @@ Layout: use `flowchart TD` (top-to-bottom) by default. Use subgraphs with backgr
 
 ## CSS Architecture
 
-The frontend uses CSS Modules for component-specific styles, with a single shared `frontend/src/global.css` for the design system.
+The frontend uses CSS Modules for component-specific styles, with a single shared `frontend/src/global.css` for the design system. Tailwind CSS v4 (via `@tailwindcss/vite`) and shadcn/ui coexist alongside CSS Modules — Tailwind is imported without Preflight (`@import "tailwindcss/theme.css" layer(theme); @import "tailwindcss/utilities.css" layer(utilities);` in `global.css`) so it does not override the existing hand-rolled reset (`styles/reset.css`). shadcn's generated theme CSS variables (`--background`, `--foreground`, `--primary`, etc.) live in `global.css` unaliased to the existing design tokens for now — mapping them to `tokens.css` values is deferred until the first shadcn component actually replaces a hand-rolled one. `components.json` configures the New York style with `@/components/ui` as the component directory (currently empty).
 
 ### Module pattern
 
@@ -401,7 +401,7 @@ Each component/page has a co-located `.module.css` file. Classes are imported an
 import styles from "./my-component.module.css";
 import clsx from "clsx";
 
-<div class={clsx(styles.wrapper, isActive && styles.active)}>
+<div className={clsx(styles.wrapper, isActive && styles.active)}>
 ```
 
 ### When to use styles/ vs a module vs a shared component
