@@ -6,7 +6,6 @@ import { BREAKPOINT_MOBILE, useMediaQuery } from "@/hooks/use-media-query";
 import { useAppStore } from "@/state/store";
 import { pluralize } from "@/utils/format";
 
-import filterStyles from "../column-filter-popover/index.module.css";
 import type { ColumnFilters } from "../table-types";
 import { DEFAULT_LEVEL, LEVEL_OPTIONS, RENDER_CAP, TIER_OPTIONS } from "./constants";
 import type { ColumnId, LevelFilter, LogSortState, RowKey, ViewContext } from "./types";
@@ -188,12 +187,15 @@ export function useLogTable({
         label: "App",
         content: (
           <div>
-            <div className={filterStyles.tierGroup}>
+            <div className="mb-2 flex gap-1">
               {TIER_OPTIONS.map((opt) => (
                 <button
                   key={opt.value}
                   type="button"
-                  className={clsx(filterStyles.tierBtn, filterState.tier === opt.value && filterStyles.active)}
+                  className={clsx(
+                    "cursor-pointer rounded-sm px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary",
+                    filterState.tier === opt.value && "bg-accent font-medium text-foreground",
+                  )}
                   onClick={() => setTier(opt.value)}
                 >
                   {opt.label}

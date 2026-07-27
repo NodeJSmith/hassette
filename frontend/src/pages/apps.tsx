@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 
 import { ApiError } from "../api/client";
 import { getDashboardAppGrid } from "../api/endpoints";
-import popoverStyles from "../components/shared/column-filter-popover/index.module.css";
 import { EmptyState } from "../components/shared/empty-state";
 import { SortHeader } from "../components/shared/sort-header";
 import { Spinner } from "../components/shared/spinner";
@@ -102,7 +101,10 @@ function StatusFilterContent({
           <button
             key={f}
             type="button"
-            className={clsx(popoverStyles.tierBtn, isActive && popoverStyles.active)}
+            className={clsx(
+              "cursor-pointer rounded-sm px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary",
+              isActive && "bg-accent font-medium text-foreground",
+            )}
             aria-pressed={isActive}
             onClick={() => onChange(f)}
             data-testid={`filter-${f}`}

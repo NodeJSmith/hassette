@@ -1,18 +1,39 @@
-import { QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Toaster } from "sonner";
 import { Redirect, Route, Switch, useLocation } from "wouter";
 
+import {
+  CommandDialog,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+
+import { getAllListeners } from "./api/endpoints";
 import { AlertBanner, TelemetryDegradedBanner } from "./components/layout/alert-banner";
-import { CommandPalette } from "./components/layout/command-palette";
 import { ErrorBoundary } from "./components/layout/error-boundary";
+import {
+  buildActionItems,
+  buildAppItems,
+  buildHandlerItems,
+  buildStaticPageItems,
+  KIND_LABEL,
+  KIND_ORDER,
+  type PaletteItem,
+  type PaletteItemKind,
+} from "./components/layout/palette-items";
 import { Sidebar } from "./components/layout/sidebar";
 import { StatusBar } from "./components/layout/status-bar";
+import { StatusShape } from "./components/shared/status-shape";
 import { useManifests } from "./hooks/use-manifests";
 import { BREAKPOINT_SIDEBAR, useMediaQuery } from "./hooks/use-media-query";
 import { useTelemetryHealth } from "./hooks/use-telemetry-health";
 import { useWebSocket } from "./hooks/use-websocket";
 import { createQueryClient } from "./lib/query-client";
+import { queryKeys } from "./lib/query-keys";
 import { AppDetailPage } from "./pages/app-detail";
 import { AppsPage } from "./pages/apps";
 import { ConfigPage } from "./pages/config";
@@ -23,6 +44,9 @@ import { LogsPage } from "./pages/logs";
 import { NotFoundPage } from "./pages/not-found";
 import { RELATIVE_TIME_TICK_MS, useAppStore } from "./state/store";
 import { HOME_PATH } from "./utils/app-routes";
+import { statusToKind } from "./utils/status";
+
+const PALETTE_STALE_TIME_MS = 300_000;
 
 /** Bare-key shortcuts must not fire while the user is typing into the app filter or palette. */
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -215,6 +239,104 @@ function WebSocketEffect() {
 function TelemetryHealthEffect() {
   useTelemetryHealth();
   return null;
+}
+
+interface CommandPaletteProps {
+  open: boolean;
+  onClose: () => void;
+}
+
+/** Cmd+K/Ctrl+K command palette: jump to pages, apps, handlers, or run quick actions. */
+function CommandPalette({ open, onClose }: CommandPaletteProps) {
+  const [, navigate] = useLocation();
+  const [query, setQuery] = useState("");
+
+  // Start with a blank search each time the palette opens.
+  useEffect(() => {
+    if (!open) setQuery("");
+  }, [open]);
+
+  const { data: allManifests = [] } = useManifests();
+  // Palette data changes infrequently and is only fetched when open — 5min staleTime
+  // avoids refetching on every open while keeping results reasonably fresh.
+  const { data: listeners } = useQuery({
+    queryKey: queryKeys.allListenersPalette(),
+    queryFn: ({ signal }) => getAllListeners(undefined, signal),
+    enabled: open,
+    staleTime: PALETTE_STALE_TIME_MS,
+  });
+
+  const pageItems = buildStaticPageItems(navigate);
+  const actionItems = buildActionItems(allManifests, onClose);
+  const appItems = buildAppItems(allManifests, navigate, onClose);
+  const handlerItems = buildHandlerItems(listeners ?? [], navigate, onClose);
+
+  const allItems: PaletteItem[] = [...pageItems, ...appItems, ...handlerItems, ...actionItems];
+
+  // Groups are keyed by kind so cmdk's own fuzzy filter (matched against each item's
+  // `value`) can hide/show items and their group heading as the user types.
+  const sections: { kind: PaletteItemKind; items: PaletteItem[] }[] = KIND_ORDER.map((kind) => ({
+    kind,
+    items: allItems.filter((item) => item.kind === kind),
+  })).filter((s) => s.items.length > 0);
+
+  return (
+    <CommandDialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
+      title="Command palette"
+      description="Search apps, handlers, pages, actions"
+    >
+      <CommandInput
+        placeholder="Search apps, handlers, pages, actions…"
+        value={query}
+        onValueChange={setQuery}
+        data-testid="cmd-palette-input"
+      />
+      <CommandList data-testid="cmd-palette-results">
+        <CommandEmpty data-testid="cmd-palette-empty">
+          {query ? `No results for "${query}"` : "No items available"}
+        </CommandEmpty>
+        {sections.map((section) => (
+          <CommandGroup
+            key={section.kind}
+            heading={KIND_LABEL[section.kind]}
+            data-testid={`cmd-section-${section.kind}`}
+          >
+            {section.items.map((item) => (
+              <CommandItem
+                key={item.id}
+                value={`${item.label} ${item.sub ?? ""} ${item.kind}`}
+                data-testid={`cmd-result-${item.id}`}
+                onSelect={() => item.action()}
+              >
+                {item.status !== undefined && <StatusShape kind={statusToKind(item.status)} size={8} />}
+                <span>{item.label}</span>
+                {item.sub && <span className="ml-1 text-xs text-muted-foreground">{item.sub}</span>}
+                <span className="ml-auto text-xs text-muted-foreground">{item.kind}</span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        ))}
+      </CommandList>
+      <div
+        className="flex items-center gap-4 border-t px-3 py-2 text-xs text-muted-foreground"
+        data-testid="cmd-palette-footer"
+      >
+        <span>
+          <kbd>↑↓</kbd> navigate
+        </span>
+        <span>
+          <kbd>↵</kbd> select
+        </span>
+        <span>
+          <kbd>esc</kbd> close
+        </span>
+      </div>
+    </CommandDialog>
+  );
 }
 
 /** Renders the alert banner when apps have failed. */

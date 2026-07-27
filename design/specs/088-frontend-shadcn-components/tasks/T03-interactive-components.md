@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Replace AlertDialog, Popover, Command; restyle TimePresetSelector"
-status: "planned"
+status: "done"
 depends_on: ["T02"]
 implements: ["FR#7", "FR#8", "FR#9", "FR#10", "FR#15", "FR#16", "AC#5", "AC#6", "AC#7", "AC#8"]
 ---

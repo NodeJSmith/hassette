@@ -1,12 +1,12 @@
-import clsx from "clsx";
 import { useEffect } from "react";
+
+import { cn } from "@/lib/utils";
 
 import { BREAKPOINT_MOBILE, useMediaQuery } from "../../hooks/use-media-query";
 import { useQueryParams } from "../../hooks/use-query-params";
 import type { TimePreset } from "../../state/store";
 import { isTimePreset, useAppStore } from "../../state/store";
 import { formatUptime } from "../../utils/format";
-import styles from "./time-preset-selector.module.css";
 
 const PRESETS: { value: TimePreset; label: string }[] = [
   { value: "since-restart", label: "Since restart" },
@@ -45,9 +45,12 @@ export function TimePresetSelector() {
 
   if (isMobile) {
     return (
-      <div className={styles.selector} data-testid="time-preset-selector">
+      <div
+        className="flex items-center gap-0 rounded-md border-0 bg-transparent max-[768px]:border-0 max-[768px]:bg-transparent"
+        data-testid="time-preset-selector"
+      >
         <select
-          className={styles.select}
+          className="min-h-9 cursor-pointer appearance-auto border-none bg-popover px-2 py-1 text-xs font-medium text-foreground/90"
           value={current}
           onChange={(e) => handlePreset((e.target as HTMLSelectElement).value as TimePreset)}
           aria-label="Time window"
@@ -58,25 +61,39 @@ export function TimePresetSelector() {
             </option>
           ))}
         </select>
-        {showUptime && <span className={styles.uptime}>up {formatUptime(uptime)}</span>}
+        {showUptime && <span className="px-2 font-mono text-xs text-[var(--ink-4)]">up {formatUptime(uptime)}</span>}
       </div>
     );
   }
 
   return (
-    <div className={styles.selector} data-testid="time-preset-selector">
-      {PRESETS.map(({ value, label }) => (
-        <button
-          key={value}
-          type="button"
-          className={clsx(styles.btn, current === value && styles.active)}
-          aria-pressed={current === value}
-          onClick={() => handlePreset(value)}
-        >
-          {label}
-        </button>
-      ))}
-      {showUptime && <span className={styles.uptime}>up {formatUptime(uptime)}</span>}
+    <div
+      className="flex items-center gap-0 overflow-hidden rounded-md border bg-popover"
+      data-testid="time-preset-selector"
+    >
+      {PRESETS.map(({ value, label }) => {
+        const active = current === value;
+        return (
+          <button
+            key={value}
+            type="button"
+            className={cn(
+              "min-h-9 cursor-pointer border-0 border-r border-r-[var(--line-2)] bg-transparent px-2 py-0 text-xs leading-relaxed font-medium whitespace-nowrap text-muted-foreground transition-colors last:border-r-0",
+              !active && "hover:bg-[var(--bg-active)] hover:text-foreground",
+              active && "bg-[var(--accent-soft)] text-[var(--accent)]",
+            )}
+            aria-pressed={active}
+            onClick={() => handlePreset(value)}
+          >
+            {label}
+          </button>
+        );
+      })}
+      {showUptime && (
+        <span className="border-l border-l-[var(--line-2)] px-2 font-mono text-xs text-[var(--ink-4)]">
+          up {formatUptime(uptime)}
+        </span>
+      )}
     </div>
   );
 }

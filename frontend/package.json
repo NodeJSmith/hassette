@@ -22,7 +22,6 @@
     "size": "npm run build && size-limit"
   },
   "dependencies": {
-    "@floating-ui/dom": "^1.7.6",
     "@tailwindcss/vite": "^4.3.3",
     "@tanstack/react-query": "^5.101.4",
     "@testing-library/react": "^16.3.2",
@@ -30,6 +29,7 @@
     "ajv": "^8.20.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "cmdk": "^1.1.1",
     "lucide-react": "^1.27.0",
     "radix-ui": "^1.6.7",
     "react": "^19.2.8",

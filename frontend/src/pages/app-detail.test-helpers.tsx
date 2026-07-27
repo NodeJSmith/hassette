@@ -90,8 +90,3 @@ export function createLogTableStub() {
 export function createSpinnerStub() {
   return { Spinner: () => <div data-testid="spinner" /> };
 }
-
-/** Stub factory for `../components/shared/confirm-dialog`, shared by all app-detail.*.test.tsx files. */
-export function createConfirmDialogStub() {
-  return { ConfirmDialog: () => <div data-testid="confirm-dialog" /> };
-}

@@ -32,6 +32,10 @@ globalThis.ResizeObserver = class ResizeObserver {
   disconnect() {}
 };
 
+// jsdom does not implement scrollIntoView — cmdk (shadcn Command) calls it when the
+// active item changes to keep the selection in view.
+Element.prototype.scrollIntoView = () => {};
+
 // jsdom does not provide matchMedia — stub it for useMediaQuery and components
 // that depend on it. Always returns false (desktop viewport) by default.
 Object.defineProperty(window, "matchMedia", {

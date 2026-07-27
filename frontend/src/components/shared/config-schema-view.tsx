@@ -23,13 +23,13 @@ import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 import type { ConfigRecord, SchemaNode, UiHints } from "../../api/config-view-types";
 import { MS_PER_SECOND, SECONDS_PER_HOUR, SECONDS_PER_MINUTE } from "../../utils/format";
 import styles from "./config-schema-view.module.css";
 import { EmptyState } from "./empty-state";
 import { IconChevron } from "./icons";
-import { InfoPopover } from "./info-popover";
 
 interface ConfigSchemaViewProps {
   /** Fully deref'd JSON schema (no $ref). */
@@ -292,6 +292,35 @@ function FieldValue({ node, value, fieldKey }: { node: SchemaNode; value: unknow
 }
 
 /**
+ * Click-triggered info popover: an (i) button that reveals a field's help text on demand.
+ * Keeps verbose descriptions off the row so the field list stays scannable.
+ */
+function FieldHelpPopover({ text, label }: { text: string; label: string }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex size-[18px] shrink-0 items-center justify-center self-center rounded-sm text-muted-foreground hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+          aria-label={open ? `Hide ${label} description` : `Show ${label} description`}
+        >
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+            <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.5" />
+            <line x1="8" y1="7.5" x2="8" y2="11.5" stroke="currentColor" stroke-width="1.5" />
+            <circle cx="8" cy="4.5" r="0.95" fill="currentColor" />
+          </svg>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent role="note" data-testid="field-help" className="w-auto max-w-xs text-xs">
+        {text}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/**
  * One config field row: human label, machine key (inline, hidden on mobile), an optional
  * help popover, and the value. The dotted leader ties the label to its value on the right.
  */
@@ -304,7 +333,7 @@ function ConfigFieldRow({ fieldKey, node, value }: { fieldKey: string; node: Sch
     <div className={styles.row} data-testid={`config-field-${fieldKey}`}>
       <span className={styles.label}>{label}</span>
       <code className={styles.key}>{fieldKey}</code>
-      {help && <InfoPopover text={help} label={label} />}
+      {help && <FieldHelpPopover text={help} label={label} />}
       <span className={styles.spacer} aria-hidden="true" />
       <span className={styles.value} data-testid={`config-value-${fieldKey}`}>
         <FieldValue node={node} value={value} fieldKey={fieldKey} />

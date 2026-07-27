@@ -1,8 +1,9 @@
 import clsx from "clsx";
 import type { ReactNode } from "react";
-import { useRef, useState } from "react";
+import { useState } from "react";
 
-import { ColumnFilterPopover } from "./column-filter-popover/index";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+
 import { FilterIcon } from "./filter-icon";
 import styles from "./sort-header.module.css";
 
@@ -53,7 +54,6 @@ export function SortHeader<K extends string = string>(props: Props<K>) {
 
   // Filter state — local per-instance
   const [filterOpen, setFilterOpen] = useState(false);
-  const filterTriggerRef = useRef<HTMLButtonElement>(null);
 
   // Determine sort axis
   const hasSortProps = props.sortKey !== undefined && props.sort !== undefined && props.onSort !== undefined;
@@ -111,27 +111,21 @@ export function SortHeader<K extends string = string>(props: Props<K>) {
       {hasFilter ? (
         <div className={styles.headerInner}>
           {sortElement}
-          <button
-            ref={filterTriggerRef}
-            type="button"
-            className={clsx(styles.filterBtn, props.hasActiveFilter && styles.filterActive)}
-            data-testid="filter-btn"
-            aria-label={ariaLabel ? `Filter ${ariaLabel}` : undefined}
-            onClick={() => {
-              setFilterOpen((v) => !v);
-            }}
-          >
-            <FilterIcon active={props.hasActiveFilter} />
-          </button>
-          <ColumnFilterPopover
-            open={filterOpen}
-            onClose={() => {
-              setFilterOpen(false);
-            }}
-            triggerRef={filterTriggerRef}
-          >
-            {props.filterContent}
-          </ColumnFilterPopover>
+          <Popover open={filterOpen} onOpenChange={setFilterOpen}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className={clsx(styles.filterBtn, props.hasActiveFilter && styles.filterActive)}
+                data-testid="filter-btn"
+                aria-label={ariaLabel ? `Filter ${ariaLabel}` : undefined}
+              >
+                <FilterIcon active={props.hasActiveFilter} />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="start" data-testid="sort-header-filter-popover" className="w-auto">
+              {props.filterContent}
+            </PopoverContent>
+          </Popover>
         </div>
       ) : (
         sortElement

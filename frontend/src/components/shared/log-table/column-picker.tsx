@@ -1,6 +1,7 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 
-import { ColumnFilterPopover } from "../column-filter-popover/index";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+
 import styles from "./column-picker.module.css";
 import { COLUMNS, REQUIRED_COLUMNS } from "./constants";
 import type { ColumnId } from "./types";
@@ -14,34 +15,25 @@ interface Props {
 
 export function ColumnPicker({ selectedColumns, viewportHidden, onToggle, onReset }: Props) {
   const [open, setOpen] = useState(false);
-  const triggerRef = useRef<HTMLButtonElement>(null);
 
   return (
-    <>
-      <button
-        ref={triggerRef}
-        type="button"
-        className={styles.trigger}
-        onClick={() => {
-          setOpen((v) => !v);
-        }}
-        aria-label="Choose visible columns"
-        data-testid="column-picker"
-      >
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-          <rect x="1" y="1" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2" />
-          <rect x="8" y="1" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2" />
-          <rect x="1" y="8" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2" />
-          <rect x="8" y="8" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2" />
-        </svg>
-      </button>
-      <ColumnFilterPopover
-        open={open}
-        onClose={() => {
-          setOpen(false);
-        }}
-        triggerRef={triggerRef}
-      >
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={styles.trigger}
+          aria-label="Choose visible columns"
+          data-testid="column-picker"
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+            <rect x="1" y="1" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2" />
+            <rect x="8" y="1" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2" />
+            <rect x="1" y="8" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2" />
+            <rect x="8" y="8" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2" />
+          </svg>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" data-testid="column-picker-popover" className="w-auto">
         <div className={styles.list}>
           {COLUMNS.map((col) => {
             const isViewportHidden = viewportHidden.has(col.id);
@@ -66,7 +58,7 @@ export function ColumnPicker({ selectedColumns, viewportHidden, onToggle, onRese
         <button type="button" className={styles.resetBtn} onClick={onReset}>
           Reset to defaults
         </button>
-      </ColumnFilterPopover>
-    </>
+      </PopoverContent>
+    </Popover>
   );
 }

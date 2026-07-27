@@ -1,8 +1,16 @@
-import { act, fireEvent, render } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import { http, HttpResponse } from "msw";
 import type * as React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { components } from "./api/generated-types";
 import { App } from "./app";
+import { createInstance, createListener, createManifest } from "./test/factories";
+import { withManifests as installManifests } from "./test/handlers";
+import { server } from "./test/server";
+
+type AppManifest = components["schemas"]["AppManifestResponse"];
+type ListenerWithSummary = components["schemas"]["ListenerWithSummary"];
 
 // Mock wouter so we control routing without a real browser history.
 //
@@ -32,6 +40,12 @@ vi.mock("wouter", async () => {
     Switch: ({ children }: { children: unknown }) => children,
   };
 });
+// Same "wouter" module mock instance used by App's own useLocation() call — grabbing the
+// navigate function lets command palette tests assert on where it navigates.
+const wouter = await import("wouter");
+const mockNavigate = vi.fn();
+(wouter.useLocation as ReturnType<typeof vi.fn>).mockReturnValue(["/", mockNavigate]);
+
 vi.mock("./pages/apps", () => ({
   AppsPage: () => <div data-testid="apps-page">Apps</div>,
 }));
@@ -310,5 +324,114 @@ describe("App — hamburger inside status bar", () => {
     expect(allHamburgers).toHaveLength(1);
     const statusBar = container.querySelector("[data-testid='status-bar']");
     expect(statusBar!.contains(allHamburgers[0])).toBe(true);
+  });
+});
+
+function withManifests(manifests: AppManifest[]) {
+  installManifests(manifests, server);
+}
+
+function openPalette() {
+  fireEvent.keyDown(document, { key: "k", metaKey: true });
+}
+
+describe("App — command palette", () => {
+  it("Cmd+K opens the command palette dialog", async () => {
+    render(<App />);
+    openPalette();
+    expect(await screen.findByRole("dialog", { name: /command palette/i })).toBeDefined();
+  });
+
+  it("Cmd+K toggles the palette closed on a second press", async () => {
+    render(<App />);
+    openPalette();
+    await screen.findByRole("dialog", { name: /command palette/i });
+    openPalette();
+    expect(screen.queryByRole("dialog", { name: /command palette/i })).toBeNull();
+  });
+
+  it("Escape closes the palette", async () => {
+    render(<App />);
+    openPalette();
+    const dialog = await screen.findByRole("dialog", { name: /command palette/i });
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: /command palette/i })).toBeNull();
+  });
+
+  it("shows page items and lets Enter navigate to the active one", async () => {
+    render(<App />);
+    openPalette();
+    const input = await screen.findByPlaceholderText("Search apps, handlers, pages, actions…");
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(mockNavigate).toHaveBeenCalledWith("/apps");
+  });
+
+  it("shows app items from manifests and navigates on click", async () => {
+    withManifests([createManifest({ app_key: "garage_app", display_name: "Garage App", status: "running" })]);
+    render(<App />);
+    openPalette();
+    const item = await screen.findByTestId("cmd-result-app-garage_app");
+    fireEvent.click(item);
+    expect(mockNavigate).toHaveBeenCalledWith("/apps/garage_app");
+  });
+
+  it("shows instance items for multi-instance apps", async () => {
+    withManifests([
+      createManifest({
+        app_key: "multi_app",
+        display_name: "Multi App",
+        instance_count: 2,
+        instances: [
+          createInstance({ app_key: "multi_app", index: 0, instance_name: "inst_0" }),
+          createInstance({ app_key: "multi_app", index: 1, instance_name: "inst_1" }),
+        ],
+      }),
+    ]);
+    render(<App />);
+    openPalette();
+    expect(await screen.findByTestId("cmd-result-instance-multi_app-0")).toBeDefined();
+    expect(screen.getByTestId("cmd-result-instance-multi_app-1")).toBeDefined();
+  });
+
+  it("filters results as the user types", async () => {
+    withManifests([
+      createManifest({ app_key: "garage_app", display_name: "Garage App", status: "running" }),
+      createManifest({ app_key: "lights_app", display_name: "Lights App", status: "running" }),
+    ]);
+    render(<App />);
+    openPalette();
+    const input = await screen.findByPlaceholderText("Search apps, handlers, pages, actions…");
+    await screen.findByTestId("cmd-result-app-garage_app");
+    fireEvent.change(input, { target: { value: "garage" } });
+    expect(screen.queryByTestId("cmd-result-app-garage_app")).not.toBeNull();
+    expect(screen.queryByTestId("cmd-result-app-lights_app")).toBeNull();
+  });
+
+  it("shows handler items fetched from the API and navigates on click", async () => {
+    server.use(
+      http.get("/api/bus/listeners", () =>
+        HttpResponse.json<ListenerWithSummary[]>([
+          createListener({ listener_id: 42, app_key: "my_app", handler_method: "on_state_change" }),
+        ]),
+      ),
+    );
+    render(<App />);
+    openPalette();
+    const item = await screen.findByTestId("cmd-result-handler-42");
+    fireEvent.click(item);
+    expect(mockNavigate).toHaveBeenCalledWith("/apps/my_app/handlers/listener/42");
+  });
+
+  it("does not fetch handlers when the palette is closed", async () => {
+    let callCount = 0;
+    server.use(
+      http.get("/api/bus/listeners", () => {
+        callCount++;
+        return HttpResponse.json<ListenerWithSummary[]>([]);
+      }),
+    );
+    render(<App />);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(callCount).toBe(0);
   });
 });

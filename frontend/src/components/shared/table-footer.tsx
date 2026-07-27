@@ -1,9 +1,10 @@
 import clsx from "clsx";
 import type { ReactNode } from "react";
-import { useRef, useState } from "react";
+import { useState } from "react";
+
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 import { BREAKPOINT_MOBILE, useMediaQuery } from "../../hooks/use-media-query";
-import { ColumnFilterPopover } from "./column-filter-popover/index";
 import { FilterIcon } from "./filter-icon";
 import styles from "./table-footer.module.css";
 import type { ColumnFilters } from "./table-types";
@@ -18,7 +19,6 @@ interface TableFooterProps {
 export function TableFooter({ count, columnFilters, onResetFilters, extras }: TableFooterProps) {
   const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
   const [filterOpen, setFilterOpen] = useState(false);
-  const filterTriggerRef = useRef<HTMLButtonElement>(null);
 
   const hasActiveFilter = columnFilters ? Object.values(columnFilters).some((f) => f.active) : false;
 
@@ -34,26 +34,18 @@ export function TableFooter({ count, columnFilters, onResetFilters, extras }: Ta
       <div className={styles.right}>
         {extras}
         {showMobileFilterBtn && columnFilters && (
-          <>
-            <button
-              ref={filterTriggerRef}
-              type="button"
-              className={clsx(styles.filterBtn, hasActiveFilter && styles.filterBtnActive)}
-              onClick={() => {
-                setFilterOpen((v) => !v);
-              }}
-              aria-label="Open filters"
-              data-testid="mobile-filters-btn"
-            >
-              <FilterIcon active={hasActiveFilter} />
-            </button>
-            <ColumnFilterPopover
-              open={filterOpen}
-              onClose={() => {
-                setFilterOpen(false);
-              }}
-              triggerRef={filterTriggerRef}
-            >
+          <Popover open={filterOpen} onOpenChange={setFilterOpen}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className={clsx(styles.filterBtn, hasActiveFilter && styles.filterBtnActive)}
+                aria-label="Open filters"
+                data-testid="mobile-filters-btn"
+              >
+                <FilterIcon active={hasActiveFilter} />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="end" data-testid="table-footer-mobile-filters-popover" className="w-auto">
               <div className={styles.mobileFilters}>
                 {Object.entries(columnFilters).map(([key, filter]) => (
                   <div key={key} className={styles.mobileFilterGroup}>
@@ -72,8 +64,8 @@ export function TableFooter({ count, columnFilters, onResetFilters, extras }: Ta
                   </button>
                 )}
               </div>
-            </ColumnFilterPopover>
-          </>
+            </PopoverContent>
+          </Popover>
         )}
       </div>
     </div>

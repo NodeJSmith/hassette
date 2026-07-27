@@ -41,9 +41,6 @@ vi.mock("../components/app-detail/overview-tab", async () =>
 );
 vi.mock("../components/shared/log-table", async () => (await import("./app-detail.test-helpers")).createLogTableStub());
 vi.mock("../components/shared/spinner", async () => (await import("./app-detail.test-helpers")).createSpinnerStub());
-vi.mock("../components/shared/confirm-dialog", async () =>
-  (await import("./app-detail.test-helpers")).createConfirmDialogStub(),
-);
 
 const mockCorrectUrl = vi.fn();
 vi.mock("../hooks/use-correct-url", () => ({

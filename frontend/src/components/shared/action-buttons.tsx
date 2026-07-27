@@ -1,12 +1,21 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 
 import { reloadApp, startApp, stopApp } from "../../api/endpoints";
 import { useAsyncAction } from "../../hooks/use-async-action";
 import styles from "./action-buttons.module.css";
-import { ConfirmDialog } from "./confirm-dialog";
 import { IconPlay, IconRefresh, IconSquare } from "./icons";
 
 // `verb` reads as "Failed to <verb>", `outcome` as "App "<key>" <outcome>".
@@ -120,20 +129,29 @@ export function ActionButtons({ appKey, status, variant = "icon", confirmStop = 
           </Button>
         )}
       </div>
-      {confirmStop && showStopConfirm && (
-        <ConfirmDialog
-          title="Stop app?"
-          body={`Stop "${appKey}"? It will stop processing events until restarted.`}
-          confirmLabel="Stop"
-          tone="danger"
-          onConfirm={() => {
-            setShowStopConfirm(false);
-            void exec("stop");
-          }}
-          onCancel={() => {
-            setShowStopConfirm(false);
-          }}
-        />
+      {confirmStop && (
+        <AlertDialog open={showStopConfirm} onOpenChange={setShowStopConfirm}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Stop app?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Stop &quot;{appKey}&quot;? It will stop processing events until restarted.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                variant="destructive"
+                data-testid="confirm-btn-danger"
+                onClick={() => {
+                  void exec("stop");
+                }}
+              >
+                Stop
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       )}
     </>
   );

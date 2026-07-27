@@ -5,14 +5,6 @@ import { ColumnPicker } from "./column-picker";
 import { COLUMNS, REQUIRED_COLUMNS } from "./constants";
 import type { ColumnId } from "./types";
 
-// ColumnFilterPopover uses @floating-ui/dom which cannot compute positions in
-// jsdom. We stub it to a simple pass-through so tests focus on ColumnPicker
-// behaviour rather than floating-ui internals.
-vi.mock("../column-filter-popover/index", () => ({
-  ColumnFilterPopover: ({ open, children }: { open: boolean; children: unknown }) =>
-    open ? <div role="dialog">{children as never}</div> : null,
-}));
-
 function renderPicker(overrides: Partial<Parameters<typeof ColumnPicker>[0]> = {}) {
   const defaults = {
     selectedColumns: ["level", "timestamp", "app", "message"] as ColumnId[],
@@ -36,16 +28,16 @@ describe("ColumnPicker", () => {
     });
 
     it("popover is closed on initial render (no checkboxes visible)", () => {
-      const { queryByRole } = renderPicker();
-      expect(queryByRole("dialog")).toBeNull();
+      const { queryByTestId } = renderPicker();
+      expect(queryByTestId("column-picker-popover")).toBeNull();
     });
   });
 
   describe("opening the popover", () => {
     it("clicking the trigger opens the popover", () => {
-      const { getByTestId, queryByRole } = renderPicker();
+      const { getByTestId, queryByTestId } = renderPicker();
       fireEvent.click(getByTestId("column-picker"));
-      expect(queryByRole("dialog")).not.toBeNull();
+      expect(queryByTestId("column-picker-popover")).not.toBeNull();
     });
 
     it("shows a checkbox for each column defined in COLUMNS", () => {

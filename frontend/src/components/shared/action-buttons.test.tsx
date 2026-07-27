@@ -1,4 +1,4 @@
-import { fireEvent, render, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ActionResponse } from "../../api/endpoints";
@@ -177,5 +177,44 @@ describe("ActionButtons", () => {
 
     // Only the action that actually ran toasts
     expect(toast.success).toHaveBeenCalledTimes(1);
+  });
+
+  // -- Stop confirmation dialog --
+
+  it("opens a confirm dialog instead of stopping immediately when confirmStop is set", () => {
+    render(<ActionButtons appKey="my_app" status="running" confirmStop />);
+
+    fireEvent.click(screen.getByTestId("btn-stop-my_app"));
+
+    expect(screen.getByRole("alertdialog")).toBeDefined();
+    expect(screen.getByText('Stop "my_app"? It will stop processing events until restarted.')).toBeDefined();
+    expect(stopApp).not.toHaveBeenCalled();
+  });
+
+  it("calls stopApp when the confirm dialog's Stop action is confirmed", async () => {
+    stopApp.mockResolvedValue({ status: "accepted", app_key: "my_app", action: "stop" });
+
+    render(<ActionButtons appKey="my_app" status="running" confirmStop />);
+
+    fireEvent.click(screen.getByTestId("btn-stop-my_app"));
+    fireEvent.click(screen.getByTestId("confirm-btn-danger"));
+
+    expect(stopApp).toHaveBeenCalledWith("my_app");
+    await waitFor(() => {
+      expect(screen.queryByRole("alertdialog")).toBeNull();
+    });
+    expect(toast.success).toHaveBeenCalledWith('App "my_app" stopped');
+  });
+
+  it("does not call stopApp when the confirm dialog is cancelled", async () => {
+    render(<ActionButtons appKey="my_app" status="running" confirmStop />);
+
+    fireEvent.click(screen.getByTestId("btn-stop-my_app"));
+    fireEvent.click(screen.getByText("Cancel"));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("alertdialog")).toBeNull();
+    });
+    expect(stopApp).not.toHaveBeenCalled();
   });
 });
