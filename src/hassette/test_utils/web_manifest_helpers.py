@@ -6,7 +6,7 @@ These build manifest and snapshot objects used by both e2e and integration web t
 from collections.abc import Sequence
 from typing import Any
 
-from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo
+from hassette.schemas.app_snapshots import MANIFEST_STATUS_KEYS, AppFullSnapshot, AppInstanceInfo, AppManifestInfo
 from hassette.test_utils.config import DEFAULT_TEST_APP_KEY, TEST_ISO_TIMESTAMP
 from hassette.web.models import (
     AppInstanceResponse,
@@ -15,12 +15,15 @@ from hassette.web.models import (
     ManifestStatus,
 )
 
-_STATUS_KEYS = ("running", "failed", "stopped", "disabled", "blocked")
-
 
 def _tally_statuses(manifests: Sequence[AppManifestInfo | AppManifestResponse]) -> dict[str, int]:
-    """Count manifests by status."""
-    counts: dict[str, int] = dict.fromkeys(_STATUS_KEYS, 0)
+    """Count manifests by status.
+
+    A thin local wrapper around ``tally_manifest_statuses()`` (schemas.app_snapshots) that
+    accepts either ``AppManifestInfo`` or ``AppManifestResponse`` — the canonical function is
+    typed to ``AppManifestInfo`` only, but this helper is called with both in test code.
+    """
+    counts: dict[str, int] = dict.fromkeys(MANIFEST_STATUS_KEYS, 0)
     for m in manifests:
         if m.status in counts:
             counts[m.status] += 1
