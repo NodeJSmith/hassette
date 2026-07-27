@@ -431,7 +431,7 @@ All test files for replaced components need updates to match new APIs:
 - delete `frontend/src/components/shared/info-popover.tsx` + `.module.css` + `.test.tsx`
 - delete `frontend/src/components/shared/column-filter-popover/` (directory)
 - delete `frontend/src/components/layout/command-palette.tsx` + `.module.css` + `.test.tsx`
-- delete `frontend/src/components/layout/time-preset-selector.tsx` + `.module.css` + `.test.tsx`
+- modify `frontend/src/components/layout/time-preset-selector.tsx` + `.module.css` + `.test.tsx` — restyle with Tailwind
 - delete `frontend/src/components/shared/log-table/log-table-row.tsx` + `.module.css`
 - delete `frontend/src/components/shared/log-table/log-table-header.tsx` + `.module.css`
 - delete `frontend/src/utils/focus-trap.ts`
@@ -473,7 +473,7 @@ All test files for replaced components need updates to match new APIs:
 - modify `frontend/src/pages/handlers-rows.tsx` — update Chip usage
 - modify `frontend/src/pages/diagnostics.tsx` — fix direct `card.module.css` import
 - modify `frontend/src/app.tsx` — update CommandPalette/Sidebar integration
-- modify all `.module.css` files — token name references updated by rename script
+<!-- Gap check 2026-07-27: 5 gaps included — show-more-button.tsx (Button consumer) → T02, handler-mode-chip.tsx (Chip consumer) → T02, logs.tsx (TableCard/TableFooter consumer) → noted in table-card/table-footer evaluation, utils/app-data.ts (SortState type import) → T04, utils/handler-rows.ts (SortState type import) → T04 -->
 
 ### Behavioral Invariants
 
