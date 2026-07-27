@@ -209,8 +209,8 @@ The `web/CLAUDE.md` classification table must be updated: the new spine query is
 
 ## Replacement Targets
 
-- **`runtime.get_all_manifests_snapshot()` as spine source** in `web/routes/telemetry.py:dashboard_app_grid` and `web/routes/apps.py:get_app_manifests` — replaced by DB query on `app_manifests`. The `RuntimeQueryService` method itself is not deleted (other consumers may exist), but the web routes stop calling it for the spine.
-- **`registry.get_manifest_snapshot(app_key)` in `web/routes/apps.py:get_app_manifest`** — replaced by DB query. The registry method itself is not deleted.
+- **`runtime.get_all_manifests_snapshot()` as spine source** in `web/routes/telemetry.py:dashboard_app_grid` and `web/routes/apps.py:get_app_manifests` — replaced by DB query on `app_manifests`. A post-implementation review found zero remaining callers, so the `RuntimeQueryService` method itself was deleted rather than left in place on the (unrealized) assumption that other consumers might exist.
+- **`registry.get_manifest_snapshot(app_key)` in `web/routes/apps.py:get_app_manifest`** — replaced by DB query. Same outcome: zero remaining callers, method deleted.
 - **`mergeManifestsAndGrid()` in `frontend/src/utils/app-data.ts`** — deleted entirely. The backend provides merged data.
 - **Category C classification for sites #9-#12** in `web/CLAUDE.md` — replaced with Category B classification.
 

@@ -52,7 +52,7 @@ return result
 
 These sites do **not** use `db_degrades_to`.  They catch `TelemetryUnavailableError` inline and return HTTP 200 with partial data — wrapping them in `db_degrades_to` would change their status to 503 and break the frontend contract.
 
-- **Category C (silent-200 partial degradation):** DB failure sets a safe default and the handler continues with non-DB data (e.g. from `runtime.get_all_manifests_snapshot()`).  Status stays 200.  Do not apply `db_degrades_to` to these sites.
+- **Category C (silent-200 partial degradation):** DB failure sets a safe default and the handler continues with non-DB data (e.g. `dashboard_app_grid`'s `get_all_app_summaries` enrichment query).  Status stays 200.  Do not apply `db_degrades_to` to these sites.
 - **Category D (multi-failure-mode):** The handler has two independent failure semantics that cannot be expressed by a single CM.  Handle each failure mode inline.
 
 ### Site classification table — all 20 `except TelemetryUnavailableError` / DB-failure sites (#1108a + #1108b + #1236/T03)

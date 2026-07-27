@@ -17,7 +17,7 @@ from hassette.core.state_proxy import StateProxy
 from hassette.events import Event, RawStateChangeEvent
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
-from hassette.schemas.app_snapshots import AppFullSnapshot, AppManifestInfo, AppStatusSnapshot
+from hassette.schemas.app_snapshots import AppManifestInfo, AppStatusSnapshot
 from hassette.schemas.domain_models import (
     AppStatusChangedData,
     BootIssue,
@@ -249,10 +249,6 @@ class RuntimeQueryService(Resource):
 
     def get_app_status_snapshot(self) -> AppStatusSnapshot:
         return self.hassette.app_handler.get_status_snapshot()
-
-    def get_all_manifests_snapshot(self) -> AppFullSnapshot:
-        """Return full manifest-based snapshot including stopped/disabled apps."""
-        return self.hassette.app_handler.registry.get_full_snapshot()
 
     def overlay_manifest_rows(self, db_rows: list[dict[str, Any]]) -> list[AppManifestInfo]:
         """Overlay DB-persisted ``app_manifests`` rows with live runtime state.

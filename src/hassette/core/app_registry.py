@@ -181,13 +181,6 @@ class AppRegistry:
             only_apps=sorted(self._only_apps),
         )
 
-    def get_manifest_snapshot(self, app_key: str) -> AppManifestInfo | None:
-        """Generate a snapshot for a single app manifest, or None if not found."""
-        manifest = self._manifests.get(app_key)
-        if manifest is None:
-            return None
-        return self.build_manifest_info(app_key, manifest)
-
     def get_full_snapshot(self) -> AppFullSnapshot:
         """Generate manifest-based snapshot including all configured apps."""
         manifests = [self.build_manifest_info(app_key, manifest) for app_key, manifest in self._manifests.items()]
