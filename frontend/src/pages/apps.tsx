@@ -1,3 +1,4 @@
+import { keepPreviousData } from "@tanstack/preact-query";
 import clsx from "clsx";
 
 import { ApiError } from "../api/client";
@@ -130,6 +131,8 @@ export function AppsPage() {
     // don't block on uptimeSeconds like other scoped views. Falls back to an all-time window until
     // uptime arrives, then refetches with the accurate restart-relative window.
     waitForUptime: false,
+    // Keep the table populated during that refetch instead of dropping to the full-page spinner.
+    placeholderData: keepPreviousData,
   });
 
   useQueryInvalidator(executionCompleted, (events) => events !== null, queryKeys.dashboardGrid());
