@@ -1,4 +1,4 @@
-import { fireEvent, render } from "@testing-library/preact";
+import { fireEvent, render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { createLogEntry } from "@/test/factories";

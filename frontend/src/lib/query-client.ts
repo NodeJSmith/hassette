@@ -1,4 +1,4 @@
-import { QueryClient } from "@tanstack/preact-query";
+import { QueryClient } from "@tanstack/react-query";
 
 import { ApiError } from "../api/client";
 

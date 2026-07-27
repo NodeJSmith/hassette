@@ -9,11 +9,11 @@ export function DesignPage() {
   useDocumentTitle("Design System");
 
   return (
-    <div class="ht-page">
-      <header class="ht-page-header">
+    <div className="ht-page">
+      <header className="ht-page-header">
         <h1>Design System</h1>
       </header>
-      <div class={styles.content}>
+      <div className={styles.content}>
         <ColorTokens />
         <TypographyTokens />
         <SpacingTokens />

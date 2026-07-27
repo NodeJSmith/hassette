@@ -1,18 +1,18 @@
 import clsx from "clsx";
-import type { JSX } from "preact";
+import type { HTMLAttributes, Ref } from "react";
 
 import styles from "./card.module.css";
 
 export type CardVariant = "default" | "compact" | "config" | "error";
 
-interface CardProps extends JSX.HTMLAttributes<HTMLDivElement> {
+interface CardProps extends HTMLAttributes<HTMLDivElement> {
   variant?: CardVariant;
-  class?: string;
+  className?: string;
   /** Ref forwarding via containerRef pattern (following TableCard convention). */
-  containerRef?: preact.Ref<HTMLDivElement>;
+  containerRef?: Ref<HTMLDivElement>;
 }
 
-export function Card({ variant = "default", class: className, containerRef, children, ...rest }: CardProps) {
+export function Card({ variant = "default", className, containerRef, children, ...rest }: CardProps) {
   // error variant absorbs base card styles — no separate .card class needed.
   // All other variants are additive modifiers on top of the base .card class.
   const isError = variant === "error";
@@ -20,7 +20,7 @@ export function Card({ variant = "default", class: className, containerRef, chil
   return (
     <div
       ref={containerRef}
-      class={clsx(
+      className={clsx(
         !isError && styles.card,
         isError && styles.error,
         variant === "compact" && styles.compact,

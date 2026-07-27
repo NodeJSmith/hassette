@@ -1,4 +1,4 @@
-import { useState } from "preact/hooks";
+import { useState } from "react";
 
 import { GROUP_DEFS, type GroupKey } from "./sidebar-groups";
 

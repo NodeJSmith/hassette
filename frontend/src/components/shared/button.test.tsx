@@ -1,5 +1,5 @@
-import { render } from "@testing-library/preact";
-import { fireEvent } from "@testing-library/preact";
+import { render } from "@testing-library/react";
+import { fireEvent } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { Button } from "./button";
@@ -100,13 +100,13 @@ describe("Button", () => {
 
   describe("class prop", () => {
     it("merges additional class into button className", () => {
-      const { getByRole } = render(<Button class="my-custom-class">btn</Button>);
+      const { getByRole } = render(<Button className="my-custom-class">btn</Button>);
       expect(getByRole("button").className).toMatch(/my-custom-class/);
     });
 
     it("merges custom class alongside variant class", () => {
       const { getByRole } = render(
-        <Button variant="primary" class="extra">
+        <Button variant="primary" className="extra">
           btn
         </Button>,
       );
@@ -140,7 +140,13 @@ describe("Button", () => {
       const { unmount } = render(<Button buttonRef={ref}>btn</Button>);
       ref.mockClear();
       unmount();
-      expect(ref).toHaveBeenCalledWith(null);
+      // React DOM's dev-mode ref invocation helper (runWithFiberInDEV) always calls the ref
+      // callback with a fixed 5-argument signature for internal fiber-context tracking, padding
+      // unused slots with `undefined` — only the first argument (the instance) is part of the
+      // public RefCallback contract, so assert on that rather than the full arguments list.
+      expect(ref).toHaveBeenCalled();
+      const lastCall = ref.mock.calls[ref.mock.calls.length - 1];
+      expect(lastCall?.[0]).toBeNull();
     });
   });
 

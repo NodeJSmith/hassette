@@ -1,4 +1,4 @@
-import { render } from "@testing-library/preact";
+import { render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { ExecutionRecord } from "../shared/execution-table";
@@ -78,6 +78,8 @@ describe("ExecutionSection", () => {
       />,
     );
 
+    // React calls function components with only a props argument (no Preact-style second
+    // "context" argument), so the second call arg is undefined here.
     expect(ExecutionTable).toHaveBeenCalledWith(
       expect.objectContaining({
         records: [RECORD],
@@ -88,7 +90,7 @@ describe("ExecutionSection", () => {
         handlerId: 7,
         instanceQs: "?instance=0",
       }),
-      {},
+      undefined,
     );
   });
 });

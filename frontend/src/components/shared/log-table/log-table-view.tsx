@@ -22,14 +22,14 @@ export function LogTableView({
   );
 
   return (
-    <table class="ht-table ht-table--fixed" data-testid="log-table">
+    <table className="ht-table ht-table--fixed" data-testid="log-table">
       <colgroup>
         {visibleColumns.map((id) => {
           const col = COLUMN_MAP[id];
           const w = isMobile ? col.mobileWidth : col.width;
           return <col key={id} style={w ? { width: w } : undefined} />;
         })}
-        <col class={rowStyles.detailCol} />
+        <col className={rowStyles.detailCol} />
       </colgroup>
       <LogTableHeader visibleColumns={visibleColumns} sort={sort} onSort={onSort} columnFilters={columnFilters} />
       <tbody ref={containerRef} onKeyDown={onContainerKeyDown}>

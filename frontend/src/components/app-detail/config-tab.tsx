@@ -1,35 +1,15 @@
 import clsx from "clsx";
-import { useEffect } from "preact/hooks";
-import type { HighlighterGeneric } from "shiki";
+import { useEffect, useState } from "react";
 
 import type { ConfigRecord, SchemaNode } from "../../api/config-view-types";
 import type { AppConfigData } from "../../api/endpoints";
 import { getAppConfig } from "../../api/endpoints";
-import { useSignal } from "../../hooks/use-signal";
+import { getShikiHighlighter, SHIKI_THEMES } from "../../utils/shiki";
 import { Card } from "../shared/card";
 import { ConfigSchemaView, ExpandableValue } from "../shared/config-schema-view";
 import { EmptyState } from "../shared/empty-state";
 import { Spinner } from "../shared/spinner";
 import styles from "./config-tab.module.css";
-
-let tomlHighlighterPromise: Promise<HighlighterGeneric<never, never>> | null = null;
-
-function getTomlHighlighter() {
-  if (!tomlHighlighterPromise) {
-    tomlHighlighterPromise = import("shiki")
-      .then(({ createHighlighter }) =>
-        createHighlighter({
-          langs: ["toml"],
-          themes: ["github-light", "github-dark"],
-        }),
-      )
-      .catch((e) => {
-        tomlHighlighterPromise = null;
-        throw e;
-      });
-  }
-  return tomlHighlighterPromise;
-}
 
 interface Props {
   appKey: string;
@@ -53,13 +33,13 @@ function SimpleConfigTable({ config }: { config: ConfigRecord }) {
   }
 
   return (
-    <table class={clsx("ht-table", styles.table)} data-testid="config-values-table">
+    <table className={clsx("ht-table", styles.table)} data-testid="config-values-table">
       <thead>
         <tr>
-          <th class={styles.colKey} scope="col">
+          <th className={styles.colKey} scope="col">
             Key
           </th>
-          <th class={styles.colValue} scope="col">
+          <th className={styles.colValue} scope="col">
             Value
           </th>
         </tr>
@@ -68,10 +48,10 @@ function SimpleConfigTable({ config }: { config: ConfigRecord }) {
         {entries.map(([key, val]) => (
           <tr key={key}>
             <td>
-              <code class="ht-text-mono ht-text-sm">{key}</code>
+              <code className="ht-text-mono ht-text-sm">{key}</code>
             </td>
-            <td class={styles.value} data-testid={`config-value-${key}`}>
-              <code class="ht-text-mono ht-text-sm">
+            <td className={styles.value} data-testid={`config-value-${key}`}>
+              <code className="ht-text-mono ht-text-sm">
                 <ConfigValue value={val} />
               </code>
             </td>
@@ -112,40 +92,42 @@ function AppConfigContent({
 }
 
 export function ConfigTab({ appKey }: Props) {
-  const loading = useSignal(true);
-  const error = useSignal<string | null>(null);
-  const configData = useSignal<AppConfigData | null>(null);
-  const tomlHtml = useSignal<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [configData, setConfigData] = useState<AppConfigData | null>(null);
+  const [tomlHtml, setTomlHtml] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
-    loading.value = true;
-    error.value = null;
-    configData.value = null;
-    tomlHtml.value = null;
+    setLoading(true);
+    setError(null);
+    setConfigData(null);
+    setTomlHtml(null);
 
     async function load() {
       try {
         const data = await getAppConfig(appKey, controller.signal);
         if (controller.signal.aborted) return;
-        configData.value = data;
+        setConfigData(data);
 
         try {
-          const hl = await getTomlHighlighter();
+          const hl = await getShikiHighlighter("toml");
           if (controller.signal.aborted) return;
-          tomlHtml.value = hl.codeToHtml(data.config_toml, {
-            lang: "toml",
-            themes: { light: "github-light", dark: "github-dark" },
-            defaultColor: false,
-          });
+          setTomlHtml(
+            hl.codeToHtml(data.config_toml, {
+              lang: "toml",
+              themes: SHIKI_THEMES,
+              defaultColor: false,
+            }),
+          );
         } catch {
           // Highlighting is best-effort — the plain-text fallback renders config_toml as-is.
         }
       } catch (err) {
         if (controller.signal.aborted) return;
-        error.value = err instanceof Error ? err.message : String(err);
+        setError(err instanceof Error ? err.message : String(err));
       } finally {
-        if (!controller.signal.aborted) loading.value = false;
+        if (!controller.signal.aborted) setLoading(false);
       }
     }
 
@@ -155,21 +137,21 @@ export function ConfigTab({ appKey }: Props) {
     };
   }, [appKey]);
 
-  if (loading.value) {
+  if (loading) {
     return <Spinner />;
   }
 
-  if (error.value) {
+  if (error) {
     return (
       <Card data-testid="config-tab-error">
-        <p class="ht-text-muted ht-text-sm">{error.value}</p>
+        <p className="ht-text-muted ht-text-sm">{error}</p>
       </Card>
     );
   }
 
-  if (!configData.value) return null;
+  if (!configData) return null;
 
-  const cfg = configData.value;
+  const cfg = configData;
   const appConfig = cfg.app_config;
   const schema = cfg.config_schema ?? undefined;
   const isListConfig = Array.isArray(appConfig);
@@ -177,16 +159,16 @@ export function ConfigTab({ appKey }: Props) {
   const frameworkFields = cfg.framework_fields;
 
   return (
-    <div class={styles.configTab} data-testid="config-tab-content">
-      <div class={styles.layout}>
-        <div class={styles.fieldsCard}>
+    <div className={styles.configTab} data-testid="config-tab-content">
+      <div className={styles.layout}>
+        <div className={styles.fieldsCard}>
           {isListConfig ? (
-            <div class={styles.instances}>
+            <div className={styles.instances}>
               {/* isListConfig is a stored boolean, so TS can't use it to narrow
                   appConfig here — hence the cast despite the guard above. */}
               {(appConfig as unknown[]).map((instanceCfg, idx) => (
-                <div key={idx} class={styles.instanceBlock} data-testid={`config-instance-${idx}`}>
-                  <h4 class={styles.instanceHeading}>Instance {idx}</h4>
+                <div key={idx} className={styles.instanceBlock} data-testid={`config-instance-${idx}`}>
+                  <h4 className={styles.instanceHeading}>Instance {idx}</h4>
                   {isConfigRecord(instanceCfg) ? (
                     <AppConfigContent
                       appConfig={instanceCfg}
@@ -195,7 +177,7 @@ export function ConfigTab({ appKey }: Props) {
                       frameworkFields={frameworkFields}
                     />
                   ) : (
-                    <p class="ht-text-muted ht-text-sm">{String(instanceCfg)}</p>
+                    <p className="ht-text-muted ht-text-sm">{String(instanceCfg)}</p>
                   )}
                 </div>
               ))}
@@ -212,18 +194,18 @@ export function ConfigTab({ appKey }: Props) {
           )}
         </div>
 
-        <div class={styles.rawCard}>
-          <h3 class="ht-section-label">raw config</h3>
+        <div className={styles.rawCard}>
+          <h3 className="ht-section-label">raw config</h3>
           <Card variant="config">
-            <span class="ht-text-mono ht-text-xs ht-text-muted">hassette.toml → apps.{appKey}.config</span>
-            {tomlHtml.value ? (
+            <span className="ht-text-mono ht-text-xs ht-text-muted">hassette.toml → apps.{appKey}.config</span>
+            {tomlHtml ? (
               <div
-                class={styles.rawCode}
+                className={styles.rawCode}
                 data-testid="raw-config-toml"
-                dangerouslySetInnerHTML={{ __html: tomlHtml.value }}
+                dangerouslySetInnerHTML={{ __html: tomlHtml }}
               />
             ) : (
-              <pre class={styles.rawCode} data-testid="raw-config-toml">
+              <pre className={styles.rawCode} data-testid="raw-config-toml">
                 {cfg.config_toml}
               </pre>
             )}

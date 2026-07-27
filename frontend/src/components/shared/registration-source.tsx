@@ -8,8 +8,8 @@ interface Props {
 
 export function RegistrationSource({ id, source, "data-testid": testId }: Props) {
   return (
-    <div id={id} class={styles.wrapper} data-testid={testId}>
-      <pre class={styles.codeSnippet}>
+    <div id={id} className={styles.wrapper} data-testid={testId}>
+      <pre className={styles.codeSnippet}>
         <code>{source}</code>
       </pre>
     </div>

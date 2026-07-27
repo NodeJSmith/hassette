@@ -1,4 +1,4 @@
-import { act, fireEvent, render } from "@testing-library/preact";
+import { act, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { LogEntry } from "@/api/endpoints";

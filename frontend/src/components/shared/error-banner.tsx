@@ -1,4 +1,4 @@
-import { useState } from "preact/hooks";
+import { useState } from "react";
 
 import styles from "./error-banner.module.css";
 import { TracebackLines } from "./traceback-viewer";
@@ -21,17 +21,17 @@ export function ErrorBanner({
   const [traceExpanded, setTraceExpanded] = useState(false);
 
   return (
-    <div class={styles.banner} data-testid={testId}>
-      <span class={styles.heading}>
+    <div className={styles.banner} data-testid={testId}>
+      <span className={styles.heading}>
         {heading}
         {errorType ? ` — ${errorType}` : ""}
       </span>
-      {errorMessage && <p class={styles.message}>{errorMessage}</p>}
+      {errorMessage && <p className={styles.message}>{errorMessage}</p>}
       {traceback && (
         <div data-testid="traceback-content">
           <button
             type="button"
-            class={styles.tracebackToggle}
+            className={styles.tracebackToggle}
             data-testid="traceback-toggle"
             aria-expanded={traceExpanded}
             onClick={() => setTraceExpanded((v) => !v)}
@@ -39,7 +39,7 @@ export function ErrorBanner({
             {traceExpanded ? "hide traceback" : "show traceback"}
           </button>
           {traceExpanded && (
-            <pre class="ht-traceback">
+            <pre className="ht-traceback">
               <TracebackLines traceback={traceback} />
             </pre>
           )}

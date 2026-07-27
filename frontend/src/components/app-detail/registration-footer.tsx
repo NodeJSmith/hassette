@@ -1,4 +1,4 @@
-import { useState } from "preact/hooks";
+import { useState } from "react";
 
 import { parseSourceLocation } from "../../utils/format";
 import { Button } from "../shared/button";
@@ -33,16 +33,16 @@ export function RegistrationFooter({
   const registrationHeadingId = `${testId}-registration-heading`;
 
   return (
-    <section class={styles.footer} aria-labelledby={registrationHeadingId}>
-      <div class={styles.footerSummary}>
-        <div class={styles.footerIdentity}>
-          <h3 id={registrationHeadingId} class={styles.footerLabel}>
+    <section className={styles.footer} aria-labelledby={registrationHeadingId}>
+      <div className={styles.footerSummary}>
+        <div className={styles.footerIdentity}>
+          <h3 id={registrationHeadingId} className={styles.footerLabel}>
             Registration
           </h3>
           {sourceLocation && <SourceLocation sourceLocation={sourceLocation} data-testid={`${kind}-source-location`} />}
         </div>
 
-        <div class={styles.footerActions}>
+        <div className={styles.footerActions}>
           {onViewCode && sourceLocation && (
             <Button
               variant="info"

@@ -1,4 +1,4 @@
-import { render } from "@testing-library/preact";
+import { render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { createWouterMock } from "../../test/mock-wouter";

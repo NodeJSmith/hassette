@@ -1,4 +1,4 @@
-import { fireEvent, waitFor } from "@testing-library/preact";
+import { fireEvent, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createListener } from "../../test/factories";

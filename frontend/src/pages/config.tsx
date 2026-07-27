@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/preact-query";
+import { useQuery } from "@tanstack/react-query";
 
 import { getConfig } from "../api/endpoints";
 import { ConfigSchemaView } from "../components/shared/config-schema-view";
@@ -18,15 +18,15 @@ export function ConfigPage() {
   });
 
   return (
-    <div class="ht-page" data-testid="config-page">
-      <div class="ht-page-header">
-        <h1 class="ht-display">config</h1>
+    <div className="ht-page" data-testid="config-page">
+      <div className="ht-page-header">
+        <h1 className="ht-display">config</h1>
       </div>
 
       {loading && <Spinner />}
 
       {error && (
-        <div class="ht-alert ht-alert--danger" role="alert">
+        <div className="ht-alert ht-alert--danger" role="alert">
           {error.message}
         </div>
       )}

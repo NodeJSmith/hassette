@@ -1,12 +1,12 @@
-import { type ComponentChildren, h } from "preact";
+import { createElement, type ReactNode } from "react";
 
 // Some callers only need the current path and omit the navigate function, so the tuple only
 // pins the first element.
 type LocationTuple = readonly [string, ...unknown[]];
-type LinkProps = Record<string, unknown> & { href?: string; children?: ComponentChildren };
+type LinkProps = Record<string, unknown> & { href?: string; children?: ReactNode };
 
-function defaultLink({ href, children, class: cls, ...rest }: LinkProps) {
-  return h("a", { href, class: cls, ...rest }, children);
+function defaultLink({ href, children, className, ...rest }: LinkProps) {
+  return createElement("a", { href, className, ...rest }, children);
 }
 
 interface CreateWouterMockOptions {

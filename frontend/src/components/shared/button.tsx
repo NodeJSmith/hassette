@@ -1,18 +1,18 @@
 import clsx from "clsx";
-import type { JSX } from "preact";
+import type { ButtonHTMLAttributes, Ref } from "react";
 
 import styles from "./button.module.css";
 
 export type ButtonVariant = "default" | "primary" | "success" | "warning" | "info" | "danger";
 export type ButtonSize = "default" | "sm" | "xs";
 
-interface ButtonProps extends Omit<JSX.ButtonHTMLAttributes<HTMLButtonElement>, "type"> {
+interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "type"> {
   variant?: ButtonVariant;
   size?: ButtonSize;
   ghost?: boolean;
   icon?: boolean;
-  class?: string;
-  buttonRef?: preact.Ref<HTMLButtonElement>;
+  className?: string;
+  buttonRef?: Ref<HTMLButtonElement>;
 }
 
 export function Button({
@@ -20,7 +20,7 @@ export function Button({
   size = "default",
   ghost = false,
   icon = false,
-  class: className,
+  className,
   buttonRef,
   children,
   ...rest
@@ -29,7 +29,7 @@ export function Button({
     <button
       type="button"
       ref={buttonRef}
-      class={clsx(
+      className={clsx(
         styles.btn,
         variant !== "default" && styles[variant],
         size !== "default" && styles[size],

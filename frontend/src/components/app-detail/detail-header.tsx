@@ -1,4 +1,4 @@
-import type { ComponentChildren } from "preact";
+import type { ReactNode } from "react";
 
 import { Badge } from "../shared/badge";
 import { Chip, type ChipKind } from "../shared/chip";
@@ -11,7 +11,7 @@ interface DetailHeaderProps {
   statusKind: ChipKind;
   kind: "handler" | "job";
   subtitle?: string | null;
-  headerActions?: ComponentChildren;
+  headerActions?: ReactNode;
 }
 
 export function DetailHeader({ name, kindLabel, statusKind, kind, subtitle, headerActions }: DetailHeaderProps) {
@@ -19,17 +19,17 @@ export function DetailHeader({ name, kindLabel, statusKind, kind, subtitle, head
 
   return (
     <>
-      <div class={styles.header}>
-        <h2 class={styles.handlerName}>{name}</h2>
+      <div className={styles.header}>
+        <h2 className={styles.handlerName}>{name}</h2>
         {isFailing && (
           <Badge variant="danger" size="sm" data-testid="handler-status-pill">
             failing
           </Badge>
         )}
-        {headerActions && <div class={styles.headerActions}>{headerActions}</div>}
+        {headerActions && <div className={styles.headerActions}>{headerActions}</div>}
       </div>
 
-      <div class={styles.subtitle}>
+      <div className={styles.subtitle}>
         <Chip variant="kind" kind={statusKind} aria-label={`kind: ${kindLabel}`}>
           <StatusShape kind={statusKind} size={8} />
           {kindLabel}

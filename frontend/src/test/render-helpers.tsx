@@ -1,18 +1,18 @@
 /**
- * Shared render helpers for components that require AppStateContext.
+ * Shared render helpers for components that read from the Zustand app store.
  *
- * Use `renderWithAppState` when testing components that call `useAppState()`.
- * Components that do not use context can use `render` from @testing-library/preact
- * directly.
+ * Use `renderWithAppState` when testing components that call `useAppStore()`.
+ * Zustand needs no context provider — this only wraps in QueryClientProvider
+ * and seeds the store with `storeOverrides` before rendering.
  */
 
-import { QueryClientProvider } from "@tanstack/preact-query";
-import { render } from "@testing-library/preact";
-import type { ComponentChildren } from "preact";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { render } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { vi } from "vitest";
 
-import { AppStateContext } from "../state/context";
-import { type AppState, createAppState } from "../state/create-app-state";
+import type { AppStore } from "../state/store";
+import { useAppStore } from "../state/store";
 import { createTestQueryClient } from "./query-test-utils";
 
 /**
@@ -36,28 +36,24 @@ export function mockMediaQueryMatches(matches: boolean) {
 }
 
 interface RenderWithAppStateOptions {
-  stateOverrides?: Partial<AppState>;
+  storeOverrides?: Partial<AppStore>;
 }
 
 /**
- * Renders a Preact component tree wrapped in QueryClientProvider and
- * AppStateContext.Provider.
+ * Renders a React component tree wrapped in QueryClientProvider, seeding the
+ * Zustand app store with `storeOverrides` beforehand.
  *
- * A fresh AppState and QueryClient are created for each call. Pass
- * `stateOverrides` to replace individual signals or methods on the default
- * state.
+ * A fresh QueryClient is created for each call. The store is a module-level
+ * singleton — `storeOverrides` is applied via `useAppStore.setState()`, and
+ * the global `afterEach` hook in `test-setup.ts` resets it between tests.
  *
  * The QueryClient uses test defaults (retry: false, staleTime: 0) so existing
  * tests that don't touch queries are unaffected. Tests for components that call
  * useQuery will go through normal query lifecycle backed by MSW handlers.
  */
-export function renderWithAppState(ui: ComponentChildren, { stateOverrides }: RenderWithAppStateOptions = {}) {
-  const state: AppState = { ...createAppState(), ...stateOverrides };
+export function renderWithAppState(ui: ReactNode, { storeOverrides }: RenderWithAppStateOptions = {}) {
+  if (storeOverrides) useAppStore.setState(storeOverrides);
   const queryClient = createTestQueryClient();
 
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <AppStateContext.Provider value={state}>{ui}</AppStateContext.Provider>
-    </QueryClientProvider>,
-  );
+  return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
 }

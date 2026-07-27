@@ -1,15 +1,14 @@
 import clsx from "clsx";
-import { useState } from "preact/hooks";
+import { useState } from "react";
 import { Link, useLocation, useSearch } from "wouter";
 
 import type { components } from "../../api/generated-types";
 import { useManifests } from "../../hooks/use-manifests";
 import { useSidebarHidden } from "../../hooks/use-sidebar-hidden";
-import { useAppState } from "../../state/context";
+import { useAppStore } from "../../state/store";
 import { appDetailPath, HOME_PATH, NAV_PAGES } from "../../utils/app-routes";
 import { STATUS_DOT_SIZE } from "../../utils/constants";
 import { SHORTCUT_HINT } from "../../utils/keyboard";
-import { setStoredValue } from "../../utils/local-storage";
 import { statusToKind } from "../../utils/status";
 import { Button } from "../shared/button";
 import { Chip } from "../shared/chip";
@@ -24,10 +23,10 @@ import { useGroupOpen } from "./use-group-open";
 type AppManifest = components["schemas"]["AppManifestResponse"];
 
 // Up/down accordion chevron — distinct from IconChevron (right/down disclosure pattern).
-function SidebarChevron({ open, class: className }: { open: boolean; class?: string }) {
+function SidebarChevron({ open, className }: { open: boolean; className?: string }) {
   return (
-    <svg class={className} viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
-      <polyline points={open ? "2,8 6,4 10,8" : "2,4 6,8 10,4"} fill="none" stroke="currentColor" stroke-width="1.5" />
+    <svg className={className} viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
+      <polyline points={open ? "2,8 6,4 10,8" : "2,4 6,8 10,4"} fill="none" stroke="currentColor" strokeWidth="1.5" />
     </svg>
   );
 }
@@ -52,13 +51,18 @@ function AppEntry({ manifest, location, searchString }: AppEntryProps) {
   return (
     <li data-testid={`app-entry-${manifest.app_key}`}>
       <div
-        class={clsx(styles.appItem, isActive && "is-active", isBlocked && "is-blocked")}
+        className={clsx(styles.appItem, isActive && "is-active", isBlocked && "is-blocked")}
         aria-disabled={isBlocked ? "true" : undefined}
         data-testid={`app-item-${manifest.app_key}`}
       >
-        <Link href={appPath} class={styles.appLink} aria-current={isActive ? "page" : undefined} data-testid="app-link">
+        <Link
+          href={appPath}
+          className={styles.appLink}
+          aria-current={isActive ? "page" : undefined}
+          data-testid="app-link"
+        >
           <StatusShape kind={kind} size={STATUS_DOT_SIZE} />
-          <span class={styles.appName}>{manifest.display_name}</span>
+          <span className={styles.appName}>{manifest.display_name}</span>
           {manifest.auto_loaded && (
             <Chip variant="muted" title="Auto-loaded">
               auto
@@ -68,7 +72,7 @@ function AppEntry({ manifest, location, searchString }: AppEntryProps) {
         {isMulti && (
           <button
             type="button"
-            class={styles.appExpand}
+            className={styles.appExpand}
             aria-label={expanded ? `Collapse ${manifest.display_name}` : `Expand ${manifest.display_name}`}
             aria-expanded={expanded}
             data-testid="app-expand"
@@ -79,22 +83,22 @@ function AppEntry({ manifest, location, searchString }: AppEntryProps) {
         )}
       </div>
       {isMulti && expanded && (
-        <ul class={styles.instanceList} data-testid="instance-list">
+        <ul className={styles.instanceList} data-testid="instance-list">
           {(manifest.instances ?? []).map((inst) => {
             const instHref = appDetailPath(manifest.app_key, undefined, { instance: inst.index });
             const pathMatches = location === appPath || location.startsWith(appPath + "/");
             const instanceParam = new URLSearchParams(searchString).get("instance");
             const instActive = pathMatches && instanceParam === String(inst.index);
             return (
-              <li key={inst.index} class={styles.instanceItem}>
-                <span class={styles.appConnector}>└</span>
+              <li key={inst.index} className={styles.instanceItem}>
+                <span className={styles.appConnector}>└</span>
                 <Link
                   href={instHref}
-                  class={clsx(styles.instanceLink, instActive && "is-active")}
+                  className={clsx(styles.instanceLink, instActive && "is-active")}
                   aria-current={instActive ? "page" : undefined}
                 >
                   <StatusShape kind={statusToKind(inst.status)} size={8} />
-                  <span class={styles.instanceName}>{inst.instance_name}</span>
+                  <span className={styles.instanceName}>{inst.instance_name}</span>
                 </Link>
               </li>
             );
@@ -116,7 +120,7 @@ function StatusGroupHeader({ def, count, isOpen, onToggle }: StatusGroupHeaderPr
   return (
     <button
       type="button"
-      class={clsx(styles.groupHeader, {
+      className={clsx(styles.groupHeader, {
         [styles.groupHeaderErr]: def.tone === "err",
         [styles.groupHeaderWarn]: def.tone === "warn",
       })}
@@ -124,10 +128,10 @@ function StatusGroupHeader({ def, count, isOpen, onToggle }: StatusGroupHeaderPr
       aria-expanded={isOpen}
       onClick={onToggle}
     >
-      <SidebarChevron open={isOpen} class={styles.groupChevron} />
+      <SidebarChevron open={isOpen} className={styles.groupChevron} />
       <StatusShape kind={def.tone} size={7} />
-      <span class={styles.groupLabel}>{def.label}</span>
-      <span class={styles.groupCount}>{count}</span>
+      <span className={styles.groupLabel}>{def.label}</span>
+      <span className={styles.groupCount}>{count}</span>
     </button>
   );
 }
@@ -139,7 +143,8 @@ interface SidebarProps {
 export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
   const [location] = useLocation();
   const searchString = useSearch();
-  const { systemVersion, sidebarCollapsed } = useAppState();
+  const systemVersion = useAppStore((s) => s.systemVersion);
+  const setSidebarCollapsed = useAppStore((s) => s.setSidebarCollapsed);
   // When the sidebar is off screen the status bar owns this chrome instead; rendering it in
   // both places would duplicate the testids and give screen readers two live regions for
   // one connection event.
@@ -151,7 +156,7 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
   const liveManifests = manifestsData.filter((m) => m.in_current_config);
   const [search, setSearch] = useState("");
 
-  const version = systemVersion.value;
+  const version = systemVersion;
   const isFiltering = search.trim().length > 0;
   const filtered = isFiltering
     ? liveManifests.filter(
@@ -169,15 +174,15 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
   const filteredCount = filtered.length;
 
   return (
-    <aside class={styles.sidebar} data-testid="sidebar">
-      <div class={styles.sidebarBrand}>
-        <div class={styles.brandText}>
-          <Link href={HOME_PATH} class={styles.brandLink} aria-label="Hassette home">
-            <span class={styles.wordmark}>hassette</span>
+    <aside className={styles.sidebar} data-testid="sidebar">
+      <div className={styles.sidebarBrand}>
+        <div className={styles.brandText}>
+          <Link href={HOME_PATH} className={styles.brandLink} aria-label="Hassette home">
+            <span className={styles.wordmark}>hassette</span>
           </Link>
           {version !== null && (
-            <div class={styles.version}>
-              <span class={styles.versionText}>v{version}</span>
+            <div className={styles.version}>
+              <span className={styles.versionText}>v{version}</span>
             </div>
           )}
         </div>
@@ -185,41 +190,40 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
           icon
           ghost
           size="sm"
-          class={styles.collapseToggle}
+          className={styles.collapseToggle}
           title="Collapse sidebar ([)"
           aria-label="Collapse sidebar"
           data-testid="sidebar-collapse"
           onClick={() => {
-            sidebarCollapsed.value = true;
-            setStoredValue("sidebarCollapsed", true);
+            setSidebarCollapsed(true);
           }}
         >
           <svg viewBox="0 0 16 16" aria-hidden="true">
-            <polyline points="10,3 5,8 10,13" fill="none" stroke="currentColor" stroke-width="1.5" />
+            <polyline points="10,3 5,8 10,13" fill="none" stroke="currentColor" strokeWidth="1.5" />
           </svg>
         </Button>
       </div>
 
       <button
         type="button"
-        class={styles.cmdkey}
+        className={styles.cmdkey}
         title={`Command palette (${SHORTCUT_HINT})`}
         aria-label="Open command palette"
         onClick={onOpenPalette}
       >
         <span>jump to…</span>
-        <kbd class={styles.cmdkeyHint}>{SHORTCUT_HINT}</kbd>
+        <kbd className={styles.cmdkeyHint}>{SHORTCUT_HINT}</kbd>
       </button>
 
       <nav aria-label="Main navigation">
-        <ul class={styles.navList}>
+        <ul className={styles.navList}>
           {NAV_PAGES.map((item) => {
             const isActive = location.startsWith(item.path);
             return (
               <li key={item.path}>
                 <Link
                   href={item.path}
-                  class={clsx(styles.navItem, isActive && "is-active")}
+                  className={clsx(styles.navItem, isActive && "is-active")}
                   data-testid={item.testId}
                   aria-current={isActive ? "page" : undefined}
                 >
@@ -231,16 +235,16 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
         </ul>
       </nav>
 
-      <div class={styles.appNav} data-testid="app-nav">
-        <div class={styles.sectionHeader}>
-          <span class={styles.sectionLabel}>APPS</span>
-          <span class={styles.sectionCount}>{isFiltering ? `${filteredCount}/${totalCount}` : totalCount}</span>
+      <div className={styles.appNav} data-testid="app-nav">
+        <div className={styles.sectionHeader}>
+          <span className={styles.sectionLabel}>APPS</span>
+          <span className={styles.sectionCount}>{isFiltering ? `${filteredCount}/${totalCount}` : totalCount}</span>
         </div>
 
-        <div class={styles.searchWrap}>
+        <div className={styles.searchWrap}>
           <input
             type="search"
-            class={styles.appSearch}
+            className={styles.appSearch}
             placeholder="Filter apps…"
             value={search}
             aria-label="Filter apps"
@@ -249,16 +253,16 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
         </div>
 
         {manifestsLoading && <Spinner />}
-        {!manifestsLoading && filtered.length === 0 && <div class={styles.empty}>no apps</div>}
+        {!manifestsLoading && filtered.length === 0 && <div className={styles.empty}>no apps</div>}
         {GROUP_DEFS.map((def) => {
           const apps = groups.get(def.key) ?? [];
           if (apps.length === 0) return null;
           const open = isGroupOpen(def.key);
           return (
-            <div key={def.key} class={styles.group}>
+            <div key={def.key} className={styles.group}>
               <StatusGroupHeader def={def} count={apps.length} isOpen={open} onToggle={() => toggleGroup(def.key)} />
               {open && (
-                <ul class={styles.appList} aria-label={`${def.label} apps`}>
+                <ul className={styles.appList} aria-label={`${def.label} apps`}>
                   {apps.map((m) => (
                     <AppEntry key={m.app_key} manifest={m} location={location} searchString={searchString} />
                   ))}
@@ -270,7 +274,7 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
       </div>
 
       {!chromeLivesInStatusBar && (
-        <div class={styles.sidebarFooter} data-testid="sidebar-footer">
+        <div className={styles.sidebarFooter} data-testid="sidebar-footer">
           <SystemHealth variant="stacked" />
           <ThemeToggle />
         </div>

@@ -1,5 +1,4 @@
-import { signal } from "@preact/signals";
-import { fireEvent } from "@testing-library/preact";
+import { fireEvent } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -26,7 +25,7 @@ vi.mock("../components/shared/spinner", () => ({
 
 // State overrides shared across all tests — uptimeSeconds must be non-null so
 // useScopedQuery fires for the "since-restart" preset.
-const stateOverrides = { uptimeSeconds: signal(120) };
+const storeOverrides = { uptimeSeconds: 120 };
 
 describe("HandlersPage", () => {
   beforeEach(() => {
@@ -35,12 +34,12 @@ describe("HandlersPage", () => {
   });
 
   it("shows the page heading", async () => {
-    const { findByRole } = renderWithAppState(<HandlersPage />, { stateOverrides });
+    const { findByRole } = renderWithAppState(<HandlersPage />, { storeOverrides });
     expect(await findByRole("heading", { name: /handlers/i })).toBeDefined();
   });
 
   it("shows empty state when no handlers or jobs", async () => {
-    const { findByText } = renderWithAppState(<HandlersPage />, { stateOverrides });
+    const { findByText } = renderWithAppState(<HandlersPage />, { storeOverrides });
     expect(await findByText(/no handlers found/i)).toBeDefined();
   });
 
@@ -55,7 +54,7 @@ describe("HandlersPage", () => {
         HttpResponse.json([createJob({ job_id: 10, app_key: "app_a", job_name: "my_job", source_tier: "app" })]),
       ),
     );
-    const { findAllByTestId } = renderWithAppState(<HandlersPage />, { stateOverrides });
+    const { findAllByTestId } = renderWithAppState(<HandlersPage />, { storeOverrides });
     expect((await findAllByTestId(/listener-row-/)).length).toBe(1);
     expect((await findAllByTestId(/job-row-/)).length).toBe(1);
   });
@@ -75,7 +74,7 @@ describe("HandlersPage", () => {
         ]),
       ),
     );
-    const { findAllByTestId } = renderWithAppState(<HandlersPage />, { stateOverrides });
+    const { findAllByTestId } = renderWithAppState(<HandlersPage />, { storeOverrides });
     expect((await findAllByTestId(/listener-row-/)).length).toBe(1);
     expect((await findAllByTestId(/job-row-/)).length).toBe(1);
   });
@@ -93,7 +92,7 @@ describe("HandlersPage", () => {
         HttpResponse.json([createJob({ job_id: 10, app_key: "app_a", job_name: "my_job", source_tier: "app" })]),
       ),
     );
-    const { findAllByTestId, queryAllByTestId } = renderWithAppState(<HandlersPage />, { stateOverrides });
+    const { findAllByTestId, queryAllByTestId } = renderWithAppState(<HandlersPage />, { storeOverrides });
     expect((await findAllByTestId(/listener-row-/)).length).toBe(1);
     expect((await findAllByTestId(/job-row-/)).length).toBe(1);
     // app_b listener should be excluded
@@ -101,7 +100,7 @@ describe("HandlersPage", () => {
   });
 
   it("renders a search input above the table", async () => {
-    const { findByTestId } = renderWithAppState(<HandlersPage />, { stateOverrides });
+    const { findByTestId } = renderWithAppState(<HandlersPage />, { storeOverrides });
     const search = await findByTestId("handlers-search");
     expect(search).toBeDefined();
   });
@@ -126,7 +125,7 @@ describe("HandlersPage", () => {
         ]),
       ),
     );
-    const { findAllByTestId } = renderWithAppState(<HandlersPage />, { stateOverrides });
+    const { findAllByTestId } = renderWithAppState(<HandlersPage />, { storeOverrides });
     expect((await findAllByTestId(/listener-row-/)).length).toBe(1);
   });
 
@@ -140,7 +139,7 @@ describe("HandlersPage", () => {
         ]),
       ),
     );
-    const { findAllByTestId } = renderWithAppState(<HandlersPage />, { stateOverrides });
+    const { findAllByTestId } = renderWithAppState(<HandlersPage />, { storeOverrides });
     expect((await findAllByTestId(/listener-row-/)).length).toBe(1);
   });
 
@@ -154,7 +153,7 @@ describe("HandlersPage", () => {
         ]),
       ),
     );
-    const { findAllByTestId } = renderWithAppState(<HandlersPage />, { stateOverrides });
+    const { findAllByTestId } = renderWithAppState(<HandlersPage />, { storeOverrides });
     expect((await findAllByTestId(/listener-row-/)).length).toBe(1);
   });
 
@@ -168,7 +167,7 @@ describe("HandlersPage", () => {
         ]),
       ),
     );
-    const { findAllByTestId } = renderWithAppState(<HandlersPage />, { stateOverrides });
+    const { findAllByTestId } = renderWithAppState(<HandlersPage />, { storeOverrides });
     expect((await findAllByTestId(/job-row-/)).length).toBe(1);
   });
 
@@ -187,7 +186,7 @@ describe("HandlersPage", () => {
         ]),
       ),
     );
-    const { findAllByTestId, queryAllByTestId } = renderWithAppState(<HandlersPage />, { stateOverrides });
+    const { findAllByTestId, queryAllByTestId } = renderWithAppState(<HandlersPage />, { storeOverrides });
     expect((await findAllByTestId(/listener-row-/)).length).toBe(1);
     expect((await findAllByTestId(/job-row-/)).length).toBe(1);
     // job_b should be excluded — wait for data loaded above first, then assert
@@ -206,7 +205,7 @@ describe("HandlersPage", () => {
         HttpResponse.json([createJob({ job_id: 10, app_key: "app_a", job_name: "my_job", source_tier: "app" })]),
       ),
     );
-    const { findByText } = renderWithAppState(<HandlersPage />, { stateOverrides });
+    const { findByText } = renderWithAppState(<HandlersPage />, { storeOverrides });
     expect(await findByText(/2 handlers/i)).toBeDefined();
     expect(await findByText(/1 job/i)).toBeDefined();
   });
@@ -219,7 +218,7 @@ describe("HandlersPage", () => {
         ]),
       ),
     );
-    const { findAllByTestId } = renderWithAppState(<HandlersPage />, { stateOverrides });
+    const { findAllByTestId } = renderWithAppState(<HandlersPage />, { storeOverrides });
     const filterBtns = await findAllByTestId("filter-btn");
     expect(filterBtns.length).toBe(1);
   });
@@ -245,13 +244,13 @@ describe("HandlersPage — query param state (FR#5, AC#6)", () => {
   it("reads search from URL query param — ?search=event filters results", async () => {
     // "on_event" is the app-tier handler; default tier=app, so search "event" should return it
     mockSearch = "search=event";
-    const { findAllByTestId } = renderWithAppState(<HandlersPage />, { stateOverrides });
+    const { findAllByTestId } = renderWithAppState(<HandlersPage />, { storeOverrides });
     expect((await findAllByTestId(/listener-row-/)).length).toBe(1);
   });
 
   it("reads app filter from URL query param — ?app=app_a filters to that app", async () => {
     mockSearch = "app=app_a";
-    const { findAllByTestId, queryAllByTestId } = renderWithAppState(<HandlersPage />, { stateOverrides });
+    const { findAllByTestId, queryAllByTestId } = renderWithAppState(<HandlersPage />, { storeOverrides });
     expect((await findAllByTestId(/listener-row-/)).length).toBe(1);
     // app_b job should be excluded — data already loaded via findAllByTestId above
     expect(queryAllByTestId(/job-row-/).length).toBe(0);
@@ -265,7 +264,7 @@ describe("HandlersPage — query param state (FR#5, AC#6)", () => {
         ]),
       ),
     );
-    const { findByRole } = renderWithAppState(<HandlersPage />, { stateOverrides });
+    const { findByRole } = renderWithAppState(<HandlersPage />, { storeOverrides });
     // Wait for data to load, then click the sort button
     const sortBtn = await findByRole("button", { name: /^name/i });
     // SortHeader renders a <th><button> — click the button, not the th
@@ -286,7 +285,7 @@ describe("HandlersPage — query param state (FR#5, AC#6)", () => {
         ]),
       ),
     );
-    const { findByRole } = renderWithAppState(<HandlersPage />, { stateOverrides });
+    const { findByRole } = renderWithAppState(<HandlersPage />, { storeOverrides });
     const link = await findByRole("link", { name: /on_motion/i });
     expect((link as HTMLAnchorElement).href).toContain("/apps/motion_lights/handlers/listener/42");
   });

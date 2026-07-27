@@ -1,4 +1,4 @@
-import type { ComponentChildren } from "preact";
+import type { ReactNode } from "react";
 
 /**
  * A single column filter entry: whether it is active, a label for the mobile
@@ -8,7 +8,7 @@ import type { ComponentChildren } from "preact";
 export interface ColumnFilter {
   active: boolean;
   label: string;
-  content: ComponentChildren;
+  content: ReactNode;
 }
 
 /**

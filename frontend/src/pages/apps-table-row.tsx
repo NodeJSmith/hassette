@@ -1,5 +1,6 @@
 import clsx from "clsx";
-import { useState } from "preact/hooks";
+import type { MouseEvent as ReactMouseEvent } from "react";
+import { useState } from "react";
 
 import { ActionButtons } from "../components/shared/action-buttons";
 import { AppLink } from "../components/shared/app-link";
@@ -9,7 +10,7 @@ import { IconChevron } from "../components/shared/icons";
 import { MiniSparkline } from "../components/shared/mini-sparkline";
 import { StatusShape } from "../components/shared/status-shape";
 import { useRelativeTime } from "../hooks/use-relative-time";
-import { type AppStatusEntry, appStatusKey } from "../state/create-app-state";
+import { type AppStatusEntry, appStatusKey } from "../state/store";
 import { appLiveStatus, type AppRow } from "../utils/app-data";
 import { formatTimestamp } from "../utils/format";
 import { onActivateKeyDown } from "../utils/keyboard";
@@ -41,15 +42,15 @@ export function AppTableRow({
 
   return (
     <>
-      <tr class={clsx(styles.row, isDimmed && styles.rowDimmed)} data-testid={`app-row-${app.app_key}`}>
+      <tr className={clsx(styles.row, isDimmed && styles.rowDimmed)} data-testid={`app-row-${app.app_key}`}>
         {/* Name */}
-        <td class={styles.nameCell}>
-          <div class={styles.nameCellInner}>
-            <span class={styles.expandGutter}>
+        <td className={styles.nameCell}>
+          <div className={styles.nameCellInner}>
+            <span className={styles.expandGutter}>
               {isMulti && (
                 <button
                   type="button"
-                  class={styles.expand}
+                  className={styles.expand}
                   onClick={onToggle}
                   aria-expanded={isExpanded}
                   aria-label={`${isExpanded ? "Collapse" : "Expand"} ${app.app_key}`}
@@ -61,7 +62,7 @@ export function AppTableRow({
             </span>
             <StatusShape kind={kind} size={7} muted={muteStatus} />
             <AppLink appKey={app.app_key} />
-            <span class={styles.className}>{app.class_name}</span>
+            <span className={styles.className}>{app.class_name}</span>
             {app.auto_loaded && <Chip variant="muted">auto</Chip>}
             {!app.autostart && (
               <Chip variant="muted" data-testid="no-autostart-chip">
@@ -80,17 +81,17 @@ export function AppTableRow({
           <Badge variant={statusToVariant(status)} size="sm" data-testid="status-pill">
             {status}
           </Badge>
-          {isMulti && <span class={styles.instanceCount}>{app.instance_count} instances</span>}
+          {isMulti && <span className={styles.instanceCount}>{app.instance_count} instances</span>}
         </td>
         {/* Error */}
         <td
-          class={clsx(styles.errorCell, showErrorExpanded && styles.errorCellExpanded)}
+          className={clsx(styles.errorCell, showErrorExpanded && styles.errorCellExpanded)}
           {...(app.error_message
             ? {
                 role: "button",
                 tabIndex: 0,
                 "aria-label": `${showErrorExpanded ? "Collapse" : "Expand"} error: ${app.error_message}`,
-                onClick: (e: Event) => {
+                onClick: (e: ReactMouseEvent) => {
                   e.stopPropagation();
                   setErrorExpanded(!errorExpanded);
                 },
@@ -99,27 +100,27 @@ export function AppTableRow({
             : {})}
         >
           {app.error_message ? (
-            <span class="ht-text-mono ht-text-sm ht-text-danger">
+            <span className="ht-text-mono ht-text-sm ht-text-danger">
               {app.error_message}
-              {app.last_error_ts && <span class={styles.errorAge}> · {lastErrorLabel}</span>}
+              {app.last_error_ts && <span className={styles.errorAge}> · {lastErrorLabel}</span>}
             </span>
           ) : (
             "—"
           )}
         </td>
         {/* Runs + sparkline */}
-        <td class={styles.runsCell}>
-          <div class={styles.runsCellInner}>
+        <td className={styles.runsCell}>
+          <div className={styles.runsCellInner}>
             <MiniSparkline buckets={app.activity_buckets} height={16} />
-            <span class="ht-text-mono">{totalRuns}</span>
+            <span className="ht-text-mono">{totalRuns}</span>
           </div>
         </td>
         {/* Last fired */}
-        <td class="ht-text-mono ht-text-muted ht-text-sm">
+        <td className="ht-text-mono ht-text-muted ht-text-sm">
           {app.last_activity_ts ? <span title={formatTimestamp(app.last_activity_ts)}>{lastActivityLabel}</span> : "—"}
         </td>
         {/* Actions */}
-        <td class={styles.actionsCell}>
+        <td className={styles.actionsCell}>
           <ActionButtons appKey={app.app_key} status={status} />
         </td>
       </tr>
@@ -131,12 +132,12 @@ export function AppTableRow({
           return (
             <tr
               key={`${app.app_key}-${inst.index}`}
-              class={clsx(styles.row, styles.rowInstance)}
+              className={clsx(styles.row, styles.rowInstance)}
               data-testid={`instance-row-${app.app_key}-${inst.index}`}
             >
-              <td class={styles.nameCell}>
-                <div class={styles.nameCellInner}>
-                  <span class={styles.instanceCorner}>└</span>
+              <td className={styles.nameCell}>
+                <div className={styles.nameCellInner}>
+                  <span className={styles.instanceCorner}>└</span>
                   <StatusShape kind={instKind} size={6} muted={muteStatus} />
                   <AppLink appKey={app.app_key} instanceIndex={inst.index}>
                     {inst.instance_name}
@@ -148,9 +149,9 @@ export function AppTableRow({
                   {instStatus}
                 </Badge>
               </td>
-              <td class={styles.errorCell}>
+              <td className={styles.errorCell}>
                 {inst.error_message ? (
-                  <span class="ht-text-mono ht-text-sm ht-text-danger" title={inst.error_message}>
+                  <span className="ht-text-mono ht-text-sm ht-text-danger" title={inst.error_message}>
                     {inst.error_message}
                   </span>
                 ) : (
@@ -159,7 +160,7 @@ export function AppTableRow({
               </td>
               <td />
               <td />
-              <td class={styles.actionsCell}>
+              <td className={styles.actionsCell}>
                 <ActionButtons appKey={app.app_key} status={instStatus} />
               </td>
             </tr>

@@ -22,18 +22,18 @@ export function ExecutionLogs({ executionId }: Props) {
   );
 
   return (
-    <div class={styles.section} data-testid="execution-logs-section">
-      <span class={styles.label}>logs</span>
+    <div className={styles.section} data-testid="execution-logs-section">
+      <span className={styles.label}>logs</span>
       <TableCard footer={footer}>
         <LogTableWithDrawer drawerProps={log.drawerProps}>
           {log.isEmpty ? (
-            <p class={styles.emptyInline}>no logs for this execution</p>
+            <p className={styles.emptyInline}>no logs for this execution</p>
           ) : (
             <LogTableView {...log.tableProps} />
           )}
         </LogTableWithDrawer>
       </TableCard>
-      <p class={styles.viewAll}>
+      <p className={styles.viewAll}>
         <Link href={viewAllHref} data-testid="view-all-logs-link">
           View all logs
         </Link>

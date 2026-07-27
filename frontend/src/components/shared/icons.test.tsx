@@ -1,4 +1,4 @@
-import { render } from "@testing-library/preact";
+import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { IconPlay, IconRefresh, IconSquare, IconWarning } from "./icons";

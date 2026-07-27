@@ -1,4 +1,4 @@
-import { act, renderHook } from "@testing-library/preact";
+import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 describe("BREAKPOINT_MOBILE", () => {

@@ -1,26 +1,23 @@
 import clsx from "clsx";
-import type { ComponentChildren } from "preact";
-import { useRef } from "preact/hooks";
+import type { ReactNode } from "react";
+import { useRef, useState } from "react";
 
 import { BREAKPOINT_MOBILE, useMediaQuery } from "../../hooks/use-media-query";
-import { useSignal } from "../../hooks/use-signal";
-import { useSubscribe } from "../../hooks/use-subscribe";
 import { ColumnFilterPopover } from "./column-filter-popover/index";
 import { FilterIcon } from "./filter-icon";
 import styles from "./table-footer.module.css";
 import type { ColumnFilters } from "./table-types";
 
 interface TableFooterProps {
-  count: ComponentChildren;
+  count: ReactNode;
   columnFilters?: ColumnFilters;
   onResetFilters?: () => void;
-  extras?: ComponentChildren;
+  extras?: ReactNode;
 }
 
 export function TableFooter({ count, columnFilters, onResetFilters, extras }: TableFooterProps) {
   const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
-  const filterOpen = useSignal(false);
-  useSubscribe(filterOpen);
+  const [filterOpen, setFilterOpen] = useState(false);
   const filterTriggerRef = useRef<HTMLButtonElement>(null);
 
   const hasActiveFilter = columnFilters ? Object.values(columnFilters).some((f) => f.active) : false;
@@ -28,22 +25,22 @@ export function TableFooter({ count, columnFilters, onResetFilters, extras }: Ta
   const showMobileFilterBtn = isMobile && columnFilters && Object.keys(columnFilters).length > 0;
 
   return (
-    <div class={styles.footer}>
-      <div class={styles.left}>
-        <span class={styles.count} aria-live="polite">
+    <div className={styles.footer}>
+      <div className={styles.left}>
+        <span className={styles.count} aria-live="polite">
           {count}
         </span>
       </div>
-      <div class={styles.right}>
+      <div className={styles.right}>
         {extras}
         {showMobileFilterBtn && columnFilters && (
           <>
             <button
               ref={filterTriggerRef}
               type="button"
-              class={clsx(styles.filterBtn, hasActiveFilter && styles.filterBtnActive)}
+              className={clsx(styles.filterBtn, hasActiveFilter && styles.filterBtnActive)}
               onClick={() => {
-                filterOpen.value = !filterOpen.value;
+                setFilterOpen((v) => !v);
               }}
               aria-label="Open filters"
               data-testid="mobile-filters-btn"
@@ -51,15 +48,15 @@ export function TableFooter({ count, columnFilters, onResetFilters, extras }: Ta
               <FilterIcon active={hasActiveFilter} />
             </button>
             <ColumnFilterPopover
-              open={filterOpen.value}
+              open={filterOpen}
               onClose={() => {
-                filterOpen.value = false;
+                setFilterOpen(false);
               }}
               triggerRef={filterTriggerRef}
             >
-              <div class={styles.mobileFilters}>
+              <div className={styles.mobileFilters}>
                 {Object.entries(columnFilters).map(([key, filter]) => (
-                  <div key={key} class={styles.mobileFilterGroup}>
+                  <div key={key} className={styles.mobileFilterGroup}>
                     <label>{filter.label}</label>
                     {filter.content}
                   </div>
@@ -67,7 +64,7 @@ export function TableFooter({ count, columnFilters, onResetFilters, extras }: Ta
                 {onResetFilters && hasActiveFilter && (
                   <button
                     type="button"
-                    class={styles.resetFiltersBtn}
+                    className={styles.resetFiltersBtn}
                     onClick={onResetFilters}
                     aria-label="Reset filters"
                   >

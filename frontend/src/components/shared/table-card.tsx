@@ -1,19 +1,19 @@
-import type { ComponentChildren } from "preact";
-import { useRef } from "preact/hooks";
+import type { CSSProperties, ReactNode, Ref } from "react";
+import { useRef } from "react";
 
 interface TableCardProps {
-  footer?: ComponentChildren;
+  footer?: ReactNode;
   scrollHeight?: string;
-  class?: string;
+  className?: string;
   "data-testid"?: string;
-  children: ComponentChildren;
-  containerRef?: preact.Ref<HTMLDivElement>;
+  children: ReactNode;
+  containerRef?: Ref<HTMLDivElement>;
 }
 
 export function TableCard({
   footer,
   scrollHeight,
-  class: className,
+  className,
   "data-testid": testId,
   children,
   containerRef,
@@ -22,8 +22,11 @@ export function TableCard({
   const ref = containerRef ?? fallbackRef;
 
   return (
-    <div ref={ref} class={className} data-testid={testId}>
-      <div class="ht-table-card-scroll" style={scrollHeight ? `--table-scroll-height: ${scrollHeight}` : undefined}>
+    <div ref={ref} className={className} data-testid={testId}>
+      <div
+        className="ht-table-card-scroll"
+        style={scrollHeight ? ({ "--table-scroll-height": scrollHeight } as CSSProperties) : undefined}
+      >
         {children}
       </div>
       {footer && <div data-footer-slot>{footer}</div>}

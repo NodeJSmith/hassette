@@ -47,7 +47,7 @@ export function HandlerHealthCard({ item, appKey, instanceQs, tabIndex }: Handle
 
   return (
     <div
-      class={clsx(styles.card, failing && styles.cardFailing, idle && styles.cardIdle)}
+      className={clsx(styles.card, failing && styles.cardFailing, idle && styles.cardIdle)}
       data-testid={`overview-health-card-${item.kind}-${item.id}`}
       role="button"
       aria-label={`${item.name} handler details`}
@@ -56,48 +56,48 @@ export function HandlerHealthCard({ item, appKey, instanceQs, tabIndex }: Handle
       onClick={navigateToHandler}
       onKeyDown={onActivateKeyDown(navigateToHandler)}
     >
-      <div class={styles.header}>
+      <div className={styles.header}>
         <span aria-hidden="true">
           <StatusShape kind={item.statusKind} size={STATUS_DOT_SIZE} />
         </span>
-        <span class={styles.name} title={item.name}>
+        <span className={styles.name} title={item.name}>
           {item.name}
         </span>
       </div>
 
-      <div class={styles.subtitle}>
+      <div className={styles.subtitle}>
         <Chip variant={item.kind} size="sm" aria-label={`kind: ${chipLabel}`}>
           {chipLabel}
         </Chip>
-        {errorType && <span class={styles.errorType}>{errorType}</span>}
+        {errorType && <span className={styles.errorType}>{errorType}</span>}
       </div>
 
       {errorMessage && (
         <Tooltip label={errorMessage}>
-          <span class={styles.errorMessage}>{errorMessage}</span>
+          <span className={styles.errorMessage}>{errorMessage}</span>
         </Tooltip>
       )}
 
-      <div class={styles.stats}>
-        <div class={styles.statRow}>
+      <div className={styles.stats}>
+        <div className={styles.statRow}>
           <Tooltip label={`total ${callLabel}s`}>
             <span>{pluralize(runCount, callLabel)}</span>
           </Tooltip>
           {avgDuration !== null && avgDuration > 0 && (
-            <Tooltip label="avg duration" class={styles.statRowEnd}>
+            <Tooltip label="avg duration" className={styles.statRowEnd}>
               <span>{formatDuration(avgDuration)}</span>
             </Tooltip>
           )}
         </div>
         {(failed > 0 || lastActiveAt !== null) && (
-          <div class={styles.statRow}>
+          <div className={styles.statRow}>
             {failed > 0 && (
               <Tooltip label="error rate">
                 <span>{formatRate(failed, runCount)}</span>
               </Tooltip>
             )}
             {lastActiveAt !== null && (
-              <Tooltip label="last active" class={styles.statRowEnd}>
+              <Tooltip label="last active" className={styles.statRowEnd}>
                 <span>{lastActiveDisplay}</span>
               </Tooltip>
             )}

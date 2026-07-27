@@ -1,17 +1,9 @@
-import { fireEvent } from "@testing-library/preact";
-import { render } from "@testing-library/preact";
-import type { ComponentChildren } from "preact";
-import { h } from "preact";
+import { fireEvent } from "@testing-library/react";
+import { render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { AppStateContext } from "../../state/context";
-import { createAppState } from "../../state/create-app-state";
 import { createJob, createListener } from "../../test/factories";
 import { UnifiedHandlerRow } from "./unified-handler-row";
-
-function wrapper({ children }: { children: ComponentChildren }) {
-  return h(AppStateContext.Provider, { value: createAppState() }, children);
-}
 
 function makeListenerItem(overrides = {}) {
   const listener = createListener(overrides);
@@ -40,15 +32,13 @@ function makeJobItem(overrides = {}) {
 describe("UnifiedHandlerRow — listener", () => {
   it("renders with data-testid containing kind and id", () => {
     const item = makeListenerItem({ listener_id: 42 });
-    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, {
-      wrapper,
-    });
+    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(getByTestId("unified-row-listener-42")).toBeDefined();
   });
 
   it("renders handler name", () => {
     const item = makeListenerItem({ handler_summary: "on_motion_detected()", listener_id: 1 });
-    const { getByText } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, { wrapper });
+    const { getByText } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(getByText("on_motion_detected()")).toBeDefined();
   });
 
@@ -64,7 +54,6 @@ describe("UnifiedHandlerRow — listener", () => {
     };
     const { getByTestId, queryByText } = render(
       <UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />,
-      { wrapper },
     );
     expect(getByTestId("unified-row-listener-1").getAttribute("aria-label")).toBe(
       "on_light_change: When kitchen light changes",
@@ -82,58 +71,52 @@ describe("UnifiedHandlerRow — listener", () => {
       statusKind: "ok" as const,
       data: listener,
     };
-    const { container } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, { wrapper });
+    const { container } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(container.querySelector("[data-testid='handler-row-desc']")).toBeNull();
   });
 
   it("renders invocation count in stats", () => {
     const item = makeListenerItem({ total_invocations: 7, listener_id: 1 });
-    const { getByText } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, { wrapper });
+    const { getByText } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(getByText("7 calls")).toBeDefined();
   });
 
   it("renders failed count when failed > 0", () => {
     const item = makeListenerItem({ failed: 3, total_invocations: 10, listener_id: 1 });
-    const { getByText } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, { wrapper });
+    const { getByText } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(getByText("3 failed")).toBeDefined();
   });
 
   it("renders timed_out count separately from failed", () => {
     const item = makeListenerItem({ timed_out: 2, failed: 1, total_invocations: 5, listener_id: 1 });
-    const { getByText } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, { wrapper });
+    const { getByText } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(getByText("2 timed out")).toBeDefined();
     expect(getByText("1 failed")).toBeDefined();
   });
 
   it("does not render failed/timed_out when both are 0", () => {
     const item = makeListenerItem({ failed: 0, timed_out: 0, listener_id: 1 });
-    const { queryByText } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, {
-      wrapper,
-    });
+    const { queryByText } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(queryByText(/failed/)).toBeNull();
     expect(queryByText(/timed out/)).toBeNull();
   });
 
   it("sets aria-pressed=true when isSelected is true", () => {
     const item = makeListenerItem({ listener_id: 1 });
-    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={true} onSelect={() => {}} />, {
-      wrapper,
-    });
+    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={true} onSelect={() => {}} />);
     expect(getByTestId("unified-row-listener-1").getAttribute("aria-pressed")).toBe("true");
   });
 
   it("sets aria-pressed=false when isSelected is false", () => {
     const item = makeListenerItem({ listener_id: 1 });
-    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, {
-      wrapper,
-    });
+    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(getByTestId("unified-row-listener-1").getAttribute("aria-pressed")).toBe("false");
   });
 
   it("calls onSelect when clicked", () => {
     const onSelect = vi.fn();
     const item = makeListenerItem({ listener_id: 1 });
-    const { getByRole } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={onSelect} />, { wrapper });
+    const { getByRole } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={onSelect} />);
     fireEvent.click(getByRole("button"));
     expect(onSelect).toHaveBeenCalledOnce();
   });
@@ -141,7 +124,7 @@ describe("UnifiedHandlerRow — listener", () => {
   it("calls onSelect when activated via Enter key (native button fires click)", () => {
     const onSelect = vi.fn();
     const item = makeListenerItem({ listener_id: 1 });
-    const { getByRole } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={onSelect} />, { wrapper });
+    const { getByRole } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={onSelect} />);
     // Native <button> fires click on Enter/Space — fireEvent.click simulates that
     fireEvent.click(getByRole("button"));
     expect(onSelect).toHaveBeenCalledOnce();
@@ -150,7 +133,7 @@ describe("UnifiedHandlerRow — listener", () => {
   it("calls onSelect when activated via Space key (native button fires click)", () => {
     const onSelect = vi.fn();
     const item = makeListenerItem({ listener_id: 1 });
-    const { getByRole } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={onSelect} />, { wrapper });
+    const { getByRole } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={onSelect} />);
     // Native <button> fires click on Enter/Space — fireEvent.click simulates that
     fireEvent.click(getByRole("button"));
     expect(onSelect).toHaveBeenCalledOnce();
@@ -168,17 +151,13 @@ describe("UnifiedHandlerRow — idle state", () => {
       statusKind: "mute" as const,
       data: listener,
     };
-    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, {
-      wrapper,
-    });
+    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(getByTestId("unified-row-listener-1").className).toMatch(/rowIdle/);
   });
 
   it("does not apply the dimmed idle class when statusKind is ok", () => {
     const item = makeListenerItem({ listener_id: 1 });
-    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, {
-      wrapper,
-    });
+    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(getByTestId("unified-row-listener-1").className).not.toMatch(/rowIdle/);
   });
 });
@@ -199,7 +178,7 @@ describe("UnifiedHandlerRow — subline switching", () => {
       statusKind: "err" as const,
       data: listener,
     };
-    const { container } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, { wrapper });
+    const { container } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     // Error message shown
     const errSubline = container.querySelector("[data-testid='handler-row-subline-err']");
     expect(errSubline).not.toBeNull();
@@ -220,7 +199,7 @@ describe("UnifiedHandlerRow — subline switching", () => {
       statusKind: "err" as const,
       data: job,
     };
-    const { container } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, { wrapper });
+    const { container } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     const errSubline = container.querySelector("[data-testid='handler-row-subline-err']");
     expect(errSubline).not.toBeNull();
     expect(errSubline?.textContent).toContain("ConnectionError");
@@ -242,10 +221,7 @@ describe("UnifiedHandlerRow — subline switching", () => {
       statusKind: "ok" as const,
       data: listener,
     };
-    const { container, getByTestId } = render(
-      <UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />,
-      { wrapper },
-    );
+    const { container, getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(container.querySelector("[data-testid='handler-row-desc']")).toBeNull();
     expect(container.querySelector("[data-testid='handler-row-subline-err']")).toBeNull();
     expect(getByTestId("unified-row-listener-1").getAttribute("aria-label")).toBe("on_door: Fires on door open");
@@ -261,7 +237,7 @@ describe("UnifiedHandlerRow — subline switching", () => {
       statusKind: "ok" as const,
       data: job,
     };
-    const { container } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, { wrapper });
+    const { container } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(container.querySelector("[data-testid='handler-row-next-run']")).not.toBeNull();
   });
 });
@@ -269,39 +245,31 @@ describe("UnifiedHandlerRow — subline switching", () => {
 describe("UnifiedHandlerRow — mode chip", () => {
   it("renders mode chip for listener with mode=single", () => {
     const item = makeListenerItem({ mode: "single", listener_id: 1 });
-    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, {
-      wrapper,
-    });
+    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(getByTestId("handler-row-mode-chip").textContent).toBe("single");
   });
 
   it("renders mode chip for listener with mode=parallel", () => {
     const item = makeListenerItem({ mode: "parallel", listener_id: 2 });
-    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, {
-      wrapper,
-    });
+    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(getByTestId("handler-row-mode-chip").textContent).toBe("parallel");
   });
 
   it("renders mode chip for listener with mode=queued", () => {
     const item = makeListenerItem({ mode: "queued", listener_id: 3 });
-    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, {
-      wrapper,
-    });
+    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(getByTestId("handler-row-mode-chip").textContent).toBe("queued");
   });
 
   it("renders mode chip for listener with mode=restart", () => {
     const item = makeListenerItem({ mode: "restart", listener_id: 4 });
-    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, {
-      wrapper,
-    });
+    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(getByTestId("handler-row-mode-chip").textContent).toBe("restart");
   });
 
   it("does not render mode chip for job items", () => {
     const item = makeJobItem({ job_id: 5 });
-    const { container } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, { wrapper });
+    const { container } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(container.querySelector("[data-testid='handler-row-mode-chip']")).toBeNull();
   });
 });
@@ -309,15 +277,13 @@ describe("UnifiedHandlerRow — mode chip", () => {
 describe("UnifiedHandlerRow — job", () => {
   it("renders with data-testid containing kind='job' and job id", () => {
     const item = makeJobItem({ job_id: 7 });
-    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, {
-      wrapper,
-    });
+    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(getByTestId("unified-row-job-7")).toBeDefined();
   });
 
   it("renders job name", () => {
     const item = makeJobItem({ job_name: "cleanup_task", job_id: 1 });
-    const { getByText } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, { wrapper });
+    const { getByText } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(getByText("cleanup_task")).toBeDefined();
   });
 
@@ -331,21 +297,19 @@ describe("UnifiedHandlerRow — job", () => {
       statusKind: "ok" as const,
       data: job,
     };
-    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, {
-      wrapper,
-    });
+    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(getByTestId("unified-row-job-1").getAttribute("aria-label")).toBe("my_job: every 5 minutes");
   });
 
   it("renders execution count in stats", () => {
     const item = makeJobItem({ total_executions: 4, job_id: 1 });
-    const { getByText } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, { wrapper });
+    const { getByText } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(getByText("4 runs")).toBeDefined();
   });
 
   it("renders timed_out separate from failed for jobs", () => {
     const item = makeJobItem({ timed_out: 1, failed: 2, total_executions: 10, job_id: 1 });
-    const { getByText } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, { wrapper });
+    const { getByText } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(getByText("2 failed")).toBeDefined();
     expect(getByText("1 timed out")).toBeDefined();
   });

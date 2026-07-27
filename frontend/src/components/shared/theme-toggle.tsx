@@ -1,22 +1,20 @@
-import { useAppState } from "../../state/context";
-import { setStoredValue } from "../../utils/local-storage";
+import { useAppStore } from "../../state/store";
 import styles from "./theme-toggle.module.css";
 
 /** Dark/light switch. Lives in the sidebar footer; the icon previews the theme you'd get. */
 export function ThemeToggle() {
-  const { theme } = useAppState();
-  const nextTheme = theme.value === "dark" ? "light" : "dark";
+  const theme = useAppStore((s) => s.theme);
+  const setTheme = useAppStore((s) => s.setTheme);
+  const nextTheme = theme === "dark" ? "light" : "dark";
 
   const toggleTheme = () => {
-    theme.value = nextTheme;
-    document.documentElement.setAttribute("data-theme", nextTheme);
-    setStoredValue("theme", nextTheme);
+    setTheme(nextTheme);
   };
 
   return (
     <button
       type="button"
-      class={styles.themeToggle}
+      className={styles.themeToggle}
       data-testid="theme-toggle"
       aria-label={`Switch to ${nextTheme} mode`}
       onClick={toggleTheme}

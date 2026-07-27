@@ -1,5 +1,5 @@
-import { act, fireEvent, render, screen } from "@testing-library/preact";
-import { useRef } from "preact/hooks";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import { useRef } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { ColumnFilterPopover } from "./index";

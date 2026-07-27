@@ -1,13 +1,11 @@
 import clsx from "clsx";
-import { useEffect } from "preact/hooks";
+import { useEffect } from "react";
 
 import { BREAKPOINT_MOBILE, useMediaQuery } from "../../hooks/use-media-query";
 import { useQueryParams } from "../../hooks/use-query-params";
-import { useAppState } from "../../state/context";
-import type { TimePreset } from "../../state/create-app-state";
-import { isTimePreset } from "../../state/create-app-state";
+import type { TimePreset } from "../../state/store";
+import { isTimePreset, useAppStore } from "../../state/store";
 import { formatUptime } from "../../utils/format";
-import { setStoredValue } from "../../utils/local-storage";
 import styles from "./time-preset-selector.module.css";
 
 const PRESETS: { value: TimePreset; label: string }[] = [
@@ -18,36 +16,38 @@ const PRESETS: { value: TimePreset; label: string }[] = [
 ];
 
 export function TimePresetSelector() {
-  const { timePreset, urlWindowParam, uptimeSeconds } = useAppState();
+  const timePreset = useAppStore((s) => s.timePreset);
+  const setTimePreset = useAppStore((s) => s.setTimePreset);
+  const uptimeSeconds = useAppStore((s) => s.uptimeSeconds);
+  const setUrlWindowParam = useAppStore((s) => s.setUrlWindowParam);
   const qp = useQueryParams();
   const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
 
   useEffect(() => {
     const windowParam = qp.get("window");
     if (windowParam !== null && isTimePreset(windowParam)) {
-      urlWindowParam.value = windowParam;
+      setUrlWindowParam(windowParam);
     } else {
-      urlWindowParam.value = null;
+      setUrlWindowParam(null);
     }
-    // eslint-disable-next-line react-hooks-configurable/exhaustive-deps -- mount-only; qp/urlWindowParam are stable signals
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only; qp/setUrlWindowParam are stable
   }, []);
 
-  const current = timePreset.value;
-  const uptime = uptimeSeconds.value;
+  const current = timePreset;
+  const uptime = uptimeSeconds;
   const showUptime = uptime !== null && Number.isFinite(uptime);
 
   const handlePreset = (value: TimePreset) => {
-    timePreset.value = value;
-    setStoredValue("timePreset", value);
-    urlWindowParam.value = value;
+    setTimePreset(value);
+    setUrlWindowParam(value);
     qp.set({ window: value });
   };
 
   if (isMobile) {
     return (
-      <div class={styles.selector} data-testid="time-preset-selector">
+      <div className={styles.selector} data-testid="time-preset-selector">
         <select
-          class={styles.select}
+          className={styles.select}
           value={current}
           onChange={(e) => handlePreset((e.target as HTMLSelectElement).value as TimePreset)}
           aria-label="Time window"
@@ -58,25 +58,25 @@ export function TimePresetSelector() {
             </option>
           ))}
         </select>
-        {showUptime && <span class={styles.uptime}>up {formatUptime(uptime)}</span>}
+        {showUptime && <span className={styles.uptime}>up {formatUptime(uptime)}</span>}
       </div>
     );
   }
 
   return (
-    <div class={styles.selector} data-testid="time-preset-selector">
+    <div className={styles.selector} data-testid="time-preset-selector">
       {PRESETS.map(({ value, label }) => (
         <button
           key={value}
           type="button"
-          class={clsx(styles.btn, current === value && styles.active)}
+          className={clsx(styles.btn, current === value && styles.active)}
           aria-pressed={current === value}
           onClick={() => handlePreset(value)}
         >
           {label}
         </button>
       ))}
-      {showUptime && <span class={styles.uptime}>up {formatUptime(uptime)}</span>}
+      {showUptime && <span className={styles.uptime}>up {formatUptime(uptime)}</span>}
     </div>
   );
 }

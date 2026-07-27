@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/preact";
+import { render, screen, waitFor } from "@testing-library/react";
 import { delay, http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 

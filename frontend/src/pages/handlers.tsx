@@ -12,7 +12,7 @@ import { useQueryInvalidator } from "../hooks/use-query-invalidator";
 import { useQueryParams } from "../hooks/use-query-params";
 import { useScopedQuery } from "../hooks/use-scoped-query";
 import { queryKeys } from "../lib/query-keys";
-import { useAppState } from "../state/context";
+import { useAppStore } from "../state/store";
 import { pluralize } from "../utils/format";
 import { compareHandlerRows, type HandlerSortKey, jobToRow, listenerToRow } from "../utils/handler-rows";
 import styles from "./handlers.module.css";
@@ -58,7 +58,7 @@ export function HandlersPage() {
     error: jobsError,
   } = useScopedQuery(queryKeys.allJobs(), (since, signal) => getAllJobs(since, signal));
 
-  const { executionCompleted } = useAppState();
+  const executionCompleted = useAppStore((s) => s.executionCompleted);
 
   useQueryInvalidator(
     executionCompleted,
@@ -80,7 +80,7 @@ export function HandlersPage() {
 
   if (listenersError || jobsError) {
     return (
-      <div class="ht-alert ht-alert--danger" role="alert">
+      <div className="ht-alert ht-alert--danger" role="alert">
         {(listenersError ?? jobsError)!.message}
       </div>
     );
@@ -145,7 +145,7 @@ export function HandlersPage() {
 
   const searchInput = (
     <input
-      class="ht-search"
+      className="ht-search"
       type="text"
       aria-label="Search handlers"
       placeholder="search handlers…"
@@ -179,12 +179,12 @@ export function HandlersPage() {
   const emptyStateTitle = buildEmptyTitle();
 
   return (
-    <div class="ht-page" data-testid="handlers-page">
-      <div class="ht-page-header">
-        <h1 class="ht-display">handlers</h1>
+    <div className="ht-page" data-testid="handlers-page">
+      <div className="ht-page-header">
+        <h1 className="ht-display">handlers</h1>
       </div>
 
-      <div class="ht-table-section">
+      <div className="ht-table-section">
         {searchInput}
         <TableCard footer={footer}>
           {sorted.length === 0 ? (
@@ -196,26 +196,26 @@ export function HandlersPage() {
               )}
             </EmptyState>
           ) : isMobile ? (
-            <div class={styles.mobileCards} data-testid="handlers-table-container">
+            <div className={styles.mobileCards} data-testid="handlers-table-container">
               {sorted.map((row) => (
                 <HandlerMobileRow key={row.id} row={row} />
               ))}
             </div>
           ) : (
             <div data-testid="handlers-table-container">
-              <table class={`ht-table ht-table--fixed ${styles.handlersTable}`}>
+              <table className={`ht-table ht-table--fixed ${styles.handlersTable}`}>
                 <colgroup>
-                  <col style="width: 7%" />
-                  <col style="width: 12%" />
-                  <col style="width: 18%" />
-                  <col style="width: 12%" />
-                  <col style="width: 7%" />
-                  <col style="width: 7%" />
-                  <col style="width: 7%" />
-                  <col style="width: 7%" />
-                  <col style="width: 8%" />
-                  <col style="width: 8%" />
-                  <col style="width: 7%" />
+                  <col style={{ width: "7%" }} />
+                  <col style={{ width: "12%" }} />
+                  <col style={{ width: "18%" }} />
+                  <col style={{ width: "12%" }} />
+                  <col style={{ width: "7%" }} />
+                  <col style={{ width: "7%" }} />
+                  <col style={{ width: "7%" }} />
+                  <col style={{ width: "7%" }} />
+                  <col style={{ width: "8%" }} />
+                  <col style={{ width: "8%" }} />
+                  <col style={{ width: "7%" }} />
                 </colgroup>
                 <thead>
                   <tr>

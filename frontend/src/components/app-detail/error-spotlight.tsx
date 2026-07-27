@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { useState } from "preact/hooks";
+import { useState } from "react";
 import { Link } from "wouter";
 
 import { StatusShape } from "../shared/status-shape";
@@ -21,18 +21,18 @@ function SpotlightEntry({ item, appKey, instanceQs }: SpotlightEntryProps) {
   const href = handlerHref(appKey, item, instanceQs);
 
   return (
-    <div class={styles.spotlightEntry} data-testid={`overview-spotlight-entry-${item.kind}-${item.id}`}>
+    <div className={styles.spotlightEntry} data-testid={`overview-spotlight-entry-${item.kind}-${item.id}`}>
       <span aria-hidden="true">
         <StatusShape kind={item.statusKind} size={12} />
       </span>
-      <span class={styles.spotlightName}>{item.name}</span>
-      {errorType && <span class={styles.spotlightErrorType}>{errorType}</span>}
+      <span className={styles.spotlightName}>{item.name}</span>
+      {errorType && <span className={styles.spotlightErrorType}>{errorType}</span>}
       {errorMessage && (
-        <span class={styles.spotlightErrorMsg} title={errorMessage}>
+        <span className={styles.spotlightErrorMsg} title={errorMessage}>
           {errorMessage}
         </span>
       )}
-      <Link href={href} class={styles.spotlightLink}>
+      <Link href={href} className={styles.spotlightLink}>
         view
       </Link>
     </div>
@@ -55,7 +55,7 @@ export function ErrorSpotlight({
 
   return (
     <section
-      class={clsx(styles.section, styles.spotlight)}
+      className={clsx(styles.section, styles.spotlight)}
       aria-label="failing handlers"
       data-testid="overview-error-spotlight"
     >
@@ -65,7 +65,7 @@ export function ErrorSpotlight({
       {!expanded && hiddenCount > 0 && (
         <button
           type="button"
-          class={styles.spotlightShowMore}
+          className={styles.spotlightShowMore}
           data-testid="overview-spotlight-show-more"
           onClick={() => setExpanded(true)}
         >
