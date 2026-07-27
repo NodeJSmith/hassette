@@ -78,6 +78,8 @@ class AppManifestInfo:
     instances: list[AppInstanceInfo] = field(default_factory=list)
     error_message: str | None = None
     error_traceback: str | None = None
+    in_current_config: bool = True
+    """True if the app is present in the currently-loaded config; False for DB-only/removed apps."""
 
 
 @dataclass

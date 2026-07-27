@@ -55,6 +55,7 @@ def make_manifest(
     error_message: str | None = None,
     error_traceback: str | None = None,
     autostart: bool = True,
+    in_current_config: bool = True,
 ) -> AppManifestInfo:
     """Build an AppManifestInfo with sensible defaults."""
     return AppManifestInfo(
@@ -71,6 +72,7 @@ def make_manifest(
         error_message=error_message,
         error_traceback=error_traceback,
         autostart=autostart,
+        in_current_config=in_current_config,
     )
 
 
@@ -84,6 +86,7 @@ def make_manifest_response(
     status: ManifestStatus = "running",
     instance_count: int = 1,
     instances: list[AppInstanceResponse] | None = None,
+    in_current_config: bool = True,
 ) -> AppManifestResponse:
     """Build an AppManifestResponse with sensible defaults."""
     return AppManifestResponse(
@@ -96,6 +99,7 @@ def make_manifest_response(
         status=status,
         instance_count=instance_count,
         instances=instances or [],
+        in_current_config=in_current_config,
     )
 
 

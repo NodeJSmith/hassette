@@ -786,6 +786,12 @@ export interface components {
              * @default 0
              */
             recent_invocations_1h: number;
+            /**
+             * In Current Config
+             * @description True if the app is present in the currently-loaded config; False for DB-only/removed apps.
+             * @default true
+             */
+            in_current_config: boolean;
         };
         /**
          * AppSourceResponse
@@ -925,6 +931,45 @@ export interface components {
             last_error_type?: string | null;
             /** Last Error Ts */
             last_error_ts?: number | null;
+            /**
+             * Class Name
+             * @default
+             */
+            class_name: string;
+            /**
+             * Filename
+             * @default
+             */
+            filename: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Auto Loaded
+             * @default false
+             */
+            auto_loaded: boolean;
+            /**
+             * Autostart
+             * @default true
+             */
+            autostart: boolean;
+            /** Block Reason */
+            block_reason?: string | null;
+            /** Instances */
+            instances?: components["schemas"]["AppInstanceResponse"][];
+            /** Error Message */
+            error_message?: string | null;
+            /** Error Traceback */
+            error_traceback?: string | null;
+            /**
+             * In Current Config
+             * @description True if the app is present in the currently-loaded config; False for DB-only/removed apps.
+             * @default true
+             */
+            in_current_config: boolean;
         };
         /**
          * DashboardAppGridResponse

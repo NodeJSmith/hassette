@@ -2061,6 +2061,12 @@
             "title": "Recent Invocations 1H",
             "description": "Total handler invocations in the last hour across all instances.",
             "default": 0
+          },
+          "in_current_config": {
+            "type": "boolean",
+            "title": "In Current Config",
+            "description": "True if the app is present in the currently-loaded config; False for DB-only/removed apps.",
+            "default": true
           }
         },
         "type": "object",
@@ -2338,6 +2344,77 @@
               }
             ],
             "title": "Last Error Ts"
+          },
+          "class_name": {
+            "type": "string",
+            "title": "Class Name",
+            "default": ""
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename",
+            "default": ""
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          },
+          "auto_loaded": {
+            "type": "boolean",
+            "title": "Auto Loaded",
+            "default": false
+          },
+          "autostart": {
+            "type": "boolean",
+            "title": "Autostart",
+            "default": true
+          },
+          "block_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Block Reason"
+          },
+          "instances": {
+            "items": {
+              "$ref": "#/components/schemas/AppInstanceResponse"
+            },
+            "type": "array",
+            "title": "Instances"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "error_traceback": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Traceback"
+          },
+          "in_current_config": {
+            "type": "boolean",
+            "title": "In Current Config",
+            "description": "True if the app is present in the currently-loaded config; False for DB-only/removed apps.",
+            "default": true
           }
         },
         "type": "object",

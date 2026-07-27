@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Extend response models and regenerate types"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#9", "AC#8"]
 ---

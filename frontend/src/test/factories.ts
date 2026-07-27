@@ -54,6 +54,7 @@ export function createManifest(overrides: Partial<AppManifestResponse> = {}): Ap
     error_message: null,
     error_traceback: null,
     recent_invocations_1h: 0,
+    in_current_config: true,
     ...overrides,
   } satisfies AppManifestResponse;
 }
@@ -95,6 +96,16 @@ export function createAppGridEntry(overrides: Partial<DashboardAppGridEntry> = {
     last_error_message: null,
     last_error_type: null,
     last_error_ts: null,
+    class_name: "TestApp",
+    filename: "test_app.py",
+    enabled: true,
+    auto_loaded: false,
+    autostart: true,
+    block_reason: null,
+    instances: [],
+    error_message: null,
+    error_traceback: null,
+    in_current_config: true,
     ...overrides,
   } satisfies DashboardAppGridEntry;
 }

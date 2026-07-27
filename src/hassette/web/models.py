@@ -145,6 +145,10 @@ class AppManifestResponse(BaseModel):
         default=0,
         description="Total handler invocations in the last hour across all instances.",
     )
+    in_current_config: bool = Field(
+        default=True,
+        description="True if the app is present in the currently-loaded config; False for DB-only/removed apps.",
+    )
 
 
 class AppManifestListResponse(BaseModel):
@@ -380,6 +384,19 @@ class DashboardAppGridEntry(BaseModel):
     last_error_message: str | None = None
     last_error_type: str | None = None
     last_error_ts: float | None = None
+    class_name: str = ""
+    filename: str = ""
+    enabled: bool = True
+    auto_loaded: bool = False
+    autostart: bool = True
+    block_reason: str | None = None
+    instances: list[AppInstanceResponse] = Field(default_factory=list)
+    error_message: str | None = None
+    error_traceback: str | None = None
+    in_current_config: bool = Field(
+        default=True,
+        description="True if the app is present in the currently-loaded config; False for DB-only/removed apps.",
+    )
 
 
 class DashboardAppGridResponse(BaseModel):
