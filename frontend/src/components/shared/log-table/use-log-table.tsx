@@ -1,12 +1,10 @@
-import { useSignalEffect } from "@preact/signals";
 import clsx from "clsx";
 import { useCallback, useEffect, useMemo, useRef } from "preact/hooks";
 
 import type { LogEntry } from "@/api/endpoints";
 import { BREAKPOINT_MOBILE, useMediaQuery } from "@/hooks/use-media-query";
 import { useSignal } from "@/hooks/use-signal";
-import { useSubscribe } from "@/hooks/use-subscribe";
-import { useAppState } from "@/state/context";
+import { useAppStore } from "@/state/store";
 import { pluralize } from "@/utils/format";
 
 import filterStyles from "../column-filter-popover/index.module.css";
@@ -77,10 +75,8 @@ export function useLogTable({
 }: UseLogTableParams): UseLogTableResult {
   const { visibleColumns, selectedColumns, viewportHidden, toggle, reset } = useColumnVisibility(context);
   const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
-  const { updateLogSubscription } = useAppState();
 
   const selectedKey = useSignal<RowKey | null>(null);
-  useSubscribe(selectedKey);
 
   const { allEntries, restEntries, loading } = useLogData({
     appKey,
@@ -110,10 +106,10 @@ export function useLogTable({
     executionId,
   });
 
-  useSignalEffect(() => {
-    const level = filterState.value.level;
-    updateLogSubscription(level || "DEBUG");
-  });
+  const level = filterState.value.level;
+  useEffect(() => {
+    useAppStore.getState().sendLogLevel(level || "DEBUG");
+  }, [level]);
 
   const prevExternalSearch = useRef<string | undefined>(undefined);
   useEffect(() => {

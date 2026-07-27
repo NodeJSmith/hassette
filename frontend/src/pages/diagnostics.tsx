@@ -13,8 +13,8 @@ import { StatusShape } from "../components/shared/status-shape";
 import { useDocumentTitle } from "../hooks/use-document-title";
 import { useRelativeTime } from "../hooks/use-relative-time";
 import { queryKeys } from "../lib/query-keys";
-import { useAppState } from "../state/context";
-import type { ServiceStatusEntry } from "../state/create-app-state";
+import type { ServiceStatusEntry } from "../state/store";
+import { useAppStore } from "../state/store";
 import { STATUS_DOT_SIZE } from "../utils/constants";
 import { statusToKind } from "../utils/status";
 import styles from "./diagnostics.module.css";
@@ -271,15 +271,13 @@ function TelemetryPanel({
 export function DiagnosticsPage() {
   useDocumentTitle("Diagnostics");
 
-  const {
-    serviceStatus,
-    connection,
-    droppedOverflow,
-    droppedExhausted,
-    droppedShutdown,
-    errorHandlerFailures,
-    telemetryDegraded,
-  } = useAppState();
+  const serviceStatus = useAppStore((s) => s.serviceStatus);
+  const connection = useAppStore((s) => s.connection);
+  const droppedOverflow = useAppStore((s) => s.droppedOverflow);
+  const droppedExhausted = useAppStore((s) => s.droppedExhausted);
+  const droppedShutdown = useAppStore((s) => s.droppedShutdown);
+  const errorHandlerFailures = useAppStore((s) => s.errorHandlerFailures);
+  const telemetryDegraded = useAppStore((s) => s.telemetryDegraded);
 
   const {
     data: systemStatus,
@@ -290,17 +288,16 @@ export function DiagnosticsPage() {
     queryFn: getSystemStatus,
   });
 
-  const wsConnected = connection.value === "connected";
+  const wsConnected = connection === "connected";
 
   // Merge HTTP seed with live WS updates
   const httpServices = systemStatus?.services ?? [];
-  const mergedServices = mergeServices(httpServices, serviceStatus.value);
+  const mergedServices = mergeServices(httpServices, serviceStatus);
 
   const bootIssues: BootIssue[] = systemStatus?.boot_issues ?? [];
 
-  const totalDrops =
-    droppedOverflow.value + droppedExhausted.value + droppedShutdown.value + errorHandlerFailures.value;
-  const showTelemetry = telemetryDegraded.value || totalDrops > 0;
+  const totalDrops = droppedOverflow + droppedExhausted + droppedShutdown + errorHandlerFailures;
+  const showTelemetry = telemetryDegraded || totalDrops > 0;
 
   if (loading) return <Spinner />;
 
@@ -331,11 +328,11 @@ export function DiagnosticsPage() {
           so they render even when the HTTP load failed. */}
       {showTelemetry && (
         <TelemetryPanel
-          droppedOverflow={droppedOverflow.value}
-          droppedExhausted={droppedExhausted.value}
-          droppedShutdown={droppedShutdown.value}
-          errorHandlerFailures={errorHandlerFailures.value}
-          telemetryDegraded={telemetryDegraded.value}
+          droppedOverflow={droppedOverflow}
+          droppedExhausted={droppedExhausted}
+          droppedShutdown={droppedShutdown}
+          errorHandlerFailures={errorHandlerFailures}
+          telemetryDegraded={telemetryDegraded}
         />
       )}
     </div>

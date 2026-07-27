@@ -1,12 +1,8 @@
 import { signal } from "@preact/signals";
 import { act, renderHook } from "@testing-library/preact";
-import type { ComponentChildren } from "preact";
-import { h } from "preact";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { LogEntry } from "@/api/endpoints";
-import { AppStateContext } from "@/state/context";
-import { createAppState } from "@/state/create-app-state";
 import { createLogEntry } from "@/test/factories";
 import { createWouterMock } from "@/test/mock-wouter";
 
@@ -122,15 +118,8 @@ const mockSetSort = vi.fn();
 const mockResetSort = vi.fn();
 const mockResetFilters = vi.fn();
 
-function createWrapper() {
-  const state = createAppState();
-  return function Wrapper({ children }: { children: ComponentChildren }) {
-    return h(AppStateContext.Provider, { value: state }, children);
-  };
-}
-
 function renderUseLogTable(params: Parameters<typeof useLogTable>[0] = {}) {
-  return renderHook(() => useLogTable(params), { wrapper: createWrapper() });
+  return renderHook(() => useLogTable(params));
 }
 
 function makeEntry(seq: number) {

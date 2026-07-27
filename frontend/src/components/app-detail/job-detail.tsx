@@ -5,7 +5,7 @@ import { useQueryInvalidator } from "../../hooks/use-query-invalidator";
 import { useRelativeTime } from "../../hooks/use-relative-time";
 import { useScopedQuery } from "../../hooks/use-scoped-query";
 import { queryKeys } from "../../lib/query-keys";
-import { useAppState } from "../../state/context";
+import { useAppStore } from "../../state/store";
 import { DETAIL_FETCH_LIMIT } from "../../utils/constants";
 import { formatTriggerDetail } from "../../utils/format";
 import { handlerKindLabel } from "../../utils/status";
@@ -106,7 +106,7 @@ export function JobDetail({ job, appKey, instanceQs, onSwitchToCode }: Props) {
     (since, signal) => getJobExecutions(job.job_id, DETAIL_FETCH_LIMIT, since, signal),
   );
 
-  const { executionCompleted } = useAppState();
+  const executionCompleted = useAppStore((s) => s.executionCompleted);
   const lastExecutedLabel = useRelativeTime(job.last_executed_at);
   const nextRunLabel = useRelativeTime(job.next_run ?? null);
   const fireAtLabel = useRelativeTime(job.fire_at ?? null);

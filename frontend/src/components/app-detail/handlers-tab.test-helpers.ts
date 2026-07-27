@@ -1,4 +1,3 @@
-import { signal } from "@preact/signals";
 import { h } from "preact";
 
 import { createJob, createListener } from "../../test/factories";
@@ -18,6 +17,6 @@ export function renderHandlersTab(
 ) {
   return renderWithAppState(
     h(HandlersTab, { listeners, jobs, selectedHandler, selectedExecId: null, appKey: "test_app" }),
-    { stateOverrides: { uptimeSeconds: signal<number | null>(120) } },
+    { storeOverrides: { uptimeSeconds: 120 } },
   );
 }

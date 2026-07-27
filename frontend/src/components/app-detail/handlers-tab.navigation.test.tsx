@@ -1,4 +1,3 @@
-import { signal } from "@preact/signals";
 import { fireEvent, waitFor } from "@testing-library/preact";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -99,7 +98,7 @@ describe("HandlersTab navigation", () => {
         appKey="test_app"
         instanceIndex={1}
       />,
-      { stateOverrides: { uptimeSeconds: signal<number | null>(120) } },
+      { storeOverrides: { uptimeSeconds: 120 } },
     );
     fireEvent.click(getByTestId("unified-row-listener-3"));
     expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app/handlers/listener/3?instance=1");
@@ -130,7 +129,7 @@ describe("HandlersTab navigation", () => {
         appKey="test_app"
         onSwitchToCode={onSwitch}
       />,
-      { stateOverrides: { uptimeSeconds: signal<number | null>(120) } },
+      { storeOverrides: { uptimeSeconds: 120 } },
     );
     await waitFor(() => getByTestId("listener-detail-45"));
     fireEvent.click(getByTestId("view-in-code-btn"));
@@ -140,7 +139,7 @@ describe("HandlersTab navigation", () => {
   it("renders execution detail even when no handlers are registered", () => {
     const { getByTestId, queryByTestId } = renderWithAppState(
       <HandlersTab listeners={[]} jobs={[]} selectedHandler="listener/5" selectedExecId="abc-123" appKey="test_app" />,
-      { stateOverrides: { uptimeSeconds: signal<number | null>(120) } },
+      { storeOverrides: { uptimeSeconds: 120 } },
     );
     expect(getByTestId("execution-detail-fetcher")).toBeTruthy();
     expect(queryByTestId("handlers-empty")).toBeNull();

@@ -5,7 +5,6 @@ import { Link } from "wouter";
 import type { LogEntry } from "@/api/endpoints";
 import { BREAKPOINT_MOBILE, BREAKPOINT_TABLET, useMediaQuery } from "@/hooks/use-media-query";
 import { useSignal } from "@/hooks/use-signal";
-import { useSubscribe } from "@/hooks/use-subscribe";
 import { appDetailPath } from "@/utils/app-routes";
 import { formatTimestamp } from "@/utils/format";
 
@@ -24,7 +23,6 @@ interface Props {
 
 function CopyButton({ text, label }: { text: string; label: string }) {
   const copied = useSignal(false);
-  useSubscribe(copied);
 
   const handleCopy = useCallback(
     async (e: MouseEvent) => {

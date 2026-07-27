@@ -1,9 +1,12 @@
-import { signal } from "@preact/signals";
 import { act } from "@testing-library/preact";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createTestQueryClient, renderHookWithProviders } from "../test/query-test-utils";
 import { useQueryInvalidator, WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS } from "./use-query-invalidator";
+
+// Typed explicitly so `initialProps: { value: NULL_STRING }` widens to `string | null`
+// instead of narrowing to the literal `null`.
+const NULL_STRING: string | null = null;
 
 describe("exported constants", () => {
   it("WS_DEBOUNCE_DELAY_MS is 500", () => {
@@ -25,13 +28,13 @@ describe("useQueryInvalidator", () => {
   });
 
   it("does not invalidate on mount (no spurious initial fetch)", () => {
-    const sig = signal<string | null>(null);
     const filterFn = vi.fn().mockReturnValue(true);
     const queryClient = createTestQueryClient();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
     renderHookWithProviders(
-      () => useQueryInvalidator(sig, filterFn, ["test-key"], WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS),
+      () =>
+        useQueryInvalidator<string | null>(null, filterFn, ["test-key"], WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS),
       { queryClient },
     );
 
@@ -43,19 +46,19 @@ describe("useQueryInvalidator", () => {
   });
 
   it("invalidates after delayMs when filter matches", async () => {
-    const sig = signal<string | null>(null);
     const filterFn = (v: string | null) => v !== null;
     const queryClient = createTestQueryClient();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
-    renderHookWithProviders(
-      () => useQueryInvalidator(sig, filterFn, ["test-delay"], WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS),
-      { queryClient },
+    const { rerender } = renderHookWithProviders<void, { value: string | null }>(
+      ({ value }) =>
+        useQueryInvalidator(value, filterFn, ["test-delay"], WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS),
+      { queryClient, initialProps: { value: NULL_STRING } },
     );
 
-    // Trigger a matching signal change
+    // Trigger a matching value change
     act(() => {
-      sig.value = "event-1";
+      rerender({ value: "event-1" });
     });
 
     // Not yet — delay hasn't elapsed
@@ -73,18 +76,18 @@ describe("useQueryInvalidator", () => {
   });
 
   it("does not invalidate when filter returns false", async () => {
-    const sig = signal<string | null>(null);
     const filterFn = () => false;
     const queryClient = createTestQueryClient();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
-    renderHookWithProviders(
-      () => useQueryInvalidator(sig, filterFn, ["test-filter-false"], WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS),
-      { queryClient },
+    const { rerender } = renderHookWithProviders<void, { value: string | null }>(
+      ({ value }) =>
+        useQueryInvalidator(value, filterFn, ["test-filter-false"], WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS),
+      { queryClient, initialProps: { value: NULL_STRING } },
     );
 
     act(() => {
-      sig.value = "event-1";
+      rerender({ value: "event-1" });
     });
     act(() => {
       vi.advanceTimersByTime(WS_DEBOUNCE_MAX_WAIT_MS + 100);
@@ -94,19 +97,19 @@ describe("useQueryInvalidator", () => {
   });
 
   it("trailing timer resets on each matching event (debounce)", async () => {
-    const sig = signal<string | null>(null);
     const filterFn = (v: string | null) => v !== null;
     const queryClient = createTestQueryClient();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
-    renderHookWithProviders(
-      () => useQueryInvalidator(sig, filterFn, ["test-trailing"], WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS),
-      { queryClient },
+    const { rerender } = renderHookWithProviders<void, { value: string | null }>(
+      ({ value }) =>
+        useQueryInvalidator(value, filterFn, ["test-trailing"], WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS),
+      { queryClient, initialProps: { value: NULL_STRING } },
     );
 
     // First event starts trailing timer
     act(() => {
-      sig.value = "event-1";
+      rerender({ value: "event-1" });
     });
     act(() => {
       vi.advanceTimersByTime(400);
@@ -114,7 +117,7 @@ describe("useQueryInvalidator", () => {
 
     // Second event resets trailing timer
     act(() => {
-      sig.value = "event-2";
+      rerender({ value: "event-2" });
     });
     act(() => {
       vi.advanceTimersByTime(400);
@@ -132,41 +135,41 @@ describe("useQueryInvalidator", () => {
   });
 
   it("max-wait timer fires during sustained events (trailing timer never settles)", async () => {
-    const sig = signal<string | null>(null);
     const filterFn = (v: string | null) => v !== null;
     const queryClient = createTestQueryClient();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
-    renderHookWithProviders(
-      () => useQueryInvalidator(sig, filterFn, ["test-max-wait"], WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS),
-      { queryClient },
+    const { rerender } = renderHookWithProviders<void, { value: string | null }>(
+      ({ value }) =>
+        useQueryInvalidator(value, filterFn, ["test-max-wait"], WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS),
+      { queryClient, initialProps: { value: NULL_STRING } },
     );
 
     // Continuously fire events every 400ms — trailing timer keeps resetting (never reaches 500ms)
     // max-wait should fire at 1500ms from the first event
     act(() => {
-      sig.value = "event-1";
+      rerender({ value: "event-1" });
     }); // t=0
     act(() => {
       vi.advanceTimersByTime(400);
     }); // t=400
 
     act(() => {
-      sig.value = "event-2";
+      rerender({ value: "event-2" });
     }); // t=400, trailing resets
     act(() => {
       vi.advanceTimersByTime(400);
     }); // t=800
 
     act(() => {
-      sig.value = "event-3";
+      rerender({ value: "event-3" });
     }); // t=800, trailing resets
     act(() => {
       vi.advanceTimersByTime(400);
     }); // t=1200
 
     act(() => {
-      sig.value = "event-4";
+      rerender({ value: "event-4" });
     }); // t=1200, trailing resets
     // t=1200, max-wait fires at 1500 from first event
     // At t=1200, max-wait hasn't fired yet (1200 < 1500)
@@ -187,18 +190,18 @@ describe("useQueryInvalidator", () => {
     // We verify invalidation happens at t=1000, NOT at t=1300.
     const delay = 400;
     const maxWait = 1000;
-    const sig = signal<string | null>(null);
     const filterFn = (v: string | null) => v !== null;
     const queryClient = createTestQueryClient();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
-    renderHookWithProviders(() => useQueryInvalidator(sig, filterFn, ["test-max-wait-no-reset"], delay, maxWait), {
-      queryClient,
-    });
+    const { rerender } = renderHookWithProviders<void, { value: string | null }>(
+      ({ value }) => useQueryInvalidator(value, filterFn, ["test-max-wait-no-reset"], delay, maxWait),
+      { queryClient, initialProps: { value: NULL_STRING } },
+    );
 
     // Event-1 at t=0: trailing resets to fire at t=400, max-wait fires at t=1000
     act(() => {
-      sig.value = "event-1";
+      rerender({ value: "event-1" });
     }); // t=0
 
     // Advance to t=300: trailing hasn't fired (400ms > 300ms), max-wait hasn't fired
@@ -208,7 +211,7 @@ describe("useQueryInvalidator", () => {
 
     // Event-2 at t=300: trailing resets to fire at t=700; max-wait stays at t=1000
     act(() => {
-      sig.value = "event-2";
+      rerender({ value: "event-2" });
     }); // t=300
     expect(invalidateSpy).not.toHaveBeenCalled();
 
@@ -227,23 +230,23 @@ describe("useQueryInvalidator", () => {
     expect(invalidateSpy).not.toHaveBeenCalled();
   });
 
-  it("ignores same-value signal updates (deduplication via Object.is)", async () => {
-    const sig = signal<string | null>(null);
+  it("ignores same-value re-renders (dependency array dedup)", async () => {
     const filterFn = (v: string | null) => v !== null;
     const queryClient = createTestQueryClient();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
-    renderHookWithProviders(
-      () => useQueryInvalidator(sig, filterFn, ["test-dedup"], WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS),
-      { queryClient },
+    const { rerender } = renderHookWithProviders<void, { value: string | null }>(
+      ({ value }) =>
+        useQueryInvalidator(value, filterFn, ["test-dedup"], WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS),
+      { queryClient, initialProps: { value: NULL_STRING } },
     );
 
     act(() => {
-      sig.value = "event-1";
+      rerender({ value: "event-1" });
     });
-    // Re-assign the same value — should not reset trailing timer
+    // Re-render with the same value — should not reset the trailing timer
     act(() => {
-      sig.value = "event-1";
+      rerender({ value: "event-1" });
     });
     act(() => {
       vi.advanceTimersByTime(WS_DEBOUNCE_DELAY_MS);
@@ -252,19 +255,19 @@ describe("useQueryInvalidator", () => {
   });
 
   it("cleans up both timers on unmount (no dangling timeouts)", async () => {
-    const sig = signal<string | null>(null);
     const filterFn = (v: string | null) => v !== null;
     const queryClient = createTestQueryClient();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
-    const { unmount } = renderHookWithProviders(
-      () => useQueryInvalidator(sig, filterFn, ["test-cleanup"], WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS),
-      { queryClient },
+    const { rerender, unmount } = renderHookWithProviders<void, { value: string | null }>(
+      ({ value }) =>
+        useQueryInvalidator(value, filterFn, ["test-cleanup"], WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS),
+      { queryClient, initialProps: { value: NULL_STRING } },
     );
 
     // Start the timers
     act(() => {
-      sig.value = "event-1";
+      rerender({ value: "event-1" });
     });
     act(() => {
       vi.advanceTimersByTime(100);

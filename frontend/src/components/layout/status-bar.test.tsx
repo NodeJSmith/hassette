@@ -4,6 +4,7 @@ import type { ComponentProps } from "preact";
 import { createRef } from "preact";
 import { describe, expect, it, vi } from "vitest";
 
+import { useAppStore } from "../../state/store";
 import { createWouterMock } from "../../test/mock-wouter";
 import { renderWithAppState } from "../../test/render-helpers";
 import { StatusBar } from "./status-bar";
@@ -53,7 +54,7 @@ describe("StatusBar — system health fallback", () => {
   it("renders the health cluster when the sidebar is hidden", () => {
     sidebarHidden.value = true;
     const { getByTestId } = renderWithAppState(<StatusBar {...baseProps} />, {
-      stateOverrides: { connection: signal("disconnected") },
+      storeOverrides: { connection: "disconnected" },
     });
     expect(getByTestId("ws-indicator").textContent).toBe("Disconnected");
     sidebarHidden.value = false;
@@ -62,7 +63,7 @@ describe("StatusBar — system health fallback", () => {
   it("omits the health cluster when the sidebar owns it", () => {
     sidebarHidden.value = false;
     const { queryByTestId } = renderWithAppState(<StatusBar {...baseProps} />, {
-      stateOverrides: { connection: signal("disconnected") },
+      storeOverrides: { connection: "disconnected" },
     });
     expect(queryByTestId("ws-indicator")).toBeNull();
   });
@@ -71,18 +72,17 @@ describe("StatusBar — system health fallback", () => {
 describe("StatusBar — sidebar expand control", () => {
   it("is absent while the sidebar is expanded", () => {
     const { queryByTestId } = renderWithAppState(<StatusBar {...baseProps} />, {
-      stateOverrides: { sidebarCollapsed: signal(false) },
+      storeOverrides: { sidebarCollapsed: false },
     });
     expect(queryByTestId("sidebar-expand")).toBeNull();
   });
 
   it("expands the sidebar on click when collapsed", () => {
-    const collapsed = signal(true);
     const { getByTestId } = renderWithAppState(<StatusBar {...baseProps} />, {
-      stateOverrides: { sidebarCollapsed: collapsed },
+      storeOverrides: { sidebarCollapsed: true },
     });
     fireEvent.click(getByTestId("sidebar-expand"));
-    expect(collapsed.value).toBe(false);
+    expect(useAppStore.getState().sidebarCollapsed).toBe(false);
   });
 });
 

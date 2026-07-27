@@ -19,8 +19,8 @@ import { useQueryParams } from "../hooks/use-query-params";
 import { useScopedQuery } from "../hooks/use-scoped-query";
 import { useSignal } from "../hooks/use-signal";
 import { queryKeys } from "../lib/query-keys";
-import { useAppState } from "../state/context";
-import type { AppStatusEntry } from "../state/create-app-state";
+import type { AppStatusEntry } from "../state/store";
+import { useAppStore } from "../state/store";
 import {
   appLiveStatus,
   type AppRow,
@@ -126,7 +126,12 @@ function StatusFilterContent({
 export function AppsPage() {
   useDocumentTitle("Apps");
 
-  const { appStatus, effectiveTimePreset, uptimeSeconds, executionCompleted } = useAppState();
+  const appStatus = useAppStore((s) => s.appStatus);
+  const timePreset = useAppStore((s) => s.timePreset);
+  const urlWindowParam = useAppStore((s) => s.urlWindowParam);
+  const effectiveTimePreset = urlWindowParam ?? timePreset;
+  const uptimeSeconds = useAppStore((s) => s.uptimeSeconds);
+  const executionCompleted = useAppStore((s) => s.executionCompleted);
   const { data: manifests = [], isPending: manifestsLoading } = useManifests();
   const { data: gridData, error: gridError } = useScopedQuery(queryKeys.dashboardGrid(), (since, signal) =>
     getDashboardAppGrid(since, signal),
@@ -163,16 +168,14 @@ export function AppsPage() {
   const allApps = mergeManifestsAndGrid(manifests, gridEntries);
 
   let windowSeconds: number | null = null;
-  if (uptimeSeconds.value !== null) {
+  if (uptimeSeconds !== null) {
     windowSeconds =
-      effectiveTimePreset.value === "since-restart"
-        ? uptimeSeconds.value
-        : PRESET_WINDOW_SECONDS[effectiveTimePreset.value];
+      effectiveTimePreset === "since-restart" ? uptimeSeconds : PRESET_WINDOW_SECONDS[effectiveTimePreset];
   }
 
   const statusCounts: Record<string, number> = {};
   for (const a of allApps) {
-    const liveStatus = appLiveStatus(appStatus.value, a);
+    const liveStatus = appLiveStatus(appStatus, a);
     statusCounts[liveStatus] = (statusCounts[liveStatus] ?? 0) + 1;
   }
 
@@ -198,7 +201,7 @@ export function AppsPage() {
   const searchLower = search.toLowerCase();
   const filtered = allApps
     .filter((a) => {
-      const liveStatus = appLiveStatus(appStatus.value, a);
+      const liveStatus = appLiveStatus(appStatus, a);
       if (filter !== "all" && liveStatus !== filter) return false;
       if (
         searchLower &&
@@ -209,7 +212,7 @@ export function AppsPage() {
         return false;
       return true;
     })
-    .sort((a, b) => compareAppRows(a, b, sort, appStatus.value));
+    .sort((a, b) => compareAppRows(a, b, sort, appStatus));
 
   if (manifestsLoading && manifests.length === 0) return <Spinner />;
 
@@ -254,7 +257,7 @@ export function AppsPage() {
 
       <div class="ht-table-section">
         <StatsStrip
-          cells={buildAppsCells(allApps, appStatus.value, windowSeconds, isMobile)}
+          cells={buildAppsCells(allApps, appStatus, windowSeconds, isMobile)}
           data-testid="apps-stats-strip"
         />
         {searchInput}
@@ -309,7 +312,7 @@ export function AppsPage() {
                   <AppTableRow
                     key={app.app_key}
                     app={app}
-                    appStatuses={appStatus.value}
+                    appStatuses={appStatus}
                     isExpanded={app.instance_count > 1 && expanded.value.has(app.app_key)}
                     onToggle={() => toggleExpand(app.app_key)}
                     muteStatus={allSameStatus}

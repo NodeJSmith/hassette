@@ -2,16 +2,17 @@
  * Test utilities for components and hooks that use TanStack Query.
  *
  * Use `createTestQueryClient()` to get an isolated QueryClient per test.
- * Use `renderHookWithProviders` for hooks that need both AppStateContext and
- * QueryClientProvider (e.g., hooks that call useQueryClient() internally).
+ * Use `renderHookWithProviders` for hooks that need QueryClientProvider
+ * (e.g., hooks that call useQueryClient() internally). Pass `storeOverrides`
+ * to seed the Zustand store before the hook runs.
  */
 
 import { QueryClient, QueryClientProvider } from "@tanstack/preact-query";
 import { renderHook } from "@testing-library/preact";
 import type { ComponentChildren } from "preact";
 
-import { AppStateContext } from "../state/context";
-import { type AppState, createAppState } from "../state/create-app-state";
+import type { AppStore } from "../state/store";
+import { useAppStore } from "../state/store";
 
 /**
  * Returns a fresh QueryClient suitable for use in tests.
@@ -32,31 +33,32 @@ export function createTestQueryClient(): QueryClient {
   });
 }
 
-interface RenderHookWithProvidersOptions {
-  stateOverrides?: Partial<AppState>;
+interface RenderHookWithProvidersOptions<TProps> {
+  storeOverrides?: Partial<AppStore>;
   queryClient?: QueryClient;
+  initialProps?: TProps;
 }
 
 /**
- * Wraps `renderHook` with both QueryClientProvider and AppStateContext.Provider.
+ * Wraps `renderHook` with QueryClientProvider. Seeds the Zustand store with
+ * `storeOverrides` (via `useAppStore.setState`) before the hook runs.
  *
  * Use for hooks that call useQueryClient() or useQuery() internally and also
- * need access to AppState (e.g., use-websocket.ts after adding invalidateQueries).
+ * need access to the app store (e.g., use-websocket.ts after adding invalidateQueries).
+ *
+ * Pass `initialProps` when the hook under test needs to receive new arguments via
+ * `rerender(props)` (renderHook forwards `initialProps` and each `rerender` call to it).
  */
-export function renderHookWithProviders<T>(
-  hook: () => T,
-  { stateOverrides, queryClient }: RenderHookWithProvidersOptions = {},
+export function renderHookWithProviders<T, TProps = undefined>(
+  hook: (props: TProps) => T,
+  { storeOverrides, queryClient, initialProps }: RenderHookWithProvidersOptions<TProps> = {},
 ) {
+  if (storeOverrides) useAppStore.setState(storeOverrides);
   const client = queryClient ?? createTestQueryClient();
-  const state: AppState = { ...createAppState(), ...stateOverrides };
 
   function Wrapper({ children }: { children: ComponentChildren }) {
-    return (
-      <QueryClientProvider client={client}>
-        <AppStateContext.Provider value={state}>{children}</AppStateContext.Provider>
-      </QueryClientProvider>
-    );
+    return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   }
 
-  return renderHook(hook, { wrapper: Wrapper });
+  return renderHook(hook, { wrapper: Wrapper, initialProps: initialProps as TProps });
 }

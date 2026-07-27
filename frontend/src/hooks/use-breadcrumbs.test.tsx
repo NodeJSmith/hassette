@@ -1,17 +1,16 @@
-import { signal } from "@preact/signals";
 import { QueryClient, QueryClientProvider } from "@tanstack/preact-query";
 import { render, waitFor } from "@testing-library/preact";
 import { http, HttpResponse } from "msw";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { AppStateContext } from "../state/context";
-import { createAppState } from "../state/create-app-state";
+import { useAppStore } from "../state/store";
 import { createWouterMock } from "../test/mock-wouter";
 import { server } from "../test/server";
 import { useBreadcrumbs } from "./use-breadcrumbs";
 
 const DEFAULT_LOCATION = "/apps/demo_app/handlers/job/7";
-const location = signal(DEFAULT_LOCATION);
+// Module-level mutable location for the wouter mock — plain object, not a signal.
+const location = { value: DEFAULT_LOCATION };
 
 // Repo convention: mock wouter's hooks rather than mounting a real Router.
 vi.mock("wouter", () =>
@@ -29,15 +28,13 @@ function Probe() {
 
 function renderProbe() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  // effectiveTimePreset is a computed over the original timePreset signal, so it has to be
-  // overridden directly to pin the time window this test's query key resolves to.
-  const state = { ...createAppState(), effectiveTimePreset: signal("1h") };
+  // effectiveTimePreset is derived as `urlWindowParam ?? timePreset` — set urlWindowParam
+  // directly to pin the time window this test's query key resolves to.
+  useAppStore.setState({ urlWindowParam: "1h" });
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <AppStateContext.Provider value={state as never}>
-        <Probe />
-      </AppStateContext.Provider>
+      <Probe />
     </QueryClientProvider>,
   );
 }

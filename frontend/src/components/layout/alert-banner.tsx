@@ -1,6 +1,6 @@
 import clsx from "clsx";
 
-import { useAppState } from "../../state/context";
+import { useAppStore } from "../../state/store";
 import { AppLink } from "../shared/app-link";
 import { IconWarning } from "../shared/icons";
 import styles from "./alert-banner.module.css";
@@ -40,11 +40,13 @@ export function AlertBanner({ failedApps }: AlertBannerProps) {
  * Reads `telemetryDegraded`, `droppedOverflow`, and `droppedExhausted` signals.
  */
 export function TelemetryDegradedBanner() {
-  const { telemetryDegraded, droppedOverflow, droppedExhausted } = useAppState();
+  const telemetryDegraded = useAppStore((s) => s.telemetryDegraded);
+  const droppedOverflow = useAppStore((s) => s.droppedOverflow);
+  const droppedExhausted = useAppStore((s) => s.droppedExhausted);
 
-  if (!telemetryDegraded.value) return null;
+  if (!telemetryDegraded) return null;
 
-  const totalDropped = droppedOverflow.value + droppedExhausted.value;
+  const totalDropped = droppedOverflow + droppedExhausted;
 
   return (
     <div

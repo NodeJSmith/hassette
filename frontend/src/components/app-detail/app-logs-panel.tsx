@@ -1,5 +1,4 @@
 import { useSignal } from "../../hooks/use-signal";
-import { useSubscribe } from "../../hooks/use-subscribe";
 import { EmptyState } from "../shared/empty-state";
 import { LogTableView, LogTableWithDrawer, useLogTable } from "../shared/log-table";
 import { TableCard } from "../shared/table-card";
@@ -7,7 +6,6 @@ import { TableFooter } from "../shared/table-footer";
 
 export function AppLogsPanel({ appKey }: { appKey: string }) {
   const search = useSignal("");
-  useSubscribe(search);
   const log = useLogTable({ context: "app", appKey, useLocalState: true, search: search.value });
 
   const searchInput = (

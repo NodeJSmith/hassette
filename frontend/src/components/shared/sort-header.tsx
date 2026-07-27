@@ -3,7 +3,6 @@ import type { ComponentChildren } from "preact";
 import { useRef } from "preact/hooks";
 
 import { useSignal } from "../../hooks/use-signal";
-import { useSubscribe } from "../../hooks/use-subscribe";
 import { ColumnFilterPopover } from "./column-filter-popover/index";
 import { FilterIcon } from "./filter-icon";
 import styles from "./sort-header.module.css";
@@ -49,7 +48,6 @@ export function SortHeader<K extends string = string>(props: Props<K>) {
 
   // Filter state — local per-instance
   const filterOpen = useSignal(false);
-  useSubscribe(filterOpen);
   const filterTriggerRef = useRef<HTMLButtonElement>(null);
 
   // Determine sort axis

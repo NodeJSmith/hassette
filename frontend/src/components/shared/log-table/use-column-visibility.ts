@@ -2,7 +2,6 @@ import { useCallback } from "preact/hooks";
 
 import { BREAKPOINT_MOBILE, BREAKPOINT_TABLET, useMediaQuery } from "@/hooks/use-media-query";
 import { useSignal } from "@/hooks/use-signal";
-import { useSubscribe } from "@/hooks/use-subscribe";
 
 import {
   COLUMNS,
@@ -84,7 +83,6 @@ export function useColumnVisibility(context: ViewContext): UseColumnVisibilityRe
   const isTablet = useMediaQuery(BREAKPOINT_TABLET);
 
   const userColumns = useSignal<ColumnId[]>(readStored(context) ?? defaultColumns(context));
-  useSubscribe(userColumns);
 
   const viewportHidden: ReadonlySet<ColumnId> = isMobile ? MOBILE_HIDDEN : isTablet ? TABLET_HIDDEN : NO_HIDDEN;
 

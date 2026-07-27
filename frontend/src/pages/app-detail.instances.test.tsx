@@ -1,4 +1,3 @@
-import { signal } from "@preact/signals";
 import { fireEvent } from "@testing-library/preact";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -52,7 +51,7 @@ vi.mock("../hooks/use-correct-url", () => ({
 }));
 
 function renderPage(params: { key: string; tab?: AppDetailTab; handler?: string }) {
-  return renderWithAppState(<AppDetailPage params={params} />, { stateOverrides: { uptimeSeconds: signal(120) } });
+  return renderWithAppState(<AppDetailPage params={params} />, { storeOverrides: { uptimeSeconds: 120 } });
 }
 
 describe("AppDetailPage instances", () => {

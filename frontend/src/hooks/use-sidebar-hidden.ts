@@ -1,4 +1,4 @@
-import { useAppState } from "../state/context";
+import { useAppStore } from "../state/store";
 import { BREAKPOINT_SIDEBAR, useMediaQuery } from "./use-media-query";
 
 /**
@@ -10,8 +10,8 @@ import { BREAKPOINT_SIDEBAR, useMediaQuery } from "./use-media-query";
  * not change the fact that connection status has to stay visible somewhere.
  */
 export function useSidebarHidden(): boolean {
-  const { sidebarCollapsed } = useAppState();
+  const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed);
   const belowBreakpoint = useMediaQuery(BREAKPOINT_SIDEBAR);
 
-  return belowBreakpoint || sidebarCollapsed.value;
+  return belowBreakpoint || sidebarCollapsed;
 }

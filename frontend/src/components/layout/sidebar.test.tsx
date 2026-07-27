@@ -1,8 +1,8 @@
-import { signal } from "@preact/signals";
 import { fireEvent, screen } from "@testing-library/preact";
 import { describe, expect, it, vi } from "vitest";
 
 import type { components } from "../../api/generated-types";
+import { useAppStore } from "../../state/store";
 import { createInstance, createManifest } from "../../test/factories";
 import { withManifests as installManifests } from "../../test/handlers";
 import { createWouterMock } from "../../test/mock-wouter";
@@ -283,7 +283,7 @@ describe("Sidebar — multi-instance apps", () => {
 describe("Sidebar — version display", () => {
   it("renders version string below wordmark when systemVersion is set", () => {
     const { getByTestId } = renderWithAppState(<Sidebar />, {
-      stateOverrides: { systemVersion: signal("1.2.3") },
+      storeOverrides: { systemVersion: "1.2.3" },
     });
     const sidebar = getByTestId("sidebar");
     expect(sidebar.textContent).toContain("v1.2.3");
@@ -291,8 +291,8 @@ describe("Sidebar — version display", () => {
 
   it("shows version without connection status", () => {
     const { getByTestId } = renderWithAppState(<Sidebar />, {
-      stateOverrides: {
-        systemVersion: signal("1.0.0"),
+      storeOverrides: {
+        systemVersion: "1.0.0",
       },
     });
     const sidebar = getByTestId("sidebar");
@@ -302,7 +302,7 @@ describe("Sidebar — version display", () => {
 
   it("omits version line when systemVersion is null", () => {
     const { container } = renderWithAppState(<Sidebar />, {
-      stateOverrides: { systemVersion: signal(null) },
+      storeOverrides: { systemVersion: null },
     });
     // Version text "v" followed by a version string should not appear
     expect(container.textContent).not.toMatch(/v\d+\.\d+/);
@@ -435,10 +435,9 @@ describe("Sidebar — status groups", () => {
 
   it("collapse button collapses the sidebar", async () => {
     withManifests([]);
-    const collapsed = signal(false);
-    renderWithAppState(<Sidebar />, { stateOverrides: { sidebarCollapsed: collapsed } });
+    renderWithAppState(<Sidebar />, { storeOverrides: { sidebarCollapsed: false } });
     fireEvent.click(await screen.findByTestId("sidebar-collapse"));
-    expect(collapsed.value).toBe(true);
+    expect(useAppStore.getState().sidebarCollapsed).toBe(true);
   });
 
   it("forces RUNNING group open when all apps are healthy", async () => {

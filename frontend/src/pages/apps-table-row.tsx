@@ -9,7 +9,7 @@ import { IconChevron } from "../components/shared/icons";
 import { MiniSparkline } from "../components/shared/mini-sparkline";
 import { StatusShape } from "../components/shared/status-shape";
 import { useRelativeTime } from "../hooks/use-relative-time";
-import { type AppStatusEntry, appStatusKey } from "../state/create-app-state";
+import { type AppStatusEntry, appStatusKey } from "../state/store";
 import { appLiveStatus, type AppRow } from "../utils/app-data";
 import { formatTimestamp } from "../utils/format";
 import { onActivateKeyDown } from "../utils/keyboard";

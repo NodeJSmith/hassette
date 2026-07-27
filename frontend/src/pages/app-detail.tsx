@@ -19,8 +19,7 @@ import { useQueryInvalidator } from "../hooks/use-query-invalidator";
 import { useQueryParams } from "../hooks/use-query-params";
 import { useScopedQuery } from "../hooks/use-scoped-query";
 import { queryKeys } from "../lib/query-keys";
-import { useAppState } from "../state/context";
-import { appStatusKey } from "../state/create-app-state";
+import { appStatusKey, useAppStore } from "../state/store";
 import { appLiveStatus } from "../utils/app-data";
 import { appDetailPath, type AppDetailTab, parseInstanceParam } from "../utils/app-routes";
 import styles from "./app-detail.module.css";
@@ -100,7 +99,8 @@ function handleTabKeyDown(e: KeyboardEvent) {
 export function AppDetailPage({ params }: Props) {
   const appKey = params.key;
   const activeTab: TabId = params.tab ?? "overview";
-  const { appStatus, executionCompleted } = useAppState();
+  const appStatus = useAppStore((s) => s.appStatus);
+  const executionCompleted = useAppStore((s) => s.executionCompleted);
   const { data: manifest, isPending: manifestLoading, error: manifestError } = useManifest(appKey);
   const [, navigate] = useLocation();
   const queryParams = useQueryParams();
@@ -153,13 +153,13 @@ export function AppDetailPage({ params }: Props) {
   const currentInstance = !showParentOverview
     ? manifest?.instances?.find((i) => i.index === resolvedInstanceIndex)
     : undefined;
-  const wsStatus = appStatus.value[appStatusKey(appKey, resolvedInstanceIndex)]?.status;
+  const wsStatus = appStatus[appStatusKey(appKey, resolvedInstanceIndex)]?.status;
   const instanceStatus = wsStatus ?? currentInstance?.status ?? manifest?.status ?? "unknown";
   let liveStatus: string;
   if (!showParentOverview) {
     liveStatus = instanceStatus;
   } else if (manifest) {
-    liveStatus = appLiveStatus(appStatus.value, manifest);
+    liveStatus = appLiveStatus(appStatus, manifest);
   } else {
     liveStatus = "unknown";
   }

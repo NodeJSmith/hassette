@@ -5,7 +5,7 @@ import { Link, useLocation, useSearch } from "wouter";
 import type { components } from "../../api/generated-types";
 import { useManifests } from "../../hooks/use-manifests";
 import { useSidebarHidden } from "../../hooks/use-sidebar-hidden";
-import { useAppState } from "../../state/context";
+import { useAppStore } from "../../state/store";
 import { appDetailPath, HOME_PATH, NAV_PAGES } from "../../utils/app-routes";
 import { STATUS_DOT_SIZE } from "../../utils/constants";
 import { SHORTCUT_HINT } from "../../utils/keyboard";
@@ -139,7 +139,8 @@ interface SidebarProps {
 export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
   const [location] = useLocation();
   const searchString = useSearch();
-  const { systemVersion, sidebarCollapsed } = useAppState();
+  const systemVersion = useAppStore((s) => s.systemVersion);
+  const setSidebarCollapsed = useAppStore((s) => s.setSidebarCollapsed);
   // When the sidebar is off screen the status bar owns this chrome instead; rendering it in
   // both places would duplicate the testids and give screen readers two live regions for
   // one connection event.
@@ -147,7 +148,7 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
   const { data: allManifests = [], isPending: manifestsLoading } = useManifests();
   const [search, setSearch] = useState("");
 
-  const version = systemVersion.value;
+  const version = systemVersion;
   const isFiltering = search.trim().length > 0;
   const filtered = isFiltering
     ? allManifests.filter(
@@ -186,7 +187,7 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
           aria-label="Collapse sidebar"
           data-testid="sidebar-collapse"
           onClick={() => {
-            sidebarCollapsed.value = true;
+            setSidebarCollapsed(true);
             setStoredValue("sidebarCollapsed", true);
           }}
         >

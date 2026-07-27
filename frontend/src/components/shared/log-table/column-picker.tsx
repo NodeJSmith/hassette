@@ -1,7 +1,6 @@
 import { useRef } from "preact/hooks";
 
 import { useSignal } from "@/hooks/use-signal";
-import { useSubscribe } from "@/hooks/use-subscribe";
 
 import { ColumnFilterPopover } from "../column-filter-popover/index";
 import styles from "./column-picker.module.css";
@@ -17,7 +16,6 @@ interface Props {
 
 export function ColumnPicker({ selectedColumns, viewportHidden, onToggle, onReset }: Props) {
   const open = useSignal(false);
-  useSubscribe(open);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
   return (

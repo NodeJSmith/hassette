@@ -1,6 +1,6 @@
 import type { AppManifest, DashboardAppGridEntry } from "../api/endpoints";
 import type { SortState } from "../components/shared/sort-header";
-import { type AppStatusEntry, appStatusKey } from "../state/create-app-state";
+import { type AppStatusEntry, appStatusKey } from "../state/store";
 import { statusPriority } from "./status-priority";
 
 export interface AppRow {

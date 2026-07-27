@@ -1,8 +1,8 @@
 import clsx from "clsx";
 
 import { BREAKPOINT_MOBILE, useMediaQuery } from "../../hooks/use-media-query";
-import { useAppState } from "../../state/context";
-import type { ConnectionStatus } from "../../state/create-app-state";
+import type { ConnectionStatus } from "../../state/store";
+import { useAppStore } from "../../state/store";
 import { pluralize } from "../../utils/format";
 import styles from "./system-health.module.css";
 
@@ -33,20 +33,24 @@ interface Props {
  * `useSidebarHidden()` rather than rendering both and hiding one with CSS.
  */
 export function SystemHealth({ variant }: Props) {
-  const { connection, telemetryDegraded, droppedOverflow, droppedExhausted, droppedShutdown, errorHandlerFailures } =
-    useAppState();
+  const connection = useAppStore((s) => s.connection);
+  const telemetryDegraded = useAppStore((s) => s.telemetryDegraded);
+  const droppedOverflow = useAppStore((s) => s.droppedOverflow);
+  const droppedExhausted = useAppStore((s) => s.droppedExhausted);
+  const droppedShutdown = useAppStore((s) => s.droppedShutdown);
+  const errorHandlerFailures = useAppStore((s) => s.errorHandlerFailures);
 
-  const status = connection.value;
-  const overflow = droppedOverflow.value;
-  const exhausted = droppedExhausted.value;
-  const shutdown = droppedShutdown.value;
+  const status = connection;
+  const overflow = droppedOverflow;
+  const exhausted = droppedExhausted;
+  const shutdown = droppedShutdown;
   const droppedTotal = overflow + exhausted + shutdown;
-  const handlerFailures = errorHandlerFailures.value;
+  const handlerFailures = errorHandlerFailures;
 
   const { dotClass, label } = STATUS_CONFIG[status];
 
   // "Disconnected" takes visual precedence over "database degraded"
-  const showDegraded = telemetryDegraded.value && status === "connected";
+  const showDegraded = telemetryDegraded && status === "connected";
   const stacked = variant === "stacked";
 
   /*

@@ -7,7 +7,6 @@ import { useDocumentTitle } from "../hooks/use-document-title";
 import { useManifests } from "../hooks/use-manifests";
 import { useQueryParams } from "../hooks/use-query-params";
 import { useSignal } from "../hooks/use-signal";
-import { useSubscribe } from "../hooks/use-subscribe";
 import styles from "./logs.module.css";
 
 export function LogsPage() {
@@ -18,7 +17,6 @@ export function LogsPage() {
   const executionId = qp.get("execution_id");
 
   const search = useSignal("");
-  useSubscribe(search);
 
   const log = useLogTable({
     context: "global",

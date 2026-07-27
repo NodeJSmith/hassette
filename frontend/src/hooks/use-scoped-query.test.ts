@@ -1,7 +1,7 @@
 import { act } from "@testing-library/preact";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createAppState } from "../state/create-app-state";
+import { useAppStore } from "../state/store";
 import { createTestQueryClient, renderHookWithProviders } from "../test/query-test-utils";
 import { useScopedQuery } from "./use-scoped-query";
 
@@ -19,11 +19,10 @@ describe("useScopedQuery", () => {
 
   it("blocks fetches until uptimeSeconds is available for since-restart preset", async () => {
     const fetcher = vi.fn().mockResolvedValue("data");
-    const state = createAppState();
-    state.timePreset.value = "since-restart";
-    // uptimeSeconds starts as null
 
-    const { result } = renderHookWithProviders(() => useScopedQuery(["test-key"], fetcher), { stateOverrides: state });
+    const { result } = renderHookWithProviders(() => useScopedQuery(["test-key"], fetcher), {
+      storeOverrides: { timePreset: "since-restart" },
+    });
 
     // Advance time — should still not fetch
     act(() => {
@@ -36,12 +35,10 @@ describe("useScopedQuery", () => {
 
   it("fetches once uptimeSeconds becomes available", async () => {
     const fetcher = vi.fn().mockResolvedValue("data");
-    const state = createAppState();
-    state.timePreset.value = "since-restart";
     const queryClient = createTestQueryClient();
 
     renderHookWithProviders(() => useScopedQuery(["test-fetch-on-uptime"], fetcher), {
-      stateOverrides: state,
+      storeOverrides: { timePreset: "since-restart" },
       queryClient,
     });
 
@@ -50,7 +47,7 @@ describe("useScopedQuery", () => {
 
     // uptimeSeconds arrives
     act(() => {
-      state.uptimeSeconds.value = 120;
+      useAppStore.setState({ uptimeSeconds: 120 });
     });
 
     await vi.waitFor(() => {
@@ -60,18 +57,16 @@ describe("useScopedQuery", () => {
 
   it("computes since = now - uptimeSeconds for since-restart preset", async () => {
     const fetcher = vi.fn().mockResolvedValue("data");
-    const state = createAppState();
-    state.timePreset.value = "since-restart";
     const queryClient = createTestQueryClient();
 
     renderHookWithProviders(() => useScopedQuery(["test-since-restart"], fetcher), {
-      stateOverrides: state,
+      storeOverrides: { timePreset: "since-restart" },
       queryClient,
     });
 
     const expectedSince = BASE_TIME_S - 300;
     act(() => {
-      state.uptimeSeconds.value = 300;
+      useAppStore.setState({ uptimeSeconds: 300 });
     });
 
     await vi.waitFor(() => {
@@ -83,11 +78,10 @@ describe("useScopedQuery", () => {
 
   it("computes since = now - 3600 for 1h preset", async () => {
     const fetcher = vi.fn().mockResolvedValue("data");
-    const state = createAppState();
-    state.timePreset.value = "1h";
-    state.uptimeSeconds.value = 7200;
 
-    renderHookWithProviders(() => useScopedQuery(["test-1h"], fetcher), { stateOverrides: state });
+    renderHookWithProviders(() => useScopedQuery(["test-1h"], fetcher), {
+      storeOverrides: { timePreset: "1h", uptimeSeconds: 7200 },
+    });
 
     await vi.waitFor(() => {
       expect(fetcher).toHaveBeenCalled();
@@ -98,11 +92,10 @@ describe("useScopedQuery", () => {
 
   it("computes since = now - 86400 for 24h preset", async () => {
     const fetcher = vi.fn().mockResolvedValue("data");
-    const state = createAppState();
-    state.timePreset.value = "24h";
-    state.uptimeSeconds.value = null;
 
-    renderHookWithProviders(() => useScopedQuery(["test-24h"], fetcher), { stateOverrides: state });
+    renderHookWithProviders(() => useScopedQuery(["test-24h"], fetcher), {
+      storeOverrides: { timePreset: "24h", uptimeSeconds: null },
+    });
 
     await vi.waitFor(() => {
       expect(fetcher).toHaveBeenCalled();
@@ -113,11 +106,10 @@ describe("useScopedQuery", () => {
 
   it("computes since = now - 604800 for 7d preset", async () => {
     const fetcher = vi.fn().mockResolvedValue("data");
-    const state = createAppState();
-    state.timePreset.value = "7d";
-    state.uptimeSeconds.value = null;
 
-    renderHookWithProviders(() => useScopedQuery(["test-7d"], fetcher), { stateOverrides: state });
+    renderHookWithProviders(() => useScopedQuery(["test-7d"], fetcher), {
+      storeOverrides: { timePreset: "7d", uptimeSeconds: null },
+    });
 
     await vi.waitFor(() => {
       expect(fetcher).toHaveBeenCalled();
@@ -128,12 +120,10 @@ describe("useScopedQuery", () => {
 
   it("respects effectiveTimePreset — urlWindowParam overrides timePreset", async () => {
     const fetcher = vi.fn().mockResolvedValue("data");
-    const state = createAppState();
-    state.timePreset.value = "1h";
-    state.urlWindowParam.value = "7d";
-    state.uptimeSeconds.value = 7200;
 
-    renderHookWithProviders(() => useScopedQuery(["test-url-override"], fetcher), { stateOverrides: state });
+    renderHookWithProviders(() => useScopedQuery(["test-url-override"], fetcher), {
+      storeOverrides: { timePreset: "1h", urlWindowParam: "7d", uptimeSeconds: 7200 },
+    });
 
     await vi.waitFor(() => {
       expect(fetcher).toHaveBeenCalled();
@@ -145,13 +135,10 @@ describe("useScopedQuery", () => {
 
   it("refetches when preset changes (different query key)", async () => {
     const fetcher = vi.fn().mockResolvedValue("data");
-    const state = createAppState();
-    state.timePreset.value = "1h";
-    state.uptimeSeconds.value = 7200;
     const queryClient = createTestQueryClient();
 
     renderHookWithProviders(() => useScopedQuery(["test-preset-change"], fetcher), {
-      stateOverrides: state,
+      storeOverrides: { timePreset: "1h", uptimeSeconds: 7200 },
       queryClient,
     });
 
@@ -160,7 +147,7 @@ describe("useScopedQuery", () => {
     });
 
     act(() => {
-      state.timePreset.value = "24h";
+      useAppStore.setState({ timePreset: "24h" });
     });
 
     await vi.waitFor(() => {
@@ -174,13 +161,10 @@ describe("useScopedQuery", () => {
 
   it("refetches when uptimeSeconds changes for since-restart preset (uptime is in key)", async () => {
     const fetcher = vi.fn().mockResolvedValue("data");
-    const state = createAppState();
-    state.timePreset.value = "since-restart";
-    state.uptimeSeconds.value = 300;
     const queryClient = createTestQueryClient();
 
     renderHookWithProviders(() => useScopedQuery(["test-uptime-in-key"], fetcher), {
-      stateOverrides: state,
+      storeOverrides: { timePreset: "since-restart", uptimeSeconds: 300 },
       queryClient,
     });
 
@@ -189,7 +173,7 @@ describe("useScopedQuery", () => {
     });
 
     act(() => {
-      state.uptimeSeconds.value = 5;
+      useAppStore.setState({ uptimeSeconds: 5 });
     });
 
     await vi.waitFor(() => {
@@ -203,13 +187,10 @@ describe("useScopedQuery", () => {
 
   it("does NOT refetch when uptimeSeconds changes for fixed-window presets (uptime not in key)", async () => {
     const fetcher = vi.fn().mockResolvedValue("data");
-    const state = createAppState();
-    state.timePreset.value = "1h";
-    state.uptimeSeconds.value = 100;
     const queryClient = createTestQueryClient();
 
     renderHookWithProviders(() => useScopedQuery(["test-uptime-not-in-key"], fetcher), {
-      stateOverrides: state,
+      storeOverrides: { timePreset: "1h", uptimeSeconds: 100 },
       queryClient,
     });
 
@@ -219,7 +200,7 @@ describe("useScopedQuery", () => {
 
     // uptimeSeconds changes — should NOT cause a refetch for fixed-window preset
     act(() => {
-      state.uptimeSeconds.value = 9999;
+      useAppStore.setState({ uptimeSeconds: 9999 });
     });
     act(() => {
       vi.advanceTimersByTime(100);
@@ -231,14 +212,10 @@ describe("useScopedQuery", () => {
 
   it("does not refetch when timePreset changes while urlWindowParam is overriding", async () => {
     const fetcher = vi.fn().mockResolvedValue("data");
-    const state = createAppState();
-    state.timePreset.value = "1h";
-    state.urlWindowParam.value = "7d";
-    state.uptimeSeconds.value = 7200;
     const queryClient = createTestQueryClient();
 
     renderHookWithProviders(() => useScopedQuery(["test-no-refetch-when-overriding"], fetcher), {
-      stateOverrides: state,
+      storeOverrides: { timePreset: "1h", urlWindowParam: "7d", uptimeSeconds: 7200 },
       queryClient,
     });
 
@@ -249,7 +226,7 @@ describe("useScopedQuery", () => {
     // Changing timePreset while urlWindowParam is active should not refetch
     // because effectiveTimePreset (urlWindowParam = "7d") hasn't changed
     act(() => {
-      state.timePreset.value = "24h";
+      useAppStore.setState({ timePreset: "24h" });
     });
     act(() => {
       vi.advanceTimersByTime(100);

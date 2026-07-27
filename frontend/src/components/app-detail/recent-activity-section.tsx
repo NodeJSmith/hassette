@@ -5,9 +5,8 @@ import type { ActivityFeedEntryData } from "../../api/endpoints";
 import { getAppActivity } from "../../api/endpoints";
 import { useQueryInvalidator } from "../../hooks/use-query-invalidator";
 import { useScopedQuery } from "../../hooks/use-scoped-query";
-import { useSubscribe } from "../../hooks/use-subscribe";
 import { queryKeys } from "../../lib/query-keys";
-import { useAppState } from "../../state/context";
+import { useAppStore } from "../../state/store";
 import { formatDurationOrDash, formatRelativeTime, lastDotSegment } from "../../utils/format";
 import { executionStatusKind } from "../../utils/status";
 import { StatusShape } from "../shared/status-shape";
@@ -121,8 +120,10 @@ export function RecentActivitySection({
     getAppActivity(appKey, resolvedInstanceIndex, ACTIVITY_FETCH_LIMIT, since, signal),
   );
 
-  const { executionCompleted, tick } = useAppState();
-  useSubscribe(tick);
+  const executionCompleted = useAppStore((s) => s.executionCompleted);
+  // Selecting tick (unused otherwise) subscribes this component to re-render on every tick,
+  // which recomputes the relative-time labels rendered by ActivityGroupRow below.
+  useAppStore((s) => s.tick);
 
   useQueryInvalidator(
     executionCompleted,

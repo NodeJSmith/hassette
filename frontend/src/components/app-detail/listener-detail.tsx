@@ -4,7 +4,7 @@ import { useQueryInvalidator } from "../../hooks/use-query-invalidator";
 import { useRelativeTime } from "../../hooks/use-relative-time";
 import { useScopedQuery } from "../../hooks/use-scoped-query";
 import { queryKeys } from "../../lib/query-keys";
-import { useAppState } from "../../state/context";
+import { useAppStore } from "../../state/store";
 import { DETAIL_FETCH_LIMIT } from "../../utils/constants";
 import { lastDotSegment, MS_PER_SECOND } from "../../utils/format";
 import { handlerKindLabel } from "../../utils/status";
@@ -80,7 +80,7 @@ export function ListenerDetail({ listener, appKey, instanceQs, onSwitchToCode }:
     (since, signal) => getListenerExecutions(listener.listener_id, DETAIL_FETCH_LIMIT, since, signal),
   );
 
-  const { executionCompleted } = useAppState();
+  const executionCompleted = useAppStore((s) => s.executionCompleted);
   const lastInvokedLabel = useRelativeTime(listener.last_invoked_at ?? null);
 
   useQueryInvalidator(

@@ -6,7 +6,6 @@ import type { ExecutionData } from "../../api/endpoints";
 import { getExecutionById } from "../../api/endpoints";
 import { useDocumentTitle } from "../../hooks/use-document-title";
 import { useSignal } from "../../hooks/use-signal";
-import { useSubscribe } from "../../hooks/use-subscribe";
 import { STATUS_DOT_SIZE } from "../../utils/constants";
 import { formatDuration, formatTimestamp, truncateId } from "../../utils/format";
 import { executionStatusKind } from "../../utils/status";
@@ -59,7 +58,6 @@ function StatusBadge({ status, threadLeaked }: { status: string; threadLeaked: b
 
 function CopyIdButton({ text }: { text: string }) {
   const copied = useSignal(false);
-  useSubscribe(copied);
 
   const handleCopy = useCallback(
     async (e: MouseEvent) => {

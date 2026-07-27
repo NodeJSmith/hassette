@@ -4,7 +4,6 @@ import { useRef } from "preact/hooks";
 
 import { BREAKPOINT_MOBILE, useMediaQuery } from "../../hooks/use-media-query";
 import { useSignal } from "../../hooks/use-signal";
-import { useSubscribe } from "../../hooks/use-subscribe";
 import { ColumnFilterPopover } from "./column-filter-popover/index";
 import { FilterIcon } from "./filter-icon";
 import styles from "./table-footer.module.css";
@@ -20,7 +19,6 @@ interface TableFooterProps {
 export function TableFooter({ count, columnFilters, onResetFilters, extras }: TableFooterProps) {
   const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
   const filterOpen = useSignal(false);
-  useSubscribe(filterOpen);
   const filterTriggerRef = useRef<HTMLButtonElement>(null);
 
   const hasActiveFilter = columnFilters ? Object.values(columnFilters).some((f) => f.active) : false;

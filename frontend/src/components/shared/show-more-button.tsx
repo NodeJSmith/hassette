@@ -1,10 +1,13 @@
-import type { Signal } from "@preact/signals";
-
 import { Button } from "./button";
 import styles from "./show-more-button.module.css";
 
+/** Structural signal-like value — accepts a real `Signal<boolean>` or any `{ value: boolean }`. */
+interface BooleanValueHolder {
+  value: boolean;
+}
+
 interface Props {
-  showAll: Signal<boolean>;
+  showAll: BooleanValueHolder;
   totalCount: number;
 }
 

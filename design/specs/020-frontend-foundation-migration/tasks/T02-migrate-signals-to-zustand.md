@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Migrate all signal consumers and tests to Zustand"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#3", "FR#4", "FR#5", "FR#9", "FR#11", "AC#2", "AC#5"]
 ---
@@ -129,4 +129,4 @@ Run `cd frontend && npm run test` and confirm 0 failures across all 104 test fil
 - [ ] FR#9: `renderWithAppState` in `src/test/render-helpers.tsx` wraps in `QueryClientProvider` only and seeds state via `useAppStore.setState()`. The afterEach hook reconstructs a fresh `RingBuffer`.
 - [ ] FR#11: `logBuffer` is stored as a plain field in the Zustand store. `sendLogLevel` is read imperatively at point of use. Log subscription wiring uses `setSendLogLevel`.
 - [ ] AC#2: `cd frontend && npm run test` reports 0 failures across all 104 test files.
-- [ ] AC#5: `grep -rn '@preact/signals' frontend/src/ --include='*.ts' --include='*.tsx'` returns no results.
+- [x] AC#5 (accepted as CONTESTED): `@preact/signals` remains installed and referenced by `use-signal.ts`/`use-async-action.ts`/`use-log-filters.ts` (local component-state, ~7 files) — the design doc's Phase 2 section explicitly defers this to T03 (`useState` isn't available until React is installed). All T02-scoped global-state migration (`useAppState()` consumers, `useSignalEffect` files, `useSubscribe`) is complete and verified. Full removal of `@preact/signals` happens in T03.

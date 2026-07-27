@@ -12,7 +12,7 @@ import { useQueryInvalidator } from "../hooks/use-query-invalidator";
 import { useQueryParams } from "../hooks/use-query-params";
 import { useScopedQuery } from "../hooks/use-scoped-query";
 import { queryKeys } from "../lib/query-keys";
-import { useAppState } from "../state/context";
+import { useAppStore } from "../state/store";
 import { pluralize } from "../utils/format";
 import { compareHandlerRows, type HandlerSortKey, jobToRow, listenerToRow } from "../utils/handler-rows";
 import styles from "./handlers.module.css";
@@ -58,7 +58,7 @@ export function HandlersPage() {
     error: jobsError,
   } = useScopedQuery(queryKeys.allJobs(), (since, signal) => getAllJobs(since, signal));
 
-  const { executionCompleted } = useAppState();
+  const executionCompleted = useAppStore((s) => s.executionCompleted);
 
   useQueryInvalidator(
     executionCompleted,

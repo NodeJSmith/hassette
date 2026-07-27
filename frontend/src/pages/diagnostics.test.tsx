@@ -1,9 +1,8 @@
-import { signal } from "@preact/signals";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
 import type { components } from "../api/generated-types";
-import type { ServiceStatusEntry } from "../state/create-app-state";
+import type { ServiceStatusEntry } from "../state/store";
 import { renderWithAppState } from "../test/render-helpers";
 import { server } from "../test/server";
 import { DiagnosticsPage } from "./diagnostics";
@@ -112,11 +111,11 @@ describe("DiagnosticsPage", () => {
         ),
       ),
     );
-    const serviceStatus = signal<Record<string, ServiceStatusEntry>>({
+    const serviceStatus: Record<string, ServiceStatusEntry> = {
       bus: makeServiceEntry({ resource_name: "bus", status: "exhausted_cooling", retry_at: null }),
-    });
+    };
     const { findByTestId } = renderWithAppState(<DiagnosticsPage />, {
-      stateOverrides: { serviceStatus },
+      storeOverrides: { serviceStatus },
     });
     // WS status wins
     const statusEl = await findByTestId("diag-service-status-bus");
@@ -142,17 +141,15 @@ describe("DiagnosticsPage", () => {
   });
 
   it("shows stale indicator when WS is disconnected", async () => {
-    const connection = signal<import("../state/create-app-state").ConnectionStatus>("disconnected");
     const { findByTestId } = renderWithAppState(<DiagnosticsPage />, {
-      stateOverrides: { connection },
+      storeOverrides: { connection: "disconnected" },
     });
     expect(await findByTestId("diag-services-stale")).toBeDefined();
   });
 
   it("does not show stale indicator when WS is connected", async () => {
-    const connection = signal<import("../state/create-app-state").ConnectionStatus>("connected");
     const { findByTestId, queryByTestId } = renderWithAppState(<DiagnosticsPage />, {
-      stateOverrides: { connection },
+      storeOverrides: { connection: "connected" },
     });
     await findByTestId("diag-services-panel");
     expect(queryByTestId("diag-services-stale")).toBeNull();
@@ -208,11 +205,11 @@ describe("DiagnosticsPage", () => {
 
   it("renders per-category drop counters when non-zero", async () => {
     const { findByTestId } = renderWithAppState(<DiagnosticsPage />, {
-      stateOverrides: {
-        droppedOverflow: signal(5),
-        droppedExhausted: signal(3),
-        droppedShutdown: signal(2),
-        errorHandlerFailures: signal(0),
+      storeOverrides: {
+        droppedOverflow: 5,
+        droppedExhausted: 3,
+        droppedShutdown: 2,
+        errorHandlerFailures: 0,
       },
     });
     await findByTestId("diag-telemetry-panel");
@@ -228,9 +225,9 @@ describe("DiagnosticsPage", () => {
 
   it("shows degraded banner when telemetryDegraded is true", async () => {
     const { findByTestId } = renderWithAppState(<DiagnosticsPage />, {
-      stateOverrides: {
-        telemetryDegraded: signal(true),
-        droppedOverflow: signal(1),
+      storeOverrides: {
+        telemetryDegraded: true,
+        droppedOverflow: 1,
       },
     });
     expect(await findByTestId("diag-telemetry-degraded")).toBeDefined();
@@ -238,7 +235,7 @@ describe("DiagnosticsPage", () => {
 
   it("shows degraded banner without drop rows when all counters are zero", async () => {
     const { findByTestId, queryByTestId } = renderWithAppState(<DiagnosticsPage />, {
-      stateOverrides: { telemetryDegraded: signal(true) },
+      storeOverrides: { telemetryDegraded: true },
     });
     expect(await findByTestId("diag-telemetry-degraded")).toBeDefined();
     expect(queryByTestId("diag-drop-overflow")).toBeNull();

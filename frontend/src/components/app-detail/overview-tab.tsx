@@ -3,8 +3,7 @@ import { useMemo } from "preact/hooks";
 
 import type { JobData, ListenerData } from "../../api/endpoints";
 import { useSignal } from "../../hooks/use-signal";
-import { useSubscribe } from "../../hooks/use-subscribe";
-import { useAppState } from "../../state/context";
+import { useAppStore } from "../../state/store";
 import { INACTIVE_STATUSES } from "../../utils/status";
 import { EmptyState } from "../shared/empty-state";
 import { LogTableView, LogTableWithDrawer, useLogTable } from "../shared/log-table";
@@ -30,7 +29,6 @@ interface Props {
 function RecentLogsSection({ appKey, appStatus }: { appKey: string; appStatus?: string }) {
   const isInactive = appStatus !== undefined && INACTIVE_STATUSES.has(appStatus);
   const search = useSignal("");
-  useSubscribe(search);
   const log = useLogTable({ context: "app", appKey, useLocalState: true, search: search.value });
 
   const emptyTitle = isInactive ? `this app is ${appStatus}` : "no log lines in window";
@@ -76,8 +74,8 @@ function RecentLogsSection({ appKey, appStatus }: { appKey: string; appStatus?: 
 }
 
 export function OverviewTab({ listeners, jobs, appKey, instanceQs, resolvedInstanceIndex, appStatus }: Props) {
-  const { connection } = useAppState();
-  const wsConnected = connection.value === "connected";
+  const connection = useAppStore((s) => s.connection);
+  const wsConnected = connection === "connected";
   const allItems = useMemo(() => buildItems(listeners, jobs), [listeners, jobs]);
   const failingItems = useMemo(() => allItems.filter(isFailing), [allItems]);
 
