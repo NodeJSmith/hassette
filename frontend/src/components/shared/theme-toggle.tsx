@@ -1,5 +1,4 @@
 import { useAppStore } from "../../state/store";
-import { setStoredValue } from "../../utils/local-storage";
 import styles from "./theme-toggle.module.css";
 
 /** Dark/light switch. Lives in the sidebar footer; the icon previews the theme you'd get. */
@@ -10,8 +9,6 @@ export function ThemeToggle() {
 
   const toggleTheme = () => {
     setTheme(nextTheme);
-    document.documentElement.setAttribute("data-theme", nextTheme);
-    setStoredValue("theme", nextTheme);
   };
 
   return (

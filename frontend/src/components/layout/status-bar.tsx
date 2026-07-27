@@ -3,7 +3,6 @@ import type { RefObject } from "react";
 import { useBreadcrumbs } from "../../hooks/use-breadcrumbs";
 import { useSidebarHidden } from "../../hooks/use-sidebar-hidden";
 import { useAppStore } from "../../state/store";
-import { setStoredValue } from "../../utils/local-storage";
 import { Breadcrumbs } from "../shared/breadcrumbs";
 import { Button } from "../shared/button";
 import { SystemHealth } from "../shared/system-health";
@@ -54,7 +53,6 @@ export function StatusBar({ onMenuClick, drawerOpen, hamburgerRef }: StatusBarPr
             data-testid="sidebar-expand"
             onClick={() => {
               setSidebarCollapsed(false);
-              setStoredValue("sidebarCollapsed", false);
             }}
           >
             <svg viewBox="0 0 16 16" aria-hidden="true">

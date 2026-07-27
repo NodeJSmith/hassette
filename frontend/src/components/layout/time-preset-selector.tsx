@@ -6,7 +6,6 @@ import { useQueryParams } from "../../hooks/use-query-params";
 import type { TimePreset } from "../../state/store";
 import { isTimePreset, useAppStore } from "../../state/store";
 import { formatUptime } from "../../utils/format";
-import { setStoredValue } from "../../utils/local-storage";
 import styles from "./time-preset-selector.module.css";
 
 const PRESETS: { value: TimePreset; label: string }[] = [
@@ -40,7 +39,6 @@ export function TimePresetSelector() {
 
   const handlePreset = (value: TimePreset) => {
     setTimePreset(value);
-    setStoredValue("timePreset", value);
     setUrlWindowParam(value);
     qp.set({ window: value });
   };

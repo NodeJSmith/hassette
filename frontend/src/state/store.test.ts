@@ -178,6 +178,30 @@ describe("useAppStore", () => {
     });
   });
 
+  describe("setTheme / setSidebarCollapsed / setTimePreset", () => {
+    it("setTheme writes the data-theme DOM attribute and persists to localStorage", () => {
+      useAppStore.getState().setTheme("dark");
+
+      expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
+      expect(localStorage.getItem("hassette:theme")).toBe('"dark"');
+      expect(useAppStore.getState().theme).toBe("dark");
+    });
+
+    it("setSidebarCollapsed persists to localStorage", () => {
+      useAppStore.getState().setSidebarCollapsed(true);
+
+      expect(localStorage.getItem("hassette:sidebarCollapsed")).toBe("true");
+      expect(useAppStore.getState().sidebarCollapsed).toBe(true);
+    });
+
+    it("setTimePreset persists to localStorage", () => {
+      useAppStore.getState().setTimePreset("1h");
+
+      expect(localStorage.getItem("hassette:timePreset")).toBe('"1h"');
+      expect(useAppStore.getState().timePreset).toBe("1h");
+    });
+  });
+
   describe("updateAppStatus / updateServiceStatus / clearServiceStatus", () => {
     it("updateAppStatus merges a new entry without clobbering existing ones", () => {
       useAppStore.getState().updateAppStatus("app-a:0", { status: "running", index: 0 });

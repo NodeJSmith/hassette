@@ -23,7 +23,6 @@ import { LogsPage } from "./pages/logs";
 import { NotFoundPage } from "./pages/not-found";
 import { RELATIVE_TIME_TICK_MS, useAppStore } from "./state/store";
 import { HOME_PATH } from "./utils/app-routes";
-import { setStoredValue } from "./utils/local-storage";
 
 /** Bare-key shortcuts must not fire while the user is typing into the app filter or palette. */
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -105,7 +104,6 @@ export function App() {
         e.preventDefault();
         const next = !useAppStore.getState().sidebarCollapsed;
         useAppStore.getState().setSidebarCollapsed(next);
-        setStoredValue("sidebarCollapsed", next);
       }
     };
     document.addEventListener("keydown", handler);

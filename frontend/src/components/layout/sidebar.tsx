@@ -9,7 +9,6 @@ import { useAppStore } from "../../state/store";
 import { appDetailPath, HOME_PATH, NAV_PAGES } from "../../utils/app-routes";
 import { STATUS_DOT_SIZE } from "../../utils/constants";
 import { SHORTCUT_HINT } from "../../utils/keyboard";
-import { setStoredValue } from "../../utils/local-storage";
 import { statusToKind } from "../../utils/status";
 import { Button } from "../shared/button";
 import { Chip } from "../shared/chip";
@@ -193,7 +192,6 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
           data-testid="sidebar-collapse"
           onClick={() => {
             setSidebarCollapsed(true);
-            setStoredValue("sidebarCollapsed", true);
           }}
         >
           <svg viewBox="0 0 16 16" aria-hidden="true">

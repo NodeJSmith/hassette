@@ -5,7 +5,8 @@ import { useAppStore } from "../../state/store";
 import { renderWithAppState } from "../../test/render-helpers";
 import { ThemeToggle } from "./theme-toggle";
 
-// Mock setStoredValue so theme changes don't hit localStorage
+// setTheme (store.ts) calls setStoredValue, and initialState() calls getStoredValue —
+// mock both so this test doesn't touch real localStorage.
 vi.mock("../../utils/local-storage", () => ({
   setStoredValue: vi.fn(),
   getStoredValue: vi.fn(),

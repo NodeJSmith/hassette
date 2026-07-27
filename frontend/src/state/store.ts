@@ -5,7 +5,7 @@ import type {
   WsExecutionCompletedPayload,
   WsLogPayload,
 } from "../api/ws-types";
-import { getStoredValue } from "../utils/local-storage";
+import { getStoredValue, setStoredValue } from "../utils/local-storage";
 import { RingBuffer } from "../utils/ring-buffer";
 import { isTheme } from "../utils/theme";
 
@@ -175,16 +175,31 @@ export const useAppStore = create<AppStore>()((set, get) => ({
   // --- telemetry ---
   updateAppStatus: (key, entry) => set((state) => ({ appStatus: { ...state.appStatus, [key]: entry } })),
   updateServiceStatus: (name, entry) => set((state) => ({ serviceStatus: { ...state.serviceStatus, [name]: entry } })),
+  // Not called by handleWsConnected (see its comment) — kept as a standalone store primitive
+  // for callers that need to clear service status on its own, and exercised directly in tests.
   clearServiceStatus: () => set({ serviceStatus: {} }),
   setExecutionCompleted: (data) => set({ executionCompleted: data }),
   setTelemetryHealth: (data) => set(data),
 
   // --- preferences ---
-  setTheme: (t) => set({ theme: t }),
-  setSidebarCollapsed: (v) => set({ sidebarCollapsed: v }),
+  // These setters aren't plain reducers: each one also writes its persisted copy (and, for
+  // theme, the DOM attribute) so callers never have to remember to sync all three themselves.
+  setTheme: (t) => {
+    document.documentElement.setAttribute("data-theme", t);
+    setStoredValue("theme", t);
+    set({ theme: t });
+  },
+  setSidebarCollapsed: (v) => {
+    setStoredValue("sidebarCollapsed", v);
+    set({ sidebarCollapsed: v });
+  },
 
   // --- time window ---
-  setTimePreset: (p) => set({ timePreset: p }),
+  // See the preferences note above — setTimePreset persists alongside the state write too.
+  setTimePreset: (p) => {
+    setStoredValue("timePreset", p);
+    set({ timePreset: p });
+  },
   setUrlWindowParam: (p) => set({ urlWindowParam: p }),
   incrementTick: () => set((state) => ({ tick: state.tick + 1 })),
 
@@ -195,6 +210,8 @@ export const useAppStore = create<AppStore>()((set, get) => ({
       state.logBuffer.push(entry);
       return { logVersion: state.logVersion + 1 };
     }),
+  // Not called by handleWsConnected (see its comment) — kept as a standalone store primitive
+  // for callers that need to clear logs on their own, and exercised directly in tests.
   clearLogs: () =>
     set((state) => {
       state.logBuffer.clear();
@@ -203,16 +220,24 @@ export const useAppStore = create<AppStore>()((set, get) => ({
   getLogEntries: () => get().logBuffer.toArray(),
 
   // --- composite actions ---
-  handleWsConnected: (data, isReconnect) => {
-    set({
+  handleWsConnected: (data, isReconnect) =>
+    // Everything here must land in this single set() call. Splitting it across multiple set()s
+    // (e.g. calling clearServiceStatus()/clearLogs()) would make atomicity depend on React's
+    // batching rather than the shape of the code — a component could then observe an
+    // intermediate render where connection is "connected" but serviceStatus/logs are stale.
+    // The reconnect fields below duplicate what clearServiceStatus/clearLogs do (a fresh
+    // RingBuffer, not `.clear()`, since a new object is what a single object literal needs),
+    // not a call to them.
+    set((state) => ({
       connection: "connected",
       uptimeSeconds: data.uptime_seconds,
       systemVersion: data.version ?? null,
-    });
-    // Only clear stale data on reconnect, not first connect.
-    if (isReconnect) {
-      get().clearServiceStatus();
-      get().clearLogs();
-    }
-  },
+      // `isReconnect && {...}` is `false` (spreads to nothing) on first connect, or the object
+      // (spreads its fields in) on reconnect — clears stale data only when reconnecting.
+      ...(isReconnect && {
+        serviceStatus: {},
+        logBuffer: new RingBuffer<WsLogPayload>(LOG_BUFFER_CAPACITY),
+        logVersion: state.logVersion + 1,
+      }),
+    })),
 }));

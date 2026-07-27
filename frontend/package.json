@@ -10,6 +10,7 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
     "types": "openapi-typescript openapi.json -o src/api/generated-types.ts",
     "ws-types": "node ../scripts/generate-ws-types.cjs",
     "lint": "eslint src/",

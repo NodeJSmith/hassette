@@ -1,7 +1,7 @@
 # Design: Frontend Foundation Migration (Preact → React 19)
 
 **Date:** 2026-07-26
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Research:** /tmp/claude-mine-define-research-8Ne89Z/brief.md
 

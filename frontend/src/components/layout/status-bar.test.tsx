@@ -13,7 +13,8 @@ const baseProps: ComponentProps<typeof StatusBar> = {
   hamburgerRef: createRef(),
 };
 
-// Mock setStoredValue so collapse changes don't hit localStorage
+// setSidebarCollapsed (store.ts) calls setStoredValue, and initialState() calls getStoredValue —
+// mock both so this test doesn't touch real localStorage.
 vi.mock("../../utils/local-storage", () => ({
   setStoredValue: vi.fn(),
   getStoredValue: vi.fn(),
