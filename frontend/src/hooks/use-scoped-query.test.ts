@@ -252,7 +252,7 @@ describe("useScopedQuery", () => {
   });
 
   it("refetches with the accurate window once uptime arrives when waitForUptime is false", async () => {
-    const fetcher = vi.fn().mockResolvedValue("data");
+    const fetcher = vi.fn<(since: number, signal: AbortSignal) => Promise<string>>().mockResolvedValue("data");
     const state = createAppState();
     state.timePreset.value = "since-restart";
     const queryClient = createTestQueryClient();
@@ -275,7 +275,7 @@ describe("useScopedQuery", () => {
       expect(fetcher).toHaveBeenCalledTimes(2);
     });
 
-    const lastCallArg = fetcher.mock.calls[1][0] as number;
+    const lastCallArg = fetcher.mock.calls[1][0];
     expect(lastCallArg).toBeCloseTo(BASE_TIME_S - 300, 0);
   });
 
