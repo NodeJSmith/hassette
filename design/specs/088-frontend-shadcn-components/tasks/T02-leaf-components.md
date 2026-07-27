@@ -57,6 +57,7 @@ Generate shadcn Button, Badge, Card, and Tooltip via `npx shadcn@latest add`. Cu
 - modify: `frontend/src/pages/handlers.tsx`
 - modify: `frontend/src/pages/handlers-rows.tsx`
 - modify: `frontend/src/pages/diagnostics.tsx`
+- modify: `frontend/src/components/shared/log-table/log-table-row.tsx`
 - read: `frontend/src/components/shared/button.tsx` (current API surface)
 - read: `frontend/src/components/shared/badge.tsx` (current API surface)
 - read: `frontend/src/components/shared/chip.tsx` (current API surface)

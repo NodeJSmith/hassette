@@ -28,6 +28,7 @@ Install `@tanstack/react-table`. Generate shadcn Table and Drawer via `npx shadc
 - modify: `frontend/src/components/shared/log-table/index.ts`
 - modify: `frontend/src/components/shared/execution-table.tsx`
 - modify: `frontend/src/components/shared/sort-header.tsx`
+- modify: `frontend/src/pages/logs.tsx`
 - modify: `frontend/src/utils/app-data.ts`
 - modify: `frontend/src/utils/handler-rows.ts`
 - modify: `frontend/package.json`
@@ -76,6 +77,7 @@ Rewrite all affected tests for the new TanStack Table rendering. The test files 
 - **Gap-check files**: `utils/app-data.ts` and `utils/handler-rows.ts` both import `SortState` from `sort-header.tsx`. If the type shape changes, update these consumers.
 - **Render cap**: the 200-row `RENDER_CAP` stays in `use-log-filters.ts`. TanStack Table receives the already-capped data.
 - **Column visibility and sorting/filtering remain external**: do NOT use TanStack's built-in visibility/sorting/filtering features. The existing hooks handle these with semantics (viewport-forced hiding, level-threshold sorting, etc.) that TanStack's equivalents can't express.
+- **`pages/logs.tsx`** is the sole page-level consumer of the log-table subsystem: it calls `useLogTable(...)` and spreads its return value directly (`{...log.tableProps}`, `log.drawerProps`, `log.livePaused`, `log.resetSort`, `log.columnPickerProps`, `log.countLabel`, `log.columnFilters`, etc.). If `use-log-table.tsx` or `log-table-view.tsx` change their return/prop surface, `logs.tsx` must be updated to match.
 - **`table-card.tsx` and `table-footer.tsx`** are outside the log-table directory. Evaluate whether to keep them as layout wrappers or absorb them -- the design says "may keep as thin layout wrappers or absorb."
 
 ## Verify
