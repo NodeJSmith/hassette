@@ -54,16 +54,14 @@ beforeAll(() => {
 
 afterEach(() => {
   server.resetHandlers();
-});
 
-// Reset the Zustand app store between tests. Plain `setState(initialState())` alone would
-// reconstruct the RingBuffer via initialState()'s factory already, but we spell it out
-// explicitly here per the design doc's isolation note: setState(initialState) (no call) reuses
-// the same mutable buffer reference, so a fresh RingBuffer must always be constructed.
-//
-// initialState() also reads real localStorage for theme/sidebarCollapsed/timePreset, so clear
-// it too — otherwise "defaults" silently means "whatever a prior test in this file wrote."
-afterEach(() => {
+  // Reset the Zustand app store between tests. Plain `setState(initialState())` alone would
+  // reconstruct the RingBuffer via initialState()'s factory already, but we spell it out
+  // explicitly here per the design doc's isolation note: setState(initialState) (no call) reuses
+  // the same mutable buffer reference, so a fresh RingBuffer must always be constructed.
+  //
+  // initialState() also reads real localStorage for theme/sidebarCollapsed/timePreset, so clear
+  // it too — otherwise "defaults" silently means "whatever a prior test in this file wrote."
   localStorage.clear();
   useAppStore.setState({ ...initialState(), logBuffer: new RingBuffer(LOG_BUFFER_CAPACITY) });
 });
