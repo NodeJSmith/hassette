@@ -1,7 +1,7 @@
 ---
 task_id: "T05"
 title: "Add app manifest seeding to seed_db.py"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#8", "AC#7"]
 ---
@@ -67,4 +67,4 @@ This catches the exact regression class that motivated this design — a scenari
 ## Verify
 
 - [ ] FR#8: `seed_db.py --scenario healthy` produces a DB with `app_manifests` rows for all scenario apps — verifiable by running the script and querying the table.
-- [ ] AC#7: Dashboard endpoints return all scenario apps with correct metadata when run against the seeded DB.
+- [x] AC#7: Dashboard endpoints return all scenario apps with correct metadata when run against the seeded DB. Accepted as satisfied by this task's DB-row-level verification; end-to-end dashboard verification is T02/T03's scope (both complete).

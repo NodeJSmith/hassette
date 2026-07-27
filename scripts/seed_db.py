@@ -250,6 +250,36 @@ class SeedContext:
         sql = _build_insert_sql("scheduled_jobs", params, returning=True)
         return insert_row(self.cursor, sql, params)
 
+    def add_app_manifest(
+        self,
+        *,
+        app_key: str,
+        class_name: str,
+        display_name: str,
+        filename: str,
+        enabled: bool = True,
+        autostart: bool = True,
+        auto_loaded: bool = False,
+    ) -> int:
+        """Insert an app_manifests row and return its id.
+
+        Mirrors ``manifest_insert_params()`` (repository.py) field-for-field, but built from
+        explicit kwargs rather than a real ``AppManifest`` instance -- seed scenarios have no
+        live app config to construct one from. Boolean fields are stored as 0/1 integers,
+        matching the SQLite column type in migrations_sql/011.sql.
+        """
+        params = {
+            "app_key": app_key,
+            "class_name": class_name,
+            "display_name": display_name,
+            "filename": filename,
+            "enabled": 1 if enabled else 0,
+            "autostart": 1 if autostart else 0,
+            "auto_loaded": 1 if auto_loaded else 0,
+        }
+        sql = _build_insert_sql("app_manifests", params, returning=True)
+        return insert_row(self.cursor, sql, params)
+
     def add_execution(self, record: ExecutionRecord) -> str:
         """Insert an executions row and return its execution_id.
 
@@ -539,6 +569,7 @@ def scenario_healthy(ctx: SeedContext) -> None:
     seq = 1
     for i, (app_key, class_name, n_errors) in enumerate(apps):
         base = i * APP_TIME_SPACING_SECONDS
+        ctx.add_app_manifest(app_key=app_key, class_name=class_name, display_name=class_name, filename=f"{app_key}.py")
         _seed_simple_app(
             ctx,
             scenario="healthy",
@@ -599,6 +630,7 @@ def scenario_degraded(ctx: SeedContext) -> None:
         [("weather_watcher", "WeatherWatcher", 0), ("garage_door", "GarageDoor", 0)]
     ):
         base = i * APP_TIME_SPACING_SECONDS
+        ctx.add_app_manifest(app_key=app_key, class_name=class_name, display_name=class_name, filename=f"{app_key}.py")
         _seed_simple_app(
             ctx,
             scenario="degraded",
@@ -621,6 +653,12 @@ def scenario_degraded(ctx: SeedContext) -> None:
     # leaky_faucet_monitor and hallway_thermostat are seeded individually (not in a loop) so
     # hallway_thermostat's session_id is captured directly, for the blocking event below.
     base = 2 * APP_TIME_SPACING_SECONDS
+    ctx.add_app_manifest(
+        app_key="leaky_faucet_monitor",
+        class_name="LeakyFaucetMonitor",
+        display_name="LeakyFaucetMonitor",
+        filename="leaky_faucet_monitor.py",
+    )
     _seed_simple_app(
         ctx,
         scenario="degraded",
@@ -643,6 +681,12 @@ def scenario_degraded(ctx: SeedContext) -> None:
     )
 
     hallway_base = 3 * APP_TIME_SPACING_SECONDS
+    ctx.add_app_manifest(
+        app_key="hallway_thermostat",
+        class_name="HallwayThermostat",
+        display_name="HallwayThermostat",
+        filename="hallway_thermostat.py",
+    )
     hallway_session_id, _listener_id, _job_id = _seed_simple_app(
         ctx,
         scenario="degraded",
@@ -667,6 +711,7 @@ def scenario_degraded(ctx: SeedContext) -> None:
     # Boot-issue app: first boot fails outright, second boot recovers to 'running'.
     app_key, class_name = "boiler_controller", "BoilerController"
     base = 4 * APP_TIME_SPACING_SECONDS
+    ctx.add_app_manifest(app_key=app_key, class_name=class_name, display_name=class_name, filename=f"{app_key}.py")
     failed_session_id = ctx.add_session(
         started_at=ts(base),
         last_heartbeat_at=ts(base + 5.0),
@@ -777,6 +822,7 @@ def scenario_error(ctx: SeedContext) -> None:
     seq = 1
     for i, (app_key, class_name) in enumerate(apps):
         base = i * APP_TIME_SPACING_SECONDS
+        ctx.add_app_manifest(app_key=app_key, class_name=class_name, display_name=class_name, filename=f"{app_key}.py")
         if i == 0:
             # Boot failure followed by a crash on the retry -- the worst-case narrative.
             ctx.add_session(
@@ -920,6 +966,7 @@ def scenario_large_volume(ctx: SeedContext) -> None:
     session_ids_by_app: dict[str, int] = {}
     for i, (app_key, class_name, error_pct) in enumerate(apps):
         base = i * APP_TIME_SPACING_SECONDS
+        ctx.add_app_manifest(app_key=app_key, class_name=class_name, display_name=class_name, filename=f"{app_key}.py")
         session_id, listener_id, _job_id = _seed_simple_app(
             ctx,
             scenario="large-volume",
@@ -977,6 +1024,7 @@ def scenario_lifecycle(ctx: SeedContext) -> None:
     # -- sprinkler_controller: one active listener, one retired-only listener --
     app_key, class_name = "sprinkler_controller", "SprinklerController"
     base = 0.0
+    ctx.add_app_manifest(app_key=app_key, class_name=class_name, display_name=class_name, filename=f"{app_key}.py")
     _seed_simple_app(
         ctx,
         scenario="lifecycle",
@@ -1009,6 +1057,7 @@ def scenario_lifecycle(ctx: SeedContext) -> None:
     # -- alarm_system: active listener, a cancelled-only job, crashed session then a restart --
     app_key, class_name = "alarm_system", "AlarmSystem"
     base = APP_TIME_SPACING_SECONDS
+    ctx.add_app_manifest(app_key=app_key, class_name=class_name, display_name=class_name, filename=f"{app_key}.py")
     ctx.add_session(
         started_at=ts(base),
         last_heartbeat_at=ts(base + 30.0),
@@ -1067,6 +1116,7 @@ def scenario_lifecycle(ctx: SeedContext) -> None:
     # -- camera_array: multi-instance app; instance 1 has a retired+cancelled listener --
     app_key, class_name = "camera_array", "CameraArray"
     base = 2 * APP_TIME_SPACING_SECONDS
+    ctx.add_app_manifest(app_key=app_key, class_name=class_name, display_name=class_name, filename=f"{app_key}.py")
     session_id_0 = _add_running_session(ctx, base)
     listener_id_0 = ctx.add_listener(
         make_listener_registration(
@@ -1145,6 +1195,7 @@ def scenario_lifecycle(ctx: SeedContext) -> None:
     # -- mail_notifier: normal app, carries the scenario's one blocking event --
     app_key, class_name = "mail_notifier", "MailNotifier"
     base = 3 * APP_TIME_SPACING_SECONDS
+    ctx.add_app_manifest(app_key=app_key, class_name=class_name, display_name=class_name, filename=f"{app_key}.py")
     session_id, _listener_id, _job_id = _seed_simple_app(
         ctx,
         scenario="lifecycle",
@@ -1185,6 +1236,7 @@ def scenario_adversarial(ctx: SeedContext) -> None:
     # -- long_handler_names_app: 100+ character handler names, long nested-predicate topics --
     app_key, class_name = "long_handler_names_app", "LongHandlerNamesApp"
     base = 0.0
+    ctx.add_app_manifest(app_key=app_key, class_name=class_name, display_name=class_name, filename=f"{app_key}.py")
     session_id = _add_running_session(ctx, base)
     long_handler = (
         f"{class_name}.on_extremely_verbose_state_change_handler_that_describes_"
@@ -1235,6 +1287,7 @@ def scenario_adversarial(ctx: SeedContext) -> None:
     # -- many_listeners_app: 120 listeners on one app --
     app_key, class_name = "many_listeners_app", "ManyListenersApp"
     base = APP_TIME_SPACING_SECONDS
+    ctx.add_app_manifest(app_key=app_key, class_name=class_name, display_name=class_name, filename=f"{app_key}.py")
     session_id = _add_running_session(ctx, base)
     n_listeners = 120
     listener_ids = [
@@ -1272,6 +1325,7 @@ def scenario_adversarial(ctx: SeedContext) -> None:
     # -- Unicode app key, listener name, and job name (Japanese + emoji) --
     app_key, class_name = "モーションセンサー_\U0001f3e0", "MotionSensor"
     base = 2 * APP_TIME_SPACING_SECONDS
+    ctx.add_app_manifest(app_key=app_key, class_name=class_name, display_name=class_name, filename=f"{class_name}.py")
     session_id = _add_running_session(ctx, base)
     listener_id = ctx.add_listener(
         make_listener_registration(
