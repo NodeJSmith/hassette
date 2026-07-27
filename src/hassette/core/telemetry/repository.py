@@ -5,6 +5,7 @@ import time
 from logging import Logger, getLogger
 from typing import TYPE_CHECKING, Any
 
+from hassette.config.classes import AppManifest
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.schemas.log_models import BlockingEvent
@@ -146,6 +147,30 @@ def job_insert_params(registration: ScheduledJobRegistration) -> dict[str, Any]:
         "mode": registration.mode,
         "predicate_description": registration.predicate_description,
         "human_description": registration.human_description,
+    }
+
+
+def manifest_insert_params(manifest: AppManifest) -> dict[str, Any]:
+    """Build the named-parameter dict for an app_manifests UPSERT.
+
+    Only static metadata survives to the DB -- runtime-only fields (app_config, app_dir,
+    full_path, cache_key) are intentionally excluded; see the design doc's "Key Constraints"
+    section for why.
+
+    Args:
+        manifest: The app manifest to convert.
+
+    Returns:
+        A dict of named parameters ready for ``db.execute()``.
+    """
+    return {
+        "app_key": manifest.app_key,
+        "class_name": manifest.class_name,
+        "display_name": manifest.display_name,
+        "filename": manifest.filename,
+        "enabled": 1 if manifest.enabled else 0,
+        "autostart": 1 if manifest.autostart else 0,
+        "auto_loaded": 1 if manifest.auto_loaded else 0,
     }
 
 
@@ -419,6 +444,48 @@ class TelemetryRepository:
             RETURNING id
             """,
             job_insert_params(registration),
+        )
+        row = await cursor.fetchone()
+        await db.commit()
+        return row[0]  # pyright: ignore[reportOptionalSubscript] — RETURNING always yields one row
+
+    async def upsert_app_manifest(self, manifest: AppManifest) -> int:
+        """Upsert an app manifest into the app_manifests table.
+
+        Uses ``INSERT ... ON CONFLICT DO UPDATE`` keyed on ``app_key`` (simpler than the
+        listener/job natural keys since manifests are per-app, not per-instance) to preserve
+        the row ID across restarts. ``updated_at`` is explicitly set in the ``DO UPDATE SET``
+        clause because the column ``DEFAULT`` expression only fires on INSERT, not on UPDATE.
+
+        Args:
+            manifest: The app manifest to persist.
+
+        Returns:
+            The row ID of the inserted (or matched) row.
+
+        Raises:
+            RuntimeError: If the RETURNING clause returns no row (should never happen).
+        """
+        db = self._db_service.db
+        cursor = await db.execute(
+            """
+            INSERT INTO app_manifests (
+                app_key, class_name, display_name, filename, enabled, autostart, auto_loaded
+            ) VALUES (
+                :app_key, :class_name, :display_name, :filename, :enabled, :autostart, :auto_loaded
+            )
+            ON CONFLICT(app_key)
+            DO UPDATE SET
+                class_name = excluded.class_name,
+                display_name = excluded.display_name,
+                filename = excluded.filename,
+                enabled = excluded.enabled,
+                autostart = excluded.autostart,
+                auto_loaded = excluded.auto_loaded,
+                updated_at = strftime('%Y-%m-%dT%H:%M:%f', 'now')
+            RETURNING id
+            """,
+            manifest_insert_params(manifest),
         )
         row = await cursor.fetchone()
         await db.commit()

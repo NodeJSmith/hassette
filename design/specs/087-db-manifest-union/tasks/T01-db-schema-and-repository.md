@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Add app_manifests table and repository methods"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#1"]
 ---
