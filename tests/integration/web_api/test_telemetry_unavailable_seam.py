@@ -8,6 +8,9 @@ Three behaviors:
     not a swallowed 503 (the cluster's one intended behavior change).
 (c) A forced storage error in get_all_app_summaries still degrades dashboard_app_grid to
     200-partial, not 500.
+(d) A forced storage error in the DB spine query (get_all_app_manifests /
+    get_app_manifest) degrades the grid, manifest list, and per-app manifest endpoints
+    to 503 — the DB-backed spine is Category B, not Category C.
 """
 
 from unittest.mock import AsyncMock, MagicMock
@@ -15,6 +18,7 @@ from unittest.mock import AsyncMock, MagicMock
 from httpx2 import ASGITransport, AsyncClient
 
 from hassette.exceptions import TelemetryUnavailableError
+from hassette.test_utils.web_manifest_helpers import make_manifest_db_row
 from hassette.web.app import create_fastapi_app
 
 
@@ -84,9 +88,13 @@ class TestDashboardAppGridDegrades:
     ) -> None:
         """get_all_app_summaries raising TelemetryUnavailableError must not produce a 500.
 
-        This endpoint is category-C (silent-200): it has a non-DB spine from
-        runtime.get_all_manifests_snapshot(). DB failure returns partial data with HTTP 200.
+        This enrichment query is Category C (silent-200): the DB spine query (Category B,
+        get_all_app_manifests + overlay_runtime_state()) succeeds independently, and this
+        one enrichment failure degrades to zeroed stats while the response stays 200.
         """
+        mock_hassette.telemetry_query_service.get_all_app_manifests = AsyncMock(
+            return_value=[make_manifest_db_row(app_key="my_app")]
+        )
         mock_hassette.telemetry_query_service.get_all_app_summaries = AsyncMock(
             side_effect=TelemetryUnavailableError("db unavailable during summary fetch")
         )
@@ -95,3 +103,47 @@ class TestDashboardAppGridDegrades:
         assert response.status_code == 200
         data = response.json()
         assert "apps" in data
+        assert len(data["apps"]) == 1
+        assert data["apps"][0]["total_invocations"] == 0
+
+
+class TestDashboardSpine503:
+    """(d) The DB-backed spine query (Category B) degrades the grid/list/manifest routes to 503."""
+
+    async def test_dashboard_app_grid_returns_503_on_spine_failure(
+        self,
+        client: "AsyncClient",
+        mock_hassette: MagicMock,
+    ) -> None:
+        """A storage error in get_all_app_manifests (the spine) yields 503, not 200-partial."""
+        mock_hassette.telemetry_query_service.get_all_app_manifests = AsyncMock(
+            side_effect=TelemetryUnavailableError("db unavailable during spine fetch")
+        )
+        response = await client.get("/api/telemetry/dashboard/app-grid")
+        assert response.status_code == 503
+        assert response.json()["apps"] == []
+
+    async def test_get_app_manifests_returns_503_on_spine_failure(
+        self,
+        client: "AsyncClient",
+        mock_hassette: MagicMock,
+    ) -> None:
+        """A storage error in get_all_app_manifests (the spine) yields 503 on /api/apps/manifests."""
+        mock_hassette.telemetry_query_service.get_all_app_manifests = AsyncMock(
+            side_effect=TelemetryUnavailableError("db unavailable during spine fetch")
+        )
+        response = await client.get("/api/apps/manifests")
+        assert response.status_code == 503
+        assert response.json()["manifests"] == []
+
+    async def test_get_app_manifest_returns_503_on_spine_failure(
+        self,
+        client: "AsyncClient",
+        mock_hassette: MagicMock,
+    ) -> None:
+        """A storage error in get_app_manifest yields 503 on /api/apps/{app_key}/manifest, not 404."""
+        mock_hassette.telemetry_query_service.get_app_manifest = AsyncMock(
+            side_effect=TelemetryUnavailableError("db unavailable")
+        )
+        response = await client.get("/api/apps/my_app/manifest")
+        assert response.status_code == 503

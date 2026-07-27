@@ -65,6 +65,8 @@ def wire_telemetry_stubs(hassette: MagicMock) -> None:
     ts.get_per_app_last_errors = AsyncMock(return_value={})
     ts.get_recent_invocations_1h_all_apps = AsyncMock(return_value={})
     ts.get_app_recent_activity = AsyncMock(return_value=[])
+    ts.get_all_app_manifests = AsyncMock(return_value=[])
+    ts.get_app_manifest = AsyncMock(return_value=None)
     ts.get_log_records = AsyncMock(return_value=[])
     ts.get_log_records_by_execution = AsyncMock(return_value=([], False))
     ts.check_execution_predates_retention_cutoff = AsyncMock(return_value=False)
@@ -195,6 +197,13 @@ def create_hassette_stub(
     # New-style manifest snapshot
     snapshot = make_full_snapshot(manifests)
     hassette._app_handler.registry.get_full_snapshot.return_value = snapshot
+
+    # overlay_runtime_state() reads `.manifests` (dict) and `.only_apps` (frozenset) directly
+    # off the registry -- a bare MagicMock attribute would return a truthy MagicMock instead
+    # of a real empty container, breaking the "DB-only app" branch. Tests that need a
+    # "currently configured" overlay result should replace `registry` with a real AppRegistry.
+    hassette._app_handler.registry.manifests = {}
+    hassette._app_handler.registry.only_apps = frozenset()
 
     # App status snapshot (AppStatusSnapshot domain object)
     if old_snapshot is None:

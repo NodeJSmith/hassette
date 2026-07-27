@@ -1,11 +1,18 @@
 """App registry for tracking app state with queryable interface."""
 
+import dataclasses
 from collections import defaultdict
 from collections.abc import Iterable
 from logging import getLogger
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo, AppStatusSnapshot
+from hassette.schemas.app_snapshots import (
+    AppFullSnapshot,
+    AppInstanceInfo,
+    AppManifestInfo,
+    AppStatusSnapshot,
+    tally_manifest_statuses,
+)
 from hassette.types.enums import BlockReason, ResourceStatus
 from hassette.utils.exception_utils import get_traceback_string
 
@@ -174,28 +181,15 @@ class AppRegistry:
             only_apps=sorted(self._only_apps),
         )
 
-    def get_manifest_snapshot(self, app_key: str) -> AppManifestInfo | None:
-        """Generate a snapshot for a single app manifest, or None if not found."""
-        manifest = self._manifests.get(app_key)
-        if manifest is None:
-            return None
-        return self.build_manifest_info(app_key, manifest)
-
     def get_full_snapshot(self) -> AppFullSnapshot:
         """Generate manifest-based snapshot including all configured apps."""
-        manifests: list[AppManifestInfo] = []
-        counts = {"running": 0, "failed": 0, "stopped": 0, "disabled": 0, "blocked": 0}
-
-        for app_key, manifest in self._manifests.items():
-            info = self.build_manifest_info(app_key, manifest)
-            counts[info.status] += 1
-            manifests.append(info)
+        manifests = [self.build_manifest_info(app_key, manifest) for app_key, manifest in self._manifests.items()]
 
         return AppFullSnapshot(
             manifests=manifests,
             only_apps=sorted(self._only_apps),
             total=len(manifests),
-            **counts,
+            **tally_manifest_statuses(manifests),
         )
 
     def build_manifest_info(self, app_key: str, manifest: "AppManifest") -> AppManifestInfo:
@@ -269,3 +263,70 @@ class AppRegistry:
     def autostart_manifests(self) -> dict[str, "AppManifest"]:
         """Active manifests that should start automatically at boot."""
         return {k: v for k, v in self.active_manifests.items() if v.autostart}
+
+
+def overlay_runtime_state(db_rows: list[dict[str, Any]], registry: AppRegistry) -> list[AppManifestInfo]:
+    """Merge DB-persisted manifest rows with in-memory runtime state.
+
+    The single overlay function all web routes call to combine the DB app spine with live
+    status — see the design doc's "Web route refactoring" section. For each DB row, checks
+    whether the app is present in ``registry``'s in-memory manifests:
+
+    - If present: status/instances are derived from the registry's live state via
+      ``build_manifest_info()`` (priority: disabled > blocked > running > failed > stopped),
+      and ``in_current_config`` is ``True``.
+    - If absent (a DB-only / removed app): status defaults to ``"stopped"`` with zero
+      instances, and ``in_current_config`` is ``False``.
+
+    Static metadata (``class_name``, ``display_name``, ``filename``, ``autostart``,
+    ``auto_loaded``) always comes from the DB row, never from the in-memory manifest — the DB
+    is the source of truth for metadata, the registry is the source of truth for live status.
+    ``enabled`` is the exception: it is also the highest-priority input to the registry's
+    status derivation (``disabled > blocked > running > failed > stopped``), so when the app
+    is in-memory it is sourced from the registry alongside ``status`` — otherwise a stale DB
+    row could produce a response where ``status == "disabled"`` but ``enabled == True`` (or
+    vice versa), a state ``build_manifest_info()`` itself could never construct.
+
+    Args:
+        db_rows: Rows from ``get_all_app_manifests()`` or a single-row list from
+            ``get_app_manifest()``. Boolean columns arrive as SQLite ints (0/1), not Python
+            bools — this function coerces them explicitly since ``AppManifestInfo`` is a
+            dataclass (no Pydantic-style auto-coercion).
+        registry: The in-memory ``AppRegistry`` to overlay runtime state from.
+
+    Returns:
+        One ``AppManifestInfo`` per DB row, in the same order as ``db_rows``.
+    """
+    results: list[AppManifestInfo] = []
+
+    for db_row in db_rows:
+        app_key = db_row["app_key"]
+        in_memory_manifest = registry.manifests.get(app_key)
+        static_fields = {
+            "class_name": db_row["class_name"],
+            "display_name": db_row["display_name"],
+            "filename": db_row["filename"],
+            "auto_loaded": bool(db_row["auto_loaded"]),
+            "autostart": bool(db_row["autostart"]),
+        }
+
+        if in_memory_manifest is not None:
+            # Static metadata still comes from the DB row (source of truth for config);
+            # the computed runtime fields (status/instances/...) come from `derived`, and
+            # `enabled` also comes from `derived` since it drives `derived.status` — keeping
+            # both on the same source prevents a stale-DB `enabled` from disagreeing with a
+            # freshly-derived `status`.
+            derived = registry.build_manifest_info(app_key, in_memory_manifest)
+            info = dataclasses.replace(derived, app_key=app_key, in_current_config=True, **static_fields)
+        else:
+            info = AppManifestInfo(
+                app_key=app_key,
+                status="stopped",
+                enabled=bool(db_row["enabled"]),
+                in_current_config=False,
+                **static_fields,
+            )
+
+        results.append(info)
+
+    return results

@@ -13,7 +13,7 @@ coerces it directly — pass the enum value as-is. ``AppManifestInfo.status`` is
 ``ServiceInfo.status`` is a ``str`` with ResourceStatus values; cast for pyright.
 """
 
-from typing import cast
+from typing import Any, cast
 
 from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo, AppStatusSnapshot
 from hassette.schemas.domain_models import SystemStatus
@@ -68,24 +68,34 @@ def app_status_response_from(snapshot: AppStatusSnapshot) -> AppStatusResponse:
     )
 
 
+def manifest_response_fields(manifest: AppManifestInfo) -> dict[str, Any]:
+    """Common ``AppManifestInfo`` -> response fields shared by ``AppManifestResponse`` and
+    ``DashboardAppGridEntry``.
+
+    Both response models mirror this exact field set from the manifest snapshot. Extracted so
+    the two call sites (here and ``dashboard_app_grid``) can't drift apart as the fields evolve.
+    """
+    return {
+        "app_key": manifest.app_key,
+        "class_name": manifest.class_name,
+        "display_name": manifest.display_name,
+        "filename": manifest.filename,
+        "enabled": manifest.enabled,
+        "auto_loaded": manifest.auto_loaded,
+        "autostart": manifest.autostart,
+        "status": cast("ManifestStatus", manifest.status),  # AppManifestInfo.status is str
+        "block_reason": manifest.block_reason,
+        "instance_count": manifest.instance_count,
+        "instances": [instance_response_from(inst) for inst in manifest.instances],
+        "error_message": manifest.error_message,
+        "error_traceback": manifest.error_traceback,
+        "in_current_config": manifest.in_current_config,
+    }
+
+
 def app_manifest_response_from(manifest: AppManifestInfo) -> AppManifestResponse:
     """Convert an ``AppManifestInfo`` snapshot to ``AppManifestResponse``."""
-    instances = [instance_response_from(inst) for inst in manifest.instances]
-    return AppManifestResponse(
-        app_key=manifest.app_key,
-        class_name=manifest.class_name,
-        display_name=manifest.display_name,
-        filename=manifest.filename,
-        enabled=manifest.enabled,
-        auto_loaded=manifest.auto_loaded,
-        autostart=manifest.autostart,
-        status=cast("ManifestStatus", manifest.status),  # AppManifestInfo.status is str
-        block_reason=manifest.block_reason,
-        instance_count=manifest.instance_count,
-        instances=instances,
-        error_message=manifest.error_message,
-        error_traceback=manifest.error_traceback,
-    )
+    return AppManifestResponse(**manifest_response_fields(manifest))
 
 
 def app_manifest_list_response_from(full: AppFullSnapshot) -> AppManifestListResponse:

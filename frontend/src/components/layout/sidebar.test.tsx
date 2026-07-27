@@ -174,6 +174,16 @@ describe("Sidebar — app list", () => {
     const item = nameEl.closest("[data-testid='app-item-b_app']");
     expect(item?.getAttribute("aria-disabled")).toBe("true");
   });
+
+  it("excludes removed (in_current_config: false) apps from navigation", async () => {
+    withManifests([
+      createManifest({ app_key: "live_app", display_name: "Live App", in_current_config: true }),
+      createManifest({ app_key: "removed_app", display_name: "Removed App", in_current_config: false }),
+    ]);
+    renderWithAppState(<Sidebar />);
+    await screen.findByText("Live App");
+    expect(screen.queryByText("Removed App")).toBeNull();
+  });
 });
 
 describe("Sidebar — search", () => {
@@ -326,6 +336,18 @@ describe("Sidebar — APPS section header", () => {
     await screen.findByText("App One");
     const appNav = getByTestId("app-nav");
     expect(appNav.textContent).toContain("2");
+  });
+
+  it("excludes removed apps from the total count", async () => {
+    withManifests([
+      createManifest({ app_key: "live_app", display_name: "Live App", in_current_config: true }),
+      createManifest({ app_key: "removed_app", display_name: "Removed App", in_current_config: false }),
+    ]);
+    const { getByTestId } = renderWithAppState(<Sidebar />);
+    await screen.findByText("Live App");
+    const appNav = getByTestId("app-nav");
+    expect(appNav.textContent).toContain("1");
+    expect(appNav.textContent).not.toContain("2");
   });
 
   it("shows filtered/total counts when search is active", async () => {

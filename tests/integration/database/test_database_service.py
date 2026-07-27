@@ -87,6 +87,7 @@ async def test_fresh_db_creates_all_tables(initialized_fresh_service: DatabaseSe
         )
         tables = sorted(row[0] for row in cursor.fetchall())
         assert tables == [
+            "app_manifests",
             "blocking_events",
             "executions",
             "listeners",

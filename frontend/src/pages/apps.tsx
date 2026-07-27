@@ -1,6 +1,8 @@
+import { keepPreviousData } from "@tanstack/react-query";
 import clsx from "clsx";
 import { useState } from "react";
 
+import { ApiError } from "../api/client";
 import { getDashboardAppGrid } from "../api/endpoints";
 import { Button } from "../components/shared/button";
 import popoverStyles from "../components/shared/column-filter-popover/index.module.css";
@@ -13,7 +15,6 @@ import { TableCard } from "../components/shared/table-card";
 import { TableFooter } from "../components/shared/table-footer";
 import { type ColumnFilters } from "../components/shared/table-types";
 import { useDocumentTitle } from "../hooks/use-document-title";
-import { useManifests } from "../hooks/use-manifests";
 import { BREAKPOINT_MOBILE, useMediaQuery } from "../hooks/use-media-query";
 import { useQueryInvalidator } from "../hooks/use-query-invalidator";
 import { useQueryParams } from "../hooks/use-query-params";
@@ -21,13 +22,7 @@ import { useScopedQuery } from "../hooks/use-scoped-query";
 import { queryKeys } from "../lib/query-keys";
 import type { AppStatusEntry } from "../state/store";
 import { useAppStore } from "../state/store";
-import {
-  appLiveStatus,
-  type AppRow,
-  type AppSortState,
-  compareAppRows,
-  mergeManifestsAndGrid,
-} from "../utils/app-data";
+import { appLiveStatus, type AppRow, type AppSortState, compareAppRows, toAppRow } from "../utils/app-data";
 import { pluralize } from "../utils/format";
 import { type StatusKind } from "../utils/status";
 import { PRESET_WINDOW_SECONDS } from "../utils/time-window";
@@ -132,10 +127,18 @@ export function AppsPage() {
   const effectiveTimePreset = urlWindowParam ?? timePreset;
   const uptimeSeconds = useAppStore((s) => s.uptimeSeconds);
   const executionCompleted = useAppStore((s) => s.executionCompleted);
-  const { data: manifests = [], isPending: manifestsLoading } = useManifests();
-  const { data: gridData, error: gridError } = useScopedQuery(queryKeys.dashboardGrid(), (since, signal) =>
-    getDashboardAppGrid(since, signal),
-  );
+  const {
+    data: gridData,
+    error: gridError,
+    isPending: gridLoading,
+  } = useScopedQuery(queryKeys.dashboardGrid(), (since, signal) => getDashboardAppGrid(since, signal), {
+    // The apps list must render even when HA/WS is unreachable (design/specs/018-dashboard-without-ha) —
+    // don't block on uptimeSeconds like other scoped views. Falls back to an all-time window until
+    // uptime arrives, then refetches with the accurate restart-relative window.
+    waitForUptime: false,
+    // Keep the table populated during that refetch instead of dropping to the full-page spinner.
+    placeholderData: keepPreviousData,
+  });
 
   useQueryInvalidator(executionCompleted, (events) => events !== null, queryKeys.dashboardGrid());
 
@@ -166,8 +169,7 @@ export function AppsPage() {
     });
   };
 
-  const gridEntries = gridData?.apps ?? [];
-  const allApps = mergeManifestsAndGrid(manifests, gridEntries);
+  const allApps = (gridData?.apps ?? []).map(toAppRow);
 
   let windowSeconds: number | null = null;
   if (uptimeSeconds !== null) {
@@ -216,12 +218,13 @@ export function AppsPage() {
     })
     .sort((a, b) => compareAppRows(a, b, sort, appStatus));
 
-  if (manifestsLoading && manifests.length === 0) return <Spinner />;
+  if (gridLoading) return <Spinner />;
 
   if (gridError) {
+    const isUnavailable = gridError instanceof ApiError && gridError.status === 503;
     return (
-      <div className="ht-alert ht-alert--danger" role="alert">
-        {gridError.message}
+      <div className="ht-alert ht-alert--danger" role="alert" data-testid="apps-load-error">
+        {isUnavailable ? "Telemetry unavailable — the database is unreachable." : gridError.message}
       </div>
     );
   }

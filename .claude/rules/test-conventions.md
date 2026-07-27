@@ -45,6 +45,7 @@ Full decision table: `tests/TESTING.md` (Choosing a Mock Strategy, lines 27-37).
 `src/hassette/test_utils/web_manifest_helpers.py` — app manifest and snapshot models:
 
 - `make_manifest(**kw)` — `AppManifestInfo`; `make_full_snapshot(manifests)` — `AppFullSnapshot`
+- `make_manifest_db_row(app_key=..., **overrides)` — plain dict shaped like a row from `get_all_app_manifests()`/`get_app_manifest()` (10 fields), for mocking the telemetry query service in web-layer tests
 
 `src/hassette/test_utils/web_job_helpers.py` — job/scheduler web-layer models:
 

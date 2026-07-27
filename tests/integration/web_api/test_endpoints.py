@@ -8,7 +8,7 @@ import pytest
 
 from hassette.exceptions import TelemetryUnavailableError
 from hassette.schemas.listener_models import ListenerSummary
-from hassette.test_utils.web_manifest_helpers import make_manifest
+from hassette.test_utils.web_manifest_helpers import make_manifest_db_row
 from hassette.web.config_view import MASK_SENTINEL
 
 from .conftest import make_log_record, set_websocket_state
@@ -147,8 +147,10 @@ class TestAppEndpoints:
 
 class TestAppManifestEndpoint:
     async def test_get_manifest_returns_single_manifest(self, client: "AsyncClient", mock_hassette) -> None:
-        manifest = make_manifest(app_key="my_app", display_name="My App", status="running")
-        mock_hassette.app_handler.registry.get_manifest_snapshot.return_value = manifest
+        """A DB-only app (no matching in-memory manifest) returns 200, not 404."""
+        mock_hassette.telemetry_query_service.get_app_manifest = AsyncMock(
+            return_value=make_manifest_db_row(app_key="my_app", display_name="My App")
+        )
         mock_hassette.telemetry_query_service.get_recent_invocations_1h_all_apps.return_value = {"my_app": 5}
 
         response = await client.get("/api/apps/my_app/manifest")
@@ -156,11 +158,14 @@ class TestAppManifestEndpoint:
         data = response.json()
         assert data["app_key"] == "my_app"
         assert data["display_name"] == "My App"
-        assert data["status"] == "running"
+        # No matching in-memory manifest on the stub registry -> stopped, not in current config.
+        assert data["status"] == "stopped"
+        assert data["in_current_config"] is False
         assert data["recent_invocations_1h"] == 5
 
     async def test_get_manifest_returns_404_for_unknown_app(self, client: "AsyncClient", mock_hassette) -> None:
-        mock_hassette.app_handler.registry.get_manifest_snapshot.return_value = None
+        """A genuinely unknown app_key (no DB row at all) still 404s."""
+        mock_hassette.telemetry_query_service.get_app_manifest = AsyncMock(return_value=None)
 
         response = await client.get("/api/apps/unknown_app/manifest")
         assert response.status_code == 404
@@ -172,8 +177,10 @@ class TestAppManifestEndpoint:
     async def test_get_manifest_degrades_gracefully_on_telemetry_failure(
         self, client: "AsyncClient", mock_hassette
     ) -> None:
-        manifest = make_manifest(app_key="my_app")
-        mock_hassette.app_handler.registry.get_manifest_snapshot.return_value = manifest
+        """A failed Category-C enrichment query (recent_invocations_1h) still returns 200."""
+        mock_hassette.telemetry_query_service.get_app_manifest = AsyncMock(
+            return_value=make_manifest_db_row(app_key="my_app")
+        )
         mock_hassette.telemetry_query_service.get_recent_invocations_1h_all_apps = AsyncMock(
             side_effect=TelemetryUnavailableError("db down")
         )
@@ -181,6 +188,45 @@ class TestAppManifestEndpoint:
         response = await client.get("/api/apps/my_app/manifest")
         assert response.status_code == 200
         assert response.json()["recent_invocations_1h"] == 0
+
+    async def test_get_manifest_returns_503_when_db_unavailable(self, client: "AsyncClient", mock_hassette) -> None:
+        """A DB failure on the spine query itself returns 503, not 404."""
+        mock_hassette.telemetry_query_service.get_app_manifest = AsyncMock(
+            side_effect=TelemetryUnavailableError("db down")
+        )
+
+        response = await client.get("/api/apps/my_app/manifest")
+        assert response.status_code == 503
+
+
+class TestAppManifestListEndpoint:
+    async def test_get_manifests_includes_db_only_apps(self, client: "AsyncClient", mock_hassette) -> None:
+        """A DB-only app (no matching in-memory manifest) appears in the manifests list."""
+        mock_hassette.telemetry_query_service.get_all_app_manifests = AsyncMock(
+            return_value=[make_manifest_db_row(app_key="orphan_app", display_name="Orphan App")]
+        )
+
+        response = await client.get("/api/apps/manifests")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 1
+        assert data["stopped"] == 1
+        app_keys = {m["app_key"] for m in data["manifests"]}
+        assert "orphan_app" in app_keys
+        orphan = next(m for m in data["manifests"] if m["app_key"] == "orphan_app")
+        assert orphan["display_name"] == "Orphan App"
+        assert orphan["status"] == "stopped"
+        assert orphan["in_current_config"] is False
+
+    async def test_get_manifests_returns_503_on_spine_failure(self, client: "AsyncClient", mock_hassette) -> None:
+        """A storage error on the DB spine query yields 503."""
+        mock_hassette.telemetry_query_service.get_all_app_manifests = AsyncMock(
+            side_effect=TelemetryUnavailableError("db down")
+        )
+
+        response = await client.get("/api/apps/manifests")
+        assert response.status_code == 503
+        assert response.json()["manifests"] == []
 
 
 class TestSchedulerEndpoints:

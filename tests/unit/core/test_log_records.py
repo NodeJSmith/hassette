@@ -16,6 +16,7 @@ from hassette.core.database_service import DatabaseService
 from hassette.core.migration_runner import run_migrations
 from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.schemas.log_models import LogRecord
+from hassette.test_utils.config import LATEST_MIGRATION_VERSION
 
 from .conftest import TELEMETRY_TEST_DDL as DDL
 
@@ -118,7 +119,7 @@ class TestMigration001LogRecords:
         assert "idx_lr_app_time" in indexes
 
     def test_migration_version_is_at_head(self, tmp_path: Path) -> None:
-        """After full migration, PRAGMA user_version is at head (10)."""
+        """After full migration, PRAGMA user_version is at head."""
         db_path = str(tmp_path / "test.db")
         run_migrations_to_head(db_path)
 
@@ -128,7 +129,7 @@ class TestMigration001LogRecords:
         finally:
             conn.close()
 
-        assert version == 10
+        assert version == LATEST_MIGRATION_VERSION
 
 
 class TestRestartPersistence:

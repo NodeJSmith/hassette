@@ -69,6 +69,11 @@ export function AppTableRow({
                 no autostart
               </Chip>
             )}
+            {!app.in_current_config && (
+              <Chip variant="muted" data-testid="removed-chip">
+                removed
+              </Chip>
+            )}
           </div>
         </td>
         {/* Status */}

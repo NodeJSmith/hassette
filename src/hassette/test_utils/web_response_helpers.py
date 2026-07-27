@@ -9,6 +9,7 @@ from hassette.test_utils.config import DEFAULT_TEST_APP_KEY, TEST_EPOCH_B
 from hassette.web.models import (
     AppConfigResponse,
     AppHealthResponse,
+    AppInstanceResponse,
     AppSourceResponse,
     ConfigSchemaResponse,
     DashboardAppGridEntry,
@@ -70,6 +71,16 @@ def make_dashboard_app_grid_entry(
     health_status: str = "excellent",
     error_rate: float = 0.0,
     error_rate_class: str = "good",
+    class_name: str = "TestApp",
+    filename: str = "test_app.py",
+    enabled: bool = True,
+    auto_loaded: bool = False,
+    autostart: bool = True,
+    block_reason: str | None = None,
+    instances: list[AppInstanceResponse] | None = None,
+    error_message: str | None = None,
+    error_traceback: str | None = None,
+    in_current_config: bool = True,
 ) -> DashboardAppGridEntry:
     """Build a DashboardAppGridEntry with sensible defaults."""
     return DashboardAppGridEntry(
@@ -88,6 +99,16 @@ def make_dashboard_app_grid_entry(
         health_status=health_status,  # pyright: ignore[reportArgumentType]
         error_rate=error_rate,
         error_rate_class=error_rate_class,  # pyright: ignore[reportArgumentType]
+        class_name=class_name,
+        filename=filename,
+        enabled=enabled,
+        auto_loaded=auto_loaded,
+        autostart=autostart,
+        block_reason=block_reason,
+        instances=instances or [],
+        error_message=error_message,
+        error_traceback=error_traceback,
+        in_current_config=in_current_config,
     )
 
 

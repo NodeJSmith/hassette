@@ -9,7 +9,7 @@ import aiosqlite
 
 from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry.execution_queries import ExecutionQueriesMixin
-from hassette.core.telemetry.helpers import STORAGE_ERRORS
+from hassette.core.telemetry.helpers import STORAGE_ERRORS, row_to_dict
 from hassette.core.telemetry.helpers import AppHealthAggregates as AppHealthAggregates  # re-exported
 from hassette.core.telemetry.registration_queries import RegistrationQueriesMixin
 from hassette.core.telemetry.summary_queries import SummaryQueriesMixin
@@ -84,3 +84,26 @@ class TelemetryQueryService(ExecutionQueriesMixin, RegistrationQueriesMixin, Sum
         """Verify the database connection is alive."""
         async with self.execute("SELECT 1") as cursor:
             await cursor.fetchone()
+
+    async def get_all_app_manifests(self) -> list[dict[str, Any]]:
+        """Return every persisted app manifest row.
+
+        Returns:
+            A list of dicts, one per ``app_manifests`` row.
+        """
+        async with self.execute("SELECT * FROM app_manifests") as cursor:
+            rows = await cursor.fetchall()
+        return [row_to_dict(row) for row in rows]
+
+    async def get_app_manifest(self, app_key: str) -> dict[str, Any] | None:
+        """Return the persisted manifest row for a single app.
+
+        Args:
+            app_key: The app key to look up.
+
+        Returns:
+            A dict of the matching row, or ``None`` if no manifest exists for ``app_key``.
+        """
+        async with self.execute("SELECT * FROM app_manifests WHERE app_key = :app_key", {"app_key": app_key}) as cursor:
+            row = await cursor.fetchone()
+        return row_to_dict(row) if row is not None else None

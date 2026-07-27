@@ -36,13 +36,16 @@ export function buildStaticPageItems(navigate: (path: string) => void): PaletteI
 }
 
 export function buildActionItems(manifests: AppManifest[], onClose: () => void): PaletteItem[] {
+  // Removed apps (in_current_config: false) aren't loaded — stop/reload would 404 or no-op
+  // against an app the runtime doesn't know about, so exclude them the same way buildAppItems does.
+  const active = manifests.filter((m) => m.in_current_config);
   return [
     {
       id: "action-reload-all",
       kind: "action",
       label: "Reload all apps",
       action: () => {
-        const running = manifests.filter((m) => m.status === "running");
+        const running = active.filter((m) => m.status === "running");
         void Promise.allSettled(running.map((m) => reloadApp(m.app_key)));
         onClose();
       },
@@ -52,7 +55,7 @@ export function buildActionItems(manifests: AppManifest[], onClose: () => void):
       kind: "action",
       label: "Stop all failing",
       action: () => {
-        const failing = manifests.filter((m) => m.status === "failed");
+        const failing = active.filter((m) => m.status === "failed");
         void Promise.allSettled(failing.map((m) => stopApp(m.app_key)));
         onClose();
       },
@@ -75,7 +78,9 @@ export function buildAppItems(
   onClose: () => void,
 ): PaletteItem[] {
   const items: PaletteItem[] = [];
-  const sorted = [...manifests].sort((a, b) => a.app_key.localeCompare(b.app_key));
+  // Removed apps (in_current_config: false) are historical/DB-only — excluded from "jump
+  // to…" results, which are for navigating to apps a user can actually act on.
+  const sorted = [...manifests].filter((m) => m.in_current_config).sort((a, b) => a.app_key.localeCompare(b.app_key));
   for (const m of sorted) {
     items.push({
       id: `app-${m.app_key}`,

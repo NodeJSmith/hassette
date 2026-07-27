@@ -74,6 +74,32 @@ def test_scenario_generates_file(scenario: str, tmp_path: Path):
         assert counts["executions"] > 0, counts
 
 
+@pytest.mark.parametrize("scenario", ALL_SCENARIOS)
+def test_app_manifests_cover_all_listener_and_job_app_keys(scenario: str, tmp_path: Path):
+    """Every scenario's ``app_manifests`` rows are a superset of its listener/job app_keys.
+
+    Catches the exact regression class this design fixes: a scenario that adds listeners
+    or scheduled jobs for an app but forgets the corresponding ``add_app_manifest()`` call,
+    which would silently reproduce the "seeded DB has no visible apps" bug. ``empty`` has no
+    app_keys anywhere, so the superset check holds trivially (both sides are empty sets).
+    """
+    output = tmp_path / "test.db"
+
+    result = _run_seed_script(scenario, output)
+    assert result.returncode == 0, f"seed script failed for scenario={scenario!r}:\n{result.stdout}\n{result.stderr}"
+
+    conn = sqlite3.connect(output)
+    try:
+        manifest_keys = {row[0] for row in conn.execute("SELECT app_key FROM app_manifests")}
+        listener_keys = {row[0] for row in conn.execute("SELECT DISTINCT app_key FROM listeners")}
+        job_keys = {row[0] for row in conn.execute("SELECT DISTINCT app_key FROM scheduled_jobs")}
+    finally:
+        conn.close()
+
+    missing = (listener_keys | job_keys) - manifest_keys
+    assert not missing, f"scenario={scenario!r} has listeners/jobs with no app_manifests row: {missing}"
+
+
 def test_healthy_scenario_generates_file(tmp_path: Path):
     """`uv run python scripts/seed_db.py --scenario healthy --output ...` exits 0 and
     produces a non-empty, queryable SQLite file.
@@ -120,6 +146,44 @@ def test_determinism(tmp_path: Path):
     finally:
         conn_1.close()
         conn_2.close()
+
+
+def _app_manifest_scenario(ctx: seed_db.SeedContext) -> None:
+    """Scenario that exercises ``add_app_manifest()`` in isolation, including its defaults."""
+    ctx.add_app_manifest(
+        app_key="manifest_test_app",
+        class_name="ManifestTestApp",
+        display_name="Manifest Test App",
+        filename="manifest_test_app.py",
+        enabled=False,
+        autostart=False,
+        auto_loaded=True,
+    )
+
+
+def test_add_app_manifest_inserts_row_with_correct_fields(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """``SeedContext.add_app_manifest()`` inserts a row with the exact fields passed in,
+    storing booleans as 0/1 integers (SQLite convention -- see migrations_sql/011.sql).
+    """
+    monkeypatch.setitem(seed_db.SCENARIOS, "test_app_manifest", _app_manifest_scenario)
+
+    output = tmp_path / "app_manifest.db"
+    tmp = output.with_name(output.name + ".tmp")
+
+    seed_db.generate_scenario("test_app_manifest", output, tmp)
+
+    conn = sqlite3.connect(output)
+    try:
+        row = conn.execute(
+            "SELECT app_key, class_name, display_name, filename, enabled, autostart, auto_loaded "
+            "FROM app_manifests WHERE app_key = ?",
+            ("manifest_test_app",),
+        ).fetchone()
+    finally:
+        conn.close()
+
+    # positions match the SELECT column list above: ..., enabled=0, autostart=0, auto_loaded=1
+    assert row == ("manifest_test_app", "ManifestTestApp", "Manifest Test App", "manifest_test_app.py", 0, 0, 1)
 
 
 def _bad_fk_scenario(ctx: seed_db.SeedContext) -> None:
