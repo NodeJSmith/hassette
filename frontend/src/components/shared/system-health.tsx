@@ -40,17 +40,12 @@ export function SystemHealth({ variant }: Props) {
   const droppedShutdown = useAppStore((s) => s.droppedShutdown);
   const errorHandlerFailures = useAppStore((s) => s.errorHandlerFailures);
 
-  const status = connection;
-  const overflow = droppedOverflow;
-  const exhausted = droppedExhausted;
-  const shutdown = droppedShutdown;
-  const droppedTotal = overflow + exhausted + shutdown;
-  const handlerFailures = errorHandlerFailures;
+  const droppedTotal = droppedOverflow + droppedExhausted + droppedShutdown;
 
-  const { dotClass, label } = STATUS_CONFIG[status];
+  const { dotClass, label } = STATUS_CONFIG[connection];
 
   // "Disconnected" takes visual precedence over "database degraded"
-  const showDegraded = telemetryDegraded && status === "connected";
+  const showDegraded = telemetryDegraded && connection === "connected";
   const stacked = variant === "stacked";
 
   /*
@@ -66,7 +61,7 @@ export function SystemHealth({ variant }: Props) {
   const clipLabels = !stacked && isMobile;
   // Compact on desktop keeps the old behavior: spell the connection out only when
   // something is wrong, and clip it the rest of the time.
-  const clipConnectionLabel = clipLabels || (!stacked && status === "connected");
+  const clipConnectionLabel = clipLabels || (!stacked && connection === "connected");
 
   const labelClass = clipLabels ? "ht-visually-hidden" : "ht-text-xs";
   const connectionLabelClass = clipConnectionLabel ? "ht-visually-hidden" : "ht-text-xs";
@@ -93,7 +88,7 @@ export function SystemHealth({ variant }: Props) {
         <span
           className={styles.indicator}
           aria-label={`${pluralize(droppedTotal, "telemetry event")} dropped`}
-          title={`buffer full: ${overflow}, write failed: ${exhausted}, during shutdown: ${shutdown}`}
+          title={`buffer full: ${droppedOverflow}, write failed: ${droppedExhausted}, during shutdown: ${droppedShutdown}`}
           data-testid="dropped-events-indicator"
         >
           <span className={clsx(styles.pulseDot, styles.pulseDotDegraded)} />
@@ -103,16 +98,16 @@ export function SystemHealth({ variant }: Props) {
         </span>
       )}
 
-      {handlerFailures > 0 && (
+      {errorHandlerFailures > 0 && (
         <span
           className={styles.indicator}
-          aria-label={pluralize(handlerFailures, "handler error")}
-          title={`${pluralize(handlerFailures, "user error handler invocation")} raised or timed out`}
+          aria-label={pluralize(errorHandlerFailures, "handler error")}
+          title={`${pluralize(errorHandlerFailures, "user error handler invocation")} raised or timed out`}
           data-testid="error-handler-failures-indicator"
         >
           <span className={clsx(styles.pulseDot, styles.pulseDotDegraded)} />
           <span className={labelClass} data-testid="health-label">
-            {pluralize(handlerFailures, "handler error")}
+            {pluralize(errorHandlerFailures, "handler error")}
           </span>
         </span>
       )}

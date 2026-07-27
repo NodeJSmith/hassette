@@ -5,8 +5,8 @@ import { ApiError } from "../api/client";
 import { getTelemetryStatus } from "../api/endpoints";
 import { useAppStore } from "../state/store";
 
-const BASE_INTERVAL_MS = 30_000;
-const MAX_INTERVAL_MS = 120_000;
+export const BASE_INTERVAL_MS = 30_000;
+export const MAX_INTERVAL_MS = 120_000;
 
 /**
  * Polls `/api/telemetry/status` to keep the app store's `telemetryDegraded` field current.

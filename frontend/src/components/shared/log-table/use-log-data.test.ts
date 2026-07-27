@@ -1,12 +1,10 @@
-import { QueryClientProvider } from "@tanstack/react-query";
-import { act, renderHook } from "@testing-library/react";
+import { act } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
-import { createElement, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { WsLogPayload } from "@/api/ws-types";
 import { type TimePreset, useAppStore } from "@/state/store";
-import { createTestQueryClient } from "@/test/query-test-utils";
+import { renderHookWithProviders } from "@/test/query-test-utils";
 import { server } from "@/test/server";
 
 import { LIVE_LOG_UPDATE_INTERVAL_MS, REST_FETCH_LIMIT } from "./constants";
@@ -18,13 +16,6 @@ vi.mock("sonner", () => ({
 
 // Import after mock so the spy reference is captured.
 const { toast } = await import("sonner");
-
-function createWrapper() {
-  const client = createTestQueryClient();
-  return function Wrapper({ children }: { children: ReactNode }) {
-    return createElement(QueryClientProvider, { client }, children);
-  };
-}
 
 function seedState(preset: TimePreset = "1h"): void {
   useAppStore.setState({
@@ -69,9 +60,7 @@ describe("useLogData", () => {
       // Override with a never-resolving handler to freeze the fetch in-flight.
       server.use(http.get("/api/logs/recent", () => new Promise(() => {})));
 
-      const { result } = renderHook(() => useLogData({}), {
-        wrapper: createWrapper(),
-      });
+      const { result } = renderHookWithProviders(() => useLogData({}));
 
       expect(result.current.loading).toBe(true);
     });
@@ -79,9 +68,7 @@ describe("useLogData", () => {
     it("becomes false after REST resolves", async () => {
       seedState();
 
-      const { result } = renderHook(() => useLogData({}), {
-        wrapper: createWrapper(),
-      });
+      const { result } = renderHookWithProviders(() => useLogData({}));
 
       await waitForLoaded(result);
     });
@@ -99,9 +86,7 @@ describe("useLogData", () => {
         }),
       );
 
-      const { result } = renderHook(() => useLogData({ appKey: "my_app", executionId: "exec-42" }), {
-        wrapper: createWrapper(),
-      });
+      const { result } = renderHookWithProviders(() => useLogData({ appKey: "my_app", executionId: "exec-42" }));
 
       await vi.waitFor(() => {
         expect(result.current.loading).toBe(false);
@@ -123,9 +108,7 @@ describe("useLogData", () => {
 
       server.use(http.get("/api/logs/recent", () => HttpResponse.json(entries)));
 
-      const { result } = renderHook(() => useLogData({}), {
-        wrapper: createWrapper(),
-      });
+      const { result } = renderHookWithProviders(() => useLogData({}));
 
       await vi.waitFor(() => {
         expect(result.current.loading).toBe(false);
@@ -142,9 +125,7 @@ describe("useLogData", () => {
 
       server.use(http.get("/api/logs/recent", () => HttpResponse.json(entries)));
 
-      const { result } = renderHook(() => useLogData({}), {
-        wrapper: createWrapper(),
-      });
+      const { result } = renderHookWithProviders(() => useLogData({}));
 
       await vi.waitFor(() => {
         expect(result.current.loading).toBe(false);
@@ -161,9 +142,7 @@ describe("useLogData", () => {
 
       server.use(http.get("/api/logs/recent", () => HttpResponse.json([restEntry])));
 
-      const { result } = renderHook(() => useLogData({}), {
-        wrapper: createWrapper(),
-      });
+      const { result } = renderHookWithProviders(() => useLogData({}));
 
       await vi.waitFor(() => {
         expect(result.current.loading).toBe(false);
@@ -186,9 +165,7 @@ describe("useLogData", () => {
 
       server.use(http.get("/api/logs/recent", () => HttpResponse.json([restEntry])));
 
-      const { result } = renderHook(() => useLogData({}), {
-        wrapper: createWrapper(),
-      });
+      const { result } = renderHookWithProviders(() => useLogData({}));
 
       await waitForLoaded(result);
 
@@ -208,9 +185,7 @@ describe("useLogData", () => {
 
       server.use(http.get("/api/logs/recent", () => HttpResponse.json([restEntry])));
 
-      const { result } = renderHook(() => useLogData({}), {
-        wrapper: createWrapper(),
-      });
+      const { result } = renderHookWithProviders(() => useLogData({}));
 
       await waitForLoaded(result);
 
@@ -235,9 +210,7 @@ describe("useLogData", () => {
 
       server.use(http.get("/api/logs/recent", () => HttpResponse.json([])));
 
-      const { result } = renderHook(() => useLogData({}), {
-        wrapper: createWrapper(),
-      });
+      const { result } = renderHookWithProviders(() => useLogData({}));
 
       await waitForLoaded(result);
 
@@ -261,7 +234,7 @@ describe("useLogData", () => {
 
       server.use(http.get("/api/logs/recent", () => HttpResponse.json([])));
 
-      const { result } = renderHook(() => useLogData({ appKey: "my_app" }), { wrapper: createWrapper() });
+      const { result } = renderHookWithProviders(() => useLogData({ appKey: "my_app" }));
 
       await waitForLoaded(result);
 
@@ -284,7 +257,7 @@ describe("useLogData", () => {
 
       server.use(http.get("/api/logs/recent", () => HttpResponse.json([])));
 
-      const { result } = renderHook(() => useLogData({ executionId: "exec-1" }), { wrapper: createWrapper() });
+      const { result } = renderHookWithProviders(() => useLogData({ executionId: "exec-1" }));
 
       await waitForLoaded(result);
 
@@ -309,9 +282,7 @@ describe("useLogData", () => {
 
       server.use(http.get("/api/logs/recent", () => HttpResponse.json([])));
 
-      const { result } = renderHook(() => useLogData({}), {
-        wrapper: createWrapper(),
-      });
+      const { result } = renderHookWithProviders(() => useLogData({}));
 
       await waitForLoaded(result);
 
@@ -332,9 +303,7 @@ describe("useLogData", () => {
 
       server.use(http.get("/api/logs/recent", () => HttpResponse.json([])));
 
-      const { result } = renderHook(() => useLogData({}), {
-        wrapper: createWrapper(),
-      });
+      const { result } = renderHookWithProviders(() => useLogData({}));
 
       await waitForLoaded(result);
 
@@ -373,9 +342,7 @@ describe("useLogData", () => {
         }),
       );
 
-      const { result } = renderHook(() => useLogData({}), {
-        wrapper: createWrapper(),
-      });
+      const { result } = renderHookWithProviders(() => useLogData({}));
 
       await waitForLoaded(result);
 
@@ -400,9 +367,7 @@ describe("useLogData", () => {
         }),
       );
 
-      const { result } = renderHook(() => useLogData({}), {
-        wrapper: createWrapper(),
-      });
+      const { result } = renderHookWithProviders(() => useLogData({}));
 
       await waitForLoaded(result);
       const firstFetchCount = fetchCount;
@@ -421,9 +386,7 @@ describe("useLogData", () => {
 
       server.use(http.get("/api/logs/recent", () => HttpResponse.json([])));
 
-      const { result } = renderHook(() => useLogData({}), {
-        wrapper: createWrapper(),
-      });
+      const { result } = renderHookWithProviders(() => useLogData({}));
 
       // Should stay in loading state because fetching is disabled
       expect(result.current.loading).toBe(true);
@@ -443,9 +406,7 @@ describe("useLogData", () => {
 
       server.use(http.get("/api/logs/recent", () => HttpResponse.error()));
 
-      const { result } = renderHook(() => useLogData({}), {
-        wrapper: createWrapper(),
-      });
+      const { result } = renderHookWithProviders(() => useLogData({}));
 
       await vi.waitFor(() => {
         expect(result.current.loading).toBe(false);

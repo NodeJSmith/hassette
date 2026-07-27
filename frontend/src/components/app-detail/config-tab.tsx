@@ -1,34 +1,15 @@
 import clsx from "clsx";
 import { useEffect, useState } from "react";
-import type { HighlighterGeneric } from "shiki";
 
 import type { ConfigRecord, SchemaNode } from "../../api/config-view-types";
 import type { AppConfigData } from "../../api/endpoints";
 import { getAppConfig } from "../../api/endpoints";
+import { getShikiHighlighter, SHIKI_THEMES } from "../../utils/shiki";
 import { Card } from "../shared/card";
 import { ConfigSchemaView, ExpandableValue } from "../shared/config-schema-view";
 import { EmptyState } from "../shared/empty-state";
 import { Spinner } from "../shared/spinner";
 import styles from "./config-tab.module.css";
-
-let tomlHighlighterPromise: Promise<HighlighterGeneric<never, never>> | null = null;
-
-function getTomlHighlighter() {
-  if (!tomlHighlighterPromise) {
-    tomlHighlighterPromise = import("shiki")
-      .then(({ createHighlighter }) =>
-        createHighlighter({
-          langs: ["toml"],
-          themes: ["github-light", "github-dark"],
-        }),
-      )
-      .catch((e) => {
-        tomlHighlighterPromise = null;
-        throw e;
-      });
-  }
-  return tomlHighlighterPromise;
-}
 
 interface Props {
   appKey: string;
@@ -130,12 +111,12 @@ export function ConfigTab({ appKey }: Props) {
         setConfigData(data);
 
         try {
-          const hl = await getTomlHighlighter();
+          const hl = await getShikiHighlighter("toml");
           if (controller.signal.aborted) return;
           setTomlHtml(
             hl.codeToHtml(data.config_toml, {
               lang: "toml",
-              themes: { light: "github-light", dark: "github-dark" },
+              themes: SHIKI_THEMES,
               defaultColor: false,
             }),
           );

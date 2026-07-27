@@ -203,16 +203,16 @@ export const useAppStore = create<AppStore>()((set, get) => ({
   getLogEntries: () => get().logBuffer.toArray(),
 
   // --- composite actions ---
-  handleWsConnected: (data, isReconnect) =>
+  handleWsConnected: (data, isReconnect) => {
     set({
       connection: "connected",
       uptimeSeconds: data.uptime_seconds,
       systemVersion: data.version ?? null,
-      // Only clear stale data on reconnect, not first connect.
-      ...(isReconnect && {
-        logBuffer: new RingBuffer<WsLogPayload>(LOG_BUFFER_CAPACITY),
-        logVersion: 0,
-        serviceStatus: {},
-      }),
-    }),
+    });
+    // Only clear stale data on reconnect, not first connect.
+    if (isReconnect) {
+      get().clearServiceStatus();
+      get().clearLogs();
+    }
+  },
 }));

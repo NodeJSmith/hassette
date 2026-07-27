@@ -3,7 +3,7 @@
  *
  * Uses vi.fn() mocks for getAppManifests (matching the established pattern for
  * renderHook tests in this codebase) and renderHookWithProviders to ensure
- * the hook runs inside QueryClientProvider + AppStateContext.
+ * the hook runs inside QueryClientProvider + the Zustand app store provider.
  */
 import { describe, expect, it, vi } from "vitest";
 

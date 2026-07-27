@@ -153,14 +153,6 @@ describe("CodeTab", () => {
     expect(line1.classList.contains("line--focus")).toBe(false);
   });
 
-  it("does not accept focusLine as a prop (type-level only — no runtime prop consumed)", async () => {
-    // This verifies the component renders correctly without focusLine prop
-    render(<CodeTab appKey="test_app" listeners={[]} />);
-    await waitFor(() => {
-      expect(screen.getByTestId("code-tab-content")).toBeDefined();
-    });
-  });
-
   it("aborts in-flight request on unmount", async () => {
     let requestSignal: AbortSignal | undefined;
 

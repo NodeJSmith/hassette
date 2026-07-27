@@ -3,7 +3,6 @@ import { BREAKPOINT_MOBILE, useMediaQuery } from "@/hooks/use-media-query";
 import { SortHeader } from "../sort-header";
 import type { ColumnFilters } from "../table-types";
 import { COLUMN_MAP, DEFAULT_SORT } from "./constants";
-import styles from "./log-table-header.module.css";
 import type { ColumnId, LogSortState } from "./types";
 
 interface Props {
@@ -25,7 +24,7 @@ export function LogTableHeader({ visibleColumns, sort, onSort, columnFilters }: 
   };
 
   return (
-    <thead className={styles.thead}>
+    <thead>
       <tr>
         {visibleColumns.map((id) => {
           const col = COLUMN_MAP[id];

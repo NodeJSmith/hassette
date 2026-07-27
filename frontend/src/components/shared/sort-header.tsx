@@ -11,6 +11,12 @@ export interface SortState<K extends string = string> {
   dir: "asc" | "desc";
 }
 
+const ARROW_FOR_DIRECTION: Record<"asc" | "desc", string> = { asc: " ↑", desc: " ↓" };
+const ARIA_SORT_FOR_DIRECTION: Record<"asc" | "desc", "ascending" | "descending"> = {
+  asc: "ascending",
+  desc: "descending",
+};
+
 interface BaseProps {
   ariaLabel?: string;
   className?: string;
@@ -65,8 +71,8 @@ export function SortHeader<K extends string = string>(props: Props<K>) {
 
   const hasFilter = props.filterContent !== undefined && props.filterContent !== null;
 
-  const arrow = active ? (direction === "asc" ? " ↑" : " ↓") : "";
-  const ariaSortValue = active ? (direction === "asc" ? "ascending" : "descending") : undefined;
+  const arrow = active ? ARROW_FOR_DIRECTION[direction] : "";
+  const ariaSortValue = active ? ARIA_SORT_FOR_DIRECTION[direction] : undefined;
 
   // Sort button or plain label
   const sortElement = hasSortProps ? (

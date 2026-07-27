@@ -205,6 +205,7 @@ export function useLogFilters({
 
   const filtered = useMemo(
     () => filterLogEntries(source, { level, tier, app, search, func, sort }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sort is destructured; .key/.dir are the actual deps
     [source, level, tier, app, search, func, sort.key, sort.dir],
   );
 

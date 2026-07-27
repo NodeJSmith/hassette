@@ -3,6 +3,8 @@ import clsx from "clsx";
 import type { ReactNode, RefObject } from "react";
 import { useEffect, useRef, useState } from "react";
 
+import { wrapFocusOnTab } from "@/utils/focus-trap";
+
 import styles from "./index.module.css";
 
 const FOCUSABLE_SELECTORS = [
@@ -110,25 +112,7 @@ export function ColumnFilterPopover({ open, onClose, triggerRef, label, children
       }
 
       if (e.key === "Tab" && popoverRef.current) {
-        const focusables = getFocusableElements(popoverRef.current);
-        if (focusables.length === 0) return;
-
-        const first = focusables[0];
-        const last = focusables[focusables.length - 1];
-
-        if (e.shiftKey) {
-          // Shift+Tab: if on first, wrap to last
-          if (document.activeElement === first) {
-            e.preventDefault();
-            last.focus();
-          }
-        } else {
-          // Tab: if on last, wrap to first
-          if (document.activeElement === last) {
-            e.preventDefault();
-            first.focus();
-          }
-        }
+        wrapFocusOnTab(e, getFocusableElements(popoverRef.current));
       }
     }
 

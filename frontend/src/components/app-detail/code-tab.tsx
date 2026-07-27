@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import type { HighlighterGeneric } from "shiki";
 
 import type { AppSourceData, ListenerData } from "../../api/endpoints";
 import { getAppSource } from "../../api/endpoints";
 import { useQueryParams } from "../../hooks/use-query-params";
 import { parseSourceLocation } from "../../utils/format";
+import { getShikiHighlighter, SHIKI_THEMES } from "../../utils/shiki";
 import { Button } from "../shared/button";
 import { Card } from "../shared/card";
 import { Spinner } from "../shared/spinner";
@@ -26,25 +26,6 @@ function buildAnnotationMap(listeners: ListenerData[]): Map<number, string[]> {
     map.set(line, existing);
   }
   return map;
-}
-
-let highlighterPromise: Promise<HighlighterGeneric<never, never>> | null = null;
-
-function getHighlighter() {
-  if (!highlighterPromise) {
-    highlighterPromise = import("shiki")
-      .then(({ createHighlighter }) =>
-        createHighlighter({
-          langs: ["python"],
-          themes: ["github-light", "github-dark"],
-        }),
-      )
-      .catch((e) => {
-        highlighterPromise = null;
-        throw e;
-      });
-  }
-  return highlighterPromise;
 }
 
 function escapeHtml(s: string): string {
@@ -92,12 +73,12 @@ export function CodeTab({ appKey, listeners }: Props) {
         if (controller.signal.aborted) return;
         setSource(data);
 
-        const hl = await getHighlighter();
+        const hl = await getShikiHighlighter("python");
         if (controller.signal.aborted) return;
 
         const rawHtml = hl.codeToHtml(data.content, {
           lang: "python",
-          themes: { light: "github-light", dark: "github-dark" },
+          themes: SHIKI_THEMES,
           defaultColor: false,
         });
         if (controller.signal.aborted) return;
@@ -174,7 +155,7 @@ export function CodeTab({ appKey, listeners }: Props) {
       </div>
       <div
         className={styles.body}
-        // biome-ignore lint/security/noDangerouslySetInnerHtml: Shiki output is trusted
+        // Shiki-generated HTML from our own source fetch, not user input — safe to inject.
         dangerouslySetInnerHTML={{ __html: processedHtml }}
       />
     </div>

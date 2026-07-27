@@ -97,16 +97,15 @@ describe("useAppStore", () => {
         },
       });
       useAppStore.getState().pushLog(createLogEntry(1));
-      const staleBuffer = useAppStore.getState().logBuffer;
+      const versionBeforeReconnect = useAppStore.getState().logVersion;
 
       useAppStore.getState().handleWsConnected(createConnectedPayload(), true);
 
       const state = useAppStore.getState();
       expect(state.connection).toBe("connected");
       expect(state.serviceStatus).toEqual({});
-      expect(state.logBuffer).not.toBe(staleBuffer);
       expect(state.logBuffer.toArray()).toHaveLength(0);
-      expect(state.logVersion).toBe(0);
+      expect(state.logVersion).toBeGreaterThan(versionBeforeReconnect);
     });
 
     it("sets systemVersion from payload, falling back to null when omitted", () => {

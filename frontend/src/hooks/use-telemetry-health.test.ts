@@ -18,22 +18,24 @@ vi.mock("../api/endpoints", () => ({
 }));
 
 import { getTelemetryStatus } from "../api/endpoints";
-import { useTelemetryHealth } from "./use-telemetry-health";
+import { BASE_INTERVAL_MS, useTelemetryHealth } from "./use-telemetry-health";
 
 const mockedGetTelemetryStatus = vi.mocked(getTelemetryStatus);
+
+const HEALTHY_TELEMETRY_STATUS = {
+  degraded: false,
+  dropped_overflow: 0,
+  dropped_exhausted: 0,
+  dropped_shutdown: 0,
+  error_handler_failures: 0,
+};
 
 describe("useTelemetryHealth", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     mockLocation = "/";
     mockedGetTelemetryStatus.mockReset();
-    mockedGetTelemetryStatus.mockResolvedValue({
-      degraded: false,
-      dropped_overflow: 0,
-      dropped_exhausted: 0,
-      dropped_shutdown: 0,
-      error_handler_failures: 0,
-    });
+    mockedGetTelemetryStatus.mockResolvedValue(HEALTHY_TELEMETRY_STATUS);
   });
 
   afterEach(() => {
@@ -60,7 +62,7 @@ describe("useTelemetryHealth", () => {
 
     // Advance 30s to trigger next poll
     act(() => {
-      vi.advanceTimersByTime(30_000);
+      vi.advanceTimersByTime(BASE_INTERVAL_MS);
     });
 
     await vi.waitFor(() => {
@@ -92,13 +94,7 @@ describe("useTelemetryHealth", () => {
   });
 
   it("sets degraded true when endpoint reports degradation", async () => {
-    mockedGetTelemetryStatus.mockResolvedValue({
-      degraded: true,
-      dropped_overflow: 0,
-      dropped_exhausted: 0,
-      dropped_shutdown: 0,
-      error_handler_failures: 0,
-    });
+    mockedGetTelemetryStatus.mockResolvedValue({ ...HEALTHY_TELEMETRY_STATUS, degraded: true });
 
     renderHook(() => useTelemetryHealth());
 
@@ -120,7 +116,7 @@ describe("useTelemetryHealth", () => {
     // After first failure, interval doubles to 60s
     // Advancing 30s should NOT trigger another poll (old interval cleared)
     act(() => {
-      vi.advanceTimersByTime(30_000);
+      vi.advanceTimersByTime(BASE_INTERVAL_MS);
     });
     // Give any pending promises a chance to resolve
     await vi.waitFor(() => {
@@ -130,7 +126,7 @@ describe("useTelemetryHealth", () => {
 
     // Advancing another 30s (total 60s from first failure) triggers second poll
     act(() => {
-      vi.advanceTimersByTime(30_000);
+      vi.advanceTimersByTime(BASE_INTERVAL_MS);
     });
     await vi.waitFor(() => {
       expect(mockedGetTelemetryStatus).toHaveBeenCalledTimes(2);
@@ -158,20 +154,8 @@ describe("useTelemetryHealth", () => {
     // First call fails, second succeeds, third succeeds
     mockedGetTelemetryStatus
       .mockRejectedValueOnce(new Error("fail"))
-      .mockResolvedValueOnce({
-        degraded: false,
-        dropped_overflow: 0,
-        dropped_exhausted: 0,
-        dropped_shutdown: 0,
-        error_handler_failures: 0,
-      })
-      .mockResolvedValue({
-        degraded: false,
-        dropped_overflow: 0,
-        dropped_exhausted: 0,
-        dropped_shutdown: 0,
-        error_handler_failures: 0,
-      });
+      .mockResolvedValueOnce(HEALTHY_TELEMETRY_STATUS)
+      .mockResolvedValue(HEALTHY_TELEMETRY_STATUS);
 
     renderHook(() => useTelemetryHealth());
 
@@ -192,7 +176,7 @@ describe("useTelemetryHealth", () => {
 
     // After success, interval resets to 30s — advance 30s for third poll
     act(() => {
-      vi.advanceTimersByTime(30_000);
+      vi.advanceTimersByTime(BASE_INTERVAL_MS);
     });
     await vi.waitFor(() => {
       expect(mockedGetTelemetryStatus).toHaveBeenCalledTimes(3);
@@ -201,13 +185,7 @@ describe("useTelemetryHealth", () => {
 
   it("resets backoff and polls immediately on navigation", async () => {
     // Fail initially to trigger backoff
-    mockedGetTelemetryStatus.mockRejectedValueOnce(new Error("fail")).mockResolvedValue({
-      degraded: false,
-      dropped_overflow: 0,
-      dropped_exhausted: 0,
-      dropped_shutdown: 0,
-      error_handler_failures: 0,
-    });
+    mockedGetTelemetryStatus.mockRejectedValueOnce(new Error("fail")).mockResolvedValue(HEALTHY_TELEMETRY_STATUS);
 
     const { rerender } = renderHook(() => useTelemetryHealth());
 
@@ -229,7 +207,7 @@ describe("useTelemetryHealth", () => {
 
     // After navigation reset, interval should be back to 30s (not 60s)
     act(() => {
-      vi.advanceTimersByTime(30_000);
+      vi.advanceTimersByTime(BASE_INTERVAL_MS);
     });
     await vi.waitFor(() => {
       expect(mockedGetTelemetryStatus).toHaveBeenCalledTimes(3);

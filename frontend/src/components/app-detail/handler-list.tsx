@@ -17,16 +17,18 @@ interface Props {
   onSelect: (id: SelectedHandlerId) => void;
 }
 
-export function listenerHealthKind(l: ListenerData) {
-  if (l.failed > 0 || l.timed_out > 0) return statusToKind("failed");
-  if (l.total_invocations > 0) return statusToKind("running");
+function healthKindFromCounts(failed: number, timedOut: number, total: number) {
+  if (failed > 0 || timedOut > 0) return statusToKind("failed");
+  if (total > 0) return statusToKind("running");
   return statusToKind("stopped");
 }
 
+export function listenerHealthKind(l: ListenerData) {
+  return healthKindFromCounts(l.failed, l.timed_out, l.total_invocations);
+}
+
 export function jobHealthKind(j: JobData) {
-  if (j.failed > 0 || j.timed_out > 0) return statusToKind("failed");
-  if (j.total_executions > 0) return statusToKind("running");
-  return statusToKind("stopped");
+  return healthKindFromCounts(j.failed, j.timed_out, j.total_executions);
 }
 
 export function buildItems(listeners: ListenerData[], jobs: JobData[]): UnifiedItem[] {

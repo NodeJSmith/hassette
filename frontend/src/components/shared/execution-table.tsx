@@ -128,7 +128,7 @@ export function ExecutionTable({
                 }}
                 onKeyDown={canNavigate ? onActivateKeyDown(goToDetail) : undefined}
               >
-                <td className={clsx(styles.statusCell, styles.statusColumn)}>
+                <td className={styles.statusColumn}>
                   <div className={styles.statusCellInner}>
                     <StatusShape kind={statusKind} size={STATUS_DOT_SIZE} />
                     <span className={statusLabelClass(statusKind)}>{STATUS_LABEL[statusKind]}</span>

@@ -33,9 +33,6 @@
   color: var(--accent);
 }
 
-.statusCell {
-}
-
 .statusCellInner {
   display: flex;
   align-items: center;

@@ -27,7 +27,7 @@ type AppManifest = components["schemas"]["AppManifestResponse"];
 function SidebarChevron({ open, className }: { open: boolean; className?: string }) {
   return (
     <svg className={className} viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
-      <polyline points={open ? "2,8 6,4 10,8" : "2,4 6,8 10,4"} fill="none" stroke="currentColor" stroke-width="1.5" />
+      <polyline points={open ? "2,8 6,4 10,8" : "2,4 6,8 10,4"} fill="none" stroke="currentColor" strokeWidth="1.5" />
     </svg>
   );
 }
@@ -197,7 +197,7 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
           }}
         >
           <svg viewBox="0 0 16 16" aria-hidden="true">
-            <polyline points="10,3 5,8 10,13" fill="none" stroke="currentColor" stroke-width="1.5" />
+            <polyline points="10,3 5,8 10,13" fill="none" stroke="currentColor" strokeWidth="1.5" />
           </svg>
         </Button>
       </div>

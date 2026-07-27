@@ -1,10 +1,9 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, waitFor } from "@testing-library/react";
+import { waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { useAppStore } from "../state/store";
 import { createWouterMock } from "../test/mock-wouter";
+import { renderWithAppState } from "../test/render-helpers";
 import { server } from "../test/server";
 import { useBreadcrumbs } from "./use-breadcrumbs";
 
@@ -27,16 +26,9 @@ function Probe() {
 }
 
 function renderProbe() {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   // effectiveTimePreset is derived as `urlWindowParam ?? timePreset` — set urlWindowParam
   // directly to pin the time window this test's query key resolves to.
-  useAppStore.setState({ urlWindowParam: "1h" });
-
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <Probe />
-    </QueryClientProvider>,
-  );
+  return renderWithAppState(<Probe />, { storeOverrides: { urlWindowParam: "1h" } });
 }
 
 describe("useBreadcrumbs", () => {
