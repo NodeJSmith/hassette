@@ -27,7 +27,7 @@ Wire the manifest upsert into the app lifecycle (bootstrap and hot-reload paths)
 
 Add a manifest upsert step in two locations per the design doc's `## Architecture → Persist trigger`:
 
-1. **`bootstrap_apps()`** — after `set_apps_configs()` populates the in-memory registry and before `start_apps()`. Iterate `self.registry._manifests` and call `submit(repo.upsert_app_manifest(manifest))` for each. Each call is isolated: wrap in try/except with an explicit timeout (e.g., `asyncio.wait_for(..., timeout=5.0)`). On failure, log a warning and continue — never block app startup. Match the fault-isolation style of `start_apps()` (which uses `asyncio.gather(return_exceptions=True)`).
+1. **`bootstrap_apps()`** — after `set_apps_configs()` populates the in-memory registry and before `start_apps()`. First, add a new wrapper method on `CommandExecutor` (e.g., `upsert_app_manifest(manifest)`) that internally calls `await self.hassette.database_service.submit(self.repository.upsert_app_manifest(manifest))` — matching the existing `register_listener()`/`register_job()` convention at `command_executor.py:665-707`. Then in `bootstrap_apps()`, iterate `self.registry._manifests` and call `self.hassette.command_executor.upsert_app_manifest(manifest)` for each. Each call is isolated: wrap in try/except with an explicit timeout (e.g., `asyncio.wait_for(..., timeout=5.0)`). On failure, log a warning and continue — never block app startup. Match the fault-isolation style of `start_apps()` (which uses `asyncio.gather(return_exceptions=True)`).
 
 2. **`refresh_config()`** — immediately after `set_apps_configs()` updates the in-memory registry and before `apply_changes()` begins stopping/restarting instances. Same per-item isolation pattern.
 

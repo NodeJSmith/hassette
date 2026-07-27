@@ -21,6 +21,7 @@ Refactor the three manifest-consuming web routes (`dashboard_app_grid`, `get_app
 - read: `src/hassette/core/telemetry/query_service.py` (manifest query from T01)
 - modify: `tests/integration/web_api/test_telemetry.py`
 - modify: `tests/integration/test_apps.py`
+- modify: `tests/unit/web/test_mappers.py`
 - modify: `tests/integration/web_api/test_telemetry_unavailable_seam.py`
 
 ## Prompt
