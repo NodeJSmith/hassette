@@ -44,7 +44,7 @@ None.
 - `## Convention Examples` — Zustand store, selector usage, error boundary code samples
 - `## Replacement Targets` — table mapping old→new for every package and file
 - `## Test Strategy` — which test files need structural rewrites vs. import changes
-- `## Behavioral Invariants` — 12 behaviors that must not change
+- `## Behavioral Invariants` — 11 behaviors that must not change
 
 ## Convention Examples
 
