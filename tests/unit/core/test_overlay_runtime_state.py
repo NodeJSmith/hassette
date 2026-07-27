@@ -136,3 +136,31 @@ class TestOverlayRuntimeState:
         results = overlay_runtime_state([make_manifest_db_row(manifest.app_key)], registry)
 
         assert results[0].status == "disabled"
+
+    def test_enabled_agrees_with_status_when_db_row_is_stale(
+        self, registry: AppRegistry, mock_app: MagicMock, tmp_path: Path
+    ) -> None:
+        """`enabled` must come from the same source as `status` — a stale DB row (from before
+        a hot-reload landed) must not produce a response where `status == "disabled"` but
+        `enabled is True`, a combination `build_manifest_info()` itself can never construct.
+        """
+        manifest = create_app_manifest("staledisabled", tmp_path, enabled=False)
+        registry.set_manifests({manifest.app_key: manifest})
+
+        # DB row still reflects the pre-reload state: enabled.
+        stale_row = make_manifest_db_row(manifest.app_key, enabled=1)
+        results = overlay_runtime_state([stale_row], registry)
+
+        assert results[0].status == "disabled"
+        assert results[0].enabled is False
+
+    def test_enabled_comes_from_db_row_for_db_only_app(self, registry: AppRegistry) -> None:
+        """No in-memory manifest exists for a removed app, so `enabled` has no fresher source
+        than the DB row — it should reflect the DB row's value, not default to `True`.
+        """
+        row = make_manifest_db_row("removed_app", enabled=0)
+
+        results = overlay_runtime_state([row], registry)
+
+        assert results[0].in_current_config is False
+        assert results[0].enabled is False

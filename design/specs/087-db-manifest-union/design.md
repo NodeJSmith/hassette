@@ -1,7 +1,7 @@
 # Design: DB-Backed App Manifests
 
 **Date:** 2026-07-26
-**Status:** approved
+**Status:** archived
 **Scope-mode:** expand
 **Research:** /tmp/claude-mine-define-research-qjFsPm/brief.md
 
@@ -333,6 +333,12 @@ Add a `status` column to `app_manifests` and update it on every state transition
 Instead of keeping two endpoints, remove the manifests endpoint and serve everything from the grid.
 
 **Rejected:** The manifests endpoint serves the per-app detail page and may serve other consumers. The chosen approach is a middle path: extend `DashboardAppGridEntry` with manifest metadata fields so the apps page only needs the grid endpoint, while keeping the manifests endpoint alive for the detail page and other consumers.
+
+### D: Fall back to the in-memory registry when the DB spine query fails
+
+Instead of a hard 503 on DB failure, `overlay_runtime_state()` (or its caller) could fall back to `AppRegistry`-only data for currently-loaded apps when the DB query fails — the in-memory manifest set already holds everything needed to render those apps, so the fallback would cost nothing extra to compute. This would mean an operator troubleshooting a DB or disk incident still sees the dashboard for currently-configured apps (just without historical/removed-app rows and without DB-sourced enrichment), rather than a fully blind page at exactly the moment they need visibility most.
+
+**Rejected (for now):** Adding a fallback path means `overlay_runtime_state()` (and its callers) carry two behaviors — a DB-driven path and a registry-only degraded path — that must independently be kept in sync and tested, undermining the single-code-path property (one function, one derivation) this design deliberately chose to avoid the drift risk `mergeManifestsAndGrid()` had. The chosen posture ("DB is an integral component, not optional") accepts that a DB outage makes the dashboard unavailable, matching how every other Category B route in this system already degrades. This is a real cost — a strictly-better-than-nothing fallback is left on the table — and should be revisited if DB availability turns out to be a more common failure mode in practice than assumed here.
 
 ## Test Strategy
 

@@ -75,7 +75,9 @@ export function buildAppItems(
   onClose: () => void,
 ): PaletteItem[] {
   const items: PaletteItem[] = [];
-  const sorted = [...manifests].sort((a, b) => a.app_key.localeCompare(b.app_key));
+  // Removed apps (in_current_config: false) are historical/DB-only — excluded from "jump
+  // to…" results, which are for navigating to apps a user can actually act on.
+  const sorted = [...manifests].filter((m) => m.in_current_config).sort((a, b) => a.app_key.localeCompare(b.app_key));
   for (const m of sorted) {
     items.push({
       id: `app-${m.app_key}`,

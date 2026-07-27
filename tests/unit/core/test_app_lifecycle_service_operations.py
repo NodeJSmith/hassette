@@ -1,5 +1,6 @@
 """Unit tests for AppLifecycleService — app operations and reconciliation."""
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, Mock
 
 from hassette.core.app_change_detector import ChangeSet
@@ -356,3 +357,28 @@ class TestPersistManifests:
         await lifecycle_service.persist_manifests()
 
         assert mock_hassette.command_executor.upsert_app_manifest.await_count == 2
+
+    async def test_upserts_run_concurrently_not_sequentially(
+        self, lifecycle_service: AppLifecycleService, mock_hassette: MagicMock, mock_registry: MagicMock
+    ) -> None:
+        """A sequential loop would hang here: each upsert only returns once *both* are in
+        flight, so a sequential implementation would await the first call forever — surfaced
+        by `asyncio.wait_for` below as a `TimeoutError` rather than an actual hang. Deterministic
+        per CLAUDE.md's startup-race pattern — no sleep-based timing races.
+        """
+        both_in_flight = asyncio.Event()
+        in_flight_count = 0
+
+        async def blocking_upsert(_manifest: object) -> None:
+            nonlocal in_flight_count
+            in_flight_count += 1
+            if in_flight_count == 2:
+                both_in_flight.set()
+            await both_in_flight.wait()
+
+        mock_registry.manifests = {"app_a": MagicMock(), "app_b": MagicMock()}
+        mock_hassette.command_executor.upsert_app_manifest = AsyncMock(side_effect=blocking_upsert)
+
+        await asyncio.wait_for(lifecycle_service.persist_manifests(), timeout=1)
+
+        assert in_flight_count == 2

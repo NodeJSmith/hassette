@@ -144,24 +144,28 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
   // both places would duplicate the testids and give screen readers two live regions for
   // one connection event.
   const chromeLivesInStatusBar = useSidebarHidden();
-  const { data: allManifests = [], isPending: manifestsLoading } = useManifests();
+  const { data: manifestsData = [], isPending: manifestsLoading } = useManifests();
+  // Removed apps (in_current_config: false) are historical/DB-only — they belong on the
+  // apps page (which badges them explicitly), not in primary navigation where they'd be
+  // indistinguishable from live apps.
+  const liveManifests = manifestsData.filter((m) => m.in_current_config);
   const [search, setSearch] = useState("");
 
   const version = systemVersion.value;
   const isFiltering = search.trim().length > 0;
   const filtered = isFiltering
-    ? allManifests.filter(
+    ? liveManifests.filter(
         (m) =>
           m.display_name.toLowerCase().includes(search.toLowerCase()) ||
           m.app_key.toLowerCase().includes(search.toLowerCase()),
       )
-    : allManifests;
+    : liveManifests;
 
   const { groups, allHealthy } = groupAndSortApps(filtered);
 
   const { isOpen: isGroupOpen, toggle: toggleGroup } = useGroupOpen(allHealthy);
 
-  const totalCount = allManifests.length;
+  const totalCount = liveManifests.length;
   const filteredCount = filtered.length;
 
   return (

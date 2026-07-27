@@ -278,10 +278,14 @@ def overlay_runtime_state(db_rows: list[dict[str, Any]], registry: AppRegistry) 
     - If absent (a DB-only / removed app): status defaults to ``"stopped"`` with zero
       instances, and ``in_current_config`` is ``False``.
 
-    Static metadata (``class_name``, ``display_name``, ``filename``, ``enabled``,
-    ``autostart``, ``auto_loaded``) always comes from the DB row, never from the in-memory
-    manifest — the DB is the source of truth for metadata, the registry is the source of
-    truth for live status.
+    Static metadata (``class_name``, ``display_name``, ``filename``, ``autostart``,
+    ``auto_loaded``) always comes from the DB row, never from the in-memory manifest — the DB
+    is the source of truth for metadata, the registry is the source of truth for live status.
+    ``enabled`` is the exception: it is also the highest-priority input to the registry's
+    status derivation (``disabled > blocked > running > failed > stopped``), so when the app
+    is in-memory it is sourced from the registry alongside ``status`` — otherwise a stale DB
+    row could produce a response where ``status == "disabled"`` but ``enabled == True`` (or
+    vice versa), a state ``build_manifest_info()`` itself could never construct.
 
     Args:
         db_rows: Rows from ``get_all_app_manifests()`` or a single-row list from
@@ -302,18 +306,26 @@ def overlay_runtime_state(db_rows: list[dict[str, Any]], registry: AppRegistry) 
             "class_name": db_row["class_name"],
             "display_name": db_row["display_name"],
             "filename": db_row["filename"],
-            "enabled": bool(db_row["enabled"]),
             "auto_loaded": bool(db_row["auto_loaded"]),
             "autostart": bool(db_row["autostart"]),
         }
 
         if in_memory_manifest is not None:
             # Static metadata still comes from the DB row (source of truth for config);
-            # only the computed runtime fields (status/instances/... ) come from `derived`.
+            # the computed runtime fields (status/instances/...) come from `derived`, and
+            # `enabled` also comes from `derived` since it drives `derived.status` — keeping
+            # both on the same source prevents a stale-DB `enabled` from disagreeing with a
+            # freshly-derived `status`.
             derived = registry.build_manifest_info(app_key, in_memory_manifest)
             info = dataclasses.replace(derived, app_key=app_key, in_current_config=True, **static_fields)
         else:
-            info = AppManifestInfo(app_key=app_key, status="stopped", in_current_config=False, **static_fields)
+            info = AppManifestInfo(
+                app_key=app_key,
+                status="stopped",
+                enabled=bool(db_row["enabled"]),
+                in_current_config=False,
+                **static_fields,
+            )
 
         results.append(info)
 
