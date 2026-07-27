@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/preact";
+import { render, screen, waitFor } from "@testing-library/react";
 import { delay, http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -151,14 +151,6 @@ describe("CodeTab", () => {
     });
     const line1 = screen.getByTestId("code-line-1");
     expect(line1.classList.contains("line--focus")).toBe(false);
-  });
-
-  it("does not accept focusLine as a prop (type-level only — no runtime prop consumed)", async () => {
-    // This verifies the component renders correctly without focusLine prop
-    render(<CodeTab appKey="test_app" listeners={[]} />);
-    await waitFor(() => {
-      expect(screen.getByTestId("code-tab-content")).toBeDefined();
-    });
   });
 
   it("aborts in-flight request on unmount", async () => {

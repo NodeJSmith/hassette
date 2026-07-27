@@ -7,10 +7,10 @@ import styles from "./not-found.module.css";
 export function NotFoundPage() {
   useDocumentTitle("Not Found");
   return (
-    <div class={`ht-page ${styles.page}`} data-testid="not-found-page">
+    <div className={`ht-page ${styles.page}`} data-testid="not-found-page">
       <h1>404</h1>
-      <p class="ht-text-secondary">Page not found.</p>
-      <Link href={HOME_PATH} class={styles.backLink}>
+      <p className="ht-text-secondary">Page not found.</p>
+      <Link href={HOME_PATH} className={styles.backLink}>
         back to apps
       </Link>
     </div>

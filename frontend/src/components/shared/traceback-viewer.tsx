@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import type { JSX } from "preact";
+import type { JSX } from "react";
 
 import styles from "./detail-panel.module.css";
 import tb from "./traceback-viewer.module.css";
@@ -25,21 +25,21 @@ function renderLine(line: string, key: number): JSX.Element {
   if (frame) {
     const [, indent, path, lineNo, func] = frame;
     return (
-      <span key={key} class={tb.line}>
+      <span key={key} className={tb.line}>
         {indent}
-        <span class={tb.frameKeyword}>File </span>
-        <span class={tb.path}>"{path}"</span>
-        <span class={tb.frameKeyword}>, line </span>
-        <span class={tb.lineNo}>{lineNo}</span>
-        <span class={tb.frameKeyword}>, in </span>
-        <span class={tb.func}>{func}</span>
+        <span className={tb.frameKeyword}>File </span>
+        <span className={tb.path}>"{path}"</span>
+        <span className={tb.frameKeyword}>, line </span>
+        <span className={tb.lineNo}>{lineNo}</span>
+        <span className={tb.frameKeyword}>, in </span>
+        <span className={tb.func}>{func}</span>
       </span>
     );
   }
 
   if (line.startsWith("Traceback")) {
     return (
-      <span key={key} class={clsx(tb.line, tb.header)}>
+      <span key={key} className={clsx(tb.line, tb.header)}>
         {line}
       </span>
     );
@@ -47,7 +47,7 @@ function renderLine(line: string, key: number): JSX.Element {
 
   // Everything else is the echoed source line under a frame.
   return (
-    <span key={key} class={clsx(tb.line, tb.sourceLine)}>
+    <span key={key} className={clsx(tb.line, tb.sourceLine)}>
       {line}
     </span>
   );
@@ -67,19 +67,19 @@ export function TracebackViewer({ traceback, testIdPrefix }: Props) {
   const split = splitTraceback(traceback);
 
   return (
-    <div class={styles.tracebackSection}>
-      <span class={styles.label}>traceback</span>
+    <div className={styles.tracebackSection}>
+      <span className={styles.label}>traceback</span>
       {split ? (
         <>
-          <div class={styles.errorLine}>
-            <pre class="ht-text-mono">{split.errorLine}</pre>
+          <div className={styles.errorLine}>
+            <pre className="ht-text-mono">{split.errorLine}</pre>
           </div>
-          <pre class={styles.tracebackFrames} data-testid={`${testIdPrefix}-traceback`}>
+          <pre className={styles.tracebackFrames} data-testid={`${testIdPrefix}-traceback`}>
             {split.frames.split("\n").map(renderLine)}
           </pre>
         </>
       ) : (
-        <pre class="ht-text-mono ht-text-danger" data-testid={`${testIdPrefix}-traceback`}>
+        <pre className="ht-text-mono ht-text-danger" data-testid={`${testIdPrefix}-traceback`}>
           {traceback}
         </pre>
       )}

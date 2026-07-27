@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/preact";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { TableCard } from "./table-card";
@@ -112,7 +112,7 @@ describe("TableCard", () => {
   describe("class prop", () => {
     it("applies additional class to the container", () => {
       const { container } = render(
-        <TableCard class="my-custom-class">
+        <TableCard className="my-custom-class">
           <table>
             <tbody>
               <tr>

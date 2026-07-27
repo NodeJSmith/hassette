@@ -13,7 +13,7 @@
  * and read back with decodeURIComponent.
  */
 
-import { useRef } from "preact/hooks";
+import { useRef } from "react";
 import { useLocation, useSearch } from "wouter";
 
 export interface QueryParamOptions {

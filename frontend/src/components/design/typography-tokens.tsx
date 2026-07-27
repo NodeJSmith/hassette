@@ -46,16 +46,16 @@ const WEIGHTS = [
 
 export function TypographyTokens() {
   return (
-    <section class={s.section}>
-      <h2 class={s.heading}>Typography</h2>
+    <section className={s.section}>
+      <h2 className={s.heading}>Typography</h2>
 
-      <div class={s.group}>
-        <h3 class={s.groupLabel}>Font Stacks</h3>
-        <div class={styles.stackList}>
+      <div className={s.group}>
+        <h3 className={s.groupLabel}>Font Stacks</h3>
+        <div className={styles.stackList}>
           {FONT_STACKS.map((stack) => (
-            <div key={stack.cssVar} class={styles.stackRow}>
-              <code class={s.tokenCode}>{stack.cssVar}</code>
-              <span class={styles.stackSample} style={{ fontFamily: `var(${stack.cssVar})` }}>
+            <div key={stack.cssVar} className={styles.stackRow}>
+              <code className={s.tokenCode}>{stack.cssVar}</code>
+              <span className={styles.stackSample} style={{ fontFamily: `var(${stack.cssVar})` }}>
                 {stack.sample}
               </span>
             </div>
@@ -63,17 +63,17 @@ export function TypographyTokens() {
         </div>
       </div>
 
-      <div class={s.group}>
-        <h3 class={s.groupLabel}>Type Scale</h3>
-        <div class={styles.scaleList}>
+      <div className={s.group}>
+        <h3 className={s.groupLabel}>Type Scale</h3>
+        <div className={styles.scaleList}>
           {TYPE_SCALE.map((spec) => (
-            <div key={spec.sizeVar} class={styles.scaleRow}>
-              <div class={styles.scaleMeta}>
-                <span class={styles.scaleLabel}>{spec.label}</span>
-                <code class={s.tokenCode}>{spec.sizeVar}</code>
+            <div key={spec.sizeVar} className={styles.scaleRow}>
+              <div className={styles.scaleMeta}>
+                <span className={styles.scaleLabel}>{spec.label}</span>
+                <code className={s.tokenCode}>{spec.sizeVar}</code>
               </div>
               <span
-                class={styles.scaleSample}
+                className={styles.scaleSample}
                 style={{
                   fontSize: `var(${spec.sizeVar})`,
                   lineHeight: `var(${spec.lineHeightVar})`,
@@ -87,13 +87,13 @@ export function TypographyTokens() {
         </div>
       </div>
 
-      <div class={s.group}>
-        <h3 class={s.groupLabel}>Weights</h3>
-        <div class={styles.weightList}>
+      <div className={s.group}>
+        <h3 className={s.groupLabel}>Weights</h3>
+        <div className={styles.weightList}>
           {WEIGHTS.map((w) => (
-            <div key={w.cssVar} class={styles.weightRow}>
-              <code class={s.tokenCode}>{w.cssVar}</code>
-              <span class={styles.weightSample} style={{ fontWeight: `var(${w.cssVar})` }}>
+            <div key={w.cssVar} className={styles.weightRow}>
+              <code className={s.tokenCode}>{w.cssVar}</code>
+              <span className={styles.weightSample} style={{ fontWeight: `var(${w.cssVar})` }}>
                 {w.label} ({w.value})
               </span>
             </div>

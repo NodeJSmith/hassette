@@ -1,8 +1,8 @@
 import clsx from "clsx";
 
 import { BREAKPOINT_MOBILE, useMediaQuery } from "../../hooks/use-media-query";
-import { useAppState } from "../../state/context";
-import type { ConnectionStatus } from "../../state/create-app-state";
+import type { ConnectionStatus } from "../../state/store";
+import { useAppStore } from "../../state/store";
 import { pluralize } from "../../utils/format";
 import styles from "./system-health.module.css";
 
@@ -33,20 +33,19 @@ interface Props {
  * `useSidebarHidden()` rather than rendering both and hiding one with CSS.
  */
 export function SystemHealth({ variant }: Props) {
-  const { connection, telemetryDegraded, droppedOverflow, droppedExhausted, droppedShutdown, errorHandlerFailures } =
-    useAppState();
+  const connection = useAppStore((s) => s.connection);
+  const telemetryDegraded = useAppStore((s) => s.telemetryDegraded);
+  const droppedOverflow = useAppStore((s) => s.droppedOverflow);
+  const droppedExhausted = useAppStore((s) => s.droppedExhausted);
+  const droppedShutdown = useAppStore((s) => s.droppedShutdown);
+  const errorHandlerFailures = useAppStore((s) => s.errorHandlerFailures);
 
-  const status = connection.value;
-  const overflow = droppedOverflow.value;
-  const exhausted = droppedExhausted.value;
-  const shutdown = droppedShutdown.value;
-  const droppedTotal = overflow + exhausted + shutdown;
-  const handlerFailures = errorHandlerFailures.value;
+  const droppedTotal = droppedOverflow + droppedExhausted + droppedShutdown;
 
-  const { dotClass, label } = STATUS_CONFIG[status];
+  const { dotClass, label } = STATUS_CONFIG[connection];
 
   // "Disconnected" takes visual precedence over "database degraded"
-  const showDegraded = telemetryDegraded.value && status === "connected";
+  const showDegraded = telemetryDegraded && connection === "connected";
   const stacked = variant === "stacked";
 
   /*
@@ -62,24 +61,24 @@ export function SystemHealth({ variant }: Props) {
   const clipLabels = !stacked && isMobile;
   // Compact on desktop keeps the old behavior: spell the connection out only when
   // something is wrong, and clip it the rest of the time.
-  const clipConnectionLabel = clipLabels || (!stacked && status === "connected");
+  const clipConnectionLabel = clipLabels || (!stacked && connection === "connected");
 
   const labelClass = clipLabels ? "ht-visually-hidden" : "ht-text-xs";
   const connectionLabelClass = clipConnectionLabel ? "ht-visually-hidden" : "ht-text-xs";
 
   return (
-    <div class={clsx(styles.cluster, stacked ? styles.clusterStacked : styles.clusterCompact)}>
-      <span class={styles.indicator} role="status" data-testid="ws-indicator">
-        <span class={dotClass} />
-        <span class={connectionLabelClass} data-testid="health-label">
+    <div className={clsx(styles.cluster, stacked ? styles.clusterStacked : styles.clusterCompact)}>
+      <span className={styles.indicator} role="status" data-testid="ws-indicator">
+        <span className={dotClass} />
+        <span className={connectionLabelClass} data-testid="health-label">
           {label}
         </span>
       </span>
 
       {showDegraded && (
-        <span class={styles.indicator} aria-label="database degraded">
-          <span class={clsx(styles.pulseDot, styles.pulseDotDegraded)} />
-          <span class={labelClass} data-testid="health-label">
+        <span className={styles.indicator} aria-label="database degraded">
+          <span className={clsx(styles.pulseDot, styles.pulseDotDegraded)} />
+          <span className={labelClass} data-testid="health-label">
             database degraded
           </span>
         </span>
@@ -87,28 +86,28 @@ export function SystemHealth({ variant }: Props) {
 
       {droppedTotal > 0 && (
         <span
-          class={styles.indicator}
+          className={styles.indicator}
           aria-label={`${pluralize(droppedTotal, "telemetry event")} dropped`}
-          title={`buffer full: ${overflow}, write failed: ${exhausted}, during shutdown: ${shutdown}`}
+          title={`buffer full: ${droppedOverflow}, write failed: ${droppedExhausted}, during shutdown: ${droppedShutdown}`}
           data-testid="dropped-events-indicator"
         >
-          <span class={clsx(styles.pulseDot, styles.pulseDotDegraded)} />
-          <span class={labelClass} data-testid="health-label">
+          <span className={clsx(styles.pulseDot, styles.pulseDotDegraded)} />
+          <span className={labelClass} data-testid="health-label">
             {droppedTotal} dropped
           </span>
         </span>
       )}
 
-      {handlerFailures > 0 && (
+      {errorHandlerFailures > 0 && (
         <span
-          class={styles.indicator}
-          aria-label={pluralize(handlerFailures, "handler error")}
-          title={`${pluralize(handlerFailures, "user error handler invocation")} raised or timed out`}
+          className={styles.indicator}
+          aria-label={pluralize(errorHandlerFailures, "handler error")}
+          title={`${pluralize(errorHandlerFailures, "user error handler invocation")} raised or timed out`}
           data-testid="error-handler-failures-indicator"
         >
-          <span class={clsx(styles.pulseDot, styles.pulseDotDegraded)} />
-          <span class={labelClass} data-testid="health-label">
-            {pluralize(handlerFailures, "handler error")}
+          <span className={clsx(styles.pulseDot, styles.pulseDotDegraded)} />
+          <span className={labelClass} data-testid="health-label">
+            {pluralize(errorHandlerFailures, "handler error")}
           </span>
         </span>
       )}

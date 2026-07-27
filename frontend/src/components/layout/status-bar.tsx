@@ -1,9 +1,8 @@
-import type { RefObject } from "preact";
+import type { RefObject } from "react";
 
 import { useBreadcrumbs } from "../../hooks/use-breadcrumbs";
 import { useSidebarHidden } from "../../hooks/use-sidebar-hidden";
-import { useAppState } from "../../state/context";
-import { setStoredValue } from "../../utils/local-storage";
+import { useAppStore } from "../../state/store";
 import { Breadcrumbs } from "../shared/breadcrumbs";
 import { Button } from "../shared/button";
 import { SystemHealth } from "../shared/system-health";
@@ -14,21 +13,22 @@ import { TimePresetSelector } from "./time-preset-selector";
 interface StatusBarProps {
   onMenuClick: () => void;
   drawerOpen: boolean;
-  hamburgerRef: RefObject<HTMLButtonElement>;
+  hamburgerRef: RefObject<HTMLButtonElement | null>;
 }
 
 export function StatusBar({ onMenuClick, drawerOpen, hamburgerRef }: StatusBarProps) {
-  const { sidebarCollapsed } = useAppState();
+  const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed);
+  const setSidebarCollapsed = useAppStore((s) => s.setSidebarCollapsed);
   const crumbs = useBreadcrumbs();
   const sidebarHidden = useSidebarHidden();
 
   return (
-    <div class={styles.statusBar} data-testid="status-bar">
-      <div class={styles.statusBarLeft}>
+    <div className={styles.statusBar} data-testid="status-bar">
+      <div className={styles.statusBarLeft}>
         <button
           ref={hamburgerRef}
           type="button"
-          class={styles.hamburger}
+          className={styles.hamburger}
           aria-label={drawerOpen ? "Close navigation" : "Open navigation"}
           aria-expanded={drawerOpen}
           data-testid="hamburger"
@@ -42,18 +42,17 @@ export function StatusBar({ onMenuClick, drawerOpen, hamburgerRef }: StatusBarPr
         </button>
 
         {/* Collapsing unmounts the sidebar, so this is the only way back to it. */}
-        {sidebarCollapsed.value && (
+        {sidebarCollapsed && (
           <Button
             icon
             ghost
             size="sm"
-            class={styles.expandSidebar}
+            className={styles.expandSidebar}
             title="Expand sidebar ([)"
             aria-label="Expand sidebar"
             data-testid="sidebar-expand"
             onClick={() => {
-              sidebarCollapsed.value = false;
-              setStoredValue("sidebarCollapsed", false);
+              setSidebarCollapsed(false);
             }}
           >
             <svg viewBox="0 0 16 16" aria-hidden="true">
@@ -68,7 +67,7 @@ export function StatusBar({ onMenuClick, drawerOpen, hamburgerRef }: StatusBarPr
       {/* Both of these live in the sidebar footer when it is on screen. Collapsing unmounts
           the sidebar outright, so without this fallback the theme toggle would have no
           reachable home on desktop at all. */}
-      <div class={styles.statusBarRight}>
+      <div className={styles.statusBarRight}>
         {sidebarHidden && <SystemHealth variant="compact" />}
         <TimePresetSelector />
         {sidebarHidden && <ThemeToggle />}

@@ -1,4 +1,4 @@
-import { act, renderHook } from "@testing-library/preact";
+import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { useAsyncAction } from "./use-async-action";
@@ -6,8 +6,8 @@ import { useAsyncAction } from "./use-async-action";
 describe("useAsyncAction", () => {
   it("starts with loading false and error null", () => {
     const { result } = renderHook(() => useAsyncAction());
-    expect(result.current.loading.value).toBe(false);
-    expect(result.current.error.value).toBeNull();
+    expect(result.current.loading).toBe(false);
+    expect(result.current.error).toBeNull();
   });
 
   it("sets loading true while the action is in flight, then false after it resolves", async () => {
@@ -25,13 +25,13 @@ describe("useAsyncAction", () => {
       runPromise = result.current.run(action);
     });
     expect(action).toHaveBeenCalledOnce();
-    expect(result.current.loading.value).toBe(true);
+    expect(result.current.loading).toBe(true);
 
     await act(async () => {
       resolveAction();
       await runPromise;
     });
-    expect(result.current.loading.value).toBe(false);
+    expect(result.current.loading).toBe(false);
   });
 
   it("ignores a second run() while the first is still in flight", async () => {
@@ -67,8 +67,8 @@ describe("useAsyncAction", () => {
       await result.current.run(action);
     });
 
-    expect(result.current.error.value).toBe("boom");
-    expect(result.current.loading.value).toBe(false);
+    expect(result.current.error).toBe("boom");
+    expect(result.current.loading).toBe(false);
   });
 
   it("stringifies non-Error throws", async () => {
@@ -79,7 +79,7 @@ describe("useAsyncAction", () => {
       await result.current.run(action);
     });
 
-    expect(result.current.error.value).toBe("raw string error");
+    expect(result.current.error).toBe("raw string error");
   });
 
   it("clears a prior error when a new run starts", async () => {
@@ -90,11 +90,11 @@ describe("useAsyncAction", () => {
     await act(async () => {
       await result.current.run(failing);
     });
-    expect(result.current.error.value).toBe("first failure");
+    expect(result.current.error).toBe("first failure");
 
     await act(async () => {
       await result.current.run(succeeding);
     });
-    expect(result.current.error.value).toBeNull();
+    expect(result.current.error).toBeNull();
   });
 });

@@ -1,5 +1,6 @@
-import { useEffect, useRef } from "preact/hooks";
+import { useEffect, useRef } from "react";
 
+import { wrapFocusOnTab } from "../../utils/focus-trap";
 import { Button } from "./button";
 import styles from "./confirm-dialog.module.css";
 
@@ -46,22 +47,7 @@ export function ConfirmDialog({ title, body, confirmLabel, onConfirm, onCancel, 
 
       if (e.key === "Tab") {
         const focusable = [cancelRef.current, confirmRef.current].filter((el): el is HTMLButtonElement => el !== null);
-        if (focusable.length === 0) return;
-
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-
-        if (e.shiftKey) {
-          if (document.activeElement === first) {
-            e.preventDefault();
-            last.focus();
-          }
-        } else {
-          if (document.activeElement === last) {
-            e.preventDefault();
-            first.focus();
-          }
-        }
+        wrapFocusOnTab(e, focusable);
       }
     };
 
@@ -75,15 +61,21 @@ export function ConfirmDialog({ title, body, confirmLabel, onConfirm, onCancel, 
 
   return (
     <>
-      <div class={styles.backdrop} data-testid="confirm-dialog-backdrop" onClick={onCancel} aria-hidden="true" />
-      <div role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={bodyId} class={styles.dialog}>
-        <h2 id={titleId} class={styles.title}>
+      <div className={styles.backdrop} data-testid="confirm-dialog-backdrop" onClick={onCancel} aria-hidden="true" />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={bodyId}
+        className={styles.dialog}
+      >
+        <h2 id={titleId} className={styles.title}>
           {title}
         </h2>
-        <p id={bodyId} class={styles.body}>
+        <p id={bodyId} className={styles.body}>
           {body}
         </p>
-        <div class={styles.actions}>
+        <div className={styles.actions}>
           <Button
             buttonRef={(el) => {
               cancelRef.current = el;

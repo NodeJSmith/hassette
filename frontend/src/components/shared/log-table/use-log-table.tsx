@@ -1,12 +1,9 @@
-import { useSignalEffect } from "@preact/signals";
 import clsx from "clsx";
-import { useCallback, useEffect, useMemo, useRef } from "preact/hooks";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { LogEntry } from "@/api/endpoints";
 import { BREAKPOINT_MOBILE, useMediaQuery } from "@/hooks/use-media-query";
-import { useSignal } from "@/hooks/use-signal";
-import { useSubscribe } from "@/hooks/use-subscribe";
-import { useAppState } from "@/state/context";
+import { useAppStore } from "@/state/store";
 import { pluralize } from "@/utils/format";
 
 import filterStyles from "../column-filter-popover/index.module.css";
@@ -77,10 +74,8 @@ export function useLogTable({
 }: UseLogTableParams): UseLogTableResult {
   const { visibleColumns, selectedColumns, viewportHidden, toggle, reset } = useColumnVisibility(context);
   const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
-  const { updateLogSubscription } = useAppState();
 
-  const selectedKey = useSignal<RowKey | null>(null);
-  useSubscribe(selectedKey);
+  const [selectedKey, setSelectedKey] = useState<RowKey | null>(null);
 
   const { allEntries, restEntries, loading } = useLogData({
     appKey,
@@ -110,10 +105,10 @@ export function useLogTable({
     executionId,
   });
 
-  useSignalEffect(() => {
-    const level = filterState.value.level;
-    updateLogSubscription(level || "DEBUG");
-  });
+  const level = filterState.level;
+  useEffect(() => {
+    useAppStore.getState().sendLogLevel(level || "DEBUG");
+  }, [level]);
 
   const prevExternalSearch = useRef<string | undefined>(undefined);
   useEffect(() => {
@@ -123,30 +118,25 @@ export function useLogTable({
     }
   }, [externalSearch, setSearch]);
 
-  const state = filterState.value;
-  const entries = visibleEntries;
-  const paused = livePaused.value;
-  const isLoading = loading;
-
   const handleRowClick = useCallback((entry: LogEntry) => {
     const key = rowKey(entry);
-    selectedKey.value = selectedKey.value === key ? null : key;
+    setSelectedKey((current) => (current === key ? null : key));
   }, []);
 
   const handleDrawerClose = useCallback(() => {
-    selectedKey.value = null;
+    setSelectedKey(null);
   }, []);
 
   const handleDrawerNavigate = useCallback((key: RowKey) => {
-    selectedKey.value = key;
+    setSelectedKey(key);
   }, []);
 
   const hasActiveFilter =
-    state.level !== DEFAULT_LEVEL ||
-    state.tier !== defaultTier ||
-    state.app !== "" ||
-    state.func !== "" ||
-    state.search !== "";
+    filterState.level !== DEFAULT_LEVEL ||
+    filterState.tier !== defaultTier ||
+    filterState.app !== "" ||
+    filterState.func !== "" ||
+    filterState.search !== "";
 
   const isTruncated = totalFilteredCount > RENDER_CAP;
   const countLabel = isTruncated
@@ -156,11 +146,11 @@ export function useLogTable({
   const columnFilters: ColumnFilters = useMemo(() => {
     const filters: ColumnFilters = {
       level: {
-        active: state.level !== DEFAULT_LEVEL,
+        active: filterState.level !== DEFAULT_LEVEL,
         label: "Level",
         content: (
           <select
-            value={state.level}
+            value={filterState.level}
             onChange={(e) => setLevel((e.target as HTMLSelectElement).value as LevelFilter)}
             data-testid="filter-level"
           >
@@ -173,12 +163,12 @@ export function useLogTable({
         ),
       },
       function: {
-        active: state.func !== "",
+        active: filterState.func !== "",
         label: "Function",
         content: (
           <input
             type="text"
-            value={state.func}
+            value={filterState.func}
             placeholder="Filter..."
             onInput={(e) => setFunc((e.target as HTMLInputElement).value)}
             data-testid="filter-fn"
@@ -194,25 +184,25 @@ export function useLogTable({
     // narrow further by tier/app. Only the dedicated execution panel removes the toggle.
     if (!appKey && context !== "execution") {
       filters.app = {
-        active: state.tier !== defaultTier || state.app !== "",
+        active: filterState.tier !== defaultTier || filterState.app !== "",
         label: "App",
         content: (
           <div>
-            <div class={filterStyles.tierGroup}>
+            <div className={filterStyles.tierGroup}>
               {TIER_OPTIONS.map((opt) => (
                 <button
                   key={opt.value}
                   type="button"
-                  class={clsx(filterStyles.tierBtn, state.tier === opt.value && filterStyles.active)}
+                  className={clsx(filterStyles.tierBtn, filterState.tier === opt.value && filterStyles.active)}
                   onClick={() => setTier(opt.value)}
                 >
                   {opt.label}
                 </button>
               ))}
             </div>
-            {state.tier !== "framework" && appKeys && appKeys.length > 0 && (
+            {filterState.tier !== "framework" && appKeys && appKeys.length > 0 && (
               <select
-                value={state.app}
+                value={filterState.app}
                 onChange={(e) => setApp((e.target as HTMLSelectElement).value)}
                 data-testid="filter-app"
               >
@@ -231,10 +221,10 @@ export function useLogTable({
 
     return filters;
   }, [
-    state.level,
-    state.tier,
-    state.app,
-    state.func,
+    filterState.level,
+    filterState.tier,
+    filterState.app,
+    filterState.func,
     defaultTier,
     appKey,
     appKeys,
@@ -248,17 +238,17 @@ export function useLogTable({
   return {
     tableProps: {
       visibleColumns,
-      sort: state.sort,
+      sort: filterState.sort,
       onSort: setSort,
       columnFilters,
-      entries,
-      selectedKey: selectedKey.value,
+      entries: visibleEntries,
+      selectedKey,
       onRowClick: handleRowClick,
       isMobile,
     },
     drawerProps: {
-      selectedKey: selectedKey.value,
-      entries,
+      selectedKey,
+      entries: visibleEntries,
       onClose: handleDrawerClose,
       onNavigate: handleDrawerNavigate,
     },
@@ -266,7 +256,7 @@ export function useLogTable({
     countLabel,
     hasActiveFilter,
     resetFilters,
-    livePaused: paused,
+    livePaused,
     resetSort,
     columnPickerProps: {
       selectedColumns,
@@ -275,7 +265,7 @@ export function useLogTable({
       onReset: reset,
     },
     isMobile,
-    isEmpty: !isLoading && totalFilteredCount === 0,
-    isLoading,
+    isEmpty: !loading && totalFilteredCount === 0,
+    isLoading: loading,
   };
 }

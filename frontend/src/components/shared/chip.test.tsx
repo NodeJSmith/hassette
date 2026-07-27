@@ -1,4 +1,4 @@
-import { render } from "@testing-library/preact";
+import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { Chip } from "./chip";
@@ -180,7 +180,7 @@ describe("Chip", () => {
   describe("class prop", () => {
     it("merges additional class into span className", () => {
       const { getByTestId } = render(
-        <Chip variant="muted" class="extra-class" data-testid="c">
+        <Chip variant="muted" className="extra-class" data-testid="c">
           text
         </Chip>,
       );

@@ -1,6 +1,7 @@
-import { keepPreviousData } from "@tanstack/preact-query";
+import { keepPreviousData } from "@tanstack/react-query";
 import clsx from "clsx";
-import { useEffect } from "preact/hooks";
+import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
+import { useEffect } from "react";
 import { Link, useLocation } from "wouter";
 
 import { getAppJobs, getAppListeners } from "../api/endpoints";
@@ -19,8 +20,7 @@ import { useQueryInvalidator } from "../hooks/use-query-invalidator";
 import { useQueryParams } from "../hooks/use-query-params";
 import { useScopedQuery } from "../hooks/use-scoped-query";
 import { queryKeys } from "../lib/query-keys";
-import { useAppState } from "../state/context";
-import { appStatusKey } from "../state/create-app-state";
+import { appStatusKey, useAppStore } from "../state/store";
 import { appLiveStatus } from "../utils/app-data";
 import { appDetailPath, type AppDetailTab, parseInstanceParam } from "../utils/app-routes";
 import styles from "./app-detail.module.css";
@@ -63,31 +63,23 @@ function Tab({
       tabIndex={isActive ? 0 : -1}
       aria-selected={isActive}
       aria-controls={`tabpanel-${id}`}
-      class={clsx(styles.tabBtn, isActive && styles.tabBtnActive)}
+      className={clsx(styles.tabBtn, isActive && styles.tabBtnActive)}
     >
       {label}
-      {badge !== undefined && <span class={styles.tabBtnBadge}>{badge}</span>}
+      {badge !== undefined && <span className={styles.tabBtnBadge}>{badge}</span>}
     </Link>
   );
 }
 
-function TabPanel({
-  id,
-  children,
-  class: className,
-}: {
-  id: TabId;
-  children: preact.ComponentChildren;
-  class?: string;
-}) {
+function TabPanel({ id, children, className }: { id: TabId; children: ReactNode; className?: string }) {
   return (
-    <div class={className} role="tabpanel" id={`tabpanel-${id}`} aria-labelledby={`tab-${id}`}>
+    <div className={className} role="tabpanel" id={`tabpanel-${id}`} aria-labelledby={`tab-${id}`}>
       {children}
     </div>
   );
 }
 
-function handleTabKeyDown(e: KeyboardEvent) {
+function handleTabKeyDown(e: ReactKeyboardEvent) {
   if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
   e.preventDefault();
   const tabs = (e.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('[role="tab"]');
@@ -100,7 +92,8 @@ function handleTabKeyDown(e: KeyboardEvent) {
 export function AppDetailPage({ params }: Props) {
   const appKey = params.key;
   const activeTab: TabId = params.tab ?? "overview";
-  const { appStatus, executionCompleted } = useAppState();
+  const appStatus = useAppStore((s) => s.appStatus);
+  const executionCompleted = useAppStore((s) => s.executionCompleted);
   const { data: manifest, isPending: manifestLoading, error: manifestError } = useManifest(appKey);
   const [, navigate] = useLocation();
   const queryParams = useQueryParams();
@@ -153,13 +146,13 @@ export function AppDetailPage({ params }: Props) {
   const currentInstance = !showParentOverview
     ? manifest?.instances?.find((i) => i.index === resolvedInstanceIndex)
     : undefined;
-  const wsStatus = appStatus.value[appStatusKey(appKey, resolvedInstanceIndex)]?.status;
+  const wsStatus = appStatus[appStatusKey(appKey, resolvedInstanceIndex)]?.status;
   const instanceStatus = wsStatus ?? currentInstance?.status ?? manifest?.status ?? "unknown";
   let liveStatus: string;
   if (!showParentOverview) {
     liveStatus = instanceStatus;
   } else if (manifest) {
-    liveStatus = appLiveStatus(appStatus.value, manifest);
+    liveStatus = appLiveStatus(appStatus, manifest);
   } else {
     liveStatus = "unknown";
   }
@@ -188,7 +181,7 @@ export function AppDetailPage({ params }: Props) {
 
   if (manifestError || listenersError || jobsError) {
     return (
-      <div class="ht-alert ht-alert--danger" role="alert">
+      <div className="ht-alert ht-alert--danger" role="alert">
         {(manifestError ?? listenersError ?? jobsError)!.message}
       </div>
     );
@@ -199,8 +192,8 @@ export function AppDetailPage({ params }: Props) {
   const handlerCount = (listenersData?.length ?? 0) + (jobsData?.length ?? 0);
 
   return (
-    <div class="ht-page">
-      <div class={styles.identity}>
+    <div className="ht-page">
+      <div className={styles.identity}>
         {isMultiInstance && !showParentOverview && manifest?.instances && manifest.instances.length > 0 && (
           <InstanceSwitcher
             instances={manifest.instances}
@@ -220,7 +213,7 @@ export function AppDetailPage({ params }: Props) {
           showParentOverview={showParentOverview}
         />
 
-        <div class={styles.tabStrip} role="tablist" aria-label="App sections" onKeyDown={handleTabKeyDown}>
+        <div className={styles.tabStrip} role="tablist" aria-label="App sections" onKeyDown={handleTabKeyDown}>
           <Tab id="overview" label="overview" {...tabProps} />
           {!showParentOverview && <Tab id="handlers" label="handlers" badge={handlerCount} {...tabProps} />}
           <Tab id="code" label="code" {...tabProps} />
@@ -274,7 +267,7 @@ export function AppDetailPage({ params }: Props) {
         </TabPanel>
       )}
       {activeTab === "logs" && (
-        <TabPanel id="logs" class={styles.tabPanel}>
+        <TabPanel id="logs" className={styles.tabPanel}>
           <AppLogsPanel appKey={appKey} />
         </TabPanel>
       )}

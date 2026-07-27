@@ -1,10 +1,8 @@
 import clsx from "clsx";
-import { useMemo } from "preact/hooks";
+import { useMemo, useState } from "react";
 
 import type { JobData, ListenerData } from "../../api/endpoints";
-import { useSignal } from "../../hooks/use-signal";
-import { useSubscribe } from "../../hooks/use-subscribe";
-import { useAppState } from "../../state/context";
+import { useAppStore } from "../../state/store";
 import { INACTIVE_STATUSES } from "../../utils/status";
 import { EmptyState } from "../shared/empty-state";
 import { LogTableView, LogTableWithDrawer, useLogTable } from "../shared/log-table";
@@ -29,9 +27,8 @@ interface Props {
 
 function RecentLogsSection({ appKey, appStatus }: { appKey: string; appStatus?: string }) {
   const isInactive = appStatus !== undefined && INACTIVE_STATUSES.has(appStatus);
-  const search = useSignal("");
-  useSubscribe(search);
-  const log = useLogTable({ context: "app", appKey, useLocalState: true, search: search.value });
+  const [search, setSearch] = useState("");
+  const log = useLogTable({ context: "app", appKey, useLocalState: true, search });
 
   const emptyTitle = isInactive ? `this app is ${appStatus}` : "no log lines in window";
   const emptyBody = isInactive
@@ -41,12 +38,12 @@ function RecentLogsSection({ appKey, appStatus }: { appKey: string; appStatus?: 
   const searchInput = (
     <input
       type="text"
-      class="ht-search"
+      className="ht-search"
       placeholder="Search logs…"
       aria-label="Search app logs"
-      value={search.value}
+      value={search}
       onInput={(e) => {
-        search.value = (e.target as HTMLInputElement).value;
+        setSearch((e.target as HTMLInputElement).value);
       }}
       data-testid="overview-logs-search"
     />
@@ -61,9 +58,9 @@ function RecentLogsSection({ appKey, appStatus }: { appKey: string; appStatus?: 
   );
 
   return (
-    <section class={styles.section} data-testid="overview-logs-section">
-      <div class={styles.sectionHeader}>
-        <h3 class="ht-section-label">logs</h3>
+    <section className={styles.section} data-testid="overview-logs-section">
+      <div className={styles.sectionHeader}>
+        <h3 className="ht-section-label">logs</h3>
         {searchInput}
       </div>
       <TableCard footer={footer} scrollHeight="400px">
@@ -76,13 +73,13 @@ function RecentLogsSection({ appKey, appStatus }: { appKey: string; appStatus?: 
 }
 
 export function OverviewTab({ listeners, jobs, appKey, instanceQs, resolvedInstanceIndex, appStatus }: Props) {
-  const { connection } = useAppState();
-  const wsConnected = connection.value === "connected";
+  const connection = useAppStore((s) => s.connection);
+  const wsConnected = connection === "connected";
   const allItems = useMemo(() => buildItems(listeners, jobs), [listeners, jobs]);
   const failingItems = useMemo(() => allItems.filter(isFailing), [allItems]);
 
   return (
-    <div class={clsx(styles.overviewTab, !wsConnected && styles.overviewTabStale)} data-testid="overview-tab">
+    <div className={clsx(styles.overviewTab, !wsConnected && styles.overviewTabStale)} data-testid="overview-tab">
       <OverviewHealthStrip listeners={listeners} jobs={jobs} />
 
       {failingItems.length > 0 && (

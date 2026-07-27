@@ -1,4 +1,4 @@
-import { useMemo } from "preact/hooks";
+import { useMemo } from "react";
 
 import { useRovingTabIndex } from "../../hooks/use-roving-tab-index";
 import { EmptyState } from "../shared/empty-state";
@@ -23,8 +23,8 @@ export function HandlerHealthGrid({
 
   if (items.length === 0) {
     return (
-      <section class={styles.section} data-testid="overview-health-grid">
-        <h3 class="ht-section-label">handler health</h3>
+      <section className={styles.section} data-testid="overview-health-grid">
+        <h3 className="ht-section-label">handler health</h3>
         <EmptyState
           title="No handlers registered"
           body="This app has not registered any event handlers or scheduled jobs."
@@ -35,10 +35,10 @@ export function HandlerHealthGrid({
   }
 
   return (
-    <section class={styles.section} data-testid="overview-health-grid">
-      <h3 class="ht-section-label">handler health</h3>
-      <div class={styles.healthGridScroll}>
-        <div class={styles.healthGrid} ref={containerRef} onKeyDown={onContainerKeyDown}>
+    <section className={styles.section} data-testid="overview-health-grid">
+      <h3 className="ht-section-label">handler health</h3>
+      <div className={styles.healthGridScroll}>
+        <div className={styles.healthGrid} ref={containerRef} onKeyDown={onContainerKeyDown}>
           {sorted.map((item, i) => (
             <HandlerHealthCard
               key={`${item.kind}-${item.id}`}

@@ -1,4 +1,3 @@
-import { signal } from "@preact/signals";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createWouterMock } from "../../test/mock-wouter";
@@ -43,7 +42,7 @@ describe("HandlersTab rendering", () => {
   it("renders empty state when no listeners or jobs", () => {
     const { getByTestId } = renderWithAppState(
       <HandlersTab listeners={[]} jobs={[]} selectedHandler={null} selectedExecId={null} appKey="test_app" />,
-      { stateOverrides: { uptimeSeconds: signal<number | null>(120) } },
+      { storeOverrides: { uptimeSeconds: 120 } },
     );
     expect(getByTestId("handlers-empty")).toBeDefined();
   });

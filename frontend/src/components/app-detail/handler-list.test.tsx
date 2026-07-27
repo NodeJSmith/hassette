@@ -1,11 +1,11 @@
-import { render } from "@testing-library/preact";
+import { render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { createJob, createListener } from "../../test/factories";
 import { HandlerList } from "./handler-list";
 
 // Mock UnifiedHandlerRow to isolate HandlerList behavior — the row component
-// calls query hooks which require AppStateContext and MSW.
+// calls query hooks which require the Zustand app store (useAppStore) and MSW.
 vi.mock("./unified-handler-row", () => ({
   UnifiedHandlerRow: ({
     item,

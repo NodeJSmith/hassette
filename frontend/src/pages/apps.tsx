@@ -1,5 +1,6 @@
-import { keepPreviousData } from "@tanstack/preact-query";
+import { keepPreviousData } from "@tanstack/react-query";
 import clsx from "clsx";
+import { useState } from "react";
 
 import { ApiError } from "../api/client";
 import { getDashboardAppGrid } from "../api/endpoints";
@@ -18,10 +19,9 @@ import { BREAKPOINT_MOBILE, useMediaQuery } from "../hooks/use-media-query";
 import { useQueryInvalidator } from "../hooks/use-query-invalidator";
 import { useQueryParams } from "../hooks/use-query-params";
 import { useScopedQuery } from "../hooks/use-scoped-query";
-import { useSignal } from "../hooks/use-signal";
 import { queryKeys } from "../lib/query-keys";
-import { useAppState } from "../state/context";
-import type { AppStatusEntry } from "../state/create-app-state";
+import type { AppStatusEntry } from "../state/store";
+import { useAppStore } from "../state/store";
 import { appLiveStatus, type AppRow, type AppSortState, compareAppRows, toAppRow } from "../utils/app-data";
 import { pluralize } from "../utils/format";
 import { type StatusKind } from "../utils/status";
@@ -91,7 +91,7 @@ function StatusFilterContent({
 }) {
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
   return (
-    <div class={styles.statusFilter}>
+    <div className={styles.statusFilter}>
       {FILTER_OPTIONS.map((f) => {
         const count = f === "all" ? total : (counts[f] ?? 0);
         if (f !== "all" && count === 0) return null;
@@ -101,15 +101,15 @@ function StatusFilterContent({
           <button
             key={f}
             type="button"
-            class={clsx(popoverStyles.tierBtn, isActive && popoverStyles.active)}
+            className={clsx(popoverStyles.tierBtn, isActive && popoverStyles.active)}
             aria-pressed={isActive}
             onClick={() => onChange(f)}
             data-testid={`filter-${f}`}
           >
-            <span class={styles.statusFilterRow}>
+            <span className={styles.statusFilterRow}>
               {tone && <StatusShape kind={tone} size={8} />}
               <span>{f}</span>
-              <span class={styles.statusFilterCount}>{count}</span>
+              <span className={styles.statusFilterCount}>{count}</span>
             </span>
           </button>
         );
@@ -121,7 +121,12 @@ function StatusFilterContent({
 export function AppsPage() {
   useDocumentTitle("Apps");
 
-  const { appStatus, effectiveTimePreset, uptimeSeconds, executionCompleted } = useAppState();
+  const appStatus = useAppStore((s) => s.appStatus);
+  const timePreset = useAppStore((s) => s.timePreset);
+  const urlWindowParam = useAppStore((s) => s.urlWindowParam);
+  const effectiveTimePreset = urlWindowParam ?? timePreset;
+  const uptimeSeconds = useAppStore((s) => s.uptimeSeconds);
+  const executionCompleted = useAppStore((s) => s.executionCompleted);
   const {
     data: gridData,
     error: gridError,
@@ -153,28 +158,28 @@ export function AppsPage() {
       sort: newSort.key === "status" ? null : newSort.key,
       dir: newSort.dir === "asc" ? null : newSort.dir,
     });
-  const expanded = useSignal<Set<string>>(new Set());
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const toggleExpand = (appKey: string) => {
-    const next = new Set(expanded.value);
-    if (next.has(appKey)) next.delete(appKey);
-    else next.add(appKey);
-    expanded.value = next;
+    setExpanded((current) => {
+      const next = new Set(current);
+      if (next.has(appKey)) next.delete(appKey);
+      else next.add(appKey);
+      return next;
+    });
   };
 
   const allApps = (gridData?.apps ?? []).map(toAppRow);
 
   let windowSeconds: number | null = null;
-  if (uptimeSeconds.value !== null) {
+  if (uptimeSeconds !== null) {
     windowSeconds =
-      effectiveTimePreset.value === "since-restart"
-        ? uptimeSeconds.value
-        : PRESET_WINDOW_SECONDS[effectiveTimePreset.value];
+      effectiveTimePreset === "since-restart" ? uptimeSeconds : PRESET_WINDOW_SECONDS[effectiveTimePreset];
   }
 
   const statusCounts: Record<string, number> = {};
   for (const a of allApps) {
-    const liveStatus = appLiveStatus(appStatus.value, a);
+    const liveStatus = appLiveStatus(appStatus, a);
     statusCounts[liveStatus] = (statusCounts[liveStatus] ?? 0) + 1;
   }
 
@@ -200,7 +205,7 @@ export function AppsPage() {
   const searchLower = search.toLowerCase();
   const filtered = allApps
     .filter((a) => {
-      const liveStatus = appLiveStatus(appStatus.value, a);
+      const liveStatus = appLiveStatus(appStatus, a);
       if (filter !== "all" && liveStatus !== filter) return false;
       if (
         searchLower &&
@@ -211,14 +216,14 @@ export function AppsPage() {
         return false;
       return true;
     })
-    .sort((a, b) => compareAppRows(a, b, sort, appStatus.value));
+    .sort((a, b) => compareAppRows(a, b, sort, appStatus));
 
   if (gridLoading) return <Spinner />;
 
   if (gridError) {
     const isUnavailable = gridError instanceof ApiError && gridError.status === 503;
     return (
-      <div class="ht-alert ht-alert--danger" role="alert" data-testid="apps-load-error">
+      <div className="ht-alert ht-alert--danger" role="alert" data-testid="apps-load-error">
         {isUnavailable ? "Telemetry unavailable — the database is unreachable." : gridError.message}
       </div>
     );
@@ -227,7 +232,7 @@ export function AppsPage() {
   const searchInput = (
     <input
       type="text"
-      class="ht-search"
+      className="ht-search"
       placeholder="search apps…"
       aria-label="Search apps"
       value={search}
@@ -249,15 +254,15 @@ export function AppsPage() {
   else if (search) emptyStateTitle = `no apps match "${search}".`;
 
   return (
-    <div class={`ht-page ${styles.page}`} data-testid="apps-page">
+    <div className={`ht-page ${styles.page}`} data-testid="apps-page">
       {/* Header */}
-      <div class="ht-page-header">
-        <h1 class="ht-display">apps</h1>
+      <div className="ht-page-header">
+        <h1 className="ht-display">apps</h1>
       </div>
 
-      <div class="ht-table-section">
+      <div className="ht-table-section">
         <StatsStrip
-          cells={buildAppsCells(allApps, appStatus.value, windowSeconds, isMobile)}
+          cells={buildAppsCells(allApps, appStatus, windowSeconds, isMobile)}
           data-testid="apps-stats-strip"
         />
         {searchInput}
@@ -271,14 +276,14 @@ export function AppsPage() {
               )}
             </EmptyState>
           ) : (
-            <table class={`ht-table ht-table--fixed ${styles.appsTable}`} data-testid="apps-table">
+            <table className={`ht-table ht-table--fixed ${styles.appsTable}`} data-testid="apps-table">
               <colgroup>
-                <col class={styles.colName} />
-                <col class={styles.colStatus} />
-                <col class={styles.colError} />
-                <col class={styles.colRuns} />
-                <col class={styles.colLast} />
-                <col class={styles.colActions} />
+                <col className={styles.colName} />
+                <col className={styles.colStatus} />
+                <col className={styles.colError} />
+                <col className={styles.colRuns} />
+                <col className={styles.colLast} />
+                <col className={styles.colActions} />
               </colgroup>
               <thead>
                 <tr>
@@ -312,8 +317,8 @@ export function AppsPage() {
                   <AppTableRow
                     key={app.app_key}
                     app={app}
-                    appStatuses={appStatus.value}
-                    isExpanded={app.instance_count > 1 && expanded.value.has(app.app_key)}
+                    appStatuses={appStatus}
+                    isExpanded={app.instance_count > 1 && expanded.has(app.app_key)}
                     onToggle={() => toggleExpand(app.app_key)}
                     muteStatus={allSameStatus}
                   />

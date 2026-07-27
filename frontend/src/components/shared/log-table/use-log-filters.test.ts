@@ -1,4 +1,4 @@
-import { act, renderHook } from "@testing-library/preact";
+import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { LogEntry } from "@/api/endpoints";
@@ -371,7 +371,7 @@ describe("sort", () => {
     const { hook } = renderLocal(entries);
     act(() => hook.result.current.setLevel(""));
     act(() => hook.result.current.setSort({ key: "level", dir: "desc" }));
-    const { sort } = hook.result.current.filterState.value;
+    const { sort } = hook.result.current.filterState;
     expect(sort.key).toBe("level");
     expect(sort.dir).toBe("desc");
   });
@@ -380,7 +380,7 @@ describe("sort", () => {
     const { hook } = renderLocal();
     act(() => hook.result.current.setSort({ key: "level", dir: "desc" }));
     act(() => hook.result.current.setSort({ key: "level", dir: "asc" }));
-    const { sort } = hook.result.current.filterState.value;
+    const { sort } = hook.result.current.filterState;
     expect(sort.key).toBe("level");
     expect(sort.dir).toBe("asc");
   });
@@ -389,7 +389,7 @@ describe("sort", () => {
     const { hook } = renderLocal();
     act(() => hook.result.current.setSort({ key: "level", dir: "desc" }));
     act(() => hook.result.current.resetSort());
-    const { sort } = hook.result.current.filterState.value;
+    const { sort } = hook.result.current.filterState;
     expect(sort.key).toBe("timestamp");
     expect(sort.dir).toBe("desc");
   });
@@ -398,13 +398,13 @@ describe("sort", () => {
 describe("livePaused", () => {
   it("is false when sorting by timestamp", () => {
     const { hook } = renderLocal();
-    expect(hook.result.current.livePaused.value).toBe(false);
+    expect(hook.result.current.livePaused).toBe(false);
   });
 
   it("is true when sorting by any non-timestamp column", () => {
     const { hook } = renderLocal();
     act(() => hook.result.current.setSort({ key: "level", dir: "desc" }));
-    expect(hook.result.current.livePaused.value).toBe(true);
+    expect(hook.result.current.livePaused).toBe(true);
   });
 
   it("reads from restEntries when paused", () => {
@@ -458,7 +458,7 @@ describe("resetFilters", () => {
     });
     act(() => hook.result.current.resetFilters());
 
-    const { level, tier, app, func } = hook.result.current.filterState.value;
+    const { level, tier, app, func } = hook.result.current.filterState;
     expect(level).toBe("INFO");
     expect(tier).toBe("app");
     expect(app).toBe("");
@@ -473,7 +473,7 @@ describe("resetFilters", () => {
 
     act(() => hook.result.current.resetFilters());
     // Search is reset synchronously via direct signal assignment
-    const { search } = hook.result.current.filterState.value;
+    const { search } = hook.result.current.filterState;
     expect(search).toBe("");
   });
 });
@@ -492,7 +492,7 @@ describe("URL state mode", () => {
     mockSearch = "level=all";
     const entries = [entry({ level: "DEBUG", message: "debug" }), entry({ level: "INFO", message: "info" })];
     const { hook } = renderUrl(entries);
-    const { level } = hook.result.current.filterState.value;
+    const { level } = hook.result.current.filterState;
     expect(level).toBe("");
   });
 
@@ -515,7 +515,7 @@ describe("URL state mode", () => {
   it("reads sort and dir from URL", () => {
     mockSearch = "sort=level&dir=asc";
     const { hook } = renderUrl();
-    const { sort } = hook.result.current.filterState.value;
+    const { sort } = hook.result.current.filterState;
     expect(sort.key).toBe("level");
     expect(sort.dir).toBe("asc");
   });
@@ -550,7 +550,7 @@ describe("search debounce", () => {
     act(() => hook.result.current.setSearch("needle"));
 
     // Immediately after — search should still be empty (not yet applied)
-    const { search } = hook.result.current.filterState.value;
+    const { search } = hook.result.current.filterState;
     expect(search).toBe("");
   });
 
@@ -561,7 +561,7 @@ describe("search debounce", () => {
     act(() => hook.result.current.setSearch("needle"));
     await new Promise((r) => setTimeout(r, SEARCH_DEBOUNCE_MS + 50));
 
-    const { search } = hook.result.current.filterState.value;
+    const { search } = hook.result.current.filterState;
     expect(search).toBe("needle");
   });
 });

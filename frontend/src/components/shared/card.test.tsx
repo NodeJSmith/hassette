@@ -1,5 +1,5 @@
-import { render } from "@testing-library/preact";
-import { useRef } from "preact/hooks";
+import { render } from "@testing-library/react";
+import { type RefObject, useRef } from "react";
 import { describe, expect, it } from "vitest";
 
 import { Card } from "./card";
@@ -89,7 +89,7 @@ describe("Card", () => {
   describe("class prop", () => {
     it("merges additional class into div className", () => {
       const { getByTestId } = render(
-        <Card class="my-layout-class" data-testid="c">
+        <Card className="my-layout-class" data-testid="c">
           content
         </Card>,
       );
@@ -98,7 +98,7 @@ describe("Card", () => {
 
     it("merges custom class alongside variant class", () => {
       const { getByTestId } = render(
-        <Card variant="compact" class="stretch" data-testid="c">
+        <Card variant="compact" className="stretch" data-testid="c">
           content
         </Card>,
       );
@@ -110,7 +110,7 @@ describe("Card", () => {
 
   describe("containerRef prop", () => {
     it("applies containerRef to the root div element", () => {
-      let capturedRef: preact.RefObject<HTMLDivElement> | null = null;
+      let capturedRef: RefObject<HTMLDivElement | null> | null = null;
 
       function TestWrapper() {
         const ref = useRef<HTMLDivElement>(null);
@@ -143,7 +143,7 @@ describe("Card", () => {
 
     it("passes style through to the div element", () => {
       const { getByTestId } = render(
-        <Card style="color: red;" data-testid="c">
+        <Card style={{ color: "red" }} data-testid="c">
           content
         </Card>,
       );

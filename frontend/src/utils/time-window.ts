@@ -1,4 +1,4 @@
-import type { TimePreset } from "../state/create-app-state";
+import type { TimePreset } from "../state/store";
 import { MS_PER_SECOND } from "./format";
 
 /** Window sizes in seconds for the fixed-window presets. */

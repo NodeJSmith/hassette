@@ -1,5 +1,5 @@
-import { act, fireEvent, render } from "@testing-library/preact";
-import type * as preact from "preact";
+import { act, fireEvent, render } from "@testing-library/react";
+import type * as React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./app";
@@ -21,8 +21,8 @@ vi.mock("wouter", async () => {
       component: Component,
       children,
     }: {
-      component?: preact.FunctionComponent;
-      children?: preact.ComponentChildren;
+      component?: React.FunctionComponent;
+      children?: React.ReactNode;
     }) => {
       if (Component) return <Component />;
       if (children) return children;

@@ -1,5 +1,5 @@
-import { QueryClientProvider } from "@tanstack/preact-query";
-import { useEffect, useMemo, useRef, useState } from "preact/hooks";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Toaster } from "sonner";
 import { Redirect, Route, Switch, useLocation } from "wouter";
 
@@ -21,10 +21,8 @@ import { DiagnosticsPage } from "./pages/diagnostics";
 import { HandlersPage } from "./pages/handlers";
 import { LogsPage } from "./pages/logs";
 import { NotFoundPage } from "./pages/not-found";
-import { AppStateContext } from "./state/context";
-import { createAppState, RELATIVE_TIME_TICK_MS } from "./state/create-app-state";
+import { RELATIVE_TIME_TICK_MS, useAppStore } from "./state/store";
 import { HOME_PATH } from "./utils/app-routes";
-import { setStoredValue } from "./utils/local-storage";
 
 /** Bare-key shortcuts must not fire while the user is typing into the app filter or palette. */
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -40,7 +38,8 @@ function isTypingTarget(target: EventTarget | null): boolean {
 
 export function App() {
   const queryClient = useMemo(() => createQueryClient(), []);
-  const state = useMemo(() => createAppState(), []);
+  const theme = useAppStore((s) => s.theme);
+  const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed);
   const [location] = useLocation();
   const belowSidebarBreakpoint = useMediaQuery(BREAKPOINT_SIDEBAR);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -54,17 +53,17 @@ export function App() {
 
   useEffect(() => {
     const id = setInterval(() => {
-      if (!document.hidden) state.tick.value++;
+      if (!document.hidden) useAppStore.getState().incrementTick();
     }, RELATIVE_TIME_TICK_MS);
     const onVisible = () => {
-      if (!document.hidden) state.tick.value++;
+      if (!document.hidden) useAppStore.getState().incrementTick();
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => {
       clearInterval(id);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [state]);
+  }, []);
 
   const pathname = location.split("?")[0];
 
@@ -103,43 +102,42 @@ export function App() {
         !isTypingTarget(e.target)
       ) {
         e.preventDefault();
-        const next = !state.sidebarCollapsed.value;
-        state.sidebarCollapsed.value = next;
-        setStoredValue("sidebarCollapsed", next);
+        const next = !useAppStore.getState().sidebarCollapsed;
+        useAppStore.getState().setSidebarCollapsed(next);
       }
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [drawerOpen, state, belowSidebarBreakpoint]);
+  }, [drawerOpen, belowSidebarBreakpoint]);
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AppStateContext.Provider value={state}>
-        <WebSocketEffect state={state} />
-        <TelemetryHealthEffect state={state} />
+      <>
+        <WebSocketEffect />
+        <TelemetryHealthEffect />
         <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
-        <Toaster position="bottom-right" theme={state.theme.value} closeButton richColors />
+        <Toaster position="bottom-right" theme={theme} closeButton richColors />
 
         {/* Skip link */}
-        <a href="#main-content" class="ht-skip-link">
+        <a href="#main-content" className="ht-skip-link">
           Skip to main content
         </a>
 
         {/* Off-canvas drawer (mobile) */}
         <div
           ref={drawerRef}
-          class={`ht-drawer${drawerOpen ? " is-open" : ""}`}
+          className={`ht-drawer${drawerOpen ? " is-open" : ""}`}
           aria-hidden={!drawerOpen}
           {...(!drawerOpen ? { inert: true } : {})}
         >
           {drawerMounted && <Sidebar onOpenPalette={() => setPaletteOpen(true)} />}
         </div>
-        {drawerOpen && <div class="ht-drawer-backdrop" role="presentation" onClick={() => setDrawerOpen(false)} />}
+        {drawerOpen && <div className="ht-drawer-backdrop" role="presentation" onClick={() => setDrawerOpen(false)} />}
 
         {/* Desktop layout */}
-        <div class={`ht-layout${state.sidebarCollapsed.value ? " is-collapsed" : ""}`} data-testid="layout">
-          {!state.sidebarCollapsed.value && <Sidebar onOpenPalette={() => setPaletteOpen(true)} />}
-          <main class="ht-main" id="main-content" tabIndex={-1}>
+        <div className={`ht-layout${sidebarCollapsed ? " is-collapsed" : ""}`} data-testid="layout">
+          {!sidebarCollapsed && <Sidebar onOpenPalette={() => setPaletteOpen(true)} />}
+          <main className="ht-main" id="main-content" tabIndex={-1}>
             <StatusBar
               onMenuClick={() => setDrawerOpen((prev) => !prev)}
               drawerOpen={drawerOpen}
@@ -202,20 +200,20 @@ export function App() {
             </div>
           </main>
         </div>
-      </AppStateContext.Provider>
+      </>
     </QueryClientProvider>
   );
 }
 
 /** Side-effect component that wires up the WebSocket connection. */
-function WebSocketEffect({ state }: { state: ReturnType<typeof createAppState> }) {
-  useWebSocket(state);
+function WebSocketEffect() {
+  useWebSocket();
   return null;
 }
 
 /** Side-effect component that polls telemetry health status. */
-function TelemetryHealthEffect({ state }: { state: ReturnType<typeof createAppState> }) {
-  useTelemetryHealth(state);
+function TelemetryHealthEffect() {
+  useTelemetryHealth();
   return null;
 }
 

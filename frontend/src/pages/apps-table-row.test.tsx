@@ -1,7 +1,7 @@
-import { fireEvent } from "@testing-library/preact";
+import { fireEvent } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { type AppStatusEntry, appStatusKey } from "../state/create-app-state";
+import { type AppStatusEntry, appStatusKey } from "../state/store";
 import { createWouterMock } from "../test/mock-wouter";
 import { renderWithAppState } from "../test/render-helpers";
 import type { AppRow } from "../utils/app-data";

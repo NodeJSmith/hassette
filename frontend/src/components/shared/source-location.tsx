@@ -10,8 +10,8 @@ export function SourceLocation({ sourceLocation, "data-testid": testId }: Props)
   const { filename, line } = parseSourceLocation(sourceLocation);
 
   return (
-    <div class={styles.wrapper} data-testid={testId}>
-      <span class="ht-text-mono ht-text-sm ht-text-muted">
+    <div className={styles.wrapper} data-testid={testId}>
+      <span className="ht-text-mono ht-text-sm ht-text-muted">
         {filename}
         {line ? `:${line}` : ""}
       </span>

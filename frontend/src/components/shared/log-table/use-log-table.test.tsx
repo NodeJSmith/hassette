@@ -1,12 +1,7 @@
-import { signal } from "@preact/signals";
-import { act, renderHook } from "@testing-library/preact";
-import type { ComponentChildren } from "preact";
-import { h } from "preact";
+import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { LogEntry } from "@/api/endpoints";
-import { AppStateContext } from "@/state/context";
-import { createAppState } from "@/state/create-app-state";
 import { createLogEntry } from "@/test/factories";
 import { createWouterMock } from "@/test/mock-wouter";
 
@@ -25,8 +20,6 @@ vi.mock("./use-log-data", () => ({
   useLogData: () => ({
     allEntries: [],
     restEntries: [],
-    // Reading mockLoading.value here subscribes to the signal during render,
-    // so Preact re-renders the hook when mockLoading changes.
     get loading() {
       return mockLoading.value;
     },
@@ -42,9 +35,9 @@ vi.mock("./use-log-filters", () => ({
       return mockFilteredCount.value;
     },
     get filterState() {
-      return mockFilterState;
+      return mockFilterState.value;
     },
-    livePaused: signal(false),
+    livePaused: false,
     defaultTier: "all",
     get setLevel() {
       return mockSetLevel;
@@ -97,21 +90,25 @@ vi.mock("wouter", () =>
 
 // The mock factories above close over these bindings via getter functions;
 // because getters are evaluated at call time (not at factory evaluation time),
+// tests can mutate `.value` on these plain boxes before (or between) renders
+// and the mocked hooks will read the current value.
 
-const mockFilterState = signal<FilterState>({
-  level: "INFO",
-  tier: "all",
-  app: "",
-  func: "",
-  search: "",
-  sort: { key: "timestamp", dir: "desc" },
-});
+const mockFilterState = {
+  value: {
+    level: "INFO",
+    tier: "all",
+    app: "",
+    func: "",
+    search: "",
+    sort: { key: "timestamp", dir: "desc" },
+  } as FilterState,
+};
 
-const mockFiltered = signal<LogEntry[]>([]);
-const mockFilteredCount = signal(0);
-// mockLoading is a signal so the useLogData mock can return mockLoading.value
-// (subscribing to it during render) and tests can mutate it to trigger re-renders.
-const mockLoading = signal(false);
+const mockFiltered = { value: [] as LogEntry[] };
+const mockFilteredCount = { value: 0 };
+// mockLoading is a plain mutable box (not a signal) — tests mutate it before rendering,
+// or call `rerender()` after mutating to force `useLogTable` to re-read the current value.
+const mockLoading = { value: false };
 
 const mockSetLevel = vi.fn();
 const mockSetTier = vi.fn();
@@ -122,15 +119,8 @@ const mockSetSort = vi.fn();
 const mockResetSort = vi.fn();
 const mockResetFilters = vi.fn();
 
-function createWrapper() {
-  const state = createAppState();
-  return function Wrapper({ children }: { children: ComponentChildren }) {
-    return h(AppStateContext.Provider, { value: state }, children);
-  };
-}
-
 function renderUseLogTable(params: Parameters<typeof useLogTable>[0] = {}) {
-  return renderHook(() => useLogTable(params), { wrapper: createWrapper() });
+  return renderHook(() => useLogTable(params));
 }
 
 function makeEntry(seq: number) {
@@ -369,12 +359,13 @@ describe("useLogTable — isEmpty / isLoading", () => {
   });
 
   it("isLoading reflects the loading value", () => {
-    const { result } = renderUseLogTable();
+    const { result, rerender } = renderUseLogTable();
     expect(result.current.isLoading).toBe(false);
 
     act(() => {
       mockLoading.value = true;
     });
+    rerender();
     expect(result.current.isLoading).toBe(true);
   });
 });

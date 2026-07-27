@@ -1,5 +1,4 @@
-import { signal } from "@preact/signals";
-import { fireEvent } from "@testing-library/preact";
+import { fireEvent } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -25,7 +24,7 @@ vi.mock("../components/shared/spinner", () => ({
 }));
 
 // uptimeSeconds=120 ensures useScopedQuery is enabled (since-restart preset requires uptime).
-const STATE_WITH_UPTIME = { stateOverrides: { uptimeSeconds: signal(120) } };
+const STATE_WITH_UPTIME = { storeOverrides: { uptimeSeconds: 120 } };
 
 const APP_GRID_URL = "/api/telemetry/dashboard/app-grid";
 

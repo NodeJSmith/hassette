@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import type { ReactNode } from "react";
 import { Link } from "wouter";
 
 import { AppLink } from "../components/shared/app-link";
@@ -29,19 +30,19 @@ interface MobileCardProps {
   name: string;
   failing?: boolean;
   "data-testid"?: string;
-  metrics: preact.ComponentChildren;
-  footer?: preact.ComponentChildren;
+  metrics: ReactNode;
+  footer?: ReactNode;
 }
 
 function MobileCard({ href, appKey, name, failing, metrics, footer, "data-testid": testId }: MobileCardProps) {
   return (
-    <Link href={href} class={clsx(styles.mobileCard, failing && styles.mobileCardFailing)} data-testid={testId}>
-      <div class={styles.mobileCardHeader}>
-        <span class="ht-text-mono ht-text-sm">{appKey}</span>
-        <span class="ht-text-mono ht-text-sm ht-text-semibold">{name}</span>
+    <Link href={href} className={clsx(styles.mobileCard, failing && styles.mobileCardFailing)} data-testid={testId}>
+      <div className={styles.mobileCardHeader}>
+        <span className="ht-text-mono ht-text-sm">{appKey}</span>
+        <span className="ht-text-mono ht-text-sm ht-text-semibold">{name}</span>
       </div>
-      <div class={styles.mobileCardMetrics}>{metrics}</div>
-      {footer && <div class={styles.mobileCardFooter}>{footer}</div>}
+      <div className={styles.mobileCardMetrics}>{metrics}</div>
+      {footer && <div className={styles.mobileCardFooter}>{footer}</div>}
     </Link>
   );
 }
@@ -69,26 +70,26 @@ export function HandlerTableRow({ row }: HandlerRowProps) {
   const { errorRate, avgDuration, isOverdue, nextRunDisplay } = useHandlerRowData(row);
 
   return (
-    <tr class={clsx(styles.row, row.failed > 0 && styles.rowFailing)} data-testid={`${row.kind}-row-${row.id}`}>
+    <tr className={clsx(styles.row, row.failed > 0 && styles.rowFailing)} data-testid={`${row.kind}-row-${row.id}`}>
       <td>
         <KindBadge kind={row.kind} />
       </td>
-      <td class="ht-text-mono ht-text-sm">
+      <td className="ht-text-mono ht-text-sm">
         <AppLink appKey={row.app_key} />
       </td>
-      <td class="ht-text-mono ht-text-sm" title={row.handler_method}>
+      <td className="ht-text-mono ht-text-sm" title={row.handler_method}>
         <AppLink appKey={row.app_key} handlerKind={row.kind} handlerId={row.handlerId}>
           {row.name}
         </AppLink>
       </td>
-      <td class="ht-text-mono ht-text-sm">{row.trigger ?? "—"}</td>
-      <td class="ht-text-mono ht-text-sm">{row.runs}</td>
-      <td class={clsx("ht-text-mono ht-text-sm", row.failed > 0 && "ht-text-danger")}>{row.failed}</td>
-      <td class={clsx("ht-text-mono ht-text-sm", row.timed_out > 0 && "ht-text-warning")}>{row.timed_out}</td>
-      <td class={clsx("ht-text-mono ht-text-sm", row.cancelled > 0 && "ht-text-cancel")}>{row.cancelled}</td>
-      <td class={clsx("ht-text-mono ht-text-sm", row.failed > 0 && "ht-text-danger")}>{errorRate}</td>
-      <td class="ht-text-mono ht-text-sm">{avgDuration}</td>
-      <td class={clsx("ht-text-mono ht-text-sm", isOverdue && "ht-text-warning")}>{nextRunDisplay ?? "—"}</td>
+      <td className="ht-text-mono ht-text-sm">{row.trigger ?? "—"}</td>
+      <td className="ht-text-mono ht-text-sm">{row.runs}</td>
+      <td className={clsx("ht-text-mono ht-text-sm", row.failed > 0 && "ht-text-danger")}>{row.failed}</td>
+      <td className={clsx("ht-text-mono ht-text-sm", row.timed_out > 0 && "ht-text-warning")}>{row.timed_out}</td>
+      <td className={clsx("ht-text-mono ht-text-sm", row.cancelled > 0 && "ht-text-cancel")}>{row.cancelled}</td>
+      <td className={clsx("ht-text-mono ht-text-sm", row.failed > 0 && "ht-text-danger")}>{errorRate}</td>
+      <td className="ht-text-mono ht-text-sm">{avgDuration}</td>
+      <td className={clsx("ht-text-mono ht-text-sm", isOverdue && "ht-text-warning")}>{nextRunDisplay ?? "—"}</td>
     </tr>
   );
 }
@@ -108,16 +109,16 @@ export function HandlerMobileRow({ row }: HandlerRowProps) {
           <KindBadge kind={row.kind} />
           {row.trigger && <span>{row.trigger}</span>}
           <span>{row.runs} runs</span>
-          {row.failed > 0 && <span class="ht-text-danger">{row.failed} failed</span>}
-          {row.timed_out > 0 && <span class="ht-text-warning">{row.timed_out} timed out</span>}
-          {row.cancelled > 0 && <span class="ht-text-cancel">{row.cancelled} cancelled</span>}
+          {row.failed > 0 && <span className="ht-text-danger">{row.failed} failed</span>}
+          {row.timed_out > 0 && <span className="ht-text-warning">{row.timed_out} timed out</span>}
+          {row.cancelled > 0 && <span className="ht-text-cancel">{row.cancelled} cancelled</span>}
           {row.runs > 0 && <span>{errorRate} err</span>}
           {row.avg_duration_ms > 0 && <span>avg {avgDuration}</span>}
         </>
       }
       footer={
         row.kind === "job" && nextRunDisplay !== null ? (
-          <span class="ht-text-muted">next {nextRunDisplay}</span>
+          <span className="ht-text-muted">next {nextRunDisplay}</span>
         ) : undefined
       }
     />

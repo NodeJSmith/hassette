@@ -1,4 +1,4 @@
-import { fireEvent, render, waitFor } from "@testing-library/preact";
+import { fireEvent, render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ActionResponse } from "../../api/endpoints";

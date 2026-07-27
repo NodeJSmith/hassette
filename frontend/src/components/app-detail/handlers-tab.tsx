@@ -1,11 +1,10 @@
 import clsx from "clsx";
-import { useEffect, useRef } from "preact/hooks";
+import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 
 import type { JobData, ListenerData } from "../../api/endpoints";
 import { useCorrectUrl } from "../../hooks/use-correct-url";
 import { BREAKPOINT_MOBILE } from "../../hooks/use-media-query";
-import { useSignal } from "../../hooks/use-signal";
 import { appHandlersPath, handlerPath } from "../../utils/app-routes";
 import { Button } from "../shared/button";
 import { EmptyState } from "../shared/empty-state";
@@ -84,7 +83,7 @@ export function HandlersTab({
   const correctUrl = useCorrectUrl();
 
   // ResizeObserver instead of useMediaQuery: breakpoint is relative to this container's width, not the viewport.
-  const isMobile = useSignal(false);
+  const [isMobile, setIsMobile] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -93,12 +92,12 @@ export function HandlersTab({
 
     const ro = new ResizeObserver((entries) => {
       for (const entry of entries) {
-        isMobile.value = entry.contentRect.width < BREAKPOINT_MOBILE;
+        setIsMobile(entry.contentRect.width < BREAKPOINT_MOBILE);
       }
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [isMobile]);
+  }, []);
 
   const hasItems = listeners.length > 0 || jobs.length > 0;
   const instanceQs = instanceIndex !== undefined ? `?instance=${instanceIndex}` : "";
@@ -145,19 +144,19 @@ export function HandlersTab({
       );
 
     case "master-detail": {
-      const showMobileDetail = isMobile.value && selectedHandler !== null;
-      const showMasterList = !isMobile.value || selectedHandler === null;
-      const showDetailPane = !isMobile.value || selectedHandler !== null;
+      const showMobileDetail = isMobile && selectedHandler !== null;
+      const showMasterList = !isMobile || selectedHandler === null;
+      const showDetailPane = !isMobile || selectedHandler !== null;
 
       const selectedId: SelectedHandlerId | null = parsed ? { kind: parsed.kind, id: parsed.id } : null;
 
       return (
-        <div ref={containerRef} class={styles.container}>
+        <div ref={containerRef} className={styles.container}>
           {showMobileDetail && (
             <Button
               ghost
               size="sm"
-              class="ht-mb-3"
+              className="ht-mb-3"
               data-testid="back-to-list"
               onClick={() => navigate(appHandlersPath(appKey, { instance: instanceIndex }))}
               aria-label="Back to handler list"
@@ -166,15 +165,15 @@ export function HandlersTab({
             </Button>
           )}
 
-          <div class={clsx(styles.masterDetail, isMobile.value && styles.masterDetailMobile)}>
+          <div className={clsx(styles.masterDetail, isMobile && styles.masterDetailMobile)}>
             {showMasterList && (
-              <div class={styles.masterDetailList}>
+              <div className={styles.masterDetailList}>
                 <HandlerList listeners={listeners} jobs={jobs} selectedId={selectedId} onSelect={handleSelect} />
               </div>
             )}
 
             {showDetailPane && (
-              <div class={styles.masterDetailDetail}>
+              <div className={styles.masterDetailDetail}>
                 <DetailContent
                   listener={selectedListener}
                   job={selectedJob}

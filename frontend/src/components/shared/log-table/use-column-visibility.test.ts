@@ -1,4 +1,4 @@
-import { act, renderHook } from "@testing-library/preact";
+import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_COLUMNS_APP, DEFAULT_COLUMNS_EXECUTION, DEFAULT_COLUMNS_GLOBAL } from "./constants";

@@ -1,8 +1,8 @@
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { reloadApp, startApp, stopApp } from "../../api/endpoints";
 import { useAsyncAction } from "../../hooks/use-async-action";
-import { useSignal } from "../../hooks/use-signal";
 import styles from "./action-buttons.module.css";
 import { Button } from "./button";
 import { ConfirmDialog } from "./confirm-dialog";
@@ -26,7 +26,7 @@ interface Props {
 
 export function ActionButtons({ appKey, status, variant = "icon", confirmStop = false }: Props) {
   const { loading, run } = useAsyncAction();
-  const showStopConfirm = useSignal(false);
+  const [showStopConfirm, setShowStopConfirm] = useState(false);
 
   // The request returns 202 — the toast confirms the action was accepted, the
   // resulting status change arrives later over the WebSocket.
@@ -50,7 +50,7 @@ export function ActionButtons({ appKey, status, variant = "icon", confirmStop = 
 
   const handleStop = () => {
     if (confirmStop) {
-      showStopConfirm.value = true;
+      setShowStopConfirm(true);
     } else {
       void exec("stop");
     }
@@ -60,7 +60,7 @@ export function ActionButtons({ appKey, status, variant = "icon", confirmStop = 
 
   return (
     <>
-      <div class={styles.btnGroup} data-role="action-buttons" data-testid="action-buttons">
+      <div className={styles.btnGroup} data-role="action-buttons" data-testid="action-buttons">
         {canStart && (
           <Button
             variant="success"
@@ -68,7 +68,7 @@ export function ActionButtons({ appKey, status, variant = "icon", confirmStop = 
             ghost={isIcon}
             icon={isIcon}
             data-testid={`btn-start-${appKey}`}
-            disabled={loading.value}
+            disabled={loading}
             onClick={() => void exec("start")}
             title={isIcon ? "Start" : undefined}
             aria-label="Start app"
@@ -89,7 +89,7 @@ export function ActionButtons({ appKey, status, variant = "icon", confirmStop = 
             ghost={isIcon}
             icon={isIcon}
             data-testid={`btn-reload-${appKey}`}
-            disabled={loading.value}
+            disabled={loading}
             onClick={() => void exec("reload")}
             title={isIcon ? "Reload" : undefined}
             aria-label="Reload app"
@@ -110,7 +110,7 @@ export function ActionButtons({ appKey, status, variant = "icon", confirmStop = 
             ghost={isIcon}
             icon={isIcon}
             data-testid={`btn-stop-${appKey}`}
-            disabled={loading.value}
+            disabled={loading}
             onClick={handleStop}
             title={isIcon ? "Stop" : undefined}
             aria-label="Stop app"
@@ -125,18 +125,18 @@ export function ActionButtons({ appKey, status, variant = "icon", confirmStop = 
           </Button>
         )}
       </div>
-      {confirmStop && showStopConfirm.value && (
+      {confirmStop && showStopConfirm && (
         <ConfirmDialog
           title="Stop app?"
           body={`Stop "${appKey}"? It will stop processing events until restarted.`}
           confirmLabel="Stop"
           tone="danger"
           onConfirm={() => {
-            showStopConfirm.value = false;
+            setShowStopConfirm(false);
             void exec("stop");
           }}
           onCancel={() => {
-            showStopConfirm.value = false;
+            setShowStopConfirm(false);
           }}
         />
       )}
