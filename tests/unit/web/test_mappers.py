@@ -244,6 +244,26 @@ def test_app_manifest_list_response_from_passes_autostart_false():
     assert result.manifests[0].autostart is False
 
 
+def test_app_manifest_list_response_from_passes_in_current_config_false():
+    """Mapper carries in_current_config=False (DB-only/removed app) through to the response."""
+    manifest = make_manifest("app_c", status="stopped", in_current_config=False)
+    full = AppFullSnapshot(manifests=[manifest], total=1, stopped=1)
+
+    result = app_manifest_list_response_from(full)
+
+    assert result.manifests[0].in_current_config is False
+
+
+def test_app_manifest_list_response_from_passes_in_current_config_true():
+    """Mapper carries in_current_config=True (default, currently-configured app) through."""
+    manifest = make_manifest("app_d", status="running", in_current_config=True)
+    full = AppFullSnapshot(manifests=[manifest], total=1, running=1)
+
+    result = app_manifest_list_response_from(full)
+
+    assert result.manifests[0].in_current_config is True
+
+
 def make_system_status(**overrides) -> SystemStatus:
     defaults = {
         "status": "ok",

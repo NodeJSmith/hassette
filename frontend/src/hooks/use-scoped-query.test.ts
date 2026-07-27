@@ -229,6 +229,56 @@ describe("useScopedQuery", () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
+  it("fetches immediately with since=0 when waitForUptime is false and uptime is unavailable", async () => {
+    const fetcher = vi.fn().mockResolvedValue("data");
+    const state = createAppState();
+    state.timePreset.value = "since-restart";
+    // uptimeSeconds starts as null
+
+    const { result } = renderHookWithProviders(
+      () => useScopedQuery(["test-no-wait"], fetcher, { waitForUptime: false }),
+      { stateOverrides: state },
+    );
+
+    await vi.waitFor(() => {
+      expect(fetcher).toHaveBeenCalledTimes(1);
+    });
+
+    expect(fetcher).toHaveBeenCalledWith(0, expect.any(AbortSignal));
+
+    await vi.waitFor(() => {
+      expect(result.current.isPending).toBe(false);
+    });
+  });
+
+  it("refetches with the accurate window once uptime arrives when waitForUptime is false", async () => {
+    const fetcher = vi.fn<(since: number, signal: AbortSignal) => Promise<string>>().mockResolvedValue("data");
+    const state = createAppState();
+    state.timePreset.value = "since-restart";
+    const queryClient = createTestQueryClient();
+
+    renderHookWithProviders(() => useScopedQuery(["test-no-wait-refetch"], fetcher, { waitForUptime: false }), {
+      stateOverrides: state,
+      queryClient,
+    });
+
+    await vi.waitFor(() => {
+      expect(fetcher).toHaveBeenCalledTimes(1);
+    });
+    expect(fetcher).toHaveBeenCalledWith(0, expect.any(AbortSignal));
+
+    act(() => {
+      state.uptimeSeconds.value = 300;
+    });
+
+    await vi.waitFor(() => {
+      expect(fetcher).toHaveBeenCalledTimes(2);
+    });
+
+    const lastCallArg = fetcher.mock.calls[1][0];
+    expect(lastCallArg).toBeCloseTo(BASE_TIME_S - 300, 0);
+  });
+
   it("does not refetch when timePreset changes while urlWindowParam is overriding", async () => {
     const fetcher = vi.fn().mockResolvedValue("data");
     const state = createAppState();

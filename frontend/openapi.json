@@ -107,6 +107,7 @@
           "apps"
         ],
         "summary": "Get App Manifests",
+        "description": "Return every persisted app manifest, overlaid with live runtime state.\n\nThe app spine is queried from the ``app_manifests`` DB table (Category B \u2014 503 via\n``db_degrades_to`` on failure) and overlaid with live runtime state via\n``RuntimeQueryService.overlay_manifest_rows()``, so apps with historical telemetry but\nno loaded manifest are still included. The ``recent_invocations_1h`` enrichment query\nbelow stays Category C (independently caught, degrading to zero while the response\ncontinues at 200).",
         "operationId": "get_app_manifests_api_apps_manifests_get",
         "responses": {
           "200": {
@@ -128,6 +129,7 @@
           "apps"
         ],
         "summary": "Get App Manifest",
+        "description": "Return the persisted manifest for a single app, overlaid with live runtime state.\n\nQueries the ``app_manifests`` DB table directly instead of the in-memory registry, so an\napp with historical telemetry but no loaded manifest returns 200 instead of 404. A DB\nfailure and a genuinely unknown ``app_key`` are distinct failure modes (503 vs. 404) that\ndon't fit the single-branch ``db_degrades_to`` shape \u2014 handled inline (Category D, see\n``web/CLAUDE.md``).",
         "operationId": "get_app_manifest_api_apps__app_key__manifest_get",
         "parameters": [
           {
@@ -1440,7 +1442,7 @@
           "telemetry"
         ],
         "summary": "Dashboard App Grid",
-        "description": "Per-app health data for the dashboard grid.\n\nAlways uses ``source_tier='app'`` \u2014 framework actors are shown via FrameworkHealth,\nnot the manifest-driven app grid.",
+        "description": "Per-app health data for the dashboard grid.\n\nThe app spine is queried from the ``app_manifests`` DB table (Category B \u2014 503 via\n``db_degrades_to`` on failure) and overlaid with live runtime state via\n``RuntimeQueryService.overlay_manifest_rows()``. The telemetry enrichment queries below\nstay Category C (independently caught, degrading to empty defaults while the response\ncontinues at 200) \u2014 see ``web/CLAUDE.md`` for the classification table.\n\nAlways uses ``source_tier='app'`` \u2014 framework actors are shown via FrameworkHealth,\nnot the manifest-driven app grid.",
         "operationId": "dashboard_app_grid_api_telemetry_dashboard_app_grid_get",
         "parameters": [
           {
@@ -2061,6 +2063,12 @@
             "title": "Recent Invocations 1H",
             "description": "Total handler invocations in the last hour across all instances.",
             "default": 0
+          },
+          "in_current_config": {
+            "type": "boolean",
+            "title": "In Current Config",
+            "description": "True if the app is present in the currently-loaded config; False for DB-only/removed apps.",
+            "default": true
           }
         },
         "type": "object",
@@ -2338,6 +2346,77 @@
               }
             ],
             "title": "Last Error Ts"
+          },
+          "class_name": {
+            "type": "string",
+            "title": "Class Name",
+            "default": ""
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename",
+            "default": ""
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          },
+          "auto_loaded": {
+            "type": "boolean",
+            "title": "Auto Loaded",
+            "default": false
+          },
+          "autostart": {
+            "type": "boolean",
+            "title": "Autostart",
+            "default": true
+          },
+          "block_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Block Reason"
+          },
+          "instances": {
+            "items": {
+              "$ref": "#/components/schemas/AppInstanceResponse"
+            },
+            "type": "array",
+            "title": "Instances"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "error_traceback": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Traceback"
+          },
+          "in_current_config": {
+            "type": "boolean",
+            "title": "In Current Config",
+            "description": "True if the app is present in the currently-loaded config; False for DB-only/removed apps.",
+            "default": true
           }
         },
         "type": "object",

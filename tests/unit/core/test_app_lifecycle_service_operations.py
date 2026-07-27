@@ -1,5 +1,6 @@
 """Unit tests for AppLifecycleService — app operations and reconciliation."""
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, Mock
 
 from hassette.core.app_change_detector import ChangeSet
@@ -322,3 +323,62 @@ class TestSetAppsConfigs:
 
         mock_registry.set_manifests.assert_called_once()
         mock_registry.set_only_apps.assert_called_with(())
+
+
+class TestPersistManifests:
+    """Tests for persist_manifests() — the per-item-isolated manifest upsert trigger."""
+
+    async def test_upserts_every_manifest_in_registry(
+        self, lifecycle_service: AppLifecycleService, mock_hassette: MagicMock, mock_registry: MagicMock
+    ) -> None:
+        """Calls command_executor.upsert_app_manifest once per manifest currently in the registry."""
+        manifest_a = MagicMock()
+        manifest_b = MagicMock()
+        mock_registry.manifests = {"app_a": manifest_a, "app_b": manifest_b}
+        mock_hassette.command_executor.upsert_app_manifest = AsyncMock()
+
+        await lifecycle_service.persist_manifests()
+
+        mock_hassette.command_executor.upsert_app_manifest.assert_any_call(manifest_a)
+        mock_hassette.command_executor.upsert_app_manifest.assert_any_call(manifest_b)
+        assert mock_hassette.command_executor.upsert_app_manifest.await_count == 2
+
+    async def test_one_failure_does_not_block_remaining_upserts(
+        self, lifecycle_service: AppLifecycleService, mock_hassette: MagicMock, mock_registry: MagicMock
+    ) -> None:
+        """A failed upsert is isolated — the remaining manifests still get persisted, and the
+        failure never propagates out of persist_manifests() to the bootstrap/reload caller.
+        """
+        manifest_a = MagicMock()
+        manifest_b = MagicMock()
+        mock_registry.manifests = {"app_a": manifest_a, "app_b": manifest_b}
+        mock_hassette.command_executor.upsert_app_manifest = AsyncMock(side_effect=[RuntimeError("DB full"), 1])
+
+        await lifecycle_service.persist_manifests()
+
+        assert mock_hassette.command_executor.upsert_app_manifest.await_count == 2
+
+    async def test_upserts_run_concurrently_not_sequentially(
+        self, lifecycle_service: AppLifecycleService, mock_hassette: MagicMock, mock_registry: MagicMock
+    ) -> None:
+        """A sequential loop would hang here: each upsert only returns once *both* are in
+        flight, so a sequential implementation would await the first call forever — surfaced
+        by `asyncio.wait_for` below as a `TimeoutError` rather than an actual hang. Deterministic
+        per CLAUDE.md's startup-race pattern — no sleep-based timing races.
+        """
+        both_in_flight = asyncio.Event()
+        in_flight_count = 0
+
+        async def blocking_upsert(_manifest: object) -> None:
+            nonlocal in_flight_count
+            in_flight_count += 1
+            if in_flight_count == 2:
+                both_in_flight.set()
+            await both_in_flight.wait()
+
+        mock_registry.manifests = {"app_a": MagicMock(), "app_b": MagicMock()}
+        mock_hassette.command_executor.upsert_app_manifest = AsyncMock(side_effect=blocking_upsert)
+
+        await asyncio.wait_for(lifecycle_service.persist_manifests(), timeout=1)
+
+        assert in_flight_count == 2

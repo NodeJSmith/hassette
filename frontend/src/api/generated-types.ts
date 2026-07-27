@@ -85,7 +85,17 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get App Manifests */
+        /**
+         * Get App Manifests
+         * @description Return every persisted app manifest, overlaid with live runtime state.
+         *
+         *     The app spine is queried from the ``app_manifests`` DB table (Category B — 503 via
+         *     ``db_degrades_to`` on failure) and overlaid with live runtime state via
+         *     ``RuntimeQueryService.overlay_manifest_rows()``, so apps with historical telemetry but
+         *     no loaded manifest are still included. The ``recent_invocations_1h`` enrichment query
+         *     below stays Category C (independently caught, degrading to zero while the response
+         *     continues at 200).
+         */
         get: operations["get_app_manifests_api_apps_manifests_get"];
         put?: never;
         post?: never;
@@ -102,7 +112,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get App Manifest */
+        /**
+         * Get App Manifest
+         * @description Return the persisted manifest for a single app, overlaid with live runtime state.
+         *
+         *     Queries the ``app_manifests`` DB table directly instead of the in-memory registry, so an
+         *     app with historical telemetry but no loaded manifest returns 200 instead of 404. A DB
+         *     failure and a genuinely unknown ``app_key`` are distinct failure modes (503 vs. 404) that
+         *     don't fit the single-branch ``db_degrades_to`` shape — handled inline (Category D, see
+         *     ``web/CLAUDE.md``).
+         */
         get: operations["get_app_manifest_api_apps__app_key__manifest_get"];
         put?: never;
         post?: never;
@@ -528,6 +547,12 @@ export interface paths {
          * Dashboard App Grid
          * @description Per-app health data for the dashboard grid.
          *
+         *     The app spine is queried from the ``app_manifests`` DB table (Category B — 503 via
+         *     ``db_degrades_to`` on failure) and overlaid with live runtime state via
+         *     ``RuntimeQueryService.overlay_manifest_rows()``. The telemetry enrichment queries below
+         *     stay Category C (independently caught, degrading to empty defaults while the response
+         *     continues at 200) — see ``web/CLAUDE.md`` for the classification table.
+         *
          *     Always uses ``source_tier='app'`` — framework actors are shown via FrameworkHealth,
          *     not the manifest-driven app grid.
          */
@@ -786,6 +811,12 @@ export interface components {
              * @default 0
              */
             recent_invocations_1h: number;
+            /**
+             * In Current Config
+             * @description True if the app is present in the currently-loaded config; False for DB-only/removed apps.
+             * @default true
+             */
+            in_current_config: boolean;
         };
         /**
          * AppSourceResponse
@@ -925,6 +956,45 @@ export interface components {
             last_error_type?: string | null;
             /** Last Error Ts */
             last_error_ts?: number | null;
+            /**
+             * Class Name
+             * @default
+             */
+            class_name: string;
+            /**
+             * Filename
+             * @default
+             */
+            filename: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Auto Loaded
+             * @default false
+             */
+            auto_loaded: boolean;
+            /**
+             * Autostart
+             * @default true
+             */
+            autostart: boolean;
+            /** Block Reason */
+            block_reason?: string | null;
+            /** Instances */
+            instances?: components["schemas"]["AppInstanceResponse"][];
+            /** Error Message */
+            error_message?: string | null;
+            /** Error Traceback */
+            error_traceback?: string | null;
+            /**
+             * In Current Config
+             * @description True if the app is present in the currently-loaded config; False for DB-only/removed apps.
+             * @default true
+             */
+            in_current_config: boolean;
         };
         /**
          * DashboardAppGridResponse

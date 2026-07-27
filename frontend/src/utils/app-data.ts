@@ -1,4 +1,4 @@
-import type { AppManifest, DashboardAppGridEntry } from "../api/endpoints";
+import type { DashboardAppGridEntry } from "../api/endpoints";
 import type { SortState } from "../components/shared/sort-header";
 import { type AppStatusEntry, appStatusKey } from "../state/create-app-state";
 import { statusPriority } from "./status-priority";
@@ -14,8 +14,9 @@ export interface AppRow {
   auto_loaded: boolean;
   autostart: boolean;
   instance_count: number;
-  instances: AppManifest["instances"];
+  instances: NonNullable<DashboardAppGridEntry["instances"]>;
   error_message: string | null;
+  in_current_config: boolean;
   handler_count: number;
   job_count: number;
   total_invocations: number;
@@ -32,39 +33,42 @@ export interface AppRow {
   last_error_ts: number | null;
 }
 
-export function mergeManifestsAndGrid(manifests: AppManifest[], gridEntries: DashboardAppGridEntry[]): AppRow[] {
-  const gridMap = new Map(gridEntries.map((e) => [e.app_key, e]));
-  return manifests.map((m) => {
-    const g = gridMap.get(m.app_key);
-    return {
-      app_key: m.app_key,
-      class_name: m.class_name,
-      display_name: m.display_name,
-      filename: m.filename,
-      status: m.status,
-      block_reason: m.block_reason ?? null,
-      enabled: m.enabled,
-      auto_loaded: m.auto_loaded,
-      autostart: m.autostart,
-      instance_count: m.instance_count,
-      instances: m.instances,
-      error_message: g?.last_error_message ?? m.error_message ?? null,
-      last_error_message: g?.last_error_message ?? null,
-      last_error_type: g?.last_error_type ?? null,
-      last_error_ts: g?.last_error_ts ?? null,
-      handler_count: g?.handler_count ?? 0,
-      job_count: g?.job_count ?? 0,
-      total_invocations: g?.total_invocations ?? 0,
-      total_executions: g?.total_executions ?? 0,
-      total_errors: g?.total_errors ?? 0,
-      total_timed_out: g?.total_timed_out ?? 0,
-      total_job_errors: g?.total_job_errors ?? 0,
-      total_job_timed_out: g?.total_job_timed_out ?? 0,
-      error_rate: g?.error_rate ?? 0,
-      last_activity_ts: g?.last_activity_ts ?? null,
-      activity_buckets: g?.activity_buckets ?? [],
-    };
-  });
+/**
+ * Normalize a dashboard grid entry into an `AppRow`, defaulting the entry's
+ * optional enrichment fields (activity buckets, last-error fields, instances)
+ * to their empty/null equivalents. The grid endpoint is the sole data source —
+ * this is field defaulting, not a merge of two sources.
+ */
+export function toAppRow(entry: DashboardAppGridEntry): AppRow {
+  return {
+    app_key: entry.app_key,
+    class_name: entry.class_name,
+    display_name: entry.display_name,
+    filename: entry.filename,
+    status: entry.status,
+    block_reason: entry.block_reason ?? null,
+    enabled: entry.enabled,
+    auto_loaded: entry.auto_loaded,
+    autostart: entry.autostart,
+    instance_count: entry.instance_count,
+    instances: entry.instances ?? [],
+    error_message: entry.error_message ?? null,
+    in_current_config: entry.in_current_config,
+    handler_count: entry.handler_count,
+    job_count: entry.job_count,
+    total_invocations: entry.total_invocations,
+    total_executions: entry.total_executions,
+    total_errors: entry.total_errors,
+    total_timed_out: entry.total_timed_out,
+    total_job_errors: entry.total_job_errors,
+    total_job_timed_out: entry.total_job_timed_out,
+    error_rate: entry.error_rate,
+    last_activity_ts: entry.last_activity_ts,
+    activity_buckets: entry.activity_buckets ?? [],
+    last_error_message: entry.last_error_message ?? null,
+    last_error_type: entry.last_error_type ?? null,
+    last_error_ts: entry.last_error_ts ?? null,
+  };
 }
 
 export type AppSortKey = "name" | "status" | "error" | "runs" | "last";

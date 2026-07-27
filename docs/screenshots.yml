@@ -173,6 +173,20 @@
   wait: 2000
   wait_for: "document.querySelector('[data-testid=\"no-autostart-chip\"]')"
 
+# NOT reproducible via a bare capture_screenshots.py run. Shows the "removed" chip on
+# app_manifests rows for apps no longer in the running config (design/specs/087-db-manifest-union) —
+# also visible: the sidebar's app count excludes the removed app while the apps page total
+# includes it. Reproducing this state requires a DB-only manifest row (app_key not present in
+# examples/hassette.toml), which the demo stack has no config-driven way to produce. Captured
+# for PR #1464 by seeding the row directly into the running demo stack's SQLite DB via
+# `docker exec hassette-demo-hassette python3 -c "..."`, then running shot-scraper against the
+# live page — same tool, one-off setup step.
+- url: "http://localhost:{port}/apps"
+  output: docs/_static/web_ui_removed_chip.png
+  width: 1400
+  height: 900
+  wait: 2000
+
 # Full viewport capture to show the palette against the darkened backdrop
 - url: "http://localhost:{port}/apps"
   output: docs/_static/web_ui_detail_command_palette.png

@@ -158,6 +158,145 @@ class TestManifestStatus:
         assert obj.autostart is False
 
 
+class TestInCurrentConfig:
+    def test_app_manifest_response_defaults_to_true(self) -> None:
+        obj = AppManifestResponse(
+            app_key="my_app",
+            class_name="MyApp",
+            display_name="My App",
+            filename="my_app.py",
+            enabled=True,
+            auto_loaded=False,
+            status="stopped",
+        )
+        assert obj.in_current_config is True
+
+    def test_app_manifest_response_round_trips_false(self) -> None:
+        obj = AppManifestResponse(
+            app_key="my_app",
+            class_name="MyApp",
+            display_name="My App",
+            filename="my_app.py",
+            enabled=True,
+            auto_loaded=False,
+            status="stopped",
+            in_current_config=False,
+        )
+        assert obj.in_current_config is False
+
+    def test_dashboard_app_grid_entry_defaults_to_true(self) -> None:
+        obj = DashboardAppGridEntry(
+            app_key="my_app",
+            status="running",
+            display_name="My App",
+            handler_count=0,
+            job_count=0,
+            total_invocations=0,
+            total_errors=0,
+            total_executions=0,
+            total_job_errors=0,
+            avg_duration_ms=0.0,
+            last_activity_ts=None,
+            health_status="excellent",
+            error_rate=0.0,
+            error_rate_class="good",
+        )
+        assert obj.in_current_config is True
+
+    def test_dashboard_app_grid_entry_round_trips_false(self) -> None:
+        obj = DashboardAppGridEntry(
+            app_key="my_app",
+            status="running",
+            display_name="My App",
+            handler_count=0,
+            job_count=0,
+            total_invocations=0,
+            total_errors=0,
+            total_executions=0,
+            total_job_errors=0,
+            avg_duration_ms=0.0,
+            last_activity_ts=None,
+            health_status="excellent",
+            error_rate=0.0,
+            error_rate_class="good",
+            in_current_config=False,
+        )
+        assert obj.in_current_config is False
+
+
+class TestDashboardAppGridEntryManifestFields:
+    def test_manifest_metadata_fields_have_defaults(self) -> None:
+        """DashboardAppGridEntry must be constructible without any manifest metadata fields."""
+        obj = DashboardAppGridEntry(
+            app_key="my_app",
+            status="running",
+            display_name="My App",
+            handler_count=0,
+            job_count=0,
+            total_invocations=0,
+            total_errors=0,
+            total_executions=0,
+            total_job_errors=0,
+            avg_duration_ms=0.0,
+            last_activity_ts=None,
+            health_status="excellent",
+            error_rate=0.0,
+            error_rate_class="good",
+        )
+        assert obj.class_name == ""
+        assert obj.filename == ""
+        assert obj.enabled is True
+        assert obj.auto_loaded is False
+        assert obj.autostart is True
+        assert obj.block_reason is None
+        assert obj.instances == []
+        assert obj.error_message is None
+        assert obj.error_traceback is None
+
+    def test_manifest_metadata_fields_round_trip(self) -> None:
+        instance = AppInstanceResponse(
+            app_key="my_app",
+            index=0,
+            instance_name="MyApp[0]",
+            class_name="MyApp",
+            status=ResourceStatus.RUNNING,
+        )
+        obj = DashboardAppGridEntry(
+            app_key="my_app",
+            status="running",
+            display_name="My App",
+            handler_count=0,
+            job_count=0,
+            total_invocations=0,
+            total_errors=0,
+            total_executions=0,
+            total_job_errors=0,
+            avg_duration_ms=0.0,
+            last_activity_ts=None,
+            health_status="excellent",
+            error_rate=0.0,
+            error_rate_class="good",
+            class_name="MyApp",
+            filename="my_app.py",
+            enabled=False,
+            auto_loaded=True,
+            autostart=False,
+            block_reason="disabled by config",
+            instances=[instance],
+            error_message="boom",
+            error_traceback="Traceback...",
+        )
+        assert obj.class_name == "MyApp"
+        assert obj.filename == "my_app.py"
+        assert obj.enabled is False
+        assert obj.auto_loaded is True
+        assert obj.autostart is False
+        assert obj.block_reason == "disabled by config"
+        assert obj.instances == [instance]
+        assert obj.error_message == "boom"
+        assert obj.error_traceback == "Traceback..."
+
+
 class TestResourceStatus:
     def test_accepts_all_nine_resource_status_values(self) -> None:
         for value in ResourceStatus:

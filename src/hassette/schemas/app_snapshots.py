@@ -5,9 +5,12 @@ These are pure-data types produced by ``core.AppRegistry`` and consumed by
 removes the ``web → core`` import cycle.
 """
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 
 from hassette.types.enums import ResourceStatus
+
+MANIFEST_STATUS_KEYS = ("running", "failed", "stopped", "disabled", "blocked")
 
 
 @dataclass
@@ -78,6 +81,8 @@ class AppManifestInfo:
     instances: list[AppInstanceInfo] = field(default_factory=list)
     error_message: str | None = None
     error_traceback: str | None = None
+    in_current_config: bool = True
+    """True if the app is present in the currently-loaded config; False for DB-only/removed apps."""
 
 
 @dataclass
@@ -94,9 +99,26 @@ class AppFullSnapshot:
     blocked: int = 0
 
 
+def tally_manifest_statuses(manifests: Iterable[AppManifestInfo]) -> dict[str, int]:
+    """Count manifests by status (``running``, ``failed``, ``stopped``, ``disabled``, ``blocked``).
+
+    Unrecognized status values are silently skipped rather than raising a ``KeyError`` — this
+    tallies manifests from both the in-memory registry (status always one of the known values)
+    and DB-sourced rows overlaid with runtime state, where a future/drifted status value should
+    degrade gracefully instead of crashing the response.
+    """
+    counts: dict[str, int] = dict.fromkeys(MANIFEST_STATUS_KEYS, 0)
+    for m in manifests:
+        if m.status in counts:
+            counts[m.status] += 1
+    return counts
+
+
 __all__ = [
+    "MANIFEST_STATUS_KEYS",
     "AppFullSnapshot",
     "AppInstanceInfo",
     "AppManifestInfo",
     "AppStatusSnapshot",
+    "tally_manifest_statuses",
 ]

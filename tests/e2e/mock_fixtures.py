@@ -17,7 +17,7 @@ from hassette.schemas.job_models import JobErrorRecord, JobGlobalStats, JobSumma
 from hassette.schemas.listener_models import HandlerErrorRecord, ListenerGlobalStats, ListenerSummary
 from hassette.schemas.summary_models import AppHealthSummary, GlobalSummary, SessionRecord
 from hassette.test_utils.web_job_helpers import make_job
-from hassette.test_utils.web_manifest_helpers import make_manifest
+from hassette.test_utils.web_manifest_helpers import make_manifest, make_manifest_db_row
 from hassette.types.enums import ResourceStatus
 
 TS_BASE = 1_704_067_200.0
@@ -750,11 +750,18 @@ def wire_global_summary(
 
 
 def wire_app_manifest_lookups(hassette, manifests: list[AppManifestInfo]) -> None:
-    """Wire get_manifest on the mock registry so /apps/{key}/config and /apps/{key}/source work.
+    """Wire manifest data for both the in-memory config-view routes and the DB-backed spine.
 
-    The config and source endpoints call ``hassette.app_handler.registry.get_manifest(app_key)``
-    and expect an ``AppManifest`` (the config class) with ``app_config``, ``full_path``, etc.
-    We return simple MagicMock objects whose attributes match what the route code reads.
+    - ``registry.get_manifest`` / stub ``AppManifest`` objects: needed by
+      ``/apps/{key}/config`` and ``/apps/{key}/source``, which read the registry's in-memory
+      manifest directly for config schema resolution and source file paths.
+    - ``telemetry_query_service.get_all_app_manifests`` / ``get_app_manifest``: the DB spine
+      that ``/apps/manifests`` (list) and ``/apps/{key}/manifest`` (detail) now query instead
+      of the in-memory registry (design/specs/087-db-manifest-union). ``registry.manifests``
+      is populated (non-empty) so ``overlay_runtime_state()`` takes the "in current config"
+      branch for every seed app, and ``registry.build_manifest_info`` is wired to hand back
+      each app's precomputed ``AppManifestInfo`` from ``manifests`` directly — this stub
+      registry has no real running/failed/blocked app state to derive status/instances from.
     """
     # Build a stub AppManifest for each manifest — source endpoint reads full_path and app_dir.
     # We create a temp-like path pointing to a real file to avoid 404 errors in source tests;
@@ -785,9 +792,32 @@ def wire_app_manifest_lookups(hassette, manifests: list[AppManifestInfo]) -> Non
     hassette._app_handler.registry.get_manifest.side_effect = lambda app_key: _stubs.get(app_key)
 
     _manifest_info_by_key = {m.app_key: m for m in manifests}
-    hassette._app_handler.registry.get_manifest_snapshot.side_effect = lambda app_key: _manifest_info_by_key.get(
+
+    # DB spine mocks — /apps/manifests and the dashboard grid both call
+    # telemetry.get_all_app_manifests(); /apps/{key}/manifest calls telemetry.get_app_manifest().
+    db_rows_by_key = {
+        m.app_key: make_manifest_db_row(
+            app_key=m.app_key,
+            class_name=m.class_name,
+            display_name=m.display_name,
+            filename=m.filename,
+            enabled=int(m.enabled),
+            autostart=int(m.autostart),
+            auto_loaded=int(m.auto_loaded),
+        )
+        for m in manifests
+    }
+    hassette._telemetry_query_service.get_all_app_manifests = AsyncMock(return_value=list(db_rows_by_key.values()))
+    hassette._telemetry_query_service.get_app_manifest = AsyncMock(side_effect=db_rows_by_key.get)
+
+    # overlay_runtime_state() takes the "in current config" branch only when
+    # registry.manifests.get(app_key) is not None, then calls registry.build_manifest_info()
+    # to derive status/instances. The value stored per key is never read (build_manifest_info
+    # is stubbed below to ignore it) — its presence is what matters.
+    hassette._app_handler.registry.manifests = dict(_manifest_info_by_key)
+    hassette._app_handler.registry.build_manifest_info.side_effect = lambda app_key, _manifest: _manifest_info_by_key[
         app_key
-    )
+    ]
 
 
 def wire_owner_resolution(hassette) -> None:

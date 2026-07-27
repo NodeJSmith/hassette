@@ -47,6 +47,10 @@ NOT_STARTED = ResourceStatus.NOT_STARTED
 # single frame is rarely enough to show the app's own code rather than just anyio internals.
 INIT_FAILURE_TRACEBACK_LIMIT = 5
 
+# Per-manifest upsert timeout. A failed write degrades one app's dashboard row — it must
+# never block app startup or a hot-reload. See design doc "Persist trigger".
+MANIFEST_UPSERT_TIMEOUT_SECONDS = 5.0
+
 
 class AppLifecycleService(Resource):
     """Manages app lifecycle orchestration, change detection, and event emission.
@@ -306,6 +310,7 @@ class AppLifecycleService(Resource):
         try:
             await self.resolve_only_apps()
             self.reconcile_blocked_apps()
+            await self.persist_manifests()
             await self.start_apps()
             snapshot = self.registry.get_snapshot()
             if not snapshot.running_count and not snapshot.failed_count:
@@ -504,9 +509,59 @@ class AppLifecycleService(Resource):
             self.logger.exception("Failed to reload configuration: %s", exc)
 
         self.set_apps_configs(self.hassette.config.apps.manifests)
+        await self.persist_manifests()
         curr_apps_config = {k: deepcopy(v) for k, v in self.registry.manifests.items() if v.enabled}
 
         return original_apps_config, curr_apps_config
+
+    async def persist_manifests(self) -> None:
+        """Upsert all current manifests into the ``app_manifests`` DB table concurrently.
+
+        Called from ``bootstrap_apps()`` (initial load, after ``set_apps_configs()`` and before
+        ``start_apps()``) and ``refresh_config()`` (hot reload, after ``set_apps_configs()`` and
+        before ``apply_changes()`` in the caller). Manifests are upserted concurrently via
+        ``asyncio.gather(return_exceptions=True)``, matching ``start_apps()`` — a sequential loop
+        here would serialize up to ``N * MANIFEST_UPSERT_TIMEOUT_SECONDS`` onto every boot and
+        hot-reload if the DB is merely slow rather than down. Each upsert still has its own
+        ``anyio.fail_after()`` timeout and try/except (see ``persist_manifest()``), so one app's
+        failure never affects another's, and a failed write is self-correcting on the next
+        successful write. This must never block app startup or a config reload.
+        """
+        manifests = self.registry.manifests
+        self.logger.debug("Persisting %d manifest(s) to the app_manifests table", len(manifests))
+        await asyncio.gather(
+            *(self.persist_manifest(app_key, manifest) for app_key, manifest in manifests.items()),
+            return_exceptions=True,
+        )
+        self.logger.debug("Finished persisting manifests")
+
+    async def persist_manifest(self, app_key: str, manifest: "AppManifest") -> None:
+        """Upsert a single manifest, isolating its own timeout and failure from the batch.
+
+        Never raises — a timeout or a genuine write failure is logged and swallowed so that
+        one app's persistence problem can't affect any other app's, whether called from the
+        ``persist_manifests()`` batch or directly for a single app.
+        """
+        try:
+            with anyio.fail_after(MANIFEST_UPSERT_TIMEOUT_SECONDS):
+                await self.hassette.command_executor.upsert_app_manifest(manifest)
+        except TimeoutError:
+            # This timeout only cancels our wait on `DatabaseService`'s write queue — the
+            # single-writer worker task isn't inside this scope, so the write may still land
+            # moments after we give up on it. Unlike a genuine write failure, "timed out"
+            # doesn't mean the write didn't happen.
+            self.logger.warning(
+                "Timed out waiting for manifest persist for app '%s' — write may still complete "
+                "in the background; dashboard metadata may be stale until the next successful write",
+                app_key,
+            )
+        except Exception:
+            self.logger.warning(
+                "Failed to persist manifest for app '%s' — dashboard metadata may be stale "
+                "until the next successful write",
+                app_key,
+                exc_info=True,
+            )
 
     def set_apps_configs(self, apps_config: dict[str, "AppManifest"]) -> None:
         """Set the apps configuration.
