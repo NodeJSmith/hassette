@@ -14,7 +14,7 @@
  *   correctUrl("/apps/foo/handlers");
  */
 
-import { useCallback } from "preact/hooks";
+import { useCallback } from "react";
 import { useLocation } from "wouter";
 
 export function useCorrectUrl(): (correctedUrl: string) => void {

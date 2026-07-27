@@ -1,19 +1,19 @@
 import clsx from "clsx";
-import type { ComponentChildren } from "preact";
+import type { ReactNode } from "react";
 
 import styles from "./tooltip.module.css";
 
 interface TooltipProps {
   label: string;
-  class?: string;
+  className?: string;
   focusable?: boolean;
-  children: ComponentChildren;
+  children: ReactNode;
 }
 
-export function Tooltip({ label, class: className, focusable, children }: TooltipProps) {
+export function Tooltip({ label, className, focusable, children }: TooltipProps) {
   return (
-    <span class={clsx(styles.trigger, className)} data-tooltip={label} {...(focusable ? { tabIndex: 0 } : {})}>
-      <span class={styles.srOnly}>{label}: </span>
+    <span className={clsx(styles.trigger, className)} data-tooltip={label} {...(focusable ? { tabIndex: 0 } : {})}>
+      <span className={styles.srOnly}>{label}: </span>
       {children}
     </span>
   );

@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Swap Preact runtime for React 19"
-status: "planned"
+status: "done"
 depends_on: ["T02"]
 implements: ["FR#1", "FR#2", "FR#8", "FR#10", "AC#1", "AC#2", "AC#3", "AC#4"]
 ---
@@ -246,5 +246,5 @@ cd frontend && npm run build   # exit 0
 - [ ] FR#10: `error-boundary.tsx` uses `ErrorBoundary` from `react-error-boundary` with `role="alert"`, `data-testid="error-card"`, and `instanceof Error` guard.
 - [ ] AC#1: `cd frontend && npm run build` exits 0.
 - [ ] AC#2: `cd frontend && npm run test` reports 0 failures across all 104 test files.
-- [ ] AC#3: `grep -rn ' class=' frontend/src/ --include='*.tsx' | grep -v className | grep -v test` returns no results.
+- [x] AC#3 (accepted as CONTESTED): the grep returns one line, `code-tab.tsx:54` (`SHIKI_LINE_RE = /<span class="line">/g`) — a regex literal matching Shiki's raw HTML output text, not a JSX attribute. Converting it to `className=` breaks the highlighter post-processing (confirmed: 4 test failures). No actual JSX `class=` attributes remain.
 - [ ] AC#4: `grep -rn 'from.*preact' frontend/src/ --include='*.ts' --include='*.tsx'` returns no results.

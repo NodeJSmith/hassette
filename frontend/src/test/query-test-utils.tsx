@@ -7,9 +7,9 @@
  * to seed the Zustand store before the hook runs.
  */
 
-import { QueryClient, QueryClientProvider } from "@tanstack/preact-query";
-import { renderHook } from "@testing-library/preact";
-import type { ComponentChildren } from "preact";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { renderHook } from "@testing-library/react";
+import type { ReactNode } from "react";
 
 import type { AppStore } from "../state/store";
 import { useAppStore } from "../state/store";
@@ -56,7 +56,7 @@ export function renderHookWithProviders<T, TProps = undefined>(
   if (storeOverrides) useAppStore.setState(storeOverrides);
   const client = queryClient ?? createTestQueryClient();
 
-  function Wrapper({ children }: { children: ComponentChildren }) {
+  function Wrapper({ children }: { children: ReactNode }) {
     return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   }
 

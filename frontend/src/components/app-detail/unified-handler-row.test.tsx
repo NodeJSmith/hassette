@@ -1,5 +1,5 @@
-import { fireEvent } from "@testing-library/preact";
-import { render } from "@testing-library/preact";
+import { fireEvent } from "@testing-library/react";
+import { render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { createJob, createListener } from "../../test/factories";

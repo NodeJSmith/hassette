@@ -31,16 +31,16 @@ export function AppDetailHeader({
 
   return (
     <>
-      <div class="ht-level ht-mb-2">
-        <div class="ht-level-start">
-          <div class="ht-level-item">
-            <h1 class={styles.heading4} data-testid="app-title">
+      <div className="ht-level ht-mb-2">
+        <div className="ht-level-start">
+          <div className="ht-level-item">
+            <h1 className={styles.heading4} data-testid="app-title">
               <StatusShape kind={statusToKind(liveStatus)} size={14} />
-              <span class="ht-ml-2">{appKey}</span>
+              <span className="ht-ml-2">{appKey}</span>
             </h1>
           </div>
         </div>
-        <div class="ht-level-end">
+        <div className="ht-level-end">
           {/* Shown for every status, healthy included — "running" should be a
               statement, not the absence of a pill. */}
           <Badge variant={statusToVariant(liveStatus)} size="sm" data-testid="app-status-pill">
@@ -50,7 +50,7 @@ export function AppDetailHeader({
         </div>
       </div>
 
-      <p class="ht-text-mono ht-text-sm ht-text-muted ht-mb-3" data-testid="app-subtitle-meta">
+      <p className="ht-text-mono ht-text-sm ht-text-muted ht-mb-3" data-testid="app-subtitle-meta">
         {manifest?.filename ?? appKey}
         {manifest?.class_name && manifest.class_name !== appKey && <> &middot; {manifest.class_name}</>}
         {manifest && manifest.instance_count > 1 && !showParentOverview && (
@@ -87,7 +87,7 @@ export function AppDetailHeader({
       )}
 
       {manifest?.block_reason && (
-        <div class="ht-alert ht-alert--warning ht-mb-4" role="alert" data-testid="block-reason-banner">
+        <div className="ht-alert ht-alert--warning ht-mb-4" role="alert" data-testid="block-reason-banner">
           <strong>Blocked:</strong> {manifest.block_reason}
         </div>
       )}

@@ -1,6 +1,7 @@
-import { keepPreviousData } from "@tanstack/preact-query";
+import { keepPreviousData } from "@tanstack/react-query";
 import clsx from "clsx";
-import { useEffect } from "preact/hooks";
+import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
+import { useEffect } from "react";
 import { Link, useLocation } from "wouter";
 
 import { getAppJobs, getAppListeners } from "../api/endpoints";
@@ -62,31 +63,23 @@ function Tab({
       tabIndex={isActive ? 0 : -1}
       aria-selected={isActive}
       aria-controls={`tabpanel-${id}`}
-      class={clsx(styles.tabBtn, isActive && styles.tabBtnActive)}
+      className={clsx(styles.tabBtn, isActive && styles.tabBtnActive)}
     >
       {label}
-      {badge !== undefined && <span class={styles.tabBtnBadge}>{badge}</span>}
+      {badge !== undefined && <span className={styles.tabBtnBadge}>{badge}</span>}
     </Link>
   );
 }
 
-function TabPanel({
-  id,
-  children,
-  class: className,
-}: {
-  id: TabId;
-  children: preact.ComponentChildren;
-  class?: string;
-}) {
+function TabPanel({ id, children, className }: { id: TabId; children: ReactNode; className?: string }) {
   return (
-    <div class={className} role="tabpanel" id={`tabpanel-${id}`} aria-labelledby={`tab-${id}`}>
+    <div className={className} role="tabpanel" id={`tabpanel-${id}`} aria-labelledby={`tab-${id}`}>
       {children}
     </div>
   );
 }
 
-function handleTabKeyDown(e: KeyboardEvent) {
+function handleTabKeyDown(e: ReactKeyboardEvent) {
   if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
   e.preventDefault();
   const tabs = (e.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('[role="tab"]');
@@ -188,7 +181,7 @@ export function AppDetailPage({ params }: Props) {
 
   if (manifestError || listenersError || jobsError) {
     return (
-      <div class="ht-alert ht-alert--danger" role="alert">
+      <div className="ht-alert ht-alert--danger" role="alert">
         {(manifestError ?? listenersError ?? jobsError)!.message}
       </div>
     );
@@ -199,8 +192,8 @@ export function AppDetailPage({ params }: Props) {
   const handlerCount = (listenersData?.length ?? 0) + (jobsData?.length ?? 0);
 
   return (
-    <div class="ht-page">
-      <div class={styles.identity}>
+    <div className="ht-page">
+      <div className={styles.identity}>
         {isMultiInstance && !showParentOverview && manifest?.instances && manifest.instances.length > 0 && (
           <InstanceSwitcher
             instances={manifest.instances}
@@ -220,7 +213,7 @@ export function AppDetailPage({ params }: Props) {
           showParentOverview={showParentOverview}
         />
 
-        <div class={styles.tabStrip} role="tablist" aria-label="App sections" onKeyDown={handleTabKeyDown}>
+        <div className={styles.tabStrip} role="tablist" aria-label="App sections" onKeyDown={handleTabKeyDown}>
           <Tab id="overview" label="overview" {...tabProps} />
           {!showParentOverview && <Tab id="handlers" label="handlers" badge={handlerCount} {...tabProps} />}
           <Tab id="code" label="code" {...tabProps} />
@@ -274,7 +267,7 @@ export function AppDetailPage({ params }: Props) {
         </TabPanel>
       )}
       {activeTab === "logs" && (
-        <TabPanel id="logs" class={styles.tabPanel}>
+        <TabPanel id="logs" className={styles.tabPanel}>
           <AppLogsPanel appKey={appKey} />
         </TabPanel>
       )}

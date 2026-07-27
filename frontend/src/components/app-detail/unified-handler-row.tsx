@@ -67,48 +67,52 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
   return (
     <button
       type="button"
-      class={clsx(styles.row, isSelected && styles.rowSelected, isIdle && styles.rowIdle)}
+      className={clsx(styles.row, isSelected && styles.rowSelected, isIdle && styles.rowIdle)}
       data-testid={`unified-row-${item.kind}-${item.id}`}
       aria-pressed={isSelected}
       aria-label={label}
       onClick={onSelect}
     >
-      <span class={styles.status} aria-hidden="true">
+      <span className={styles.status} aria-hidden="true">
         <StatusShape kind={item.statusKind} size={STATUS_DOT_SIZE} />
       </span>
-      <div class={styles.body}>
-        <div class={styles.header}>
-          <span class={styles.name}>{item.name}</span>
+      <div className={styles.body}>
+        <div className={styles.header}>
+          <span className={styles.name}>{item.name}</span>
           {failing && (
             <Badge variant="danger" size="xs">
               failing
             </Badge>
           )}
         </div>
-        <div class={styles.meta}>
-          <span class={styles.kindChip} data-kind={item.kind} aria-label={`kind: ${chipLabel}`}>
+        <div className={styles.meta}>
+          <span className={styles.kindChip} data-kind={item.kind} aria-label={`kind: ${chipLabel}`}>
             {chipLabel}
           </span>
           {item.kind === "listener" && item.data.mode && (
-            <span class={styles.modeChip} aria-label={`mode: ${item.data.mode}`} data-testid="handler-row-mode-chip">
+            <span
+              className={styles.modeChip}
+              aria-label={`mode: ${item.data.mode}`}
+              data-testid="handler-row-mode-chip"
+            >
               {item.data.mode}
             </span>
           )}
           <span title={`Total ${callLabel}s`}>{pluralize(runCount, callLabel)}</span>
           {failed > 0 && (
-            <span class={styles.statsErr} data-testid="handler-failed-count">
+            <span className={styles.statsErr} data-testid="handler-failed-count">
               {failed} failed
             </span>
           )}
-          {timedOut > 0 && <span class={styles.statsWarn}>{timedOut} timed out</span>}
+          {timedOut > 0 && <span className={styles.statsWarn}>{timedOut} timed out</span>}
           {nextRunLabel !== null && (
-            <span class={styles.nextRun} title={nextRunTitle ?? undefined} data-testid="handler-row-next-run">
+            <span className={styles.nextRun} title={nextRunTitle ?? undefined} data-testid="handler-row-next-run">
               {nextRunLabel}
             </span>
           )}
         </div>
         {failing && errorMessage && (
-          <span class={styles.sublineErr} title={errorMessage} data-testid="handler-row-subline-err">
+          <span className={styles.sublineErr} title={errorMessage} data-testid="handler-row-subline-err">
             {errorMessage}
           </span>
         )}

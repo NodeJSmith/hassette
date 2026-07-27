@@ -1,8 +1,7 @@
-import { QueryClientProvider } from "@tanstack/preact-query";
-import { act, renderHook } from "@testing-library/preact";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { act, renderHook } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
-import type { ComponentChildren } from "preact";
-import { h } from "preact";
+import { createElement, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { WsLogPayload } from "@/api/ws-types";
@@ -22,8 +21,8 @@ const { toast } = await import("sonner");
 
 function createWrapper() {
   const client = createTestQueryClient();
-  return function Wrapper({ children }: { children: ComponentChildren }) {
-    return h(QueryClientProvider, { client }, children);
+  return function Wrapper({ children }: { children: ReactNode }) {
+    return createElement(QueryClientProvider, { client }, children);
   };
 }
 

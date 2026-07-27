@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "preact/hooks";
+import { useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 
 import { ApiError } from "../api/client";
@@ -84,7 +84,7 @@ export function useTelemetryHealth(): void {
         clearInterval(intervalRef.current);
       }
     };
-    // eslint-disable-next-line react-hooks-configurable/exhaustive-deps -- mount-only; poll is a ref-stable closure
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only; poll is a ref-stable closure
   }, []);
 
   // On page navigation: cancel in-flight, poll immediately, reset backoff
@@ -97,6 +97,6 @@ export function useTelemetryHealth(): void {
       restartInterval();
       void poll();
     }
-    // eslint-disable-next-line react-hooks-configurable/exhaustive-deps -- poll is ref-stable; restartInterval only closes over refs
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- poll is ref-stable; restartInterval only closes over refs
   }, [location]);
 }

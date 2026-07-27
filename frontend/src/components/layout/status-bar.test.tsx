@@ -1,7 +1,5 @@
-import { signal } from "@preact/signals";
-import { fireEvent } from "@testing-library/preact";
-import type { ComponentProps } from "preact";
-import { createRef } from "preact";
+import { fireEvent } from "@testing-library/react";
+import { type ComponentProps, createRef } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { useAppStore } from "../../state/store";
@@ -36,7 +34,8 @@ vi.mock("../../hooks/use-breadcrumbs", () => ({
 }));
 
 // Drives the "is the sidebar on screen" branch without a real matchMedia.
-const sidebarHidden = signal(false);
+// Plain mutable box (not a signal) — only needs to feed a mocked hook's return value.
+const sidebarHidden = { value: false };
 vi.mock("../../hooks/use-sidebar-hidden", () => ({
   useSidebarHidden: () => sidebarHidden.value,
 }));

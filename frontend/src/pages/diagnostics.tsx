@@ -1,6 +1,6 @@
-import { useQuery } from "@tanstack/preact-query";
+import { useQuery } from "@tanstack/react-query";
 import clsx from "clsx";
-import { useState } from "preact/hooks";
+import { useState } from "react";
 
 import type { BootIssue } from "../api/endpoints";
 import { getSystemStatus } from "../api/endpoints";
@@ -91,28 +91,28 @@ function DiagServiceRow({ service }: DiagServiceRowProps) {
 
   return (
     <li
-      class={clsx(styles.serviceRow, spansFullRow && styles.serviceRowDetailed)}
+      className={clsx(styles.serviceRow, spansFullRow && styles.serviceRowDetailed)}
       data-testid={`diag-service-row-${service.resource_name}`}
     >
-      <div class={styles.serviceMain}>
+      <div className={styles.serviceMain}>
         <StatusShape kind={kind} size={8} />
-        <span class={`${styles.serviceName} ht-text-mono`}>{service.resource_name}</span>
+        <span className={`${styles.serviceName} ht-text-mono`}>{service.resource_name}</span>
         {!isRunning && (
           <span
-            class={`${styles.serviceStatus} ht-text-mono`}
+            className={`${styles.serviceStatus} ht-text-mono`}
             data-testid={`diag-service-status-${service.resource_name}`}
           >
             {service.status}
           </span>
         )}
         {!isRunning && service.ready_phase && (
-          <span class={styles.servicePhase} data-testid={`diag-service-phase-${service.resource_name}`}>
+          <span className={styles.servicePhase} data-testid={`diag-service-phase-${service.resource_name}`}>
             {service.ready_phase}
           </span>
         )}
         {isCooling && service.retry_at !== null && (
           <span
-            class={`${styles.serviceRetry} ht-text-mono`}
+            className={`${styles.serviceRetry} ht-text-mono`}
             data-testid={`diag-service-retry-${service.resource_name}`}
           >
             retry {retryAtLabel}
@@ -121,7 +121,7 @@ function DiagServiceRow({ service }: DiagServiceRowProps) {
         {service.exception && (
           <button
             type="button"
-            class={styles.exceptionToggle}
+            className={styles.exceptionToggle}
             aria-expanded={exceptionOpen}
             onClick={() => setExceptionOpen((v) => !v)}
           >
@@ -129,7 +129,7 @@ function DiagServiceRow({ service }: DiagServiceRowProps) {
           </button>
         )}
       </div>
-      {exceptionOpen && service.exception && <pre class={styles.exceptionDetail}>{service.exception}</pre>}
+      {exceptionOpen && service.exception && <pre className={styles.exceptionDetail}>{service.exception}</pre>}
     </li>
   );
 }
@@ -142,14 +142,14 @@ interface ServicesPanelProps {
 function ServicesPanel({ services, wsConnected }: ServicesPanelProps) {
   return (
     <section
-      class={clsx(cardStyles.card, styles.section)}
+      className={clsx(cardStyles.card, styles.section)}
       aria-label="Internal services"
       data-testid="diag-services-panel"
     >
-      <div class={styles.sectionHeader}>
-        <h2 class={styles.sectionHeading}>services</h2>
+      <div className={styles.sectionHeader}>
+        <h2 className={styles.sectionHeading}>services</h2>
         {!wsConnected && (
-          <span class={styles.staleBadge} data-testid="diag-services-stale">
+          <span className={styles.staleBadge} data-testid="diag-services-stale">
             stale
           </span>
         )}
@@ -157,7 +157,7 @@ function ServicesPanel({ services, wsConnected }: ServicesPanelProps) {
       {services.length === 0 ? (
         <EmptyState title="no services registered." data-testid="diag-services-empty" />
       ) : (
-        <ul class={styles.serviceGrid} aria-label="Service list">
+        <ul className={styles.serviceGrid} aria-label="Service list">
           {services.map((svc) => (
             <DiagServiceRow key={svc.resource_name} service={svc} />
           ))}
@@ -182,23 +182,23 @@ function BootIssuesPanel({ bootIssues }: BootIssuesPanelProps) {
   );
 
   return (
-    <section class={clsx(cardStyles.card, styles.section)} aria-label="Boot issues" data-testid="diag-boot-panel">
-      <h2 class={styles.sectionHeading}>boot issues</h2>
-      <ul class={styles.bootList} aria-label="Boot issues">
+    <section className={clsx(cardStyles.card, styles.section)} aria-label="Boot issues" data-testid="diag-boot-panel">
+      <h2 className={styles.sectionHeading}>boot issues</h2>
+      <ul className={styles.bootList} aria-label="Boot issues">
         {sorted.map((issue, i) => {
           const kind = issue.severity === "err" ? "err" : "warn";
           return (
             <li
               key={`${i}-${issue.severity}-${issue.label}`}
-              class={styles.bootRow}
+              className={styles.bootRow}
               data-testid={`diag-boot-issue-${i}`}
             >
               <StatusShape kind={kind} size={STATUS_DOT_SIZE} />
-              <div class={styles.bootContent}>
-                <span class={styles.bootLabel} data-testid={`diag-boot-label-${i}`}>
+              <div className={styles.bootContent}>
+                <span className={styles.bootLabel} data-testid={`diag-boot-label-${i}`}>
                   {issue.label}
                 </span>
-                <span class={styles.bootDetail} data-testid={`diag-boot-detail-${i}`}>
+                <span className={styles.bootDetail} data-testid={`diag-boot-detail-${i}`}>
                   {issue.detail}
                 </span>
               </div>
@@ -226,9 +226,9 @@ interface DropCounterRowProps {
 
 function DropCounterRow({ label, value, testId }: DropCounterRowProps) {
   return (
-    <li class={styles.dropRow} data-testid={testId}>
-      <span class={styles.dropLabel}>{label}</span>
-      <span class={clsx(styles.dropValue, "ht-text-mono", value > 0 && "ht-text-warning")}>{value}</span>
+    <li className={styles.dropRow} data-testid={testId}>
+      <span className={styles.dropLabel}>{label}</span>
+      <span className={clsx(styles.dropValue, "ht-text-mono", value > 0 && "ht-text-warning")}>{value}</span>
     </li>
   );
 }
@@ -242,18 +242,18 @@ function TelemetryPanel({
 }: TelemetryPanelProps) {
   return (
     <section
-      class={clsx(cardStyles.card, styles.section)}
+      className={clsx(cardStyles.card, styles.section)}
       aria-label="Telemetry health"
       data-testid="diag-telemetry-panel"
     >
-      <h2 class={styles.sectionHeading}>telemetry health</h2>
+      <h2 className={styles.sectionHeading}>telemetry health</h2>
       {telemetryDegraded && (
-        <div class={styles.degradedBanner} role="alert" data-testid="diag-telemetry-degraded">
+        <div className={styles.degradedBanner} role="alert" data-testid="diag-telemetry-degraded">
           Telemetry degraded — writes may be failing or the database is unavailable.
         </div>
       )}
       {droppedOverflow + droppedExhausted + droppedShutdown + errorHandlerFailures > 0 && (
-        <ul class={styles.dropList} aria-label="Drop counters">
+        <ul className={styles.dropList} aria-label="Drop counters">
           <DropCounterRow label="Buffer overflow" value={droppedOverflow} testId="diag-drop-overflow" />
           <DropCounterRow label="Write failed" value={droppedExhausted} testId="diag-drop-exhausted" />
           <DropCounterRow label="During shutdown" value={droppedShutdown} testId="diag-drop-shutdown" />
@@ -302,13 +302,13 @@ export function DiagnosticsPage() {
   if (loading) return <Spinner />;
 
   return (
-    <div class="ht-page" data-testid="diagnostics-page">
-      <div class="ht-page-header">
-        <h1 class="ht-display">diagnostics</h1>
+    <div className="ht-page" data-testid="diagnostics-page">
+      <div className="ht-page-header">
+        <h1 className="ht-display">diagnostics</h1>
       </div>
 
       {loadError ? (
-        <div class="ht-alert ht-alert--danger" role="alert" data-testid="diag-load-error">
+        <div className="ht-alert ht-alert--danger" role="alert" data-testid="diag-load-error">
           {loadError.message}
         </div>
       ) : (

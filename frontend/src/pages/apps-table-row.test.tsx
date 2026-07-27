@@ -1,4 +1,4 @@
-import { fireEvent } from "@testing-library/preact";
+import { fireEvent } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { type AppStatusEntry, appStatusKey } from "../state/store";

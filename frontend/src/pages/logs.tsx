@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import { EmptyState } from "../components/shared/empty-state";
 import { LogTableView, LogTableWithDrawer, useLogTable } from "../components/shared/log-table";
 import { ColumnPicker } from "../components/shared/log-table/column-picker";
@@ -6,7 +8,6 @@ import { TableFooter } from "../components/shared/table-footer";
 import { useDocumentTitle } from "../hooks/use-document-title";
 import { useManifests } from "../hooks/use-manifests";
 import { useQueryParams } from "../hooks/use-query-params";
-import { useSignal } from "../hooks/use-signal";
 import styles from "./logs.module.css";
 
 export function LogsPage() {
@@ -16,24 +17,24 @@ export function LogsPage() {
   const qp = useQueryParams();
   const executionId = qp.get("execution_id");
 
-  const search = useSignal("");
+  const [search, setSearch] = useState("");
 
   const log = useLogTable({
     context: "global",
     appKeys,
     executionId,
-    search: search.value,
+    search,
   });
 
   const searchInput = (
     <input
       type="text"
-      class="ht-search"
+      className="ht-search"
       placeholder="Search logs…"
       aria-label="Search logs"
-      value={search.value}
+      value={search}
       onInput={(e) => {
-        search.value = (e.target as HTMLInputElement).value;
+        setSearch((e.target as HTMLInputElement).value);
       }}
       data-testid="logs-search"
     />
@@ -42,7 +43,12 @@ export function LogsPage() {
   const footerExtras = (
     <>
       {log.livePaused && (
-        <button type="button" class={styles.pausedBtn} onClick={log.resetSort} aria-label="Resume live log streaming">
+        <button
+          type="button"
+          className={styles.pausedBtn}
+          onClick={log.resetSort}
+          aria-label="Resume live log streaming"
+        >
           paused — click to resume
         </button>
       )}
@@ -67,11 +73,11 @@ export function LogsPage() {
   );
 
   return (
-    <div class="ht-page" data-testid="logs-page">
-      <div class="ht-page-header">
-        <h1 class="ht-display">logs</h1>
+    <div className="ht-page" data-testid="logs-page">
+      <div className="ht-page-header">
+        <h1 className="ht-display">logs</h1>
       </div>
-      <div class="ht-table-section">
+      <div className="ht-table-section">
         {searchInput}
         <TableCard footer={footer} data-testid="logs-card">
           <LogTableWithDrawer drawerProps={log.drawerProps}>

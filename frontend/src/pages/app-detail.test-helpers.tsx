@@ -1,4 +1,5 @@
 import { http, HttpResponse } from "msw";
+import type { ReactNode } from "react";
 
 import type { AppManifest, JobData, ListenerData } from "../api/endpoints";
 import { createInstance, createManifest } from "../test/factories";
@@ -81,9 +82,7 @@ export function createLogTableStub() {
       isLoading: false,
     }),
     LogTableView: () => <div data-testid="log-table" />,
-    LogTableWithDrawer: ({ children }: { children: preact.ComponentChildren }) => (
-      <div data-testid="log-table-drawer">{children}</div>
-    ),
+    LogTableWithDrawer: ({ children }: { children: ReactNode }) => <div data-testid="log-table-drawer">{children}</div>,
   };
 }
 

@@ -63,17 +63,17 @@ const GROUPS: SwatchGroup[] = [
 
 export function ColorTokens() {
   return (
-    <section class={s.section}>
-      <h2 class={s.heading}>Color Palette</h2>
+    <section className={s.section}>
+      <h2 className={s.heading}>Color Palette</h2>
       {GROUPS.map((group) => (
-        <div key={group.label} class={s.group}>
-          <h3 class={s.groupLabel}>{group.label}</h3>
-          <div class={styles.grid}>
+        <div key={group.label} className={s.group}>
+          <h3 className={s.groupLabel}>{group.label}</h3>
+          <div className={styles.grid}>
             {group.tokens.map((token) => (
-              <div key={token.cssVar} class={styles.swatch}>
-                <div class={styles.swatchColor} style={{ backgroundColor: `var(${token.cssVar})` }} />
-                <span class={styles.swatchName}>{token.name}</span>
-                <code class={s.tokenCode}>{token.cssVar}</code>
+              <div key={token.cssVar} className={styles.swatch}>
+                <div className={styles.swatchColor} style={{ backgroundColor: `var(${token.cssVar})` }} />
+                <span className={styles.swatchName}>{token.name}</span>
+                <code className={s.tokenCode}>{token.cssVar}</code>
               </div>
             ))}
           </div>

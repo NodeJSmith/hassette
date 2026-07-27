@@ -1,9 +1,7 @@
-import { computed, type ReadonlySignal } from "@preact/signals";
-import { useEffect, useMemo, useRef } from "preact/hooks";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { LogEntry } from "@/api/endpoints";
 import { useQueryParams } from "@/hooks/use-query-params";
-import { useSignal } from "@/hooks/use-signal";
 
 import {
   ALL_LEVELS,
@@ -28,8 +26,8 @@ interface UseLogFiltersParams {
 interface UseLogFiltersResult {
   visibleEntries: LogEntry[];
   totalFilteredCount: number;
-  filterState: ReadonlySignal<FilterState>;
-  livePaused: ReadonlySignal<boolean>;
+  filterState: FilterState;
+  livePaused: boolean;
   defaultTier: TierFilter;
   setLevel: (level: LevelFilter) => void;
   setTier: (tier: TierFilter) => void;
@@ -145,12 +143,12 @@ export function useLogFilters({
   // would only hide some of the execution's own logs, so default to "all" — same as appKey.
   const defaultTier: TierFilter = appKey || executionId ? "all" : "app";
 
-  const localLevel = useSignal<LevelFilter>(DEFAULT_LEVEL);
-  const localTier = useSignal<TierFilter>(defaultTier);
-  const localApp = useSignal("");
-  const localSearch = useSignal("");
-  const localFunc = useSignal("");
-  const localSort = useSignal<LogSortState>(DEFAULT_SORT);
+  const [localLevel, setLocalLevel] = useState<LevelFilter>(DEFAULT_LEVEL);
+  const [localTier, setLocalTier] = useState<TierFilter>(defaultTier);
+  const [localApp, setLocalApp] = useState("");
+  const [localSearch, setLocalSearch] = useState("");
+  const [localFunc, setLocalFunc] = useState("");
+  const [localSort, setLocalSort] = useState<LogSortState>(DEFAULT_SORT);
 
   // localTier is seeded from defaultTier once at mount, but defaultTier is reactive: on the
   // global /logs page, adding execution_id to the URL flips useLocalState true and recomputes
@@ -158,8 +156,8 @@ export function useLogFilters({
   // framework rows. Clears the app filter too when leaving the "app" tier.
   useEffect(() => {
     if (!useLocalState) return;
-    localTier.value = defaultTier;
-    if (defaultTier !== "app") localApp.value = "";
+    setLocalTier(defaultTier);
+    if (defaultTier !== "app") setLocalApp("");
   }, [useLocalState, defaultTier]);
 
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -170,48 +168,49 @@ export function useLogFilters({
     [],
   );
 
-  const filterState = computed<FilterState>(() => {
-    if (useLocalState) {
-      return {
-        level: localLevel.value,
-        tier: localTier.value,
-        app: localApp.value,
-        search: localSearch.value,
-        func: localFunc.value,
-        sort: localSort.value,
-      };
-    }
+  // Derived on every render (not memoized) — this is a cheap plain-object build from
+  // primitives (local state values or parsed query-param strings), so recomputing it on
+  // every render costs nothing. The expensive part (the scan/sort over entries below) is
+  // memoized separately via useMemo.
+  const filterState: FilterState = useLocalState
+    ? {
+        level: localLevel,
+        tier: localTier,
+        app: localApp,
+        search: localSearch,
+        func: localFunc,
+        sort: localSort,
+      }
+    : (() => {
+        const current = qpRef.current;
+        const levelParam = current.get("level");
+        const level: LevelFilter = levelParam === "all" ? ALL_LEVELS : ((levelParam as LevelFilter) ?? DEFAULT_LEVEL);
+        const tierRaw = current.get("tier");
+        const tier: TierFilter =
+          tierRaw === "all" || tierRaw === "framework" || tierRaw === "app" ? tierRaw : defaultTier;
+        const app = current.get("app") ?? "";
+        const search = current.get("search") ?? "";
+        const func = current.get("func") ?? current.get("fn") ?? "";
+        const rawSort = current.get("sort") ?? "timestamp";
+        const key = resolveSortKey(rawSort);
+        const dir = current.get("dir") === "asc" ? "asc" : "desc";
 
-    const current = qpRef.current;
-    const levelParam = current.get("level");
-    const level: LevelFilter = levelParam === "all" ? ALL_LEVELS : ((levelParam as LevelFilter) ?? DEFAULT_LEVEL);
-    const tierRaw = current.get("tier");
-    const tier: TierFilter = tierRaw === "all" || tierRaw === "framework" || tierRaw === "app" ? tierRaw : defaultTier;
-    const app = current.get("app") ?? "";
-    const search = current.get("search") ?? "";
-    const func = current.get("func") ?? current.get("fn") ?? "";
-    const rawSort = current.get("sort") ?? "timestamp";
-    const key = resolveSortKey(rawSort);
-    const dir = current.get("dir") === "asc" ? "asc" : "desc";
+        return { level, tier, app, search, func, sort: { key, dir } };
+      })();
 
-    return { level, tier, app, search, func, sort: { key, dir } };
-  });
+  const livePaused = filterState.sort.key !== "timestamp";
 
-  const livePaused = computed(() => filterState.value.sort.key !== "timestamp");
+  const { level, tier, app, search, func, sort } = filterState;
+  const source = livePaused ? restEntries : allEntries;
 
-  const paused = livePaused.value;
-  const { level, tier, app, search, func, sort } = filterState.value;
-  const source = paused ? restEntries : allEntries;
-
-  const filtered = useMemo<FilteredLogEntriesResult>(
+  const filtered = useMemo(
     () => filterLogEntries(source, { level, tier, app, search, func, sort }),
-    // eslint-disable-next-line react-hooks-configurable/exhaustive-deps -- sort is destructured; .key/.dir are the actual deps
     [source, level, tier, app, search, func, sort.key, sort.dir],
   );
 
   function setLevel(level: LevelFilter) {
     if (useLocalState) {
-      localLevel.value = level;
+      setLocalLevel(level);
       return;
     }
     if (level === DEFAULT_LEVEL) {
@@ -226,7 +225,7 @@ export function useLogFilters({
   function setTier(tier: TierFilter) {
     if (tier !== "app") setApp("");
     if (useLocalState) {
-      localTier.value = tier;
+      setLocalTier(tier);
       return;
     }
     qpRef.current.set({ tier: tier === defaultTier ? null : tier });
@@ -234,7 +233,7 @@ export function useLogFilters({
 
   function setApp(app: string) {
     if (useLocalState) {
-      localApp.value = app;
+      setLocalApp(app);
       return;
     }
     qpRef.current.set({ app: app || null });
@@ -244,7 +243,7 @@ export function useLogFilters({
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
     searchDebounceRef.current = setTimeout(() => {
       if (useLocalState) {
-        localSearch.value = value;
+        setLocalSearch(value);
         return;
       }
       qpRef.current.set({ search: value || null });
@@ -253,7 +252,7 @@ export function useLogFilters({
 
   function setFunc(func: string) {
     if (useLocalState) {
-      localFunc.value = func;
+      setLocalFunc(func);
       return;
     }
     qpRef.current.set({ func: func || null, fn: null });
@@ -261,7 +260,7 @@ export function useLogFilters({
 
   function setSort(next: LogSortState) {
     if (useLocalState) {
-      localSort.value = next;
+      setLocalSort(next);
       return;
     }
     const isDefault = next.key === DEFAULT_SORT.key && next.dir === DEFAULT_SORT.dir;
@@ -270,7 +269,7 @@ export function useLogFilters({
 
   function resetSort() {
     if (useLocalState) {
-      localSort.value = DEFAULT_SORT;
+      setLocalSort(DEFAULT_SORT);
       return;
     }
     qpRef.current.set({ sort: null, dir: null });
@@ -283,7 +282,7 @@ export function useLogFilters({
     setFunc("");
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
     if (useLocalState) {
-      localSearch.value = "";
+      setLocalSearch("");
     } else {
       qpRef.current.set({ search: null });
     }

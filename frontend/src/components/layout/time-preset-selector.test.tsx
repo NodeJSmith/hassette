@@ -1,4 +1,4 @@
-import { fireEvent } from "@testing-library/preact";
+import { fireEvent } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useAppStore } from "../../state/store";

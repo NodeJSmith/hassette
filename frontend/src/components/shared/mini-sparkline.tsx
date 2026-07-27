@@ -26,7 +26,7 @@ export function MiniSparkline({
       height={height}
       viewBox={`0 0 ${width} ${height}`}
       aria-hidden="true"
-      class={styles.sparkline}
+      className={styles.sparkline}
       data-testid="mini-sparkline"
     >
       <polyline

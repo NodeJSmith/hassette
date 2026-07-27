@@ -1,12 +1,11 @@
 import path from "node:path";
-import preact from "@preact/preset-vite";
+import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
-import { patchCssModules } from "vite-css-modules";
 
 const apiTarget = process.env.VITE_PROXY_TARGET || "http://localhost:8126";
 
 export default defineConfig({
-  plugins: [preact(), patchCssModules({ generateSourceTypes: true })],
+  plugins: [react()],
   // Match tsconfig.json paths["@/*"] so the dev server resolves @/ imports
   resolve: {
     alias: {

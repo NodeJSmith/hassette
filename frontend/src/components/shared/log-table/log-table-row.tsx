@@ -1,5 +1,6 @@
 import clsx from "clsx";
-import { useMemo } from "preact/hooks";
+import type { MouseEvent as ReactMouseEvent } from "react";
+import { useMemo } from "react";
 
 import type { LogEntry } from "@/api/endpoints";
 import { BREAKPOINT_MOBILE, useMediaQuery } from "@/hooks/use-media-query";
@@ -30,7 +31,7 @@ export function LogTableRow({ entry, rowKey, visibleColumns, isSelected, onClick
   const visibleSet = useMemo(() => new Set(visibleColumns), [visibleColumns]);
   const isColumnVisible = (id: ColumnId) => visibleSet.has(id);
 
-  const handleRowClick = (e: MouseEvent) => {
+  const handleRowClick = (e: ReactMouseEvent) => {
     if (e.target instanceof Element && e.target.closest("a, button")) return;
     onClick();
   };
@@ -38,31 +39,31 @@ export function LogTableRow({ entry, rowKey, visibleColumns, isSelected, onClick
   return (
     <tr
       key={rowKey}
-      class={clsx(styles.row, isSelected && styles.selected)}
+      className={clsx(styles.row, isSelected && styles.selected)}
       data-level={entry.level}
       onClick={handleRowClick}
       aria-current={isSelected ? "true" : undefined}
     >
       {isColumnVisible("level") && (
-        <td class={styles.levelCell}>
-          <span class={clsx(styles.levelText, levelClass(styles, "level", entry.level))}>
+        <td className={styles.levelCell}>
+          <span className={clsx(styles.levelText, levelClass(styles, "level", entry.level))}>
             {isMobile ? (LEVEL_ABBREV[entry.level] ?? entry.level) : entry.level}
           </span>
         </td>
       )}
       {isColumnVisible("timestamp") && (
-        <td class={styles.mono}>{isMobile ? relativeTime : formatTimestamp(entry.timestamp)}</td>
+        <td className={styles.mono}>{isMobile ? relativeTime : formatTimestamp(entry.timestamp)}</td>
       )}
       {isColumnVisible("app") && (
-        <td>{entry.app_key ? <AppLink appKey={entry.app_key} /> : <span class={styles.muted}>&mdash;</span>}</td>
+        <td>{entry.app_key ? <AppLink appKey={entry.app_key} /> : <span className={styles.muted}>&mdash;</span>}</td>
       )}
       {isColumnVisible("instance") && (
-        <td class={styles.mono} title={entry.instance_name ?? undefined}>
-          {entry.instance_name ?? <span class={styles.muted}>&mdash;</span>}
+        <td className={styles.mono} title={entry.instance_name ?? undefined}>
+          {entry.instance_name ?? <span className={styles.muted}>&mdash;</span>}
         </td>
       )}
       {isColumnVisible("execution") && (
-        <td class={styles.mono}>
+        <td className={styles.mono}>
           <ExecutionIdLink
             entry={entry}
             linkClassName={styles.execLink}
@@ -74,34 +75,34 @@ export function LogTableRow({ entry, rowKey, visibleColumns, isSelected, onClick
         </td>
       )}
       {isColumnVisible("function") && (
-        <td class={styles.mono}>
-          <span class={styles.truncate}>{entry.func_name}()</span>
+        <td className={styles.mono}>
+          <span className={styles.truncate}>{entry.func_name}()</span>
         </td>
       )}
       {isColumnVisible("module") && (
-        <td class={styles.mono}>
-          <span class={styles.truncate} title={`${entry.logger_name}:${entry.func_name}:${entry.lineno}`}>
+        <td className={styles.mono}>
+          <span className={styles.truncate} title={`${entry.logger_name}:${entry.func_name}:${entry.lineno}`}>
             {entry.logger_name.split(".").pop()}:{entry.lineno}
           </span>
         </td>
       )}
       {isColumnVisible("message") && (
-        <td class={styles.messageCell} data-testid="log-message-cell">
+        <td className={styles.messageCell} data-testid="log-message-cell">
           {isMobile && !isColumnVisible("app") && entry.func_name && (
-            <div class={styles.sourceInline}>
+            <div className={styles.sourceInline}>
               {entry.app_key ? `${entry.app_key}.` : ""}
               {entry.func_name}()
             </div>
           )}
-          <div class={styles.messageText}>{entry.message}</div>
+          <div className={styles.messageText}>{entry.message}</div>
         </td>
       )}
-      <td class={styles.detailCell}>
+      <td className={styles.detailCell}>
         <Button
           ghost
           icon
           size="xs"
-          class={styles.detailBtn}
+          className={styles.detailBtn}
           onClick={onClick}
           tabIndex={tabIndex}
           data-roving-item

@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/preact-query";
+import { useQuery } from "@tanstack/react-query";
 
 import { getAppManifest } from "../api/endpoints";
 import { queryKeys } from "../lib/query-keys";

@@ -1,5 +1,5 @@
-import { useQueryClient } from "@tanstack/preact-query";
-import { useEffect, useRef } from "preact/hooks";
+import { useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
 
 import { WS_PATH } from "../api/endpoints";
 import type { WsServerMessage } from "../api/ws-types";

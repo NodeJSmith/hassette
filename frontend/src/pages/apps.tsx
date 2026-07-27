@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import { useState } from "react";
 
 import { getDashboardAppGrid } from "../api/endpoints";
 import { Button } from "../components/shared/button";
@@ -17,7 +18,6 @@ import { BREAKPOINT_MOBILE, useMediaQuery } from "../hooks/use-media-query";
 import { useQueryInvalidator } from "../hooks/use-query-invalidator";
 import { useQueryParams } from "../hooks/use-query-params";
 import { useScopedQuery } from "../hooks/use-scoped-query";
-import { useSignal } from "../hooks/use-signal";
 import { queryKeys } from "../lib/query-keys";
 import type { AppStatusEntry } from "../state/store";
 import { useAppStore } from "../state/store";
@@ -96,7 +96,7 @@ function StatusFilterContent({
 }) {
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
   return (
-    <div class={styles.statusFilter}>
+    <div className={styles.statusFilter}>
       {FILTER_OPTIONS.map((f) => {
         const count = f === "all" ? total : (counts[f] ?? 0);
         if (f !== "all" && count === 0) return null;
@@ -106,15 +106,15 @@ function StatusFilterContent({
           <button
             key={f}
             type="button"
-            class={clsx(popoverStyles.tierBtn, isActive && popoverStyles.active)}
+            className={clsx(popoverStyles.tierBtn, isActive && popoverStyles.active)}
             aria-pressed={isActive}
             onClick={() => onChange(f)}
             data-testid={`filter-${f}`}
           >
-            <span class={styles.statusFilterRow}>
+            <span className={styles.statusFilterRow}>
               {tone && <StatusShape kind={tone} size={8} />}
               <span>{f}</span>
-              <span class={styles.statusFilterCount}>{count}</span>
+              <span className={styles.statusFilterCount}>{count}</span>
             </span>
           </button>
         );
@@ -155,13 +155,15 @@ export function AppsPage() {
       sort: newSort.key === "status" ? null : newSort.key,
       dir: newSort.dir === "asc" ? null : newSort.dir,
     });
-  const expanded = useSignal<Set<string>>(new Set());
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const toggleExpand = (appKey: string) => {
-    const next = new Set(expanded.value);
-    if (next.has(appKey)) next.delete(appKey);
-    else next.add(appKey);
-    expanded.value = next;
+    setExpanded((current) => {
+      const next = new Set(current);
+      if (next.has(appKey)) next.delete(appKey);
+      else next.add(appKey);
+      return next;
+    });
   };
 
   const gridEntries = gridData?.apps ?? [];
@@ -218,7 +220,7 @@ export function AppsPage() {
 
   if (gridError) {
     return (
-      <div class="ht-alert ht-alert--danger" role="alert">
+      <div className="ht-alert ht-alert--danger" role="alert">
         {gridError.message}
       </div>
     );
@@ -227,7 +229,7 @@ export function AppsPage() {
   const searchInput = (
     <input
       type="text"
-      class="ht-search"
+      className="ht-search"
       placeholder="search apps…"
       aria-label="Search apps"
       value={search}
@@ -249,13 +251,13 @@ export function AppsPage() {
   else if (search) emptyStateTitle = `no apps match "${search}".`;
 
   return (
-    <div class={`ht-page ${styles.page}`} data-testid="apps-page">
+    <div className={`ht-page ${styles.page}`} data-testid="apps-page">
       {/* Header */}
-      <div class="ht-page-header">
-        <h1 class="ht-display">apps</h1>
+      <div className="ht-page-header">
+        <h1 className="ht-display">apps</h1>
       </div>
 
-      <div class="ht-table-section">
+      <div className="ht-table-section">
         <StatsStrip
           cells={buildAppsCells(allApps, appStatus, windowSeconds, isMobile)}
           data-testid="apps-stats-strip"
@@ -271,14 +273,14 @@ export function AppsPage() {
               )}
             </EmptyState>
           ) : (
-            <table class={`ht-table ht-table--fixed ${styles.appsTable}`} data-testid="apps-table">
+            <table className={`ht-table ht-table--fixed ${styles.appsTable}`} data-testid="apps-table">
               <colgroup>
-                <col class={styles.colName} />
-                <col class={styles.colStatus} />
-                <col class={styles.colError} />
-                <col class={styles.colRuns} />
-                <col class={styles.colLast} />
-                <col class={styles.colActions} />
+                <col className={styles.colName} />
+                <col className={styles.colStatus} />
+                <col className={styles.colError} />
+                <col className={styles.colRuns} />
+                <col className={styles.colLast} />
+                <col className={styles.colActions} />
               </colgroup>
               <thead>
                 <tr>
@@ -313,7 +315,7 @@ export function AppsPage() {
                     key={app.app_key}
                     app={app}
                     appStatuses={appStatus}
-                    isExpanded={app.instance_count > 1 && expanded.value.has(app.app_key)}
+                    isExpanded={app.instance_count > 1 && expanded.has(app.app_key)}
                     onToggle={() => toggleExpand(app.app_key)}
                     muteStatus={allSameStatus}
                   />

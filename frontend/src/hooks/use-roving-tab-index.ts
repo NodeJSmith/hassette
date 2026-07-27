@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "preact/hooks";
+import type { KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useEffect, useRef, useState } from "react";
 
 // Items participating in roving tabindex must have the `data-roving-item` attribute.
 const ROVING_SELECTOR = "[data-roving-item]";
@@ -16,7 +17,7 @@ export function useRovingTabIndex<T extends HTMLElement = HTMLElement>(
 
   const clampedIndex = itemCount > 0 ? Math.min(activeIndex, itemCount - 1) : 0;
 
-  function onContainerKeyDown(e: KeyboardEvent) {
+  function onContainerKeyDown(e: ReactKeyboardEvent) {
     if (itemCount === 0) return;
 
     let next: number;

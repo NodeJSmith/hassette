@@ -17,7 +17,7 @@ export function ThemeToggle() {
   return (
     <button
       type="button"
-      class={styles.themeToggle}
+      className={styles.themeToggle}
       data-testid="theme-toggle"
       aria-label={`Switch to ${nextTheme} mode`}
       onClick={toggleTheme}

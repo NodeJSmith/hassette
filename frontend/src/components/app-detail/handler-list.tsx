@@ -65,7 +65,7 @@ export function HandlerList({ listeners, jobs, selectedId, onSelect }: Props) {
 
   return (
     <div>
-      <div class={styles.itemList} data-testid="handler-list">
+      <div className={styles.itemList} data-testid="handler-list">
         {items.map((item) => (
           <UnifiedHandlerRow
             key={`${item.kind}-${item.id}`}

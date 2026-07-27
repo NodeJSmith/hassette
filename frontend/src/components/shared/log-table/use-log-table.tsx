@@ -1,9 +1,8 @@
 import clsx from "clsx";
-import { useCallback, useEffect, useMemo, useRef } from "preact/hooks";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { LogEntry } from "@/api/endpoints";
 import { BREAKPOINT_MOBILE, useMediaQuery } from "@/hooks/use-media-query";
-import { useSignal } from "@/hooks/use-signal";
 import { useAppStore } from "@/state/store";
 import { pluralize } from "@/utils/format";
 
@@ -76,7 +75,7 @@ export function useLogTable({
   const { visibleColumns, selectedColumns, viewportHidden, toggle, reset } = useColumnVisibility(context);
   const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
 
-  const selectedKey = useSignal<RowKey | null>(null);
+  const [selectedKey, setSelectedKey] = useState<RowKey | null>(null);
 
   const { allEntries, restEntries, loading } = useLogData({
     appKey,
@@ -106,7 +105,7 @@ export function useLogTable({
     executionId,
   });
 
-  const level = filterState.value.level;
+  const level = filterState.level;
   useEffect(() => {
     useAppStore.getState().sendLogLevel(level || "DEBUG");
   }, [level]);
@@ -119,22 +118,22 @@ export function useLogTable({
     }
   }, [externalSearch, setSearch]);
 
-  const state = filterState.value;
+  const state = filterState;
   const entries = visibleEntries;
-  const paused = livePaused.value;
+  const paused = livePaused;
   const isLoading = loading;
 
   const handleRowClick = useCallback((entry: LogEntry) => {
     const key = rowKey(entry);
-    selectedKey.value = selectedKey.value === key ? null : key;
+    setSelectedKey((current) => (current === key ? null : key));
   }, []);
 
   const handleDrawerClose = useCallback(() => {
-    selectedKey.value = null;
+    setSelectedKey(null);
   }, []);
 
   const handleDrawerNavigate = useCallback((key: RowKey) => {
-    selectedKey.value = key;
+    setSelectedKey(key);
   }, []);
 
   const hasActiveFilter =
@@ -194,12 +193,12 @@ export function useLogTable({
         label: "App",
         content: (
           <div>
-            <div class={filterStyles.tierGroup}>
+            <div className={filterStyles.tierGroup}>
               {TIER_OPTIONS.map((opt) => (
                 <button
                   key={opt.value}
                   type="button"
-                  class={clsx(filterStyles.tierBtn, state.tier === opt.value && filterStyles.active)}
+                  className={clsx(filterStyles.tierBtn, state.tier === opt.value && filterStyles.active)}
                   onClick={() => setTier(opt.value)}
                 >
                   {opt.label}
@@ -248,12 +247,12 @@ export function useLogTable({
       onSort: setSort,
       columnFilters,
       entries,
-      selectedKey: selectedKey.value,
+      selectedKey,
       onRowClick: handleRowClick,
       isMobile,
     },
     drawerProps: {
-      selectedKey: selectedKey.value,
+      selectedKey,
       entries,
       onClose: handleDrawerClose,
       onNavigate: handleDrawerNavigate,

@@ -1,4 +1,5 @@
-import { render } from "@testing-library/preact";
+import { render } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { createWouterMock } from "../../test/mock-wouter";
@@ -31,7 +32,7 @@ vi.mock("./log-table", () => ({
     isLoading: false,
   }),
   LogTableView: () => <div data-testid="log-table-view" />,
-  LogTableWithDrawer: ({ children }: { children: preact.ComponentChildren }) => (
+  LogTableWithDrawer: ({ children }: { children: ReactNode }) => (
     <div data-testid="log-table-with-drawer">{children}</div>
   ),
 }));

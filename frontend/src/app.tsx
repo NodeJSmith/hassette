@@ -1,5 +1,5 @@
-import { QueryClientProvider } from "@tanstack/preact-query";
-import { useEffect, useMemo, useRef, useState } from "preact/hooks";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Toaster } from "sonner";
 import { Redirect, Route, Switch, useLocation } from "wouter";
 
@@ -121,25 +121,25 @@ export function App() {
         <Toaster position="bottom-right" theme={theme} closeButton richColors />
 
         {/* Skip link */}
-        <a href="#main-content" class="ht-skip-link">
+        <a href="#main-content" className="ht-skip-link">
           Skip to main content
         </a>
 
         {/* Off-canvas drawer (mobile) */}
         <div
           ref={drawerRef}
-          class={`ht-drawer${drawerOpen ? " is-open" : ""}`}
+          className={`ht-drawer${drawerOpen ? " is-open" : ""}`}
           aria-hidden={!drawerOpen}
           {...(!drawerOpen ? { inert: true } : {})}
         >
           {drawerMounted && <Sidebar onOpenPalette={() => setPaletteOpen(true)} />}
         </div>
-        {drawerOpen && <div class="ht-drawer-backdrop" role="presentation" onClick={() => setDrawerOpen(false)} />}
+        {drawerOpen && <div className="ht-drawer-backdrop" role="presentation" onClick={() => setDrawerOpen(false)} />}
 
         {/* Desktop layout */}
-        <div class={`ht-layout${sidebarCollapsed ? " is-collapsed" : ""}`} data-testid="layout">
+        <div className={`ht-layout${sidebarCollapsed ? " is-collapsed" : ""}`} data-testid="layout">
           {!sidebarCollapsed && <Sidebar onOpenPalette={() => setPaletteOpen(true)} />}
-          <main class="ht-main" id="main-content" tabIndex={-1}>
+          <main className="ht-main" id="main-content" tabIndex={-1}>
             <StatusBar
               onMenuClick={() => setDrawerOpen((prev) => !prev)}
               drawerOpen={drawerOpen}

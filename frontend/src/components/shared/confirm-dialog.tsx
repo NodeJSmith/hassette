@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "preact/hooks";
+import { useEffect, useRef } from "react";
 
 import { Button } from "./button";
 import styles from "./confirm-dialog.module.css";
@@ -75,15 +75,21 @@ export function ConfirmDialog({ title, body, confirmLabel, onConfirm, onCancel, 
 
   return (
     <>
-      <div class={styles.backdrop} data-testid="confirm-dialog-backdrop" onClick={onCancel} aria-hidden="true" />
-      <div role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={bodyId} class={styles.dialog}>
-        <h2 id={titleId} class={styles.title}>
+      <div className={styles.backdrop} data-testid="confirm-dialog-backdrop" onClick={onCancel} aria-hidden="true" />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={bodyId}
+        className={styles.dialog}
+      >
+        <h2 id={titleId} className={styles.title}>
           {title}
         </h2>
-        <p id={bodyId} class={styles.body}>
+        <p id={bodyId} className={styles.body}>
           {body}
         </p>
-        <div class={styles.actions}>
+        <div className={styles.actions}>
           <Button
             buttonRef={(el) => {
               cancelRef.current = el;

@@ -1,10 +1,10 @@
 import clsx from "clsx";
-import { useCallback, useEffect, useRef } from "preact/hooks";
+import type { MouseEvent as ReactMouseEvent } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 
 import type { LogEntry } from "@/api/endpoints";
 import { BREAKPOINT_MOBILE, BREAKPOINT_TABLET, useMediaQuery } from "@/hooks/use-media-query";
-import { useSignal } from "@/hooks/use-signal";
 import { appDetailPath } from "@/utils/app-routes";
 import { formatTimestamp } from "@/utils/format";
 
@@ -22,16 +22,16 @@ interface Props {
 }
 
 function CopyButton({ text, label }: { text: string; label: string }) {
-  const copied = useSignal(false);
+  const [copied, setCopied] = useState(false);
 
   const handleCopy = useCallback(
-    async (e: MouseEvent) => {
+    async (e: ReactMouseEvent) => {
       e.stopPropagation();
       try {
         await navigator.clipboard.writeText(text);
-        copied.value = true;
+        setCopied(true);
         setTimeout(() => {
-          copied.value = false;
+          setCopied(false);
         }, COPY_CONFIRM_MS);
       } catch {
         /* clipboard unavailable */
@@ -43,12 +43,12 @@ function CopyButton({ text, label }: { text: string; label: string }) {
   return (
     <button
       type="button"
-      class={styles.copyBtn}
+      className={styles.copyBtn}
       onClick={handleCopy}
       aria-label={label}
-      title={copied.value ? "Copied" : label}
+      title={copied ? "Copied" : label}
     >
-      {copied.value ? "✓" : "⧉"}
+      {copied ? "✓" : "⧉"}
     </button>
   );
 }
@@ -117,20 +117,20 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
 
   return (
     <>
-      {useOverlay && <div class={styles.backdrop} onClick={onClose} aria-hidden="true" />}
+      {useOverlay && <div className={styles.backdrop} onClick={onClose} aria-hidden="true" />}
       <aside
         ref={drawerRef}
-        class={clsx(styles.drawer, isMobile ? styles.bottomSheet : styles.sidePanel)}
+        className={clsx(styles.drawer, isMobile ? styles.bottomSheet : styles.sidePanel)}
         id={DETAIL_DRAWER_ID}
         role="complementary"
         aria-label="Log entry detail"
         data-testid="log-detail-drawer"
       >
-        <div class={styles.headerBar}>
-          <div class={styles.navButtons}>
+        <div className={styles.headerBar}>
+          <div className={styles.navButtons}>
             <button
               type="button"
-              class={styles.iconBtn}
+              className={styles.iconBtn}
               onClick={navigatePrev}
               disabled={currentIndex <= 0}
               aria-label="Previous entry"
@@ -139,7 +139,7 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
             </button>
             <button
               type="button"
-              class={styles.iconBtn}
+              className={styles.iconBtn}
               onClick={navigateNext}
               disabled={currentIndex >= entries.length - 1}
               aria-label="Next entry"
@@ -147,53 +147,53 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
               →
             </button>
           </div>
-          <button type="button" class={styles.iconBtn} onClick={onClose} aria-label="Close detail panel">
+          <button type="button" className={styles.iconBtn} onClick={onClose} aria-label="Close detail panel">
             ✕
           </button>
         </div>
 
         {isFilteredOut ? (
-          <div class={styles.filteredOut}>
+          <div className={styles.filteredOut}>
             <p>This entry is no longer visible with the current filters.</p>
-            <button type="button" class={styles.clearFilterBtn} onClick={onClose}>
+            <button type="button" className={styles.clearFilterBtn} onClick={onClose}>
               Close
             </button>
           </div>
         ) : entry ? (
-          <div class={styles.content}>
-            <div class={clsx(styles.severityRow, levelClass(styles, "level", entry.level))}>
-              <span class={styles.levelLabel}>{entry.level}</span>
-              <span class={styles.timestamp}>{formatTimestamp(entry.timestamp)}</span>
+          <div className={styles.content}>
+            <div className={clsx(styles.severityRow, levelClass(styles, "level", entry.level))}>
+              <span className={styles.levelLabel}>{entry.level}</span>
+              <span className={styles.timestamp}>{formatTimestamp(entry.timestamp)}</span>
             </div>
 
-            <div class={styles.section}>
-              <div class={styles.sectionHeader}>
-                <span class={styles.sectionLabel}>message</span>
+            <div className={styles.section}>
+              <div className={styles.sectionHeader}>
+                <span className={styles.sectionLabel}>message</span>
                 <CopyButton text={entry.message} label="Copy message" />
               </div>
-              <pre class={styles.codeBlock} data-log-scrollable>
+              <pre className={styles.codeBlock} data-log-scrollable>
                 {entry.message}
               </pre>
             </div>
 
             {entry.exc_info && (
-              <div class={styles.section}>
-                <div class={styles.sectionHeader}>
-                  <span class={styles.sectionLabel}>exception</span>
+              <div className={styles.section}>
+                <div className={styles.sectionHeader}>
+                  <span className={styles.sectionLabel}>exception</span>
                   <CopyButton text={entry.exc_info} label="Copy exception" />
                 </div>
-                <pre class={clsx(styles.codeBlock, styles.exceptionBlock)} data-log-scrollable>
+                <pre className={clsx(styles.codeBlock, styles.exceptionBlock)} data-log-scrollable>
                   {entry.exc_info}
                 </pre>
               </div>
             )}
 
-            <dl class={styles.metaGrid}>
+            <dl className={styles.metaGrid}>
               {entry.app_key && (
                 <>
                   <dt>App</dt>
                   <dd>
-                    <Link href={appDetailPath(entry.app_key)} class={styles.appLink}>
+                    <Link href={appDetailPath(entry.app_key)} className={styles.appLink}>
                       {entry.app_key} ↗
                     </Link>
                   </dd>
@@ -202,13 +202,13 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
               {entry.instance_name && (
                 <>
                   <dt>Instance</dt>
-                  <dd class={styles.monoValue}>{entry.instance_name}</dd>
+                  <dd className={styles.monoValue}>{entry.instance_name}</dd>
                 </>
               )}
               {entry.execution_id && (
                 <>
                   <dt>Execution</dt>
-                  <dd class={styles.monoValue}>
+                  <dd className={styles.monoValue}>
                     <ExecutionIdLink entry={entry} linkClassName={styles.execLink}>
                       {entry.execution_id}
                     </ExecutionIdLink>
@@ -217,13 +217,13 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
                 </>
               )}
               <dt>Function</dt>
-              <dd class={styles.monoValue}>{entry.func_name}()</dd>
+              <dd className={styles.monoValue}>{entry.func_name}()</dd>
               <dt>Module</dt>
-              <dd class={styles.monoValue}>{entry.logger_name.split(".").pop()}</dd>
+              <dd className={styles.monoValue}>{entry.logger_name.split(".").pop()}</dd>
               <dt>Line</dt>
-              <dd class={styles.monoValue}>{entry.lineno}</dd>
+              <dd className={styles.monoValue}>{entry.lineno}</dd>
               <dt>Logger</dt>
-              <dd class={styles.monoValue}>{entry.logger_name}</dd>
+              <dd className={styles.monoValue}>{entry.logger_name}</dd>
             </dl>
           </div>
         ) : null}

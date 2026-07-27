@@ -1,7 +1,7 @@
-import { QueryClientProvider } from "@tanstack/preact-query";
-import { fireEvent, render, waitFor } from "@testing-library/preact";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { fireEvent, render, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
-import type { ComponentChildren } from "preact";
+import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { createExecution } from "../../test/factories";
@@ -22,7 +22,7 @@ vi.mock("../../hooks/use-document-title", () => ({
   useDocumentTitle: vi.fn(),
 }));
 
-function Wrapper({ children }: { children: ComponentChildren }) {
+function Wrapper({ children }: { children: ReactNode }) {
   return <QueryClientProvider client={createTestQueryClient()}>{children}</QueryClientProvider>;
 }
 

@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import type { CSSProperties } from "react";
 
 import type { StatusKind } from "../../utils/status";
 import styles from "./stats-strip.module.css";
@@ -31,15 +32,19 @@ function isZero(value: string | number): boolean {
 
 export function StatsStrip({ cells, cols, "data-testid": testId }: StatsStripProps) {
   return (
-    <div class={styles.strip} style={cols ? `--stats-cols: ${cols}` : undefined} data-testid={testId}>
+    <div
+      className={styles.strip}
+      style={cols ? ({ "--stats-cols": cols } as CSSProperties) : undefined}
+      data-testid={testId}
+    >
       {cells.map((c) => {
         const zero = isZero(c.value) && !c.tone;
         return (
-          <div key={c.label} class={clsx(styles.cell, zero && styles.zeroCell)} data-testid="stats-strip-cell">
-            <span class={styles.label} data-testid="stats-strip-label">
+          <div key={c.label} className={clsx(styles.cell, zero && styles.zeroCell)} data-testid="stats-strip-cell">
+            <span className={styles.label} data-testid="stats-strip-label">
               {c.label}
             </span>
-            <span class={clsx(styles.value, c.tone && toneClass[c.tone])} data-tone={c.tone ?? undefined}>
+            <span className={clsx(styles.value, c.tone && toneClass[c.tone])} data-tone={c.tone ?? undefined}>
               {c.value}
             </span>
           </div>

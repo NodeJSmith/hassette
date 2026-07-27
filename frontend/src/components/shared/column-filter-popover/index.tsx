@@ -1,7 +1,7 @@
 import { autoUpdate, computePosition, flip, offset, shift, size } from "@floating-ui/dom";
 import clsx from "clsx";
-import type { ComponentChildren } from "preact";
-import { useEffect, useRef, useState } from "preact/hooks";
+import type { ReactNode, RefObject } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import styles from "./index.module.css";
 
@@ -21,9 +21,9 @@ function getFocusableElements(container: HTMLElement): HTMLElement[] {
 interface Props {
   open: boolean;
   onClose: () => void;
-  triggerRef: preact.RefObject<HTMLElement | null>;
+  triggerRef: RefObject<HTMLElement | null>;
   label?: string;
-  children: ComponentChildren;
+  children: ReactNode;
 }
 
 export function ColumnFilterPopover({ open, onClose, triggerRef, label, children }: Props) {
@@ -160,7 +160,7 @@ export function ColumnFilterPopover({ open, onClose, triggerRef, label, children
   return (
     <div
       ref={popoverRef}
-      class={clsx(styles.popover, positioned && styles.positioned)}
+      className={clsx(styles.popover, positioned && styles.positioned)}
       role="dialog"
       aria-label={label ?? "Column filter"}
       tabIndex={-1}

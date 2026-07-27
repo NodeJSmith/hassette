@@ -1,4 +1,4 @@
-import { render } from "@testing-library/preact";
+import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { Tooltip } from "./tooltip";
@@ -18,7 +18,7 @@ describe("Tooltip", () => {
 
   it("passes through the class prop to the trigger element", () => {
     const { container } = render(
-      <Tooltip label="test" class="my-custom-class">
+      <Tooltip label="test" className="my-custom-class">
         <span>val</span>
       </Tooltip>,
     );

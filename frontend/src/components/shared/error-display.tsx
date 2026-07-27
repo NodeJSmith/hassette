@@ -15,27 +15,27 @@ export function ErrorDisplay({ status, durationMs, errorType, errorMessage }: Pr
 
   if (isTimeout) {
     return (
-      <div class={styles.metaItem}>
-        <span class={styles.label}>timeout</span>
-        <span class="ht-text-mono ht-text-xs ht-text-warning">exceeded {formatDuration(durationMs)} budget</span>
+      <div className={styles.metaItem}>
+        <span className={styles.label}>timeout</span>
+        <span className="ht-text-mono ht-text-xs ht-text-warning">exceeded {formatDuration(durationMs)} budget</span>
       </div>
     );
   }
 
   if (isCancelled) {
     return (
-      <div class={styles.metaItem}>
-        <span class={styles.label}>result</span>
-        <span class="ht-text-mono ht-text-xs ht-text-cancel">cancelled after {formatDuration(durationMs)}</span>
+      <div className={styles.metaItem}>
+        <span className={styles.label}>result</span>
+        <span className="ht-text-mono ht-text-xs ht-text-cancel">cancelled after {formatDuration(durationMs)}</span>
       </div>
     );
   }
 
   if (isError && errorMessage) {
     return (
-      <div class={styles.metaItem}>
-        <span class={styles.label}>result</span>
-        <span class="ht-text-mono ht-text-xs ht-text-danger">
+      <div className={styles.metaItem}>
+        <span className={styles.label}>result</span>
+        <span className="ht-text-mono ht-text-xs ht-text-danger">
           {errorType ?? "Error"}: {errorMessage}
         </span>
       </div>
@@ -43,9 +43,9 @@ export function ErrorDisplay({ status, durationMs, errorType, errorMessage }: Pr
   }
 
   return (
-    <div class={styles.metaItem}>
-      <span class={styles.label}>result</span>
-      <span class="ht-text-mono ht-text-xs">completed in {formatDuration(durationMs)}</span>
+    <div className={styles.metaItem}>
+      <span className={styles.label}>result</span>
+      <span className="ht-text-mono ht-text-xs">completed in {formatDuration(durationMs)}</span>
     </div>
   );
 }

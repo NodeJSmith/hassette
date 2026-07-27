@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "preact/hooks";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { getRecentLogs, type LogEntry } from "@/api/endpoints";
@@ -82,7 +82,7 @@ export function useLogData({ appKey, executionId }: UseLogDataParams): UseLogDat
     });
 
     return [...wsEntries.reverse(), ...restEntries];
-    // eslint-disable-next-line react-hooks-configurable/exhaustive-deps -- getLogEntries is a stable store action; logsVersion drives recomputation
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- getLogEntries is a stable store action; logsVersion drives recomputation
   }, [data, restEntries, restKeys, logsVersion, appKey, executionId]);
 
   return { allEntries, restEntries, loading: isPending };

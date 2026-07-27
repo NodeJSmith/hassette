@@ -1,4 +1,4 @@
-import { useEffect } from "preact/hooks";
+import { useEffect } from "react";
 
 const APP_NAME = "Hassette";
 const SUFFIX = ` - ${APP_NAME}`;

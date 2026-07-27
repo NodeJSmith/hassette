@@ -72,18 +72,18 @@ export function SystemHealth({ variant }: Props) {
   const connectionLabelClass = clipConnectionLabel ? "ht-visually-hidden" : "ht-text-xs";
 
   return (
-    <div class={clsx(styles.cluster, stacked ? styles.clusterStacked : styles.clusterCompact)}>
-      <span class={styles.indicator} role="status" data-testid="ws-indicator">
-        <span class={dotClass} />
-        <span class={connectionLabelClass} data-testid="health-label">
+    <div className={clsx(styles.cluster, stacked ? styles.clusterStacked : styles.clusterCompact)}>
+      <span className={styles.indicator} role="status" data-testid="ws-indicator">
+        <span className={dotClass} />
+        <span className={connectionLabelClass} data-testid="health-label">
           {label}
         </span>
       </span>
 
       {showDegraded && (
-        <span class={styles.indicator} aria-label="database degraded">
-          <span class={clsx(styles.pulseDot, styles.pulseDotDegraded)} />
-          <span class={labelClass} data-testid="health-label">
+        <span className={styles.indicator} aria-label="database degraded">
+          <span className={clsx(styles.pulseDot, styles.pulseDotDegraded)} />
+          <span className={labelClass} data-testid="health-label">
             database degraded
           </span>
         </span>
@@ -91,13 +91,13 @@ export function SystemHealth({ variant }: Props) {
 
       {droppedTotal > 0 && (
         <span
-          class={styles.indicator}
+          className={styles.indicator}
           aria-label={`${pluralize(droppedTotal, "telemetry event")} dropped`}
           title={`buffer full: ${overflow}, write failed: ${exhausted}, during shutdown: ${shutdown}`}
           data-testid="dropped-events-indicator"
         >
-          <span class={clsx(styles.pulseDot, styles.pulseDotDegraded)} />
-          <span class={labelClass} data-testid="health-label">
+          <span className={clsx(styles.pulseDot, styles.pulseDotDegraded)} />
+          <span className={labelClass} data-testid="health-label">
             {droppedTotal} dropped
           </span>
         </span>
@@ -105,13 +105,13 @@ export function SystemHealth({ variant }: Props) {
 
       {handlerFailures > 0 && (
         <span
-          class={styles.indicator}
+          className={styles.indicator}
           aria-label={pluralize(handlerFailures, "handler error")}
           title={`${pluralize(handlerFailures, "user error handler invocation")} raised or timed out`}
           data-testid="error-handler-failures-indicator"
         >
-          <span class={clsx(styles.pulseDot, styles.pulseDotDegraded)} />
-          <span class={labelClass} data-testid="health-label">
+          <span className={clsx(styles.pulseDot, styles.pulseDotDegraded)} />
+          <span className={labelClass} data-testid="health-label">
             {pluralize(handlerFailures, "handler error")}
           </span>
         </span>

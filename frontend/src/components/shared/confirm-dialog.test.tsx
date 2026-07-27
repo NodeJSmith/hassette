@@ -1,4 +1,4 @@
-import { fireEvent, render, waitFor } from "@testing-library/preact";
+import { fireEvent, render, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { ConfirmDialog } from "./confirm-dialog";

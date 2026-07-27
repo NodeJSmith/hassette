@@ -1,7 +1,6 @@
-import { useCallback } from "preact/hooks";
+import { useCallback, useState } from "react";
 
 import { BREAKPOINT_MOBILE, BREAKPOINT_TABLET, useMediaQuery } from "@/hooks/use-media-query";
-import { useSignal } from "@/hooks/use-signal";
 
 import {
   COLUMNS,
@@ -82,27 +81,28 @@ export function useColumnVisibility(context: ViewContext): UseColumnVisibilityRe
   const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
   const isTablet = useMediaQuery(BREAKPOINT_TABLET);
 
-  const userColumns = useSignal<ColumnId[]>(readStored(context) ?? defaultColumns(context));
+  const [userColumns, setUserColumns] = useState<ColumnId[]>(() => readStored(context) ?? defaultColumns(context));
 
   const viewportHidden: ReadonlySet<ColumnId> = isMobile ? MOBILE_HIDDEN : isTablet ? TABLET_HIDDEN : NO_HIDDEN;
 
-  const visibleColumns = userColumns.value.filter((id) => !viewportHidden.has(id));
+  const visibleColumns = userColumns.filter((id) => !viewportHidden.has(id));
 
   const toggle = useCallback(
     (id: ColumnId) => {
-      const current = userColumns.value;
-      const next = current.includes(id)
-        ? current.filter((c) => c !== id)
-        : [...current, id].sort((a, b) => ALL_COLUMN_IDS.indexOf(a) - ALL_COLUMN_IDS.indexOf(b));
-      userColumns.value = next;
-      writeStored(context, next);
+      setUserColumns((current) => {
+        const next = current.includes(id)
+          ? current.filter((c) => c !== id)
+          : [...current, id].sort((a, b) => ALL_COLUMN_IDS.indexOf(a) - ALL_COLUMN_IDS.indexOf(b));
+        writeStored(context, next);
+        return next;
+      });
     },
     [context],
   );
 
   const reset = useCallback(() => {
     const defaults = defaultColumns(context);
-    userColumns.value = defaults;
+    setUserColumns(defaults);
     try {
       localStorage.removeItem(storageKey(context));
     } catch {
@@ -110,5 +110,5 @@ export function useColumnVisibility(context: ViewContext): UseColumnVisibilityRe
     }
   }, [context]);
 
-  return { visibleColumns, selectedColumns: userColumns.value, viewportHidden, toggle, reset };
+  return { visibleColumns, selectedColumns: userColumns, viewportHidden, toggle, reset };
 }

@@ -1,5 +1,5 @@
-import { useQueryClient } from "@tanstack/preact-query";
-import { useEffect, useRef } from "preact/hooks";
+import { useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
 
 /**
  * Debounce delay for WebSocket-triggered cache invalidations.

@@ -2,7 +2,7 @@
  * Vitest setup file — polyfills for jsdom environment and MSW server lifecycle.
  *
  * jsdom does not provide requestAnimationFrame/cancelAnimationFrame,
- * which Preact hooks use internally for batched updates. Without these
+ * which React uses internally for scheduling. Without these
  * stubs, hook cleanup timers that fire after test teardown cause
  * "cancelAnimationFrame is not defined" unhandled errors.
  *

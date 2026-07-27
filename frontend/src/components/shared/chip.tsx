@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import type { JSX } from "preact";
+import type { HTMLAttributes } from "react";
 
 import type { StatusKind } from "../../utils/status";
 import styles from "./chip.module.css";
@@ -16,20 +16,20 @@ const kindClassMap: Record<ChipKind, string> = {
   mute: styles.kindMute,
 };
 
-interface ChipBaseProps extends JSX.HTMLAttributes<HTMLSpanElement> {
+interface ChipBaseProps extends HTMLAttributes<HTMLSpanElement> {
   size?: ChipSize;
-  class?: string;
+  className?: string;
 }
 
 type ChipProps =
   | (ChipBaseProps & { variant: "kind"; kind: ChipKind })
   | (ChipBaseProps & { variant: Exclude<ChipVariant, "kind">; kind?: never });
 
-export function Chip({ variant, kind, size = "default", class: className, children, ...rest }: ChipProps) {
+export function Chip({ variant, kind, size = "default", className, children, ...rest }: ChipProps) {
   return (
     <span
       data-variant={variant}
-      class={clsx(
+      className={clsx(
         styles.chip,
         variant !== "kind" && styles[variant],
         variant === "kind" && styles.kind,

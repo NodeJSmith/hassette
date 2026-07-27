@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Link } from "wouter";
 
 import { appDetailPath, type HandlerKind, handlerPath } from "../../utils/app-routes";
@@ -8,7 +9,7 @@ interface Props {
   instanceIndex?: number;
   handlerKind?: HandlerKind;
   handlerId?: number;
-  children?: preact.ComponentChildren;
+  children?: ReactNode;
 }
 
 export function AppLink({ appKey, instanceIndex, handlerKind, handlerId, children }: Props) {
@@ -19,7 +20,7 @@ export function AppLink({ appKey, instanceIndex, handlerKind, handlerId, childre
       : appDetailPath(appKey, undefined, query);
 
   return (
-    <Link href={href} class={styles.link}>
+    <Link href={href} className={styles.link}>
       {children ?? appKey}
     </Link>
   );

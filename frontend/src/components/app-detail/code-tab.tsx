@@ -1,10 +1,9 @@
-import { useEffect } from "preact/hooks";
+import { useEffect, useState } from "react";
 import type { HighlighterGeneric } from "shiki";
 
 import type { AppSourceData, ListenerData } from "../../api/endpoints";
 import { getAppSource } from "../../api/endpoints";
 import { useQueryParams } from "../../hooks/use-query-params";
-import { useSignal } from "../../hooks/use-signal";
 import { parseSourceLocation } from "../../utils/format";
 import { Button } from "../shared/button";
 import { Card } from "../shared/card";
@@ -73,25 +72,25 @@ export function CodeTab({ appKey, listeners }: Props) {
   const qp = useQueryParams();
   const lineParam = qp.get("line");
   const focusLine = lineParam ? parseInt(lineParam, 10) : undefined;
-  const loading = useSignal(true);
-  const error = useSignal<string | null>(null);
-  const source = useSignal<AppSourceData | null>(null);
-  const highlightedHtml = useSignal<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [source, setSource] = useState<AppSourceData | null>(null);
+  const [highlightedHtml, setHighlightedHtml] = useState<string | null>(null);
 
   const annotationMap = buildAnnotationMap(listeners);
 
   useEffect(() => {
     const controller = new AbortController();
-    loading.value = true;
-    error.value = null;
-    source.value = null;
-    highlightedHtml.value = null;
+    setLoading(true);
+    setError(null);
+    setSource(null);
+    setHighlightedHtml(null);
 
     async function load() {
       try {
         const data = await getAppSource(appKey, controller.signal);
         if (controller.signal.aborted) return;
-        source.value = data;
+        setSource(data);
 
         const hl = await getHighlighter();
         if (controller.signal.aborted) return;
@@ -102,17 +101,17 @@ export function CodeTab({ appKey, listeners }: Props) {
           defaultColor: false,
         });
         if (controller.signal.aborted) return;
-        highlightedHtml.value = rawHtml;
+        setHighlightedHtml(rawHtml);
       } catch (err) {
         if (controller.signal.aborted) return;
         const msg = err instanceof Error ? err.message : String(err);
         if (msg.includes("404") || msg.toLowerCase().includes("not found")) {
-          error.value = "Source file not found at expected path";
+          setError("Source file not found at expected path");
         } else {
-          error.value = msg;
+          setError(msg);
         }
       } finally {
-        if (!controller.signal.aborted) loading.value = false;
+        if (!controller.signal.aborted) setLoading(false);
       }
     }
 
@@ -123,7 +122,7 @@ export function CodeTab({ appKey, listeners }: Props) {
   }, [appKey]);
 
   useEffect(() => {
-    if (!focusLine || loading.value) return;
+    if (!focusLine || loading) return;
     const prev = document.querySelector(".line--focus");
     prev?.classList.remove("line--focus");
     const el = document.querySelector(`[data-testid="code-line-${focusLine}"]`);
@@ -131,50 +130,50 @@ export function CodeTab({ appKey, listeners }: Props) {
       el.scrollIntoView({ behavior: "smooth", block: "center" });
       el.classList.add("line--focus");
     }
-  }, [focusLine, loading.value]);
+  }, [focusLine, loading]);
 
-  if (loading.value) {
+  if (loading) {
     return <Spinner />;
   }
 
-  if (error.value) {
+  if (error) {
     return (
       <Card data-testid="code-tab-error">
-        <p class="ht-text-muted ht-text-sm">{error.value}</p>
+        <p className="ht-text-muted ht-text-sm">{error}</p>
       </Card>
     );
   }
 
-  if (!source.value || !highlightedHtml.value) return null;
+  if (!source || !highlightedHtml) return null;
 
-  const lines = source.value.content.replace(/\r\n/g, "\n").split("\n");
+  const lines = source.content.replace(/\r\n/g, "\n").split("\n");
   const lineCount = lines[lines.length - 1] === "" ? lines.length - 1 : lines.length;
 
-  const processedHtml = injectLineNumbers(highlightedHtml.value, annotationMap);
+  const processedHtml = injectLineNumbers(highlightedHtml, annotationMap);
 
   const handleCopyPath = () => {
-    if (source.value?.filename) {
-      void navigator.clipboard.writeText(source.value.filename);
+    if (source?.filename) {
+      void navigator.clipboard.writeText(source.filename);
     }
   };
 
   return (
-    <div class={styles.codeTab} data-testid="code-tab-content">
-      <div class={styles.header} data-testid="code-tab-header">
-        <div class={styles.headerSource}>
-          <span class="ht-detail-label">Source</span>
-          <span class="ht-text-mono ht-text-sm ht-text-muted">{source.value.filename}</span>
+    <div className={styles.codeTab} data-testid="code-tab-content">
+      <div className={styles.header} data-testid="code-tab-header">
+        <div className={styles.headerSource}>
+          <span className="ht-detail-label">Source</span>
+          <span className="ht-text-mono ht-text-sm ht-text-muted">{source.filename}</span>
         </div>
-        <div class={styles.headerMeta}>
-          <span class="ht-text-muted ht-text-sm">{lineCount} lines</span>
-          <span class={styles.readonlyLabel}>read-only</span>
+        <div className={styles.headerMeta}>
+          <span className="ht-text-muted ht-text-sm">{lineCount} lines</span>
+          <span className={styles.readonlyLabel}>read-only</span>
           <Button ghost size="sm" data-testid="copy-path-btn" onClick={handleCopyPath} aria-label="Copy file path">
             copy path
           </Button>
         </div>
       </div>
       <div
-        class={styles.body}
+        className={styles.body}
         // biome-ignore lint/security/noDangerouslySetInnerHtml: Shiki output is trusted
         dangerouslySetInnerHTML={{ __html: processedHtml }}
       />

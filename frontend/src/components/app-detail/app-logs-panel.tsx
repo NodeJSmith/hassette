@@ -1,22 +1,23 @@
-import { useSignal } from "../../hooks/use-signal";
+import { useState } from "react";
+
 import { EmptyState } from "../shared/empty-state";
 import { LogTableView, LogTableWithDrawer, useLogTable } from "../shared/log-table";
 import { TableCard } from "../shared/table-card";
 import { TableFooter } from "../shared/table-footer";
 
 export function AppLogsPanel({ appKey }: { appKey: string }) {
-  const search = useSignal("");
-  const log = useLogTable({ context: "app", appKey, useLocalState: true, search: search.value });
+  const [search, setSearch] = useState("");
+  const log = useLogTable({ context: "app", appKey, useLocalState: true, search });
 
   const searchInput = (
     <input
       type="text"
-      class="ht-search"
+      className="ht-search"
       placeholder="Search logs…"
       aria-label="Search app logs"
-      value={search.value}
+      value={search}
       onInput={(e) => {
-        search.value = (e.target as HTMLInputElement).value;
+        setSearch((e.target as HTMLInputElement).value);
       }}
       data-testid="app-logs-search"
     />

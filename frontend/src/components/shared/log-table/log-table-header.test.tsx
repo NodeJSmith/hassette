@@ -1,4 +1,5 @@
-import { fireEvent, render } from "@testing-library/preact";
+import { fireEvent, render } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { ColumnFilters } from "../table-types";
@@ -15,11 +16,11 @@ vi.mock("@/hooks/use-media-query", () => ({
 // calls onSort with the same cycling logic as real SortHeader managed mode.
 vi.mock("../sort-header", () => ({
   SortHeader: (props: {
-    children: preact.ComponentChildren;
+    children: ReactNode;
     sortKey?: string;
     sort?: { key: string; dir: "asc" | "desc" };
     onSort?: (s: { key: string; dir: "asc" | "desc" }) => void;
-    filterContent?: preact.ComponentChildren;
+    filterContent?: ReactNode;
     hasActiveFilter?: boolean;
     ariaLabel?: string;
     "data-testid"?: string;

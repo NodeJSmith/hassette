@@ -1,4 +1,4 @@
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useState } from "react";
 
 /** Must match CSS `@media (max-width: 900px)` breakpoints — sidebar collapse */
 export const BREAKPOINT_SIDEBAR = 900;

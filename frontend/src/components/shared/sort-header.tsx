@@ -1,8 +1,7 @@
 import clsx from "clsx";
-import type { ComponentChildren } from "preact";
-import { useRef } from "preact/hooks";
+import type { ReactNode } from "react";
+import { useRef, useState } from "react";
 
-import { useSignal } from "../../hooks/use-signal";
 import { ColumnFilterPopover } from "./column-filter-popover/index";
 import { FilterIcon } from "./filter-icon";
 import styles from "./sort-header.module.css";
@@ -14,9 +13,9 @@ export interface SortState<K extends string = string> {
 
 interface BaseProps {
   ariaLabel?: string;
-  class?: string;
+  className?: string;
   "data-testid"?: string;
-  children: ComponentChildren;
+  children: ReactNode;
 }
 
 // Sort fields are all-or-nothing in practice (either fully managed, or omitted
@@ -30,7 +29,7 @@ interface SortProps<K extends string = string> extends BaseProps {
 
 // Filter axis — orthogonal, optional, independent of sort
 interface WithFilter {
-  filterContent: ComponentChildren;
+  filterContent: ReactNode;
   hasActiveFilter: boolean;
 }
 
@@ -44,10 +43,10 @@ type FilterProps = WithFilter | WithoutFilter;
 type Props<K extends string = string> = SortProps<K> & FilterProps;
 
 export function SortHeader<K extends string = string>(props: Props<K>) {
-  const { ariaLabel, class: className, "data-testid": testId, children } = props;
+  const { ariaLabel, className, "data-testid": testId, children } = props;
 
   // Filter state — local per-instance
-  const filterOpen = useSignal(false);
+  const [filterOpen, setFilterOpen] = useState(false);
   const filterTriggerRef = useRef<HTMLButtonElement>(null);
 
   // Determine sort axis
@@ -73,7 +72,7 @@ export function SortHeader<K extends string = string>(props: Props<K>) {
   const sortElement = hasSortProps ? (
     <button
       type="button"
-      class={clsx(styles.sortHeader, active && styles.active)}
+      className={clsx(styles.sortHeader, active && styles.active)}
       data-testid="sort-header-btn"
       aria-label={ariaLabel ? `Sort by ${ariaLabel}` : undefined}
       onClick={sortClickHandler}
@@ -89,7 +88,7 @@ export function SortHeader<K extends string = string>(props: Props<K>) {
   // Plain label (neither sort nor filter)
   if (!hasSortProps && !hasFilter) {
     return (
-      <th scope="col" class={className} aria-label={ariaLabel} data-testid={testId}>
+      <th scope="col" className={className} aria-label={ariaLabel} data-testid={testId}>
         <span>{children}</span>
       </th>
     );
@@ -98,30 +97,30 @@ export function SortHeader<K extends string = string>(props: Props<K>) {
   return (
     <th
       scope="col"
-      class={className}
+      className={className}
       aria-sort={hasSortProps ? ariaSortValue : undefined}
       aria-label={ariaLabel}
       data-testid={testId}
     >
       {hasFilter ? (
-        <div class={styles.headerInner}>
+        <div className={styles.headerInner}>
           {sortElement}
           <button
             ref={filterTriggerRef}
             type="button"
-            class={clsx(styles.filterBtn, props.hasActiveFilter && styles.filterActive)}
+            className={clsx(styles.filterBtn, props.hasActiveFilter && styles.filterActive)}
             data-testid="filter-btn"
             aria-label={ariaLabel ? `Filter ${ariaLabel}` : undefined}
             onClick={() => {
-              filterOpen.value = !filterOpen.value;
+              setFilterOpen((v) => !v);
             }}
           >
             <FilterIcon active={props.hasActiveFilter} />
           </button>
           <ColumnFilterPopover
-            open={filterOpen.value}
+            open={filterOpen}
             onClose={() => {
-              filterOpen.value = false;
+              setFilterOpen(false);
             }}
             triggerRef={filterTriggerRef}
           >

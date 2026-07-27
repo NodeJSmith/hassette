@@ -1,6 +1,6 @@
 import { autoUpdate, computePosition, flip, offset, shift } from "@floating-ui/dom";
 import clsx from "clsx";
-import { useEffect, useId, useRef, useState } from "preact/hooks";
+import { useEffect, useId, useRef, useState } from "react";
 
 import styles from "./info-popover.module.css";
 
@@ -88,11 +88,11 @@ export function InfoPopover({ text, label = "field" }: Props) {
   return (
     // aria-live announces the popover text to screen readers when it appears,
     // without stealing focus; aria-controls links the button to the content.
-    <span class={styles.wrap} aria-live="polite">
+    <span className={styles.wrap} aria-live="polite">
       <button
         ref={triggerRef}
         type="button"
-        class={styles.trigger}
+        className={styles.trigger}
         aria-label={open ? `Hide ${label} description` : `Show ${label} description`}
         aria-expanded={open}
         aria-controls={popId}
@@ -108,7 +108,7 @@ export function InfoPopover({ text, label = "field" }: Props) {
         <div
           id={popId}
           ref={popRef}
-          class={clsx(styles.pop, positioned && styles.positioned)}
+          className={clsx(styles.pop, positioned && styles.positioned)}
           role="note"
           data-testid="field-help"
         >

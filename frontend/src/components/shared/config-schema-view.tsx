@@ -19,7 +19,7 @@
  * The value is already masked server-side; the schema marker controls the visual style.
  */
 
-import { useState } from "preact/hooks";
+import { useState } from "react";
 
 import type { ConfigRecord, SchemaNode, UiHints } from "../../api/config-view-types";
 import { MS_PER_SECOND, SECONDS_PER_HOUR, SECONDS_PER_MINUTE } from "../../utils/format";
@@ -168,14 +168,14 @@ function sortedByOrder(keys: string[], props: Record<string, SchemaNode>): strin
 
 function SecretValue({ value }: { value: unknown }) {
   if (value === null || value === undefined || value === "") {
-    return <span class={styles.valEmpty}>not set</span>;
+    return <span className={styles.valEmpty}>not set</span>;
   }
   return (
-    <span class={styles.valSecret} aria-label="masked secret">
-      <span class={styles.lockIcon} aria-hidden="true">
+    <span className={styles.valSecret} aria-label="masked secret">
+      <span className={styles.lockIcon} aria-hidden="true">
         🔒
       </span>
-      <span class={styles.valSecretMasked}>{String(value)}</span>
+      <span className={styles.valSecretMasked}>{String(value)}</span>
     </span>
   );
 }
@@ -190,12 +190,12 @@ function BoolValue({ value }: { value: boolean }) {
 
 function ListValue({ value }: { value: unknown[] }) {
   if (value.length === 0) {
-    return <span class={styles.valEmpty}>empty list</span>;
+    return <span className={styles.valEmpty}>empty list</span>;
   }
   return (
-    <span class={styles.valList}>
+    <span className={styles.valList}>
       {value.map((item, i) => (
-        <span key={i} class={styles.valListItem}>
+        <span key={i} className={styles.valListItem}>
           {String(item)}
         </span>
       ))}
@@ -211,11 +211,16 @@ export function ExpandableValue({ value }: { value: unknown }) {
 
   return (
     <span>
-      <button type="button" class={styles.expandBtn} onClick={() => setExpanded(!expanded)} aria-expanded={expanded}>
+      <button
+        type="button"
+        className={styles.expandBtn}
+        onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
+      >
         <IconChevron open={expanded} />
         {label}
       </button>
-      {expanded && <pre class={styles.expandedPre}>{JSON.stringify(value, null, 2)}</pre>}
+      {expanded && <pre className={styles.expandedPre}>{JSON.stringify(value, null, 2)}</pre>}
     </span>
   );
 }
@@ -236,12 +241,12 @@ function FieldValue({ node, value, fieldKey }: { node: SchemaNode; value: unknow
   }
 
   if (value === null || value === undefined) {
-    return <span class={styles.valEmpty}>not set</span>;
+    return <span className={styles.valEmpty}>not set</span>;
   }
 
   // Path-like values sit in a code box so they read as a filesystem path.
   if (hints.widget === "path" || isPathLike(node, fieldKey)) {
-    return <code class={styles.valPath}>{String(value)}</code>;
+    return <code className={styles.valPath}>{String(value)}</code>;
   }
 
   // Enum members render as a badge (covers Literal / StrEnum fields).
@@ -257,7 +262,7 @@ function FieldValue({ node, value, fieldKey }: { node: SchemaNode; value: unknow
   // Duration values are humanized ("30s", "1m 30s"); the raw value stays on hover.
   if (typeof value === "number" && isDurationField(node, fieldKey)) {
     return (
-      <span class={styles.valScalar} title={String(value)}>
+      <span className={styles.valScalar} title={String(value)}>
         {formatDurationField(value, fieldKey)}
       </span>
     );
@@ -268,7 +273,7 @@ function FieldValue({ node, value, fieldKey }: { node: SchemaNode; value: unknow
   }
 
   if (typeof value === "number") {
-    return <span class={styles.valScalar}>{value}</span>;
+    return <span className={styles.valScalar}>{value}</span>;
   }
 
   if (Array.isArray(value)) {
@@ -282,7 +287,7 @@ function FieldValue({ node, value, fieldKey }: { node: SchemaNode; value: unknow
     return <ExpandableValue value={value} />;
   }
 
-  return <span class={styles.valScalar}>{String(value)}</span>;
+  return <span className={styles.valScalar}>{String(value)}</span>;
 }
 
 /**
@@ -295,12 +300,12 @@ function ConfigFieldRow({ fieldKey, node, value }: { fieldKey: string; node: Sch
   const help = node.description;
 
   return (
-    <div class={styles.row} data-testid={`config-field-${fieldKey}`}>
-      <span class={styles.label}>{label}</span>
-      <code class={styles.key}>{fieldKey}</code>
+    <div className={styles.row} data-testid={`config-field-${fieldKey}`}>
+      <span className={styles.label}>{label}</span>
+      <code className={styles.key}>{fieldKey}</code>
       {help && <InfoPopover text={help} label={label} />}
-      <span class={styles.spacer} aria-hidden="true" />
-      <span class={styles.value} data-testid={`config-value-${fieldKey}`}>
+      <span className={styles.spacer} aria-hidden="true" />
+      <span className={styles.value} data-testid={`config-value-${fieldKey}`}>
         <FieldValue node={node} value={value} fieldKey={fieldKey} />
       </span>
     </div>
@@ -321,15 +326,15 @@ function ConfigSection({ title, fields }: SectionProps) {
     .replace(/[^a-z0-9-]/g, "");
 
   return (
-    <section class={styles.section} data-testid={`config-section-${slug}`}>
+    <section className={styles.section} data-testid={`config-section-${slug}`}>
       <Card variant="config">
-        <div class={styles.sectionHead}>
-          <h3 class={styles.sectionTitle}>{title}</h3>
-          <span class={styles.sectionCount}>
+        <div className={styles.sectionHead}>
+          <h3 className={styles.sectionTitle}>{title}</h3>
+          <span className={styles.sectionCount}>
             {fields.length} {fields.length === 1 ? "field" : "fields"}
           </span>
         </div>
-        <div class={styles.fields}>
+        <div className={styles.fields}>
           {fields.map(({ key, node, value }) => (
             <ConfigFieldRow key={key} fieldKey={key} node={node} value={value} />
           ))}
@@ -416,7 +421,7 @@ export function ConfigSchemaView({ schema, values, emptyMessage, frameworkFields
   const userSectionTitle = frameworkSet ? "App Settings" : "General";
 
   return (
-    <div class={styles.groups} data-testid="config-schema-view">
+    <div className={styles.groups} data-testid="config-schema-view">
       {userScalarFields.length > 0 && <ConfigSection title={userSectionTitle} fields={userScalarFields} />}
       {groupSections.map(({ key, title, fields }) => (
         <ConfigSection key={key} title={title} fields={fields} />

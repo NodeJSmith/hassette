@@ -1,4 +1,4 @@
-import { act, fireEvent, waitFor } from "@testing-library/preact";
+import { act, fireEvent, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 

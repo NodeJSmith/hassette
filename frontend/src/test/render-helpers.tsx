@@ -6,9 +6,9 @@
  * and seeds the store with `storeOverrides` before rendering.
  */
 
-import { QueryClientProvider } from "@tanstack/preact-query";
-import { render } from "@testing-library/preact";
-import type { ComponentChildren } from "preact";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { render } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { vi } from "vitest";
 
 import type { AppStore } from "../state/store";
@@ -40,7 +40,7 @@ interface RenderWithAppStateOptions {
 }
 
 /**
- * Renders a Preact component tree wrapped in QueryClientProvider, seeding the
+ * Renders a React component tree wrapped in QueryClientProvider, seeding the
  * Zustand app store with `storeOverrides` beforehand.
  *
  * A fresh QueryClient is created for each call. The store is a module-level
@@ -51,7 +51,7 @@ interface RenderWithAppStateOptions {
  * tests that don't touch queries are unaffected. Tests for components that call
  * useQuery will go through normal query lifecycle backed by MSW handlers.
  */
-export function renderWithAppState(ui: ComponentChildren, { storeOverrides }: RenderWithAppStateOptions = {}) {
+export function renderWithAppState(ui: ReactNode, { storeOverrides }: RenderWithAppStateOptions = {}) {
   if (storeOverrides) useAppStore.setState(storeOverrides);
   const queryClient = createTestQueryClient();
 

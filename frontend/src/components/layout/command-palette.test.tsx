@@ -1,4 +1,4 @@
-import { fireEvent, screen } from "@testing-library/preact";
+import { fireEvent, screen } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 

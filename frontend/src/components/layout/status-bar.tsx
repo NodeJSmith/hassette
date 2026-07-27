@@ -1,4 +1,4 @@
-import type { RefObject } from "preact";
+import type { RefObject } from "react";
 
 import { useBreadcrumbs } from "../../hooks/use-breadcrumbs";
 import { useSidebarHidden } from "../../hooks/use-sidebar-hidden";
@@ -14,7 +14,7 @@ import { TimePresetSelector } from "./time-preset-selector";
 interface StatusBarProps {
   onMenuClick: () => void;
   drawerOpen: boolean;
-  hamburgerRef: RefObject<HTMLButtonElement>;
+  hamburgerRef: RefObject<HTMLButtonElement | null>;
 }
 
 export function StatusBar({ onMenuClick, drawerOpen, hamburgerRef }: StatusBarProps) {
@@ -24,12 +24,12 @@ export function StatusBar({ onMenuClick, drawerOpen, hamburgerRef }: StatusBarPr
   const sidebarHidden = useSidebarHidden();
 
   return (
-    <div class={styles.statusBar} data-testid="status-bar">
-      <div class={styles.statusBarLeft}>
+    <div className={styles.statusBar} data-testid="status-bar">
+      <div className={styles.statusBarLeft}>
         <button
           ref={hamburgerRef}
           type="button"
-          class={styles.hamburger}
+          className={styles.hamburger}
           aria-label={drawerOpen ? "Close navigation" : "Open navigation"}
           aria-expanded={drawerOpen}
           data-testid="hamburger"
@@ -48,7 +48,7 @@ export function StatusBar({ onMenuClick, drawerOpen, hamburgerRef }: StatusBarPr
             icon
             ghost
             size="sm"
-            class={styles.expandSidebar}
+            className={styles.expandSidebar}
             title="Expand sidebar ([)"
             aria-label="Expand sidebar"
             data-testid="sidebar-expand"
@@ -69,7 +69,7 @@ export function StatusBar({ onMenuClick, drawerOpen, hamburgerRef }: StatusBarPr
       {/* Both of these live in the sidebar footer when it is on screen. Collapsing unmounts
           the sidebar outright, so without this fallback the theme toggle would have no
           reachable home on desktop at all. */}
-      <div class={styles.statusBarRight}>
+      <div className={styles.statusBarRight}>
         {sidebarHidden && <SystemHealth variant="compact" />}
         <TimePresetSelector />
         {sidebarHidden && <ThemeToggle />}

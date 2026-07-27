@@ -33,7 +33,7 @@ function ScheduleChips({ job }: { job: JobData }) {
   if (job.group) chips.push({ label: `group: ${job.group}` });
 
   return (
-    <div class={chipStyles.chipRow} data-testid="schedule-chips">
+    <div className={chipStyles.chipRow} data-testid="schedule-chips">
       <HandlerModeChip mode={job.mode} />
       {chips.map((chip) => (
         <Chip key={chip.label} variant="job">
@@ -48,15 +48,15 @@ function RunNowButton({ jobId }: { jobId: number }) {
   const { loading, error, run } = useAsyncAction();
 
   return (
-    <div class={layoutStyles.runNow}>
+    <div className={layoutStyles.runNow}>
       <Button
         variant="primary"
         size="sm"
         data-testid="run-now-btn"
-        disabled={loading.value}
+        disabled={loading}
         onClick={() => void run(() => triggerJob(jobId))}
       >
-        {loading.value ? (
+        {loading ? (
           <>
             <Spinner /> Running…
           </>
@@ -66,9 +66,9 @@ function RunNowButton({ jobId }: { jobId: number }) {
           </>
         )}
       </Button>
-      {error.value && (
-        <p class="ht-text-danger ht-text-sm" role="alert" data-testid="run-now-error">
-          {error.value}
+      {error && (
+        <p className="ht-text-danger ht-text-sm" role="alert" data-testid="run-now-error">
+          {error}
         </p>
       )}
     </div>
@@ -141,7 +141,7 @@ export function JobDetail({ job, appKey, instanceQs, onSwitchToCode }: Props) {
       />
 
       {predicateDescription && (
-        <p class={styles.predicateDescription} data-testid="job-predicate-description">
+        <p className={styles.predicateDescription} data-testid="job-predicate-description">
           {predicateDescription}
         </p>
       )}

@@ -7,7 +7,7 @@ import styles from "./icons.module.css";
 
 export const IconPlay = () => (
   <svg
-    class={styles.iconSvg}
+    className={styles.iconSvg}
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
@@ -22,7 +22,7 @@ export const IconPlay = () => (
 
 export const IconSquare = () => (
   <svg
-    class={styles.iconSvg}
+    className={styles.iconSvg}
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
@@ -37,7 +37,7 @@ export const IconSquare = () => (
 
 export const IconRefresh = () => (
   <svg
-    class={styles.iconSvg}
+    className={styles.iconSvg}
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
@@ -55,7 +55,7 @@ export const IconRefresh = () => (
 
 export const IconArrowRight = () => (
   <svg
-    class={styles.iconSvg}
+    className={styles.iconSvg}
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
@@ -71,7 +71,7 @@ export const IconArrowRight = () => (
 
 export const IconWarning = () => (
   <svg
-    class={styles.iconSvg}
+    className={styles.iconSvg}
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"

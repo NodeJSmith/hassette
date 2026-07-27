@@ -42,32 +42,32 @@ const SHADOWS = [
 
 export function SpacingTokens() {
   return (
-    <section class={s.section}>
-      <h2 class={s.heading}>Spacing, Radii & Shadows</h2>
+    <section className={s.section}>
+      <h2 className={s.heading}>Spacing, Radii & Shadows</h2>
 
-      <div class={s.group}>
-        <h3 class={s.groupLabel}>Spacing Scale</h3>
-        <div class={styles.spacingList}>
+      <div className={s.group}>
+        <h3 className={s.groupLabel}>Spacing Scale</h3>
+        <div className={styles.spacingList}>
           {SPACING.map((token) => (
-            <div key={token.cssVar} class={styles.spacingRow}>
-              <code class={s.tokenCode}>{token.cssVar}</code>
-              <span class={styles.spacingValue}>{token.px}px</span>
-              <div class={styles.spacingBarTrack}>
-                <div class={styles.spacingBar} style={{ width: `${(token.px / MAX_SPACING_PX) * 100}%` }} />
+            <div key={token.cssVar} className={styles.spacingRow}>
+              <code className={s.tokenCode}>{token.cssVar}</code>
+              <span className={styles.spacingValue}>{token.px}px</span>
+              <div className={styles.spacingBarTrack}>
+                <div className={styles.spacingBar} style={{ width: `${(token.px / MAX_SPACING_PX) * 100}%` }} />
               </div>
             </div>
           ))}
         </div>
       </div>
 
-      <div class={s.group}>
-        <h3 class={s.groupLabel}>Border Radius</h3>
-        <div class={styles.radiiGrid}>
+      <div className={s.group}>
+        <h3 className={s.groupLabel}>Border Radius</h3>
+        <div className={styles.radiiGrid}>
           {RADII.map((r) => (
-            <div key={r.cssVar} class={styles.radiusItem}>
-              <div class={styles.radiusBox} style={{ borderRadius: `var(${r.cssVar})` }} />
-              <span class={styles.radiusLabel}>{r.name}</span>
-              <code class={s.tokenCode}>
+            <div key={r.cssVar} className={styles.radiusItem}>
+              <div className={styles.radiusBox} style={{ borderRadius: `var(${r.cssVar})` }} />
+              <span className={styles.radiusLabel}>{r.name}</span>
+              <code className={s.tokenCode}>
                 {r.cssVar} ({r.px}px)
               </code>
             </div>
@@ -75,14 +75,14 @@ export function SpacingTokens() {
         </div>
       </div>
 
-      <div class={s.group}>
-        <h3 class={s.groupLabel}>Elevation</h3>
-        <div class={styles.shadowGrid}>
+      <div className={s.group}>
+        <h3 className={s.groupLabel}>Elevation</h3>
+        <div className={styles.shadowGrid}>
           {SHADOWS.map((shadow) => (
-            <div key={shadow.cssVar} class={styles.shadowItem}>
-              <div class={styles.shadowBox} style={{ boxShadow: `var(${shadow.cssVar})` }} />
-              <span class={styles.shadowLabel}>{shadow.label}</span>
-              <code class={s.tokenCode}>{shadow.cssVar}</code>
+            <div key={shadow.cssVar} className={styles.shadowItem}>
+              <div className={styles.shadowBox} style={{ boxShadow: `var(${shadow.cssVar})` }} />
+              <span className={styles.shadowLabel}>{shadow.label}</span>
+              <code className={s.tokenCode}>{shadow.cssVar}</code>
             </div>
           ))}
         </div>

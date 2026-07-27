@@ -1,6 +1,4 @@
-import { useRef } from "preact/hooks";
-
-import { useSignal } from "@/hooks/use-signal";
+import { useRef, useState } from "react";
 
 import { ColumnFilterPopover } from "../column-filter-popover/index";
 import styles from "./column-picker.module.css";
@@ -15,7 +13,7 @@ interface Props {
 }
 
 export function ColumnPicker({ selectedColumns, viewportHidden, onToggle, onReset }: Props) {
-  const open = useSignal(false);
+  const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
   return (
@@ -23,9 +21,9 @@ export function ColumnPicker({ selectedColumns, viewportHidden, onToggle, onRese
       <button
         ref={triggerRef}
         type="button"
-        class={styles.trigger}
+        className={styles.trigger}
         onClick={() => {
-          open.value = !open.value;
+          setOpen((v) => !v);
         }}
         aria-label="Choose visible columns"
         data-testid="column-picker"
@@ -38,20 +36,20 @@ export function ColumnPicker({ selectedColumns, viewportHidden, onToggle, onRese
         </svg>
       </button>
       <ColumnFilterPopover
-        open={open.value}
+        open={open}
         onClose={() => {
-          open.value = false;
+          setOpen(false);
         }}
         triggerRef={triggerRef}
       >
-        <div class={styles.list}>
+        <div className={styles.list}>
           {COLUMNS.map((col) => {
             const isViewportHidden = viewportHidden.has(col.id);
             const isDisabled = REQUIRED_COLUMNS.has(col.id) || isViewportHidden;
             return (
               <label
                 key={col.id}
-                class={styles.item}
+                className={styles.item}
                 title={isViewportHidden ? "Hidden at this screen size" : undefined}
               >
                 <span>{col.label}</span>
@@ -65,7 +63,7 @@ export function ColumnPicker({ selectedColumns, viewportHidden, onToggle, onRese
             );
           })}
         </div>
-        <button type="button" class={styles.resetBtn} onClick={onReset}>
+        <button type="button" className={styles.resetBtn} onClick={onReset}>
           Reset to defaults
         </button>
       </ColumnFilterPopover>

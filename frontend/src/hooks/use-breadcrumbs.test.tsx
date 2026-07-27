@@ -1,5 +1,5 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/preact-query";
-import { render, waitFor } from "@testing-library/preact";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { render, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { afterEach, describe, expect, it, vi } from "vitest";
 

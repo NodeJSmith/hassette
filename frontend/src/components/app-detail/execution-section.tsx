@@ -29,8 +29,8 @@ export function ExecutionSection({
   const hasData = records !== undefined;
 
   return (
-    <div class={styles.executionsSection}>
-      <h3 class={styles.panelHeading}>{heading}</h3>
+    <div className={styles.executionsSection}>
+      <h3 className={styles.panelHeading}>{heading}</h3>
       {loading && !hasData ? (
         <Spinner />
       ) : (

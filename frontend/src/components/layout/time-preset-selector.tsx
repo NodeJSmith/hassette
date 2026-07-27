@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { useEffect } from "preact/hooks";
+import { useEffect } from "react";
 
 import { BREAKPOINT_MOBILE, useMediaQuery } from "../../hooks/use-media-query";
 import { useQueryParams } from "../../hooks/use-query-params";
@@ -31,7 +31,7 @@ export function TimePresetSelector() {
     } else {
       setUrlWindowParam(null);
     }
-    // eslint-disable-next-line react-hooks-configurable/exhaustive-deps -- mount-only; qp/setUrlWindowParam are stable
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only; qp/setUrlWindowParam are stable
   }, []);
 
   const current = timePreset;
@@ -47,9 +47,9 @@ export function TimePresetSelector() {
 
   if (isMobile) {
     return (
-      <div class={styles.selector} data-testid="time-preset-selector">
+      <div className={styles.selector} data-testid="time-preset-selector">
         <select
-          class={styles.select}
+          className={styles.select}
           value={current}
           onChange={(e) => handlePreset((e.target as HTMLSelectElement).value as TimePreset)}
           aria-label="Time window"
@@ -60,25 +60,25 @@ export function TimePresetSelector() {
             </option>
           ))}
         </select>
-        {showUptime && <span class={styles.uptime}>up {formatUptime(uptime)}</span>}
+        {showUptime && <span className={styles.uptime}>up {formatUptime(uptime)}</span>}
       </div>
     );
   }
 
   return (
-    <div class={styles.selector} data-testid="time-preset-selector">
+    <div className={styles.selector} data-testid="time-preset-selector">
       {PRESETS.map(({ value, label }) => (
         <button
           key={value}
           type="button"
-          class={clsx(styles.btn, current === value && styles.active)}
+          className={clsx(styles.btn, current === value && styles.active)}
           aria-pressed={current === value}
           onClick={() => handlePreset(value)}
         >
           {label}
         </button>
       ))}
-      {showUptime && <span class={styles.uptime}>up {formatUptime(uptime)}</span>}
+      {showUptime && <span className={styles.uptime}>up {formatUptime(uptime)}</span>}
     </div>
   );
 }

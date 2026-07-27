@@ -25,26 +25,26 @@ export function Breadcrumbs({ items, "data-testid": testId = "breadcrumbs" }: Pr
   if (items.length === 0) return null;
 
   return (
-    <nav class={styles.nav} aria-label="Breadcrumb" data-testid={testId}>
-      <ol class={styles.list}>
+    <nav className={styles.nav} aria-label="Breadcrumb" data-testid={testId}>
+      <ol className={styles.list}>
         {items.length > 2 && (
-          <li class={styles.ellipsis} aria-hidden="true">
+          <li className={styles.ellipsis} aria-hidden="true">
             …
           </li>
         )}
         {items.map((crumb, i) => (
-          <li key={`${crumb.label}-${i}`} class={styles.item}>
+          <li key={`${crumb.label}-${i}`} className={styles.item}>
             {i > 0 && (
-              <span class={styles.separator} aria-hidden="true">
+              <span className={styles.separator} aria-hidden="true">
                 /
               </span>
             )}
             {crumb.href ? (
-              <Link href={crumb.href} class={styles.link}>
+              <Link href={crumb.href} className={styles.link}>
                 {crumb.label}
               </Link>
             ) : (
-              <span class={styles.current} aria-current="page">
+              <span className={styles.current} aria-current="page">
                 {crumb.label}
               </span>
             )}

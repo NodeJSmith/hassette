@@ -1,4 +1,4 @@
-import { render } from "@testing-library/preact";
+import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { Badge } from "./badge";
@@ -93,7 +93,7 @@ describe("Badge", () => {
   describe("class prop", () => {
     it("merges additional class into span className", () => {
       const { getByTestId } = render(
-        <Badge variant="success" class="my-extra-class" data-testid="b">
+        <Badge variant="success" className="my-extra-class" data-testid="b">
           ok
         </Badge>,
       );
@@ -102,7 +102,7 @@ describe("Badge", () => {
 
     it("merges custom class alongside variant class", () => {
       const { getByTestId } = render(
-        <Badge variant="danger" class="layout-stretch" data-testid="b">
+        <Badge variant="danger" className="layout-stretch" data-testid="b">
           err
         </Badge>,
       );

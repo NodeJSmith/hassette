@@ -25,7 +25,7 @@ export function LogTableHeader({ visibleColumns, sort, onSort, columnFilters }: 
   };
 
   return (
-    <thead class={styles.thead}>
+    <thead className={styles.thead}>
       <tr>
         {visibleColumns.map((id) => {
           const col = COLUMN_MAP[id];

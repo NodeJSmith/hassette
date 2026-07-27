@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { useMemo } from "preact/hooks";
+import { useMemo } from "react";
 
 import type { ActivityFeedEntryData } from "../../api/endpoints";
 import { getAppActivity } from "../../api/endpoints";
@@ -91,16 +91,16 @@ function ActivityGroupRow({ group }: { group: ActivityGroup }) {
   return (
     <tr data-testid="overview-activity-row">
       <td aria-label={`latest status: ${group.latestStatus}`}>
-        <span class="ht-log-level-badge">
+        <span className="ht-log-level-badge">
           <StatusShape kind={kind} size={8} />
         </span>
       </td>
-      <td class={styles.activityName} title={group.handlerName}>
+      <td className={styles.activityName} title={group.handlerName}>
         {lastDotSegment(group.handlerName)}
-        {isGrouped && <span class={styles.activityCount}> × {group.count}</span>}
+        {isGrouped && <span className={styles.activityCount}> × {group.count}</span>}
       </td>
-      <td class={styles.activityDuration}>{durationLabel}</td>
-      <td class={styles.activityTime}>{timeLabel}</td>
+      <td className={styles.activityDuration}>{durationLabel}</td>
+      <td className={styles.activityTime}>{timeLabel}</td>
     </tr>
   );
 }
@@ -134,26 +134,26 @@ export function RecentActivitySection({
   const groups = useMemo(() => summarizeActivityByHandler(activity ?? []).slice(0, ACTIVITY_ROW_LIMIT), [activity]);
 
   return (
-    <section class={styles.section} data-testid="overview-activity-section">
-      <h3 class="ht-section-label">recent activity</h3>
+    <section className={styles.section} data-testid="overview-activity-section">
+      <h3 className="ht-section-label">recent activity</h3>
       {activityError ? (
-        <p class={clsx(styles.emptyInline, "ht-text-danger")} data-testid="overview-activity-error">
+        <p className={clsx(styles.emptyInline, "ht-text-danger")} data-testid="overview-activity-error">
           could not load activity
         </p>
       ) : !loading && (activity ?? []).length === 0 ? (
-        <p class={styles.emptyInline} data-testid="overview-activity-empty">
+        <p className={styles.emptyInline} data-testid="overview-activity-empty">
           no recent activity
         </p>
       ) : (
-        <table class={clsx("ht-table", styles.activityTable)}>
+        <table className={clsx("ht-table", styles.activityTable)}>
           <thead>
             <tr>
-              <th class={styles.colDot} scope="col"></th>
+              <th className={styles.colDot} scope="col"></th>
               <th scope="col">Handler</th>
-              <th class={styles.activityDuration} scope="col">
+              <th className={styles.activityDuration} scope="col">
                 Duration
               </th>
-              <th class={styles.activityTime} scope="col">
+              <th className={styles.activityTime} scope="col">
                 Time
               </th>
             </tr>

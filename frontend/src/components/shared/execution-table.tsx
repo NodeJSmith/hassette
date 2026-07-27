@@ -1,8 +1,8 @@
 import clsx from "clsx";
+import { useState } from "react";
 import { useLocation } from "wouter";
 
 import { useRovingTabIndex } from "../../hooks/use-roving-tab-index";
-import { useSignal } from "../../hooks/use-signal";
 import { executionPath, type HandlerKind } from "../../utils/app-routes";
 import { STATUS_DOT_SIZE } from "../../utils/constants";
 import { formatDuration, formatRelativeTime, formatTimestamp } from "../../utils/format";
@@ -58,8 +58,8 @@ export function ExecutionTable({
   handlerId,
   instanceQs,
 }: ExecutionTableProps) {
-  const showAll = useSignal(false);
-  const visible = showAll.value ? records : records.slice(0, INITIAL_ROWS);
+  const [showAll, setShowAll] = useState(false);
+  const visible = showAll ? records : records.slice(0, INITIAL_ROWS);
   const { containerRef, onContainerKeyDown, getTabIndex, setActiveIndex } = useRovingTabIndex<HTMLTableSectionElement>(
     visible.length,
   );
@@ -81,23 +81,23 @@ export function ExecutionTable({
 
   return (
     <>
-      <table class="ht-table ht-table--compact" data-testid={tableId}>
+      <table className="ht-table ht-table--compact" data-testid={tableId}>
         <thead>
           <tr>
-            <th class={styles.statusColumn} scope="col">
+            <th className={styles.statusColumn} scope="col">
               Status
             </th>
-            <th class={styles.executionColumn} scope="col">
+            <th className={styles.executionColumn} scope="col">
               Execution
             </th>
-            <th class={styles.durationColumn} scope="col">
+            <th className={styles.durationColumn} scope="col">
               Duration
             </th>
-            <th class={styles.timeColumn} scope="col">
+            <th className={styles.timeColumn} scope="col">
               Time
             </th>
-            <th class={styles.colArrow} scope="col">
-              <span class="ht-visually-hidden">Details</span>
+            <th className={styles.colArrow} scope="col">
+              <span className="ht-visually-hidden">Details</span>
             </th>
           </tr>
         </thead>
@@ -116,7 +116,7 @@ export function ExecutionTable({
             return (
               <tr
                 key={rowKey}
-                class={clsx(styles.row, canNavigate && styles.rowClickable)}
+                className={clsx(styles.row, canNavigate && styles.rowClickable)}
                 data-testid={kind === "handler" ? "invocation-row" : "execution-row"}
                 tabIndex={getTabIndex(i)}
                 role="row"
@@ -128,10 +128,10 @@ export function ExecutionTable({
                 }}
                 onKeyDown={canNavigate ? onActivateKeyDown(goToDetail) : undefined}
               >
-                <td class={clsx(styles.statusCell, styles.statusColumn)}>
-                  <div class={styles.statusCellInner}>
+                <td className={clsx(styles.statusCell, styles.statusColumn)}>
+                  <div className={styles.statusCellInner}>
                     <StatusShape kind={statusKind} size={STATUS_DOT_SIZE} />
-                    <span class={statusLabelClass(statusKind)}>{STATUS_LABEL[statusKind]}</span>
+                    <span className={statusLabelClass(statusKind)}>{STATUS_LABEL[statusKind]}</span>
                     {isThreadLeaked && (
                       <Badge variant="warning" size="sm" aria-label="thread leaked past timeout">
                         thread leaked
@@ -144,20 +144,22 @@ export function ExecutionTable({
                     )}
                   </div>
                 </td>
-                <td class={clsx(styles.executionColumn, "ht-text-mono ht-text-xs")}>{record.execution_id ?? "—"}</td>
-                <td class={styles.durationColumn}>{formatDuration(record.duration_ms)}</td>
+                <td className={clsx(styles.executionColumn, "ht-text-mono ht-text-xs")}>
+                  {record.execution_id ?? "—"}
+                </td>
+                <td className={styles.durationColumn}>{formatDuration(record.duration_ms)}</td>
                 <td
-                  class={clsx(styles.timeColumn, "ht-text-mono ht-text-xs")}
+                  className={clsx(styles.timeColumn, "ht-text-mono ht-text-xs")}
                   title={formatTimestamp(record.execution_start_ts)}
                 >
                   {formatRelativeTime(record.execution_start_ts)}
                 </td>
                 <td
-                  class={clsx("ht-text-muted", styles.arrowCell)}
+                  className={clsx("ht-text-muted", styles.arrowCell)}
                   aria-label={canNavigate ? "View execution detail" : undefined}
                 >
                   {canNavigate && (
-                    <span class={styles.arrowIndicator} data-testid="execution-detail-indicator">
+                    <span className={styles.arrowIndicator} data-testid="execution-detail-indicator">
                       <IconArrowRight />
                     </span>
                   )}
@@ -167,7 +169,9 @@ export function ExecutionTable({
           })}
         </tbody>
       </table>
-      {hasMore && <ShowMoreButton showAll={showAll} totalCount={records.length} />}
+      {hasMore && (
+        <ShowMoreButton showAll={showAll} onToggle={() => setShowAll((v) => !v)} totalCount={records.length} />
+      )}
     </>
   );
 }
