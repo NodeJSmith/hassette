@@ -4,6 +4,7 @@ These build manifest and snapshot objects used by both e2e and integration web t
 """
 
 from collections.abc import Sequence
+from typing import Any
 
 from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo
 from hassette.test_utils.config import DEFAULT_TEST_APP_KEY
@@ -101,6 +102,29 @@ def make_manifest_response(
         instances=instances or [],
         in_current_config=in_current_config,
     )
+
+
+def make_manifest_db_row(app_key: str = "my_app", **overrides: Any) -> dict[str, Any]:
+    """Build a plain dict shaped like a row from ``get_all_app_manifests()``/``get_app_manifest()``.
+
+    Mocks the telemetry query service's raw DB-row return shape (10 fields) in web-layer
+    integration tests. Distinct from ``make_manifest()``, which builds the post-overlay
+    ``AppManifestInfo`` dataclass.
+    """
+    row: dict[str, Any] = {
+        "id": 1,
+        "app_key": app_key,
+        "class_name": "MyApp",
+        "display_name": "My App",
+        "filename": "my_app.py",
+        "enabled": 1,
+        "autostart": 1,
+        "auto_loaded": 0,
+        "created_at": "2024-01-01T00:00:00.000000",
+        "updated_at": "2024-01-01T00:00:00.000000",
+    }
+    row.update(overrides)
+    return row
 
 
 def make_manifest_list_response(

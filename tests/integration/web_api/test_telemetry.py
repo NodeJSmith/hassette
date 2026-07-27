@@ -10,6 +10,7 @@ from hassette.exceptions import TelemetryUnavailableError
 from hassette.schemas.execution_models import Execution
 from hassette.schemas.listener_models import ListenerSummary
 from hassette.schemas.live_counts import LiveCounts
+from hassette.test_utils.web_manifest_helpers import make_manifest_db_row
 
 MOCK_TS = 1_234_567_890.0
 
@@ -219,17 +220,56 @@ class TestTelemetryListeners:
 
 
 class TestTelemetryDashboard:
-    async def test_app_grid_returns_per_app_health(self, client: "AsyncClient") -> None:
+    async def test_app_grid_returns_per_app_health(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        """The grid spine is DB-sourced; entries carry both telemetry and manifest metadata."""
+        mock_hassette.telemetry_query_service.get_all_app_manifests = AsyncMock(
+            return_value=[make_manifest_db_row(app_key="my_app")]
+        )
         response = await client.get("/api/telemetry/dashboard/app-grid")
         assert response.status_code == 200
         data = response.json()
         assert "apps" in data
         assert isinstance(data["apps"], list)
-        # Default mock has apps from the manifest snapshot
-        for app_entry in data["apps"]:
-            assert "app_key" in app_entry
-            assert "health_status" in app_entry
-            assert "status" in app_entry
+        assert len(data["apps"]) == 1
+        app_entry = data["apps"][0]
+        assert app_entry["app_key"] == "my_app"
+        assert "health_status" in app_entry
+        assert "status" in app_entry
+        # Manifest metadata fields are present alongside telemetry data.
+        assert app_entry["class_name"] == "MyApp"
+        assert app_entry["filename"] == "my_app.py"
+        assert app_entry["in_current_config"] is False
+
+    async def test_app_grid_includes_db_only_apps(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        """A DB-only app (no matching in-memory manifest) appears in the grid."""
+        mock_hassette.telemetry_query_service.get_all_app_manifests = AsyncMock(
+            return_value=[
+                make_manifest_db_row(
+                    app_key="orphan_app",
+                    class_name="OrphanApp",
+                    display_name="Orphan App",
+                    filename="orphan_app.py",
+                )
+            ]
+        )
+        response = await client.get("/api/telemetry/dashboard/app-grid")
+        assert response.status_code == 200
+        data = response.json()
+        app_keys = {e["app_key"] for e in data["apps"]}
+        assert "orphan_app" in app_keys
+        orphan = next(e for e in data["apps"] if e["app_key"] == "orphan_app")
+        assert orphan["status"] == "stopped"
+        assert orphan["in_current_config"] is False
+        assert orphan["instance_count"] == 0
+
+    async def test_app_grid_returns_503_on_spine_failure(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        """A storage error on the DB spine query yields 503."""
+        mock_hassette.telemetry_query_service.get_all_app_manifests = AsyncMock(
+            side_effect=TelemetryUnavailableError("db down")
+        )
+        response = await client.get("/api/telemetry/dashboard/app-grid")
+        assert response.status_code == 503
+        assert response.json()["apps"] == []
 
 
 class TestTelemetryExecutions:

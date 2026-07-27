@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Refactor web routes to use DB spine and overlay"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02", "T04"]
 implements: ["FR#2", "FR#3", "FR#4", "FR#7", "FR#11", "AC#2", "AC#3", "AC#6", "AC#11"]
 ---

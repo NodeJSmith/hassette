@@ -2,16 +2,17 @@
 
 import re
 from logging import getLogger
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import tomli_w
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Response
 
 from hassette.app.app_config import AppConfig
 from hassette.config.classes import AppManifest
 from hassette.exceptions import TelemetryUnavailableError
+from hassette.schemas.app_snapshots import AppFullSnapshot, tally_manifest_statuses
 from hassette.web.config_view import deref_schema, mask_app_config, mask_values, resolve_app_config_cls
-from hassette.web.dependencies import HassetteDep, RuntimeDep, TelemetryDep
+from hassette.web.dependencies import HassetteDep, RuntimeDep, TelemetryDep, db_degrades_to
 from hassette.web.mappers import app_manifest_list_response_from, app_manifest_response_from, app_status_response_from
 from hassette.web.models import (
     ActionResponse,
@@ -21,6 +22,9 @@ from hassette.web.models import (
     AppSourceResponse,
     AppStatusResponse,
 )
+
+if TYPE_CHECKING:
+    from hassette.schemas.app_snapshots import AppManifestInfo
 
 LOGGER = getLogger(__name__)
 
@@ -66,15 +70,36 @@ async def get_apps(runtime: RuntimeDep) -> AppStatusResponse:
 
 
 @router.get("/apps/manifests", response_model=AppManifestListResponse)
-async def get_app_manifests(runtime: RuntimeDep, telemetry: TelemetryDep) -> AppManifestListResponse:
-    snapshot = runtime.get_all_manifests_snapshot()
-    manifest_list = app_manifest_list_response_from(snapshot)
+async def get_app_manifests(
+    runtime: RuntimeDep, telemetry: TelemetryDep, response: Response
+) -> AppManifestListResponse:
+    """Return every persisted app manifest, overlaid with live runtime state.
+
+    The app spine is queried from the ``app_manifests`` DB table (Category B — 503 via
+    ``db_degrades_to`` on failure) and overlaid with live runtime state via
+    ``RuntimeQueryService.overlay_manifest_rows()``, so apps with historical telemetry but
+    no loaded manifest are still included. The ``recent_invocations_1h`` enrichment query
+    below stays Category C (independently caught, degrading to zero while the response
+    continues at 200).
+    """
+    manifest_infos: list[AppManifestInfo] = []
+    with db_degrades_to(response):
+        db_rows = await telemetry.get_all_app_manifests()
+        manifest_infos = runtime.overlay_manifest_rows(db_rows)
 
     invocations_by_key: dict[str, int] = {}
     try:
         invocations_by_key = await telemetry.get_recent_invocations_1h_all_apps()
     except TelemetryUnavailableError:
         LOGGER.warning("Failed to fetch recent_invocations_1h for app manifests", exc_info=True)
+
+    full_snapshot = AppFullSnapshot(
+        manifests=manifest_infos,
+        only_apps=runtime.get_registry_only_apps(),
+        total=len(manifest_infos),
+        **tally_manifest_statuses(manifest_infos),
+    )
+    manifest_list = app_manifest_list_response_from(full_snapshot)
 
     enriched_manifests = [
         m.model_copy(update={"recent_invocations_1h": invocations_by_key.get(m.app_key, 0)})
@@ -84,13 +109,28 @@ async def get_app_manifests(runtime: RuntimeDep, telemetry: TelemetryDep) -> App
 
 
 @router.get("/apps/{app_key}/manifest", response_model=AppManifestResponse)
-async def get_app_manifest(app_key: str, hassette: HassetteDep, telemetry: TelemetryDep) -> AppManifestResponse:
+async def get_app_manifest(app_key: str, runtime: RuntimeDep, telemetry: TelemetryDep) -> AppManifestResponse:
+    """Return the persisted manifest for a single app, overlaid with live runtime state.
+
+    Queries the ``app_manifests`` DB table directly instead of the in-memory registry, so an
+    app with historical telemetry but no loaded manifest returns 200 instead of 404. A DB
+    failure and a genuinely unknown ``app_key`` are distinct failure modes (503 vs. 404) that
+    don't fit the single-branch ``db_degrades_to`` shape — handled inline (Category D, see
+    ``web/CLAUDE.md``).
+    """
     _validate_app_key(app_key)
-    manifest_info = hassette.app_handler.registry.get_manifest_snapshot(app_key)
-    if manifest_info is None:
+
+    try:
+        db_row = await telemetry.get_app_manifest(app_key)
+    except TelemetryUnavailableError as exc:
+        LOGGER.warning("Failed to fetch manifest for app %s", app_key, exc_info=True)
+        raise HTTPException(status_code=503, detail="Telemetry store unavailable") from exc
+
+    if db_row is None:
         raise HTTPException(status_code=404, detail=f"App {app_key!r} not found")
 
-    response = app_manifest_response_from(manifest_info)
+    manifest_info = runtime.overlay_manifest_rows([db_row])[0]
+    result = app_manifest_response_from(manifest_info)
 
     invocations = 0
     try:
@@ -99,7 +139,7 @@ async def get_app_manifest(app_key: str, hassette: HassetteDep, telemetry: Telem
     except TelemetryUnavailableError:
         LOGGER.warning("Failed to fetch recent_invocations_1h for app %s manifest", app_key, exc_info=True)
 
-    return response.model_copy(update={"recent_invocations_1h": invocations})
+    return result.model_copy(update={"recent_invocations_1h": invocations})
 
 
 @router.post("/apps/{app_key}/start", status_code=202, response_model=ActionResponse)

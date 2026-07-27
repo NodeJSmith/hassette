@@ -85,6 +85,7 @@ def app_manifest_response_from(manifest: AppManifestInfo) -> AppManifestResponse
         instances=instances,
         error_message=manifest.error_message,
         error_traceback=manifest.error_traceback,
+        in_current_config=manifest.in_current_config,
     )
 
 

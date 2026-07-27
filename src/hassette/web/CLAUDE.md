@@ -55,7 +55,7 @@ These sites do **not** use `db_degrades_to`.  They catch `TelemetryUnavailableEr
 - **Category C (silent-200 partial degradation):** DB failure sets a safe default and the handler continues with non-DB data (e.g. from `runtime.get_all_manifests_snapshot()`).  Status stays 200.  Do not apply `db_degrades_to` to these sites.
 - **Category D (multi-failure-mode):** The handler has two independent failure semantics that cannot be expressed by a single CM.  Handle each failure mode inline.
 
-### Site classification table — all 17 `except TelemetryUnavailableError` sites (#1108a + #1108b)
+### Site classification table — all 20 `except TelemetryUnavailableError` / DB-failure sites (#1108a + #1108b + #1236/T03)
 
 Categories: **A** = one-line wrap; **B** = post-query work must move inside the `with`; **C** = silent-200 EXCLUDED; **D** = multi-failure EXCLUDED.
 
@@ -71,17 +71,20 @@ Line numbers are approximate (captured during planning, pre-migration) — grep 
 | 6 | `telemetry.py` | 259 | `list_executions` | 503 | `[]` | **A** | One-line wrap; `return` is inside the current `try` |
 | 7 | `telemetry.py` | 276 | `listener_executions` | 503 | `[]` | **A** | One-line wrap; `return` is inside the current `try` |
 | 8 | `telemetry.py` | 293 | `job_executions` | 503 | `[]` | **A** | One-line wrap; `return` is inside the current `try` |
-| 9 | `telemetry.py` | 313 | `dashboard_app_grid` — `get_all_app_summaries` | 200 (no set) | `{}` | **C** | EXCLUDED — non-DB spine from `runtime.get_all_manifests_snapshot()` |
-| 10 | `telemetry.py` | 328 | `dashboard_app_grid` — `get_per_app_activity_buckets` | 200 (no set) | `{}` (default unchanged) | **C** | EXCLUDED — same non-DB spine |
-| 11 | `telemetry.py` | 332 | `dashboard_app_grid` — `get_per_app_last_errors` | 200 (no set) | `{}` (default unchanged) | **C** | EXCLUDED — same non-DB spine |
-| 12 | `apps.py` | 61 | `get_app_manifests` — `get_recent_invocations_1h_all_apps` | 200 (no set) | `{}` | **C** | EXCLUDED — non-DB spine from `runtime.get_all_manifests_snapshot()` |
+| 9 | `telemetry.py` | 313 | `dashboard_app_grid` — `get_all_app_summaries` | 200 (no set) | `{}` | **C** | EXCLUDED — enrichment query, independent of the Category B spine query below |
+| 10 | `telemetry.py` | 328 | `dashboard_app_grid` — `get_per_app_activity_buckets` | 200 (no set) | `{}` (default unchanged) | **C** | EXCLUDED — same enrichment fault isolation |
+| 11 | `telemetry.py` | 332 | `dashboard_app_grid` — `get_per_app_last_errors` | 200 (no set) | `{}` (default unchanged) | **C** | EXCLUDED — same enrichment fault isolation |
+| 12 | `apps.py` | 61 | `get_app_manifests` — `get_recent_invocations_1h_all_apps` | 200 (no set) | `{}` | **C** | EXCLUDED — enrichment query, independent of the Category B spine query below |
+| 18 | `telemetry.py` | ~296 | `dashboard_app_grid` — `get_all_app_manifests` + `overlay_runtime_state()` (spine) | 503 | `[]` (empty `manifest_infos`, so `apps=[]`) | **B** | #1236/T03 — `db_degrades_to` wraps the DB spine query + overlay; enrichment (rows 9-11) stays outside the `with` block |
+| 19 | `apps.py` | ~69 | `get_app_manifests` — `get_all_app_manifests` + `overlay_runtime_state()` (spine) | 503 | `[]` (empty `manifest_infos`) | **B** | #1236/T03 — same spine pattern as row 18; enrichment (row 12) stays outside the `with` block |
+| 20 | `apps.py` | ~110 | `get_app_manifest` — `get_app_manifest(app_key)` | 503 (DB failure) / 404 (row not found) | n/a — raises `HTTPException` | **D** | #1236/T03 — two distinct failure modes (DB unavailable vs. genuinely unknown `app_key`) don't fit a single `db_degrades_to` branch; each is raised inline |
 | 13 | `bus.py` | 38 | `get_listener_metrics` | 503 | `[]` | **B** | Migrated in #1095 (T05) — if/else dispatch collapsed to a single unified `get_listener_summary` call + `db_degrades_to`; `live_execution_counts()` + mapping inside the `with` (same shape as `app_listeners`) |
 | 14 | `executions.py` | 41 | `check_retention_expired_uuid4` (helper) | 200 (returns `False`) | `False` | **D** | EXCLUDED — silent false, no 503; part of multi-failure `get_execution_logs` |
 | 15 | `executions.py` | 75 | `get_execution_logs` — record fetch | 503 | `LogsByExecutionResponse(records=[], ...)` | **D** | EXCLUDED — multi-failure: record fetch is 503, retention check is silent-false; separate semantics |
 | 16 | `logs.py` | 54 | `get_logs` | 503 | `[]` | **A** | One-line wrap; list-comp + `return` are both inside the current `try` |
 | 17 | `scheduler.py` | 38 | `all_jobs` | 503 | `[]` | **B** | Move `enrich_jobs_with_live_heap` call inside `with` (must skip on failure); tail return |
 
-**Count:** A: 5, B: 6, C: 4, D: 2 — 17 total.  All A/B sites are migrated to `db_degrades_to`: 10 in #1108a (rows 1-8, 16, 17) plus row 13 (`get_listener_metrics`) in #1095/T05 (deferred from #1108a to avoid double-touching, since #1095 also collapsed its dispatch) — 11 migrated. Category-C/D sites (rows 9-12, 14, 15) keep their inline `try/except` unchanged.
+**Count:** A: 5, B: 8, C: 4, D: 3 — 20 total.  All A/B sites are migrated to `db_degrades_to`: 10 in #1108a (rows 1-8, 16, 17) plus row 13 (`get_listener_metrics`) in #1095/T05 (deferred from #1108a to avoid double-touching, since #1095 also collapsed its dispatch), plus rows 18-19 (`dashboard_app_grid`/`get_app_manifests` DB spine queries) in #1236/T03 — 13 migrated. Category-C sites (rows 9-12) keep their inline `try/except` unchanged — they are enrichment queries, independent of the Category B spine. Category-D sites (rows 14-15, 20) handle multiple failure modes inline; row 20 (`get_app_manifest`) is new in #1236/T03 — 503 for DB failure vs. 404 for a genuinely unknown `app_key`.
 
 **B-site criterion:** "does any code after the query need to be skipped when the query fails?"  For sites 3, 5, 13, 17: the post-query call (`live_execution_counts()`, `enrich_jobs_with_live_heap`) runs against an empty list today only because the explicit `return []` exits early — a tail-return CM would run it against the default, so it must move inside the `with`.  For sites 1, 2: the success-path response construction uses data from the query result directly and must be skipped.
 

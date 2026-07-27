@@ -5,7 +5,13 @@ from collections.abc import Iterable
 from logging import getLogger
 from typing import TYPE_CHECKING, Any
 
-from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo, AppStatusSnapshot
+from hassette.schemas.app_snapshots import (
+    AppFullSnapshot,
+    AppInstanceInfo,
+    AppManifestInfo,
+    AppStatusSnapshot,
+    tally_manifest_statuses,
+)
 from hassette.types.enums import BlockReason, ResourceStatus
 from hassette.utils.exception_utils import get_traceback_string
 
@@ -183,19 +189,13 @@ class AppRegistry:
 
     def get_full_snapshot(self) -> AppFullSnapshot:
         """Generate manifest-based snapshot including all configured apps."""
-        manifests: list[AppManifestInfo] = []
-        counts = {"running": 0, "failed": 0, "stopped": 0, "disabled": 0, "blocked": 0}
-
-        for app_key, manifest in self._manifests.items():
-            info = self.build_manifest_info(app_key, manifest)
-            counts[info.status] += 1
-            manifests.append(info)
+        manifests = [self.build_manifest_info(app_key, manifest) for app_key, manifest in self._manifests.items()]
 
         return AppFullSnapshot(
             manifests=manifests,
             only_apps=sorted(self._only_apps),
             total=len(manifests),
-            **counts,
+            **tally_manifest_statuses(manifests),
         )
 
     def build_manifest_info(self, app_key: str, manifest: "AppManifest") -> AppManifestInfo:

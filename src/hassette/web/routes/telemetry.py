@@ -7,7 +7,7 @@ to records with ``execution_start_ts >= since``, or omit it for all-time aggrega
 
 import time
 from logging import getLogger
-from typing import Literal, cast
+from typing import TYPE_CHECKING, Literal, cast
 
 from fastapi import APIRouter, Query, Response
 
@@ -28,7 +28,7 @@ from hassette.web.dependencies import (
     TelemetryDep,
     db_degrades_to,
 )
-from hassette.web.mappers import to_listener_with_summary
+from hassette.web.mappers import instance_response_from, to_listener_with_summary
 from hassette.web.models import (
     ActivityBucket,
     AppHealthResponse,
@@ -46,6 +46,9 @@ from hassette.web.telemetry_helpers import (
     compute_success_rate,
 )
 from hassette.web.utils import enrich_jobs_with_live_heap
+
+if TYPE_CHECKING:
+    from hassette.schemas.app_snapshots import AppManifestInfo
 
 LOGGER = getLogger(__name__)
 
@@ -288,14 +291,25 @@ async def get_execution(
 async def dashboard_app_grid(
     runtime: RuntimeDep,
     telemetry: TelemetryDep,
+    response: Response,
     since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
 ) -> DashboardAppGridResponse:
     """Per-app health data for the dashboard grid.
 
+    The app spine is queried from the ``app_manifests`` DB table (Category B — 503 via
+    ``db_degrades_to`` on failure) and overlaid with live runtime state via
+    ``RuntimeQueryService.overlay_manifest_rows()``. The telemetry enrichment queries below
+    stay Category C (independently caught, degrading to empty defaults while the response
+    continues at 200) — see ``web/CLAUDE.md`` for the classification table.
+
     Always uses ``source_tier='app'`` — framework actors are shown via FrameworkHealth,
     not the manifest-driven app grid.
     """
-    snapshot = runtime.get_all_manifests_snapshot()
+    manifest_infos: list[AppManifestInfo] = []
+    with db_degrades_to(response):
+        db_rows = await telemetry.get_all_app_manifests()
+        manifest_infos = runtime.overlay_manifest_rows(db_rows)
+
     try:
         summaries = await telemetry.get_all_app_summaries(since=since, source_tier="app")
     except TelemetryUnavailableError:
@@ -334,7 +348,7 @@ async def dashboard_app_grid(
     )
 
     entries: list[DashboardAppGridEntry] = []
-    for manifest in snapshot.manifests:
+    for manifest in manifest_infos:
         health = summaries.get(manifest.app_key, empty)
         rate = error_rate_from_summary(health)
         buckets = per_app_buckets.get(manifest.app_key, [])
@@ -362,6 +376,16 @@ async def dashboard_app_grid(
                 last_error_type=err_info.error_type if err_info else None,
                 last_error_ts=err_info.timestamp if err_info else None,
                 activity_buckets=[ActivityBucket(ok=ok, err=err) for ok, err in buckets],
+                class_name=manifest.class_name,
+                filename=manifest.filename,
+                enabled=manifest.enabled,
+                auto_loaded=manifest.auto_loaded,
+                autostart=manifest.autostart,
+                block_reason=manifest.block_reason,
+                instances=[instance_response_from(inst) for inst in manifest.instances],
+                error_message=manifest.error_message,
+                error_traceback=manifest.error_traceback,
+                in_current_config=manifest.in_current_config,
             )
         )
 

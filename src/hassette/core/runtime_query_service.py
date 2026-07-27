@@ -10,13 +10,14 @@ from pydantic import BaseModel
 
 from hassette.bus import Bus
 from hassette.core.app_handler import AppHandler
+from hassette.core.app_registry import overlay_runtime_state
 from hassette.core.bus_service import BusService
 from hassette.core.logging_service import LoggingService
 from hassette.core.state_proxy import StateProxy
 from hassette.events import Event, RawStateChangeEvent
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
-from hassette.schemas.app_snapshots import AppFullSnapshot, AppStatusSnapshot
+from hassette.schemas.app_snapshots import AppFullSnapshot, AppManifestInfo, AppStatusSnapshot
 from hassette.schemas.domain_models import (
     AppStatusChangedData,
     BootIssue,
@@ -252,6 +253,24 @@ class RuntimeQueryService(Resource):
     def get_all_manifests_snapshot(self) -> AppFullSnapshot:
         """Return full manifest-based snapshot including stopped/disabled apps."""
         return self.hassette.app_handler.registry.get_full_snapshot()
+
+    def overlay_manifest_rows(self, db_rows: list[dict[str, Any]]) -> list[AppManifestInfo]:
+        """Overlay DB-persisted ``app_manifests`` rows with live runtime state.
+
+        Thin wrapper around ``overlay_runtime_state()`` (owned by ``AppRegistry``) that lets
+        web routes reach it through ``RuntimeQueryService`` instead of importing ``core``
+        directly — the web layer must not runtime-import ``core`` (see ``web-no-core`` in
+        ``tools/check_module_boundaries.py``).
+        """
+        return overlay_runtime_state(db_rows, self.hassette.app_handler.registry)
+
+    def get_registry_only_apps(self) -> list[str]:
+        """Return the exclusive-app filter (``--app`` CLI flag), sorted.
+
+        Sourced from ``AppRegistry`` — the exclusive-app filter is session-specific
+        in-memory state, never persisted to the ``app_manifests`` DB table.
+        """
+        return sorted(self.hassette.app_handler.registry.only_apps)
 
     def get_system_status(self) -> SystemStatus:
         websocket_service = self.hassette.websocket_service
