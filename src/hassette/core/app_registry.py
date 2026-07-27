@@ -3,7 +3,7 @@
 from collections import defaultdict
 from collections.abc import Iterable
 from logging import getLogger
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo, AppStatusSnapshot
 from hassette.types.enums import BlockReason, ResourceStatus
@@ -269,3 +269,77 @@ class AppRegistry:
     def autostart_manifests(self) -> dict[str, "AppManifest"]:
         """Active manifests that should start automatically at boot."""
         return {k: v for k, v in self.active_manifests.items() if v.autostart}
+
+
+def overlay_runtime_state(db_rows: list[dict[str, Any]], registry: AppRegistry) -> list[AppManifestInfo]:
+    """Merge DB-persisted manifest rows with in-memory runtime state.
+
+    The single overlay function all web routes call to combine the DB app spine with live
+    status — see the design doc's "Web route refactoring" section. For each DB row, checks
+    whether the app is present in ``registry``'s in-memory manifests:
+
+    - If present: status/instances are derived from the registry's live state via
+      ``build_manifest_info()`` (priority: disabled > blocked > running > failed > stopped),
+      and ``in_current_config`` is ``True``.
+    - If absent (a DB-only / removed app): status defaults to ``"stopped"`` with zero
+      instances, and ``in_current_config`` is ``False``.
+
+    Static metadata (``class_name``, ``display_name``, ``filename``, ``enabled``,
+    ``autostart``, ``auto_loaded``) always comes from the DB row, never from the in-memory
+    manifest — the DB is the source of truth for metadata, the registry is the source of
+    truth for live status.
+
+    Args:
+        db_rows: Rows from ``get_all_app_manifests()`` or a single-row list from
+            ``get_app_manifest()``. Boolean columns arrive as SQLite ints (0/1), not Python
+            bools — this function coerces them explicitly since ``AppManifestInfo`` is a
+            dataclass (no Pydantic-style auto-coercion).
+        registry: The in-memory ``AppRegistry`` to overlay runtime state from.
+
+    Returns:
+        One ``AppManifestInfo`` per DB row, in the same order as ``db_rows``.
+    """
+    results: list[AppManifestInfo] = []
+
+    for db_row in db_rows:
+        app_key = db_row["app_key"]
+        in_memory_manifest = registry.manifests.get(app_key)
+
+        if in_memory_manifest is not None:
+            derived = registry.build_manifest_info(app_key, in_memory_manifest)
+            status = derived.status
+            instances = derived.instances
+            instance_count = derived.instance_count
+            block_reason = derived.block_reason
+            error_message = derived.error_message
+            error_traceback = derived.error_traceback
+            in_current_config = True
+        else:
+            status = "stopped"
+            instances = []
+            instance_count = 0
+            block_reason = None
+            error_message = None
+            error_traceback = None
+            in_current_config = False
+
+        results.append(
+            AppManifestInfo(
+                app_key=app_key,
+                class_name=db_row["class_name"],
+                display_name=db_row["display_name"],
+                filename=db_row["filename"],
+                enabled=bool(db_row["enabled"]),
+                auto_loaded=bool(db_row["auto_loaded"]),
+                status=status,
+                autostart=bool(db_row["autostart"]),
+                block_reason=block_reason,
+                instance_count=instance_count,
+                instances=instances,
+                error_message=error_message,
+                error_traceback=error_traceback,
+                in_current_config=in_current_config,
+            )
+        )
+
+    return results

@@ -47,6 +47,10 @@ NOT_STARTED = ResourceStatus.NOT_STARTED
 # single frame is rarely enough to show the app's own code rather than just anyio internals.
 INIT_FAILURE_TRACEBACK_LIMIT = 5
 
+# Per-manifest upsert timeout. A failed write degrades one app's dashboard row — it must
+# never block app startup or a hot-reload. See design doc "Persist trigger".
+MANIFEST_UPSERT_TIMEOUT_SECONDS = 5.0
+
 
 class AppLifecycleService(Resource):
     """Manages app lifecycle orchestration, change detection, and event emission.
@@ -306,6 +310,7 @@ class AppLifecycleService(Resource):
         try:
             await self.resolve_only_apps()
             self.reconcile_blocked_apps()
+            await self.persist_manifests()
             await self.start_apps()
             snapshot = self.registry.get_snapshot()
             if not snapshot.running_count and not snapshot.failed_count:
@@ -504,9 +509,34 @@ class AppLifecycleService(Resource):
             self.logger.exception("Failed to reload configuration: %s", exc)
 
         self.set_apps_configs(self.hassette.config.apps.manifests)
+        await self.persist_manifests()
         curr_apps_config = {k: deepcopy(v) for k, v in self.registry.manifests.items() if v.enabled}
 
         return original_apps_config, curr_apps_config
+
+    async def persist_manifests(self) -> None:
+        """Upsert all current manifests into the ``app_manifests`` DB table.
+
+        Called from ``bootstrap_apps()`` (initial load, after ``set_apps_configs()`` and before
+        ``start_apps()``) and ``refresh_config()`` (hot reload, after ``set_apps_configs()`` and
+        before ``apply_changes()`` in the caller). Each manifest's upsert is isolated with its own
+        try/except and timeout, matching the fault-isolation conventions used elsewhere in this
+        file (``start_apps()`` with ``gather(return_exceptions=True)``, ``initialize_instances()``
+        with ``anyio.fail_after()``). A failed write logs a warning and continues — the remaining
+        manifests still get persisted, and a partial write is self-correcting on the next boot or
+        reload. This must never block app startup or a config reload.
+        """
+        for app_key, manifest in self.registry.manifests.items():
+            try:
+                with anyio.fail_after(MANIFEST_UPSERT_TIMEOUT_SECONDS):
+                    await self.hassette.command_executor.upsert_app_manifest(manifest)
+            except Exception:
+                self.logger.warning(
+                    "Failed to persist manifest for app '%s' — dashboard metadata may be stale "
+                    "until the next successful write",
+                    app_key,
+                    exc_info=True,
+                )
 
     def set_apps_configs(self, apps_config: dict[str, "AppManifest"]) -> None:
         """Set the apps configuration.

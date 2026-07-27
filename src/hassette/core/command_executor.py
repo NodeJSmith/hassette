@@ -40,6 +40,7 @@ from hassette.utils.execution import ExecutionResult, track_execution
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
+    from hassette.config.classes import AppManifest
 
 _MAX_RETRY_COUNT = 3
 _CAPACITY_WARN_THRESHOLD = 0.75
@@ -685,6 +686,22 @@ class CommandExecutor(Service):
         """
         job_id = await self.hassette.database_service.submit(self.repository.register_job(registration))
         return job_id
+
+    async def upsert_app_manifest(self, manifest: "AppManifest") -> int:
+        """Upsert an app manifest into the app_manifests table.
+
+        Delegates to ``TelemetryRepository.upsert_app_manifest`` via ``DatabaseService.submit``.
+        Callers are expected to isolate failures per-manifest (see
+        ``AppLifecycleService.persist_manifests``) — this method does not swallow errors itself.
+
+        Args:
+            manifest: The app manifest to persist.
+
+        Returns:
+            The row ID of the inserted (or matched) row.
+        """
+        manifest_id = await self.hassette.database_service.submit(self.repository.upsert_app_manifest(manifest))
+        return manifest_id
 
     async def mark_job_cancelled(self, db_id: int) -> None:
         """Set ``cancelled_at`` on the scheduled_jobs row to persist durable cancellation state.

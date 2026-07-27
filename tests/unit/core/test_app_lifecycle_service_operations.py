@@ -322,3 +322,37 @@ class TestSetAppsConfigs:
 
         mock_registry.set_manifests.assert_called_once()
         mock_registry.set_only_apps.assert_called_with(())
+
+
+class TestPersistManifests:
+    """Tests for persist_manifests() — the per-item-isolated manifest upsert trigger."""
+
+    async def test_upserts_every_manifest_in_registry(
+        self, lifecycle_service: AppLifecycleService, mock_hassette: MagicMock, mock_registry: MagicMock
+    ) -> None:
+        """Calls command_executor.upsert_app_manifest once per manifest currently in the registry."""
+        manifest_a = MagicMock()
+        manifest_b = MagicMock()
+        mock_registry.manifests = {"app_a": manifest_a, "app_b": manifest_b}
+        mock_hassette.command_executor.upsert_app_manifest = AsyncMock()
+
+        await lifecycle_service.persist_manifests()
+
+        mock_hassette.command_executor.upsert_app_manifest.assert_any_call(manifest_a)
+        mock_hassette.command_executor.upsert_app_manifest.assert_any_call(manifest_b)
+        assert mock_hassette.command_executor.upsert_app_manifest.await_count == 2
+
+    async def test_one_failure_does_not_block_remaining_upserts(
+        self, lifecycle_service: AppLifecycleService, mock_hassette: MagicMock, mock_registry: MagicMock
+    ) -> None:
+        """A failed upsert is isolated — the remaining manifests still get persisted, and the
+        failure never propagates out of persist_manifests() to the bootstrap/reload caller.
+        """
+        manifest_a = MagicMock()
+        manifest_b = MagicMock()
+        mock_registry.manifests = {"app_a": manifest_a, "app_b": manifest_b}
+        mock_hassette.command_executor.upsert_app_manifest = AsyncMock(side_effect=[RuntimeError("DB full"), 1])
+
+        await lifecycle_service.persist_manifests()
+
+        assert mock_hassette.command_executor.upsert_app_manifest.await_count == 2
