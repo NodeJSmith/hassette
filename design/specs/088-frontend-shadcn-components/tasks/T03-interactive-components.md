@@ -71,7 +71,7 @@ Read each current component implementation to understand the prop interfaces and
 1. Remove `@floating-ui/dom` from `package.json` devDependencies/dependencies (it remains as a transitive dep of `@radix-ui/react-popper`).
 2. Delete `frontend/src/utils/focus-trap.ts` -- orphaned after Radix owns focus trapping in AlertDialog and Popover.
 
-Rewrite all affected tests. Remove tests that directly test focus-trap logic -- tests should verify the outcome (dialog traps focus) via user interaction, not the mechanism.
+Rewrite all affected tests — test files stay in their original locations (e.g., `components/shared/confirm-dialog.test.tsx` tests the AlertDialog replacement; `components/layout/command-palette.test.tsx` tests the Command replacement). Remove tests that directly test focus-trap logic — tests should verify the outcome (dialog traps focus) via user interaction, not the mechanism.
 
 ## Focus
 

@@ -2,7 +2,7 @@
 task_id: "T05"
 title: "Restyle sidebar with Tailwind and add Radix Collapsible"
 status: "planned"
-depends_on: ["T02"]
+depends_on: ["T02", "T03"]
 implements: ["FR#12", "AC#1", "AC#3"]
 ---
 

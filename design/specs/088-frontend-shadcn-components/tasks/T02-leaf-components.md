@@ -89,7 +89,7 @@ Read the current implementations of `button.tsx`, `badge.tsx`, `chip.tsx`, `card
 1. Generate: `npx shadcn@latest add tooltip`
 2. Update `handler-health-card.tsx` to use shadcn Tooltip (wrap trigger in `TooltipTrigger`, content in `TooltipContent`, wrapped in `Tooltip` and `TooltipProvider`).
 
-Delete all old component files (`.tsx`, `.module.css`, `.test.tsx`). Rewrite tests for the new shadcn APIs. Use `cn()` instead of `clsx()` in all modified files.
+Delete all old component files (`.tsx`, `.module.css`, `.test.tsx`). Rewrite tests for the new shadcn APIs — test files stay in their original locations (e.g., `components/shared/button.test.tsx` tests `components/ui/button.tsx`; the test path doesn't move to `ui/`). Use `cn()` instead of `clsx()` in all modified files.
 
 ## Focus
 
