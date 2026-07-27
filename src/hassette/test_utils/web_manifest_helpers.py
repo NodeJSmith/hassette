@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo
-from hassette.test_utils.config import DEFAULT_TEST_APP_KEY
+from hassette.test_utils.config import DEFAULT_TEST_APP_KEY, TEST_ISO_TIMESTAMP
 from hassette.web.models import (
     AppInstanceResponse,
     AppManifestListResponse,
@@ -120,8 +120,8 @@ def make_manifest_db_row(app_key: str = "my_app", **overrides: Any) -> dict[str,
         "enabled": 1,
         "autostart": 1,
         "auto_loaded": 0,
-        "created_at": "2024-01-01T00:00:00.000000",
-        "updated_at": "2024-01-01T00:00:00.000000",
+        "created_at": TEST_ISO_TIMESTAMP,
+        "updated_at": TEST_ISO_TIMESTAMP,
     }
     row.update(overrides)
     return row

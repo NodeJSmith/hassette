@@ -27,6 +27,8 @@ vi.mock("../components/shared/spinner", () => ({
 // uptimeSeconds=120 ensures useScopedQuery is enabled (since-restart preset requires uptime).
 const STATE_WITH_UPTIME = { stateOverrides: { uptimeSeconds: signal(120) } };
 
+const APP_GRID_URL = "/api/telemetry/dashboard/app-grid";
+
 describe("AppsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -34,22 +36,20 @@ describe("AppsPage", () => {
   });
 
   it("shows spinner while loading", () => {
-    server.use(http.get("/api/telemetry/dashboard/app-grid", () => new Promise(() => {})));
+    server.use(http.get(APP_GRID_URL, () => new Promise(() => {})));
     const { container } = renderWithAppState(<AppsPage />, STATE_WITH_UPTIME);
     expect(container.querySelector("[data-testid='spinner']")).not.toBeNull();
   });
 
   it("renders 'apps' heading when data loads", async () => {
-    server.use(
-      http.get("/api/telemetry/dashboard/app-grid", () => HttpResponse.json({ apps: [createAppGridEntry()] })),
-    );
+    server.use(http.get(APP_GRID_URL, () => HttpResponse.json({ apps: [createAppGridEntry()] })));
     const { findByRole } = renderWithAppState(<AppsPage />, STATE_WITH_UPTIME);
     expect(await findByRole("heading", { name: /apps/i })).toBeDefined();
   });
 
   it("renders stats strip with counts", async () => {
     server.use(
-      http.get("/api/telemetry/dashboard/app-grid", () =>
+      http.get(APP_GRID_URL, () =>
         HttpResponse.json({
           apps: [
             createAppGridEntry({ app_key: "a", status: "running" }),
@@ -63,9 +63,7 @@ describe("AppsPage", () => {
   });
 
   it("does not render legacy filter pills", async () => {
-    server.use(
-      http.get("/api/telemetry/dashboard/app-grid", () => HttpResponse.json({ apps: [createAppGridEntry()] })),
-    );
+    server.use(http.get(APP_GRID_URL, () => HttpResponse.json({ apps: [createAppGridEntry()] })));
     const { findByRole, queryByTestId } = renderWithAppState(<AppsPage />, STATE_WITH_UPTIME);
     // Wait for data to load before asserting absence
     await findByRole("heading", { name: /apps/i });
@@ -74,7 +72,7 @@ describe("AppsPage", () => {
 
   it("renders app rows in the table", async () => {
     server.use(
-      http.get("/api/telemetry/dashboard/app-grid", () =>
+      http.get(APP_GRID_URL, () =>
         HttpResponse.json({
           apps: [
             createAppGridEntry({ app_key: "app_a", status: "running" }),
@@ -89,9 +87,7 @@ describe("AppsPage", () => {
   });
 
   it("renders search input above the table", async () => {
-    server.use(
-      http.get("/api/telemetry/dashboard/app-grid", () => HttpResponse.json({ apps: [createAppGridEntry()] })),
-    );
+    server.use(http.get(APP_GRID_URL, () => HttpResponse.json({ apps: [createAppGridEntry()] })));
     const { findByTestId } = renderWithAppState(<AppsPage />, STATE_WITH_UPTIME);
     const search = await findByTestId("apps-search");
     expect(search).toBeDefined();
@@ -105,7 +101,7 @@ describe("AppsPage", () => {
 
   it("renders record count in the table footer", async () => {
     server.use(
-      http.get("/api/telemetry/dashboard/app-grid", () =>
+      http.get(APP_GRID_URL, () =>
         HttpResponse.json({
           apps: [
             createAppGridEntry({ app_key: "app_a", status: "running" }),
@@ -121,7 +117,7 @@ describe("AppsPage", () => {
   it("footer count updates when search filters results", async () => {
     mockSearch = "search=motion";
     server.use(
-      http.get("/api/telemetry/dashboard/app-grid", () =>
+      http.get(APP_GRID_URL, () =>
         HttpResponse.json({
           apps: [
             createAppGridEntry({ app_key: "motion_lights", status: "running" }),
@@ -137,7 +133,7 @@ describe("AppsPage", () => {
   describe("STATUS column filter", () => {
     it("renders a filter button on the STATUS column header", async () => {
       server.use(
-        http.get("/api/telemetry/dashboard/app-grid", () =>
+        http.get(APP_GRID_URL, () =>
           HttpResponse.json({ apps: [createAppGridEntry({ app_key: "app_a", status: "running" })] }),
         ),
       );
@@ -149,7 +145,7 @@ describe("AppsPage", () => {
 
     it("clicking the STATUS filter button opens the filter popover", async () => {
       server.use(
-        http.get("/api/telemetry/dashboard/app-grid", () =>
+        http.get(APP_GRID_URL, () =>
           HttpResponse.json({
             apps: [
               createAppGridEntry({ app_key: "running_app", status: "running" }),
@@ -170,7 +166,7 @@ describe("AppsPage", () => {
     it("reads filter from URL query params — only failed apps shown when filter=failed", async () => {
       mockSearch = "filter=failed";
       server.use(
-        http.get("/api/telemetry/dashboard/app-grid", () =>
+        http.get(APP_GRID_URL, () =>
           HttpResponse.json({
             apps: [
               createAppGridEntry({ app_key: "running_app", status: "running" }),
@@ -189,7 +185,7 @@ describe("AppsPage", () => {
     it("reads search from URL query params — filters apps by name", async () => {
       mockSearch = "search=motion";
       server.use(
-        http.get("/api/telemetry/dashboard/app-grid", () =>
+        http.get(APP_GRID_URL, () =>
           HttpResponse.json({
             apps: [
               createAppGridEntry({ app_key: "motion_lights", status: "running" }),
@@ -208,7 +204,7 @@ describe("AppsPage", () => {
     it("reads sort key from URL — defaults to status when absent", async () => {
       mockSearch = "";
       server.use(
-        http.get("/api/telemetry/dashboard/app-grid", () =>
+        http.get(APP_GRID_URL, () =>
           HttpResponse.json({ apps: [createAppGridEntry({ app_key: "app_a", status: "running" })] }),
         ),
       );
@@ -221,7 +217,7 @@ describe("AppsPage", () => {
     it("names the active filter in the empty state message", async () => {
       mockSearch = "filter=failed";
       server.use(
-        http.get("/api/telemetry/dashboard/app-grid", () =>
+        http.get(APP_GRID_URL, () =>
           HttpResponse.json({ apps: [createAppGridEntry({ app_key: "running_app", status: "running" })] }),
         ),
       );
@@ -232,7 +228,7 @@ describe("AppsPage", () => {
     it("provides a clear filters button in the empty state", async () => {
       mockSearch = "filter=failed";
       server.use(
-        http.get("/api/telemetry/dashboard/app-grid", () =>
+        http.get(APP_GRID_URL, () =>
           HttpResponse.json({ apps: [createAppGridEntry({ app_key: "running_app", status: "running" })] }),
         ),
       );
@@ -243,7 +239,7 @@ describe("AppsPage", () => {
     it("clicking clear filters calls navigate to reset filter and search", async () => {
       mockSearch = "filter=failed";
       server.use(
-        http.get("/api/telemetry/dashboard/app-grid", () =>
+        http.get(APP_GRID_URL, () =>
           HttpResponse.json({ apps: [createAppGridEntry({ app_key: "running_app", status: "running" })] }),
         ),
       );
@@ -259,9 +255,7 @@ describe("AppsPage", () => {
 
   describe("503 error state", () => {
     it("shows a telemetry-unavailable banner when the grid endpoint returns 503", async () => {
-      server.use(
-        http.get("/api/telemetry/dashboard/app-grid", () => HttpResponse.json({ detail: "db down" }, { status: 503 })),
-      );
+      server.use(http.get(APP_GRID_URL, () => HttpResponse.json({ detail: "db down" }, { status: 503 })));
       const { findByTestId } = renderWithAppState(<AppsPage />, STATE_WITH_UPTIME);
       const alert = await findByTestId("apps-load-error");
       expect(alert.textContent).toMatch(/telemetry unavailable/i);

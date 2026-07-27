@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 
 from hassette.core.database_service import DatabaseService
 from hassette.core.migration_runner import run_migrations
+from hassette.test_utils.config import LATEST_MIGRATION_VERSION
 
 EXPECTED_TABLES = {
     "sessions": {
@@ -199,7 +200,7 @@ def test_user_version_set_after_migration(tmp_path: Path) -> None:
     finally:
         conn.close()
 
-    assert version == 11
+    assert version == LATEST_MIGRATION_VERSION
 
 
 def test_auto_vacuum_set_on_fresh_db(tmp_path: Path) -> None:
@@ -242,7 +243,9 @@ def test_handle_schema_version_then_migrate_preserves_data(tmp_path: Path) -> No
     conn = sqlite3.connect(db_path)
     try:
         version = conn.execute("PRAGMA user_version").fetchone()[0]
-        assert version == 11, f"Expected schema version 11 after upgrade, got {version}"
+        assert version == LATEST_MIGRATION_VERSION, (
+            f"Expected schema version {LATEST_MIGRATION_VERSION} after upgrade, got {version}"
+        )
 
         session_count = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
         assert session_count == 1, "Session row lost during upgrade"

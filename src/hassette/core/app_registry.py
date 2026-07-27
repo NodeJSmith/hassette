@@ -1,5 +1,6 @@
 """App registry for tracking app state with queryable interface."""
 
+import dataclasses
 from collections import defaultdict
 from collections.abc import Iterable
 from logging import getLogger
@@ -304,42 +305,23 @@ def overlay_runtime_state(db_rows: list[dict[str, Any]], registry: AppRegistry) 
     for db_row in db_rows:
         app_key = db_row["app_key"]
         in_memory_manifest = registry.manifests.get(app_key)
+        static_fields = {
+            "class_name": db_row["class_name"],
+            "display_name": db_row["display_name"],
+            "filename": db_row["filename"],
+            "enabled": bool(db_row["enabled"]),
+            "auto_loaded": bool(db_row["auto_loaded"]),
+            "autostart": bool(db_row["autostart"]),
+        }
 
         if in_memory_manifest is not None:
+            # Static metadata still comes from the DB row (source of truth for config);
+            # only the computed runtime fields (status/instances/... ) come from `derived`.
             derived = registry.build_manifest_info(app_key, in_memory_manifest)
-            status = derived.status
-            instances = derived.instances
-            instance_count = derived.instance_count
-            block_reason = derived.block_reason
-            error_message = derived.error_message
-            error_traceback = derived.error_traceback
-            in_current_config = True
+            info = dataclasses.replace(derived, app_key=app_key, in_current_config=True, **static_fields)
         else:
-            status = "stopped"
-            instances = []
-            instance_count = 0
-            block_reason = None
-            error_message = None
-            error_traceback = None
-            in_current_config = False
+            info = AppManifestInfo(app_key=app_key, status="stopped", in_current_config=False, **static_fields)
 
-        results.append(
-            AppManifestInfo(
-                app_key=app_key,
-                class_name=db_row["class_name"],
-                display_name=db_row["display_name"],
-                filename=db_row["filename"],
-                enabled=bool(db_row["enabled"]),
-                auto_loaded=bool(db_row["auto_loaded"]),
-                status=status,
-                autostart=bool(db_row["autostart"]),
-                block_reason=block_reason,
-                instance_count=instance_count,
-                instances=instances,
-                error_message=error_message,
-                error_traceback=error_traceback,
-                in_current_config=in_current_config,
-            )
-        )
+        results.append(info)
 
     return results

@@ -182,6 +182,7 @@ def test_add_app_manifest_inserts_row_with_correct_fields(tmp_path: Path, monkey
     finally:
         conn.close()
 
+    # positions match the SELECT column list above: ..., enabled=0, autostart=0, auto_loaded=1
     assert row == ("manifest_test_app", "ManifestTestApp", "Manifest Test App", "manifest_test_app.py", 0, 0, 1)
 
 

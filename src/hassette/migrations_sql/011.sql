@@ -7,14 +7,15 @@
 -- place, not a history table.
 
 CREATE TABLE IF NOT EXISTS app_manifests (
-    id          INTEGER PRIMARY KEY,
-    app_key     TEXT NOT NULL UNIQUE,
-    class_name  TEXT NOT NULL,
+    id           INTEGER PRIMARY KEY,
+    app_key      TEXT NOT NULL UNIQUE,
+    class_name   TEXT NOT NULL,
     display_name TEXT NOT NULL,
-    filename    TEXT NOT NULL,
-    enabled     INTEGER NOT NULL DEFAULT 1,
-    autostart   INTEGER NOT NULL DEFAULT 1,
-    auto_loaded INTEGER NOT NULL DEFAULT 0,
-    created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%f', 'now')),
-    updated_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%f', 'now'))
+    filename     TEXT NOT NULL,
+    enabled      INTEGER NOT NULL DEFAULT 1,
+    autostart    INTEGER NOT NULL DEFAULT 1,
+    auto_loaded  INTEGER NOT NULL DEFAULT 0,
+    -- format must match the upsert's `updated_at` clause in telemetry/repository.py
+    created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%f', 'now')),
+    updated_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%f', 'now'))
 );

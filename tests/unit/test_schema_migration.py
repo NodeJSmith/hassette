@@ -11,7 +11,7 @@ import pytest
 from hassette.config.config import HassetteConfig
 from hassette.core.database_service import DatabaseService
 from hassette.core.migration_runner import run_migrations
-from hassette.test_utils.config import TEST_TOKEN
+from hassette.test_utils.config import LATEST_MIGRATION_VERSION, TEST_TOKEN
 from hassette.types.types import SourceTier
 
 
@@ -250,7 +250,7 @@ class TestFreshMigration:
         finally:
             conn.close()
 
-        assert version == 11
+        assert version == LATEST_MIGRATION_VERSION
 
     def test_listeners_has_mode_column_default_single(self, tmp_path: Path) -> None:
         """003.sql adds a mode column to listeners defaulting to 'single'."""
