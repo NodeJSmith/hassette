@@ -7,7 +7,7 @@ to records with ``execution_start_ts >= since``, or omit it for all-time aggrega
 
 import time
 from logging import getLogger
-from typing import TYPE_CHECKING, Literal, cast
+from typing import TYPE_CHECKING, Literal
 
 from fastapi import APIRouter, Query, Response
 
@@ -28,7 +28,7 @@ from hassette.web.dependencies import (
     TelemetryDep,
     db_degrades_to,
 )
-from hassette.web.mappers import instance_response_from, to_listener_with_summary
+from hassette.web.mappers import manifest_response_fields, to_listener_with_summary
 from hassette.web.models import (
     ActivityBucket,
     AppHealthResponse,
@@ -36,7 +36,6 @@ from hassette.web.models import (
     DashboardAppGridResponse,
     HealthStatus,
     ListenerWithSummary,
-    ManifestStatus,
     TelemetryStatusResponse,
 )
 from hassette.web.telemetry_helpers import (
@@ -355,10 +354,7 @@ async def dashboard_app_grid(
         err_info = per_app_errors.get(manifest.app_key)
         entries.append(
             DashboardAppGridEntry(
-                app_key=manifest.app_key,
-                status=cast("ManifestStatus", manifest.status),  # AppManifestInfo.status is str
-                display_name=manifest.display_name,
-                instance_count=manifest.instance_count,
+                **manifest_response_fields(manifest),
                 handler_count=health.handler_count,
                 job_count=health.job_count,
                 total_invocations=health.total_invocations,
@@ -376,16 +372,6 @@ async def dashboard_app_grid(
                 last_error_type=err_info.error_type if err_info else None,
                 last_error_ts=err_info.timestamp if err_info else None,
                 activity_buckets=[ActivityBucket(ok=ok, err=err) for ok, err in buckets],
-                class_name=manifest.class_name,
-                filename=manifest.filename,
-                enabled=manifest.enabled,
-                auto_loaded=manifest.auto_loaded,
-                autostart=manifest.autostart,
-                block_reason=manifest.block_reason,
-                instances=[instance_response_from(inst) for inst in manifest.instances],
-                error_message=manifest.error_message,
-                error_traceback=manifest.error_traceback,
-                in_current_config=manifest.in_current_config,
             )
         )
 
