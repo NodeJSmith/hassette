@@ -82,7 +82,7 @@
 
 .ht-level-start {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: var(--sp-3);
   flex-wrap: wrap;
 }

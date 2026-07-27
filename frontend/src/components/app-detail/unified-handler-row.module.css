@@ -62,7 +62,7 @@
 
 .header {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: var(--sp-2);
   min-width: 0;
 }

@@ -10,7 +10,7 @@
 
 .sectionHeader {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: var(--sp-3);
 }
 

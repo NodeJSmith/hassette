@@ -1,6 +1,6 @@
 .header {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: var(--sp-2);
   flex-wrap: wrap;
   margin-bottom: var(--sp-3);
