@@ -6,7 +6,7 @@ These build manifest and snapshot objects used by both e2e and integration web t
 from collections.abc import Sequence
 from typing import Any
 
-from hassette.schemas.app_snapshots import MANIFEST_STATUS_KEYS, AppFullSnapshot, AppInstanceInfo, AppManifestInfo
+from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo, tally_manifest_statuses
 from hassette.test_utils.config import DEFAULT_TEST_APP_KEY, TEST_ISO_TIMESTAMP
 from hassette.web.models import (
     AppInstanceResponse,
@@ -19,15 +19,11 @@ from hassette.web.models import (
 def _tally_statuses(manifests: Sequence[AppManifestInfo | AppManifestResponse]) -> dict[str, int]:
     """Count manifests by status.
 
-    A thin local wrapper around ``tally_manifest_statuses()`` (schemas.app_snapshots) that
-    accepts either ``AppManifestInfo`` or ``AppManifestResponse`` — the canonical function is
-    typed to ``AppManifestInfo`` only, but this helper is called with both in test code.
+    Delegates to ``tally_manifest_statuses()`` (schemas.app_snapshots), which only needs
+    ``.status`` on each item — safe for ``AppManifestResponse`` too despite the narrower
+    ``Iterable[AppManifestInfo]`` type hint.
     """
-    counts: dict[str, int] = dict.fromkeys(MANIFEST_STATUS_KEYS, 0)
-    for m in manifests:
-        if m.status in counts:
-            counts[m.status] += 1
-    return counts
+    return tally_manifest_statuses(manifests)  # pyright: ignore[reportArgumentType]
 
 
 def make_full_snapshot(
@@ -107,7 +103,7 @@ def make_manifest_response(
     )
 
 
-def make_manifest_db_row(app_key: str = "my_app", **overrides: Any) -> dict[str, Any]:
+def make_manifest_db_row(app_key: str = DEFAULT_TEST_APP_KEY, **overrides: Any) -> dict[str, Any]:
     """Build a plain dict shaped like a row from ``get_all_app_manifests()``/``get_app_manifest()``.
 
     Mocks the telemetry query service's raw DB-row return shape (10 fields) in web-layer
