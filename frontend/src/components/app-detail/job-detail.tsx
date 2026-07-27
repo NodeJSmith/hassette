@@ -1,3 +1,6 @@
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+
 import type { JobData } from "../../api/endpoints";
 import { getJobExecutions, triggerJob } from "../../api/endpoints";
 import { useAsyncAction } from "../../hooks/use-async-action";
@@ -9,8 +12,6 @@ import { useAppStore } from "../../state/store";
 import { DETAIL_FETCH_LIMIT } from "../../utils/constants";
 import { formatTriggerDetail } from "../../utils/format";
 import { handlerKindLabel } from "../../utils/status";
-import { Button } from "../shared/button";
-import { Chip } from "../shared/chip";
 import type { DetailStatsCell } from "../shared/detail-stats";
 import { DetailStats } from "../shared/detail-stats";
 import { ErrorBanner } from "../shared/error-banner";
@@ -36,9 +37,9 @@ function ScheduleChips({ job }: { job: JobData }) {
     <div className={chipStyles.chipRow} data-testid="schedule-chips">
       <HandlerModeChip mode={job.mode} />
       {chips.map((chip) => (
-        <Chip key={chip.label} variant="job">
+        <Badge key={chip.label} variant="job">
           {chip.label}
-        </Chip>
+        </Badge>
       ))}
     </div>
   );
@@ -50,7 +51,7 @@ function RunNowButton({ jobId }: { jobId: number }) {
   return (
     <div className={layoutStyles.runNow}>
       <Button
-        variant="primary"
+        variant="default"
         size="sm"
         data-testid="run-now-btn"
         disabled={loading}

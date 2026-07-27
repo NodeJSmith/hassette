@@ -1,9 +1,9 @@
+import { Badge } from "@/components/ui/badge";
+
 import type { components } from "../../api/generated-types";
 import styles from "../../pages/app-detail.module.css";
 import { statusToKind, statusToVariant } from "../../utils/status";
 import { ActionButtons } from "../shared/action-buttons";
-import { Badge } from "../shared/badge";
-import { Chip } from "../shared/chip";
 import { ErrorBanner } from "../shared/error-banner";
 import { StatusShape } from "../shared/status-shape";
 
@@ -60,9 +60,9 @@ export function AppDetailHeader({
           <>
             {" "}
             &middot;{" "}
-            <Chip variant="muted" data-testid="auto-loaded-badge">
+            <Badge variant="muted" data-testid="auto-loaded-badge">
               auto
-            </Chip>
+            </Badge>
           </>
         )}
         {/* Strict `=== false`, not `!manifest?.autostart`: `manifest` is undefined while
@@ -71,9 +71,9 @@ export function AppDetailHeader({
           <>
             {" "}
             &middot;{" "}
-            <Chip variant="muted" data-testid="no-autostart-badge">
+            <Badge variant="muted" data-testid="no-autostart-badge">
               no autostart
-            </Chip>
+            </Badge>
           </>
         )}
       </p>

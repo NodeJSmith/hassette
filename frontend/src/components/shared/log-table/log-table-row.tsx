@@ -3,12 +3,12 @@ import type { MouseEvent as ReactMouseEvent } from "react";
 import { useMemo } from "react";
 
 import type { LogEntry } from "@/api/endpoints";
+import { Button } from "@/components/ui/button";
 import { BREAKPOINT_MOBILE, useMediaQuery } from "@/hooks/use-media-query";
 import { useRelativeTime } from "@/hooks/use-relative-time";
 import { formatTimestamp, truncateId } from "@/utils/format";
 
 import { AppLink } from "../app-link";
-import { Button } from "../button";
 import { IconChevron } from "../icons";
 import { DETAIL_DRAWER_ID, LEVEL_ABBREV, levelClass } from "./constants";
 import { ExecutionIdLink } from "./execution-id-link";
@@ -99,9 +99,8 @@ export function LogTableRow({ entry, rowKey, visibleColumns, isSelected, onClick
       )}
       <td className={styles.detailCell}>
         <Button
-          ghost
-          icon
-          size="xs"
+          variant="ghost"
+          size="icon-xs"
           className={styles.detailBtn}
           onClick={onClick}
           tabIndex={tabIndex}

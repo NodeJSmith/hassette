@@ -1,58 +1,44 @@
-import { render } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { describe, expect, it } from "vitest";
 
-import { Tooltip } from "./tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
+function renderTooltip(label: string, trigger: ReactNode) {
+  return render(
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>{trigger}</TooltipTrigger>
+        <TooltipContent>{label}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>,
+  );
+}
 
 describe("Tooltip", () => {
-  it("renders children with data-tooltip and visually-hidden label", () => {
-    const { container } = render(
-      <Tooltip label="avg duration">
-        <span>23ms</span>
-      </Tooltip>,
-    );
-    const trigger = container.querySelector("[data-tooltip]");
-    expect(trigger).not.toBeNull();
-    expect(trigger!.getAttribute("data-tooltip")).toBe("avg duration");
-    expect(trigger!.textContent).toBe("avg duration: 23ms");
+  it("does not show the tooltip content until triggered", () => {
+    renderTooltip("avg duration", <span>23ms</span>);
+    expect(screen.queryByText("avg duration")).toBeNull();
   });
 
-  it("passes through the class prop to the trigger element", () => {
-    const { container } = render(
-      <Tooltip label="test" className="my-custom-class">
-        <span>val</span>
-      </Tooltip>,
-    );
-    const trigger = container.querySelector("[data-tooltip]");
-    expect(trigger!.className).toContain("my-custom-class");
+  it("shows the tooltip content on hover", async () => {
+    renderTooltip("avg duration", <span>23ms</span>);
+
+    fireEvent.pointerEnter(screen.getByText("23ms"));
+    fireEvent.pointerMove(screen.getByText("23ms"));
+
+    await waitFor(() => {
+      expect(screen.getAllByText("avg duration").length).toBeGreaterThan(0);
+    });
   });
 
-  it("renders without class prop", () => {
-    const { container } = render(
-      <Tooltip label="test">
-        <span>val</span>
-      </Tooltip>,
-    );
-    const trigger = container.querySelector("[data-tooltip]");
-    expect(trigger!.className).not.toBe("");
-  });
+  it("shows the tooltip content on focus", async () => {
+    renderTooltip("error rate", <button type="button">3 failed</button>);
 
-  it("does not add tabIndex by default", () => {
-    const { container } = render(
-      <Tooltip label="test">
-        <span>val</span>
-      </Tooltip>,
-    );
-    const trigger = container.querySelector("[data-tooltip]");
-    expect(trigger!.hasAttribute("tabindex")).toBe(false);
-  });
+    fireEvent.focus(screen.getByText("3 failed"));
 
-  it("adds tabIndex when focusable is true", () => {
-    const { container } = render(
-      <Tooltip label="test" focusable>
-        <span>val</span>
-      </Tooltip>,
-    );
-    const trigger = container.querySelector("[data-tooltip]");
-    expect(trigger!.getAttribute("tabindex")).toBe("0");
+    await waitFor(() => {
+      expect(screen.getAllByText("error rate").length).toBeGreaterThan(0);
+    });
   });
 });

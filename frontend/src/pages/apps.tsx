@@ -2,9 +2,10 @@ import { keepPreviousData } from "@tanstack/react-query";
 import clsx from "clsx";
 import { useState } from "react";
 
+import { Button } from "@/components/ui/button";
+
 import { ApiError } from "../api/client";
 import { getDashboardAppGrid } from "../api/endpoints";
-import { Button } from "../components/shared/button";
 import popoverStyles from "../components/shared/column-filter-popover/index.module.css";
 import { EmptyState } from "../components/shared/empty-state";
 import { SortHeader } from "../components/shared/sort-header";
@@ -270,7 +271,7 @@ export function AppsPage() {
           {filtered.length === 0 ? (
             <EmptyState title={emptyStateTitle}>
               {(filter !== "all" || search) && (
-                <Button ghost size="sm" onClick={clearFilters}>
+                <Button variant="ghost" size="sm" onClick={clearFilters}>
                   clear filters
                 </Button>
               )}

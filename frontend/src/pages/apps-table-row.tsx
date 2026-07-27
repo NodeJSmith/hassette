@@ -1,11 +1,11 @@
-import clsx from "clsx";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import { useState } from "react";
 
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+
 import { ActionButtons } from "../components/shared/action-buttons";
 import { AppLink } from "../components/shared/app-link";
-import { Badge } from "../components/shared/badge";
-import { Chip } from "../components/shared/chip";
 import { IconChevron } from "../components/shared/icons";
 import { MiniSparkline } from "../components/shared/mini-sparkline";
 import { StatusShape } from "../components/shared/status-shape";
@@ -42,7 +42,7 @@ export function AppTableRow({
 
   return (
     <>
-      <tr className={clsx(styles.row, isDimmed && styles.rowDimmed)} data-testid={`app-row-${app.app_key}`}>
+      <tr className={cn(styles.row, isDimmed && styles.rowDimmed)} data-testid={`app-row-${app.app_key}`}>
         {/* Name */}
         <td className={styles.nameCell}>
           <div className={styles.nameCellInner}>
@@ -63,16 +63,16 @@ export function AppTableRow({
             <StatusShape kind={kind} size={7} muted={muteStatus} />
             <AppLink appKey={app.app_key} />
             <span className={styles.className}>{app.class_name}</span>
-            {app.auto_loaded && <Chip variant="muted">auto</Chip>}
+            {app.auto_loaded && <Badge variant="muted">auto</Badge>}
             {!app.autostart && (
-              <Chip variant="muted" data-testid="no-autostart-chip">
+              <Badge variant="muted" data-testid="no-autostart-chip">
                 no autostart
-              </Chip>
+              </Badge>
             )}
             {!app.in_current_config && (
-              <Chip variant="muted" data-testid="removed-chip">
+              <Badge variant="muted" data-testid="removed-chip">
                 removed
-              </Chip>
+              </Badge>
             )}
           </div>
         </td>
@@ -85,7 +85,7 @@ export function AppTableRow({
         </td>
         {/* Error */}
         <td
-          className={clsx(styles.errorCell, showErrorExpanded && styles.errorCellExpanded)}
+          className={cn(styles.errorCell, showErrorExpanded && styles.errorCellExpanded)}
           {...(app.error_message
             ? {
                 role: "button",
@@ -132,7 +132,7 @@ export function AppTableRow({
           return (
             <tr
               key={`${app.app_key}-${inst.index}`}
-              className={clsx(styles.row, styles.rowInstance)}
+              className={cn(styles.row, styles.rowInstance)}
               data-testid={`instance-row-${app.app_key}-${inst.index}`}
             >
               <td className={styles.nameCell}>

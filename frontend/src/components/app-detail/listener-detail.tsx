@@ -1,3 +1,5 @@
+import { Badge } from "@/components/ui/badge";
+
 import type { ListenerData } from "../../api/endpoints";
 import { getListenerExecutions } from "../../api/endpoints";
 import { useQueryInvalidator } from "../../hooks/use-query-invalidator";
@@ -8,7 +10,6 @@ import { useAppStore } from "../../state/store";
 import { DETAIL_FETCH_LIMIT } from "../../utils/constants";
 import { lastDotSegment, MS_PER_SECOND } from "../../utils/format";
 import { handlerKindLabel } from "../../utils/status";
-import { Chip } from "../shared/chip";
 import type { DetailStatsCell } from "../shared/detail-stats";
 import { DetailStats } from "../shared/detail-stats";
 import { ErrorBanner } from "../shared/error-banner";
@@ -35,10 +36,10 @@ function ModifierChips({ listener }: { listener: ListenerData }) {
     <div className={chipStyles.chipRow} data-testid="modifier-chips">
       <HandlerModeChip mode={listener.mode} />
       {chips.map((chip) => (
-        <Chip key={chip.label} variant="listener">
+        <Badge key={chip.label} variant="listener">
           {chip.label}
           {chip.value ? ` ${chip.value}` : ""}
-        </Chip>
+        </Badge>
       ))}
     </div>
   );

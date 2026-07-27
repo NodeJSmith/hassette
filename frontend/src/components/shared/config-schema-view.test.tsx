@@ -120,7 +120,7 @@ describe("ConfigSchemaView", () => {
       const cell = getByTestId("config-value-log_format");
       expect(cell.textContent).toContain("auto");
       // Rendered through Badge (neutral variant), not the plain-string span.
-      expect(cell.querySelector("span")?.className).toMatch(/neutral/);
+      expect(cell.querySelector("span")?.getAttribute("data-variant")).toBe("neutral");
     });
 
     it("detects an enum nested inside an anyOf branch (StrEnum | None)", () => {
@@ -136,7 +136,7 @@ describe("ConfigSchemaView", () => {
       const { getByTestId } = render(<ConfigSchemaView schema={schema} values={{ behavior: "warn" }} />);
       const cell = getByTestId("config-value-behavior");
       expect(cell.textContent).toContain("warn");
-      expect(cell.querySelector("span")?.className).toMatch(/neutral/);
+      expect(cell.querySelector("span")?.getAttribute("data-variant")).toBe("neutral");
     });
   });
 

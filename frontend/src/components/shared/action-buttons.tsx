@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { Button } from "@/components/ui/button";
+
 import { reloadApp, startApp, stopApp } from "../../api/endpoints";
 import { useAsyncAction } from "../../hooks/use-async-action";
 import styles from "./action-buttons.module.css";
-import { Button } from "./button";
 import { ConfirmDialog } from "./confirm-dialog";
 import { IconPlay, IconRefresh, IconSquare } from "./icons";
 
@@ -63,10 +64,8 @@ export function ActionButtons({ appKey, status, variant = "icon", confirmStop = 
       <div className={styles.btnGroup} data-role="action-buttons" data-testid="action-buttons">
         {canStart && (
           <Button
-            variant="success"
-            size={isIcon ? undefined : "sm"}
-            ghost={isIcon}
-            icon={isIcon}
+            variant={isIcon ? "success-ghost" : "success"}
+            size={isIcon ? "icon" : "sm"}
             data-testid={`btn-start-${appKey}`}
             disabled={loading}
             onClick={() => void exec("start")}
@@ -84,10 +83,8 @@ export function ActionButtons({ appKey, status, variant = "icon", confirmStop = 
         )}
         {canReload && (
           <Button
-            variant={isIcon ? "info" : undefined}
-            size={isIcon ? undefined : "sm"}
-            ghost={isIcon}
-            icon={isIcon}
+            variant={isIcon ? "info-ghost" : "outline"}
+            size={isIcon ? "icon" : "sm"}
             data-testid={`btn-reload-${appKey}`}
             disabled={loading}
             onClick={() => void exec("reload")}
@@ -105,10 +102,8 @@ export function ActionButtons({ appKey, status, variant = "icon", confirmStop = 
         )}
         {canStop && (
           <Button
-            variant={isIcon ? "warning" : "danger"}
-            size={isIcon ? undefined : "sm"}
-            ghost={isIcon}
-            icon={isIcon}
+            variant={isIcon ? "warning-ghost" : "danger"}
+            size={isIcon ? "icon" : "sm"}
             data-testid={`btn-stop-${appKey}`}
             disabled={loading}
             onClick={handleStop}

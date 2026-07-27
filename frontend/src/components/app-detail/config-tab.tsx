@@ -1,11 +1,12 @@
-import clsx from "clsx";
 import { useEffect, useState } from "react";
+
+import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 import type { ConfigRecord, SchemaNode } from "../../api/config-view-types";
 import type { AppConfigData } from "../../api/endpoints";
 import { getAppConfig } from "../../api/endpoints";
 import { getShikiHighlighter, SHIKI_THEMES } from "../../utils/shiki";
-import { Card } from "../shared/card";
 import { ConfigSchemaView, ExpandableValue } from "../shared/config-schema-view";
 import { EmptyState } from "../shared/empty-state";
 import { Spinner } from "../shared/spinner";
@@ -33,7 +34,7 @@ function SimpleConfigTable({ config }: { config: ConfigRecord }) {
   }
 
   return (
-    <table className={clsx("ht-table", styles.table)} data-testid="config-values-table">
+    <table className={cn("ht-table", styles.table)} data-testid="config-values-table">
       <thead>
         <tr>
           <th className={styles.colKey} scope="col">

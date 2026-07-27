@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 import { ErrorBoundary as ReactErrorBoundary, type FallbackProps } from "react-error-boundary";
 
-import { Button } from "../shared/button";
-import { Card } from "../shared/card";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 
 interface Props {
   children: ReactNode;
@@ -15,7 +15,7 @@ function ErrorFallback({ error, resetErrorBoundary }: FallbackProps) {
     <Card variant="error" role="alert" data-testid="error-card">
       <h2>Something went wrong</h2>
       <p className="ht-text-secondary">{message}</p>
-      <Button variant="primary" onClick={resetErrorBoundary}>
+      <Button variant="default" onClick={resetErrorBoundary}>
         Retry
       </Button>
     </Card>

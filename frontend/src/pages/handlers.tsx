@@ -1,5 +1,6 @@
+import { Button } from "@/components/ui/button";
+
 import { getAllJobs, getAllListeners } from "../api/endpoints";
-import { Button } from "../components/shared/button";
 import { EmptyState } from "../components/shared/empty-state";
 import { SortHeader, type SortState } from "../components/shared/sort-header";
 import { Spinner } from "../components/shared/spinner";
@@ -190,7 +191,7 @@ export function HandlersPage() {
           {sorted.length === 0 ? (
             <EmptyState title={emptyStateTitle} data-testid="handlers-empty">
               {(selectedApp || search) && (
-                <Button ghost size="sm" onClick={clearFilters}>
+                <Button variant="ghost" size="sm" onClick={clearFilters}>
                   clear filters
                 </Button>
               )}

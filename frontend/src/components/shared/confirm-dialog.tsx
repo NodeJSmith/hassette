@@ -1,7 +1,8 @@
 import { useEffect, useRef } from "react";
 
+import { Button } from "@/components/ui/button";
+
 import { wrapFocusOnTab } from "../../utils/focus-trap";
-import { Button } from "./button";
 import styles from "./confirm-dialog.module.css";
 
 interface Props {
@@ -77,7 +78,8 @@ export function ConfirmDialog({ title, body, confirmLabel, onConfirm, onCancel, 
         </p>
         <div className={styles.actions}>
           <Button
-            buttonRef={(el) => {
+            variant="outline"
+            ref={(el) => {
               cancelRef.current = el;
             }}
             onClick={onCancel}
@@ -85,8 +87,8 @@ export function ConfirmDialog({ title, body, confirmLabel, onConfirm, onCancel, 
             Cancel
           </Button>
           <Button
-            variant={tone === "danger" ? "danger" : "primary"}
-            buttonRef={(el) => {
+            variant={tone === "danger" ? "danger" : "default"}
+            ref={(el) => {
               confirmRef.current = el;
             }}
             data-testid={tone === "danger" ? "confirm-btn-danger" : "confirm-btn"}

@@ -2,6 +2,9 @@ import clsx from "clsx";
 import { useState } from "react";
 import { Link, useLocation, useSearch } from "wouter";
 
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+
 import type { components } from "../../api/generated-types";
 import { useManifests } from "../../hooks/use-manifests";
 import { useSidebarHidden } from "../../hooks/use-sidebar-hidden";
@@ -10,8 +13,6 @@ import { appDetailPath, HOME_PATH, NAV_PAGES } from "../../utils/app-routes";
 import { STATUS_DOT_SIZE } from "../../utils/constants";
 import { SHORTCUT_HINT } from "../../utils/keyboard";
 import { statusToKind } from "../../utils/status";
-import { Button } from "../shared/button";
-import { Chip } from "../shared/chip";
 import { Spinner } from "../shared/spinner";
 import { StatusShape } from "../shared/status-shape";
 import { SystemHealth } from "../shared/system-health";
@@ -64,9 +65,9 @@ function AppEntry({ manifest, location, searchString }: AppEntryProps) {
           <StatusShape kind={kind} size={STATUS_DOT_SIZE} />
           <span className={styles.appName}>{manifest.display_name}</span>
           {manifest.auto_loaded && (
-            <Chip variant="muted" title="Auto-loaded">
+            <Badge variant="muted" title="Auto-loaded">
               auto
-            </Chip>
+            </Badge>
           )}
         </Link>
         {isMulti && (
@@ -187,9 +188,8 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
           )}
         </div>
         <Button
-          icon
-          ghost
-          size="sm"
+          variant="ghost"
+          size="icon-sm"
           className={styles.collapseToggle}
           title="Collapse sidebar ([)"
           aria-label="Collapse sidebar"

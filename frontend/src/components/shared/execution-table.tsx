@@ -2,13 +2,14 @@ import clsx from "clsx";
 import { useState } from "react";
 import { useLocation } from "wouter";
 
+import { Badge } from "@/components/ui/badge";
+
 import { useRovingTabIndex } from "../../hooks/use-roving-tab-index";
 import { executionPath, type HandlerKind } from "../../utils/app-routes";
 import { STATUS_DOT_SIZE } from "../../utils/constants";
 import { formatDuration, formatRelativeTime, formatTimestamp } from "../../utils/format";
 import { onActivateKeyDown } from "../../utils/keyboard";
 import { executionStatusKind, type StatusKind } from "../../utils/status";
-import { Badge } from "./badge";
 import { EmptyState } from "./empty-state";
 import styles from "./execution-table.module.css";
 import { IconArrowRight } from "./icons";

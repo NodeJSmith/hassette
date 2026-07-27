@@ -21,10 +21,11 @@
 
 import { useState } from "react";
 
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+
 import type { ConfigRecord, SchemaNode, UiHints } from "../../api/config-view-types";
 import { MS_PER_SECOND, SECONDS_PER_HOUR, SECONDS_PER_MINUTE } from "../../utils/format";
-import { Badge } from "./badge";
-import { Card } from "./card";
 import styles from "./config-schema-view.module.css";
 import { EmptyState } from "./empty-state";
 import { IconChevron } from "./icons";

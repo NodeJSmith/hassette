@@ -1,11 +1,11 @@
-import clsx from "clsx";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 import type { JobData, ListenerData } from "../../api/endpoints";
 import { useRelativeTime } from "../../hooks/use-relative-time";
 import { STATUS_DOT_SIZE } from "../../utils/constants";
 import { formatTimestamp, pluralize } from "../../utils/format";
 import type { StatusKind } from "../../utils/status";
-import { Badge } from "../shared/badge";
 import { StatusShape } from "../shared/status-shape";
 import { isFailing, itemErrorMessage, itemKindChip, itemRunCount } from "./overview-tab-helpers";
 import styles from "./unified-handler-row.module.css";
@@ -67,7 +67,7 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
   return (
     <button
       type="button"
-      className={clsx(styles.row, isSelected && styles.rowSelected, isIdle && styles.rowIdle)}
+      className={cn(styles.row, isSelected && styles.rowSelected, isIdle && styles.rowIdle)}
       data-testid={`unified-row-${item.kind}-${item.id}`}
       aria-pressed={isSelected}
       aria-label={label}

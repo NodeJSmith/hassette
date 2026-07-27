@@ -1,12 +1,13 @@
-import clsx from "clsx";
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
+
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 import type { JobData, ListenerData } from "../../api/endpoints";
 import { useCorrectUrl } from "../../hooks/use-correct-url";
 import { BREAKPOINT_MOBILE } from "../../hooks/use-media-query";
 import { appHandlersPath, handlerPath } from "../../utils/app-routes";
-import { Button } from "../shared/button";
 import { EmptyState } from "../shared/empty-state";
 import { ExecutionDetailFetcher } from "./execution-detail";
 import { HandlerList, type SelectedHandlerId } from "./handler-list";
@@ -154,7 +155,7 @@ export function HandlersTab({
         <div ref={containerRef} className={styles.container}>
           {showMobileDetail && (
             <Button
-              ghost
+              variant="ghost"
               size="sm"
               className="ht-mb-3"
               data-testid="back-to-list"
@@ -165,7 +166,7 @@ export function HandlersTab({
             </Button>
           )}
 
-          <div className={clsx(styles.masterDetail, isMobile && styles.masterDetailMobile)}>
+          <div className={cn(styles.masterDetail, isMobile && styles.masterDetailMobile)}>
             {showMasterList && (
               <div className={styles.masterDetailList}>
                 <HandlerList listeners={listeners} jobs={jobs} selectedId={selectedId} onSelect={handleSelect} />

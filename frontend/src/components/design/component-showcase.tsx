@@ -1,7 +1,7 @@
-import { Badge } from "../shared/badge";
-import { Button } from "../shared/button";
-import { Card } from "../shared/card";
-import { Chip } from "../shared/chip";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+
 import { Spinner } from "../shared/spinner";
 import { StatusShape } from "../shared/status-shape";
 import styles from "./component-showcase.module.css";
@@ -16,7 +16,7 @@ export function ComponentShowcase() {
         <h3 className={s.groupLabel}>Button</h3>
         <div className={styles.row}>
           <Button>Default</Button>
-          <Button variant="primary">Primary</Button>
+          <Button variant="default">Primary</Button>
           <Button variant="success">Success</Button>
           <Button variant="warning">Warning</Button>
           <Button variant="danger">Danger</Button>
@@ -52,20 +52,18 @@ export function ComponentShowcase() {
       </div>
 
       <div className={s.group}>
-        <h3 className={s.groupLabel}>Chip</h3>
+        <h3 className={s.groupLabel}>Badge (chip variants)</h3>
         <div className={styles.row}>
-          <Chip variant="listener">Listener</Chip>
-          <Chip variant="job">Job</Chip>
-          <Chip variant="kind" kind="ok">
-            Kind
-          </Chip>
-          <Chip variant="origin">Origin</Chip>
-          <Chip variant="muted">Muted</Chip>
+          <Badge variant="listener">Listener</Badge>
+          <Badge variant="job">Job</Badge>
+          <Badge variant="kind-ok">Kind</Badge>
+          <Badge variant="origin">Origin</Badge>
+          <Badge variant="muted">Muted</Badge>
         </div>
         <div className={styles.row}>
-          <Chip variant="listener" size="sm">
+          <Badge variant="listener" size="sm">
             Small
-          </Chip>
+          </Badge>
         </div>
       </div>
 

@@ -1,4 +1,5 @@
-import { Button } from "./button";
+import { Button } from "@/components/ui/button";
+
 import styles from "./show-more-button.module.css";
 
 interface Props {
@@ -9,7 +10,7 @@ interface Props {
 
 export function ShowMoreButton({ showAll, onToggle, totalCount }: Props) {
   return (
-    <Button ghost size="xs" className={styles.showMore} onClick={onToggle}>
+    <Button variant="ghost" size="xs" className={styles.showMore} onClick={onToggle}>
       {showAll ? "Show less" : `Show all ${totalCount}`}
     </Button>
   );

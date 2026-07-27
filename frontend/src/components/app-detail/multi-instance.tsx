@@ -1,10 +1,10 @@
-import clsx from "clsx";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 import type { AppInstance } from "../../api/endpoints";
 import styles from "../../pages/app-detail.module.css";
 import { STATUS_DOT_SIZE } from "../../utils/constants";
 import { statusToKind, statusToVariant } from "../../utils/status";
-import { Badge } from "../shared/badge";
 import { StatusShape } from "../shared/status-shape";
 
 export function InstanceSwitcher({
@@ -26,7 +26,7 @@ export function InstanceSwitcher({
             type="button"
             role="tab"
             aria-selected={isActive}
-            className={clsx(styles.instanceSwitcherBtn, isActive && styles.instanceSwitcherBtnActive)}
+            className={cn(styles.instanceSwitcherBtn, isActive && styles.instanceSwitcherBtnActive)}
             data-testid={`switcher-instance-${inst.index}`}
             onClick={() => {
               if (!isActive) onNavigate(inst.index);

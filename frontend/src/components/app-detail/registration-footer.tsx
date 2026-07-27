@@ -1,7 +1,8 @@
 import { useState } from "react";
 
+import { Button } from "@/components/ui/button";
+
 import { parseSourceLocation } from "../../utils/format";
-import { Button } from "../shared/button";
 import { IconArrowRight, IconChevron } from "../shared/icons";
 import { RegistrationSource } from "../shared/registration-source";
 import { SourceLocation } from "../shared/source-location";
@@ -45,8 +46,7 @@ export function RegistrationFooter({
         <div className={styles.footerActions}>
           {onViewCode && sourceLocation && (
             <Button
-              variant="info"
-              ghost
+              variant="info-ghost"
               size="sm"
               data-testid="view-in-code-btn"
               onClick={() => onViewCode(sourceLine ?? undefined)}
@@ -57,8 +57,7 @@ export function RegistrationFooter({
           )}
           {registrationSource && (
             <Button
-              variant="info"
-              ghost
+              variant="info-ghost"
               size="sm"
               data-testid={`${kind}-registration-toggle`}
               aria-expanded={registrationExpanded}
