@@ -54,7 +54,7 @@ Run `uv run python scripts/export_schemas.py --types` to regenerate `openapi.jso
 ### Update test factories
 
 - `web_response_helpers.py`: Update `make_dashboard_app_grid_entry()` to include defaults for new fields.
-- `web_manifest_helpers.py`: Update `make_app_manifest_info()`, `make_app_manifest_response()` etc. with `in_current_config` default.
+- `web_manifest_helpers.py`: Update `make_manifest()`, `make_manifest_response()`, `make_manifest_list_response()`, `make_full_snapshot()` etc. with `in_current_config` default. (Note: the actual function names use `make_manifest*`, not `make_app_manifest*`.)
 - `web_mocks.py`: Update any mock fixtures if `AppManifestInfo` structure changed.
 - `tests/unit/test_model_types.py`: Add/update tests for the extended `DashboardAppGridEntry` and `AppManifestResponse` with new fields.
 

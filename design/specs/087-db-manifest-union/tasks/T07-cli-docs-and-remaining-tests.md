@@ -36,10 +36,7 @@ Update the CLI module to handle the new `in_current_config` field on `AppManifes
 
 ### Documentation
 
-Update `src/hassette/web/CLAUDE.md`:
-- Add the new spine query as a new Category B site in the classification table
-- Existing enrichment sites #9-#12 stay Category C
-- Update the count summary line
+Update `src/hassette/web/CLAUDE.md` **only if T03 did not already do this** — T03 also lists this file as a target. Check whether the classification table already has the new spine query as Category B before editing. If already updated, skip.
 
 Check the project root `CLAUDE.md`'s Architecture section — if the description of `AppRegistry` or `RuntimeQueryService` references "web routes use get_all_manifests_snapshot()", update it to reflect the DB-spine change.
 
