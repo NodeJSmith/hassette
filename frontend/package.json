@@ -29,7 +29,8 @@
     "preact": "^10.29.0",
     "shiki": "^4.3.0",
     "sonner": "^2.0.7",
-    "wouter": "^3.10.0"
+    "wouter": "^3.10.0",
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

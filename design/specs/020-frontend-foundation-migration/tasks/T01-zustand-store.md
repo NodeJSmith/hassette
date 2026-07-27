@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Create Zustand store with all fields and actions"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#3", "FR#11"]
 ---
