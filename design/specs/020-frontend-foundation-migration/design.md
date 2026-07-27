@@ -65,7 +65,7 @@ The flat signal-based state architecture (`create-app-state.ts` — a bag of ~18
 - **FR#4** All code that mutates global store state outside a render body — the WebSocket handler, the telemetry health poller, the tick interval, the sidebar keydown handler — uses Zustand actions via `useAppStore.getState()`, not direct signal writes or stale selector values.
 - **FR#5** The `AppStateContext` and `useAppState()` hook are removed — components use `useAppStore()` selectors.
 - **FR#6** Tailwind CSS v4 is active via `@tailwindcss/vite` plugin, coexisting with CSS Modules.
-- **FR#7** shadcn/ui is initialized with New York style and theme CSS variables mapped to the existing design token values.
+- **FR#7** shadcn/ui is initialized with New York style, `components.json` configured, and component directory created. Token mapping (aliasing shadcn theme variables to existing design tokens) is deferred to spec 2.
 - **FR#8** TanStack Query uses `@tanstack/react-query` (API-identical import swap).
 - **FR#9** Tests use `@testing-library/react` and the `renderWithAppState` helper is rewritten for Zustand.
 - **FR#10** The error boundary uses `react-error-boundary` (replacing Preact's `useErrorBoundary` hook).
