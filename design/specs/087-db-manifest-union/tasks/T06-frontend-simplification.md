@@ -1,7 +1,7 @@
 ---
 task_id: "T06"
 title: "Simplify frontend apps page to use grid endpoint"
-status: "planned"
+status: "done"
 depends_on: ["T03", "T04"]
 implements: ["FR#9", "AC#8"]
 ---
