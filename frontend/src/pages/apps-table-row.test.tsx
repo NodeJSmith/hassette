@@ -32,6 +32,7 @@ function createAppRow(overrides: Partial<AppRow> = {}): AppRow {
     instance_count: 1,
     instances: [],
     error_message: null,
+    in_current_config: true,
     handler_count: 3,
     job_count: 1,
     total_invocations: 100,
@@ -273,6 +274,16 @@ describe("AppTableRow", () => {
   it("does not show 'no autostart' chip when autostart is true", () => {
     const { queryByText } = renderRow({ app: createAppRow({ autostart: true }) });
     expect(queryByText("no autostart")).toBeNull();
+  });
+
+  it("shows 'removed' chip when in_current_config is false", () => {
+    const { getByText } = renderRow({ app: createAppRow({ in_current_config: false }) });
+    expect(getByText("removed")).toBeDefined();
+  });
+
+  it("does not show 'removed' chip when in_current_config is true", () => {
+    const { queryByText } = renderRow({ app: createAppRow({ in_current_config: true }) });
+    expect(queryByText("removed")).toBeNull();
   });
 
   describe("dimmed styling for inactive statuses", () => {

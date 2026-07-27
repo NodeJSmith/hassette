@@ -16,6 +16,7 @@ export interface AppRow {
   instance_count: number;
   instances: NonNullable<DashboardAppGridEntry["instances"]>;
   error_message: string | null;
+  in_current_config: boolean;
   handler_count: number;
   job_count: number;
   total_invocations: number;
@@ -52,6 +53,7 @@ export function toAppRow(entry: DashboardAppGridEntry): AppRow {
     instance_count: entry.instance_count,
     instances: entry.instances ?? [],
     error_message: entry.error_message ?? null,
+    in_current_config: entry.in_current_config,
     handler_count: entry.handler_count,
     job_count: entry.job_count,
     total_invocations: entry.total_invocations,
