@@ -1,7 +1,7 @@
 ---
 task_id: "T07"
 title: "Update CLI, docs, and remaining test gaps"
-status: "planned"
+status: "done"
 depends_on: ["T03", "T04"]
 implements: ["FR#2", "FR#3", "AC#2"]
 ---
