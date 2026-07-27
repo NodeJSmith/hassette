@@ -125,7 +125,12 @@ export function AppsPage() {
     data: gridData,
     error: gridError,
     isPending: gridLoading,
-  } = useScopedQuery(queryKeys.dashboardGrid(), (since, signal) => getDashboardAppGrid(since, signal));
+  } = useScopedQuery(queryKeys.dashboardGrid(), (since, signal) => getDashboardAppGrid(since, signal), {
+    // The apps list must render even when HA/WS is unreachable (design/specs/018-dashboard-without-ha) —
+    // don't block on uptimeSeconds like other scoped views. Falls back to an all-time window until
+    // uptime arrives, then refetches with the accurate restart-relative window.
+    waitForUptime: false,
+  });
 
   useQueryInvalidator(executionCompleted, (events) => events !== null, queryKeys.dashboardGrid());
 

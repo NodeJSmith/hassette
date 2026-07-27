@@ -41,6 +41,15 @@ describe("AppsPage", () => {
     expect(container.querySelector("[data-testid='spinner']")).not.toBeNull();
   });
 
+  it("renders app rows without WS-provided uptimeSeconds (HA unreachable)", async () => {
+    // Regression test for design/specs/018-dashboard-without-ha: the apps page must render
+    // even when the WS never connects (uptimeSeconds stays null), not spin forever on the
+    // default since-restart preset.
+    server.use(http.get(APP_GRID_URL, () => HttpResponse.json({ apps: [createAppGridEntry({ app_key: "my_app" })] })));
+    const { findByTestId } = renderWithAppState(<AppsPage />);
+    expect(await findByTestId("app-row-my_app")).toBeDefined();
+  });
+
   it("renders 'apps' heading when data loads", async () => {
     server.use(http.get(APP_GRID_URL, () => HttpResponse.json({ apps: [createAppGridEntry()] })));
     const { findByRole } = renderWithAppState(<AppsPage />, STATE_WITH_UPTIME);
