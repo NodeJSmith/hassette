@@ -62,8 +62,8 @@ This spec replaces the hand-rolled component layer with shadcn/ui primitives and
 
 ## Functional Requirements
 
-- **FR#1** All 136 design tokens in `tokens.css` use shadcn-compatible naming: surfaces map to `--background`/`--card`/`--muted`/`--accent`, text to `--foreground`/`--muted-foreground`, borders to `--border`, brand/action color to `--primary`, error to `--destructive`. Domain-specific tokens (status colors, handler families, type scale) use prefixed custom extensions (`--status-*`, `--handler-*`, `--text-*`).
-- **FR#2** The `--accent` collision is resolved: hassette's brand/action color (`--accent`) becomes `--primary`; hassette's highlighted-background (`--bg-active`) becomes `--accent` (matching shadcn's semantic role).
+- **FR#1** All 136 design tokens in `tokens.css` use shadcn-compatible naming: surfaces map to `--background`/`--card`/`--muted`/`--highlight-bg` (see FR#2 — the highlight-background role is exposed under a new name, not `--accent`), text to `--foreground`/`--muted-foreground`, borders to `--border`, brand/action color to `--primary`, error to `--destructive`. Domain-specific tokens (status colors, handler families, type scale) use prefixed custom extensions (`--status-*`, `--handler-*`, `--text-*`).
+- **FR#2** The `--accent` collision is resolved without redefining `--accent` itself: hassette's brand/action color (`--accent`) is aliased to `--primary` (sourced from the same underlying `--accent-hue`/`--accent-chroma` primitives, not `var(--accent)`, since nothing in the alias ruleset may read `var(--accent)` if it were later reassigned). Hassette's highlighted-background (`--bg-active`) is exposed under a new, non-colliding property name (`--highlight-bg`), and Tailwind's `@theme inline` `--color-accent` mapping (shadcn's semantic "accent" role) sources from `--highlight-bg` instead of `--accent`. The literal `--accent` custom property is left completely untouched, still resolving to the brand color for the ~25 existing CSS Module files that reference `var(--accent)` directly — this preserves the Blast Radius section's "CSS Modules keep working unmodified" guarantee, which a literal `--accent: var(--bg-active)` redefinition would silently violate (CSS custom properties have no per-consumer scoping — a single cascaded value applies document-wide, including to legacy consumers, regardless of source order).
 - **FR#3** shadcn Button replaces `components/shared/button.tsx`. All consumers update to shadcn's prop API (`variant`, `size`). The current `ghost` boolean becomes `variant="ghost"`. The `buttonRef` prop becomes React's standard `ref` forwarding.
 - **FR#4** shadcn Badge replaces `components/shared/badge.tsx` and `components/shared/chip.tsx`. The Chip's discriminated-union props interface is simplified to Badge variants. Consumer call sites update directly to the new API.
 - **FR#5** shadcn Card replaces `components/shared/card.tsx`. The `diagnostics.tsx` direct CSS Module import is converted to use the Card component.
@@ -83,7 +83,7 @@ This spec replaces the hand-rolled component layer with shadcn/ui primitives and
 ## Edge Cases
 
 - **Token rename misses** — a `var(--bg-base)` reference in a CSS Module or inline style that the rename script misses, causing a runtime fallback to `initial`. Mitigation: the token rename script must be followed by a grep-verify step confirming zero remaining old token names across all CSS/TSX files.
-- **`--accent` semantic swap** — old `--accent` (brand color) becomes `--primary`, while `--bg-active` (highlight) becomes `--accent`. A naive find-replace would break this. Mitigation: the rename script must process `--accent` → `--primary` and `--bg-active` → `--accent` in a specific order to avoid double-renaming. Use a two-pass approach or temporary sentinel names.
+- **`--accent` self-collision** — `--accent` is the one token where the new shadcn-standard name is identical to the pre-existing hassette name. Because this task uses an alias layer (not a destructive rename script), a literal `--accent: var(--bg-active)` declaration would redefine the *only* `--accent` custom property in the document — CSS custom properties resolve `var()` against the final cascaded value, not the value at the point of textual declaration, so this single redefinition silently flips every `var(--accent)` reference in the whole app (including the ~25 existing CSS Module files that expect the brand-color meaning, and any new alias — `--primary`, `--ring`, `--chart-5`, `--sidebar-primary`, `--sidebar-ring` — that reads `var(--accent)` in the same ruleset) to the highlight-background value, regardless of source order. This was caught by review during T01 (verified via runtime `getComputedStyle`, not just static inspection) — the original plan below ("aliases can be declared in any order... eliminates the swap collision entirely") was wrong specifically for this one token. Mitigation: do NOT declare a new `--accent` property at all. Source `--primary` (and everything derived from it) directly from the underlying `--accent-hue`/`--accent-chroma` primitives. Expose the highlight-background value under a distinct new name, `--highlight-bg: var(--bg-active)`, and point Tailwind's `@theme inline` `--color-accent` mapping at `--highlight-bg` instead of `--accent`. The literal `--accent` property is left untouched, so legacy CSS Module consumers are unaffected.
 - **Chip discriminated union simplification** — `Chip`'s discriminated-union props (`variant: "kind"` requires `kind: ChipKind`; other variants disallow `kind` via `never`) is replaced by simpler Badge variants. Consumer call sites that relied on the type constraint need manual review.
 - **Sidebar keyboard shortcut** — the current shortcut is `[` (bare key, not Cmd+B), guarded by `isTypingTarget()` to prevent firing while typing in inputs. shadcn Sidebar hardcodes `Cmd+B`. The vendored `components/ui/sidebar.tsx` must be edited to restore `[` with the typing-target guard.
 - **Sidebar mobile breakpoint** — shadcn's internal mobile detection defaults to 768px; hassette uses 900px (`BREAKPOINT_SIDEBAR`). The vendored sidebar source must use hassette's breakpoint.
@@ -114,7 +114,7 @@ This spec replaces the hand-rolled component layer with shadcn/ui primitives and
 - **Do not adopt TanStack's `columnVisibility` state management.** Keep `useColumnVisibility` as-is — it handles viewport-forced hiding (`REQUIRED_COLUMNS`, `viewportHidden`) that TanStack's visibility state has no concept of. Add a code comment at the `useReactTable({ columns: ... })` call site documenting this constraint, so a future contributor doesn't "fix" it by switching to TanStack's `columnVisibility` and reintroducing the viewport/required-column bugs.
 - **Do not modify CSS Module files.** They must continue working for the transition period. PR 2 handles their conversion to Tailwind utilities.
 - **Do not remove `tokens.css`.** Rewrite it with new names, but keep the file. PR 2 removes it after all `var()` references migrate to Tailwind utilities.
-- **The token alias layer must not collide with existing names.** The alias block in `global.css` defines new names (`--primary`, `--background`, etc.) pointing at old values (`var(--accent)`, `var(--bg-page)`, etc.). Since aliases reference old names rather than replacing them, the `--accent` ↔ `--primary` swap ordering problem is eliminated.
+- **The token alias layer must not collide with existing names.** The alias block in `global.css` defines new names (`--primary`, `--background`, etc.) pointing at old values (`var(--bg-page)`, etc.). This holds for every token except `--accent`, where the new shadcn-standard name is identical to hassette's pre-existing name — for that one token, the alias layer introduces a genuinely new name (`--highlight-bg`) for the new semantic role instead of reusing `--accent`, so the literal `--accent` property is never redefined and legacy consumers are unaffected. See Edge Cases ("`--accent` self-collision") for the full mechanism.
 
 ## Dependencies and Assumptions
 
@@ -133,7 +133,7 @@ This spec replaces the hand-rolled component layer with shadcn/ui primitives and
 
 Instead of destructively renaming tokens across all 63 CSS Module files (which PR 2 will rewrite anyway during Tailwind conversion), add the 136 new shadcn-named custom properties as an alias block in `global.css` pointing at the existing token values. Old names remain in CSS Modules untouched; new names are available everywhere for shadcn components and new code.
 
-This eliminates the `--accent` ↔ `--primary` swap collision entirely — aliases can be declared in any order since they reference the old names, not replace them. The "grep for zero remaining old names" verification (AC#4) moves to PR 2, when CSS Modules are actually converted.
+This eliminates the `--accent` ↔ `--primary` swap collision entirely — aliases can be declared in any order since they reference the old names, not replace them (except `--accent` itself — see Edge Cases: "`--accent` self-collision" — where the new role is exposed under `--highlight-bg` instead of reusing the old name). The "grep for zero remaining old names" verification (AC#4) moves to PR 2, when CSS Modules are actually converted.
 
 **Token mapping summary** (136 tokens total):
 
@@ -144,8 +144,11 @@ This eliminates the `--accent` ↔ `--primary` swap collision entirely — alias
 | custom-extend (no shadcn/Tailwind equivalent) | 80 | Alias to shadcn-compatible prefixed names |
 
 **Critical aliases:**
-- `--primary: var(--accent)` (brand/action color)
-- `--accent: var(--bg-active)` (highlighted background — matches shadcn's semantic role)
+- `--primary: oklch(<L> var(--accent-chroma) var(--accent-hue))` (brand/action color, sourced from the same underlying primitives tokens.css uses for its own `--accent` — NOT `var(--accent)`, since nothing that needs the brand color may read `var(--accent)` in a ruleset that also redefines it; see Edge Cases)
+- `--highlight-bg: var(--bg-active)` (highlighted background — matches shadcn's semantic "accent" role; deliberately NOT named `--accent`, to avoid colliding with hassette's pre-existing `--accent` brand-color token)
+- Tailwind's `@theme inline` `--color-accent` maps to `var(--highlight-bg)`, not `var(--accent)`
+- `--accent` itself is left untouched by this alias layer — it keeps resolving to the brand color for both new consumers (via `--primary`) and the ~25 existing CSS Module files that reference it directly
+- `--ring`, `--chart-5`, `--sidebar-primary`, `--sidebar-ring` all source from `var(--primary)`, not `var(--accent)`
 - `--primary-foreground: var(--accent-ink)`
 - `--background: var(--bg-page)`, `--card: var(--bg-surface)`, `--muted: var(--bg-sunken)`
 - `--foreground: var(--ink-1)`, `--muted-foreground: var(--ink-3)`
@@ -158,7 +161,7 @@ This eliminates the `--accent` ↔ `--primary` swap collision entirely — alias
 - All `--ok`/`--warn`/`--cancel`/`--mute` → `--status-*`
 - All `--job`/`--listener` → `--handler-*`
 
-After the script runs, update `global.css`'s shadcn `@theme inline` block and `:root`/`[data-theme="dark"]` blocks to use the real hassette token values instead of shadcn's defaults. This resolves the `--accent` collision.
+After the script runs, update `global.css`'s shadcn `@theme inline` block and `:root`/`[data-theme="dark"]` blocks to use the real hassette token values instead of shadcn's defaults. This resolves the `--accent` collision by introducing `--highlight-bg` as a new name for shadcn's role rather than redefining `--accent`.
 
 **Verification:** grep for any remaining old token names (AC#4). The script itself serves as the "build the lever" artifact — rerunnable if files are added.
 
