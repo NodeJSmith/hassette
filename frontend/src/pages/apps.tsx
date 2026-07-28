@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { ApiError } from "../api/client";
 import { getDashboardAppGrid } from "../api/endpoints";
 import { EmptyState } from "../components/shared/empty-state";
-import { SortHeader } from "../components/shared/sort-header";
+import { ARIA_SORT_FOR_DIRECTION, SortHeader } from "../components/shared/sort-header";
 import { Spinner } from "../components/shared/spinner";
 import { StatsStrip, type StatsStripCell } from "../components/shared/stats-strip";
 import { StatusShape } from "../components/shared/status-shape";
@@ -161,6 +161,9 @@ export function AppsPage() {
       sort: newSort.key === "status" ? null : newSort.key,
       dir: newSort.dir === "asc" ? null : newSort.dir,
     });
+  // SortHeader no longer renders the <th> itself (see sort-header.tsx) -- this hand-rolled
+  // table owns the <th> element and computes aria-sort the same way handlers.tsx does.
+  const ariaSortFor = (key: AppSortState["key"]) => (sort.key === key ? ARIA_SORT_FOR_DIRECTION[sort.dir] : undefined);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const toggleExpand = (appKey: string) => {
@@ -290,28 +293,38 @@ export function AppsPage() {
               </colgroup>
               <thead>
                 <tr>
-                  <SortHeader sort={sort} onSort={handleSort} sortKey="name">
-                    app
-                  </SortHeader>
-                  <SortHeader
-                    sort={sort}
-                    onSort={handleSort}
-                    sortKey="status"
-                    ariaLabel="status"
-                    filterContent={columnFilters.status.content}
-                    hasActiveFilter={columnFilters.status.active}
-                  >
-                    status
-                  </SortHeader>
-                  <SortHeader sort={sort} onSort={handleSort} sortKey="error">
-                    last error
-                  </SortHeader>
-                  <SortHeader sort={sort} onSort={handleSort} sortKey="runs">
-                    runs
-                  </SortHeader>
-                  <SortHeader sort={sort} onSort={handleSort} sortKey="last">
-                    last fired
-                  </SortHeader>
+                  <th scope="col" aria-sort={ariaSortFor("name")}>
+                    <SortHeader sort={sort} onSort={handleSort} sortKey="name">
+                      app
+                    </SortHeader>
+                  </th>
+                  <th scope="col" aria-sort={ariaSortFor("status")}>
+                    <SortHeader
+                      sort={sort}
+                      onSort={handleSort}
+                      sortKey="status"
+                      ariaLabel="status"
+                      filterContent={columnFilters.status.content}
+                      hasActiveFilter={columnFilters.status.active}
+                    >
+                      status
+                    </SortHeader>
+                  </th>
+                  <th scope="col" aria-sort={ariaSortFor("error")}>
+                    <SortHeader sort={sort} onSort={handleSort} sortKey="error">
+                      last error
+                    </SortHeader>
+                  </th>
+                  <th scope="col" aria-sort={ariaSortFor("runs")}>
+                    <SortHeader sort={sort} onSort={handleSort} sortKey="runs">
+                      runs
+                    </SortHeader>
+                  </th>
+                  <th scope="col" aria-sort={ariaSortFor("last")}>
+                    <SortHeader sort={sort} onSort={handleSort} sortKey="last">
+                      last fired
+                    </SortHeader>
+                  </th>
                   <th scope="col">actions</th>
                 </tr>
               </thead>

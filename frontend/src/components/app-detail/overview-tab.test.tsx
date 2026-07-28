@@ -1,4 +1,5 @@
-import { act, fireEvent, waitFor } from "@testing-library/react";
+import { act, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
@@ -156,7 +157,8 @@ describe("OverviewTab — Error Spotlight", () => {
     expect(btn.textContent).toContain("2");
   });
 
-  it("expands remaining entries when 'show N more' is clicked", () => {
+  it("expands remaining entries when 'show N more' is clicked", async () => {
+    const user = userEvent.setup();
     const listeners = [
       createListener({ listener_id: 1, failed: 1 }),
       createListener({ listener_id: 2, failed: 1 }),
@@ -165,7 +167,7 @@ describe("OverviewTab — Error Spotlight", () => {
     ];
     const { getAllByTestId, getByTestId } = renderOverviewTab({ listeners, jobs: [] });
     expect(getAllByTestId(/^overview-spotlight-entry-/).length).toBe(3);
-    fireEvent.click(getByTestId("overview-spotlight-show-more"));
+    await user.click(getByTestId("overview-spotlight-show-more"));
     expect(getAllByTestId(/^overview-spotlight-entry-/).length).toBe(4);
   });
 
@@ -300,7 +302,8 @@ describe("OverviewTab — Handler Health Grid", () => {
     expect(cards[2].getAttribute("data-testid")).toBe("overview-health-card-listener-1");
   });
 
-  it("clicking a listener card navigates to the correct handler detail page", () => {
+  it("clicking a listener card navigates to the correct handler detail page", async () => {
+    const user = userEvent.setup();
     mockNavigate.mockClear();
     const { getByTestId } = renderOverviewTab({
       listeners: [createListener({ listener_id: 4 })],
@@ -308,11 +311,12 @@ describe("OverviewTab — Handler Health Grid", () => {
       appKey: "my_app",
       instanceQs: "",
     });
-    fireEvent.click(getByTestId("overview-health-card-listener-4"));
+    await user.click(getByTestId("overview-health-card-listener-4"));
     expect(mockNavigate).toHaveBeenCalledWith("/apps/my_app/handlers/listener/4");
   });
 
-  it("clicking a job card navigates to the correct handler detail page", () => {
+  it("clicking a job card navigates to the correct handler detail page", async () => {
+    const user = userEvent.setup();
     mockNavigate.mockClear();
     const { getByTestId } = renderOverviewTab({
       listeners: [],
@@ -320,11 +324,12 @@ describe("OverviewTab — Handler Health Grid", () => {
       appKey: "my_app",
       instanceQs: "",
     });
-    fireEvent.click(getByTestId("overview-health-card-job-15"));
+    await user.click(getByTestId("overview-health-card-job-15"));
     expect(mockNavigate).toHaveBeenCalledWith("/apps/my_app/handlers/job/15");
   });
 
-  it("card navigation includes instanceQs", () => {
+  it("card navigation includes instanceQs", async () => {
+    const user = userEvent.setup();
     mockNavigate.mockClear();
     const { getByTestId } = renderOverviewTab({
       listeners: [createListener({ listener_id: 6 })],
@@ -332,7 +337,7 @@ describe("OverviewTab — Handler Health Grid", () => {
       appKey: "test_app",
       instanceQs: "?instance=2",
     });
-    fireEvent.click(getByTestId("overview-health-card-listener-6"));
+    await user.click(getByTestId("overview-health-card-listener-6"));
     expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app/handlers/listener/6?instance=2");
   });
 });

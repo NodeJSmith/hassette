@@ -1,4 +1,5 @@
-import { fireEvent, render } from "@testing-library/react";
+import { render } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { ColumnPicker } from "./column-picker";
@@ -34,25 +35,28 @@ describe("ColumnPicker", () => {
   });
 
   describe("opening the popover", () => {
-    it("clicking the trigger opens the popover", () => {
+    it("clicking the trigger opens the popover", async () => {
+      const user = userEvent.setup();
       const { getByTestId, queryByTestId } = renderPicker();
-      fireEvent.click(getByTestId("column-picker"));
+      await user.click(getByTestId("column-picker"));
       expect(queryByTestId("column-picker-popover")).not.toBeNull();
     });
 
-    it("shows a checkbox for each column defined in COLUMNS", () => {
+    it("shows a checkbox for each column defined in COLUMNS", async () => {
+      const user = userEvent.setup();
       const { getByTestId, getAllByRole } = renderPicker();
-      fireEvent.click(getByTestId("column-picker"));
+      await user.click(getByTestId("column-picker"));
       const checkboxes = getAllByRole("checkbox");
       expect(checkboxes).toHaveLength(COLUMNS.length);
     });
   });
 
   describe("checkbox checked state", () => {
-    it("selected columns have checked checkboxes", () => {
+    it("selected columns have checked checkboxes", async () => {
+      const user = userEvent.setup();
       const selectedColumns: ColumnId[] = ["level", "app", "message"];
       const { getByTestId, getAllByRole } = renderPicker({ selectedColumns });
-      fireEvent.click(getByTestId("column-picker"));
+      await user.click(getByTestId("column-picker"));
 
       const checkboxes = getAllByRole("checkbox") as HTMLInputElement[];
       const checkedLabels = checkboxes.filter((cb) => cb.checked).map((cb) => cb.closest("label")?.textContent?.trim());
@@ -62,10 +66,11 @@ describe("ColumnPicker", () => {
       }
     });
 
-    it("non-selected columns have unchecked checkboxes", () => {
+    it("non-selected columns have unchecked checkboxes", async () => {
+      const user = userEvent.setup();
       const selectedColumns: ColumnId[] = ["level", "message"];
       const { getByTestId, getAllByRole } = renderPicker({ selectedColumns });
-      fireEvent.click(getByTestId("column-picker"));
+      await user.click(getByTestId("column-picker"));
 
       const checkboxes = getAllByRole("checkbox") as HTMLInputElement[];
       const uncheckedLabels = checkboxes
@@ -79,9 +84,10 @@ describe("ColumnPicker", () => {
   });
 
   describe("disabled state", () => {
-    it("required columns have disabled checkboxes", () => {
+    it("required columns have disabled checkboxes", async () => {
+      const user = userEvent.setup();
       const { getByTestId, getAllByRole } = renderPicker();
-      fireEvent.click(getByTestId("column-picker"));
+      await user.click(getByTestId("column-picker"));
 
       const checkboxes = getAllByRole("checkbox") as HTMLInputElement[];
       for (const checkbox of checkboxes) {
@@ -93,10 +99,11 @@ describe("ColumnPicker", () => {
       }
     });
 
-    it("viewport-hidden columns have disabled checkboxes", () => {
+    it("viewport-hidden columns have disabled checkboxes", async () => {
+      const user = userEvent.setup();
       const viewportHidden = new Set<ColumnId>(["app", "instance"]);
       const { getByTestId, getAllByRole } = renderPicker({ viewportHidden });
-      fireEvent.click(getByTestId("column-picker"));
+      await user.click(getByTestId("column-picker"));
 
       const checkboxes = getAllByRole("checkbox") as HTMLInputElement[];
       for (const checkbox of checkboxes) {
@@ -108,10 +115,11 @@ describe("ColumnPicker", () => {
       }
     });
 
-    it("viewport-hidden columns have title 'Hidden at this screen size' on their label", () => {
+    it("viewport-hidden columns have title 'Hidden at this screen size' on their label", async () => {
+      const user = userEvent.setup();
       const viewportHidden = new Set<ColumnId>(["app"]);
       const { getByTestId, getAllByRole } = renderPicker({ viewportHidden });
-      fireEvent.click(getByTestId("column-picker"));
+      await user.click(getByTestId("column-picker"));
 
       const checkboxes = getAllByRole("checkbox") as HTMLInputElement[];
       for (const checkbox of checkboxes) {
@@ -124,12 +132,13 @@ describe("ColumnPicker", () => {
       }
     });
 
-    it("non-required, non-hidden columns are not disabled", () => {
+    it("non-required, non-hidden columns are not disabled", async () => {
+      const user = userEvent.setup();
       // "app" and "function" are optional and not viewport-hidden
       const { getByTestId, getAllByRole } = renderPicker({
         viewportHidden: new Set<ColumnId>(),
       });
-      fireEvent.click(getByTestId("column-picker"));
+      await user.click(getByTestId("column-picker"));
 
       const checkboxes = getAllByRole("checkbox") as HTMLInputElement[];
       for (const checkbox of checkboxes) {
@@ -143,14 +152,15 @@ describe("ColumnPicker", () => {
   });
 
   describe("interactions", () => {
-    it("clicking a non-disabled checkbox calls onToggle with the column id", () => {
+    it("clicking a non-disabled checkbox calls onToggle with the column id", async () => {
+      const user = userEvent.setup();
       const onToggle = vi.fn();
       // Use "app" which is optional and not required
       const { getByTestId, getAllByRole } = renderPicker({
         onToggle,
         viewportHidden: new Set<ColumnId>(),
       });
-      fireEvent.click(getByTestId("column-picker"));
+      await user.click(getByTestId("column-picker"));
 
       const checkboxes = getAllByRole("checkbox") as HTMLInputElement[];
       const appCheckbox = checkboxes.find((cb) => {
@@ -160,15 +170,16 @@ describe("ColumnPicker", () => {
       expect(appCheckbox).not.toBeUndefined();
       expect(appCheckbox!.disabled).toBe(false);
 
-      fireEvent.click(appCheckbox!);
+      await user.click(appCheckbox!);
       expect(onToggle).toHaveBeenCalledWith("app");
     });
 
-    it("required checkboxes are disabled so browsers cannot fire their onChange", () => {
-      // jsdom's fireEvent bypasses the native disabled guard, so we assert the
+    it("required checkboxes are disabled so browsers cannot fire their onChange", async () => {
+      const user = userEvent.setup();
+      // userEvent respects the native disabled guard (unlike raw fireEvent), so we assert the
       // disabled attribute itself — which is what prevents onChange in real browsers.
       const { getByTestId, getAllByRole } = renderPicker();
-      fireEvent.click(getByTestId("column-picker"));
+      await user.click(getByTestId("column-picker"));
 
       const checkboxes = getAllByRole("checkbox") as HTMLInputElement[];
       const requiredCheckboxes = checkboxes.filter((cb) => {
@@ -183,13 +194,14 @@ describe("ColumnPicker", () => {
       }
     });
 
-    it("'Reset to defaults' button calls onReset when clicked", () => {
+    it("'Reset to defaults' button calls onReset when clicked", async () => {
+      const user = userEvent.setup();
       const onReset = vi.fn();
       const { getByTestId, getByRole } = renderPicker({ onReset });
-      fireEvent.click(getByTestId("column-picker"));
+      await user.click(getByTestId("column-picker"));
 
       const resetBtn = getByRole("button", { name: /reset to defaults/i });
-      fireEvent.click(resetBtn);
+      await user.click(resetBtn);
       expect(onReset).toHaveBeenCalledTimes(1);
     });
   });

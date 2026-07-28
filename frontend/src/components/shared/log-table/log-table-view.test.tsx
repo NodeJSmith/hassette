@@ -1,4 +1,5 @@
-import { fireEvent, render } from "@testing-library/react";
+import { render } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { createLogEntry } from "@/test/factories";
@@ -111,10 +112,11 @@ describe("LogTableView", () => {
       expect(th.getAttribute("aria-sort")).toBeNull();
     });
 
-    it("clicking the sort button calls onSort", () => {
+    it("clicking the sort button calls onSort", async () => {
+      const user = userEvent.setup();
       const onSort = vi.fn();
       const { getByTestId } = renderView({ visibleColumns: ["level"], onSort });
-      fireEvent.click(getByTestId("sort-header-btn"));
+      await user.click(getByTestId("sort-header-btn"));
       expect(onSort).toHaveBeenCalledWith({ key: "level", dir: "asc" });
     });
   });
@@ -153,19 +155,21 @@ describe("LogTableView", () => {
   });
 
   describe("onRowClick", () => {
-    it("calls onRowClick with the entry when a row is clicked", () => {
+    it("calls onRowClick with the entry when a row is clicked", async () => {
+      const user = userEvent.setup();
       const entry = makeEntry(7);
       const onRowClick = vi.fn();
       const { getByTestId } = renderView({ entries: [entry], onRowClick });
-      fireEvent.click(getByTestId("log-table").querySelector("tbody tr")!);
+      await user.click(getByTestId("log-table").querySelector("tbody tr")!);
       expect(onRowClick).toHaveBeenCalledWith(entry);
     });
 
-    it("does not call onRowClick when the detail button is clicked (row click also fires, then bubbles) but reports the entry once", () => {
+    it("does not call onRowClick when the detail button is clicked (row click also fires, then bubbles) but reports the entry once", async () => {
+      const user = userEvent.setup();
       const entry = makeEntry(7);
       const onRowClick = vi.fn();
       const { getByLabelText } = renderView({ entries: [entry], onRowClick });
-      fireEvent.click(getByLabelText("View log detail"));
+      await user.click(getByLabelText("View log detail"));
       expect(onRowClick).toHaveBeenCalledTimes(1);
       expect(onRowClick).toHaveBeenCalledWith(entry);
     });
@@ -328,7 +332,8 @@ describe("LogTableView", () => {
       expect(td.textContent).toContain("34567890");
     });
 
-    it("clicking the execution link does not trigger the row's onRowClick", () => {
+    it("clicking the execution link does not trigger the row's onRowClick", async () => {
+      const user = userEvent.setup();
       const onRowClick = vi.fn();
       const entry = createLogEntry({
         execution_id: "abcdef1234567890",
@@ -340,7 +345,7 @@ describe("LogTableView", () => {
       const { getByTestId } = renderView({ entries: [entry], visibleColumns: ["execution"], onRowClick });
       const td = getByTestId("log-table").querySelector("tbody td")!;
       const link = td.querySelector("a")!;
-      fireEvent.click(link);
+      await user.click(link);
       expect(onRowClick).not.toHaveBeenCalled();
     });
   });
@@ -413,7 +418,8 @@ describe("LogTableView", () => {
   });
 
   describe("handleSort — timestamp default direction", () => {
-    it("overrides to desc when clicking timestamp while another column is active", () => {
+    it("overrides to desc when clicking timestamp while another column is active", async () => {
+      const user = userEvent.setup();
       const onSort = vi.fn();
       const { getByTestId } = renderView({
         visibleColumns: ["level", "timestamp"],
@@ -421,11 +427,12 @@ describe("LogTableView", () => {
         onSort,
       });
       const btn = getByTestId("sort-timestamp").querySelector("button")!;
-      fireEvent.click(btn);
+      await user.click(btn);
       expect(onSort).toHaveBeenCalledWith({ key: "timestamp", dir: "desc" });
     });
 
-    it("allows normal asc/desc cycling when timestamp is already active", () => {
+    it("allows normal asc/desc cycling when timestamp is already active", async () => {
+      const user = userEvent.setup();
       const onSort = vi.fn();
       const { getByTestId } = renderView({
         visibleColumns: ["timestamp"],
@@ -433,11 +440,12 @@ describe("LogTableView", () => {
         onSort,
       });
       const btn = getByTestId("sort-timestamp").querySelector("button")!;
-      fireEvent.click(btn);
+      await user.click(btn);
       expect(onSort).toHaveBeenCalledWith({ key: "timestamp", dir: "asc" });
     });
 
-    it("does not override direction for non-timestamp columns", () => {
+    it("does not override direction for non-timestamp columns", async () => {
+      const user = userEvent.setup();
       const onSort = vi.fn();
       const { getByTestId } = renderView({
         visibleColumns: ["level", "timestamp"],
@@ -445,7 +453,7 @@ describe("LogTableView", () => {
         onSort,
       });
       const btn = getByTestId("sort-level").querySelector("button")!;
-      fireEvent.click(btn);
+      await user.click(btn);
       expect(onSort).toHaveBeenCalledWith({ key: "level", dir: "asc" });
     });
   });

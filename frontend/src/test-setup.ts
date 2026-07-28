@@ -36,6 +36,13 @@ globalThis.ResizeObserver = class ResizeObserver {
 // active item changes to keep the selection in view.
 Element.prototype.scrollIntoView = () => {};
 
+// jsdom does not implement the Pointer Events capture methods — vaul (shadcn Drawer) calls
+// setPointerCapture/releasePointerCapture/hasPointerCapture on pointerdown. fireEvent.click
+// never surfaced this gap because it doesn't dispatch pointer events; userEvent.click() does.
+Element.prototype.setPointerCapture = () => {};
+Element.prototype.releasePointerCapture = () => {};
+Element.prototype.hasPointerCapture = () => false;
+
 // jsdom does not provide matchMedia — stub it for useMediaQuery and components
 // that depend on it. Always returns false (desktop viewport) by default.
 Object.defineProperty(window, "matchMedia", {

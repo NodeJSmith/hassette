@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 
 import { getAllJobs, getAllListeners } from "../api/endpoints";
 import { EmptyState } from "../components/shared/empty-state";
-import { SortHeader, type SortState } from "../components/shared/sort-header";
+import { ARIA_SORT_FOR_DIRECTION, SortHeader, type SortState } from "../components/shared/sort-header";
 import { Spinner } from "../components/shared/spinner";
 import { TableCard } from "../components/shared/table-card";
 import { TableFooter } from "../components/shared/table-footer";
@@ -45,6 +45,9 @@ export function HandlersPage() {
     key: (rawSort !== null && VALID_SORT_KEYS.has(rawSort) ? rawSort : "app") as HandlerSortKey,
     dir: qp.get("dir") === "desc" ? "desc" : "asc",
   };
+  // SortHeader no longer renders the <th> itself (see sort-header.tsx) -- this hand-rolled
+  // table owns the <th> element and computes aria-sort the same way log-table-view.tsx does.
+  const ariaSortFor = (key: HandlerSortKey) => (sort.key === key ? ARIA_SORT_FOR_DIRECTION[sort.dir] : undefined);
 
   const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
 
@@ -220,46 +223,68 @@ export function HandlersPage() {
                 </colgroup>
                 <thead>
                   <tr>
-                    <SortHeader sort={sort} onSort={handleSort} sortKey="kind" ariaLabel="type">
-                      type
-                    </SortHeader>
-                    <SortHeader
-                      sort={sort}
-                      onSort={handleSort}
-                      sortKey="app"
-                      ariaLabel="app"
-                      filterContent={columnFilters.app.content}
-                      hasActiveFilter={columnFilters.app.active}
-                    >
-                      app
-                    </SortHeader>
-                    <SortHeader sort={sort} onSort={handleSort} sortKey="name">
-                      name
-                    </SortHeader>
-                    <SortHeader sort={sort} onSort={handleSort} sortKey="trigger">
-                      trigger
-                    </SortHeader>
-                    <SortHeader sort={sort} onSort={handleSort} sortKey="runs">
-                      runs
-                    </SortHeader>
-                    <SortHeader sort={sort} onSort={handleSort} sortKey="failed">
-                      failed
-                    </SortHeader>
-                    <SortHeader sort={sort} onSort={handleSort} sortKey="timed_out">
-                      timed out
-                    </SortHeader>
-                    <SortHeader sort={sort} onSort={handleSort} sortKey="cancelled">
-                      cancelled
-                    </SortHeader>
-                    <SortHeader sort={sort} onSort={handleSort} sortKey="error_rate">
-                      error rate
-                    </SortHeader>
-                    <SortHeader sort={sort} onSort={handleSort} sortKey="avg_duration">
-                      avg
-                    </SortHeader>
-                    <SortHeader sort={sort} onSort={handleSort} sortKey="next_run">
-                      next run
-                    </SortHeader>
+                    <th scope="col" aria-sort={ariaSortFor("kind")}>
+                      <SortHeader sort={sort} onSort={handleSort} sortKey="kind" ariaLabel="type">
+                        type
+                      </SortHeader>
+                    </th>
+                    <th scope="col" aria-sort={ariaSortFor("app")}>
+                      <SortHeader
+                        sort={sort}
+                        onSort={handleSort}
+                        sortKey="app"
+                        ariaLabel="app"
+                        filterContent={columnFilters.app.content}
+                        hasActiveFilter={columnFilters.app.active}
+                      >
+                        app
+                      </SortHeader>
+                    </th>
+                    <th scope="col" aria-sort={ariaSortFor("name")}>
+                      <SortHeader sort={sort} onSort={handleSort} sortKey="name">
+                        name
+                      </SortHeader>
+                    </th>
+                    <th scope="col" aria-sort={ariaSortFor("trigger")}>
+                      <SortHeader sort={sort} onSort={handleSort} sortKey="trigger">
+                        trigger
+                      </SortHeader>
+                    </th>
+                    <th scope="col" aria-sort={ariaSortFor("runs")}>
+                      <SortHeader sort={sort} onSort={handleSort} sortKey="runs">
+                        runs
+                      </SortHeader>
+                    </th>
+                    <th scope="col" aria-sort={ariaSortFor("failed")}>
+                      <SortHeader sort={sort} onSort={handleSort} sortKey="failed">
+                        failed
+                      </SortHeader>
+                    </th>
+                    <th scope="col" aria-sort={ariaSortFor("timed_out")}>
+                      <SortHeader sort={sort} onSort={handleSort} sortKey="timed_out">
+                        timed out
+                      </SortHeader>
+                    </th>
+                    <th scope="col" aria-sort={ariaSortFor("cancelled")}>
+                      <SortHeader sort={sort} onSort={handleSort} sortKey="cancelled">
+                        cancelled
+                      </SortHeader>
+                    </th>
+                    <th scope="col" aria-sort={ariaSortFor("error_rate")}>
+                      <SortHeader sort={sort} onSort={handleSort} sortKey="error_rate">
+                        error rate
+                      </SortHeader>
+                    </th>
+                    <th scope="col" aria-sort={ariaSortFor("avg_duration")}>
+                      <SortHeader sort={sort} onSort={handleSort} sortKey="avg_duration">
+                        avg
+                      </SortHeader>
+                    </th>
+                    <th scope="col" aria-sort={ariaSortFor("next_run")}>
+                      <SortHeader sort={sort} onSort={handleSort} sortKey="next_run">
+                        next run
+                      </SortHeader>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>

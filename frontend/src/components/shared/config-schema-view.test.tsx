@@ -1,4 +1,5 @@
-import { fireEvent, render } from "@testing-library/react";
+import { render } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
 import type { SchemaNode } from "../../api/config-view-types";
@@ -326,7 +327,8 @@ describe("ConfigSchemaView", () => {
   });
 
   describe("help popover", () => {
-    it("reveals the description in a popover only after the info button is clicked", () => {
+    it("reveals the description in a popover only after the info button is clicked", async () => {
+      const user = userEvent.setup();
       const schema: SchemaNode = {
         type: "object",
         properties: {
@@ -341,7 +343,7 @@ describe("ConfigSchemaView", () => {
       if (!(toggle instanceof Element)) throw new Error("expected an info toggle button");
       expect(toggle.getAttribute("aria-expanded")).toBe("false");
 
-      fireEvent.click(toggle);
+      await user.click(toggle);
 
       expect(getByTestId("field-help").textContent).toContain("Helpful context.");
       expect(toggle.getAttribute("aria-expanded")).toBe("true");

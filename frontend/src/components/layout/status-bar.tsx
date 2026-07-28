@@ -56,7 +56,7 @@ export function StatusBar({ onMenuClick, drawerOpen, hamburgerRef }: StatusBarPr
             }}
           >
             <svg viewBox="0 0 16 16" aria-hidden="true">
-              <polyline points="6,3 11,8 6,13" fill="none" stroke="currentColor" stroke-width="1.5" />
+              <polyline points="6,3 11,8 6,13" fill="none" stroke="currentColor" strokeWidth="1.5" />
             </svg>
           </Button>
         )}

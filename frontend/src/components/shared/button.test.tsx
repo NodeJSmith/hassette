@@ -1,4 +1,5 @@
-import { fireEvent, render } from "@testing-library/react";
+import { render } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { createRef } from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -110,10 +111,11 @@ describe("Button", () => {
       expect(getByRole("button").getAttribute("aria-label")).toBe("close dialog");
     });
 
-    it("calls onClick handler when clicked", () => {
+    it("calls onClick handler when clicked", async () => {
+      const user = userEvent.setup();
       const onClick = vi.fn();
       const { getByRole } = render(<Button onClick={onClick}>btn</Button>);
-      fireEvent.click(getByRole("button"));
+      await user.click(getByRole("button"));
       expect(onClick).toHaveBeenCalledOnce();
     });
   });

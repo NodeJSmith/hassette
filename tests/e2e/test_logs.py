@@ -114,7 +114,12 @@ def test_log_expand_button_toggles_message(page: Page, base_url: str) -> None:
     expect(detail_btn).to_be_visible()
     detail_btn.click()
     page.wait_for_timeout(DRAWER_SETTLE_MS)
-    drawer = page.locator("aside[role='complementary'][aria-label='Log entry detail']")
+    # The log detail panel is vaul's (shadcn Drawer) DrawerContentUnstyled, replacing the
+    # earlier hand-rolled <aside role="complementary">. DrawerContentUnstyled is a Radix
+    # Dialog primitive under the hood and renders role="dialog" rather than
+    # role="complementary" -- identify by the stable data-testid instead of the now-stale
+    # role/aria-label combination.
+    drawer = page.locator("[data-testid='log-detail-drawer']")
     expect(drawer).to_be_visible()
     # Close the drawer via the close button
     page.locator("button[aria-label='Close detail panel']").click()

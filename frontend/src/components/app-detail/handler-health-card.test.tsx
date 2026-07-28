@@ -1,4 +1,4 @@
-import { fireEvent } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { createJob, createListener } from "../../test/factories";
@@ -178,48 +178,54 @@ describe("HandlerHealthCard — last active when null", () => {
 });
 
 describe("HandlerHealthCard — card click navigation", () => {
-  it("navigates to handler detail page when card is clicked", () => {
+  it("navigates to handler detail page when card is clicked", async () => {
+    const user = userEvent.setup();
     mockNavigate.mockClear();
     const item = makeListenerItem({ listener_id: 4 });
     const { getByTestId } = renderCard(item, { appKey: "my_app" });
 
     const card = getByTestId("overview-health-card-listener-4");
-    fireEvent.click(card);
+    await user.click(card);
 
     expect(mockNavigate).toHaveBeenCalledWith("/apps/my_app/handlers/listener/4");
   });
 
-  it("navigates to job handler detail page when job card is clicked", () => {
+  it("navigates to job handler detail page when job card is clicked", async () => {
+    const user = userEvent.setup();
     mockNavigate.mockClear();
     const item = makeJobItem({ job_id: 9 });
     const { getByTestId } = renderCard(item, { appKey: "my_app" });
 
     const card = getByTestId("overview-health-card-job-9");
-    fireEvent.click(card);
+    await user.click(card);
 
     expect(mockNavigate).toHaveBeenCalledWith("/apps/my_app/handlers/job/9");
   });
 });
 
 describe("HandlerHealthCard — Enter key navigation", () => {
-  it("navigates when Enter key is pressed on the card", () => {
+  it("navigates when Enter key is pressed on the card", async () => {
+    const user = userEvent.setup();
     mockNavigate.mockClear();
     const item = makeListenerItem({ listener_id: 5 });
     const { getByTestId } = renderCard(item, { appKey: "my_app" });
 
     const card = getByTestId("overview-health-card-listener-5");
-    fireEvent.keyDown(card, { key: "Enter" });
+    card.focus();
+    await user.keyboard("{Enter}");
 
     expect(mockNavigate).toHaveBeenCalledWith("/apps/my_app/handlers/listener/5");
   });
 
-  it("navigates when Space key is pressed on the card", () => {
+  it("navigates when Space key is pressed on the card", async () => {
+    const user = userEvent.setup();
     mockNavigate.mockClear();
     const item = makeListenerItem({ listener_id: 5 });
     const { getByTestId } = renderCard(item, { appKey: "my_app" });
 
     const card = getByTestId("overview-health-card-listener-5");
-    fireEvent.keyDown(card, { key: " " });
+    card.focus();
+    await user.keyboard("{ }");
 
     expect(mockNavigate).toHaveBeenCalledWith("/apps/my_app/handlers/listener/5");
   });

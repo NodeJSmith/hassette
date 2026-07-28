@@ -1,5 +1,5 @@
-import { fireEvent } from "@testing-library/react";
 import { render } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { createJob, createListener } from "../../test/factories";
@@ -113,29 +113,34 @@ describe("UnifiedHandlerRow — listener", () => {
     expect(getByTestId("unified-row-listener-1").getAttribute("aria-pressed")).toBe("false");
   });
 
-  it("calls onSelect when clicked", () => {
+  it("calls onSelect when clicked", async () => {
+    const user = userEvent.setup();
     const onSelect = vi.fn();
     const item = makeListenerItem({ listener_id: 1 });
     const { getByRole } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={onSelect} />);
-    fireEvent.click(getByRole("button"));
+    await user.click(getByRole("button"));
     expect(onSelect).toHaveBeenCalledOnce();
   });
 
-  it("calls onSelect when activated via Enter key (native button fires click)", () => {
+  it("calls onSelect when activated via Enter key (native button fires click)", async () => {
+    const user = userEvent.setup();
     const onSelect = vi.fn();
     const item = makeListenerItem({ listener_id: 1 });
     const { getByRole } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={onSelect} />);
-    // Native <button> fires click on Enter/Space — fireEvent.click simulates that
-    fireEvent.click(getByRole("button"));
+    const button = getByRole("button");
+    button.focus();
+    await user.keyboard("{Enter}");
     expect(onSelect).toHaveBeenCalledOnce();
   });
 
-  it("calls onSelect when activated via Space key (native button fires click)", () => {
+  it("calls onSelect when activated via Space key (native button fires click)", async () => {
+    const user = userEvent.setup();
     const onSelect = vi.fn();
     const item = makeListenerItem({ listener_id: 1 });
     const { getByRole } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={onSelect} />);
-    // Native <button> fires click on Enter/Space — fireEvent.click simulates that
-    fireEvent.click(getByRole("button"));
+    const button = getByRole("button");
+    button.focus();
+    await user.keyboard(" ");
     expect(onSelect).toHaveBeenCalledOnce();
   });
 });

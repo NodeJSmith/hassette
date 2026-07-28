@@ -36,7 +36,7 @@ function renderShape(kind: StatusKind, size: number, half: number) {
           r={half - RING_STROKE_WIDTH}
           fill="none"
           stroke="var(--mute)"
-          stroke-width={RING_STROKE_WIDTH}
+          strokeWidth={RING_STROKE_WIDTH}
         />
       );
   }

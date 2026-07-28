@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { SortHeader, type SortState } from "./sort-header";
@@ -73,6 +74,7 @@ describe("SortHeader — sort-only", () => {
   });
 
   it("calls onSort when sort button is clicked (managed)", async () => {
+    const user = userEvent.setup();
     const onSort = vi.fn();
     const sort: SortState<string> = { key: "other", dir: "asc" };
     render(
@@ -89,7 +91,7 @@ describe("SortHeader — sort-only", () => {
       </table>,
     );
     await act(async () => {
-      fireEvent.click(screen.getByTestId("sort-header-btn"));
+      await user.click(screen.getByTestId("sort-header-btn"));
     });
     expect(onSort).toHaveBeenCalledWith({ key: "name", dir: "asc" });
   });
@@ -147,6 +149,7 @@ describe("SortHeader — sort+filter", () => {
   });
 
   it("sort button still triggers sort callback", async () => {
+    const user = userEvent.setup();
     const onSort = vi.fn();
     const sort: SortState<string> = { key: "other", dir: "asc" };
     render(
@@ -170,12 +173,13 @@ describe("SortHeader — sort+filter", () => {
       </table>,
     );
     await act(async () => {
-      fireEvent.click(screen.getByTestId("sort-header-btn"));
+      await user.click(screen.getByTestId("sort-header-btn"));
     });
     expect(onSort).toHaveBeenCalledWith({ key: "status", dir: "asc" });
   });
 
   it("filter button opens the popover", async () => {
+    const user = userEvent.setup();
     const sort: SortState<string> = { key: "other", dir: "asc" };
     render(
       <table>
@@ -199,12 +203,13 @@ describe("SortHeader — sort+filter", () => {
     );
     expect(screen.queryByTestId("filter-content")).toBeNull();
     await act(async () => {
-      fireEvent.click(screen.getByTestId("filter-btn"));
+      await user.click(screen.getByTestId("filter-btn"));
     });
     expect(screen.getByTestId("filter-content")).toBeTruthy();
   });
 
   it("filter popover closes on Escape", async () => {
+    const user = userEvent.setup();
     const sort: SortState<string> = { key: "other", dir: "asc" };
     render(
       <table>
@@ -227,12 +232,12 @@ describe("SortHeader — sort+filter", () => {
       </table>,
     );
     await act(async () => {
-      fireEvent.click(screen.getByTestId("filter-btn"));
+      await user.click(screen.getByTestId("filter-btn"));
     });
     expect(screen.getByTestId("filter-content")).toBeTruthy();
 
     await act(async () => {
-      fireEvent.keyDown(document, { key: "Escape" });
+      await user.keyboard("{Escape}");
     });
     expect(screen.queryByTestId("filter-content")).toBeNull();
   });
@@ -279,6 +284,7 @@ describe("SortHeader — filter-only", () => {
   });
 
   it("filter button opens the popover", async () => {
+    const user = userEvent.setup();
     render(
       <table>
         <thead>
@@ -298,7 +304,7 @@ describe("SortHeader — filter-only", () => {
     );
     expect(screen.queryByTestId("filter-content")).toBeNull();
     await act(async () => {
-      fireEvent.click(screen.getByTestId("filter-btn"));
+      await user.click(screen.getByTestId("filter-btn"));
     });
     expect(screen.getByTestId("filter-content")).toBeTruthy();
   });
@@ -419,6 +425,7 @@ describe("SortHeader — hasActiveFilter", () => {
 
 describe("SortHeader — popover toggle", () => {
   it("opens popover on filter button click and closes on Escape", async () => {
+    const user = userEvent.setup();
     render(
       <SortHeader filterContent={<div data-testid="pop-content">Content</div>} hasActiveFilter={false} ariaLabel="Col">
         Col
@@ -426,18 +433,19 @@ describe("SortHeader — popover toggle", () => {
     );
     // Open
     await act(async () => {
-      fireEvent.click(screen.getByTestId("filter-btn"));
+      await user.click(screen.getByTestId("filter-btn"));
     });
     expect(screen.getByTestId("pop-content")).toBeTruthy();
 
     // Close with Escape
     await act(async () => {
-      fireEvent.keyDown(document, { key: "Escape" });
+      await user.keyboard("{Escape}");
     });
     expect(screen.queryByTestId("pop-content")).toBeNull();
   });
 
   it("closing the popover restores focus to the filter button", async () => {
+    const user = userEvent.setup();
     render(
       <SortHeader filterContent={<button type="button">Inside</button>} hasActiveFilter={false} ariaLabel="Col">
         Col
@@ -445,11 +453,11 @@ describe("SortHeader — popover toggle", () => {
     );
     const filterBtn = screen.getByTestId("filter-btn");
     await act(async () => {
-      fireEvent.click(filterBtn);
+      await user.click(filterBtn);
     });
     // Close with Escape
     await act(async () => {
-      fireEvent.keyDown(document, { key: "Escape" });
+      await user.keyboard("{Escape}");
     });
     expect(document.activeElement).toBe(filterBtn);
   });

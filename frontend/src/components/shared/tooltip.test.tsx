@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { describe, expect, it } from "vitest";
 
@@ -22,10 +23,10 @@ describe("Tooltip", () => {
   });
 
   it("shows the tooltip content on hover", async () => {
+    const user = userEvent.setup();
     renderTooltip("avg duration", <span>23ms</span>);
 
-    fireEvent.pointerEnter(screen.getByText("23ms"));
-    fireEvent.pointerMove(screen.getByText("23ms"));
+    await user.hover(screen.getByText("23ms"));
 
     await waitFor(() => {
       expect(screen.getAllByText("avg duration").length).toBeGreaterThan(0);
@@ -35,7 +36,10 @@ describe("Tooltip", () => {
   it("shows the tooltip content on focus", async () => {
     renderTooltip("error rate", <button type="button">3 failed</button>);
 
-    fireEvent.focus(screen.getByText("3 failed"));
+    // Radix's tooltip trigger listens for native focus events; userEvent has no standalone
+    // "focus only" action (user.click would also fire pointer/mouse events), so a direct
+    // DOM focus() call is the closest analog to fireEvent.focus here.
+    screen.getByText("3 failed").focus();
 
     await waitFor(() => {
       expect(screen.getAllByText("error rate").length).toBeGreaterThan(0);
