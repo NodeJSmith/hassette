@@ -3,15 +3,13 @@
 // All other icons use stroke-based attributes.
 import type { ReactNode } from "react";
 
-import styles from "./icons.module.css";
-
 // --- Stroke-based icons ---
 
 /** Shared 24x24 stroke-style wrapper — every stroke icon differs only in its inner shape. */
 function StrokeIcon({ children }: { children: ReactNode }) {
   return (
     <svg
-      className={styles.iconSvg}
+      className="size-4 shrink-0 align-middle"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"

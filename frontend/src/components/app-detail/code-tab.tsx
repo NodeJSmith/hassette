@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 import type { AppSourceData, ListenerData } from "../../api/endpoints";
 import { getAppSource } from "../../api/endpoints";
@@ -9,7 +10,6 @@ import { useQueryParams } from "../../hooks/use-query-params";
 import { parseSourceLocation } from "../../utils/format";
 import { getShikiHighlighter, SHIKI_THEMES } from "../../utils/shiki";
 import { Spinner } from "../shared/spinner";
-import styles from "./code-tab.module.css";
 
 interface Props {
   appKey: string;
@@ -34,6 +34,7 @@ function escapeHtml(s: string): string {
 }
 
 const SHIKI_LINE_RE = /<span class="line">/g;
+const DETAIL_LABEL_CLASS = "text-xs font-medium uppercase tracking-[var(--text-label-tracking)] text-muted-foreground";
 
 function injectLineNumbers(html: string, annotationMap: Map<number, string[]>): string {
   if (!SHIKI_LINE_RE.test(html)) return html;
@@ -121,7 +122,7 @@ export function CodeTab({ appKey, listeners }: Props) {
   if (error) {
     return (
       <Card data-testid="code-tab-error">
-        <p className="ht-text-muted ht-text-sm">{error}</p>
+        <p className="text-sm text-muted-foreground">{error}</p>
       </Card>
     );
   }
@@ -140,15 +141,20 @@ export function CodeTab({ appKey, listeners }: Props) {
   };
 
   return (
-    <div className={styles.codeTab} data-testid="code-tab-content">
-      <div className={styles.header} data-testid="code-tab-header">
-        <div className={styles.headerSource}>
-          <span className="ht-detail-label">Source</span>
-          <span className="ht-text-mono ht-text-sm ht-text-muted">{source.filename}</span>
+    <div className="overflow-hidden rounded-md border border-border bg-card" data-testid="code-tab-content">
+      <div
+        className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-muted px-4 py-2"
+        data-testid="code-tab-header"
+      >
+        <div className="flex items-baseline gap-2">
+          <span className={DETAIL_LABEL_CLASS}>Source</span>
+          <span className="font-mono text-sm text-muted-foreground">{source.filename}</span>
         </div>
-        <div className={styles.headerMeta}>
-          <span className="ht-text-muted ht-text-sm">{lineCount} lines</span>
-          <span className={styles.readonlyLabel}>read-only</span>
+        <div className="flex shrink-0 items-center gap-3">
+          <span className="text-sm text-muted-foreground">{lineCount} lines</span>
+          <span className="rounded-sm border border-border px-2 py-px font-mono text-xs text-foreground-faint">
+            read-only
+          </span>
           <Button
             variant="ghost"
             size="sm"
@@ -161,7 +167,19 @@ export function CodeTab({ appKey, listeners }: Props) {
         </div>
       </div>
       <div
-        className={styles.body}
+        className={cn(
+          "max-h-[calc(100vh-280px)] overflow-auto [-webkit-overflow-scrolling:touch]",
+          "[&_.shiki]:m-0 [&_.shiki]:rounded-none [&_.shiki]:!bg-[var(--bg-page)] [&_.shiki]:px-0 [&_.shiki]:py-3",
+          "[&_.shiki]:text-sm [&_.shiki]:leading-relaxed [&_.shiki_code]:block [&_.shiki_code]:bg-transparent [&_.shiki_code]:p-0",
+          "[&_.shiki_span:not(.line):not(.line-num)]:text-[var(--shiki-light,var(--ink-1))]",
+          "dark:[&_.shiki_span:not(.line):not(.line-num)]:text-[var(--shiki-dark,var(--ink-1))]",
+          "[&_.line]:inline-flex [&_.line]:min-w-full [&_.line]:pr-4",
+          "[&_.line--annotated]:cursor-help [&_.line--annotated]:bg-[var(--code-annotate-bg)]",
+          "[&_.line--focus]:bg-[var(--code-focus-bg)]",
+          "[&_.line-num]:mr-3 [&_.line-num]:min-w-[3ch] [&_.line-num]:shrink-0 [&_.line-num]:select-none",
+          "[&_.line-num]:border-r [&_.line-num]:border-border [&_.line-num]:px-3 [&_.line-num]:text-right",
+          "[&_.line-num]:text-foreground-faint",
+        )}
         // Shiki-generated HTML from our own source fetch, not user input — safe to inject.
         dangerouslySetInnerHTML={{ __html: processedHtml }}
       />

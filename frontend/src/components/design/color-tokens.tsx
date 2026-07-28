@@ -1,5 +1,10 @@
-import styles from "./color-tokens.module.css";
-import s from "./section.module.css";
+import {
+  designGroupClassName,
+  designGroupLabelClassName,
+  designHeadingClassName,
+  designSectionClassName,
+  designTokenCodeClassName,
+} from "./design-showcase";
 
 interface SwatchGroup {
   label: string;
@@ -63,17 +68,20 @@ const GROUPS: SwatchGroup[] = [
 
 export function ColorTokens() {
   return (
-    <section className={s.section}>
-      <h2 className={s.heading}>Color Palette</h2>
+    <section className={designSectionClassName}>
+      <h2 className={designHeadingClassName}>Color Palette</h2>
       {GROUPS.map((group) => (
-        <div key={group.label} className={s.group}>
-          <h3 className={s.groupLabel}>{group.label}</h3>
-          <div className={styles.grid}>
+        <div key={group.label} className={designGroupClassName}>
+          <h3 className={designGroupLabelClassName}>{group.label}</h3>
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-3">
             {group.tokens.map((token) => (
-              <div key={token.cssVar} className={styles.swatch}>
-                <div className={styles.swatchColor} style={{ backgroundColor: `var(${token.cssVar})` }} />
-                <span className={styles.swatchName}>{token.name}</span>
-                <code className={s.tokenCode}>{token.cssVar}</code>
+              <div key={token.cssVar} className="flex flex-col gap-1">
+                <div
+                  className="h-14 rounded-md border border-border"
+                  style={{ backgroundColor: `var(${token.cssVar})` }}
+                />
+                <span className="font-sans text-sm font-medium text-foreground">{token.name}</span>
+                <code className={designTokenCodeClassName}>{token.cssVar}</code>
               </div>
             ))}
           </div>

@@ -8,7 +8,14 @@ import { TableFooter } from "../components/shared/table-footer";
 import { useDocumentTitle } from "../hooks/use-document-title";
 import { useManifests } from "../hooks/use-manifests";
 import { useQueryParams } from "../hooks/use-query-params";
-import styles from "./logs.module.css";
+
+const PAGE_CLASS = "flex flex-1 flex-col gap-8 p-8 max-mobile:p-3 max-small-mobile:p-2";
+const PAGE_HEADER_CLASS = "flex items-baseline gap-4 border-b border-border pb-3";
+const PAGE_TITLE_CLASS =
+  "m-0 font-heading text-[length:var(--text-display)] font-normal tracking-[var(--text-display-tracking)] text-foreground";
+const TABLE_SECTION_CLASS = "flex flex-col gap-3";
+const SEARCH_INPUT_CLASS =
+  "min-w-[var(--size-search-min)] self-end rounded-md border border-[var(--border-strong)] bg-input px-2 py-1.5 font-sans text-[length:var(--text-mono-sm)] text-foreground outline-none placeholder:text-foreground-faint focus-visible:border-primary focus-visible:shadow-[0_0_0_2px_var(--primary-soft)] max-mobile:w-full max-mobile:min-w-0 max-mobile:self-stretch";
 
 export function LogsPage() {
   useDocumentTitle("Logs");
@@ -29,7 +36,7 @@ export function LogsPage() {
   const searchInput = (
     <input
       type="text"
-      className="ht-search"
+      className={SEARCH_INPUT_CLASS}
       placeholder="Search logs…"
       aria-label="Search logs"
       value={search}
@@ -45,7 +52,7 @@ export function LogsPage() {
       {log.livePaused && (
         <button
           type="button"
-          className={styles.pausedBtn}
+          className="inline-flex cursor-pointer appearance-none items-center gap-1 rounded-sm border-none bg-transparent px-2 py-[var(--spacing-0-5)] font-sans text-xs font-medium text-[var(--status-warning)] transition-colors hover:bg-[var(--status-warning-bg)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--status-warning)] focus-visible:outline-offset-[var(--spacing-0-5)]"
           onClick={log.resetSort}
           aria-label="Resume live log streaming"
         >
@@ -73,11 +80,11 @@ export function LogsPage() {
   );
 
   return (
-    <div className="ht-page" data-testid="logs-page">
-      <div className="ht-page-header">
-        <h1 className="ht-display">logs</h1>
+    <div className={PAGE_CLASS} data-testid="logs-page">
+      <div className={PAGE_HEADER_CLASS}>
+        <h1 className={PAGE_TITLE_CLASS}>logs</h1>
       </div>
-      <div className="ht-table-section">
+      <div className={TABLE_SECTION_CLASS}>
         {searchInput}
         <TableCard footer={footer} data-testid="logs-card">
           <LogTableWithDrawer drawerProps={log.drawerProps}>

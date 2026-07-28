@@ -5,7 +5,6 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 
 import { FilterIcon } from "./filter-icon";
-import styles from "./sort-header.module.css";
 
 export interface SortState<K extends string = string> {
   key: K;
@@ -85,7 +84,11 @@ export function SortHeader<K extends string = string>(props: Props<K>) {
   const sortElement = hasSortProps ? (
     <button
       type="button"
-      className={cn(styles.sortHeader, active && styles.active)}
+      className={cn(
+        "inline-flex cursor-pointer items-center gap-1 border-none bg-transparent p-0 font-inherit text-foreground-secondary [text-transform:inherit] [letter-spacing:inherit]",
+        "hover:text-foreground focus-visible:rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary",
+        active && "font-semibold text-foreground",
+      )}
       data-testid="sort-header-btn"
       aria-label={ariaLabel ? `Sort by ${ariaLabel}` : undefined}
       onClick={sortClickHandler}
@@ -106,13 +109,17 @@ export function SortHeader<K extends string = string>(props: Props<K>) {
   }
 
   return (
-    <div className={cn(styles.headerInner, className)} data-testid={testId}>
+    <div className={cn("inline-flex items-center gap-1", className)} data-testid={testId}>
       {sortElement}
       <Popover open={filterOpen} onOpenChange={setFilterOpen}>
         <PopoverTrigger asChild>
           <button
             type="button"
-            className={cn(styles.filterBtn, props.hasActiveFilter && styles.filterActive)}
+            className={cn(
+              "relative inline-flex shrink-0 cursor-pointer items-center rounded-sm border-none bg-transparent p-0 text-foreground-faint transition-colors",
+              "hover:text-foreground-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary",
+              props.hasActiveFilter && "text-foreground-secondary",
+            )}
             data-testid="filter-btn"
             aria-label={ariaLabel ? `Filter ${ariaLabel}` : undefined}
           >

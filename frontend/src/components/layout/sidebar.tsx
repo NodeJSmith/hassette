@@ -81,7 +81,7 @@ function AppEntry({ manifest, location, searchString }: AppEntryProps) {
                 type="button"
                 className="mr-1 flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-sm border-none bg-transparent text-[var(--ink-3)] transition-colors hover:bg-[var(--bg-active)] hover:text-[var(--ink-1)] max-[900px]:size-11"
                 aria-label={expanded ? `Collapse ${manifest.display_name}` : `Expand ${manifest.display_name}`}
-                data-testid="app-expand"
+                data-testid={`app-expand-${manifest.app_key}`}
               >
                 <SidebarChevron open={expanded} />
               </button>
@@ -292,6 +292,7 @@ export function Sidebar({ onOpenPalette, mobileDrawer = false }: SidebarProps = 
             placeholder="Filter apps…"
             value={search}
             aria-label="Filter apps"
+            data-testid="app-filter-input"
             onInput={(e) => setSearch((e.target as HTMLInputElement).value)}
           />
         </div>

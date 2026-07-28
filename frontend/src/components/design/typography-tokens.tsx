@@ -1,5 +1,10 @@
-import s from "./section.module.css";
-import styles from "./typography-tokens.module.css";
+import {
+  designGroupClassName,
+  designGroupLabelClassName,
+  designHeadingClassName,
+  designSectionClassName,
+  designTokenCodeClassName,
+} from "./design-showcase";
 
 interface TypeSpec {
   label: string;
@@ -46,16 +51,19 @@ const WEIGHTS = [
 
 export function TypographyTokens() {
   return (
-    <section className={s.section}>
-      <h2 className={s.heading}>Typography</h2>
+    <section className={designSectionClassName}>
+      <h2 className={designHeadingClassName}>Typography</h2>
 
-      <div className={s.group}>
-        <h3 className={s.groupLabel}>Font Stacks</h3>
-        <div className={styles.stackList}>
+      <div className={designGroupClassName}>
+        <h3 className={designGroupLabelClassName}>Font Stacks</h3>
+        <div className="flex flex-col gap-4">
           {FONT_STACKS.map((stack) => (
-            <div key={stack.cssVar} className={styles.stackRow}>
-              <code className={s.tokenCode}>{stack.cssVar}</code>
-              <span className={styles.stackSample} style={{ fontFamily: `var(${stack.cssVar})` }}>
+            <div key={stack.cssVar} className="flex flex-col gap-1">
+              <code className={designTokenCodeClassName}>{stack.cssVar}</code>
+              <span
+                className="text-[length:var(--text-h2)] text-foreground"
+                style={{ fontFamily: `var(${stack.cssVar})` }}
+              >
                 {stack.sample}
               </span>
             </div>
@@ -63,17 +71,20 @@ export function TypographyTokens() {
         </div>
       </div>
 
-      <div className={s.group}>
-        <h3 className={s.groupLabel}>Type Scale</h3>
-        <div className={styles.scaleList}>
+      <div className={designGroupClassName}>
+        <h3 className={designGroupLabelClassName}>Type Scale</h3>
+        <div className="flex flex-col gap-5">
           {TYPE_SCALE.map((spec) => (
-            <div key={spec.sizeVar} className={styles.scaleRow}>
-              <div className={styles.scaleMeta}>
-                <span className={styles.scaleLabel}>{spec.label}</span>
-                <code className={s.tokenCode}>{spec.sizeVar}</code>
+            <div
+              key={spec.sizeVar}
+              className="flex flex-col gap-1 border-b border-[var(--border-subtle)] pb-5 last:border-b-0 last:pb-0"
+            >
+              <div className="flex items-baseline gap-3">
+                <span className="font-sans text-sm font-semibold text-foreground-secondary">{spec.label}</span>
+                <code className={designTokenCodeClassName}>{spec.sizeVar}</code>
               </div>
               <span
-                className={styles.scaleSample}
+                className="font-sans text-foreground"
                 style={{
                   fontSize: `var(${spec.sizeVar})`,
                   lineHeight: `var(${spec.lineHeightVar})`,
@@ -87,13 +98,16 @@ export function TypographyTokens() {
         </div>
       </div>
 
-      <div className={s.group}>
-        <h3 className={s.groupLabel}>Weights</h3>
-        <div className={styles.weightList}>
+      <div className={designGroupClassName}>
+        <h3 className={designGroupLabelClassName}>Weights</h3>
+        <div className="flex flex-col gap-3">
           {WEIGHTS.map((w) => (
-            <div key={w.cssVar} className={styles.weightRow}>
-              <code className={s.tokenCode}>{w.cssVar}</code>
-              <span className={styles.weightSample} style={{ fontWeight: `var(${w.cssVar})` }}>
+            <div key={w.cssVar} className="flex items-baseline gap-4">
+              <code className={designTokenCodeClassName}>{w.cssVar}</code>
+              <span
+                className="font-sans text-[length:var(--text-h3)] text-foreground"
+                style={{ fontWeight: `var(${w.cssVar})` }}
+              >
                 {w.label} ({w.value})
               </span>
             </div>

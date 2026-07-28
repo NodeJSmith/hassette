@@ -391,67 +391,39 @@ Layout: use `flowchart TD` (top-to-bottom) by default. Use subgraphs with backgr
 
 ## CSS Architecture
 
-The frontend uses CSS Modules for component-specific styles, with a single shared `frontend/src/global.css` for the design system. Tailwind CSS v4 (via `@tailwindcss/vite`) and shadcn/ui coexist alongside CSS Modules — Tailwind is imported without Preflight (`@import "tailwindcss/theme.css" layer(theme); @import "tailwindcss/utilities.css" layer(utilities);` in `global.css`) so it does not override the existing hand-rolled reset (`styles/reset.css`). `components.json` configures the New York style with `@/components/ui` as the component directory, which now holds the shadcn primitives: `button.tsx`, `badge.tsx`, `card.tsx`, `tooltip.tsx`, `dialog.tsx`, `alert-dialog.tsx`, `popover.tsx`, `command.tsx`, `drawer.tsx`, `table.tsx`.
+The frontend uses Tailwind CSS v4 via `@tailwindcss/vite` as the styling system. Tailwind Preflight is enabled through `@import "tailwindcss"` in `frontend/src/global.css`, which is the single CSS entry point for theme registration, token definitions, base element styles, and any rare shared component-layer rules. The only other CSS file is `frontend/src/styles/fonts.css`, imported by `global.css` for self-hosted `@font-face` declarations.
 
-shadcn's generated theme CSS variables (`--background`, `--foreground`, `--primary`, etc.) are aliased in `global.css` to Hassette's existing design tokens in `tokens.css`, not left as shadcn's own defaults. New code should reference the shadcn-named tokens (`var(--primary)`, `var(--border)`, `var(--muted-foreground)`, etc.) rather than reaching directly into `tokens.css`, so component styling stays consistent with what shadcn/ui components already read.
+`global.css` owns both Hassette source tokens (`--bg-page`, `--ink-1`, spacing, typography, status colors, z-index values) and shadcn-compatible aliases (`--background`, `--foreground`, `--primary`, `--border`, `--muted-foreground`, etc.). New code should reference the shadcn-named tokens where possible so custom markup and shadcn/ui primitives read the same design roles. Custom Tailwind screens are registered in `@theme inline` for the project's non-standard breakpoints: `tablet` 1024px, `sidebar` 900px, `mobile` 768px, and `small-mobile` 480px.
 
-One aliasing detail matters enough to call out explicitly: shadcn's `--accent` is a subtle highlighted-background role (hover/active row state), a completely different concept from Hassette's pre-existing `--accent` custom property, which has always meant the brand/action color and is read by roughly two dozen legacy CSS Module consumers. Aliasing shadcn's `--accent` directly to itself would have created a same-name cascade collision, silently breaking every one of those consumers. Instead:
-- Hassette's brand color continues to be `--accent` (untouched, still reproduced from the `--accent-hue`/`--accent-chroma` primitives) and is *additionally* exposed to shadcn components as `--primary` (`oklch(0.5 var(--accent-chroma) var(--accent-hue))`), which shadcn's own button/badge/etc. variants read.
+One aliasing detail matters enough to call out explicitly: shadcn's `--accent` is a subtle highlighted-background role (hover/active row state), a different concept from Hassette's pre-existing `--accent` custom property, which means the brand/action color. Instead:
+- Hassette's brand color continues to be `--accent` and is additionally exposed to shadcn components as `--primary` (`oklch(0.5 var(--accent-chroma) var(--accent-hue))`), which shadcn's own button/badge/etc. variants read.
 - shadcn's highlighted-background role is exposed under a new, non-colliding property, `--highlight-bg` (mapped to `--bg-active`), never under the literal name `--accent`.
 
 See `global.css`'s `:root` block (the comment above the shadcn variable aliases) for the full mechanism if extending this further.
 
-### Module pattern
+### Component Styling
 
-Each component/page has a co-located `.module.css` file. Classes are imported and applied with `clsx`:
+Use Tailwind utilities directly in JSX. Compose conditional class names with `cn()` from `@/lib/utils`; do not import `clsx` directly and do not add CSS Modules.
 
 ```tsx
-import styles from "./my-component.module.css";
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 
-<div className={clsx(styles.wrapper, isActive && styles.active)}>
+<div className={cn("rounded-md border border-border p-4", isActive && "bg-[var(--highlight-bg)]")}>
 ```
 
-### When to use styles/ vs a module vs a shared component
+Use arbitrary values for project tokens that do not have a named Tailwind utility, for example `text-[var(--handler-job)]`, `max-w-[var(--size-content-narrow)]`, or `z-[var(--z-status-bar-layer)]`. Do not use `@apply`; if a pattern is too awkward for inline utilities and is genuinely shared, put a small named rule in `@layer components` in `global.css`.
 
-- **`styles/`**: Shared design system classes used across 3+ unrelated files that don't have a component wrapper. All classes use the `ht-` prefix. Organized by domain: `fonts.css`, `reset.css`, `typography.css`, `layout.css`, `tables.css`, `utilities.css`. Imported via `global.css`. Buttons, badges, chips, and cards have been migrated to shadcn/ui components (see below).
-- **shadcn components** (`components/ui/`): `Button`, `Badge` (chip variants merged in as flattened `variant`/`kind` options — there is no separate `Chip` component), `Card`, and `Tooltip` are shadcn/ui primitives styled with Tailwind utility classes plus `class-variance-authority` (`cva`) variant definitions, not hand-rolled CSS Modules. Use these instead of raw `ht-btn`, `ht-badge`, `ht-chip`, or `ht-card` class strings: `import { Button } from "@/components/ui/button"`, `<Button variant="ghost" size="sm">`, `<Badge variant="danger" size="sm">`. Their tests remain co-located in `components/shared/` (e.g. `components/shared/button.test.tsx` imports from `@/components/ui/button`) rather than moving alongside the `ui/` source, matching shadcn's convention of treating `components/ui/` as vendored/generated primitives.
-- **`.module.css`**: Everything else — component-specific layout, state variants, animations tied to a single component.
+### shadcn Components
 
-### Referencing global classes from module CSS
+`components.json` configures the New York style with `@/components/ui` as the component directory, which holds the shadcn primitives: `button.tsx`, `badge.tsx`, `card.tsx`, `tooltip.tsx`, `dialog.tsx`, `alert-dialog.tsx`, `popover.tsx`, `command.tsx`, `drawer.tsx`, `table.tsx`.
 
-Use `:global()` to target global classes from within a module:
-
-```css
-/* Scope a global class to this component's context */
-.tableWrapper :global(.ht-table) tbody tr:hover { background: var(--bg-sunken); }
-
-/* Global class as an ancestor condition */
-:global(.ht-main) > .alert { margin-top: 0; }
-```
-
-Do NOT use bare class names (`.ht-table`) in module CSS — they will be scoped and broken at runtime.
+Use these primitives instead of rebuilding standard controls with raw markup: `import { Button } from "@/components/ui/button"`, `<Button variant="ghost" size="sm">`, `<Badge variant="danger" size="sm">`. Their tests remain co-located in `components/shared/` (e.g. `components/shared/button.test.tsx` imports from `@/components/ui/button`) rather than moving alongside the `ui/` source, matching shadcn's convention of treating `components/ui/` as vendored/generated primitives.
 
 ### CI guards
 
-Three scripts enforce CSS hygiene, all wired into `.github/workflows/lint.yml`:
+Two frontend CSS hygiene scripts remain in `tools/frontend/` and are wired into the frontend prek group:
 
-- **`tools/frontend/check_global_css_allowlist.py`** — blocks any `.ht-*` selector not on the allowlist from entering shared CSS (`styles/*.css`). Run locally: `uv run python tools/frontend/check_global_css_allowlist.py`. Add new shared prefixes to `ALLOWLIST` in that file.
-- **`tools/frontend/check_dead_global_css.py`** — blocks unreferenced class selectors in shared CSS (`styles/*.css`). Run locally: `uv run python tools/frontend/check_dead_global_css.py`. Add dynamically-assembled class prefixes to `EXEMPTIONS` in that file.
-- **`tools/frontend/check_css_module_globals.py`** — validates that `:global()` usage in module CSS is correct.
-- **`tools/frontend/check_undefined_css_refs.py`** — blocks raw `ht-*` class references in TSX that have no matching CSS definition in `global.css` or `styles/*.css`. The inverse of the dead-CSS checker. Run locally: `uv run python tools/frontend/check_undefined_css_refs.py`. Add false positives (ARIA IDs, test selectors, JS-only classes) to `EXEMPTIONS` in that file.
+- **`tools/frontend/check_breakpoint_drift.py`** — validates that JS breakpoint constants in `use-media-query.ts` match the Tailwind screen registrations in `global.css`.
+- **`tools/frontend/check_dead_tokens.py`** — scans `global.css` for unused CSS custom properties.
 
-### Adding a new shared class
-
-For classes that don't warrant a component (layout utilities, typography helpers):
-
-1. Confirm it is used in 3+ unrelated files (not just BEM descendants of one component)
-2. Add it to the appropriate file in `frontend/src/styles/`
-3. Add its prefix to `ALLOWLIST` in `tools/frontend/check_global_css_allowlist.py`
-4. Run `uv run python tools/frontend/check_global_css_allowlist.py` to verify
-
-For new reusable visual elements (like buttons, badges), create a shared component with a co-located `.module.css` file in `components/shared/` instead of adding global classes.
-
-### tokens.css
-
-`frontend/src/tokens.css` contains all design tokens (colors, spacing, typography, radii, z-index). Do not add raw hex or pixel values to `global.css` — always reference a token variable. Do not modify `tokens.css` during CSS refactoring work.
+There are no CSS Modules, no `ht-*` global utility classes, and no separate `tokens.css` file.

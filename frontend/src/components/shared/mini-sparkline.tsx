@@ -1,5 +1,3 @@
-import styles from "./mini-sparkline.module.css";
-
 export function MiniSparkline({
   buckets,
   width = 80,
@@ -26,7 +24,7 @@ export function MiniSparkline({
       height={height}
       viewBox={`0 0 ${width} ${height}`}
       aria-hidden="true"
-      className={styles.sparkline}
+      className="block shrink-0"
       data-testid="mini-sparkline"
     >
       <polyline

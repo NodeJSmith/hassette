@@ -1,7 +1,6 @@
 import type { JobData, ListenerData } from "../../api/endpoints";
 import { formatTriggerDetail, lastDotSegment } from "../../utils/format";
 import { statusToKind } from "../../utils/status";
-import styles from "./handler-list.module.css";
 import { compareFailingFirst } from "./handler-sort";
 import { UnifiedHandlerRow, type UnifiedItem, type UnifiedItemKind } from "./unified-handler-row";
 
@@ -67,7 +66,10 @@ export function HandlerList({ listeners, jobs, selectedId, onSelect }: Props) {
 
   return (
     <div>
-      <div className={styles.itemList} data-testid="handler-list">
+      <div
+        className="overflow-hidden rounded-md border border-strong [box-shadow:var(--shadow-2)]"
+        data-testid="handler-list"
+      >
         {items.map((item) => (
           <UnifiedHandlerRow
             key={`${item.kind}-${item.id}`}

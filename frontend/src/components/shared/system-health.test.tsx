@@ -4,7 +4,7 @@ import { mockMediaQueryMatches, renderWithAppState } from "../../test/render-hel
 import { SystemHealth } from "./system-health";
 
 describe("SystemHealth — connection states", () => {
-  it("renders connected state with visually-hidden status text", () => {
+  it("renders connected state with screen-reader-only status text", () => {
     const { getByTestId } = renderWithAppState(<SystemHealth variant="compact" />, {
       storeOverrides: { connection: "connected" },
     });
@@ -47,7 +47,7 @@ describe("SystemHealth — connection states", () => {
     const { getByText } = renderWithAppState(<SystemHealth variant="stacked" />, {
       storeOverrides: { connection: "connected" },
     });
-    expect(getByText("Connected").className).not.toContain("visually-hidden");
+    expect(getByText("Connected").className).not.toContain("sr-only");
   });
 });
 
@@ -63,7 +63,7 @@ describe("SystemHealth — compact labels at mobile widths", () => {
     });
     const label = getByTestId("ws-indicator").querySelector("[data-testid='health-label']");
     // Clipped, not removed — the live region still has to announce the change.
-    expect(label?.className).toContain("visually-hidden");
+    expect(label?.className).toContain("sr-only");
     expect(getByTestId("ws-indicator").textContent).toBe("Disconnected");
   });
 
@@ -73,7 +73,7 @@ describe("SystemHealth — compact labels at mobile widths", () => {
       storeOverrides: { errorHandlerFailures: 2 },
     });
     const indicator = getByTestId("error-handler-failures-indicator");
-    expect(indicator.querySelector("[data-testid='health-label']")?.className).toContain("visually-hidden");
+    expect(indicator.querySelector("[data-testid='health-label']")?.className).toContain("sr-only");
     expect(indicator.getAttribute("aria-label")).toBe("2 handler errors");
   });
 
@@ -82,7 +82,7 @@ describe("SystemHealth — compact labels at mobile widths", () => {
     const { getByText } = renderWithAppState(<SystemHealth variant="stacked" />, {
       storeOverrides: { connection: "disconnected" },
     });
-    expect(getByText("Disconnected").className).not.toContain("visually-hidden");
+    expect(getByText("Disconnected").className).not.toContain("sr-only");
   });
 });
 

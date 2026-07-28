@@ -49,8 +49,7 @@ describe("AlertBanner", () => {
 
   it("does not render error span when error_message is null", () => {
     const { container } = render(<AlertBanner failedApps={[{ app_key: "my_app", error_message: null }]} />);
-    // ht-text-secondary wraps the error message; should not exist when null
-    expect(container.querySelector(".ht-text-secondary")).toBeNull();
+    expect(container.textContent).not.toContain(" — ");
   });
 
   it("renders all failed apps in the list", () => {

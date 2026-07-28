@@ -24,8 +24,9 @@ export function TableCard({
   return (
     <div ref={ref} className={className} data-testid={testId}>
       <div
-        className="ht-table-card-scroll"
-        style={scrollHeight ? ({ "--table-scroll-height": scrollHeight } as CSSProperties) : undefined}
+        className="overflow-auto rounded-md border border-[var(--border-strong)] max-h-[var(--table-scroll-height)]"
+        data-testid="table-card-scroll"
+        style={{ "--table-scroll-height": scrollHeight ?? "calc(100vh - 310px)" } as CSSProperties}
       >
         {children}
       </div>

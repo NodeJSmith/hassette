@@ -106,8 +106,8 @@ describe("App — layout structure", () => {
   });
 
   it("renders the main content area", () => {
-    const { container } = render(<App />);
-    expect(container.querySelector("main.ht-main")).not.toBeNull();
+    render(<App />);
+    expect(screen.getByRole("main")).toBeDefined();
   });
 
   it("main content has id=main-content for skip link", () => {
@@ -117,10 +117,9 @@ describe("App — layout structure", () => {
   });
 
   it("renders a skip link", () => {
-    const { container } = render(<App />);
-    const skipLink = container.querySelector(".ht-skip-link");
-    expect(skipLink).not.toBeNull();
-    expect(skipLink!.getAttribute("href")).toBe("#main-content");
+    render(<App />);
+    const skipLink = screen.getByTestId("skip-link");
+    expect(skipLink.getAttribute("href")).toBe("#main-content");
   });
 });
 
@@ -178,11 +177,10 @@ describe("App — hamburger button", () => {
 
 describe("App — TelemetryDegradedBanner in layout shell", () => {
   it("mounts TelemetryDegradedBanner inside the main content area", () => {
-    const { container } = render(<App />);
-    const main = container.querySelector("main.ht-main");
-    expect(main).not.toBeNull();
+    render(<App />);
+    const main = screen.getByRole("main");
     // The slot element proves app.tsx renders TelemetryDegradedBanner inside main
-    const bannerSlot = main!.querySelector("[data-testid='telemetry-degraded-banner-slot']");
+    const bannerSlot = main.querySelector("[data-testid='telemetry-degraded-banner-slot']");
     expect(bannerSlot).not.toBeNull();
   });
 });

@@ -290,23 +290,17 @@ describe("AppTableRow", () => {
 
   describe("dimmed styling for inactive statuses", () => {
     for (const status of INACTIVE_STATUSES) {
-      it(`applies dimmed class for status "${status}"`, () => {
+      it(`marks status "${status}" as inactive`, () => {
         const { getByTestId } = renderRow({ app: createAppRow({ status }) });
         const row = getByTestId(`app-row-my_app`);
-        // The row element receives the rowDimmed CSS module class when inactive.
-        // In jsdom with CSS Modules, module class names are hashed; we verify
-        // the element has more than one class (base + dimmed), not the literal name.
-        const classes = row.className.split(/\s+/).filter(Boolean);
-        expect(classes.length).toBeGreaterThan(1);
+        expect(row.getAttribute("data-state")).toBe("inactive");
       });
     }
 
-    it("does not apply extra dimmed class for active status 'running'", () => {
+    it("marks active status 'running' as active", () => {
       const { getByTestId } = renderRow({ app: createAppRow({ status: "running" }) });
       const row = getByTestId("app-row-my_app");
-      const classes = row.className.split(/\s+/).filter(Boolean);
-      // Only the base row class — no dimmed class
-      expect(classes.length).toBe(1);
+      expect(row.getAttribute("data-state")).toBe("active");
     });
   });
 });

@@ -144,14 +144,9 @@ jobs:
               run: npm ci
               working-directory: frontend
 
-            - name: Build frontend (generates CSS module .d.ts files)
+            - name: Build frontend
               run: npm run build
               working-directory: frontend
-
-            # Self-test of the allowlist tool's own logic — not a lint check, so
-            # it stays outside the prek group and runs before the hooks.
-            - name: Smoke test CSS allowlist logic
-              run: uv run python tools/frontend/check_global_css_allowlist.py --smoke-test
 
             - name: Run frontend lint checks
               run: prek run --group frontend --all-files --show-diff-on-failure

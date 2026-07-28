@@ -14,7 +14,7 @@ function ErrorFallback({ error, resetErrorBoundary }: FallbackProps) {
   return (
     <Card variant="error" role="alert" data-testid="error-card">
       <h2>Something went wrong</h2>
-      <p className="ht-text-secondary">{message}</p>
+      <p className="text-foreground-secondary">{message}</p>
       <Button variant="default" onClick={resetErrorBoundary}>
         Retry
       </Button>

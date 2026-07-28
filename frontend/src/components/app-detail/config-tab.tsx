@@ -10,11 +10,14 @@ import { getShikiHighlighter, SHIKI_THEMES } from "../../utils/shiki";
 import { ConfigSchemaView, ExpandableValue } from "../shared/config-schema-view";
 import { EmptyState } from "../shared/empty-state";
 import { Spinner } from "../shared/spinner";
-import styles from "./config-tab.module.css";
 
 interface Props {
   appKey: string;
 }
+
+const DATA_TABLE_CLASS =
+  "w-full border-collapse bg-card [&_thead_tr]:bg-muted [&_th]:border-b [&_th]:border-border [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-mono [&_th]:text-xs [&_th]:font-medium [&_th]:uppercase [&_th]:tracking-[var(--text-label-tracking)] [&_th]:text-muted-foreground [&_th]:whitespace-nowrap [&_td]:border-b [&_td]:border-border [&_td]:px-3 [&_td]:py-2 [&_td]:align-top [&_td]:text-[length:var(--text-small)] [&_tbody_tr:last-child_td]:border-b-0 [&_tbody_tr:hover]:bg-muted";
+const SECTION_LABEL_CLASS = "mb-2 font-sans text-[length:var(--text-h3)] font-semibold text-foreground";
 
 /** True when the value is a plain (non-array) object usable as a ConfigRecord. */
 function isConfigRecord(value: unknown): value is ConfigRecord {
@@ -34,13 +37,13 @@ function SimpleConfigTable({ config }: { config: ConfigRecord }) {
   }
 
   return (
-    <table className={cn("ht-table", styles.table)} data-testid="config-values-table">
+    <table className={cn(DATA_TABLE_CLASS, "table-auto [&_td_code]:break-all")} data-testid="config-values-table">
       <thead>
         <tr>
-          <th className={styles.colKey} scope="col">
+          <th className="w-[30%] whitespace-nowrap" scope="col">
             Key
           </th>
-          <th className={styles.colValue} scope="col">
+          <th className="w-[55%]" scope="col">
             Value
           </th>
         </tr>
@@ -49,10 +52,10 @@ function SimpleConfigTable({ config }: { config: ConfigRecord }) {
         {entries.map(([key, value]) => (
           <tr key={key}>
             <td>
-              <code className="ht-text-mono ht-text-sm">{key}</code>
+              <code className="font-mono text-sm">{key}</code>
             </td>
-            <td className={styles.value} data-testid={`config-value-${key}`}>
-              <code className="ht-text-mono ht-text-sm">
+            <td data-testid={`config-value-${key}`}>
+              <code className="font-mono text-sm">
                 <ConfigValue value={value} />
               </code>
             </td>
@@ -145,7 +148,7 @@ export function ConfigTab({ appKey }: Props) {
   if (error) {
     return (
       <Card data-testid="config-tab-error">
-        <p className="ht-text-muted ht-text-sm">{error}</p>
+        <p className="text-sm text-muted-foreground">{error}</p>
       </Card>
     );
   }
@@ -159,16 +162,18 @@ export function ConfigTab({ appKey }: Props) {
   const frameworkFields = configData.framework_fields;
 
   return (
-    <div className={styles.configTab} data-testid="config-tab-content">
-      <div className={styles.layout}>
-        <div className={styles.fieldsCard}>
+    <div className="pb-4" data-testid="config-tab-content">
+      <div className="grid grid-cols-[1.4fr_1fr] gap-4 max-mobile:grid-cols-1">
+        <div className="min-w-0 px-4 pb-4">
           {isListConfig ? (
-            <div className={styles.instances}>
+            <div className="flex flex-col gap-6">
               {/* isListConfig is a stored boolean, so TS can't use it to narrow
                   appConfig here — hence the cast despite the guard above. */}
               {(appConfig as unknown[]).map((instanceCfg, idx) => (
-                <div key={idx} className={styles.instanceBlock} data-testid={`config-instance-${idx}`}>
-                  <h4 className={styles.instanceHeading}>Instance {idx}</h4>
+                <div key={idx} className="min-w-0" data-testid={`config-instance-${idx}`}>
+                  <h4 className="mb-3 border-b border-strong pb-2 font-sans text-sm font-semibold uppercase tracking-[var(--text-label-tracking-mid)] text-foreground-secondary">
+                    Instance {idx}
+                  </h4>
                   {isConfigRecord(instanceCfg) ? (
                     <AppConfigContent
                       appConfig={instanceCfg}
@@ -177,7 +182,7 @@ export function ConfigTab({ appKey }: Props) {
                       frameworkFields={frameworkFields}
                     />
                   ) : (
-                    <p className="ht-text-muted ht-text-sm">{String(instanceCfg)}</p>
+                    <p className="text-sm text-muted-foreground">{String(instanceCfg)}</p>
                   )}
                 </div>
               ))}
@@ -194,18 +199,27 @@ export function ConfigTab({ appKey }: Props) {
           )}
         </div>
 
-        <div className={styles.rawCard}>
-          <h3 className="ht-section-label">raw config</h3>
+        <div className="min-w-0 px-4 pb-4">
+          <h3 className={SECTION_LABEL_CLASS}>raw config</h3>
           <Card variant="config">
-            <span className="ht-text-mono ht-text-xs ht-text-muted">hassette.toml → apps.{appKey}.config</span>
+            <span className="font-mono text-xs text-muted-foreground">hassette.toml → apps.{appKey}.config</span>
             {tomlHtml ? (
               <div
-                className={styles.rawCode}
+                className={cn(
+                  "mt-2 overflow-x-auto whitespace-pre rounded-sm border border-dashed border-border bg-muted p-3",
+                  "font-mono text-xs [&_.shiki]:m-0 [&_.shiki]:bg-transparent [&_.shiki]:p-0",
+                  "[&_.shiki]:font-inherit [&_.shiki]:text-inherit",
+                  "[&_.shiki_span:not(.line)]:text-[var(--shiki-light,var(--ink-1))]",
+                  "dark:[&_.shiki_span:not(.line)]:text-[var(--shiki-dark,var(--ink-1))]",
+                )}
                 data-testid="raw-config-toml"
                 dangerouslySetInnerHTML={{ __html: tomlHtml }}
               />
             ) : (
-              <pre className={styles.rawCode} data-testid="raw-config-toml">
+              <pre
+                className="mt-2 overflow-x-auto whitespace-pre rounded-sm border border-dashed border-border bg-muted p-3 font-mono text-xs"
+                data-testid="raw-config-toml"
+              >
                 {configData.config_toml}
               </pre>
             )}

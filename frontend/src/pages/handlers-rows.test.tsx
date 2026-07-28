@@ -88,13 +88,10 @@ describe("HandlerTableRow", () => {
     expect(getByText("42")).toBeDefined();
   });
 
-  it("shows failed count with danger class when failed > 0", () => {
+  it("shows failed count with danger emphasis when failed > 0", () => {
     const { container } = renderTableRow(createRow({ failed: 2, runs: 10 }));
-    const dangerCells = container.querySelectorAll("td.ht-text-danger");
-    // The failed count cell and the error rate cell both get danger class
-    expect(dangerCells.length).toBeGreaterThan(0);
-    const failedCell = Array.from(dangerCells).find((el) => el.textContent === "2");
-    expect(failedCell).toBeDefined();
+    const failedCell = Array.from(container.querySelectorAll("td")).find((el) => el.textContent === "2");
+    expect(failedCell?.getAttribute("data-emphasis")).toBe("danger");
   });
 
   it("shows 0 for failed when failed is 0", () => {
@@ -104,11 +101,10 @@ describe("HandlerTableRow", () => {
     expect(tds[5].textContent).toBe("0");
   });
 
-  it("shows timed_out with warning class when timed_out > 0", () => {
+  it("shows timed_out with warning emphasis when timed_out > 0", () => {
     const { container } = renderTableRow(createRow({ timed_out: 3, failed: 0 }));
-    const warningCell = container.querySelector("td.ht-text-warning");
-    expect(warningCell).not.toBeNull();
-    expect(warningCell?.textContent).toBe("3");
+    const warningCell = Array.from(container.querySelectorAll("td")).find((el) => el.textContent === "3");
+    expect(warningCell?.getAttribute("data-emphasis")).toBe("warning");
   });
 
   it("shows 0 for timed_out when timed_out is 0", () => {
@@ -118,11 +114,10 @@ describe("HandlerTableRow", () => {
     expect(tds[6].textContent).toBe("0");
   });
 
-  it("shows cancelled with cancel class when cancelled > 0", () => {
+  it("shows cancelled with cancel emphasis when cancelled > 0", () => {
     const { container } = renderTableRow(createRow({ cancelled: 5, failed: 0, timed_out: 0 }));
-    const cancelCell = container.querySelector("td.ht-text-cancel");
-    expect(cancelCell).not.toBeNull();
-    expect(cancelCell?.textContent).toBe("5");
+    const cancelCell = Array.from(container.querySelectorAll("td")).find((el) => el.textContent === "5");
+    expect(cancelCell?.getAttribute("data-emphasis")).toBe("cancel");
   });
 
   it("shows 0 for cancelled when cancelled is 0", () => {
@@ -146,20 +141,16 @@ describe("HandlerTableRow", () => {
     expect(tds[10].textContent).toBe("—");
   });
 
-  it("applies rowFailing class on <tr> when failed > 0", () => {
+  it("marks <tr> as failing when failed > 0", () => {
     const { container } = renderTableRow(createRow({ failed: 1 }));
     const tr = container.querySelector("tr");
-    // The CSS module class name won't be the literal "rowFailing", but it
-    // will contain "rowFailing" as part of the generated class string.
-    const classes = tr?.className ?? "";
-    expect(classes).toMatch(/rowFailing/);
+    expect(tr?.getAttribute("data-state")).toBe("failing");
   });
 
-  it("does not apply rowFailing class when failed is 0", () => {
+  it("leaves <tr> in default state when failed is 0", () => {
     const { container } = renderTableRow(createRow({ failed: 0 }));
     const tr = container.querySelector("tr");
-    const classes = tr?.className ?? "";
-    expect(classes).not.toMatch(/rowFailing/);
+    expect(tr?.getAttribute("data-state")).toBe("default");
   });
 
   it("has correct data-testid for listener row", () => {
@@ -195,9 +186,9 @@ describe("HandlerMobileRow", () => {
     expect(getByText("on_light_change")).toBeDefined();
   });
 
-  it("shows 'failed' span with danger class when failed > 0", () => {
+  it("shows 'failed' span with danger emphasis when failed > 0", () => {
     const { container } = renderMobileRow(createRow({ failed: 3, runs: 10 }));
-    const dangerSpan = container.querySelector("span.ht-text-danger");
+    const dangerSpan = container.querySelector("span[data-emphasis='danger']");
     expect(dangerSpan).not.toBeNull();
     expect(dangerSpan?.textContent).toContain("3");
   });
@@ -220,19 +211,14 @@ describe("HandlerMobileRow", () => {
     // listeners always have next_run_ts: null, but even if we force one,
     // MobileRow only renders the footer for kind === "job"
     const row = createRow({ kind: "listener", next_run_ts: futureTs });
-    const { container } = renderMobileRow(row);
-    // The mobileCardFooter div should not be present
-    const classes = Array.from(container.querySelectorAll("div")).map((el) => el.className);
-    const hasFooter = classes.some((c) => c.match(/mobileCardFooter/));
-    expect(hasFooter).toBe(false);
+    const { queryByText } = renderMobileRow(row);
+    expect(queryByText(/^next /i)).toBeNull();
   });
 
   it("does not show footer for jobs with null next_run_ts", () => {
     const row = createRow({ kind: "job", next_run_ts: null });
-    const { container } = renderMobileRow(row);
-    const divs = Array.from(container.querySelectorAll("div"));
-    const hasFooter = divs.some((el) => el.className.match(/mobileCardFooter/));
-    expect(hasFooter).toBe(false);
+    const { queryByText } = renderMobileRow(row);
+    expect(queryByText(/^next /i)).toBeNull();
   });
 
   it("has correct data-testid", () => {
