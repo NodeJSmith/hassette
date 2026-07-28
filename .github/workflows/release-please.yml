@@ -226,6 +226,7 @@ jobs:
         uses: ./.github/workflows/build_and_publish_image.yml
         with:
             tag_name: ${{ needs.release-please.outputs.tag_name || inputs.tag_name }}
+            is_release: true
         permissions:
             contents: read
             packages: write

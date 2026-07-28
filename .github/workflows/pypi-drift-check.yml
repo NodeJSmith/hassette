@@ -52,7 +52,7 @@ jobs:
                   EXISTING=$(gh issue list --repo "$GITHUB_REPOSITORY" --label "pypi-drift" --state open --json number -q '.[0].number' 2>/dev/null || echo "")
                   if [ -n "$EXISTING" ]; then
                       echo "Issue #${EXISTING} already open for this drift"
-                      exit 1
+                      exit 0
                   fi
 
                   gh issue create --repo "$GITHUB_REPOSITORY" \
@@ -77,5 +77,3 @@ jobs:
                   - GitHub release: [v${GITHUB_VERSION}](https://github.com/${GITHUB_REPOSITORY}/releases/tag/v${GITHUB_VERSION})
                   - PyPI: https://pypi.org/project/hassette/${PYPI_VERSION}/
                   - Detected by: [pypi-drift-check workflow](https://github.com/${GITHUB_REPOSITORY}/actions/workflows/pypi-drift-check.yml)"
-
-                  exit 1
