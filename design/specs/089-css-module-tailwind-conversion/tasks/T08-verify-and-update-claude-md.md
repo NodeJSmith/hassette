@@ -65,6 +65,7 @@ Navigate all pages and verify:
 - App detail pages (all tabs) render correctly
 - Log table with drawer renders correctly
 - Handler list renders correctly
+- Config page renders correctly
 - Diagnostics page renders correctly
 - Dark mode toggle works on all pages
 - Mobile responsive layout (resize browser) works correctly

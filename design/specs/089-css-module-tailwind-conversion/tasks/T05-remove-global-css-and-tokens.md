@@ -30,6 +30,7 @@ Remove the 5 remaining global CSS files in `styles/` (reset.css was already remo
 - modify: `frontend/src/components/shared/execution-table.tsx`
 - modify: `frontend/src/components/layout/alert-banner.tsx`
 - modify: `frontend/src/components/app-detail/overview-tab.tsx`
+- modify: `frontend/src/pages/config.tsx`
 - modify: `frontend/src/pages/handlers-rows.test.tsx`
 - modify: `frontend/src/app.test.tsx`
 - modify: `frontend/src/pages/logs.test.tsx`
@@ -66,7 +67,7 @@ The `.ht-table`, `.ht-table--fixed`, `.ht-table--compact`, and `.ht-table-card-s
 - `overview-tab.tsx` (`.ht-table--compact`)
 - `apps.tsx`, `handlers.tsx` (via table components)
 
-Replace each `ht-table*` class reference with equivalent Tailwind utilities directly at the call site. For the shared table styling pattern (width 100%, border-collapse, sticky thead, hover rows), create a minimal set of Tailwind classes or, if the pattern is used by 3+ components, add an `ht-table` class definition to `@layer components` in `global.css`.
+Replace each `ht-table*` class reference with equivalent Tailwind utilities directly at the call site. For the shared table styling pattern (width 100%, border-collapse, sticky thead, hover rows), apply Tailwind utilities directly on each table component. If a shared `@layer components` rule is needed for a pattern used by 3+ components, use a descriptive non-`ht-` name (e.g., `.data-table`).
 
 Remove `@import "./styles/tables.css"` from global.css and delete the file.
 
@@ -100,6 +101,9 @@ Replace every `ht-*` utility class with Tailwind equivalents at each TSX call si
 - `.ht-detail-label` → Tailwind utilities
 - `.ht-section-label` → Tailwind utilities
 - `.ht-table-section` → Tailwind utilities
+
+**`config.tsx` (no module file — uses `ht-*` globals directly):**
+`frontend/src/pages/config.tsx` uses `ht-page`, `ht-page-header`, `ht-display`, `ht-alert`, `ht-alert--danger` directly without a CSS Module. Replace all five with Tailwind utilities as part of this step.
 
 Remove `@import "./styles/utilities.css"` from global.css and delete the file.
 
@@ -136,7 +140,7 @@ These tests will break because the `ht-*` classes no longer exist:
 - [ ] FR#3: `ls frontend/src/styles/typography.css 2>/dev/null` returns no file. Typography rules exist in `@layer base` in global.css.
 - [ ] FR#4: `ls frontend/src/styles/tables.css 2>/dev/null` returns no file. Table styles are expressed as Tailwind utilities or `@layer components` rules.
 - [ ] FR#5: `ls frontend/src/styles/layout.css 2>/dev/null` returns no file. Layout classes replaced by Tailwind utilities.
-- [ ] FR#6: `ls frontend/src/styles/utilities.css 2>/dev/null` returns no file. `grep -rn 'ht-' frontend/src --include='*.tsx' | grep -v 'ht-theme\|data-testid' | wc -l` returns 0 (excluding the localStorage migration key and data-testid attributes).
+- [ ] FR#6: `ls frontend/src/styles/utilities.css 2>/dev/null` returns no file. `grep -rnoP '(?<!["\w-])ht-(?!theme)[a-zA-Z0-9_-]+' frontend/src --include='*.tsx' | wc -l` returns 0 (matches `ht-*` class-name tokens, excludes `ht-theme` localStorage key; uses word-boundary-aware per-token matching so a `data-testid` on the same line doesn't mask a real `ht-*` class).
 - [ ] FR#8: `ls frontend/src/tokens.css 2>/dev/null` returns no file. `grep "tokens.css" frontend/src/main.tsx` returns no match. Token values are inlined in global.css's `:root` and `[data-theme="dark"]` blocks.
 - [ ] AC#1: `find frontend/src -name '*.module.css' | wc -l` returns 0.
 - [ ] AC#2: `ls frontend/src/styles/reset.css frontend/src/styles/typography.css frontend/src/styles/tables.css frontend/src/styles/layout.css frontend/src/styles/utilities.css frontend/src/tokens.css 2>/dev/null | wc -l` returns 0.

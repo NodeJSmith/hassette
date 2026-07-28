@@ -22,6 +22,7 @@ Convert the 26 CSS Module files in `components/shared/` (22 in the root + 4 in l
 - modify: `frontend/src/components/shared/config-schema-view.tsx`
 - delete: `frontend/src/components/shared/detail-panel.module.css`
 - modify: `frontend/src/components/shared/detail-panel.tsx`
+- modify: `frontend/src/components/shared/error-display.tsx`
 - delete: `frontend/src/components/shared/detail-stats.module.css`
 - modify: `frontend/src/components/shared/detail-stats.tsx`
 - delete: `frontend/src/components/shared/empty-state.module.css`
@@ -125,4 +126,4 @@ For tokens without a direct Tailwind utility, use arbitrary value syntax: `[colo
 ## Verify
 
 - [ ] FR#1: `find frontend/src/components/shared -name '*.module.css' | wc -l` returns 0. All 26 shared component CSS Module files are deleted.
-- [ ] FR#13: All `className` composition in modified files uses `cn()`. `grep -rn 'from "clsx"' frontend/src/components/shared/` returns no results.
+- [ ] FR#13: All `className` composition in modified files uses `cn()`. `grep -rn 'from "clsx"' frontend/src/components/shared/ | wc -l` returns 0.

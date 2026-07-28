@@ -87,7 +87,7 @@ Spec 088's Non-Goals section explicitly deferred this work to "PR 2." This spec 
 - **AC#3** `cd frontend && npm run build` exits 0.
 - **AC#4** `cd frontend && npm run test` reports 0 failures.
 - **AC#5** `cd frontend && npm run typecheck` exits 0.
-- **AC#6** `grep -rn 'from "clsx"' frontend/src/ | wc -l` returns 0. All className composition uses `cn()`.
+- **AC#6** `grep -rn 'from "clsx"' frontend/src/ | grep -v 'lib/utils.ts' | wc -l` returns 0. All className composition uses `cn()`. (`lib/utils.ts` legitimately imports `clsx` as the internal implementation of `cn()`.)
 - **AC#7** `ls frontend/src/styles/fonts.css 2>/dev/null | wc -l` returns 1 (font declarations preserved).
 - **AC#8** `grep -rn "import.*\.module\.css" frontend/src/ | wc -l` returns 0.
 - **AC#9** `ls tools/frontend/check_css_module_globals.py tools/frontend/check_dead_global_css.py tools/frontend/check_global_css_allowlist.py tools/frontend/check_undefined_css_refs.py 2>/dev/null | wc -l` returns 0.
@@ -158,7 +158,7 @@ The conversion is mechanical per file:
 
 **Directory batches** (ordered by dependency — components used by pages come first):
 
-1. **shared/** — 20 files, 1,567 lines (includes log-table subsystem). These components are imported by pages and other components, so converting them first means page conversions can use the new API.
+1. **shared/** — 26 files, 1,567 lines (includes log-table subsystem). These components are imported by pages and other components, so converting them first means page conversions can use the new API.
 2. **app-detail/** — 14 files, 934 lines. Heavy component area, uses many shared components.
 3. **layout/** — 2 files, 160 lines. `alert-banner.module.css`, `status-bar.module.css`.
 4. **design/** — 5 files, 250 lines. Component showcase and token display pages.

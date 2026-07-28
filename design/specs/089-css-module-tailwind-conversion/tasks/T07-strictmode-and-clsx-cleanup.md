@@ -98,8 +98,8 @@ Remove all comments that reference "PR 2" or "tokens.css" since this is PR 2 and
 
 ## Verify
 
-- [ ] FR#9: `grep -rn 'from "clsx"' frontend/src/ | wc -l` returns 0. `grep '"clsx"' frontend/package.json` returns no direct dependency.
+- [ ] FR#9: `grep -rn 'from "clsx"' frontend/src/ | grep -v 'lib/utils.ts' | wc -l` returns 0 (only `lib/utils.ts` legitimately imports clsx as the internal implementation of `cn()`). `grep '"clsx"' frontend/package.json` returns no direct dependency.
 - [ ] FR#12: `grep -n 'StrictMode' frontend/src/main.tsx` returns a match. The app runs in dev mode without StrictMode-related console errors.
-- [ ] FR#13: `grep -rn 'from "clsx"' frontend/src/ | wc -l` returns 0. All className composition uses `cn()`.
-- [ ] AC#6: Same as FR#9 — zero `clsx` imports.
+- [ ] FR#13: `grep -rn 'from "clsx"' frontend/src/ | grep -v 'lib/utils.ts' | wc -l` returns 0. All className composition uses `cn()`.
+- [ ] AC#6: Same as FR#9 — zero `clsx` imports outside `lib/utils.ts`.
 - [ ] AC#12: Same as FR#12 — StrictMode present in main.tsx.

@@ -24,6 +24,7 @@ Convert the 14 CSS Module files in `components/app-detail/` to Tailwind utility 
 - modify: `frontend/src/components/app-detail/execution-section.tsx`
 - delete: `frontend/src/components/app-detail/handler-chips.module.css`
 - modify: `frontend/src/components/app-detail/handler-chips.tsx`
+- modify: `frontend/src/components/app-detail/listener-detail.tsx`
 - delete: `frontend/src/components/app-detail/handler-detail-layout.module.css`
 - modify: `frontend/src/components/app-detail/handler-detail-layout.tsx`
 - delete: `frontend/src/components/app-detail/handler-health-card.module.css`
@@ -36,6 +37,7 @@ Convert the 14 CSS Module files in `components/app-detail/` to Tailwind utility 
 - modify: `frontend/src/components/app-detail/job-detail.tsx`
 - delete: `frontend/src/components/app-detail/overview-tab.module.css`
 - modify: `frontend/src/components/app-detail/overview-tab.tsx`
+- modify: `frontend/src/components/app-detail/handler-health-grid.tsx`
 - delete: `frontend/src/components/app-detail/registration-footer.module.css`
 - modify: `frontend/src/components/app-detail/registration-footer.tsx`
 - delete: `frontend/src/components/app-detail/unified-handler-row.module.css`
@@ -59,7 +61,7 @@ Use the token mapping from context.md and the design doc's "Architecture → Pha
 **Complex patterns to watch:**
 - `overview-tab.module.css` (170 lines) — has a health-grid with `grid-template-columns: repeat(auto-fill, minmax(...))`, local CSS variables (`--health-card-height`, `--health-card-min-width`, `--health-grid-rows`), activity table styles with descendant selectors, and a log scroll constraint. The grid uses `auto-fill` with complex `minmax` — use Tailwind's arbitrary grid syntax or an inline `style` attribute for the `grid-template-columns` value.
 - `unified-handler-row.module.css` (159 lines) — status-driven color classes, expandable row patterns, nested layout.
-- `handler-health-card.module.css` (109 lines) — uses handler-family tokens (`--job`, `--listener`) that map to `--handler-job`/`--handler-listener` aliases.
+- `unified-handler-row.module.css` (159 lines) — uses handler-family tokens (`--job`, `--listener`) that map to `--handler-job`/`--handler-listener` aliases. Use arbitrary values for these (e.g., `text-[var(--handler-job)]`).
 
 ## Focus
 

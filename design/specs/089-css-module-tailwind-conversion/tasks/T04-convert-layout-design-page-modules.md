@@ -28,14 +28,18 @@ Convert the remaining 14 CSS Module files across three directories: `components/
 - modify: `frontend/src/components/design/typography-tokens.tsx`
 - delete: `frontend/src/pages/app-detail.module.css`
 - modify: `frontend/src/pages/app-detail.tsx`
+- modify: `frontend/src/components/app-detail/multi-instance.tsx`
+- modify: `frontend/src/components/app-detail/app-detail-header.tsx`
 - delete: `frontend/src/pages/apps.module.css`
 - modify: `frontend/src/pages/apps.tsx`
+- modify: `frontend/src/pages/apps-table-row.tsx`
 - delete: `frontend/src/pages/design.module.css`
 - modify: `frontend/src/pages/design.tsx`
 - delete: `frontend/src/pages/diagnostics.module.css`
 - modify: `frontend/src/pages/diagnostics.tsx`
 - delete: `frontend/src/pages/handlers.module.css`
 - modify: `frontend/src/pages/handlers.tsx`
+- modify: `frontend/src/pages/handlers-rows.tsx`
 - delete: `frontend/src/pages/logs.module.css`
 - modify: `frontend/src/pages/logs.tsx`
 - delete: `frontend/src/pages/not-found.module.css`
@@ -67,7 +71,7 @@ For tokens without direct Tailwind equivalents, use arbitrary value syntax. Use 
 ## Focus
 
 - `status-bar.module.css` has z-index (`var(--z-status-bar)`) and fixed/absolute positioning with mobile responsive rules — use `z-[var(--z-status-bar-layer)]` or register the z-index in `@theme`.
-- `apps.module.css` and `handlers.module.css` have `.filterBtn` references — these were table action button styles. Verify the class name is from the module, not a global class.
+- `apps.module.css` and `handlers.module.css` contain page-level layout and filter/search bar styles. Read the actual file contents — do not assume specific class names.
 - The `design/` components exist solely for the design system showcase page — they display token values visually. Their CSS is straightforward (grid layouts, color swatches, font specimens).
 - `diagnostics.tsx` previously imported `card.module.css` directly (fixed in spec 088 to use shadcn Card). Verify this is clean.
 

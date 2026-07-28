@@ -71,6 +71,7 @@ Add custom screen breakpoints to the `@theme inline` block in `global.css`. The 
 ```css
 @theme inline {
   /* Custom breakpoints — sync with BREAKPOINT_* constants in use-media-query.ts */
+  --breakpoint-tablet: 1024px;
   --breakpoint-sidebar: 900px;
   --breakpoint-mobile: 768px;
   --breakpoint-small-mobile: 480px;
@@ -78,7 +79,7 @@ Add custom screen breakpoints to the `@theme inline` block in `global.css`. The 
 }
 ```
 
-These enable `max-sidebar:`, `max-mobile:`, `max-small-mobile:` prefixes in Tailwind utilities.
+These enable `max-tablet:`, `max-sidebar:`, `max-mobile:`, `max-small-mobile:` prefixes in Tailwind utilities.
 
 **Step 5 — Verify fonts.css is preserved:**
 
