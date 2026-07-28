@@ -1,7 +1,7 @@
 # Design: Convert CSS Modules to Tailwind Utilities
 
 **Date:** 2026-07-27
-**Status:** draft
+**Status:** approved
 **Scope-mode:** expand
 **Research:** design/research/2026-07-27-frontend-migration-part-two/brief.md
 
