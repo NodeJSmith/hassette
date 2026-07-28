@@ -55,6 +55,15 @@ Examples:
         )
         job = await self.scheduler.schedule(self.my_func, Cron("0 9 * * 1-5"), name="my_func_cron")
 
+    Scheduling from an entity's time::
+
+        from hassette.scheduler import EntityTime
+
+        # Fires when the phone alarm goes off, and moves whenever the alarm changes
+        job = await self.scheduler.schedule(
+            self.start_the_day, EntityTime("sensor.phone_next_alarm"), name="phone_alarm"
+        )
+
     Job management::
 
         # Named job for easier management
@@ -74,6 +83,7 @@ from whenever import ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
 from hassette.di import CallableInvoker, TypeMatcher, build_injection_plan
+from hassette.events import RawStateChangeEvent
 from hassette.exceptions import SchedulerNameRequiredError
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
@@ -87,10 +97,12 @@ from hassette.utils.type_utils import get_typed_signature
 
 from .classes import ScheduledJob
 from .sync import SchedulerSyncFacade
-from .triggers import After, Cron, Daily, Every, Once
+from .triggers import NO_OCCURRENCE, After, Cron, Daily, EntityTime, Every, Once
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
+    from hassette.bus import Subscription
+    from hassette.events import HassStateDict
     from hassette.types import JobCallable
     from hassette.types.types import SchedulerErrorHandlerType, SchedulerPredicate
 
@@ -117,6 +129,13 @@ class Scheduler(Resource):
     is based on ``job_id``, which is unique and immutable after construction.
     """
 
+    _entity_time_subs: dict[str, "Subscription"]
+    """State-change subscriptions that reschedule ``EntityTime`` jobs, keyed by job name.
+
+    One subscription per entity-driven job, cancelled by ``_on_job_removed`` when the job goes
+    away so a hot-reload does not leave the listener behind.
+    """
+
     def __init__(self, hassette: "Hassette", *, parent: Resource | None = None) -> None:
         super().__init__(hassette, parent=parent)
         assert self.parent is not None, (
@@ -126,6 +145,7 @@ class Scheduler(Resource):
         self._jobs_by_name = {}
         self._jobs_by_group: dict[str, set[ScheduledJob]] = {}
         self._error_handler: SchedulerErrorHandlerType | None = None
+        self._entity_time_subs = {}
         self.sync = self.add_child(SchedulerSyncFacade, scheduler=self)
 
         # Register removal callback so exhausted one-shot jobs are removed from _jobs_by_group
@@ -136,9 +156,13 @@ class Scheduler(Resource):
         """Callback invoked by SchedulerService when a job is auto-exhausted.
 
         Keeps _jobs_by_group and _jobs_by_name in sync when SchedulerService removes a
-        one-shot job after it fires or when a job is dequeued via cancel_job.
+        one-shot job after it fires or when a job is dequeued via cancel_job. Also cancels
+        the entity-watch subscription of an ``EntityTime`` job so it does not outlive the job.
         """
         self._jobs_by_name.pop(job.name, None)
+        sub = self._entity_time_subs.pop(job.name, None)
+        if sub is not None:
+            sub.cancel()
         if job.group is not None:
             group_set = self._jobs_by_group.get(job.group)
             if group_set is not None:
@@ -325,6 +349,9 @@ class Scheduler(Resource):
         """Remove all jobs for the owner of this scheduler."""
         self._jobs_by_name.clear()
         self._jobs_by_group.clear()
+        for sub in self._entity_time_subs.values():
+            sub.cancel()
+        self._entity_time_subs.clear()
         return self.scheduler_service.remove_jobs_by_owner(self.owner_id)
 
     def cancel_group(self, group: str) -> None:
@@ -398,7 +425,10 @@ class Scheduler(Resource):
         Args:
             func: The function to run.
             trigger: A trigger object implementing ``TriggerProtocol``. Determines
-                both the first run time and subsequent recurrences.
+                both the first run time and subsequent recurrences. An
+                :class:`~hassette.scheduler.triggers.EntityTime` trigger additionally
+                gets a state-change listener registered for its entity, so the job
+                moves whenever the entity's time changes.
             name: Required stable name for the job. Used for uniqueness validation
                 within this scheduler instance and for logging/telemetry.
             group: Optional group name for bulk management (see ``cancel_group``).
@@ -457,7 +487,7 @@ class Scheduler(Resource):
         if not isinstance(trigger, TriggerProtocol):
             raise TypeError(
                 f"trigger must implement TriggerProtocol; got {type(trigger).__name__}. "
-                "Use hassette.scheduler.triggers (After, Once, Every, Daily, Cron)"
+                "Use hassette.scheduler.triggers (After, Once, Every, Daily, Cron, EntityTime)"
             )
 
         predicate, predicate_invoker = _normalize_where(where)
@@ -482,6 +512,11 @@ class Scheduler(Resource):
             except ValueError as exc:
                 valid = ", ".join(repr(m.value) for m in ExecutionMode)
                 raise ValueError(f"Invalid execution mode {mode!r}; must be one of {valid}") from exc
+
+        if isinstance(trigger, EntityTime):
+            # Bind before first_run_time — an unbound EntityTime resolves to NO_OCCURRENCE.
+            # read_entity_state absorbs every state-read failure and returns None.
+            trigger.bind_state_reader(self.hassette.bus_service.read_entity_state)
 
         run_at = trigger.first_run_time(date_utils.now())
 
@@ -513,7 +548,64 @@ class Scheduler(Resource):
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at add_job (the true primary). See design/071.
         # source_location/registration_source are NOT passed here; add_job backfills them.
+        if isinstance(trigger, EntityTime):
+            # Not a Shape B delegate: the entity path wraps add_job in its own coroutine, so it
+            # needs its own guard to keep the forgotten-await warning pointing at the user's frame.
+            source_location, _ = capture_registration_source()
+            return guard_await(
+                self._add_job_and_watch_entity(job, trigger, if_exists=if_exists),
+                owner=self.parent,
+                source_location=source_location,
+                method_name="schedule",
+            )
         return self.add_job(job, if_exists=if_exists)
+
+    async def _add_job_and_watch_entity(
+        self, job: "ScheduledJob", trigger: EntityTime, *, if_exists: IfExistsPolicy
+    ) -> "ScheduledJob":
+        """Register an entity-driven job and the state-change listener that keeps it current.
+
+        The listener lives on the framework bus rather than the owning app's bus: it is
+        scheduler plumbing, not an app handler, and its lifetime is tied to the job through
+        ``_entity_time_subs`` instead of to the app's own subscriptions.
+        """
+        registered = await self.add_job(job, if_exists=if_exists)
+        if registered is not job:
+            # if_exists="skip" returned the pre-existing job; its listener is already running.
+            return registered
+
+        async def on_entity_change(event: RawStateChangeEvent) -> None:
+            await self._reschedule_entity_time_job(job, trigger, event.payload.data.new_state)
+
+        self._entity_time_subs[job.name] = await self.hassette.bus.on_state_change(
+            trigger.entity_id,
+            handler=on_entity_change,
+            name=f"scheduler.entity_time.{self.owner_id}.{job.name}",
+            if_exists="replace",
+        )
+
+        # schedule() read the entity before add_job awaited a database write, and the listener
+        # only exists now — a change landing in that window reached neither. Re-read once so it
+        # is picked up here instead of waiting for whenever the entity next changes, which for
+        # something like an alarm sensor could be a day away.
+        current = trigger.resolve(date_utils.now()) or NO_OCCURRENCE
+        if current != job.next_run:
+            await self.scheduler_service.reschedule_job(job, current)
+        return registered
+
+    async def _reschedule_entity_time_job(
+        self, job: "ScheduledJob", trigger: EntityTime, new_state: "HassStateDict | None"
+    ) -> None:
+        """Move an entity-driven job to the time the entity's new state reports.
+
+        Parks the job at ``NO_OCCURRENCE`` when the new state names no usable time — the
+        alarm was cleared, the entity went unavailable — so the job survives to be
+        rescheduled by a later change.
+        """
+        next_run = trigger.resolve_from_state(new_state, date_utils.now()) or NO_OCCURRENCE
+        if next_run == job.next_run:
+            return
+        await self.scheduler_service.reschedule_job(job, next_run)
 
     def run_in(
         self,

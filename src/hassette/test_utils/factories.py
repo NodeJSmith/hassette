@@ -277,10 +277,15 @@ def make_scheduler(
     async def _add_job(job: ScheduledJob) -> None:
         job.mark_registered(1)
 
+    async def _reschedule_job(job: ScheduledJob, next_run: ZonedDateTime) -> None:
+        job.set_next_run(next_run)
+
     mock_service.add_job = AsyncMock(side_effect=_add_job)
+    mock_service.reschedule_job = AsyncMock(side_effect=_reschedule_job)
     scheduler.scheduler_service = mock_service
     scheduler._jobs_by_name = {}
     scheduler._jobs_by_group = {}
+    scheduler._entity_time_subs = {}
     scheduler._error_handler = None
     scheduler._unique_name = f"test_scheduler_{app_key}"
     scheduler.logger = Mock()

@@ -113,6 +113,32 @@ class SchedulerService(Service):
         await self._job_queue.add(job)
         self.kick()
 
+    async def reschedule_job(self, job: "ScheduledJob", next_run: ZonedDateTime) -> None:
+        """Move a queued job to a new fire time without deregistering it.
+
+        Unlike ``dequeue_job``/``_remove_job``, no removal callbacks fire and the job keeps
+        its ``db_id`` — it stays a registered job that simply moves to a different slot in
+        the heap. Used by ``Scheduler`` when an entity-driven trigger's source entity changes.
+
+        Does nothing when the job is not on the heap, which means it was either cancelled or
+        already popped for dispatch. A popped job is about to consult its trigger in
+        ``dispatch_and_log``, so it picks up the new time there; re-pushing it here would put
+        the same job on the heap twice and fire it twice.
+
+        Args:
+            job: The job to move.
+            next_run: The new logical fire time.
+        """
+        if job._dequeued:
+            return
+        if not await self._job_queue.remove_job(job):
+            self.logger.debug("Job %s not on heap (cancelled or mid-dispatch); skipping reschedule", job)
+            return
+
+        job.set_next_run(next_run)
+        await self.enqueue_job(job)
+        self.logger.debug("Rescheduled job %s to %s", job, job.next_run)
+
     async def _remove_jobs_by_owner(self, owner: str) -> None:
         """Remove all jobs for an owner and wake the scheduler if necessary."""
         removed = await self._job_queue.remove_owner(owner)
