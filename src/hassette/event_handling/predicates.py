@@ -82,7 +82,7 @@ CombinatorT = TypeVar("CombinatorT", bound="_PredicateCombinator")
 LOGGER = getLogger(__name__)
 
 
-class PredicateOps:
+class _PredicateOps:
     """Adds ``&``, ``|``, and ``~`` composition to the predicate types in this module.
 
     ``a & b`` builds an `AllOf`, ``a | b`` builds an `AnyOf`, and ``~a`` builds a `Not`.
@@ -150,7 +150,7 @@ def _combine(combinator: type[CombinatorT], left: "Predicate", right: "Predicate
 
 
 @dataclass(frozen=True)
-class Guard(PredicateOps, typing.Generic[EventT]):
+class Guard(_PredicateOps, typing.Generic[EventT]):
     """Wraps a predicate function to be used in combinators.
 
     Allows for passing any callable as a predicate. Generic over EventT to allow type checkers to understand the
@@ -234,7 +234,7 @@ def _glob_or_literal(value: str) -> "str | Glob":
 
 
 @dataclass(frozen=True)
-class _PredicateCombinator(PredicateOps):
+class _PredicateCombinator(_PredicateOps):
     """Base for combinators that wrap a tuple of predicates.
 
     Provides the shared ``ensure_iterable`` constructor that flattens a single predicate
@@ -278,7 +278,7 @@ class AnyOf(_PredicateCombinator):
 
 
 @dataclass(frozen=True)
-class Not(PredicateOps):
+class Not(_PredicateOps):
     """Negates the result of the predicate."""
 
     predicate: "Predicate"
@@ -291,7 +291,7 @@ class Not(PredicateOps):
 
 
 @dataclass(frozen=True)
-class ValueIs(PredicateOps, Generic[EventT, V]):
+class ValueIs(_PredicateOps, Generic[EventT, V]):
     """Checks whether a value extracted from an event satisfies a condition.
 
     Args:
@@ -316,7 +316,7 @@ class ValueIs(PredicateOps, Generic[EventT, V]):
 
 
 @dataclass(frozen=True)
-class DidChange(PredicateOps, Generic[EventT]):
+class DidChange(_PredicateOps, Generic[EventT]):
     """Predicate that is True when two extracted values differ.
 
     Typical use is an accessor that returns (old_value, new_value).
@@ -333,7 +333,7 @@ class DidChange(PredicateOps, Generic[EventT]):
 
 
 @dataclass(frozen=True)
-class IsPresent(PredicateOps):
+class IsPresent(_PredicateOps):
     """Checks if a value extracted from an event is present (not MISSING_VALUE).
 
     This will generally be used when comparing state changes, where either the old or new state may be missing.
@@ -350,7 +350,7 @@ class IsPresent(PredicateOps):
 
 
 @dataclass(frozen=True)
-class IsMissing(PredicateOps):
+class IsMissing(_PredicateOps):
     """Checks if a value extracted from an event is missing (MISSING_VALUE).
 
     This will generally be used when comparing state changes, where either the old or new state may be missing.
@@ -367,7 +367,7 @@ class IsMissing(PredicateOps):
 
 
 @dataclass(frozen=True)
-class StateFrom(PredicateOps):
+class StateFrom(_PredicateOps):
     """Checks if a value extracted from a RawStateChangeEvent satisfies a condition on the 'old' value."""
 
     condition: "ChangeType"
@@ -380,7 +380,7 @@ class StateFrom(PredicateOps):
 
 
 @dataclass(frozen=True)
-class StateTo(PredicateOps):
+class StateTo(_PredicateOps):
     """Checks if a value extracted from a RawStateChangeEvent satisfies a condition on the 'new' value."""
 
     condition: "ChangeType"
@@ -393,7 +393,7 @@ class StateTo(PredicateOps):
 
 
 @dataclass(frozen=True)
-class StateComparison(PredicateOps):
+class StateComparison(_PredicateOps):
     """Checks if a comparison between from_state and to_state satisfies a condition."""
 
     condition: ComparisonCondition
@@ -411,7 +411,7 @@ class StateComparison(PredicateOps):
 
 
 @dataclass(frozen=True)
-class AttrFrom(PredicateOps):
+class AttrFrom(_PredicateOps):
     """Checks if a specific attribute changed in a RawStateChangeEvent."""
 
     attr_name: str
@@ -425,7 +425,7 @@ class AttrFrom(PredicateOps):
 
 
 @dataclass(frozen=True)
-class AttrTo(PredicateOps):
+class AttrTo(_PredicateOps):
     """Checks if a specific attribute changed in a RawStateChangeEvent."""
 
     attr_name: str
@@ -439,7 +439,7 @@ class AttrTo(PredicateOps):
 
 
 @dataclass(frozen=True)
-class AttrComparison(PredicateOps):
+class AttrComparison(_PredicateOps):
     """Checks if a comparison between from_attr and to_attr satisfies a condition."""
 
     attr_name: str
@@ -460,7 +460,7 @@ class AttrComparison(PredicateOps):
 
 
 @dataclass(frozen=True)
-class StateDidChange(PredicateOps):
+class StateDidChange(_PredicateOps):
     """Checks if the state changed in a RawStateChangeEvent."""
 
     def __call__(self, value: "RawStateChangeEvent", /) -> bool:
@@ -471,7 +471,7 @@ class StateDidChange(PredicateOps):
 
 
 @dataclass(frozen=True)
-class AttrDidChange(PredicateOps):
+class AttrDidChange(_PredicateOps):
     """Checks if a specific attribute changed in a RawStateChangeEvent.
 
     When ``old_state`` is None, the attribute is treated as having changed
@@ -497,7 +497,7 @@ class AttrDidChange(PredicateOps):
 
 
 @dataclass(frozen=True)
-class DomainMatches(PredicateOps):
+class DomainMatches(_PredicateOps):
     """Checks if the event domain matches a specific value."""
 
     domain: str
@@ -513,7 +513,7 @@ class DomainMatches(PredicateOps):
 
 
 @dataclass(frozen=True)
-class EntityMatches(PredicateOps):
+class EntityMatches(_PredicateOps):
     """Checks if the event entity_id matches a specific value."""
 
     entity_id: str
@@ -529,7 +529,7 @@ class EntityMatches(PredicateOps):
 
 
 @dataclass(frozen=True)
-class ServiceMatches(PredicateOps):
+class ServiceMatches(_PredicateOps):
     """Checks if the event service matches a specific value."""
 
     service: str
@@ -545,7 +545,7 @@ class ServiceMatches(PredicateOps):
 
 
 @dataclass(frozen=True)
-class ServiceDataWhere(PredicateOps):
+class ServiceDataWhere(_PredicateOps):
     """Predicate that applies a mapping of service_data conditions to a CallServiceEvent.
 
     Examples:

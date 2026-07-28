@@ -12,5 +12,5 @@ class LightApp(App):
             name="lights_except_office",
         )
 
-    async def on_light_change(self, event: RawStateChangeEvent):
+    async def on_light_change(self, event: RawStateChangeEvent) -> None:
         self.logger.info("Light changed: %s", event.payload.data.entity_id)

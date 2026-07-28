@@ -116,15 +116,15 @@ Both `P.AttrTo` predicates must match. The `changed=False` parameter is also req
 
 ### Operator Shorthand: `&`, `|`, `~`
 
-Predicates support Python's boolean operators as shorthand for the three combinators. `a & b` is `P.AllOf((a, b))`, `a | b` is `P.AnyOf((a, b))`, and `~a` is `P.Not(a)`.
+Built-in `P.*` predicate objects overload Python's bitwise operators as shorthand for the three combinators. `a & b` is `P.AllOf((a, b))`, `a | b` is `P.AnyOf((a, b))`, and `~a` is `P.Not(a)`.
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/filtering_operators.py"
 ```
 
-The handler fires when a light turns on or goes unavailable, unless the entity is `light.office`. `&` binds tighter than `|`, the same precedence Python gives them everywhere else, so the `|` branch needs its parentheses.
+The handler fires when a light turns on or goes unavailable, except for `light.office`. Python gives `&` higher precedence than `|`, so the OR branch needs parentheses.
 
-Chains flatten instead of nesting: `a & b & c` builds `P.AllOf((a, b, c))`, so the summary shown by `hassette listener` reads the same as the explicit form. The result is an ordinary predicate, so operators and explicit combinators mix freely. Anywhere `where=` accepts `P.AllOf`, it accepts `a & b`.
+Chains flatten instead of nesting: `a & b & c` builds `P.AllOf((a, b, c))`, so the summary shown by `hassette listener` reads the same as the explicit form. The result is an ordinary predicate, so operators and explicit combinators mix freely. Wrap a custom callable in `P.Guard` when you want it to participate in operator chains.
 
 Conditions (`C.*`) do not support these operators. They test extracted values, not events, so they compose through predicates instead.
 

@@ -30,7 +30,7 @@ Works with: any event type.
 
 `AllOf` and `AnyOf` each have a classmethod `ensure_iterable(where)` that wraps a single predicate or sequence into the combinator.
 
-Every predicate also supports operator shorthand for these three: `a & b` builds `AllOf((a, b))`, `a | b` builds `AnyOf((a, b))`, and `~a` builds `Not(a)`. Chains flatten: `a & b & c` is `AllOf((a, b, c))`, not a nested pair. Conditions (`C.*`) have no operator support.
+Built-in `P.*` predicate objects also support operator shorthand for these three: `a & b` builds `AllOf((a, b))`, `a | b` builds `AnyOf((a, b))`, and `~a` builds `Not(a)`. Chains flatten: `a & b & c` is `AllOf((a, b, c))`, not a nested pair. Wrap custom callables in `P.Guard` when you want them to participate in operator chains. Conditions (`C.*`) have no operator support.
 
 ### Value / Field Matching
 
