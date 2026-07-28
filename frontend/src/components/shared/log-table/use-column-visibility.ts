@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 
 import { BREAKPOINT_MOBILE, BREAKPOINT_TABLET, useMediaQuery } from "@/hooks/use-media-query";
+import { getStoredValue, removeStoredValue, setStoredValue } from "@/utils/local-storage";
 
 import {
   COLUMNS,
@@ -12,7 +13,7 @@ import {
 import type { ColumnId, ViewContext } from "./types";
 
 const STORAGE_VERSION = 1;
-const STORAGE_KEY_PREFIX = "hassette-log-columns";
+const STORAGE_KEY_PREFIX = "log-columns";
 
 interface StoredColumnState {
   version: number;
@@ -28,31 +29,14 @@ function storageKey(context: ViewContext): string {
   return `${STORAGE_KEY_PREFIX}-${context}`;
 }
 
-// localStorage can throw (private browsing, quota, disabled) — every access
-// degrades silently to a no-op/null rather than crashing the column-visibility feature.
-const safeLocalStorage = {
-  get(key: string): string | null {
-    try {
-      return localStorage.getItem(key);
-    } catch {
-      return null;
-    }
-  },
-  set(key: string, value: string): void {
-    try {
-      localStorage.setItem(key, value);
-    } catch {
-      // localStorage unavailable — degrade silently
-    }
-  },
-  remove(key: string): void {
-    try {
-      localStorage.removeItem(key);
-    } catch {
-      // localStorage unavailable — degrade silently
-    }
-  },
-};
+function isStoredColumnState(value: unknown): value is StoredColumnState {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as StoredColumnState).version === "number" &&
+    Array.isArray((value as StoredColumnState).columns)
+  );
+}
 
 function defaultColumns(context: ViewContext): ColumnId[] {
   switch (context) {
@@ -66,30 +50,23 @@ function defaultColumns(context: ViewContext): ColumnId[] {
 }
 
 function readStored(context: ViewContext): ColumnId[] | null {
-  const raw = safeLocalStorage.get(storageKey(context));
-  if (!raw) return null;
-  try {
-    const parsed: StoredColumnState = JSON.parse(raw);
-    if (parsed.version !== STORAGE_VERSION) {
-      safeLocalStorage.remove(storageKey(context));
-      return null;
-    }
-    const knownIds = new Set<string>(ALL_COLUMN_IDS);
-    const validated = parsed.columns.filter((id) => knownIds.has(id));
-    for (const req of REQUIRED_COLUMNS) {
-      if (!validated.includes(req)) validated.push(req);
-    }
-    if (validated.length === 0) return null;
-    return validated;
-  } catch {
-    // Malformed stored JSON — treat as absent rather than crashing.
+  const stored = getStoredValue<StoredColumnState | null>(storageKey(context), null, isStoredColumnState);
+  if (stored === null) return null;
+  if (stored.version !== STORAGE_VERSION) {
+    removeStoredValue(storageKey(context));
     return null;
   }
+  const knownIds = new Set<string>(ALL_COLUMN_IDS);
+  const validated = stored.columns.filter((id) => knownIds.has(id));
+  for (const req of REQUIRED_COLUMNS) {
+    if (!validated.includes(req)) validated.push(req);
+  }
+  if (validated.length === 0) return null;
+  return validated;
 }
 
 function writeStored(context: ViewContext, columns: ColumnId[]): void {
-  const state: StoredColumnState = { version: STORAGE_VERSION, columns };
-  safeLocalStorage.set(storageKey(context), JSON.stringify(state));
+  setStoredValue<StoredColumnState>(storageKey(context), { version: STORAGE_VERSION, columns });
 }
 
 interface UseColumnVisibilityResult {
@@ -126,7 +103,7 @@ export function useColumnVisibility(context: ViewContext): UseColumnVisibilityRe
   const reset = useCallback(() => {
     const defaults = defaultColumns(context);
     setUserColumns(defaults);
-    safeLocalStorage.remove(storageKey(context));
+    removeStoredValue(storageKey(context));
   }, [context]);
 
   return { visibleColumns, selectedColumns: userColumns, viewportHidden, toggle, reset };

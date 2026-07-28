@@ -62,14 +62,14 @@ describe("useColumnVisibility", () => {
       const { result } = renderHook(() => useColumnVisibility("global"));
       act(() => result.current.toggle("module"));
 
-      const stored = JSON.parse(localStorage.getItem("hassette-log-columns-global")!);
+      const stored = JSON.parse(localStorage.getItem("hassette:log-columns-global")!);
       expect(stored.version).toBe(1);
       expect(stored.columns).not.toContain("module");
     });
 
     it("reads persisted columns on mount", () => {
       const custom: ColumnId[] = ["level", "timestamp", "message"];
-      localStorage.setItem("hassette-log-columns-global", JSON.stringify({ version: 1, columns: custom }));
+      localStorage.setItem("hassette:log-columns-global", JSON.stringify({ version: 1, columns: custom }));
 
       const { result } = renderHook(() => useColumnVisibility("global"));
       expect(result.current.visibleColumns).toEqual(custom);
@@ -77,7 +77,7 @@ describe("useColumnVisibility", () => {
 
     it("uses separate storage keys per context", () => {
       localStorage.setItem(
-        "hassette-log-columns-app",
+        "hassette:log-columns-app",
         JSON.stringify({ version: 1, columns: ["level", "message"] as ColumnId[] }),
       );
 
@@ -89,15 +89,15 @@ describe("useColumnVisibility", () => {
     });
 
     it("discards stored data with wrong version", () => {
-      localStorage.setItem("hassette-log-columns-global", JSON.stringify({ version: 999, columns: ["level"] }));
+      localStorage.setItem("hassette:log-columns-global", JSON.stringify({ version: 999, columns: ["level"] }));
 
       const { result } = renderHook(() => useColumnVisibility("global"));
       expect(result.current.visibleColumns).toEqual(DEFAULT_COLUMNS_GLOBAL);
-      expect(localStorage.getItem("hassette-log-columns-global")).toBeNull();
+      expect(localStorage.getItem("hassette:log-columns-global")).toBeNull();
     });
 
     it("discards corrupt stored data gracefully", () => {
-      localStorage.setItem("hassette-log-columns-global", "not valid json{{{");
+      localStorage.setItem("hassette:log-columns-global", "not valid json{{{");
 
       const { result } = renderHook(() => useColumnVisibility("global"));
       expect(result.current.visibleColumns).toEqual(DEFAULT_COLUMNS_GLOBAL);
@@ -110,11 +110,11 @@ describe("useColumnVisibility", () => {
 
       act(() => result.current.toggle("module"));
       expect(result.current.visibleColumns).not.toContain("module");
-      expect(localStorage.getItem("hassette-log-columns-global")).not.toBeNull();
+      expect(localStorage.getItem("hassette:log-columns-global")).not.toBeNull();
 
       act(() => result.current.reset());
       expect(result.current.visibleColumns).toEqual(DEFAULT_COLUMNS_GLOBAL);
-      expect(localStorage.getItem("hassette-log-columns-global")).toBeNull();
+      expect(localStorage.getItem("hassette:log-columns-global")).toBeNull();
     });
 
     it("restores defaults when localStorage removal throws", () => {

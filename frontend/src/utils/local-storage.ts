@@ -62,6 +62,15 @@ export function setStoredValue<T>(key: string, value: T): void {
   }
 }
 
+/** Remove a value from localStorage. */
+export function removeStoredValue(key: string): void {
+  try {
+    localStorage.removeItem(STORAGE_PREFIX + key);
+  } catch {
+    // Silently fail (private browsing, etc.)
+  }
+}
+
 /**
  * Migrate a legacy localStorage key to the new prefixed scheme.
  *
