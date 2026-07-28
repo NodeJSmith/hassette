@@ -64,6 +64,18 @@ describe("CodeTab", () => {
     });
   });
 
+  it("includes Shiki token color utilities for light and dark themes", async () => {
+    render(<CodeTab appKey="test_app" listeners={[]} />);
+    const codeTab = await screen.findByTestId("code-tab-content");
+    const body = codeTab.lastElementChild;
+    expect(body?.className).toContain(
+      "[&_.shiki_span:not(.line):not(.line-num)]:text-[var(--shiki-light,var(--ink-1))]",
+    );
+    expect(body?.className).toContain(
+      "dark:[&_.shiki_span:not(.line):not(.line-num)]:text-[var(--shiki-dark,var(--ink-1))]",
+    );
+  });
+
   it("renders line numbers in gutter", async () => {
     render(<CodeTab appKey="test_app" listeners={[]} />);
     await waitFor(() => {

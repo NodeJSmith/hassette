@@ -12,9 +12,8 @@ import { formatTimestamp, truncateId } from "@/utils/format";
 import { AppLink } from "../app-link";
 import { IconChevron } from "../icons";
 import { ARIA_SORT_FOR_DIRECTION, SortHeader } from "../sort-header";
-import { COLUMN_MAP, DEFAULT_SORT, DETAIL_DRAWER_ID, LEVEL_ABBREV, levelClass } from "./constants";
+import { COLUMN_MAP, DEFAULT_SORT, DETAIL_DRAWER_ID, getLogLevelStyle, LEVEL_ABBREV } from "./constants";
 import { ExecutionIdLink } from "./execution-id-link";
-import styles from "./log-table-view.module.css";
 import type { ColumnId, LogSortState } from "./types";
 import { rowKey } from "./types";
 import type { LogTableViewProps } from "./use-log-table";
@@ -40,50 +39,66 @@ function TimestampCell({ entry, isMobile }: { entry: LogEntry; isMobile: boolean
 function cellClassNameFor(id: ColumnId): string | undefined {
   switch (id) {
     case "level":
-      return styles.levelCell;
+      return "whitespace-nowrap";
     case "timestamp":
     case "instance":
     case "execution":
     case "function":
     case "module":
-      return styles.mono;
+      return "truncate font-mono text-[length:var(--text-mono-md)] whitespace-nowrap";
     case "message":
-      return styles.messageCell;
+      return "overflow-hidden";
     case "app":
       return undefined;
   }
+}
+
+function levelToneClass(level: string): string | undefined {
+  return getLogLevelStyle(level)?.tableTone;
+}
+
+function rowStateClass(level: string, isSelected: boolean): string {
+  if (isSelected) {
+    return "bg-[var(--primary-soft)] shadow-[inset_var(--border-thick)_0_0_0_var(--primary)]";
+  }
+
+  return getLogLevelStyle(level)?.rowTone ?? "hover:bg-muted";
 }
 
 function renderCell(id: ColumnId, entry: LogEntry, isMobile: boolean, visibleColumns: ColumnId[]): ReactNode {
   switch (id) {
     case "level":
       return (
-        <span className={cn(styles.levelText, levelClass(styles, "level", entry.level))}>
+        <span className={cn("font-mono text-[length:var(--text-mono-sm)] font-medium", levelToneClass(entry.level))}>
           {isMobile ? (LEVEL_ABBREV[entry.level] ?? entry.level) : entry.level}
         </span>
       );
     case "timestamp":
       return <TimestampCell entry={entry} isMobile={isMobile} />;
     case "app":
-      return entry.app_key ? <AppLink appKey={entry.app_key} /> : <span className={styles.muted}>&mdash;</span>;
+      return entry.app_key ? (
+        <AppLink appKey={entry.app_key} />
+      ) : (
+        <span className="text-foreground-faint">&mdash;</span>
+      );
     case "instance":
-      return entry.instance_name ?? <span className={styles.muted}>&mdash;</span>;
+      return entry.instance_name ?? <span className="text-foreground-faint">&mdash;</span>;
     case "execution":
       return (
         <ExecutionIdLink
           entry={entry}
-          linkClassName={styles.execLink}
-          mutedClassName={styles.muted}
+          linkClassName="text-primary underline decoration-[color:color-mix(in_srgb,var(--primary)_40%,transparent)] underline-offset-[var(--spacing-0-5)] hover:text-[var(--primary-hover)] hover:decoration-[var(--primary-hover)]"
+          mutedClassName="text-foreground-faint"
           title={entry.execution_id ?? undefined}
         >
           {truncateId(entry.execution_id)}
         </ExecutionIdLink>
       );
     case "function":
-      return <span className={styles.truncate}>{entry.func_name}()</span>;
+      return <span className="block truncate">{entry.func_name}()</span>;
     case "module":
       return (
-        <span className={styles.truncate} title={`${entry.logger_name}:${entry.func_name}:${entry.lineno}`}>
+        <span className="block truncate" title={`${entry.logger_name}:${entry.func_name}:${entry.lineno}`}>
           {entry.logger_name.split(".").pop()}:{entry.lineno}
         </span>
       );
@@ -92,12 +107,14 @@ function renderCell(id: ColumnId, entry: LogEntry, isMobile: boolean, visibleCol
       return (
         <>
           {showSourceInline && (
-            <div className={styles.sourceInline}>
+            <div className="mb-0 truncate font-mono text-xs text-foreground-secondary">
               {entry.app_key ? `${entry.app_key}.` : ""}
               {entry.func_name}()
             </div>
           )}
-          <div className={styles.messageText}>{entry.message}</div>
+          <div className="max-h-[1.5em] overflow-clip text-ellipsis whitespace-nowrap font-mono text-[length:var(--text-mono-md)] leading-[var(--text-small-leading)]">
+            {entry.message}
+          </div>
         </>
       );
     }
@@ -190,7 +207,7 @@ export function LogTableView({
   const detailColumn: ColumnDef<LogEntry, unknown> = useMemo(
     () => ({
       id: "detail",
-      meta: { ariaLabel: "Detail", cellClassName: styles.detailCell },
+      meta: { ariaLabel: "Detail", cellClassName: "p-0 text-center" },
       header: () => null,
       cell: ({ row }) => {
         const isSelected = selectedKey === row.id;
@@ -198,7 +215,7 @@ export function LogTableView({
           <Button
             variant="ghost"
             size="icon-xs"
-            className={styles.detailBtn}
+            className="text-foreground-faint"
             onClick={() => {
               setActiveIndex(row.index);
               onRowClick(row.original);
@@ -243,16 +260,19 @@ export function LogTableView({
   });
 
   return (
-    <Table className="ht-table ht-table--fixed" data-testid="log-table">
+    <Table
+      className="table-fixed border-collapse bg-card [&_td]:overflow-hidden [&_td]:text-ellipsis"
+      data-testid="log-table"
+    >
       <colgroup>
         {visibleColumns.map((id) => {
           const col = COLUMN_MAP[id];
           const w = isMobile ? col.mobileWidth : col.width;
           return <col key={id} style={w ? { width: w } : undefined} />;
         })}
-        <col className={styles.detailCol} />
+        <col className="w-8" />
       </colgroup>
-      <TableHeader>
+      <TableHeader className="[&_tr]:bg-muted">
         {table.getHeaderGroups().map((headerGroup) => (
           <TableRow key={headerGroup.id}>
             {headerGroup.headers.map((header) => {
@@ -261,6 +281,7 @@ export function LogTableView({
                 <TableHead
                   key={header.id}
                   scope="col"
+                  className="sticky top-0 z-[var(--z-table-head)] bg-muted px-3 py-2 font-mono text-xs font-medium uppercase tracking-[var(--text-label-tracking)] text-muted-foreground"
                   aria-sort={sortDirection ? ARIA_SORT_FOR_DIRECTION[sortDirection] : undefined}
                   aria-label={header.column.columnDef.meta?.ariaLabel}
                 >
@@ -278,7 +299,7 @@ export function LogTableView({
           return (
             <TableRow
               key={row.id}
-              className={cn(styles.row, isSelected && styles.selected)}
+              className={cn("cursor-pointer outline-none transition-colors", rowStateClass(entry.level, isSelected))}
               data-level={entry.level}
               aria-current={isSelected ? "true" : undefined}
               onClick={(e) => {
@@ -291,7 +312,7 @@ export function LogTableView({
                 const meta = cell.column.columnDef.meta;
                 const cellProps = meta?.cellProps?.(entry) ?? {};
                 return (
-                  <TableCell key={cell.id} className={meta?.cellClassName} {...cellProps}>
+                  <TableCell key={cell.id} className={cn("px-3 py-2 align-top", meta?.cellClassName)} {...cellProps}>
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </TableCell>
                 );

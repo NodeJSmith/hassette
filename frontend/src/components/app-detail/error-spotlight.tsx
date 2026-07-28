@@ -1,9 +1,10 @@
-import clsx from "clsx";
 import { useState } from "react";
 import { Link } from "wouter";
 
+import { cn } from "@/lib/utils";
+
 import { StatusShape } from "../shared/status-shape";
-import styles from "./overview-tab.module.css";
+import { OVERVIEW_SECTION_CLASS } from "./overview-section";
 import { handlerHref, itemErrorMessage, itemErrorType } from "./overview-tab-helpers";
 import type { UnifiedItem } from "./unified-handler-row";
 
@@ -21,18 +22,23 @@ function SpotlightEntry({ item, appKey, instanceQs }: SpotlightEntryProps) {
   const href = handlerHref(appKey, item, instanceQs);
 
   return (
-    <div className={styles.spotlightEntry} data-testid={`overview-spotlight-entry-${item.kind}-${item.id}`}>
+    <div
+      className="flex items-center gap-2 rounded-md border border-[color-mix(in_srgb,var(--destructive)_30%,transparent)] bg-[var(--destructive-bg)] p-3"
+      data-testid={`overview-spotlight-entry-${item.kind}-${item.id}`}
+    >
       <span aria-hidden="true">
         <StatusShape kind={item.statusKind} size={12} />
       </span>
-      <span className={styles.spotlightName}>{item.name}</span>
-      {errorType && <span className={styles.spotlightErrorType}>{errorType}</span>}
+      <span className="shrink-0 whitespace-nowrap font-mono text-[length:var(--text-mono-sm)] font-medium text-foreground">
+        {item.name}
+      </span>
+      {errorType && <span className="shrink-0 whitespace-nowrap text-sm text-destructive">{errorType}</span>}
       {errorMessage && (
-        <span className={styles.spotlightErrorMsg} title={errorMessage}>
+        <span className="min-w-0 flex-1 truncate text-sm text-foreground-secondary" title={errorMessage}>
           {errorMessage}
         </span>
       )}
-      <Link href={href} className={styles.spotlightLink}>
+      <Link href={href} className="shrink-0 whitespace-nowrap text-sm text-primary hover:underline">
         view
       </Link>
     </div>
@@ -55,7 +61,7 @@ export function ErrorSpotlight({
 
   return (
     <section
-      className={clsx(styles.section, styles.spotlight)}
+      className={cn(OVERVIEW_SECTION_CLASS, "flex flex-col gap-2")}
       aria-label="failing handlers"
       data-testid="overview-error-spotlight"
     >
@@ -65,7 +71,7 @@ export function ErrorSpotlight({
       {!expanded && hiddenCount > 0 && (
         <button
           type="button"
-          className={styles.spotlightShowMore}
+          className="px-3 py-2 text-left text-sm text-muted-foreground hover:text-foreground"
           data-testid="overview-spotlight-show-more"
           onClick={() => setExpanded(true)}
         >

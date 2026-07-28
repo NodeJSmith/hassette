@@ -13,7 +13,6 @@ import { formatDuration, formatRelativeTime, formatTimestamp } from "../../utils
 import { onActivateKeyDown } from "../../utils/keyboard";
 import { executionStatusKind, type StatusKind } from "../../utils/status";
 import { EmptyState } from "./empty-state";
-import styles from "./execution-table.module.css";
 import { IconArrowRight } from "./icons";
 import { ShowMoreButton } from "./show-more-button";
 import { StatusShape } from "./status-shape";
@@ -64,15 +63,15 @@ interface ExecutionTableProps {
 function statusLabelClass(kind: StatusKind): string {
   switch (kind) {
     case "ok":
-      return styles.okLabel;
+      return "font-mono text-xs whitespace-nowrap text-[var(--status-success)]";
     case "err":
-      return styles.failedLabel;
+      return "truncate font-mono text-xs whitespace-nowrap text-destructive";
     case "warn":
-      return styles.timeoutLabel;
+      return "font-mono text-xs whitespace-nowrap text-[var(--status-warning)]";
     case "cancel":
-      return styles.cancelledLabel;
+      return "font-mono text-xs whitespace-nowrap text-[var(--status-cancel)]";
     case "mute":
-      return styles.statusLabel;
+      return "font-mono text-xs whitespace-nowrap";
   }
 }
 
@@ -83,12 +82,12 @@ const columns: ColumnDef<ExecutionRecord, unknown>[] = [
   {
     id: "status",
     header: "Status",
-    meta: { headerClassName: styles.statusColumn, cellClassName: styles.statusColumn },
+    meta: { headerClassName: "w-[18%] max-mobile:w-auto", cellClassName: "w-[18%] max-mobile:w-auto" },
     cell: ({ row }) => {
       const record = row.original;
       const statusKind = executionStatusKind(record.status);
       return (
-        <div className={styles.statusCellInner}>
+        <div className="flex items-center gap-2">
           <StatusShape kind={statusKind} size={STATUS_DOT_SIZE} />
           <span className={statusLabelClass(statusKind)}>{STATUS_LABEL[statusKind]}</span>
           {record.thread_leaked && (
@@ -109,31 +108,34 @@ const columns: ColumnDef<ExecutionRecord, unknown>[] = [
     id: "execution",
     header: "Execution",
     meta: {
-      headerClassName: styles.executionColumn,
-      cellClassName: cn(styles.executionColumn, "ht-text-mono ht-text-xs"),
+      headerClassName: "[overflow-wrap:anywhere] max-mobile:hidden",
+      cellClassName: cn("font-mono text-xs [overflow-wrap:anywhere] max-mobile:hidden"),
     },
     cell: ({ row }) => row.original.execution_id ?? "—",
   },
   {
     id: "duration",
     header: "Duration",
-    meta: { headerClassName: styles.durationColumn, cellClassName: styles.durationColumn },
+    meta: {
+      headerClassName: "w-[14%] max-mobile:w-auto",
+      cellClassName: "w-[14%] whitespace-nowrap max-mobile:w-auto",
+    },
     cell: ({ row }) => formatDuration(row.original.duration_ms),
   },
   {
     id: "time",
     header: "Time",
     meta: {
-      headerClassName: styles.timeColumn,
-      cellClassName: cn(styles.timeColumn, "ht-text-mono ht-text-xs"),
+      headerClassName: "w-[18%] max-mobile:w-auto",
+      cellClassName: cn("w-[18%] font-mono text-xs whitespace-nowrap max-mobile:w-auto"),
       cellProps: (record: ExecutionRecord) => ({ title: formatTimestamp(record.execution_start_ts) }),
     },
     cell: ({ row }) => formatRelativeTime(row.original.execution_start_ts),
   },
   {
     id: "detail",
-    header: () => <span className="ht-visually-hidden">Details</span>,
-    meta: { headerClassName: styles.colArrow, cellClassName: cn("ht-text-muted", styles.arrowCell) },
+    header: () => <span className="sr-only">Details</span>,
+    meta: { headerClassName: "w-8", cellClassName: "text-center align-middle text-muted-foreground transition-colors" },
     // No `cell` — the row render loop below special-cases `column.id === "detail"` and never calls
     // flexRender for it (it needs appKey/handlerKind/handlerId, not available at column-definition time).
   },
@@ -178,12 +180,22 @@ export function ExecutionTable({
 
   return (
     <>
-      <Table className="ht-table ht-table--compact" data-testid={tableId}>
-        <TableHeader>
+      <Table
+        className="table-fixed bg-card max-mobile:table-auto [&_td]:overflow-hidden [&_td]:text-ellipsis"
+        data-testid={tableId}
+      >
+        <TableHeader className="[&_tr]:bg-muted">
           {table.getHeaderGroups().map((headerGroup) => (
             <TableRow key={headerGroup.id}>
               {headerGroup.headers.map((header) => (
-                <TableHead key={header.id} scope="col" className={header.column.columnDef.meta?.headerClassName}>
+                <TableHead
+                  key={header.id}
+                  scope="col"
+                  className={cn(
+                    "sticky top-0 z-[var(--z-table-head)] bg-muted px-2 py-1 font-mono text-xs font-medium uppercase tracking-[var(--text-label-tracking)] text-muted-foreground",
+                    header.column.columnDef.meta?.headerClassName,
+                  )}
+                >
                   {flexRender(header.column.columnDef.header, header.getContext())}
                 </TableHead>
               ))}
@@ -203,7 +215,10 @@ export function ExecutionTable({
             return (
               <TableRow
                 key={row.id}
-                className={cn(styles.row, canNavigate && styles.rowClickable)}
+                className={cn(
+                  "transition-colors",
+                  canNavigate && "cursor-pointer hover:bg-muted [&:hover_td:last-child]:text-primary",
+                )}
                 data-testid={kind === "handler" ? "invocation-row" : "execution-row"}
                 tabIndex={getTabIndex(i)}
                 role="row"
@@ -218,9 +233,18 @@ export function ExecutionTable({
                 {row.getVisibleCells().map((cell) => {
                   if (cell.column.id === "detail") {
                     return (
-                      <TableCell key={cell.id} className={cell.column.columnDef.meta?.cellClassName}>
+                      <TableCell
+                        key={cell.id}
+                        className={cn(
+                          "px-2 py-1 max-mobile:px-1 max-mobile:text-xs",
+                          cell.column.columnDef.meta?.cellClassName,
+                        )}
+                      >
                         {canNavigate && (
-                          <span className={styles.arrowIndicator} data-testid="execution-detail-indicator">
+                          <span
+                            className="inline-flex items-center justify-center align-middle"
+                            data-testid="execution-detail-indicator"
+                          >
                             <IconArrowRight />
                           </span>
                         )}
@@ -229,7 +253,14 @@ export function ExecutionTable({
                   }
                   const cellProps = cell.column.columnDef.meta?.cellProps?.(record) ?? {};
                   return (
-                    <TableCell key={cell.id} className={cell.column.columnDef.meta?.cellClassName} {...cellProps}>
+                    <TableCell
+                      key={cell.id}
+                      className={cn(
+                        "px-2 py-1 max-mobile:px-1 max-mobile:text-xs",
+                        cell.column.columnDef.meta?.cellClassName,
+                      )}
+                      {...cellProps}
+                    >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   );

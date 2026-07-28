@@ -66,8 +66,8 @@ describe("LogsPage", () => {
   });
 
   it("renders page heading", () => {
-    const { container } = renderWithAppState(<LogsPage />);
-    expect(container.querySelector("h1.ht-display")?.textContent).toBe("logs");
+    const { getByRole } = renderWithAppState(<LogsPage />);
+    expect(getByRole("heading", { level: 1 }).textContent).toBe("logs");
   });
 
   it("renders search input", () => {

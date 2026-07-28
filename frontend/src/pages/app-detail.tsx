@@ -1,8 +1,9 @@
 import { keepPreviousData } from "@tanstack/react-query";
-import clsx from "clsx";
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
 import { useEffect } from "react";
 import { Link, useLocation } from "wouter";
+
+import { cn } from "@/lib/utils";
 
 import { getAppJobs, getAppListeners } from "../api/endpoints";
 import { AppDetailHeader } from "../components/app-detail/app-detail-header";
@@ -23,7 +24,10 @@ import { queryKeys } from "../lib/query-keys";
 import { appStatusKey, useAppStore } from "../state/store";
 import { appLiveStatus } from "../utils/app-data";
 import { appDetailPath, type AppDetailTab, parseInstanceParam } from "../utils/app-routes";
-import styles from "./app-detail.module.css";
+
+const PAGE_CLASS = "flex flex-1 flex-col gap-8 p-8 max-mobile:p-3 max-small-mobile:p-2";
+const ALERT_CLASS =
+  "flex items-start gap-3 rounded-md border border-destructive bg-[var(--destructive-bg)] px-4 py-3 text-sm text-foreground";
 
 export type TabId = AppDetailTab;
 
@@ -63,10 +67,13 @@ function Tab({
       tabIndex={isActive ? 0 : -1}
       aria-selected={isActive}
       aria-controls={`tabpanel-${id}`}
-      className={clsx(styles.tabBtn, isActive && styles.tabBtnActive)}
+      className={cn(
+        "inline-block whitespace-nowrap px-4 py-2 font-sans text-[length:var(--text-mono-md)] font-medium text-muted-foreground no-underline transition-colors hover:bg-muted hover:text-foreground focus-visible:rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary max-sidebar:min-h-[var(--sz-touch)] max-sidebar:px-3 max-small-mobile:px-1.5 max-small-mobile:text-xs",
+        isActive && "bg-[linear-gradient(to_bottom,transparent,var(--primary-soft))] text-foreground",
+      )}
     >
       {label}
-      {badge !== undefined && <span className={styles.tabBtnBadge}>{badge}</span>}
+      {badge !== undefined && <span className="ml-1 text-xs font-normal text-muted-foreground">{badge}</span>}
     </Link>
   );
 }
@@ -181,7 +188,7 @@ export function AppDetailPage({ params }: Props) {
 
   if (manifestError || listenersError || jobsError) {
     return (
-      <div className="ht-alert ht-alert--danger" role="alert">
+      <div className={ALERT_CLASS} role="alert">
         {(manifestError ?? listenersError ?? jobsError)!.message}
       </div>
     );
@@ -192,8 +199,8 @@ export function AppDetailPage({ params }: Props) {
   const handlerCount = (listenersData?.length ?? 0) + (jobsData?.length ?? 0);
 
   return (
-    <div className="ht-page">
-      <div className={styles.identity}>
+    <div className={PAGE_CLASS}>
+      <div className="flex flex-col gap-3">
         {isMultiInstance && !showParentOverview && manifest?.instances && manifest.instances.length > 0 && (
           <InstanceSwitcher
             instances={manifest.instances}
@@ -213,7 +220,12 @@ export function AppDetailPage({ params }: Props) {
           showParentOverview={showParentOverview}
         />
 
-        <div className={styles.tabStrip} role="tablist" aria-label="App sections" onKeyDown={handleTabKeyDown}>
+        <div
+          className="flex gap-0 overflow-hidden rounded-sm border border-border bg-card max-mobile:overflow-x-auto"
+          role="tablist"
+          aria-label="App sections"
+          onKeyDown={handleTabKeyDown}
+        >
           <Tab id="overview" label="overview" {...tabProps} />
           {!showParentOverview && <Tab id="handlers" label="handlers" badge={handlerCount} {...tabProps} />}
           <Tab id="code" label="code" {...tabProps} />
@@ -267,7 +279,7 @@ export function AppDetailPage({ params }: Props) {
         </TabPanel>
       )}
       {activeTab === "logs" && (
-        <TabPanel id="logs" className={styles.tabPanel}>
+        <TabPanel id="logs" className="flex flex-col gap-3">
           <AppLogsPanel appKey={appKey} />
         </TabPanel>
       )}

@@ -1,7 +1,5 @@
 import type { ReactNode } from "react";
 
-import styles from "./empty-state.module.css";
-
 interface EmptyStateProps {
   icon?: string;
   title: string;
@@ -12,10 +10,10 @@ interface EmptyStateProps {
 
 export function EmptyState({ icon = "∅", title, body, "data-testid": testId, children }: EmptyStateProps) {
   return (
-    <div className={styles.empty} data-testid={testId}>
-      {icon && <div className={styles.icon}>{icon}</div>}
-      <div className={styles.title}>{title}</div>
-      {body && <div className={styles.body}>{body}</div>}
+    <div className="p-6 text-center" data-testid={testId}>
+      {icon && <div className="mb-2 text-[length:var(--text-h1)] text-foreground-faint">{icon}</div>}
+      <div className="mb-1 text-sm font-medium text-foreground-secondary">{title}</div>
+      {body && <div className="mx-auto max-w-[var(--size-content-narrow)] text-xs text-muted-foreground">{body}</div>}
       {children}
     </div>
   );

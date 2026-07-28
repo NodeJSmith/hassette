@@ -19,12 +19,9 @@ import { IconPlay } from "../shared/icons";
 import { Spinner } from "../shared/spinner";
 import { DetailHeader } from "./detail-header";
 import { ExecutionSection } from "./execution-section";
-import chipStyles from "./handler-chips.module.css";
 import { HandlerDetailLayout } from "./handler-detail-layout";
-import layoutStyles from "./handler-detail-layout.module.css";
 import { jobHealthKind } from "./handler-list";
 import { HandlerModeChip } from "./handler-mode-chip";
-import styles from "./job-detail.module.css";
 import { RegistrationFooter } from "./registration-footer";
 import { buildCommonStatCells, type CommonStatInput } from "./stat-cell-builders";
 
@@ -34,7 +31,7 @@ function ScheduleChips({ job }: { job: JobData }) {
   if (job.group) chips.push({ label: `group: ${job.group}` });
 
   return (
-    <div className={chipStyles.chipRow} data-testid="schedule-chips">
+    <div className="mb-3 flex flex-wrap gap-2" data-testid="schedule-chips">
       <HandlerModeChip mode={job.mode} />
       {chips.map((chip) => (
         <Badge key={chip.label} variant="job">
@@ -49,7 +46,7 @@ function RunNowButton({ jobId }: { jobId: number }) {
   const { loading, error, run } = useAsyncAction();
 
   return (
-    <div className={layoutStyles.runNow}>
+    <div className="flex flex-col items-start gap-1">
       <Button
         variant="default"
         size="sm"
@@ -68,7 +65,7 @@ function RunNowButton({ jobId }: { jobId: number }) {
         )}
       </Button>
       {error && (
-        <p className="ht-text-danger ht-text-sm" role="alert" data-testid="run-now-error">
+        <p className="text-sm text-destructive" role="alert" data-testid="run-now-error">
           {error}
         </p>
       )}
@@ -142,7 +139,10 @@ export function JobDetail({ job, appKey, instanceQs, onSwitchToCode }: Props) {
       />
 
       {predicateDescription && (
-        <p className={styles.predicateDescription} data-testid="job-predicate-description">
+        <p
+          className="mb-3 flex flex-wrap items-center gap-2 text-sm text-muted-foreground"
+          data-testid="job-predicate-description"
+        >
           {predicateDescription}
         </p>
       )}

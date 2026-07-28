@@ -21,6 +21,48 @@ export const TIER_OPTIONS: readonly { value: TierFilter; label: string }[] = [
 
 type Level = (typeof LEVELS)[number];
 
+export interface LogLevelStyle {
+  tableTone: string;
+  drawerSurface: string;
+  drawerTone: string;
+  rowTone?: string;
+}
+
+export const LOG_LEVEL_STYLES: Record<Level, LogLevelStyle> = {
+  DEBUG: {
+    tableTone: "text-[var(--status-muted)]",
+    drawerSurface: "bg-[var(--status-muted-bg)]",
+    drawerTone: "text-[var(--status-muted)]",
+  },
+  INFO: {
+    tableTone: "text-primary",
+    drawerSurface: "bg-[var(--status-success-bg)]",
+    drawerTone: "text-[var(--status-success)]",
+  },
+  WARNING: {
+    tableTone: "text-[var(--status-warning)]",
+    drawerSurface: "bg-[var(--status-warning-bg)]",
+    drawerTone: "text-[var(--status-warning)]",
+    rowTone: "bg-[var(--status-warning-bg)] hover:brightness-95",
+  },
+  ERROR: {
+    tableTone: "text-destructive",
+    drawerSurface: "bg-[var(--destructive-bg)]",
+    drawerTone: "text-destructive",
+    rowTone: "bg-[var(--destructive-bg)] hover:brightness-95",
+  },
+  CRITICAL: {
+    tableTone: "font-bold text-destructive",
+    drawerSurface: "bg-[var(--destructive-bg)]",
+    drawerTone: "text-destructive",
+    rowTone: "bg-[var(--destructive-bg)] hover:brightness-95",
+  },
+};
+
+export function getLogLevelStyle(level: string): LogLevelStyle | undefined {
+  return LOG_LEVEL_STYLES[level as Level];
+}
+
 export const LEVEL_INDEX: Record<Level, number> = {
   DEBUG: 0,
   INFO: 1,
@@ -142,10 +184,6 @@ export const DEFAULT_COLUMNS_GLOBAL: ColumnId[] = [
 ];
 export const DEFAULT_COLUMNS_APP: ColumnId[] = ["level", "timestamp", "execution", "function", "module", "message"];
 export const DEFAULT_COLUMNS_EXECUTION: ColumnId[] = ["level", "timestamp", "function", "module", "message"];
-
-export function levelClass(styles: Record<string, string>, prefix: string, level: string): string | undefined {
-  return styles[`${prefix}${level}`];
-}
 
 export const DETAIL_DRAWER_ID = "log-detail-drawer";
 

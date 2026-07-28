@@ -1,5 +1,6 @@
-import clsx from "clsx";
 import { useMemo, useState } from "react";
+
+import { cn } from "@/lib/utils";
 
 import type { JobData, ListenerData } from "../../api/endpoints";
 import { useAppStore } from "../../state/store";
@@ -12,7 +13,7 @@ import { ErrorSpotlight } from "./error-spotlight";
 import { HandlerHealthGrid } from "./handler-health-grid";
 import { buildItems } from "./handler-list";
 import { OverviewHealthStrip } from "./health-strip";
-import styles from "./overview-tab.module.css";
+import { OVERVIEW_SECTION_CLASS } from "./overview-section";
 import { isFailing } from "./overview-tab-helpers";
 import { RecentActivitySection } from "./recent-activity-section";
 
@@ -24,6 +25,10 @@ interface Props {
   resolvedInstanceIndex: number;
   appStatus?: string;
 }
+
+const SEARCH_INPUT_CLASS =
+  "min-w-[var(--size-search-min)] rounded-md border border-[var(--border-strong)] bg-input px-2 py-1.5 font-sans text-[length:var(--text-mono-sm)] text-foreground outline-none placeholder:text-foreground-faint focus-visible:border-primary focus-visible:shadow-[0_0_0_2px_var(--primary-soft)] max-mobile:w-full max-mobile:min-w-0";
+const SECTION_LABEL_CLASS = "mb-2 font-sans text-[length:var(--text-h3)] font-semibold text-foreground";
 
 function RecentLogsSection({ appKey, appStatus }: { appKey: string; appStatus?: string }) {
   const isInactive = appStatus !== undefined && INACTIVE_STATUSES.has(appStatus);
@@ -38,7 +43,7 @@ function RecentLogsSection({ appKey, appStatus }: { appKey: string; appStatus?: 
   const searchInput = (
     <input
       type="text"
-      className="ht-search"
+      className={SEARCH_INPUT_CLASS}
       placeholder="Search logs…"
       aria-label="Search app logs"
       value={search}
@@ -58,9 +63,9 @@ function RecentLogsSection({ appKey, appStatus }: { appKey: string; appStatus?: 
   );
 
   return (
-    <section className={styles.section} data-testid="overview-logs-section">
-      <div className={styles.sectionHeader}>
-        <h3 className="ht-section-label">logs</h3>
+    <section className={OVERVIEW_SECTION_CLASS} data-testid="overview-logs-section">
+      <div className="flex items-baseline justify-between gap-4">
+        <h3 className={SECTION_LABEL_CLASS}>logs</h3>
         {searchInput}
       </div>
       <TableCard footer={footer} scrollHeight="400px">
@@ -79,7 +84,7 @@ export function OverviewTab({ listeners, jobs, appKey, instanceQs, resolvedInsta
   const failingItems = useMemo(() => allItems.filter(isFailing), [allItems]);
 
   return (
-    <div className={clsx(styles.overviewTab, !wsConnected && styles.overviewTabStale)} data-testid="overview-tab">
+    <div className={cn("flex flex-col gap-7", !wsConnected && "opacity-[var(--op-muted)]")} data-testid="overview-tab">
       <OverviewHealthStrip listeners={listeners} jobs={jobs} />
 
       {failingItems.length > 0 && (

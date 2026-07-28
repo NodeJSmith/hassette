@@ -1,6 +1,6 @@
-import "./tokens.css";
 import "./global.css";
 
+import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 import { App } from "./app";
@@ -15,4 +15,8 @@ migrateKey("ht-theme", "theme");
 const savedTheme = getStoredValue("theme", "light" as const, isTheme);
 document.documentElement.setAttribute("data-theme", savedTheme);
 
-createRoot(document.getElementById("app")!).render(<App />);
+createRoot(document.getElementById("app")!).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+);

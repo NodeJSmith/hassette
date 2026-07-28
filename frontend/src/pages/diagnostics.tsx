@@ -22,7 +22,6 @@ import type { ServiceStatusEntry } from "../state/store";
 import { useAppStore } from "../state/store";
 import { STATUS_DOT_SIZE } from "../utils/constants";
 import { statusToKind } from "../utils/status";
-import styles from "./diagnostics.module.css";
 
 const SEVERITY_ORDER: Record<string, number> = { err: 0, warn: 1, info: 2 };
 const UNKNOWN_SEVERITY_SORT_ORDER = 99;
@@ -99,28 +98,33 @@ function DiagServiceRow({ service }: DiagServiceRowProps) {
 
   return (
     <li
-      className={cn(styles.serviceRow, spansFullRow && styles.serviceRowDetailed)}
+      className={cn("min-w-0 py-1", spansFullRow && "col-[1/-1]")}
       data-testid={`diag-service-row-${service.resource_name}`}
     >
-      <div className={styles.serviceMain}>
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
         <StatusShape kind={kind} size={8} />
-        <span className={`${styles.serviceName} ht-text-mono`}>{service.resource_name}</span>
+        <span className="overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[length:var(--text-mono-sm)] font-medium text-foreground">
+          {service.resource_name}
+        </span>
         {!isRunning && (
           <span
-            className={`${styles.serviceStatus} ht-text-mono`}
+            className="font-mono text-[length:var(--text-mono-sm)] text-foreground-secondary"
             data-testid={`diag-service-status-${service.resource_name}`}
           >
             {service.status}
           </span>
         )}
         {!isRunning && service.ready_phase && (
-          <span className={styles.servicePhase} data-testid={`diag-service-phase-${service.resource_name}`}>
+          <span
+            className="text-sm italic text-muted-foreground"
+            data-testid={`diag-service-phase-${service.resource_name}`}
+          >
             {service.ready_phase}
           </span>
         )}
         {isCooling && service.retry_at !== null && (
           <span
-            className={`${styles.serviceRetry} ht-text-mono`}
+            className="font-mono text-[length:var(--text-mono-sm)] text-[var(--status-warning)]"
             data-testid={`diag-service-retry-${service.resource_name}`}
           >
             retry {retryAtLabel}
@@ -129,7 +133,7 @@ function DiagServiceRow({ service }: DiagServiceRowProps) {
         {service.exception && (
           <button
             type="button"
-            className={styles.exceptionToggle}
+            className="cursor-pointer border-0 bg-transparent p-0 font-inherit text-sm text-muted-foreground underline hover:text-foreground-secondary"
             aria-expanded={exceptionOpen}
             onClick={() => setExceptionOpen((v) => !v)}
           >
@@ -137,7 +141,11 @@ function DiagServiceRow({ service }: DiagServiceRowProps) {
           </button>
         )}
       </div>
-      {exceptionOpen && service.exception && <pre className={styles.exceptionDetail}>{service.exception}</pre>}
+      {exceptionOpen && service.exception && (
+        <pre className="mt-2 whitespace-pre-wrap break-all rounded-sm bg-muted p-3 font-mono text-[length:var(--text-mono-sm)] text-foreground-secondary">
+          {service.exception}
+        </pre>
+      )}
     </li>
   );
 }
@@ -150,14 +158,19 @@ interface ServicesPanelProps {
 function ServicesPanel({ services, wsConnected }: ServicesPanelProps) {
   return (
     <section
-      className={cn(cardVariants({ variant: "default" }), styles.section)}
+      className={cn(cardVariants({ variant: "default" }), "flex flex-col gap-3")}
       aria-label="Internal services"
       data-testid="diag-services-panel"
     >
-      <div className={styles.sectionHeader}>
-        <h2 className={styles.sectionHeading}>services</h2>
+      <div className="flex items-baseline gap-3">
+        <h2 className="m-0 font-sans text-[length:var(--text-h2)] font-semibold leading-[var(--text-h2-leading)] text-foreground">
+          services
+        </h2>
         {!wsConnected && (
-          <span className={styles.staleBadge} data-testid="diag-services-stale">
+          <span
+            className="rounded-full border border-[var(--status-warning)] px-2 py-px font-mono text-xs uppercase tracking-[var(--text-label-tracking)] text-[var(--status-warning)]"
+            data-testid="diag-services-stale"
+          >
             stale
           </span>
         )}
@@ -165,7 +178,10 @@ function ServicesPanel({ services, wsConnected }: ServicesPanelProps) {
       {services.length === 0 ? (
         <EmptyState title="no services registered." data-testid="diag-services-empty" />
       ) : (
-        <ul className={styles.serviceGrid} aria-label="Service list">
+        <ul
+          className="grid list-none grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-x-5 gap-y-1 p-0"
+          aria-label="Service list"
+        >
           {services.map((svc) => (
             <DiagServiceRow key={svc.resource_name} service={svc} />
           ))}
@@ -188,26 +204,31 @@ function BootIssuesPanel({ bootIssues }: BootIssuesPanelProps) {
 
   return (
     <section
-      className={cn(cardVariants({ variant: "default" }), styles.section)}
+      className={cn(cardVariants({ variant: "default" }), "flex flex-col gap-3")}
       aria-label="Boot issues"
       data-testid="diag-boot-panel"
     >
-      <h2 className={styles.sectionHeading}>boot issues</h2>
-      <ul className={styles.bootList} aria-label="Boot issues">
+      <h2 className="m-0 font-sans text-[length:var(--text-h2)] font-semibold leading-[var(--text-h2-leading)] text-foreground">
+        boot issues
+      </h2>
+      <ul className="flex list-none flex-col gap-3 p-0" aria-label="Boot issues">
         {sorted.map((issue, i) => {
           const kind = issue.severity === "err" ? "err" : "warn";
           return (
             <li
               key={`${i}-${issue.severity}-${issue.label}`}
-              className={styles.bootRow}
+              className="flex items-start gap-3"
               data-testid={`diag-boot-issue-${i}`}
             >
               <StatusShape kind={kind} size={STATUS_DOT_SIZE} />
-              <div className={styles.bootContent}>
-                <span className={styles.bootLabel} data-testid={`diag-boot-label-${i}`}>
+              <div className="flex flex-1 flex-col gap-1">
+                <span
+                  className="text-[length:var(--text-body)] font-medium text-foreground"
+                  data-testid={`diag-boot-label-${i}`}
+                >
                   {issue.label}
                 </span>
-                <span className={styles.bootDetail} data-testid={`diag-boot-detail-${i}`}>
+                <span className="text-sm text-foreground-secondary" data-testid={`diag-boot-detail-${i}`}>
                   {issue.detail}
                 </span>
               </div>
@@ -235,9 +256,19 @@ interface DropCounterRowProps {
 
 function DropCounterRow({ label, value, testId }: DropCounterRowProps) {
   return (
-    <li className={styles.dropRow} data-testid={testId}>
-      <span className={styles.dropLabel}>{label}</span>
-      <span className={cn(styles.dropValue, "ht-text-mono", value > 0 && "ht-text-warning")}>{value}</span>
+    <li
+      className="flex items-center gap-3 border-b border-[var(--border-subtle)] py-2 last:border-b-0"
+      data-testid={testId}
+    >
+      <span className="flex-1 text-sm text-foreground-secondary">{label}</span>
+      <span
+        className={cn(
+          "min-w-[3ch] text-right font-mono text-[length:var(--text-mono-md)] text-foreground-secondary",
+          value > 0 && "text-[var(--status-warning)]",
+        )}
+      >
+        {value}
+      </span>
     </li>
   );
 }
@@ -251,18 +282,24 @@ function TelemetryPanel({
 }: TelemetryPanelProps) {
   return (
     <section
-      className={cn(cardVariants({ variant: "default" }), styles.section)}
+      className={cn(cardVariants({ variant: "default" }), "flex flex-col gap-3")}
       aria-label="Telemetry health"
       data-testid="diag-telemetry-panel"
     >
-      <h2 className={styles.sectionHeading}>telemetry health</h2>
+      <h2 className="m-0 font-sans text-[length:var(--text-h2)] font-semibold leading-[var(--text-h2-leading)] text-foreground">
+        telemetry health
+      </h2>
       {telemetryDegraded && (
-        <div className={styles.degradedBanner} role="alert" data-testid="diag-telemetry-degraded">
+        <div
+          className="rounded-sm border border-[var(--status-warning)] bg-[var(--status-warning-bg)] px-4 py-3 text-sm text-[var(--status-warning)]"
+          role="alert"
+          data-testid="diag-telemetry-degraded"
+        >
           Telemetry degraded — writes may be failing or the database is unavailable.
         </div>
       )}
       {droppedOverflow + droppedExhausted + droppedShutdown + errorHandlerFailures > 0 && (
-        <ul className={styles.dropList} aria-label="Drop counters">
+        <ul className="flex list-none flex-col p-0" aria-label="Drop counters">
           <DropCounterRow label="Buffer overflow" value={droppedOverflow} testId="diag-drop-overflow" />
           <DropCounterRow label="Write failed" value={droppedExhausted} testId="diag-drop-exhausted" />
           <DropCounterRow label="During shutdown" value={droppedShutdown} testId="diag-drop-shutdown" />
@@ -311,13 +348,19 @@ export function DiagnosticsPage() {
   if (loading) return <Spinner />;
 
   return (
-    <div className="ht-page" data-testid="diagnostics-page">
-      <div className="ht-page-header">
-        <h1 className="ht-display">diagnostics</h1>
+    <div className="flex flex-1 flex-col gap-8 p-8" data-testid="diagnostics-page">
+      <div className="flex items-baseline gap-4 border-b border-[var(--line-1)] pb-3">
+        <h1 className="m-0 font-sans text-[length:var(--text-h1)] leading-[var(--text-h1-leading)] tracking-[var(--text-h1-tracking)] text-foreground">
+          diagnostics
+        </h1>
       </div>
 
       {loadError ? (
-        <div className="ht-alert ht-alert--danger" role="alert" data-testid="diag-load-error">
+        <div
+          className="rounded-md border border-destructive bg-[var(--destructive-bg)] px-4 py-3 text-sm text-destructive"
+          role="alert"
+          data-testid="diag-load-error"
+        >
           {loadError.message}
         </div>
       ) : (

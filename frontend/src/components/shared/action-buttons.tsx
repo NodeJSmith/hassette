@@ -16,7 +16,6 @@ import { Button } from "@/components/ui/button";
 
 import { reloadApp, startApp, stopApp } from "../../api/endpoints";
 import { useAsyncAction } from "../../hooks/use-async-action";
-import styles from "./action-buttons.module.css";
 import { IconPlay, IconRefresh, IconSquare } from "./icons";
 
 // `verb` reads as "Failed to <verb>", `outcome` as "App "<key>" <outcome>".
@@ -116,7 +115,7 @@ export function ActionButtons({ appKey, status, variant = "icon", confirmStop = 
 
   return (
     <>
-      <div className={styles.btnGroup} data-role="action-buttons" data-testid="action-buttons">
+      <div className="flex flex-nowrap gap-1" data-role="action-buttons" data-testid="action-buttons">
         {buttons.map(
           (btn) =>
             btn.visible && (

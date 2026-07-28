@@ -4,7 +4,6 @@ import { Badge, type BadgeVariant } from "@/components/ui/badge";
 
 import type { StatusKind } from "../../utils/status";
 import { StatusShape } from "../shared/status-shape";
-import styles from "./detail-header.module.css";
 
 // Maps a StatusKind onto the flattened "kind-*" Badge variants (formerly Chip's
 // variant="kind" kind={ChipKind} discriminated union).
@@ -30,17 +29,17 @@ export function DetailHeader({ name, kindLabel, statusKind, kind, subtitle, head
 
   return (
     <>
-      <div className={styles.header}>
-        <h2 className={styles.handlerName}>{name}</h2>
+      <div className="mb-3 flex flex-wrap items-baseline gap-2">
+        <h2 className="font-mono text-[length:var(--text-h2)] font-semibold text-foreground">{name}</h2>
         {isFailing && (
           <Badge variant="danger" size="sm" data-testid="handler-status-pill">
             failing
           </Badge>
         )}
-        {headerActions && <div className={styles.headerActions}>{headerActions}</div>}
+        {headerActions && <div className="ml-auto flex items-center gap-2">{headerActions}</div>}
       </div>
 
-      <div className={styles.subtitle}>
+      <div className="mb-3 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
         <Badge variant={KIND_BADGE_VARIANT[statusKind]} aria-label={`kind: ${kindLabel}`}>
           <StatusShape kind={statusKind} size={8} />
           {kindLabel}

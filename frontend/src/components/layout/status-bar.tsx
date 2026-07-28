@@ -1,6 +1,7 @@
 import type { RefObject } from "react";
 
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 import { useBreadcrumbs } from "../../hooks/use-breadcrumbs";
 import { useSidebarHidden } from "../../hooks/use-sidebar-hidden";
@@ -8,7 +9,6 @@ import { useAppStore } from "../../state/store";
 import { Breadcrumbs } from "../shared/breadcrumbs";
 import { SystemHealth } from "../shared/system-health";
 import { ThemeToggle } from "../shared/theme-toggle";
-import styles from "./status-bar.module.css";
 import { TimePresetSelector } from "./time-preset-selector";
 
 interface StatusBarProps {
@@ -24,13 +24,17 @@ export function StatusBar({ onMenuClick, drawerOpen, hamburgerRef }: StatusBarPr
   const sidebarHidden = useSidebarHidden();
 
   return (
-    <div className={styles.statusBar} data-testid="status-bar">
-      <div className={styles.statusBarLeft}>
+    <div
+      className="sticky top-0 z-[var(--z-status-bar-layer)] flex shrink-0 items-center justify-between gap-3 border-b border-border bg-[var(--bg-chrome)] px-8 py-2 max-mobile:gap-2 max-mobile:px-3"
+      data-testid="status-bar"
+      {...(drawerOpen ? { inert: true } : {})}
+    >
+      <div className="flex min-w-[var(--size-touch)] flex-1 items-center gap-3 overflow-hidden max-mobile:gap-2">
         <button
           ref={hamburgerRef}
           type="button"
-          className={styles.hamburger}
-          aria-label={drawerOpen ? "Close navigation" : "Open navigation"}
+          className="hidden size-[var(--sz-touch)] shrink-0 items-center justify-center rounded-md border border-border bg-transparent text-foreground-secondary transition-colors hover:bg-accent max-sidebar:flex [&_svg]:size-5 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-2 [&_svg]:stroke-linecap-round [&_svg]:stroke-linejoin-round"
+          aria-label="Open navigation"
           aria-expanded={drawerOpen}
           data-testid="hamburger"
           onClick={onMenuClick}
@@ -47,7 +51,7 @@ export function StatusBar({ onMenuClick, drawerOpen, hamburgerRef }: StatusBarPr
           <Button
             variant="ghost"
             size="icon-sm"
-            className={styles.expandSidebar}
+            className={cn("max-sidebar:hidden")}
             title="Expand sidebar ([)"
             aria-label="Expand sidebar"
             data-testid="sidebar-expand"
@@ -67,7 +71,7 @@ export function StatusBar({ onMenuClick, drawerOpen, hamburgerRef }: StatusBarPr
       {/* Both of these live in the sidebar footer when it is on screen. Collapsing unmounts
           the sidebar outright, so without this fallback the theme toggle would have no
           reachable home on desktop at all. */}
-      <div className={styles.statusBarRight}>
+      <div className="flex shrink-0 items-center gap-3 max-mobile:gap-1.5">
         {sidebarHidden && <SystemHealth variant="compact" />}
         <TimePresetSelector />
         {sidebarHidden && <ThemeToggle />}

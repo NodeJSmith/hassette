@@ -1,5 +1,6 @@
-import clsx from "clsx";
 import { useMemo } from "react";
+
+import { cn } from "@/lib/utils";
 
 import type { ActivityFeedEntryData } from "../../api/endpoints";
 import { getAppActivity } from "../../api/endpoints";
@@ -10,10 +11,13 @@ import { useAppStore } from "../../state/store";
 import { formatDurationOrDash, formatRelativeTime, lastDotSegment } from "../../utils/format";
 import { executionStatusKind } from "../../utils/status";
 import { StatusShape } from "../shared/status-shape";
-import styles from "./overview-tab.module.css";
+import { OVERVIEW_SECTION_CLASS } from "./overview-section";
 
 const ACTIVITY_FETCH_LIMIT = 20;
 const ACTIVITY_ROW_LIMIT = 8;
+const SECTION_LABEL_CLASS = "mb-2 font-sans text-[length:var(--text-h3)] font-semibold text-foreground";
+const DATA_TABLE_CLASS =
+  "w-full border-collapse bg-card [&_thead_tr]:bg-muted [&_th]:border-b [&_th]:border-border [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-mono [&_th]:text-xs [&_th]:font-medium [&_th]:uppercase [&_th]:tracking-[var(--text-label-tracking)] [&_th]:text-muted-foreground [&_th]:whitespace-nowrap [&_td]:border-b [&_td]:border-border [&_td]:px-3 [&_td]:py-2 [&_td]:align-top [&_td]:text-[length:var(--text-small)] [&_tbody_tr:last-child_td]:border-b-0 [&_tbody_tr:hover]:bg-muted";
 
 interface ActivityGroup {
   key: string;
@@ -91,16 +95,16 @@ function ActivityGroupRow({ group }: { group: ActivityGroup }) {
   return (
     <tr data-testid="overview-activity-row">
       <td aria-label={`latest status: ${group.latestStatus}`}>
-        <span className="ht-log-level-badge">
+        <span className="inline-flex items-center gap-1 whitespace-nowrap font-mono text-[length:var(--text-mono-sm)] leading-none">
           <StatusShape kind={kind} size={8} />
         </span>
       </td>
-      <td className={styles.activityName} title={group.handlerName}>
+      <td className="text-foreground" title={group.handlerName}>
         {lastDotSegment(group.handlerName)}
-        {isGrouped && <span className={styles.activityCount}> × {group.count}</span>}
+        {isGrouped && <span className="font-normal text-muted-foreground"> × {group.count}</span>}
       </td>
-      <td className={styles.activityDuration}>{durationLabel}</td>
-      <td className={styles.activityTime}>{timeLabel}</td>
+      <td className="whitespace-nowrap text-right text-muted-foreground">{durationLabel}</td>
+      <td className="whitespace-nowrap text-right text-muted-foreground">{timeLabel}</td>
     </tr>
   );
 }
@@ -134,26 +138,31 @@ export function RecentActivitySection({
   const groups = useMemo(() => summarizeActivityByHandler(activity ?? []).slice(0, ACTIVITY_ROW_LIMIT), [activity]);
 
   return (
-    <section className={styles.section} data-testid="overview-activity-section">
-      <h3 className="ht-section-label">recent activity</h3>
+    <section className={OVERVIEW_SECTION_CLASS} data-testid="overview-activity-section">
+      <h3 className={SECTION_LABEL_CLASS}>recent activity</h3>
       {activityError ? (
-        <p className={clsx(styles.emptyInline, "ht-text-danger")} data-testid="overview-activity-error">
+        <p className="mt-2 p-0 text-sm text-destructive" data-testid="overview-activity-error">
           could not load activity
         </p>
       ) : !loading && (activity ?? []).length === 0 ? (
-        <p className={styles.emptyInline} data-testid="overview-activity-empty">
+        <p className="mt-2 p-0 text-sm text-muted-foreground" data-testid="overview-activity-empty">
           no recent activity
         </p>
       ) : (
-        <table className={clsx("ht-table", styles.activityTable)}>
+        <table
+          className={cn(
+            DATA_TABLE_CLASS,
+            "[&_td]:align-middle [&_td]:font-mono [&_td]:text-[length:var(--text-mono-sm)] [&_td]:text-foreground-secondary",
+          )}
+        >
           <thead>
             <tr>
-              <th className={styles.colDot} scope="col"></th>
+              <th className="w-7" scope="col"></th>
               <th scope="col">Handler</th>
-              <th className={styles.activityDuration} scope="col">
+              <th className="whitespace-nowrap text-right text-muted-foreground" scope="col">
                 Duration
               </th>
-              <th className={styles.activityTime} scope="col">
+              <th className="whitespace-nowrap text-right text-muted-foreground" scope="col">
                 Time
               </th>
             </tr>

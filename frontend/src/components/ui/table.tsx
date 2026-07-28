@@ -7,7 +7,7 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
   // generated markup wraps <table> in a `div[data-slot=table-container]` with
   // `overflow-x: auto`, which becomes the nearest scrolling ancestor and
   // breaks `position: sticky` on <thead> (it anchors to this wrapper instead
-  // of the real scroll ancestor, `.ht-table-card-scroll` from table-card.tsx).
+  // of the real scroll ancestor provided by TableCard's scroll area).
   // Render the <table> directly so sticky headers keep working.
   return <table data-slot="table" className={cn("w-full caption-bottom text-sm", className)} {...props} />;
 }

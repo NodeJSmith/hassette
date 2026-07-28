@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
 import { Link } from "wouter";
 
+import { cn } from "@/lib/utils";
+
 import { appDetailPath, type HandlerKind, handlerPath } from "../../utils/app-routes";
-import styles from "./app-link.module.css";
 
 interface Props {
   appKey: string;
@@ -20,7 +21,13 @@ export function AppLink({ appKey, instanceIndex, handlerKind, handlerId, childre
       : appDetailPath(appKey, undefined, query);
 
   return (
-    <Link href={href} className={styles.link}>
+    <Link
+      href={href}
+      className={cn(
+        "font-mono text-sm text-primary no-underline",
+        "hover:text-[var(--primary-hover)] hover:underline hover:decoration-[var(--primary-hover)]",
+      )}
+    >
       {children ?? appKey}
     </Link>
   );

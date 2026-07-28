@@ -95,6 +95,18 @@ describe("SortHeader — sort-only", () => {
     });
     expect(onSort).toHaveBeenCalledWith({ key: "name", dir: "asc" });
   });
+
+  it("preserves caller casing instead of forcing uppercase", () => {
+    const sort: SortState<string> = { key: "name", dir: "asc" };
+    render(
+      <SortHeader sortKey="name" sort={sort} onSort={vi.fn()}>
+        mixedCase
+      </SortHeader>,
+    );
+    const button = screen.getByTestId("sort-header-btn");
+    expect(button.className).toContain("[text-transform:inherit]");
+    expect(button.className).not.toContain("uppercase");
+  });
 });
 
 describe("SortHeader — sort+filter", () => {

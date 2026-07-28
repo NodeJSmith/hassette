@@ -145,7 +145,7 @@ def test_mobile_drawer_closes_on_navigation(page: Page, base_url: str) -> None:
 def test_skip_nav_link_exists(page: Page, base_url: str) -> None:
     """Skip-nav link is first focusable element and targets #main-content."""
     page.goto(base_url + "/apps")
-    skip_link = page.locator("a.ht-skip-link")
+    skip_link = page.locator("[data-testid='skip-link']")
     expect(skip_link).to_have_attribute("href", "#main-content")
     main = page.locator("main#main-content")
     expect(main).to_be_attached()
@@ -199,7 +199,7 @@ def test_sidebar_app_search_filters(page: Page, base_url: str) -> None:
     page.set_viewport_size(DESKTOP_VIEWPORT)
     page.goto(base_url + "/apps")
     page.wait_for_load_state("networkidle")
-    search = page.locator("input[aria-label='Filter apps']")
+    search = page.locator("[data-testid='app-filter-input']")
     expect(search).to_be_visible()
     search.fill("My App")
     page.wait_for_timeout(ANIMATION_SETTLE_MS)
@@ -234,7 +234,7 @@ def test_sidebar_multi_instance_expand(page: Page, base_url: str) -> None:
     running_header.click()
     page.wait_for_timeout(ANIMATION_SETTLE_MS)
     # multi_app has 3 instances — expand button should be visible
-    expand_btn = page.get_by_label("Expand Multi App", exact=False)
+    expand_btn = page.locator("[data-testid='app-expand-multi_app']")
     expect(expand_btn).to_be_visible()
     expand_btn.click()
     page.wait_for_timeout(ANIMATION_SETTLE_MS)

@@ -10,7 +10,6 @@ import { STATUS_DOT_SIZE } from "../../utils/constants";
 import { formatDuration, formatRate, pluralize } from "../../utils/format";
 import { onActivateKeyDown } from "../../utils/keyboard";
 import { StatusShape } from "../shared/status-shape";
-import styles from "./handler-health-card.module.css";
 import {
   handlerHref,
   isFailing,
@@ -63,7 +62,14 @@ export function HandlerHealthCard({ item, appKey, instanceQs, tabIndex }: Handle
   return (
     <TooltipProvider>
       <div
-        className={cn(styles.card, failing && styles.cardFailing, idle && styles.cardIdle)}
+        className={cn(
+          "flex cursor-pointer flex-col gap-2 rounded-md border border-strong bg-card p-3",
+          "transition-[background-color,box-shadow,opacity] [box-shadow:var(--shadow-2)] hover:bg-muted hover:[box-shadow:var(--shadow-3)]",
+          "focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-0",
+          failing &&
+            "border-t-[var(--border-width-medium)] border-t-destructive hover:bg-[color-mix(in_srgb,var(--destructive-bg)_40%,var(--muted))]",
+          idle && "opacity-60 hover:opacity-100 focus-visible:opacity-100",
+        )}
         data-testid={`overview-health-card-${item.kind}-${item.id}`}
         role="button"
         aria-label={`${item.name} handler details`}
@@ -72,48 +78,51 @@ export function HandlerHealthCard({ item, appKey, instanceQs, tabIndex }: Handle
         onClick={navigateToHandler}
         onKeyDown={onActivateKeyDown(navigateToHandler)}
       >
-        <div className={styles.header}>
+        <div className="flex min-w-0 items-center gap-2">
           <span aria-hidden="true">
             <StatusShape kind={item.statusKind} size={STATUS_DOT_SIZE} />
           </span>
-          <span className={styles.name} title={item.name}>
+          <span
+            className="min-w-0 flex-1 truncate font-mono text-[length:var(--text-mono-sm)] text-foreground"
+            title={item.name}
+          >
             {item.name}
           </span>
         </div>
 
-        <div className={styles.subtitle}>
+        <div className="flex flex-wrap items-center gap-2">
           <Badge variant={item.kind} size="sm" aria-label={`kind: ${chipLabel}`}>
             {chipLabel}
           </Badge>
-          {errorType && <span className={styles.errorType}>{errorType}</span>}
+          {errorType && <span className="whitespace-nowrap text-sm text-destructive">{errorType}</span>}
         </div>
 
         {errorMessage && (
           <StatTooltip label={errorMessage}>
-            <span className={styles.errorMessage}>{errorMessage}</span>
+            <span className="block max-w-full truncate text-sm text-muted-foreground">{errorMessage}</span>
           </StatTooltip>
         )}
 
-        <div className={styles.stats}>
-          <div className={styles.statRow}>
+        <div className="flex flex-col gap-1">
+          <div className="flex gap-3 font-mono text-[length:var(--text-mono-sm)] text-muted-foreground">
             <StatTooltip label={`total ${callLabel}s`}>
               <span>{pluralize(runCount, callLabel)}</span>
             </StatTooltip>
             {avgDuration !== null && avgDuration > 0 && (
-              <StatTooltip label="avg duration" className={styles.statRowEnd}>
+              <StatTooltip label="avg duration" className="ml-auto">
                 <span>{formatDuration(avgDuration)}</span>
               </StatTooltip>
             )}
           </div>
           {(failed > 0 || lastActiveAt !== null) && (
-            <div className={styles.statRow}>
+            <div className="flex gap-3 font-mono text-[length:var(--text-mono-sm)] text-muted-foreground">
               {failed > 0 && (
                 <StatTooltip label="error rate">
                   <span>{formatRate(failed, runCount)}</span>
                 </StatTooltip>
               )}
               {lastActiveAt !== null && (
-                <StatTooltip label="last active" className={styles.statRowEnd}>
+                <StatTooltip label="last active" className="ml-auto">
                   <span>{lastActiveDisplay}</span>
                 </StatTooltip>
               )}

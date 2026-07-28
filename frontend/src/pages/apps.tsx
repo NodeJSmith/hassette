@@ -15,7 +15,7 @@ import { TableCard } from "../components/shared/table-card";
 import { TableFooter } from "../components/shared/table-footer";
 import { type ColumnFilters } from "../components/shared/table-types";
 import { useDocumentTitle } from "../hooks/use-document-title";
-import { BREAKPOINT_MOBILE, useMediaQuery } from "../hooks/use-media-query";
+import { BREAKPOINT_SIDEBAR, useMediaQuery } from "../hooks/use-media-query";
 import { useQueryInvalidator } from "../hooks/use-query-invalidator";
 import { useQueryParams } from "../hooks/use-query-params";
 import { useScopedQuery } from "../hooks/use-scoped-query";
@@ -26,7 +26,6 @@ import { appLiveStatus, type AppRow, type AppSortState, compareAppRows, toAppRow
 import { pluralize } from "../utils/format";
 import { type StatusKind } from "../utils/status";
 import { PRESET_WINDOW_SECONDS } from "../utils/time-window";
-import styles from "./apps.module.css";
 import { AppTableRow } from "./apps-table-row";
 
 const FILTER_OPTIONS = ["all", "running", "failed", "stopped", "disabled", "blocked"] as const;
@@ -44,6 +43,17 @@ const FILTER_TONES: Record<FilterId, StatusKind | null> = {
 const MIN_WINDOW_FOR_RATE_CALC = 60;
 const SECONDS_PER_HOUR = 3600;
 const VALID_SORT_KEYS: ReadonlySet<string> = new Set<AppSortState["key"]>(["name", "status", "error", "runs", "last"]);
+const PAGE_CLASS = "flex min-h-0 flex-1 flex-col gap-8 p-8 max-mobile:p-3 max-small-mobile:p-2";
+const PAGE_HEADER_CLASS = "flex items-baseline gap-4 border-b border-border pb-3";
+const PAGE_TITLE_CLASS =
+  "m-0 font-heading text-[length:var(--text-display)] font-normal tracking-[var(--text-display-tracking)] text-foreground";
+const TABLE_SECTION_CLASS = "flex flex-col gap-3";
+const SEARCH_INPUT_CLASS =
+  "min-w-[var(--size-search-min)] self-end rounded-md border border-[var(--border-strong)] bg-input px-2 py-1.5 font-sans text-[length:var(--text-mono-sm)] text-foreground outline-none placeholder:text-foreground-faint focus-visible:border-primary focus-visible:shadow-[0_0_0_2px_var(--primary-soft)] max-mobile:w-full max-mobile:min-w-0 max-mobile:self-stretch";
+const ALERT_CLASS =
+  "flex items-start gap-3 rounded-md border border-destructive bg-[var(--destructive-bg)] px-4 py-3 text-sm text-foreground";
+const DATA_TABLE_CLASS =
+  "w-full table-fixed border-collapse bg-card [&_thead_tr]:bg-muted [&_th]:border-b [&_th]:border-border [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-mono [&_th]:text-xs [&_th]:font-medium [&_th]:uppercase [&_th]:text-muted-foreground [&_th]:whitespace-nowrap [&_td]:border-b [&_td]:border-border [&_td]:px-3 [&_td]:py-2 [&_td]:align-top [&_td]:text-[length:var(--text-small)] [&_td]:overflow-hidden [&_td]:text-ellipsis [&_tbody_tr:last-child_td]:border-b-0 [&_tbody_tr:hover]:bg-muted";
 
 function buildAppsCells(
   apps: AppRow[],
@@ -92,7 +102,7 @@ function StatusFilterContent({
 }) {
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
   return (
-    <div className={styles.statusFilter}>
+    <div className="flex flex-col gap-0">
       {FILTER_OPTIONS.map((f) => {
         const count = f === "all" ? total : (counts[f] ?? 0);
         if (f !== "all" && count === 0) return null;
@@ -110,10 +120,10 @@ function StatusFilterContent({
             onClick={() => onChange(f)}
             data-testid={`filter-${f}`}
           >
-            <span className={styles.statusFilterRow}>
+            <span className="inline-flex w-full items-center gap-[var(--spacing-1-5)]">
               {tone && <StatusShape kind={tone} size={8} />}
               <span>{f}</span>
-              <span className={styles.statusFilterCount}>{count}</span>
+              <span className="ml-auto font-mono text-xs text-muted-foreground">{count}</span>
             </span>
           </button>
         );
@@ -146,7 +156,7 @@ export function AppsPage() {
 
   useQueryInvalidator(executionCompleted, (events) => events !== null, queryKeys.dashboardGrid());
 
-  const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
+  const isCompact = useMediaQuery(BREAKPOINT_SIDEBAR);
   const qp = useQueryParams();
   const rawFilter = qp.get("filter");
   const filter: FilterId =
@@ -230,7 +240,7 @@ export function AppsPage() {
   if (gridError) {
     const isUnavailable = gridError instanceof ApiError && gridError.status === 503;
     return (
-      <div className="ht-alert ht-alert--danger" role="alert" data-testid="apps-load-error">
+      <div className={ALERT_CLASS} role="alert" data-testid="apps-load-error">
         {isUnavailable ? "Telemetry unavailable — the database is unreachable." : gridError.message}
       </div>
     );
@@ -239,7 +249,7 @@ export function AppsPage() {
   const searchInput = (
     <input
       type="text"
-      className="ht-search"
+      className={SEARCH_INPUT_CLASS}
       placeholder="search apps…"
       aria-label="Search apps"
       value={search}
@@ -261,15 +271,16 @@ export function AppsPage() {
   else if (search) emptyStateTitle = `no apps match "${search}".`;
 
   return (
-    <div className={`ht-page ${styles.page}`} data-testid="apps-page">
+    <div className={PAGE_CLASS} data-testid="apps-page">
       {/* Header */}
-      <div className="ht-page-header">
-        <h1 className="ht-display">apps</h1>
+      <div className={PAGE_HEADER_CLASS}>
+        <h1 className={PAGE_TITLE_CLASS}>apps</h1>
       </div>
 
-      <div className="ht-table-section">
+      <div className={TABLE_SECTION_CLASS}>
         <StatsStrip
-          cells={buildAppsCells(allApps, appStatus, windowSeconds, isMobile)}
+          cells={buildAppsCells(allApps, appStatus, windowSeconds, isCompact)}
+          cols={isCompact ? 4 : undefined}
           data-testid="apps-stats-strip"
         />
         {searchInput}
@@ -283,14 +294,26 @@ export function AppsPage() {
               )}
             </EmptyState>
           ) : (
-            <table className={`ht-table ht-table--fixed ${styles.appsTable}`} data-testid="apps-table">
+            <table
+              className={cn(DATA_TABLE_CLASS, "[&_thead_th]:tracking-[var(--text-label-tracking-wide)]")}
+              data-testid="apps-table"
+            >
               <colgroup>
-                <col className={styles.colName} />
-                <col className={styles.colStatus} />
-                <col className={styles.colError} />
-                <col className={styles.colRuns} />
-                <col className={styles.colLast} />
-                <col className={styles.colActions} />
+                {isCompact ? (
+                  <>
+                    <col className="w-[72%]" />
+                    <col className="w-[28%]" />
+                  </>
+                ) : (
+                  <>
+                    <col className="w-[35%]" />
+                    <col className="w-[12%]" />
+                    <col className="w-[22%]" />
+                    <col className="w-[10%]" />
+                    <col className="w-[11%]" />
+                    <col className="w-[10%]" />
+                  </>
+                )}
               </colgroup>
               <thead>
                 <tr>
@@ -311,22 +334,24 @@ export function AppsPage() {
                       status
                     </SortHeader>
                   </th>
-                  <th scope="col" aria-sort={ariaSortFor("error")}>
+                  <th scope="col" aria-sort={ariaSortFor("error")} className={cn(isCompact && "hidden")}>
                     <SortHeader sort={sort} onSort={handleSort} sortKey="error">
                       last error
                     </SortHeader>
                   </th>
-                  <th scope="col" aria-sort={ariaSortFor("runs")}>
+                  <th scope="col" aria-sort={ariaSortFor("runs")} className={cn(isCompact && "hidden")}>
                     <SortHeader sort={sort} onSort={handleSort} sortKey="runs">
                       runs
                     </SortHeader>
                   </th>
-                  <th scope="col" aria-sort={ariaSortFor("last")}>
+                  <th scope="col" aria-sort={ariaSortFor("last")} className={cn(isCompact && "hidden")}>
                     <SortHeader sort={sort} onSort={handleSort} sortKey="last">
                       last fired
                     </SortHeader>
                   </th>
-                  <th scope="col">actions</th>
+                  <th scope="col" className={cn(isCompact && "hidden")}>
+                    actions
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -338,6 +363,7 @@ export function AppsPage() {
                     isExpanded={app.instance_count > 1 && expanded.has(app.app_key)}
                     onToggle={() => toggleExpand(app.app_key)}
                     muteStatus={allSameStatus}
+                    compact={isCompact}
                   />
                 ))}
               </tbody>

@@ -46,7 +46,7 @@ export function TimePresetSelector() {
   if (isMobile) {
     return (
       <div
-        className="flex items-center gap-0 rounded-md border-0 bg-transparent max-[768px]:border-0 max-[768px]:bg-transparent"
+        className="flex items-center gap-0 rounded-md border-0 bg-transparent max-mobile:border-0 max-mobile:bg-transparent"
         data-testid="time-preset-selector"
       >
         <select
@@ -61,7 +61,11 @@ export function TimePresetSelector() {
             </option>
           ))}
         </select>
-        {showUptime && <span className="px-2 font-mono text-xs text-[var(--ink-4)]">up {formatUptime(uptime)}</span>}
+        {showUptime && (
+          <span className="px-2 font-mono text-xs text-[var(--ink-4)] max-mobile:hidden">
+            up {formatUptime(uptime)}
+          </span>
+        )}
       </div>
     );
   }

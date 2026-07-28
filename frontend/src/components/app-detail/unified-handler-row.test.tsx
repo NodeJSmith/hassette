@@ -148,22 +148,29 @@ describe("UnifiedHandlerRow — listener", () => {
     await user.keyboard(" ");
     expect(onSelect).toHaveBeenCalledOnce();
   });
+
+  it("includes a visible focus outline utility", () => {
+    const item = makeListenerItem({ listener_id: 1 });
+    const { getByRole } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
+    expect(getByRole("button").className).toContain("focus-visible:outline-solid");
+    expect(getByRole("button").className).toContain("focus-visible:outline-primary");
+  });
 });
 
 describe("UnifiedHandlerRow — idle state", () => {
-  it("applies the dimmed idle class when statusKind is mute", () => {
+  it("applies the dimmed idle styling when statusKind is mute", () => {
     const item = makeListenerItem(
       { listener_id: 1, total_invocations: 0, failed: 0, timed_out: 0 },
       { statusKind: "mute" },
     );
     const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
-    expect(getByTestId("unified-row-listener-1").className).toMatch(/rowIdle/);
+    expect(getByTestId("unified-row-listener-1").className).toContain("opacity-60");
   });
 
-  it("does not apply the dimmed idle class when statusKind is ok", () => {
+  it("does not apply the dimmed idle styling when statusKind is ok", () => {
     const item = makeListenerItem({ listener_id: 1 });
     const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
-    expect(getByTestId("unified-row-listener-1").className).not.toMatch(/rowIdle/);
+    expect(getByTestId("unified-row-listener-1").className).not.toContain("opacity-60");
   });
 });
 

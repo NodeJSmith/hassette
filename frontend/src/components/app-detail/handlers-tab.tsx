@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 
@@ -11,7 +12,6 @@ import { appHandlersPath, handlerPath } from "../../utils/app-routes";
 import { EmptyState } from "../shared/empty-state";
 import { ExecutionDetailFetcher } from "./execution-detail";
 import { HandlerList, type SelectedHandlerId } from "./handler-list";
-import styles from "./handlers-tab.module.css";
 import { JobDetail } from "./job-detail";
 import { ListenerDetail } from "./listener-detail";
 
@@ -152,12 +152,12 @@ export function HandlersTab({
       const selectedId: SelectedHandlerId | null = parsed ? { kind: parsed.kind, id: parsed.id } : null;
 
       return (
-        <div ref={containerRef} className={styles.container}>
+        <div ref={containerRef} className="flex flex-col gap-4">
           {showMobileDetail && (
             <Button
               variant="ghost"
               size="sm"
-              className="ht-mb-3"
+              className="mb-3"
               data-testid="back-to-list"
               onClick={() => navigate(appHandlersPath(appKey, { instance: instanceIndex }))}
               aria-label="Back to handler list"
@@ -166,15 +166,32 @@ export function HandlersTab({
             </Button>
           )}
 
-          <div className={cn(styles.masterDetail, isMobile && styles.masterDetailMobile)}>
+          <div
+            className={cn(
+              "grid items-start gap-4 [grid-template-columns:minmax(var(--master-min-width),var(--master-max-width))_1fr]",
+              isMobile && "block",
+            )}
+            style={
+              {
+                "--master-min-width": "240px",
+                "--master-max-width": "340px",
+                "--master-max-height": "70vh",
+              } as CSSProperties
+            }
+          >
             {showMasterList && (
-              <div className={styles.masterDetailList}>
+              <div
+                className={cn(
+                  "max-h-[var(--master-max-height)] overflow-y-auto rounded-md border border-border bg-card",
+                  isMobile && "mb-4 max-h-none",
+                )}
+              >
                 <HandlerList listeners={listeners} jobs={jobs} selectedId={selectedId} onSelect={handleSelect} />
               </div>
             )}
 
             {showDetailPane && (
-              <div className={styles.masterDetailDetail}>
+              <div className="overflow-y-auto">
                 <DetailContent
                   listener={selectedListener}
                   job={selectedJob}

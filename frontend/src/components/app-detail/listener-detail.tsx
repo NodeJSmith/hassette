@@ -15,7 +15,6 @@ import { DetailStats } from "../shared/detail-stats";
 import { ErrorBanner } from "../shared/error-banner";
 import { DetailHeader } from "./detail-header";
 import { ExecutionSection } from "./execution-section";
-import chipStyles from "./handler-chips.module.css";
 import { HandlerDetailLayout } from "./handler-detail-layout";
 import { listenerHealthKind } from "./handler-list";
 import { HandlerModeChip } from "./handler-mode-chip";
@@ -33,7 +32,7 @@ function ModifierChips({ listener }: { listener: ListenerData }) {
   if (listener.backpressure === "drop_newest") chips.push({ label: "backpressure", value: "drop_newest" });
 
   return (
-    <div className={chipStyles.chipRow} data-testid="modifier-chips">
+    <div className="mb-3 flex flex-wrap gap-2" data-testid="modifier-chips">
       <HandlerModeChip mode={listener.mode} />
       {chips.map((chip) => (
         <Badge key={chip.label} variant="listener">

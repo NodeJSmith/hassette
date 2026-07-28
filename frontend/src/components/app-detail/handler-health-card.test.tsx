@@ -257,6 +257,14 @@ describe("HandlerHealthCard — accessibility", () => {
     expect(getByTestId("overview-health-card-listener-1").getAttribute("tabindex")).toBe("-1");
   });
 
+  it("includes a visible focus outline utility", () => {
+    const item = makeListenerItem({ listener_id: 1 });
+    const { getByTestId } = renderCard(item);
+    const card = getByTestId("overview-health-card-listener-1");
+    expect(card.className).toContain("focus-visible:outline-solid");
+    expect(card.className).toContain("focus-visible:outline-primary");
+  });
+
   it("has data-roving-item attribute", () => {
     const item = makeListenerItem({ listener_id: 1 });
     const { getByTestId } = renderCard(item);

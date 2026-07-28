@@ -1,9 +1,0 @@
-.predicateDescription {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--sp-2);
-  font-size: var(--fs-small);
-  color: var(--ink-3);
-  margin-bottom: var(--sp-3);
-}

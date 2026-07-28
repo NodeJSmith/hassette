@@ -1,8 +1,8 @@
 import { useState } from "react";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
-import styles from "./column-picker.module.css";
 import { COLUMNS, REQUIRED_COLUMNS } from "./constants";
 import type { ColumnId } from "./types";
 
@@ -21,7 +21,10 @@ export function ColumnPicker({ selectedColumns, viewportHidden, onToggle, onRese
       <PopoverTrigger asChild>
         <button
           type="button"
-          className={styles.trigger}
+          className={cn(
+            "inline-flex cursor-pointer items-center rounded-sm border-none bg-transparent p-1 text-muted-foreground transition-colors",
+            "hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary",
+          )}
           aria-label="Choose visible columns"
           data-testid="column-picker"
         >
@@ -34,14 +37,14 @@ export function ColumnPicker({ selectedColumns, viewportHidden, onToggle, onRese
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" data-testid="column-picker-popover" className="w-auto">
-        <div className={styles.list}>
+        <div className="mb-2 flex flex-col gap-1">
           {COLUMNS.map((col) => {
             const isViewportHidden = viewportHidden.has(col.id);
             const isDisabled = REQUIRED_COLUMNS.has(col.id) || isViewportHidden;
             return (
               <label
                 key={col.id}
-                className={styles.item}
+                className="flex cursor-pointer items-center justify-between gap-2 py-0 text-sm text-foreground has-[:disabled]:text-muted-foreground [&_input[type=checkbox]]:accent-[var(--primary)]"
                 title={isViewportHidden ? "Hidden at this screen size" : undefined}
               >
                 <span>{col.label}</span>
@@ -55,7 +58,11 @@ export function ColumnPicker({ selectedColumns, viewportHidden, onToggle, onRese
             );
           })}
         </div>
-        <button type="button" className={styles.resetBtn} onClick={onReset}>
+        <button
+          type="button"
+          className="cursor-pointer border-none bg-transparent px-0 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+          onClick={onReset}
+        >
           Reset to defaults
         </button>
       </PopoverContent>

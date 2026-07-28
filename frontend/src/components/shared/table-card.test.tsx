@@ -67,7 +67,7 @@ describe("TableCard", () => {
 
       const footerEl = screen.getByTestId("footer-el");
       const tableCell = screen.getByTestId("table-cell");
-      const scrollArea = tableCell.closest(".ht-table-card-scroll")!;
+      const scrollArea = tableCell.closest("[data-testid='table-card-scroll']")!;
 
       // footer container should appear AFTER scroll area
       const position = scrollArea.compareDocumentPosition(footerEl);
@@ -103,7 +103,7 @@ describe("TableCard", () => {
           </table>
         </TableCard>,
       );
-      const scrollEl = container.querySelector(".ht-table-card-scroll");
+      const scrollEl = container.querySelector("[data-testid='table-card-scroll']");
       expect(scrollEl).not.toBeNull();
       expect(scrollEl!.getAttribute("style")).toContain("400px");
     });
