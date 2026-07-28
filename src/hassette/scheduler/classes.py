@@ -261,6 +261,9 @@ class ScheduledJob:
     _dequeued: bool = field(default=False, repr=False, compare=False)
     """True after the job has been synchronously removed from the heap via dequeue_job()."""
 
+    _pending_next_run: ZonedDateTime | None = field(default=None, repr=False, compare=False)
+    """Event-derived next run to apply when the job was popped before a reschedule landed."""
+
     pending_done: "set[asyncio.Future[None]]" = field(default_factory=set, init=False, repr=False, compare=False)
     """Unresolved per-invocation completion futures for non-parallel modes.
 

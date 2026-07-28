@@ -109,7 +109,10 @@ class SchedulerSyncFacade(Resource):
         Args:
             func: The function to run.
             trigger: A trigger object implementing ``TriggerProtocol``. Determines
-                both the first run time and subsequent recurrences.
+                both the first run time and subsequent recurrences. An
+                :class:`~hassette.scheduler.triggers.EntityTime` trigger additionally
+                gets a state-change listener registered for its entity, so the job
+                moves whenever the entity's time changes.
             name: Required stable name for the job. Used for uniqueness validation
                 within this scheduler instance and for logging/telemetry.
             group: Optional group name for bulk management (see ``cancel_group``).
