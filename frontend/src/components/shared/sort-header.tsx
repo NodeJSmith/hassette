@@ -1,8 +1,8 @@
-import clsx from "clsx";
 import type { ReactNode } from "react";
 import { useState } from "react";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 import { FilterIcon } from "./filter-icon";
 import styles from "./sort-header.module.css";
@@ -85,7 +85,7 @@ export function SortHeader<K extends string = string>(props: Props<K>) {
   const sortElement = hasSortProps ? (
     <button
       type="button"
-      className={clsx(styles.sortHeader, active && styles.active)}
+      className={cn(styles.sortHeader, active && styles.active)}
       data-testid="sort-header-btn"
       aria-label={ariaLabel ? `Sort by ${ariaLabel}` : undefined}
       onClick={sortClickHandler}
@@ -106,13 +106,13 @@ export function SortHeader<K extends string = string>(props: Props<K>) {
   }
 
   return (
-    <div className={clsx(styles.headerInner, className)} data-testid={testId}>
+    <div className={cn(styles.headerInner, className)} data-testid={testId}>
       {sortElement}
       <Popover open={filterOpen} onOpenChange={setFilterOpen}>
         <PopoverTrigger asChild>
           <button
             type="button"
-            className={clsx(styles.filterBtn, props.hasActiveFilter && styles.filterActive)}
+            className={cn(styles.filterBtn, props.hasActiveFilter && styles.filterActive)}
             data-testid="filter-btn"
             aria-label={ariaLabel ? `Filter ${ariaLabel}` : undefined}
           >

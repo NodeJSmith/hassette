@@ -1,10 +1,10 @@
 import { type ColumnDef, flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table";
-import clsx from "clsx";
 import { useState } from "react";
 import { useLocation } from "wouter";
 
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 
 import { useRovingTabIndex } from "../../hooks/use-roving-tab-index";
 import { executionPath, type HandlerKind } from "../../utils/app-routes";
@@ -110,7 +110,7 @@ const columns: ColumnDef<ExecutionRecord, unknown>[] = [
     header: "Execution",
     meta: {
       headerClassName: styles.executionColumn,
-      cellClassName: clsx(styles.executionColumn, "ht-text-mono ht-text-xs"),
+      cellClassName: cn(styles.executionColumn, "ht-text-mono ht-text-xs"),
     },
     cell: ({ row }) => row.original.execution_id ?? "—",
   },
@@ -125,7 +125,7 @@ const columns: ColumnDef<ExecutionRecord, unknown>[] = [
     header: "Time",
     meta: {
       headerClassName: styles.timeColumn,
-      cellClassName: clsx(styles.timeColumn, "ht-text-mono ht-text-xs"),
+      cellClassName: cn(styles.timeColumn, "ht-text-mono ht-text-xs"),
       cellProps: (record: ExecutionRecord) => ({ title: formatTimestamp(record.execution_start_ts) }),
     },
     cell: ({ row }) => formatRelativeTime(row.original.execution_start_ts),
@@ -133,7 +133,7 @@ const columns: ColumnDef<ExecutionRecord, unknown>[] = [
   {
     id: "detail",
     header: () => <span className="ht-visually-hidden">Details</span>,
-    meta: { headerClassName: styles.colArrow, cellClassName: clsx("ht-text-muted", styles.arrowCell) },
+    meta: { headerClassName: styles.colArrow, cellClassName: cn("ht-text-muted", styles.arrowCell) },
     // No `cell` — the row render loop below special-cases `column.id === "detail"` and never calls
     // flexRender for it (it needs appKey/handlerKind/handlerId, not available at column-definition time).
   },
@@ -203,7 +203,7 @@ export function ExecutionTable({
             return (
               <TableRow
                 key={row.id}
-                className={clsx(styles.row, canNavigate && styles.rowClickable)}
+                className={cn(styles.row, canNavigate && styles.rowClickable)}
                 data-testid={kind === "handler" ? "invocation-row" : "execution-row"}
                 tabIndex={getTabIndex(i)}
                 role="row"

@@ -1,4 +1,3 @@
-import clsx from "clsx";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
@@ -6,6 +5,7 @@ import { Link } from "wouter";
 import type { LogEntry } from "@/api/endpoints";
 import { Drawer, DrawerContentUnstyled, DrawerOverlay, DrawerTitle } from "@/components/ui/drawer";
 import { BREAKPOINT_MOBILE, BREAKPOINT_TABLET, useMediaQuery } from "@/hooks/use-media-query";
+import { cn } from "@/lib/utils";
 import { appDetailPath } from "@/utils/app-routes";
 import { formatTimestamp } from "@/utils/format";
 
@@ -128,7 +128,7 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
       {useOverlay && <DrawerOverlay />}
       <DrawerContentUnstyled
         ref={drawerRef}
-        className={clsx(styles.drawer, isMobile ? styles.bottomSheet : styles.sidePanel)}
+        className={cn(styles.drawer, isMobile ? styles.bottomSheet : styles.sidePanel)}
         id={DETAIL_DRAWER_ID}
         aria-label="Log entry detail"
         data-testid="log-detail-drawer"
@@ -176,7 +176,7 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
           </div>
         ) : entry ? (
           <div className={styles.content}>
-            <div className={clsx(styles.severityRow, levelClass(styles, "level", entry.level))}>
+            <div className={cn(styles.severityRow, levelClass(styles, "level", entry.level))}>
               <span className={styles.levelLabel}>{entry.level}</span>
               <span className={styles.timestamp}>{formatTimestamp(entry.timestamp)}</span>
             </div>
@@ -197,7 +197,7 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
                   <span className={styles.sectionLabel}>exception</span>
                   <CopyButton text={entry.exc_info} label="Copy exception" />
                 </div>
-                <pre className={clsx(styles.codeBlock, styles.exceptionBlock)} data-log-scrollable>
+                <pre className={cn(styles.codeBlock, styles.exceptionBlock)} data-log-scrollable>
                   {entry.exc_info}
                 </pre>
               </div>

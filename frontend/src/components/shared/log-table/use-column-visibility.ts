@@ -28,6 +28,32 @@ function storageKey(context: ViewContext): string {
   return `${STORAGE_KEY_PREFIX}-${context}`;
 }
 
+// localStorage can throw (private browsing, quota, disabled) — every access
+// degrades silently to a no-op/null rather than crashing the column-visibility feature.
+const safeLocalStorage = {
+  get(key: string): string | null {
+    try {
+      return localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+  set(key: string, value: string): void {
+    try {
+      localStorage.setItem(key, value);
+    } catch {
+      // localStorage unavailable — degrade silently
+    }
+  },
+  remove(key: string): void {
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      // localStorage unavailable — degrade silently
+    }
+  },
+};
+
 function defaultColumns(context: ViewContext): ColumnId[] {
   switch (context) {
     case "global":
@@ -40,12 +66,12 @@ function defaultColumns(context: ViewContext): ColumnId[] {
 }
 
 function readStored(context: ViewContext): ColumnId[] | null {
+  const raw = safeLocalStorage.get(storageKey(context));
+  if (!raw) return null;
   try {
-    const raw = localStorage.getItem(storageKey(context));
-    if (!raw) return null;
     const parsed: StoredColumnState = JSON.parse(raw);
     if (parsed.version !== STORAGE_VERSION) {
-      localStorage.removeItem(storageKey(context));
+      safeLocalStorage.remove(storageKey(context));
       return null;
     }
     const knownIds = new Set<string>(ALL_COLUMN_IDS);
@@ -56,17 +82,14 @@ function readStored(context: ViewContext): ColumnId[] | null {
     if (validated.length === 0) return null;
     return validated;
   } catch {
+    // Malformed stored JSON — treat as absent rather than crashing.
     return null;
   }
 }
 
 function writeStored(context: ViewContext, columns: ColumnId[]): void {
-  try {
-    const state: StoredColumnState = { version: STORAGE_VERSION, columns };
-    localStorage.setItem(storageKey(context), JSON.stringify(state));
-  } catch {
-    // localStorage unavailable — degrade silently
-  }
+  const state: StoredColumnState = { version: STORAGE_VERSION, columns };
+  safeLocalStorage.set(storageKey(context), JSON.stringify(state));
 }
 
 interface UseColumnVisibilityResult {
@@ -103,11 +126,7 @@ export function useColumnVisibility(context: ViewContext): UseColumnVisibilityRe
   const reset = useCallback(() => {
     const defaults = defaultColumns(context);
     setUserColumns(defaults);
-    try {
-      localStorage.removeItem(storageKey(context));
-    } catch {
-      // localStorage unavailable — degrade silently
-    }
+    safeLocalStorage.remove(storageKey(context));
   }, [context]);
 
   return { visibleColumns, selectedColumns: userColumns, viewportHidden, toggle, reset };

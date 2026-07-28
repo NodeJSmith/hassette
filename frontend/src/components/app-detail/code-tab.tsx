@@ -18,12 +18,12 @@ interface Props {
 
 function buildAnnotationMap(listeners: ListenerData[]): Map<number, string[]> {
   const map = new Map<number, string[]>();
-  for (const l of listeners) {
-    if (!l.source_location) continue;
-    const { line } = parseSourceLocation(l.source_location);
+  for (const listener of listeners) {
+    if (!listener.source_location) continue;
+    const { line } = parseSourceLocation(listener.source_location);
     if (line === null) continue;
     const existing = map.get(line) ?? [];
-    existing.push(l.handler_method);
+    existing.push(listener.handler_method);
     map.set(line, existing);
   }
   return map;

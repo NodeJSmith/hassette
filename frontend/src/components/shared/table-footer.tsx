@@ -1,8 +1,8 @@
-import clsx from "clsx";
 import type { ReactNode } from "react";
 import { useState } from "react";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 import { BREAKPOINT_MOBILE, useMediaQuery } from "../../hooks/use-media-query";
 import { FilterIcon } from "./filter-icon";
@@ -38,7 +38,7 @@ export function TableFooter({ count, columnFilters, onResetFilters, extras }: Ta
             <PopoverTrigger asChild>
               <button
                 type="button"
-                className={clsx(styles.filterBtn, hasActiveFilter && styles.filterBtnActive)}
+                className={cn(styles.filterBtn, hasActiveFilter && styles.filterBtnActive)}
                 aria-label="Open filters"
                 data-testid="mobile-filters-btn"
               >

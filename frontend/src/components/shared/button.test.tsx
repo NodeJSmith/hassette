@@ -46,18 +46,19 @@ describe("Button", () => {
       expect(el.className).not.toMatch(/\bborder-\[var\(--ok\)\]/);
     });
 
-    it("supports ghost+color compound variants (success-ghost, warning-ghost, info-ghost)", () => {
-      const success = render(<Button variant="success-ghost">btn</Button>);
-      expect(success.getByRole("button").getAttribute("data-variant")).toBe("success-ghost");
-      success.unmount();
+    it("supports the success-ghost compound variant", () => {
+      const { getByRole } = render(<Button variant="success-ghost">btn</Button>);
+      expect(getByRole("button").getAttribute("data-variant")).toBe("success-ghost");
+    });
 
-      const warning = render(<Button variant="warning-ghost">btn</Button>);
-      expect(warning.getByRole("button").getAttribute("data-variant")).toBe("warning-ghost");
-      warning.unmount();
+    it("supports the warning-ghost compound variant", () => {
+      const { getByRole } = render(<Button variant="warning-ghost">btn</Button>);
+      expect(getByRole("button").getAttribute("data-variant")).toBe("warning-ghost");
+    });
 
-      const info = render(<Button variant="info-ghost">btn</Button>);
-      expect(info.getByRole("button").getAttribute("data-variant")).toBe("info-ghost");
-      info.unmount();
+    it("supports the info-ghost compound variant", () => {
+      const { getByRole } = render(<Button variant="info-ghost">btn</Button>);
+      expect(getByRole("button").getAttribute("data-variant")).toBe("info-ghost");
     });
   });
 

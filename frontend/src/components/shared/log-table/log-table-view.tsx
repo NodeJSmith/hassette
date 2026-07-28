@@ -1,5 +1,4 @@
 import { type ColumnDef, flexRender, getCoreRowModel, type SortingState, useReactTable } from "@tanstack/react-table";
-import clsx from "clsx";
 import { type ReactNode, useMemo } from "react";
 
 import type { LogEntry } from "@/api/endpoints";
@@ -7,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useRelativeTime } from "@/hooks/use-relative-time";
 import { useRovingTabIndex } from "@/hooks/use-roving-tab-index";
+import { cn } from "@/lib/utils";
 import { formatTimestamp, truncateId } from "@/utils/format";
 
 import { AppLink } from "../app-link";
@@ -58,7 +58,7 @@ function renderCell(id: ColumnId, entry: LogEntry, isMobile: boolean, visibleCol
   switch (id) {
     case "level":
       return (
-        <span className={clsx(styles.levelText, levelClass(styles, "level", entry.level))}>
+        <span className={cn(styles.levelText, levelClass(styles, "level", entry.level))}>
           {isMobile ? (LEVEL_ABBREV[entry.level] ?? entry.level) : entry.level}
         </span>
       );
@@ -278,7 +278,7 @@ export function LogTableView({
           return (
             <TableRow
               key={row.id}
-              className={clsx(styles.row, isSelected && styles.selected)}
+              className={cn(styles.row, isSelected && styles.selected)}
               data-level={entry.level}
               aria-current={isSelected ? "true" : undefined}
               onClick={(e) => {

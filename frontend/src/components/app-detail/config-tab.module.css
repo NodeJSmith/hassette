@@ -82,6 +82,8 @@
   overflow-x: auto;
 }
 
+/* !important overrides Shiki's own inline background-color style attribute
+   (set per defaultColor: false), which otherwise wins over this class rule. */
 .rawCode :global(.shiki) {
   background: transparent !important;
   margin: 0;

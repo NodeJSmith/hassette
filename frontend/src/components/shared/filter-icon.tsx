@@ -1,9 +1,11 @@
+import { SMALL_ICON_SIZE } from "../../utils/constants";
+
 interface FilterIconProps {
   size?: number;
   active?: boolean;
 }
 
-export function FilterIcon({ size = 12, active = false }: FilterIconProps) {
+export function FilterIcon({ size = SMALL_ICON_SIZE, active = false }: FilterIconProps) {
   return (
     <span style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
       <svg width={size} height={size} viewBox="0 0 12 12" fill="none" aria-hidden="true">

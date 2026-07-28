@@ -17,6 +17,22 @@ function withManifests(manifests: AppManifest[]) {
   installManifests(manifests, server);
 }
 
+// Shared fixture for the "Sidebar — multi-instance apps" suite below: a single
+// app with two instances, used to test expand/collapse and instance-link behavior.
+function withMultiInstanceApp() {
+  withManifests([
+    createManifest({
+      app_key: "multi_app",
+      display_name: "Multi App",
+      instance_count: 2,
+      instances: [
+        createInstance({ app_key: "multi_app", index: 0, instance_name: "inst_0" }),
+        createInstance({ app_key: "multi_app", index: 1, instance_name: "inst_1" }),
+      ],
+    }),
+  ]);
+}
+
 // Mock wouter to control the current location. The shared Link stub already spreads
 // unrecognized props (aria-label, aria-current, data-testid, etc.) onto the <a>, so no
 // sidebar-specific extension is needed here.
@@ -214,34 +230,14 @@ describe("Sidebar — search", () => {
 
 describe("Sidebar — multi-instance apps", () => {
   it("shows expand button for multi-instance apps", async () => {
-    withManifests([
-      createManifest({
-        app_key: "multi_app",
-        display_name: "Multi App",
-        instance_count: 2,
-        instances: [
-          createInstance({ app_key: "multi_app", index: 0, instance_name: "inst_0" }),
-          createInstance({ app_key: "multi_app", index: 1, instance_name: "inst_1" }),
-        ],
-      }),
-    ]);
+    withMultiInstanceApp();
     renderWithAppState(<Sidebar />);
     expect(await screen.findByLabelText("Expand Multi App")).toBeDefined();
   });
 
   it("clicking expand shows instance links", async () => {
     const user = userEvent.setup();
-    withManifests([
-      createManifest({
-        app_key: "multi_app",
-        display_name: "Multi App",
-        instance_count: 2,
-        instances: [
-          createInstance({ app_key: "multi_app", index: 0, instance_name: "inst_0" }),
-          createInstance({ app_key: "multi_app", index: 1, instance_name: "inst_1" }),
-        ],
-      }),
-    ]);
+    withMultiInstanceApp();
     renderWithAppState(<Sidebar />);
     const expandBtn = await screen.findByLabelText("Expand Multi App");
     await user.click(expandBtn);
@@ -251,17 +247,7 @@ describe("Sidebar — multi-instance apps", () => {
 
   it("instance links use ?instance=N query param format", async () => {
     const user = userEvent.setup();
-    withManifests([
-      createManifest({
-        app_key: "multi_app",
-        display_name: "Multi App",
-        instance_count: 2,
-        instances: [
-          createInstance({ app_key: "multi_app", index: 0, instance_name: "inst_0" }),
-          createInstance({ app_key: "multi_app", index: 1, instance_name: "inst_1" }),
-        ],
-      }),
-    ]);
+    withMultiInstanceApp();
     renderWithAppState(<Sidebar />);
     const expandBtn = await screen.findByLabelText("Expand Multi App");
     await user.click(expandBtn);
@@ -275,17 +261,7 @@ describe("Sidebar — multi-instance apps", () => {
     const user = userEvent.setup();
     useLocation.mockReturnValue(["/apps/multi_app", vi.fn()]);
     useSearch.mockReturnValue("instance=1");
-    withManifests([
-      createManifest({
-        app_key: "multi_app",
-        display_name: "Multi App",
-        instance_count: 2,
-        instances: [
-          createInstance({ app_key: "multi_app", index: 0, instance_name: "inst_0" }),
-          createInstance({ app_key: "multi_app", index: 1, instance_name: "inst_1" }),
-        ],
-      }),
-    ]);
+    withMultiInstanceApp();
     renderWithAppState(<Sidebar />);
     const expandBtn = await screen.findByLabelText("Expand Multi App");
     await user.click(expandBtn);

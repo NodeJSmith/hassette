@@ -18,22 +18,22 @@ export function InstanceSwitcher({
 }) {
   return (
     <div className={styles.instanceSwitcher} data-testid="instance-switcher" role="tablist" aria-label="Instance">
-      {instances.map((inst) => {
-        const isActive = inst.index === currentIndex;
+      {instances.map((instance) => {
+        const isActive = instance.index === currentIndex;
         return (
           <button
-            key={inst.index}
+            key={instance.index}
             type="button"
             role="tab"
             aria-selected={isActive}
             className={cn(styles.instanceSwitcherBtn, isActive && styles.instanceSwitcherBtnActive)}
-            data-testid={`switcher-instance-${inst.index}`}
+            data-testid={`switcher-instance-${instance.index}`}
             onClick={() => {
-              if (!isActive) onNavigate(inst.index);
+              if (!isActive) onNavigate(instance.index);
             }}
           >
-            <StatusShape kind={statusToKind(inst.status)} size={8} />
-            <span className={styles.instanceSwitcherLabel}>{inst.instance_name}</span>
+            <StatusShape kind={statusToKind(instance.status)} size={8} />
+            <span className={styles.instanceSwitcherLabel}>{instance.instance_name}</span>
           </button>
         );
       })}

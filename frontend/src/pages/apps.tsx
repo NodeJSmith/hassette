@@ -1,8 +1,8 @@
 import { keepPreviousData } from "@tanstack/react-query";
-import clsx from "clsx";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 import { ApiError } from "../api/client";
 import { getDashboardAppGrid } from "../api/endpoints";
@@ -42,6 +42,7 @@ const FILTER_TONES: Record<FilterId, StatusKind | null> = {
 };
 
 const MIN_WINDOW_FOR_RATE_CALC = 60;
+const SECONDS_PER_HOUR = 3600;
 const VALID_SORT_KEYS: ReadonlySet<string> = new Set<AppSortState["key"]>(["name", "status", "error", "runs", "last"]);
 
 function buildAppsCells(
@@ -60,7 +61,7 @@ function buildAppsCells(
     totalRuns += a.total_invocations + a.total_executions;
   }
   const runsPerHour =
-    windowSeconds && windowSeconds >= MIN_WINDOW_FOR_RATE_CALC ? totalRuns / (windowSeconds / 3600) : null;
+    windowSeconds && windowSeconds >= MIN_WINDOW_FOR_RATE_CALC ? totalRuns / (windowSeconds / SECONDS_PER_HOUR) : null;
 
   const cells: StatsStripCell[] = [
     { label: "total", value: apps.length },
@@ -101,7 +102,7 @@ function StatusFilterContent({
           <button
             key={f}
             type="button"
-            className={clsx(
+            className={cn(
               "cursor-pointer rounded-sm px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary",
               isActive && "bg-accent font-medium text-foreground",
             )}

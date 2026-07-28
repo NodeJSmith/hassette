@@ -20,6 +20,9 @@ import { STATUS_DOT_SIZE } from "../utils/constants";
 import { statusToKind } from "../utils/status";
 import styles from "./diagnostics.module.css";
 
+const SEVERITY_ORDER: Record<string, number> = { err: 0, warn: 1, info: 2 };
+const UNKNOWN_SEVERITY_SORT_ORDER = 99;
+
 type ServiceInfoResponse = components["schemas"]["ServiceInfoResponse"];
 interface MergedService {
   resource_name: string;
@@ -171,9 +174,6 @@ function ServicesPanel({ services, wsConnected }: ServicesPanelProps) {
 interface BootIssuesPanelProps {
   bootIssues: BootIssue[];
 }
-
-const SEVERITY_ORDER: Record<string, number> = { err: 0, warn: 1, info: 2 };
-const UNKNOWN_SEVERITY_SORT_ORDER = 99;
 
 function BootIssuesPanel({ bootIssues }: BootIssuesPanelProps) {
   const sorted = [...bootIssues].sort(

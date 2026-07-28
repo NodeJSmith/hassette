@@ -16,6 +16,8 @@ from tests.e2e.conftest import (
 
 pytestmark = pytest.mark.e2e
 
+MIN_TOUCH_TARGET_PX = 44
+
 
 def test_hamburger_visible_at_375px(page: Page, base_url: str) -> None:
     """Hamburger button is visible on mobile viewport."""
@@ -148,14 +150,14 @@ def test_touch_targets_44px(page: Page, base_url: str) -> None:
     expect(theme_toggle).to_be_visible()
     box = theme_toggle.bounding_box()
     assert box is not None
-    assert box["height"] >= 44, f"Theme toggle height {box['height']}px < 44px"
+    assert box["height"] >= MIN_TOUCH_TARGET_PX, f"Theme toggle height {box['height']}px < {MIN_TOUCH_TARGET_PX}px"
 
     # Hamburger button
     hamburger = page.locator("[data-testid='hamburger']")
     expect(hamburger).to_be_visible()
     box = hamburger.bounding_box()
     assert box is not None
-    assert box["height"] >= 44, f"Hamburger height {box['height']}px < 44px"
+    assert box["height"] >= MIN_TOUCH_TARGET_PX, f"Hamburger height {box['height']}px < {MIN_TOUCH_TARGET_PX}px"
 
 
 def test_breakpoint_boundary_768px(page: Page, base_url: str) -> None:

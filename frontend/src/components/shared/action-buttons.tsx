@@ -1,3 +1,4 @@
+import type { ComponentProps, ReactNode } from "react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -26,6 +27,18 @@ const ACTIONS = {
 } as const;
 
 type ActionName = keyof typeof ACTIONS;
+type ButtonVariant = ComponentProps<typeof Button>["variant"];
+
+interface ActionButtonSpec {
+  action: ActionName;
+  visible: boolean;
+  iconVariant: ButtonVariant;
+  textVariant: ButtonVariant;
+  icon: ReactNode;
+  label: string;
+  ariaLabel: string;
+  onClick: () => void;
+}
 
 interface Props {
   appKey: string;
@@ -68,65 +81,64 @@ export function ActionButtons({ appKey, status, variant = "icon", confirmStop = 
 
   const isIcon = variant === "icon";
 
+  const buttons: ActionButtonSpec[] = [
+    {
+      action: "start",
+      visible: canStart,
+      iconVariant: "success-ghost",
+      textVariant: "success",
+      icon: <IconPlay />,
+      label: "Start",
+      ariaLabel: "Start app",
+      onClick: () => void exec("start"),
+    },
+    {
+      action: "reload",
+      visible: canReload,
+      iconVariant: "info-ghost",
+      textVariant: "outline",
+      icon: <IconRefresh />,
+      label: "Reload",
+      ariaLabel: "Reload app",
+      onClick: () => void exec("reload"),
+    },
+    {
+      action: "stop",
+      visible: canStop,
+      iconVariant: "warning-ghost",
+      textVariant: "danger",
+      icon: <IconSquare />,
+      label: "Stop",
+      ariaLabel: "Stop app",
+      onClick: handleStop,
+    },
+  ];
+
   return (
     <>
       <div className={styles.btnGroup} data-role="action-buttons" data-testid="action-buttons">
-        {canStart && (
-          <Button
-            variant={isIcon ? "success-ghost" : "success"}
-            size={isIcon ? "icon" : "sm"}
-            data-testid={`btn-start-${appKey}`}
-            disabled={loading}
-            onClick={() => void exec("start")}
-            title={isIcon ? "Start" : undefined}
-            aria-label="Start app"
-          >
-            {isIcon ? (
-              <IconPlay />
-            ) : (
-              <>
-                <IconPlay /> Start
-              </>
-            )}
-          </Button>
-        )}
-        {canReload && (
-          <Button
-            variant={isIcon ? "info-ghost" : "outline"}
-            size={isIcon ? "icon" : "sm"}
-            data-testid={`btn-reload-${appKey}`}
-            disabled={loading}
-            onClick={() => void exec("reload")}
-            title={isIcon ? "Reload" : undefined}
-            aria-label="Reload app"
-          >
-            {isIcon ? (
-              <IconRefresh />
-            ) : (
-              <>
-                <IconRefresh /> Reload
-              </>
-            )}
-          </Button>
-        )}
-        {canStop && (
-          <Button
-            variant={isIcon ? "warning-ghost" : "danger"}
-            size={isIcon ? "icon" : "sm"}
-            data-testid={`btn-stop-${appKey}`}
-            disabled={loading}
-            onClick={handleStop}
-            title={isIcon ? "Stop" : undefined}
-            aria-label="Stop app"
-          >
-            {isIcon ? (
-              <IconSquare />
-            ) : (
-              <>
-                <IconSquare /> Stop
-              </>
-            )}
-          </Button>
+        {buttons.map(
+          (btn) =>
+            btn.visible && (
+              <Button
+                key={btn.action}
+                variant={isIcon ? btn.iconVariant : btn.textVariant}
+                size={isIcon ? "icon" : "sm"}
+                data-testid={`btn-${btn.action}-${appKey}`}
+                disabled={loading}
+                onClick={btn.onClick}
+                title={isIcon ? btn.label : undefined}
+                aria-label={btn.ariaLabel}
+              >
+                {isIcon ? (
+                  btn.icon
+                ) : (
+                  <>
+                    {btn.icon} {btn.label}
+                  </>
+                )}
+              </Button>
+            ),
         )}
       </div>
       {confirmStop && (

@@ -46,14 +46,14 @@ function SimpleConfigTable({ config }: { config: ConfigRecord }) {
         </tr>
       </thead>
       <tbody>
-        {entries.map(([key, val]) => (
+        {entries.map(([key, value]) => (
           <tr key={key}>
             <td>
               <code className="ht-text-mono ht-text-sm">{key}</code>
             </td>
             <td className={styles.value} data-testid={`config-value-${key}`}>
               <code className="ht-text-mono ht-text-sm">
-                <ConfigValue value={val} />
+                <ConfigValue value={value} />
               </code>
             </td>
           </tr>
@@ -152,12 +152,11 @@ export function ConfigTab({ appKey }: Props) {
 
   if (!configData) return null;
 
-  const cfg = configData;
-  const appConfig = cfg.app_config;
-  const schema = cfg.config_schema ?? undefined;
+  const appConfig = configData.app_config;
+  const schema = configData.config_schema ?? undefined;
   const isListConfig = Array.isArray(appConfig);
-  const manifestValues: ConfigRecord = { enabled: cfg.enabled, autostart: cfg.autostart };
-  const frameworkFields = cfg.framework_fields;
+  const manifestValues: ConfigRecord = { enabled: configData.enabled, autostart: configData.autostart };
+  const frameworkFields = configData.framework_fields;
 
   return (
     <div className={styles.configTab} data-testid="config-tab-content">
@@ -207,7 +206,7 @@ export function ConfigTab({ appKey }: Props) {
               />
             ) : (
               <pre className={styles.rawCode} data-testid="raw-config-toml">
-                {cfg.config_toml}
+                {configData.config_toml}
               </pre>
             )}
           </Card>

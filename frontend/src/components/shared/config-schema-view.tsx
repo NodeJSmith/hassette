@@ -42,6 +42,10 @@ interface ConfigSchemaViewProps {
   frameworkFields?: string[];
 }
 
+const GENERAL_SECTION_TITLE = "General";
+const APP_SETTINGS_SECTION_TITLE = "App Settings";
+const HASSETTE_SETTINGS_SECTION_TITLE = "Hassette Settings";
+
 const ACRONYM_DISPLAY: Record<string, string> = {
   url: "URL",
   api: "API",
@@ -448,7 +452,7 @@ export function ConfigSchemaView({ schema, values, emptyMessage, frameworkFields
 
   // When partitioning, use "App Settings" / "Hassette Settings". Without partitioning,
   // keep the original "General" label for backward compatibility (global config page).
-  const userSectionTitle = frameworkSet ? "App Settings" : "General";
+  const userSectionTitle = frameworkSet ? APP_SETTINGS_SECTION_TITLE : GENERAL_SECTION_TITLE;
 
   return (
     <div className={styles.groups} data-testid="config-schema-view">
@@ -456,7 +460,9 @@ export function ConfigSchemaView({ schema, values, emptyMessage, frameworkFields
       {groupSections.map(({ key, title, fields }) => (
         <ConfigSection key={key} title={title} fields={fields} />
       ))}
-      {frameworkScalarFields.length > 0 && <ConfigSection title="Hassette Settings" fields={frameworkScalarFields} />}
+      {frameworkScalarFields.length > 0 && (
+        <ConfigSection title={HASSETTE_SETTINGS_SECTION_TITLE} fields={frameworkScalarFields} />
+      )}
     </div>
   );
 }

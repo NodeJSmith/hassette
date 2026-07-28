@@ -1,8 +1,8 @@
-import clsx from "clsx";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { LogEntry } from "@/api/endpoints";
 import { BREAKPOINT_MOBILE, useMediaQuery } from "@/hooks/use-media-query";
+import { cn } from "@/lib/utils";
 import { useAppStore } from "@/state/store";
 import { pluralize } from "@/utils/format";
 
@@ -192,7 +192,7 @@ export function useLogTable({
                 <button
                   key={opt.value}
                   type="button"
-                  className={clsx(
+                  className={cn(
                     "cursor-pointer rounded-sm px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary",
                     filterState.tier === opt.value && "bg-accent font-medium text-foreground",
                   )}
