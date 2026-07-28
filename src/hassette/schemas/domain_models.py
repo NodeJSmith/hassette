@@ -89,13 +89,16 @@ class SystemStatus(BaseModel):
     boot_issues: list[BootIssue] = Field(default_factory=list)
     """Boot-time issues collected during startup (config errors, blocked apps)."""
 
-    log_records_dropped: int = 0
-    """Cumulative count of log records dropped due to queue-full or missing DB."""
+    log_queue_drops: int = 0
+    """Cumulative count of log records dropped because the log queue was full."""
+
+    db_write_queue_drops: int = 0
+    """Cumulative count of records dropped because the DB write queue was full, unavailable, or closed."""
 
     log_persistence_active: bool = False
     """Whether log records are currently being persisted.
 
-    False means log persistence is unavailable, so ``log_records_dropped`` of 0 reflects a
+    False means log persistence is unavailable, so ``db_write_queue_drops`` of 0 reflects a
     dead pipeline rather than a healthy one.
     """
 

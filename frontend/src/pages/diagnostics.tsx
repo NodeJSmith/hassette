@@ -66,13 +66,21 @@ function mergeServices(
   });
 }
 
-function buildDiagCells(services: MergedService[], bootIssueCount: number, totalDrops: number): StatsStripCell[] {
+function buildDiagCells(
+  services: MergedService[],
+  bootIssueCount: number,
+  telemetryDrops: number,
+  logQueueDrops: number,
+  dbWriteQueueDrops: number,
+): StatsStripCell[] {
   const running = services.filter((s) => s.status === "running").length;
   return [
     { label: "services", value: services.length },
     { label: "running", value: running, tone: running === services.length ? "ok" : "warn" },
     { label: "boot issues", value: bootIssueCount, tone: bootIssueCount > 0 ? "err" : undefined },
-    { label: "drops", value: totalDrops, tone: totalDrops > 0 ? "warn" : undefined },
+    { label: "telemetry drops", value: telemetryDrops, tone: telemetryDrops > 0 ? "warn" : undefined },
+    { label: "log queue drops", value: logQueueDrops, tone: logQueueDrops > 0 ? "warn" : undefined },
+    { label: "DB write drops", value: dbWriteQueueDrops, tone: dbWriteQueueDrops > 0 ? "warn" : undefined },
   ];
 }
 
@@ -216,8 +224,6 @@ interface TelemetryPanelProps {
   droppedShutdown: number;
   errorHandlerFailures: number;
   telemetryDegraded: boolean;
-  logRecordsDropped: number;
-  logPersistenceInactive: boolean;
 }
 
 interface DropCounterRowProps {
@@ -241,8 +247,6 @@ function TelemetryPanel({
   droppedShutdown,
   errorHandlerFailures,
   telemetryDegraded,
-  logRecordsDropped,
-  logPersistenceInactive,
 }: TelemetryPanelProps) {
   return (
     <section
@@ -254,12 +258,6 @@ function TelemetryPanel({
       {telemetryDegraded && (
         <div class={styles.degradedBanner} role="alert" data-testid="diag-telemetry-degraded">
           Telemetry degraded — writes may be failing or the database is unavailable.
-        </div>
-      )}
-      {logPersistenceInactive && (
-        <div class={styles.degradedBanner} role="alert" data-testid="diag-log-persistence-inactive">
-          Log persistence inactive — log records are not being written to the database, so the dropped count below has
-          stopped moving.
         </div>
       )}
       {droppedOverflow + droppedExhausted + droppedShutdown + errorHandlerFailures > 0 && (
@@ -274,11 +272,35 @@ function TelemetryPanel({
           />
         </ul>
       )}
-      {(logRecordsDropped > 0 || logPersistenceInactive) && (
-        <ul class={styles.dropList} aria-label="Log persistence counters">
-          <DropCounterRow label="Log records dropped" value={logRecordsDropped} testId="diag-drop-log-records" />
-        </ul>
+    </section>
+  );
+}
+
+interface LoggingPanelProps {
+  logQueueDrops: number;
+  dbWriteQueueDrops: number;
+  logPersistenceInactive: boolean;
+}
+
+/** Log records drop at one of two independent queues; each row names the bound to raise. */
+function LoggingPanel({ logQueueDrops, dbWriteQueueDrops, logPersistenceInactive }: LoggingPanelProps) {
+  return (
+    <section class={clsx(cardStyles.card, styles.section)} aria-label="Logging health" data-testid="diag-logging-panel">
+      <h2 class={styles.sectionHeading}>logging health</h2>
+      {logPersistenceInactive && (
+        <div class={styles.degradedBanner} role="alert" data-testid="diag-log-persistence-inactive">
+          Log persistence inactive — log records are not being written to the database, so the DB write drop count below
+          has stopped moving.
+        </div>
       )}
+      <ul class={styles.dropList} aria-label="Log drop counters">
+        <DropCounterRow label="Log queue full" value={logQueueDrops} testId="diag-drop-log-queue" />
+        <DropCounterRow
+          label="DB write queue full/unavailable"
+          value={dbWriteQueueDrops}
+          testId="diag-drop-db-write-queue"
+        />
+      </ul>
     </section>
   );
 }
@@ -314,12 +336,13 @@ export function DiagnosticsPage() {
 
   const bootIssues: BootIssue[] = effectiveSystemStatus?.boot_issues ?? [];
 
+  const logQueueDrops = effectiveSystemStatus?.log_queue_drops ?? 0;
+  const dbWriteQueueDrops = effectiveSystemStatus?.db_write_queue_drops ?? 0;
+  const logPersistenceInactive = effectiveSystemStatus?.log_persistence_active === false;
+  const showLogging = logQueueDrops > 0 || dbWriteQueueDrops > 0 || logPersistenceInactive;
   const telemetryDrops =
     droppedOverflow.value + droppedExhausted.value + droppedShutdown.value + errorHandlerFailures.value;
-  const logRecordsDropped = effectiveSystemStatus?.log_records_dropped ?? 0;
-  const logPersistenceInactive = effectiveSystemStatus?.log_persistence_active === false;
-  const showTelemetry =
-    telemetryDegraded.value || telemetryDrops > 0 || logRecordsDropped > 0 || logPersistenceInactive;
+  const showTelemetry = telemetryDegraded.value || telemetryDrops > 0;
 
   if (loading) return <Spinner />;
 
@@ -336,19 +359,26 @@ export function DiagnosticsPage() {
       ) : (
         <>
           <StatsStrip
-            cells={buildDiagCells(mergedServices, bootIssues.length, telemetryDrops)}
+            cells={buildDiagCells(mergedServices, bootIssues.length, telemetryDrops, logQueueDrops, dbWriteQueueDrops)}
             data-testid="diag-stats-strip"
           />
 
           <ServicesPanel services={mergedServices} wsConnected={wsConnected} />
 
           {bootIssues.length > 0 && <BootIssuesPanel bootIssues={bootIssues} />}
+
+          {showLogging && (
+            <LoggingPanel
+              logQueueDrops={logQueueDrops}
+              dbWriteQueueDrops={dbWriteQueueDrops}
+              logPersistenceInactive={logPersistenceInactive}
+            />
+          )}
         </>
       )}
 
       {/* Telemetry counters come from the WS stream, not the HTTP seed, so they render even
-          when the HTTP load failed. Log persistence only contributes when the HTTP seed
-          explicitly reports drops or inactive persistence. */}
+          when the HTTP load failed. Logging health only renders from an available HTTP seed. */}
       {showTelemetry && (
         <TelemetryPanel
           droppedOverflow={droppedOverflow.value}
@@ -356,8 +386,6 @@ export function DiagnosticsPage() {
           droppedShutdown={droppedShutdown.value}
           errorHandlerFailures={errorHandlerFailures.value}
           telemetryDegraded={telemetryDegraded.value}
-          logRecordsDropped={logRecordsDropped}
-          logPersistenceInactive={logPersistenceInactive}
         />
       )}
     </div>

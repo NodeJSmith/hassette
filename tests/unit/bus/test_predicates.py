@@ -662,3 +662,32 @@ def test_predicate_summarize_top_level_preserves_inner_parens() -> None:
 def test_predicate_summarize_top_level_no_parens_passthrough() -> None:
     pred = StateTo("on")
     assert summarize_top_level(pred) == "→ on"
+
+
+# Operator composition on concrete predicate types
+def test_operators_on_concrete_predicates_match_explicit_combinators() -> None:
+    combined = EntityMatches("light.kitchen") & StateTo("on")
+    assert combined == AllOf(predicates=(EntityMatches("light.kitchen"), StateTo("on")))
+
+    either = StateTo("on") | StateTo("off")
+    assert either == AnyOf(predicates=(StateTo("on"), StateTo("off")))
+
+    assert ~StateTo("on") == Not(predicate=StateTo("on"))
+
+
+def test_operator_composed_predicate_evaluates() -> None:
+    event = create_state_change_event(entity_id="light.kitchen", old_value="off", new_value="on")
+
+    assert (EntityMatches("light.kitchen") & StateTo("on"))(event) is True
+    assert (EntityMatches("light.office") & StateTo("on"))(event) is False
+    assert (EntityMatches("light.office") | StateTo("on"))(event) is True
+    assert (~StateTo("on"))(event) is False
+
+
+def test_operator_summarize_matches_explicit_combinators() -> None:
+    assert (EntityMatches("light.kitchen") & StateTo("on")).summarize() == "(entity light.kitchen and → on)"
+    assert (StateTo("on") | StateTo("off") | StateTo("unavailable")).summarize() == "(→ on or → off or → unavailable)"
+    assert (~AllOf(predicates=(EntityMatches("light.kitchen"), StateTo("on")))).summarize() == (
+        "not (entity light.kitchen and → on)"
+    )
+    assert summarize_top_level(EntityMatches("light.kitchen") & StateTo("on")) == "entity light.kitchen and → on"

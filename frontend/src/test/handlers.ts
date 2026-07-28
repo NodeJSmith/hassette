@@ -215,7 +215,8 @@ export const handlers = [
       services: [],
       version: "1.0.0",
       boot_issues: [],
-      log_records_dropped: 0,
+      log_queue_drops: 0,
+      db_write_queue_drops: 0,
       log_persistence_active: true,
     });
   }),

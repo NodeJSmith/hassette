@@ -35,9 +35,9 @@ def mock_hassette():
     hassette.scheduler_service = hassette._scheduler_service
     hassette.runtime_query_service = hassette._runtime_query_service
 
-    # get_log_records_dropped() and is_log_persistence_active() are synchronous;
-    # replace AsyncMock with Mock
-    hassette.get_log_records_dropped = Mock(return_value=0)
+    # The log health helpers are synchronous; replace AsyncMock with Mock
+    hassette.get_log_queue_drops = Mock(return_value=0)
+    hassette.get_db_write_queue_drops = Mock(return_value=0)
     hassette.is_log_persistence_active = Mock(return_value=True)
 
     # Mock state proxy
@@ -277,6 +277,17 @@ class TestSystemStatus:
         assert isinstance(status, SystemStatus)
         assert status.entity_count == 2
         assert status.app_count == 1
+        assert status.log_queue_drops == 0
+        assert status.db_write_queue_drops == 0
+
+    def test_get_system_status_reports_log_drop_counters_independently(self, runtime: RuntimeQueryService) -> None:
+        runtime.hassette.get_log_queue_drops.return_value = 3
+        runtime.hassette.get_db_write_queue_drops.return_value = 7
+
+        status = runtime.get_system_status()
+
+        assert status.log_queue_drops == 3
+        assert status.db_write_queue_drops == 7
 
     def test_system_status_ws_connected_reflects_readiness(self, runtime: RuntimeQueryService) -> None:
         """ws_connected is False when websocket_service.is_connected returns False.

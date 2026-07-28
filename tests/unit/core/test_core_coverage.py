@@ -8,6 +8,8 @@ wrapper, _on_children_stopped(), and several one-line accessors/helpers.
 """
 
 import asyncio
+import logging
+import queue
 from contextlib import suppress
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -19,6 +21,7 @@ from hassette import context
 from hassette.config.config import HassetteConfig
 from hassette.core.core import Hassette
 from hassette.exceptions import AppPrecheckFailedError, FatalError
+from hassette.logging_ import HassetteQueueHandler, LogPersistenceHandler
 from hassette.resources.base import Resource
 from hassette.test_utils import preserve_config, wait_for
 from hassette.types.enums import ResourceStatus
@@ -87,18 +90,37 @@ class TestDropCountersAndErrorHandlerFailures:
         assert wired_hassette.get_error_handler_failures() == 5
 
 
-class TestGetLogRecordsDropped:
+class TestGetLogDropCounters:
     def test_returns_zero_before_logging_service_wired(self, test_config: HassetteConfig) -> None:
-        """get_log_records_dropped() returns 0 when _logging_service is None (pre-wiring)."""
+        """Both counters return 0 when _logging_service is None (pre-wiring)."""
         h = Hassette(test_config)
-        assert h.get_log_records_dropped() == 0
+        assert h.get_log_queue_drops() == 0
+        assert h.get_db_write_queue_drops() == 0
 
-    def test_returns_dropped_count_from_persistence_handler(self, wired_hassette: Hassette) -> None:
-        """get_log_records_dropped() forwards the logging service's dropped_count."""
-        fake_handler = Mock()
-        fake_handler.dropped_count = 7
-        wired_hassette._logging_service.persistence_handler = fake_handler
-        assert wired_hassette.get_log_records_dropped() == 7
+    async def test_db_write_queue_drops_from_persistence_handler(self, wired_hassette: Hassette) -> None:
+        """get_db_write_queue_drops() forwards real persistence-handler DB queue drops."""
+        db_service = Mock()
+        db_service._insert_log_records = Mock(return_value=object())
+        db_service.enqueue = Mock(return_value=False)
+        handler = LogPersistenceHandler(db_service, asyncio.get_running_loop())
+        record = logging.LogRecord("hassette", logging.INFO, "", 0, "message", (), None)
+
+        handler.emit(record)
+        handler.flush_if_pending()
+        await asyncio.sleep(0)
+
+        wired_hassette._logging_service.persistence_handler = handler
+        assert wired_hassette.get_db_write_queue_drops() == 1
+
+    def test_log_queue_drops_from_queue_handler(self, wired_hassette: Hassette) -> None:
+        """get_log_queue_drops() forwards real log-queue drops, not DB write drops."""
+        handler = HassetteQueueHandler(queue.Queue(maxsize=1))
+        handler.enqueue(logging.LogRecord("hassette", logging.INFO, "", 0, "first", (), None))
+        handler.enqueue(logging.LogRecord("hassette", logging.INFO, "", 0, "dropped", (), None))
+
+        wired_hassette._logging_service._queue_handler = handler
+        assert wired_hassette.get_log_queue_drops() == 1
+        assert wired_hassette.get_db_write_queue_drops() == 0
 
 
 class TestIsLogPersistenceActive:

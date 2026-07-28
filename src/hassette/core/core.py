@@ -342,24 +342,33 @@ class Hassette(Resource):
     def get_error_handler_failures(self) -> int:
         return self.command_executor.get_error_handler_failures()
 
-    def get_log_records_dropped(self) -> int:
-        """Return the number of log records dropped by the persistence handler.
+    def get_log_queue_drops(self) -> int:
+        """Return the number of log records dropped because the log queue was full.
 
-        Records are dropped when a running persistence handler cannot hand a batch off to
-        the database — the DB write queue is full, or the database is not yet accepting
-        writes. The count survives logging shutdown, so a status poll during or after
-        teardown still reports the final tally.
-
-        The counter only moves while persistence is running, so a count of 0 means
-        "nothing lost" only when ``is_log_persistence_active()`` is True. When it is False
-        nothing is being persisted at all and the count is frozen.
+        Drops here mean ``logging.log_queue_max`` is too small for the current log volume.
+        These records reached no handler at all, so they are missing from console output and
+        the live log buffer as well as the database.
 
         Returns:
             Cumulative count of dropped log records since process start.
         """
         if self._logging_service is None:
             return 0
-        return self._logging_service.dropped_count
+        return self._logging_service.log_queue_drops
+
+    def get_db_write_queue_drops(self) -> int:
+        """Return the number of log records dropped because the DB write queue was full.
+
+        Drops here mean ``database.write_queue_max`` is too small, or the persistence handler's
+        queue was unavailable or closed. The records reached the persistence handler but were never
+        written.
+
+        Returns:
+            Cumulative count of dropped log records since process start.
+        """
+        if self._logging_service is None:
+            return 0
+        return self._logging_service.db_write_queue_drops
 
     def is_log_persistence_active(self) -> bool:
         """Return whether log records are currently being persisted to the database.
