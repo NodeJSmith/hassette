@@ -317,6 +317,62 @@ class TestLoggingServiceOnShutdown:
         remove_queue_handlers()
 
 
+class TestPersistenceActive:
+    """persistence_active separates 'healthy, zero drops' from 'persistence unavailable'."""
+
+    def test_false_before_initialize(self) -> None:
+        """Before the pipeline starts there is no persistence."""
+        svc = make_logging_service()
+
+        assert svc.persistence_active is False
+
+    async def test_true_after_initialize(self) -> None:
+        hassette = make_mock_hassette(sealed=False)
+        hassette.database_service = make_db_service()
+        svc = make_logging_service(hassette=hassette)
+
+        await svc.on_initialize()
+
+        try:
+            assert svc.persistence_active is True
+        finally:
+            if svc._queue_listener is not None:
+                svc._queue_listener.stop()
+            remove_queue_handlers()
+
+    async def test_false_when_persistence_handler_creation_fails(self) -> None:
+        """Pipeline runs but persistence is unavailable — dropped_count of 0 is not health."""
+        hassette = make_mock_hassette(sealed=False)
+        hassette.database_service = make_db_service()
+        svc = make_logging_service(hassette=hassette)
+
+        with patch(
+            "hassette.core.logging_service.LogPersistenceHandler",
+            side_effect=RuntimeError("db unavailable"),
+        ):
+            await svc.on_initialize()
+
+        try:
+            assert svc.dropped_count == 0
+            assert svc.persistence_active is False
+        finally:
+            if svc._queue_listener is not None:
+                svc._queue_listener.stop()
+            remove_queue_handlers()
+
+    async def test_false_after_shutdown(self) -> None:
+        hassette = make_mock_hassette(sealed=False)
+        hassette.database_service = make_db_service()
+        svc = make_logging_service(hassette=hassette)
+
+        await svc.on_initialize()
+        await svc.on_shutdown()
+
+        assert svc.persistence_active is False
+
+        remove_queue_handlers()
+
+
 class TestDroppedCount:
     """Verify dropped_count delegates to persistence_handler."""
 
@@ -355,6 +411,24 @@ class TestDroppedCount:
         finally:
             if svc._queue_listener is not None:
                 svc._queue_listener.stop()
+
+    async def test_dropped_count_survives_shutdown(self) -> None:
+        """The final count stays readable after the pipeline is torn down."""
+        hassette = make_mock_hassette(sealed=False)
+        hassette.database_service = make_db_service()
+        svc = make_logging_service(hassette=hassette)
+
+        await svc.on_initialize()
+
+        assert svc.persistence_handler is not None
+        with svc.persistence_handler._dropped_lock:
+            svc.persistence_handler._dropped = 12
+
+        await svc.on_shutdown()
+
+        assert svc.dropped_count == 12
+
+        remove_queue_handlers()
 
 
 class TestSyncToAsyncSwap:
