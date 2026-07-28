@@ -217,6 +217,7 @@ export const handlers = [
       boot_issues: [],
       log_queue_drops: 0,
       db_write_queue_drops: 0,
+      log_persistence_active: true,
     });
   }),
 ];

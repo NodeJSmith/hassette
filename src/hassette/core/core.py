@@ -370,6 +370,16 @@ class Hassette(Resource):
             return 0
         return self._logging_service.db_write_queue_drops
 
+    def is_log_persistence_active(self) -> bool:
+        """Return whether log records are currently being persisted to the database.
+
+        False before the logging service is wired, when its persistence handler failed to
+        be created, and after the logging pipeline has shut down.
+        """
+        if self._logging_service is None:
+            return False
+        return self._logging_service.persistence_active
+
     @property
     def database_service(self) -> DatabaseService:
         """DatabaseService instance for SQLite telemetry storage."""

@@ -3,7 +3,9 @@ import { http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
 import type { components } from "../api/generated-types";
+import { queryKeys } from "../lib/query-keys";
 import type { ServiceStatusEntry } from "../state/create-app-state";
+import { createTestQueryClient } from "../test/query-test-utils";
 import { renderWithAppState } from "../test/render-helpers";
 import { server } from "../test/server";
 import { DiagnosticsPage } from "./diagnostics";
@@ -27,6 +29,7 @@ function makeSystemStatus(overrides: Partial<SystemStatusResponse> = {}): System
     boot_issues: [],
     log_queue_drops: 0,
     db_write_queue_drops: 0,
+    log_persistence_active: true,
     ...overrides,
   };
 }
@@ -243,6 +246,62 @@ describe("DiagnosticsPage", () => {
     });
     expect(await findByTestId("diag-telemetry-degraded")).toBeDefined();
     expect(queryByTestId("diag-drop-overflow")).toBeNull();
+  });
+
+  it("stays silent when log persistence is active with zero drops", async () => {
+    const { findByTestId, queryByTestId } = renderWithAppState(<DiagnosticsPage />);
+    await findByTestId("diag-services-panel");
+    expect(queryByTestId("diag-log-persistence-inactive")).toBeNull();
+    expect(queryByTestId("diag-logging-panel")).toBeNull();
+  });
+
+  it("flags inactive log persistence even when zero records were dropped", async () => {
+    server.use(
+      http.get("/api/health", () =>
+        HttpResponse.json(makeSystemStatus({ log_persistence_active: false, db_write_queue_drops: 0 })),
+      ),
+    );
+    const { findByTestId } = renderWithAppState(<DiagnosticsPage />);
+    expect(await findByTestId("diag-log-persistence-inactive")).toBeDefined();
+    expect((await findByTestId("diag-drop-db-write-queue")).textContent).toContain("0");
+  });
+
+  it("shows DB write drops while persistence is still active", async () => {
+    server.use(
+      http.get("/api/health", () =>
+        HttpResponse.json(makeSystemStatus({ log_persistence_active: true, db_write_queue_drops: 42 })),
+      ),
+    );
+    const { findByTestId, queryByTestId } = renderWithAppState(<DiagnosticsPage />);
+    expect((await findByTestId("diag-drop-db-write-queue")).textContent).toContain("42");
+    expect(queryByTestId("diag-log-persistence-inactive")).toBeNull();
+  });
+
+  it("does not raise the inactive alarm when the status fetch failed", async () => {
+    server.use(http.get("/api/health", () => HttpResponse.json(null, { status: 500 })));
+    const { findByTestId, queryByTestId } = renderWithAppState(<DiagnosticsPage />);
+    await findByTestId("diag-load-error");
+    expect(queryByTestId("diag-log-persistence-inactive")).toBeNull();
+  });
+
+  it("ignores stale status data when a refetch fails", async () => {
+    const queryClient = createTestQueryClient();
+    queryClient.setQueryData(
+      queryKeys.systemStatus(),
+      makeSystemStatus({
+        log_persistence_active: false,
+        db_write_queue_drops: 42,
+        services: [makeServiceInfo({ name: "stale-service" })],
+      }),
+    );
+    server.use(http.get("/api/health", () => HttpResponse.json(null, { status: 500 })));
+
+    const { findByTestId, queryByTestId } = renderWithAppState(<DiagnosticsPage />, { queryClient });
+
+    await findByTestId("diag-load-error");
+    expect(queryByTestId("diag-log-persistence-inactive")).toBeNull();
+    expect(queryByTestId("diag-logging-panel")).toBeNull();
+    expect(queryByTestId("diag-service-row-stale-service")).toBeNull();
   });
 
   it("hides the logging panel when no log records were dropped", async () => {

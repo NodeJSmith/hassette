@@ -123,6 +123,21 @@ class TestGetLogDropCounters:
         assert wired_hassette.get_db_write_queue_drops() == 0
 
 
+class TestIsLogPersistenceActive:
+    def test_returns_false_before_logging_service_wired(self, test_config: HassetteConfig) -> None:
+        """is_log_persistence_active() is False when _logging_service is None (pre-wiring)."""
+        h = Hassette(test_config)
+        assert h.is_log_persistence_active() is False
+
+    def test_forwards_logging_service_persistence_active(self, wired_hassette: Hassette) -> None:
+        """is_log_persistence_active() forwards the logging service's persistence_active."""
+        assert wired_hassette.is_log_persistence_active() is False
+
+        wired_hassette._logging_service.persistence_handler = Mock()
+        wired_hassette._logging_service._queue_listener = Mock()
+        assert wired_hassette.is_log_persistence_active() is True
+
+
 class TestStartupTasksEnvFiles:
     def test_skips_loading_env_files_when_disabled(
         self, test_config: HassetteConfig, monkeypatch: pytest.MonkeyPatch

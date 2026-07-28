@@ -279,13 +279,20 @@ function TelemetryPanel({
 interface LoggingPanelProps {
   logQueueDrops: number;
   dbWriteQueueDrops: number;
+  logPersistenceInactive: boolean;
 }
 
 /** Log records drop at one of two independent queues; each row names the bound to raise. */
-function LoggingPanel({ logQueueDrops, dbWriteQueueDrops }: LoggingPanelProps) {
+function LoggingPanel({ logQueueDrops, dbWriteQueueDrops, logPersistenceInactive }: LoggingPanelProps) {
   return (
     <section class={clsx(cardStyles.card, styles.section)} aria-label="Logging health" data-testid="diag-logging-panel">
       <h2 class={styles.sectionHeading}>logging health</h2>
+      {logPersistenceInactive && (
+        <div class={styles.degradedBanner} role="alert" data-testid="diag-log-persistence-inactive">
+          Log persistence inactive — log records are not being written to the database, so the DB write drop count below
+          has stopped moving.
+        </div>
+      )}
       <ul class={styles.dropList} aria-label="Log drop counters">
         <DropCounterRow label="Log queue full" value={logQueueDrops} testId="diag-drop-log-queue" />
         <DropCounterRow
@@ -319,19 +326,20 @@ export function DiagnosticsPage() {
     queryKey: queryKeys.systemStatus(),
     queryFn: getSystemStatus,
   });
+  const effectiveSystemStatus = loadError ? undefined : systemStatus;
 
   const wsConnected = connection.value === "connected";
 
   // Merge HTTP seed with live WS updates
-  const httpServices = systemStatus?.services ?? [];
+  const httpServices = effectiveSystemStatus?.services ?? [];
   const mergedServices = mergeServices(httpServices, serviceStatus.value);
 
-  const bootIssues: BootIssue[] = systemStatus?.boot_issues ?? [];
+  const bootIssues: BootIssue[] = effectiveSystemStatus?.boot_issues ?? [];
 
-  const logQueueDrops = systemStatus?.log_queue_drops ?? 0;
-  const dbWriteQueueDrops = systemStatus?.db_write_queue_drops ?? 0;
-  const logDrops = logQueueDrops + dbWriteQueueDrops;
-
+  const logQueueDrops = effectiveSystemStatus?.log_queue_drops ?? 0;
+  const dbWriteQueueDrops = effectiveSystemStatus?.db_write_queue_drops ?? 0;
+  const logPersistenceInactive = effectiveSystemStatus?.log_persistence_active === false;
+  const showLogging = logQueueDrops > 0 || dbWriteQueueDrops > 0 || logPersistenceInactive;
   const telemetryDrops =
     droppedOverflow.value + droppedExhausted.value + droppedShutdown.value + errorHandlerFailures.value;
   const showTelemetry = telemetryDegraded.value || telemetryDrops > 0;
@@ -359,12 +367,18 @@ export function DiagnosticsPage() {
 
           {bootIssues.length > 0 && <BootIssuesPanel bootIssues={bootIssues} />}
 
-          {logDrops > 0 && <LoggingPanel logQueueDrops={logQueueDrops} dbWriteQueueDrops={dbWriteQueueDrops} />}
+          {showLogging && (
+            <LoggingPanel
+              logQueueDrops={logQueueDrops}
+              dbWriteQueueDrops={dbWriteQueueDrops}
+              logPersistenceInactive={logPersistenceInactive}
+            />
+          )}
         </>
       )}
 
-      {/* Telemetry counters come from the WS stream, not the HTTP seed,
-          so they render even when the HTTP load failed. */}
+      {/* Telemetry counters come from the WS stream, not the HTTP seed, so they render even
+          when the HTTP load failed. Logging health only renders from an available HTTP seed. */}
       {showTelemetry && (
         <TelemetryPanel
           droppedOverflow={droppedOverflow.value}

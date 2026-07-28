@@ -6,7 +6,7 @@
  * directly.
  */
 
-import { QueryClientProvider } from "@tanstack/preact-query";
+import { type QueryClient, QueryClientProvider } from "@tanstack/preact-query";
 import { render } from "@testing-library/preact";
 import type { ComponentChildren } from "preact";
 import { vi } from "vitest";
@@ -37,6 +37,7 @@ export function mockMediaQueryMatches(matches: boolean) {
 
 interface RenderWithAppStateOptions {
   stateOverrides?: Partial<AppState>;
+  queryClient?: QueryClient;
 }
 
 /**
@@ -51,12 +52,15 @@ interface RenderWithAppStateOptions {
  * tests that don't touch queries are unaffected. Tests for components that call
  * useQuery will go through normal query lifecycle backed by MSW handlers.
  */
-export function renderWithAppState(ui: ComponentChildren, { stateOverrides }: RenderWithAppStateOptions = {}) {
+export function renderWithAppState(
+  ui: ComponentChildren,
+  { stateOverrides, queryClient }: RenderWithAppStateOptions = {},
+) {
   const state: AppState = { ...createAppState(), ...stateOverrides };
-  const queryClient = createTestQueryClient();
+  const client = queryClient ?? createTestQueryClient();
 
   return render(
-    <QueryClientProvider client={queryClient}>
+    <QueryClientProvider client={client}>
       <AppStateContext.Provider value={state}>{ui}</AppStateContext.Provider>
     </QueryClientProvider>,
   );

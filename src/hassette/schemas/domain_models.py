@@ -95,6 +95,13 @@ class SystemStatus(BaseModel):
     db_write_queue_drops: int = 0
     """Cumulative count of records dropped because the DB write queue was full, unavailable, or closed."""
 
+    log_persistence_active: bool = False
+    """Whether log records are currently being persisted.
+
+    False means log persistence is unavailable, so ``db_write_queue_drops`` of 0 reflects a
+    dead pipeline rather than a healthy one.
+    """
+
 
 class StateChangedData(BaseModel):
     """Payload for a Home Assistant ``state_changed`` event broadcast over WebSocket."""

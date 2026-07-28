@@ -1512,6 +1512,11 @@ export interface components {
              * @default 0
              */
             db_write_queue_drops: number;
+            /**
+             * Log Persistence Active
+             * @default false
+             */
+            log_persistence_active: boolean;
         };
         /**
          * TelemetryStatusResponse

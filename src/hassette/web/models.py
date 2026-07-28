@@ -82,6 +82,9 @@ class SystemStatusResponse(BaseModel):
     db_write_queue_drops: int = 0
     """Log records dropped because the DB write queue was full, unavailable, or closed."""
 
+    log_persistence_active: bool = False
+    """False means log persistence is unavailable — ``db_write_queue_drops`` of 0 is not health."""
+
 
 class LivenessResponse(BaseModel):
     """Response model for GET /api/health/live."""

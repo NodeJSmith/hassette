@@ -35,9 +35,10 @@ def mock_hassette():
     hassette.scheduler_service = hassette._scheduler_service
     hassette.runtime_query_service = hassette._runtime_query_service
 
-    # The log drop counters are synchronous; replace AsyncMock with Mock
+    # The log health helpers are synchronous; replace AsyncMock with Mock
     hassette.get_log_queue_drops = Mock(return_value=0)
     hassette.get_db_write_queue_drops = Mock(return_value=0)
+    hassette.is_log_persistence_active = Mock(return_value=True)
 
     # Mock state proxy
     hassette._state_proxy.states = {
@@ -325,6 +326,13 @@ class TestSystemStatus:
         runtime.hassette.websocket_service.has_ever_connected = True
         status = runtime.get_system_status()
         assert status.status == "ok"
+
+    def test_system_status_reports_log_persistence_active(self, runtime: RuntimeQueryService) -> None:
+        """log_persistence_active is carried through from the Hassette instance."""
+        assert runtime.get_system_status().log_persistence_active is True
+
+        runtime.hassette.is_log_persistence_active = Mock(return_value=False)
+        assert runtime.get_system_status().log_persistence_active is False
 
 
 class TestWebSocketClientManagement:
