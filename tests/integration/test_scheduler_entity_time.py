@@ -12,6 +12,7 @@ from unittest.mock import AsyncMock
 import pytest
 from whenever import TimeDelta
 
+import hassette.core.scheduler_service as scheduler_service_module
 import hassette.utils.date_utils as date_utils
 from hassette.resources.lifecycle import mark_ready
 from hassette.scheduler.triggers import NO_OCCURRENCE, EntityTime
@@ -107,6 +108,22 @@ async def test_unavailable_entity_parks_the_job(entity_time_harness: HassetteHar
 
     assert job.next_run == NO_OCCURRENCE
     assert job.db_id is not None, "a parked job is still a registered job"
+    job.cancel()
+
+
+async def test_unavailable_entity_with_jitter_stays_parked(
+    entity_time_harness: HassetteHarness, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Jitter does not overflow the far-future parking timestamp."""
+    await seed_alarm(entity_time_harness, "unavailable")
+    monkeypatch.setattr(scheduler_service_module.random, "uniform", lambda _start, _stop: 5.0)
+
+    job = await entity_time_harness.scheduler.schedule(
+        noop, EntityTime(ALARM_ENTITY), name="entity_time_unavailable_jitter", jitter=5.0
+    )
+
+    assert job.next_run == NO_OCCURRENCE
+    assert job.fire_at == NO_OCCURRENCE
     job.cancel()
 
 

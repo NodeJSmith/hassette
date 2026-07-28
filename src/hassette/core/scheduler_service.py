@@ -197,7 +197,10 @@ class SchedulerService(Service):
         """
         if job.jitter is not None:
             offset = random.uniform(0, job.jitter)
-            jittered_time = job.next_run.add(seconds=offset)
+            try:
+                jittered_time = job.next_run.add(seconds=offset)
+            except ValueError:
+                jittered_time = job.next_run
             job.fire_at = jittered_time
             job.sort_index = (jittered_time.timestamp_nanos(), id(job))
             self.logger.debug(
