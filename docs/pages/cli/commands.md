@@ -59,7 +59,9 @@ $ hassette status
 
 `boot_issues` lists apps that failed to initialize. An empty list means all apps started cleanly. When an app appears here, check `hassette log --app <key>` for the error.
 
-`log_records_dropped` counts log records that a running persistence handler could not hand off to the database — the write queue was full, or the database was not yet accepting writes. Read it together with `log_persistence_active`, because the counter only moves while persistence is running:
+`log_records_dropped` counts records that persistence could not hand off to the database.
+The queue was full, or the database was not accepting writes.
+Read this value with `log_persistence_active`; the counter changes only while persistence runs.
 
 - `log_persistence_active: true` with `log_records_dropped: 0` — healthy. Every log record is reaching the database.
 - `log_persistence_active: true` with a non-zero count — persistence is running but shedding records under load. Check the console logs for `DB write queue full`.

@@ -290,14 +290,14 @@ def test_system_status_response_from_preserves_all_fields():
     assert result.app_count == 3
 
 
-def test_system_status_response_from_carries_log_persistence_fields():
+def test_system_status_response_from_carries_log_persistence_fields() -> None:
     """Drop count and persistence health both reach the response model."""
-    domain = make_system_status(log_records_dropped=4, log_persistence_active=False)
+    domain = make_system_status(log_records_dropped=4, log_persistence_active=True)
 
     result = system_status_response_from(domain)
 
     assert result.log_records_dropped == 4
-    assert result.log_persistence_active is False
+    assert result.log_persistence_active is True
 
 
 def test_system_status_response_from_uptime_zero():

@@ -217,7 +217,7 @@ interface TelemetryPanelProps {
   errorHandlerFailures: number;
   telemetryDegraded: boolean;
   logRecordsDropped: number;
-  logPersistenceActive: boolean;
+  logPersistenceInactive: boolean;
 }
 
 interface DropCounterRowProps {
@@ -242,7 +242,7 @@ function TelemetryPanel({
   errorHandlerFailures,
   telemetryDegraded,
   logRecordsDropped,
-  logPersistenceActive,
+  logPersistenceInactive,
 }: TelemetryPanelProps) {
   return (
     <section
@@ -256,7 +256,7 @@ function TelemetryPanel({
           Telemetry degraded — writes may be failing or the database is unavailable.
         </div>
       )}
-      {!logPersistenceActive && (
+      {logPersistenceInactive && (
         <div class={styles.degradedBanner} role="alert" data-testid="diag-log-persistence-inactive">
           Log persistence inactive — log records are not being written to the database, so the dropped count below has
           stopped moving.
@@ -274,7 +274,7 @@ function TelemetryPanel({
           />
         </ul>
       )}
-      {(logRecordsDropped > 0 || !logPersistenceActive) && (
+      {(logRecordsDropped > 0 || logPersistenceInactive) && (
         <ul class={styles.dropList} aria-label="Log persistence counters">
           <DropCounterRow label="Log records dropped" value={logRecordsDropped} testId="diag-drop-log-records" />
         </ul>
@@ -304,22 +304,22 @@ export function DiagnosticsPage() {
     queryKey: queryKeys.systemStatus(),
     queryFn: getSystemStatus,
   });
+  const effectiveSystemStatus = loadError ? undefined : systemStatus;
 
   const wsConnected = connection.value === "connected";
 
   // Merge HTTP seed with live WS updates
-  const httpServices = systemStatus?.services ?? [];
+  const httpServices = effectiveSystemStatus?.services ?? [];
   const mergedServices = mergeServices(httpServices, serviceStatus.value);
 
-  const bootIssues: BootIssue[] = systemStatus?.boot_issues ?? [];
+  const bootIssues: BootIssue[] = effectiveSystemStatus?.boot_issues ?? [];
 
-  const totalDrops =
+  const telemetryDrops =
     droppedOverflow.value + droppedExhausted.value + droppedShutdown.value + errorHandlerFailures.value;
-  const logRecordsDropped = systemStatus?.log_records_dropped ?? 0;
-  // A missing status seed means the HTTP load failed, which is not evidence of a dead
-  // logging pipeline — don't raise the inactive alarm on it.
-  const logPersistenceActive = systemStatus?.log_persistence_active ?? true;
-  const showTelemetry = telemetryDegraded.value || totalDrops > 0 || logRecordsDropped > 0 || !logPersistenceActive;
+  const logRecordsDropped = effectiveSystemStatus?.log_records_dropped ?? 0;
+  const logPersistenceInactive = effectiveSystemStatus?.log_persistence_active === false;
+  const showTelemetry =
+    telemetryDegraded.value || telemetryDrops > 0 || logRecordsDropped > 0 || logPersistenceInactive;
 
   if (loading) return <Spinner />;
 
@@ -336,7 +336,7 @@ export function DiagnosticsPage() {
       ) : (
         <>
           <StatsStrip
-            cells={buildDiagCells(mergedServices, bootIssues.length, totalDrops)}
+            cells={buildDiagCells(mergedServices, bootIssues.length, telemetryDrops)}
             data-testid="diag-stats-strip"
           />
 
@@ -347,8 +347,8 @@ export function DiagnosticsPage() {
       )}
 
       {/* Telemetry counters come from the WS stream, not the HTTP seed, so they render even
-          when the HTTP load failed. The log-persistence pair comes from the HTTP seed and
-          falls back to a healthy default, so it stays silent in that case. */}
+          when the HTTP load failed. Log persistence only contributes when the HTTP seed
+          explicitly reports drops or inactive persistence. */}
       {showTelemetry && (
         <TelemetryPanel
           droppedOverflow={droppedOverflow.value}
@@ -357,7 +357,7 @@ export function DiagnosticsPage() {
           errorHandlerFailures={errorHandlerFailures.value}
           telemetryDegraded={telemetryDegraded.value}
           logRecordsDropped={logRecordsDropped}
-          logPersistenceActive={logPersistenceActive}
+          logPersistenceInactive={logPersistenceInactive}
         />
       )}
     </div>

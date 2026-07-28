@@ -3,7 +3,9 @@ import { http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
 import type { components } from "../api/generated-types";
+import { queryKeys } from "../lib/query-keys";
 import type { ServiceStatusEntry } from "../state/create-app-state";
+import { createTestQueryClient } from "../test/query-test-utils";
 import { renderWithAppState } from "../test/render-helpers";
 import { server } from "../test/server";
 import { DiagnosticsPage } from "./diagnostics";
@@ -279,6 +281,26 @@ describe("DiagnosticsPage", () => {
     const { findByTestId, queryByTestId } = renderWithAppState(<DiagnosticsPage />);
     await findByTestId("diag-load-error");
     expect(queryByTestId("diag-log-persistence-inactive")).toBeNull();
+  });
+
+  it("ignores stale status data when a refetch fails", async () => {
+    const queryClient = createTestQueryClient();
+    queryClient.setQueryData(
+      queryKeys.systemStatus(),
+      makeSystemStatus({
+        log_persistence_active: false,
+        log_records_dropped: 42,
+        services: [makeServiceInfo({ name: "stale-service" })],
+      }),
+    );
+    server.use(http.get("/api/health", () => HttpResponse.json(null, { status: 500 })));
+
+    const { findByTestId, queryByTestId } = renderWithAppState(<DiagnosticsPage />, { queryClient });
+
+    await findByTestId("diag-load-error");
+    expect(queryByTestId("diag-log-persistence-inactive")).toBeNull();
+    expect(queryByTestId("diag-drop-log-records")).toBeNull();
+    expect(queryByTestId("diag-service-row-stale-service")).toBeNull();
   });
 
   it("service row shows ready_phase text for a non-running service", async () => {
