@@ -51,6 +51,9 @@ export function StatsStrip({ cells, cols, "data-testid": testId }: StatsStripPro
                 zero && "text-foreground-faint",
               )}
               data-testid="stats-strip-label"
+              // Labels truncate at narrow widths (e.g. "DB write drops" on
+              // mobile) — keep the full text reachable via tooltip.
+              title={c.label}
             >
               {c.label}
             </span>

@@ -132,14 +132,16 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
       direction={isMobile ? "bottom" : "right"}
       modal={useOverlay}
     >
-      {useOverlay && <DrawerOverlay className="bg-[var(--overlay-background)]" />}
+      {/* --z-drawer* tokens derive from --z-status-bar in global.css, so the
+          drawer and its backdrop always stack above the sticky chrome. */}
+      {useOverlay && <DrawerOverlay className="z-[var(--z-drawer-backdrop)] bg-[var(--overlay-background)]" />}
       <DrawerContentUnstyled
         ref={drawerRef}
         className={cn(
-          "fixed z-[var(--z-drawer)] flex flex-col overflow-hidden bg-card",
+          "fixed z-[var(--z-drawer-layer)] flex flex-col overflow-hidden bg-card",
           isMobile
             ? "bottom-0 left-0 max-h-[70vh] w-full rounded-t-lg border-t border-border shadow-lg"
-            : "right-0 top-0 h-screen w-[var(--size-drawer)] border-l border-border shadow-lg",
+            : "right-2 top-2 bottom-2 w-[var(--size-drawer)] rounded-lg border border-border shadow-lg",
         )}
         id={DETAIL_DRAWER_ID}
         aria-label="Log entry detail"
@@ -266,7 +268,9 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
                   <dd className="truncate font-mono text-[length:var(--text-mono-sm)]">
                     <ExecutionIdLink
                       entry={entry}
-                      linkClassName="text-primary underline decoration-[color:color-mix(in_srgb,var(--primary)_40%,transparent)] underline-offset-[var(--spacing-0-5)] hover:text-[var(--primary-hover)] hover:decoration-[var(--primary-hover)]"
+                      linkClassName="block min-w-0 truncate text-primary underline decoration-[color:color-mix(in_srgb,var(--primary)_40%,transparent)] underline-offset-[var(--spacing-0-5)] hover:text-[var(--primary-hover)] hover:decoration-[var(--primary-hover)]"
+                      mutedClassName="block min-w-0 truncate text-foreground-faint"
+                      title={entry.execution_id}
                     >
                       {entry.execution_id}
                     </ExecutionIdLink>

@@ -174,7 +174,7 @@ export function App() {
         <div
           ref={drawerRef}
           className={cn(
-            "fixed top-0 bottom-0 left-0 z-[calc(var(--z-status-bar-layer)+2)] w-60 overflow-y-auto bg-card transition-transform duration-[var(--duration-med)] ease-[var(--ease-default)]",
+            "fixed top-0 bottom-0 left-0 z-[var(--z-drawer-layer)] w-60 overflow-y-auto bg-card transition-transform duration-[var(--duration-med)] ease-[var(--ease-default)]",
             drawerOpen ? "translate-x-0" : "-translate-x-full",
           )}
           aria-hidden={!drawerOpen}
@@ -205,7 +205,7 @@ export function App() {
         </div>
         {drawerOpen && (
           <div
-            className="fixed inset-0 z-[calc(var(--z-status-bar-layer)+1)] bg-[var(--overlay-background)]"
+            className="fixed inset-0 z-[var(--z-drawer-backdrop)] bg-[var(--overlay-background)]"
             role="presentation"
             data-testid="mobile-drawer-backdrop"
             onClick={() => {
