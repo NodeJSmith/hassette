@@ -577,12 +577,16 @@ class Scheduler(Resource):
         async def on_entity_change(event: RawStateChangeEvent) -> None:
             await self._reschedule_entity_time_job(job, trigger, event.payload.data.new_state)
 
-        self._entity_time_subs[job.name] = await self.hassette.bus.on_state_change(
-            trigger.entity_id,
-            handler=on_entity_change,
-            name=f"scheduler.entity_time.{self.owner_id}.{job.name}",
-            if_exists="replace",
-        )
+        try:
+            self._entity_time_subs[job.name] = await self.hassette.bus.on_state_change(
+                trigger.entity_id,
+                handler=on_entity_change,
+                name=f"scheduler.entity_time.{self.owner_id}.{job.name}",
+                if_exists="replace",
+            )
+        except Exception:
+            self.cancel_job(job)
+            raise
 
         # schedule() read the entity before add_job awaited a database write, and the listener
         # only exists now — a change landing in that window reached neither. Re-read once so it

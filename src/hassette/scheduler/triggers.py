@@ -8,9 +8,10 @@ import typing
 from logging import getLogger
 from typing import Any, Literal
 
-from whenever import PlainDateTime, Time, TimeDelta, ZonedDateTime
+from whenever import Time, TimeDelta, ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
+from hassette.conversion.type_registry import from_string_to_zoned_date_time
 from hassette.utils.hass_utils import valid_entity_id
 
 from .classes import CronTrigger
@@ -68,12 +69,7 @@ def parse_entity_time(value: Any) -> ZonedDateTime | None:
         return None
 
     try:
-        return date_utils.convert_datetime_str_to_tz(text)
-    except ValueError:
-        pass
-
-    try:
-        return date_utils.assume_tz(PlainDateTime.parse_iso(text))
+        return from_string_to_zoned_date_time(text)
     except ValueError:
         pass
 

@@ -205,6 +205,84 @@ async def test_change_during_registration_is_picked_up(entity_time_harness: Hass
     job.cancel()
 
 
+async def test_change_while_job_is_mid_dispatch_is_not_lost(entity_time_harness: HassetteHarness) -> None:
+    """A reschedule that lands after heap-pop is applied by dispatch_and_log."""
+    first_alarm = iso_in(60)
+    second_alarm = iso_in(15)
+    await seed_alarm(entity_time_harness, first_alarm)
+
+    job = await entity_time_harness.scheduler.schedule(
+        noop, EntityTime(ALARM_ENTITY), name="entity_time_mid_dispatch_reschedule"
+    )
+    expected = date_utils.convert_datetime_str_to_tz(second_alarm)
+
+    removed = await entity_time_harness.scheduler_service._job_queue.remove_job(job)
+    assert removed is True
+
+    await change_alarm(entity_time_harness, first_alarm, second_alarm)
+    assert job._pending_next_run == expected
+
+    await entity_time_harness.scheduler_service.dispatch_and_log(job)
+
+    assert job.next_run == expected
+    assert job._pending_next_run is None
+    job.cancel()
+
+
+async def test_change_during_dispatch_reenqueue_is_not_lost(entity_time_harness: HassetteHarness) -> None:
+    """A reschedule after next-run computation still moves the re-enqueued job."""
+    first_alarm = iso_in(60)
+    second_alarm = iso_in(15)
+    await seed_alarm(entity_time_harness, first_alarm)
+
+    job = await entity_time_harness.scheduler.schedule(
+        noop, EntityTime(ALARM_ENTITY), name="entity_time_reenqueue_window"
+    )
+    expected = date_utils.convert_datetime_str_to_tz(second_alarm)
+
+    removed = await entity_time_harness.scheduler_service._job_queue.remove_job(job)
+    assert removed is True
+
+    original_enqueue = entity_time_harness.scheduler_service.enqueue_job
+    injected = False
+
+    async def enqueue_after_change(enqueued_job):
+        nonlocal injected
+        if not injected:
+            injected = True
+            await entity_time_harness.scheduler_service.reschedule_job(enqueued_job, expected)
+        await original_enqueue(enqueued_job)
+
+    entity_time_harness.scheduler_service.enqueue_job = enqueue_after_change  # pyright: ignore[reportAttributeAccessIssue]
+    try:
+        await entity_time_harness.scheduler_service.dispatch_and_log(job)
+    finally:
+        entity_time_harness.scheduler_service.enqueue_job = original_enqueue  # pyright: ignore[reportAttributeAccessIssue]
+
+    assert job.next_run == expected
+    assert job._pending_next_run is None
+    job.cancel()
+
+
+async def test_watcher_registration_failure_cleans_up_job(
+    entity_time_harness: HassetteHarness, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """schedule() must not leave a live job when the entity watcher cannot register."""
+    await seed_alarm(entity_time_harness, iso_in(60))
+
+    async def fail_on_state_change(*_args, **_kwargs):
+        raise RuntimeError("listener registration failed")
+
+    monkeypatch.setattr(entity_time_harness.hassette.bus, "on_state_change", fail_on_state_change)
+
+    with pytest.raises(RuntimeError, match="listener registration failed"):
+        await entity_time_harness.scheduler.schedule(
+            noop, EntityTime(ALARM_ENTITY), name="entity_time_watcher_failure_cleanup"
+        )
+
+    assert entity_time_harness.scheduler.list_jobs() == []
+
+
 async def test_watch_listener_is_registered_and_cancelled_with_the_job(
     entity_time_harness: HassetteHarness,
 ) -> None:

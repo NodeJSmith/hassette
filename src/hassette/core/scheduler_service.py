@@ -120,10 +120,9 @@ class SchedulerService(Service):
         its ``db_id`` — it stays a registered job that simply moves to a different slot in
         the heap. Used by ``Scheduler`` when an entity-driven trigger's source entity changes.
 
-        Does nothing when the job is not on the heap, which means it was either cancelled or
-        already popped for dispatch. A popped job is about to consult its trigger in
-        ``dispatch_and_log``, so it picks up the new time there; re-pushing it here would put
-        the same job on the heap twice and fire it twice.
+        If the job was already popped for dispatch, stores the new time on the job so
+        ``dispatch_and_log`` can consume it before consulting the trigger. Re-pushing it here
+        would put the same job on the heap twice and fire it twice.
 
         Args:
             job: The job to move.
@@ -132,7 +131,8 @@ class SchedulerService(Service):
         if job._dequeued:
             return
         if not await self._job_queue.remove_job(job):
-            self.logger.debug("Job %s not on heap (cancelled or mid-dispatch); skipping reschedule", job)
+            job._pending_next_run = next_run
+            self.logger.debug("Job %s not on heap; stored pending reschedule to %s", job, next_run)
             return
 
         job.set_next_run(next_run)
@@ -355,7 +355,11 @@ class SchedulerService(Service):
         remove_after_fire = False
         if job.trigger is not None:
             try:
-                next_run = job.trigger.next_run_time(job.next_run, date_utils.now())
+                if job._pending_next_run is not None:
+                    next_run = job._pending_next_run
+                    job._pending_next_run = None
+                else:
+                    next_run = job.trigger.next_run_time(job.next_run, date_utils.now())
             except Exception:
                 self.logger.exception(
                     "dispatch_and_log: trigger raised for db_id=%s callable=%s trigger=%r — "
@@ -387,6 +391,10 @@ class SchedulerService(Service):
                 # The in-lock _dequeued re-check inside _job_queue.add guards
                 # against a cancel landing between here and the push.
                 await self.enqueue_job(job)
+                if job._pending_next_run is not None:
+                    pending_next_run = job._pending_next_run
+                    job._pending_next_run = None
+                    await self.reschedule_job(job, pending_next_run)
             elif not remove_after_fire:
                 # next_run_time() returned None (trigger exhausted) — remove after fire.
                 remove_after_fire = True
