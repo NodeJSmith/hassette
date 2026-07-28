@@ -193,7 +193,7 @@
   width: 1000
   height: 700
   wait: 2000
-  wait_for: "document.querySelector('[data-testid=\"cmd-palette\"]')"
+  wait_for: "document.querySelector('[data-testid=\"cmd-palette-input\"]')"
   javascript: "document.dispatchEvent(new KeyboardEvent('keydown', {key: 'k', ctrlKey: true, bubbles: true}))"
 
 - url: "http://localhost:{port}/apps/demo_stimulator/overview"
