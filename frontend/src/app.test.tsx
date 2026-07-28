@@ -144,14 +144,14 @@ describe("App — hamburger button", () => {
 
   it("drawer is not open initially", () => {
     const { container } = render(<App />);
-    const drawer = container.querySelector(".ht-drawer");
+    const drawer = container.querySelector("[data-testid='mobile-drawer']");
     expect(drawer).not.toBeNull();
-    expect(drawer!.className).not.toContain("is-open");
+    expect(drawer!.className).toContain("-translate-x-full");
   });
 
   it("keeps the closed drawer inert", () => {
     const { container } = render(<App />);
-    const drawer = container.querySelector(".ht-drawer");
+    const drawer = container.querySelector("[data-testid='mobile-drawer']");
     expect(drawer).not.toBeNull();
     expect(drawer!.hasAttribute("inert")).toBe(true);
   });
@@ -160,8 +160,8 @@ describe("App — hamburger button", () => {
     const { container } = render(<App />);
     const btn = container.querySelector("[data-testid='hamburger']")!;
     fireEvent.click(btn);
-    const drawer = container.querySelector(".ht-drawer");
-    expect(drawer!.className).toContain("is-open");
+    const drawer = container.querySelector("[data-testid='mobile-drawer']");
+    expect(drawer!.className).toContain("translate-x-0");
     expect(drawer!.hasAttribute("inert")).toBe(false);
   });
 
@@ -282,30 +282,30 @@ describe("App — drawer close mechanisms", () => {
     const { container } = render(<App />);
     const btn = container.querySelector("[data-testid='hamburger']")!;
     fireEvent.click(btn);
-    expect(container.querySelector(".ht-drawer")!.className).toContain("is-open");
+    expect(container.querySelector("[data-testid='mobile-drawer']")!.className).toContain("translate-x-0");
 
-    const backdrop = container.querySelector(".ht-drawer-backdrop")!;
+    const backdrop = container.querySelector("[data-testid='mobile-drawer-backdrop']")!;
     fireEvent.click(backdrop);
-    expect(container.querySelector(".ht-drawer")!.className).not.toContain("is-open");
+    expect(container.querySelector("[data-testid='mobile-drawer']")!.className).toContain("-translate-x-full");
   });
 
   it("Escape key closes the drawer", () => {
     const { container } = render(<App />);
     const btn = container.querySelector("[data-testid='hamburger']")!;
     fireEvent.click(btn);
-    expect(container.querySelector(".ht-drawer")!.className).toContain("is-open");
+    expect(container.querySelector("[data-testid='mobile-drawer']")!.className).toContain("translate-x-0");
 
     fireEvent.keyDown(document, { key: "Escape" });
-    expect(container.querySelector(".ht-drawer")!.className).not.toContain("is-open");
+    expect(container.querySelector("[data-testid='mobile-drawer']")!.className).toContain("-translate-x-full");
   });
 
   it("clicking the hamburger a second time closes the drawer", () => {
     const { container } = render(<App />);
     const btn = container.querySelector("[data-testid='hamburger']")!;
     fireEvent.click(btn);
-    expect(container.querySelector(".ht-drawer")!.className).toContain("is-open");
+    expect(container.querySelector("[data-testid='mobile-drawer']")!.className).toContain("translate-x-0");
     fireEvent.click(btn);
-    expect(container.querySelector(".ht-drawer")!.className).not.toContain("is-open");
+    expect(container.querySelector("[data-testid='mobile-drawer']")!.className).toContain("-translate-x-full");
   });
 });
 

@@ -11,6 +11,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import { cn } from "@/lib/utils";
 
 import { getAllListeners } from "./api/endpoints";
 import { AlertBanner, TelemetryDegradedBanner } from "./components/layout/alert-banner";
@@ -150,13 +151,24 @@ export function App() {
         {/* Off-canvas drawer (mobile) */}
         <div
           ref={drawerRef}
-          className={`ht-drawer${drawerOpen ? " is-open" : ""}`}
+          className={cn(
+            "fixed top-0 bottom-0 left-0 z-[var(--z-drawer)] w-60 overflow-y-auto bg-[var(--bg-surface)] transition-transform duration-[var(--t-med)] ease-[var(--ease)]",
+            drawerOpen ? "translate-x-0" : "-translate-x-full",
+          )}
           aria-hidden={!drawerOpen}
+          data-testid="mobile-drawer"
           {...(!drawerOpen ? { inert: true } : {})}
         >
-          {drawerMounted && <Sidebar onOpenPalette={() => setPaletteOpen(true)} />}
+          {drawerMounted && <Sidebar mobileDrawer onOpenPalette={() => setPaletteOpen(true)} />}
         </div>
-        {drawerOpen && <div className="ht-drawer-backdrop" role="presentation" onClick={() => setDrawerOpen(false)} />}
+        {drawerOpen && (
+          <div
+            className="fixed inset-0 z-[var(--z-drawer-bg)] bg-[var(--overlay-bg)]"
+            role="presentation"
+            data-testid="mobile-drawer-backdrop"
+            onClick={() => setDrawerOpen(false)}
+          />
+        )}
 
         {/* Desktop layout */}
         <div className={`ht-layout${sidebarCollapsed ? " is-collapsed" : ""}`} data-testid="layout">
