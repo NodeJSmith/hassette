@@ -77,12 +77,80 @@ if typing.TYPE_CHECKING:
     from hassette.types import Predicate
 
 V = TypeVar("V")
+CombinatorT = TypeVar("CombinatorT", bound="_PredicateCombinator")
 
 LOGGER = getLogger(__name__)
 
 
+class PredicateOps:
+    """Adds ``&``, ``|``, and ``~`` composition to the predicate types in this module.
+
+    ``a & b`` builds an `AllOf`, ``a | b`` builds an `AnyOf`, and ``~a`` builds a `Not`.
+    The result is an ordinary predicate object, so it can be passed to ``where=`` or nested
+    inside the explicit combinators.
+
+    Chains flatten rather than nest: ``a & b & c`` produces ``AllOf((a, b, c))``, which keeps
+    ``summarize()`` identical to the explicit form.
+
+    ``AllOf``, ``AnyOf``, and ``Not`` are defined further down this module; the operators resolve
+    them at call time, not at class-definition time.
+
+    Examples:
+        ```python
+        P.StateTo("on") & P.DomainMatches("light")
+        P.StateTo("on") | P.StateTo("unavailable")
+        ~P.StateTo("off")
+        ```
+    """
+
+    if typing.TYPE_CHECKING:
+        # Type-checking only, with no runtime counterpart: every class mixing this in defines
+        # its own __call__, and declaring the signature here lets type checkers treat `self`
+        # as a Predicate when building the combinators below.
+        def __call__(self, value: Any, /) -> bool: ...
+
+    def __and__(self, other: "Predicate") -> "AllOf":
+        if not callable(other):
+            return NotImplemented
+        return _combine(AllOf, self, other)
+
+    def __rand__(self, other: "Predicate") -> "AllOf":
+        if not callable(other):
+            return NotImplemented
+        return _combine(AllOf, other, self)
+
+    def __or__(self, other: "Predicate") -> "AnyOf":
+        if not callable(other):
+            return NotImplemented
+        return _combine(AnyOf, self, other)
+
+    def __ror__(self, other: "Predicate") -> "AnyOf":
+        if not callable(other):
+            return NotImplemented
+        return _combine(AnyOf, other, self)
+
+    def __invert__(self) -> "Not":
+        return Not(self)
+
+
+def _combine(combinator: type[CombinatorT], left: "Predicate", right: "Predicate") -> CombinatorT:
+    """Build ``combinator`` from two operands, absorbing operands of the same combinator type.
+
+    Absorption is what flattens chains, and it applies to explicitly constructed combinators too:
+    ``AllOf((a, b)) & c`` yields ``AllOf((a, b, c))``, not a nested pair. The two forms evaluate
+    identically, so the grouping carries no meaning worth preserving.
+    """
+    predicates: list[Predicate] = []
+    for operand in (left, right):
+        if isinstance(operand, combinator):
+            predicates.extend(operand.predicates)
+        else:
+            predicates.append(operand)
+    return combinator(tuple(predicates))
+
+
 @dataclass(frozen=True)
-class Guard(typing.Generic[EventT]):
+class Guard(PredicateOps, typing.Generic[EventT]):
     """Wraps a predicate function to be used in combinators.
 
     Allows for passing any callable as a predicate. Generic over EventT to allow type checkers to understand the
@@ -166,7 +234,7 @@ def _glob_or_literal(value: str) -> "str | Glob":
 
 
 @dataclass(frozen=True)
-class _PredicateCombinator:
+class _PredicateCombinator(PredicateOps):
     """Base for combinators that wrap a tuple of predicates.
 
     Provides the shared ``ensure_iterable`` constructor that flattens a single predicate
@@ -210,7 +278,7 @@ class AnyOf(_PredicateCombinator):
 
 
 @dataclass(frozen=True)
-class Not:
+class Not(PredicateOps):
     """Negates the result of the predicate."""
 
     predicate: "Predicate"
@@ -223,7 +291,7 @@ class Not:
 
 
 @dataclass(frozen=True)
-class ValueIs(Generic[EventT, V]):
+class ValueIs(PredicateOps, Generic[EventT, V]):
     """Checks whether a value extracted from an event satisfies a condition.
 
     Args:
@@ -248,7 +316,7 @@ class ValueIs(Generic[EventT, V]):
 
 
 @dataclass(frozen=True)
-class DidChange(Generic[EventT]):
+class DidChange(PredicateOps, Generic[EventT]):
     """Predicate that is True when two extracted values differ.
 
     Typical use is an accessor that returns (old_value, new_value).
@@ -265,7 +333,7 @@ class DidChange(Generic[EventT]):
 
 
 @dataclass(frozen=True)
-class IsPresent:
+class IsPresent(PredicateOps):
     """Checks if a value extracted from an event is present (not MISSING_VALUE).
 
     This will generally be used when comparing state changes, where either the old or new state may be missing.
@@ -282,7 +350,7 @@ class IsPresent:
 
 
 @dataclass(frozen=True)
-class IsMissing:
+class IsMissing(PredicateOps):
     """Checks if a value extracted from an event is missing (MISSING_VALUE).
 
     This will generally be used when comparing state changes, where either the old or new state may be missing.
@@ -299,7 +367,7 @@ class IsMissing:
 
 
 @dataclass(frozen=True)
-class StateFrom:
+class StateFrom(PredicateOps):
     """Checks if a value extracted from a RawStateChangeEvent satisfies a condition on the 'old' value."""
 
     condition: "ChangeType"
@@ -312,7 +380,7 @@ class StateFrom:
 
 
 @dataclass(frozen=True)
-class StateTo:
+class StateTo(PredicateOps):
     """Checks if a value extracted from a RawStateChangeEvent satisfies a condition on the 'new' value."""
 
     condition: "ChangeType"
@@ -325,7 +393,7 @@ class StateTo:
 
 
 @dataclass(frozen=True)
-class StateComparison:
+class StateComparison(PredicateOps):
     """Checks if a comparison between from_state and to_state satisfies a condition."""
 
     condition: ComparisonCondition
@@ -343,7 +411,7 @@ class StateComparison:
 
 
 @dataclass(frozen=True)
-class AttrFrom:
+class AttrFrom(PredicateOps):
     """Checks if a specific attribute changed in a RawStateChangeEvent."""
 
     attr_name: str
@@ -357,7 +425,7 @@ class AttrFrom:
 
 
 @dataclass(frozen=True)
-class AttrTo:
+class AttrTo(PredicateOps):
     """Checks if a specific attribute changed in a RawStateChangeEvent."""
 
     attr_name: str
@@ -371,7 +439,7 @@ class AttrTo:
 
 
 @dataclass(frozen=True)
-class AttrComparison:
+class AttrComparison(PredicateOps):
     """Checks if a comparison between from_attr and to_attr satisfies a condition."""
 
     attr_name: str
@@ -392,7 +460,7 @@ class AttrComparison:
 
 
 @dataclass(frozen=True)
-class StateDidChange:
+class StateDidChange(PredicateOps):
     """Checks if the state changed in a RawStateChangeEvent."""
 
     def __call__(self, value: "RawStateChangeEvent", /) -> bool:
@@ -403,7 +471,7 @@ class StateDidChange:
 
 
 @dataclass(frozen=True)
-class AttrDidChange:
+class AttrDidChange(PredicateOps):
     """Checks if a specific attribute changed in a RawStateChangeEvent.
 
     When ``old_state`` is None, the attribute is treated as having changed
@@ -429,7 +497,7 @@ class AttrDidChange:
 
 
 @dataclass(frozen=True)
-class DomainMatches:
+class DomainMatches(PredicateOps):
     """Checks if the event domain matches a specific value."""
 
     domain: str
@@ -445,7 +513,7 @@ class DomainMatches:
 
 
 @dataclass(frozen=True)
-class EntityMatches:
+class EntityMatches(PredicateOps):
     """Checks if the event entity_id matches a specific value."""
 
     entity_id: str
@@ -461,7 +529,7 @@ class EntityMatches:
 
 
 @dataclass(frozen=True)
-class ServiceMatches:
+class ServiceMatches(PredicateOps):
     """Checks if the event service matches a specific value."""
 
     service: str
@@ -477,7 +545,7 @@ class ServiceMatches:
 
 
 @dataclass(frozen=True)
-class ServiceDataWhere:
+class ServiceDataWhere(PredicateOps):
     """Predicate that applies a mapping of service_data conditions to a CallServiceEvent.
 
     Examples:
