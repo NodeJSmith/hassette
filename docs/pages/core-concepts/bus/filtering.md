@@ -114,6 +114,20 @@ Both `P.AttrTo` predicates must match. The `changed=False` parameter is also req
 
 `P.AllOf` is an explicit AND combinator — it does the same thing as passing a list to `where=`, but can be nested inside `P.AnyOf` or `P.Not` where a plain list is not accepted. `P.Not` negates any predicate: `P.Not(P.StateTo("on"))` fires when the new state is anything except `"on"`. All three compose freely.
 
+### Operator Shorthand: `&`, `|`, `~`
+
+Built-in `P.*` predicate objects overload Python's bitwise operators as shorthand for the three combinators. `a & b` is `P.AllOf((a, b))`, `a | b` is `P.AnyOf((a, b))`, and `~a` is `P.Not(a)`.
+
+```python
+--8<-- "pages/core-concepts/bus/snippets/filtering_operators.py"
+```
+
+The handler fires when a light turns on or goes unavailable, except for `light.office`. Python gives `&` higher precedence than `|`, so the OR branch needs parentheses.
+
+Chains flatten instead of nesting: `a & b & c` builds `P.AllOf((a, b, c))`, so the summary shown by `hassette listener` reads the same as the explicit form. The result is an ordinary predicate, so operators and explicit combinators mix freely. Wrap a custom callable in `P.Guard` when you want it to participate in operator chains.
+
+Conditions (`C.*`) do not support these operators. They test extracted values, not events, so they compose through predicates instead.
+
 ## Filtering Service Calls
 
 `on_call_service` accepts `domain=` and `service=` for coarse filtering, and `where=` for fine-grained control. `where=` on `on_call_service` also accepts a plain dict, which matches against the service data payload.
