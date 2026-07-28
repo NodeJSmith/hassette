@@ -1,5 +1,4 @@
-import { signal } from "@preact/signals";
-import { fireEvent } from "@testing-library/preact";
+import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -25,7 +24,7 @@ vi.mock("../components/shared/spinner", () => ({
 }));
 
 // uptimeSeconds=120 ensures useScopedQuery is enabled (since-restart preset requires uptime).
-const STATE_WITH_UPTIME = { stateOverrides: { uptimeSeconds: signal(120) } };
+const STATE_WITH_UPTIME = { storeOverrides: { uptimeSeconds: 120 } };
 
 const APP_GRID_URL = "/api/telemetry/dashboard/app-grid";
 
@@ -153,6 +152,7 @@ describe("AppsPage", () => {
     });
 
     it("clicking the STATUS filter button opens the filter popover", async () => {
+      const user = userEvent.setup();
       server.use(
         http.get(APP_GRID_URL, () =>
           HttpResponse.json({
@@ -165,7 +165,7 @@ describe("AppsPage", () => {
       );
       const { findByRole, findByText } = renderWithAppState(<AppsPage />, STATE_WITH_UPTIME);
       const filterBtn = await findByRole("button", { name: /filter status/i });
-      fireEvent.click(filterBtn);
+      await user.click(filterBtn);
       // Popover should now be open and show filter options
       expect(await findByText(/all/i)).toBeDefined();
     });
@@ -246,6 +246,7 @@ describe("AppsPage", () => {
     });
 
     it("clicking clear filters calls navigate to reset filter and search", async () => {
+      const user = userEvent.setup();
       mockSearch = "filter=failed";
       server.use(
         http.get(APP_GRID_URL, () =>
@@ -254,7 +255,7 @@ describe("AppsPage", () => {
       );
       const { findByRole } = renderWithAppState(<AppsPage />, STATE_WITH_UPTIME);
       const btn = await findByRole("button", { name: /clear filters/i });
-      fireEvent.click(btn);
+      await user.click(btn);
       expect(mockNavigate).toHaveBeenCalledWith(
         expect.not.stringContaining("filter="),
         expect.objectContaining({ replace: true }),

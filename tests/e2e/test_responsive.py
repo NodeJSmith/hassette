@@ -16,6 +16,8 @@ from tests.e2e.conftest import (
 
 pytestmark = pytest.mark.e2e
 
+MIN_TOUCH_TARGET_PX = 44
+
 
 def test_hamburger_visible_at_375px(page: Page, base_url: str) -> None:
     """Hamburger button is visible on mobile viewport."""
@@ -63,8 +65,11 @@ def test_hamburger_opens_drawer_at_mobile(page: Page, base_url: str) -> None:
     page.set_viewport_size(MOBILE_VIEWPORT)
     page.goto(base_url + "/")
     page.locator("[data-testid='hamburger']").click()
-    drawer = page.locator(".ht-drawer")
-    expect(drawer).to_have_class(re.compile(r"\bis-open\b"))
+    # The mobile drawer is a hand-rolled Tailwind off-canvas panel (not the shadcn/vaul
+    # Drawer used elsewhere) — open/closed state is a translate-x utility class toggle,
+    # identified via data-testid rather than the pre-migration .ht-drawer CSS Module class.
+    drawer = page.locator("[data-testid='mobile-drawer']")
+    expect(drawer).to_have_class(re.compile(r"\btranslate-x-0\b"))
 
 
 def test_drawer_closes_on_backdrop_click(page: Page, base_url: str) -> None:
@@ -72,9 +77,10 @@ def test_drawer_closes_on_backdrop_click(page: Page, base_url: str) -> None:
     page.set_viewport_size(MOBILE_VIEWPORT)
     page.goto(base_url + "/")
     page.locator("[data-testid='hamburger']").click()
-    expect(page.locator(".ht-drawer")).to_have_class(re.compile(r"\bis-open\b"))
-    page.locator(".ht-drawer-backdrop").click()
-    expect(page.locator(".ht-drawer")).not_to_have_class(re.compile(r"\bis-open\b"))
+    drawer = page.locator("[data-testid='mobile-drawer']")
+    expect(drawer).to_have_class(re.compile(r"\btranslate-x-0\b"))
+    page.locator("[data-testid='mobile-drawer-backdrop']").click()
+    expect(drawer).to_have_class(re.compile(r"-translate-x-full"))
 
 
 def test_sidebar_hidden_at_mobile(page: Page, base_url: str) -> None:
@@ -144,14 +150,14 @@ def test_touch_targets_44px(page: Page, base_url: str) -> None:
     expect(theme_toggle).to_be_visible()
     box = theme_toggle.bounding_box()
     assert box is not None
-    assert box["height"] >= 44, f"Theme toggle height {box['height']}px < 44px"
+    assert box["height"] >= MIN_TOUCH_TARGET_PX, f"Theme toggle height {box['height']}px < {MIN_TOUCH_TARGET_PX}px"
 
     # Hamburger button
     hamburger = page.locator("[data-testid='hamburger']")
     expect(hamburger).to_be_visible()
     box = hamburger.bounding_box()
     assert box is not None
-    assert box["height"] >= 44, f"Hamburger height {box['height']}px < 44px"
+    assert box["height"] >= MIN_TOUCH_TARGET_PX, f"Hamburger height {box['height']}px < {MIN_TOUCH_TARGET_PX}px"
 
 
 def test_breakpoint_boundary_768px(page: Page, base_url: str) -> None:

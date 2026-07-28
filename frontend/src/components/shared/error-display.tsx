@@ -1,5 +1,6 @@
+import { cn } from "@/lib/utils";
+
 import { formatDuration } from "../../utils/format";
-import styles from "./detail-panel.module.css";
 
 interface Props {
   status: string;
@@ -8,44 +9,50 @@ interface Props {
   errorMessage?: string | null;
 }
 
+interface ResultDisplay {
+  label: string;
+  toneClass?: string;
+  message: string;
+}
+
+function resolveResultDisplay(
+  status: string,
+  durationMs: number,
+  errorType?: string | null,
+  errorMessage?: string | null,
+): ResultDisplay {
+  if (status === "timed_out") {
+    return {
+      label: "timeout",
+      toneClass: "text-[var(--status-warning)]",
+      message: `exceeded ${formatDuration(durationMs)} budget`,
+    };
+  }
+
+  if (status === "cancelled") {
+    return {
+      label: "result",
+      toneClass: "text-[var(--status-cancel)]",
+      message: `cancelled after ${formatDuration(durationMs)}`,
+    };
+  }
+
+  if (status === "error" && errorMessage) {
+    return { label: "result", toneClass: "text-destructive", message: `${errorType ?? "Error"}: ${errorMessage}` };
+  }
+
+  return { label: "result", message: `completed in ${formatDuration(durationMs)}` };
+}
+
 export function ErrorDisplay({ status, durationMs, errorType, errorMessage }: Props) {
-  const isTimeout = status === "timed_out";
-  const isError = status === "error";
-  const isCancelled = status === "cancelled";
-
-  if (isTimeout) {
-    return (
-      <div class={styles.metaItem}>
-        <span class={styles.label}>timeout</span>
-        <span class="ht-text-mono ht-text-xs ht-text-warning">exceeded {formatDuration(durationMs)} budget</span>
-      </div>
-    );
-  }
-
-  if (isCancelled) {
-    return (
-      <div class={styles.metaItem}>
-        <span class={styles.label}>result</span>
-        <span class="ht-text-mono ht-text-xs ht-text-cancel">cancelled after {formatDuration(durationMs)}</span>
-      </div>
-    );
-  }
-
-  if (isError && errorMessage) {
-    return (
-      <div class={styles.metaItem}>
-        <span class={styles.label}>result</span>
-        <span class="ht-text-mono ht-text-xs ht-text-danger">
-          {errorType ?? "Error"}: {errorMessage}
-        </span>
-      </div>
-    );
-  }
+  const { label, toneClass, message } = resolveResultDisplay(status, durationMs, errorType, errorMessage);
 
   return (
-    <div class={styles.metaItem}>
-      <span class={styles.label}>result</span>
-      <span class="ht-text-mono ht-text-xs">completed in {formatDuration(durationMs)}</span>
+    <div className="mb-2 flex items-baseline gap-2">
+      <span className="mr-2 font-mono text-xs uppercase tracking-[var(--text-label-tracking)] text-foreground-faint">
+        {label}
+      </span>
+      <span className={cn("font-mono text-xs", toneClass)}>{message}</span>
     </div>
   );
 }

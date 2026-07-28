@@ -1,15 +1,15 @@
-import { useEffect } from "preact/hooks";
-import type { HighlighterGeneric } from "shiki";
+import { useEffect, useState } from "react";
+
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 import type { AppSourceData, ListenerData } from "../../api/endpoints";
 import { getAppSource } from "../../api/endpoints";
 import { useQueryParams } from "../../hooks/use-query-params";
-import { useSignal } from "../../hooks/use-signal";
 import { parseSourceLocation } from "../../utils/format";
-import { Button } from "../shared/button";
-import { Card } from "../shared/card";
+import { getShikiHighlighter, SHIKI_THEMES } from "../../utils/shiki";
 import { Spinner } from "../shared/spinner";
-import styles from "./code-tab.module.css";
 
 interface Props {
   appKey: string;
@@ -18,34 +18,15 @@ interface Props {
 
 function buildAnnotationMap(listeners: ListenerData[]): Map<number, string[]> {
   const map = new Map<number, string[]>();
-  for (const l of listeners) {
-    if (!l.source_location) continue;
-    const { line } = parseSourceLocation(l.source_location);
+  for (const listener of listeners) {
+    if (!listener.source_location) continue;
+    const { line } = parseSourceLocation(listener.source_location);
     if (line === null) continue;
     const existing = map.get(line) ?? [];
-    existing.push(l.handler_method);
+    existing.push(listener.handler_method);
     map.set(line, existing);
   }
   return map;
-}
-
-let highlighterPromise: Promise<HighlighterGeneric<never, never>> | null = null;
-
-function getHighlighter() {
-  if (!highlighterPromise) {
-    highlighterPromise = import("shiki")
-      .then(({ createHighlighter }) =>
-        createHighlighter({
-          langs: ["python"],
-          themes: ["github-light", "github-dark"],
-        }),
-      )
-      .catch((e) => {
-        highlighterPromise = null;
-        throw e;
-      });
-  }
-  return highlighterPromise;
 }
 
 function escapeHtml(s: string): string {
@@ -53,6 +34,7 @@ function escapeHtml(s: string): string {
 }
 
 const SHIKI_LINE_RE = /<span class="line">/g;
+const DETAIL_LABEL_CLASS = "text-xs font-medium uppercase tracking-[var(--text-label-tracking)] text-muted-foreground";
 
 function injectLineNumbers(html: string, annotationMap: Map<number, string[]>): string {
   if (!SHIKI_LINE_RE.test(html)) return html;
@@ -73,46 +55,46 @@ export function CodeTab({ appKey, listeners }: Props) {
   const qp = useQueryParams();
   const lineParam = qp.get("line");
   const focusLine = lineParam ? parseInt(lineParam, 10) : undefined;
-  const loading = useSignal(true);
-  const error = useSignal<string | null>(null);
-  const source = useSignal<AppSourceData | null>(null);
-  const highlightedHtml = useSignal<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [source, setSource] = useState<AppSourceData | null>(null);
+  const [highlightedHtml, setHighlightedHtml] = useState<string | null>(null);
 
   const annotationMap = buildAnnotationMap(listeners);
 
   useEffect(() => {
     const controller = new AbortController();
-    loading.value = true;
-    error.value = null;
-    source.value = null;
-    highlightedHtml.value = null;
+    setLoading(true);
+    setError(null);
+    setSource(null);
+    setHighlightedHtml(null);
 
     async function load() {
       try {
         const data = await getAppSource(appKey, controller.signal);
         if (controller.signal.aborted) return;
-        source.value = data;
+        setSource(data);
 
-        const hl = await getHighlighter();
+        const hl = await getShikiHighlighter("python");
         if (controller.signal.aborted) return;
 
         const rawHtml = hl.codeToHtml(data.content, {
           lang: "python",
-          themes: { light: "github-light", dark: "github-dark" },
+          themes: SHIKI_THEMES,
           defaultColor: false,
         });
         if (controller.signal.aborted) return;
-        highlightedHtml.value = rawHtml;
+        setHighlightedHtml(rawHtml);
       } catch (err) {
         if (controller.signal.aborted) return;
         const msg = err instanceof Error ? err.message : String(err);
         if (msg.includes("404") || msg.toLowerCase().includes("not found")) {
-          error.value = "Source file not found at expected path";
+          setError("Source file not found at expected path");
         } else {
-          error.value = msg;
+          setError(msg);
         }
       } finally {
-        if (!controller.signal.aborted) loading.value = false;
+        if (!controller.signal.aborted) setLoading(false);
       }
     }
 
@@ -123,7 +105,7 @@ export function CodeTab({ appKey, listeners }: Props) {
   }, [appKey]);
 
   useEffect(() => {
-    if (!focusLine || loading.value) return;
+    if (!focusLine || loading) return;
     const prev = document.querySelector(".line--focus");
     prev?.classList.remove("line--focus");
     const el = document.querySelector(`[data-testid="code-line-${focusLine}"]`);
@@ -131,51 +113,74 @@ export function CodeTab({ appKey, listeners }: Props) {
       el.scrollIntoView({ behavior: "smooth", block: "center" });
       el.classList.add("line--focus");
     }
-  }, [focusLine, loading.value]);
+  }, [focusLine, loading]);
 
-  if (loading.value) {
+  if (loading) {
     return <Spinner />;
   }
 
-  if (error.value) {
+  if (error) {
     return (
       <Card data-testid="code-tab-error">
-        <p class="ht-text-muted ht-text-sm">{error.value}</p>
+        <p className="text-sm text-muted-foreground">{error}</p>
       </Card>
     );
   }
 
-  if (!source.value || !highlightedHtml.value) return null;
+  if (!source || !highlightedHtml) return null;
 
-  const lines = source.value.content.replace(/\r\n/g, "\n").split("\n");
+  const lines = source.content.replace(/\r\n/g, "\n").split("\n");
   const lineCount = lines[lines.length - 1] === "" ? lines.length - 1 : lines.length;
 
-  const processedHtml = injectLineNumbers(highlightedHtml.value, annotationMap);
+  const processedHtml = injectLineNumbers(highlightedHtml, annotationMap);
 
   const handleCopyPath = () => {
-    if (source.value?.filename) {
-      void navigator.clipboard.writeText(source.value.filename);
+    if (source?.filename) {
+      void navigator.clipboard.writeText(source.filename);
     }
   };
 
   return (
-    <div class={styles.codeTab} data-testid="code-tab-content">
-      <div class={styles.header} data-testid="code-tab-header">
-        <div class={styles.headerSource}>
-          <span class="ht-detail-label">Source</span>
-          <span class="ht-text-mono ht-text-sm ht-text-muted">{source.value.filename}</span>
+    <div className="overflow-hidden rounded-md border border-border bg-card" data-testid="code-tab-content">
+      <div
+        className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-muted px-4 py-2"
+        data-testid="code-tab-header"
+      >
+        <div className="flex items-baseline gap-2">
+          <span className={DETAIL_LABEL_CLASS}>Source</span>
+          <span className="font-mono text-sm text-muted-foreground">{source.filename}</span>
         </div>
-        <div class={styles.headerMeta}>
-          <span class="ht-text-muted ht-text-sm">{lineCount} lines</span>
-          <span class={styles.readonlyLabel}>read-only</span>
-          <Button ghost size="sm" data-testid="copy-path-btn" onClick={handleCopyPath} aria-label="Copy file path">
+        <div className="flex shrink-0 items-center gap-3">
+          <span className="text-sm text-muted-foreground">{lineCount} lines</span>
+          <span className="rounded-sm border border-border px-2 py-px font-mono text-xs text-foreground-faint">
+            read-only
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            data-testid="copy-path-btn"
+            onClick={handleCopyPath}
+            aria-label="Copy file path"
+          >
             copy path
           </Button>
         </div>
       </div>
       <div
-        class={styles.body}
-        // biome-ignore lint/security/noDangerouslySetInnerHtml: Shiki output is trusted
+        className={cn(
+          "max-h-[calc(100vh-280px)] overflow-auto [-webkit-overflow-scrolling:touch]",
+          "[&_.shiki]:m-0 [&_.shiki]:rounded-none [&_.shiki]:!bg-[var(--bg-page)] [&_.shiki]:px-0 [&_.shiki]:py-3",
+          "[&_.shiki]:text-sm [&_.shiki]:leading-relaxed [&_.shiki_code]:block [&_.shiki_code]:bg-transparent [&_.shiki_code]:p-0",
+          "[&_.shiki_span:not(.line):not(.line-num)]:text-[var(--shiki-light,var(--ink-1))]",
+          "dark:[&_.shiki_span:not(.line):not(.line-num)]:text-[var(--shiki-dark,var(--ink-1))]",
+          "[&_.line]:inline-flex [&_.line]:min-w-full [&_.line]:pr-4",
+          "[&_.line--annotated]:cursor-help [&_.line--annotated]:bg-[var(--code-annotate-bg)]",
+          "[&_.line--focus]:bg-[var(--code-focus-bg)]",
+          "[&_.line-num]:mr-3 [&_.line-num]:min-w-[3ch] [&_.line-num]:shrink-0 [&_.line-num]:select-none",
+          "[&_.line-num]:border-r [&_.line-num]:border-border [&_.line-num]:px-3 [&_.line-num]:text-right",
+          "[&_.line-num]:text-foreground-faint",
+        )}
+        // Shiki-generated HTML from our own source fetch, not user input — safe to inject.
         dangerouslySetInnerHTML={{ __html: processedHtml }}
       />
     </div>

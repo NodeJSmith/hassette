@@ -1,8 +1,6 @@
-import clsx from "clsx";
-import type { JSX } from "preact";
+import type { JSX } from "react";
 
-import styles from "./detail-panel.module.css";
-import tb from "./traceback-viewer.module.css";
+import { cn } from "@/lib/utils";
 
 /** `  File "/app/x.py", line 42, in handler` — the only structured line in a traceback. */
 const FRAME_RE = /^(\s*)File "(.*)", line (\d+), in (.*)$/;
@@ -25,21 +23,27 @@ function renderLine(line: string, key: number): JSX.Element {
   if (frame) {
     const [, indent, path, lineNo, func] = frame;
     return (
-      <span key={key} class={tb.line}>
+      <span key={key} className="block">
         {indent}
-        <span class={tb.frameKeyword}>File </span>
-        <span class={tb.path}>"{path}"</span>
-        <span class={tb.frameKeyword}>, line </span>
-        <span class={tb.lineNo}>{lineNo}</span>
-        <span class={tb.frameKeyword}>, in </span>
-        <span class={tb.func}>{func}</span>
+        <span className="text-muted-foreground">File </span>
+        <span className="text-primary" data-traceback-token="path">
+          "{path}"
+        </span>
+        <span className="text-muted-foreground">, line </span>
+        <span className="text-[var(--status-warning)]" data-traceback-token="line-number">
+          {lineNo}
+        </span>
+        <span className="text-muted-foreground">, in </span>
+        <span className="text-[var(--handler-listener)]" data-traceback-token="function">
+          {func}
+        </span>
       </span>
     );
   }
 
   if (line.startsWith("Traceback")) {
     return (
-      <span key={key} class={clsx(tb.line, tb.header)}>
+      <span key={key} className="block text-muted-foreground">
         {line}
       </span>
     );
@@ -47,7 +51,7 @@ function renderLine(line: string, key: number): JSX.Element {
 
   // Everything else is the echoed source line under a frame.
   return (
-    <span key={key} class={clsx(tb.line, tb.sourceLine)}>
+    <span key={key} className="block text-foreground">
       {line}
     </span>
   );
@@ -67,19 +71,26 @@ export function TracebackViewer({ traceback, testIdPrefix }: Props) {
   const split = splitTraceback(traceback);
 
   return (
-    <div class={styles.tracebackSection}>
-      <span class={styles.label}>traceback</span>
+    <div className="mt-3 border-t border-border pt-3">
+      <span className="mb-2 block font-mono text-xs uppercase tracking-[var(--text-label-tracking)] text-foreground-faint">
+        traceback
+      </span>
       {split ? (
         <>
-          <div class={styles.errorLine}>
-            <pre class="ht-text-mono">{split.errorLine}</pre>
+          <div className="mb-3 rounded-sm bg-[var(--destructive-bg)] px-3 py-2">
+            <pre className="m-0 whitespace-pre-wrap break-words font-mono text-[length:var(--text-mono-sm)] font-medium text-destructive">
+              {split.errorLine}
+            </pre>
           </div>
-          <pre class={styles.tracebackFrames} data-testid={`${testIdPrefix}-traceback`}>
+          <pre
+            className="m-0 whitespace-pre-wrap break-words font-mono text-[length:var(--text-mono-sm)] text-foreground-secondary"
+            data-testid={`${testIdPrefix}-traceback`}
+          >
             {split.frames.split("\n").map(renderLine)}
           </pre>
         </>
       ) : (
-        <pre class="ht-text-mono ht-text-danger" data-testid={`${testIdPrefix}-traceback`}>
+        <pre className={cn("font-mono text-destructive")} data-testid={`${testIdPrefix}-traceback`}>
           {traceback}
         </pre>
       )}

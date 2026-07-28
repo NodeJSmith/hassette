@@ -1,4 +1,3 @@
 dist/
 node_modules/
 src/api/generated-types.ts
-**/*.module.css.d.ts

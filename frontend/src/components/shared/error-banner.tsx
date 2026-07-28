@@ -1,6 +1,5 @@
-import { useState } from "preact/hooks";
+import { useState } from "react";
 
-import styles from "./error-banner.module.css";
 import { TracebackLines } from "./traceback-viewer";
 
 interface ErrorBannerProps {
@@ -21,17 +20,24 @@ export function ErrorBanner({
   const [traceExpanded, setTraceExpanded] = useState(false);
 
   return (
-    <div class={styles.banner} data-testid={testId}>
-      <span class={styles.heading}>
+    <div
+      className="mb-4 rounded-md border border-[color:color-mix(in_srgb,var(--destructive)_30%,transparent)] bg-[var(--destructive-bg)] px-4 py-3"
+      data-testid={testId}
+    >
+      <span className="mb-1 block text-sm font-semibold text-destructive">
         {heading}
         {errorType ? ` — ${errorType}` : ""}
       </span>
-      {errorMessage && <p class={styles.message}>{errorMessage}</p>}
+      {errorMessage && (
+        <p className="break-all font-mono text-[length:var(--text-mono-sm)] text-foreground-secondary">
+          {errorMessage}
+        </p>
+      )}
       {traceback && (
         <div data-testid="traceback-content">
           <button
             type="button"
-            class={styles.tracebackToggle}
+            className="mt-2 inline-flex items-center border-none bg-transparent p-0 font-mono text-[length:var(--text-mono-sm)] text-destructive opacity-[var(--op-muted)] transition-opacity hover:opacity-100"
             data-testid="traceback-toggle"
             aria-expanded={traceExpanded}
             onClick={() => setTraceExpanded((v) => !v)}
@@ -39,7 +45,7 @@ export function ErrorBanner({
             {traceExpanded ? "hide traceback" : "show traceback"}
           </button>
           {traceExpanded && (
-            <pre class="ht-traceback">
+            <pre className="mt-2 overflow-x-auto whitespace-pre rounded-sm bg-muted px-3 py-2 font-mono text-xs leading-[var(--text-relaxed-leading)] text-foreground">
               <TracebackLines traceback={traceback} />
             </pre>
           )}

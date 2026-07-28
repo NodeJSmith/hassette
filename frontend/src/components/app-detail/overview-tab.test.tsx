@@ -1,10 +1,11 @@
-import { signal } from "@preact/signals";
-import { fireEvent, waitFor } from "@testing-library/preact";
+import { act, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
 import type { components } from "../../api/generated-types";
 import { WS_DEBOUNCE_MAX_WAIT_MS } from "../../hooks/use-query-invalidator";
+import { useAppStore } from "../../state/store";
 import { createJob, createListener, createLogEntry } from "../../test/factories";
 import { createWouterMock } from "../../test/mock-wouter";
 import { renderWithAppState } from "../../test/render-helpers";
@@ -12,20 +13,10 @@ import { server } from "../../test/server";
 import { OverviewTab } from "./overview-tab";
 
 type ActivityFeedEntry = components["schemas"]["ActivityFeedEntry"];
-type ExecutionEvent = {
-  kind: "handler" | "job";
-  listener_id?: number | null;
-  job_id?: number | null;
-  app_key: string;
-  instance_index: number;
-  status: string;
-  duration_ms: number;
-  error_type: string | null;
-};
 
 // Overview tab tests are split into two groups:
 //  1. Props-only tests (error spotlight, health grid) — no context needed
-//  2. API-driven tests (activity, logs, real-time) — require AppStateContext + MSW
+//  2. API-driven tests (activity, logs, real-time) — require the Zustand app store + MSW
 // MSW server lifecycle is managed globally in src/test-setup.ts.
 
 const mockNavigate = vi.fn();
@@ -52,7 +43,7 @@ function renderOverviewTab({
       instanceQs={instanceQs}
       resolvedInstanceIndex={resolvedInstanceIndex}
     />,
-    { stateOverrides: { uptimeSeconds: signal<number | null>(120) } },
+    { storeOverrides: { uptimeSeconds: 120 } },
   );
 }
 
@@ -166,7 +157,8 @@ describe("OverviewTab — Error Spotlight", () => {
     expect(btn.textContent).toContain("2");
   });
 
-  it("expands remaining entries when 'show N more' is clicked", () => {
+  it("expands remaining entries when 'show N more' is clicked", async () => {
+    const user = userEvent.setup();
     const listeners = [
       createListener({ listener_id: 1, failed: 1 }),
       createListener({ listener_id: 2, failed: 1 }),
@@ -175,7 +167,7 @@ describe("OverviewTab — Error Spotlight", () => {
     ];
     const { getAllByTestId, getByTestId } = renderOverviewTab({ listeners, jobs: [] });
     expect(getAllByTestId(/^overview-spotlight-entry-/).length).toBe(3);
-    fireEvent.click(getByTestId("overview-spotlight-show-more"));
+    await user.click(getByTestId("overview-spotlight-show-more"));
     expect(getAllByTestId(/^overview-spotlight-entry-/).length).toBe(4);
   });
 
@@ -310,7 +302,8 @@ describe("OverviewTab — Handler Health Grid", () => {
     expect(cards[2].getAttribute("data-testid")).toBe("overview-health-card-listener-1");
   });
 
-  it("clicking a listener card navigates to the correct handler detail page", () => {
+  it("clicking a listener card navigates to the correct handler detail page", async () => {
+    const user = userEvent.setup();
     mockNavigate.mockClear();
     const { getByTestId } = renderOverviewTab({
       listeners: [createListener({ listener_id: 4 })],
@@ -318,11 +311,12 @@ describe("OverviewTab — Handler Health Grid", () => {
       appKey: "my_app",
       instanceQs: "",
     });
-    fireEvent.click(getByTestId("overview-health-card-listener-4"));
+    await user.click(getByTestId("overview-health-card-listener-4"));
     expect(mockNavigate).toHaveBeenCalledWith("/apps/my_app/handlers/listener/4");
   });
 
-  it("clicking a job card navigates to the correct handler detail page", () => {
+  it("clicking a job card navigates to the correct handler detail page", async () => {
+    const user = userEvent.setup();
     mockNavigate.mockClear();
     const { getByTestId } = renderOverviewTab({
       listeners: [],
@@ -330,11 +324,12 @@ describe("OverviewTab — Handler Health Grid", () => {
       appKey: "my_app",
       instanceQs: "",
     });
-    fireEvent.click(getByTestId("overview-health-card-job-15"));
+    await user.click(getByTestId("overview-health-card-job-15"));
     expect(mockNavigate).toHaveBeenCalledWith("/apps/my_app/handlers/job/15");
   });
 
-  it("card navigation includes instanceQs", () => {
+  it("card navigation includes instanceQs", async () => {
+    const user = userEvent.setup();
     mockNavigate.mockClear();
     const { getByTestId } = renderOverviewTab({
       listeners: [createListener({ listener_id: 6 })],
@@ -342,7 +337,7 @@ describe("OverviewTab — Handler Health Grid", () => {
       appKey: "test_app",
       instanceQs: "?instance=2",
     });
-    fireEvent.click(getByTestId("overview-health-card-listener-6"));
+    await user.click(getByTestId("overview-health-card-listener-6"));
     expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app/handlers/listener/6?instance=2");
   });
 });
@@ -569,84 +564,88 @@ describe("OverviewTab — Real-time refetch", () => {
     return { getFetchCount: () => fetchCount };
   }
 
-  function renderWithSignalOverrides(overrides: Record<string, unknown>) {
+  function renderOverview() {
     renderWithAppState(
       <OverviewTab listeners={[]} jobs={[]} appKey="test_app" instanceQs="" resolvedInstanceIndex={0} />,
-      {
-        stateOverrides: {
-          uptimeSeconds: signal<number | null>(120),
-          ...overrides,
-        },
-      },
+      { storeOverrides: { uptimeSeconds: 120 } },
     );
   }
 
-  it("refetches activity when executionCompleted signal changes with matching app_key (handler)", async () => {
+  it("refetches activity when executionCompleted changes with matching app_key (handler)", async () => {
     const { getFetchCount } = setupActivityCounter();
-    const executionCompleted = signal<ExecutionEvent[] | null>(null);
-    renderWithSignalOverrides({ executionCompleted });
+    renderOverview();
 
     await waitFor(() => expect(getFetchCount()).toBeGreaterThan(0));
     const countAfterMount = getFetchCount();
 
-    executionCompleted.value = [
-      {
-        kind: "handler",
-        listener_id: 1,
-        app_key: "test_app",
-        instance_index: 0,
-        status: "success",
-        duration_ms: 10,
-        error_type: null,
-      },
-    ];
+    act(() => {
+      useAppStore.setState({
+        executionCompleted: [
+          {
+            kind: "handler",
+            listener_id: 1,
+            app_key: "test_app",
+            instance_index: 0,
+            status: "success",
+            duration_ms: 10,
+            error_type: null,
+          },
+        ],
+      });
+    });
 
     await waitFor(() => expect(getFetchCount()).toBeGreaterThan(countAfterMount), { timeout: WS_DEBOUNCE_MAX_WAIT_MS });
   });
 
   it("does not refetch when executionCompleted events are for a different app_key", async () => {
     const { getFetchCount } = setupActivityCounter();
-    const executionCompleted = signal<ExecutionEvent[] | null>(null);
-    renderWithSignalOverrides({ executionCompleted });
+    renderOverview();
 
     await waitFor(() => expect(getFetchCount()).toBeGreaterThan(0));
     const countAfterMount = getFetchCount();
 
-    executionCompleted.value = [
-      {
-        kind: "handler",
-        listener_id: 99,
-        app_key: "other_app",
-        instance_index: 0,
-        status: "success",
-        duration_ms: 5,
-        error_type: null,
-      },
-    ];
+    act(() => {
+      useAppStore.setState({
+        executionCompleted: [
+          {
+            kind: "handler",
+            listener_id: 99,
+            app_key: "other_app",
+            instance_index: 0,
+            status: "success",
+            duration_ms: 5,
+            error_type: null,
+          },
+        ],
+      });
+    });
 
     await new Promise((r) => setTimeout(r, 700));
     expect(getFetchCount()).toBe(countAfterMount);
   });
 
-  it("refetches activity when executionCompleted signal changes with matching app_key (job)", async () => {
+  it("refetches activity when executionCompleted changes with matching app_key (job)", async () => {
     const { getFetchCount } = setupActivityCounter();
-    const executionCompleted = signal<ExecutionEvent[] | null>(null);
-    renderWithSignalOverrides({ executionCompleted });
+    renderOverview();
 
     await waitFor(() => expect(getFetchCount()).toBeGreaterThan(0));
     const countAfterMount = getFetchCount();
 
-    executionCompleted.value = [
-      {
-        kind: "job",
-        job_id: 5,
-        app_key: "test_app",
-        instance_index: 0,
-        status: "success",
-        duration_ms: 20,
-        error_type: null,
-      },
-    ];
+    act(() => {
+      useAppStore.setState({
+        executionCompleted: [
+          {
+            kind: "job",
+            job_id: 5,
+            app_key: "test_app",
+            instance_index: 0,
+            status: "success",
+            duration_ms: 20,
+            error_type: null,
+          },
+        ],
+      });
+    });
 
     await waitFor(() => expect(getFetchCount()).toBeGreaterThan(countAfterMount), { timeout: WS_DEBOUNCE_MAX_WAIT_MS });
   });

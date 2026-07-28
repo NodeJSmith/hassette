@@ -1,7 +1,6 @@
 import type { HandlerKind } from "../../utils/app-routes";
 import { type ExecutionRecord, ExecutionTable } from "../shared/execution-table";
 import { Spinner } from "../shared/spinner";
-import styles from "./execution-section.module.css";
 
 interface ExecutionSectionProps {
   heading: string;
@@ -29,8 +28,8 @@ export function ExecutionSection({
   const hasData = records !== undefined;
 
   return (
-    <div class={styles.executionsSection}>
-      <h3 class={styles.panelHeading}>{heading}</h3>
+    <div className="mt-4 border-t border-border pt-4">
+      <h3 className="mb-3 font-sans text-[length:var(--text-h3)] font-medium text-foreground">{heading}</h3>
       {loading && !hasData ? (
         <Spinner />
       ) : (

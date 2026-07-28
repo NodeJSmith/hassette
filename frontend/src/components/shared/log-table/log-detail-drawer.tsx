@@ -1,19 +1,26 @@
-import clsx from "clsx";
-import { useCallback, useEffect, useRef } from "preact/hooks";
+import type { MouseEvent as ReactMouseEvent } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 
 import type { LogEntry } from "@/api/endpoints";
+import { Drawer, DrawerContentUnstyled, DrawerOverlay, DrawerTitle } from "@/components/ui/drawer";
 import { BREAKPOINT_MOBILE, BREAKPOINT_TABLET, useMediaQuery } from "@/hooks/use-media-query";
-import { useSignal } from "@/hooks/use-signal";
-import { useSubscribe } from "@/hooks/use-subscribe";
+import { cn } from "@/lib/utils";
 import { appDetailPath } from "@/utils/app-routes";
 import { formatTimestamp } from "@/utils/format";
 
-import { COPY_CONFIRM_MS, DETAIL_DRAWER_ID, levelClass } from "./constants";
+import { COPY_CONFIRM_MS, DETAIL_DRAWER_ID, getLogLevelStyle } from "./constants";
 import { ExecutionIdLink } from "./execution-id-link";
-import styles from "./log-detail-drawer.module.css";
 import type { RowKey } from "./types";
 import { rowKey } from "./types";
+
+function levelSurfaceClass(level: string): string | undefined {
+  return getLogLevelStyle(level)?.drawerSurface;
+}
+
+function levelTextClass(level: string): string | undefined {
+  return getLogLevelStyle(level)?.drawerTone;
+}
 
 interface Props {
   selectedKey: RowKey | null;
@@ -23,17 +30,16 @@ interface Props {
 }
 
 function CopyButton({ text, label }: { text: string; label: string }) {
-  const copied = useSignal(false);
-  useSubscribe(copied);
+  const [copied, setCopied] = useState(false);
 
   const handleCopy = useCallback(
-    async (e: MouseEvent) => {
+    async (e: ReactMouseEvent) => {
       e.stopPropagation();
       try {
         await navigator.clipboard.writeText(text);
-        copied.value = true;
+        setCopied(true);
         setTimeout(() => {
-          copied.value = false;
+          setCopied(false);
         }, COPY_CONFIRM_MS);
       } catch {
         /* clipboard unavailable */
@@ -45,12 +51,12 @@ function CopyButton({ text, label }: { text: string; label: string }) {
   return (
     <button
       type="button"
-      class={styles.copyBtn}
+      className="shrink-0 cursor-pointer rounded-sm border-none bg-transparent p-0 text-[length:var(--text-mono-sm)] text-foreground-faint transition-colors hover:text-foreground-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
       onClick={handleCopy}
       aria-label={label}
-      title={copied.value ? "Copied" : label}
+      title={copied ? "Copied" : label}
     >
-      {copied.value ? "✓" : "⧉"}
+      {copied ? "✓" : "⧉"}
     </button>
   );
 }
@@ -58,7 +64,7 @@ function CopyButton({ text, label }: { text: string; label: string }) {
 export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: Props) {
   const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
   const isTablet = useMediaQuery(BREAKPOINT_TABLET);
-  const drawerRef = useRef<HTMLElement>(null);
+  const drawerRef = useRef<HTMLDivElement>(null);
 
   const entry = selectedKey ? (entries.find((e) => rowKey(e) === selectedKey) ?? null) : null;
   const currentIndex = entry ? entries.findIndex((e) => rowKey(e) === selectedKey) : -1;
@@ -118,21 +124,40 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
   const useOverlay = isMobile || isTablet;
 
   return (
-    <>
-      {useOverlay && <div class={styles.backdrop} onClick={onClose} aria-hidden="true" />}
-      <aside
+    <Drawer
+      open={selectedKey !== null}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      direction={isMobile ? "bottom" : "right"}
+      modal={useOverlay}
+    >
+      {useOverlay && <DrawerOverlay className="bg-[var(--overlay-background)]" />}
+      <DrawerContentUnstyled
         ref={drawerRef}
-        class={clsx(styles.drawer, isMobile ? styles.bottomSheet : styles.sidePanel)}
+        className={cn(
+          "fixed z-[var(--z-drawer)] flex flex-col overflow-hidden bg-card",
+          isMobile
+            ? "bottom-0 left-0 max-h-[70vh] w-full rounded-t-lg border-t border-border shadow-lg"
+            : "right-0 top-0 h-screen w-[var(--size-drawer)] border-l border-border shadow-lg",
+        )}
         id={DETAIL_DRAWER_ID}
-        role="complementary"
         aria-label="Log entry detail"
         data-testid="log-detail-drawer"
+        // This component owns closing (Escape via the document-level handler
+        // above, outside-click via the tbody exclusion below) — the default
+        // Radix/vaul dismissal behavior would close on ANY outside click,
+        // including clicking a different log row, and would double-fire
+        // Escape handling alongside the arrow-key navigation above.
+        onEscapeKeyDown={(e) => e.preventDefault()}
+        onInteractOutside={(e) => e.preventDefault()}
       >
-        <div class={styles.headerBar}>
-          <div class={styles.navButtons}>
+        <DrawerTitle className="sr-only">Log entry detail</DrawerTitle>
+        <div className="flex shrink-0 items-center justify-between border-b border-[var(--border-subtle)] px-3 py-2">
+          <div className="flex gap-1">
             <button
               type="button"
-              class={styles.iconBtn}
+              className="inline-flex size-[var(--size-icon-btn)] items-center justify-center rounded-sm border-none bg-transparent p-0 text-body text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-default disabled:text-foreground-faint disabled:hover:bg-transparent focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
               onClick={navigatePrev}
               disabled={currentIndex <= 0}
               aria-label="Previous entry"
@@ -141,7 +166,7 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
             </button>
             <button
               type="button"
-              class={styles.iconBtn}
+              className="inline-flex size-[var(--size-icon-btn)] items-center justify-center rounded-sm border-none bg-transparent p-0 text-body text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-default disabled:text-foreground-faint disabled:hover:bg-transparent focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
               onClick={navigateNext}
               disabled={currentIndex >= entries.length - 1}
               aria-label="Next entry"
@@ -149,53 +174,81 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
               →
             </button>
           </div>
-          <button type="button" class={styles.iconBtn} onClick={onClose} aria-label="Close detail panel">
+          <button
+            type="button"
+            className="inline-flex size-[var(--size-icon-btn)] items-center justify-center rounded-sm border-none bg-transparent p-0 text-body text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+            onClick={onClose}
+            aria-label="Close detail panel"
+          >
             ✕
           </button>
         </div>
 
         {isFilteredOut ? (
-          <div class={styles.filteredOut}>
+          <div className="px-4 py-6 text-center font-sans text-sm text-muted-foreground">
             <p>This entry is no longer visible with the current filters.</p>
-            <button type="button" class={styles.clearFilterBtn} onClick={onClose}>
+            <button
+              type="button"
+              className="mt-3 cursor-pointer border-none bg-transparent text-sm text-foreground-secondary underline underline-offset-[var(--spacing-0-5)] hover:text-foreground"
+              onClick={onClose}
+            >
               Close
             </button>
           </div>
         ) : entry ? (
-          <div class={styles.content}>
-            <div class={clsx(styles.severityRow, levelClass(styles, "level", entry.level))}>
-              <span class={styles.levelLabel}>{entry.level}</span>
-              <span class={styles.timestamp}>{formatTimestamp(entry.timestamp)}</span>
+          <div className="flex-1 overflow-y-auto p-0">
+            <div className={cn("flex items-center justify-between p-3", levelSurfaceClass(entry.level))}>
+              <span
+                className={cn("font-mono text-[length:var(--text-mono-md)] font-semibold", levelTextClass(entry.level))}
+              >
+                {entry.level}
+              </span>
+              <span className="font-mono text-[length:var(--text-mono-sm)] text-foreground-secondary">
+                {formatTimestamp(entry.timestamp)}
+              </span>
             </div>
 
-            <div class={styles.section}>
-              <div class={styles.sectionHeader}>
-                <span class={styles.sectionLabel}>message</span>
+            <div className="px-3 pb-3">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="shrink-0 font-sans text-xs uppercase tracking-[var(--text-label-tracking-tight)] text-muted-foreground">
+                  message
+                </span>
                 <CopyButton text={entry.message} label="Copy message" />
               </div>
-              <pre class={styles.codeBlock} data-log-scrollable>
+              <pre
+                className="m-0 max-h-[40%] overflow-y-auto whitespace-pre-wrap rounded-md bg-muted p-3 font-mono text-[length:var(--text-mono-sm)] leading-[var(--text-small-leading)] break-all [overflow-wrap:anywhere] text-foreground"
+                data-log-scrollable
+              >
                 {entry.message}
               </pre>
             </div>
 
             {entry.exc_info && (
-              <div class={styles.section}>
-                <div class={styles.sectionHeader}>
-                  <span class={styles.sectionLabel}>exception</span>
+              <div className="px-3 pb-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="shrink-0 font-sans text-xs uppercase tracking-[var(--text-label-tracking-tight)] text-muted-foreground">
+                    exception
+                  </span>
                   <CopyButton text={entry.exc_info} label="Copy exception" />
                 </div>
-                <pre class={clsx(styles.codeBlock, styles.exceptionBlock)} data-log-scrollable>
+                <pre
+                  className="m-0 max-h-[40%] overflow-y-auto whitespace-pre-wrap rounded-md border-l-[length:var(--border-thick)] border-destructive bg-muted p-3 font-mono text-[length:var(--text-mono-sm)] leading-[var(--text-small-leading)] break-all [overflow-wrap:anywhere] text-foreground"
+                  data-log-scrollable
+                >
                   {entry.exc_info}
                 </pre>
               </div>
             )}
 
-            <dl class={styles.metaGrid}>
+            <dl className="m-0 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 px-3 py-4 [&_dd]:m-0 [&_dd]:flex [&_dd]:items-center [&_dd]:gap-1 [&_dd]:overflow-hidden [&_dd]:text-sm [&_dd]:text-foreground [&_dt]:pt-px [&_dt]:text-right [&_dt]:font-sans [&_dt]:text-xs [&_dt]:uppercase [&_dt]:tracking-[var(--text-label-tracking-tight)] [&_dt]:text-muted-foreground">
               {entry.app_key && (
                 <>
                   <dt>App</dt>
                   <dd>
-                    <Link href={appDetailPath(entry.app_key)} class={styles.appLink}>
+                    <Link
+                      href={appDetailPath(entry.app_key)}
+                      className="text-primary underline decoration-[color:color-mix(in_srgb,var(--primary)_40%,transparent)] underline-offset-[var(--spacing-0-5)] hover:text-[var(--primary-hover)] hover:decoration-[var(--primary-hover)]"
+                    >
                       {entry.app_key} ↗
                     </Link>
                   </dd>
@@ -204,14 +257,17 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
               {entry.instance_name && (
                 <>
                   <dt>Instance</dt>
-                  <dd class={styles.monoValue}>{entry.instance_name}</dd>
+                  <dd className="truncate font-mono text-[length:var(--text-mono-sm)]">{entry.instance_name}</dd>
                 </>
               )}
               {entry.execution_id && (
                 <>
                   <dt>Execution</dt>
-                  <dd class={styles.monoValue}>
-                    <ExecutionIdLink entry={entry} linkClassName={styles.execLink}>
+                  <dd className="truncate font-mono text-[length:var(--text-mono-sm)]">
+                    <ExecutionIdLink
+                      entry={entry}
+                      linkClassName="text-primary underline decoration-[color:color-mix(in_srgb,var(--primary)_40%,transparent)] underline-offset-[var(--spacing-0-5)] hover:text-[var(--primary-hover)] hover:decoration-[var(--primary-hover)]"
+                    >
                       {entry.execution_id}
                     </ExecutionIdLink>
                     <CopyButton text={entry.execution_id} label="Copy execution ID" />
@@ -219,17 +275,19 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
                 </>
               )}
               <dt>Function</dt>
-              <dd class={styles.monoValue}>{entry.func_name}()</dd>
+              <dd className="truncate font-mono text-[length:var(--text-mono-sm)]">{entry.func_name}()</dd>
               <dt>Module</dt>
-              <dd class={styles.monoValue}>{entry.logger_name.split(".").pop()}</dd>
+              <dd className="truncate font-mono text-[length:var(--text-mono-sm)]">
+                {entry.logger_name.split(".").pop()}
+              </dd>
               <dt>Line</dt>
-              <dd class={styles.monoValue}>{entry.lineno}</dd>
+              <dd className="truncate font-mono text-[length:var(--text-mono-sm)]">{entry.lineno}</dd>
               <dt>Logger</dt>
-              <dd class={styles.monoValue}>{entry.logger_name}</dd>
+              <dd className="truncate font-mono text-[length:var(--text-mono-sm)]">{entry.logger_name}</dd>
             </dl>
           </div>
         ) : null}
-      </aside>
-    </>
+      </DrawerContentUnstyled>
+    </Drawer>
   );
 }

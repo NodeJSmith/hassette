@@ -1,5 +1,10 @@
-import s from "./section.module.css";
-import styles from "./spacing-tokens.module.css";
+import {
+  designGroupClassName,
+  designGroupLabelClassName,
+  designHeadingClassName,
+  designSectionClassName,
+  designTokenCodeClassName,
+} from "./design-showcase";
 
 interface SpacingToken {
   name: string;
@@ -42,32 +47,38 @@ const SHADOWS = [
 
 export function SpacingTokens() {
   return (
-    <section class={s.section}>
-      <h2 class={s.heading}>Spacing, Radii & Shadows</h2>
+    <section className={designSectionClassName}>
+      <h2 className={designHeadingClassName}>Spacing, Radii & Shadows</h2>
 
-      <div class={s.group}>
-        <h3 class={s.groupLabel}>Spacing Scale</h3>
-        <div class={styles.spacingList}>
+      <div className={designGroupClassName}>
+        <h3 className={designGroupLabelClassName}>Spacing Scale</h3>
+        <div className="flex flex-col gap-2">
           {SPACING.map((token) => (
-            <div key={token.cssVar} class={styles.spacingRow}>
-              <code class={s.tokenCode}>{token.cssVar}</code>
-              <span class={styles.spacingValue}>{token.px}px</span>
-              <div class={styles.spacingBarTrack}>
-                <div class={styles.spacingBar} style={{ width: `${(token.px / MAX_SPACING_PX) * 100}%` }} />
+            <div key={token.cssVar} className="grid grid-cols-[100px_40px_minmax(0,1fr)] items-center gap-3">
+              <code className={designTokenCodeClassName}>{token.cssVar}</code>
+              <span className="text-right font-mono text-xs text-foreground-secondary">{token.px}px</span>
+              <div className="h-2 overflow-hidden rounded-sm bg-muted">
+                <div
+                  className="h-full min-w-px rounded-sm bg-primary"
+                  style={{ width: `${(token.px / MAX_SPACING_PX) * 100}%` }}
+                />
               </div>
             </div>
           ))}
         </div>
       </div>
 
-      <div class={s.group}>
-        <h3 class={s.groupLabel}>Border Radius</h3>
-        <div class={styles.radiiGrid}>
+      <div className={designGroupClassName}>
+        <h3 className={designGroupLabelClassName}>Border Radius</h3>
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(100px,1fr))] gap-4">
           {RADII.map((r) => (
-            <div key={r.cssVar} class={styles.radiusItem}>
-              <div class={styles.radiusBox} style={{ borderRadius: `var(${r.cssVar})` }} />
-              <span class={styles.radiusLabel}>{r.name}</span>
-              <code class={s.tokenCode}>
+            <div key={r.cssVar} className="flex flex-col items-center gap-1">
+              <div
+                className="size-14 border border-[var(--primary-border)] bg-[var(--primary-soft)]"
+                style={{ borderRadius: `var(${r.cssVar})` }}
+              />
+              <span className="font-sans text-sm font-medium text-foreground">{r.name}</span>
+              <code className={designTokenCodeClassName}>
                 {r.cssVar} ({r.px}px)
               </code>
             </div>
@@ -75,14 +86,14 @@ export function SpacingTokens() {
         </div>
       </div>
 
-      <div class={s.group}>
-        <h3 class={s.groupLabel}>Elevation</h3>
-        <div class={styles.shadowGrid}>
+      <div className={designGroupClassName}>
+        <h3 className={designGroupLabelClassName}>Elevation</h3>
+        <div className="grid grid-cols-3 gap-7 rounded-lg bg-muted px-4 py-6">
           {SHADOWS.map((shadow) => (
-            <div key={shadow.cssVar} class={styles.shadowItem}>
-              <div class={styles.shadowBox} style={{ boxShadow: `var(${shadow.cssVar})` }} />
-              <span class={styles.shadowLabel}>{shadow.label}</span>
-              <code class={s.tokenCode}>{shadow.cssVar}</code>
+            <div key={shadow.cssVar} className="flex flex-col items-center gap-3">
+              <div className="aspect-[3/2] w-full rounded-md bg-card" style={{ boxShadow: `var(${shadow.cssVar})` }} />
+              <span className="font-sans text-sm font-medium text-foreground">{shadow.label}</span>
+              <code className={designTokenCodeClassName}>{shadow.cssVar}</code>
             </div>
           ))}
         </div>

@@ -1,10 +1,9 @@
-import clsx from "clsx";
-import { useMemo } from "preact/hooks";
+import { useMemo, useState } from "react";
+
+import { cn } from "@/lib/utils";
 
 import type { JobData, ListenerData } from "../../api/endpoints";
-import { useSignal } from "../../hooks/use-signal";
-import { useSubscribe } from "../../hooks/use-subscribe";
-import { useAppState } from "../../state/context";
+import { useAppStore } from "../../state/store";
 import { INACTIVE_STATUSES } from "../../utils/status";
 import { EmptyState } from "../shared/empty-state";
 import { LogTableView, LogTableWithDrawer, useLogTable } from "../shared/log-table";
@@ -14,7 +13,7 @@ import { ErrorSpotlight } from "./error-spotlight";
 import { HandlerHealthGrid } from "./handler-health-grid";
 import { buildItems } from "./handler-list";
 import { OverviewHealthStrip } from "./health-strip";
-import styles from "./overview-tab.module.css";
+import { OVERVIEW_SECTION_CLASS } from "./overview-section";
 import { isFailing } from "./overview-tab-helpers";
 import { RecentActivitySection } from "./recent-activity-section";
 
@@ -27,11 +26,14 @@ interface Props {
   appStatus?: string;
 }
 
+const SEARCH_INPUT_CLASS =
+  "min-w-[var(--size-search-min)] rounded-md border border-[var(--border-strong)] bg-input px-2 py-1.5 font-sans text-[length:var(--text-mono-sm)] text-foreground outline-none placeholder:text-foreground-faint focus-visible:border-primary focus-visible:shadow-[0_0_0_2px_var(--primary-soft)] max-mobile:w-full max-mobile:min-w-0";
+const SECTION_LABEL_CLASS = "mb-2 font-sans text-[length:var(--text-h3)] font-semibold text-foreground";
+
 function RecentLogsSection({ appKey, appStatus }: { appKey: string; appStatus?: string }) {
   const isInactive = appStatus !== undefined && INACTIVE_STATUSES.has(appStatus);
-  const search = useSignal("");
-  useSubscribe(search);
-  const log = useLogTable({ context: "app", appKey, useLocalState: true, search: search.value });
+  const [search, setSearch] = useState("");
+  const log = useLogTable({ context: "app", appKey, useLocalState: true, search });
 
   const emptyTitle = isInactive ? `this app is ${appStatus}` : "no log lines in window";
   const emptyBody = isInactive
@@ -41,12 +43,12 @@ function RecentLogsSection({ appKey, appStatus }: { appKey: string; appStatus?: 
   const searchInput = (
     <input
       type="text"
-      class="ht-search"
+      className={SEARCH_INPUT_CLASS}
       placeholder="Search logs…"
       aria-label="Search app logs"
-      value={search.value}
+      value={search}
       onInput={(e) => {
-        search.value = (e.target as HTMLInputElement).value;
+        setSearch((e.target as HTMLInputElement).value);
       }}
       data-testid="overview-logs-search"
     />
@@ -61,9 +63,9 @@ function RecentLogsSection({ appKey, appStatus }: { appKey: string; appStatus?: 
   );
 
   return (
-    <section class={styles.section} data-testid="overview-logs-section">
-      <div class={styles.sectionHeader}>
-        <h3 class="ht-section-label">logs</h3>
+    <section className={OVERVIEW_SECTION_CLASS} data-testid="overview-logs-section">
+      <div className="flex items-baseline justify-between gap-4">
+        <h3 className={SECTION_LABEL_CLASS}>logs</h3>
         {searchInput}
       </div>
       <TableCard footer={footer} scrollHeight="400px">
@@ -76,13 +78,13 @@ function RecentLogsSection({ appKey, appStatus }: { appKey: string; appStatus?: 
 }
 
 export function OverviewTab({ listeners, jobs, appKey, instanceQs, resolvedInstanceIndex, appStatus }: Props) {
-  const { connection } = useAppState();
-  const wsConnected = connection.value === "connected";
+  const connection = useAppStore((s) => s.connection);
+  const wsConnected = connection === "connected";
   const allItems = useMemo(() => buildItems(listeners, jobs), [listeners, jobs]);
   const failingItems = useMemo(() => allItems.filter(isFailing), [allItems]);
 
   return (
-    <div class={clsx(styles.overviewTab, !wsConnected && styles.overviewTabStale)} data-testid="overview-tab">
+    <div className={cn("flex flex-col gap-7", !wsConnected && "opacity-[var(--op-muted)]")} data-testid="overview-tab">
       <OverviewHealthStrip listeners={listeners} jobs={jobs} />
 
       {failingItems.length > 0 && (

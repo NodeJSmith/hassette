@@ -1,10 +1,11 @@
-import { fireEvent, render } from "@testing-library/preact";
+import { render } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { ErrorBoundary } from "./error-boundary";
 
 // A component that throws unconditionally — used to trigger error boundary.
-// The return type annotation satisfies Preact's JSX type checking even though
+// The return type annotation satisfies React's JSX type checking even though
 // the function always throws (never actually returns).
 function Bomb({ message }: { message: string }): null {
   throw new Error(message);
@@ -15,8 +16,8 @@ function SafeChild() {
   return <div data-testid="safe-child">Content OK</div>;
 }
 
-// Render a Bomb inside ErrorBoundary, silencing the Preact console.error noise.
-// Preact emits console.error for every caught render error — this is expected.
+// Render a Bomb inside ErrorBoundary, silencing the React console.error noise.
+// React emits console.error for every caught render error — this is expected.
 function renderWithError(message: string) {
   const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
   const result = render(
@@ -77,14 +78,18 @@ describe("ErrorBoundary — error fallback", () => {
 });
 
 describe("ErrorBoundary — Retry button", () => {
-  it("clicking Retry resets the boundary to the non-error state", () => {
-    // Use a module-level counter so that after Retry the child renders normally.
-    // (useRef resets on component unmount/remount, so we need external state.)
-    let renderCount = 0;
+  it("clicking Retry resets the boundary to the non-error state", async () => {
+    const user = userEvent.setup();
+    // Use a module-level flag (not a render counter) so the throw decision is stable across
+    // React 19's internal synchronous-recovery retry — React re-invokes a component that threw
+    // during a concurrent render pass a second time, in the same initial `render()` call, to
+    // distinguish real errors from transient concurrent-mode inconsistencies. A counter-based
+    // condition would flip to "recovered" during that internal retry, before the fallback UI
+    // (and its Retry button) ever becomes visible to the test.
+    let shouldThrow = true;
 
     function MaybeThrow() {
-      renderCount += 1;
-      if (renderCount === 1) {
+      if (shouldThrow) {
         throw new Error("first render");
       }
       return <div data-testid="recovered">recovered</div>;
@@ -101,9 +106,11 @@ describe("ErrorBoundary — Retry button", () => {
     // Error state is showing
     const retryBtn = getByRole("button", { name: /retry/i });
 
-    // Click Retry — boundary resets, child re-renders (renderCount now 2, no throw)
+    // Simulate the underlying condition being fixed, then click Retry — boundary resets,
+    // child re-renders without throwing.
+    shouldThrow = false;
     const errorSpy2 = vi.spyOn(console, "error").mockImplementation(() => {});
-    fireEvent.click(retryBtn);
+    await user.click(retryBtn);
     errorSpy2.mockRestore();
 
     expect(getByTestId("recovered")).toBeDefined();

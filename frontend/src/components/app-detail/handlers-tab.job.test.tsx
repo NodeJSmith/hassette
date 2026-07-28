@@ -1,4 +1,5 @@
-import { fireEvent, waitFor } from "@testing-library/preact";
+import { waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -86,6 +87,7 @@ describe("HandlersTab job detail", () => {
   });
 
   it("job detail: shows error banner when job has errors", async () => {
+    const user = userEvent.setup();
     const job = createJob({
       job_id: 30,
       failed: 1,
@@ -101,7 +103,7 @@ describe("HandlersTab job detail", () => {
     // Toggle and check traceback
     const toggle = banner.querySelector("[data-testid='traceback-toggle']");
     expect(toggle).not.toBeNull();
-    fireEvent.click(toggle!);
+    await user.click(toggle!);
     expect(banner.textContent).toContain("Traceback (most recent call last)");
   });
 
@@ -292,6 +294,7 @@ describe("HandlersTab job detail", () => {
     });
 
     it("enters loading state and disables on click", async () => {
+      const user = userEvent.setup();
       const job = createJob({ job_id: 61 });
       server.use(
         http.post(
@@ -302,13 +305,14 @@ describe("HandlersTab job detail", () => {
       const { getByTestId } = renderHandlersTab([], [job], "job/61");
       await waitFor(() => getByTestId("job-detail-61"));
       const button = getByTestId("run-now-btn") as HTMLButtonElement;
-      fireEvent.click(button);
+      await user.click(button);
       await waitFor(() => {
         expect(button.disabled).toBe(true);
       });
     });
 
     it("shows inline error on 409 response", async () => {
+      const user = userEvent.setup();
       const job = createJob({ job_id: 62 });
       server.use(
         http.post("/api/scheduler/jobs/:id/trigger", () => {
@@ -317,18 +321,19 @@ describe("HandlersTab job detail", () => {
       );
       const { getByTestId } = renderHandlersTab([], [job], "job/62");
       await waitFor(() => getByTestId("job-detail-62"));
-      fireEvent.click(getByTestId("run-now-btn"));
+      await user.click(getByTestId("run-now-btn"));
       await waitFor(() => {
         expect(getByTestId("run-now-error").textContent).toContain("job is currently executing");
       });
     });
 
     it("re-enables after the request completes", async () => {
+      const user = userEvent.setup();
       const job = createJob({ job_id: 63 });
       const { getByTestId } = renderHandlersTab([], [job], "job/63");
       await waitFor(() => getByTestId("job-detail-63"));
       const button = getByTestId("run-now-btn") as HTMLButtonElement;
-      fireEvent.click(button);
+      await user.click(button);
       await waitFor(() => {
         expect(button.disabled).toBe(false);
       });

@@ -1,21 +1,22 @@
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+
 import { getAllJobs, getAllListeners } from "../api/endpoints";
-import { Button } from "../components/shared/button";
 import { EmptyState } from "../components/shared/empty-state";
-import { SortHeader, type SortState } from "../components/shared/sort-header";
+import { ARIA_SORT_FOR_DIRECTION, SortHeader, type SortState } from "../components/shared/sort-header";
 import { Spinner } from "../components/shared/spinner";
 import { TableCard } from "../components/shared/table-card";
 import { TableFooter } from "../components/shared/table-footer";
 import { type ColumnFilters } from "../components/shared/table-types";
 import { useDocumentTitle } from "../hooks/use-document-title";
-import { BREAKPOINT_MOBILE, useMediaQuery } from "../hooks/use-media-query";
+import { BREAKPOINT_SIDEBAR, useMediaQuery } from "../hooks/use-media-query";
 import { useQueryInvalidator } from "../hooks/use-query-invalidator";
 import { useQueryParams } from "../hooks/use-query-params";
 import { useScopedQuery } from "../hooks/use-scoped-query";
 import { queryKeys } from "../lib/query-keys";
-import { useAppState } from "../state/context";
+import { useAppStore } from "../state/store";
 import { pluralize } from "../utils/format";
 import { compareHandlerRows, type HandlerSortKey, jobToRow, listenerToRow } from "../utils/handler-rows";
-import styles from "./handlers.module.css";
 import { HandlerMobileRow, HandlerTableRow } from "./handlers-rows";
 
 const VALID_SORT_KEYS: ReadonlySet<string> = new Set<HandlerSortKey>([
@@ -31,6 +32,17 @@ const VALID_SORT_KEYS: ReadonlySet<string> = new Set<HandlerSortKey>([
   "avg_duration",
   "next_run",
 ]);
+const PAGE_CLASS = "flex flex-1 flex-col gap-8 p-8 max-mobile:p-3 max-small-mobile:p-2";
+const PAGE_HEADER_CLASS = "flex items-baseline gap-4 border-b border-border pb-3";
+const PAGE_TITLE_CLASS =
+  "m-0 font-heading text-[length:var(--text-display)] font-normal tracking-[var(--text-display-tracking)] text-foreground";
+const TABLE_SECTION_CLASS = "flex flex-col gap-3";
+const SEARCH_INPUT_CLASS =
+  "min-w-[var(--size-search-min)] self-end rounded-md border border-[var(--border-strong)] bg-input px-2 py-1.5 font-sans text-[length:var(--text-mono-sm)] text-foreground outline-none placeholder:text-foreground-faint focus-visible:border-primary focus-visible:shadow-[0_0_0_2px_var(--primary-soft)] max-mobile:w-full max-mobile:min-w-0 max-mobile:self-stretch";
+const ALERT_CLASS =
+  "flex items-start gap-3 rounded-md border border-destructive bg-[var(--destructive-bg)] px-4 py-3 text-sm text-foreground";
+const DATA_TABLE_CLASS =
+  "w-full table-fixed border-collapse bg-card [&_thead_tr]:bg-muted [&_th]:border-b [&_th]:border-border [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-mono [&_th]:text-xs [&_th]:font-medium [&_th]:uppercase [&_th]:tracking-[var(--text-label-tracking)] [&_th]:text-muted-foreground [&_th]:whitespace-nowrap [&_td]:border-b [&_td]:border-border [&_td]:px-3 [&_td]:py-2 [&_td]:align-top [&_td]:text-[length:var(--text-small)] [&_td]:overflow-hidden [&_td]:text-ellipsis [&_tbody_tr:last-child_td]:border-b-0 [&_tbody_tr:hover]:bg-muted";
 
 export function HandlersPage() {
   useDocumentTitle("Handlers");
@@ -44,8 +56,11 @@ export function HandlersPage() {
     key: (rawSort !== null && VALID_SORT_KEYS.has(rawSort) ? rawSort : "app") as HandlerSortKey,
     dir: qp.get("dir") === "desc" ? "desc" : "asc",
   };
+  // SortHeader no longer renders the <th> itself (see sort-header.tsx) -- this hand-rolled
+  // table owns the <th> element and computes aria-sort the same way log-table-view.tsx does.
+  const ariaSortFor = (key: HandlerSortKey) => (sort.key === key ? ARIA_SORT_FOR_DIRECTION[sort.dir] : undefined);
 
-  const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
+  const isCompact = useMediaQuery(BREAKPOINT_SIDEBAR);
 
   const {
     data: listeners,
@@ -58,7 +73,7 @@ export function HandlersPage() {
     error: jobsError,
   } = useScopedQuery(queryKeys.allJobs(), (since, signal) => getAllJobs(since, signal));
 
-  const { executionCompleted } = useAppState();
+  const executionCompleted = useAppStore((s) => s.executionCompleted);
 
   useQueryInvalidator(
     executionCompleted,
@@ -80,7 +95,7 @@ export function HandlersPage() {
 
   if (listenersError || jobsError) {
     return (
-      <div class="ht-alert ht-alert--danger" role="alert">
+      <div className={ALERT_CLASS} role="alert">
         {(listenersError ?? jobsError)!.message}
       </div>
     );
@@ -145,7 +160,7 @@ export function HandlersPage() {
 
   const searchInput = (
     <input
-      class="ht-search"
+      className={SEARCH_INPUT_CLASS}
       type="text"
       aria-label="Search handlers"
       placeholder="search handlers…"
@@ -179,86 +194,108 @@ export function HandlersPage() {
   const emptyStateTitle = buildEmptyTitle();
 
   return (
-    <div class="ht-page" data-testid="handlers-page">
-      <div class="ht-page-header">
-        <h1 class="ht-display">handlers</h1>
+    <div className={PAGE_CLASS} data-testid="handlers-page">
+      <div className={PAGE_HEADER_CLASS}>
+        <h1 className={PAGE_TITLE_CLASS}>handlers</h1>
       </div>
 
-      <div class="ht-table-section">
+      <div className={TABLE_SECTION_CLASS}>
         {searchInput}
         <TableCard footer={footer}>
           {sorted.length === 0 ? (
             <EmptyState title={emptyStateTitle} data-testid="handlers-empty">
               {(selectedApp || search) && (
-                <Button ghost size="sm" onClick={clearFilters}>
+                <Button variant="ghost" size="sm" onClick={clearFilters}>
                   clear filters
                 </Button>
               )}
             </EmptyState>
-          ) : isMobile ? (
-            <div class={styles.mobileCards} data-testid="handlers-table-container">
+          ) : isCompact ? (
+            <div className="flex flex-col" data-testid="handlers-table-container">
               {sorted.map((row) => (
                 <HandlerMobileRow key={row.id} row={row} />
               ))}
             </div>
           ) : (
             <div data-testid="handlers-table-container">
-              <table class={`ht-table ht-table--fixed ${styles.handlersTable}`}>
+              <table className={cn(DATA_TABLE_CLASS, "[&_td]:whitespace-nowrap")}>
                 <colgroup>
-                  <col style="width: 7%" />
-                  <col style="width: 12%" />
-                  <col style="width: 18%" />
-                  <col style="width: 12%" />
-                  <col style="width: 7%" />
-                  <col style="width: 7%" />
-                  <col style="width: 7%" />
-                  <col style="width: 7%" />
-                  <col style="width: 8%" />
-                  <col style="width: 8%" />
-                  <col style="width: 7%" />
+                  <col style={{ width: "7%" }} />
+                  <col style={{ width: "12%" }} />
+                  <col style={{ width: "18%" }} />
+                  <col style={{ width: "12%" }} />
+                  <col style={{ width: "7%" }} />
+                  <col style={{ width: "7%" }} />
+                  <col style={{ width: "7%" }} />
+                  <col style={{ width: "7%" }} />
+                  <col style={{ width: "8%" }} />
+                  <col style={{ width: "8%" }} />
+                  <col style={{ width: "7%" }} />
                 </colgroup>
                 <thead>
                   <tr>
-                    <SortHeader sort={sort} onSort={handleSort} sortKey="kind" ariaLabel="type">
-                      type
-                    </SortHeader>
-                    <SortHeader
-                      sort={sort}
-                      onSort={handleSort}
-                      sortKey="app"
-                      ariaLabel="app"
-                      filterContent={columnFilters.app.content}
-                      hasActiveFilter={columnFilters.app.active}
-                    >
-                      app
-                    </SortHeader>
-                    <SortHeader sort={sort} onSort={handleSort} sortKey="name">
-                      name
-                    </SortHeader>
-                    <SortHeader sort={sort} onSort={handleSort} sortKey="trigger">
-                      trigger
-                    </SortHeader>
-                    <SortHeader sort={sort} onSort={handleSort} sortKey="runs">
-                      runs
-                    </SortHeader>
-                    <SortHeader sort={sort} onSort={handleSort} sortKey="failed">
-                      failed
-                    </SortHeader>
-                    <SortHeader sort={sort} onSort={handleSort} sortKey="timed_out">
-                      timed out
-                    </SortHeader>
-                    <SortHeader sort={sort} onSort={handleSort} sortKey="cancelled">
-                      cancelled
-                    </SortHeader>
-                    <SortHeader sort={sort} onSort={handleSort} sortKey="error_rate">
-                      error rate
-                    </SortHeader>
-                    <SortHeader sort={sort} onSort={handleSort} sortKey="avg_duration">
-                      avg
-                    </SortHeader>
-                    <SortHeader sort={sort} onSort={handleSort} sortKey="next_run">
-                      next run
-                    </SortHeader>
+                    <th scope="col" aria-sort={ariaSortFor("kind")}>
+                      <SortHeader sort={sort} onSort={handleSort} sortKey="kind" ariaLabel="type">
+                        type
+                      </SortHeader>
+                    </th>
+                    <th scope="col" aria-sort={ariaSortFor("app")}>
+                      <SortHeader
+                        sort={sort}
+                        onSort={handleSort}
+                        sortKey="app"
+                        ariaLabel="app"
+                        filterContent={columnFilters.app.content}
+                        hasActiveFilter={columnFilters.app.active}
+                      >
+                        app
+                      </SortHeader>
+                    </th>
+                    <th scope="col" aria-sort={ariaSortFor("name")}>
+                      <SortHeader sort={sort} onSort={handleSort} sortKey="name">
+                        name
+                      </SortHeader>
+                    </th>
+                    <th scope="col" aria-sort={ariaSortFor("trigger")}>
+                      <SortHeader sort={sort} onSort={handleSort} sortKey="trigger">
+                        trigger
+                      </SortHeader>
+                    </th>
+                    <th scope="col" aria-sort={ariaSortFor("runs")}>
+                      <SortHeader sort={sort} onSort={handleSort} sortKey="runs">
+                        runs
+                      </SortHeader>
+                    </th>
+                    <th scope="col" aria-sort={ariaSortFor("failed")}>
+                      <SortHeader sort={sort} onSort={handleSort} sortKey="failed">
+                        failed
+                      </SortHeader>
+                    </th>
+                    <th scope="col" aria-sort={ariaSortFor("timed_out")}>
+                      <SortHeader sort={sort} onSort={handleSort} sortKey="timed_out">
+                        timeout
+                      </SortHeader>
+                    </th>
+                    <th scope="col" aria-sort={ariaSortFor("cancelled")}>
+                      <SortHeader sort={sort} onSort={handleSort} sortKey="cancelled">
+                        cancel
+                      </SortHeader>
+                    </th>
+                    <th scope="col" aria-sort={ariaSortFor("error_rate")}>
+                      <SortHeader sort={sort} onSort={handleSort} sortKey="error_rate">
+                        err %
+                      </SortHeader>
+                    </th>
+                    <th scope="col" aria-sort={ariaSortFor("avg_duration")}>
+                      <SortHeader sort={sort} onSort={handleSort} sortKey="avg_duration">
+                        avg
+                      </SortHeader>
+                    </th>
+                    <th scope="col" aria-sort={ariaSortFor("next_run")}>
+                      <SortHeader sort={sort} onSort={handleSort} sortKey="next_run">
+                        next run
+                      </SortHeader>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>

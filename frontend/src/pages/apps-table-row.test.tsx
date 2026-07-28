@@ -1,7 +1,7 @@
-import { fireEvent } from "@testing-library/preact";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { type AppStatusEntry, appStatusKey } from "../state/create-app-state";
+import { type AppStatusEntry, appStatusKey } from "../state/store";
 import { createWouterMock } from "../test/mock-wouter";
 import { renderWithAppState } from "../test/render-helpers";
 import type { AppRow } from "../utils/app-data";
@@ -131,7 +131,8 @@ describe("AppTableRow", () => {
     expect(errorBtn).toBeNull();
   });
 
-  it("clicking error cell toggles aria-label to Collapse", () => {
+  it("clicking error cell toggles aria-label to Collapse", async () => {
+    const user = userEvent.setup();
     const { getAllByRole } = renderRow({
       app: createAppRow({ error_message: "Boom" }),
     });
@@ -141,7 +142,7 @@ describe("AppTableRow", () => {
     ) as HTMLElement;
 
     expect(errorCell.getAttribute("aria-label")).toMatch(/^expand error/i);
-    fireEvent.click(errorCell);
+    await user.click(errorCell);
     expect(errorCell.getAttribute("aria-label")).toMatch(/^collapse error/i);
   });
 
@@ -168,13 +169,14 @@ describe("AppTableRow", () => {
     expect(queryByTestId("app-row-expand")).toBeNull();
   });
 
-  it("calls onToggle when expand button is clicked", () => {
+  it("calls onToggle when expand button is clicked", async () => {
+    const user = userEvent.setup();
     const onToggle = vi.fn();
     const { getByTestId } = renderRow({
       app: createAppRow({ instance_count: 2 }),
       onToggle,
     });
-    fireEvent.click(getByTestId("app-row-expand"));
+    await user.click(getByTestId("app-row-expand"));
     expect(onToggle).toHaveBeenCalledOnce();
   });
 
@@ -288,23 +290,17 @@ describe("AppTableRow", () => {
 
   describe("dimmed styling for inactive statuses", () => {
     for (const status of INACTIVE_STATUSES) {
-      it(`applies dimmed class for status "${status}"`, () => {
+      it(`marks status "${status}" as inactive`, () => {
         const { getByTestId } = renderRow({ app: createAppRow({ status }) });
         const row = getByTestId(`app-row-my_app`);
-        // The row element receives the rowDimmed CSS module class when inactive.
-        // In jsdom with CSS Modules, module class names are hashed; we verify
-        // the element has more than one class (base + dimmed), not the literal name.
-        const classes = row.className.split(/\s+/).filter(Boolean);
-        expect(classes.length).toBeGreaterThan(1);
+        expect(row.getAttribute("data-state")).toBe("inactive");
       });
     }
 
-    it("does not apply extra dimmed class for active status 'running'", () => {
+    it("marks active status 'running' as active", () => {
       const { getByTestId } = renderRow({ app: createAppRow({ status: "running" }) });
       const row = getByTestId("app-row-my_app");
-      const classes = row.className.split(/\s+/).filter(Boolean);
-      // Only the base row class — no dimmed class
-      expect(classes.length).toBe(1);
+      expect(row.getAttribute("data-state")).toBe("active");
     });
   });
 });

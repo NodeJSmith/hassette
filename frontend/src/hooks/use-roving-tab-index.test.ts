@@ -1,10 +1,13 @@
-import { act, renderHook } from "@testing-library/preact";
+import { act, renderHook } from "@testing-library/react";
+import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { describe, expect, it } from "vitest";
 
 import { useRovingTabIndex } from "./use-roving-tab-index";
 
-function keyEvent(key: string): KeyboardEvent {
-  return new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
+// The hook's onContainerKeyDown only reads `.key` and calls `.preventDefault()`, both of
+// which exist on a native KeyboardEvent — cast to the React synthetic event type it expects.
+function keyEvent(key: string): ReactKeyboardEvent {
+  return new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }) as unknown as ReactKeyboardEvent;
 }
 
 describe("useRovingTabIndex", () => {

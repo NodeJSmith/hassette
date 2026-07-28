@@ -1,3 +1,6 @@
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+
 import type { JobData } from "../../api/endpoints";
 import { getJobExecutions, triggerJob } from "../../api/endpoints";
 import { useAsyncAction } from "../../hooks/use-async-action";
@@ -5,12 +8,10 @@ import { useQueryInvalidator } from "../../hooks/use-query-invalidator";
 import { useRelativeTime } from "../../hooks/use-relative-time";
 import { useScopedQuery } from "../../hooks/use-scoped-query";
 import { queryKeys } from "../../lib/query-keys";
-import { useAppState } from "../../state/context";
+import { useAppStore } from "../../state/store";
 import { DETAIL_FETCH_LIMIT } from "../../utils/constants";
 import { formatTriggerDetail } from "../../utils/format";
 import { handlerKindLabel } from "../../utils/status";
-import { Button } from "../shared/button";
-import { Chip } from "../shared/chip";
 import type { DetailStatsCell } from "../shared/detail-stats";
 import { DetailStats } from "../shared/detail-stats";
 import { ErrorBanner } from "../shared/error-banner";
@@ -18,12 +19,9 @@ import { IconPlay } from "../shared/icons";
 import { Spinner } from "../shared/spinner";
 import { DetailHeader } from "./detail-header";
 import { ExecutionSection } from "./execution-section";
-import chipStyles from "./handler-chips.module.css";
 import { HandlerDetailLayout } from "./handler-detail-layout";
-import layoutStyles from "./handler-detail-layout.module.css";
 import { jobHealthKind } from "./handler-list";
 import { HandlerModeChip } from "./handler-mode-chip";
-import styles from "./job-detail.module.css";
 import { RegistrationFooter } from "./registration-footer";
 import { buildCommonStatCells, type CommonStatInput } from "./stat-cell-builders";
 
@@ -33,12 +31,12 @@ function ScheduleChips({ job }: { job: JobData }) {
   if (job.group) chips.push({ label: `group: ${job.group}` });
 
   return (
-    <div class={chipStyles.chipRow} data-testid="schedule-chips">
+    <div className="mb-3 flex flex-wrap gap-2" data-testid="schedule-chips">
       <HandlerModeChip mode={job.mode} />
       {chips.map((chip) => (
-        <Chip key={chip.label} variant="job">
+        <Badge key={chip.label} variant="job">
           {chip.label}
-        </Chip>
+        </Badge>
       ))}
     </div>
   );
@@ -48,15 +46,15 @@ function RunNowButton({ jobId }: { jobId: number }) {
   const { loading, error, run } = useAsyncAction();
 
   return (
-    <div class={layoutStyles.runNow}>
+    <div className="flex flex-col items-start gap-1">
       <Button
-        variant="primary"
+        variant="default"
         size="sm"
         data-testid="run-now-btn"
-        disabled={loading.value}
+        disabled={loading}
         onClick={() => void run(() => triggerJob(jobId))}
       >
-        {loading.value ? (
+        {loading ? (
           <>
             <Spinner /> Running…
           </>
@@ -66,9 +64,9 @@ function RunNowButton({ jobId }: { jobId: number }) {
           </>
         )}
       </Button>
-      {error.value && (
-        <p class="ht-text-danger ht-text-sm" role="alert" data-testid="run-now-error">
-          {error.value}
+      {error && (
+        <p className="text-sm text-destructive" role="alert" data-testid="run-now-error">
+          {error}
         </p>
       )}
     </div>
@@ -106,7 +104,7 @@ export function JobDetail({ job, appKey, instanceQs, onSwitchToCode }: Props) {
     (since, signal) => getJobExecutions(job.job_id, DETAIL_FETCH_LIMIT, since, signal),
   );
 
-  const { executionCompleted } = useAppState();
+  const executionCompleted = useAppStore((s) => s.executionCompleted);
   const lastExecutedLabel = useRelativeTime(job.last_executed_at);
   const nextRunLabel = useRelativeTime(job.next_run ?? null);
   const fireAtLabel = useRelativeTime(job.fire_at ?? null);
@@ -141,7 +139,10 @@ export function JobDetail({ job, appKey, instanceQs, onSwitchToCode }: Props) {
       />
 
       {predicateDescription && (
-        <p class={styles.predicateDescription} data-testid="job-predicate-description">
+        <p
+          className="mb-3 flex flex-wrap items-center gap-2 text-sm text-muted-foreground"
+          data-testid="job-predicate-description"
+        >
           {predicateDescription}
         </p>
       )}

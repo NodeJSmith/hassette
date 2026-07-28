@@ -1,11 +1,10 @@
-import { batch } from "@preact/signals";
-import { useQueryClient } from "@tanstack/preact-query";
-import { useEffect, useRef } from "preact/hooks";
+import { useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
 
 import { WS_PATH } from "../api/endpoints";
 import type { WsServerMessage } from "../api/ws-types";
 import { validateWsMessage, WsValidationError } from "../api/ws-validator";
-import { type AppState, appStatusKey } from "../state/create-app-state";
+import { appStatusKey, useAppStore } from "../state/store";
 
 const MAX_BACKOFF_MS = 30_000;
 const INITIAL_BACKOFF_MS = 1_000;
@@ -20,7 +19,7 @@ function buildSubscribePayload(level: string): string {
   });
 }
 
-export function useWebSocket(state: AppState): void {
+export function useWebSocket(): void {
   const queryClient = useQueryClient();
   const wsRef = useRef<WebSocket | null>(null);
   const backoffRef = useRef(INITIAL_BACKOFF_MS);
@@ -35,8 +34,8 @@ export function useWebSocket(state: AppState): void {
       if (unmounted) return;
 
       // When retrying after a first-connection failure, show "Connecting..." instead of "Disconnected"
-      if (!hasConnectedRef.current && state.connection.value === "disconnected") {
-        state.connection.value = "connecting";
+      if (!hasConnectedRef.current && useAppStore.getState().connection === "disconnected") {
+        useAppStore.getState().setConnection("connecting");
       }
 
       const proto = location.protocol === "https:" ? "wss:" : "ws:";
@@ -47,7 +46,7 @@ export function useWebSocket(state: AppState): void {
 
       socket.onopen = () => {
         handshakeTimer = setTimeout(() => {
-          if (!hasConnectedRef.current || state.connection.value !== "connected") {
+          if (!hasConnectedRef.current || useAppStore.getState().connection !== "connected") {
             socket.close();
           }
         }, HANDSHAKE_TIMEOUT_MS);
@@ -69,94 +68,81 @@ export function useWebSocket(state: AppState): void {
           throw err;
         }
 
-        batch(() => {
-          switch (msg.type) {
-            case "connected":
-              if (handshakeTimer) {
-                clearTimeout(handshakeTimer);
-                handshakeTimer = null;
-              }
-              // Reset backoff here (not in onopen) — only a fully completed handshake should reset retry delay
-              backoffRef.current = INITIAL_BACKOFF_MS;
-              state.connection.value = "connected";
-              // uptime_seconds is the loading gate for scoped query hooks
-              state.uptimeSeconds.value = msg.data.uptime_seconds;
-              if (msg.data.version !== undefined) {
-                state.systemVersion.value = msg.data.version;
-              }
-
-              if (hasConnectedRef.current) {
-                // Reconnection — clear stale log buffer and service status before re-subscribing
-                state.logs.clear();
-                state.serviceStatus.value = {};
-                // Invalidate all TanStack Query caches so data is re-fetched after reconnect
-                void queryClient.invalidateQueries();
-              } else {
-                hasConnectedRef.current = true;
-              }
-
-              // Subscribe to log streaming on every connect/reconnect
-              socket.send(buildSubscribePayload(currentLogLevel));
-
-              // Wire the targeted callback so LogTable can update the level
-              state.setUpdateLogSubscription((level: string) => {
-                currentLogLevel = level;
-                if (socket.readyState === WebSocket.OPEN) {
-                  socket.send(buildSubscribePayload(level));
-                }
-              });
-              break;
-
-            case "app_status_changed":
-              state.appStatus.value = {
-                ...state.appStatus.value,
-                [appStatusKey(msg.data.app_key, msg.data.index)]: {
-                  status: msg.data.status,
-                  index: msg.data.index,
-                  previous_status: msg.data.previous_status,
-                  instance_name: msg.data.instance_name,
-                  class_name: msg.data.class_name,
-                  exception: msg.data.exception,
-                },
-              };
-              break;
-
-            case "log":
-              state.logs.push(msg.data);
-              break;
-
-            case "service_status":
-              state.serviceStatus.value = {
-                ...state.serviceStatus.value,
-                [msg.data.resource_name]: {
-                  resource_name: msg.data.resource_name,
-                  role: msg.data.role,
-                  status: msg.data.status,
-                  previous_status: msg.data.previous_status,
-                  exception: msg.data.exception,
-                  retry_at: msg.data.retry_at ?? null,
-                  ready: msg.data.ready ?? false,
-                  ready_phase: msg.data.ready_phase ?? null,
-                },
-              };
-              break;
-
-            case "execution_completed":
-              state.executionCompleted.value = msg.data;
-              break;
-
-            case "connectivity":
-            case "state_changed":
-              // Intentionally ignored — not consumed by the frontend UI.
-              break;
-
-            default: {
-              const _exhaustive: never = msg;
-              void _exhaustive;
-              break;
+        switch (msg.type) {
+          case "connected": {
+            if (handshakeTimer) {
+              clearTimeout(handshakeTimer);
+              handshakeTimer = null;
             }
+            // Reset backoff here (not in onopen) — only a fully completed handshake should reset retry delay
+            backoffRef.current = INITIAL_BACKOFF_MS;
+
+            const isReconnect = hasConnectedRef.current;
+            useAppStore.getState().handleWsConnected(msg.data, isReconnect);
+
+            if (isReconnect) {
+              // Invalidate all TanStack Query caches so data is re-fetched after reconnect
+              void queryClient.invalidateQueries();
+            } else {
+              hasConnectedRef.current = true;
+            }
+
+            // Subscribe to log streaming on every connect/reconnect
+            socket.send(buildSubscribePayload(currentLogLevel));
+
+            // Wire the targeted callback so LogTable can update the level
+            useAppStore.getState().setSendLogLevel((level: string) => {
+              currentLogLevel = level;
+              if (socket.readyState === WebSocket.OPEN) {
+                socket.send(buildSubscribePayload(level));
+              }
+            });
+            break;
           }
-        });
+
+          case "app_status_changed":
+            useAppStore.getState().updateAppStatus(appStatusKey(msg.data.app_key, msg.data.index), {
+              status: msg.data.status,
+              index: msg.data.index,
+              previous_status: msg.data.previous_status,
+              instance_name: msg.data.instance_name,
+              class_name: msg.data.class_name,
+              exception: msg.data.exception,
+            });
+            break;
+
+          case "log":
+            useAppStore.getState().pushLog(msg.data);
+            break;
+
+          case "service_status":
+            useAppStore.getState().updateServiceStatus(msg.data.resource_name, {
+              resource_name: msg.data.resource_name,
+              role: msg.data.role,
+              status: msg.data.status,
+              previous_status: msg.data.previous_status,
+              exception: msg.data.exception,
+              retry_at: msg.data.retry_at ?? null,
+              ready: msg.data.ready ?? false,
+              ready_phase: msg.data.ready_phase ?? null,
+            });
+            break;
+
+          case "execution_completed":
+            useAppStore.getState().setExecutionCompleted(msg.data);
+            break;
+
+          case "connectivity":
+          case "state_changed":
+            // Intentionally ignored — not consumed by the frontend UI.
+            break;
+
+          default: {
+            const _exhaustive: never = msg;
+            void _exhaustive;
+            break;
+          }
+        }
       };
 
       socket.onclose = () => {
@@ -165,9 +151,9 @@ export function useWebSocket(state: AppState): void {
           handshakeTimer = null;
         }
         // Clear the callback so stale socket references aren't used
-        state.setUpdateLogSubscription(() => {});
+        useAppStore.getState().setSendLogLevel(() => {});
         if (unmounted) return;
-        state.connection.value = hasConnectedRef.current ? "reconnecting" : "disconnected";
+        useAppStore.getState().setConnection(hasConnectedRef.current ? "reconnecting" : "disconnected");
         scheduleReconnect();
       };
 
@@ -191,8 +177,7 @@ export function useWebSocket(state: AppState): void {
         reconnectTimerRef.current = null;
       }
       wsRef.current?.close();
-      state.connection.value = "disconnected";
+      useAppStore.getState().setConnection("disconnected");
     };
-    // eslint-disable-next-line react-hooks-configurable/exhaustive-deps -- queryClient is a stable singleton from useQueryClient()
-  }, [state]);
+  }, [queryClient]);
 }

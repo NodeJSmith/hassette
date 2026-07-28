@@ -1,6 +1,6 @@
-import { keepPreviousData, useQuery, type UseQueryResult } from "@tanstack/preact-query";
+import { keepPreviousData, useQuery, type UseQueryResult } from "@tanstack/react-query";
 
-import { useAppState } from "../state/context";
+import { useAppStore } from "../state/store";
 import { resolveSince } from "../utils/time-window";
 
 export interface UseScopedQueryOptions {
@@ -42,10 +42,12 @@ export function useScopedQuery<T>(
   fetcher: (since: number, signal: AbortSignal) => Promise<T>,
   options?: UseScopedQueryOptions,
 ): UseQueryResult<T> {
-  const { effectiveTimePreset, uptimeSeconds } = useAppState();
+  const timePreset = useAppStore((s) => s.timePreset);
+  const urlWindowParam = useAppStore((s) => s.urlWindowParam);
+  const uptimeSeconds = useAppStore((s) => s.uptimeSeconds);
 
-  const preset = effectiveTimePreset.value;
-  const uptime = uptimeSeconds.value;
+  const preset = urlWindowParam ?? timePreset;
+  const uptime = uptimeSeconds;
   const waitForUptime = options?.waitForUptime ?? true;
 
   // Block fetches for since-restart until the WS connected message provides uptime_seconds,

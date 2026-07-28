@@ -1,6 +1,5 @@
-import { type ReadonlySignal, useSignalEffect } from "@preact/signals";
-import { useQueryClient } from "@tanstack/preact-query";
-import { useEffect, useRef } from "preact/hooks";
+import { useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
 
 /**
  * Debounce delay for WebSocket-triggered cache invalidations.
@@ -17,7 +16,7 @@ export const WS_DEBOUNCE_DELAY_MS = 500;
 export const WS_DEBOUNCE_MAX_WAIT_MS = 1500;
 
 /**
- * Subscribes to a Preact signal, applies a filter function, and calls
+ * Watches a value (typically a Zustand-selected field), applies a filter function, and calls
  * `queryClient.invalidateQueries({ queryKey })` after a debounce.
  *
  * Debounce algorithm:
@@ -26,7 +25,7 @@ export const WS_DEBOUNCE_MAX_WAIT_MS = 1500;
  *   of subsequent events. Does NOT reset on subsequent matching events.
  */
 export function useQueryInvalidator<T>(
-  signal: ReadonlySignal<T>,
+  value: T,
   filterFn: (value: T) => boolean,
   queryKey: readonly unknown[],
   delayMs: number = WS_DEBOUNCE_DELAY_MS,
@@ -47,7 +46,11 @@ export function useQueryInvalidator<T>(
 
   const filterFnRef = useRef(filterFn);
   filterFnRef.current = filterFn;
-  const lastValueRef = useRef<T>(signal.peek());
+
+  // Skip the mount run — only react to a subsequent change of `value`, not the initial
+  // render. Without this, a filterFn that matches the initial value would fire a spurious
+  // invalidation before any real event has occurred.
+  const isMountRef = useRef(true);
 
   const fireRef = useRef(() => {});
   fireRef.current = () => {
@@ -62,10 +65,11 @@ export function useQueryInvalidator<T>(
     void queryClientRef.current.invalidateQueries({ queryKey: queryKeyRef.current });
   };
 
-  useSignalEffect(() => {
-    const value = signal.value;
-    if (Object.is(value, lastValueRef.current)) return;
-    lastValueRef.current = value;
+  useEffect(() => {
+    if (isMountRef.current) {
+      isMountRef.current = false;
+      return;
+    }
     if (!filterFnRef.current(value)) return;
 
     if (timerRef.current !== null) {
@@ -76,7 +80,7 @@ export function useQueryInvalidator<T>(
     if (maxTimerRef.current === null) {
       maxTimerRef.current = setTimeout(() => fireRef.current(), maxWaitMsRef.current);
     }
-  });
+  }, [value]);
 
   const serializedKey = JSON.stringify(queryKey);
   useEffect(() => {

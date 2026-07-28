@@ -1,9 +1,8 @@
+import { Badge } from "@/components/ui/badge";
+
 import type { components } from "../../api/generated-types";
-import styles from "../../pages/app-detail.module.css";
 import { statusToKind, statusToVariant } from "../../utils/status";
 import { ActionButtons } from "../shared/action-buttons";
-import { Badge } from "../shared/badge";
-import { Chip } from "../shared/chip";
 import { ErrorBanner } from "../shared/error-banner";
 import { StatusShape } from "../shared/status-shape";
 
@@ -31,16 +30,17 @@ export function AppDetailHeader({
 
   return (
     <>
-      <div class="ht-level ht-mb-2">
-        <div class="ht-level-start">
-          <div class="ht-level-item">
-            <h1 class={styles.heading4} data-testid="app-title">
-              <StatusShape kind={statusToKind(liveStatus)} size={14} />
-              <span class="ht-ml-2">{appKey}</span>
-            </h1>
-          </div>
+      <div className="mb-2 flex flex-wrap items-start justify-between gap-3 max-mobile:flex-col">
+        <div className="min-w-0 flex-1">
+          <h1
+            className="flex min-w-0 items-start gap-[0.35em] font-sans text-[length:var(--text-h2)] leading-tight font-semibold max-mobile:text-[length:var(--text-body)]"
+            data-testid="app-title"
+          >
+            <StatusShape kind={statusToKind(liveStatus)} size={14} />
+            <span className="ml-2 min-w-0 break-all">{appKey}</span>
+          </h1>
         </div>
-        <div class="ht-level-end">
+        <div className="flex flex-wrap items-center justify-end gap-2 max-mobile:justify-start">
           {/* Shown for every status, healthy included — "running" should be a
               statement, not the absence of a pill. */}
           <Badge variant={statusToVariant(liveStatus)} size="sm" data-testid="app-status-pill">
@@ -50,7 +50,7 @@ export function AppDetailHeader({
         </div>
       </div>
 
-      <p class="ht-text-mono ht-text-sm ht-text-muted ht-mb-3" data-testid="app-subtitle-meta">
+      <p className="mb-3 break-words font-mono text-sm text-muted-foreground" data-testid="app-subtitle-meta">
         {manifest?.filename ?? appKey}
         {manifest?.class_name && manifest.class_name !== appKey && <> &middot; {manifest.class_name}</>}
         {manifest && manifest.instance_count > 1 && !showParentOverview && (
@@ -60,9 +60,9 @@ export function AppDetailHeader({
           <>
             {" "}
             &middot;{" "}
-            <Chip variant="muted" data-testid="auto-loaded-badge">
+            <Badge variant="muted" data-testid="auto-loaded-badge">
               auto
-            </Chip>
+            </Badge>
           </>
         )}
         {/* Strict `=== false`, not `!manifest?.autostart`: `manifest` is undefined while
@@ -71,9 +71,9 @@ export function AppDetailHeader({
           <>
             {" "}
             &middot;{" "}
-            <Chip variant="muted" data-testid="no-autostart-badge">
+            <Badge variant="muted" data-testid="no-autostart-badge">
               no autostart
-            </Chip>
+            </Badge>
           </>
         )}
       </p>
@@ -87,7 +87,11 @@ export function AppDetailHeader({
       )}
 
       {manifest?.block_reason && (
-        <div class="ht-alert ht-alert--warning ht-mb-4" role="alert" data-testid="block-reason-banner">
+        <div
+          className="mb-4 rounded-md border border-[var(--status-warning)] bg-[var(--status-warning-bg)] px-4 py-3 text-[length:var(--text-body)] text-[var(--status-warning)]"
+          role="alert"
+          data-testid="block-reason-banner"
+        >
           <strong>Blocked:</strong> {manifest.block_reason}
         </div>
       )}

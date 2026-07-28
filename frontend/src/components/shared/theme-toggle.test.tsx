@@ -1,11 +1,12 @@
-import { signal } from "@preact/signals";
-import { fireEvent } from "@testing-library/preact";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import { useAppStore } from "../../state/store";
 import { renderWithAppState } from "../../test/render-helpers";
 import { ThemeToggle } from "./theme-toggle";
 
-// Mock setStoredValue so theme changes don't hit localStorage
+// setTheme (store.ts) calls setStoredValue, and initialState() calls getStoredValue —
+// mock both so this test doesn't touch real localStorage.
 vi.mock("../../utils/local-storage", () => ({
   setStoredValue: vi.fn(),
   getStoredValue: vi.fn(),
@@ -17,25 +18,25 @@ describe("ThemeToggle", () => {
     expect(getByTestId("theme-toggle")).toBeDefined();
   });
 
-  it("toggles theme from dark to light on click", () => {
-    const themeSignal = signal<"dark" | "light">("dark");
+  it("toggles theme from dark to light on click", async () => {
+    const user = userEvent.setup();
     const { getByTestId } = renderWithAppState(<ThemeToggle />, {
-      stateOverrides: { theme: themeSignal },
+      storeOverrides: { theme: "dark" },
     });
     const button = getByTestId("theme-toggle");
     expect(button.getAttribute("aria-label")).toBe("Switch to light mode");
-    fireEvent.click(button);
-    expect(themeSignal.value).toBe("light");
+    await user.click(button);
+    expect(useAppStore.getState().theme).toBe("light");
   });
 
-  it("toggles theme from light to dark on click", () => {
-    const themeSignal = signal<"dark" | "light">("light");
+  it("toggles theme from light to dark on click", async () => {
+    const user = userEvent.setup();
     const { getByTestId } = renderWithAppState(<ThemeToggle />, {
-      stateOverrides: { theme: themeSignal },
+      storeOverrides: { theme: "light" },
     });
     const button = getByTestId("theme-toggle");
     expect(button.getAttribute("aria-label")).toBe("Switch to dark mode");
-    fireEvent.click(button);
-    expect(themeSignal.value).toBe("dark");
+    await user.click(button);
+    expect(useAppStore.getState().theme).toBe("dark");
   });
 });

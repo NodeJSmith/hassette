@@ -1,39 +1,23 @@
-import clsx from "clsx";
-import { useEffect } from "preact/hooks";
-import type { HighlighterGeneric } from "shiki";
+import { useEffect, useState } from "react";
+
+import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 import type { ConfigRecord, SchemaNode } from "../../api/config-view-types";
 import type { AppConfigData } from "../../api/endpoints";
 import { getAppConfig } from "../../api/endpoints";
-import { useSignal } from "../../hooks/use-signal";
-import { Card } from "../shared/card";
+import { getShikiHighlighter, SHIKI_THEMES } from "../../utils/shiki";
 import { ConfigSchemaView, ExpandableValue } from "../shared/config-schema-view";
 import { EmptyState } from "../shared/empty-state";
 import { Spinner } from "../shared/spinner";
-import styles from "./config-tab.module.css";
-
-let tomlHighlighterPromise: Promise<HighlighterGeneric<never, never>> | null = null;
-
-function getTomlHighlighter() {
-  if (!tomlHighlighterPromise) {
-    tomlHighlighterPromise = import("shiki")
-      .then(({ createHighlighter }) =>
-        createHighlighter({
-          langs: ["toml"],
-          themes: ["github-light", "github-dark"],
-        }),
-      )
-      .catch((e) => {
-        tomlHighlighterPromise = null;
-        throw e;
-      });
-  }
-  return tomlHighlighterPromise;
-}
 
 interface Props {
   appKey: string;
 }
+
+const DATA_TABLE_CLASS =
+  "w-full border-collapse bg-card [&_thead_tr]:bg-muted [&_th]:border-b [&_th]:border-border [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-mono [&_th]:text-xs [&_th]:font-medium [&_th]:uppercase [&_th]:tracking-[var(--text-label-tracking)] [&_th]:text-muted-foreground [&_th]:whitespace-nowrap [&_td]:border-b [&_td]:border-border [&_td]:px-3 [&_td]:py-2 [&_td]:align-top [&_td]:text-[length:var(--text-small)] [&_tbody_tr:last-child_td]:border-b-0 [&_tbody_tr:hover]:bg-muted";
+const SECTION_LABEL_CLASS = "mb-2 font-sans text-[length:var(--text-h3)] font-semibold text-foreground";
 
 /** True when the value is a plain (non-array) object usable as a ConfigRecord. */
 function isConfigRecord(value: unknown): value is ConfigRecord {
@@ -53,26 +37,26 @@ function SimpleConfigTable({ config }: { config: ConfigRecord }) {
   }
 
   return (
-    <table class={clsx("ht-table", styles.table)} data-testid="config-values-table">
+    <table className={cn(DATA_TABLE_CLASS, "table-auto [&_td_code]:break-all")} data-testid="config-values-table">
       <thead>
         <tr>
-          <th class={styles.colKey} scope="col">
+          <th className="w-[30%] whitespace-nowrap" scope="col">
             Key
           </th>
-          <th class={styles.colValue} scope="col">
+          <th className="w-[55%]" scope="col">
             Value
           </th>
         </tr>
       </thead>
       <tbody>
-        {entries.map(([key, val]) => (
+        {entries.map(([key, value]) => (
           <tr key={key}>
             <td>
-              <code class="ht-text-mono ht-text-sm">{key}</code>
+              <code className="font-mono text-sm">{key}</code>
             </td>
-            <td class={styles.value} data-testid={`config-value-${key}`}>
-              <code class="ht-text-mono ht-text-sm">
-                <ConfigValue value={val} />
+            <td data-testid={`config-value-${key}`}>
+              <code className="font-mono text-sm">
+                <ConfigValue value={value} />
               </code>
             </td>
           </tr>
@@ -112,40 +96,42 @@ function AppConfigContent({
 }
 
 export function ConfigTab({ appKey }: Props) {
-  const loading = useSignal(true);
-  const error = useSignal<string | null>(null);
-  const configData = useSignal<AppConfigData | null>(null);
-  const tomlHtml = useSignal<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [configData, setConfigData] = useState<AppConfigData | null>(null);
+  const [tomlHtml, setTomlHtml] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
-    loading.value = true;
-    error.value = null;
-    configData.value = null;
-    tomlHtml.value = null;
+    setLoading(true);
+    setError(null);
+    setConfigData(null);
+    setTomlHtml(null);
 
     async function load() {
       try {
         const data = await getAppConfig(appKey, controller.signal);
         if (controller.signal.aborted) return;
-        configData.value = data;
+        setConfigData(data);
 
         try {
-          const hl = await getTomlHighlighter();
+          const hl = await getShikiHighlighter("toml");
           if (controller.signal.aborted) return;
-          tomlHtml.value = hl.codeToHtml(data.config_toml, {
-            lang: "toml",
-            themes: { light: "github-light", dark: "github-dark" },
-            defaultColor: false,
-          });
+          setTomlHtml(
+            hl.codeToHtml(data.config_toml, {
+              lang: "toml",
+              themes: SHIKI_THEMES,
+              defaultColor: false,
+            }),
+          );
         } catch {
           // Highlighting is best-effort — the plain-text fallback renders config_toml as-is.
         }
       } catch (err) {
         if (controller.signal.aborted) return;
-        error.value = err instanceof Error ? err.message : String(err);
+        setError(err instanceof Error ? err.message : String(err));
       } finally {
-        if (!controller.signal.aborted) loading.value = false;
+        if (!controller.signal.aborted) setLoading(false);
       }
     }
 
@@ -155,38 +141,39 @@ export function ConfigTab({ appKey }: Props) {
     };
   }, [appKey]);
 
-  if (loading.value) {
+  if (loading) {
     return <Spinner />;
   }
 
-  if (error.value) {
+  if (error) {
     return (
       <Card data-testid="config-tab-error">
-        <p class="ht-text-muted ht-text-sm">{error.value}</p>
+        <p className="text-sm text-muted-foreground">{error}</p>
       </Card>
     );
   }
 
-  if (!configData.value) return null;
+  if (!configData) return null;
 
-  const cfg = configData.value;
-  const appConfig = cfg.app_config;
-  const schema = cfg.config_schema ?? undefined;
+  const appConfig = configData.app_config;
+  const schema = configData.config_schema ?? undefined;
   const isListConfig = Array.isArray(appConfig);
-  const manifestValues: ConfigRecord = { enabled: cfg.enabled, autostart: cfg.autostart };
-  const frameworkFields = cfg.framework_fields;
+  const manifestValues: ConfigRecord = { enabled: configData.enabled, autostart: configData.autostart };
+  const frameworkFields = configData.framework_fields;
 
   return (
-    <div class={styles.configTab} data-testid="config-tab-content">
-      <div class={styles.layout}>
-        <div class={styles.fieldsCard}>
+    <div className="pb-4" data-testid="config-tab-content">
+      <div className="grid grid-cols-[1.4fr_1fr] gap-4 max-mobile:grid-cols-1">
+        <div className="min-w-0 px-4 pb-4">
           {isListConfig ? (
-            <div class={styles.instances}>
+            <div className="flex flex-col gap-6">
               {/* isListConfig is a stored boolean, so TS can't use it to narrow
                   appConfig here — hence the cast despite the guard above. */}
               {(appConfig as unknown[]).map((instanceCfg, idx) => (
-                <div key={idx} class={styles.instanceBlock} data-testid={`config-instance-${idx}`}>
-                  <h4 class={styles.instanceHeading}>Instance {idx}</h4>
+                <div key={idx} className="min-w-0" data-testid={`config-instance-${idx}`}>
+                  <h4 className="mb-3 border-b border-strong pb-2 font-sans text-sm font-semibold uppercase tracking-[var(--text-label-tracking-mid)] text-foreground-secondary">
+                    Instance {idx}
+                  </h4>
                   {isConfigRecord(instanceCfg) ? (
                     <AppConfigContent
                       appConfig={instanceCfg}
@@ -195,7 +182,7 @@ export function ConfigTab({ appKey }: Props) {
                       frameworkFields={frameworkFields}
                     />
                   ) : (
-                    <p class="ht-text-muted ht-text-sm">{String(instanceCfg)}</p>
+                    <p className="text-sm text-muted-foreground">{String(instanceCfg)}</p>
                   )}
                 </div>
               ))}
@@ -212,19 +199,28 @@ export function ConfigTab({ appKey }: Props) {
           )}
         </div>
 
-        <div class={styles.rawCard}>
-          <h3 class="ht-section-label">raw config</h3>
+        <div className="min-w-0 px-4 pb-4">
+          <h3 className={SECTION_LABEL_CLASS}>raw config</h3>
           <Card variant="config">
-            <span class="ht-text-mono ht-text-xs ht-text-muted">hassette.toml → apps.{appKey}.config</span>
-            {tomlHtml.value ? (
+            <span className="font-mono text-xs text-muted-foreground">hassette.toml → apps.{appKey}.config</span>
+            {tomlHtml ? (
               <div
-                class={styles.rawCode}
+                className={cn(
+                  "mt-2 overflow-x-auto whitespace-pre rounded-sm border border-dashed border-border bg-muted p-3",
+                  "font-mono text-xs [&_.shiki]:m-0 [&_.shiki]:bg-transparent [&_.shiki]:p-0",
+                  "[&_.shiki]:font-inherit [&_.shiki]:text-inherit",
+                  "[&_.shiki_span:not(.line)]:text-[var(--shiki-light,var(--ink-1))]",
+                  "dark:[&_.shiki_span:not(.line)]:text-[var(--shiki-dark,var(--ink-1))]",
+                )}
                 data-testid="raw-config-toml"
-                dangerouslySetInnerHTML={{ __html: tomlHtml.value }}
+                dangerouslySetInnerHTML={{ __html: tomlHtml }}
               />
             ) : (
-              <pre class={styles.rawCode} data-testid="raw-config-toml">
-                {cfg.config_toml}
+              <pre
+                className="mt-2 overflow-x-auto whitespace-pre rounded-sm border border-dashed border-border bg-muted p-3 font-mono text-xs"
+                data-testid="raw-config-toml"
+              >
+                {configData.config_toml}
               </pre>
             )}
           </Card>

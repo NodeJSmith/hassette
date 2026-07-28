@@ -1,24 +1,15 @@
-import type { Signal } from "@preact/signals";
-
-import { Button } from "./button";
-import styles from "./show-more-button.module.css";
+import { Button } from "@/components/ui/button";
 
 interface Props {
-  showAll: Signal<boolean>;
+  showAll: boolean;
+  onToggle: () => void;
   totalCount: number;
 }
 
-export function ShowMoreButton({ showAll, totalCount }: Props) {
+export function ShowMoreButton({ showAll, onToggle, totalCount }: Props) {
   return (
-    <Button
-      ghost
-      size="xs"
-      class={styles.showMore}
-      onClick={() => {
-        showAll.value = !showAll.value;
-      }}
-    >
-      {showAll.value ? "Show less" : `Show all ${totalCount}`}
+    <Button variant="ghost" size="xs" className="mt-auto pt-2 text-primary" onClick={onToggle}>
+      {showAll ? "Show less" : `Show all ${totalCount}`}
     </Button>
   );
 }

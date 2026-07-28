@@ -318,7 +318,7 @@
 # max-height) rather than the inner table container (unbounded row set).
 - url: "http://localhost:{port}/handlers"
   output: docs/_static/web_ui_handlers_cancelled.png
-  selector: ".ht-table-card-scroll"
+  selector: "[data-testid='table-card-scroll']"
   width: 1400
   height: 900
   wait: 6000

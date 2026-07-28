@@ -1,3 +1,4 @@
+import { SMALL_ICON_SIZE } from "../../utils/constants";
 import type { StatusKind } from "../../utils/status";
 
 interface Props {
@@ -36,7 +37,7 @@ function renderShape(kind: StatusKind, size: number, half: number) {
           r={half - RING_STROKE_WIDTH}
           fill="none"
           stroke="var(--mute)"
-          stroke-width={RING_STROKE_WIDTH}
+          strokeWidth={RING_STROKE_WIDTH}
         />
       );
   }
@@ -51,7 +52,7 @@ function renderShape(kind: StatusKind, size: number, half: number) {
  * - cancel → filled diamond (info blue)
  * - mute   → ring / stroke-only circle (muted)
  */
-export function StatusShape({ kind, size = 12, muted = false }: Props) {
+export function StatusShape({ kind, size = SMALL_ICON_SIZE, muted = false }: Props) {
   const half = size / 2;
   const shape = muted ? <circle cx={half} cy={half} r={half} fill="var(--ink-4)" /> : renderShape(kind, size, half);
 

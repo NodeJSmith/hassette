@@ -1,12 +1,10 @@
-import type { Signal } from "@preact/signals";
-
-import { useSignal } from "./use-signal";
+import { useState } from "react";
 
 export interface UseAsyncActionResult {
   /** True while an action is in flight. */
-  loading: Signal<boolean>;
+  loading: boolean;
   /** Error message from the most recent failed action, or null. */
-  error: Signal<string | null>;
+  error: string | null;
   /**
    * Runs `action`, tracking `loading`/`error`. Ignores the call if an action
    * is already in flight. Clears `error` before starting and always resets
@@ -22,19 +20,19 @@ export interface UseAsyncActionResult {
  * action settles.
  */
 export function useAsyncAction(): UseAsyncActionResult {
-  const loading = useSignal(false);
-  const error = useSignal<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const run = async (action: () => Promise<unknown>) => {
-    if (loading.value) return;
-    error.value = null;
-    loading.value = true;
+    if (loading) return;
+    setError(null);
+    setLoading(true);
     try {
       await action();
     } catch (err) {
-      error.value = err instanceof Error ? err.message : String(err);
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
-      loading.value = false;
+      setLoading(false);
     }
   };
 

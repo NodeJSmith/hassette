@@ -1,19 +1,30 @@
-import clsx from "clsx";
+import { type ColumnDef, flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table";
+import { useState } from "react";
 import { useLocation } from "wouter";
 
+import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
+
 import { useRovingTabIndex } from "../../hooks/use-roving-tab-index";
-import { useSignal } from "../../hooks/use-signal";
 import { executionPath, type HandlerKind } from "../../utils/app-routes";
 import { STATUS_DOT_SIZE } from "../../utils/constants";
 import { formatDuration, formatRelativeTime, formatTimestamp } from "../../utils/format";
 import { onActivateKeyDown } from "../../utils/keyboard";
 import { executionStatusKind, type StatusKind } from "../../utils/status";
-import { Badge } from "./badge";
 import { EmptyState } from "./empty-state";
-import styles from "./execution-table.module.css";
 import { IconArrowRight } from "./icons";
 import { ShowMoreButton } from "./show-more-button";
 import { StatusShape } from "./status-shape";
+
+// cellClassName/cellProps are declared once, shared with log-table-view.tsx,
+// in table-types.ts. This file only adds the field unique to execution tables.
+declare module "@tanstack/react-table" {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- must match TanStack's ColumnMeta<TData, TValue> signature exactly for declaration merging
+  interface ColumnMeta<TData, TValue> {
+    headerClassName?: string;
+  }
+}
 
 const INITIAL_ROWS = 5;
 
@@ -49,6 +60,87 @@ interface ExecutionTableProps {
   instanceQs?: string;
 }
 
+function statusLabelClass(kind: StatusKind): string {
+  switch (kind) {
+    case "ok":
+      return "font-mono text-xs whitespace-nowrap text-[var(--status-success)]";
+    case "err":
+      return "truncate font-mono text-xs whitespace-nowrap text-destructive";
+    case "warn":
+      return "font-mono text-xs whitespace-nowrap text-[var(--status-warning)]";
+    case "cancel":
+      return "font-mono text-xs whitespace-nowrap text-[var(--status-cancel)]";
+    case "mute":
+      return "font-mono text-xs whitespace-nowrap";
+  }
+}
+
+// Static — no sorting/filtering/visibility, so no closures over component
+// state are needed (unlike log-table-view.tsx's columns, which are rebuilt
+// per render to close over sort/filter/mobile state).
+const columns: ColumnDef<ExecutionRecord, unknown>[] = [
+  {
+    id: "status",
+    header: "Status",
+    meta: { headerClassName: "w-[18%] max-mobile:w-auto", cellClassName: "w-[18%] max-mobile:w-auto" },
+    cell: ({ row }) => {
+      const record = row.original;
+      const statusKind = executionStatusKind(record.status);
+      return (
+        <div className="flex items-center gap-2">
+          <StatusShape kind={statusKind} size={STATUS_DOT_SIZE} />
+          <span className={statusLabelClass(statusKind)}>{STATUS_LABEL[statusKind]}</span>
+          {record.thread_leaked && (
+            <Badge variant="warning" size="sm" aria-label="thread leaked past timeout">
+              thread leaked
+            </Badge>
+          )}
+          {record.trigger_mode === "manual" && (
+            <Badge variant="info" size="sm" aria-label="manually triggered">
+              manual
+            </Badge>
+          )}
+        </div>
+      );
+    },
+  },
+  {
+    id: "execution",
+    header: "Execution",
+    meta: {
+      headerClassName: "[overflow-wrap:anywhere] max-mobile:hidden",
+      cellClassName: cn("font-mono text-xs [overflow-wrap:anywhere] max-mobile:hidden"),
+    },
+    cell: ({ row }) => row.original.execution_id ?? "—",
+  },
+  {
+    id: "duration",
+    header: "Duration",
+    meta: {
+      headerClassName: "w-[14%] max-mobile:w-auto",
+      cellClassName: "w-[14%] whitespace-nowrap max-mobile:w-auto",
+    },
+    cell: ({ row }) => formatDuration(row.original.duration_ms),
+  },
+  {
+    id: "time",
+    header: "Time",
+    meta: {
+      headerClassName: "w-[18%] max-mobile:w-auto",
+      cellClassName: cn("w-[18%] font-mono text-xs whitespace-nowrap max-mobile:w-auto"),
+      cellProps: (record: ExecutionRecord) => ({ title: formatTimestamp(record.execution_start_ts) }),
+    },
+    cell: ({ row }) => formatRelativeTime(row.original.execution_start_ts),
+  },
+  {
+    id: "detail",
+    header: () => <span className="sr-only">Details</span>,
+    meta: { headerClassName: "w-8", cellClassName: "text-center align-middle text-muted-foreground transition-colors" },
+    // No `cell` — the row render loop below special-cases `column.id === "detail"` and never calls
+    // flexRender for it (it needs appKey/handlerKind/handlerId, not available at column-definition time).
+  },
+];
+
 export function ExecutionTable({
   records,
   kind,
@@ -58,12 +150,19 @@ export function ExecutionTable({
   handlerId,
   instanceQs,
 }: ExecutionTableProps) {
-  const showAll = useSignal(false);
-  const visible = showAll.value ? records : records.slice(0, INITIAL_ROWS);
+  const [showAll, setShowAll] = useState(false);
+  const visible = showAll ? records : records.slice(0, INITIAL_ROWS);
   const { containerRef, onContainerKeyDown, getTabIndex, setActiveIndex } = useRovingTabIndex<HTMLTableSectionElement>(
     visible.length,
   );
   const [, navigate] = useLocation();
+
+  const table = useReactTable({
+    data: visible,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getRowId: (record, index) => record.execution_id ?? `${kind}-${index}`,
+  });
 
   if (records.length === 0) {
     return kind === "handler" ? (
@@ -81,31 +180,31 @@ export function ExecutionTable({
 
   return (
     <>
-      <table class="ht-table ht-table--compact" data-testid={tableId}>
-        <thead>
-          <tr>
-            <th class={styles.statusColumn} scope="col">
-              Status
-            </th>
-            <th class={styles.executionColumn} scope="col">
-              Execution
-            </th>
-            <th class={styles.durationColumn} scope="col">
-              Duration
-            </th>
-            <th class={styles.timeColumn} scope="col">
-              Time
-            </th>
-            <th class={styles.colArrow} scope="col">
-              <span class="ht-visually-hidden">Details</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody ref={containerRef} onKeyDown={onContainerKeyDown}>
-          {visible.map((record, i) => {
-            const rowKey = record.execution_id ?? `${kind}-${i}`;
-            const statusKind = executionStatusKind(record.status);
-            const isThreadLeaked = record.thread_leaked;
+      <Table
+        className="table-fixed bg-card max-mobile:table-auto [&_td]:overflow-hidden [&_td]:text-ellipsis"
+        data-testid={tableId}
+      >
+        <TableHeader className="[&_tr]:bg-muted">
+          {table.getHeaderGroups().map((headerGroup) => (
+            <TableRow key={headerGroup.id}>
+              {headerGroup.headers.map((header) => (
+                <TableHead
+                  key={header.id}
+                  scope="col"
+                  className={cn(
+                    "sticky top-0 z-[var(--z-table-head)] bg-muted px-2 py-1 font-mono text-xs font-medium uppercase tracking-[var(--text-label-tracking)] text-muted-foreground",
+                    header.column.columnDef.meta?.headerClassName,
+                  )}
+                >
+                  {flexRender(header.column.columnDef.header, header.getContext())}
+                </TableHead>
+              ))}
+            </TableRow>
+          ))}
+        </TableHeader>
+        <TableBody ref={containerRef} onKeyDown={onContainerKeyDown}>
+          {table.getRowModel().rows.map((row, i) => {
+            const record = row.original;
             const canNavigate = appKey && handlerKind && handlerId !== undefined && record.execution_id;
             const goToDetail = () => {
               if (canNavigate) {
@@ -114,9 +213,12 @@ export function ExecutionTable({
             };
 
             return (
-              <tr
-                key={rowKey}
-                class={clsx(styles.row, canNavigate && styles.rowClickable)}
+              <TableRow
+                key={row.id}
+                className={cn(
+                  "transition-colors",
+                  canNavigate && "cursor-pointer hover:bg-muted [&:hover_td:last-child]:text-primary",
+                )}
                 data-testid={kind === "handler" ? "invocation-row" : "execution-row"}
                 tabIndex={getTabIndex(i)}
                 role="row"
@@ -128,61 +230,49 @@ export function ExecutionTable({
                 }}
                 onKeyDown={canNavigate ? onActivateKeyDown(goToDetail) : undefined}
               >
-                <td class={clsx(styles.statusCell, styles.statusColumn)}>
-                  <div class={styles.statusCellInner}>
-                    <StatusShape kind={statusKind} size={STATUS_DOT_SIZE} />
-                    <span class={statusLabelClass(statusKind)}>{STATUS_LABEL[statusKind]}</span>
-                    {isThreadLeaked && (
-                      <Badge variant="warning" size="sm" aria-label="thread leaked past timeout">
-                        thread leaked
-                      </Badge>
-                    )}
-                    {record.trigger_mode === "manual" && (
-                      <Badge variant="info" size="sm" aria-label="manually triggered">
-                        manual
-                      </Badge>
-                    )}
-                  </div>
-                </td>
-                <td class={clsx(styles.executionColumn, "ht-text-mono ht-text-xs")}>{record.execution_id ?? "—"}</td>
-                <td class={styles.durationColumn}>{formatDuration(record.duration_ms)}</td>
-                <td
-                  class={clsx(styles.timeColumn, "ht-text-mono ht-text-xs")}
-                  title={formatTimestamp(record.execution_start_ts)}
-                >
-                  {formatRelativeTime(record.execution_start_ts)}
-                </td>
-                <td
-                  class={clsx("ht-text-muted", styles.arrowCell)}
-                  aria-label={canNavigate ? "View execution detail" : undefined}
-                >
-                  {canNavigate && (
-                    <span class={styles.arrowIndicator} data-testid="execution-detail-indicator">
-                      <IconArrowRight />
-                    </span>
-                  )}
-                </td>
-              </tr>
+                {row.getVisibleCells().map((cell) => {
+                  if (cell.column.id === "detail") {
+                    return (
+                      <TableCell
+                        key={cell.id}
+                        className={cn(
+                          "px-2 py-1 max-mobile:px-1 max-mobile:text-xs",
+                          cell.column.columnDef.meta?.cellClassName,
+                        )}
+                      >
+                        {canNavigate && (
+                          <span
+                            className="inline-flex items-center justify-center align-middle"
+                            data-testid="execution-detail-indicator"
+                          >
+                            <IconArrowRight />
+                          </span>
+                        )}
+                      </TableCell>
+                    );
+                  }
+                  const cellProps = cell.column.columnDef.meta?.cellProps?.(record) ?? {};
+                  return (
+                    <TableCell
+                      key={cell.id}
+                      className={cn(
+                        "px-2 py-1 max-mobile:px-1 max-mobile:text-xs",
+                        cell.column.columnDef.meta?.cellClassName,
+                      )}
+                      {...cellProps}
+                    >
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
+                  );
+                })}
+              </TableRow>
             );
           })}
-        </tbody>
-      </table>
-      {hasMore && <ShowMoreButton showAll={showAll} totalCount={records.length} />}
+        </TableBody>
+      </Table>
+      {hasMore && (
+        <ShowMoreButton showAll={showAll} onToggle={() => setShowAll((v) => !v)} totalCount={records.length} />
+      )}
     </>
   );
-}
-
-function statusLabelClass(kind: StatusKind): string {
-  switch (kind) {
-    case "ok":
-      return styles.okLabel;
-    case "err":
-      return styles.failedLabel;
-    case "warn":
-      return styles.timeoutLabel;
-    case "cancel":
-      return styles.cancelledLabel;
-    case "mute":
-      return styles.statusLabel;
-  }
 }

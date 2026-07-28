@@ -1,10 +1,10 @@
-import { useAppState } from "../state/context";
+import { useAppStore } from "../state/store";
 import { formatRelativeTime } from "../utils/format";
-import { useSubscribe } from "./use-subscribe";
 
 export function useRelativeTime(timestamp: number | null): string {
-  const { tick } = useAppState();
-  useSubscribe(timestamp !== null ? tick : null);
+  // Selecting tick subscribes this component to re-render on every tick increment,
+  // which is exactly what forces the relative-time string to recompute periodically.
+  useAppStore((s) => s.tick);
   if (timestamp === null) return "";
   return formatRelativeTime(timestamp);
 }

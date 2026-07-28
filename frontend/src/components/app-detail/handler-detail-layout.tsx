@@ -1,16 +1,14 @@
-import type { ComponentChildren } from "preact";
-
-import styles from "./handler-detail-layout.module.css";
+import type { ReactNode } from "react";
 
 interface Props {
   testId: string;
-  children: ComponentChildren;
+  children: ReactNode;
 }
 
 export function HandlerDetailLayout({ testId, children }: Props) {
   return (
-    <div class={styles.wrapper} data-testid={testId}>
-      <div class={styles.content}>{children}</div>
+    <div className="flex flex-col gap-4" data-testid={testId}>
+      <div className="rounded-md border border-border bg-card p-4">{children}</div>
     </div>
   );
 }
