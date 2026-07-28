@@ -398,11 +398,14 @@ describe("Sidebar — status groups", () => {
     renderWithAppState(<Sidebar />);
     const header = await screen.findByText("FAILING");
     expect(screen.getByText("Failed App")).toBeDefined();
-    // Collapse via click (native <button> handles Enter/Space → click automatically)
-    await user.click(header.closest("[data-testid='group-header']")!);
+    const button = header.closest<HTMLButtonElement>("[data-testid='group-header']")!;
+    // group-header is a native <button> (see sidebar.tsx StatusGroupHeader), so a real
+    // focus + Enter keypress is expected to translate to a click per HTML button semantics.
+    button.focus();
+    await user.keyboard("{Enter}");
     expect(screen.queryByText("Failed App")).toBeNull();
     // Re-expand
-    await user.click(header.closest("[data-testid='group-header']")!);
+    await user.keyboard("{Enter}");
     expect(screen.queryByText("Failed App")).not.toBeNull();
   });
 
@@ -435,9 +438,11 @@ describe("Sidebar — status groups", () => {
     renderWithAppState(<Sidebar />);
     const header = await screen.findByText("FAILING");
     expect(screen.getByText("Failed App")).toBeDefined();
-    await user.click(header.closest("[data-testid='group-header']")!);
+    const button = header.closest<HTMLButtonElement>("[data-testid='group-header']")!;
+    button.focus();
+    await user.keyboard(" ");
     expect(screen.queryByText("Failed App")).toBeNull();
-    await user.click(header.closest("[data-testid='group-header']")!);
+    await user.keyboard(" ");
     expect(screen.queryByText("Failed App")).not.toBeNull();
   });
 

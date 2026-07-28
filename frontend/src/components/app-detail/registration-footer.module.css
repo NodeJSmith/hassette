@@ -45,6 +45,7 @@
   flex-wrap: wrap;
 }
 
+/* sync: BREAKPOINT_MOBILE in use-media-query.ts */
 @media screen and (max-width: 768px) {
   .footerSummary {
     align-items: flex-start;

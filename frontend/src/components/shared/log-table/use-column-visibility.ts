@@ -58,8 +58,8 @@ function readStored(context: ViewContext): ColumnId[] | null {
   }
   const knownIds = new Set<string>(ALL_COLUMN_IDS);
   const validated = stored.columns.filter((id) => knownIds.has(id));
-  for (const req of REQUIRED_COLUMNS) {
-    if (!validated.includes(req)) validated.push(req);
+  for (const column of REQUIRED_COLUMNS) {
+    if (!validated.includes(column)) validated.push(column);
   }
   if (validated.length === 0) return null;
   return validated;

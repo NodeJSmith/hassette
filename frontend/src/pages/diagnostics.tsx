@@ -1,6 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
+// This page applies cardVariants() directly to <section> elements instead of
+// using the <Card> component (a <div>). Each panel is a page landmark that
+// screen-reader users navigate via aria-label — wrapping it in Card's <div>
+// would lose that semantic, so the styling is applied without the element.
 import { cardVariants } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 

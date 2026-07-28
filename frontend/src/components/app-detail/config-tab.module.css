@@ -100,8 +100,7 @@
   color: var(--shiki-dark, var(--ink-1));
 }
 
-/* — Responsive: max-width 768px — */
-
+/* sync: BREAKPOINT_MOBILE in use-media-query.ts */
 @media screen and (max-width: 768px) {
   .layout {
     grid-template-columns: 1fr;
