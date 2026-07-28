@@ -1503,10 +1503,15 @@ export interface components {
             /** Boot Issues */
             boot_issues?: components["schemas"]["BootIssueResponse"][];
             /**
-             * Log Records Dropped
+             * Log Queue Drops
              * @default 0
              */
-            log_records_dropped: number;
+            log_queue_drops: number;
+            /**
+             * Db Write Queue Drops
+             * @default 0
+             */
+            db_write_queue_drops: number;
         };
         /**
          * TelemetryStatusResponse

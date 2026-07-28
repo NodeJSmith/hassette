@@ -25,7 +25,8 @@ function makeSystemStatus(overrides: Partial<SystemStatusResponse> = {}): System
     services: [],
     version: "1.0.0",
     boot_issues: [],
-    log_records_dropped: 0,
+    log_queue_drops: 0,
+    db_write_queue_drops: 0,
     ...overrides,
   };
 }
@@ -242,6 +243,47 @@ describe("DiagnosticsPage", () => {
     });
     expect(await findByTestId("diag-telemetry-degraded")).toBeDefined();
     expect(queryByTestId("diag-drop-overflow")).toBeNull();
+  });
+
+  it("hides the logging panel when no log records were dropped", async () => {
+    const { findByTestId, queryByTestId } = renderWithAppState(<DiagnosticsPage />);
+    await findByTestId("diag-services-panel");
+    expect(queryByTestId("diag-logging-panel")).toBeNull();
+  });
+
+  it("separates log-queue drops from DB-write-queue drops", async () => {
+    server.use(
+      http.get("/api/health", () =>
+        HttpResponse.json(makeSystemStatus({ log_queue_drops: 12, db_write_queue_drops: 4 })),
+      ),
+    );
+    const { findByTestId } = renderWithAppState(<DiagnosticsPage />);
+    await findByTestId("diag-logging-panel");
+
+    expect((await findByTestId("diag-drop-log-queue")).textContent).toContain("12");
+    expect((await findByTestId("diag-drop-db-write-queue")).textContent).toContain("4");
+  });
+
+  it("keeps log drop counters independent in the stats strip", async () => {
+    server.use(
+      http.get("/api/health", () =>
+        HttpResponse.json(makeSystemStatus({ log_queue_drops: 12, db_write_queue_drops: 4 })),
+      ),
+    );
+    const { findByTestId } = renderWithAppState(<DiagnosticsPage />, {
+      stateOverrides: { droppedOverflow: signal(5) },
+    });
+    const strip = (await findByTestId("diag-stats-strip")).textContent ?? "";
+
+    expect(strip).toContain("log queue drops");
+    expect(strip).toContain("12");
+    expect(strip).toContain("DB write drops");
+    expect(strip).toContain("4");
+    expect(strip).toContain("telemetry drops");
+    expect(strip).toContain("5");
+    expect(strip).not.toContain("16");
+    // A merged total with telemetry drops would read 21 and hide which subsystem is saturated.
+    expect(strip).not.toContain("21");
   });
 
   it("service row shows ready_phase text for a non-running service", async () => {

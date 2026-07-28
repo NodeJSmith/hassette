@@ -89,8 +89,11 @@ class SystemStatus(BaseModel):
     boot_issues: list[BootIssue] = Field(default_factory=list)
     """Boot-time issues collected during startup (config errors, blocked apps)."""
 
-    log_records_dropped: int = 0
-    """Cumulative count of log records dropped due to queue-full or missing DB."""
+    log_queue_drops: int = 0
+    """Cumulative count of log records dropped because the log queue was full."""
+
+    db_write_queue_drops: int = 0
+    """Cumulative count of records dropped because the DB write queue was full, unavailable, or closed."""
 
 
 class StateChangedData(BaseModel):

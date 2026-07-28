@@ -63,7 +63,8 @@ $ hassette status --json
   ],
   "version": "0.32.0",
   "boot_issues": [],
-  "log_records_dropped": 9
+  "log_queue_drops": 9,
+  "db_write_queue_drops": 2
 }
 ```
 

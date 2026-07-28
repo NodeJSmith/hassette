@@ -15,6 +15,7 @@ import hassette.logging_ as logging_module
 from hassette.context import CURRENT_EXECUTION_ID
 from hassette.logging_ import (
     CorrelationFilter,
+    HassetteQueueHandler,
     HassetteQueueListener,
     LogCaptureHandler,
     LogEntry,
@@ -730,6 +731,44 @@ class TestQueueHandlerPipeline:
         logging_pipeline.listener.start()
 
 
+class TestHassetteQueueHandlerDrops:
+    """HassetteQueueHandler counts records the bounded log queue could not accept."""
+
+    def test_records_enqueue_without_dropping_when_space_remains(self) -> None:
+        """A record that fits in the queue is enqueued and not counted as dropped."""
+        q: queue.Queue[logging.LogRecord] = queue.Queue(maxsize=2)
+        handler = HassetteQueueHandler(q)
+
+        handler.emit(logging.LogRecord("test", logging.INFO, "", 0, "msg", (), None))
+
+        assert handler.log_queue_drops == 0
+        assert q.qsize() == 1
+
+    def test_counts_drops_when_queue_is_full(self) -> None:
+        """Records emitted against a full queue increment log_queue_drops instead of raising."""
+        q: queue.Queue[logging.LogRecord] = queue.Queue(maxsize=2)
+        handler = HassetteQueueHandler(q)
+
+        for i in range(5):
+            handler.emit(logging.LogRecord("test", logging.INFO, "", 0, f"msg{i}", (), None))
+
+        assert q.qsize() == 2
+        assert handler.log_queue_drops == 3
+
+    def test_drop_does_not_reach_handle_error(self) -> None:
+        """A full queue is a counted drop, not a handler error written to stderr."""
+        q: queue.Queue[logging.LogRecord] = queue.Queue(maxsize=1)
+        handler = HassetteQueueHandler(q)
+        errors: list[logging.LogRecord] = []
+        handler.handleError = errors.append  # pyright: ignore[reportAttributeAccessIssue]
+
+        for i in range(3):
+            handler.emit(logging.LogRecord("test", logging.INFO, "", 0, f"msg{i}", (), None))
+
+        assert errors == []
+        assert handler.log_queue_drops == 2
+
+
 def _make_dropping_db_service() -> MagicMock:
     """Return a db_service mock whose enqueue() always returns False (simulates full queue)."""
     db_service = MagicMock()
@@ -758,7 +797,7 @@ class TestLogPersistenceHandlerBatching:
 
             # enqueue() returns False → all 50 dropped after flush
             loop.run_until_complete(asyncio.sleep(0))
-            assert handler.dropped_count == 50
+            assert handler.db_write_queue_drops == 50
             assert len(handler._batch) == 0
         finally:
             loop.close()
@@ -775,7 +814,7 @@ class TestLogPersistenceHandlerBatching:
                 record = logging.LogRecord("test", logging.INFO, "", 0, f"msg{i}", (), None)
                 handler.emit(record)
 
-            assert handler.dropped_count == 0
+            assert handler.db_write_queue_drops == 0
             assert len(handler._batch) == 49
         finally:
             loop.close()
@@ -792,7 +831,7 @@ class TestLogPersistenceHandlerBatching:
 
             handler.flush_if_pending()
             loop.run_until_complete(asyncio.sleep(0))
-            assert handler.dropped_count == 10
+            assert handler.db_write_queue_drops == 10
             assert len(handler._batch) == 0
         finally:
             loop.close()
@@ -803,7 +842,7 @@ class TestLogPersistenceHandlerBatching:
         db_service = _make_dropping_db_service()
         handler = LogPersistenceHandler(db_service, loop, persistence_level=logging.DEBUG)
         try:
-            assert handler.dropped_count == 0
+            assert handler.db_write_queue_drops == 0
 
             for i in range(100):
                 record = logging.LogRecord("test", logging.INFO, "", 0, f"msg{i}", (), None)
@@ -811,7 +850,7 @@ class TestLogPersistenceHandlerBatching:
 
             handler.flush_if_pending()
             loop.run_until_complete(asyncio.sleep(0))
-            assert handler.dropped_count == 100
+            assert handler.db_write_queue_drops == 100
         finally:
             loop.close()
 
@@ -825,7 +864,7 @@ class TestLogPersistenceHandlerBatching:
             handler.emit(record)
 
             assert len(handler._batch) == 0
-            assert handler.dropped_count == 0
+            assert handler.db_write_queue_drops == 0
         finally:
             loop.close()
 
@@ -841,7 +880,7 @@ class TestLogPersistenceHandlerBatching:
 
             handler.close()
             loop.run_until_complete(asyncio.sleep(0))
-            assert handler.dropped_count == 5
+            assert handler.db_write_queue_drops == 5
             assert len(handler._batch) == 0
         finally:
             loop.close()
@@ -859,7 +898,7 @@ class TestLogPersistenceHandlerBatching:
         loop.close()
         handler.close()
 
-        assert handler.dropped_count == 3
+        assert handler.db_write_queue_drops == 3
         assert len(handler._batch) == 0
 
 
@@ -876,8 +915,8 @@ class TestLogPersistenceDropCountWithDB:
         coro.close()
         raise RuntimeError("DB shut down")
 
-    def test_dropped_count_increments_on_enqueue_failure(self) -> None:
-        """When enqueue() returns False (queue full), dropped_count increases."""
+    def test_db_write_queue_drops_increments_on_enqueue_failure(self) -> None:
+        """When enqueue() returns False (queue full), db_write_queue_drops increases."""
         loop = asyncio.new_event_loop()
         db_service = MagicMock()
         db_service._insert_log_records = MagicMock(return_value=MagicMock())
@@ -890,12 +929,12 @@ class TestLogPersistenceDropCountWithDB:
 
             loop.run_until_complete(asyncio.sleep(0))
 
-            assert handler.dropped_count == 50
+            assert handler.db_write_queue_drops == 50
         finally:
             loop.close()
 
-    def test_dropped_count_increments_on_db_shutdown_runtime_error(self) -> None:
-        """When enqueue() raises RuntimeError (DB shut down), dropped_count increases."""
+    def test_db_write_queue_drops_increments_on_db_shutdown_runtime_error(self) -> None:
+        """When enqueue() raises RuntimeError (DB shut down), db_write_queue_drops increases."""
         loop = asyncio.new_event_loop()
         db_service = MagicMock()
         db_service._insert_log_records = MagicMock(return_value=MagicMock())
@@ -908,7 +947,7 @@ class TestLogPersistenceDropCountWithDB:
 
             loop.run_until_complete(asyncio.sleep(0))
 
-            assert handler.dropped_count == 50
+            assert handler.db_write_queue_drops == 50
         finally:
             loop.close()
 
@@ -938,7 +977,7 @@ class TestDequeueTimeoutFlush:
         loop.close()
 
         # The record was flushed by the timeout, then dropped (enqueue returns False)
-        assert persistence.dropped_count == 1
+        assert persistence.db_write_queue_drops == 1
         assert len(persistence._batch) == 0
 
 

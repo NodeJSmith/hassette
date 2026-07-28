@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 from hassette.core.logging_service import LoggingService
 from hassette.logging_ import (
+    HassetteQueueHandler,
     HassetteQueueListener,
     LogCaptureHandler,
     LogPersistenceHandler,
@@ -217,7 +218,7 @@ class TestLoggingServiceOnInitialize:
 
         try:
             handler_types = [type(h) for h in hassette_logger.handlers]
-            assert logging.handlers.QueueHandler in handler_types
+            assert HassetteQueueHandler in handler_types
             assert stream_handler not in hassette_logger.handlers
         finally:
             if svc._queue_listener is not None:
@@ -317,15 +318,15 @@ class TestLoggingServiceOnShutdown:
         remove_queue_handlers()
 
 
-class TestDroppedCount:
-    """Verify dropped_count delegates to persistence_handler."""
+class TestDropCounters:
+    """The two queue bottlenecks are counted separately."""
 
-    async def test_dropped_count_zero_when_no_persistence_handler(self) -> None:
+    async def test_both_counters_zero_when_no_persistence_handler(self) -> None:
         hassette = make_mock_hassette(sealed=False)
         hassette.database_service = make_db_service()
         svc = make_logging_service(hassette=hassette)
 
-        # With persistence_handler creation failing, dropped_count should be 0
+        # With persistence_handler creation failing, the DB counter has nothing to read
         with patch(
             "hassette.core.logging_service.LogPersistenceHandler",
             side_effect=RuntimeError("unavailable"),
@@ -333,12 +334,13 @@ class TestDroppedCount:
             await svc.on_initialize()
 
         try:
-            assert svc.dropped_count == 0
+            assert svc.db_write_queue_drops == 0
+            assert svc.log_queue_drops == 0
         finally:
             if svc._queue_listener is not None:
                 svc._queue_listener.stop()
 
-    async def test_dropped_count_reads_from_persistence_handler(self) -> None:
+    async def test_db_write_queue_drops_reads_from_persistence_handler(self) -> None:
         hassette = make_mock_hassette(sealed=False)
         hassette.database_service = make_db_service()
         svc = make_logging_service(hassette=hassette)
@@ -351,10 +353,39 @@ class TestDroppedCount:
             with svc.persistence_handler._dropped_lock:
                 svc.persistence_handler._dropped = 7
 
-            assert svc.dropped_count == 7
+            assert svc.db_write_queue_drops == 7
+            assert svc.log_queue_drops == 0
         finally:
             if svc._queue_listener is not None:
                 svc._queue_listener.stop()
+
+    async def test_log_queue_drops_reads_from_queue_handler(self) -> None:
+        """A full log queue is counted separately from DB write-queue drops."""
+        hassette = make_mock_hassette(sealed=False)
+        hassette.database_service = make_db_service()
+        hassette.config.logging.log_queue_max = 1
+        svc = make_logging_service(hassette=hassette)
+
+        await svc.on_initialize()
+
+        try:
+            assert svc._queue_listener is not None
+            # Stop the listener so nothing drains the queue, then overflow it.
+            svc._queue_listener.stop()
+            assert svc._queue_handler is not None
+            for i in range(4):
+                svc._queue_handler.emit(logging.LogRecord("hassette", logging.INFO, "", 0, f"m{i}", (), None))
+
+            assert svc.log_queue_drops > 0
+            assert svc.db_write_queue_drops == 0
+        finally:
+            remove_queue_handlers()
+
+    async def test_log_queue_drops_zero_before_initialize(self) -> None:
+        """No queue handler exists before on_initialize(), so the counter reads 0."""
+        svc = make_logging_service()
+
+        assert svc.log_queue_drops == 0
 
 
 class TestSyncToAsyncSwap:
