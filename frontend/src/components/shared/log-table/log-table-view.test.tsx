@@ -2,28 +2,23 @@ import { fireEvent, render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { createLogEntry } from "@/test/factories";
+import { createWouterMock } from "@/test/mock-wouter";
+import { formatTimestamp } from "@/utils/format";
 
 import type { ColumnFilters } from "../table-types";
 import { DEFAULT_SORT } from "./constants";
 import type { ColumnId } from "./types";
 
-// Stub sub-components so this test focuses solely on LogTableView's own logic.
-vi.mock("./log-table-header", () => ({
-  LogTableHeader: () => <thead data-testid="log-table-header" />,
-}));
-
-vi.mock("./log-table-row", () => ({
-  LogTableRow: (props: { rowKey: string; isSelected: boolean; onClick: () => void }) => (
-    <tr data-testid={`row-${props.rowKey}`} data-selected={String(props.isSelected)} onClick={props.onClick} />
-  ),
-}));
-
-// The test-setup.ts stubs matchMedia to always return false (desktop).
-// For the isMobile=true tests we import the real hook and spy on it instead.
 vi.mock("@/hooks/use-media-query", () => ({
   useMediaQuery: vi.fn(() => false),
   BREAKPOINT_MOBILE: 768,
 }));
+
+vi.mock("@/hooks/use-relative-time", () => ({
+  useRelativeTime: () => "2m ago",
+}));
+
+vi.mock("wouter", () => createWouterMock());
 
 import { LogTableView } from "./log-table-view";
 
@@ -78,19 +73,57 @@ describe("LogTableView", () => {
     });
   });
 
-  describe("LogTableHeader", () => {
-    it("renders the LogTableHeader stub inside the table", () => {
-      const { getByTestId } = renderView();
-      expect(getByTestId("log-table-header")).not.toBeNull();
+  describe("table header", () => {
+    it("renders one <th> per visible column plus the detail header", () => {
+      const { getByTestId } = renderView({ visibleColumns: ["level", "timestamp", "app", "message"] });
+      const ths = getByTestId("log-table").querySelectorAll("thead th");
+      expect(ths.length).toBe(5);
+    });
+
+    it("applies scope='col' and aria-label to each header", () => {
+      const { getByTestId } = renderView({ visibleColumns: ["message"] });
+      const th = getByTestId("log-table").querySelector("thead th")!;
+      expect(th.getAttribute("scope")).toBe("col");
+      expect(th.getAttribute("aria-label")).toBe("Log message");
+    });
+
+    it("renders the column label as text content", () => {
+      const { getByTestId } = renderView({ visibleColumns: ["message"] });
+      const th = getByTestId("log-table").querySelector("thead th")!;
+      expect(th.textContent).toContain("Message");
+    });
+
+    it("marks the active sort column with aria-sort", () => {
+      const { getByTestId } = renderView({
+        visibleColumns: ["timestamp"],
+        sort: DEFAULT_SORT,
+      });
+      const th = getByTestId("log-table").querySelector("thead th")!;
+      expect(th.getAttribute("aria-sort")).toBe("descending");
+    });
+
+    it("does not set aria-sort on an inactive sortable column", () => {
+      const { getByTestId } = renderView({
+        visibleColumns: ["level"],
+        sort: DEFAULT_SORT,
+      });
+      const th = getByTestId("log-table").querySelector("thead th")!;
+      expect(th.getAttribute("aria-sort")).toBeNull();
+    });
+
+    it("clicking the sort button calls onSort", () => {
+      const onSort = vi.fn();
+      const { getByTestId } = renderView({ visibleColumns: ["level"], onSort });
+      fireEvent.click(getByTestId("sort-header-btn"));
+      expect(onSort).toHaveBeenCalledWith({ key: "level", dir: "asc" });
     });
   });
 
   describe("tbody rows", () => {
-    it("renders one row stub per entry", () => {
+    it("renders one row per entry", () => {
       const entries = [makeEntry(1), makeEntry(2), makeEntry(3)];
-      const { getAllByTestId } = renderView({ entries });
-      // Each stub gets data-testid="row-<key>"
-      const rows = getAllByTestId(/^row-/);
+      const { getByTestId } = renderView({ entries });
+      const rows = getByTestId("log-table").querySelectorAll("tbody tr");
       expect(rows.length).toBe(3);
     });
 
@@ -107,22 +140,15 @@ describe("LogTableView", () => {
       const entry = makeEntry(5);
       // rowKey(entry) = "1005-5"
       const { getByTestId } = renderView({ entries: [entry], selectedKey: "1005-5" });
-      const row = getByTestId("row-1005-5");
-      expect(row.getAttribute("data-selected")).toBe("true");
+      const row = getByTestId("log-table").querySelector("tbody tr")!;
+      expect(row.getAttribute("aria-current")).toBe("true");
     });
 
     it("does not mark a row as selected when selectedKey does not match", () => {
       const entry = makeEntry(5);
       const { getByTestId } = renderView({ entries: [entry], selectedKey: "0-0" });
-      expect(getByTestId("row-1005-5").getAttribute("data-selected")).toBe("false");
-    });
-
-    it("marks no rows as selected when selectedKey is null", () => {
-      const entries = [makeEntry(1), makeEntry(2)];
-      const { getAllByTestId } = renderView({ entries, selectedKey: null });
-      for (const row of getAllByTestId(/^row-/)) {
-        expect(row.getAttribute("data-selected")).toBe("false");
-      }
+      const row = getByTestId("log-table").querySelector("tbody tr")!;
+      expect(row.getAttribute("aria-current")).toBeNull();
     });
   });
 
@@ -131,7 +157,16 @@ describe("LogTableView", () => {
       const entry = makeEntry(7);
       const onRowClick = vi.fn();
       const { getByTestId } = renderView({ entries: [entry], onRowClick });
-      fireEvent.click(getByTestId("row-1007-7"));
+      fireEvent.click(getByTestId("log-table").querySelector("tbody tr")!);
+      expect(onRowClick).toHaveBeenCalledWith(entry);
+    });
+
+    it("does not call onRowClick when the detail button is clicked (row click also fires, then bubbles) but reports the entry once", () => {
+      const entry = makeEntry(7);
+      const onRowClick = vi.fn();
+      const { getByLabelText } = renderView({ entries: [entry], onRowClick });
+      fireEvent.click(getByLabelText("View log detail"));
+      expect(onRowClick).toHaveBeenCalledTimes(1);
       expect(onRowClick).toHaveBeenCalledWith(entry);
     });
   });
@@ -149,6 +184,269 @@ describe("LogTableView", () => {
       const col = getByTestId("log-table").querySelector("colgroup col") as HTMLElement;
       // "level" mobile width is "32px"
       expect(col.style.width).toBe("32px");
+    });
+  });
+
+  describe("detail button", () => {
+    it("renders a detail button with data-roving-item", () => {
+      const { getByLabelText } = renderView({ entries: [makeEntry(1)] });
+      const btn = getByLabelText("View log detail");
+      expect(btn.hasAttribute("data-roving-item")).toBe(true);
+    });
+
+    it("has aria-controls pointing to the drawer", () => {
+      const { getByLabelText } = renderView({ entries: [makeEntry(1)] });
+      const btn = getByLabelText("View log detail");
+      expect(btn.getAttribute("aria-controls")).toBe("log-detail-drawer");
+    });
+
+    it("has aria-expanded='false' when the row is not selected", () => {
+      const entry = makeEntry(1);
+      const { getByLabelText } = renderView({ entries: [entry], selectedKey: "0-0" });
+      const btn = getByLabelText("View log detail");
+      expect(btn.getAttribute("aria-expanded")).toBe("false");
+    });
+
+    it("has aria-expanded='true' when the row is selected", () => {
+      const entry = makeEntry(1);
+      // rowKey(entry) = "1001-1"
+      const { getByLabelText } = renderView({ entries: [entry], selectedKey: "1001-1" });
+      const btn = getByLabelText("View log detail");
+      expect(btn.getAttribute("aria-expanded")).toBe("true");
+    });
+  });
+
+  describe("cell rendering — level column", () => {
+    it("shows the full level text on desktop", () => {
+      const entry = createLogEntry({ level: "WARNING" });
+      const { getByTestId } = renderView({ entries: [entry], visibleColumns: ["level"], isMobile: false });
+      const td = getByTestId("log-table").querySelector("tbody td")!;
+      expect(td.textContent).toBe("WARNING");
+    });
+
+    it("shows the abbreviated level text on mobile", () => {
+      const entry = createLogEntry({ level: "WARNING" });
+      const { getByTestId } = renderView({ entries: [entry], visibleColumns: ["level"], isMobile: true });
+      const td = getByTestId("log-table").querySelector("tbody td")!;
+      expect(td.textContent).toBe("W");
+    });
+  });
+
+  describe("cell rendering — timestamp column", () => {
+    it("shows the formatted absolute timestamp on desktop", () => {
+      const ts = 1700000000;
+      const entry = createLogEntry({ timestamp: ts });
+      const { getByTestId } = renderView({ entries: [entry], visibleColumns: ["timestamp"], isMobile: false });
+      const td = getByTestId("log-table").querySelector("tbody td")!;
+      expect(td.textContent).toBe(formatTimestamp(ts));
+    });
+
+    it("shows the relative time on mobile", () => {
+      const entry = createLogEntry({ timestamp: 1700000000 });
+      const { getByTestId } = renderView({ entries: [entry], visibleColumns: ["timestamp"], isMobile: true });
+      const td = getByTestId("log-table").querySelector("tbody td")!;
+      expect(td.textContent).toBe("2m ago");
+    });
+  });
+
+  describe("cell rendering — app column", () => {
+    it("renders an AppLink (anchor) when app_key is present", () => {
+      const entry = createLogEntry({ app_key: "my_app" });
+      const { getByTestId } = renderView({ entries: [entry], visibleColumns: ["app"] });
+      const td = getByTestId("log-table").querySelector("tbody td")!;
+      const anchor = td.querySelector("a");
+      expect(anchor).not.toBeNull();
+      expect(anchor!.getAttribute("href")).toBe("/apps/my_app");
+    });
+
+    it("renders an em-dash when app_key is null", () => {
+      const entry = createLogEntry({ app_key: null });
+      const { getByTestId } = renderView({ entries: [entry], visibleColumns: ["app"] });
+      const td = getByTestId("log-table").querySelector("tbody td")!;
+      expect(td.querySelector("a")).toBeNull();
+      expect(td.textContent).toContain("—");
+    });
+  });
+
+  describe("cell rendering — instance column", () => {
+    it("shows instance_name when present", () => {
+      const entry = createLogEntry({ instance_name: "inst_2" });
+      const { getByTestId } = renderView({ entries: [entry], visibleColumns: ["instance"] });
+      const td = getByTestId("log-table").querySelector("tbody td")!;
+      expect(td.textContent).toContain("inst_2");
+    });
+
+    it("shows an em-dash when instance_name is null", () => {
+      const entry = createLogEntry({ instance_name: null });
+      const { getByTestId } = renderView({ entries: [entry], visibleColumns: ["instance"] });
+      const td = getByTestId("log-table").querySelector("tbody td")!;
+      expect(td.textContent).toContain("—");
+    });
+  });
+
+  describe("cell rendering — execution column", () => {
+    it("shows the truncated execution id when present", () => {
+      const entry = createLogEntry({ execution_id: "abcdef1234567890" });
+      const { getByTestId } = renderView({ entries: [entry], visibleColumns: ["execution"] });
+      const td = getByTestId("log-table").querySelector("tbody td")!;
+      expect(td.textContent).toContain("34567890");
+      expect(td.textContent).not.toContain("abcdef1234567890");
+    });
+
+    it("shows an em-dash when execution_id is null", () => {
+      const entry = createLogEntry({ execution_id: null });
+      const { getByTestId } = renderView({ entries: [entry], visibleColumns: ["execution"] });
+      const td = getByTestId("log-table").querySelector("tbody td")!;
+      expect(td.textContent).toContain("—");
+    });
+
+    it("renders as a link when execution_kind and handler ID are present", () => {
+      const entry = createLogEntry({
+        execution_id: "abcdef1234567890",
+        app_key: "my_app",
+        execution_kind: "handler",
+        listener_id: 5,
+        instance_index: 0,
+      });
+      const { getByTestId } = renderView({ entries: [entry], visibleColumns: ["execution"] });
+      const td = getByTestId("log-table").querySelector("tbody td")!;
+      const link = td.querySelector("a");
+      expect(link).not.toBeNull();
+      expect(link!.getAttribute("href")).toContain("/apps/my_app/handlers/listener/5/exec/abcdef1234567890");
+    });
+
+    it("renders as plain text (no link) when execution_kind is null", () => {
+      const entry = createLogEntry({
+        execution_id: "abcdef1234567890",
+        app_key: "my_app",
+        execution_kind: null,
+        listener_id: null,
+      });
+      const { getByTestId } = renderView({ entries: [entry], visibleColumns: ["execution"] });
+      const td = getByTestId("log-table").querySelector("tbody td")!;
+      expect(td.querySelector("a")).toBeNull();
+      expect(td.textContent).toContain("34567890");
+    });
+
+    it("clicking the execution link does not trigger the row's onRowClick", () => {
+      const onRowClick = vi.fn();
+      const entry = createLogEntry({
+        execution_id: "abcdef1234567890",
+        app_key: "my_app",
+        execution_kind: "handler",
+        listener_id: 5,
+        instance_index: 0,
+      });
+      const { getByTestId } = renderView({ entries: [entry], visibleColumns: ["execution"], onRowClick });
+      const td = getByTestId("log-table").querySelector("tbody td")!;
+      const link = td.querySelector("a")!;
+      fireEvent.click(link);
+      expect(onRowClick).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("cell rendering — function column", () => {
+    it("shows func_name followed by '()'", () => {
+      const entry = createLogEntry({ func_name: "on_ready" });
+      const { getByTestId } = renderView({ entries: [entry], visibleColumns: ["function"] });
+      const td = getByTestId("log-table").querySelector("tbody td")!;
+      expect(td.textContent).toBe("on_ready()");
+    });
+  });
+
+  describe("cell rendering — module column", () => {
+    it("shows the last segment of logger_name + ':' + lineno", () => {
+      const entry = createLogEntry({ logger_name: "hassette.apps.my_app", lineno: 42 });
+      const { getByTestId } = renderView({ entries: [entry], visibleColumns: ["module"] });
+      const td = getByTestId("log-table").querySelector("tbody td")!;
+      expect(td.textContent).toBe("my_app:42");
+    });
+
+    it("uses the full logger_name when there are no dots", () => {
+      const entry = createLogEntry({ logger_name: "root", lineno: 7 });
+      const { getByTestId } = renderView({ entries: [entry], visibleColumns: ["module"] });
+      const td = getByTestId("log-table").querySelector("tbody td")!;
+      expect(td.textContent).toBe("root:7");
+    });
+  });
+
+  describe("cell rendering — message column", () => {
+    it("shows the entry's message text", () => {
+      const entry = createLogEntry({ message: "hello world log" });
+      const { getByTestId } = renderView({ entries: [entry], visibleColumns: ["message"] });
+      const td = getByTestId("log-message-cell");
+      expect(td.textContent).toContain("hello world log");
+    });
+
+    it("shows the source inline (app_key.func_name) on mobile when the app column isn't visible", () => {
+      const entry = createLogEntry({ app_key: "my_app", func_name: "on_ready", message: "hello" });
+      const { getByTestId } = renderView({
+        entries: [entry],
+        visibleColumns: ["message"],
+        isMobile: true,
+      });
+      const td = getByTestId("log-message-cell");
+      expect(td.textContent).toContain("my_app.on_ready()");
+    });
+
+    it("does not show the source inline on desktop", () => {
+      const entry = createLogEntry({ app_key: "my_app", func_name: "on_ready", message: "hello" });
+      const { getByTestId } = renderView({
+        entries: [entry],
+        visibleColumns: ["message"],
+        isMobile: false,
+      });
+      const td = getByTestId("log-message-cell");
+      expect(td.textContent).not.toContain("on_ready()");
+    });
+
+    it("does not show the source inline on mobile when the app column is visible", () => {
+      const entry = createLogEntry({ app_key: "my_app", func_name: "on_ready", message: "hello" });
+      const { getByTestId } = renderView({
+        entries: [entry],
+        visibleColumns: ["app", "message"],
+        isMobile: true,
+      });
+      const td = getByTestId("log-message-cell");
+      expect(td.textContent).not.toContain("on_ready()");
+    });
+  });
+
+  describe("handleSort — timestamp default direction", () => {
+    it("overrides to desc when clicking timestamp while another column is active", () => {
+      const onSort = vi.fn();
+      const { getByTestId } = renderView({
+        visibleColumns: ["level", "timestamp"],
+        sort: { key: "level", dir: "desc" },
+        onSort,
+      });
+      const btn = getByTestId("sort-timestamp").querySelector("button")!;
+      fireEvent.click(btn);
+      expect(onSort).toHaveBeenCalledWith({ key: "timestamp", dir: "desc" });
+    });
+
+    it("allows normal asc/desc cycling when timestamp is already active", () => {
+      const onSort = vi.fn();
+      const { getByTestId } = renderView({
+        visibleColumns: ["timestamp"],
+        sort: DEFAULT_SORT,
+        onSort,
+      });
+      const btn = getByTestId("sort-timestamp").querySelector("button")!;
+      fireEvent.click(btn);
+      expect(onSort).toHaveBeenCalledWith({ key: "timestamp", dir: "asc" });
+    });
+
+    it("does not override direction for non-timestamp columns", () => {
+      const onSort = vi.fn();
+      const { getByTestId } = renderView({
+        visibleColumns: ["level", "timestamp"],
+        sort: DEFAULT_SORT,
+        onSort,
+      });
+      const btn = getByTestId("sort-level").querySelector("button")!;
+      fireEvent.click(btn);
+      expect(onSort).toHaveBeenCalledWith({ key: "level", dir: "asc" });
     });
   });
 });

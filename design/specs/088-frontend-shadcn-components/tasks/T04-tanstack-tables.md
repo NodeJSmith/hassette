@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Replace log-table and execution-table with TanStack Table"
-status: "planned"
+status: "done"
 depends_on: ["T03"]
 implements: ["FR#11", "FR#13", "AC#1", "AC#2", "AC#3", "AC#8"]
 ---

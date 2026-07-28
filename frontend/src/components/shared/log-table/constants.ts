@@ -1,4 +1,4 @@
-import type { ColumnDef, ColumnId, LevelFilter, LogSortKey, LogSortState, TierFilter } from "./types";
+import type { ColumnId, LevelFilter, LogColumnMeta, LogSortKey, LogSortState, TierFilter } from "./types";
 
 export const LEVELS = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] as const;
 
@@ -46,7 +46,7 @@ export const LEVEL_OPTIONS: { value: LevelFilter; label: string }[] = [
   { value: "CRITICAL", label: "CRITICAL only" },
 ];
 
-export const COLUMNS: ColumnDef[] = [
+export const COLUMNS: LogColumnMeta[] = [
   {
     id: "level",
     label: "Level",
@@ -112,9 +112,9 @@ export const COLUMNS: ColumnDef[] = [
   },
 ];
 
-export const COLUMN_MAP: Record<ColumnId, ColumnDef> = Object.fromEntries(COLUMNS.map((c) => [c.id, c])) as Record<
+export const COLUMN_MAP: Record<ColumnId, LogColumnMeta> = Object.fromEntries(COLUMNS.map((c) => [c.id, c])) as Record<
   ColumnId,
-  ColumnDef
+  LogColumnMeta
 >;
 
 export const VALID_SORT_COLUMNS: ReadonlySet<string> = new Set<string>([

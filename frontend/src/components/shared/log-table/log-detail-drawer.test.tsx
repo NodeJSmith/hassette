@@ -94,8 +94,8 @@ describe("LogDetailDrawer", () => {
 
   describe("keyboard", () => {
     it("closes on Escape", () => {
-      const { onClose, queryByRole } = renderDrawer();
-      const drawer = queryByRole("complementary")!;
+      const { onClose, queryByTestId } = renderDrawer();
+      const drawer = queryByTestId("log-detail-drawer")!;
       fireEvent.keyDown(drawer, { key: "Escape" });
       expect(onClose).toHaveBeenCalledTimes(1);
     });
@@ -103,15 +103,15 @@ describe("LogDetailDrawer", () => {
 
   describe("rendering", () => {
     it("renders nothing when selectedKey is null", () => {
-      const { queryByRole } = render(
+      const { queryByTestId } = render(
         <LogDetailDrawer selectedKey={null} entries={[]} onClose={vi.fn()} onNavigate={vi.fn()} />,
       );
-      expect(queryByRole("complementary")).toBeNull();
+      expect(queryByTestId("log-detail-drawer")).toBeNull();
     });
 
     it("renders drawer with entry details when selectedKey matches", () => {
-      const { queryByRole } = renderDrawer();
-      const drawer = queryByRole("complementary");
+      const { queryByTestId } = renderDrawer();
+      const drawer = queryByTestId("log-detail-drawer");
       expect(drawer).not.toBeNull();
       expect(drawer!.textContent).toContain("on_ready()");
       expect(drawer!.textContent).toContain("my_app");
@@ -120,16 +120,16 @@ describe("LogDetailDrawer", () => {
 
     it("shows exception section when exc_info is present", () => {
       const entry = makeEntry({ exc_info: "Traceback (most recent call last):\nValueError: bad" });
-      const { queryByRole } = renderDrawer({ entries: [entry] });
-      const drawer = queryByRole("complementary")!;
+      const { queryByTestId } = renderDrawer({ entries: [entry] });
+      const drawer = queryByTestId("log-detail-drawer")!;
       expect(drawer.textContent).toContain("exception");
       expect(drawer.textContent).toContain("Traceback");
     });
 
     it("shows message and exception before metadata", () => {
       const entry = makeEntry({ exc_info: "Traceback (most recent call last):\nValueError: bad" });
-      const { queryByRole } = renderDrawer({ entries: [entry] });
-      const text = queryByRole("complementary")!.textContent ?? "";
+      const { queryByTestId } = renderDrawer({ entries: [entry] });
+      const text = queryByTestId("log-detail-drawer")!.textContent ?? "";
 
       expect(text.indexOf("message")).toBeLessThan(text.indexOf("exception"));
       expect(text.indexOf("exception")).toBeLessThan(text.indexOf("App"));
@@ -137,8 +137,8 @@ describe("LogDetailDrawer", () => {
     });
 
     it("does not show exception section when exc_info is null", () => {
-      const { queryByRole } = renderDrawer();
-      const drawer = queryByRole("complementary")!;
+      const { queryByTestId } = renderDrawer();
+      const drawer = queryByTestId("log-detail-drawer")!;
       expect(drawer.textContent).not.toContain("exception");
     });
   });
@@ -251,11 +251,11 @@ describe("LogDetailDrawer", () => {
   describe("filtered-out state", () => {
     it("shows 'no longer visible' message when selectedKey does not match any entry", () => {
       const entries = [makeEntry({ seq: 1 })];
-      const { queryByRole } = renderDrawer({
+      const { queryByTestId } = renderDrawer({
         entries,
         selectedKey: "9999-9999",
       });
-      const drawer = queryByRole("complementary")!;
+      const drawer = queryByTestId("log-detail-drawer")!;
       expect(drawer).not.toBeNull();
       expect(drawer.textContent).toContain("no longer visible");
     });

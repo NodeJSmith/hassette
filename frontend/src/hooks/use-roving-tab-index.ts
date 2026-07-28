@@ -1,5 +1,5 @@
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 // Items participating in roving tabindex must have the `data-roving-item` attribute.
 const ROVING_SELECTOR = "[data-roving-item]";
@@ -48,10 +48,15 @@ export function useRovingTabIndex<T extends HTMLElement = HTMLElement>(
     items[clampedIndex]?.focus();
   }, [clampedIndex]);
 
+  // Stable identity across renders (unless clampedIndex changes) so callers
+  // that memoize on it (e.g. log-table-view.tsx's detailColumn) get a real
+  // cache hit instead of recomputing every render.
+  const getTabIndex = useCallback((i: number): 0 | -1 => (i === clampedIndex ? 0 : -1), [clampedIndex]);
+
   return {
     containerRef,
     onContainerKeyDown,
-    getTabIndex: (i: number): 0 | -1 => (i === clampedIndex ? 0 : -1),
+    getTabIndex,
     setActiveIndex,
   };
 }

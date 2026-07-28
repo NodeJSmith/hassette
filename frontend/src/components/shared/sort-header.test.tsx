@@ -10,9 +10,11 @@ describe("SortHeader — sort-only", () => {
       <table>
         <thead>
           <tr>
-            <SortHeader sortKey="name" sort={sort} onSort={vi.fn()}>
-              Name
-            </SortHeader>
+            <th>
+              <SortHeader sortKey="name" sort={sort} onSort={vi.fn()}>
+                Name
+              </SortHeader>
+            </th>
           </tr>
         </thead>
       </table>,
@@ -26,9 +28,11 @@ describe("SortHeader — sort-only", () => {
       <table>
         <thead>
           <tr>
-            <SortHeader sortKey="name" sort={sort} onSort={vi.fn()}>
-              Name
-            </SortHeader>
+            <th>
+              <SortHeader sortKey="name" sort={sort} onSort={vi.fn()}>
+                Name
+              </SortHeader>
+            </th>
           </tr>
         </thead>
       </table>,
@@ -42,16 +46,30 @@ describe("SortHeader — sort-only", () => {
       <table>
         <thead>
           <tr>
-            <SortHeader sortKey="name" sort={sort} onSort={vi.fn()}>
-              Name
-            </SortHeader>
+            <th>
+              <SortHeader sortKey="name" sort={sort} onSort={vi.fn()}>
+                Name
+              </SortHeader>
+            </th>
           </tr>
         </thead>
       </table>,
     );
-    // The th should contain a button directly, not wrapped in a div
+    // The outer span should contain a button directly, not a div wrapper
     const th = container.querySelector("th");
-    expect(th?.firstElementChild?.tagName).toBe("BUTTON");
+    expect(th?.querySelector("div")).toBeNull();
+    expect(th?.querySelector("button")).not.toBeNull();
+  });
+
+  it("does not render a <th> itself — only inner content", () => {
+    const sort: SortState<string> = { key: "name", dir: "asc" };
+    const { container } = render(
+      <SortHeader sortKey="name" sort={sort} onSort={vi.fn()}>
+        Name
+      </SortHeader>,
+    );
+    expect(container.querySelector("th")).toBeNull();
+    expect(screen.getByTestId("sort-header-btn")).toBeTruthy();
   });
 
   it("calls onSort when sort button is clicked (managed)", async () => {
@@ -61,9 +79,11 @@ describe("SortHeader — sort-only", () => {
       <table>
         <thead>
           <tr>
-            <SortHeader sortKey="name" sort={sort} onSort={onSort}>
-              Name
-            </SortHeader>
+            <th>
+              <SortHeader sortKey="name" sort={sort} onSort={onSort}>
+                Name
+              </SortHeader>
+            </th>
           </tr>
         </thead>
       </table>,
@@ -82,16 +102,18 @@ describe("SortHeader — sort+filter", () => {
       <table>
         <thead>
           <tr>
-            <SortHeader
-              sortKey="status"
-              sort={sort}
-              onSort={vi.fn()}
-              filterContent={<div>Filter options</div>}
-              hasActiveFilter={false}
-              ariaLabel="Status"
-            >
-              Status
-            </SortHeader>
+            <th>
+              <SortHeader
+                sortKey="status"
+                sort={sort}
+                onSort={vi.fn()}
+                filterContent={<div>Filter options</div>}
+                hasActiveFilter={false}
+                ariaLabel="Status"
+              >
+                Status
+              </SortHeader>
+            </th>
           </tr>
         </thead>
       </table>,
@@ -106,15 +128,17 @@ describe("SortHeader — sort+filter", () => {
       <table>
         <thead>
           <tr>
-            <SortHeader
-              sortKey="status"
-              sort={sort}
-              onSort={vi.fn()}
-              filterContent={<div>Filter options</div>}
-              hasActiveFilter={false}
-            >
-              Status
-            </SortHeader>
+            <th>
+              <SortHeader
+                sortKey="status"
+                sort={sort}
+                onSort={vi.fn()}
+                filterContent={<div>Filter options</div>}
+                hasActiveFilter={false}
+              >
+                Status
+              </SortHeader>
+            </th>
           </tr>
         </thead>
       </table>,
@@ -129,16 +153,18 @@ describe("SortHeader — sort+filter", () => {
       <table>
         <thead>
           <tr>
-            <SortHeader
-              sortKey="status"
-              sort={sort}
-              onSort={onSort}
-              filterContent={<div>Filter</div>}
-              hasActiveFilter={false}
-              ariaLabel="Status"
-            >
-              Status
-            </SortHeader>
+            <th>
+              <SortHeader
+                sortKey="status"
+                sort={sort}
+                onSort={onSort}
+                filterContent={<div>Filter</div>}
+                hasActiveFilter={false}
+                ariaLabel="Status"
+              >
+                Status
+              </SortHeader>
+            </th>
           </tr>
         </thead>
       </table>,
@@ -155,16 +181,18 @@ describe("SortHeader — sort+filter", () => {
       <table>
         <thead>
           <tr>
-            <SortHeader
-              sortKey="status"
-              sort={sort}
-              onSort={vi.fn()}
-              filterContent={<div data-testid="filter-content">Filter options</div>}
-              hasActiveFilter={false}
-              ariaLabel="Status"
-            >
-              Status
-            </SortHeader>
+            <th>
+              <SortHeader
+                sortKey="status"
+                sort={sort}
+                onSort={vi.fn()}
+                filterContent={<div data-testid="filter-content">Filter options</div>}
+                hasActiveFilter={false}
+                ariaLabel="Status"
+              >
+                Status
+              </SortHeader>
+            </th>
           </tr>
         </thead>
       </table>,
@@ -182,16 +210,18 @@ describe("SortHeader — sort+filter", () => {
       <table>
         <thead>
           <tr>
-            <SortHeader
-              sortKey="status"
-              sort={sort}
-              onSort={vi.fn()}
-              filterContent={<div data-testid="filter-content">Filter</div>}
-              hasActiveFilter={false}
-              ariaLabel="Status"
-            >
-              Status
-            </SortHeader>
+            <th>
+              <SortHeader
+                sortKey="status"
+                sort={sort}
+                onSort={vi.fn()}
+                filterContent={<div data-testid="filter-content">Filter</div>}
+                hasActiveFilter={false}
+                ariaLabel="Status"
+              >
+                Status
+              </SortHeader>
+            </th>
           </tr>
         </thead>
       </table>,
@@ -214,9 +244,11 @@ describe("SortHeader — filter-only", () => {
       <table>
         <thead>
           <tr>
-            <SortHeader filterContent={<div>Filter options</div>} hasActiveFilter={false} ariaLabel="Type">
-              Type
-            </SortHeader>
+            <th>
+              <SortHeader filterContent={<div>Filter options</div>} hasActiveFilter={false} ariaLabel="Type">
+                Type
+              </SortHeader>
+            </th>
           </tr>
         </thead>
       </table>,
@@ -234,9 +266,11 @@ describe("SortHeader — filter-only", () => {
       <table>
         <thead>
           <tr>
-            <SortHeader filterContent={<div>opts</div>} hasActiveFilter={false}>
-              Type
-            </SortHeader>
+            <th>
+              <SortHeader filterContent={<div>opts</div>} hasActiveFilter={false}>
+                Type
+              </SortHeader>
+            </th>
           </tr>
         </thead>
       </table>,
@@ -249,13 +283,15 @@ describe("SortHeader — filter-only", () => {
       <table>
         <thead>
           <tr>
-            <SortHeader
-              filterContent={<div data-testid="filter-content">Filter options</div>}
-              hasActiveFilter={false}
-              ariaLabel="Type"
-            >
-              Type
-            </SortHeader>
+            <th>
+              <SortHeader
+                filterContent={<div data-testid="filter-content">Filter options</div>}
+                hasActiveFilter={false}
+                ariaLabel="Type"
+              >
+                Type
+              </SortHeader>
+            </th>
           </tr>
         </thead>
       </table>,
@@ -274,7 +310,9 @@ describe("SortHeader — plain label", () => {
       <table>
         <thead>
           <tr>
-            <SortHeader>Actions</SortHeader>
+            <th>
+              <SortHeader>Actions</SortHeader>
+            </th>
           </tr>
         </thead>
       </table>,
@@ -288,7 +326,9 @@ describe("SortHeader — plain label", () => {
       <table>
         <thead>
           <tr>
-            <SortHeader>Actions</SortHeader>
+            <th>
+              <SortHeader>Actions</SortHeader>
+            </th>
           </tr>
         </thead>
       </table>,
@@ -297,36 +337,42 @@ describe("SortHeader — plain label", () => {
   });
 });
 
-describe("SortHeader — ariaLabel", () => {
-  it("applies aria-label to the <th>", () => {
+describe("SortHeader — data-testid", () => {
+  it("applies data-testid to the outer wrapper element (no filter)", () => {
     const sort: SortState<string> = { key: "name", dir: "asc" };
-    const { container } = render(
-      <table>
-        <thead>
-          <tr>
-            <SortHeader sortKey="name" sort={sort} onSort={vi.fn()} ariaLabel="App name">
-              Name
-            </SortHeader>
-          </tr>
-        </thead>
-      </table>,
+    render(
+      <SortHeader sortKey="name" sort={sort} onSort={vi.fn()} data-testid="sort-name-col">
+        Name
+      </SortHeader>,
     );
-    const th = container.querySelector("th");
-    expect(th?.getAttribute("aria-label")).toBe("App name");
+    expect(screen.getByTestId("sort-name-col")).toBeTruthy();
   });
 
+  it("applies data-testid to the outer wrapper element (with filter)", () => {
+    const sort: SortState<string> = { key: "status", dir: "asc" };
+    render(
+      <SortHeader
+        sortKey="status"
+        sort={sort}
+        onSort={vi.fn()}
+        filterContent={<div>opts</div>}
+        hasActiveFilter={false}
+        data-testid="sort-status-col"
+      >
+        Status
+      </SortHeader>,
+    );
+    expect(screen.getByTestId("sort-status-col")).toBeTruthy();
+  });
+});
+
+describe("SortHeader — ariaLabel", () => {
   it("applies aria-label to the sort button as 'Sort by {ariaLabel}'", () => {
     const sort: SortState<string> = { key: "name", dir: "asc" };
     render(
-      <table>
-        <thead>
-          <tr>
-            <SortHeader sortKey="name" sort={sort} onSort={vi.fn()} ariaLabel="App name">
-              Name
-            </SortHeader>
-          </tr>
-        </thead>
-      </table>,
+      <SortHeader sortKey="name" sort={sort} onSort={vi.fn()} ariaLabel="App name">
+        Name
+      </SortHeader>,
     );
     const btn = screen.getByTestId("sort-header-btn");
     expect(btn.getAttribute("aria-label")).toBe("Sort by App name");
@@ -335,22 +381,16 @@ describe("SortHeader — ariaLabel", () => {
   it("applies aria-label to the filter button as 'Filter {ariaLabel}'", () => {
     const sort: SortState<string> = { key: "status", dir: "asc" };
     render(
-      <table>
-        <thead>
-          <tr>
-            <SortHeader
-              sortKey="status"
-              sort={sort}
-              onSort={vi.fn()}
-              filterContent={<div>opts</div>}
-              hasActiveFilter={false}
-              ariaLabel="Status"
-            >
-              Status
-            </SortHeader>
-          </tr>
-        </thead>
-      </table>,
+      <SortHeader
+        sortKey="status"
+        sort={sort}
+        onSort={vi.fn()}
+        filterContent={<div>opts</div>}
+        hasActiveFilter={false}
+        ariaLabel="Status"
+      >
+        Status
+      </SortHeader>,
     );
     const filterBtn = screen.getByTestId("filter-btn");
     expect(filterBtn.getAttribute("aria-label")).toBe("Filter Status");
@@ -360,30 +400,18 @@ describe("SortHeader — ariaLabel", () => {
 describe("SortHeader — hasActiveFilter", () => {
   it("shows the active dot on the filter icon when hasActiveFilter=true", () => {
     render(
-      <table>
-        <thead>
-          <tr>
-            <SortHeader filterContent={<div>opts</div>} hasActiveFilter={true}>
-              Status
-            </SortHeader>
-          </tr>
-        </thead>
-      </table>,
+      <SortHeader filterContent={<div>opts</div>} hasActiveFilter={true}>
+        Status
+      </SortHeader>,
     );
     expect(screen.getByTestId("filter-icon-dot")).toBeTruthy();
   });
 
   it("does not show the active dot when hasActiveFilter=false", () => {
     render(
-      <table>
-        <thead>
-          <tr>
-            <SortHeader filterContent={<div>opts</div>} hasActiveFilter={false}>
-              Status
-            </SortHeader>
-          </tr>
-        </thead>
-      </table>,
+      <SortHeader filterContent={<div>opts</div>} hasActiveFilter={false}>
+        Status
+      </SortHeader>,
     );
     expect(screen.queryByTestId("filter-icon-dot")).toBeNull();
   });
@@ -392,19 +420,9 @@ describe("SortHeader — hasActiveFilter", () => {
 describe("SortHeader — popover toggle", () => {
   it("opens popover on filter button click and closes on Escape", async () => {
     render(
-      <table>
-        <thead>
-          <tr>
-            <SortHeader
-              filterContent={<div data-testid="pop-content">Content</div>}
-              hasActiveFilter={false}
-              ariaLabel="Col"
-            >
-              Col
-            </SortHeader>
-          </tr>
-        </thead>
-      </table>,
+      <SortHeader filterContent={<div data-testid="pop-content">Content</div>} hasActiveFilter={false} ariaLabel="Col">
+        Col
+      </SortHeader>,
     );
     // Open
     await act(async () => {
@@ -421,15 +439,9 @@ describe("SortHeader — popover toggle", () => {
 
   it("closing the popover restores focus to the filter button", async () => {
     render(
-      <table>
-        <thead>
-          <tr>
-            <SortHeader filterContent={<button type="button">Inside</button>} hasActiveFilter={false} ariaLabel="Col">
-              Col
-            </SortHeader>
-          </tr>
-        </thead>
-      </table>,
+      <SortHeader filterContent={<button type="button">Inside</button>} hasActiveFilter={false} ariaLabel="Col">
+        Col
+      </SortHeader>,
     );
     const filterBtn = screen.getByTestId("filter-btn");
     await act(async () => {

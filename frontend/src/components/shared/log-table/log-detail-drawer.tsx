@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 
 import type { LogEntry } from "@/api/endpoints";
+import { Drawer, DrawerContentUnstyled, DrawerOverlay, DrawerTitle } from "@/components/ui/drawer";
 import { BREAKPOINT_MOBILE, BREAKPOINT_TABLET, useMediaQuery } from "@/hooks/use-media-query";
 import { appDetailPath } from "@/utils/app-routes";
 import { formatTimestamp } from "@/utils/format";
@@ -56,7 +57,7 @@ function CopyButton({ text, label }: { text: string; label: string }) {
 export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: Props) {
   const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
   const isTablet = useMediaQuery(BREAKPOINT_TABLET);
-  const drawerRef = useRef<HTMLElement>(null);
+  const drawerRef = useRef<HTMLDivElement>(null);
 
   const entry = selectedKey ? (entries.find((e) => rowKey(e) === selectedKey) ?? null) : null;
   const currentIndex = entry ? entries.findIndex((e) => rowKey(e) === selectedKey) : -1;
@@ -116,16 +117,30 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
   const useOverlay = isMobile || isTablet;
 
   return (
-    <>
-      {useOverlay && <div className={styles.backdrop} onClick={onClose} aria-hidden="true" />}
-      <aside
+    <Drawer
+      open={selectedKey !== null}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      direction={isMobile ? "bottom" : "right"}
+      modal={useOverlay}
+    >
+      {useOverlay && <DrawerOverlay />}
+      <DrawerContentUnstyled
         ref={drawerRef}
         className={clsx(styles.drawer, isMobile ? styles.bottomSheet : styles.sidePanel)}
         id={DETAIL_DRAWER_ID}
-        role="complementary"
         aria-label="Log entry detail"
         data-testid="log-detail-drawer"
+        // This component owns closing (Escape via the document-level handler
+        // above, outside-click via the tbody exclusion below) — the default
+        // Radix/vaul dismissal behavior would close on ANY outside click,
+        // including clicking a different log row, and would double-fire
+        // Escape handling alongside the arrow-key navigation above.
+        onEscapeKeyDown={(e) => e.preventDefault()}
+        onInteractOutside={(e) => e.preventDefault()}
       >
+        <DrawerTitle className="sr-only">Log entry detail</DrawerTitle>
         <div className={styles.headerBar}>
           <div className={styles.navButtons}>
             <button
@@ -227,7 +242,7 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
             </dl>
           </div>
         ) : null}
-      </aside>
-    </>
+      </DrawerContentUnstyled>
+    </Drawer>
   );
 }
