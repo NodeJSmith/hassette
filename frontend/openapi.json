@@ -3657,6 +3657,11 @@
             "type": "integer",
             "title": "Log Records Dropped",
             "default": 0
+          },
+          "log_persistence_active": {
+            "type": "boolean",
+            "title": "Log Persistence Active",
+            "default": false
           }
         },
         "type": "object",

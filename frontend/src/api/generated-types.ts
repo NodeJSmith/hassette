@@ -1507,6 +1507,11 @@ export interface components {
              * @default 0
              */
             log_records_dropped: number;
+            /**
+             * Log Persistence Active
+             * @default false
+             */
+            log_persistence_active: boolean;
         };
         /**
          * TelemetryStatusResponse

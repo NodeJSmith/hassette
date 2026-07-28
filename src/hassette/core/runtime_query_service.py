@@ -312,6 +312,7 @@ class RuntimeQueryService(Resource):
             services=services,
             boot_issues=boot_issues,
             log_records_dropped=self.hassette.get_log_records_dropped(),
+            log_persistence_active=self.hassette.is_log_persistence_active(),
         )
 
     def collect_boot_issues(self) -> list[BootIssue]:

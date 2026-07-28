@@ -77,6 +77,8 @@ class SystemStatusResponse(BaseModel):
     version: str = ""
     boot_issues: list[BootIssueResponse] = Field(default_factory=list)
     log_records_dropped: int = 0
+    log_persistence_active: bool = False
+    """False means log persistence is unavailable — ``log_records_dropped`` of 0 is not health."""
 
 
 class LivenessResponse(BaseModel):

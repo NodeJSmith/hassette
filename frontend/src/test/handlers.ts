@@ -216,6 +216,7 @@ export const handlers = [
       version: "1.0.0",
       boot_issues: [],
       log_records_dropped: 0,
+      log_persistence_active: true,
     });
   }),
 ];

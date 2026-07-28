@@ -26,6 +26,7 @@ def make_system_status_response(
     entity_count: int = 120,
     app_count: int = 3,
     version: str = "0.1.0",
+    log_persistence_active: bool = True,
 ) -> SystemStatusResponse:
     """Build a SystemStatusResponse with sensible defaults."""
     return SystemStatusResponse(
@@ -35,6 +36,7 @@ def make_system_status_response(
         entity_count=entity_count,
         app_count=app_count,
         version=version,
+        log_persistence_active=log_persistence_active,
     )
 
 

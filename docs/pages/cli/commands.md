@@ -43,19 +43,27 @@ Reports system health: connection state, uptime, app count, entity count, and ve
 
 ```console
 $ hassette status
-╭──────────────────── System Status ───────────────────────────╮
-│  status               ok                                     │
-│  websocket_connected  true                                   │
-│  uptime_seconds       16.57                                  │
-│  entity_count         103                                    │
-│  app_count            3                                      │
-│  services             EventStreamService, BusService, ...    │
-│  version              0.32.0                                 │
-│  boot_issues          []                                     │
+╭────────────────────── System Status ─────────────────────────╮
+│  status                  ok                                  │
+│  websocket_connected     true                                │
+│  uptime_seconds          16.57                               │
+│  entity_count            103                                 │
+│  app_count               3                                   │
+│  services                EventStreamService, BusService, ... │
+│  version                 0.32.0                              │
+│  boot_issues             []                                  │
+│  log_records_dropped     0                                   │
+│  log_persistence_active  true                                │
 ╰──────────────────────────────────────────────────────────────╯
 ```
 
 `boot_issues` lists apps that failed to initialize. An empty list means all apps started cleanly. When an app appears here, check `hassette log --app <key>` for the error.
+
+`log_records_dropped` counts log records that a running persistence handler could not hand off to the database — the write queue was full, or the database was not yet accepting writes. Read it together with `log_persistence_active`, because the counter only moves while persistence is running:
+
+- `log_persistence_active: true` with `log_records_dropped: 0` — healthy. Every log record is reaching the database.
+- `log_persistence_active: true` with a non-zero count — persistence is running but shedding records under load. Check the console logs for `DB write queue full`.
+- `log_persistence_active: false` — persistence is not running at all. Nothing is being written and the drop count is frozen, so a `0` here says nothing about how many records were lost. This happens when the persistence handler failed to start (check the console logs for `Failed to create persistence handler`) or when the instance is shutting down.
 
 **API endpoint:** `GET /api/health`
 

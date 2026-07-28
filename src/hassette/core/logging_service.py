@@ -134,9 +134,29 @@ class LoggingService(Resource):
         if self.persistence_handler is not None:
             self.persistence_handler.flush_if_pending()
 
+        # Dropping the listener/handler refs is what flips persistence_active to False.
+        # persistence_handler is deliberately kept so dropped_count still reports the final tally.
+        self._queue_listener = None
+        self._queue_handler = None
+
     @property
     def dropped_count(self) -> int:
-        """Return the number of log records dropped by the persistence handler."""
+        """Return the number of log records dropped by the persistence handler.
+
+        Reads the live handler, which outlives ``on_shutdown()`` — the final count stays
+        available to status polls during and after teardown. A count of 0 is only good news
+        when ``persistence_active`` is True.
+        """
         if self.persistence_handler is None:
             return 0
         return self.persistence_handler.dropped_count
+
+    @property
+    def persistence_active(self) -> bool:
+        """Whether log records are currently being persisted to the database.
+
+        False before ``on_initialize()``, when the persistence handler failed to be created,
+        and after ``on_shutdown()``. Lets callers tell "zero drops, healthy" apart from
+        "persistence unavailable" — both of which report ``dropped_count == 0``.
+        """
+        return self._queue_listener is not None and self.persistence_handler is not None

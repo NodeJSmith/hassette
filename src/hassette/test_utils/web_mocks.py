@@ -230,6 +230,11 @@ def create_hassette_stub(
 
     hassette.get_drop_counters.return_value = (0, 0, 0)
 
+    # Pydantic coerces a bare MagicMock through __int__/__bool__, so an unstubbed call here
+    # yields a healthy-looking 1 drop. Pin both to a genuinely healthy pipeline.
+    hassette.get_log_records_dropped.return_value = 0
+    hassette.is_log_persistence_active.return_value = True
+
     hassette.children = []
 
     return hassette

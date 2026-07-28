@@ -138,6 +138,7 @@ def system_status_response_from(status: SystemStatus) -> SystemStatusResponse:
         version=status.version,
         boot_issues=boot_issues,
         log_records_dropped=status.log_records_dropped,
+        log_persistence_active=status.log_persistence_active,
     )
 
 

@@ -216,6 +216,8 @@ interface TelemetryPanelProps {
   droppedShutdown: number;
   errorHandlerFailures: number;
   telemetryDegraded: boolean;
+  logRecordsDropped: number;
+  logPersistenceActive: boolean;
 }
 
 interface DropCounterRowProps {
@@ -239,6 +241,8 @@ function TelemetryPanel({
   droppedShutdown,
   errorHandlerFailures,
   telemetryDegraded,
+  logRecordsDropped,
+  logPersistenceActive,
 }: TelemetryPanelProps) {
   return (
     <section
@@ -252,6 +256,12 @@ function TelemetryPanel({
           Telemetry degraded — writes may be failing or the database is unavailable.
         </div>
       )}
+      {!logPersistenceActive && (
+        <div class={styles.degradedBanner} role="alert" data-testid="diag-log-persistence-inactive">
+          Log persistence inactive — log records are not being written to the database, so the dropped count below has
+          stopped moving.
+        </div>
+      )}
       {droppedOverflow + droppedExhausted + droppedShutdown + errorHandlerFailures > 0 && (
         <ul class={styles.dropList} aria-label="Drop counters">
           <DropCounterRow label="Buffer overflow" value={droppedOverflow} testId="diag-drop-overflow" />
@@ -262,6 +272,11 @@ function TelemetryPanel({
             value={errorHandlerFailures}
             testId="diag-drop-error-handler"
           />
+        </ul>
+      )}
+      {(logRecordsDropped > 0 || !logPersistenceActive) && (
+        <ul class={styles.dropList} aria-label="Log persistence counters">
+          <DropCounterRow label="Log records dropped" value={logRecordsDropped} testId="diag-drop-log-records" />
         </ul>
       )}
     </section>
@@ -300,7 +315,11 @@ export function DiagnosticsPage() {
 
   const totalDrops =
     droppedOverflow.value + droppedExhausted.value + droppedShutdown.value + errorHandlerFailures.value;
-  const showTelemetry = telemetryDegraded.value || totalDrops > 0;
+  const logRecordsDropped = systemStatus?.log_records_dropped ?? 0;
+  // A missing status seed means the HTTP load failed, which is not evidence of a dead
+  // logging pipeline — don't raise the inactive alarm on it.
+  const logPersistenceActive = systemStatus?.log_persistence_active ?? true;
+  const showTelemetry = telemetryDegraded.value || totalDrops > 0 || logRecordsDropped > 0 || !logPersistenceActive;
 
   if (loading) return <Spinner />;
 
@@ -327,8 +346,9 @@ export function DiagnosticsPage() {
         </>
       )}
 
-      {/* Telemetry counters come from the WS stream, not the HTTP seed,
-          so they render even when the HTTP load failed. */}
+      {/* Telemetry counters come from the WS stream, not the HTTP seed, so they render even
+          when the HTTP load failed. The log-persistence pair comes from the HTTP seed and
+          falls back to a healthy default, so it stays silent in that case. */}
       {showTelemetry && (
         <TelemetryPanel
           droppedOverflow={droppedOverflow.value}
@@ -336,6 +356,8 @@ export function DiagnosticsPage() {
           droppedShutdown={droppedShutdown.value}
           errorHandlerFailures={errorHandlerFailures.value}
           telemetryDegraded={telemetryDegraded.value}
+          logRecordsDropped={logRecordsDropped}
+          logPersistenceActive={logPersistenceActive}
         />
       )}
     </div>

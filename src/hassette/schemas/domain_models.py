@@ -92,6 +92,13 @@ class SystemStatus(BaseModel):
     log_records_dropped: int = 0
     """Cumulative count of log records dropped due to queue-full or missing DB."""
 
+    log_persistence_active: bool = False
+    """Whether log records are currently being persisted.
+
+    False means log persistence is unavailable, so ``log_records_dropped`` of 0 reflects a
+    dead pipeline rather than a healthy one.
+    """
+
 
 class StateChangedData(BaseModel):
     """Payload for a Home Assistant ``state_changed`` event broadcast over WebSocket."""

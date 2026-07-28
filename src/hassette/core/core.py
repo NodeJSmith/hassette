@@ -345,8 +345,14 @@ class Hassette(Resource):
     def get_log_records_dropped(self) -> int:
         """Return the number of log records dropped by the persistence handler.
 
-        Records are dropped when the persistence handler has not yet been initialized
-        or when the DB write queue is full.
+        Records are dropped when a running persistence handler cannot hand a batch off to
+        the database — the DB write queue is full, or the database is not yet accepting
+        writes. The count survives logging shutdown, so a status poll during or after
+        teardown still reports the final tally.
+
+        The counter only moves while persistence is running, so a count of 0 means
+        "nothing lost" only when ``is_log_persistence_active()`` is True. When it is False
+        nothing is being persisted at all and the count is frozen.
 
         Returns:
             Cumulative count of dropped log records since process start.
@@ -354,6 +360,16 @@ class Hassette(Resource):
         if self._logging_service is None:
             return 0
         return self._logging_service.dropped_count
+
+    def is_log_persistence_active(self) -> bool:
+        """Return whether log records are currently being persisted to the database.
+
+        False before the logging service is wired, when its persistence handler failed to
+        be created, and after the logging pipeline has shut down.
+        """
+        if self._logging_service is None:
+            return False
+        return self._logging_service.persistence_active
 
     @property
     def database_service(self) -> DatabaseService:

@@ -26,6 +26,7 @@ function makeSystemStatus(overrides: Partial<SystemStatusResponse> = {}): System
     version: "1.0.0",
     boot_issues: [],
     log_records_dropped: 0,
+    log_persistence_active: true,
     ...overrides,
   };
 }
@@ -242,6 +243,42 @@ describe("DiagnosticsPage", () => {
     });
     expect(await findByTestId("diag-telemetry-degraded")).toBeDefined();
     expect(queryByTestId("diag-drop-overflow")).toBeNull();
+  });
+
+  it("stays silent when log persistence is active with zero drops", async () => {
+    const { findByTestId, queryByTestId } = renderWithAppState(<DiagnosticsPage />);
+    await findByTestId("diag-services-panel");
+    expect(queryByTestId("diag-log-persistence-inactive")).toBeNull();
+    expect(queryByTestId("diag-drop-log-records")).toBeNull();
+  });
+
+  it("flags inactive log persistence even when zero records were dropped", async () => {
+    server.use(
+      http.get("/api/health", () =>
+        HttpResponse.json(makeSystemStatus({ log_persistence_active: false, log_records_dropped: 0 })),
+      ),
+    );
+    const { findByTestId } = renderWithAppState(<DiagnosticsPage />);
+    expect(await findByTestId("diag-log-persistence-inactive")).toBeDefined();
+    expect((await findByTestId("diag-drop-log-records")).textContent).toContain("0");
+  });
+
+  it("shows the dropped log record count while persistence is still active", async () => {
+    server.use(
+      http.get("/api/health", () =>
+        HttpResponse.json(makeSystemStatus({ log_persistence_active: true, log_records_dropped: 42 })),
+      ),
+    );
+    const { findByTestId, queryByTestId } = renderWithAppState(<DiagnosticsPage />);
+    expect((await findByTestId("diag-drop-log-records")).textContent).toContain("42");
+    expect(queryByTestId("diag-log-persistence-inactive")).toBeNull();
+  });
+
+  it("does not raise the inactive alarm when the status fetch failed", async () => {
+    server.use(http.get("/api/health", () => HttpResponse.json(null, { status: 500 })));
+    const { findByTestId, queryByTestId } = renderWithAppState(<DiagnosticsPage />);
+    await findByTestId("diag-load-error");
+    expect(queryByTestId("diag-log-persistence-inactive")).toBeNull();
   });
 
   it("service row shows ready_phase text for a non-running service", async () => {

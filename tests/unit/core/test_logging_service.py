@@ -266,8 +266,9 @@ class TestLoggingServiceOnShutdown:
         svc = make_logging_service(stream_handler=stream_handler, hassette=hassette)
 
         await svc.on_initialize()
-        # Record the queue_handler that was installed
+        # Record the pipeline objects that were installed — on_shutdown() clears both refs
         queue_handler = svc._queue_handler
+        queue_listener = svc._queue_listener
 
         await svc.on_shutdown()
 
@@ -277,9 +278,9 @@ class TestLoggingServiceOnShutdown:
             # QueueHandler removed
             assert queue_handler not in hassette_logger.handlers
             # QueueListener stopped (thread should not be alive)
-            assert svc._queue_listener is not None
+            assert queue_listener is not None
             # After stop(), the listener thread should exit — check its internal thread
-            listener_thread = svc._queue_listener._thread  # pyright: ignore[reportAttributeAccessIssue]
+            listener_thread = queue_listener._thread  # pyright: ignore[reportAttributeAccessIssue]
             if listener_thread is not None:
                 assert not listener_thread.is_alive()
         finally:
