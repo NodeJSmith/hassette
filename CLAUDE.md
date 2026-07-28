@@ -391,7 +391,15 @@ Layout: use `flowchart TD` (top-to-bottom) by default. Use subgraphs with backgr
 
 ## CSS Architecture
 
-The frontend uses CSS Modules for component-specific styles, with a single shared `frontend/src/global.css` for the design system. Tailwind CSS v4 (via `@tailwindcss/vite`) and shadcn/ui coexist alongside CSS Modules — Tailwind is imported without Preflight (`@import "tailwindcss/theme.css" layer(theme); @import "tailwindcss/utilities.css" layer(utilities);` in `global.css`) so it does not override the existing hand-rolled reset (`styles/reset.css`). shadcn's generated theme CSS variables (`--background`, `--foreground`, `--primary`, etc.) live in `global.css` unaliased to the existing design tokens for now — mapping them to `tokens.css` values is deferred until the first shadcn component actually replaces a hand-rolled one. `components.json` configures the New York style with `@/components/ui` as the component directory (currently empty).
+The frontend uses CSS Modules for component-specific styles, with a single shared `frontend/src/global.css` for the design system. Tailwind CSS v4 (via `@tailwindcss/vite`) and shadcn/ui coexist alongside CSS Modules — Tailwind is imported without Preflight (`@import "tailwindcss/theme.css" layer(theme); @import "tailwindcss/utilities.css" layer(utilities);` in `global.css`) so it does not override the existing hand-rolled reset (`styles/reset.css`). `components.json` configures the New York style with `@/components/ui` as the component directory, which now holds the shadcn primitives: `button.tsx`, `badge.tsx`, `card.tsx`, `tooltip.tsx`, `dialog.tsx`, `alert-dialog.tsx`, `popover.tsx`, `command.tsx`, `drawer.tsx`, `table.tsx`.
+
+shadcn's generated theme CSS variables (`--background`, `--foreground`, `--primary`, etc.) are aliased in `global.css` to Hassette's existing design tokens in `tokens.css`, not left as shadcn's own defaults. New code should reference the shadcn-named tokens (`var(--primary)`, `var(--border)`, `var(--muted-foreground)`, etc.) rather than reaching directly into `tokens.css`, so component styling stays consistent with what shadcn/ui components already read.
+
+One aliasing detail matters enough to call out explicitly: shadcn's `--accent` is a subtle highlighted-background role (hover/active row state), a completely different concept from Hassette's pre-existing `--accent` custom property, which has always meant the brand/action color and is read by roughly two dozen legacy CSS Module consumers. Aliasing shadcn's `--accent` directly to itself would have created a same-name cascade collision, silently breaking every one of those consumers. Instead:
+- Hassette's brand color continues to be `--accent` (untouched, still reproduced from the `--accent-hue`/`--accent-chroma` primitives) and is *additionally* exposed to shadcn components as `--primary` (`oklch(0.5 var(--accent-chroma) var(--accent-hue))`), which shadcn's own button/badge/etc. variants read.
+- shadcn's highlighted-background role is exposed under a new, non-colliding property, `--highlight-bg` (mapped to `--bg-active`), never under the literal name `--accent`.
+
+See `global.css`'s `:root` block (the comment above the shadcn variable aliases) for the full mechanism if extending this further.
 
 ### Module pattern
 
@@ -406,8 +414,8 @@ import clsx from "clsx";
 
 ### When to use styles/ vs a module vs a shared component
 
-- **`styles/`**: Shared design system classes used across 3+ unrelated files that don't have a component wrapper. All classes use the `ht-` prefix. Organized by domain: `fonts.css`, `reset.css`, `typography.css`, `layout.css`, `tables.css`, `utilities.css`. Imported via `global.css`. Buttons, badges, chips, and cards have been migrated to shared components (see below).
-- **Shared components** (`components/shared/`): `Button`, `Badge`, `Chip`, and `Card` are reusable components with co-located `.module.css` files. Use these instead of raw `ht-btn`, `ht-badge`, `ht-chip`, or `ht-card` class strings. Import and use via props (e.g., `<Button variant="ghost" size="sm">`, `<Badge variant="danger" size="sm">`).
+- **`styles/`**: Shared design system classes used across 3+ unrelated files that don't have a component wrapper. All classes use the `ht-` prefix. Organized by domain: `fonts.css`, `reset.css`, `typography.css`, `layout.css`, `tables.css`, `utilities.css`. Imported via `global.css`. Buttons, badges, chips, and cards have been migrated to shadcn/ui components (see below).
+- **shadcn components** (`components/ui/`): `Button`, `Badge` (chip variants merged in as flattened `variant`/`kind` options — there is no separate `Chip` component), `Card`, and `Tooltip` are shadcn/ui primitives styled with Tailwind utility classes plus `class-variance-authority` (`cva`) variant definitions, not hand-rolled CSS Modules. Use these instead of raw `ht-btn`, `ht-badge`, `ht-chip`, or `ht-card` class strings: `import { Button } from "@/components/ui/button"`, `<Button variant="ghost" size="sm">`, `<Badge variant="danger" size="sm">`. Their tests remain co-located in `components/shared/` (e.g. `components/shared/button.test.tsx` imports from `@/components/ui/button`) rather than moving alongside the `ui/` source, matching shadcn's convention of treating `components/ui/` as vendored/generated primitives.
 - **`.module.css`**: Everything else — component-specific layout, state variants, animations tied to a single component.
 
 ### Referencing global classes from module CSS

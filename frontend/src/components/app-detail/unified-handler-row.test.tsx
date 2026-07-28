@@ -1,30 +1,45 @@
-import { fireEvent } from "@testing-library/react";
 import { render } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { createJob, createListener } from "../../test/factories";
+import type { StatusKind } from "../../utils/status";
 import { UnifiedHandlerRow } from "./unified-handler-row";
 
-function makeListenerItem(overrides = {}) {
+interface ItemOverrides {
+  name?: string;
+  humanDescription?: string | null;
+  statusKind?: StatusKind;
+}
+
+function makeListenerItem(overrides = {}, itemOverrides: ItemOverrides = {}) {
   const listener = createListener(overrides);
   return {
     kind: "listener" as const,
     id: listener.listener_id,
-    name: listener.handler_summary || listener.handler_method,
-    humanDescription: listener.human_description ?? null,
-    statusKind: "ok" as const,
+    name: itemOverrides.name ?? (listener.handler_summary || listener.handler_method),
+    humanDescription:
+      itemOverrides.humanDescription !== undefined
+        ? itemOverrides.humanDescription
+        : (listener.human_description ?? null),
+    statusKind: itemOverrides.statusKind ?? ("ok" as const),
     data: listener,
   };
 }
 
-function makeJobItem(overrides = {}) {
+function makeJobItem(overrides = {}, itemOverrides: ItemOverrides = {}) {
   const job = createJob(overrides);
   return {
     kind: "job" as const,
     id: job.job_id,
-    name: job.job_name,
-    humanDescription: job.trigger_label !== "" ? job.trigger_label : null,
-    statusKind: "ok" as const,
+    name: itemOverrides.name ?? job.job_name,
+    humanDescription:
+      itemOverrides.humanDescription !== undefined
+        ? itemOverrides.humanDescription
+        : job.trigger_label !== ""
+          ? job.trigger_label
+          : null,
+    statusKind: itemOverrides.statusKind ?? ("ok" as const),
     data: job,
   };
 }
@@ -43,15 +58,10 @@ describe("UnifiedHandlerRow — listener", () => {
   });
 
   it("exposes human_description via aria-label but not as a rendered line", () => {
-    const listener = createListener({ human_description: "When kitchen light changes", listener_id: 1 });
-    const item = {
-      kind: "listener" as const,
-      id: 1,
-      name: "on_light_change",
-      humanDescription: "When kitchen light changes",
-      statusKind: "ok" as const,
-      data: listener,
-    };
+    const item = makeListenerItem(
+      { human_description: "When kitchen light changes", listener_id: 1 },
+      { name: "on_light_change", humanDescription: "When kitchen light changes" },
+    );
     const { getByTestId, queryByText } = render(
       <UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />,
     );
@@ -62,15 +72,10 @@ describe("UnifiedHandlerRow — listener", () => {
   });
 
   it("does not render subtitle when humanDescription is null", () => {
-    const listener = createListener({ human_description: null, listener_id: 1 });
-    const item = {
-      kind: "listener" as const,
-      id: 1,
-      name: "on_change",
-      humanDescription: null,
-      statusKind: "ok" as const,
-      data: listener,
-    };
+    const item = makeListenerItem(
+      { human_description: null, listener_id: 1 },
+      { name: "on_change", humanDescription: null },
+    );
     const { container } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(container.querySelector("[data-testid='handler-row-desc']")).toBeNull();
   });
@@ -113,44 +118,44 @@ describe("UnifiedHandlerRow — listener", () => {
     expect(getByTestId("unified-row-listener-1").getAttribute("aria-pressed")).toBe("false");
   });
 
-  it("calls onSelect when clicked", () => {
+  it("calls onSelect when clicked", async () => {
+    const user = userEvent.setup();
     const onSelect = vi.fn();
     const item = makeListenerItem({ listener_id: 1 });
     const { getByRole } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={onSelect} />);
-    fireEvent.click(getByRole("button"));
+    await user.click(getByRole("button"));
     expect(onSelect).toHaveBeenCalledOnce();
   });
 
-  it("calls onSelect when activated via Enter key (native button fires click)", () => {
+  it("calls onSelect when activated via Enter key (native button fires click)", async () => {
+    const user = userEvent.setup();
     const onSelect = vi.fn();
     const item = makeListenerItem({ listener_id: 1 });
     const { getByRole } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={onSelect} />);
-    // Native <button> fires click on Enter/Space — fireEvent.click simulates that
-    fireEvent.click(getByRole("button"));
+    const button = getByRole("button");
+    button.focus();
+    await user.keyboard("{Enter}");
     expect(onSelect).toHaveBeenCalledOnce();
   });
 
-  it("calls onSelect when activated via Space key (native button fires click)", () => {
+  it("calls onSelect when activated via Space key (native button fires click)", async () => {
+    const user = userEvent.setup();
     const onSelect = vi.fn();
     const item = makeListenerItem({ listener_id: 1 });
     const { getByRole } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={onSelect} />);
-    // Native <button> fires click on Enter/Space — fireEvent.click simulates that
-    fireEvent.click(getByRole("button"));
+    const button = getByRole("button");
+    button.focus();
+    await user.keyboard(" ");
     expect(onSelect).toHaveBeenCalledOnce();
   });
 });
 
 describe("UnifiedHandlerRow — idle state", () => {
   it("applies the dimmed idle class when statusKind is mute", () => {
-    const listener = createListener({ listener_id: 1, total_invocations: 0, failed: 0, timed_out: 0 });
-    const item = {
-      kind: "listener" as const,
-      id: 1,
-      name: listener.handler_summary || listener.handler_method,
-      humanDescription: listener.human_description ?? null,
-      statusKind: "mute" as const,
-      data: listener,
-    };
+    const item = makeListenerItem(
+      { listener_id: 1, total_invocations: 0, failed: 0, timed_out: 0 },
+      { statusKind: "mute" },
+    );
     const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(getByTestId("unified-row-listener-1").className).toMatch(/rowIdle/);
   });
@@ -164,20 +169,15 @@ describe("UnifiedHandlerRow — idle state", () => {
 
 describe("UnifiedHandlerRow — subline switching", () => {
   it("shows last_error_message when handler has errors", () => {
-    const listener = createListener({
-      listener_id: 1,
-      failed: 2,
-      last_error_message: "KeyError: 'foo'",
-      human_description: "When something changes",
-    });
-    const item = {
-      kind: "listener" as const,
-      id: 1,
-      name: "on_change",
-      humanDescription: "When something changes",
-      statusKind: "err" as const,
-      data: listener,
-    };
+    const item = makeListenerItem(
+      {
+        listener_id: 1,
+        failed: 2,
+        last_error_message: "KeyError: 'foo'",
+        human_description: "When something changes",
+      },
+      { name: "on_change", humanDescription: "When something changes", statusKind: "err" },
+    );
     const { container } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     // Error message shown
     const errSubline = container.querySelector("[data-testid='handler-row-subline-err']");
@@ -186,19 +186,10 @@ describe("UnifiedHandlerRow — subline switching", () => {
   });
 
   it("shows last_error_message when a failing job has errors", () => {
-    const job = createJob({
-      job_id: 1,
-      failed: 3,
-      last_error_message: "ConnectionError: timeout",
-    });
-    const item = {
-      kind: "job" as const,
-      id: 1,
-      name: "sync_data",
-      humanDescription: null,
-      statusKind: "err" as const,
-      data: job,
-    };
+    const item = makeJobItem(
+      { job_id: 1, failed: 3, last_error_message: "ConnectionError: timeout" },
+      { name: "sync_data", humanDescription: null, statusKind: "err" },
+    );
     const { container } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     const errSubline = container.querySelector("[data-testid='handler-row-subline-err']");
     expect(errSubline).not.toBeNull();
@@ -206,21 +197,16 @@ describe("UnifiedHandlerRow — subline switching", () => {
   });
 
   it("does not show a description line for healthy handlers (context lives in the detail pane)", () => {
-    const listener = createListener({
-      listener_id: 1,
-      failed: 0,
-      timed_out: 0,
-      last_error_message: null,
-      human_description: "Fires on door open",
-    });
-    const item = {
-      kind: "listener" as const,
-      id: 1,
-      name: "on_door",
-      humanDescription: "Fires on door open",
-      statusKind: "ok" as const,
-      data: listener,
-    };
+    const item = makeListenerItem(
+      {
+        listener_id: 1,
+        failed: 0,
+        timed_out: 0,
+        last_error_message: null,
+        human_description: "Fires on door open",
+      },
+      { name: "on_door", humanDescription: "Fires on door open" },
+    );
     const { container, getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(container.querySelector("[data-testid='handler-row-desc']")).toBeNull();
     expect(container.querySelector("[data-testid='handler-row-subline-err']")).toBeNull();
@@ -228,15 +214,10 @@ describe("UnifiedHandlerRow — subline switching", () => {
   });
 
   it("shows next-run line for schedule jobs", () => {
-    const job = createJob({ job_id: 1, next_run: Math.floor(Date.now() / 1000) + 60 });
-    const item = {
-      kind: "job" as const,
-      id: 1,
-      name: "my_job",
-      humanDescription: null,
-      statusKind: "ok" as const,
-      data: job,
-    };
+    const item = makeJobItem(
+      { job_id: 1, next_run: Math.floor(Date.now() / 1000) + 60 },
+      { name: "my_job", humanDescription: null },
+    );
     const { container } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(container.querySelector("[data-testid='handler-row-next-run']")).not.toBeNull();
   });
@@ -288,15 +269,10 @@ describe("UnifiedHandlerRow — job", () => {
   });
 
   it("exposes trigger_label as humanDescription via aria-label for jobs", () => {
-    const job = createJob({ job_id: 1, trigger_label: "every 5 minutes" });
-    const item = {
-      kind: "job" as const,
-      id: 1,
-      name: "my_job",
-      humanDescription: "every 5 minutes",
-      statusKind: "ok" as const,
-      data: job,
-    };
+    const item = makeJobItem(
+      { job_id: 1, trigger_label: "every 5 minutes" },
+      { name: "my_job", humanDescription: "every 5 minutes" },
+    );
     const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(getByTestId("unified-row-job-1").getAttribute("aria-label")).toBe("my_job: every 5 minutes");
   });

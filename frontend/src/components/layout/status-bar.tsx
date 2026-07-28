@@ -1,10 +1,11 @@
 import type { RefObject } from "react";
 
+import { Button } from "@/components/ui/button";
+
 import { useBreadcrumbs } from "../../hooks/use-breadcrumbs";
 import { useSidebarHidden } from "../../hooks/use-sidebar-hidden";
 import { useAppStore } from "../../state/store";
 import { Breadcrumbs } from "../shared/breadcrumbs";
-import { Button } from "../shared/button";
 import { SystemHealth } from "../shared/system-health";
 import { ThemeToggle } from "../shared/theme-toggle";
 import styles from "./status-bar.module.css";
@@ -44,9 +45,8 @@ export function StatusBar({ onMenuClick, drawerOpen, hamburgerRef }: StatusBarPr
         {/* Collapsing unmounts the sidebar, so this is the only way back to it. */}
         {sidebarCollapsed && (
           <Button
-            icon
-            ghost
-            size="sm"
+            variant="ghost"
+            size="icon-sm"
             className={styles.expandSidebar}
             title="Expand sidebar ([)"
             aria-label="Expand sidebar"
@@ -56,7 +56,7 @@ export function StatusBar({ onMenuClick, drawerOpen, hamburgerRef }: StatusBarPr
             }}
           >
             <svg viewBox="0 0 16 16" aria-hidden="true">
-              <polyline points="6,3 11,8 6,13" fill="none" stroke="currentColor" stroke-width="1.5" />
+              <polyline points="6,3 11,8 6,13" fill="none" stroke="currentColor" strokeWidth="1.5" />
             </svg>
           </Button>
         )}

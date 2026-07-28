@@ -1,8 +1,17 @@
-import { act, fireEvent, render } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { http, HttpResponse } from "msw";
 import type * as React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { components } from "./api/generated-types";
 import { App } from "./app";
+import { createInstance, createListener, createManifest } from "./test/factories";
+import { withManifests as installManifests } from "./test/handlers";
+import { server } from "./test/server";
+
+type AppManifest = components["schemas"]["AppManifestResponse"];
+type ListenerWithSummary = components["schemas"]["ListenerWithSummary"];
 
 // Mock wouter so we control routing without a real browser history.
 //
@@ -32,6 +41,12 @@ vi.mock("wouter", async () => {
     Switch: ({ children }: { children: unknown }) => children,
   };
 });
+// Same "wouter" module mock instance used by App's own useLocation() call — grabbing the
+// navigate function lets command palette tests assert on where it navigates.
+const wouter = await import("wouter");
+const mockNavigate = vi.fn();
+(wouter.useLocation as ReturnType<typeof vi.fn>).mockReturnValue(["/", mockNavigate]);
+
 vi.mock("./pages/apps", () => ({
   AppsPage: () => <div data-testid="apps-page">Apps</div>,
 }));
@@ -130,31 +145,33 @@ describe("App — hamburger button", () => {
 
   it("drawer is not open initially", () => {
     const { container } = render(<App />);
-    const drawer = container.querySelector(".ht-drawer");
+    const drawer = container.querySelector("[data-testid='mobile-drawer']");
     expect(drawer).not.toBeNull();
-    expect(drawer!.className).not.toContain("is-open");
+    expect(drawer!.className).toContain("-translate-x-full");
   });
 
   it("keeps the closed drawer inert", () => {
     const { container } = render(<App />);
-    const drawer = container.querySelector(".ht-drawer");
+    const drawer = container.querySelector("[data-testid='mobile-drawer']");
     expect(drawer).not.toBeNull();
     expect(drawer!.hasAttribute("inert")).toBe(true);
   });
 
-  it("clicking the hamburger opens the drawer", () => {
+  it("clicking the hamburger opens the drawer", async () => {
+    const user = userEvent.setup();
     const { container } = render(<App />);
     const btn = container.querySelector("[data-testid='hamburger']")!;
-    fireEvent.click(btn);
-    const drawer = container.querySelector(".ht-drawer");
-    expect(drawer!.className).toContain("is-open");
+    await user.click(btn);
+    const drawer = container.querySelector("[data-testid='mobile-drawer']");
+    expect(drawer!.className).toContain("translate-x-0");
     expect(drawer!.hasAttribute("inert")).toBe(false);
   });
 
-  it("hamburger aria-expanded updates to true when drawer is open", () => {
+  it("hamburger aria-expanded updates to true when drawer is open", async () => {
+    const user = userEvent.setup();
     const { container } = render(<App />);
     const btn = container.querySelector("[data-testid='hamburger']")!;
-    fireEvent.click(btn);
+    await user.click(btn);
     expect(btn.getAttribute("aria-expanded")).toBe("true");
   });
 });
@@ -224,74 +241,84 @@ describe("App — sidebar collapse", () => {
 
   const layoutOf = (container: Element) => container.querySelector<HTMLElement>("[data-testid='layout']")!;
 
-  it("pressing [ collapses the sidebar out of the layout", () => {
+  it("pressing [ collapses the sidebar out of the layout", async () => {
+    const user = userEvent.setup();
     const { container } = render(<App />);
     expect(layoutOf(container).querySelector("aside")).not.toBeNull();
 
-    fireEvent.keyDown(document, { key: "[" });
+    // "[[" is userEvent's escape syntax for a literal "[" keypress -- a single "[" would be
+    // parsed as the start of a special-key token (e.g. "{Meta}") and produce no keystroke.
+    await user.keyboard("[[");
 
     expect(layoutOf(container).className).toContain("is-collapsed");
     expect(layoutOf(container).querySelector("aside")).toBeNull();
   });
 
-  it("pressing [ again restores the sidebar", () => {
+  it("pressing [ again restores the sidebar", async () => {
+    const user = userEvent.setup();
     const { container } = render(<App />);
-    fireEvent.keyDown(document, { key: "[" });
+    await user.keyboard("[[");
     expect(layoutOf(container).className).toContain("is-collapsed");
 
-    fireEvent.keyDown(document, { key: "[" });
+    await user.keyboard("[[");
 
     expect(layoutOf(container).className).not.toContain("is-collapsed");
     expect(layoutOf(container).querySelector("aside")).not.toBeNull();
   });
 
-  it("ignores [ typed into the app filter input", () => {
+  it("ignores [ typed into the app filter input", async () => {
+    const user = userEvent.setup();
     const { container } = render(<App />);
     const filter = layoutOf(container).querySelector("input")!;
 
-    fireEvent.keyDown(filter, { key: "[" });
+    filter.focus();
+    await user.keyboard("[[");
 
     expect(layoutOf(container).className).not.toContain("is-collapsed");
   });
 
-  it("ignores [ when it carries a modifier", () => {
+  it("ignores [ when it carries a modifier", async () => {
+    const user = userEvent.setup();
     const { container } = render(<App />);
 
-    fireEvent.keyDown(document, { key: "[", metaKey: true });
+    await user.keyboard("{Meta>}[[{/Meta}");
 
     expect(layoutOf(container).className).not.toContain("is-collapsed");
   });
 });
 
 describe("App — drawer close mechanisms", () => {
-  it("backdrop click closes the drawer", () => {
+  it("backdrop click closes the drawer", async () => {
+    const user = userEvent.setup();
     const { container } = render(<App />);
     const btn = container.querySelector("[data-testid='hamburger']")!;
-    fireEvent.click(btn);
-    expect(container.querySelector(".ht-drawer")!.className).toContain("is-open");
+    await user.click(btn);
+    expect(container.querySelector("[data-testid='mobile-drawer']")!.className).toContain("translate-x-0");
 
-    const backdrop = container.querySelector(".ht-drawer-backdrop")!;
-    fireEvent.click(backdrop);
-    expect(container.querySelector(".ht-drawer")!.className).not.toContain("is-open");
+    const backdrop = container.querySelector("[data-testid='mobile-drawer-backdrop']")!;
+    await user.click(backdrop);
+    expect(container.querySelector("[data-testid='mobile-drawer']")!.className).toContain("-translate-x-full");
   });
 
-  it("Escape key closes the drawer", () => {
+  it("Escape key closes the drawer", async () => {
+    const user = userEvent.setup();
     const { container } = render(<App />);
     const btn = container.querySelector("[data-testid='hamburger']")!;
-    fireEvent.click(btn);
-    expect(container.querySelector(".ht-drawer")!.className).toContain("is-open");
+    await user.click(btn);
+    expect(container.querySelector("[data-testid='mobile-drawer']")!.className).toContain("translate-x-0");
 
-    fireEvent.keyDown(document, { key: "Escape" });
-    expect(container.querySelector(".ht-drawer")!.className).not.toContain("is-open");
+    await user.keyboard("{Escape}");
+    expect(container.querySelector("[data-testid='mobile-drawer']")!.className).toContain("-translate-x-full");
   });
 
-  it("clicking the hamburger a second time closes the drawer", () => {
+  it("clicking the hamburger a second time closes the drawer", async () => {
+    const user = userEvent.setup();
     const { container } = render(<App />);
     const btn = container.querySelector("[data-testid='hamburger']")!;
-    fireEvent.click(btn);
-    expect(container.querySelector(".ht-drawer")!.className).toContain("is-open");
-    fireEvent.click(btn);
-    expect(container.querySelector(".ht-drawer")!.className).not.toContain("is-open");
+    await user.click(btn);
+    expect(container.querySelector("[data-testid='mobile-drawer']")!.className).toContain("translate-x-0");
+    await user.click(btn);
+    expect(container.querySelector("[data-testid='mobile-drawer']")!.className).toContain("-translate-x-full");
   });
 });
 
@@ -310,5 +337,124 @@ describe("App — hamburger inside status bar", () => {
     expect(allHamburgers).toHaveLength(1);
     const statusBar = container.querySelector("[data-testid='status-bar']");
     expect(statusBar!.contains(allHamburgers[0])).toBe(true);
+  });
+});
+
+function withManifests(manifests: AppManifest[]) {
+  installManifests(manifests, server);
+}
+
+async function openPalette(user: ReturnType<typeof userEvent.setup>) {
+  await user.keyboard("{Meta>}k{/Meta}");
+}
+
+describe("App — command palette", () => {
+  it("Cmd+K opens the command palette dialog", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await openPalette(user);
+    expect(await screen.findByRole("dialog", { name: /command palette/i })).toBeDefined();
+  });
+
+  it("Cmd+K toggles the palette closed on a second press", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await openPalette(user);
+    await screen.findByRole("dialog", { name: /command palette/i });
+    await openPalette(user);
+    expect(screen.queryByRole("dialog", { name: /command palette/i })).toBeNull();
+  });
+
+  it("Escape closes the palette", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await openPalette(user);
+    const dialog = await screen.findByRole("dialog", { name: /command palette/i });
+    dialog.focus();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: /command palette/i })).toBeNull();
+  });
+
+  it("shows page items and lets Enter navigate to the active one", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await openPalette(user);
+    const input = await screen.findByPlaceholderText("Search apps, handlers, pages, actions…");
+    input.focus();
+    await user.keyboard("{Enter}");
+    expect(mockNavigate).toHaveBeenCalledWith("/apps");
+  });
+
+  it("shows app items from manifests and navigates on click", async () => {
+    const user = userEvent.setup();
+    withManifests([createManifest({ app_key: "garage_app", display_name: "Garage App", status: "running" })]);
+    render(<App />);
+    await openPalette(user);
+    const item = await screen.findByTestId("cmd-result-app-garage_app");
+    await user.click(item);
+    expect(mockNavigate).toHaveBeenCalledWith("/apps/garage_app");
+  });
+
+  it("shows instance items for multi-instance apps", async () => {
+    const user = userEvent.setup();
+    withManifests([
+      createManifest({
+        app_key: "multi_app",
+        display_name: "Multi App",
+        instance_count: 2,
+        instances: [
+          createInstance({ app_key: "multi_app", index: 0, instance_name: "inst_0" }),
+          createInstance({ app_key: "multi_app", index: 1, instance_name: "inst_1" }),
+        ],
+      }),
+    ]);
+    render(<App />);
+    await openPalette(user);
+    expect(await screen.findByTestId("cmd-result-instance-multi_app-0")).toBeDefined();
+    expect(screen.getByTestId("cmd-result-instance-multi_app-1")).toBeDefined();
+  });
+
+  it("filters results as the user types", async () => {
+    const user = userEvent.setup();
+    withManifests([
+      createManifest({ app_key: "garage_app", display_name: "Garage App", status: "running" }),
+      createManifest({ app_key: "lights_app", display_name: "Lights App", status: "running" }),
+    ]);
+    render(<App />);
+    await openPalette(user);
+    const input = await screen.findByPlaceholderText("Search apps, handlers, pages, actions…");
+    await screen.findByTestId("cmd-result-app-garage_app");
+    await user.type(input, "garage");
+    expect(screen.queryByTestId("cmd-result-app-garage_app")).not.toBeNull();
+    expect(screen.queryByTestId("cmd-result-app-lights_app")).toBeNull();
+  });
+
+  it("shows handler items fetched from the API and navigates on click", async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.get("/api/bus/listeners", () =>
+        HttpResponse.json<ListenerWithSummary[]>([
+          createListener({ listener_id: 42, app_key: "my_app", handler_method: "on_state_change" }),
+        ]),
+      ),
+    );
+    render(<App />);
+    await openPalette(user);
+    const item = await screen.findByTestId("cmd-result-handler-42");
+    await user.click(item);
+    expect(mockNavigate).toHaveBeenCalledWith("/apps/my_app/handlers/listener/42");
+  });
+
+  it("does not fetch handlers when the palette is closed", async () => {
+    let callCount = 0;
+    server.use(
+      http.get("/api/bus/listeners", () => {
+        callCount++;
+        return HttpResponse.json<ListenerWithSummary[]>([]);
+      }),
+    );
+    render(<App />);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(callCount).toBe(0);
   });
 });

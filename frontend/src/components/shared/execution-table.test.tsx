@@ -1,4 +1,5 @@
-import { fireEvent, render } from "@testing-library/react";
+import { render } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createExecution } from "../../test/factories";
@@ -180,7 +181,8 @@ describe("ExecutionTable", () => {
     expect(queryByRole("button", { name: /show all/i })).toBeNull();
   });
 
-  it("clicking row navigates to execution detail page when handler props are set", () => {
+  it("clicking row navigates to execution detail page when handler props are set", async () => {
+    const user = userEvent.setup();
     mockNavigate.mockClear();
     const execId = "abc12345-6789-abcd-ef01-234567890abc";
     const { container } = render(
@@ -193,11 +195,12 @@ describe("ExecutionTable", () => {
         handlerId={1}
       />,
     );
-    fireEvent.click(container.querySelector("[data-testid='execution-row']")!);
+    await user.click(container.querySelector("[data-testid='execution-row']")!);
     expect(mockNavigate).toHaveBeenCalledWith(`/apps/my_app/handlers/job/1/exec/${execId}`);
   });
 
-  it("renders no detail affordances or navigation when handler props are not set", () => {
+  it("renders no detail affordances or navigation when handler props are not set", async () => {
+    const user = userEvent.setup();
     mockNavigate.mockClear();
     const { getByTestId, queryByLabelText, queryByTestId } = render(
       <ExecutionTable records={[createExecution("job", { execution_id: "some-id" })]} kind="job" tableId="t" />,
@@ -207,7 +210,7 @@ describe("ExecutionTable", () => {
     expect(queryByTestId("execution-detail-indicator")).toBeNull();
     expect(queryByLabelText("View execution detail")).toBeNull();
 
-    fireEvent.click(row);
+    await user.click(row);
     expect(mockNavigate).not.toHaveBeenCalled();
   });
 });

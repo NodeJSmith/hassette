@@ -1,5 +1,6 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, waitFor } from "@testing-library/react";
+import { render, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -159,14 +160,18 @@ describe("ExecutionDetailContent", () => {
   });
 
   it("copy button copies execution ID to clipboard", async () => {
+    // userEvent.setup() unconditionally installs its own Clipboard API stub on
+    // navigator.clipboard (a getter-only accessor), so it must run before we spy on
+    // writeText -- spying on the stub's own method, rather than replacing the whole
+    // clipboard object, avoids fighting that installation.
+    const user = userEvent.setup();
+    const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
     const uuid = "abc12345-1234-5678-9abc-def012345678";
     const record = createExecution("handler", { execution_id: uuid });
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    Object.assign(navigator, { clipboard: { writeText } });
 
     const { container } = render(<ExecutionDetailContent record={record} />);
     const btn = container.querySelector("[aria-label='Copy execution ID']")!;
-    fireEvent.click(btn);
+    await user.click(btn);
 
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(uuid));
   });

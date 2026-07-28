@@ -1,4 +1,5 @@
-import { fireEvent, render } from "@testing-library/react";
+import { render } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { ErrorBoundary } from "./error-boundary";
@@ -77,7 +78,8 @@ describe("ErrorBoundary — error fallback", () => {
 });
 
 describe("ErrorBoundary — Retry button", () => {
-  it("clicking Retry resets the boundary to the non-error state", () => {
+  it("clicking Retry resets the boundary to the non-error state", async () => {
+    const user = userEvent.setup();
     // Use a module-level flag (not a render counter) so the throw decision is stable across
     // React 19's internal synchronous-recovery retry — React re-invokes a component that threw
     // during a concurrent render pass a second time, in the same initial `render()` call, to
@@ -108,7 +110,7 @@ describe("ErrorBoundary — Retry button", () => {
     // child re-renders without throwing.
     shouldThrow = false;
     const errorSpy2 = vi.spyOn(console, "error").mockImplementation(() => {});
-    fireEvent.click(retryBtn);
+    await user.click(retryBtn);
     errorSpy2.mockRestore();
 
     expect(getByTestId("recovered")).toBeDefined();

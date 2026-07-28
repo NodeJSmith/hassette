@@ -1,4 +1,4 @@
-import { fireEvent } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { type AppStatusEntry, appStatusKey } from "../state/store";
@@ -131,7 +131,8 @@ describe("AppTableRow", () => {
     expect(errorBtn).toBeNull();
   });
 
-  it("clicking error cell toggles aria-label to Collapse", () => {
+  it("clicking error cell toggles aria-label to Collapse", async () => {
+    const user = userEvent.setup();
     const { getAllByRole } = renderRow({
       app: createAppRow({ error_message: "Boom" }),
     });
@@ -141,7 +142,7 @@ describe("AppTableRow", () => {
     ) as HTMLElement;
 
     expect(errorCell.getAttribute("aria-label")).toMatch(/^expand error/i);
-    fireEvent.click(errorCell);
+    await user.click(errorCell);
     expect(errorCell.getAttribute("aria-label")).toMatch(/^collapse error/i);
   });
 
@@ -168,13 +169,14 @@ describe("AppTableRow", () => {
     expect(queryByTestId("app-row-expand")).toBeNull();
   });
 
-  it("calls onToggle when expand button is clicked", () => {
+  it("calls onToggle when expand button is clicked", async () => {
+    const user = userEvent.setup();
     const onToggle = vi.fn();
     const { getByTestId } = renderRow({
       app: createAppRow({ instance_count: 2 }),
       onToggle,
     });
-    fireEvent.click(getByTestId("app-row-expand"));
+    await user.click(getByTestId("app-row-expand"));
     expect(onToggle).toHaveBeenCalledOnce();
   });
 

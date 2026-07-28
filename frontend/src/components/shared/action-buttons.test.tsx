@@ -1,4 +1,5 @@
-import { fireEvent, render, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ActionResponse } from "../../api/endpoints";
@@ -65,18 +66,30 @@ describe("ActionButtons", () => {
   // -- Action execution --
 
   it("calls startApp and disables button during loading", async () => {
-    startApp.mockResolvedValue({ status: "accepted", app_key: "my_app", action: "start" });
+    const user = userEvent.setup();
+    // A controlled promise, rather than mockResolvedValue's already-settled promise, is needed
+    // here: userEvent.click() internally awaits several microtask turns, so by the time it
+    // resolves an already-settled mock promise would have flipped `loading` back to false
+    // already, making the mid-flight "disabled while loading" state unobservable.
+    let resolveStart: (value: { status: "accepted"; app_key: string; action: string }) => void;
+    startApp.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveStart = resolve;
+        }),
+    );
 
     const { getByTestId } = render(<ActionButtons appKey="my_app" status="stopped" />);
 
     const btn = getByTestId("btn-start-my_app") as HTMLButtonElement;
     expect(btn.disabled).toBe(false);
 
-    fireEvent.click(btn);
+    const clickPromise = user.click(btn);
+    await waitFor(() => expect(btn.disabled).toBe(true));
     expect(startApp).toHaveBeenCalledWith("my_app");
 
-    // Button is disabled while loading
-    expect(btn.disabled).toBe(true);
+    resolveStart!({ status: "accepted", app_key: "my_app", action: "start" });
+    await clickPromise;
 
     await waitFor(() => {
       expect(btn.disabled).toBe(false);
@@ -86,11 +99,12 @@ describe("ActionButtons", () => {
   });
 
   it("calls stopApp when Stop is clicked", async () => {
+    const user = userEvent.setup();
     stopApp.mockResolvedValue({ status: "accepted", app_key: "my_app", action: "stop" });
 
     const { getByTestId } = render(<ActionButtons appKey="my_app" status="running" />);
 
-    fireEvent.click(getByTestId("btn-stop-my_app"));
+    await user.click(getByTestId("btn-stop-my_app"));
     expect(stopApp).toHaveBeenCalledWith("my_app");
 
     await waitFor(() => {
@@ -101,11 +115,12 @@ describe("ActionButtons", () => {
   });
 
   it("calls reloadApp when Reload is clicked", async () => {
+    const user = userEvent.setup();
     reloadApp.mockResolvedValue({ status: "accepted", app_key: "my_app", action: "reload" });
 
     const { getByTestId } = render(<ActionButtons appKey="my_app" status="running" />);
 
-    fireEvent.click(getByTestId("btn-reload-my_app"));
+    await user.click(getByTestId("btn-reload-my_app"));
     expect(reloadApp).toHaveBeenCalledWith("my_app");
 
     await waitFor(() => {
@@ -118,12 +133,13 @@ describe("ActionButtons", () => {
   // -- Error handling --
 
   it("toasts error and re-enables button when action fails", async () => {
+    const user = userEvent.setup();
     startApp.mockRejectedValue(new Error("Connection refused"));
 
     const { getByTestId } = render(<ActionButtons appKey="my_app" status="stopped" />);
 
     const btn = getByTestId("btn-start-my_app") as HTMLButtonElement;
-    fireEvent.click(btn);
+    await user.click(btn);
 
     await waitFor(() => {
       expect(btn.disabled).toBe(false);
@@ -134,12 +150,13 @@ describe("ActionButtons", () => {
   });
 
   it("toasts stringified error for non-Error throws", async () => {
+    const user = userEvent.setup();
     startApp.mockRejectedValue("raw string error");
 
     const { getByTestId } = render(<ActionButtons appKey="my_app" status="stopped" />);
 
     const btn = getByTestId("btn-start-my_app") as HTMLButtonElement;
-    fireEvent.click(btn);
+    await user.click(btn);
 
     await waitFor(() => {
       expect(btn.disabled).toBe(false);
@@ -149,6 +166,7 @@ describe("ActionButtons", () => {
   });
 
   it("ignores second click while first action is in-flight", async () => {
+    const user = userEvent.setup();
     let resolveAction!: (value: ActionResponse) => void;
     startApp.mockImplementation(
       () =>
@@ -162,11 +180,11 @@ describe("ActionButtons", () => {
     const btn = getByTestId("btn-start-my_app") as HTMLButtonElement;
 
     // First click — starts the action
-    fireEvent.click(btn);
+    await user.click(btn);
     expect(startApp).toHaveBeenCalledTimes(1);
 
     // Second click while first is still in-flight — should be ignored
-    fireEvent.click(btn);
+    await user.click(btn);
     expect(startApp).toHaveBeenCalledTimes(1);
 
     // Resolve the pending action to clean up
@@ -177,5 +195,47 @@ describe("ActionButtons", () => {
 
     // Only the action that actually ran toasts
     expect(toast.success).toHaveBeenCalledTimes(1);
+  });
+
+  // -- Stop confirmation dialog --
+
+  it("opens a confirm dialog instead of stopping immediately when confirmStop is set", async () => {
+    const user = userEvent.setup();
+    render(<ActionButtons appKey="my_app" status="running" confirmStop />);
+
+    await user.click(screen.getByTestId("btn-stop-my_app"));
+
+    expect(screen.getByRole("alertdialog")).toBeDefined();
+    expect(screen.getByText('Stop "my_app"? It will stop processing events until restarted.')).toBeDefined();
+    expect(stopApp).not.toHaveBeenCalled();
+  });
+
+  it("calls stopApp when the confirm dialog's Stop action is confirmed", async () => {
+    const user = userEvent.setup();
+    stopApp.mockResolvedValue({ status: "accepted", app_key: "my_app", action: "stop" });
+
+    render(<ActionButtons appKey="my_app" status="running" confirmStop />);
+
+    await user.click(screen.getByTestId("btn-stop-my_app"));
+    await user.click(screen.getByTestId("confirm-btn-danger"));
+
+    expect(stopApp).toHaveBeenCalledWith("my_app");
+    await waitFor(() => {
+      expect(screen.queryByRole("alertdialog")).toBeNull();
+    });
+    expect(toast.success).toHaveBeenCalledWith('App "my_app" stopped');
+  });
+
+  it("does not call stopApp when the confirm dialog is cancelled", async () => {
+    const user = userEvent.setup();
+    render(<ActionButtons appKey="my_app" status="running" confirmStop />);
+
+    await user.click(screen.getByTestId("btn-stop-my_app"));
+    await user.click(screen.getByText("Cancel"));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("alertdialog")).toBeNull();
+    });
+    expect(stopApp).not.toHaveBeenCalled();
   });
 });

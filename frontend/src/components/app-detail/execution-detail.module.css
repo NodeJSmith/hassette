@@ -30,7 +30,7 @@
 .copyBtn {
   flex-shrink: 0;
   background: none;
-  border: 1px solid var(--line-2);
+  border: var(--sp-px) solid var(--line-2);
   border-radius: var(--r-sm);
   color: var(--ink-3);
   cursor: pointer;

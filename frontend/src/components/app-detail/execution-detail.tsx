@@ -1,7 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import clsx from "clsx";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import { useCallback, useState } from "react";
+
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 import type { ExecutionData } from "../../api/endpoints";
 import { getExecutionById } from "../../api/endpoints";
@@ -9,7 +11,6 @@ import { useDocumentTitle } from "../../hooks/use-document-title";
 import { STATUS_DOT_SIZE } from "../../utils/constants";
 import { formatDuration, formatTimestamp, truncateId } from "../../utils/format";
 import { executionStatusKind } from "../../utils/status";
-import { Badge } from "../shared/badge";
 import type { DetailStatsCell } from "../shared/detail-stats";
 import { DetailStats } from "../shared/detail-stats";
 import { EmptyState } from "../shared/empty-state";
@@ -164,7 +165,7 @@ export function ExecutionDetailContent({ record }: ContentProps) {
       )}
 
       {record.status === "success" && (
-        <div className={clsx(styles.section, styles.outcomeSuccess)}>
+        <div className={cn(styles.section, styles.outcomeSuccess)}>
           <StatusShape kind="ok" size={STATUS_DOT_SIZE} />
           <span className={styles.outcomeText}>completed in {formatDuration(record.duration_ms)}</span>
         </div>

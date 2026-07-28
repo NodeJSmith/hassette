@@ -47,41 +47,6 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("getStoredSet", () => {
-  it("returns empty Set for missing key", () => {
-    expect(mod.getStoredSet("nonexistent")).toEqual(new Set());
-  });
-
-  it("returns empty Set for corrupt JSON", () => {
-    mockStorage.setItem("hassette:corrupt", "not-json{{{");
-    expect(mod.getStoredSet("corrupt")).toEqual(new Set());
-  });
-
-  it("returns empty Set for null string value", () => {
-    // getItem returns null for missing keys — should not throw
-    expect(mod.getStoredSet("missing")).toEqual(new Set());
-  });
-
-  it("returns empty Set when value is not an array", () => {
-    mockStorage.setItem("hassette:obj", JSON.stringify({ a: 1 }));
-    expect(mod.getStoredSet("obj")).toEqual(new Set());
-  });
-});
-
-describe("setStoredSet / getStoredSet roundtrip", () => {
-  it("roundtrips a Set correctly", () => {
-    const original = new Set(["a", "b", "c"]);
-    mod.setStoredSet("items", original);
-    const result = mod.getStoredSet("items");
-    expect(result).toEqual(original);
-  });
-
-  it("roundtrips an empty Set", () => {
-    mod.setStoredSet("empty", new Set());
-    expect(mod.getStoredSet("empty")).toEqual(new Set());
-  });
-});
-
 describe("getStoredValue", () => {
   it("returns fallback for missing key", () => {
     expect(mod.getStoredValue("missing", 42)).toBe(42);
@@ -157,16 +122,6 @@ describe("migrateKey", () => {
     mod.migrateKey("nonexistent", "target");
     expect(mockStorage.getItem("hassette:target")).toBeNull();
     expect(mockStorage.removeItem).not.toHaveBeenCalled();
-  });
-});
-
-describe("setStoredSet silently fails when localStorage throws", () => {
-  it("does not throw when setItem throws", () => {
-    vi.spyOn(mockStorage, "setItem").mockImplementation(() => {
-      throw new DOMException("QuotaExceededError");
-    });
-    // Should not throw
-    expect(() => mod.setStoredSet("key", new Set(["a"]))).not.toThrow();
   });
 });
 

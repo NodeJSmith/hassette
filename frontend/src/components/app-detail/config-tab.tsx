@@ -1,11 +1,12 @@
-import clsx from "clsx";
 import { useEffect, useState } from "react";
+
+import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 import type { ConfigRecord, SchemaNode } from "../../api/config-view-types";
 import type { AppConfigData } from "../../api/endpoints";
 import { getAppConfig } from "../../api/endpoints";
 import { getShikiHighlighter, SHIKI_THEMES } from "../../utils/shiki";
-import { Card } from "../shared/card";
 import { ConfigSchemaView, ExpandableValue } from "../shared/config-schema-view";
 import { EmptyState } from "../shared/empty-state";
 import { Spinner } from "../shared/spinner";
@@ -33,7 +34,7 @@ function SimpleConfigTable({ config }: { config: ConfigRecord }) {
   }
 
   return (
-    <table className={clsx("ht-table", styles.table)} data-testid="config-values-table">
+    <table className={cn("ht-table", styles.table)} data-testid="config-values-table">
       <thead>
         <tr>
           <th className={styles.colKey} scope="col">
@@ -45,14 +46,14 @@ function SimpleConfigTable({ config }: { config: ConfigRecord }) {
         </tr>
       </thead>
       <tbody>
-        {entries.map(([key, val]) => (
+        {entries.map(([key, value]) => (
           <tr key={key}>
             <td>
               <code className="ht-text-mono ht-text-sm">{key}</code>
             </td>
             <td className={styles.value} data-testid={`config-value-${key}`}>
               <code className="ht-text-mono ht-text-sm">
-                <ConfigValue value={val} />
+                <ConfigValue value={value} />
               </code>
             </td>
           </tr>
@@ -151,12 +152,11 @@ export function ConfigTab({ appKey }: Props) {
 
   if (!configData) return null;
 
-  const cfg = configData;
-  const appConfig = cfg.app_config;
-  const schema = cfg.config_schema ?? undefined;
+  const appConfig = configData.app_config;
+  const schema = configData.config_schema ?? undefined;
   const isListConfig = Array.isArray(appConfig);
-  const manifestValues: ConfigRecord = { enabled: cfg.enabled, autostart: cfg.autostart };
-  const frameworkFields = cfg.framework_fields;
+  const manifestValues: ConfigRecord = { enabled: configData.enabled, autostart: configData.autostart };
+  const frameworkFields = configData.framework_fields;
 
   return (
     <div className={styles.configTab} data-testid="config-tab-content">
@@ -206,7 +206,7 @@ export function ConfigTab({ appKey }: Props) {
               />
             ) : (
               <pre className={styles.rawCode} data-testid="raw-config-toml">
-                {cfg.config_toml}
+                {configData.config_toml}
               </pre>
             )}
           </Card>

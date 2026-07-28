@@ -1,4 +1,5 @@
-import { fireEvent, waitFor } from "@testing-library/react";
+import { waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createListener } from "../../test/factories";
@@ -105,6 +106,7 @@ describe("HandlersTab listener detail", () => {
   });
 
   it("handler detail: shows registration source when available", async () => {
+    const user = userEvent.setup();
     const listener = createListener({
       listener_id: 12,
       registration_source: "self.bus.on_state_change('light.kitchen', handler=self.on_light)",
@@ -119,7 +121,7 @@ describe("HandlersTab listener detail", () => {
     expect(toggle.textContent).toContain("show call");
     // Registration is collapsed by default
     expect(queryByTestId("handler-registration-source")).toBeNull();
-    fireEvent.click(toggle);
+    await user.click(toggle);
     const registrationSource = getByTestId("handler-registration-source");
     expect(registrationSource.id).toBe(toggle.getAttribute("aria-controls"));
     expect(registrationSource.textContent).toContain("on_state_change");
@@ -217,6 +219,7 @@ describe("HandlersTab listener detail", () => {
   });
 
   it("handler error banner: shows expandable traceback when available", async () => {
+    const user = userEvent.setup();
     const listener = createListener({
       listener_id: 24,
       failed: 1,
@@ -234,7 +237,7 @@ describe("HandlersTab listener detail", () => {
     const tracebackContent = banner.querySelector("[data-testid='traceback-content']");
     expect(tracebackContent).not.toBeNull();
     // Expand it
-    fireEvent.click(toggle!);
+    await user.click(toggle!);
     expect(banner.textContent).toContain("Traceback (most recent call last)");
   });
 
@@ -248,6 +251,7 @@ describe("HandlersTab listener detail", () => {
   });
 
   it("handler detail: registration source stays hidden until the toggle is clicked", async () => {
+    const user = userEvent.setup();
     const listener = createListener({
       listener_id: 71,
       registration_source: "self.bus.on_state_change('light.kitchen', handler=self.on_light)",
@@ -257,7 +261,7 @@ describe("HandlersTab listener detail", () => {
     expect(queryByTestId("handler-registration-source")).toBeNull();
     const toggle = getByTestId("handler-registration-toggle");
     expect(toggle.textContent).toContain("show call");
-    fireEvent.click(toggle);
+    await user.click(toggle);
     expect(getByTestId("handler-registration-source")).toBeDefined();
     expect(toggle.textContent).toContain("hide call");
   });

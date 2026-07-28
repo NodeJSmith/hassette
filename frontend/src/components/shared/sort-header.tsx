@@ -1,8 +1,9 @@
-import clsx from "clsx";
 import type { ReactNode } from "react";
-import { useRef, useState } from "react";
+import { useState } from "react";
 
-import { ColumnFilterPopover } from "./column-filter-popover/index";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+
 import { FilterIcon } from "./filter-icon";
 import styles from "./sort-header.module.css";
 
@@ -12,7 +13,10 @@ export interface SortState<K extends string = string> {
 }
 
 const ARROW_FOR_DIRECTION: Record<"asc" | "desc", string> = { asc: " ↑", desc: " ↓" };
-const ARIA_SORT_FOR_DIRECTION: Record<"asc" | "desc", "ascending" | "descending"> = {
+
+// Exported so callers that own the real <th> (TableHead in log-table-view.tsx)
+// can compute `aria-sort` themselves — SortHeader no longer renders a <th>.
+export const ARIA_SORT_FOR_DIRECTION: Record<"asc" | "desc", "ascending" | "descending"> = {
   asc: "ascending",
   desc: "descending",
 };
@@ -48,12 +52,17 @@ type FilterProps = WithFilter | WithoutFilter;
 
 type Props<K extends string = string> = SortProps<K> & FilterProps;
 
+/**
+ * Renders only the inner content of a column header (sort button + filter
+ * popover) — never the `<th>` itself. The caller (shadcn's `TableHead`) owns
+ * the `<th>` element, `scope="col"`, and `aria-sort`. This avoids nesting a
+ * `<th>` produced here inside the `<th>` TanStack/shadcn already render.
+ */
 export function SortHeader<K extends string = string>(props: Props<K>) {
-  const { ariaLabel, className, "data-testid": testId, children } = props;
+  const { className, "data-testid": testId, children, ariaLabel } = props;
 
   // Filter state — local per-instance
   const [filterOpen, setFilterOpen] = useState(false);
-  const filterTriggerRef = useRef<HTMLButtonElement>(null);
 
   // Determine sort axis
   const hasSortProps = props.sortKey !== undefined && props.sort !== undefined && props.onSort !== undefined;
@@ -70,15 +79,13 @@ export function SortHeader<K extends string = string>(props: Props<K>) {
   }
 
   const hasFilter = props.filterContent !== undefined && props.filterContent !== null;
-
   const arrow = active ? ARROW_FOR_DIRECTION[direction] : "";
-  const ariaSortValue = active ? ARIA_SORT_FOR_DIRECTION[direction] : undefined;
 
   // Sort button or plain label
   const sortElement = hasSortProps ? (
     <button
       type="button"
-      className={clsx(styles.sortHeader, active && styles.active)}
+      className={cn(styles.sortHeader, active && styles.active)}
       data-testid="sort-header-btn"
       aria-label={ariaLabel ? `Sort by ${ariaLabel}` : undefined}
       onClick={sortClickHandler}
@@ -86,56 +93,36 @@ export function SortHeader<K extends string = string>(props: Props<K>) {
       {children}
       <span aria-hidden="true">{arrow}</span>
     </button>
-  ) : hasFilter ? (
-    // filter-only: plain label span (no sort button)
+  ) : (
     <span>{children}</span>
-  ) : null;
+  );
 
-  // Plain label (neither sort nor filter)
-  if (!hasSortProps && !hasFilter) {
+  if (!hasFilter) {
     return (
-      <th scope="col" className={className} aria-label={ariaLabel} data-testid={testId}>
-        <span>{children}</span>
-      </th>
+      <span className={className} data-testid={testId}>
+        {sortElement}
+      </span>
     );
   }
 
   return (
-    <th
-      scope="col"
-      className={className}
-      aria-sort={hasSortProps ? ariaSortValue : undefined}
-      aria-label={ariaLabel}
-      data-testid={testId}
-    >
-      {hasFilter ? (
-        <div className={styles.headerInner}>
-          {sortElement}
+    <div className={cn(styles.headerInner, className)} data-testid={testId}>
+      {sortElement}
+      <Popover open={filterOpen} onOpenChange={setFilterOpen}>
+        <PopoverTrigger asChild>
           <button
-            ref={filterTriggerRef}
             type="button"
-            className={clsx(styles.filterBtn, props.hasActiveFilter && styles.filterActive)}
+            className={cn(styles.filterBtn, props.hasActiveFilter && styles.filterActive)}
             data-testid="filter-btn"
             aria-label={ariaLabel ? `Filter ${ariaLabel}` : undefined}
-            onClick={() => {
-              setFilterOpen((v) => !v);
-            }}
           >
             <FilterIcon active={props.hasActiveFilter} />
           </button>
-          <ColumnFilterPopover
-            open={filterOpen}
-            onClose={() => {
-              setFilterOpen(false);
-            }}
-            triggerRef={filterTriggerRef}
-          >
-            {props.filterContent}
-          </ColumnFilterPopover>
-        </div>
-      ) : (
-        sortElement
-      )}
-    </th>
+        </PopoverTrigger>
+        <PopoverContent align="start" data-testid="sort-header-filter-popover" className="w-auto">
+          {props.filterContent}
+        </PopoverContent>
+      </Popover>
+    </div>
   );
 }

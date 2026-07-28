@@ -46,6 +46,8 @@
   -webkit-overflow-scrolling: touch;
 }
 
+/* !important overrides Shiki's own inline background-color style attribute
+   (set per defaultColor: false), which otherwise wins over this class rule. */
 .body :global(.shiki) {
   margin: 0;
   padding: var(--sp-3) 0;
@@ -55,6 +57,7 @@
   line-height: var(--lh-relaxed);
 }
 
+/* Same Shiki inline-style override as above, for the dark-theme background. */
 :global([data-theme="dark"]) .body :global(.shiki) {
   background-color: var(--bg-page) !important;
 }

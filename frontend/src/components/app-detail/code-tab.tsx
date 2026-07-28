@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+
 import type { AppSourceData, ListenerData } from "../../api/endpoints";
 import { getAppSource } from "../../api/endpoints";
 import { useQueryParams } from "../../hooks/use-query-params";
 import { parseSourceLocation } from "../../utils/format";
 import { getShikiHighlighter, SHIKI_THEMES } from "../../utils/shiki";
-import { Button } from "../shared/button";
-import { Card } from "../shared/card";
 import { Spinner } from "../shared/spinner";
 import styles from "./code-tab.module.css";
 
@@ -17,12 +18,12 @@ interface Props {
 
 function buildAnnotationMap(listeners: ListenerData[]): Map<number, string[]> {
   const map = new Map<number, string[]>();
-  for (const l of listeners) {
-    if (!l.source_location) continue;
-    const { line } = parseSourceLocation(l.source_location);
+  for (const listener of listeners) {
+    if (!listener.source_location) continue;
+    const { line } = parseSourceLocation(listener.source_location);
     if (line === null) continue;
     const existing = map.get(line) ?? [];
-    existing.push(l.handler_method);
+    existing.push(listener.handler_method);
     map.set(line, existing);
   }
   return map;
@@ -148,7 +149,13 @@ export function CodeTab({ appKey, listeners }: Props) {
         <div className={styles.headerMeta}>
           <span className="ht-text-muted ht-text-sm">{lineCount} lines</span>
           <span className={styles.readonlyLabel}>read-only</span>
-          <Button ghost size="sm" data-testid="copy-path-btn" onClick={handleCopyPath} aria-label="Copy file path">
+          <Button
+            variant="ghost"
+            size="sm"
+            data-testid="copy-path-btn"
+            onClick={handleCopyPath}
+            aria-label="Copy file path"
+          >
             copy path
           </Button>
         </div>

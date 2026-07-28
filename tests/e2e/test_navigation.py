@@ -71,10 +71,12 @@ def test_sidebar_navigation(page: Page, base_url: str, testid: str, expected_pat
 
 @pytest.mark.parametrize(("path", "testid"), SIDEBAR_ACTIVE, ids=[p for p, _ in SIDEBAR_ACTIVE])
 def test_sidebar_active_state(page: Page, base_url: str, path: str, testid: str) -> None:
-    """Active nav item has the is-active class on each page."""
+    """Active nav item is marked aria-current='page' on each page."""
     page.goto(base_url + path)
     active_item = page.locator(f'[data-testid="{testid}"]')
-    expect(active_item).to_have_class(re.compile(r"\bis-active\b"))
+    # The sidebar's Tailwind restyle replaced the old .is-active CSS Module class with
+    # aria-current="page" (the correct semantic marker) plus Tailwind utility classes.
+    expect(active_item).to_have_attribute("aria-current", "page")
 
 
 def test_sidebar_visible_on_desktop(page: Page, base_url: str) -> None:
@@ -107,8 +109,11 @@ def test_mobile_hamburger_opens_drawer(page: Page, base_url: str) -> None:
     hamburger = page.locator("[data-testid='hamburger']")
     expect(hamburger).to_be_visible()
     hamburger.click()
-    drawer = page.locator(".ht-drawer")
-    expect(drawer).to_have_class(re.compile(r"\bis-open\b"))
+    # The mobile drawer is a hand-rolled Tailwind off-canvas panel (not the shadcn/vaul
+    # Drawer used elsewhere) — open/closed state is a translate-x utility class toggle,
+    # identified via data-testid rather than the pre-migration .ht-drawer CSS Module class.
+    drawer = page.locator("[data-testid='mobile-drawer']")
+    expect(drawer).to_have_class(re.compile(r"\btranslate-x-0\b"))
 
 
 def test_mobile_drawer_closes_on_backdrop_click(page: Page, base_url: str) -> None:
@@ -116,11 +121,12 @@ def test_mobile_drawer_closes_on_backdrop_click(page: Page, base_url: str) -> No
     page.set_viewport_size(MOBILE_VIEWPORT)
     page.goto(base_url + "/apps")
     page.locator("[data-testid='hamburger']").click()
+    drawer = page.locator("[data-testid='mobile-drawer']")
     # Drawer is open
-    expect(page.locator(".ht-drawer")).to_have_class(re.compile(r"\bis-open\b"))
+    expect(drawer).to_have_class(re.compile(r"\btranslate-x-0\b"))
     # Click backdrop to close
-    page.locator(".ht-drawer-backdrop").click()
-    expect(page.locator(".ht-drawer")).not_to_have_class(re.compile(r"\bis-open\b"))
+    page.locator("[data-testid='mobile-drawer-backdrop']").click()
+    expect(drawer).to_have_class(re.compile(r"-translate-x-full"))
 
 
 def test_mobile_drawer_closes_on_navigation(page: Page, base_url: str) -> None:
@@ -128,11 +134,12 @@ def test_mobile_drawer_closes_on_navigation(page: Page, base_url: str) -> None:
     page.set_viewport_size(MOBILE_VIEWPORT)
     page.goto(base_url + "/apps")
     page.locator("[data-testid='hamburger']").click()
-    expect(page.locator(".ht-drawer")).to_have_class(re.compile(r"\bis-open\b"))
+    drawer = page.locator("[data-testid='mobile-drawer']")
+    expect(drawer).to_have_class(re.compile(r"\btranslate-x-0\b"))
     # Click a navigation link in the drawer
-    page.locator(".ht-drawer [data-testid='nav-logs']").click()
+    drawer.locator("[data-testid='nav-logs']").click()
     expect(page).to_have_url(re.compile(r"/logs"))
-    expect(page.locator(".ht-drawer")).not_to_have_class(re.compile(r"\bis-open\b"))
+    expect(drawer).to_have_class(re.compile(r"-translate-x-full"))
 
 
 def test_skip_nav_link_exists(page: Page, base_url: str) -> None:

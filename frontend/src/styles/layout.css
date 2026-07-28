@@ -101,31 +101,6 @@
   text-align: center;
 }
 
-/* — Off-canvas Drawer (mobile) ————————————————————————— */
-.ht-drawer {
-  position: fixed;
-  top: 0;
-  left: 0;
-  bottom: 0;
-  width: var(--sz-sidebar);
-  z-index: var(--z-drawer);
-  background: var(--bg-surface);
-  overflow-y: auto;
-  transform: translateX(-100%);
-  transition: transform var(--t-med) var(--ease);
-}
-
-.ht-drawer.is-open {
-  transform: translateX(0);
-}
-
-.ht-drawer-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: var(--z-drawer-bg);
-  background: var(--overlay-bg);
-}
-
 /* — Responsive: sidebar hidden below 900px ————————————— */
 /* sync: BREAKPOINT_SIDEBAR in use-media-query.ts */
 

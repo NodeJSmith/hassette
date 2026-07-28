@@ -1,10 +1,10 @@
-import clsx from "clsx";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 import type { AppInstance } from "../../api/endpoints";
 import styles from "../../pages/app-detail.module.css";
 import { STATUS_DOT_SIZE } from "../../utils/constants";
 import { statusToKind, statusToVariant } from "../../utils/status";
-import { Badge } from "../shared/badge";
 import { StatusShape } from "../shared/status-shape";
 
 export function InstanceSwitcher({
@@ -18,22 +18,22 @@ export function InstanceSwitcher({
 }) {
   return (
     <div className={styles.instanceSwitcher} data-testid="instance-switcher" role="tablist" aria-label="Instance">
-      {instances.map((inst) => {
-        const isActive = inst.index === currentIndex;
+      {instances.map((instance) => {
+        const isActive = instance.index === currentIndex;
         return (
           <button
-            key={inst.index}
+            key={instance.index}
             type="button"
             role="tab"
             aria-selected={isActive}
-            className={clsx(styles.instanceSwitcherBtn, isActive && styles.instanceSwitcherBtnActive)}
-            data-testid={`switcher-instance-${inst.index}`}
+            className={cn(styles.instanceSwitcherBtn, isActive && styles.instanceSwitcherBtnActive)}
+            data-testid={`switcher-instance-${instance.index}`}
             onClick={() => {
-              if (!isActive) onNavigate(inst.index);
+              if (!isActive) onNavigate(instance.index);
             }}
           >
-            <StatusShape kind={statusToKind(inst.status)} size={8} />
-            <span className={styles.instanceSwitcherLabel}>{inst.instance_name}</span>
+            <StatusShape kind={statusToKind(instance.status)} size={8} />
+            <span className={styles.instanceSwitcherLabel}>{instance.instance_name}</span>
           </button>
         );
       })}

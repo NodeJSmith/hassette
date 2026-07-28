@@ -8,29 +8,6 @@
 
 const STORAGE_PREFIX = "hassette:";
 
-/** Read a JSON-serialized Set<string> from localStorage. */
-export function getStoredSet(key: string): Set<string> {
-  try {
-    const raw = localStorage.getItem(STORAGE_PREFIX + key);
-    if (raw === null) return new Set();
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return new Set();
-    const strings = parsed.filter((item): item is string => typeof item === "string");
-    return new Set(strings);
-  } catch {
-    return new Set();
-  }
-}
-
-/** Write a Set<string> to localStorage as a JSON array. */
-export function setStoredSet(key: string, value: Set<string>): void {
-  try {
-    localStorage.setItem(STORAGE_PREFIX + key, JSON.stringify([...value]));
-  } catch {
-    // Silently fail (quota exceeded, private browsing, etc.)
-  }
-}
-
 /**
  * Read a JSON-serialized value from localStorage with a typed fallback.
  *
@@ -57,6 +34,15 @@ export function getStoredValue<T>(key: string, fallback: T, validate?: (v: unkno
 export function setStoredValue<T>(key: string, value: T): void {
   try {
     localStorage.setItem(STORAGE_PREFIX + key, JSON.stringify(value));
+  } catch {
+    // Silently fail (quota exceeded, private browsing, etc.)
+  }
+}
+
+/** Remove a value from localStorage. */
+export function removeStoredValue(key: string): void {
+  try {
+    localStorage.removeItem(STORAGE_PREFIX + key);
   } catch {
     // Silently fail (quota exceeded, private browsing, etc.)
   }

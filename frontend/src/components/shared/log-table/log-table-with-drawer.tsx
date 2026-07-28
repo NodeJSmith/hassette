@@ -1,5 +1,6 @@
-import clsx from "clsx";
 import type { ReactNode } from "react";
+
+import { cn } from "@/lib/utils";
 
 import { LogDetailDrawer } from "./log-detail-drawer";
 import styles from "./log-table.module.css";
@@ -13,7 +14,7 @@ interface Props {
 export function LogTableWithDrawer({ drawerProps, children }: Props) {
   const open = drawerProps.selectedKey !== null;
   return (
-    <div className={clsx(styles.wrapper, open && styles.drawerOpen)}>
+    <div className={cn(styles.wrapper, open && styles.drawerOpen)}>
       <div className={styles.tableArea}>{children}</div>
       <LogDetailDrawer
         selectedKey={drawerProps.selectedKey}

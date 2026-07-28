@@ -1,11 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
-import clsx from "clsx";
 import { useState } from "react";
+
+// This page applies cardVariants() directly to <section> elements instead of
+// using the <Card> component (a <div>). Each panel is a page landmark that
+// screen-reader users navigate via aria-label — wrapping it in Card's <div>
+// would lose that semantic, so the styling is applied without the element.
+import { cardVariants } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 import type { BootIssue } from "../api/endpoints";
 import { getSystemStatus } from "../api/endpoints";
 import type { components } from "../api/generated-types";
-import cardStyles from "../components/shared/card.module.css";
 import { EmptyState } from "../components/shared/empty-state";
 import { Spinner } from "../components/shared/spinner";
 import { StatsStrip, type StatsStripCell } from "../components/shared/stats-strip";
@@ -18,6 +23,9 @@ import { useAppStore } from "../state/store";
 import { STATUS_DOT_SIZE } from "../utils/constants";
 import { statusToKind } from "../utils/status";
 import styles from "./diagnostics.module.css";
+
+const SEVERITY_ORDER: Record<string, number> = { err: 0, warn: 1, info: 2 };
+const UNKNOWN_SEVERITY_SORT_ORDER = 99;
 
 type ServiceInfoResponse = components["schemas"]["ServiceInfoResponse"];
 interface MergedService {
@@ -91,7 +99,7 @@ function DiagServiceRow({ service }: DiagServiceRowProps) {
 
   return (
     <li
-      className={clsx(styles.serviceRow, spansFullRow && styles.serviceRowDetailed)}
+      className={cn(styles.serviceRow, spansFullRow && styles.serviceRowDetailed)}
       data-testid={`diag-service-row-${service.resource_name}`}
     >
       <div className={styles.serviceMain}>
@@ -142,7 +150,7 @@ interface ServicesPanelProps {
 function ServicesPanel({ services, wsConnected }: ServicesPanelProps) {
   return (
     <section
-      className={clsx(cardStyles.card, styles.section)}
+      className={cn(cardVariants({ variant: "default" }), styles.section)}
       aria-label="Internal services"
       data-testid="diag-services-panel"
     >
@@ -171,9 +179,6 @@ interface BootIssuesPanelProps {
   bootIssues: BootIssue[];
 }
 
-const SEVERITY_ORDER: Record<string, number> = { err: 0, warn: 1, info: 2 };
-const UNKNOWN_SEVERITY_SORT_ORDER = 99;
-
 function BootIssuesPanel({ bootIssues }: BootIssuesPanelProps) {
   const sorted = [...bootIssues].sort(
     (a, b) =>
@@ -182,7 +187,11 @@ function BootIssuesPanel({ bootIssues }: BootIssuesPanelProps) {
   );
 
   return (
-    <section className={clsx(cardStyles.card, styles.section)} aria-label="Boot issues" data-testid="diag-boot-panel">
+    <section
+      className={cn(cardVariants({ variant: "default" }), styles.section)}
+      aria-label="Boot issues"
+      data-testid="diag-boot-panel"
+    >
       <h2 className={styles.sectionHeading}>boot issues</h2>
       <ul className={styles.bootList} aria-label="Boot issues">
         {sorted.map((issue, i) => {
@@ -228,7 +237,7 @@ function DropCounterRow({ label, value, testId }: DropCounterRowProps) {
   return (
     <li className={styles.dropRow} data-testid={testId}>
       <span className={styles.dropLabel}>{label}</span>
-      <span className={clsx(styles.dropValue, "ht-text-mono", value > 0 && "ht-text-warning")}>{value}</span>
+      <span className={cn(styles.dropValue, "ht-text-mono", value > 0 && "ht-text-warning")}>{value}</span>
     </li>
   );
 }
@@ -242,7 +251,7 @@ function TelemetryPanel({
 }: TelemetryPanelProps) {
   return (
     <section
-      className={clsx(cardStyles.card, styles.section)}
+      className={cn(cardVariants({ variant: "default" }), styles.section)}
       aria-label="Telemetry health"
       data-testid="diag-telemetry-panel"
     >

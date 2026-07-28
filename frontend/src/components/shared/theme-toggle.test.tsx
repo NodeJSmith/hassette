@@ -1,4 +1,4 @@
-import { fireEvent } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { useAppStore } from "../../state/store";
@@ -18,23 +18,25 @@ describe("ThemeToggle", () => {
     expect(getByTestId("theme-toggle")).toBeDefined();
   });
 
-  it("toggles theme from dark to light on click", () => {
+  it("toggles theme from dark to light on click", async () => {
+    const user = userEvent.setup();
     const { getByTestId } = renderWithAppState(<ThemeToggle />, {
       storeOverrides: { theme: "dark" },
     });
     const button = getByTestId("theme-toggle");
     expect(button.getAttribute("aria-label")).toBe("Switch to light mode");
-    fireEvent.click(button);
+    await user.click(button);
     expect(useAppStore.getState().theme).toBe("light");
   });
 
-  it("toggles theme from light to dark on click", () => {
+  it("toggles theme from light to dark on click", async () => {
+    const user = userEvent.setup();
     const { getByTestId } = renderWithAppState(<ThemeToggle />, {
       storeOverrides: { theme: "light" },
     });
     const button = getByTestId("theme-toggle");
     expect(button.getAttribute("aria-label")).toBe("Switch to dark mode");
-    fireEvent.click(button);
+    await user.click(button);
     expect(useAppStore.getState().theme).toBe("dark");
   });
 });

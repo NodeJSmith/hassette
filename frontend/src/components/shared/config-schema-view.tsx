@@ -21,14 +21,15 @@
 
 import { useState } from "react";
 
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+
 import type { ConfigRecord, SchemaNode, UiHints } from "../../api/config-view-types";
 import { MS_PER_SECOND, SECONDS_PER_HOUR, SECONDS_PER_MINUTE } from "../../utils/format";
-import { Badge } from "./badge";
-import { Card } from "./card";
 import styles from "./config-schema-view.module.css";
 import { EmptyState } from "./empty-state";
 import { IconChevron } from "./icons";
-import { InfoPopover } from "./info-popover";
 
 interface ConfigSchemaViewProps {
   /** Fully deref'd JSON schema (no $ref). */
@@ -40,6 +41,10 @@ interface ConfigSchemaViewProps {
   /** Field names that belong to the framework (base AppConfig + manifest). */
   frameworkFields?: string[];
 }
+
+const GENERAL_SECTION_TITLE = "General";
+const APP_SETTINGS_SECTION_TITLE = "App Settings";
+const HASSETTE_SETTINGS_SECTION_TITLE = "Hassette Settings";
 
 const ACRONYM_DISPLAY: Record<string, string> = {
   url: "URL",
@@ -291,6 +296,35 @@ function FieldValue({ node, value, fieldKey }: { node: SchemaNode; value: unknow
 }
 
 /**
+ * Click-triggered info popover: an (i) button that reveals a field's help text on demand.
+ * Keeps verbose descriptions off the row so the field list stays scannable.
+ */
+function FieldHelpPopover({ text, label }: { text: string; label: string }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex size-[18px] shrink-0 items-center justify-center self-center rounded-sm text-muted-foreground hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+          aria-label={open ? `Hide ${label} description` : `Show ${label} description`}
+        >
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+            <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="1.5" />
+            <line x1="8" y1="7.5" x2="8" y2="11.5" stroke="currentColor" strokeWidth="1.5" />
+            <circle cx="8" cy="4.5" r="0.95" fill="currentColor" />
+          </svg>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent role="note" data-testid="field-help" className="w-auto max-w-xs text-xs">
+        {text}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/**
  * One config field row: human label, machine key (inline, hidden on mobile), an optional
  * help popover, and the value. The dotted leader ties the label to its value on the right.
  */
@@ -303,7 +337,7 @@ function ConfigFieldRow({ fieldKey, node, value }: { fieldKey: string; node: Sch
     <div className={styles.row} data-testid={`config-field-${fieldKey}`}>
       <span className={styles.label}>{label}</span>
       <code className={styles.key}>{fieldKey}</code>
-      {help && <InfoPopover text={help} label={label} />}
+      {help && <FieldHelpPopover text={help} label={label} />}
       <span className={styles.spacer} aria-hidden="true" />
       <span className={styles.value} data-testid={`config-value-${fieldKey}`}>
         <FieldValue node={node} value={value} fieldKey={fieldKey} />
@@ -418,7 +452,7 @@ export function ConfigSchemaView({ schema, values, emptyMessage, frameworkFields
 
   // When partitioning, use "App Settings" / "Hassette Settings". Without partitioning,
   // keep the original "General" label for backward compatibility (global config page).
-  const userSectionTitle = frameworkSet ? "App Settings" : "General";
+  const userSectionTitle = frameworkSet ? APP_SETTINGS_SECTION_TITLE : GENERAL_SECTION_TITLE;
 
   return (
     <div className={styles.groups} data-testid="config-schema-view">
@@ -426,7 +460,9 @@ export function ConfigSchemaView({ schema, values, emptyMessage, frameworkFields
       {groupSections.map(({ key, title, fields }) => (
         <ConfigSection key={key} title={title} fields={fields} />
       ))}
-      {frameworkScalarFields.length > 0 && <ConfigSection title="Hassette Settings" fields={frameworkScalarFields} />}
+      {frameworkScalarFields.length > 0 && (
+        <ConfigSection title={HASSETTE_SETTINGS_SECTION_TITLE} fields={frameworkScalarFields} />
+      )}
     </div>
   );
 }

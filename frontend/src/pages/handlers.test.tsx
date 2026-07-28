@@ -1,4 +1,4 @@
-import { fireEvent } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -257,6 +257,7 @@ describe("HandlersPage — query param state (FR#5, AC#6)", () => {
   });
 
   it("changing sort calls qp.set with replace (no new history entry — AC#6)", async () => {
+    const user = userEvent.setup();
     server.use(
       http.get("/api/bus/listeners", () =>
         HttpResponse.json([
@@ -267,8 +268,9 @@ describe("HandlersPage — query param state (FR#5, AC#6)", () => {
     const { findByRole } = renderWithAppState(<HandlersPage />, { storeOverrides });
     // Wait for data to load, then click the sort button
     const sortBtn = await findByRole("button", { name: /^name/i });
-    // SortHeader renders a <th><button> — click the button, not the th
-    fireEvent.click(sortBtn);
+    // SortHeader renders the sort button inside the caller-owned <th> — the query above
+    // already resolves to the button, so there is no <th> to accidentally click instead.
+    await user.click(sortBtn);
     expect(mockNavigate).toHaveBeenCalledWith(expect.stringContaining("sort=name"), { replace: true });
   });
 

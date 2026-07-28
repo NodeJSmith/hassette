@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 
 import { BREAKPOINT_MOBILE, BREAKPOINT_TABLET, useMediaQuery } from "@/hooks/use-media-query";
+import { getStoredValue, removeStoredValue, setStoredValue } from "@/utils/local-storage";
 
 import {
   COLUMNS,
@@ -12,7 +13,7 @@ import {
 import type { ColumnId, ViewContext } from "./types";
 
 const STORAGE_VERSION = 1;
-const STORAGE_KEY_PREFIX = "hassette-log-columns";
+const STORAGE_KEY_PREFIX = "log-columns";
 
 interface StoredColumnState {
   version: number;
@@ -28,6 +29,15 @@ function storageKey(context: ViewContext): string {
   return `${STORAGE_KEY_PREFIX}-${context}`;
 }
 
+function isStoredColumnState(value: unknown): value is StoredColumnState {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as StoredColumnState).version === "number" &&
+    Array.isArray((value as StoredColumnState).columns)
+  );
+}
+
 function defaultColumns(context: ViewContext): ColumnId[] {
   switch (context) {
     case "global":
@@ -40,33 +50,23 @@ function defaultColumns(context: ViewContext): ColumnId[] {
 }
 
 function readStored(context: ViewContext): ColumnId[] | null {
-  try {
-    const raw = localStorage.getItem(storageKey(context));
-    if (!raw) return null;
-    const parsed: StoredColumnState = JSON.parse(raw);
-    if (parsed.version !== STORAGE_VERSION) {
-      localStorage.removeItem(storageKey(context));
-      return null;
-    }
-    const knownIds = new Set<string>(ALL_COLUMN_IDS);
-    const validated = parsed.columns.filter((id) => knownIds.has(id));
-    for (const req of REQUIRED_COLUMNS) {
-      if (!validated.includes(req)) validated.push(req);
-    }
-    if (validated.length === 0) return null;
-    return validated;
-  } catch {
+  const stored = getStoredValue<StoredColumnState | null>(storageKey(context), null, isStoredColumnState);
+  if (stored === null) return null;
+  if (stored.version !== STORAGE_VERSION) {
+    removeStoredValue(storageKey(context));
     return null;
   }
+  const knownIds = new Set<string>(ALL_COLUMN_IDS);
+  const validated = stored.columns.filter((id) => knownIds.has(id));
+  for (const column of REQUIRED_COLUMNS) {
+    if (!validated.includes(column)) validated.push(column);
+  }
+  if (validated.length === 0) return null;
+  return validated;
 }
 
 function writeStored(context: ViewContext, columns: ColumnId[]): void {
-  try {
-    const state: StoredColumnState = { version: STORAGE_VERSION, columns };
-    localStorage.setItem(storageKey(context), JSON.stringify(state));
-  } catch {
-    // localStorage unavailable — degrade silently
-  }
+  setStoredValue<StoredColumnState>(storageKey(context), { version: STORAGE_VERSION, columns });
 }
 
 interface UseColumnVisibilityResult {
@@ -103,11 +103,7 @@ export function useColumnVisibility(context: ViewContext): UseColumnVisibilityRe
   const reset = useCallback(() => {
     const defaults = defaultColumns(context);
     setUserColumns(defaults);
-    try {
-      localStorage.removeItem(storageKey(context));
-    } catch {
-      // localStorage unavailable — degrade silently
-    }
+    removeStoredValue(storageKey(context));
   }, [context]);
 
   return { visibleColumns, selectedColumns: userColumns, viewportHidden, toggle, reset };

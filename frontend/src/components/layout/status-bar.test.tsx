@@ -1,4 +1,4 @@
-import { fireEvent } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { type ComponentProps, createRef } from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -77,11 +77,12 @@ describe("StatusBar — sidebar expand control", () => {
     expect(queryByTestId("sidebar-expand")).toBeNull();
   });
 
-  it("expands the sidebar on click when collapsed", () => {
+  it("expands the sidebar on click when collapsed", async () => {
+    const user = userEvent.setup();
     const { getByTestId } = renderWithAppState(<StatusBar {...baseProps} />, {
       storeOverrides: { sidebarCollapsed: true },
     });
-    fireEvent.click(getByTestId("sidebar-expand"));
+    await user.click(getByTestId("sidebar-expand"));
     expect(useAppStore.getState().sidebarCollapsed).toBe(false);
   });
 });

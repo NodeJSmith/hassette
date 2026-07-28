@@ -1,11 +1,22 @@
+import type { ComponentProps, ReactNode } from "react";
 import { useState } from "react";
 import { toast } from "sonner";
+
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 
 import { reloadApp, startApp, stopApp } from "../../api/endpoints";
 import { useAsyncAction } from "../../hooks/use-async-action";
 import styles from "./action-buttons.module.css";
-import { Button } from "./button";
-import { ConfirmDialog } from "./confirm-dialog";
 import { IconPlay, IconRefresh, IconSquare } from "./icons";
 
 // `verb` reads as "Failed to <verb>", `outcome` as "App "<key>" <outcome>".
@@ -16,6 +27,18 @@ const ACTIONS = {
 } as const;
 
 type ActionName = keyof typeof ACTIONS;
+type ButtonVariant = ComponentProps<typeof Button>["variant"];
+
+interface ActionButtonSpec {
+  action: ActionName;
+  visible: boolean;
+  iconVariant: ButtonVariant;
+  textVariant: ButtonVariant;
+  icon: ReactNode;
+  label: string;
+  ariaLabel: string;
+  onClick: () => void;
+}
 
 interface Props {
   appKey: string;
@@ -58,87 +81,89 @@ export function ActionButtons({ appKey, status, variant = "icon", confirmStop = 
 
   const isIcon = variant === "icon";
 
+  const buttons: ActionButtonSpec[] = [
+    {
+      action: "start",
+      visible: canStart,
+      iconVariant: "success-ghost",
+      textVariant: "success",
+      icon: <IconPlay />,
+      label: "Start",
+      ariaLabel: "Start app",
+      onClick: () => void exec("start"),
+    },
+    {
+      action: "reload",
+      visible: canReload,
+      iconVariant: "info-ghost",
+      textVariant: "outline",
+      icon: <IconRefresh />,
+      label: "Reload",
+      ariaLabel: "Reload app",
+      onClick: () => void exec("reload"),
+    },
+    {
+      action: "stop",
+      visible: canStop,
+      iconVariant: "warning-ghost",
+      textVariant: "danger",
+      icon: <IconSquare />,
+      label: "Stop",
+      ariaLabel: "Stop app",
+      onClick: handleStop,
+    },
+  ];
+
   return (
     <>
       <div className={styles.btnGroup} data-role="action-buttons" data-testid="action-buttons">
-        {canStart && (
-          <Button
-            variant="success"
-            size={isIcon ? undefined : "sm"}
-            ghost={isIcon}
-            icon={isIcon}
-            data-testid={`btn-start-${appKey}`}
-            disabled={loading}
-            onClick={() => void exec("start")}
-            title={isIcon ? "Start" : undefined}
-            aria-label="Start app"
-          >
-            {isIcon ? (
-              <IconPlay />
-            ) : (
-              <>
-                <IconPlay /> Start
-              </>
-            )}
-          </Button>
-        )}
-        {canReload && (
-          <Button
-            variant={isIcon ? "info" : undefined}
-            size={isIcon ? undefined : "sm"}
-            ghost={isIcon}
-            icon={isIcon}
-            data-testid={`btn-reload-${appKey}`}
-            disabled={loading}
-            onClick={() => void exec("reload")}
-            title={isIcon ? "Reload" : undefined}
-            aria-label="Reload app"
-          >
-            {isIcon ? (
-              <IconRefresh />
-            ) : (
-              <>
-                <IconRefresh /> Reload
-              </>
-            )}
-          </Button>
-        )}
-        {canStop && (
-          <Button
-            variant={isIcon ? "warning" : "danger"}
-            size={isIcon ? undefined : "sm"}
-            ghost={isIcon}
-            icon={isIcon}
-            data-testid={`btn-stop-${appKey}`}
-            disabled={loading}
-            onClick={handleStop}
-            title={isIcon ? "Stop" : undefined}
-            aria-label="Stop app"
-          >
-            {isIcon ? (
-              <IconSquare />
-            ) : (
-              <>
-                <IconSquare /> Stop
-              </>
-            )}
-          </Button>
+        {buttons.map(
+          (btn) =>
+            btn.visible && (
+              <Button
+                key={btn.action}
+                variant={isIcon ? btn.iconVariant : btn.textVariant}
+                size={isIcon ? "icon" : "sm"}
+                data-testid={`btn-${btn.action}-${appKey}`}
+                disabled={loading}
+                onClick={btn.onClick}
+                title={isIcon ? btn.label : undefined}
+                aria-label={btn.ariaLabel}
+              >
+                {isIcon ? (
+                  btn.icon
+                ) : (
+                  <>
+                    {btn.icon} {btn.label}
+                  </>
+                )}
+              </Button>
+            ),
         )}
       </div>
-      {confirmStop && showStopConfirm && (
-        <ConfirmDialog
-          title="Stop app?"
-          body={`Stop "${appKey}"? It will stop processing events until restarted.`}
-          confirmLabel="Stop"
-          tone="danger"
-          onConfirm={() => {
-            setShowStopConfirm(false);
-            void exec("stop");
-          }}
-          onCancel={() => {
-            setShowStopConfirm(false);
-          }}
-        />
+      {confirmStop && (
+        <AlertDialog open={showStopConfirm} onOpenChange={setShowStopConfirm}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Stop app?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Stop &quot;{appKey}&quot;? It will stop processing events until restarted.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                variant="destructive"
+                data-testid="confirm-btn-danger"
+                onClick={() => {
+                  void exec("stop");
+                }}
+              >
+                Stop
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       )}
     </>
   );

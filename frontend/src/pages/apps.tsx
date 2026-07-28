@@ -1,13 +1,13 @@
 import { keepPreviousData } from "@tanstack/react-query";
-import clsx from "clsx";
 import { useState } from "react";
+
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 import { ApiError } from "../api/client";
 import { getDashboardAppGrid } from "../api/endpoints";
-import { Button } from "../components/shared/button";
-import popoverStyles from "../components/shared/column-filter-popover/index.module.css";
 import { EmptyState } from "../components/shared/empty-state";
-import { SortHeader } from "../components/shared/sort-header";
+import { ARIA_SORT_FOR_DIRECTION, SortHeader } from "../components/shared/sort-header";
 import { Spinner } from "../components/shared/spinner";
 import { StatsStrip, type StatsStripCell } from "../components/shared/stats-strip";
 import { StatusShape } from "../components/shared/status-shape";
@@ -42,6 +42,7 @@ const FILTER_TONES: Record<FilterId, StatusKind | null> = {
 };
 
 const MIN_WINDOW_FOR_RATE_CALC = 60;
+const SECONDS_PER_HOUR = 3600;
 const VALID_SORT_KEYS: ReadonlySet<string> = new Set<AppSortState["key"]>(["name", "status", "error", "runs", "last"]);
 
 function buildAppsCells(
@@ -60,7 +61,7 @@ function buildAppsCells(
     totalRuns += a.total_invocations + a.total_executions;
   }
   const runsPerHour =
-    windowSeconds && windowSeconds >= MIN_WINDOW_FOR_RATE_CALC ? totalRuns / (windowSeconds / 3600) : null;
+    windowSeconds && windowSeconds >= MIN_WINDOW_FOR_RATE_CALC ? totalRuns / (windowSeconds / SECONDS_PER_HOUR) : null;
 
   const cells: StatsStripCell[] = [
     { label: "total", value: apps.length },
@@ -101,7 +102,10 @@ function StatusFilterContent({
           <button
             key={f}
             type="button"
-            className={clsx(popoverStyles.tierBtn, isActive && popoverStyles.active)}
+            className={cn(
+              "cursor-pointer rounded-sm px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary",
+              isActive && "bg-accent font-medium text-foreground",
+            )}
             aria-pressed={isActive}
             onClick={() => onChange(f)}
             data-testid={`filter-${f}`}
@@ -158,6 +162,9 @@ export function AppsPage() {
       sort: newSort.key === "status" ? null : newSort.key,
       dir: newSort.dir === "asc" ? null : newSort.dir,
     });
+  // SortHeader no longer renders the <th> itself (see sort-header.tsx) -- this hand-rolled
+  // table owns the <th> element and computes aria-sort the same way handlers.tsx does.
+  const ariaSortFor = (key: AppSortState["key"]) => (sort.key === key ? ARIA_SORT_FOR_DIRECTION[sort.dir] : undefined);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const toggleExpand = (appKey: string) => {
@@ -270,7 +277,7 @@ export function AppsPage() {
           {filtered.length === 0 ? (
             <EmptyState title={emptyStateTitle}>
               {(filter !== "all" || search) && (
-                <Button ghost size="sm" onClick={clearFilters}>
+                <Button variant="ghost" size="sm" onClick={clearFilters}>
                   clear filters
                 </Button>
               )}
@@ -287,28 +294,38 @@ export function AppsPage() {
               </colgroup>
               <thead>
                 <tr>
-                  <SortHeader sort={sort} onSort={handleSort} sortKey="name">
-                    app
-                  </SortHeader>
-                  <SortHeader
-                    sort={sort}
-                    onSort={handleSort}
-                    sortKey="status"
-                    ariaLabel="status"
-                    filterContent={columnFilters.status.content}
-                    hasActiveFilter={columnFilters.status.active}
-                  >
-                    status
-                  </SortHeader>
-                  <SortHeader sort={sort} onSort={handleSort} sortKey="error">
-                    last error
-                  </SortHeader>
-                  <SortHeader sort={sort} onSort={handleSort} sortKey="runs">
-                    runs
-                  </SortHeader>
-                  <SortHeader sort={sort} onSort={handleSort} sortKey="last">
-                    last fired
-                  </SortHeader>
+                  <th scope="col" aria-sort={ariaSortFor("name")}>
+                    <SortHeader sort={sort} onSort={handleSort} sortKey="name">
+                      app
+                    </SortHeader>
+                  </th>
+                  <th scope="col" aria-sort={ariaSortFor("status")}>
+                    <SortHeader
+                      sort={sort}
+                      onSort={handleSort}
+                      sortKey="status"
+                      ariaLabel="status"
+                      filterContent={columnFilters.status.content}
+                      hasActiveFilter={columnFilters.status.active}
+                    >
+                      status
+                    </SortHeader>
+                  </th>
+                  <th scope="col" aria-sort={ariaSortFor("error")}>
+                    <SortHeader sort={sort} onSort={handleSort} sortKey="error">
+                      last error
+                    </SortHeader>
+                  </th>
+                  <th scope="col" aria-sort={ariaSortFor("runs")}>
+                    <SortHeader sort={sort} onSort={handleSort} sortKey="runs">
+                      runs
+                    </SortHeader>
+                  </th>
+                  <th scope="col" aria-sort={ariaSortFor("last")}>
+                    <SortHeader sort={sort} onSort={handleSort} sortKey="last">
+                      last fired
+                    </SortHeader>
+                  </th>
                   <th scope="col">actions</th>
                 </tr>
               </thead>

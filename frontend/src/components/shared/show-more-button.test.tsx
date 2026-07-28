@@ -1,4 +1,5 @@
-import { fireEvent, render } from "@testing-library/react";
+import { render } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -22,14 +23,16 @@ describe("ShowMoreButton", () => {
     expect(getByRole("button").textContent).toBe("Show all 42");
   });
 
-  it("clicking calls onToggle", () => {
+  it("clicking calls onToggle", async () => {
+    const user = userEvent.setup();
     const onToggle = vi.fn();
     const { getByRole } = render(<ShowMoreButton showAll={false} onToggle={onToggle} totalCount={5} />);
-    fireEvent.click(getByRole("button"));
+    await user.click(getByRole("button"));
     expect(onToggle).toHaveBeenCalledTimes(1);
   });
 
-  it("button text updates reactively after parent state flips showAll", () => {
+  it("button text updates reactively after parent state flips showAll", async () => {
+    const user = userEvent.setup();
     function Wrapper() {
       const [showAll, setShowAll] = useState(false);
       return <ShowMoreButton showAll={showAll} onToggle={() => setShowAll((v) => !v)} totalCount={7} />;
@@ -37,7 +40,7 @@ describe("ShowMoreButton", () => {
     const { getByRole } = render(<Wrapper />);
     const button = getByRole("button");
     expect(button.textContent).toBe("Show all 7");
-    fireEvent.click(button);
+    await user.click(button);
     expect(button.textContent).toBe("Show less");
   });
 

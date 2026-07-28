@@ -128,12 +128,3 @@ export function buildHandlerItems(
     },
   }));
 }
-
-export function matchesQuery(item: PaletteItem, query: string): boolean {
-  if (!query) return true;
-  const q = query.toLowerCase();
-  if (item.label.toLowerCase().includes(q)) return true;
-  if (item.sub?.toLowerCase().includes(q)) return true;
-  if (item.kind.toLowerCase().includes(q)) return true;
-  return false;
-}

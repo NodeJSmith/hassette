@@ -1,4 +1,4 @@
-import { fireEvent } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useAppStore } from "../../state/store";
@@ -86,47 +86,52 @@ describe("TimePresetSelector — active state", () => {
 });
 
 describe("TimePresetSelector — interactions", () => {
-  it("clicking a preset updates the store", () => {
+  it("clicking a preset updates the store", async () => {
+    const user = userEvent.setup();
     const { getByText } = renderWithAppState(<TimePresetSelector />, {
       storeOverrides: { timePreset: "since-restart" },
     });
-    fireEvent.click(getByText("7d"));
+    await user.click(getByText("7d"));
     expect(useAppStore.getState().timePreset).toBe("7d");
   });
 
-  it("clicking Since restart sets since-restart value", () => {
+  it("clicking Since restart sets since-restart value", async () => {
+    const user = userEvent.setup();
     const { getByText } = renderWithAppState(<TimePresetSelector />, {
       storeOverrides: { timePreset: "7d" },
     });
-    fireEvent.click(getByText("Since restart"));
+    await user.click(getByText("Since restart"));
     expect(useAppStore.getState().timePreset).toBe("since-restart");
   });
 });
 
 describe("TimePresetSelector — URL sync on click", () => {
-  it("clicking a preset calls qp.set with the new window value", () => {
+  it("clicking a preset calls qp.set with the new window value", async () => {
+    const user = userEvent.setup();
     renderWithAppState(<TimePresetSelector />, {
       storeOverrides: { timePreset: "since-restart" },
     });
-    fireEvent.click(document.querySelector("button[aria-pressed='false']")!);
+    await user.click(document.querySelector("button[aria-pressed='false']")!);
     expect(mockQpSet).toHaveBeenCalled();
     const callArg = mockQpSet.mock.calls[0][0] as Record<string, string>;
     expect(callArg).toHaveProperty("window");
   });
 
-  it("clicking 7d calls qp.set({ window: '7d' })", () => {
+  it("clicking 7d calls qp.set({ window: '7d' })", async () => {
+    const user = userEvent.setup();
     const { getByText } = renderWithAppState(<TimePresetSelector />, {
       storeOverrides: { timePreset: "since-restart" },
     });
-    fireEvent.click(getByText("7d"));
+    await user.click(getByText("7d"));
     expect(mockQpSet).toHaveBeenCalledWith({ window: "7d" });
   });
 
-  it("clicking a preset updates urlWindowParam", () => {
+  it("clicking a preset updates urlWindowParam", async () => {
+    const user = userEvent.setup();
     const { getByText } = renderWithAppState(<TimePresetSelector />, {
       storeOverrides: { timePreset: "since-restart", urlWindowParam: null },
     });
-    fireEvent.click(getByText("24h"));
+    await user.click(getByText("24h"));
     expect(useAppStore.getState().urlWindowParam).toBe("24h");
   });
 });

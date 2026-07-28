@@ -1,9 +1,10 @@
-import clsx from "clsx";
 import type { ReactNode } from "react";
 import { Link } from "wouter";
 
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+
 import { AppLink } from "../components/shared/app-link";
-import { Chip } from "../components/shared/chip";
 import { useRelativeTime } from "../hooks/use-relative-time";
 import { handlerPath } from "../utils/app-routes";
 import { formatDurationOrDash, formatRate, MS_PER_SECOND } from "../utils/format";
@@ -18,9 +19,9 @@ const KIND_LABELS: Record<"listener" | "job", string> = {
 
 function KindBadge({ kind }: { kind: "listener" | "job" }) {
   return (
-    <Chip variant={kind} size="sm">
+    <Badge variant={kind} size="sm">
       {KIND_LABELS[kind]}
-    </Chip>
+    </Badge>
   );
 }
 
@@ -36,7 +37,7 @@ interface MobileCardProps {
 
 function MobileCard({ href, appKey, name, failing, metrics, footer, "data-testid": testId }: MobileCardProps) {
   return (
-    <Link href={href} className={clsx(styles.mobileCard, failing && styles.mobileCardFailing)} data-testid={testId}>
+    <Link href={href} className={cn(styles.mobileCard, failing && styles.mobileCardFailing)} data-testid={testId}>
       <div className={styles.mobileCardHeader}>
         <span className="ht-text-mono ht-text-sm">{appKey}</span>
         <span className="ht-text-mono ht-text-sm ht-text-semibold">{name}</span>
@@ -70,7 +71,7 @@ export function HandlerTableRow({ row }: HandlerRowProps) {
   const { errorRate, avgDuration, isOverdue, nextRunDisplay } = useHandlerRowData(row);
 
   return (
-    <tr className={clsx(styles.row, row.failed > 0 && styles.rowFailing)} data-testid={`${row.kind}-row-${row.id}`}>
+    <tr className={cn(styles.row, row.failed > 0 && styles.rowFailing)} data-testid={`${row.kind}-row-${row.id}`}>
       <td>
         <KindBadge kind={row.kind} />
       </td>
@@ -84,12 +85,12 @@ export function HandlerTableRow({ row }: HandlerRowProps) {
       </td>
       <td className="ht-text-mono ht-text-sm">{row.trigger ?? "—"}</td>
       <td className="ht-text-mono ht-text-sm">{row.runs}</td>
-      <td className={clsx("ht-text-mono ht-text-sm", row.failed > 0 && "ht-text-danger")}>{row.failed}</td>
-      <td className={clsx("ht-text-mono ht-text-sm", row.timed_out > 0 && "ht-text-warning")}>{row.timed_out}</td>
-      <td className={clsx("ht-text-mono ht-text-sm", row.cancelled > 0 && "ht-text-cancel")}>{row.cancelled}</td>
-      <td className={clsx("ht-text-mono ht-text-sm", row.failed > 0 && "ht-text-danger")}>{errorRate}</td>
+      <td className={cn("ht-text-mono ht-text-sm", row.failed > 0 && "ht-text-danger")}>{row.failed}</td>
+      <td className={cn("ht-text-mono ht-text-sm", row.timed_out > 0 && "ht-text-warning")}>{row.timed_out}</td>
+      <td className={cn("ht-text-mono ht-text-sm", row.cancelled > 0 && "ht-text-cancel")}>{row.cancelled}</td>
+      <td className={cn("ht-text-mono ht-text-sm", row.failed > 0 && "ht-text-danger")}>{errorRate}</td>
       <td className="ht-text-mono ht-text-sm">{avgDuration}</td>
-      <td className={clsx("ht-text-mono ht-text-sm", isOverdue && "ht-text-warning")}>{nextRunDisplay ?? "—"}</td>
+      <td className={cn("ht-text-mono ht-text-sm", isOverdue && "ht-text-warning")}>{nextRunDisplay ?? "—"}</td>
     </tr>
   );
 }

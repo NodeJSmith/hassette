@@ -1,14 +1,25 @@
 import type { ReactNode } from "react";
 
-import { Badge } from "../shared/badge";
-import { Chip, type ChipKind } from "../shared/chip";
+import { Badge, type BadgeVariant } from "@/components/ui/badge";
+
+import type { StatusKind } from "../../utils/status";
 import { StatusShape } from "../shared/status-shape";
 import styles from "./detail-header.module.css";
+
+// Maps a StatusKind onto the flattened "kind-*" Badge variants (formerly Chip's
+// variant="kind" kind={ChipKind} discriminated union).
+const KIND_BADGE_VARIANT: Record<StatusKind, BadgeVariant> = {
+  ok: "kind-ok",
+  warn: "kind-warn",
+  err: "kind-err",
+  cancel: "kind-cancel",
+  mute: "kind-mute",
+};
 
 interface DetailHeaderProps {
   name: string;
   kindLabel: string;
-  statusKind: ChipKind;
+  statusKind: StatusKind;
   kind: "handler" | "job";
   subtitle?: string | null;
   headerActions?: ReactNode;
@@ -30,10 +41,10 @@ export function DetailHeader({ name, kindLabel, statusKind, kind, subtitle, head
       </div>
 
       <div className={styles.subtitle}>
-        <Chip variant="kind" kind={statusKind} aria-label={`kind: ${kindLabel}`}>
+        <Badge variant={KIND_BADGE_VARIANT[statusKind]} aria-label={`kind: ${kindLabel}`}>
           <StatusShape kind={statusKind} size={8} />
           {kindLabel}
-        </Chip>
+        </Badge>
         {subtitle && <span data-testid={`${kind}-human-description`}>{subtitle}</span>}
       </div>
     </>

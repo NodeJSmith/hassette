@@ -1,4 +1,4 @@
-import { fireEvent } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createInstance, createManifest } from "../test/factories";
@@ -41,9 +41,6 @@ vi.mock("../components/app-detail/overview-tab", async () =>
 );
 vi.mock("../components/shared/log-table", async () => (await import("./app-detail.test-helpers")).createLogTableStub());
 vi.mock("../components/shared/spinner", async () => (await import("./app-detail.test-helpers")).createSpinnerStub());
-vi.mock("../components/shared/confirm-dialog", async () =>
-  (await import("./app-detail.test-helpers")).createConfirmDialogStub(),
-);
 
 const mockCorrectUrl = vi.fn();
 vi.mock("../hooks/use-correct-url", () => ({
@@ -118,6 +115,7 @@ describe("AppDetailPage instances", () => {
   });
 
   it("instance switcher navigates to current tab path with instance query param", async () => {
+    const user = userEvent.setup();
     const manifest = createManifest({
       instance_count: 2,
       instances: [
@@ -130,12 +128,13 @@ describe("AppDetailPage instances", () => {
     const { findByTestId } = renderPage({ key: "test_app", tab: "logs" });
     // Click instance 1 in the switcher
     const inst1Btn = await findByTestId("switcher-instance-1");
-    fireEvent.click(inst1Btn);
+    await user.click(inst1Btn);
     // Should navigate to /apps/test_app/logs?instance=1
     expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app/logs?instance=1");
   });
 
   it("multi-instance parent overview navigates using ?instance= query param", async () => {
+    const user = userEvent.setup();
     const manifest = createManifest({
       instance_count: 2,
       instances: [
@@ -148,7 +147,7 @@ describe("AppDetailPage instances", () => {
     const { findByTestId } = renderPage({ key: "test_app" });
     // Click an instance card
     const card0 = await findByTestId("instance-card-0");
-    fireEvent.click(card0);
+    await user.click(card0);
     // Should navigate to /apps/test_app/overview?instance=0
     expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app/overview?instance=0");
   });
