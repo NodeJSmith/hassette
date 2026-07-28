@@ -35,8 +35,9 @@ def mock_hassette():
     hassette.scheduler_service = hassette._scheduler_service
     hassette.runtime_query_service = hassette._runtime_query_service
 
-    # get_log_records_dropped() is synchronous; replace AsyncMock with Mock
-    hassette.get_log_records_dropped = Mock(return_value=0)
+    # The log drop counters are synchronous; replace AsyncMock with Mock
+    hassette.get_log_queue_drops = Mock(return_value=0)
+    hassette.get_db_write_queue_drops = Mock(return_value=0)
 
     # Mock state proxy
     hassette._state_proxy.states = {

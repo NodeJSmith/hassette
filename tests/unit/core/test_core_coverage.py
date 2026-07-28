@@ -87,18 +87,29 @@ class TestDropCountersAndErrorHandlerFailures:
         assert wired_hassette.get_error_handler_failures() == 5
 
 
-class TestGetLogRecordsDropped:
+class TestGetLogDropCounters:
     def test_returns_zero_before_logging_service_wired(self, test_config: HassetteConfig) -> None:
-        """get_log_records_dropped() returns 0 when _logging_service is None (pre-wiring)."""
+        """Both counters return 0 when _logging_service is None (pre-wiring)."""
         h = Hassette(test_config)
-        assert h.get_log_records_dropped() == 0
+        assert h.get_log_queue_drops() == 0
+        assert h.get_db_write_queue_drops() == 0
 
-    def test_returns_dropped_count_from_persistence_handler(self, wired_hassette: Hassette) -> None:
-        """get_log_records_dropped() forwards the logging service's dropped_count."""
+    def test_db_write_queue_drops_from_persistence_handler(self, wired_hassette: Hassette) -> None:
+        """get_db_write_queue_drops() forwards the persistence handler's db_write_queue_drops."""
         fake_handler = Mock()
-        fake_handler.dropped_count = 7
+        fake_handler.db_write_queue_drops = 7
         wired_hassette._logging_service.persistence_handler = fake_handler
-        assert wired_hassette.get_log_records_dropped() == 7
+        assert wired_hassette.get_db_write_queue_drops() == 7
+
+    def test_log_queue_drops_from_queue_handler(self, wired_hassette: Hassette) -> None:
+        """get_log_queue_drops() forwards the queue handler's log_queue_drops, not the DB one."""
+        fake_queue_handler = Mock()
+        fake_queue_handler.log_queue_drops = 3
+        fake_persistence = Mock()
+        fake_persistence.db_write_queue_drops = 7
+        wired_hassette._logging_service._queue_handler = fake_queue_handler
+        wired_hassette._logging_service.persistence_handler = fake_persistence
+        assert wired_hassette.get_log_queue_drops() == 3
 
 
 class TestStartupTasksEnvFiles:

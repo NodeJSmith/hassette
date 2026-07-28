@@ -188,6 +188,33 @@ class CorrelationFilter(logging.Filter):
         return True
 
 
+class HassetteQueueHandler(logging.handlers.QueueHandler):
+    """QueueHandler that counts records dropped when the bounded log queue is full.
+
+    The stdlib handler routes ``queue.Full`` into ``handleError()``, which loses the drop.
+    Counting it here lets operators tell log-queue saturation (tune ``log_queue_max``) apart
+    from DB-write-queue saturation, which ``LogPersistenceHandler`` counts separately.
+    """
+
+    def __init__(self, queue: queue.Queue[logging.LogRecord]) -> None:
+        super().__init__(queue)
+        self._dropped = 0
+        self._dropped_lock = threading.Lock()
+
+    @property
+    def log_queue_drops(self) -> int:
+        """Cumulative count of records dropped because the log queue was full."""
+        with self._dropped_lock:
+            return self._dropped
+
+    def enqueue(self, record: logging.LogRecord) -> None:
+        try:
+            self.queue.put_nowait(record)
+        except queue.Full:
+            with self._dropped_lock:
+                self._dropped += 1
+
+
 class HassetteQueueListener(logging.handlers.QueueListener):
     """QueueListener with dequeue-timeout for periodic batch flushing.
 
@@ -252,7 +279,8 @@ class LogPersistenceHandler(logging.Handler):
         self._persistence_level = persistence_level
 
     @property
-    def dropped_count(self) -> int:
+    def db_write_queue_drops(self) -> int:
+        """Cumulative count of records dropped because the DB write queue was full or gone."""
         with self._dropped_lock:
             return self._dropped
 

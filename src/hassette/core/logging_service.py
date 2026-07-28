@@ -9,6 +9,7 @@ from typing import ClassVar
 from hassette.core.database_service import DatabaseService
 from hassette.logging_ import (
     CorrelationFilter,
+    HassetteQueueHandler,
     HassetteQueueListener,
     LogCaptureHandler,
     LogPersistenceHandler,
@@ -51,7 +52,7 @@ class LoggingService(Resource):
         self.capture_handler = LogCaptureHandler(buffer_size=hassette.config.web_api.log_buffer_size)
         self.persistence_handler = None
         self._queue_listener: HassetteQueueListener | None = None
-        self._queue_handler: logging.handlers.QueueHandler | None = None
+        self._queue_handler: HassetteQueueHandler | None = None
 
     async def on_initialize(self) -> None:
         """Upgrade logging from sync to async pipeline."""
@@ -87,7 +88,7 @@ class LoggingService(Resource):
             self.persistence_handler = None
 
         q: queue.Queue[logging.LogRecord] = queue.Queue(maxsize=self.hassette.config.logging.log_queue_max)
-        queue_handler = logging.handlers.QueueHandler(q)
+        queue_handler = HassetteQueueHandler(q)
         queue_handler.addFilter(CorrelationFilter())
 
         listener = HassetteQueueListener(q, *handlers)
@@ -135,8 +136,21 @@ class LoggingService(Resource):
             self.persistence_handler.flush_if_pending()
 
     @property
-    def dropped_count(self) -> int:
-        """Return the number of log records dropped by the persistence handler."""
+    def log_queue_drops(self) -> int:
+        """Records dropped at the log queue, before they reach any handler.
+
+        Non-zero means ``log_queue_max`` is too small for the current log volume.
+        """
+        if self._queue_handler is None:
+            return 0
+        return self._queue_handler.log_queue_drops
+
+    @property
+    def db_write_queue_drops(self) -> int:
+        """Records dropped by the persistence handler when the DB write queue was full.
+
+        Non-zero means ``database.write_queue_max`` is too small, or the database is gone.
+        """
         if self.persistence_handler is None:
             return 0
-        return self.persistence_handler.dropped_count
+        return self.persistence_handler.db_write_queue_drops

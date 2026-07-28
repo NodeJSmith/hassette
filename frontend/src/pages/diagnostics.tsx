@@ -66,13 +66,21 @@ function mergeServices(
   });
 }
 
-function buildDiagCells(services: MergedService[], bootIssueCount: number, totalDrops: number): StatsStripCell[] {
+function buildDiagCells(
+  services: MergedService[],
+  bootIssueCount: number,
+  telemetryDrops: number,
+  logDrops: number,
+): StatsStripCell[] {
   const running = services.filter((s) => s.status === "running").length;
   return [
     { label: "services", value: services.length },
     { label: "running", value: running, tone: running === services.length ? "ok" : "warn" },
     { label: "boot issues", value: bootIssueCount, tone: bootIssueCount > 0 ? "err" : undefined },
-    { label: "drops", value: totalDrops, tone: totalDrops > 0 ? "warn" : undefined },
+    // Telemetry and log drops stay in separate cells — a merged total would hide which
+    // subsystem is saturated, which is the whole point of tracking them apart.
+    { label: "telemetry drops", value: telemetryDrops, tone: telemetryDrops > 0 ? "warn" : undefined },
+    { label: "log drops", value: logDrops, tone: logDrops > 0 ? "warn" : undefined },
   ];
 }
 
@@ -268,6 +276,24 @@ function TelemetryPanel({
   );
 }
 
+interface LoggingPanelProps {
+  logQueueDrops: number;
+  dbWriteQueueDrops: number;
+}
+
+/** Log records drop at one of two independent queues; each row names the bound to raise. */
+function LoggingPanel({ logQueueDrops, dbWriteQueueDrops }: LoggingPanelProps) {
+  return (
+    <section class={clsx(cardStyles.card, styles.section)} aria-label="Logging health" data-testid="diag-logging-panel">
+      <h2 class={styles.sectionHeading}>logging health</h2>
+      <ul class={styles.dropList} aria-label="Log drop counters">
+        <DropCounterRow label="Log queue full" value={logQueueDrops} testId="diag-drop-log-queue" />
+        <DropCounterRow label="DB write queue full" value={dbWriteQueueDrops} testId="diag-drop-db-write-queue" />
+      </ul>
+    </section>
+  );
+}
+
 export function DiagnosticsPage() {
   useDocumentTitle("Diagnostics");
 
@@ -298,9 +324,13 @@ export function DiagnosticsPage() {
 
   const bootIssues: BootIssue[] = systemStatus?.boot_issues ?? [];
 
-  const totalDrops =
+  const logQueueDrops = systemStatus?.log_queue_drops ?? 0;
+  const dbWriteQueueDrops = systemStatus?.db_write_queue_drops ?? 0;
+  const logDrops = logQueueDrops + dbWriteQueueDrops;
+
+  const telemetryDrops =
     droppedOverflow.value + droppedExhausted.value + droppedShutdown.value + errorHandlerFailures.value;
-  const showTelemetry = telemetryDegraded.value || totalDrops > 0;
+  const showTelemetry = telemetryDegraded.value || telemetryDrops > 0;
 
   if (loading) return <Spinner />;
 
@@ -317,13 +347,15 @@ export function DiagnosticsPage() {
       ) : (
         <>
           <StatsStrip
-            cells={buildDiagCells(mergedServices, bootIssues.length, totalDrops)}
+            cells={buildDiagCells(mergedServices, bootIssues.length, telemetryDrops, logDrops)}
             data-testid="diag-stats-strip"
           />
 
           <ServicesPanel services={mergedServices} wsConnected={wsConnected} />
 
           {bootIssues.length > 0 && <BootIssuesPanel bootIssues={bootIssues} />}
+
+          {logDrops > 0 && <LoggingPanel logQueueDrops={logQueueDrops} dbWriteQueueDrops={dbWriteQueueDrops} />}
         </>
       )}
 

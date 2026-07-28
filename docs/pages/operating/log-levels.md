@@ -55,6 +55,19 @@ Set `all_events = true` to enable both at once. Set `all_hass_events` or `all_ha
 
 `log_queue_max` (default 2000) caps how many records can wait for persistence at once. When the queue is full, new records are dropped rather than blocking the app. Raise it only if sustained `DEBUG` persistence reports drops.
 
+## Dropped Log Records
+
+Log records pass through two bounded queues on their way to the database, and each drops records independently when it fills. The Diagnostics page reports them separately, as does `GET /api/health`:
+
+| Counter | Field | Raise this |
+|---------|-------|------------|
+| Log queue full | `log_queue_drops` | `log_queue_max` under `[hassette.logging]` |
+| DB write queue full | `db_write_queue_drops` | `write_queue_max` under `[hassette.database]` |
+
+The two counters lose different amounts. A non-zero `log_queue_drops` means the pipeline produced records faster than the listener thread drained them, so those records reached no handler at all — they are missing from console output, the live log buffer, and the database. A non-zero `db_write_queue_drops` means records reached the persistence handler but the database could not keep up; they still appear on the console and in the live buffer, they just never get stored.
+
+Both counters are cumulative since process start. Neither affects app behavior — dropping is what keeps a burst of logging from blocking your automations.
+
 ## Per-App Log Levels
 
 Each app sets its own log level with `log_level` in that app's config section.
