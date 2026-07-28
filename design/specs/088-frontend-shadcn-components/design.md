@@ -1,7 +1,7 @@
 # Design: Replace Hand-Rolled Components with shadcn/ui
 
 **Date:** 2026-07-27
-**Status:** archived
+**Status:** approved
 **Scope-mode:** expand
 **Research:** design/research/2026-07-27-frontend-migration-part-two/brief.md
 
