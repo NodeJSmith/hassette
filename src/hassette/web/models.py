@@ -80,7 +80,7 @@ class SystemStatusResponse(BaseModel):
     """Log records dropped because the log queue was full — tune ``logging.log_queue_max``."""
 
     db_write_queue_drops: int = 0
-    """Log records dropped because the DB write queue was full — tune ``database.write_queue_max``."""
+    """Log records dropped because the DB write queue was full, unavailable, or closed."""
 
 
 class LivenessResponse(BaseModel):

@@ -64,7 +64,7 @@ Log records pass through two bounded queues on their way to the database, and ea
 | Log queue full | `log_queue_drops` | `log_queue_max` under `[hassette.logging]` |
 | DB write queue full | `db_write_queue_drops` | `write_queue_max` under `[hassette.database]` |
 
-The two counters lose different amounts. A non-zero `log_queue_drops` means the pipeline produced records faster than the listener thread drained them, so those records reached no handler at all — they are missing from console output, the live log buffer, and the database. A non-zero `db_write_queue_drops` means records reached the persistence handler but the database could not keep up; they still appear on the console and in the live buffer, they just never get stored.
+The log pipeline drops records at two independent queue boundaries. `log_queue_drops` counts records dropped before any handler receives them. These records are absent from console output, the live log buffer, and the database. `db_write_queue_drops` counts records dropped after the persistence handler receives them. These records remain visible in console output and the live buffer, but are absent from the database.
 
 Both counters are cumulative since process start. Neither affects app behavior — dropping is what keeps a burst of logging from blocking your automations.
 

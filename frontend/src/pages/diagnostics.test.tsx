@@ -264,7 +264,7 @@ describe("DiagnosticsPage", () => {
     expect((await findByTestId("diag-drop-db-write-queue")).textContent).toContain("4");
   });
 
-  it("keeps log drops out of the telemetry drops cell in the stats strip", async () => {
+  it("keeps log drop counters independent in the stats strip", async () => {
     server.use(
       http.get("/api/health", () =>
         HttpResponse.json(makeSystemStatus({ log_queue_drops: 12, db_write_queue_drops: 4 })),
@@ -275,11 +275,14 @@ describe("DiagnosticsPage", () => {
     });
     const strip = (await findByTestId("diag-stats-strip")).textContent ?? "";
 
-    expect(strip).toContain("log drops");
-    expect(strip).toContain("16");
+    expect(strip).toContain("log queue drops");
+    expect(strip).toContain("12");
+    expect(strip).toContain("DB write drops");
+    expect(strip).toContain("4");
     expect(strip).toContain("telemetry drops");
     expect(strip).toContain("5");
-    // A merged total would read 21 and hide which subsystem is saturated.
+    expect(strip).not.toContain("16");
+    // A merged total with telemetry drops would read 21 and hide which subsystem is saturated.
     expect(strip).not.toContain("21");
   });
 

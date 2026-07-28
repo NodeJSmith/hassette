@@ -70,17 +70,17 @@ function buildDiagCells(
   services: MergedService[],
   bootIssueCount: number,
   telemetryDrops: number,
-  logDrops: number,
+  logQueueDrops: number,
+  dbWriteQueueDrops: number,
 ): StatsStripCell[] {
   const running = services.filter((s) => s.status === "running").length;
   return [
     { label: "services", value: services.length },
     { label: "running", value: running, tone: running === services.length ? "ok" : "warn" },
     { label: "boot issues", value: bootIssueCount, tone: bootIssueCount > 0 ? "err" : undefined },
-    // Telemetry and log drops stay in separate cells — a merged total would hide which
-    // subsystem is saturated, which is the whole point of tracking them apart.
     { label: "telemetry drops", value: telemetryDrops, tone: telemetryDrops > 0 ? "warn" : undefined },
-    { label: "log drops", value: logDrops, tone: logDrops > 0 ? "warn" : undefined },
+    { label: "log queue drops", value: logQueueDrops, tone: logQueueDrops > 0 ? "warn" : undefined },
+    { label: "DB write drops", value: dbWriteQueueDrops, tone: dbWriteQueueDrops > 0 ? "warn" : undefined },
   ];
 }
 
@@ -288,7 +288,11 @@ function LoggingPanel({ logQueueDrops, dbWriteQueueDrops }: LoggingPanelProps) {
       <h2 class={styles.sectionHeading}>logging health</h2>
       <ul class={styles.dropList} aria-label="Log drop counters">
         <DropCounterRow label="Log queue full" value={logQueueDrops} testId="diag-drop-log-queue" />
-        <DropCounterRow label="DB write queue full" value={dbWriteQueueDrops} testId="diag-drop-db-write-queue" />
+        <DropCounterRow
+          label="DB write queue full/unavailable"
+          value={dbWriteQueueDrops}
+          testId="diag-drop-db-write-queue"
+        />
       </ul>
     </section>
   );
@@ -347,7 +351,7 @@ export function DiagnosticsPage() {
       ) : (
         <>
           <StatsStrip
-            cells={buildDiagCells(mergedServices, bootIssues.length, telemetryDrops, logDrops)}
+            cells={buildDiagCells(mergedServices, bootIssues.length, telemetryDrops, logQueueDrops, dbWriteQueueDrops)}
             data-testid="diag-stats-strip"
           />
 

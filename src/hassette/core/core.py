@@ -359,8 +359,8 @@ class Hassette(Resource):
     def get_db_write_queue_drops(self) -> int:
         """Return the number of log records dropped because the DB write queue was full.
 
-        Drops here mean ``database.write_queue_max`` is too small, or the persistence handler
-        has not been initialized. The records reached the persistence handler but were never
+        Drops here mean ``database.write_queue_max`` is too small, or the persistence handler's
+        queue was unavailable or closed. The records reached the persistence handler but were never
         written.
 
         Returns:
