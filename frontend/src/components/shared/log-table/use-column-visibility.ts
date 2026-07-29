@@ -1,8 +1,7 @@
-import { useCallback } from "preact/hooks";
+import { useCallback, useState } from "react";
 
 import { BREAKPOINT_MOBILE, BREAKPOINT_TABLET, useMediaQuery } from "@/hooks/use-media-query";
-import { useSignal } from "@/hooks/use-signal";
-import { useSubscribe } from "@/hooks/use-subscribe";
+import { getStoredValue, removeStoredValue, setStoredValue } from "@/utils/local-storage";
 
 import {
   COLUMNS,
@@ -14,7 +13,7 @@ import {
 import type { ColumnId, ViewContext } from "./types";
 
 const STORAGE_VERSION = 1;
-const STORAGE_KEY_PREFIX = "hassette-log-columns";
+const STORAGE_KEY_PREFIX = "log-columns";
 
 interface StoredColumnState {
   version: number;
@@ -30,6 +29,15 @@ function storageKey(context: ViewContext): string {
   return `${STORAGE_KEY_PREFIX}-${context}`;
 }
 
+function isStoredColumnState(value: unknown): value is StoredColumnState {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as StoredColumnState).version === "number" &&
+    Array.isArray((value as StoredColumnState).columns)
+  );
+}
+
 function defaultColumns(context: ViewContext): ColumnId[] {
   switch (context) {
     case "global":
@@ -42,33 +50,23 @@ function defaultColumns(context: ViewContext): ColumnId[] {
 }
 
 function readStored(context: ViewContext): ColumnId[] | null {
-  try {
-    const raw = localStorage.getItem(storageKey(context));
-    if (!raw) return null;
-    const parsed: StoredColumnState = JSON.parse(raw);
-    if (parsed.version !== STORAGE_VERSION) {
-      localStorage.removeItem(storageKey(context));
-      return null;
-    }
-    const knownIds = new Set<string>(ALL_COLUMN_IDS);
-    const validated = parsed.columns.filter((id) => knownIds.has(id));
-    for (const req of REQUIRED_COLUMNS) {
-      if (!validated.includes(req)) validated.push(req);
-    }
-    if (validated.length === 0) return null;
-    return validated;
-  } catch {
+  const stored = getStoredValue<StoredColumnState | null>(storageKey(context), null, isStoredColumnState);
+  if (stored === null) return null;
+  if (stored.version !== STORAGE_VERSION) {
+    removeStoredValue(storageKey(context));
     return null;
   }
+  const knownIds = new Set<string>(ALL_COLUMN_IDS);
+  const validated = stored.columns.filter((id) => knownIds.has(id));
+  for (const column of REQUIRED_COLUMNS) {
+    if (!validated.includes(column)) validated.push(column);
+  }
+  if (validated.length === 0) return null;
+  return validated;
 }
 
 function writeStored(context: ViewContext, columns: ColumnId[]): void {
-  try {
-    const state: StoredColumnState = { version: STORAGE_VERSION, columns };
-    localStorage.setItem(storageKey(context), JSON.stringify(state));
-  } catch {
-    // localStorage unavailable — degrade silently
-  }
+  setStoredValue<StoredColumnState>(storageKey(context), { version: STORAGE_VERSION, columns });
 }
 
 interface UseColumnVisibilityResult {
@@ -83,34 +81,30 @@ export function useColumnVisibility(context: ViewContext): UseColumnVisibilityRe
   const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
   const isTablet = useMediaQuery(BREAKPOINT_TABLET);
 
-  const userColumns = useSignal<ColumnId[]>(readStored(context) ?? defaultColumns(context));
-  useSubscribe(userColumns);
+  const [userColumns, setUserColumns] = useState<ColumnId[]>(() => readStored(context) ?? defaultColumns(context));
 
   const viewportHidden: ReadonlySet<ColumnId> = isMobile ? MOBILE_HIDDEN : isTablet ? TABLET_HIDDEN : NO_HIDDEN;
 
-  const visibleColumns = userColumns.value.filter((id) => !viewportHidden.has(id));
+  const visibleColumns = userColumns.filter((id) => !viewportHidden.has(id));
 
   const toggle = useCallback(
     (id: ColumnId) => {
-      const current = userColumns.value;
-      const next = current.includes(id)
-        ? current.filter((c) => c !== id)
-        : [...current, id].sort((a, b) => ALL_COLUMN_IDS.indexOf(a) - ALL_COLUMN_IDS.indexOf(b));
-      userColumns.value = next;
-      writeStored(context, next);
+      setUserColumns((current) => {
+        const next = current.includes(id)
+          ? current.filter((c) => c !== id)
+          : [...current, id].sort((a, b) => ALL_COLUMN_IDS.indexOf(a) - ALL_COLUMN_IDS.indexOf(b));
+        writeStored(context, next);
+        return next;
+      });
     },
     [context],
   );
 
   const reset = useCallback(() => {
     const defaults = defaultColumns(context);
-    userColumns.value = defaults;
-    try {
-      localStorage.removeItem(storageKey(context));
-    } catch {
-      // localStorage unavailable — degrade silently
-    }
+    setUserColumns(defaults);
+    removeStoredValue(storageKey(context));
   }, [context]);
 
-  return { visibleColumns, selectedColumns: userColumns.value, viewportHidden, toggle, reset };
+  return { visibleColumns, selectedColumns: userColumns, viewportHidden, toggle, reset };
 }

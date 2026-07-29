@@ -1,4 +1,3 @@
-import { signal } from "@preact/signals";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createManifest } from "../test/factories";
@@ -55,9 +54,6 @@ vi.mock("../components/app-detail/overview-tab", async () =>
 );
 vi.mock("../components/shared/log-table", async () => (await import("./app-detail.test-helpers")).createLogTableStub());
 vi.mock("../components/shared/spinner", async () => (await import("./app-detail.test-helpers")).createSpinnerStub());
-vi.mock("../components/shared/confirm-dialog", async () =>
-  (await import("./app-detail.test-helpers")).createConfirmDialogStub(),
-);
 
 const mockCorrectUrl = vi.fn();
 vi.mock("../hooks/use-correct-url", () => ({
@@ -65,7 +61,7 @@ vi.mock("../hooks/use-correct-url", () => ({
 }));
 
 function renderPage(params: { key: string; tab?: AppDetailTab; handler?: string }) {
-  return renderWithAppState(<AppDetailPage params={params} />, { stateOverrides: { uptimeSeconds: signal(120) } });
+  return renderWithAppState(<AppDetailPage params={params} />, { storeOverrides: { uptimeSeconds: 120 } });
 }
 
 describe("AppDetailPage tabs", () => {

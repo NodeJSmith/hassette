@@ -1,7 +1,9 @@
-import { keepPreviousData } from "@tanstack/preact-query";
-import clsx from "clsx";
-import { useEffect } from "preact/hooks";
+import { keepPreviousData } from "@tanstack/react-query";
+import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
+import { useEffect } from "react";
 import { Link, useLocation } from "wouter";
+
+import { cn } from "@/lib/utils";
 
 import { getAppJobs, getAppListeners } from "../api/endpoints";
 import { AppDetailHeader } from "../components/app-detail/app-detail-header";
@@ -19,11 +21,13 @@ import { useQueryInvalidator } from "../hooks/use-query-invalidator";
 import { useQueryParams } from "../hooks/use-query-params";
 import { useScopedQuery } from "../hooks/use-scoped-query";
 import { queryKeys } from "../lib/query-keys";
-import { useAppState } from "../state/context";
-import { appStatusKey } from "../state/create-app-state";
+import { appStatusKey, useAppStore } from "../state/store";
 import { appLiveStatus } from "../utils/app-data";
 import { appDetailPath, type AppDetailTab, parseInstanceParam } from "../utils/app-routes";
-import styles from "./app-detail.module.css";
+
+const PAGE_CLASS = "flex flex-1 flex-col gap-8 p-8 max-mobile:p-3 max-small-mobile:p-2";
+const ALERT_CLASS =
+  "flex items-start gap-3 rounded-md border border-destructive bg-[var(--destructive-bg)] px-4 py-3 text-sm text-foreground";
 
 export type TabId = AppDetailTab;
 
@@ -63,31 +67,26 @@ function Tab({
       tabIndex={isActive ? 0 : -1}
       aria-selected={isActive}
       aria-controls={`tabpanel-${id}`}
-      class={clsx(styles.tabBtn, isActive && styles.tabBtnActive)}
+      className={cn(
+        "inline-block whitespace-nowrap px-4 py-2 font-sans text-[length:var(--text-mono-md)] font-medium text-muted-foreground no-underline transition-colors hover:bg-muted hover:text-foreground focus-visible:rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary max-sidebar:min-h-[var(--sz-touch)] max-sidebar:px-3 max-small-mobile:px-1.5 max-small-mobile:text-xs",
+        isActive && "bg-[linear-gradient(to_bottom,transparent,var(--primary-soft))] text-foreground",
+      )}
     >
       {label}
-      {badge !== undefined && <span class={styles.tabBtnBadge}>{badge}</span>}
+      {badge !== undefined && <span className="ml-1 text-xs font-normal text-muted-foreground">{badge}</span>}
     </Link>
   );
 }
 
-function TabPanel({
-  id,
-  children,
-  class: className,
-}: {
-  id: TabId;
-  children: preact.ComponentChildren;
-  class?: string;
-}) {
+function TabPanel({ id, children, className }: { id: TabId; children: ReactNode; className?: string }) {
   return (
-    <div class={className} role="tabpanel" id={`tabpanel-${id}`} aria-labelledby={`tab-${id}`}>
+    <div className={className} role="tabpanel" id={`tabpanel-${id}`} aria-labelledby={`tab-${id}`}>
       {children}
     </div>
   );
 }
 
-function handleTabKeyDown(e: KeyboardEvent) {
+function handleTabKeyDown(e: ReactKeyboardEvent) {
   if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
   e.preventDefault();
   const tabs = (e.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('[role="tab"]');
@@ -100,7 +99,8 @@ function handleTabKeyDown(e: KeyboardEvent) {
 export function AppDetailPage({ params }: Props) {
   const appKey = params.key;
   const activeTab: TabId = params.tab ?? "overview";
-  const { appStatus, executionCompleted } = useAppState();
+  const appStatus = useAppStore((s) => s.appStatus);
+  const executionCompleted = useAppStore((s) => s.executionCompleted);
   const { data: manifest, isPending: manifestLoading, error: manifestError } = useManifest(appKey);
   const [, navigate] = useLocation();
   const queryParams = useQueryParams();
@@ -153,13 +153,13 @@ export function AppDetailPage({ params }: Props) {
   const currentInstance = !showParentOverview
     ? manifest?.instances?.find((i) => i.index === resolvedInstanceIndex)
     : undefined;
-  const wsStatus = appStatus.value[appStatusKey(appKey, resolvedInstanceIndex)]?.status;
+  const wsStatus = appStatus[appStatusKey(appKey, resolvedInstanceIndex)]?.status;
   const instanceStatus = wsStatus ?? currentInstance?.status ?? manifest?.status ?? "unknown";
   let liveStatus: string;
   if (!showParentOverview) {
     liveStatus = instanceStatus;
   } else if (manifest) {
-    liveStatus = appLiveStatus(appStatus.value, manifest);
+    liveStatus = appLiveStatus(appStatus, manifest);
   } else {
     liveStatus = "unknown";
   }
@@ -188,7 +188,7 @@ export function AppDetailPage({ params }: Props) {
 
   if (manifestError || listenersError || jobsError) {
     return (
-      <div class="ht-alert ht-alert--danger" role="alert">
+      <div className={ALERT_CLASS} role="alert">
         {(manifestError ?? listenersError ?? jobsError)!.message}
       </div>
     );
@@ -199,8 +199,8 @@ export function AppDetailPage({ params }: Props) {
   const handlerCount = (listenersData?.length ?? 0) + (jobsData?.length ?? 0);
 
   return (
-    <div class="ht-page">
-      <div class={styles.identity}>
+    <div className={PAGE_CLASS}>
+      <div className="flex flex-col gap-3">
         {isMultiInstance && !showParentOverview && manifest?.instances && manifest.instances.length > 0 && (
           <InstanceSwitcher
             instances={manifest.instances}
@@ -220,7 +220,12 @@ export function AppDetailPage({ params }: Props) {
           showParentOverview={showParentOverview}
         />
 
-        <div class={styles.tabStrip} role="tablist" aria-label="App sections" onKeyDown={handleTabKeyDown}>
+        <div
+          className="flex gap-0 overflow-hidden rounded-sm border border-border bg-card max-mobile:overflow-x-auto"
+          role="tablist"
+          aria-label="App sections"
+          onKeyDown={handleTabKeyDown}
+        >
           <Tab id="overview" label="overview" {...tabProps} />
           {!showParentOverview && <Tab id="handlers" label="handlers" badge={handlerCount} {...tabProps} />}
           <Tab id="code" label="code" {...tabProps} />
@@ -274,7 +279,7 @@ export function AppDetailPage({ params }: Props) {
         </TabPanel>
       )}
       {activeTab === "logs" && (
-        <TabPanel id="logs" class={styles.tabPanel}>
+        <TabPanel id="logs" className="flex flex-col gap-3">
           <AppLogsPanel appKey={appKey} />
         </TabPanel>
       )}

@@ -1,17 +1,17 @@
-import clsx from "clsx";
-import { useEffect, useRef } from "preact/hooks";
+import type { CSSProperties } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
+
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 import type { JobData, ListenerData } from "../../api/endpoints";
 import { useCorrectUrl } from "../../hooks/use-correct-url";
 import { BREAKPOINT_MOBILE } from "../../hooks/use-media-query";
-import { useSignal } from "../../hooks/use-signal";
 import { appHandlersPath, handlerPath } from "../../utils/app-routes";
-import { Button } from "../shared/button";
 import { EmptyState } from "../shared/empty-state";
 import { ExecutionDetailFetcher } from "./execution-detail";
 import { HandlerList, type SelectedHandlerId } from "./handler-list";
-import styles from "./handlers-tab.module.css";
 import { JobDetail } from "./job-detail";
 import { ListenerDetail } from "./listener-detail";
 
@@ -84,7 +84,7 @@ export function HandlersTab({
   const correctUrl = useCorrectUrl();
 
   // ResizeObserver instead of useMediaQuery: breakpoint is relative to this container's width, not the viewport.
-  const isMobile = useSignal(false);
+  const [isMobile, setIsMobile] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -93,12 +93,12 @@ export function HandlersTab({
 
     const ro = new ResizeObserver((entries) => {
       for (const entry of entries) {
-        isMobile.value = entry.contentRect.width < BREAKPOINT_MOBILE;
+        setIsMobile(entry.contentRect.width < BREAKPOINT_MOBILE);
       }
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [isMobile]);
+  }, []);
 
   const hasItems = listeners.length > 0 || jobs.length > 0;
   const instanceQs = instanceIndex !== undefined ? `?instance=${instanceIndex}` : "";
@@ -145,19 +145,19 @@ export function HandlersTab({
       );
 
     case "master-detail": {
-      const showMobileDetail = isMobile.value && selectedHandler !== null;
-      const showMasterList = !isMobile.value || selectedHandler === null;
-      const showDetailPane = !isMobile.value || selectedHandler !== null;
+      const showMobileDetail = isMobile && selectedHandler !== null;
+      const showMasterList = !isMobile || selectedHandler === null;
+      const showDetailPane = !isMobile || selectedHandler !== null;
 
       const selectedId: SelectedHandlerId | null = parsed ? { kind: parsed.kind, id: parsed.id } : null;
 
       return (
-        <div ref={containerRef} class={styles.container}>
+        <div ref={containerRef} className="flex flex-col gap-4">
           {showMobileDetail && (
             <Button
-              ghost
+              variant="ghost"
               size="sm"
-              class="ht-mb-3"
+              className="mb-3"
               data-testid="back-to-list"
               onClick={() => navigate(appHandlersPath(appKey, { instance: instanceIndex }))}
               aria-label="Back to handler list"
@@ -166,15 +166,32 @@ export function HandlersTab({
             </Button>
           )}
 
-          <div class={clsx(styles.masterDetail, isMobile.value && styles.masterDetailMobile)}>
+          <div
+            className={cn(
+              "grid items-start gap-4 [grid-template-columns:minmax(var(--master-min-width),var(--master-max-width))_1fr]",
+              isMobile && "block",
+            )}
+            style={
+              {
+                "--master-min-width": "240px",
+                "--master-max-width": "340px",
+                "--master-max-height": "70vh",
+              } as CSSProperties
+            }
+          >
             {showMasterList && (
-              <div class={styles.masterDetailList}>
+              <div
+                className={cn(
+                  "max-h-[var(--master-max-height)] overflow-y-auto rounded-md border border-border bg-card",
+                  isMobile && "mb-4 max-h-none",
+                )}
+              >
                 <HandlerList listeners={listeners} jobs={jobs} selectedId={selectedId} onSelect={handleSelect} />
               </div>
             )}
 
             {showDetailPane && (
-              <div class={styles.masterDetailDetail}>
+              <div className="overflow-y-auto">
                 <DetailContent
                   listener={selectedListener}
                   job={selectedJob}

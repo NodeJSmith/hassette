@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/preact";
+import { render, screen, waitFor } from "@testing-library/react";
 import { delay, http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -62,6 +62,18 @@ describe("CodeTab", () => {
     await waitFor(() => {
       expect(screen.getByTestId("code-tab-content")).toBeDefined();
     });
+  });
+
+  it("includes Shiki token color utilities for light and dark themes", async () => {
+    render(<CodeTab appKey="test_app" listeners={[]} />);
+    const codeTab = await screen.findByTestId("code-tab-content");
+    const body = codeTab.lastElementChild;
+    expect(body?.className).toContain(
+      "[&_.shiki_span:not(.line):not(.line-num)]:text-[var(--shiki-light,var(--ink-1))]",
+    );
+    expect(body?.className).toContain(
+      "dark:[&_.shiki_span:not(.line):not(.line-num)]:text-[var(--shiki-dark,var(--ink-1))]",
+    );
   });
 
   it("renders line numbers in gutter", async () => {
@@ -151,14 +163,6 @@ describe("CodeTab", () => {
     });
     const line1 = screen.getByTestId("code-line-1");
     expect(line1.classList.contains("line--focus")).toBe(false);
-  });
-
-  it("does not accept focusLine as a prop (type-level only — no runtime prop consumed)", async () => {
-    // This verifies the component renders correctly without focusLine prop
-    render(<CodeTab appKey="test_app" listeners={[]} />);
-    await waitFor(() => {
-      expect(screen.getByTestId("code-tab-content")).toBeDefined();
-    });
   });
 
   it("aborts in-flight request on unmount", async () => {

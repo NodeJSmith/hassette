@@ -1,11 +1,10 @@
-import { useSignalEffect } from "@preact/signals";
-import { useEffect, useMemo, useRef, useState } from "preact/hooks";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { getRecentLogs, type LogEntry } from "@/api/endpoints";
 import { useScopedQuery } from "@/hooks/use-scoped-query";
 import { queryKeys } from "@/lib/query-keys";
-import { useAppState } from "@/state/context";
+import { useAppStore } from "@/state/store";
 
 import { LIVE_LOG_UPDATE_INTERVAL_MS, REST_FETCH_LIMIT } from "./constants";
 import { rowKey } from "./types";
@@ -24,16 +23,15 @@ interface UseLogDataResult {
 }
 
 function useThrottledLogVersion(): number {
-  const { logs } = useAppState();
-  const [version, setVersion] = useState(logs.version.value);
-  const latestVersion = useRef(logs.version.value);
-  const publishedVersion = useRef(logs.version.value);
+  const logVersion = useAppStore((s) => s.logVersion);
+  const [version, setVersion] = useState(logVersion);
+  const latestVersion = useRef(logVersion);
+  const publishedVersion = useRef(logVersion);
   const timeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useSignalEffect(() => {
-    const nextVersion = logs.version.value;
-    latestVersion.current = nextVersion;
-    if (nextVersion === publishedVersion.current) return;
+  useEffect(() => {
+    latestVersion.current = logVersion;
+    if (logVersion === publishedVersion.current) return;
     if (timeout.current) return;
 
     timeout.current = setTimeout(() => {
@@ -41,7 +39,7 @@ function useThrottledLogVersion(): number {
       publishedVersion.current = latestVersion.current;
       setVersion(latestVersion.current);
     }, LIVE_LOG_UPDATE_INTERVAL_MS);
-  });
+  }, [logVersion]);
 
   useEffect(
     () => () => {
@@ -54,7 +52,7 @@ function useThrottledLogVersion(): number {
 }
 
 export function useLogData({ appKey, executionId }: UseLogDataParams): UseLogDataResult {
-  const { logs } = useAppState();
+  const getLogEntries = useAppStore((s) => s.getLogEntries);
   const logsVersion = useThrottledLogVersion();
 
   const { data, isPending, isError, error } = useScopedQuery(
@@ -76,7 +74,7 @@ export function useLogData({ appKey, executionId }: UseLogDataParams): UseLogDat
   const allEntries = useMemo(() => {
     if (!data) return [];
 
-    const wsEntries = (logs.toArray() as LogEntry[]).filter((entry) => {
+    const wsEntries = (getLogEntries() as LogEntry[]).filter((entry) => {
       if (restKeys.has(rowKey(entry))) return false;
       if (appKey && entry.app_key !== appKey) return false;
       if (executionId && entry.execution_id !== executionId) return false;
@@ -84,7 +82,7 @@ export function useLogData({ appKey, executionId }: UseLogDataParams): UseLogDat
     });
 
     return [...wsEntries.reverse(), ...restEntries];
-    // eslint-disable-next-line react-hooks-configurable/exhaustive-deps -- logs is a stable ring-buffer ref; logsVersion drives recomputation
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- getLogEntries is a stable store action; logsVersion drives recomputation
   }, [data, restEntries, restKeys, logsVersion, appKey, executionId]);
 
   return { allEntries, restEntries, loading: isPending };

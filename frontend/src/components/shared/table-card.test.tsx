@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/preact";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { TableCard } from "./table-card";
@@ -67,7 +67,7 @@ describe("TableCard", () => {
 
       const footerEl = screen.getByTestId("footer-el");
       const tableCell = screen.getByTestId("table-cell");
-      const scrollArea = tableCell.closest(".ht-table-card-scroll")!;
+      const scrollArea = tableCell.closest("[data-testid='table-card-scroll']")!;
 
       // footer container should appear AFTER scroll area
       const position = scrollArea.compareDocumentPosition(footerEl);
@@ -103,7 +103,7 @@ describe("TableCard", () => {
           </table>
         </TableCard>,
       );
-      const scrollEl = container.querySelector(".ht-table-card-scroll");
+      const scrollEl = container.querySelector("[data-testid='table-card-scroll']");
       expect(scrollEl).not.toBeNull();
       expect(scrollEl!.getAttribute("style")).toContain("400px");
     });
@@ -112,7 +112,7 @@ describe("TableCard", () => {
   describe("class prop", () => {
     it("applies additional class to the container", () => {
       const { container } = render(
-        <TableCard class="my-custom-class">
+        <TableCard className="my-custom-class">
           <table>
             <tbody>
               <tr>

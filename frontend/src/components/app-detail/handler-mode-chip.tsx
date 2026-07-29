@@ -1,9 +1,9 @@
-import { Chip } from "../shared/chip";
+import { Badge } from "@/components/ui/badge";
 
 export function HandlerModeChip({ mode }: { mode: string }) {
   return (
-    <Chip variant="muted" data-testid="handler-mode-chip">
+    <Badge variant="muted" data-testid="handler-mode-chip">
       mode: {mode}
-    </Chip>
+    </Badge>
   );
 }

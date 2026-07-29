@@ -1,5 +1,5 @@
-import { signal } from "@preact/signals";
-import { fireEvent, waitFor } from "@testing-library/preact";
+import { waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createJob, createListener } from "../../test/factories";
@@ -74,21 +74,24 @@ describe("HandlersTab navigation", () => {
     expect(mockCorrectUrl).not.toHaveBeenCalled();
   });
 
-  it("clicking a listener row navigates to handler deep-link URL", () => {
+  it("clicking a listener row navigates to handler deep-link URL", async () => {
+    const user = userEvent.setup();
     const listeners = [createListener({ listener_id: 5 })];
     const { getByTestId } = renderHandlersTab(listeners, [], null);
-    fireEvent.click(getByTestId("unified-row-listener-5"));
+    await user.click(getByTestId("unified-row-listener-5"));
     expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app/handlers/listener/5");
   });
 
-  it("clicking a job row navigates to job deep-link URL", () => {
+  it("clicking a job row navigates to job deep-link URL", async () => {
+    const user = userEvent.setup();
     const jobs = [createJob({ job_id: 20 })];
     const { getByTestId } = renderHandlersTab([], jobs, null);
-    fireEvent.click(getByTestId("unified-row-job-20"));
+    await user.click(getByTestId("unified-row-job-20"));
     expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app/handlers/job/20");
   });
 
-  it("clicking a listener row includes instanceQs in deep-link URL", () => {
+  it("clicking a listener row includes instanceQs in deep-link URL", async () => {
+    const user = userEvent.setup();
     const listeners = [createListener({ listener_id: 3 })];
     const { getByTestId } = renderWithAppState(
       <HandlersTab
@@ -99,9 +102,9 @@ describe("HandlersTab navigation", () => {
         appKey="test_app"
         instanceIndex={1}
       />,
-      { stateOverrides: { uptimeSeconds: signal<number | null>(120) } },
+      { storeOverrides: { uptimeSeconds: 120 } },
     );
-    fireEvent.click(getByTestId("unified-row-listener-3"));
+    await user.click(getByTestId("unified-row-listener-3"));
     expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app/handlers/listener/3?instance=1");
   });
 
@@ -116,6 +119,7 @@ describe("HandlersTab navigation", () => {
   });
 
   it("handler detail: calls onSwitchToCode with line number when view-in-code clicked", async () => {
+    const user = userEvent.setup();
     const onSwitch = vi.fn();
     const listener = createListener({
       listener_id: 45,
@@ -130,17 +134,17 @@ describe("HandlersTab navigation", () => {
         appKey="test_app"
         onSwitchToCode={onSwitch}
       />,
-      { stateOverrides: { uptimeSeconds: signal<number | null>(120) } },
+      { storeOverrides: { uptimeSeconds: 120 } },
     );
     await waitFor(() => getByTestId("listener-detail-45"));
-    fireEvent.click(getByTestId("view-in-code-btn"));
+    await user.click(getByTestId("view-in-code-btn"));
     expect(onSwitch).toHaveBeenCalledWith(99);
   });
 
   it("renders execution detail even when no handlers are registered", () => {
     const { getByTestId, queryByTestId } = renderWithAppState(
       <HandlersTab listeners={[]} jobs={[]} selectedHandler="listener/5" selectedExecId="abc-123" appKey="test_app" />,
-      { stateOverrides: { uptimeSeconds: signal<number | null>(120) } },
+      { storeOverrides: { uptimeSeconds: 120 } },
     );
     expect(getByTestId("execution-detail-fetcher")).toBeTruthy();
     expect(queryByTestId("handlers-empty")).toBeNull();

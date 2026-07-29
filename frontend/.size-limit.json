@@ -2,7 +2,7 @@
   {
     "name": "initial JS (entry chunk, gzipped)",
     "path": "../src/hassette/web/static/spa/assets/index-*.js",
-    "limit": "130 kB",
+    "limit": "240 kB",
     "gzip": true
   },
   {

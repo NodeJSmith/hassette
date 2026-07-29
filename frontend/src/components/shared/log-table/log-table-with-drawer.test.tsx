@@ -1,11 +1,7 @@
-import { render } from "@testing-library/preact";
+import { render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { createLogEntry } from "@/test/factories";
-
-// CSS modules in this project use vite-css-modules which generates hashed class
-// names even in vitest (e.g. "_wrapper_abc123").  Query with attribute substring
-// selectors like [class*="wrapper"] rather than exact class name matches.
 
 vi.mock("./log-detail-drawer", () => ({
   LogDetailDrawer: (props: { selectedKey: string | null }) =>
@@ -35,42 +31,36 @@ function renderWithDrawer(drawerProps: LogDrawerProps, children = <div data-test
 
 describe("LogTableWithDrawer", () => {
   describe("wrapper element", () => {
-    it("renders the grid wrapper element containing a 'wrapper' class token", () => {
-      const { container } = renderWithDrawer(makeDrawerProps());
-      expect(container.querySelector("[class*='wrapper']")).not.toBeNull();
+    it("renders the grid wrapper element", () => {
+      const { getByTestId } = renderWithDrawer(makeDrawerProps());
+      expect(getByTestId("log-table-with-drawer")).not.toBeNull();
     });
   });
 
   describe("tableArea", () => {
     it("renders children inside the tableArea element", () => {
-      const { getByTestId, container } = renderWithDrawer(makeDrawerProps());
-      const tableArea = container.querySelector("[class*='tableArea']");
-      expect(tableArea).not.toBeNull();
+      const { getByTestId } = renderWithDrawer(makeDrawerProps());
+      const tableArea = getByTestId("log-table-drawer-table-area");
       expect(tableArea!.contains(getByTestId("table-content"))).toBe(true);
     });
 
     it("renders arbitrary children content inside tableArea", () => {
-      const { getByText, container } = renderWithDrawer(makeDrawerProps(), <span>hello from children</span>);
-      const tableArea = container.querySelector("[class*='tableArea']");
-      expect(tableArea).not.toBeNull();
+      const { getByText, getByTestId } = renderWithDrawer(makeDrawerProps(), <span>hello from children</span>);
+      const tableArea = getByTestId("log-table-drawer-table-area");
       expect(tableArea!.textContent).toContain("hello from children");
       expect(getByText("hello from children")).not.toBeNull();
     });
   });
 
-  describe("drawerOpen class", () => {
-    it("applies drawerOpen class token to wrapper when selectedKey is not null", () => {
-      const { container } = renderWithDrawer(makeDrawerProps({ selectedKey: "1001-1", entries: [makeEntry(1)] }));
-      const wrapper = container.querySelector("[class*='wrapper']");
-      expect(wrapper).not.toBeNull();
-      expect(wrapper!.className).toMatch(/drawerOpen/);
+  describe("open layout state", () => {
+    it("switches to a two-column grid when selectedKey is not null", () => {
+      const { getByTestId } = renderWithDrawer(makeDrawerProps({ selectedKey: "1001-1", entries: [makeEntry(1)] }));
+      expect(getByTestId("log-table-with-drawer").className).toContain("grid-cols-[1fr_var(--size-drawer)]");
     });
 
-    it("does NOT apply drawerOpen class when selectedKey is null", () => {
-      const { container } = renderWithDrawer(makeDrawerProps({ selectedKey: null }));
-      const wrapper = container.querySelector("[class*='wrapper']");
-      expect(wrapper).not.toBeNull();
-      expect(wrapper!.className).not.toMatch(/drawerOpen/);
+    it("does not switch to the drawer-open grid when selectedKey is null", () => {
+      const { getByTestId } = renderWithDrawer(makeDrawerProps({ selectedKey: null }));
+      expect(getByTestId("log-table-with-drawer").className).not.toContain("grid-cols-[1fr_var(--size-drawer)]");
     });
   });
 

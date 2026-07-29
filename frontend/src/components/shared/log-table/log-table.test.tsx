@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { LogEntry } from "@/api/endpoints";
 import { createLogEntry } from "@/test/factories";
 
-import { levelClass, resolveSortKey } from "./constants";
+import { getLogLevelStyle, resolveSortKey } from "./constants";
 import { rowKey } from "./types";
 import { sortEntries } from "./use-log-filters";
 
@@ -95,15 +95,29 @@ describe("rowKey", () => {
   });
 });
 
-describe("levelClass", () => {
-  it("returns the matching class for a known level", () => {
-    const mockStyles: Record<string, string> = { levelINFO: "abc123", levelERROR: "def456" };
-    expect(levelClass(mockStyles, "level", "INFO")).toBe("abc123");
-    expect(levelClass(mockStyles, "level", "ERROR")).toBe("def456");
+describe("getLogLevelStyle", () => {
+  it("is the only exported log-level style resolver", async () => {
+    const constantsModule = await import("./constants");
+
+    expect(Object.keys(constantsModule)).not.toContain("levelClass");
   });
 
-  it("returns undefined for unknown level", () => {
-    const mockStyles: Record<string, string> = { levelINFO: "abc123" };
-    expect(levelClass(mockStyles, "level", "TRACE")).toBeUndefined();
+  it("returns the matching shared style object for a known level", () => {
+    expect(getLogLevelStyle("INFO")).toEqual({
+      tableTone: "text-primary",
+      drawerSurface: "bg-[var(--status-success-bg)]",
+      drawerTone: "text-[var(--status-success)]",
+    });
+
+    expect(getLogLevelStyle("WARNING")).toEqual({
+      tableTone: "text-[var(--status-warning)]",
+      drawerSurface: "bg-[var(--status-warning-bg)]",
+      drawerTone: "text-[var(--status-warning)]",
+      rowTone: "bg-[var(--status-warning-bg)] hover:brightness-95",
+    });
+  });
+
+  it("returns undefined for unknown levels", () => {
+    expect(getLogLevelStyle("TRACE")).toBeUndefined();
   });
 });

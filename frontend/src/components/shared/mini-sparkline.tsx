@@ -1,5 +1,3 @@
-import styles from "./mini-sparkline.module.css";
-
 export function MiniSparkline({
   buckets,
   width = 80,
@@ -26,16 +24,16 @@ export function MiniSparkline({
       height={height}
       viewBox={`0 0 ${width} ${height}`}
       aria-hidden="true"
-      class={styles.sparkline}
+      className="block shrink-0"
       data-testid="mini-sparkline"
     >
       <polyline
         points={line}
         fill="none"
         stroke="var(--ok)"
-        stroke-width="1.5"
-        stroke-linejoin="round"
-        stroke-linecap="round"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+        strokeLinecap="round"
       />
       {errPoints.map((p, i) => (
         <circle key={i} cx={p.x.toFixed(1)} cy={p.y.toFixed(1)} r="2.5" fill="var(--err)">

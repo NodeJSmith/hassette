@@ -1,4 +1,5 @@
 import { http, HttpResponse } from "msw";
+import type { ReactNode } from "react";
 
 import type { AppManifest, JobData, ListenerData } from "../api/endpoints";
 import { createInstance, createManifest } from "../test/factories";
@@ -81,18 +82,11 @@ export function createLogTableStub() {
       isLoading: false,
     }),
     LogTableView: () => <div data-testid="log-table" />,
-    LogTableWithDrawer: ({ children }: { children: preact.ComponentChildren }) => (
-      <div data-testid="log-table-drawer">{children}</div>
-    ),
+    LogTableWithDrawer: ({ children }: { children: ReactNode }) => <div data-testid="log-table-drawer">{children}</div>,
   };
 }
 
 /** Stub factory for `../components/shared/spinner`, shared by all app-detail.*.test.tsx files. */
 export function createSpinnerStub() {
   return { Spinner: () => <div data-testid="spinner" /> };
-}
-
-/** Stub factory for `../components/shared/confirm-dialog`, shared by all app-detail.*.test.tsx files. */
-export function createConfirmDialogStub() {
-  return { ConfirmDialog: () => <div data-testid="confirm-dialog" /> };
 }

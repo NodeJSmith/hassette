@@ -1,5 +1,4 @@
-import { signal } from "@preact/signals";
-import { render } from "@testing-library/preact";
+import { render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { createWouterMock } from "../../test/mock-wouter";
@@ -50,8 +49,7 @@ describe("AlertBanner", () => {
 
   it("does not render error span when error_message is null", () => {
     const { container } = render(<AlertBanner failedApps={[{ app_key: "my_app", error_message: null }]} />);
-    // ht-text-secondary wraps the error message; should not exist when null
-    expect(container.querySelector(".ht-text-secondary")).toBeNull();
+    expect(container.textContent).not.toContain(" — ");
   });
 
   it("renders all failed apps in the list", () => {
@@ -75,28 +73,28 @@ describe("AlertBanner", () => {
 describe("TelemetryDegradedBanner", () => {
   it("renders nothing when telemetryDegraded is false", () => {
     const { container } = renderWithAppState(<TelemetryDegradedBanner />, {
-      stateOverrides: { telemetryDegraded: signal(false), droppedOverflow: signal(0), droppedExhausted: signal(0) },
+      storeOverrides: { telemetryDegraded: false, droppedOverflow: 0, droppedExhausted: 0 },
     });
     expect(container.firstChild).toBeNull();
   });
 
   it("renders banner when telemetryDegraded is true", () => {
     const { getByTestId } = renderWithAppState(<TelemetryDegradedBanner />, {
-      stateOverrides: { telemetryDegraded: signal(true), droppedOverflow: signal(0), droppedExhausted: signal(0) },
+      storeOverrides: { telemetryDegraded: true, droppedOverflow: 0, droppedExhausted: 0 },
     });
     expect(getByTestId("telemetry-degraded-banner")).toBeDefined();
   });
 
   it("shows drop count when non-zero", () => {
     const { getByText } = renderWithAppState(<TelemetryDegradedBanner />, {
-      stateOverrides: { telemetryDegraded: signal(true), droppedOverflow: signal(10), droppedExhausted: signal(5) },
+      storeOverrides: { telemetryDegraded: true, droppedOverflow: 10, droppedExhausted: 5 },
     });
     expect(getByText(/15 events dropped/)).toBeDefined();
   });
 
   it("has role=alert for screen reader announcement", () => {
     const { container } = renderWithAppState(<TelemetryDegradedBanner />, {
-      stateOverrides: { telemetryDegraded: signal(true), droppedOverflow: signal(0), droppedExhausted: signal(0) },
+      storeOverrides: { telemetryDegraded: true, droppedOverflow: 0, droppedExhausted: 0 },
     });
     const banner = container.querySelector("[role='alert']");
     expect(banner).not.toBeNull();

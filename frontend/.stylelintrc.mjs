@@ -13,6 +13,10 @@ export default {
     "selector-pseudo-class-no-unknown": [true, { ignorePseudoClasses: ["global"] }],
     "property-no-unknown": [true, { ignoreProperties: ["composes"] }],
 
+    // Tailwind CSS v4: `@theme` and `@custom-variant` are Tailwind-specific
+    // at-rules processed by the Tailwind Vite plugin, not standard CSS.
+    "at-rule-no-unknown": [true, { ignoreAtRules: ["theme", "custom-variant"] }],
+
     // Reset/normalize: vendor prefixes for Safari text-size-adjust and font-smoothing
     "property-no-vendor-prefix": [
       true,
@@ -53,5 +57,6 @@ export default {
     "rule-empty-line-before": null,
     "comment-empty-line-before": null,
     "declaration-empty-line-before": null,
+    "at-rule-empty-line-before": null,
   },
 };

@@ -1,62 +1,51 @@
-import { signal } from "@preact/signals";
-import { act, fireEvent, render } from "@testing-library/preact";
-import { describe, expect, it } from "vitest";
+import { render } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { useState } from "react";
+import { describe, expect, it, vi } from "vitest";
 
 import { ShowMoreButton } from "./show-more-button";
 
 describe("ShowMoreButton", () => {
   it("shows 'Show all N' text when showAll is false", () => {
-    const showAll = signal(false);
-    const { getByRole } = render(<ShowMoreButton showAll={showAll} totalCount={10} />);
+    const { getByRole } = render(<ShowMoreButton showAll={false} onToggle={vi.fn()} totalCount={10} />);
     const button = getByRole("button");
     expect(button.textContent).toBe("Show all 10");
   });
 
   it("shows 'Show less' text when showAll is true", () => {
-    const showAll = signal(true);
-    const { getByRole } = render(<ShowMoreButton showAll={showAll} totalCount={10} />);
+    const { getByRole } = render(<ShowMoreButton showAll={true} onToggle={vi.fn()} totalCount={10} />);
     const button = getByRole("button");
     expect(button.textContent).toBe("Show less");
   });
 
   it("includes totalCount in the 'Show all' label", () => {
-    const showAll = signal(false);
-    const { getByRole } = render(<ShowMoreButton showAll={showAll} totalCount={42} />);
+    const { getByRole } = render(<ShowMoreButton showAll={false} onToggle={vi.fn()} totalCount={42} />);
     expect(getByRole("button").textContent).toBe("Show all 42");
   });
 
-  it("clicking toggles showAll signal from false to true", () => {
-    const showAll = signal(false);
-    const { getByRole } = render(<ShowMoreButton showAll={showAll} totalCount={5} />);
-    act(() => {
-      fireEvent.click(getByRole("button"));
-    });
-    expect(showAll.value).toBe(true);
+  it("clicking calls onToggle", async () => {
+    const user = userEvent.setup();
+    const onToggle = vi.fn();
+    const { getByRole } = render(<ShowMoreButton showAll={false} onToggle={onToggle} totalCount={5} />);
+    await user.click(getByRole("button"));
+    expect(onToggle).toHaveBeenCalledTimes(1);
   });
 
-  it("clicking toggles showAll signal from true to false", () => {
-    const showAll = signal(true);
-    const { getByRole } = render(<ShowMoreButton showAll={showAll} totalCount={5} />);
-    act(() => {
-      fireEvent.click(getByRole("button"));
-    });
-    expect(showAll.value).toBe(false);
-  });
-
-  it("button text updates reactively after click", () => {
-    const showAll = signal(false);
-    const { getByRole } = render(<ShowMoreButton showAll={showAll} totalCount={7} />);
+  it("button text updates reactively after parent state flips showAll", async () => {
+    const user = userEvent.setup();
+    function Wrapper() {
+      const [showAll, setShowAll] = useState(false);
+      return <ShowMoreButton showAll={showAll} onToggle={() => setShowAll((v) => !v)} totalCount={7} />;
+    }
+    const { getByRole } = render(<Wrapper />);
     const button = getByRole("button");
     expect(button.textContent).toBe("Show all 7");
-    act(() => {
-      fireEvent.click(button);
-    });
+    await user.click(button);
     expect(button.textContent).toBe("Show less");
   });
 
   it("button has type='button' to avoid form submission", () => {
-    const showAll = signal(false);
-    const { getByRole } = render(<ShowMoreButton showAll={showAll} totalCount={3} />);
+    const { getByRole } = render(<ShowMoreButton showAll={false} onToggle={vi.fn()} totalCount={3} />);
     expect(getByRole("button").getAttribute("type")).toBe("button");
   });
 });

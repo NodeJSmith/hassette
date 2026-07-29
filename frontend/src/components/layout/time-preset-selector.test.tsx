@@ -1,12 +1,12 @@
-import { signal } from "@preact/signals";
-import { fireEvent } from "@testing-library/preact";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { TimePreset } from "../../state/create-app-state";
+import { useAppStore } from "../../state/store";
 import { renderWithAppState } from "../../test/render-helpers";
 import { TimePresetSelector } from "./time-preset-selector";
 
-// Mock setStoredValue so we don't touch localStorage in tests
+// setTimePreset (store.ts) calls setStoredValue, and initialState() calls getStoredValue —
+// mock both so this test doesn't touch real localStorage.
 vi.mock("../../utils/local-storage", () => ({
   setStoredValue: vi.fn(),
   getStoredValue: vi.fn(),
@@ -54,18 +54,16 @@ describe("TimePresetSelector — rendering", () => {
 
 describe("TimePresetSelector — active state", () => {
   it("marks the current preset as active via aria-pressed", () => {
-    const preset = signal<TimePreset>("1h");
     const { getByText } = renderWithAppState(<TimePresetSelector />, {
-      stateOverrides: { timePreset: preset },
+      storeOverrides: { timePreset: "1h" },
     });
     const btn = getByText("1h");
     expect(btn.getAttribute("aria-pressed")).toBe("true");
   });
 
   it("does not mark other presets as active", () => {
-    const preset = signal<TimePreset>("1h");
     const { getByText } = renderWithAppState(<TimePresetSelector />, {
-      stateOverrides: { timePreset: preset },
+      storeOverrides: { timePreset: "1h" },
     });
     expect(getByText("Since restart").getAttribute("aria-pressed")).toBe("false");
     expect(getByText("24h").getAttribute("aria-pressed")).toBe("false");
@@ -73,109 +71,103 @@ describe("TimePresetSelector — active state", () => {
   });
 
   it("sets aria-pressed=true on the active preset", () => {
-    const preset = signal<TimePreset>("24h");
     const { getByText } = renderWithAppState(<TimePresetSelector />, {
-      stateOverrides: { timePreset: preset },
+      storeOverrides: { timePreset: "24h" },
     });
     expect(getByText("24h").getAttribute("aria-pressed")).toBe("true");
   });
 
   it("sets aria-pressed=false on inactive presets", () => {
-    const preset = signal<TimePreset>("24h");
     const { getByText } = renderWithAppState(<TimePresetSelector />, {
-      stateOverrides: { timePreset: preset },
+      storeOverrides: { timePreset: "24h" },
     });
     expect(getByText("1h").getAttribute("aria-pressed")).toBe("false");
   });
 });
 
 describe("TimePresetSelector — interactions", () => {
-  it("clicking a preset updates the signal", () => {
-    const preset = signal<TimePreset>("since-restart");
+  it("clicking a preset updates the store", async () => {
+    const user = userEvent.setup();
     const { getByText } = renderWithAppState(<TimePresetSelector />, {
-      stateOverrides: { timePreset: preset },
+      storeOverrides: { timePreset: "since-restart" },
     });
-    fireEvent.click(getByText("7d"));
-    expect(preset.value).toBe("7d");
+    await user.click(getByText("7d"));
+    expect(useAppStore.getState().timePreset).toBe("7d");
   });
 
-  it("clicking Since restart sets since-restart value", () => {
-    const preset = signal<TimePreset>("7d");
+  it("clicking Since restart sets since-restart value", async () => {
+    const user = userEvent.setup();
     const { getByText } = renderWithAppState(<TimePresetSelector />, {
-      stateOverrides: { timePreset: preset },
+      storeOverrides: { timePreset: "7d" },
     });
-    fireEvent.click(getByText("Since restart"));
-    expect(preset.value).toBe("since-restart");
+    await user.click(getByText("Since restart"));
+    expect(useAppStore.getState().timePreset).toBe("since-restart");
   });
 });
 
 describe("TimePresetSelector — URL sync on click", () => {
-  it("clicking a preset calls qp.set with the new window value", () => {
-    const preset = signal<TimePreset>("since-restart");
+  it("clicking a preset calls qp.set with the new window value", async () => {
+    const user = userEvent.setup();
     renderWithAppState(<TimePresetSelector />, {
-      stateOverrides: { timePreset: preset },
+      storeOverrides: { timePreset: "since-restart" },
     });
-    fireEvent.click(document.querySelector("button[aria-pressed='false']")!);
+    await user.click(document.querySelector("button[aria-pressed='false']")!);
     expect(mockQpSet).toHaveBeenCalled();
     const callArg = mockQpSet.mock.calls[0][0] as Record<string, string>;
     expect(callArg).toHaveProperty("window");
   });
 
-  it("clicking 7d calls qp.set({ window: '7d' })", () => {
-    const preset = signal<TimePreset>("since-restart");
+  it("clicking 7d calls qp.set({ window: '7d' })", async () => {
+    const user = userEvent.setup();
     const { getByText } = renderWithAppState(<TimePresetSelector />, {
-      stateOverrides: { timePreset: preset },
+      storeOverrides: { timePreset: "since-restart" },
     });
-    fireEvent.click(getByText("7d"));
+    await user.click(getByText("7d"));
     expect(mockQpSet).toHaveBeenCalledWith({ window: "7d" });
   });
 
-  it("clicking a preset updates urlWindowParam signal", () => {
-    const preset = signal<TimePreset>("since-restart");
-    const urlWindowParam = signal<TimePreset | null>(null);
+  it("clicking a preset updates urlWindowParam", async () => {
+    const user = userEvent.setup();
     const { getByText } = renderWithAppState(<TimePresetSelector />, {
-      stateOverrides: { timePreset: preset, urlWindowParam },
+      storeOverrides: { timePreset: "since-restart", urlWindowParam: null },
     });
-    fireEvent.click(getByText("24h"));
-    expect(urlWindowParam.value).toBe("24h");
+    await user.click(getByText("24h"));
+    expect(useAppStore.getState().urlWindowParam).toBe("24h");
   });
 });
 
 describe("TimePresetSelector — URL window param on load", () => {
   it("reads ?window= on mount and writes to urlWindowParam", () => {
     mockQpGet.mockImplementation((key: string) => (key === "window" ? "24h" : null));
-    const urlWindowParam = signal<TimePreset | null>(null);
     renderWithAppState(<TimePresetSelector />, {
-      stateOverrides: { urlWindowParam },
+      storeOverrides: { urlWindowParam: null },
     });
-    expect(urlWindowParam.value).toBe("24h");
+    expect(useAppStore.getState().urlWindowParam).toBe("24h");
   });
 
   it("does not write to timePreset when ?window= is present on load", () => {
     mockQpGet.mockImplementation((key: string) => (key === "window" ? "7d" : null));
-    const preset = signal<TimePreset>("since-restart");
     renderWithAppState(<TimePresetSelector />, {
-      stateOverrides: { timePreset: preset },
+      storeOverrides: { timePreset: "since-restart" },
     });
     // timePreset must remain unchanged — URL override is read-only
-    expect(preset.value).toBe("since-restart");
+    expect(useAppStore.getState().timePreset).toBe("since-restart");
   });
 
   it("does not modify urlWindowParam when no ?window= param", () => {
     mockQpGet.mockReturnValue(null);
-    const urlWindowParam = signal<TimePreset | null>(null);
     renderWithAppState(<TimePresetSelector />, {
-      stateOverrides: { urlWindowParam },
+      storeOverrides: { urlWindowParam: null },
     });
-    expect(urlWindowParam.value).toBeNull();
+    expect(useAppStore.getState().urlWindowParam).toBeNull();
   });
 });
 
 describe("TimePresetSelector — uptime display", () => {
   it("shows uptime when uptimeSeconds is a finite number", () => {
     const { getByText } = renderWithAppState(<TimePresetSelector />, {
-      stateOverrides: {
-        uptimeSeconds: signal(3661),
+      storeOverrides: {
+        uptimeSeconds: 3661,
       },
     });
     // 3661s = 1h 1m
@@ -184,8 +176,8 @@ describe("TimePresetSelector — uptime display", () => {
 
   it("does not show uptime when uptimeSeconds is null", () => {
     const { queryByText } = renderWithAppState(<TimePresetSelector />, {
-      stateOverrides: {
-        uptimeSeconds: signal(null),
+      storeOverrides: {
+        uptimeSeconds: null,
       },
     });
     expect(queryByText(/up /)).toBeNull();
@@ -193,14 +185,14 @@ describe("TimePresetSelector — uptime display", () => {
 
   it("formats seconds-only uptime correctly", () => {
     const { getByText } = renderWithAppState(<TimePresetSelector />, {
-      stateOverrides: { uptimeSeconds: signal(45) },
+      storeOverrides: { uptimeSeconds: 45 },
     });
     expect(getByText("up 45s")).toBeDefined();
   });
 
   it("formats minutes uptime correctly", () => {
     const { getByText } = renderWithAppState(<TimePresetSelector />, {
-      stateOverrides: { uptimeSeconds: signal(125) },
+      storeOverrides: { uptimeSeconds: 125 },
     });
     expect(getByText("up 2m")).toBeDefined();
   });

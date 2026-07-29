@@ -1,4 +1,4 @@
-import type { ComponentChildren } from "preact";
+import type { ReactNode } from "react";
 
 /**
  * A single column filter entry: whether it is active, a label for the mobile
@@ -8,7 +8,7 @@ import type { ComponentChildren } from "preact";
 export interface ColumnFilter {
   active: boolean;
   label: string;
-  content: ComponentChildren;
+  content: ReactNode;
 }
 
 /**
@@ -16,3 +16,17 @@ export interface ColumnFilter {
  * consumed by both SortHeader (desktop popovers) and TableFooter (mobile panel).
  */
 export type ColumnFilters = Record<string, ColumnFilter>;
+
+// Shared column metadata fields TanStack doesn't model natively, common to
+// every table in this app (log-table-view.tsx and execution-table.tsx both
+// need per-cell classNames and per-cell extra props). Each table file adds
+// its own additional augmentation for fields unique to that table (e.g.
+// `ariaLabel` for log-table-view, `headerClassName` for execution-table) —
+// TanStack's ColumnMeta is a single interface per program, so these merge.
+declare module "@tanstack/react-table" {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- must match TanStack's ColumnMeta<TData, TValue> signature exactly for declaration merging
+  interface ColumnMeta<TData, TValue> {
+    cellClassName?: string;
+    cellProps?: (entry: TData) => Record<string, unknown>;
+  }
+}

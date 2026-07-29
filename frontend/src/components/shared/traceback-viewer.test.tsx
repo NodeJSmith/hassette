@@ -1,4 +1,4 @@
-import { render } from "@testing-library/preact";
+import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { TracebackViewer } from "./traceback-viewer";
@@ -21,9 +21,9 @@ describe("TracebackViewer", () => {
     const { getByTestId } = render(<TracebackViewer traceback={TRACEBACK} testIdPrefix="t" />);
     const frames = getByTestId("t-traceback");
 
-    const path = frames.querySelector('[class*="path"]');
-    const lineNo = frames.querySelector('[class*="lineNo"]');
-    const func = frames.querySelector('[class*="func"]');
+    const path = frames.querySelector('[data-traceback-token="path"]');
+    const lineNo = frames.querySelector('[data-traceback-token="line-number"]');
+    const func = frames.querySelector('[data-traceback-token="function"]');
 
     expect(path?.textContent).toBe('"/app/examples/demo_stimulator.py"');
     expect(lineNo?.textContent).toBe("42");
@@ -35,7 +35,7 @@ describe("TracebackViewer", () => {
     const frames = getByTestId("t-traceback");
     expect(frames.textContent).toContain("value = float(state.state)");
     // Only the one frame line should produce path/lineNo/func spans.
-    expect(frames.querySelectorAll('[class*="lineNo"]')).toHaveLength(1);
+    expect(frames.querySelectorAll('[data-traceback-token="line-number"]')).toHaveLength(1);
   });
 
   it("renders exception text as text, never as markup", () => {

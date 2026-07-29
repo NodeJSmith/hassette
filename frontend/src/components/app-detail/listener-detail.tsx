@@ -1,20 +1,20 @@
+import { Badge } from "@/components/ui/badge";
+
 import type { ListenerData } from "../../api/endpoints";
 import { getListenerExecutions } from "../../api/endpoints";
 import { useQueryInvalidator } from "../../hooks/use-query-invalidator";
 import { useRelativeTime } from "../../hooks/use-relative-time";
 import { useScopedQuery } from "../../hooks/use-scoped-query";
 import { queryKeys } from "../../lib/query-keys";
-import { useAppState } from "../../state/context";
+import { useAppStore } from "../../state/store";
 import { DETAIL_FETCH_LIMIT } from "../../utils/constants";
 import { lastDotSegment, MS_PER_SECOND } from "../../utils/format";
 import { handlerKindLabel } from "../../utils/status";
-import { Chip } from "../shared/chip";
 import type { DetailStatsCell } from "../shared/detail-stats";
 import { DetailStats } from "../shared/detail-stats";
 import { ErrorBanner } from "../shared/error-banner";
 import { DetailHeader } from "./detail-header";
 import { ExecutionSection } from "./execution-section";
-import chipStyles from "./handler-chips.module.css";
 import { HandlerDetailLayout } from "./handler-detail-layout";
 import { listenerHealthKind } from "./handler-list";
 import { HandlerModeChip } from "./handler-mode-chip";
@@ -32,13 +32,13 @@ function ModifierChips({ listener }: { listener: ListenerData }) {
   if (listener.backpressure === "drop_newest") chips.push({ label: "backpressure", value: "drop_newest" });
 
   return (
-    <div class={chipStyles.chipRow} data-testid="modifier-chips">
+    <div className="mb-3 flex flex-wrap gap-2" data-testid="modifier-chips">
       <HandlerModeChip mode={listener.mode} />
       {chips.map((chip) => (
-        <Chip key={chip.label} variant="listener">
+        <Badge key={chip.label} variant="listener">
           {chip.label}
           {chip.value ? ` ${chip.value}` : ""}
-        </Chip>
+        </Badge>
       ))}
     </div>
   );
@@ -80,7 +80,7 @@ export function ListenerDetail({ listener, appKey, instanceQs, onSwitchToCode }:
     (since, signal) => getListenerExecutions(listener.listener_id, DETAIL_FETCH_LIMIT, since, signal),
   );
 
-  const { executionCompleted } = useAppState();
+  const executionCompleted = useAppStore((s) => s.executionCompleted);
   const lastInvokedLabel = useRelativeTime(listener.last_invoked_at ?? null);
 
   useQueryInvalidator(

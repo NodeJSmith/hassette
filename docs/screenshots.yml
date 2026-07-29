@@ -193,7 +193,7 @@
   width: 1000
   height: 700
   wait: 2000
-  wait_for: "document.querySelector('[data-testid=\"cmd-palette\"]')"
+  wait_for: "document.querySelector('[data-testid=\"cmd-palette-input\"]')"
   javascript: "document.dispatchEvent(new KeyboardEvent('keydown', {key: 'k', ctrlKey: true, bubbles: true}))"
 
 - url: "http://localhost:{port}/apps/demo_stimulator/overview"
@@ -318,7 +318,7 @@
 # max-height) rather than the inner table container (unbounded row set).
 - url: "http://localhost:{port}/handlers"
   output: docs/_static/web_ui_handlers_cancelled.png
-  selector: ".ht-table-card-scroll"
+  selector: "[data-testid='table-card-scroll']"
   width: 1400
   height: 900
   wait: 6000

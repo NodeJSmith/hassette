@@ -1,6 +1,8 @@
+import type { KeyboardEvent as ReactKeyboardEvent } from "react";
+
 /** Call `callback` when Enter or Space is pressed, preventing default scroll/submit. */
-export function onActivateKeyDown(callback: () => void): (e: KeyboardEvent) => void {
-  return (e: KeyboardEvent) => {
+export function onActivateKeyDown(callback: () => void): (e: ReactKeyboardEvent) => void {
+  return (e: ReactKeyboardEvent) => {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       callback();

@@ -1,39 +1,31 @@
-import type { ComponentChildren } from "preact";
-import { useEffect, useErrorBoundary, useRef } from "preact/hooks";
+import type { ReactNode } from "react";
+import { ErrorBoundary as ReactErrorBoundary, type FallbackProps } from "react-error-boundary";
 
-import { Button } from "../shared/button";
-import { Card } from "../shared/card";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 
 interface Props {
-  children: ComponentChildren;
+  children: ReactNode;
   resetKey?: string;
 }
 
+function ErrorFallback({ error, resetErrorBoundary }: FallbackProps) {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    <Card variant="error" role="alert" data-testid="error-card">
+      <h2>Something went wrong</h2>
+      <p className="text-foreground-secondary">{message}</p>
+      <Button variant="default" onClick={resetErrorBoundary}>
+        Retry
+      </Button>
+    </Card>
+  );
+}
+
 export function ErrorBoundary({ children, resetKey }: Props) {
-  const [error, resetError] = useErrorBoundary();
-
-  // Stabilise resetError in a ref so the effect's dependency is only resetKey,
-  // not the new function identity that useErrorBoundary creates on every render.
-  // Without this, the effect fires after every render, immediately resetting
-  // the caught error before the fallback UI can display.
-  const resetErrorRef = useRef(resetError);
-  resetErrorRef.current = resetError;
-
-  useEffect(() => {
-    if (error) resetErrorRef.current();
-    // eslint-disable-next-line react-hooks-configurable/exhaustive-deps -- error is read but not a dep; resetKey change triggers the reset
-  }, [resetKey]);
-
-  if (error) {
-    return (
-      <Card variant="error" data-testid="error-card">
-        <h2>Something went wrong</h2>
-        <p class="ht-text-secondary">{error instanceof Error ? error.message : String(error)}</p>
-        <Button variant="primary" onClick={resetError}>
-          Retry
-        </Button>
-      </Card>
-    );
-  }
-  return <>{children}</>;
+  return (
+    <ReactErrorBoundary FallbackComponent={ErrorFallback} resetKeys={[resetKey]}>
+      {children}
+    </ReactErrorBoundary>
+  );
 }

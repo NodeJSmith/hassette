@@ -1,14 +1,10 @@
-import { QueryClientProvider } from "@tanstack/preact-query";
-import { act, renderHook } from "@testing-library/preact";
+import { act } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
-import type { ComponentChildren } from "preact";
-import { h } from "preact";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { WsLogPayload } from "@/api/ws-types";
-import { AppStateContext } from "@/state/context";
-import { type AppState, createAppState, type TimePreset } from "@/state/create-app-state";
-import { createTestQueryClient } from "@/test/query-test-utils";
+import { type TimePreset, useAppStore } from "@/state/store";
+import { renderHookWithProviders } from "@/test/query-test-utils";
 import { server } from "@/test/server";
 
 import { LIVE_LOG_UPDATE_INTERVAL_MS, REST_FETCH_LIMIT } from "./constants";
@@ -21,18 +17,11 @@ vi.mock("sonner", () => ({
 // Import after mock so the spy reference is captured.
 const { toast } = await import("sonner");
 
-function createWrapper(state: AppState) {
-  const client = createTestQueryClient();
-  return function Wrapper({ children }: { children: ComponentChildren }) {
-    return h(QueryClientProvider, { client }, h(AppStateContext.Provider, { value: state }, children));
-  };
-}
-
-function makeState(preset: TimePreset = "1h"): AppState {
-  const state = createAppState();
-  state.timePreset.value = preset;
-  if (preset === "since-restart") state.uptimeSeconds.value = 100;
-  return state;
+function seedState(preset: TimePreset = "1h"): void {
+  useAppStore.setState({
+    timePreset: preset,
+    uptimeSeconds: preset === "since-restart" ? 100 : null,
+  });
 }
 
 function makeLogEntry(overrides: Partial<WsLogPayload> = {}): WsLogPayload {
@@ -67,23 +56,19 @@ beforeEach(() => {
 describe("useLogData", () => {
   describe("loading state", () => {
     it("is true initially before REST resolves", () => {
-      const state = makeState();
+      seedState();
       // Override with a never-resolving handler to freeze the fetch in-flight.
       server.use(http.get("/api/logs/recent", () => new Promise(() => {})));
 
-      const { result } = renderHook(() => useLogData({}), {
-        wrapper: createWrapper(state),
-      });
+      const { result } = renderHookWithProviders(() => useLogData({}));
 
       expect(result.current.loading).toBe(true);
     });
 
     it("becomes false after REST resolves", async () => {
-      const state = makeState();
+      seedState();
 
-      const { result } = renderHook(() => useLogData({}), {
-        wrapper: createWrapper(state),
-      });
+      const { result } = renderHookWithProviders(() => useLogData({}));
 
       await waitForLoaded(result);
     });
@@ -91,7 +76,7 @@ describe("useLogData", () => {
 
   describe("REST fetch", () => {
     it("calls the /api/logs/recent endpoint with appKey, executionId, and limit", async () => {
-      const state = makeState();
+      seedState();
       let capturedUrl: string | undefined;
 
       server.use(
@@ -101,9 +86,7 @@ describe("useLogData", () => {
         }),
       );
 
-      const { result } = renderHook(() => useLogData({ appKey: "my_app", executionId: "exec-42" }), {
-        wrapper: createWrapper(state),
-      });
+      const { result } = renderHookWithProviders(() => useLogData({ appKey: "my_app", executionId: "exec-42" }));
 
       await vi.waitFor(() => {
         expect(result.current.loading).toBe(false);
@@ -117,7 +100,7 @@ describe("useLogData", () => {
     });
 
     it("populates restEntries with the fetched entries", async () => {
-      const state = makeState();
+      seedState();
       const entries = [
         makeLogEntry({ seq: 1, timestamp: 1000, message: "first" }),
         makeLogEntry({ seq: 2, timestamp: 2000, message: "second" }),
@@ -125,9 +108,7 @@ describe("useLogData", () => {
 
       server.use(http.get("/api/logs/recent", () => HttpResponse.json(entries)));
 
-      const { result } = renderHook(() => useLogData({}), {
-        wrapper: createWrapper(state),
-      });
+      const { result } = renderHookWithProviders(() => useLogData({}));
 
       await vi.waitFor(() => {
         expect(result.current.loading).toBe(false);
@@ -139,14 +120,12 @@ describe("useLogData", () => {
     });
 
     it("includes REST entries in allEntries", async () => {
-      const state = makeState();
+      seedState();
       const entries = [makeLogEntry({ seq: 1, timestamp: 1000, message: "rest-entry" })];
 
       server.use(http.get("/api/logs/recent", () => HttpResponse.json(entries)));
 
-      const { result } = renderHook(() => useLogData({}), {
-        wrapper: createWrapper(state),
-      });
+      const { result } = renderHookWithProviders(() => useLogData({}));
 
       await vi.waitFor(() => {
         expect(result.current.loading).toBe(false);
@@ -158,21 +137,19 @@ describe("useLogData", () => {
 
   describe("WS merge", () => {
     it("prepends WS entries above the REST watermark to keep timestamp-desc order", async () => {
-      const state = makeState();
+      seedState();
       const restEntry = makeLogEntry({ seq: 1, timestamp: 1000, message: "rest" });
 
       server.use(http.get("/api/logs/recent", () => HttpResponse.json([restEntry])));
 
-      const { result } = renderHook(() => useLogData({}), {
-        wrapper: createWrapper(state),
-      });
+      const { result } = renderHookWithProviders(() => useLogData({}));
 
       await vi.waitFor(() => {
         expect(result.current.loading).toBe(false);
       });
 
       act(() => {
-        state.logs.push(makeLogEntry({ seq: 2, timestamp: 2000, message: "ws-new" }));
+        useAppStore.getState().pushLog(makeLogEntry({ seq: 2, timestamp: 2000, message: "ws-new" }));
       });
 
       await vi.waitFor(() => {
@@ -183,20 +160,18 @@ describe("useLogData", () => {
     });
 
     it("orders multiple WS entries newest first before REST entries", async () => {
-      const state = makeState();
+      seedState();
       const restEntry = makeLogEntry({ seq: 1, timestamp: 1000, message: "rest" });
 
       server.use(http.get("/api/logs/recent", () => HttpResponse.json([restEntry])));
 
-      const { result } = renderHook(() => useLogData({}), {
-        wrapper: createWrapper(state),
-      });
+      const { result } = renderHookWithProviders(() => useLogData({}));
 
       await waitForLoaded(result);
 
       act(() => {
-        state.logs.push(makeLogEntry({ seq: 2, timestamp: 2000, message: "ws-older" }));
-        state.logs.push(makeLogEntry({ seq: 3, timestamp: 3000, message: "ws-newer" }));
+        useAppStore.getState().pushLog(makeLogEntry({ seq: 2, timestamp: 2000, message: "ws-older" }));
+        useAppStore.getState().pushLog(makeLogEntry({ seq: 3, timestamp: 3000, message: "ws-newer" }));
       });
 
       await vi.waitFor(() => {
@@ -205,23 +180,21 @@ describe("useLogData", () => {
     });
 
     it("excludes WS entries whose rowKey matches a REST entry (deduplication)", async () => {
-      const state = makeState();
+      seedState();
       const restEntry = makeLogEntry({ seq: 1, timestamp: 5000, message: "rest" });
 
       server.use(http.get("/api/logs/recent", () => HttpResponse.json([restEntry])));
 
-      const { result } = renderHook(() => useLogData({}), {
-        wrapper: createWrapper(state),
-      });
+      const { result } = renderHookWithProviders(() => useLogData({}));
 
       await waitForLoaded(result);
 
       act(() => {
         // Same seq+timestamp as REST entry → same rowKey → excluded
-        state.logs.push(makeLogEntry({ seq: 1, timestamp: 5000, message: "exact-dup" }));
+        useAppStore.getState().pushLog(makeLogEntry({ seq: 1, timestamp: 5000, message: "exact-dup" }));
         // Different seq → different rowKey → included
-        state.logs.push(makeLogEntry({ seq: 2, timestamp: 5000, message: "same-ts-diff-seq" }));
-        state.logs.push(makeLogEntry({ seq: 3, timestamp: 6000, message: "newer" }));
+        useAppStore.getState().pushLog(makeLogEntry({ seq: 2, timestamp: 5000, message: "same-ts-diff-seq" }));
+        useAppStore.getState().pushLog(makeLogEntry({ seq: 3, timestamp: 6000, message: "newer" }));
       });
 
       await vi.waitFor(() => {
@@ -233,20 +206,18 @@ describe("useLogData", () => {
     });
 
     it("preserves distinct records that share a timestamp (same-timestamp dedup fix)", async () => {
-      const state = makeState();
+      seedState();
 
       server.use(http.get("/api/logs/recent", () => HttpResponse.json([])));
 
-      const { result } = renderHook(() => useLogData({}), {
-        wrapper: createWrapper(state),
-      });
+      const { result } = renderHookWithProviders(() => useLogData({}));
 
       await waitForLoaded(result);
 
       act(() => {
-        state.logs.push(makeLogEntry({ seq: 10, timestamp: 9000, message: "first" }));
-        state.logs.push(makeLogEntry({ seq: 11, timestamp: 9000, message: "second" }));
-        state.logs.push(makeLogEntry({ seq: 12, timestamp: 9000, message: "third" }));
+        useAppStore.getState().pushLog(makeLogEntry({ seq: 10, timestamp: 9000, message: "first" }));
+        useAppStore.getState().pushLog(makeLogEntry({ seq: 11, timestamp: 9000, message: "second" }));
+        useAppStore.getState().pushLog(makeLogEntry({ seq: 12, timestamp: 9000, message: "third" }));
       });
 
       await vi.waitFor(() => {
@@ -259,17 +230,19 @@ describe("useLogData", () => {
     });
 
     it("excludes WS entries for a different app_key when appKey is provided", async () => {
-      const state = makeState();
+      seedState();
 
       server.use(http.get("/api/logs/recent", () => HttpResponse.json([])));
 
-      const { result } = renderHook(() => useLogData({ appKey: "my_app" }), { wrapper: createWrapper(state) });
+      const { result } = renderHookWithProviders(() => useLogData({ appKey: "my_app" }));
 
       await waitForLoaded(result);
 
       act(() => {
-        state.logs.push(makeLogEntry({ seq: 1, timestamp: 9000, app_key: "my_app", message: "mine" }));
-        state.logs.push(makeLogEntry({ seq: 2, timestamp: 9001, app_key: "other_app", message: "not-mine" }));
+        useAppStore.getState().pushLog(makeLogEntry({ seq: 1, timestamp: 9000, app_key: "my_app", message: "mine" }));
+        useAppStore
+          .getState()
+          .pushLog(makeLogEntry({ seq: 2, timestamp: 9001, app_key: "other_app", message: "not-mine" }));
       });
 
       await vi.waitFor(() => {
@@ -280,17 +253,21 @@ describe("useLogData", () => {
     });
 
     it("excludes WS entries for a different execution_id when executionId is provided", async () => {
-      const state = makeState();
+      seedState();
 
       server.use(http.get("/api/logs/recent", () => HttpResponse.json([])));
 
-      const { result } = renderHook(() => useLogData({ executionId: "exec-1" }), { wrapper: createWrapper(state) });
+      const { result } = renderHookWithProviders(() => useLogData({ executionId: "exec-1" }));
 
       await waitForLoaded(result);
 
       act(() => {
-        state.logs.push(makeLogEntry({ seq: 1, timestamp: 9000, execution_id: "exec-1", message: "this-exec" }));
-        state.logs.push(makeLogEntry({ seq: 2, timestamp: 9001, execution_id: "exec-2", message: "other-exec" }));
+        useAppStore
+          .getState()
+          .pushLog(makeLogEntry({ seq: 1, timestamp: 9000, execution_id: "exec-1", message: "this-exec" }));
+        useAppStore
+          .getState()
+          .pushLog(makeLogEntry({ seq: 2, timestamp: 9001, execution_id: "exec-2", message: "other-exec" }));
       });
 
       await vi.waitFor(() => {
@@ -301,19 +278,17 @@ describe("useLogData", () => {
     });
 
     it("includes all WS entries not in the REST set when no filters are provided", async () => {
-      const state = makeState();
+      seedState();
 
       server.use(http.get("/api/logs/recent", () => HttpResponse.json([])));
 
-      const { result } = renderHook(() => useLogData({}), {
-        wrapper: createWrapper(state),
-      });
+      const { result } = renderHookWithProviders(() => useLogData({}));
 
       await waitForLoaded(result);
 
       act(() => {
-        state.logs.push(makeLogEntry({ seq: 1, timestamp: 1000, app_key: "app-a", message: "a" }));
-        state.logs.push(makeLogEntry({ seq: 2, timestamp: 2000, app_key: "app-b", message: "b" }));
+        useAppStore.getState().pushLog(makeLogEntry({ seq: 1, timestamp: 1000, app_key: "app-a", message: "a" }));
+        useAppStore.getState().pushLog(makeLogEntry({ seq: 2, timestamp: 2000, app_key: "app-b", message: "b" }));
       });
 
       await vi.waitFor(() => {
@@ -324,20 +299,18 @@ describe("useLogData", () => {
     });
 
     it("throttles live WS entries before exposing them to the table", async () => {
-      const state = makeState();
+      seedState();
 
       server.use(http.get("/api/logs/recent", () => HttpResponse.json([])));
 
-      const { result } = renderHook(() => useLogData({}), {
-        wrapper: createWrapper(state),
-      });
+      const { result } = renderHookWithProviders(() => useLogData({}));
 
       await waitForLoaded(result);
 
       vi.useFakeTimers();
       try {
         act(() => {
-          state.logs.push(makeLogEntry({ seq: 1, timestamp: 1000, message: "throttled" }));
+          useAppStore.getState().pushLog(makeLogEntry({ seq: 1, timestamp: 1000, message: "throttled" }));
         });
 
         expect(result.current.allEntries.map((e) => e.message)).not.toContain("throttled");
@@ -359,7 +332,7 @@ describe("useLogData", () => {
 
   describe("time-window filtering", () => {
     it("passes the since parameter to the REST fetch", async () => {
-      const state = makeState("1h");
+      seedState("1h");
       let capturedUrl: string | undefined;
 
       server.use(
@@ -369,9 +342,7 @@ describe("useLogData", () => {
         }),
       );
 
-      const { result } = renderHook(() => useLogData({}), {
-        wrapper: createWrapper(state),
-      });
+      const { result } = renderHookWithProviders(() => useLogData({}));
 
       await waitForLoaded(result);
 
@@ -386,7 +357,7 @@ describe("useLogData", () => {
     });
 
     it("refetches when the time preset changes", async () => {
-      const state = makeState("1h");
+      seedState("1h");
       let fetchCount = 0;
 
       server.use(
@@ -396,15 +367,13 @@ describe("useLogData", () => {
         }),
       );
 
-      const { result } = renderHook(() => useLogData({}), {
-        wrapper: createWrapper(state),
-      });
+      const { result } = renderHookWithProviders(() => useLogData({}));
 
       await waitForLoaded(result);
       const firstFetchCount = fetchCount;
 
       await act(() => {
-        state.timePreset.value = "24h";
+        useAppStore.setState({ timePreset: "24h" });
       });
 
       await vi.waitFor(() => {
@@ -413,21 +382,18 @@ describe("useLogData", () => {
     });
 
     it("gates fetching until uptimeSeconds is available for since-restart", async () => {
-      const state = createAppState();
       // Default: since-restart with null uptime → should not fetch
 
       server.use(http.get("/api/logs/recent", () => HttpResponse.json([])));
 
-      const { result } = renderHook(() => useLogData({}), {
-        wrapper: createWrapper(state),
-      });
+      const { result } = renderHookWithProviders(() => useLogData({}));
 
       // Should stay in loading state because fetching is disabled
       expect(result.current.loading).toBe(true);
 
       // Provide uptime → unblocks fetch
       await act(() => {
-        state.uptimeSeconds.value = 60;
+        useAppStore.setState({ uptimeSeconds: 60 });
       });
 
       await waitForLoaded(result);
@@ -436,13 +402,11 @@ describe("useLogData", () => {
 
   describe("error handling", () => {
     it("shows a toast error and sets loading to false when the REST fetch rejects", async () => {
-      const state = makeState();
+      seedState();
 
       server.use(http.get("/api/logs/recent", () => HttpResponse.error()));
 
-      const { result } = renderHook(() => useLogData({}), {
-        wrapper: createWrapper(state),
-      });
+      const { result } = renderHookWithProviders(() => useLogData({}));
 
       await vi.waitFor(() => {
         expect(result.current.loading).toBe(false);

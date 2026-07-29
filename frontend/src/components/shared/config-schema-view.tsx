@@ -19,16 +19,46 @@
  * The value is already masked server-side; the schema marker controls the visual style.
  */
 
-import { useState } from "preact/hooks";
+import { useState } from "react";
+
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 import type { ConfigRecord, SchemaNode, UiHints } from "../../api/config-view-types";
 import { MS_PER_SECOND, SECONDS_PER_HOUR, SECONDS_PER_MINUTE } from "../../utils/format";
-import { Badge } from "./badge";
-import { Card } from "./card";
-import styles from "./config-schema-view.module.css";
 import { EmptyState } from "./empty-state";
 import { IconChevron } from "./icons";
-import { InfoPopover } from "./info-popover";
+
+const CONFIG_GROUPS_CLASS = "flex flex-col gap-5";
+const CONFIG_SECTION_CLASS = "min-w-0";
+const CONFIG_SECTION_HEAD_CLASS = "flex items-baseline gap-2 border-b border-[var(--border-subtle)] px-4 py-3";
+const CONFIG_SECTION_TITLE_CLASS = "m-0 text-body font-semibold tracking-[-0.01em] text-foreground";
+const CONFIG_SECTION_COUNT_CLASS = "font-mono text-xs text-foreground-faint";
+const CONFIG_FIELDS_CLASS = "flex flex-col";
+const CONFIG_ROW_CLASS =
+  "flex flex-wrap items-baseline gap-2 border-b border-[var(--border-subtle)] px-4 py-3 last:border-b-0";
+const CONFIG_LABEL_CLASS = "text-body font-medium text-foreground";
+const CONFIG_KEY_CLASS = "bg-transparent p-0 font-mono text-xs text-muted-foreground max-small-mobile:hidden";
+const CONFIG_SPACER_CLASS =
+  "min-w-4 flex-1 translate-y-[-3px] border-b border-dotted border-[var(--border-strong)] opacity-55 max-small-mobile:hidden";
+const CONFIG_VALUE_CLASS =
+  "min-w-0 text-right [overflow-wrap:anywhere] max-small-mobile:mt-0 max-small-mobile:basis-full max-small-mobile:text-left";
+const CONFIG_SCALAR_VALUE_CLASS = "font-mono text-[length:var(--text-mono-sm)] text-foreground";
+const CONFIG_PATH_VALUE_CLASS =
+  "rounded-sm border border-[var(--border-subtle)] bg-muted px-2 py-px font-mono text-[length:var(--text-mono-sm)] text-foreground-secondary";
+const CONFIG_EMPTY_VALUE_CLASS = "text-sm italic text-foreground-faint";
+const CONFIG_SECRET_CLASS = "inline-flex select-none items-center gap-1 font-mono text-body text-muted-foreground";
+const CONFIG_SECRET_MASK_CLASS = "text-[15px] italic tracking-[2px]";
+const CONFIG_SECRET_ICON_CLASS = "shrink-0 text-[length:var(--text-mono-md)] opacity-[var(--op-muted)]";
+const CONFIG_LIST_CLASS = "inline-flex flex-wrap justify-end gap-1 max-small-mobile:justify-start";
+const CONFIG_LIST_ITEM_CLASS =
+  "rounded-sm border border-border bg-muted px-2 py-px font-mono text-xs text-foreground-secondary";
+const CONFIG_EXPAND_BUTTON_CLASS =
+  "inline-flex cursor-pointer items-center gap-1 border-none bg-transparent p-0 font-mono text-[length:var(--text-mono-sm)] text-primary";
+const CONFIG_EXPANDED_PRE_CLASS =
+  "mt-1 max-h-[200px] overflow-y-auto whitespace-pre-wrap rounded-sm bg-muted p-2 text-left font-mono text-[length:var(--text-mono-sm)] break-words";
 
 interface ConfigSchemaViewProps {
   /** Fully deref'd JSON schema (no $ref). */
@@ -40,6 +70,10 @@ interface ConfigSchemaViewProps {
   /** Field names that belong to the framework (base AppConfig + manifest). */
   frameworkFields?: string[];
 }
+
+const GENERAL_SECTION_TITLE = "General";
+const APP_SETTINGS_SECTION_TITLE = "App Settings";
+const HASSETTE_SETTINGS_SECTION_TITLE = "Hassette Settings";
 
 const ACRONYM_DISPLAY: Record<string, string> = {
   url: "URL",
@@ -168,14 +202,14 @@ function sortedByOrder(keys: string[], props: Record<string, SchemaNode>): strin
 
 function SecretValue({ value }: { value: unknown }) {
   if (value === null || value === undefined || value === "") {
-    return <span class={styles.valEmpty}>not set</span>;
+    return <span className={CONFIG_EMPTY_VALUE_CLASS}>not set</span>;
   }
   return (
-    <span class={styles.valSecret} aria-label="masked secret">
-      <span class={styles.lockIcon} aria-hidden="true">
+    <span className={CONFIG_SECRET_CLASS} aria-label="masked secret">
+      <span className={CONFIG_SECRET_ICON_CLASS} aria-hidden="true">
         🔒
       </span>
-      <span class={styles.valSecretMasked}>{String(value)}</span>
+      <span className={CONFIG_SECRET_MASK_CLASS}>{String(value)}</span>
     </span>
   );
 }
@@ -190,12 +224,12 @@ function BoolValue({ value }: { value: boolean }) {
 
 function ListValue({ value }: { value: unknown[] }) {
   if (value.length === 0) {
-    return <span class={styles.valEmpty}>empty list</span>;
+    return <span className={CONFIG_EMPTY_VALUE_CLASS}>empty list</span>;
   }
   return (
-    <span class={styles.valList}>
+    <span className={CONFIG_LIST_CLASS}>
       {value.map((item, i) => (
-        <span key={i} class={styles.valListItem}>
+        <span key={i} className={CONFIG_LIST_ITEM_CLASS}>
           {String(item)}
         </span>
       ))}
@@ -211,11 +245,16 @@ export function ExpandableValue({ value }: { value: unknown }) {
 
   return (
     <span>
-      <button type="button" class={styles.expandBtn} onClick={() => setExpanded(!expanded)} aria-expanded={expanded}>
+      <button
+        type="button"
+        className={CONFIG_EXPAND_BUTTON_CLASS}
+        onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
+      >
         <IconChevron open={expanded} />
         {label}
       </button>
-      {expanded && <pre class={styles.expandedPre}>{JSON.stringify(value, null, 2)}</pre>}
+      {expanded && <pre className={CONFIG_EXPANDED_PRE_CLASS}>{JSON.stringify(value, null, 2)}</pre>}
     </span>
   );
 }
@@ -236,12 +275,12 @@ function FieldValue({ node, value, fieldKey }: { node: SchemaNode; value: unknow
   }
 
   if (value === null || value === undefined) {
-    return <span class={styles.valEmpty}>not set</span>;
+    return <span className={CONFIG_EMPTY_VALUE_CLASS}>not set</span>;
   }
 
   // Path-like values sit in a code box so they read as a filesystem path.
   if (hints.widget === "path" || isPathLike(node, fieldKey)) {
-    return <code class={styles.valPath}>{String(value)}</code>;
+    return <code className={CONFIG_PATH_VALUE_CLASS}>{String(value)}</code>;
   }
 
   // Enum members render as a badge (covers Literal / StrEnum fields).
@@ -257,7 +296,7 @@ function FieldValue({ node, value, fieldKey }: { node: SchemaNode; value: unknow
   // Duration values are humanized ("30s", "1m 30s"); the raw value stays on hover.
   if (typeof value === "number" && isDurationField(node, fieldKey)) {
     return (
-      <span class={styles.valScalar} title={String(value)}>
+      <span className={CONFIG_SCALAR_VALUE_CLASS} title={String(value)}>
         {formatDurationField(value, fieldKey)}
       </span>
     );
@@ -268,7 +307,7 @@ function FieldValue({ node, value, fieldKey }: { node: SchemaNode; value: unknow
   }
 
   if (typeof value === "number") {
-    return <span class={styles.valScalar}>{value}</span>;
+    return <span className={CONFIG_SCALAR_VALUE_CLASS}>{value}</span>;
   }
 
   if (Array.isArray(value)) {
@@ -282,7 +321,36 @@ function FieldValue({ node, value, fieldKey }: { node: SchemaNode; value: unknow
     return <ExpandableValue value={value} />;
   }
 
-  return <span class={styles.valScalar}>{String(value)}</span>;
+  return <span className={CONFIG_SCALAR_VALUE_CLASS}>{String(value)}</span>;
+}
+
+/**
+ * Click-triggered info popover: an (i) button that reveals a field's help text on demand.
+ * Keeps verbose descriptions off the row so the field list stays scannable.
+ */
+function FieldHelpPopover({ text, label }: { text: string; label: string }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex size-[18px] shrink-0 items-center justify-center self-center rounded-sm text-muted-foreground hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+          aria-label={open ? `Hide ${label} description` : `Show ${label} description`}
+        >
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+            <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="1.5" />
+            <line x1="8" y1="7.5" x2="8" y2="11.5" stroke="currentColor" strokeWidth="1.5" />
+            <circle cx="8" cy="4.5" r="0.95" fill="currentColor" />
+          </svg>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent role="note" data-testid="field-help" className="w-auto max-w-xs text-xs">
+        {text}
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 /**
@@ -295,12 +363,12 @@ function ConfigFieldRow({ fieldKey, node, value }: { fieldKey: string; node: Sch
   const help = node.description;
 
   return (
-    <div class={styles.row} data-testid={`config-field-${fieldKey}`}>
-      <span class={styles.label}>{label}</span>
-      <code class={styles.key}>{fieldKey}</code>
-      {help && <InfoPopover text={help} label={label} />}
-      <span class={styles.spacer} aria-hidden="true" />
-      <span class={styles.value} data-testid={`config-value-${fieldKey}`}>
+    <div className={CONFIG_ROW_CLASS} data-testid={`config-field-${fieldKey}`}>
+      <span className={CONFIG_LABEL_CLASS}>{label}</span>
+      <code className={CONFIG_KEY_CLASS}>{fieldKey}</code>
+      {help && <FieldHelpPopover text={help} label={label} />}
+      <span className={CONFIG_SPACER_CLASS} aria-hidden="true" />
+      <span className={CONFIG_VALUE_CLASS} data-testid={`config-value-${fieldKey}`}>
         <FieldValue node={node} value={value} fieldKey={fieldKey} />
       </span>
     </div>
@@ -321,15 +389,15 @@ function ConfigSection({ title, fields }: SectionProps) {
     .replace(/[^a-z0-9-]/g, "");
 
   return (
-    <section class={styles.section} data-testid={`config-section-${slug}`}>
+    <section className={CONFIG_SECTION_CLASS} data-testid={`config-section-${slug}`}>
       <Card variant="config">
-        <div class={styles.sectionHead}>
-          <h3 class={styles.sectionTitle}>{title}</h3>
-          <span class={styles.sectionCount}>
+        <div className={CONFIG_SECTION_HEAD_CLASS}>
+          <h3 className={CONFIG_SECTION_TITLE_CLASS}>{title}</h3>
+          <span className={CONFIG_SECTION_COUNT_CLASS}>
             {fields.length} {fields.length === 1 ? "field" : "fields"}
           </span>
         </div>
-        <div class={styles.fields}>
+        <div className={CONFIG_FIELDS_CLASS}>
           {fields.map(({ key, node, value }) => (
             <ConfigFieldRow key={key} fieldKey={key} node={node} value={value} />
           ))}
@@ -413,15 +481,17 @@ export function ConfigSchemaView({ schema, values, emptyMessage, frameworkFields
 
   // When partitioning, use "App Settings" / "Hassette Settings". Without partitioning,
   // keep the original "General" label for backward compatibility (global config page).
-  const userSectionTitle = frameworkSet ? "App Settings" : "General";
+  const userSectionTitle = frameworkSet ? APP_SETTINGS_SECTION_TITLE : GENERAL_SECTION_TITLE;
 
   return (
-    <div class={styles.groups} data-testid="config-schema-view">
+    <div className={cn(CONFIG_GROUPS_CLASS)} data-testid="config-schema-view">
       {userScalarFields.length > 0 && <ConfigSection title={userSectionTitle} fields={userScalarFields} />}
       {groupSections.map(({ key, title, fields }) => (
         <ConfigSection key={key} title={title} fields={fields} />
       ))}
-      {frameworkScalarFields.length > 0 && <ConfigSection title="Hassette Settings" fields={frameworkScalarFields} />}
+      {frameworkScalarFields.length > 0 && (
+        <ConfigSection title={HASSETTE_SETTINGS_SECTION_TITLE} fields={frameworkScalarFields} />
+      )}
     </div>
   );
 }

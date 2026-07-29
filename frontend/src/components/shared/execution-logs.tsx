@@ -1,6 +1,5 @@
 import { Link } from "wouter";
 
-import styles from "./execution-logs.module.css";
 import { LogTableView, LogTableWithDrawer, useLogTable } from "./log-table";
 import { TableCard } from "./table-card";
 import { TableFooter } from "./table-footer";
@@ -22,18 +21,20 @@ export function ExecutionLogs({ executionId }: Props) {
   );
 
   return (
-    <div class={styles.section} data-testid="execution-logs-section">
-      <span class={styles.label}>logs</span>
+    <div data-testid="execution-logs-section">
+      <span className="mb-1 block font-mono text-xs uppercase tracking-[var(--text-label-tracking)] text-foreground-faint">
+        logs
+      </span>
       <TableCard footer={footer}>
         <LogTableWithDrawer drawerProps={log.drawerProps}>
           {log.isEmpty ? (
-            <p class={styles.emptyInline}>no logs for this execution</p>
+            <p className="m-0 p-3 text-sm text-muted-foreground">no logs for this execution</p>
           ) : (
             <LogTableView {...log.tableProps} />
           )}
         </LogTableWithDrawer>
       </TableCard>
-      <p class={styles.viewAll}>
+      <p className="mt-2 text-sm">
         <Link href={viewAllHref} data-testid="view-all-logs-link">
           View all logs
         </Link>

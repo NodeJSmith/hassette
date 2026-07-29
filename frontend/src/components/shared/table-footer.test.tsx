@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen } from "@testing-library/preact";
+import { act, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { mockMediaQueryMatches } from "../../test/render-helpers";
@@ -71,6 +72,7 @@ describe("TableFooter", () => {
     });
 
     it("opens the mobile filter panel when filter button is clicked", async () => {
+      const user = userEvent.setup();
       mockMediaQueryMatches(true);
       const filters: ColumnFilters = {
         status: {
@@ -81,12 +83,13 @@ describe("TableFooter", () => {
       };
       render(<TableFooter count="5 apps" columnFilters={filters} />);
       await act(async () => {
-        fireEvent.click(screen.getByRole("button", { name: /open filters/i }));
+        await user.click(screen.getByRole("button", { name: /open filters/i }));
       });
       expect(screen.getByTestId("status-content")).toBeTruthy();
     });
 
     it("renders column filter label in mobile panel", async () => {
+      const user = userEvent.setup();
       mockMediaQueryMatches(true);
       const filters: ColumnFilters = {
         status: {
@@ -97,7 +100,7 @@ describe("TableFooter", () => {
       };
       render(<TableFooter count="5 apps" columnFilters={filters} />);
       await act(async () => {
-        fireEvent.click(screen.getByRole("button", { name: /open filters/i }));
+        await user.click(screen.getByRole("button", { name: /open filters/i }));
       });
       expect(screen.getByText("Status")).toBeTruthy();
     });
@@ -116,6 +119,7 @@ describe("TableFooter", () => {
     });
 
     it("shows reset button in mobile panel when onResetFilters provided and a filter is active", async () => {
+      const user = userEvent.setup();
       mockMediaQueryMatches(true);
       const onReset = vi.fn();
       const filters: ColumnFilters = {
@@ -123,14 +127,15 @@ describe("TableFooter", () => {
       };
       render(<TableFooter count="5 apps" columnFilters={filters} onResetFilters={onReset} />);
       await act(async () => {
-        fireEvent.click(screen.getByRole("button", { name: /open filters/i }));
+        await user.click(screen.getByRole("button", { name: /open filters/i }));
       });
       const resetBtn = screen.getByRole("button", { name: /reset/i });
-      fireEvent.click(resetBtn);
+      await user.click(resetBtn);
       expect(onReset).toHaveBeenCalledTimes(1);
     });
 
     it("renders multiple filter groups from columnFilters", async () => {
+      const user = userEvent.setup();
       mockMediaQueryMatches(true);
       const filters: ColumnFilters = {
         status: {
@@ -146,7 +151,7 @@ describe("TableFooter", () => {
       };
       render(<TableFooter count="5 apps" columnFilters={filters} />);
       await act(async () => {
-        fireEvent.click(screen.getByRole("button", { name: /open filters/i }));
+        await user.click(screen.getByRole("button", { name: /open filters/i }));
       });
       expect(screen.getByTestId("status-content")).toBeTruthy();
       expect(screen.getByTestId("kind-content")).toBeTruthy();

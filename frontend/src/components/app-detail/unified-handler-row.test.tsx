@@ -1,38 +1,45 @@
-import { fireEvent } from "@testing-library/preact";
-import { render } from "@testing-library/preact";
-import type { ComponentChildren } from "preact";
-import { h } from "preact";
+import { render } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { AppStateContext } from "../../state/context";
-import { createAppState } from "../../state/create-app-state";
 import { createJob, createListener } from "../../test/factories";
+import type { StatusKind } from "../../utils/status";
 import { UnifiedHandlerRow } from "./unified-handler-row";
 
-function wrapper({ children }: { children: ComponentChildren }) {
-  return h(AppStateContext.Provider, { value: createAppState() }, children);
+interface ItemOverrides {
+  name?: string;
+  humanDescription?: string | null;
+  statusKind?: StatusKind;
 }
 
-function makeListenerItem(overrides = {}) {
+function makeListenerItem(overrides = {}, itemOverrides: ItemOverrides = {}) {
   const listener = createListener(overrides);
   return {
     kind: "listener" as const,
     id: listener.listener_id,
-    name: listener.handler_summary || listener.handler_method,
-    humanDescription: listener.human_description ?? null,
-    statusKind: "ok" as const,
+    name: itemOverrides.name ?? (listener.handler_summary || listener.handler_method),
+    humanDescription:
+      itemOverrides.humanDescription !== undefined
+        ? itemOverrides.humanDescription
+        : (listener.human_description ?? null),
+    statusKind: itemOverrides.statusKind ?? ("ok" as const),
     data: listener,
   };
 }
 
-function makeJobItem(overrides = {}) {
+function makeJobItem(overrides = {}, itemOverrides: ItemOverrides = {}) {
   const job = createJob(overrides);
   return {
     kind: "job" as const,
     id: job.job_id,
-    name: job.job_name,
-    humanDescription: job.trigger_label !== "" ? job.trigger_label : null,
-    statusKind: "ok" as const,
+    name: itemOverrides.name ?? job.job_name,
+    humanDescription:
+      itemOverrides.humanDescription !== undefined
+        ? itemOverrides.humanDescription
+        : job.trigger_label !== ""
+          ? job.trigger_label
+          : null,
+    statusKind: itemOverrides.statusKind ?? ("ok" as const),
     data: job,
   };
 }
@@ -40,31 +47,23 @@ function makeJobItem(overrides = {}) {
 describe("UnifiedHandlerRow — listener", () => {
   it("renders with data-testid containing kind and id", () => {
     const item = makeListenerItem({ listener_id: 42 });
-    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, {
-      wrapper,
-    });
+    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(getByTestId("unified-row-listener-42")).toBeDefined();
   });
 
   it("renders handler name", () => {
     const item = makeListenerItem({ handler_summary: "on_motion_detected()", listener_id: 1 });
-    const { getByText } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, { wrapper });
+    const { getByText } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(getByText("on_motion_detected()")).toBeDefined();
   });
 
   it("exposes human_description via aria-label but not as a rendered line", () => {
-    const listener = createListener({ human_description: "When kitchen light changes", listener_id: 1 });
-    const item = {
-      kind: "listener" as const,
-      id: 1,
-      name: "on_light_change",
-      humanDescription: "When kitchen light changes",
-      statusKind: "ok" as const,
-      data: listener,
-    };
+    const item = makeListenerItem(
+      { human_description: "When kitchen light changes", listener_id: 1 },
+      { name: "on_light_change", humanDescription: "When kitchen light changes" },
+    );
     const { getByTestId, queryByText } = render(
       <UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />,
-      { wrapper },
     );
     expect(getByTestId("unified-row-listener-1").getAttribute("aria-label")).toBe(
       "on_light_change: When kitchen light changes",
@@ -73,133 +72,120 @@ describe("UnifiedHandlerRow — listener", () => {
   });
 
   it("does not render subtitle when humanDescription is null", () => {
-    const listener = createListener({ human_description: null, listener_id: 1 });
-    const item = {
-      kind: "listener" as const,
-      id: 1,
-      name: "on_change",
-      humanDescription: null,
-      statusKind: "ok" as const,
-      data: listener,
-    };
-    const { container } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, { wrapper });
+    const item = makeListenerItem(
+      { human_description: null, listener_id: 1 },
+      { name: "on_change", humanDescription: null },
+    );
+    const { container } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(container.querySelector("[data-testid='handler-row-desc']")).toBeNull();
   });
 
   it("renders invocation count in stats", () => {
     const item = makeListenerItem({ total_invocations: 7, listener_id: 1 });
-    const { getByText } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, { wrapper });
+    const { getByText } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(getByText("7 calls")).toBeDefined();
   });
 
   it("renders failed count when failed > 0", () => {
     const item = makeListenerItem({ failed: 3, total_invocations: 10, listener_id: 1 });
-    const { getByText } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, { wrapper });
+    const { getByText } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(getByText("3 failed")).toBeDefined();
   });
 
   it("renders timed_out count separately from failed", () => {
     const item = makeListenerItem({ timed_out: 2, failed: 1, total_invocations: 5, listener_id: 1 });
-    const { getByText } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, { wrapper });
+    const { getByText } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(getByText("2 timed out")).toBeDefined();
     expect(getByText("1 failed")).toBeDefined();
   });
 
   it("does not render failed/timed_out when both are 0", () => {
     const item = makeListenerItem({ failed: 0, timed_out: 0, listener_id: 1 });
-    const { queryByText } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, {
-      wrapper,
-    });
+    const { queryByText } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(queryByText(/failed/)).toBeNull();
     expect(queryByText(/timed out/)).toBeNull();
   });
 
   it("sets aria-pressed=true when isSelected is true", () => {
     const item = makeListenerItem({ listener_id: 1 });
-    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={true} onSelect={() => {}} />, {
-      wrapper,
-    });
+    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={true} onSelect={() => {}} />);
     expect(getByTestId("unified-row-listener-1").getAttribute("aria-pressed")).toBe("true");
   });
 
   it("sets aria-pressed=false when isSelected is false", () => {
     const item = makeListenerItem({ listener_id: 1 });
-    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, {
-      wrapper,
-    });
+    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(getByTestId("unified-row-listener-1").getAttribute("aria-pressed")).toBe("false");
   });
 
-  it("calls onSelect when clicked", () => {
+  it("calls onSelect when clicked", async () => {
+    const user = userEvent.setup();
     const onSelect = vi.fn();
     const item = makeListenerItem({ listener_id: 1 });
-    const { getByRole } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={onSelect} />, { wrapper });
-    fireEvent.click(getByRole("button"));
+    const { getByRole } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={onSelect} />);
+    await user.click(getByRole("button"));
     expect(onSelect).toHaveBeenCalledOnce();
   });
 
-  it("calls onSelect when activated via Enter key (native button fires click)", () => {
+  it("calls onSelect when activated via Enter key (native button fires click)", async () => {
+    const user = userEvent.setup();
     const onSelect = vi.fn();
     const item = makeListenerItem({ listener_id: 1 });
-    const { getByRole } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={onSelect} />, { wrapper });
-    // Native <button> fires click on Enter/Space — fireEvent.click simulates that
-    fireEvent.click(getByRole("button"));
+    const { getByRole } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={onSelect} />);
+    const button = getByRole("button");
+    button.focus();
+    await user.keyboard("{Enter}");
     expect(onSelect).toHaveBeenCalledOnce();
   });
 
-  it("calls onSelect when activated via Space key (native button fires click)", () => {
+  it("calls onSelect when activated via Space key (native button fires click)", async () => {
+    const user = userEvent.setup();
     const onSelect = vi.fn();
     const item = makeListenerItem({ listener_id: 1 });
-    const { getByRole } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={onSelect} />, { wrapper });
-    // Native <button> fires click on Enter/Space — fireEvent.click simulates that
-    fireEvent.click(getByRole("button"));
+    const { getByRole } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={onSelect} />);
+    const button = getByRole("button");
+    button.focus();
+    await user.keyboard(" ");
     expect(onSelect).toHaveBeenCalledOnce();
+  });
+
+  it("includes a visible focus outline utility", () => {
+    const item = makeListenerItem({ listener_id: 1 });
+    const { getByRole } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
+    expect(getByRole("button").className).toContain("focus-visible:outline-solid");
+    expect(getByRole("button").className).toContain("focus-visible:outline-primary");
   });
 });
 
 describe("UnifiedHandlerRow — idle state", () => {
-  it("applies the dimmed idle class when statusKind is mute", () => {
-    const listener = createListener({ listener_id: 1, total_invocations: 0, failed: 0, timed_out: 0 });
-    const item = {
-      kind: "listener" as const,
-      id: 1,
-      name: listener.handler_summary || listener.handler_method,
-      humanDescription: listener.human_description ?? null,
-      statusKind: "mute" as const,
-      data: listener,
-    };
-    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, {
-      wrapper,
-    });
-    expect(getByTestId("unified-row-listener-1").className).toMatch(/rowIdle/);
+  it("applies the dimmed idle styling when statusKind is mute", () => {
+    const item = makeListenerItem(
+      { listener_id: 1, total_invocations: 0, failed: 0, timed_out: 0 },
+      { statusKind: "mute" },
+    );
+    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
+    expect(getByTestId("unified-row-listener-1").className).toContain("opacity-60");
   });
 
-  it("does not apply the dimmed idle class when statusKind is ok", () => {
+  it("does not apply the dimmed idle styling when statusKind is ok", () => {
     const item = makeListenerItem({ listener_id: 1 });
-    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, {
-      wrapper,
-    });
-    expect(getByTestId("unified-row-listener-1").className).not.toMatch(/rowIdle/);
+    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
+    expect(getByTestId("unified-row-listener-1").className).not.toContain("opacity-60");
   });
 });
 
 describe("UnifiedHandlerRow — subline switching", () => {
   it("shows last_error_message when handler has errors", () => {
-    const listener = createListener({
-      listener_id: 1,
-      failed: 2,
-      last_error_message: "KeyError: 'foo'",
-      human_description: "When something changes",
-    });
-    const item = {
-      kind: "listener" as const,
-      id: 1,
-      name: "on_change",
-      humanDescription: "When something changes",
-      statusKind: "err" as const,
-      data: listener,
-    };
-    const { container } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, { wrapper });
+    const item = makeListenerItem(
+      {
+        listener_id: 1,
+        failed: 2,
+        last_error_message: "KeyError: 'foo'",
+        human_description: "When something changes",
+      },
+      { name: "on_change", humanDescription: "When something changes", statusKind: "err" },
+    );
+    const { container } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     // Error message shown
     const errSubline = container.querySelector("[data-testid='handler-row-subline-err']");
     expect(errSubline).not.toBeNull();
@@ -207,61 +193,39 @@ describe("UnifiedHandlerRow — subline switching", () => {
   });
 
   it("shows last_error_message when a failing job has errors", () => {
-    const job = createJob({
-      job_id: 1,
-      failed: 3,
-      last_error_message: "ConnectionError: timeout",
-    });
-    const item = {
-      kind: "job" as const,
-      id: 1,
-      name: "sync_data",
-      humanDescription: null,
-      statusKind: "err" as const,
-      data: job,
-    };
-    const { container } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, { wrapper });
+    const item = makeJobItem(
+      { job_id: 1, failed: 3, last_error_message: "ConnectionError: timeout" },
+      { name: "sync_data", humanDescription: null, statusKind: "err" },
+    );
+    const { container } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     const errSubline = container.querySelector("[data-testid='handler-row-subline-err']");
     expect(errSubline).not.toBeNull();
     expect(errSubline?.textContent).toContain("ConnectionError");
   });
 
   it("does not show a description line for healthy handlers (context lives in the detail pane)", () => {
-    const listener = createListener({
-      listener_id: 1,
-      failed: 0,
-      timed_out: 0,
-      last_error_message: null,
-      human_description: "Fires on door open",
-    });
-    const item = {
-      kind: "listener" as const,
-      id: 1,
-      name: "on_door",
-      humanDescription: "Fires on door open",
-      statusKind: "ok" as const,
-      data: listener,
-    };
-    const { container, getByTestId } = render(
-      <UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />,
-      { wrapper },
+    const item = makeListenerItem(
+      {
+        listener_id: 1,
+        failed: 0,
+        timed_out: 0,
+        last_error_message: null,
+        human_description: "Fires on door open",
+      },
+      { name: "on_door", humanDescription: "Fires on door open" },
     );
+    const { container, getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(container.querySelector("[data-testid='handler-row-desc']")).toBeNull();
     expect(container.querySelector("[data-testid='handler-row-subline-err']")).toBeNull();
     expect(getByTestId("unified-row-listener-1").getAttribute("aria-label")).toBe("on_door: Fires on door open");
   });
 
   it("shows next-run line for schedule jobs", () => {
-    const job = createJob({ job_id: 1, next_run: Math.floor(Date.now() / 1000) + 60 });
-    const item = {
-      kind: "job" as const,
-      id: 1,
-      name: "my_job",
-      humanDescription: null,
-      statusKind: "ok" as const,
-      data: job,
-    };
-    const { container } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, { wrapper });
+    const item = makeJobItem(
+      { job_id: 1, next_run: Math.floor(Date.now() / 1000) + 60 },
+      { name: "my_job", humanDescription: null },
+    );
+    const { container } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(container.querySelector("[data-testid='handler-row-next-run']")).not.toBeNull();
   });
 });
@@ -269,39 +233,31 @@ describe("UnifiedHandlerRow — subline switching", () => {
 describe("UnifiedHandlerRow — mode chip", () => {
   it("renders mode chip for listener with mode=single", () => {
     const item = makeListenerItem({ mode: "single", listener_id: 1 });
-    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, {
-      wrapper,
-    });
+    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(getByTestId("handler-row-mode-chip").textContent).toBe("single");
   });
 
   it("renders mode chip for listener with mode=parallel", () => {
     const item = makeListenerItem({ mode: "parallel", listener_id: 2 });
-    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, {
-      wrapper,
-    });
+    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(getByTestId("handler-row-mode-chip").textContent).toBe("parallel");
   });
 
   it("renders mode chip for listener with mode=queued", () => {
     const item = makeListenerItem({ mode: "queued", listener_id: 3 });
-    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, {
-      wrapper,
-    });
+    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(getByTestId("handler-row-mode-chip").textContent).toBe("queued");
   });
 
   it("renders mode chip for listener with mode=restart", () => {
     const item = makeListenerItem({ mode: "restart", listener_id: 4 });
-    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, {
-      wrapper,
-    });
+    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(getByTestId("handler-row-mode-chip").textContent).toBe("restart");
   });
 
   it("does not render mode chip for job items", () => {
     const item = makeJobItem({ job_id: 5 });
-    const { container } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, { wrapper });
+    const { container } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(container.querySelector("[data-testid='handler-row-mode-chip']")).toBeNull();
   });
 });
@@ -309,43 +265,34 @@ describe("UnifiedHandlerRow — mode chip", () => {
 describe("UnifiedHandlerRow — job", () => {
   it("renders with data-testid containing kind='job' and job id", () => {
     const item = makeJobItem({ job_id: 7 });
-    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, {
-      wrapper,
-    });
+    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(getByTestId("unified-row-job-7")).toBeDefined();
   });
 
   it("renders job name", () => {
     const item = makeJobItem({ job_name: "cleanup_task", job_id: 1 });
-    const { getByText } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, { wrapper });
+    const { getByText } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(getByText("cleanup_task")).toBeDefined();
   });
 
   it("exposes trigger_label as humanDescription via aria-label for jobs", () => {
-    const job = createJob({ job_id: 1, trigger_label: "every 5 minutes" });
-    const item = {
-      kind: "job" as const,
-      id: 1,
-      name: "my_job",
-      humanDescription: "every 5 minutes",
-      statusKind: "ok" as const,
-      data: job,
-    };
-    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, {
-      wrapper,
-    });
+    const item = makeJobItem(
+      { job_id: 1, trigger_label: "every 5 minutes" },
+      { name: "my_job", humanDescription: "every 5 minutes" },
+    );
+    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(getByTestId("unified-row-job-1").getAttribute("aria-label")).toBe("my_job: every 5 minutes");
   });
 
   it("renders execution count in stats", () => {
     const item = makeJobItem({ total_executions: 4, job_id: 1 });
-    const { getByText } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, { wrapper });
+    const { getByText } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(getByText("4 runs")).toBeDefined();
   });
 
   it("renders timed_out separate from failed for jobs", () => {
     const item = makeJobItem({ timed_out: 1, failed: 2, total_executions: 10, job_id: 1 });
-    const { getByText } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, { wrapper });
+    const { getByText } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
     expect(getByText("2 failed")).toBeDefined();
     expect(getByText("1 timed out")).toBeDefined();
   });

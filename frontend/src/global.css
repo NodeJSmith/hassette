@@ -1,10 +1,534 @@
-/* Hassette Design System
-   Domain-organized shared styles. Component-specific styles live in co-located .module.css files.
-   All values reference tokens from tokens.css. */
+@import "tailwindcss";
 
 @import "./styles/fonts.css";
-@import "./styles/reset.css";
-@import "./styles/typography.css";
-@import "./styles/layout.css";
-@import "./styles/tables.css";
-@import "./styles/utilities.css";
+
+@custom-variant dark (&:is([data-theme="dark"] *));
+
+@theme inline {
+  /* Custom breakpoints — sync with BREAKPOINT_* constants in use-media-query.ts */
+  --breakpoint-tablet: 1024px;
+  --breakpoint-sidebar: 900px;
+  --breakpoint-mobile: 768px;
+  --breakpoint-small-mobile: 480px;
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--highlight-bg-foreground);
+  --color-accent: var(--highlight-bg);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  /* --r-lg (12px) and --r-xl (20px) don't match shadcn's calc() formula
+     output (10px, 14px) — literal overrides instead of the calc() chain. */
+  --radius-lg: var(--r-lg);
+  --radius-xl: var(--r-xl);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  --bg-page: oklch(0.95 0.006 var(--accent-hue));
+  --bg-surface: oklch(0.995 0.002 var(--accent-hue));
+  --bg-sunken: oklch(0.955 0.006 var(--accent-hue));
+  --bg-active: oklch(0.92 0.01 var(--accent-hue));
+  --bg-chrome: oklch(0.96 0.005 var(--accent-hue));
+  --ink-1: #16181c;
+  --ink-2: #4a4d54;
+  --ink-3: #787c84;
+  --ink-4: #b0b3b8;
+  --line-1: #e6e6e2;
+  --line-2: #ecece8;
+  --line-strong: #d0d0cc;
+  --accent-hue: 255;
+  --accent-chroma: 0.14;
+  --accent: oklch(0.5 var(--accent-chroma) var(--accent-hue));
+  --accent-hover: oklch(0.42 var(--accent-chroma) var(--accent-hue));
+  --accent-ink: oklch(0.98 0.005 var(--accent-hue));
+  --accent-soft: oklch(0.95 calc(var(--accent-chroma) * 0.25) var(--accent-hue));
+  --accent-border: oklch(0.65 calc(var(--accent-chroma) * 0.6) var(--accent-hue));
+  --accent-bg: oklch(0.97 calc(var(--accent-chroma) * 0.15) var(--accent-hue));
+  --ok: oklch(0.515 0.118 157);
+  --ok-bg: #eaf3ee;
+  --warn: oklch(0.53 0.108 75);
+  --warn-bg: #f5eedd;
+  --err: oklch(0.514 0.19 28);
+  --err-bg: #f5dedc;
+  --cancel: oklch(0.515 0.108 237);
+  --mute: #9097a0;
+  --mute-bg: #eff0ec;
+  --ok-vivid: oklch(0.72 0.18 150);
+  --warn-vivid: oklch(0.78 0.15 78);
+  --err-vivid: oklch(0.6 0.205 28);
+  --cancel-vivid: oklch(0.66 0.132 237);
+  --job: oklch(0.5 0.17 292);
+  --listener: oklch(0.5 0.082 200);
+  --chip-tint: 12%;
+  --job-bg: color-mix(in srgb, var(--job) var(--chip-tint), transparent);
+  --job-border: color-mix(in srgb, var(--job) 30%, transparent);
+  --listener-bg: color-mix(in srgb, var(--listener) var(--chip-tint), transparent);
+  --listener-border: color-mix(in srgb, var(--listener) 30%, transparent);
+  --input-bg: #ffffff;
+  --code-bg: var(--bg-sunken);
+  --font-display: "Newsreader", "Source Serif Pro", Georgia, serif;
+  --font-body: "Geist", system-ui, -apple-system, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --fw-normal: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+  --fs-display: 38px;
+  --lh-display: 1.05;
+  --tr-display: -0.025em;
+  --fs-h1: 28px;
+  --lh-h1: 1.15;
+  --tr-h1: -0.02em;
+  --fs-h2: 20px;
+  --lh-h2: 1.25;
+  --tr-h2: -0.015em;
+  --fs-h3: 16px;
+  --lh-h3: 1.35;
+  --tr-h3: -0.005em;
+  --fs-body: 14px;
+  --lh-body: 1.55;
+  --lh-relaxed: 1.6;
+  --fs-small: 12.5px;
+  --lh-small: 1.5;
+  --fs-micro: 12px;
+  --lh-micro: 1.4;
+  --fs-xs: 11px;
+  --lh-xs: 1.3;
+  --tr-label-tight: 0.03em;
+  --tr-label-mid: 0.04em;
+  --tr-label: 0.05em;
+  --tr-label-wide: 0.07em;
+  --fs-mono-sm: 12px;
+  --fs-mono-md: 13px;
+  --sp-px: 1px;
+  --sp-0: 2px;
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-7: 32px;
+  --sp-8: 40px;
+  --sp-9: 56px;
+  --sp-10: 72px;
+  --sp-1h: 6px;
+  --sp-3h: 14px;
+  --sz-touch: 44px;
+  --sz-icon-sm: 14px;
+  --sz-icon-btn: 28px;
+  --sz-sidebar: 240px;
+  --sz-search-min: 160px;
+  --sz-popover-min: 200px;
+  --sz-popover-max: 280px;
+  --sz-content-narrow: 320px;
+  --sz-dialog-min: 320px;
+  --sz-dialog-max: 480px;
+  --sz-drawer: 400px;
+  --sz-palette: 620px;
+  --fs-stat: 26px;
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 12px;
+  --r-xl: 20px;
+  --r-pill: 999px;
+  --shadow-1: 0 1px 2px rgb(20 22 26 / 0.04);
+  --shadow-2: 0 2px 8px rgb(20 22 26 / 0.06), 0 1px 2px rgb(20 22 26 / 0.04);
+  --shadow-3: 0 8px 24px rgb(20 22 26 / 0.08), 0 2px 6px rgb(20 22 26 / 0.04);
+  --overlay-bg: rgb(0 0 0 / 0.45);
+  --op-ghost: 0.35;
+  --op-disabled: 0.5;
+  --op-muted: 0.7;
+  --op-subtle: 0.9;
+  --code-annotate-bg: oklch(0.97 0.005 80);
+  --code-focus-bg: oklch(0.93 0.04 80);
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --t-fast: 120ms;
+  --t-med: 200ms;
+  --t-spin: 0.8s;
+  --t-breathe: 2.5s;
+  --blur-overlay: 2px;
+  --border-med: 2px;
+  --border-thick: 3px;
+  --z-table-head: 1;
+  --z-tooltip: 15;
+  --z-sidebar: 30;
+  --z-status-bar: 65;
+  /* Drawers float above the sticky chrome; keep them derived from the status
+     bar so the layering relationship can't drift. */
+  --z-drawer-bg: calc(var(--z-status-bar) + 1);
+  --z-drawer: calc(var(--z-status-bar) + 2);
+  --z-dialog: 100;
+  --z-palette-bg: 200;
+  --z-palette: 201;
+  --z-skip: 1000;
+  --background: var(--bg-page);
+  --foreground: var(--ink-1);
+  --card: var(--bg-surface);
+  --card-foreground: var(--ink-1);
+  --popover: var(--bg-surface);
+  --popover-foreground: var(--ink-1);
+  /* --primary and everything derived from it below (--ring, --chart-5,
+     --sidebar-primary, --sidebar-ring) must NOT reference `var(--accent)`:
+     `--accent` is never redeclared in this file at all (its shadcn-role
+     counterpart lives under the distinct name `--highlight-bg` instead —
+     see the file-level comment above this ruleset), so reading
+     `var(--accent)` here would just be an indirect way of writing the same
+     formula used for `--accent`, with an extra
+     runtime indirection and no benefit. Reproduce the brand color directly
+     from the underlying primitives (--accent-hue / --accent-chroma), which
+     also keeps this ruleset correct regardless of any future change to
+     `--accent` itself. */
+  --primary: oklch(0.5 var(--accent-chroma) var(--accent-hue));
+  --primary-foreground: var(--accent-ink);
+  --secondary: var(--bg-sunken);
+  --secondary-foreground: var(--ink-1);
+  --muted: var(--bg-sunken);
+  --muted-foreground: var(--ink-3);
+  --highlight-bg: var(--bg-active);
+  --highlight-bg-foreground: var(--ink-1);
+  --destructive: var(--err);
+  --border: var(--line-1);
+  --input: var(--input-bg);
+  --ring: var(--primary);
+  --chart-1: var(--ok-vivid);
+  --chart-2: var(--warn-vivid);
+  --chart-3: var(--err-vivid);
+  --chart-4: var(--cancel-vivid);
+  --chart-5: var(--primary);
+  --radius: 0.625rem;
+  --sidebar: var(--bg-chrome);
+  --sidebar-foreground: var(--ink-1);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--accent-ink);
+  --sidebar-accent: var(--bg-active);
+  --sidebar-accent-foreground: var(--ink-1);
+  --sidebar-border: var(--line-1);
+  --sidebar-ring: var(--primary);
+  --foreground-secondary: var(--ink-2);
+  --foreground-faint: var(--ink-4);
+  --border-subtle: var(--line-2);
+  --border-strong: var(--line-strong);
+  --primary-hue: var(--accent-hue);
+  --primary-chroma: var(--accent-chroma);
+  --primary-hover: var(--accent-hover);
+  --primary-soft: var(--accent-soft);
+  --primary-border: var(--accent-border);
+  --primary-bg: var(--accent-bg);
+  --status-success: var(--ok);
+  --status-success-bg: var(--ok-bg);
+  --status-warning: var(--warn);
+  --status-warning-bg: var(--warn-bg);
+  --destructive-bg: var(--err-bg);
+  --status-cancel: var(--cancel);
+  --status-muted: var(--mute);
+  --status-muted-bg: var(--mute-bg);
+  --status-success-vivid: var(--ok-vivid);
+  --status-warning-vivid: var(--warn-vivid);
+  --destructive-vivid: var(--err-vivid);
+  --status-cancel-vivid: var(--cancel-vivid);
+  --handler-job: var(--job);
+  --handler-listener: var(--listener);
+  --handler-chip-tint: var(--chip-tint);
+  --handler-job-bg: var(--job-bg);
+  --handler-job-border: var(--job-border);
+  --handler-listener-bg: var(--listener-bg);
+  --handler-listener-border: var(--listener-border);
+  --code-background: var(--code-bg);
+  --code-annotate-background: var(--code-annotate-bg);
+  --code-focus-background: var(--code-focus-bg);
+  --font-heading: var(--font-display);
+  --font-sans: var(--font-body);
+  --font-weight-normal: var(--fw-normal);
+  --font-weight-medium: var(--fw-medium);
+  --font-weight-semibold: var(--fw-semibold);
+  --font-weight-bold: var(--fw-bold);
+  --text-display: var(--fs-display);
+  --text-display-leading: var(--lh-display);
+  --text-display-tracking: var(--tr-display);
+  --text-h1: var(--fs-h1);
+  --text-h1-leading: var(--lh-h1);
+  --text-h1-tracking: var(--tr-h1);
+  --text-h2: var(--fs-h2);
+  --text-h2-leading: var(--lh-h2);
+  --text-h2-tracking: var(--tr-h2);
+  --text-h3: var(--fs-h3);
+  --text-h3-leading: var(--lh-h3);
+  --text-h3-tracking: var(--tr-h3);
+  --text-body: var(--fs-body);
+  --text-body-leading: var(--lh-body);
+  --text-relaxed-leading: var(--lh-relaxed);
+  --text-small: var(--fs-small);
+  --text-small-leading: var(--lh-small);
+  --text-micro: var(--fs-micro);
+  --text-micro-leading: var(--lh-micro);
+  --text-xs: var(--fs-xs);
+  --text-xs-leading: var(--lh-xs);
+  --text-label-tracking-tight: var(--tr-label-tight);
+  --text-label-tracking-mid: var(--tr-label-mid);
+  --text-label-tracking: var(--tr-label);
+  --text-label-tracking-wide: var(--tr-label-wide);
+  --text-mono-sm: var(--fs-mono-sm);
+  --text-mono-md: var(--fs-mono-md);
+  --text-stat: var(--fs-stat);
+  --spacing-px: var(--sp-px);
+  --spacing-0-5: var(--sp-0);
+  --spacing-1: var(--sp-1);
+  --spacing-2: var(--sp-2);
+  --spacing-3: var(--sp-3);
+  --spacing-4: var(--sp-4);
+  --spacing-5: var(--sp-5);
+  --spacing-6: var(--sp-6);
+  --spacing-8: var(--sp-7);
+  --spacing-10: var(--sp-8);
+  --spacing-14: var(--sp-9);
+  --spacing-18: var(--sp-10);
+  --spacing-1-5: var(--sp-1h);
+  --spacing-3-5: var(--sp-3h);
+  --size-touch: var(--sz-touch);
+  --size-icon-sm: var(--sz-icon-sm);
+  --size-icon-btn: var(--sz-icon-btn);
+  --size-sidebar: var(--sz-sidebar);
+  --size-search-min: var(--sz-search-min);
+  --size-popover-min: var(--sz-popover-min);
+  --size-popover-max: var(--sz-popover-max);
+  --size-content-narrow: var(--sz-content-narrow);
+  --size-dialog-min: var(--sz-dialog-min);
+  --size-dialog-max: var(--sz-dialog-max);
+  --size-drawer: var(--sz-drawer);
+  --size-palette: var(--sz-palette);
+  --radius-pill: var(--r-pill);
+  --shadow-sm: var(--shadow-1);
+  --shadow-md: var(--shadow-2);
+  --shadow-lg: var(--shadow-3);
+  --overlay-background: var(--overlay-bg);
+  --opacity-ghost: var(--op-ghost);
+  --opacity-disabled: var(--op-disabled);
+  --opacity-muted: var(--op-muted);
+  --opacity-subtle: var(--op-subtle);
+  --ease-default: var(--ease);
+  --duration-fast: var(--t-fast);
+  --duration-med: var(--t-med);
+  --duration-spin: var(--t-spin);
+  --duration-breathe: var(--t-breathe);
+  --blur-overlay-amount: var(--blur-overlay);
+  --border-width-medium: var(--border-med);
+  --border-width-thick: var(--border-thick);
+  --z-table-header: var(--z-table-head);
+  --z-tooltip-layer: var(--z-tooltip);
+  --z-sidebar-layer: var(--z-sidebar);
+  --z-drawer-backdrop: var(--z-drawer-bg);
+  --z-drawer-layer: var(--z-drawer);
+  --z-status-bar-layer: var(--z-status-bar);
+  --z-dialog-layer: var(--z-dialog);
+  --z-palette-backdrop: var(--z-palette-bg);
+  --z-palette-layer: var(--z-palette);
+  --z-skip-link: var(--z-skip);
+}
+
+[data-theme="dark"] {
+  --bg-page: #0c0e11;
+  --bg-surface: #1a1c21;
+  --bg-sunken: #141619;
+  --bg-active: #22242a;
+  --bg-chrome: #131517;
+  --ink-1: #edeff3;
+  --ink-2: #b5b9c0;
+  --ink-3: #888d97;
+  --ink-4: #5a5e66;
+  --line-1: #272a30;
+  --line-2: #1f2227;
+  --line-strong: #3a3e46;
+  --accent-hue: 255;
+  --accent-chroma: 0.13;
+  --accent: oklch(0.72 var(--accent-chroma) var(--accent-hue));
+  --accent-hover: oklch(0.8 var(--accent-chroma) var(--accent-hue));
+  --accent-ink: oklch(0.15 0.01 var(--accent-hue));
+  --accent-soft: oklch(0.22 calc(var(--accent-chroma) * 0.4) var(--accent-hue));
+  --accent-border: oklch(0.55 calc(var(--accent-chroma) * 0.6) var(--accent-hue));
+  --accent-bg: oklch(0.18 calc(var(--accent-chroma) * 0.2) var(--accent-hue));
+  --ok: oklch(0.78 0.17 152);
+  --ok-bg: #19241e;
+  --warn: oklch(0.82 0.145 78);
+  --warn-bg: #272219;
+  --err: oklch(0.72 0.16 25);
+  --err-bg: #28191a;
+  --cancel: oklch(0.78 0.12 237);
+  --mute: #6a707a;
+  --mute-bg: #1d1f23;
+  --ok-vivid: oklch(0.76 0.185 150);
+  --warn-vivid: oklch(0.8 0.15 78);
+  --err-vivid: oklch(0.66 0.2 28);
+  --cancel-vivid: oklch(0.74 0.14 237);
+  --job: oklch(0.76 0.125 292);
+  --listener: oklch(0.78 0.12 200);
+  --chip-tint: 8%;
+  --input-bg: #1f2227;
+  --code-annotate-bg: oklch(0.18 0.005 250);
+  --code-focus-bg: oklch(0.22 0.03 80);
+  --overlay-bg: rgb(0 0 0 / 0.5);
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.3);
+  --shadow-2: 0 2px 8px rgb(0 0 0 / 0.4), 0 1px 2px rgb(0 0 0 / 0.3);
+  --shadow-3: 0 8px 24px rgb(0 0 0 / 0.5), 0 2px 6px rgb(0 0 0 / 0.3);
+  /* See :root above for why --primary/--ring/--chart-5/--sidebar-primary/
+     --sidebar-ring source the brand color from --accent-hue/--accent-chroma
+     directly instead of `var(--accent)`, and why the highlight-background
+     role is exposed as `--highlight-bg` rather than redeclaring `--accent`.
+     Dark theme uses the dark brand formula (lightness 0.72 vs. light's 0.5). */
+  --primary: oklch(0.72 var(--accent-chroma) var(--accent-hue));
+  --sidebar-primary: var(--primary);
+  --sidebar-ring: var(--primary);
+}
+
+@media screen and (max-width: 768px) {
+  :root {
+    --r-lg: 10px;
+    --r-xl: 16px;
+  }
+}
+
+@layer base {
+  body {
+    font-family: var(--font-sans);
+    font-size: var(--text-body);
+    line-height: var(--text-body-leading);
+    color: var(--foreground);
+    background: var(--background);
+  }
+
+  h1 {
+    font-family: var(--font-heading);
+    font-size: var(--text-h1);
+    line-height: var(--text-h1-leading);
+    letter-spacing: var(--text-h1-tracking);
+    font-weight: var(--font-weight-normal);
+    color: var(--foreground);
+  }
+
+  h2 {
+    font-family: var(--font-sans);
+    font-size: var(--text-h2);
+    line-height: var(--text-h2-leading);
+    font-weight: var(--font-weight-semibold);
+    color: var(--foreground);
+  }
+
+  h3 {
+    font-family: var(--font-sans);
+    font-size: var(--text-h3);
+    line-height: var(--text-h3-leading);
+    font-weight: var(--font-weight-semibold);
+    color: var(--foreground);
+  }
+
+  h4 {
+    font-family: var(--font-sans);
+    font-size: var(--text-body);
+    line-height: var(--text-body-leading);
+    font-weight: var(--font-weight-medium);
+    color: var(--foreground);
+  }
+
+  code,
+  pre,
+  kbd {
+    font-family: var(--font-mono);
+    font-size: var(--text-mono-md);
+  }
+
+  code {
+    --code-pad-y: 0.1em;
+    --code-pad-x: 0.35em;
+
+    background: var(--code-background);
+    color: var(--foreground);
+    padding: var(--code-pad-y) var(--code-pad-x);
+    border-radius: var(--radius-sm);
+  }
+
+  pre {
+    background: var(--code-background);
+    color: var(--foreground);
+    padding: var(--spacing-4);
+    border-radius: var(--radius-md);
+    overflow-x: auto;
+  }
+
+  pre code {
+    background: none;
+    padding: 0;
+  }
+
+  a {
+    color: var(--primary);
+    text-decoration: none;
+  }
+
+  a:hover {
+    color: var(--primary-hover);
+    text-decoration: underline;
+  }
+
+  table td a {
+    text-decoration: underline;
+    text-decoration-color: var(--foreground-faint);
+    text-underline-offset: var(--spacing-0-5);
+  }
+
+  table td a:hover {
+    text-decoration-color: var(--primary);
+  }
+
+  strong {
+    font-weight: var(--font-weight-medium);
+  }
+
+  ::selection {
+    background: var(--primary-soft);
+    color: var(--foreground);
+  }
+
+  :where(:focus-visible) {
+    outline: var(--border-width-medium) solid var(--primary);
+    outline-offset: var(--spacing-0-5);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

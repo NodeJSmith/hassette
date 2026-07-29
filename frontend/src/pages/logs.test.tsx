@@ -1,11 +1,12 @@
-import { signal } from "@preact/signals";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createWouterMock } from "../test/mock-wouter";
 import { renderWithAppState } from "../test/render-helpers";
 import { LogsPage } from "./logs";
 
-const mockSearchSignal = signal("");
+// Plain mutable box (not a signal) — only needs to feed a mocked hook's return value.
+const mockSearchSignal = { value: "" };
 const mockNavigate = vi.fn((url: string) => {
   const qIdx = url.indexOf("?");
   mockSearchSignal.value = qIdx >= 0 ? url.slice(qIdx + 1) : "";
@@ -43,7 +44,7 @@ vi.mock("../components/shared/log-table", () => ({
     isLoading: false,
   }),
   LogTableView: () => <div data-testid="log-table-view" />,
-  LogTableWithDrawer: ({ children }: { children: preact.ComponentChildren }) => (
+  LogTableWithDrawer: ({ children }: { children: ReactNode }) => (
     <div data-testid="log-table-with-drawer">{children}</div>
   ),
 }));
@@ -65,8 +66,8 @@ describe("LogsPage", () => {
   });
 
   it("renders page heading", () => {
-    const { container } = renderWithAppState(<LogsPage />);
-    expect(container.querySelector("h1.ht-display")?.textContent).toBe("logs");
+    const { getByRole } = renderWithAppState(<LogsPage />);
+    expect(getByRole("heading", { level: 1 }).textContent).toBe("logs");
   });
 
   it("renders search input", () => {

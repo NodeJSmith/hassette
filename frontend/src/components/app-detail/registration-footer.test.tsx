@@ -1,4 +1,5 @@
-import { fireEvent, render } from "@testing-library/preact";
+import { render } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { RegistrationFooter } from "./registration-footer";
@@ -16,7 +17,8 @@ describe("RegistrationFooter", () => {
     expect(getByTestId("handler-source-location")).not.toBeNull();
   });
 
-  it("shows view-in-code button when onViewCode and sourceLocation are provided", () => {
+  it("shows view-in-code button when onViewCode and sourceLocation are provided", async () => {
+    const user = userEvent.setup();
     const onViewCode = vi.fn();
     const { getByTestId } = render(
       <RegistrationFooter
@@ -27,7 +29,7 @@ describe("RegistrationFooter", () => {
       />,
     );
     const btn = getByTestId("view-in-code-btn");
-    fireEvent.click(btn);
+    await user.click(btn);
     expect(onViewCode).toHaveBeenCalledWith(12);
   });
 
@@ -38,7 +40,8 @@ describe("RegistrationFooter", () => {
     expect(queryByTestId("view-in-code-btn")).toBeNull();
   });
 
-  it("toggles registration source visibility on button click", () => {
+  it("toggles registration source visibility on button click", async () => {
+    const user = userEvent.setup();
     const { getByTestId, queryByTestId } = render(
       <RegistrationFooter kind="job" testId="job-detail-42" registrationSource="scheduler.run_in(foo, 5)" />,
     );
@@ -46,11 +49,11 @@ describe("RegistrationFooter", () => {
     expect(toggle.textContent).toContain("show call");
     expect(queryByTestId("job-registration-source")).toBeNull();
 
-    fireEvent.click(toggle);
+    await user.click(toggle);
     expect(toggle.textContent).toContain("hide call");
     expect(getByTestId("job-registration-source")).not.toBeNull();
 
-    fireEvent.click(toggle);
+    await user.click(toggle);
     expect(toggle.textContent).toContain("show call");
     expect(queryByTestId("job-registration-source")).toBeNull();
   });

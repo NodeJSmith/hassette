@@ -1,5 +1,6 @@
+import { cn } from "@/lib/utils";
+
 import { parseSourceLocation } from "../../utils/format";
-import styles from "./source-location.module.css";
 
 interface Props {
   sourceLocation: string;
@@ -10,8 +11,8 @@ export function SourceLocation({ sourceLocation, "data-testid": testId }: Props)
   const { filename, line } = parseSourceLocation(sourceLocation);
 
   return (
-    <div class={styles.wrapper} data-testid={testId}>
-      <span class="ht-text-mono ht-text-sm ht-text-muted">
+    <div className="inline-flex items-center" data-testid={testId}>
+      <span className={cn("font-mono text-sm text-muted-foreground")}>
         {filename}
         {line ? `:${line}` : ""}
       </span>

@@ -1,44 +1,52 @@
-import { Badge } from "../shared/badge";
-import { Button } from "../shared/button";
-import { Card } from "../shared/card";
-import { Chip } from "../shared/chip";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+
 import { Spinner } from "../shared/spinner";
 import { StatusShape } from "../shared/status-shape";
-import styles from "./component-showcase.module.css";
-import s from "./section.module.css";
+import {
+  designGroupClassName,
+  designGroupLabelClassName,
+  designHeadingClassName,
+  designSectionClassName,
+} from "./design-showcase";
+
+const rowClassName = "flex flex-wrap items-center gap-2";
+const cardContentClassName =
+  "flex flex-col gap-1 p-4 font-sans text-sm text-foreground-secondary [&_strong]:text-[length:var(--text-body)] [&_strong]:font-semibold [&_strong]:text-foreground";
 
 export function ComponentShowcase() {
   return (
-    <section class={s.section}>
-      <h2 class={s.heading}>Components</h2>
+    <section className={designSectionClassName}>
+      <h2 className={designHeadingClassName}>Components</h2>
 
-      <div class={s.group}>
-        <h3 class={s.groupLabel}>Button</h3>
-        <div class={styles.row}>
+      <div className={designGroupClassName}>
+        <h3 className={designGroupLabelClassName}>Button</h3>
+        <div className={rowClassName}>
           <Button>Default</Button>
-          <Button variant="primary">Primary</Button>
+          <Button variant="default">Primary</Button>
           <Button variant="success">Success</Button>
           <Button variant="warning">Warning</Button>
           <Button variant="danger">Danger</Button>
           <Button variant="info">Info</Button>
         </div>
-        <div class={styles.row}>
+        <div className={rowClassName}>
           <Button size="sm">Small</Button>
           <Button size="xs">Extra Small</Button>
           <Button disabled>Disabled</Button>
         </div>
       </div>
 
-      <div class={s.group}>
-        <h3 class={s.groupLabel}>Badge</h3>
-        <div class={styles.row}>
+      <div className={designGroupClassName}>
+        <h3 className={designGroupLabelClassName}>Badge</h3>
+        <div className={rowClassName}>
           <Badge variant="success">Running</Badge>
           <Badge variant="warning">Degraded</Badge>
           <Badge variant="danger">Failed</Badge>
           <Badge variant="neutral">Stopped</Badge>
           <Badge variant="info">Info</Badge>
         </div>
-        <div class={styles.row}>
+        <div className={rowClassName}>
           <Badge variant="success" size="sm">
             Small
           </Badge>
@@ -51,27 +59,25 @@ export function ComponentShowcase() {
         </div>
       </div>
 
-      <div class={s.group}>
-        <h3 class={s.groupLabel}>Chip</h3>
-        <div class={styles.row}>
-          <Chip variant="listener">Listener</Chip>
-          <Chip variant="job">Job</Chip>
-          <Chip variant="kind" kind="ok">
-            Kind
-          </Chip>
-          <Chip variant="origin">Origin</Chip>
-          <Chip variant="muted">Muted</Chip>
+      <div className={designGroupClassName}>
+        <h3 className={designGroupLabelClassName}>Badge (chip variants)</h3>
+        <div className={rowClassName}>
+          <Badge variant="listener">Listener</Badge>
+          <Badge variant="job">Job</Badge>
+          <Badge variant="kind-ok">Kind</Badge>
+          <Badge variant="origin">Origin</Badge>
+          <Badge variant="muted">Muted</Badge>
         </div>
-        <div class={styles.row}>
-          <Chip variant="listener" size="sm">
+        <div className={rowClassName}>
+          <Badge variant="listener" size="sm">
             Small
-          </Chip>
+          </Badge>
         </div>
       </div>
 
-      <div class={s.group}>
-        <h3 class={s.groupLabel}>StatusShape</h3>
-        <div class={styles.row}>
+      <div className={designGroupClassName}>
+        <h3 className={designGroupLabelClassName}>StatusShape</h3>
+        <div className={rowClassName}>
           <StatusShape kind="ok" />
           <StatusShape kind="warn" />
           <StatusShape kind="err" />
@@ -80,23 +86,23 @@ export function ComponentShowcase() {
         </div>
       </div>
 
-      <div class={s.group}>
-        <h3 class={s.groupLabel}>Card</h3>
-        <div class={styles.cardGrid}>
+      <div className={designGroupClassName}>
+        <h3 className={designGroupLabelClassName}>Card</h3>
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
           <Card>
-            <div class={styles.cardContent}>
+            <div className={cardContentClassName}>
               <strong>Default</strong>
               <span>Standard card surface</span>
             </div>
           </Card>
           <Card variant="compact">
-            <div class={styles.cardContent}>
+            <div className={cardContentClassName}>
               <strong>Compact</strong>
               <span>Reduced padding</span>
             </div>
           </Card>
           <Card variant="error">
-            <div class={styles.cardContent}>
+            <div className={cardContentClassName}>
               <strong>Error</strong>
               <span>Error state card</span>
             </div>
@@ -104,9 +110,9 @@ export function ComponentShowcase() {
         </div>
       </div>
 
-      <div class={s.group}>
-        <h3 class={s.groupLabel}>Spinner</h3>
-        <div class={styles.row}>
+      <div className={designGroupClassName}>
+        <h3 className={designGroupLabelClassName}>Spinner</h3>
+        <div className={rowClassName}>
           <Spinner />
         </div>
       </div>
