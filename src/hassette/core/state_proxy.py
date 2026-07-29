@@ -72,6 +72,8 @@ class StateProxy(Resource):
         await self.bus.on_websocket_connected(handler=self.on_reconnect, name="hassette.state_proxy.on_reconnect")
         await self.bus.on_websocket_disconnected(handler=self.on_disconnect, name="hassette.state_proxy.on_disconnect")
 
+        await self._wait_for_initial_websocket_connection()
+
         # Perform initial state sync. Non-fatal: if HA is unreachable at startup, mark
         # ready with an empty cache so the dashboard still serves. get_state() returns
         # None (not ResourceNotReadyError) once is_ready() is True, even with an empty cache.
@@ -83,6 +85,14 @@ class StateProxy(Resource):
         except Exception as exc:
             self.logger.warning("Failed to perform initial state sync, starting with empty cache: %s", exc)
             mark_ready(self, reason="Started with empty state cache")
+
+    async def _wait_for_initial_websocket_connection(self) -> None:
+        websocket_service = self.hassette.websocket_service
+        timeout = websocket_service.total_timeout_seconds
+        self.logger.debug("Waiting up to %.1fs for initial WebSocket connection before state sync", timeout)
+        connected = await websocket_service.wait_connected(timeout=timeout)
+        if not connected:
+            self.logger.warning("Initial WebSocket connection did not complete within %.1fs", timeout)
 
     async def subscribe_to_events(self) -> None:
         # Cancel existing subscriptions to prevent leaks on rapid reconnect

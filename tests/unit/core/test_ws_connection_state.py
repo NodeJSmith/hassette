@@ -54,6 +54,18 @@ class TestIsConnectedPropertyMirrorsState:
         assert websocket_service.is_connected is True
 
 
+class TestWaitConnected:
+    async def test_returns_true_when_already_connected(self, websocket_service: WebsocketService) -> None:
+        websocket_service._connection_state = ConnectionState.CONNECTING
+        websocket_service.set_connection_state(ConnectionState.CONNECTED)
+        websocket_service._connected_event.set()
+
+        assert await websocket_service.wait_connected(timeout=0.01) is True
+
+    async def test_returns_false_when_timeout_expires(self, websocket_service: WebsocketService) -> None:
+        assert await websocket_service.wait_connected(timeout=0.01) is False
+
+
 class TestValidTransitionTable:
     async def test_disconnected_to_connecting(self, websocket_service: WebsocketService) -> None:
         """DISCONNECTED → CONNECTING is valid."""
