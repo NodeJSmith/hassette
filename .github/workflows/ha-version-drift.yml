@@ -61,7 +61,7 @@ jobs:
                       gh issue comment "$EXISTING" --repo "$GITHUB_REPOSITORY" \
                           --body "Still behind: pinned \`$PINNED\`, latest \`$LATEST\` (checked $(date -u +%Y-%m-%d))"
                       echo "Updated existing issue #${EXISTING}"
-                      exit 1
+                      exit 0
                   fi
 
                   # Ensure the label exists
@@ -98,5 +98,3 @@ jobs:
                   - Detected by: [ha-version-drift workflow](https://github.com/$GITHUB_REPOSITORY/actions/workflows/ha-version-drift.yml)
 
                   This issue will be updated daily until the pin is bumped, and closed automatically when versions match."
-
-                  exit 1

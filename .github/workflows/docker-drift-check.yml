@@ -1,0 +1,90 @@
+name: Docker Drift Check
+
+# Structural sibling of pypi-drift-check.yml (same compare/dedup/file-issue shape, applied
+# to GHCR instead of PyPI) and ha-version-drift.yml. Keep drift-check behavior changes
+# (dedup logic, label creation, exit semantics) in sync across all three.
+on:
+    schedule:
+        - cron: "0 12 * * *" # daily at noon UTC
+    workflow_dispatch: {}
+
+jobs:
+    check-drift:
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        permissions:
+            issues: write
+            packages: read
+        steps:
+            - name: Compare GitHub release to GHCR image tags
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  set -euo pipefail
+
+                  # Get latest GitHub release tag
+                  GITHUB_TAG=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName 2>/dev/null || echo "")
+                  if [ -z "$GITHUB_TAG" ]; then
+                      echo "No GitHub releases found, skipping"
+                      exit 0
+                  fi
+                  GITHUB_VERSION="${GITHUB_TAG#v}"
+                  EXPECTED_TAG="${GITHUB_VERSION}-py3.13"
+
+                  echo "GitHub release: v${GITHUB_VERSION}"
+                  echo "Checking GHCR for tag: ${EXPECTED_TAG}"
+
+                  # Query GHCR package versions. Uses the /users/ endpoint since this repo is
+                  # user-owned, not org-owned — if it's ever transferred to an org this needs
+                  # /orgs/ instead, and would otherwise silently no-op via the warning below.
+                  # A failure here (e.g. permission hiccup) is not evidence of drift — warn and
+                  # exit clean rather than filing a false alarm.
+                  if ! TAGS=$(gh api "/users/${GITHUB_REPOSITORY_OWNER}/packages/container/hassette/versions" \
+                      --paginate --jq '.[].metadata.container.tags[]' 2>&1); then
+                      echo "::warning::Failed to query GHCR package versions API: $TAGS"
+                      exit 0
+                  fi
+
+                  if echo "$TAGS" | grep -qx "$EXPECTED_TAG"; then
+                      echo "GHCR has ${EXPECTED_TAG} — no drift detected"
+                      exit 0
+                  fi
+
+                  echo "::error::Docker drift detected! GitHub has v${GITHUB_VERSION} but GHCR has no ${EXPECTED_TAG} image"
+
+                  # Check if an issue already exists (label-based dedup, not search-text)
+                  EXISTING=$(gh issue list --repo "$GITHUB_REPOSITORY" --label "docker-drift" --state open --json number -q '.[0].number' 2>/dev/null || echo "")
+                  if [ -n "$EXISTING" ]; then
+                      echo "Issue #${EXISTING} already open for this drift"
+                      exit 0
+                  fi
+
+                  # Ensure the label exists
+                  gh label create "docker-drift" \
+                      --repo "$GITHUB_REPOSITORY" \
+                      --description "Docker image publish is missing for the latest release" \
+                      --color "d93f0b" \
+                      2>/dev/null || true
+
+                  gh issue create --repo "$GITHUB_REPOSITORY" \
+                      --title "Docker publish drift: GitHub v${GITHUB_VERSION} missing from GHCR" \
+                      --label "type:bug" \
+                      --label "area:core" \
+                      --label "priority:high" \
+                      --label "docker-drift" \
+                      --body "## Docker Image Drift Detected
+
+                  The latest GitHub release (\`v${GITHUB_VERSION}\`) does not have a corresponding image on GHCR (expected tag \`${EXPECTED_TAG}\`).
+
+                  This likely means the Docker publish step failed or was not triggered for the latest release.
+
+                  ### Recovery
+
+                  1. Check the [Build & Publish Image workflow runs](https://github.com/${GITHUB_REPOSITORY}/actions/workflows/build_and_publish_image.yml) for failures
+                  2. Re-trigger: \`gh workflow run 'Build & Publish Image' -f tag_name=v${GITHUB_VERSION}\`
+
+                  ### Details
+
+                  - GitHub release: [v${GITHUB_VERSION}](https://github.com/${GITHUB_REPOSITORY}/releases/tag/v${GITHUB_VERSION})
+                  - GHCR: https://github.com/${GITHUB_REPOSITORY}/pkgs/container/hassette
+                  - Detected by: [docker-drift-check workflow](https://github.com/${GITHUB_REPOSITORY}/actions/workflows/docker-drift-check.yml)"

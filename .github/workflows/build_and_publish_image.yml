@@ -11,6 +11,16 @@ on:
                 description: "Release tag (e.g. v0.24.0) — passed by release-please"
                 required: true
                 type: string
+            is_release:
+                # workflow_call inherits github.event_name from the top-level caller (e.g. "push"),
+                # not "workflow_call" itself — so event_name can't distinguish a release invocation
+                # from an ordinary push. The caller must say so explicitly instead. Getting this
+                # wrong reproduces issue #1473: false on a real release silently drops the semver/
+                # latest tags (and collapses the build matrix to a single Python version); true on
+                # a non-release call publishes release tags for what should be a dev/PR build.
+                description: "Whether this call publishes a real release (semver + latest tags)"
+                required: true
+                type: boolean
     workflow_dispatch: # manual trigger
         inputs:
             tag_name:
@@ -27,24 +37,31 @@ jobs:
     build:
         runs-on: ubuntu-latest
         timeout-minutes: 60
-        # Concurrency is keyed by event_name so PR, push-to-main, and release runs
-        # never share a bucket and therefore never cancel each other. Only mutable-tag
-        # paths (pull_request, push) enable cancel-in-progress — releases must run to
-        # completion so version/latest tags are never published half-finished.
+        # Release/dispatch predicate — true for a real release build (workflow_call from
+        # release-please with is_release=true, or a manual workflow_dispatch), false for
+        # PR/push dev builds. github.event_name alone can't tell these apart: workflow_call
+        # inherits event_name from the top-level caller (e.g. "push"), not "workflow_call"
+        # itself — the root cause of issue #1473 (releases silently degraded to a single-
+        # python dev build with no semver tags). The same `inputs.is_release == true ||
+        # github.event_name == 'workflow_dispatch'` expression is repeated below in
+        # cancel-in-progress, matrix.python-version, and env.IS_RELEASE — GitHub Actions
+        # can't share an expression across those three scopes, so keep all three in sync
+        # if this predicate ever changes.
         concurrency:
             group: ${{ github.workflow }}-${{ github.event_name }}-${{ inputs.tag_name || github.event.pull_request.number || github.ref }}-${{ matrix.python-version }}
-            cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
+            # Releases must run to completion so version/latest tags are never published half-finished.
+            cancel-in-progress: ${{ !(inputs.is_release == true || github.event_name == 'workflow_dispatch') }}
         strategy:
             fail-fast: false
             matrix:
                 # PRs and main-branch pushes build only 3.13 for speed; releases build all supported versions
-                python-version: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && fromJSON('["3.13"]') || fromJSON('["3.11", "3.12", "3.13", "3.14"]') }}
+                python-version: ${{ (inputs.is_release == true || github.event_name == 'workflow_dispatch') && fromJSON('["3.11", "3.12", "3.13", "3.14"]') || fromJSON('["3.13"]') }}
         env:
             IMAGE_NAME: hassette
             REGISTRY: ghcr.io
             OWNER: ${{ github.repository_owner }}
             PYTHON_VERSION: ${{ matrix.python-version }}
-            IS_RELEASE: ${{ github.event_name == 'workflow_call' || github.event_name == 'workflow_dispatch' }}
+            IS_RELEASE: ${{ inputs.is_release == true || github.event_name == 'workflow_dispatch' }}
         steps:
             - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
               with:
