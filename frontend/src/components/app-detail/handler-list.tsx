@@ -67,7 +67,7 @@ export function HandlerList({ listeners, jobs, selectedId, onSelect }: Props) {
   return (
     <div>
       <div
-        className="overflow-hidden rounded-md border border-strong [box-shadow:var(--shadow-2)]"
+        className="overflow-hidden rounded-md border border-border [box-shadow:var(--shadow-2)]"
         data-testid="handler-list"
       >
         {items.map((item) => (

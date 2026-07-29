@@ -63,7 +63,7 @@ export function HandlerHealthCard({ item, appKey, instanceQs, tabIndex }: Handle
     <TooltipProvider>
       <div
         className={cn(
-          "flex cursor-pointer flex-col gap-2 rounded-md border border-strong bg-card p-3",
+          "flex cursor-pointer flex-col gap-2 rounded-md border border-border bg-card p-3",
           "transition-[background-color,box-shadow,opacity] [box-shadow:var(--shadow-2)] hover:bg-muted hover:[box-shadow:var(--shadow-3)]",
           "focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-0",
           failing &&

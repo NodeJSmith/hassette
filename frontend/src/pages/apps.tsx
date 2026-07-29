@@ -53,7 +53,7 @@ const SEARCH_INPUT_CLASS =
 const ALERT_CLASS =
   "flex items-start gap-3 rounded-md border border-destructive bg-[var(--destructive-bg)] px-4 py-3 text-sm text-foreground";
 const DATA_TABLE_CLASS =
-  "w-full table-fixed border-collapse bg-card [&_thead_tr]:bg-muted [&_th]:border-b [&_th]:border-border [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-mono [&_th]:text-xs [&_th]:font-medium [&_th]:uppercase [&_th]:text-muted-foreground [&_th]:whitespace-nowrap [&_td]:border-b [&_td]:border-border [&_td]:px-3 [&_td]:py-2 [&_td]:align-top [&_td]:text-[length:var(--text-small)] [&_td]:overflow-hidden [&_td]:text-ellipsis [&_tbody_tr:last-child_td]:border-b-0 [&_tbody_tr:hover]:bg-muted";
+  "w-full table-fixed border-collapse bg-card [&_thead_tr]:bg-muted [&_th]:border-b [&_th]:border-border [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-mono [&_th]:text-xs [&_th]:font-medium [&_th]:uppercase [&_th]:text-muted-foreground [&_th]:whitespace-nowrap [&_td]:border-b [&_td]:border-border [&_td]:px-3 [&_td]:py-2 [&_td]:align-middle [&_td]:text-[length:var(--text-small)] [&_td]:overflow-hidden [&_td]:text-ellipsis [&_tbody_tr:last-child_td]:border-b-0 [&_tbody_tr:hover]:bg-muted";
 
 function buildAppsCells(
   apps: AppRow[],
