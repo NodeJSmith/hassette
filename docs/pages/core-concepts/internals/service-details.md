@@ -330,7 +330,7 @@ flowchart TD
     accDescr: How the frontend connects to backend data sources
 
     subgraph browser["Browser"]
-        SPA["Preact SPA"]
+        SPA["React SPA"]
     end
 
     subgraph server["WebApiService"]
@@ -372,4 +372,4 @@ Each connected client gets its own `asyncio.Queue` of bounded size (`_WS_CLIENT_
 
 ### SPA Routing
 
-`create_fastapi_app()` mounts `/assets` and `/fonts` via `StaticFiles` for the built SPA output. A `spa_catch_all` handler covers all remaining paths: it serves root-level static files directly, returns 404 for API paths and filenames matching `_STATIC_EXTENSIONS`, and returns `index.html` for everything else. This enables client-side routing inside the Preact SPA.
+`create_fastapi_app()` mounts `/assets` and `/fonts` via `StaticFiles` for the built SPA output. A `spa_catch_all` handler covers all remaining paths: it serves root-level static files directly, returns 404 for API paths and filenames matching `_STATIC_EXTENSIONS`, and returns `index.html` for everything else. This enables client-side routing inside the React SPA.
