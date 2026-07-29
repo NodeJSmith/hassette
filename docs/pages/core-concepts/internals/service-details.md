@@ -1,6 +1,6 @@
 # System Internals: Per-Service Details
 
-Each section follows the event pipeline from a Home Assistant WebSocket frame through to a recorded execution. A top-to-bottom pass traces a single inbound event through every service it touches.
+Each section explains one service's internal mechanics and the handoffs around it. The Bus section follows an inbound Home Assistant event through dispatch; later sections focus on scheduler, state, API, database, and web-layer behavior.
 
 ## `Bus` Internals
 
@@ -30,7 +30,8 @@ flowchart TD
         match --> exec --> handler
     end
 
-    L -- "add_listener()" --> exact & glob
+    L -- "add_listener()<br/>exact topic" --> exact
+    L -- "add_listener()<br/>glob topic" --> glob
     exact & glob -- "event arrives" --> match
 
     style registration fill:#e8f0ff,stroke:#6688cc
@@ -54,7 +55,7 @@ Events with other `event_type` values expand to only the base topic.
 
 Each collected listener runs `Listener.matches(event)`. Predicates registered via `P.*` and conditions registered via `C.*` are evaluated here. Listeners whose predicate returns `False` are silently skipped. A predicate that *raises* an exception is logged, recorded as an `ExecutionRecord` with `status="error"`, and routed to the listener's `on_error` handler (or the app-level fallback). The raising listener is skipped, but sibling listeners in the same fanout are unaffected.
 
-Each passing listener spawns a [`TaskBucket`][hassette.task_bucket.task_bucket.TaskBucket] task that calls `CommandExecutor.execute()`. All matching listeners for a given event run in parallel.
+Each passing listener enters a [`TaskBucket`][hassette.task_bucket.task_bucket.TaskBucket] dispatch task. Non-duration listeners call `CommandExecutor.execute()` from that task. Duration listeners start a hold timer instead; only the later timer callback invokes the handler if the predicate still matches. Matching listener dispatch tasks for a given event are spawned independently.
 
 ### `Listener` Internal Structure
 
@@ -62,8 +63,8 @@ Each passing listener spawns a [`TaskBucket`][hassette.task_bucket.task_bucket.T
 
 | Sub-struct | Holds |
 |---|---|
-| [`ListenerIdentity`][hassette.bus.listeners.ListenerIdentity] | Ownership and telemetry fields (app key, name, topic, source location) |
-| [`ListenerOptions`][hassette.bus.listeners.ListenerOptions] | Behavioral timing parameters (debounce, throttle, once, priority, immediate) |
+| [`ListenerIdentity`][hassette.bus.listeners.ListenerIdentity] | Ownership and telemetry fields (owner ID, app key, instance index/name, listener name, handler names, source location/source, source tier) |
+| [`ListenerOptions`][hassette.bus.listeners.ListenerOptions] | Behavioral timing parameters (debounce, throttle, once, timeout, timeout disablement, priority, execution mode, backpressure) |
 | [`HandlerInvoker`][hassette.bus.listeners.HandlerInvoker] | Handler invocation, dispatch, and rate limiting |
 | [`DurationConfig`][hassette.bus.listeners.DurationConfig] | Duration-hold configuration and timer lifecycle |
 
@@ -84,8 +85,12 @@ Registration is synchronous with the database. `sub.listener.db_id` is a valid i
 | `debounce=N` | Events are buffered; the handler fires only after N seconds of quiet |
 | `throttle=N` | The handler fires immediately, then further calls are suppressed for N seconds |
 | `duration=N` | The handler fires only if the predicate still matches after N seconds |
-| `once=True` | The listener auto-cancels after the first successful invocation |
-| `priority=N` | Higher values dispatch first; [`StateProxy`][hassette.core.state_proxy.StateProxy] uses priority 100 |
+| `once=True` | The listener auto-cancels after the first invocation attempt, even if the handler raises |
+| Bus priority | Higher `Bus.priority` values dispatch first; [`StateProxy`][hassette.core.state_proxy.StateProxy] creates its internal `Bus` with priority 100 |
+| `timeout=N` | Overrides the global handler timeout for this listener |
+| `timeout_disabled=True` | Disables timeout enforcement for this listener |
+| `mode=...` | Controls overlapping invocations for the same listener: `single`, `restart`, `queued`, or `parallel` |
+| `backpressure=...` | Controls behavior when the global dispatch concurrency limit is saturated: `block` or `drop_newest` |
 
 ## `Scheduler` Internals
 
@@ -128,7 +133,7 @@ flowchart TD
 2. Spawns a `TaskBucket` task for each due job via [`CommandExecutor`][hassette.core.command_executor.CommandExecutor].
 3. Sleeps until the next job's `fire_at` time, clamped between `min_delay` and `max_delay`.
 
-When no jobs are queued, the loop sleeps for `default_delay` seconds. The `kick()` method interrupts the sleep immediately. It fires when a new job is registered with an earlier run time than the current sleep target.
+When no jobs are queued, the loop sleeps for `default_delay` seconds. The `kick()` method interrupts the sleep immediately. It fires whenever a job is enqueued and when a queued job is removed, so schedule changes are noticed without waiting for the previous sleep target.
 
 ### Trigger-to-Job Translation
 
@@ -145,11 +150,11 @@ When no jobs are queued, the loop sleeps for `default_delay` seconds. The `kick(
 
 ### Missed-Job Handling
 
-`SchedulerService` does not make up missed executions. A job whose dispatch time (`fire_at`) passed during a shutdown or restart fires once on the next `pop_due_and_peek_next` call, not multiple times for the skipped interval. `Every` triggers call `advance_past(now)` to advance `next_run` past the current time, so the job schedules forward from now rather than from its originally missed time.
+`SchedulerService` does not make up missed executions while it is running. A job whose dispatch time (`fire_at`) passed while the scheduler loop was blocked or paused in-process fires once on the next `pop_due_and_peek_next` call, not multiple times for the skipped interval. Scheduled jobs live in the in-memory heap and are not rehydrated from telemetry after a process restart. `Every` triggers call `advance_past(now)` to advance `next_run` past the current time, so the job schedules forward from now rather than from its originally missed time.
 
 ### Jitter and Job Groups
 
-`jitter=N` adds a random offset drawn from `[0, N]` seconds at enqueue time. Jobs in the same group share a `group=` label. `Scheduler.cancel_group(name)` cancels all jobs with that label. Named jobs (`name=`) support deduplication: `if_exists="skip"` leaves the existing job in place; `if_exists="replace"` cancels the existing job and re-registers.
+`jitter=N` adds a random offset drawn from `[0, N]` seconds at enqueue time. Jobs in the same group share a `group=` label. `Scheduler.cancel_group(name)` cancels all jobs with that label. Named jobs (`name=`) support deduplication: `if_exists="skip"` returns the existing job only when the new registration matches its configuration; a changed configuration raises `ValueError`. `if_exists="replace"` cancels the existing job and re-registers.
 
 ## `StateManager` and `StateProxy`
 
@@ -162,7 +167,7 @@ flowchart TD
 
     subgraph sources["Cache Population"]
         bus_sub["Bus subscription<br/>(priority 100)"]
-        poll["Periodic poll<br/>(run_every)"]
+        poll["Periodic poll<br/>(optional run_every)"]
     end
 
     subgraph proxy["StateProxy"]
@@ -193,11 +198,11 @@ flowchart TD
 
 ### Cache Population
 
-`StateProxy` declares `depends_on: [WebsocketService, ApiResource, BusService, SchedulerService]`. Once all four dependencies are ready, `on_initialize()` runs two setup steps.
+`StateProxy` declares `depends_on: [ApiResource, BusService, SchedulerService]`. WebSocket lifecycle readiness is decoupled from the initial Home Assistant connection, so `StateProxy` waits separately for the first connection attempt before its initial cache load.
 
 First, `subscribe_to_events()` registers a bus subscription on `Topic.HASS_EVENT_STATE_CHANGED` at priority 100. Priority 100 means `StateProxy`'s handler updates the cache before any user handler sees the event. App handlers always observe current state.
 
-Second, `load_cache()` bulk-fetches all entity states via `get_states_raw()` and populates the `states` dict. A periodic `run_every` job re-runs `load_cache()` at `state_proxy_poll_interval_seconds` intervals to recover from any missed events.
+Second, `load_cache()` bulk-fetches all entity states via `get_states_raw()` and populates the `states` dict. Unless `disable_state_proxy_polling` is set, a periodic `run_every` job re-runs `load_cache()` at `state_proxy_poll_interval_seconds` intervals to recover from any missed events.
 
 ### Lock-Free Reads
 
@@ -205,13 +210,13 @@ Second, `load_cache()` bulk-fetches all entity states via `get_states_raw()` and
 
 ### Type Conversion and `context_id` Caching
 
-[`DomainStates`][hassette.state_manager.state_manager.DomainStates] wraps a `StateProxy` and a model class. On each entity access, `DomainStates._validate_or_return_from_cache()` extracts the `context_id` from the raw state dict (a UUID from Home Assistant's event context). If the `context_id` matches the cached `CacheValue`, the previously validated Pydantic model is returned without re-running validation. A new `context_id` triggers a full validation pass and replaces the cached entry.
+[`DomainStates`][hassette.state_manager.state_manager.DomainStates] wraps a `StateProxy` and a model class. On each entity access, `DomainStates._validate_or_return_from_cache()` extracts the `context_id` from the raw state dict (a UUID from Home Assistant's event context). If the `context_id` matches the cached `CacheValue`, the previously validated Pydantic model is returned without re-running validation. If there is no useful `context_id`, the cache can also be reused when the deep-frozen raw state is unchanged. A new context or changed raw state triggers a full validation pass and replaces the cached entry.
 
 `StateManager.__getattr__` caches `DomainStates` instances by model class in `_domain_states_cache`. Accessing `self.states.light` multiple times returns the same `DomainStates` object.
 
 ### Disconnect and Reconnect
 
-On WebSocket disconnect, `StateProxy` clears `self.states` and calls `mark_not_ready()`. State reads during this window raise [`ResourceNotReadyError`][hassette.exceptions.ResourceNotReadyError]. On reconnect, `load_cache()` bulk-reloads all states, then `subscribe_to_events()` re-registers the bus subscription. `mark_ready()` then unblocks any waiters.
+On WebSocket disconnect, `StateProxy` cancels the state-change subscription, calls `mark_not_ready()`, and intentionally retains `self.states`. State reads continue returning stale cached data while disconnected; [`ResourceNotReadyError`][hassette.exceptions.ResourceNotReadyError] is reserved for cold-start reads when the proxy is not ready and the cache is empty. On reconnect, `load_cache()` bulk-reloads all states, then `subscribe_to_events()` re-registers the bus subscription. `mark_ready()` then unblocks any waiters.
 
 ## Api Internals
 
@@ -254,6 +259,7 @@ flowchart TD
 | `get_state_raw(entity_id)` | REST | `GET /api/states/{id}` |
 | `get_states()` | WebSocket | `get_states` command |
 | `call_service()` | WebSocket | `call_service` command |
+| `set_state()` | REST | `POST /api/states/{id}` |
 | `fire_event()` | WebSocket | `fire_event` command |
 | `ws_send_and_wait()` | WebSocket | Raw message, blocks for result |
 | `ws_send_json()` | WebSocket | Raw message, fire-and-forget |
@@ -275,17 +281,19 @@ flowchart TD
 
 ### Schema
 
-The database has five tables:
+The database has seven tables:
 
 | Table | Purpose |
 |---|---|
 | `sessions` | One row per Hassette process run; tracks start/stop time and error info |
 | `listeners` | One row per registered bus listener; natural key `(app_key, instance_index, name, topic)` |
 | `scheduled_jobs` | One row per registered scheduler job; natural key `(app_key, instance_index, job_name)` |
-| `executions` | One row per handler invocation or job execution; unified with `kind` discriminator |
+| `executions` | Handler/job execution outcomes, including predicate failures and skipped scheduler predicates; unified with `kind` discriminator |
 | `log_records` | Captured log lines with `execution_id` linkage |
+| `blocking_events` | Detected blocking-event records from watchdog and monkeypatch tiers |
+| `app_manifests` | Persisted app manifest metadata for dashboard and seed-database workflows |
 
-`executions` stores one row per handler invocation or job execution. The `kind` column holds `'handler'` or `'job'`. `listener_id` and `job_id` are nullable foreign keys into `listeners` and `scheduled_jobs` respectively. A `CHECK` constraint enforces that exactly one is non-null per row: `CHECK ((listener_id IS NOT NULL) + (job_id IS NOT NULL) = 1)`.
+`executions` stores one row per handler or job execution outcome. Most rows correspond to actual handler/job invocations, but the table also records pre-invocation outcomes such as predicate failures and scheduler predicates that return `False` (`status='skipped'`). The `kind` column holds `'handler'` or `'job'`. `listener_id` and `job_id` are nullable foreign keys into `listeners` and `scheduled_jobs` respectively. A `CHECK` constraint enforces that exactly one is non-null per row: `CHECK ((listener_id IS NOT NULL) + (job_id IS NOT NULL) = 1)`.
 
 Six views (`active_listeners`, `active_app_listeners`, `active_framework_listeners`, and their scheduled-job equivalents) pre-filter retired registrations.
 
@@ -300,7 +308,7 @@ On a fresh database (`user_version = 0`), the runner sets `auto_vacuum = INCREME
 | On-disk version | Code action |
 |---|---|
 | Matches expected head | No action |
-| Older than expected head | Log warning, delete database, allow migrations to recreate |
+| Older than expected head | Log info, keep database, allow pending migrations to apply incrementally |
 | `0` on existing file | Treat as unversioned legacy schema, delete and recreate |
 | Newer than expected head | Raise [`SchemaVersionError`][hassette.exceptions.SchemaVersionError]; manual intervention required |
 
@@ -308,7 +316,7 @@ On a fresh database (`user_version = 0`), the runner sets `auto_vacuum = INCREME
 
 ### Write Pipeline
 
-`DatabaseService` serializes all writes through an `asyncio.Queue` drained by a single background `db_write_worker()` task. Callers submit a coroutine to `DatabaseService.submit()` or place a raw item via `enqueue()`. The worker processes items one at a time. Each item is a `(coroutine, future)` pair; when a future is present, the result or exception is delivered through it.
+`DatabaseService` serializes all writes through an `asyncio.Queue` drained by a single background `db_write_worker()` task. Callers submit a coroutine to `DatabaseService.submit()` and await its result, or submit a fire-and-forget coroutine via `enqueue()`. The worker processes queue items one at a time. Internally, each item is a `(coroutine, future)` pair; when a future is present, the result or exception is delivered through it.
 
 A dedicated read connection (`_read_db`) runs with `PRAGMA query_only = ON` and a 5-second busy timeout. Read queries never contend with the write worker.
 
@@ -340,7 +348,7 @@ flowchart TD
     end
 
     subgraph data["Data Sources"]
-        RQS["RuntimeQueryService<br/><i>live state, event buffer,<br/>WS broadcast</i>"]
+        RQS["RuntimeQueryService<br/><i>live state,<br/>WS broadcast</i>"]
         TQS["TelemetryQueryService<br/><i>SQLite: listeners, jobs,<br/>errors, sessions</i>"]
     end
 
@@ -362,7 +370,7 @@ When `config.web_api.run` is `False`, `serve()` blocks on `shutdown_event.wait()
 
 ### RuntimeQueryService
 
-`RuntimeQueryService` subscribes to bus events on initialization and maintains a bounded in-memory event buffer. On each WebSocket-push-worthy event (state changes, app status changes, execution completions), `buffer_and_broadcast()` appends to the buffer and fans out to all registered WebSocket clients.
+`RuntimeQueryService` subscribes to bus events on initialization and broadcasts WebSocket-push-worthy events as they arrive. State changes, app status changes, service status changes, connectivity events, and batched execution completions are serialized by `build_and_broadcast()` or `broadcast()` and fanned out to all registered WebSocket clients. It also wires the logging capture handler to the same broadcast path so live log records can stream to the UI.
 
 Each connected client gets its own `asyncio.Queue` of bounded size (`_WS_CLIENT_QUEUE_MAX`). A slow client that exhausts its queue causes its frames to be dropped with a rate-limited log line. Clients register via `register_ws_client()` and deregister via `unregister_ws_client()`.
 
