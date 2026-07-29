@@ -1,4 +1,7 @@
-from hassette import TYPE_REGISTRY
+from hassette import App
 
-# Convert a value
-result = TYPE_REGISTRY.convert("42", int)  # Returns 42 as int
+
+class ConversionApp(App):
+    async def on_initialize(self):
+        # Convert a value
+        result = self.type_registry.convert("42", int)  # Returns 42 as int
