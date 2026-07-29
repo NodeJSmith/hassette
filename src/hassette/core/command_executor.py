@@ -142,8 +142,8 @@ class CommandExecutor(Service):
     _last_capacity_warn_ts: float
     """Monotonic timestamp of the last 75%-capacity warning (rate-limiting)."""
 
-    _last_unowned_warn_ts: float
-    """Monotonic timestamp of the last empty-app_key completion warning (rate-limiting)."""
+    _last_unowned_warn_ts: float | None
+    """Monotonic timestamp of the last empty-app_key completion warning, or None before first warning."""
 
     _timeout_warn_timestamps: dict[int, float]
     """Per-entity timeout warning rate limiter.
@@ -174,7 +174,7 @@ class CommandExecutor(Service):
         self._dropped_shutdown = 0
         self._error_handler_failures = 0
         self._last_capacity_warn_ts = 0.0
-        self._last_unowned_warn_ts = 0.0
+        self._last_unowned_warn_ts = None
         self._timeout_warn_timestamps = {}
 
     @property
@@ -993,7 +993,10 @@ class CommandExecutor(Service):
             unowned = sum(1 for r in app_records if not r.app_key)
             if unowned:
                 now = time.monotonic()
-                if now - self._last_unowned_warn_ts >= _UNOWNED_WARN_RATE_LIMIT_SECS:
+                if (
+                    self._last_unowned_warn_ts is None
+                    or now - self._last_unowned_warn_ts >= _UNOWNED_WARN_RATE_LIMIT_SECS
+                ):
                     self._last_unowned_warn_ts = now
                     self.logger.warning(
                         "Emitting %d app-tier completion event(s) with empty app_key — telemetry will be unattributed",

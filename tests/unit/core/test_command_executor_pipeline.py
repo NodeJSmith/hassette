@@ -21,7 +21,7 @@ import aiosqlite
 
 from hassette.commands import InvokeHandler
 from hassette.core.block_io_guard import MonkeypatchEvent
-from hassette.core.command_executor import _UNOWNED_WARN_RATE_LIMIT_SECS, CommandExecutor, RetryableBatch
+from hassette.core.command_executor import CommandExecutor, RetryableBatch
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.telemetry.repository import TelemetryRepository
 from hassette.test_utils.factories import make_execution_record
@@ -76,7 +76,7 @@ def init_executor(queue_max: int = 10) -> CommandExecutor:
     executor._dropped_shutdown = 0
     executor._error_handler_failures = 0
     executor._last_capacity_warn_ts = 0.0
-    executor._last_unowned_warn_ts = 0.0
+    executor._last_unowned_warn_ts = None
     executor._timeout_warn_timestamps = {}
     executor.repository = MagicMock()
     executor.repository.persist_batch = MagicMock()
@@ -745,7 +745,7 @@ def test_record_blocking_event_swallows_uninitialized_db() -> None:
     executor.hassette.database_service.enqueue.assert_called_once()
 
 
-async def test_emit_completion_events_no_warning_for_owned_records():
+async def test_emit_completion_events_no_warning_for_owned_records() -> None:
     """Normal app-tier records with a populated app_key never trigger the empty-app_key warning."""
     executor = init_executor()
     executor.hassette.send_event = AsyncMock()
@@ -753,11 +753,11 @@ async def test_emit_completion_events_no_warning_for_owned_records():
     owned = make_execution_record(app_key="my_app", source_tier="app")
     await CommandExecutor.emit_completion_events(executor, [owned])
 
-    executor.logger.warning.assert_not_called()
+    assert executor._last_unowned_warn_ts is None
     executor.hassette.send_event.assert_awaited_once()
 
 
-async def test_emit_completion_events_no_warning_for_framework_tier_empty_app_key():
+async def test_emit_completion_events_no_warning_for_framework_tier_empty_app_key() -> None:
     """Framework-tier records legitimately carry an empty app_key — not the starvation window
     this warning guards against, so it must not fire.
     """
@@ -767,10 +767,10 @@ async def test_emit_completion_events_no_warning_for_framework_tier_empty_app_ke
     framework_record = make_execution_record(app_key="", source_tier="framework")
     await CommandExecutor.emit_completion_events(executor, [framework_record])
 
-    executor.logger.warning.assert_not_called()
+    assert executor._last_unowned_warn_ts is None
 
 
-async def test_emit_completion_events_warns_on_empty_app_key():
+async def test_emit_completion_events_warns_on_empty_app_key() -> None:
     """An app-tier record with empty app_key (registration meta-miss, e.g. an app reload
     racing the completion event) logs a WARNING.
     """
@@ -778,13 +778,13 @@ async def test_emit_completion_events_warns_on_empty_app_key():
     executor.hassette.send_event = AsyncMock()
 
     unowned = make_execution_record(app_key="", source_tier="app")
-    await CommandExecutor.emit_completion_events(executor, [unowned])
+    with patch("hassette.core.command_executor.time.monotonic", return_value=1.0):
+        await CommandExecutor.emit_completion_events(executor, [unowned])
 
-    executor.logger.warning.assert_called_once()
-    assert "empty app_key" in executor.logger.warning.call_args[0][0]
+    assert executor._last_unowned_warn_ts == 1.0
 
 
-async def test_emit_completion_events_unowned_warning_rate_limited():
+async def test_emit_completion_events_unowned_warning_rate_limited() -> None:
     """Repeated empty-app_key batches within the suppression window log only once."""
     executor = init_executor()
     executor.hassette.send_event = AsyncMock()
@@ -795,20 +795,22 @@ async def test_emit_completion_events_unowned_warning_rate_limited():
         await CommandExecutor.emit_completion_events(executor, [unowned])  # suppressed
         await CommandExecutor.emit_completion_events(executor, [unowned])  # still suppressed
 
-    assert executor.logger.warning.call_count == 1
+    assert executor._last_unowned_warn_ts == 100.0
 
 
-async def test_emit_completion_events_unowned_warning_fires_after_rate_limit_window():
+async def test_emit_completion_events_unowned_warning_fires_after_rate_limit_window() -> None:
     """A second empty-app_key batch after the suppression window elapses logs again."""
     executor = init_executor()
     executor.hassette.send_event = AsyncMock()
     unowned = make_execution_record(app_key="", source_tier="app")
 
-    with patch(
-        "hassette.core.command_executor.time.monotonic",
-        side_effect=[100.0, 100.0 + _UNOWNED_WARN_RATE_LIMIT_SECS + 1.0],
-    ):
+    with patch("hassette.core.command_executor.time.monotonic", side_effect=[100.0, 129.999, 130.0]):
         await CommandExecutor.emit_completion_events(executor, [unowned])
+        assert executor._last_unowned_warn_ts == 100.0
+
+        await CommandExecutor.emit_completion_events(executor, [unowned])
+        assert executor._last_unowned_warn_ts == 100.0
+
         await CommandExecutor.emit_completion_events(executor, [unowned])
 
-    assert executor.logger.warning.call_count == 2
+    assert executor._last_unowned_warn_ts == 130.0
