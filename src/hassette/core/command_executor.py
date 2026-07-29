@@ -45,6 +45,7 @@ if typing.TYPE_CHECKING:
 _MAX_RETRY_COUNT = 3
 _CAPACITY_WARN_THRESHOLD = 0.75
 _CAPACITY_WARN_RATE_LIMIT_SECS = 30.0
+_UNOWNED_WARN_RATE_LIMIT_SECS = 30.0
 _TIMEOUT_WARN_SUPPRESS_SECS = 60.0
 _TIMEOUT_WARN_CACHE_MAX = 1000
 _BATCH_DRAIN_CAP = 100
@@ -141,6 +142,9 @@ class CommandExecutor(Service):
     _last_capacity_warn_ts: float
     """Monotonic timestamp of the last 75%-capacity warning (rate-limiting)."""
 
+    _last_unowned_warn_ts: float | None
+    """Monotonic timestamp of the last empty-app_key completion warning, or None before first warning."""
+
     _timeout_warn_timestamps: dict[int, float]
     """Per-entity timeout warning rate limiter.
 
@@ -170,6 +174,7 @@ class CommandExecutor(Service):
         self._dropped_shutdown = 0
         self._error_handler_failures = 0
         self._last_capacity_warn_ts = 0.0
+        self._last_unowned_warn_ts = None
         self._timeout_warn_timestamps = {}
 
     @property
@@ -982,13 +987,21 @@ class CommandExecutor(Service):
         try:
             app_records = [r for r in records if r.source_tier == "app"]
             # Regression guard: an app-tier completion should always carry an owner.
-            # An empty app_key means registration misfired.
+            # An empty app_key means registration misfired (e.g. an app reload racing
+            # the meta lookup). Rate-limited since a sustained storm would otherwise
+            # log once per drain tick.
             unowned = sum(1 for r in app_records if not r.app_key)
             if unowned:
-                self.logger.warning(
-                    "Emitting %d app-tier completion event(s) with empty app_key — telemetry will be unattributed",
-                    unowned,
-                )
+                now = time.monotonic()
+                if (
+                    self._last_unowned_warn_ts is None
+                    or now - self._last_unowned_warn_ts >= _UNOWNED_WARN_RATE_LIMIT_SECS
+                ):
+                    self._last_unowned_warn_ts = now
+                    self.logger.warning(
+                        "Emitting %d app-tier completion event(s) with empty app_key — telemetry will be unattributed",
+                        unowned,
+                    )
             for record in app_records:
                 exec_event = HassetteExecutionCompletedEvent.from_record(
                     kind=record.kind,
