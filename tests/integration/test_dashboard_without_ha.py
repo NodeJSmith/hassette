@@ -188,7 +188,9 @@ class TestInitialStateSyncBeforeApps:
             connection_attempted.set()
             await release_connection.wait()
             hassette.websocket_service.set_connection_state(ConnectionState.CONNECTED)
+            await hassette.websocket_service.send_connection_established_event()
             hassette.websocket_service._connected_event.set()  # pyright: ignore[reportPrivateUsage]  # coordinator-internal
+            hassette.websocket_service._first_connection_attempt_done_event.set()  # pyright: ignore[reportPrivateUsage]  # coordinator-internal
             await keep_ws_alive.wait()
 
         async def load_states() -> list[dict]:
@@ -222,6 +224,7 @@ class TestInitialStateSyncBeforeApps:
                 desc="state-reading app ready",
             )
             await asyncio.wait_for(load_cache_entered.wait(), timeout=1)
+            hassette.api.get_states_raw.assert_awaited_once()
 
             app = hassette.app_handler.registry.get("state_reader", 0)
             assert app is not None

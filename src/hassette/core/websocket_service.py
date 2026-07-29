@@ -230,7 +230,7 @@ class WebsocketService(Service):
         return self._connection_state == ConnectionState.CONNECTED
 
     async def wait_connected(self, *, timeout: float | None = None) -> bool:
-        """Wait until the Home Assistant WebSocket reaches CONNECTED.
+        """Wait until the Home Assistant WebSocket is connected and subscribed.
 
         Resource readiness only means this service is running and attempting to connect;
         callers that need HA data should wait on the connection state explicitly.

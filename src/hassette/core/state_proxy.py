@@ -43,6 +43,7 @@ class StateProxy(Resource):
     scheduler: Scheduler
     state_change_sub: "Subscription | None"
     poll_job: "ScheduledJob | None"
+    _initialized: bool
 
     def __init__(self, hassette: "Hassette", *, parent: Resource | None = None) -> None:
         super().__init__(hassette, parent=parent)
@@ -53,6 +54,7 @@ class StateProxy(Resource):
         self.scheduler = self.add_child(Scheduler)
         self.state_change_sub = None
         self.poll_job = None
+        self._initialized = False
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
@@ -85,6 +87,8 @@ class StateProxy(Resource):
         except Exception as exc:
             self.logger.warning("Failed to perform initial state sync, starting with empty cache: %s", exc)
             mark_ready(self, reason="Started with empty state cache")
+
+        self._initialized = True
 
     async def _wait_for_initial_websocket_connection(self) -> None:
         websocket_service = self.hassette.websocket_service
@@ -124,6 +128,7 @@ class StateProxy(Resource):
 
     async def on_shutdown(self) -> None:
         """Shutdown the state proxy and clean up resources."""
+        self._initialized = False
         mark_not_ready(self, reason="Shutting down")
         # Null out subscription/job references to guard against on_disconnect() race.
         self.poll_job = None
@@ -318,6 +323,10 @@ class StateProxy(Resource):
         Serialized via _reconnect_lock to prevent duplicate subscriptions
         when WebSocket flaps rapidly (#993).
         """
+        if not self._initialized:
+            self.logger.debug("Ignoring WebSocket connected event during initial state sync")
+            return
+
         async with self._reconnect_lock:
             self.logger.info("WebSocket reconnected, performing state resync")
 
