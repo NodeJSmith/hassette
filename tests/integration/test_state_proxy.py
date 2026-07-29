@@ -132,6 +132,67 @@ class TestStateProxyInit:
 
         assert proxy.get_state("light.nonexistent") is None
 
+    async def test_initial_sync_waits_for_first_websocket_connection(self, state_proxy: "StateProxy") -> None:
+        """StateProxy does not race app startup by loading an empty cache before first HA connection."""
+        entered_wait = asyncio.Event()
+        release_wait = asyncio.Event()
+
+        async def blocked_wait_initial_connection(*, timeout: float | None = None) -> bool:
+            assert timeout == 1.0
+            entered_wait.set()
+            await release_wait.wait()
+            return True
+
+        websocket_service = state_proxy.hassette.websocket_service
+        websocket_service.is_connected = False
+        websocket_service.has_ever_connected = False
+        websocket_service.total_timeout_seconds = 1.0
+        websocket_service.wait_initial_connection = AsyncMock(side_effect=blocked_wait_initial_connection)
+
+        state_proxy.load_cache = AsyncMock()  # pyright: ignore[reportMethodAssign]
+        mark_not_ready(state_proxy, reason="test setup")
+
+        init_task = asyncio.create_task(state_proxy.on_initialize())
+        await asyncio.wait_for(entered_wait.wait(), timeout=1)
+
+        state_proxy.load_cache.assert_not_awaited()
+
+        release_wait.set()
+        await init_task
+
+        websocket_service.wait_initial_connection.assert_awaited_once()
+        state_proxy.load_cache.assert_awaited_once()
+
+    async def test_initial_connected_event_does_not_double_sync(self, state_proxy: "StateProxy") -> None:
+        """The startup sync path owns the first load even if the real connected event is dispatched."""
+        wait_entered = asyncio.Event()
+        release_wait = asyncio.Event()
+
+        async def blocked_wait_initial_connection(*, timeout: float | None = None) -> bool:
+            assert timeout == 1.0
+            wait_entered.set()
+            await release_wait.wait()
+            return True
+
+        websocket_service = state_proxy.hassette.websocket_service
+        websocket_service.total_timeout_seconds = 1.0
+        websocket_service.wait_initial_connection = AsyncMock(side_effect=blocked_wait_initial_connection)
+        state_proxy.load_cache = AsyncMock()  # pyright: ignore[reportMethodAssign]
+        state_proxy._initialized = False  # pyright: ignore[reportPrivateUsage]  # coordinator-internal
+        mark_not_ready(state_proxy, reason="test setup")
+
+        init_task = asyncio.create_task(state_proxy.on_initialize())
+        await asyncio.wait_for(wait_entered.wait(), timeout=1)
+
+        await state_proxy.on_reconnect()
+        await asyncio.sleep(0)
+        state_proxy.load_cache.assert_not_awaited()
+
+        release_wait.set()
+        await init_task
+
+        state_proxy.load_cache.assert_awaited_once()
+
 
 @pytest.fixture
 def state_proxy():
@@ -149,6 +210,7 @@ def state_proxy():
 
     proxy = StateProxy(mock_hassette, parent=mock_hassette)
     mark_ready(proxy, reason="Test setup")
+    proxy._initialized = True  # pyright: ignore[reportPrivateUsage]  # coordinator-internal
     return proxy
 
 

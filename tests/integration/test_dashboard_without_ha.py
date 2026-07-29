@@ -16,15 +16,29 @@ from collections.abc import AsyncIterator, Callable
 from pathlib import Path
 from unittest.mock import AsyncMock
 
+import pytest
 from httpx2 import ASGITransport, AsyncClient, Response
 
 from hassette import Hassette
-from hassette.test_utils import wait_for
+from hassette.test_utils import make_light_state_dict, wait_for
 from hassette.test_utils.helpers import cleanup_hassette_streams
+from hassette.types.enums import ConnectionState
 from hassette.web.app import create_fastapi_app
 
 WEBAPI_READY_TIMEOUT = 10.0
 HEALTH_ENDPOINT = "/api/health"
+STATE_READER_APP = """
+from hassette import App, AppConfig
+
+
+class StateReaderConfig(AppConfig):
+    test_entity: str = "light.office"
+
+
+class StateReaderApp(App[StateReaderConfig]):
+    async def on_initialize(self) -> None:
+        self.states.light[self.app_config.test_entity]
+""".strip()
 
 
 async def _get_health(hassette: Hassette) -> Response:
@@ -53,6 +67,7 @@ async def _running_hassette_without_ha(
     config = TestConfig(
         data_dir=tmp_path / "data",
         web_api={"run": True, "port": unused_tcp_port_factory()},
+        websocket={"total_timeout_seconds": 1},
         apps={
             "directory": TEST_APPS_PATH,
             "autodetect": False,
@@ -128,3 +143,96 @@ class TestDashboardWithoutHA:
             body = response.json()
             assert body["status"] == "starting"
             assert body["websocket_connected"] is False
+
+
+class TestInitialStateSyncBeforeApps:
+    async def test_app_bootstrap_waits_for_first_websocket_connection_and_state_sync(
+        self, tmp_path: Path, unused_tcp_port_factory: Callable[[], int]
+    ) -> None:
+        """Apps that read startup state must not initialize against the optional-HA empty cold cache."""
+        # lazy-import: a module-level import makes pytest try to collect TestConfig as a test class
+        from tests.conftest import TestConfig
+
+        app_dir = tmp_path / "apps"
+        app_dir.mkdir()
+        (app_dir / "state_reader.py").write_text(STATE_READER_APP, encoding="utf-8")
+
+        config = TestConfig(
+            data_dir=tmp_path / "data",
+            web_api={"run": True, "port": unused_tcp_port_factory()},
+            websocket={"total_timeout_seconds": 2},
+            apps={
+                "directory": app_dir,
+                "autodetect": False,
+                "apps": {
+                    "state_reader": {
+                        "filename": "state_reader.py",
+                        "class_name": "StateReaderApp",
+                        "config": {"instance_name": "state_reader", "test_entity": "light.office"},
+                    },
+                },
+            },
+        )
+
+        hassette = Hassette(config)
+        hassette.wire_services()
+
+        connection_attempted = asyncio.Event()
+        release_connection = asyncio.Event()
+        keep_ws_alive = asyncio.Event()
+        state_proxy_subscribed = asyncio.Event()
+        load_cache_entered = asyncio.Event()
+
+        async def delayed_serve() -> None:
+            hassette.websocket_service.set_connection_state(ConnectionState.CONNECTING)
+            connection_attempted.set()
+            await release_connection.wait()
+            hassette.websocket_service.set_connection_state(ConnectionState.CONNECTED)
+            await hassette.websocket_service.send_connection_established_event()
+            hassette.websocket_service._connected_event.set()  # pyright: ignore[reportPrivateUsage]  # coordinator-internal
+            hassette.websocket_service._first_connection_attempt_done_event.set()  # pyright: ignore[reportPrivateUsage]  # coordinator-internal
+            await keep_ws_alive.wait()
+
+        async def load_states() -> list[dict]:
+            load_cache_entered.set()
+            return [make_light_state_dict("light.office", "on")]
+
+        hassette.websocket_service.serve = delayed_serve  # pyright: ignore[reportAttributeAccessIssue]
+        hassette.api.get_states_raw = AsyncMock(side_effect=load_states)
+        original_subscribe_to_events = hassette.state_proxy.subscribe_to_events
+
+        async def tracked_subscribe_to_events() -> None:
+            await original_subscribe_to_events()
+            state_proxy_subscribed.set()
+
+        hassette.state_proxy.subscribe_to_events = tracked_subscribe_to_events  # pyright: ignore[reportAttributeAccessIssue]
+
+        run_task = asyncio.create_task(hassette.run_forever())
+        try:
+            await asyncio.wait_for(connection_attempted.wait(), timeout=1)
+            await asyncio.wait_for(state_proxy_subscribed.wait(), timeout=1)
+
+            with pytest.raises(TimeoutError):
+                await asyncio.wait_for(load_cache_entered.wait(), timeout=1)
+            assert hassette.app_handler.registry.get("state_reader", 0) is None
+
+            release_connection.set()
+
+            await wait_for(
+                lambda: ((app := hassette.app_handler.registry.get("state_reader", 0)) is not None and app.is_ready()),
+                timeout=WEBAPI_READY_TIMEOUT,
+                desc="state-reading app ready",
+            )
+            await asyncio.wait_for(load_cache_entered.wait(), timeout=1)
+            hassette.api.get_states_raw.assert_awaited_once()
+
+            app = hassette.app_handler.registry.get("state_reader", 0)
+            assert app is not None
+            assert app.is_ready()
+        finally:
+            hassette.shutdown_event.set()
+            release_connection.set()
+            keep_ws_alive.set()
+            with contextlib.suppress(Exception):
+                await asyncio.wait_for(run_task, timeout=WEBAPI_READY_TIMEOUT)
+            await cleanup_hassette_streams(hassette)
