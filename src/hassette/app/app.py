@@ -9,6 +9,7 @@ from hassette.api import Api
 from hassette.bus import Bus
 from hassette.cache import AsyncCache, CacheProtocol
 from hassette.config.classes import AppManifest
+from hassette.conversion import StateRegistry, TypeRegistry
 from hassette.resources.base import FinalMeta, Resource
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
@@ -48,6 +49,8 @@ _APP_PUBLIC_API: frozenset[str] = frozenset(
         "cache_key",
         "is_ready",
         "wait_ready",
+        "state_registry",
+        "type_registry",
     }
 )
 """App-author API allowlist — see design/specs/010-lifecycle-extraction/design.md.
@@ -205,6 +208,16 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         if self.app_manifest and self.app_manifest.cache_key:
             return self.app_manifest.cache_key
         return f"{self.app_key}/{self.index}"
+
+    @property
+    def state_registry(self) -> StateRegistry:
+        """State registry for managing state class registrations and conversions."""
+        return self.hassette.state_registry
+
+    @property
+    def type_registry(self) -> TypeRegistry:
+        """Type registry for managing state value type conversions."""
+        return self.hassette.type_registry
 
     def now(self) -> ZonedDateTime:
         """Return the current date and time."""

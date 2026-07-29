@@ -7,7 +7,7 @@
 
 ## Problem
 
-App inherits ~54 public names from Resource and LifecycleMixin. Only ~20 are app-author API; the remaining ~34 are framework plumbing — lifecycle state machines, child-resource wiring, readiness signaling, task bucket registration. These names appear in IDE autocomplete, create a false impression of stable API surface, and risk app authors calling sequence-unsafe methods that corrupt lifecycle state. Before the 1.0 API freeze, the public surface must reflect only what app authors should use.
+App inherits ~54 public names from Resource and LifecycleMixin. Only a curated subset is app-author API; the remaining names are framework plumbing — lifecycle state machines, child-resource wiring, readiness signaling, task bucket registration. These names appear in IDE autocomplete, create a false impression of stable API surface, and risk app authors calling sequence-unsafe methods that corrupt lifecycle state. Before the 1.0 API freeze, the public surface must reflect only what app authors should use.
 
 ## Goals
 
@@ -55,7 +55,7 @@ App inherits ~54 public names from Resource and LifecycleMixin. Only ~20 are app
 - **FR#1** All 11 lifecycle state-transition methods (`handle_failed`, `handle_crash`, `handle_stop`, `handle_starting`, `handle_running`, `create_service_status_event`, `mark_ready`, `mark_not_ready`, `request_shutdown`, `start`, `cancel`) are module-level functions in `src/hassette/resources/lifecycle.py`, not methods on any class.
 - **FR#2** Five structural-operation methods (`start_children_and_wait`, `restart`, `register_task_bucket_factory`, `run_hooks`, `ordered_children_for_shutdown`) are module-level functions in `src/hassette/resources/operations.py`, not methods on any class. The current method names `_run_hooks` and `_ordered_children_for_shutdown` drop the underscore prefix — they are no longer private methods on a class.
 - **FR#8** `add_child` remains a method on Resource (used by `App.__init__` for child construction) but is excluded from `dir(app_instance)`.
-- **FR#3** `dir()` on an App instance returns only the app-author API names: `logger`, `api`, `scheduler`, `bus`, `states`, `app_config`, `instance_name`, `unique_name`, `index`, `now`, `on_initialize`, `on_shutdown`, `before_initialize`, `after_initialize`, `before_shutdown`, `after_shutdown`, `task_bucket`, `cache`, `is_ready`, `wait_ready`. `dir()` on an AppSync instance returns the same 20 names plus the 6 sync hooks: `before_initialize_sync`, `on_initialize_sync`, `after_initialize_sync`, `before_shutdown_sync`, `on_shutdown_sync`, `after_shutdown_sync`.
+- **FR#3** `dir()` on an App instance returns only the app-author API names: `logger`, `api`, `scheduler`, `bus`, `states`, `state_registry`, `type_registry`, `app_config`, `instance_name`, `unique_name`, `index`, `now`, `on_initialize`, `on_shutdown`, `before_initialize`, `after_initialize`, `before_shutdown`, `after_shutdown`, `task_bucket`, `cache`, `cache_key`, `is_ready`, `wait_ready`. `dir()` on an AppSync instance returns the same 23 names plus the 6 sync hooks: `before_initialize_sync`, `on_initialize_sync`, `after_initialize_sync`, `before_shutdown_sync`, `on_shutdown_sync`, `after_shutdown_sync`.
 - **FR#4** All framework call sites in `src/` that previously called `self.method()` or `instance.method()` for extracted methods now call the module-level function with the resource as the first argument.
 - **FR#5** The `_LifecycleHostP` Protocol in `mixins.py` no longer requires `create_service_status_event` as a method — it is removed from the Protocol since the free function accesses the resource's attributes directly.
 - **FR#6** A test asserts that `set(dir(app_instance))` matches the declared app-author API allowlist, catching future regressions.
@@ -122,7 +122,8 @@ The `_LifecycleHostP` Protocol stays in `mixins.py` but is imported by `lifecycl
 
 ```python
 _APP_PUBLIC_API: frozenset[str] = frozenset({
-    "logger", "api", "scheduler", "bus", "states", "app_config",
+    "logger", "api", "scheduler", "bus", "states",
+    "state_registry", "type_registry", "app_config",
     "instance_name", "unique_name", "index", "now",
     "on_initialize", "on_shutdown",
     "before_initialize", "after_initialize",

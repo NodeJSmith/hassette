@@ -2,7 +2,7 @@
 
 Home Assistant sends state data as untyped dicts with string values. Two registries cooperate to produce typed Python objects: the [`StateRegistry`][hassette.conversion.state_registry.StateRegistry] maps domains to state classes, and the [`TypeRegistry`][hassette.conversion.type_registry.TypeRegistry] converts string values to typed Python values. This conversion runs automatically whenever a handler receives state via [dependency injection](../bus/dependency-injection.md) — the mechanism that fills in handler parameters like `D.StateNew[T]` from the event. Most apps benefit from it without touching either registry directly.
 
-The registries become relevant when overriding domain mappings, registering custom converters, or debugging unexpected types.
+The registries become relevant when overriding domain mappings, registering custom converters, or debugging unexpected types. `self.state_registry` and `self.type_registry` reach the same registry instances from any `App`. App code uses those instance properties. `STATE_REGISTRY` and `TYPE_REGISTRY` stay available as top-level imports for use outside an app, such as in tests or data scripts.
 
 ## The Conversion Pipeline
 
@@ -80,14 +80,15 @@ effect at class definition time.
 
 !!! warning
     The registry replaces the previous mapping silently and globally — a typo in the
-    `Literal` domain overrides a built-in with no warning. Use
-    `STATE_REGISTRY.resolve(domain="sensor")` to confirm which class is registered.
+    `Literal` domain overrides a built-in with no warning.
+    `self.state_registry.resolve(domain="sensor")` confirms which class is registered.
 
 All subsequent state events for `sensor` entities produce `CustomSensorState` instances.
 
 For classes that can't declare a `Literal` domain — built dynamically, or registered conditionally at runtime — [`register_state_converter`][hassette.conversion.register_state_converter] registers a class with the registry explicitly. It is the imperative equivalent of the `Literal`-based auto-registration.
 
-`STATE_REGISTRY` is available as a top-level import for direct access outside an app:
+`self.state_registry` reaches the same registry from any `App`. `STATE_REGISTRY` is also
+available as a top-level import for direct access outside an app:
 `from hassette import STATE_REGISTRY`.
 
 ### Union Type Support
@@ -286,7 +287,9 @@ Custom error messages with `{value}` make failures easier to diagnose:
 
 ## Inspection and Debugging
 
-`TYPE_REGISTRY` and `STATE_REGISTRY` are both available as top-level imports.
+`self.type_registry` and `self.state_registry` reach the registries from any `App`.
+`TYPE_REGISTRY` and `STATE_REGISTRY` are also available as top-level imports, for use
+outside an app.
 
 **List all registered value converters:**
 
@@ -311,7 +314,7 @@ is a `TypeConverterEntry` with `func`, `from_type`, `to_type`, `error_types`, an
 `error_message` fields.
 
 !!! tip "Unexpected state type at runtime?"
-    `STATE_REGISTRY.resolve(domain="the_domain")` confirms which class is registered.
+    `self.state_registry.resolve(domain="the_domain")` confirms which class is registered.
     If a custom class override does not take effect, import order is the likely cause.
     The override class must be imported after the module that defines the original.
 
