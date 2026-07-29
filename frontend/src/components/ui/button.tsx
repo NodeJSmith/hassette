@@ -13,15 +13,18 @@ const buttonVariants = cva(
         destructive:
           "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:bg-destructive/60 dark:focus-visible:ring-destructive/40",
         outline:
-          "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
+          "border border-border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "border border-transparent hover:bg-muted",
         link: "text-primary underline-offset-4 hover:underline",
         // Solid semantic variants — bordered, colored text, tinted hover.
-        success: "border border-[var(--ok)] text-[var(--ok)] bg-transparent hover:bg-[var(--ok-bg)]",
-        warning: "border border-[var(--warn)] text-[var(--warn)] bg-transparent hover:bg-[var(--warn-bg)]",
+        success:
+          "border border-[color:color-mix(in_srgb,var(--status-success)_45%,transparent)] text-[var(--status-success)] bg-transparent hover:bg-[var(--status-success-bg)]",
+        warning:
+          "border border-[color:color-mix(in_srgb,var(--status-warning)_45%,transparent)] text-[var(--status-warning)] bg-transparent hover:bg-[var(--status-warning-bg)]",
         info: "border border-border text-primary bg-transparent hover:bg-muted hover:text-primary",
-        danger: "border border-destructive text-destructive bg-transparent hover:bg-destructive/10",
+        danger:
+          "border border-[color:color-mix(in_srgb,var(--destructive)_45%,transparent)] text-destructive bg-transparent hover:bg-destructive/10",
         // Ghost + semantic color combos — transparent at rest, tinted hover, no border.
         // Preserves the original hand-rolled Button's `.ghost.success` etc. combinations
         // (icon-only action buttons in action-buttons.tsx and registration-footer.tsx),
