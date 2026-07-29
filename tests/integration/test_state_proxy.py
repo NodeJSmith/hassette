@@ -137,7 +137,7 @@ class TestStateProxyInit:
         entered_wait = asyncio.Event()
         release_wait = asyncio.Event()
 
-        async def blocked_wait_connected(*, timeout: float | None = None) -> bool:
+        async def blocked_wait_initial_connection(*, timeout: float | None = None) -> bool:
             assert timeout == 1.0
             entered_wait.set()
             await release_wait.wait()
@@ -147,7 +147,7 @@ class TestStateProxyInit:
         websocket_service.is_connected = False
         websocket_service.has_ever_connected = False
         websocket_service.total_timeout_seconds = 1.0
-        websocket_service.wait_connected = AsyncMock(side_effect=blocked_wait_connected)
+        websocket_service.wait_initial_connection = AsyncMock(side_effect=blocked_wait_initial_connection)
 
         state_proxy.load_cache = AsyncMock()  # pyright: ignore[reportMethodAssign]
         mark_not_ready(state_proxy, reason="test setup")
@@ -160,7 +160,7 @@ class TestStateProxyInit:
         release_wait.set()
         await init_task
 
-        websocket_service.wait_connected.assert_awaited_once()
+        websocket_service.wait_initial_connection.assert_awaited_once()
         state_proxy.load_cache.assert_awaited_once()
 
 

@@ -90,7 +90,7 @@ class StateProxy(Resource):
         websocket_service = self.hassette.websocket_service
         timeout = websocket_service.total_timeout_seconds
         self.logger.debug("Waiting up to %.1fs for initial WebSocket connection before state sync", timeout)
-        connected = await websocket_service.wait_connected(timeout=timeout)
+        connected = await websocket_service.wait_initial_connection(timeout=timeout)
         if not connected:
             self.logger.warning("Initial WebSocket connection did not complete within %.1fs", timeout)
 

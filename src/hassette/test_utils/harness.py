@@ -637,6 +637,7 @@ class HassetteHarness:
             self.hassette._websocket_service.has_ever_connected = True
             self.hassette._websocket_service.total_timeout_seconds = 1
             self.hassette._websocket_service.wait_connected = AsyncMock(return_value=True)
+            self.hassette._websocket_service.wait_initial_connection = AsyncMock(return_value=True)
 
         if not self.hassette._api:
             self.hassette._api = AsyncMock()
@@ -789,6 +790,7 @@ class HassetteHarness:
         self.hassette._websocket_service.has_ever_connected = True
         self.hassette._websocket_service.total_timeout_seconds = 1
         self.hassette._websocket_service.wait_connected = AsyncMock(return_value=True)
+        self.hassette._websocket_service.wait_initial_connection = AsyncMock(return_value=True)
 
     async def _start_api_mock(self) -> None:
         if not self.api_base_url:
@@ -812,6 +814,7 @@ class HassetteHarness:
         self.hassette._websocket_service.has_ever_connected = True
         self.hassette._websocket_service.total_timeout_seconds = 1
         self.hassette._websocket_service.wait_connected = AsyncMock(return_value=True)
+        self.hassette._websocket_service.wait_initial_connection = AsyncMock(return_value=True)
 
         self.hassette._api_service = self.hassette.add_child(
             ApiResource,

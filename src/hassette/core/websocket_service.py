@@ -128,6 +128,7 @@ class WebsocketService(Service):
         self._subscription_ids = set()
         self._connect_lock = asyncio.Lock()
         self._connected_event = asyncio.Event()
+        self._first_connection_attempt_done_event = asyncio.Event()
         self._connected_at = None
         self._connection_state: ConnectionState = ConnectionState.DISCONNECTED
         self._ever_connected: bool = False
@@ -241,6 +242,32 @@ class WebsocketService(Service):
         except TimeoutError:
             return False
         return self.is_connected
+
+    async def wait_initial_connection(self, *, timeout: float | None = None) -> bool:
+        """Wait for initial connection success, or the first failed connection attempt.
+
+        This lets startup state sync avoid racing ahead of the WebSocket connection attempt
+        without blocking optional-HA startup until the full retry budget is exhausted.
+        """
+        if self.is_connected and self._connected_event.is_set():
+            return True
+        if self._first_connection_attempt_done_event.is_set():
+            return False
+
+        connected_task = asyncio.create_task(self._connected_event.wait())
+        attempt_done_task = asyncio.create_task(self._first_connection_attempt_done_event.wait())
+        try:
+            done, _pending = await asyncio.wait(
+                {connected_task, attempt_done_task}, timeout=timeout, return_when=asyncio.FIRST_COMPLETED
+            )
+        finally:
+            for task in (connected_task, attempt_done_task):
+                if not task.done():
+                    task.cancel()
+
+        if not done:
+            return False
+        return self.is_connected and self._connected_event.is_set()
 
     def get_next_message_id(self) -> int:
         """Get the next message ID."""
@@ -388,6 +415,7 @@ class WebsocketService(Service):
         self._subscription_ids.add(await self.subscribe_events())
 
         self._connected_event.set()
+        self._first_connection_attempt_done_event.set()
 
         mark_ready(self, reason="WebSocket connected, authenticated, and subscribed")
         await self._emit_readiness_event()
@@ -450,8 +478,12 @@ class WebsocketService(Service):
         )
         async def _inner_connect() -> asyncio.Task:
             await self.partial_cleanup()
-            await self.connect_ws(session)
-            return await self.start_recv_and_subscribe()
+            try:
+                await self.connect_ws(session)
+                return await self.start_recv_and_subscribe()
+            except Exception:
+                self._first_connection_attempt_done_event.set()
+                raise
 
         return await _inner_connect()
 
