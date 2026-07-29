@@ -342,18 +342,43 @@ class Hassette(Resource):
     def get_error_handler_failures(self) -> int:
         return self.command_executor.get_error_handler_failures()
 
-    def get_log_records_dropped(self) -> int:
-        """Return the number of log records dropped by the persistence handler.
+    def get_log_queue_drops(self) -> int:
+        """Return the number of log records dropped because the log queue was full.
 
-        Records are dropped when the persistence handler has not yet been initialized
-        or when the DB write queue is full.
+        Drops here mean ``logging.log_queue_max`` is too small for the current log volume.
+        These records reached no handler at all, so they are missing from console output and
+        the live log buffer as well as the database.
 
         Returns:
             Cumulative count of dropped log records since process start.
         """
         if self._logging_service is None:
             return 0
-        return self._logging_service.dropped_count
+        return self._logging_service.log_queue_drops
+
+    def get_db_write_queue_drops(self) -> int:
+        """Return the number of log records dropped because the DB write queue was full.
+
+        Drops here mean ``database.write_queue_max`` is too small, or the persistence handler's
+        queue was unavailable or closed. The records reached the persistence handler but were never
+        written.
+
+        Returns:
+            Cumulative count of dropped log records since process start.
+        """
+        if self._logging_service is None:
+            return 0
+        return self._logging_service.db_write_queue_drops
+
+    def is_log_persistence_active(self) -> bool:
+        """Return whether log records are currently being persisted to the database.
+
+        False before the logging service is wired, when its persistence handler failed to
+        be created, and after the logging pipeline has shut down.
+        """
+        if self._logging_service is None:
+            return False
+        return self._logging_service.persistence_active
 
     @property
     def database_service(self) -> DatabaseService:

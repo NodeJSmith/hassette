@@ -290,12 +290,12 @@ class TestRuntimeQueryServiceWiring:
         assert handler._db_service is mock_db_service  # pyright: ignore[reportPrivateUsage]
         assert handler._loop is loop  # pyright: ignore[reportPrivateUsage]
 
-    async def test_persistence_handler_dropped_count_starts_at_zero(self) -> None:
-        """LogPersistenceHandler.dropped_count starts at 0 after construction."""
+    async def test_persistence_handler_db_write_queue_drops_starts_at_zero(self) -> None:
+        """LogPersistenceHandler.db_write_queue_drops starts at 0 after construction."""
         mock_db_service = MagicMock()
         loop = asyncio.get_running_loop()
         handler = LogPersistenceHandler(mock_db_service, loop, persistence_level=20)
-        assert handler.dropped_count == 0
+        assert handler.db_write_queue_drops == 0
 
     async def test_persistence_handler_enqueues_records_on_flush(self) -> None:
         """Records are enqueued to db_service when flushed."""
@@ -347,5 +347,5 @@ class TestRuntimeQueryServiceWiring:
         handler.flush_if_pending()
 
         # No enqueue because it was filtered before accumulation
-        assert handler.dropped_count == 0
+        assert handler.db_write_queue_drops == 0
         assert handler._batch == []  # pyright: ignore[reportPrivateUsage]

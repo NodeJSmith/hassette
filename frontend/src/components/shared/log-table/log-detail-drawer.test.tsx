@@ -10,8 +10,11 @@ import { COPY_CONFIRM_MS } from "./constants";
 import { LogDetailDrawer } from "./log-detail-drawer";
 import { rowKey } from "./types";
 
+let viewportWidth = 1280;
+
 vi.mock("@/hooks/use-media-query", () => ({
-  useMediaQuery: () => false,
+  // Matches the real hook's inclusive (max-width: Npx) semantics.
+  useMediaQuery: (breakpoint: number) => viewportWidth <= breakpoint,
   BREAKPOINT_MOBILE: 768,
   BREAKPOINT_TABLET: 1024,
 }));
@@ -59,6 +62,7 @@ function renderDrawer(
 describe("LogDetailDrawer", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    viewportWidth = 1280;
   });
 
   describe("click outside to close", () => {
@@ -125,6 +129,60 @@ describe("LogDetailDrawer", () => {
       expect(drawer!.textContent).toContain("on_ready()");
       expect(drawer!.textContent).toContain("my_app");
       expect(drawer!.textContent).toContain("test message");
+    });
+
+    it("keeps the desktop drawer inside the app content frame", () => {
+      const { getByTestId } = renderDrawer();
+      const drawer = getByTestId("log-detail-drawer");
+
+      expect(drawer.className).toContain("top-2");
+      expect(drawer.className).toContain("bottom-2");
+      expect(drawer.className).toContain("right-2");
+      expect(drawer.className).toContain("z-[var(--z-drawer-layer)]");
+      expect(drawer.className).not.toContain("top-0");
+      expect(drawer.className).not.toContain("h-screen");
+    });
+
+    it("uses the drawer stacking tokens for the mobile drawer and backdrop", () => {
+      // The tokens derive from --z-status-bar in global.css, which is what
+      // keeps the modal drawer above the sticky chrome at runtime.
+      viewportWidth = 390;
+      const { getByTestId, container } = renderDrawer();
+      const drawer = getByTestId("log-detail-drawer");
+      const overlay = container.ownerDocument.querySelector('[data-slot="drawer-overlay"]');
+
+      expect(drawer.className).toContain("z-[var(--z-drawer-layer)]");
+      expect(overlay?.className).toContain("z-[var(--z-drawer-backdrop)]");
+    });
+
+    it("allows long execution metadata to shrink inside the drawer", () => {
+      const entry = makeEntry({
+        execution_id: "019faadc-30e9-7a12-bd2f-fd4ebeadb57e",
+        execution_kind: "job",
+        job_id: 7,
+      });
+      const { getByTestId } = renderDrawer({ entries: [entry] });
+      const executionLink = getByTestId("log-detail-drawer").querySelector('a[href*="/exec/"]');
+
+      expect(executionLink).not.toBeNull();
+      expect(executionLink?.className).toContain("min-w-0");
+      expect(executionLink?.className).toContain("truncate");
+      expect(executionLink?.getAttribute("title")).toBe(entry.execution_id);
+    });
+
+    it("truncates non-link execution IDs the same way", () => {
+      // No execution_kind/job_id/listener_id → logEntryExecutionHref returns
+      // null → ExecutionIdLink falls back to the muted span.
+      const entry = makeEntry({ execution_id: "019faadc-30e9-7a12-bd2f-fd4ebeadb57e" });
+      const { getByTestId } = renderDrawer({ entries: [entry] });
+      const drawer = getByTestId("log-detail-drawer");
+      const link = drawer.querySelector('a[href*="/exec/"]');
+      const muted = drawer.querySelector('span[title="019faadc-30e9-7a12-bd2f-fd4ebeadb57e"]');
+
+      expect(link).toBeNull();
+      expect(muted).not.toBeNull();
+      expect(muted?.className).toContain("min-w-0");
+      expect(muted?.className).toContain("truncate");
     });
 
     it("shows exception section when exc_info is present", () => {

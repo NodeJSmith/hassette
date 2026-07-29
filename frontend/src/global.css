@@ -182,9 +182,11 @@
   --z-table-head: 1;
   --z-tooltip: 15;
   --z-sidebar: 30;
-  --z-drawer-bg: 55;
-  --z-drawer: 60;
   --z-status-bar: 65;
+  /* Drawers float above the sticky chrome; keep them derived from the status
+     bar so the layering relationship can't drift. */
+  --z-drawer-bg: calc(var(--z-status-bar) + 1);
+  --z-drawer: calc(var(--z-status-bar) + 2);
   --z-dialog: 100;
   --z-palette-bg: 200;
   --z-palette: 201;

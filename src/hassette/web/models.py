@@ -76,7 +76,14 @@ class SystemStatusResponse(BaseModel):
     services: Annotated[list[ServiceInfoResponse], CliFormat("services")] = Field(default_factory=list)
     version: str = ""
     boot_issues: list[BootIssueResponse] = Field(default_factory=list)
-    log_records_dropped: int = 0
+    log_queue_drops: int = 0
+    """Log records dropped because the log queue was full — tune ``logging.log_queue_max``."""
+
+    db_write_queue_drops: int = 0
+    """Log records dropped because the DB write queue was full, unavailable, or closed."""
+
+    log_persistence_active: bool = False
+    """False means log persistence is unavailable — ``db_write_queue_drops`` of 0 is not health."""
 
 
 class LivenessResponse(BaseModel):

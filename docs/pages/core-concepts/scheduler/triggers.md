@@ -2,10 +2,10 @@
 
 A trigger determines when a scheduled job fires. Each built-in scheduling method creates a trigger internally. `schedule()` accepts a trigger directly for patterns the convenience methods do not cover.
 
-All five built-in trigger types and [`TriggerProtocol`][hassette.types.types.TriggerProtocol] are importable from `hassette.scheduler`:
+All six built-in trigger types and [`TriggerProtocol`][hassette.types.types.TriggerProtocol] are importable from `hassette.scheduler`:
 
 ```python
-from hassette.scheduler import After, Once, Every, Daily, Cron, TriggerProtocol
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_trigger_imports.py"
 ```
 
 ## Built-in Triggers
@@ -17,6 +17,7 @@ from hassette.scheduler import After, Once, Every, Daily, Cron, TriggerProtocol
 | `Every(seconds=N)` | Repeatedly on a fixed interval | No |
 | `Daily(at="HH:MM")` | Once per day at a wall-clock time (DST-safe) | No |
 | `Cron("expr")` | On a cron schedule (5- or 6-field) | No |
+| `EntityTime("sensor.x")` | At a time read from an entity, rescheduling when it changes | No |
 
 `After` also accepts `minutes=` or a `whenever.TimeDelta` via `timedelta=` — `After(minutes=5)` reads better than `After(seconds=300)`. `Every` accepts an optional `start=` anchor (a `ZonedDateTime` from the [`whenever`](https://whenever.readthedocs.io/) library, which ships with Hassette): with `Every(minutes=15, start=anchor)`, runs align to the anchor's minute marks (`:00`, `:15`, `:30`, `:45`) instead of starting from registration time.
 
@@ -34,6 +35,50 @@ Each convenience method on the scheduler maps to one trigger:
 | `run_cron(func, expr)` | `Cron(expr)` |
 
 Triggers are passed to `schedule()` when the convenience methods do not fit. See [Scheduling Methods](methods.md) for the full method reference.
+
+`EntityTime` has no convenience method — it is only available through `schedule()`.
+
+## Entity-Driven Times
+
+`EntityTime` reads its fire time from a Home Assistant entity. The scheduler moves the job whenever that entity changes. Phone alarms, `input_datetime` helpers, and `sun.sun` attributes all name moving times. `EntityTime` follows those times without app-level cancel-and-reschedule code.
+
+```python
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_entity_time.py:alarm"
+```
+
+The job fires when `sensor.phone_next_alarm` says it should. An earlier alarm moves the job earlier.
+
+| Parameter | Effect |
+|---|---|
+| `entity_id` | The entity holding the time. Required. |
+| `attribute` | Read the time from this attribute instead of the entity's state. |
+| `offset` | A `TimeDelta` (`from whenever import TimeDelta`) shifting the fire time. Negative values fire early. |
+| `daily` | Keep only the time of day and fire at it every day. |
+
+`offset` covers the common "before the alarm" case. `daily=True` turns one absolute moment into a recurring wall-clock schedule:
+
+```python
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_entity_time.py:offset_daily"
+```
+
+That job fires 30 minutes before the configured routine time each day. Without `daily=True`, the trigger fires once at the entity's absolute date and time. It then waits until the entity names a new time.
+
+`attribute=` reaches times that live outside an entity's state:
+
+```python
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_entity_time.py:attribute"
+```
+
+`EntityTime` parses the value shapes Home Assistant uses for times. It accepts offset-aware ISO strings, naive ISO date-times, time-only strings, and unix timestamps. Naive and time-only values are read in the configured timezone.
+
+### When the entity has no time
+
+An entity can be unavailable, report `unknown`, or hold a non-time value. A phone with no alarm set does exactly this. The job stays registered and has nowhere to fire. Hassette parks it at a time it will never reach. The entity's next change puts it back on a real schedule.
+
+The parking time is in the year 9999. [`hassette job`](../../cli/commands.md#hassette-job) and the web UI render relative next runs. A parked job therefore reads as millions of days away. An absurd next run means the entity currently names no time.
+
+!!! warning "Entity-driven times still use the configured timezone"
+    A time-only or naive value uses the configured timezone, like `Daily(at="07:00")`. A container defaulting to UTC can disagree with Home Assistant's local zone. That mismatch makes jobs fire at the wrong hour.
 
 ## Custom Triggers
 

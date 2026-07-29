@@ -228,7 +228,7 @@ class SchedulerServiceProtocol(Protocol):
     """Protocol for the scheduler-service surface consumed by Scheduler.
 
     Describes the surface Scheduler calls on its scheduler_service: the
-    ``task_bucket`` attribute plus six async/sync methods. SchedulerService
+    ``task_bucket`` attribute plus seven async/sync methods. SchedulerService
     satisfies this protocol structurally — no changes to the concrete class
     are required.
     """
@@ -238,6 +238,8 @@ class SchedulerServiceProtocol(Protocol):
     async def add_job(self, job: "ScheduledJob") -> None: ...
 
     def dequeue_job(self, job: "ScheduledJob") -> bool: ...
+
+    async def reschedule_job(self, job: "ScheduledJob", next_run: "ZonedDateTime") -> None: ...
 
     def register_removal_callback(self, owner_id: str, callback: "Callable[[ScheduledJob], None]") -> None: ...
 

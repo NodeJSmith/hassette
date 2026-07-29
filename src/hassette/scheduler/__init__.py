@@ -13,12 +13,14 @@ from .classes import ScheduledJob
 from .error_context import SchedulerErrorContext
 from .scheduler import Scheduler
 from .sync import SchedulerSyncFacade
-from .triggers import After, Cron, Daily, Every, Once
+from .triggers import NO_OCCURRENCE, After, Cron, Daily, EntityTime, Every, Once
 
 __all__ = [
+    "NO_OCCURRENCE",
     "After",
     "Cron",
     "Daily",
+    "EntityTime",
     "Every",
     "Once",
     "ScheduledJob",

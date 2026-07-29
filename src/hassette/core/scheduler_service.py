@@ -113,6 +113,32 @@ class SchedulerService(Service):
         await self._job_queue.add(job)
         self.kick()
 
+    async def reschedule_job(self, job: "ScheduledJob", next_run: ZonedDateTime) -> None:
+        """Move a queued job to a new fire time without deregistering it.
+
+        Unlike ``dequeue_job``/``_remove_job``, no removal callbacks fire and the job keeps
+        its ``db_id`` — it stays a registered job that simply moves to a different slot in
+        the heap. Used by ``Scheduler`` when an entity-driven trigger's source entity changes.
+
+        If the job was already popped for dispatch, stores the new time on the job so
+        ``dispatch_and_log`` can consume it before consulting the trigger. Re-pushing it here
+        would put the same job on the heap twice and fire it twice.
+
+        Args:
+            job: The job to move.
+            next_run: The new logical fire time.
+        """
+        if job._dequeued:
+            return
+        if not await self._job_queue.remove_job(job):
+            job._pending_next_run = next_run
+            self.logger.debug("Job %s not on heap; stored pending reschedule to %s", job, next_run)
+            return
+
+        job.set_next_run(next_run)
+        await self.enqueue_job(job)
+        self.logger.debug("Rescheduled job %s to %s", job, job.next_run)
+
     async def _remove_jobs_by_owner(self, owner: str) -> None:
         """Remove all jobs for an owner and wake the scheduler if necessary."""
         removed = await self._job_queue.remove_owner(owner)
@@ -171,7 +197,10 @@ class SchedulerService(Service):
         """
         if job.jitter is not None:
             offset = random.uniform(0, job.jitter)
-            jittered_time = job.next_run.add(seconds=offset)
+            try:
+                jittered_time = job.next_run.add(seconds=offset)
+            except ValueError:
+                jittered_time = job.next_run
             job.fire_at = jittered_time
             job.sort_index = (jittered_time.timestamp_nanos(), id(job))
             self.logger.debug(
@@ -329,7 +358,11 @@ class SchedulerService(Service):
         remove_after_fire = False
         if job.trigger is not None:
             try:
-                next_run = job.trigger.next_run_time(job.next_run, date_utils.now())
+                if job._pending_next_run is not None:
+                    next_run = job._pending_next_run
+                    job._pending_next_run = None
+                else:
+                    next_run = job.trigger.next_run_time(job.next_run, date_utils.now())
             except Exception:
                 self.logger.exception(
                     "dispatch_and_log: trigger raised for db_id=%s callable=%s trigger=%r — "
@@ -361,6 +394,10 @@ class SchedulerService(Service):
                 # The in-lock _dequeued re-check inside _job_queue.add guards
                 # against a cancel landing between here and the push.
                 await self.enqueue_job(job)
+                if job._pending_next_run is not None:
+                    pending_next_run = job._pending_next_run
+                    job._pending_next_run = None
+                    await self.reschedule_job(job, pending_next_run)
             elif not remove_after_fire:
                 # next_run_time() returned None (trigger exhausted) — remove after fire.
                 remove_after_fire = True

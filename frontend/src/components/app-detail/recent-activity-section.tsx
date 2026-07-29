@@ -149,30 +149,34 @@ export function RecentActivitySection({
           no recent activity
         </p>
       ) : (
-        <table
-          className={cn(
-            DATA_TABLE_CLASS,
-            "[&_td]:align-middle [&_td]:font-mono [&_td]:text-[length:var(--text-mono-sm)] [&_td]:text-foreground-secondary",
-          )}
-        >
-          <thead>
-            <tr>
-              <th className="w-7" scope="col"></th>
-              <th scope="col">Handler</th>
-              <th className="whitespace-nowrap text-right text-muted-foreground" scope="col">
-                Duration
-              </th>
-              <th className="whitespace-nowrap text-right text-muted-foreground" scope="col">
-                Time
-              </th>
-            </tr>
-          </thead>
-          <tbody aria-live="polite" aria-atomic="false">
-            {groups.map((group) => (
-              <ActivityGroupRow key={group.key} group={group} />
-            ))}
-          </tbody>
-        </table>
+        // The nowrap duration/time columns can exceed the content width on
+        // mobile — scroll the table locally instead of the whole main column.
+        <div className="overflow-x-auto" data-testid="overview-activity-scroll">
+          <table
+            className={cn(
+              DATA_TABLE_CLASS,
+              "[&_td]:align-middle [&_td]:font-mono [&_td]:text-[length:var(--text-mono-sm)] [&_td]:text-foreground-secondary",
+            )}
+          >
+            <thead>
+              <tr>
+                <th className="w-7" scope="col"></th>
+                <th scope="col">Handler</th>
+                <th className="whitespace-nowrap text-right text-muted-foreground" scope="col">
+                  Duration
+                </th>
+                <th className="whitespace-nowrap text-right text-muted-foreground" scope="col">
+                  Time
+                </th>
+              </tr>
+            </thead>
+            <tbody aria-live="polite" aria-atomic="false">
+              {groups.map((group) => (
+                <ActivityGroupRow key={group.key} group={group} />
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   );

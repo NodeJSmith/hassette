@@ -73,13 +73,21 @@ function mergeServices(
   });
 }
 
-function buildDiagCells(services: MergedService[], bootIssueCount: number, totalDrops: number): StatsStripCell[] {
+function buildDiagCells(
+  services: MergedService[],
+  bootIssueCount: number,
+  telemetryDrops: number,
+  logQueueDrops: number,
+  dbWriteQueueDrops: number,
+): StatsStripCell[] {
   const running = services.filter((s) => s.status === "running").length;
   return [
     { label: "services", value: services.length },
     { label: "running", value: running, tone: running === services.length ? "ok" : "warn" },
     { label: "boot issues", value: bootIssueCount, tone: bootIssueCount > 0 ? "err" : undefined },
-    { label: "drops", value: totalDrops, tone: totalDrops > 0 ? "warn" : undefined },
+    { label: "telemetry drops", value: telemetryDrops, tone: telemetryDrops > 0 ? "warn" : undefined },
+    { label: "log queue drops", value: logQueueDrops, tone: logQueueDrops > 0 ? "warn" : undefined },
+    { label: "DB write drops", value: dbWriteQueueDrops, tone: dbWriteQueueDrops > 0 ? "warn" : undefined },
   ];
 }
 
@@ -314,6 +322,45 @@ function TelemetryPanel({
   );
 }
 
+interface LoggingPanelProps {
+  logQueueDrops: number;
+  dbWriteQueueDrops: number;
+  logPersistenceInactive: boolean;
+}
+
+/** Log records drop at one of two independent queues; each row names the bound to raise. */
+function LoggingPanel({ logQueueDrops, dbWriteQueueDrops, logPersistenceInactive }: LoggingPanelProps) {
+  return (
+    <section
+      className={cn(cardVariants({ variant: "default" }), "flex flex-col gap-3")}
+      aria-label="Logging health"
+      data-testid="diag-logging-panel"
+    >
+      <h2 className="m-0 font-sans text-[length:var(--text-h2)] font-semibold leading-[var(--text-h2-leading)] text-foreground">
+        logging health
+      </h2>
+      {logPersistenceInactive && (
+        <div
+          className="rounded-sm border border-[var(--status-warning)] bg-[var(--status-warning-bg)] px-4 py-3 text-sm text-[var(--status-warning)]"
+          role="alert"
+          data-testid="diag-log-persistence-inactive"
+        >
+          Log persistence inactive — log records are not being written to the database, so the DB write drop count below
+          has stopped moving.
+        </div>
+      )}
+      <ul className="flex list-none flex-col p-0" aria-label="Log drop counters">
+        <DropCounterRow label="Log queue full" value={logQueueDrops} testId="diag-drop-log-queue" />
+        <DropCounterRow
+          label="DB write queue full/unavailable"
+          value={dbWriteQueueDrops}
+          testId="diag-drop-db-write-queue"
+        />
+      </ul>
+    </section>
+  );
+}
+
 export function DiagnosticsPage() {
   useDocumentTitle("Diagnostics");
 
@@ -333,17 +380,22 @@ export function DiagnosticsPage() {
     queryKey: queryKeys.systemStatus(),
     queryFn: getSystemStatus,
   });
+  const effectiveSystemStatus = loadError ? undefined : systemStatus;
 
   const wsConnected = connection === "connected";
 
   // Merge HTTP seed with live WS updates
-  const httpServices = systemStatus?.services ?? [];
+  const httpServices = effectiveSystemStatus?.services ?? [];
   const mergedServices = mergeServices(httpServices, serviceStatus);
 
-  const bootIssues: BootIssue[] = systemStatus?.boot_issues ?? [];
+  const bootIssues: BootIssue[] = effectiveSystemStatus?.boot_issues ?? [];
 
-  const totalDrops = droppedOverflow + droppedExhausted + droppedShutdown + errorHandlerFailures;
-  const showTelemetry = telemetryDegraded || totalDrops > 0;
+  const logQueueDrops = effectiveSystemStatus?.log_queue_drops ?? 0;
+  const dbWriteQueueDrops = effectiveSystemStatus?.db_write_queue_drops ?? 0;
+  const logPersistenceInactive = effectiveSystemStatus?.log_persistence_active === false;
+  const showLogging = logQueueDrops > 0 || dbWriteQueueDrops > 0 || logPersistenceInactive;
+  const telemetryDrops = droppedOverflow + droppedExhausted + droppedShutdown + errorHandlerFailures;
+  const showTelemetry = telemetryDegraded || telemetryDrops > 0;
 
   if (loading) return <Spinner />;
 
@@ -366,18 +418,26 @@ export function DiagnosticsPage() {
       ) : (
         <>
           <StatsStrip
-            cells={buildDiagCells(mergedServices, bootIssues.length, totalDrops)}
+            cells={buildDiagCells(mergedServices, bootIssues.length, telemetryDrops, logQueueDrops, dbWriteQueueDrops)}
             data-testid="diag-stats-strip"
           />
 
           <ServicesPanel services={mergedServices} wsConnected={wsConnected} />
 
           {bootIssues.length > 0 && <BootIssuesPanel bootIssues={bootIssues} />}
+
+          {showLogging && (
+            <LoggingPanel
+              logQueueDrops={logQueueDrops}
+              dbWriteQueueDrops={dbWriteQueueDrops}
+              logPersistenceInactive={logPersistenceInactive}
+            />
+          )}
         </>
       )}
 
-      {/* Telemetry counters come from the WS stream, not the HTTP seed,
-          so they render even when the HTTP load failed. */}
+      {/* Telemetry counters come from the WS stream, not the HTTP seed, so they render even
+          when the HTTP load failed. Logging health only renders from an available HTTP seed. */}
       {showTelemetry && (
         <TelemetryPanel
           droppedOverflow={droppedOverflow}

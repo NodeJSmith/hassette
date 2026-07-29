@@ -3653,10 +3653,20 @@
             "type": "array",
             "title": "Boot Issues"
           },
-          "log_records_dropped": {
+          "log_queue_drops": {
             "type": "integer",
-            "title": "Log Records Dropped",
+            "title": "Log Queue Drops",
             "default": 0
+          },
+          "db_write_queue_drops": {
+            "type": "integer",
+            "title": "Db Write Queue Drops",
+            "default": 0
+          },
+          "log_persistence_active": {
+            "type": "boolean",
+            "title": "Log Persistence Active",
+            "default": false
           }
         },
         "type": "object",

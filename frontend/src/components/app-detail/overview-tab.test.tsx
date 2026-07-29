@@ -369,6 +369,33 @@ describe("OverviewTab — Recent Activity", () => {
     });
   });
 
+  it("wraps the activity table in a horizontal scroll container", async () => {
+    // Regression: the nowrap duration/time columns overflowed the mobile
+    // viewport, making the entire main column horizontally scrollable.
+    const entries: ActivityFeedEntry[] = [
+      {
+        row_id: "00000000-0000-0000-0000-000000000003",
+        status: "success",
+        timestamp: 1700000200,
+        app_key: "test_app",
+        handler_id: 1,
+        handler_name: "on_motion",
+        duration_ms: 42,
+        error_type: null,
+        kind: "handler",
+      },
+    ];
+    server.use(http.get("/api/telemetry/app/:app_key/activity", () => HttpResponse.json<ActivityFeedEntry[]>(entries)));
+
+    const { getByTestId } = renderOverviewTab({ appKey: "test_app" });
+    await waitFor(() => {
+      expect(getByTestId("overview-activity-scroll")).toBeDefined();
+    });
+    const scroll = getByTestId("overview-activity-scroll");
+    expect(scroll.className).toContain("overflow-x-auto");
+    expect(scroll.querySelector("table")).not.toBeNull();
+  });
+
   it("renders empty state when activity endpoint returns no entries", async () => {
     server.use(http.get("/api/telemetry/app/:app_key/activity", () => HttpResponse.json<ActivityFeedEntry[]>([])));
 

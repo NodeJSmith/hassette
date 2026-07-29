@@ -6,7 +6,7 @@
  * and seeds the store with `storeOverrides` before rendering.
  */
 
-import { QueryClientProvider } from "@tanstack/react-query";
+import { type QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { vi } from "vitest";
@@ -37,6 +37,7 @@ export function mockMediaQueryMatches(matches: boolean) {
 
 interface RenderWithAppStateOptions {
   storeOverrides?: Partial<AppStore>;
+  queryClient?: QueryClient;
 }
 
 /**
@@ -51,9 +52,8 @@ interface RenderWithAppStateOptions {
  * tests that don't touch queries are unaffected. Tests for components that call
  * useQuery will go through normal query lifecycle backed by MSW handlers.
  */
-export function renderWithAppState(ui: ReactNode, { storeOverrides }: RenderWithAppStateOptions = {}) {
+export function renderWithAppState(ui: ReactNode, { storeOverrides, queryClient }: RenderWithAppStateOptions = {}) {
   if (storeOverrides) useAppStore.setState(storeOverrides);
-  const queryClient = createTestQueryClient();
-
-  return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
+  const client = queryClient ?? createTestQueryClient();
+  return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
 }
