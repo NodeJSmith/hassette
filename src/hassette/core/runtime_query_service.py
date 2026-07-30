@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from pydantic import BaseModel
 
 from hassette.bus import Bus
-from hassette.core.app_handler import AppHandler
 from hassette.core.app_registry import overlay_runtime_state
 from hassette.core.bus_service import BusService
 from hassette.core.logging_service import LoggingService
@@ -45,9 +44,17 @@ class RuntimeQueryService(Resource):
     Reads from in-memory sources: AppHandler, log buffer, WS clients.
     All reads are instant — no database I/O. LoggingService is in depends_on to
     guarantee the capture handler is ready before WS broadcast wiring runs.
+
+    AppHandler is deliberately absent from ``depends_on``: AppHandler and its ``AppRegistry``
+    are constructed before the Resource lifecycle starts (see ``Hassette.wire_services()``), so
+    registry metadata (manifests, only-app filter) is safely queryable before apps bootstrap and
+    the dashboard is not gated on app-bootstrap release. This also removes the guaranteed reverse
+    shutdown ordering that a ``depends_on`` edge would otherwise provide, so every AppHandler read
+    below tolerates concurrent AppHandler teardown (registry state clearing mid-read) without
+    raising.
     """
 
-    depends_on: ClassVar[list[type[Resource]]] = [BusService, StateProxy, AppHandler, LoggingService]
+    depends_on: ClassVar[list[type[Resource]]] = [BusService, StateProxy, LoggingService]
 
     bus: Bus
     _ws_clients: set[asyncio.Queue[dict[str, Any] | None]]
@@ -83,7 +90,8 @@ class RuntimeQueryService(Resource):
             mark_ready(self, reason="Web API disabled")
             return
 
-        # BusService, StateProxy, and AppHandler are guaranteed ready by depends_on auto-wait.
+        # BusService, StateProxy, and LoggingService are guaranteed ready by depends_on auto-wait.
+        # AppHandler is not a dependency — its registry may still be pre-bootstrap here.
 
         # Subscribe to bus events
         self._subscriptions.append(

@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Decouple runtime query from app bootstrap"
-status: "planned"
+status: "done"
 depends_on: ["T03"]
 implements: ["FR#6", "FR#26", "AC#18"]
 ---

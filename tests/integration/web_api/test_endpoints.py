@@ -11,7 +11,7 @@ from hassette.schemas.listener_models import ListenerSummary
 from hassette.test_utils.web_manifest_helpers import make_manifest_db_row
 from hassette.web.config_view import MASK_SENTINEL
 
-from .conftest import make_log_record, set_websocket_state
+from .conftest import make_log_record, set_app_status_snapshot, set_websocket_state
 
 if TYPE_CHECKING:
     from httpx2 import AsyncClient
@@ -83,6 +83,22 @@ class TestHealthEndpoints:
         """GET /api/healthz returns 404 after endpoint removal."""
         response = await client.get("/api/healthz")
         assert response.status_code == 404
+
+    async def test_health_reports_zero_apps_and_starting_before_bootstrap(
+        self, client: "AsyncClient", mock_hassette
+    ) -> None:
+        """The dashboard serves with app_count=0 while apps have not bootstrapped.
+
+        RuntimeQueryService no longer depends on AppHandler, so this must not require any
+        AppHandler readiness — only a cold WebSocket (never connected) and an empty live snapshot.
+        """
+        set_websocket_state(mock_hassette, connected=False, ever_connected=False)
+        set_app_status_snapshot(mock_hassette, running=[], failed=[])
+        response = await client.get("/api/health")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "starting"
+        assert data["app_count"] == 0
 
 
 class TestSPACatchAll:

@@ -1,10 +1,13 @@
 """Unit tests for RuntimeQueryService."""
 
 import asyncio
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, Mock
 
 import pytest
 
+from hassette.core.app_handler import AppHandler
+from hassette.core.app_registry import AppRegistry
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.events.hassette import (
     HassetteExecutionCompletedEvent,
@@ -12,8 +15,10 @@ from hassette.events.hassette import (
 )
 from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppStatusSnapshot
 from hassette.schemas.domain_models import SystemStatus
+from hassette.test_utils import create_app_manifest
 from hassette.test_utils.mock_hassette import make_mock_hassette
-from hassette.types.enums import ResourceRole, ResourceStatus
+from hassette.test_utils.web_manifest_helpers import make_manifest_db_row
+from hassette.types.enums import BlockReason, ResourceRole, ResourceStatus
 
 WS_QUEUE_MAX = 256
 
@@ -98,6 +103,148 @@ def runtime(mock_hassette):
     svc.task_bucket = MagicMock()
     svc.task_bucket.spawn = MagicMock(side_effect=lambda coro, **_kw: coro.close())
     return svc
+
+
+class TestDependencyDecoupling:
+    """Dashboard/API services must not transitively wait on app bootstrap."""
+
+    def test_depends_on_excludes_app_handler(self) -> None:
+        """RuntimeQueryService no longer declares AppHandler as a startup dependency."""
+        assert AppHandler not in RuntimeQueryService.depends_on
+
+
+class TestPreBootstrapAppState:
+    """Registry metadata is queryable and app counts are zero before AppHandler bootstraps apps.
+
+    AppHandler and its AppRegistry are constructed before the Resource lifecycle starts (see
+    ``Hassette.wire_services()``), so these reads must be safe even though AppHandler has not
+    finished (or even started) app bootstrap.
+    """
+
+    def test_get_app_status_snapshot_is_empty_before_bootstrap(self, runtime: RuntimeQueryService) -> None:
+        runtime.hassette.app_handler.get_status_snapshot = Mock(return_value=AppStatusSnapshot(running=[], failed=[]))
+
+        snapshot = runtime.get_app_status_snapshot()
+
+        assert snapshot.total_count == 0
+
+    def test_get_system_status_reports_zero_apps_before_bootstrap(self, runtime: RuntimeQueryService) -> None:
+        runtime.hassette.app_handler.get_status_snapshot = Mock(return_value=AppStatusSnapshot(running=[], failed=[]))
+
+        status = runtime.get_system_status()
+
+        assert status.app_count == 0
+
+    def test_overlay_manifest_rows_reflects_configured_registry_before_bootstrap(
+        self, runtime: RuntimeQueryService, tmp_path: Path
+    ) -> None:
+        """A configured-but-not-yet-started app overlays as 'stopped' with in_current_config True."""
+        registry = AppRegistry()
+        manifest = create_app_manifest("pending", tmp_path)
+        registry.set_manifests({manifest.app_key: manifest})
+        runtime.hassette.app_handler.registry = registry
+
+        db_row = make_manifest_db_row(app_key=manifest.app_key, class_name=manifest.class_name)
+        [info] = runtime.overlay_manifest_rows([db_row])
+
+        assert info.status == "stopped"
+        assert info.in_current_config is True
+
+    def test_get_registry_only_apps_reflects_configured_filter_before_bootstrap(
+        self, runtime: RuntimeQueryService
+    ) -> None:
+        registry = AppRegistry()
+        registry.set_only_apps(["app_b", "app_a"])
+        runtime.hassette.app_handler.registry = registry
+
+        assert runtime.get_registry_only_apps() == ["app_a", "app_b"]
+
+    def test_collect_boot_issues_reports_none_before_any_manifests(self, runtime: RuntimeQueryService) -> None:
+        registry = AppRegistry()
+        runtime.hassette.app_handler.registry = registry
+
+        assert runtime.collect_boot_issues() == []
+
+    def test_collect_boot_issues_reports_registry_blocked_entries_before_bootstrap(
+        self, runtime: RuntimeQueryService, tmp_path: Path
+    ) -> None:
+        """A registry-level block (e.g. the --app filter) is visible before any instance starts."""
+        registry = AppRegistry()
+        manifest = create_app_manifest("blocked", tmp_path)
+        registry.set_manifests({manifest.app_key: manifest})
+        registry.block_app(manifest.app_key, BlockReason.ONLY_APP)
+        runtime.hassette.app_handler.registry = registry
+
+        issues = runtime.collect_boot_issues()
+
+        assert len(issues) == 1
+        assert issues[0].severity == "warn"
+
+
+class TestConcurrentAppHandlerTeardown:
+    """Reads stay safe under concurrent AppHandler teardown.
+
+    Removing AppHandler from ``depends_on`` also removes the guaranteed reverse shutdown
+    ordering a dependency edge would otherwise provide, so RuntimeQueryService can no longer
+    assume AppHandler has finished tearing down before its own shutdown runs.
+    """
+
+    def test_read_methods_tolerate_registry_cleared_mid_teardown(
+        self, runtime: RuntimeQueryService, tmp_path: Path
+    ) -> None:
+        """Simulates AppHandler.shutdown_all() clearing running apps while reads are in flight."""
+        registry = AppRegistry()
+        manifest = create_app_manifest("teardown", tmp_path)
+        registry.set_manifests({manifest.app_key: manifest})
+
+        app = MagicMock()
+        app.app_config.instance_name = "TeardownApp[0]"
+        app.class_name = "TeardownApp"
+        app.status = ResourceStatus.RUNNING
+        app.unique_name = "TeardownApp[0]"
+        registry.register_app(manifest.app_key, 0, app)
+
+        runtime.hassette.app_handler.registry = registry
+        runtime.hassette.app_handler.get_status_snapshot = Mock(side_effect=registry.get_snapshot)
+
+        # Sanity: the app is visible before teardown starts.
+        assert runtime.get_app_status_snapshot().total_count == 1
+
+        # AppHandler.on_shutdown() -> AppLifecycleService.shutdown_all() clears the registry.
+        # Without the depends_on edge this can now race RuntimeQueryService's own shutdown.
+        registry.clear_all()
+
+        # No read path may raise once AppHandler starts tearing down.
+        assert runtime.get_app_status_snapshot().total_count == 0
+        assert runtime.get_system_status().app_count == 0
+        assert runtime.collect_boot_issues() == []
+        assert runtime.get_registry_only_apps() == []
+        [info] = runtime.overlay_manifest_rows([make_manifest_db_row(app_key=manifest.app_key)])
+        assert info.status == "stopped"
+
+    async def test_on_app_state_changed_is_idempotent_when_registry_entry_is_gone(
+        self, runtime: RuntimeQueryService
+    ) -> None:
+        """Broadcasting an app-state event reads only the event payload, never the registry."""
+        broadcast_calls: list[dict] = []
+        runtime.broadcast = AsyncMock(side_effect=lambda msg: broadcast_calls.append(msg))
+        runtime.hassette.app_handler.registry = AppRegistry()  # already cleared by teardown
+
+        event = MagicMock()
+        event.payload.data.app_key = "gone_app"
+        event.payload.data.index = 0
+        event.payload.data.status = ResourceStatus.STOPPED
+        event.payload.data.previous_status = ResourceStatus.RUNNING
+        event.payload.data.instance_name = "GoneApp[0]"
+        event.payload.data.class_name = "GoneApp"
+        event.payload.data.exception = None
+        event.payload.data.exception_type = None
+        event.payload.data.exception_traceback = None
+
+        await runtime.on_app_state_changed(event)
+
+        assert len(broadcast_calls) == 1
+        assert broadcast_calls[0]["data"]["app_key"] == "gone_app"
 
 
 class TestAppStatus:
