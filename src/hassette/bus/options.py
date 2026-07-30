@@ -9,7 +9,7 @@ cycle.
 
 from typing_extensions import TypedDict
 
-from hassette.types.enums import BackpressurePolicy, ExecutionMode
+from hassette.types.enums import BackpressurePolicy, EventPriority, ExecutionMode
 from hassette.types.types import IfExistsPolicy
 
 
@@ -46,6 +46,18 @@ class Options(TypedDict, total=False):
     ``"drop_newest"`` skips the event immediately when the bus is saturated — the handler is not
     invoked and one drop is recorded on the listener. When omitted, the effective default is
     ``"block"``, so existing listeners see no behavior change.
+    """
+
+    event_priority: EventPriority | str
+    """Priority tier for this listener's events, applied when the bus is under load.
+
+    Orders the dispatch fan-out (``"critical"`` > ``"high"`` > ``"normal"`` > ``"low"``) and
+    decides shedding at the dispatch concurrency gate: ``"critical"`` always waits for a slot
+    even if ``backpressure="drop_newest"``, ``"low"`` is always shed under saturation even if
+    ``backpressure="block"``, and ``"high"``/``"normal"`` defer to ``backpressure``.
+    When omitted, the tier is classified from the topic — ``sensor.*`` state changes are
+    ``"low"``, service calls and automations are ``"high"``, connectivity and service-status
+    events are ``"critical"``, everything else is ``"normal"``.
     """
 
     if_exists: IfExistsPolicy

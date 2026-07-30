@@ -30,6 +30,9 @@ function ModifierChips({ listener }: { listener: ListenerData }) {
   if (listener.immediate) chips.push({ label: "immediate" });
   if (listener.duration) chips.push({ label: "duration", value: `${listener.duration}s` });
   if (listener.backpressure === "drop_newest") chips.push({ label: "backpressure", value: "drop_newest" });
+  // Labelled "tier" rather than "priority" so it reads apart from the int ordering priority above.
+  // "normal" is the default tier and the one most listeners land on — showing it would be noise.
+  if (listener.event_priority !== "normal") chips.push({ label: "tier", value: listener.event_priority });
 
   return (
     <div className="mb-3 flex flex-wrap gap-2" data-testid="modifier-chips">

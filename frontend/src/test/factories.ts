@@ -137,6 +137,7 @@ export function createListener(overrides: Partial<ListenerWithSummary> = {}): Li
     priority: 0,
     mode: "single",
     backpressure: "block",
+    event_priority: "normal",
     suppressed_count: 0,
     dropped_count: 0,
     backpressure_dropped_count: 0,

@@ -3,16 +3,19 @@
 The bus fans an event out to one task per matching listener. These tests pin the bound:
 no more than ``max_concurrent_dispatches`` handlers run at once, slots are released on every
 completion path, and behavior under the limit is unchanged. Also covers DROP_NEWEST backpressure
-enforcement added in #1076 (Layer 2).
+enforcement added in #1076 (Layer 2) and priority-tier ordering and shedding added in #671
+(Layer 3).
 """
 
 import asyncio
 from unittest.mock import MagicMock
 
+import pytest
+
 from hassette.core.bus_service import _DISPATCH_SATURATION_WARN_RATE_LIMIT_SECS, BusService
 from hassette.test_utils.factories import make_mock_event
 from hassette.test_utils.helpers import create_listener
-from hassette.types.enums import BackpressurePolicy
+from hassette.types.enums import BackpressurePolicy, EventPriority
 
 from .conftest import make_bus_service
 
@@ -301,3 +304,131 @@ async def test_drop_newest_does_not_perturb_dispatch_idle() -> None:
     await asyncio.wait_for(svc.await_dispatch_idle(timeout=TEST_TIMEOUT), timeout=TEST_TIMEOUT)
 
     svc._dispatch_semaphore.release()
+
+
+@pytest.mark.parametrize(
+    ("priority", "backpressure", "expected_shed"),
+    [
+        # CRITICAL is never shed — the tier overrides an explicit drop_newest.
+        (EventPriority.CRITICAL, BackpressurePolicy.BLOCK, False),
+        (EventPriority.CRITICAL, BackpressurePolicy.DROP_NEWEST, False),
+        # HIGH and NORMAL defer to the policy: unchanged from before tiers existed.
+        (EventPriority.HIGH, BackpressurePolicy.BLOCK, False),
+        (EventPriority.HIGH, BackpressurePolicy.DROP_NEWEST, True),
+        (EventPriority.NORMAL, BackpressurePolicy.BLOCK, False),
+        (EventPriority.NORMAL, BackpressurePolicy.DROP_NEWEST, True),
+        # LOW is always shed — the tier overrides an explicit block.
+        (EventPriority.LOW, BackpressurePolicy.BLOCK, True),
+        (EventPriority.LOW, BackpressurePolicy.DROP_NEWEST, True),
+    ],
+)
+def test_should_shed_matrix(priority: EventPriority, backpressure: BackpressurePolicy, expected_shed: bool) -> None:
+    """The full tier x policy decision table for a saturated dispatch."""
+    svc = make_bus_service(max_concurrent_dispatches=1)
+    listener = create_listener(topic="test.topic", event_priority=priority, backpressure=backpressure)
+
+    assert svc.should_shed(listener) is expected_shed
+
+
+async def test_low_priority_block_listener_is_shed_under_saturation() -> None:
+    """A LOW listener is dropped under saturation even though its policy is the lossless default."""
+    svc = make_bus_service(max_concurrent_dispatches=1)
+    await svc._dispatch_semaphore.acquire()
+
+    listener = create_listener(topic="test.topic", name="sensor_reader", event_priority=EventPriority.LOW)
+    assert listener.options.backpressure is BackpressurePolicy.BLOCK
+    svc.router.add_route(listener.topic, listener)
+    svc._dispatch = MagicMock()  # never called
+
+    await asyncio.wait_for(svc.dispatch("test.topic", make_mock_event()), timeout=TEST_TIMEOUT)
+
+    assert listener.invoker.backpressure_dropped == 1
+    assert svc._dispatch_pending == 0
+
+    svc._dispatch_semaphore.release()
+
+
+async def test_critical_drop_newest_listener_waits_instead_of_dropping() -> None:
+    """CRITICAL overrides drop_newest: the listener blocks for a slot and then runs."""
+    svc = make_bus_service(max_concurrent_dispatches=1)
+    await svc._dispatch_semaphore.acquire()
+
+    listener = create_listener(
+        topic="test.topic",
+        name="connectivity",
+        event_priority=EventPriority.CRITICAL,
+        backpressure=BackpressurePolicy.DROP_NEWEST,
+    )
+    svc.router.add_route(listener.topic, listener)
+
+    dispatched = asyncio.Event()
+
+    async def signalling_dispatch(_route, _event, _listener) -> None:
+        dispatched.set()
+
+    svc._dispatch = signalling_dispatch
+
+    # warn_dispatch_saturated fires the moment dispatch reaches the saturated gate — a
+    # deterministic signal that the task is at the block rather than already past it.
+    reached_gate = asyncio.Event()
+    svc.warn_dispatch_saturated = reached_gate.set
+
+    task = asyncio.create_task(svc.dispatch("test.topic", make_mock_event()))
+    await asyncio.wait_for(reached_gate.wait(), timeout=TEST_TIMEOUT)
+    assert not task.done(), "CRITICAL listener must wait for a slot, not drop the event"
+    assert listener.invoker.backpressure_dropped == 0
+
+    svc._dispatch_semaphore.release()
+    await asyncio.wait_for(task, timeout=TEST_TIMEOUT)
+    await asyncio.wait_for(dispatched.wait(), timeout=TEST_TIMEOUT)
+
+
+async def test_higher_priority_listeners_are_dispatched_first() -> None:
+    """Slots are handed out in tier order, whatever order the listeners were registered in."""
+    svc = make_bus_service(max_concurrent_dispatches=10)
+
+    for priority in (EventPriority.LOW, EventPriority.NORMAL, EventPriority.CRITICAL, EventPriority.HIGH):
+        listener = create_listener(
+            topic="test.topic",
+            name=f"listener_{priority.value}",
+            owner_id=f"owner_{priority.value}",
+            event_priority=priority,
+        )
+        svc.router.add_route(listener.topic, listener)
+
+    order: list[str] = []
+
+    async def recording_dispatch(_route, _event, listener) -> None:
+        order.append(listener.options.event_priority.value)
+
+    svc._dispatch = recording_dispatch
+
+    await asyncio.wait_for(svc.dispatch("test.topic", make_mock_event()), timeout=TEST_TIMEOUT)
+    await svc.await_dispatch_idle(timeout=TEST_TIMEOUT)
+
+    assert order == ["critical", "high", "normal", "low"]
+
+
+async def test_priority_ordering_preserves_route_specificity_within_a_tier() -> None:
+    """Same-tier listeners keep the existing most-specific-route-first dispatch order."""
+    svc = make_bus_service(max_concurrent_dispatches=10)
+
+    # Deliberately non-overlapping routes: a glob route would also match the more specific
+    # ones, and this test is about ordering, not about the router's match semantics.
+    routes = ["route.specific", "route.middle", "route.broad"]
+    for route in routes:
+        listener = create_listener(topic=route, name=f"listener_{route}", owner_id=f"owner_{route}")
+        svc.router.add_route(listener.topic, listener)
+
+    order: list[str] = []
+
+    async def recording_dispatch(route, _event, _listener) -> None:
+        order.append(route)
+
+    svc._dispatch = recording_dispatch
+    svc.expand_topics = lambda _topic, _event: routes
+
+    await asyncio.wait_for(svc.dispatch("route.broad", make_mock_event()), timeout=TEST_TIMEOUT)
+    await svc.await_dispatch_idle(timeout=TEST_TIMEOUT)
+
+    assert order == routes

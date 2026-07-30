@@ -24,6 +24,7 @@ from hassette.schemas.live_counts import LiveCounts
 from hassette.test_utils import wait_for
 from hassette.test_utils.factories import make_mock_parent
 from hassette.test_utils.helpers import create_listener, create_state_change_event
+from hassette.types.enums import EventPriority
 
 from .conftest import DURATION
 from .helpers import seed
@@ -806,3 +807,70 @@ async def test_queued_trigger_pending_done_resolved_on_release(
     assert len(sub.listener.invoker.pending_done) == 0, (
         "release_guard() must drain all pending_done futures so outer dispatch tasks unwind"
     )
+
+
+async def test_event_priority_defaults_from_topic(
+    bus_harness: "tuple[HassetteHarness, Hassette, Bus]",
+) -> None:
+    """An omitted event_priority is classified from the listener's topic at registration."""
+    harness, _hassette, bus = bus_harness
+    await seed(harness, "sensor.power", "0")
+    await seed(harness, "light.office", "off")
+
+    async def handler(_event: RawStateChangeEvent) -> None:
+        pass
+
+    sensor_sub = await bus.on_state_change("sensor.power", handler=handler, name="prio_sensor")
+    light_sub = await bus.on_state_change("light.office", handler=handler, name="prio_light")
+
+    assert sensor_sub.listener.options.event_priority is EventPriority.LOW
+    assert light_sub.listener.options.event_priority is EventPriority.NORMAL
+
+
+async def test_explicit_event_priority_overrides_topic_default(
+    bus_harness: "tuple[HassetteHarness, Hassette, Bus]",
+) -> None:
+    """An explicit event_priority beats the topic-derived default — the opt-out for a
+    high-churn listener that must not be shed.
+    """
+    harness, _hassette, bus = bus_harness
+    await seed(harness, "sensor.power", "0")
+
+    async def handler(_event: RawStateChangeEvent) -> None:
+        pass
+
+    sub = await bus.on_state_change("sensor.power", handler=handler, name="prio_opt_out", event_priority="critical")
+
+    assert sub.listener.options.event_priority is EventPriority.CRITICAL
+
+
+async def test_event_priority_persisted_on_registration(
+    real_executor: CommandExecutor,
+    initialized_db: tuple[DatabaseService, int],
+    db_hassette: AsyncMock,
+) -> None:
+    """The resolved tier reaches the listeners.event_priority column."""
+    db_service, _ = initialized_db
+    stream = Mock()
+    bus_service = BusService(db_hassette, stream=stream, executor=real_executor, parent=db_hassette)
+
+    async def handler(event: object) -> None:
+        pass
+
+    listener = create_listener(
+        handler,
+        topic="state_changed.sensor.power",
+        app_key="test_app",
+        instance_index=0,
+        name="priority_test_high",
+        event_priority="high",
+    )
+    await real_executor.register_listener(bus_service.build_registration(listener))
+
+    cursor = await db_service.db.execute(
+        "SELECT event_priority FROM listeners WHERE name = ?",
+        ("priority_test_high",),
+    )
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] == "high", f"Expected 'high', got {row[0]!r}"

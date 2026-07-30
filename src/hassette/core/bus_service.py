@@ -28,7 +28,7 @@ from hassette.resources.lifecycle import mark_not_ready, mark_ready
 from hassette.resources.restart import CORE_PERMANENT_RESTART
 from hassette.resources.service import Service
 from hassette.schemas.live_counts import LiveCounts
-from hassette.types.enums import BackpressurePolicy, Topic
+from hassette.types.enums import BackpressurePolicy, EventPriority, Topic
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.hass_utils import split_entity_id, valid_entity_id
 
@@ -165,8 +165,8 @@ class BusService(Service):
         self._last_saturation_warn_ts = now
         self.logger.warning(
             "Event dispatch saturated: %d concurrent handlers in flight (max_concurrent_dispatches). "
-            "Listeners may wait for a slot or drop events per their backpressure policy; "
-            "sustained saturation backpressures HA event intake. "
+            "Listeners wait for a slot or shed events per their priority tier and backpressure "
+            "policy; sustained saturation backpressures HA event intake. "
             "Raise lifecycle.max_concurrent_dispatches or speed up slow handlers.",
             self.hassette.config.lifecycle.max_concurrent_dispatches,
         )
@@ -245,6 +245,7 @@ class BusService(Service):
             entity_id=listener.duration_config.entity_id if listener.duration_config else None,
             mode=listener.options.mode,
             backpressure=listener.options.backpressure,
+            event_priority=listener.options.event_priority,
         )
 
     def live_execution_counts(self) -> "dict[int, LiveCounts]":
@@ -389,8 +390,9 @@ class BusService(Service):
                 continue
 
             self.logger.debug("Dispatch fanout %s -> %s (%d listener(s))", base_topic, route, len(listeners))
-            for listener in listeners:
-                await self._spawn_dispatch_task(route, event, listener)
+
+        for route, listener in self._order_by_priority(routes, listeners_by_route):
+            await self._spawn_dispatch_task(route, event, listener)
 
     def _match_listeners(self, routes: list[str], event: "Event[Any]") -> dict[int, tuple[str, Listener]]:
         """Resolve the listeners that match ``event`` across ``routes``.
@@ -434,11 +436,53 @@ class BusService(Service):
             listeners_by_route[route].append(listener)
         return listeners_by_route
 
+    def _order_by_priority(
+        self, routes: list[str], listeners_by_route: dict[str, list["Listener"]]
+    ) -> list[tuple[str, "Listener"]]:
+        """Flatten the matched routes into the order dispatch slots should be handed out.
+
+        Primary key is the listener's priority tier (highest first) so that under saturation
+        the listeners that matter acquire slots before the ones that can wait or be shed.
+        Ties keep the pre-existing order: route specificity first (``routes`` is already
+        ordered most-specific -> least), then the router's per-route ``options.priority`` sort.
+        ``sorted`` is stable, so sorting the already-ordered flat list on the tier alone
+        preserves both.
+
+        Args:
+            routes: Expanded routes for the event, most specific first.
+            listeners_by_route: Matched listeners grouped by the route they matched on.
+
+        Returns:
+            ``(route, listener)`` pairs in dispatch order.
+        """
+        plan = [(route, listener) for route in routes for listener in listeners_by_route.get(route, ())]
+        plan.sort(key=lambda pair: pair[1].options.event_priority.rank, reverse=True)
+        return plan
+
+    def should_shed(self, listener: "Listener") -> bool:
+        """Whether a saturated dispatch should skip ``listener`` instead of waiting for a slot.
+
+        Called only when the semaphore is already locked. The priority tier decides at the
+        extremes and the per-listener backpressure policy decides in the middle:
+
+        - ``CRITICAL`` never sheds, even under ``drop_newest`` — connectivity and service-status
+          events are the ones you most need during the overload that caused the saturation.
+        - ``LOW`` always sheds, even under ``block`` — that is the load shedding the tier exists
+          for. Pass an explicit ``event_priority`` to opt a high-churn listener out.
+        - ``HIGH``/``NORMAL`` defer to ``backpressure``, unchanged from before tiers existed.
+        """
+        priority = listener.options.event_priority
+        if priority is EventPriority.CRITICAL:
+            return False
+        if priority is EventPriority.LOW:
+            return True
+        return listener.options.backpressure is BackpressurePolicy.DROP_NEWEST
+
     async def _spawn_dispatch_task(self, route: str, event: "Event[Any]", listener: "Listener") -> None:
         """Acquire a dispatch slot for ``listener`` and spawn its handler task.
 
-        Honors the listener's backpressure policy when the dispatch semaphore is saturated,
-        and unwinds slot/pending bookkeeping by hand if the spawn itself fails.
+        Honors the listener's priority tier and backpressure policy when the dispatch semaphore
+        is saturated, and unwinds slot/pending bookkeeping by hand if the spawn itself fails.
         """
         # Acquire a slot before spawning so the fan-out can't outrun handler capacity.
         # A blocked acquire stalls the dispatch loop -> serve loop -> inbound channel,
@@ -450,14 +494,16 @@ class BusService(Service):
             # `warn_dispatch_saturated` as a deterministic signal that dispatch has reached
             # the block. Moving it after the acquire would make that test pass vacuously.
             self.warn_dispatch_saturated()
-            if listener.options.backpressure is BackpressurePolicy.DROP_NEWEST:
+            if self.should_shed(listener):
                 # Single writer: this loop, on the event loop, NO await between locked() and
                 # the increment — the same no-await window that makes the saturation check
                 # race-free. Do not insert an await (e.g. metrics emit) between them.
                 listener.invoker.backpressure_dropped += 1
                 self.logger.debug(
-                    "backpressure drop_newest: skipping event for %s",
+                    "dispatch saturated: shedding event for %s (priority=%s, backpressure=%s)",
                     listener.identity.name or listener.identity.handler_short_name,
+                    listener.options.event_priority.value,
+                    listener.options.backpressure.value,
                 )
                 return  # no acquire, no spawn, no pending/idle bookkeeping
         await self._dispatch_semaphore.acquire()

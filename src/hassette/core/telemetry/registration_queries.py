@@ -89,6 +89,7 @@ class RegistrationQueriesMixin:
                 l.entity_id,
                 l.mode,
                 l.backpressure,
+                l.event_priority,
                 COUNT(e.rowid) AS total_invocations,
                 SUM(CASE WHEN e.status = 'success' THEN 1 ELSE 0 END) AS successful,
                 SUM(CASE WHEN e.status = 'error' THEN 1 ELSE 0 END) AS failed,

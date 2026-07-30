@@ -2,7 +2,14 @@
 
 from dataclasses import dataclass
 
-from hassette.types.enums import DEFAULT_BACKPRESSURE_POLICY, DEFAULT_OVERLAP_MODE, BackpressurePolicy, ExecutionMode
+from hassette.types.enums import (
+    DEFAULT_BACKPRESSURE_POLICY,
+    DEFAULT_EVENT_PRIORITY,
+    DEFAULT_OVERLAP_MODE,
+    BackpressurePolicy,
+    EventPriority,
+    ExecutionMode,
+)
 from hassette.types.types import SourceTier
 
 
@@ -68,6 +75,11 @@ class ListenerRegistration:
     backpressure: BackpressurePolicy = DEFAULT_BACKPRESSURE_POLICY
     """Configured backpressure policy (block/drop_newest). Persisted to the
     ``listeners.backpressure`` column."""
+
+    event_priority: EventPriority = DEFAULT_EVENT_PRIORITY
+    """Resolved priority tier (low/normal/high/critical). Persisted to the
+    ``listeners.event_priority`` column. The topic-derived default is already applied
+    in the options."""
 
 
 @dataclass(frozen=True)

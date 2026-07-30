@@ -15,6 +15,7 @@ from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_not_ready, mark_ready
 from hassette.scheduler import ScheduledJob, Scheduler
 from hassette.types import Topic
+from hassette.types.enums import EventPriority
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.hass_utils import extract_domain
 
@@ -111,6 +112,10 @@ class StateProxy(Resource):
             topic=Topic.HASS_EVENT_STATE_CHANGED,
             handler=self.on_state_change,
             name="hassette.state_proxy.on_state_change",
+            # The cache feeds every app handler, so it takes a dispatch slot ahead of them and is
+            # never shed. Without this it would classify as `normal` from the topic and could be
+            # ordered behind an app listener that declared a higher tier.
+            event_priority=EventPriority.CRITICAL,
         )
         if not self.hassette.config.disable_state_proxy_polling:
             # Pin to single so the framework->parallel default never allows concurrent

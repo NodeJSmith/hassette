@@ -104,7 +104,7 @@ from hassette.exceptions import DuplicateListenerError, ListenerNameRequiredErro
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
 from hassette.types import ComparisonCondition, Topic
-from hassette.types.enums import BackpressurePolicy, ExecutionMode, ResourceStatus
+from hassette.types.enums import BackpressurePolicy, EventPriority, ExecutionMode, ResourceStatus
 from hassette.types.types import LOG_LEVEL_TYPE, IfExistsPolicy, WhereClause
 from hassette.utils.await_guard import guard_await
 from hassette.utils.func_utils import callable_name, callable_short_name
@@ -113,6 +113,7 @@ from hassette.utils.source_capture import capture_registration_source, capture_s
 
 from .listeners import DurationConfig, HandlerInvoker, Listener, ListenerIdentity, ListenerOptions, Subscription
 from .options import Options
+from .priority import classify_topic
 from .sync import BusSyncFacade
 
 if typing.TYPE_CHECKING:
@@ -444,6 +445,7 @@ class Bus(Resource):
         timeout_disabled: bool = False,
         mode: "ExecutionMode | str | None" = None,
         backpressure: "BackpressurePolicy | str | None" = None,
+        event_priority: "EventPriority | str | None" = None,
         name: str,
         on_error: "BusErrorHandlerType | None" = None,
         if_exists: IfExistsPolicy = "error",
@@ -474,6 +476,11 @@ class Bus(Resource):
             backpressure: Saturation policy when the global dispatch concurrency semaphore is full.
                 ``"block"`` (default) waits for a slot; ``"drop_newest"`` skips the event immediately
                 and records one drop on the listener. When omitted, the effective default is ``block``.
+            event_priority: Priority tier for this listener's events — ``"critical"``, ``"high"``,
+                ``"normal"``, or ``"low"``. Higher tiers are handed a dispatch slot first, and the
+                tier decides shedding under saturation: ``"critical"`` always waits for a slot,
+                ``"low"`` is always shed, ``"high"``/``"normal"`` defer to ``backpressure``. When
+                omitted, the tier is classified from ``topic``.
             name: Required. Stable string identifier for this listener. Forms part of the natural
                 key ``(app_key, instance_index, name, topic)`` used for upsert deduplication across
                 restarts. Omitting it entirely raises ``TypeError`` (no default value); passing an
@@ -515,6 +522,7 @@ class Bus(Resource):
                 timeout_disabled=timeout_disabled,
                 mode=mode,
                 backpressure=backpressure,
+                event_priority=event_priority,
                 name=name,
                 on_error=on_error,
                 if_exists=if_exists,
@@ -541,6 +549,7 @@ class Bus(Resource):
         timeout_disabled: bool = False,
         mode: "ExecutionMode | str | None" = None,
         backpressure: "BackpressurePolicy | str | None" = None,
+        event_priority: "EventPriority | str | None" = None,
         name: str | None = None,
         on_error: "BusErrorHandlerType | None" = None,
         if_exists: IfExistsPolicy = "error",
@@ -552,7 +561,8 @@ class Bus(Resource):
 
         ``mode=None`` means "not supplied" — it resolves to the tier-aware default
         (``parallel`` for framework listeners, ``single`` for app listeners). An explicit
-        mode always wins.
+        mode always wins. ``event_priority=None`` is the same contract against a different
+        default source: it resolves to ``classify_topic(topic)``.
 
         Called by on() (with duration_config=None) and by _subscribe() (which
         builds DurationConfig from duration/entity_id when provided).
@@ -625,6 +635,19 @@ class Bus(Resource):
                 valid = ", ".join(repr(p.value) for p in BackpressurePolicy)
                 raise ValueError(f"Invalid backpressure policy {backpressure!r}; must be one of {valid}") from exc
 
+        # An omitted tier is classified from the topic (topic-derived default); an explicit
+        # tier always wins. Same coerce-at-registration contract as mode and backpressure.
+        if event_priority is None:
+            resolved_priority = classify_topic(topic)
+        elif isinstance(event_priority, EventPriority):
+            resolved_priority = event_priority
+        else:
+            try:
+                resolved_priority = EventPriority(event_priority)
+            except ValueError as exc:
+                valid = ", ".join(repr(p.value) for p in EventPriority)
+                raise ValueError(f"Invalid event priority {event_priority!r}; must be one of {valid}") from exc
+
         options = ListenerOptions(
             once=once,
             debounce=debounce,
@@ -634,6 +657,7 @@ class Bus(Resource):
             priority=self.priority,
             mode=resolved_mode,
             backpressure=resolved_backpressure,
+            event_priority=resolved_priority,
         )
 
         invoker = HandlerInvoker.create(
@@ -782,7 +806,8 @@ class Bus(Resource):
                 restarts. Omitting it entirely raises ``TypeError`` (no default value); passing an
                 empty string raises ``ListenerNameRequiredError`` at call time.
             **opts: Additional options. Accepts ``once``, ``debounce``, ``throttle``, ``timeout``,
-                ``timeout_disabled``, ``if_exists``, ``mode``, and ``backpressure``.
+                ``timeout_disabled``, ``if_exists``, ``mode``, ``backpressure``, and
+                ``event_priority``.
 
                 ``mode`` controls overlap behavior when a trigger fires while a prior invocation
                 is still running: ``"single"`` drops the re-fire (the default for app handlers),
@@ -799,6 +824,14 @@ class Bus(Resource):
                 today; ``"drop_newest"`` skips the event immediately rather than waiting. It gates
                 at the dispatch acquire point (global bus saturation), orthogonal to
                 ``mode``/``debounce``/``throttle``.
+
+                ``event_priority`` sets this listener's tier — ``"critical"``, ``"high"``,
+                ``"normal"``, or ``"low"``. Higher tiers are handed a dispatch slot first, and
+                the tier decides shedding at the same gate as ``backpressure``: ``"critical"``
+                always waits for a slot, ``"low"`` is always shed under saturation, and
+                ``"high"``/``"normal"`` defer to ``backpressure``. When omitted, the tier is
+                classified from the topic — ``sensor.*`` state changes are ``"low"``, other
+                state changes ``"normal"``.
 
         Returns:
             A subscription object. ``sub.listener.db_id`` is set immediately. ``sub.cancel()``
@@ -889,7 +922,8 @@ class Bus(Resource):
                 (no default value); passing an empty string raises ``ListenerNameRequiredError``
                 at call time.
             **opts: Additional options. Accepts ``once``, ``debounce``, ``throttle``, ``timeout``,
-                ``timeout_disabled``, ``if_exists``, ``mode``, and ``backpressure``.
+                ``timeout_disabled``, ``if_exists``, ``mode``, ``backpressure``, and
+                ``event_priority``.
 
                 ``mode`` controls overlap behavior when a trigger fires while a prior invocation
                 is still running: ``"single"`` drops the re-fire (the default for app handlers),
@@ -902,6 +936,14 @@ class Bus(Resource):
                 today; ``"drop_newest"`` skips the event immediately rather than waiting. It gates
                 at the dispatch acquire point (global bus saturation), orthogonal to
                 ``mode``/``debounce``/``throttle``.
+
+                ``event_priority`` sets this listener's tier — ``"critical"``, ``"high"``,
+                ``"normal"``, or ``"low"``. Higher tiers are handed a dispatch slot first, and
+                the tier decides shedding at the same gate as ``backpressure``: ``"critical"``
+                always waits for a slot, ``"low"`` is always shed under saturation, and
+                ``"high"``/``"normal"`` defer to ``backpressure``. When omitted, the tier is
+                classified from the topic — ``sensor.*`` state changes are ``"low"``, other
+                state changes ``"normal"``.
 
         Returns:
             A subscription object. ``sub.listener.db_id`` is set immediately.
@@ -992,7 +1034,8 @@ class Bus(Resource):
                 raises ``TypeError`` (no default value); passing an empty string raises
                 ``ListenerNameRequiredError`` at call time.
             **opts: Additional options. Accepts ``once``, ``debounce``, ``throttle``, ``timeout``,
-                ``timeout_disabled``, ``if_exists``, ``mode``, and ``backpressure``.
+                ``timeout_disabled``, ``if_exists``, ``mode``, ``backpressure``, and
+                ``event_priority``.
 
                 ``mode`` controls overlap behavior when a trigger fires while a prior invocation
                 is still running: ``"single"`` drops the re-fire (the default for app handlers),
@@ -1005,6 +1048,14 @@ class Bus(Resource):
                 today; ``"drop_newest"`` skips the event immediately rather than waiting. It gates
                 at the dispatch acquire point (global bus saturation), orthogonal to
                 ``mode``/``debounce``/``throttle``.
+
+                ``event_priority`` sets this listener's tier — ``"critical"``, ``"high"``,
+                ``"normal"``, or ``"low"``. Higher tiers are handed a dispatch slot first, and
+                the tier decides shedding at the same gate as ``backpressure``: ``"critical"``
+                always waits for a slot, ``"low"`` is always shed under saturation, and
+                ``"high"``/``"normal"`` defer to ``backpressure``. When omitted, the tier is
+                classified from the topic — ``sensor.*`` state changes are ``"low"``, other
+                state changes ``"normal"``.
 
         Returns:
             A subscription object. ``sub.listener.db_id`` is set immediately.

@@ -24,7 +24,7 @@ if typing.TYPE_CHECKING:
     from hassette import Bus, Hassette
     from hassette.bus.listeners import Listener
     from hassette.types import ChangeType, HandlerType, Predicate
-    from hassette.types.enums import BackpressurePolicy, ExecutionMode
+    from hassette.types.enums import BackpressurePolicy, EventPriority, ExecutionMode
     from hassette.types.types import BusErrorHandlerType
 
 
@@ -99,6 +99,7 @@ class BusSyncFacade(Resource):
         timeout_disabled: bool = False,
         mode: "ExecutionMode | str | None" = None,
         backpressure: "BackpressurePolicy | str | None" = None,
+        event_priority: "EventPriority | str | None" = None,
         name: str,
         on_error: "BusErrorHandlerType | None" = None,
         if_exists: IfExistsPolicy = "error",
@@ -129,6 +130,11 @@ class BusSyncFacade(Resource):
             backpressure: Saturation policy when the global dispatch concurrency semaphore is full.
                 ``"block"`` (default) waits for a slot; ``"drop_newest"`` skips the event immediately
                 and records one drop on the listener. When omitted, the effective default is ``block``.
+            event_priority: Priority tier for this listener's events — ``"critical"``, ``"high"``,
+                ``"normal"``, or ``"low"``. Higher tiers are handed a dispatch slot first, and the
+                tier decides shedding under saturation: ``"critical"`` always waits for a slot,
+                ``"low"`` is always shed, ``"high"``/``"normal"`` defer to ``backpressure``. When
+                omitted, the tier is classified from ``topic``.
             name: Required. Stable string identifier for this listener. Forms part of the natural
                 key ``(app_key, instance_index, name, topic)`` used for upsert deduplication across
                 restarts. Omitting it entirely raises ``TypeError`` (no default value); passing an
@@ -164,6 +170,7 @@ class BusSyncFacade(Resource):
                 timeout_disabled=timeout_disabled,
                 mode=mode,
                 backpressure=backpressure,
+                event_priority=event_priority,
                 name=name,
                 on_error=on_error,
                 if_exists=if_exists,
@@ -206,7 +213,8 @@ class BusSyncFacade(Resource):
                 restarts. Omitting it entirely raises ``TypeError`` (no default value); passing an
                 empty string raises ``ListenerNameRequiredError`` at call time.
             **opts: Additional options. Accepts ``once``, ``debounce``, ``throttle``, ``timeout``,
-                ``timeout_disabled``, ``if_exists``, ``mode``, and ``backpressure``.
+                ``timeout_disabled``, ``if_exists``, ``mode``, ``backpressure``, and
+                ``event_priority``.
 
                 ``mode`` controls overlap behavior when a trigger fires while a prior invocation
                 is still running: ``"single"`` drops the re-fire (the default for app handlers),
@@ -223,6 +231,14 @@ class BusSyncFacade(Resource):
                 today; ``"drop_newest"`` skips the event immediately rather than waiting. It gates
                 at the dispatch acquire point (global bus saturation), orthogonal to
                 ``mode``/``debounce``/``throttle``.
+
+                ``event_priority`` sets this listener's tier — ``"critical"``, ``"high"``,
+                ``"normal"``, or ``"low"``. Higher tiers are handed a dispatch slot first, and
+                the tier decides shedding at the same gate as ``backpressure``: ``"critical"``
+                always waits for a slot, ``"low"`` is always shed under saturation, and
+                ``"high"``/``"normal"`` defer to ``backpressure``. When omitted, the tier is
+                classified from the topic — ``sensor.*`` state changes are ``"low"``, other
+                state changes ``"normal"``.
 
         Returns:
             A subscription object. ``sub.listener.db_id`` is set immediately. ``sub.cancel()``
@@ -287,7 +303,8 @@ class BusSyncFacade(Resource):
                 (no default value); passing an empty string raises ``ListenerNameRequiredError``
                 at call time.
             **opts: Additional options. Accepts ``once``, ``debounce``, ``throttle``, ``timeout``,
-                ``timeout_disabled``, ``if_exists``, ``mode``, and ``backpressure``.
+                ``timeout_disabled``, ``if_exists``, ``mode``, ``backpressure``, and
+                ``event_priority``.
 
                 ``mode`` controls overlap behavior when a trigger fires while a prior invocation
                 is still running: ``"single"`` drops the re-fire (the default for app handlers),
@@ -300,6 +317,14 @@ class BusSyncFacade(Resource):
                 today; ``"drop_newest"`` skips the event immediately rather than waiting. It gates
                 at the dispatch acquire point (global bus saturation), orthogonal to
                 ``mode``/``debounce``/``throttle``.
+
+                ``event_priority`` sets this listener's tier — ``"critical"``, ``"high"``,
+                ``"normal"``, or ``"low"``. Higher tiers are handed a dispatch slot first, and
+                the tier decides shedding at the same gate as ``backpressure``: ``"critical"``
+                always waits for a slot, ``"low"`` is always shed under saturation, and
+                ``"high"``/``"normal"`` defer to ``backpressure``. When omitted, the tier is
+                classified from the topic — ``sensor.*`` state changes are ``"low"``, other
+                state changes ``"normal"``.
 
         Returns:
             A subscription object. ``sub.listener.db_id`` is set immediately.
@@ -354,7 +379,8 @@ class BusSyncFacade(Resource):
                 raises ``TypeError`` (no default value); passing an empty string raises
                 ``ListenerNameRequiredError`` at call time.
             **opts: Additional options. Accepts ``once``, ``debounce``, ``throttle``, ``timeout``,
-                ``timeout_disabled``, ``if_exists``, ``mode``, and ``backpressure``.
+                ``timeout_disabled``, ``if_exists``, ``mode``, ``backpressure``, and
+                ``event_priority``.
 
                 ``mode`` controls overlap behavior when a trigger fires while a prior invocation
                 is still running: ``"single"`` drops the re-fire (the default for app handlers),
@@ -367,6 +393,14 @@ class BusSyncFacade(Resource):
                 today; ``"drop_newest"`` skips the event immediately rather than waiting. It gates
                 at the dispatch acquire point (global bus saturation), orthogonal to
                 ``mode``/``debounce``/``throttle``.
+
+                ``event_priority`` sets this listener's tier — ``"critical"``, ``"high"``,
+                ``"normal"``, or ``"low"``. Higher tiers are handed a dispatch slot first, and
+                the tier decides shedding at the same gate as ``backpressure``: ``"critical"``
+                always waits for a slot, ``"low"`` is always shed under saturation, and
+                ``"high"``/``"normal"`` defer to ``backpressure``. When omitted, the tier is
+                classified from the topic — ``sensor.*`` state changes are ``"low"``, other
+                state changes ``"normal"``.
 
         Returns:
             A subscription object. ``sub.listener.db_id`` is set immediately.

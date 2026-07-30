@@ -2456,6 +2456,17 @@
         "title": "DashboardAppGridResponse",
         "description": "Dashboard app grid with per-app health data."
       },
+      "EventPriority": {
+        "type": "string",
+        "enum": [
+          "low",
+          "normal",
+          "high",
+          "critical"
+        ],
+        "title": "EventPriority",
+        "description": "Dispatch priority tier for the events a listener receives.\n\nThe tier is resolved once at registration: an explicit ``event_priority=`` wins,\notherwise it is classified from the listener's topic (see\n:func:`hassette.bus.priority.classify_topic`). It does two things at dispatch time:\n\n- **Ordering.** Within one event's fan-out, higher tiers are handed a dispatch slot\n  first, so a saturated bus serves the listeners that matter before the ones that don't.\n- **Load shedding.** When the global dispatch semaphore is saturated, the tier decides\n  whether the listener waits for a slot or the event is shed. See each member.\n\nUnder normal load \u2014 semaphore not saturated \u2014 the tier changes nothing but spawn order."
+      },
       "Execution": {
         "properties": {
           "kind": {
@@ -3258,6 +3269,10 @@
           "backpressure": {
             "$ref": "#/components/schemas/BackpressurePolicy",
             "default": "block"
+          },
+          "event_priority": {
+            "$ref": "#/components/schemas/EventPriority",
+            "default": "normal"
           }
         },
         "type": "object",

@@ -1005,6 +1005,23 @@ export interface components {
             apps: components["schemas"]["DashboardAppGridEntry"][];
         };
         /**
+         * EventPriority
+         * @description Dispatch priority tier for the events a listener receives.
+         *
+         *     The tier is resolved once at registration: an explicit ``event_priority=`` wins,
+         *     otherwise it is classified from the listener's topic (see
+         *     :func:`hassette.bus.priority.classify_topic`). It does two things at dispatch time:
+         *
+         *     - **Ordering.** Within one event's fan-out, higher tiers are handed a dispatch slot
+         *       first, so a saturated bus serves the listeners that matter before the ones that don't.
+         *     - **Load shedding.** When the global dispatch semaphore is saturated, the tier decides
+         *       whether the listener waits for a slot or the event is shed. See each member.
+         *
+         *     Under normal load — semaphore not saturated — the tier changes nothing but spawn order.
+         * @enum {string}
+         */
+        EventPriority: "low" | "normal" | "high" | "critical";
+        /**
          * Execution
          * @description Unified execution record returned by queries against the ``executions`` table.
          *
@@ -1358,6 +1375,8 @@ export interface components {
             backpressure_dropped_count: number;
             /** @default block */
             backpressure: components["schemas"]["BackpressurePolicy"];
+            /** @default normal */
+            event_priority: components["schemas"]["EventPriority"];
         };
         /**
          * LivenessResponse

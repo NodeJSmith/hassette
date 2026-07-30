@@ -109,6 +109,68 @@ DEFAULT_BACKPRESSURE_POLICY: BackpressurePolicy = BackpressurePolicy.BLOCK
 """Default backpressure policy for registration/summary models when none is specified."""
 
 
+class EventPriority(StrEnum):
+    """Dispatch priority tier for the events a listener receives.
+
+    The tier is resolved once at registration: an explicit ``event_priority=`` wins,
+    otherwise it is classified from the listener's topic (see
+    :func:`hassette.bus.priority.classify_topic`). It does two things at dispatch time:
+
+    - **Ordering.** Within one event's fan-out, higher tiers are handed a dispatch slot
+      first, so a saturated bus serves the listeners that matter before the ones that don't.
+    - **Load shedding.** When the global dispatch semaphore is saturated, the tier decides
+      whether the listener waits for a slot or the event is shed. See each member.
+
+    Under normal load — semaphore not saturated — the tier changes nothing but spawn order.
+    """
+
+    LOW = auto()
+    """High-churn, low-value events. Shed under saturation, whatever the backpressure policy.
+
+    The classifier assigns this to ``sensor.*`` state changes and to hassette's own
+    execution-telemetry topic — streams where the next event supersedes the one dropped.
+    A ``LOW`` listener may not run at all during sustained saturation; pass an explicit
+    ``event_priority="normal"`` if it must not lose events.
+    """
+
+    NORMAL = auto()
+    """The default tier for everything the classifier does not recognize, and for
+    non-sensor state changes. Under saturation the listener's ``backpressure`` policy
+    decides: ``block`` waits for a slot, ``drop_newest`` skips the event."""
+
+    HIGH = auto()
+    """User- and automation-initiated events (service calls, automation/script starts).
+
+    Ordered ahead of ``NORMAL`` and ``LOW`` in the fan-out. Under saturation the
+    listener's ``backpressure`` policy still decides, same as ``NORMAL``."""
+
+    CRITICAL = auto()
+    """Events that must never be shed: service status and websocket connectivity.
+
+    Always waits for a dispatch slot, even when the listener declared
+    ``backpressure="drop_newest"`` — the tier overrides the policy. Ordered first in the
+    fan-out.
+    """
+
+    @property
+    def rank(self) -> int:
+        """Sort key for tier comparison. Higher is more important."""
+        return _EVENT_PRIORITY_RANKS[self]
+
+
+_EVENT_PRIORITY_RANKS: dict[EventPriority, int] = {
+    EventPriority.LOW: 0,
+    EventPriority.NORMAL: 1,
+    EventPriority.HIGH: 2,
+    EventPriority.CRITICAL: 3,
+}
+"""Rank lookup backing ``EventPriority.rank``. Kept out of the enum body so the members
+stay plain strings for config, JSON, and the ``listeners.event_priority`` CHECK constraint."""
+
+DEFAULT_EVENT_PRIORITY: EventPriority = EventPriority.NORMAL
+"""Default priority tier for registration/summary models when none is resolved yet."""
+
+
 class Outcome(StrEnum):
     """The result of handing a trigger to an ``ExecutionModeGuard``."""
 

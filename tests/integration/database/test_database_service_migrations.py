@@ -36,6 +36,7 @@ EXPECTED_TABLES = {
         "priority",
         "mode",
         "backpressure",
+        "event_priority",
         "immediate",
         "duration",
         "entity_id",

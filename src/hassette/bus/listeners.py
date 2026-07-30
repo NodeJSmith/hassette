@@ -15,7 +15,7 @@ from hassette.execution_mode import (
     drain_pending_done,
     run_through_guard,
 )
-from hassette.types.enums import BackpressurePolicy, ExecutionMode
+from hassette.types.enums import BackpressurePolicy, EventPriority, ExecutionMode
 from hassette.types.types import SourceTier, WhereClause
 from hassette.utils.func_utils import callable_name, callable_short_name
 from hassette.utils.type_utils import get_typed_signature
@@ -79,7 +79,9 @@ class ListenerIdentity:
 
 @dataclass(slots=True)
 class ListenerOptions:
-    """Behavioral timing parameters (once, debounce, throttle, timeout, priority) with validation."""
+    """Behavioral parameters (once, debounce, throttle, timeout, priority, mode, backpressure,
+    event_priority) with validation.
+    """
 
     once: bool = False
     """Whether the listener should be removed after one invocation."""
@@ -118,6 +120,16 @@ class ListenerOptions:
     ``mode``/``debounce``/``throttle`` which act inside the invoker.
     """
 
+    event_priority: EventPriority = EventPriority.NORMAL
+    """Priority tier for the events this listener receives.
+
+    Orders the dispatch fan-out (higher tiers get a slot first) and decides load shedding at
+    the same acquire gate as ``backpressure``: ``critical`` never sheds, ``low`` always sheds
+    under saturation, ``high``/``normal`` defer to ``backpressure``. The topic-derived default
+    is applied by the registration path, not by this dataclass default — a directly
+    constructed ``ListenerOptions`` is ``normal``.
+    """
+
     def __post_init__(self) -> None:
         # Coerce a raw string mode (arriving via the Options TypedDict or str ergonomics) into
         # the enum. An unknown value fails coercion — surface it as a clear ValueError.
@@ -134,6 +146,13 @@ class ListenerOptions:
             except ValueError as exc:
                 valid = ", ".join(repr(m.value) for m in BackpressurePolicy)
                 raise ValueError(f"Invalid backpressure policy {self.backpressure!r}; must be one of {valid}") from exc
+        # Coerce a raw string priority tier the same way.
+        if not isinstance(self.event_priority, EventPriority):
+            try:
+                self.event_priority = EventPriority(self.event_priority)
+            except ValueError as exc:
+                valid = ", ".join(repr(m.value) for m in EventPriority)
+                raise ValueError(f"Invalid event priority {self.event_priority!r}; must be one of {valid}") from exc
         if self.debounce is not None and self.debounce <= 0:
             raise ValueError("'debounce' must be a positive number")
         if self.throttle is not None and self.throttle <= 0:
@@ -494,7 +513,8 @@ class Listener:
         """Check whether two listeners represent the same logical configuration.
 
         Compares handler callable, filter predicate, timing options (once, debounce,
-        throttle, timeout, timeout_disabled, priority), the execution mode, handler kwargs,
+        throttle, timeout, timeout_disabled, priority), the execution mode, the backpressure
+        policy, the event priority tier, handler kwargs,
         per-registration error handler (by identity), and duration configuration scalars.
 
         Does not compare runtime state: listener_id, db_id, _cancelled, or the
@@ -513,6 +533,7 @@ class Listener:
             and self.options.priority == other.options.priority
             and self.options.mode == other.options.mode
             and self.options.backpressure == other.options.backpressure
+            and self.options.event_priority == other.options.event_priority
             and self.invoker.kwargs == other.invoker.kwargs
             and self.invoker.error_handler is other.invoker.error_handler
             and _duration_configs_match(self.duration_config, other.duration_config)
@@ -546,6 +567,8 @@ class Listener:
             changed.append("mode")
         if self.options.backpressure != other.options.backpressure:
             changed.append("backpressure")
+        if self.options.event_priority != other.options.event_priority:
+            changed.append("event_priority")
         if self.invoker.kwargs != other.invoker.kwargs:
             changed.append("kwargs")
         if self.invoker.error_handler is not other.invoker.error_handler:

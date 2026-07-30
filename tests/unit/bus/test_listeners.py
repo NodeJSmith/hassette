@@ -7,7 +7,7 @@ import pytest
 from hassette.bus.listeners import Listener, ListenerOptions, Subscription
 from hassette.event_handling.predicates import StateTo
 from hassette.test_utils.helpers import create_listener, make_task_bucket
-from hassette.types.enums import BackpressurePolicy
+from hassette.types.enums import BackpressurePolicy, EventPriority
 
 
 def fn() -> None:
@@ -407,3 +407,51 @@ class TestBackpressurePolicy:
         b = create_listener(handler=fn, backpressure=BackpressurePolicy.DROP_NEWEST)
         assert a.config_matches(b) is True
         assert "backpressure" not in a.diff_fields(b)
+
+
+class TestEventPriority:
+    """Tests for EventPriority plumbing on ListenerOptions."""
+
+    def test_default_event_priority_is_normal(self) -> None:
+        """A directly constructed ListenerOptions is `normal` — the topic-derived default
+        is applied by the registration path, not this dataclass.
+        """
+        opts = ListenerOptions()
+        assert opts.event_priority is EventPriority.NORMAL
+
+    def test_explicit_enum_priority(self) -> None:
+        """event_priority=EventPriority.CRITICAL is accepted and stored."""
+        opts = ListenerOptions(event_priority=EventPriority.CRITICAL)
+        assert opts.event_priority is EventPriority.CRITICAL
+
+    def test_string_coercion(self) -> None:
+        """event_priority='low' string is coerced to EventPriority.LOW."""
+        opts = ListenerOptions(event_priority="low")
+        assert opts.event_priority is EventPriority.LOW
+
+    def test_invalid_priority_string_lists_valid_values(self) -> None:
+        """An invalid tier raises ValueError naming every valid tier."""
+        with pytest.raises(ValueError, match="urgent") as exc_info:
+            ListenerOptions(event_priority="urgent")
+        error_msg = str(exc_info.value)
+        for priority in EventPriority:
+            assert repr(priority.value) in error_msg
+
+    def test_priority_drift_detected_by_diff_fields(self) -> None:
+        """A changed tier is reported in diff_fields."""
+        a = create_listener(handler=fn, event_priority=EventPriority.NORMAL)
+        b = create_listener(handler=fn, event_priority=EventPriority.HIGH)
+        assert "event_priority" in a.diff_fields(b)
+
+    def test_priority_drift_detected_by_config_matches(self) -> None:
+        """A changed tier causes config_matches to return False."""
+        a = create_listener(handler=fn, event_priority=EventPriority.NORMAL)
+        b = create_listener(handler=fn, event_priority=EventPriority.HIGH)
+        assert a.config_matches(b) is False
+
+    def test_same_priority_config_matches(self) -> None:
+        """Same tier does not cause drift."""
+        a = create_listener(handler=fn, event_priority=EventPriority.HIGH)
+        b = create_listener(handler=fn, event_priority=EventPriority.HIGH)
+        assert a.config_matches(b) is True
+        assert "event_priority" not in a.diff_fields(b)

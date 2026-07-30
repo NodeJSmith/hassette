@@ -241,6 +241,20 @@ describe("HandlersTab listener detail", () => {
     expect(banner.textContent).toContain("Traceback (most recent call last)");
   });
 
+  it("listener detail: shows a tier chip for a non-default event priority", async () => {
+    const listener = createListener({ listener_id: 73, event_priority: "critical" });
+    const { getByTestId } = renderHandlersTab([listener], [], "listener/73");
+    await waitFor(() => getByTestId("listener-detail-73"));
+    expect(getByTestId("modifier-chips").textContent).toContain("tier critical");
+  });
+
+  it("listener detail: omits the tier chip for the default 'normal' priority", async () => {
+    const listener = createListener({ listener_id: 74, event_priority: "normal" });
+    const { getByTestId } = renderHandlersTab([listener], [], "listener/74");
+    await waitFor(() => getByTestId("listener-detail-74"));
+    expect(getByTestId("modifier-chips").textContent).not.toContain("tier");
+  });
+
   it("listener detail: shows mode chip", async () => {
     const listener = createListener({ listener_id: 70, mode: "queued" });
     const { getByTestId } = renderHandlersTab([listener], [], "listener/70");

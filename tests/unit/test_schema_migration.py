@@ -294,6 +294,67 @@ class TestFreshMigration:
         finally:
             conn.close()
 
+    def test_listeners_has_event_priority_column_default_normal(self, tmp_path: Path) -> None:
+        """012.sql adds an event_priority column to listeners defaulting to 'normal'."""
+        db_path = tmp_path / "test.db"
+        run_migrations(db_path)
+
+        conn = sqlite3.connect(db_path)
+        try:
+            cursor = conn.execute("PRAGMA table_info(listeners)")
+            cols = {row[1] for row in cursor.fetchall()}
+            assert "event_priority" in cols
+
+            conn.execute(
+                "INSERT INTO listeners (app_key, instance_index, name, handler_method, topic, source_location)"
+                " VALUES ('app', 0, 'my_listener', 'on_x', 'light.kitchen', 'app.py:1')"
+            )
+            conn.commit()
+            row = conn.execute("SELECT event_priority FROM listeners WHERE name = 'my_listener'").fetchone()
+            assert row[0] == "normal"
+        finally:
+            conn.close()
+
+    def test_listeners_event_priority_rejects_unknown_tier(self, tmp_path: Path) -> None:
+        """The CHECK constraint keeps the column in sync with the EventPriority members."""
+        db_path = tmp_path / "test.db"
+        run_migrations(db_path)
+
+        conn = sqlite3.connect(db_path)
+        try:
+            with pytest.raises(sqlite3.IntegrityError):
+                conn.execute(
+                    "INSERT INTO listeners"
+                    " (app_key, instance_index, name, handler_method, topic, source_location, event_priority)"
+                    " VALUES ('app', 0, 'bad_listener', 'on_x', 'light.kitchen', 'app.py:1', 'urgent')"
+                )
+        finally:
+            conn.close()
+
+    def test_listeners_event_priority_backfills_pre_migration_rows(self, tmp_path: Path) -> None:
+        """A listener row written before migration 012 reads 'normal' after the migration runs."""
+        db_path = tmp_path / "test.db"
+        run_migrations(db_path, target=11)  # schema before the event_priority column existed
+
+        conn = sqlite3.connect(db_path)
+        try:
+            conn.execute(
+                "INSERT INTO listeners (app_key, instance_index, name, handler_method, topic, source_location)"
+                " VALUES ('app', 0, 'legacy_listener', 'on_x', 'light.kitchen', 'app.py:1')"
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        run_migrations(db_path)  # apply 012 onto the populated table
+
+        conn = sqlite3.connect(db_path)
+        try:
+            row = conn.execute("SELECT event_priority FROM listeners WHERE name = 'legacy_listener'").fetchone()
+            assert row[0] == "normal"
+        finally:
+            conn.close()
+
     def test_listeners_backpressure_backfills_pre_migration_rows(self, tmp_path: Path) -> None:
         """A listener row written before migration 008 reads 'block' after the migration runs."""
         db_path = tmp_path / "test.db"

@@ -135,6 +135,14 @@ A `drop_newest` listener that passes the semaphore gate still has its overlap
 handled by `mode`. If the handler is still running when the next event arrives
 (and that event clears the gate), `single` drops the re-fire.
 
+### With `event_priority`
+
+[`event_priority`](priority.md) gates at the same acquire point and overrides
+`backpressure` at the two extreme tiers. A `critical` listener waits for a slot
+even under `drop_newest`; a `low` listener sheds even under `block`. The `high`
+and `normal` tiers leave `backpressure` in charge, and `normal` is what most
+listeners get.
+
 ### With `debounce` and `throttle`
 
 `debounce` and `throttle` are per-listener rate controls that fire inside the

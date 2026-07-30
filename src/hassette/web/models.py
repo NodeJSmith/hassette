@@ -7,8 +7,10 @@ from pydantic import BaseModel, ConfigDict, Field
 from hassette.schemas.domain_models import AppStatusChangedData, ConnectivityData, ServiceStatusData, StateChangedData
 from hassette.types.enums import (
     DEFAULT_BACKPRESSURE_POLICY,
+    DEFAULT_EVENT_PRIORITY,
     DEFAULT_OVERLAP_MODE,
     BackpressurePolicy,
+    EventPriority,
     ExecutionMode,
     ResourceStatus,
 )
@@ -351,6 +353,7 @@ class ListenerWithSummary(BaseModel):
     dropped_count: int = 0
     backpressure_dropped_count: int = 0
     backpressure: BackpressurePolicy = DEFAULT_BACKPRESSURE_POLICY
+    event_priority: EventPriority = DEFAULT_EVENT_PRIORITY
 
 
 class ActivityBucket(BaseModel):

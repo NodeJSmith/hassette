@@ -20,7 +20,13 @@ from .models import entities, states
 from .models.services import ServiceResponse
 from .scheduler import Scheduler
 from .task_bucket import TaskBucket
-from .types.enums import BackpressurePolicy, BlockingIOBehavior, ExecutionMode, ForgottenAwaitBehavior
+from .types.enums import (
+    BackpressurePolicy,
+    BlockingIOBehavior,
+    EventPriority,
+    ExecutionMode,
+    ForgottenAwaitBehavior,
+)
 
 A = accessors
 C = conditions
@@ -45,6 +51,7 @@ __all__ = [
     "Bus",
     "C",
     "D",
+    "EventPriority",
     "ExecutionMode",
     "ForgottenAwaitBehavior",
     "Hassette",

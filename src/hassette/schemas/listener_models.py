@@ -12,7 +12,14 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from hassette.types.enums import DEFAULT_BACKPRESSURE_POLICY, DEFAULT_OVERLAP_MODE, BackpressurePolicy, ExecutionMode
+from hassette.types.enums import (
+    DEFAULT_BACKPRESSURE_POLICY,
+    DEFAULT_EVENT_PRIORITY,
+    DEFAULT_OVERLAP_MODE,
+    BackpressurePolicy,
+    EventPriority,
+    ExecutionMode,
+)
 from hassette.types.types import SourceTier
 
 
@@ -43,6 +50,9 @@ class ListenerSummary(BaseModel):
     mode: ExecutionMode = DEFAULT_OVERLAP_MODE
     backpressure: BackpressurePolicy = DEFAULT_BACKPRESSURE_POLICY
     """Sourced from the ``listeners.backpressure`` column; ``'block'`` (default) or ``'drop_newest'``."""
+    event_priority: EventPriority = DEFAULT_EVENT_PRIORITY
+    """Sourced from the ``listeners.event_priority`` column; ``'low'``, ``'normal'`` (default),
+    ``'high'``, or ``'critical'``."""
     total_invocations: int
     successful: int
     failed: int
