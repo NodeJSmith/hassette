@@ -110,8 +110,11 @@ visually distinct from one that dropped a single event under a brief spike.
 ![Listener detail panel with the Backpressure Dropped cell showing the drop count and rate](../../../_static/web_ui_backpressure_dropped.png)
 
 The `backpressure_dropped_count` field is also available on the listener
-summary returned by the web API. A zero drop count at all policy types means
-the bus has remained below saturation since the last restart.
+summary returned by the web API. Only a listener that can shed ever records a
+count: `drop_newest`, or a tier that overrides `block` (see
+[`event_priority`](priority.md)). A `block` listener at `normal` tier waits for
+its slot instead, so its zero count carries no saturation signal — the cost
+shows up as latency.
 
 ## Composition
 

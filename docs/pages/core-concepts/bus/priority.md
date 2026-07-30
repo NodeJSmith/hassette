@@ -95,6 +95,8 @@ reload and process restart.
 The resolved tier is persisted to the `listeners` table and shown as a `tier`
 chip on the listener detail panel for anything other than `normal`.
 
+![Listener detail panel showing the tier chip on a sensor listener classified as low](../../../_static/web_ui_tier_chip.png)
+
 A rising drop count on a `low` listener means the bus reached saturation while
 that listener's events were arriving. Raising
 `lifecycle.max_concurrent_dispatches`, speeding up slow handlers, or cutting

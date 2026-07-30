@@ -324,6 +324,39 @@
   wait: 6000
 
 # ===========================================================================
+# Event priority tier chip
+# climate_controller subscribes to `sensor.*temperature*`, which the priority
+# classifier assigns to the `low` tier, so its listener detail renders the "tier"
+# chip. Every other demo listener lands on `normal`, where the chip is suppressed.
+# ===========================================================================
+
+# Listener detail cropped to show the "tier low" chip beside the mode chip. The JS
+# walks the listener rows and opens the first one whose detail panel actually shows
+# a tier chip, so it does not depend on row ordering (climate_controller also has a
+# `climate.hvac` listener, which is `normal` and renders no chip). wait_for gates on
+# the chip text rather than the panel, since the panel exists for either listener.
+- url: "http://localhost:{port}/apps/climate_controller/handlers"
+  output: docs/_static/web_ui_tier_chip.png
+  selector: "[data-testid^='listener-detail-']"
+  width: 1400
+  height: 1000
+  wait: 2000
+  wait_for: "document.querySelector('[data-testid=\"modifier-chips\"]')?.textContent.includes('tier')"
+  javascript: >-
+    (async()=>{
+    for(let i=0;i<60;i++){
+    const rows=[...document.querySelectorAll('[data-testid^="unified-row-listener-"]')];
+    for(const r of rows){
+    r.click();
+    await new Promise(r=>setTimeout(r,300));
+    const c=document.querySelector('[data-testid="modifier-chips"]');
+    if(c&&c.textContent.includes('tier'))return;
+    }
+    await new Promise(r=>setTimeout(r,500));
+    }
+    })()
+
+# ===========================================================================
 # Backpressure dropped stat (drop_newest policy)
 # The backpressure_demo example app self-drives a slow drop_newest listener
 # past the dispatch semaphore, so its listener detail accumulates a non-zero
