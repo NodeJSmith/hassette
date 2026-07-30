@@ -20,6 +20,7 @@ from typing import ClassVar
 import pytest
 
 import hassette.context as ctx_module
+from hassette.core.app_bootstrap_coordinator import AppBootstrapCoordinator
 from hassette.core.app_handler import AppHandler
 from hassette.core.bus_service import BusService
 from hassette.core.core import Hassette
@@ -56,9 +57,13 @@ class TestSyncExecutorServiceClassAttrs:
         """SchedulerService declares SyncExecutorService in depends_on."""
         assert SyncExecutorService in SchedulerService.depends_on
 
-    def test_app_handler_depends_on_sync_executor(self) -> None:
-        """AppHandler declares SyncExecutorService in depends_on."""
-        assert SyncExecutorService in AppHandler.depends_on
+    def test_bootstrap_coordinator_depends_on_sync_executor(self) -> None:
+        """AppBootstrapCoordinator declares SyncExecutorService in depends_on."""
+        assert SyncExecutorService in AppBootstrapCoordinator.depends_on
+
+    def test_app_handler_depends_on_bootstrap_coordinator(self) -> None:
+        """AppHandler depends on AppBootstrapCoordinator instead of composing prerequisites."""
+        assert AppHandler.depends_on == [AppBootstrapCoordinator]
 
 
 # SyncExecutorService's restart_spec is covered by the parametrized tests in

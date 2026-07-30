@@ -139,6 +139,8 @@ def make_mock_hassette(
 
     # App handler stubs — get() is synchronous; return None (no app running by default)
     hassette.app_handler.get = Mock(return_value=None)
+    hassette.app_bootstrap_coordinator.is_released = Mock(return_value=True)
+    hassette.app_bootstrap_coordinator.wait_released = AsyncMock(return_value=True)
 
     # Runtime query service — None by default; set_runtime_query_service() wires it at runtime
     hassette._runtime_query_service = None

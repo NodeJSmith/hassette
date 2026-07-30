@@ -6,6 +6,7 @@ fixtures without test pollution.
 
 from typing import TYPE_CHECKING
 
+from hassette.core.app_lifecycle_service import AppAdmissionMode
 from hassette.resources.lifecycle import mark_ready
 from hassette.types.enums import ACTIVE_STATUSES, ResourceStatus
 
@@ -105,7 +106,7 @@ async def reset_app_handler(app_handler: "AppHandler", original_manifests: dict[
 
     app_handler.registry.clear_all()
     app_handler.registry.set_manifests({k: v.model_copy(deep=True) for k, v in original_manifests.items()})
-    await app_handler.lifecycle.bootstrap_apps()
+    await app_handler.bootstrap_apps(admission_mode=AppAdmissionMode.WAIT_FOR_RELEASE)
 
 
 def reset_resource_flags(resource: "Resource") -> None:

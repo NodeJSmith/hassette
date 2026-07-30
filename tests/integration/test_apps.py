@@ -254,6 +254,14 @@ class TestApps:
             "no_autostart_app should be running after explicit start_app() call"
         )
 
+    async def test_start_remains_allowed_after_disconnect_once_bootstrap_released(self) -> None:
+        await self.app_handler.stop_app("my_app_sync")
+
+        await self.hassette.state_proxy.on_disconnect()
+        await self.app_handler.start_app("my_app_sync")
+
+        assert "my_app_sync" in self.app_handler.registry
+
     async def test_new_app_changeset_does_not_start_autostart_false_app(self) -> None:
         """A reload ChangeSet with new_apps containing an autostart=false app leaves it unstarted."""
         assert "no_autostart_app" not in self.app_handler.registry, "Precondition: not running"

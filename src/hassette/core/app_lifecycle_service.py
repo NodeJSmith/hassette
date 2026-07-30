@@ -3,6 +3,7 @@
 import asyncio
 import typing
 from copy import deepcopy
+from enum import StrEnum
 from pathlib import Path
 from timeit import default_timer as timer
 
@@ -13,7 +14,7 @@ import hassette.event_handling.accessors as A
 from hassette.core.app_change_detector import AppChangeDetector, ChangeSet
 from hassette.core.app_factory import AppFactory
 from hassette.events.hassette import HassetteAppStateEvent, HassetteSimpleEvent
-from hassette.exceptions import InvalidInheritanceError, UndefinedUserConfigError
+from hassette.exceptions import AppBootstrapNotReleasedError, InvalidInheritanceError, UndefinedUserConfigError
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import handle_crash, mark_ready
 from hassette.types import ResourceStatus, Topic
@@ -52,6 +53,11 @@ INIT_FAILURE_TRACEBACK_LIMIT = 5
 MANIFEST_UPSERT_TIMEOUT_SECONDS = 5.0
 
 
+class AppAdmissionMode(StrEnum):
+    WAIT_FOR_RELEASE = "wait_for_release"
+    REJECT_IF_UNRELEASED = "reject_if_unreleased"
+
+
 class AppLifecycleService(Resource):
     """Manages app lifecycle orchestration, change detection, and event emission.
 
@@ -88,6 +94,20 @@ class AppLifecycleService(Resource):
         self.registry = registry
         self.factory = AppFactory(hassette, self.registry)
         self.change_detector = AppChangeDetector()
+        self._pending_pre_release_reconciliation = False
+        self._pending_pre_release_original_apps_config: dict[str, AppManifest] | None = None
+        self._pending_pre_release_current_apps_config: dict[str, AppManifest] | None = None
+        self._pending_pre_release_changed_paths: frozenset[Path] | None = None
+        # Bus dispatch spawns a fresh task per handler invocation rather than awaiting handlers
+        # sequentially (see BusService._dispatch), so two file-watcher events arriving close
+        # together can produce two concurrently-running handle_change_event() coroutines. Each
+        # does real awaited I/O (refresh_config(), resolve_only_apps()) before touching the
+        # shared _pending_pre_release_* fields, and refresh_config() mutates self.registry.manifests
+        # in place — so overlapping calls can race on the "what was the world like before this
+        # change" snapshot. This lock serializes handle_change_event so only one reconciliation
+        # pass runs at a time, matching the "single reconciliation in flight" model the rest of
+        # this class already assumes.
+        self._change_event_lock = asyncio.Lock()
 
     async def on_initialize(self) -> None:
         """Signal readiness immediately — no dependencies to wait for."""
@@ -297,7 +317,52 @@ class AppLifecycleService(Resource):
         )
         await self.hassette.send_event(event)
 
-    async def bootstrap_apps(self) -> None:
+    @property
+    def bootstrap_coordinator(self):
+        return self.hassette.app_bootstrap_coordinator
+
+    async def _admit_start(self, *, app_key: str, admission_mode: AppAdmissionMode) -> None:
+        if admission_mode is AppAdmissionMode.WAIT_FOR_RELEASE:
+            await self.bootstrap_coordinator.wait_released()
+            return
+        if self.bootstrap_coordinator.is_released():
+            return
+        raise AppBootstrapNotReleasedError(f"App {app_key!r} cannot start before bootstrap release")
+
+    def _record_pre_release_reconciliation(
+        self,
+        *,
+        original_apps_config: dict[str, "AppManifest"],
+        curr_apps_config: dict[str, "AppManifest"],
+        changed_file_paths: frozenset[Path] | None,
+    ) -> None:
+        had_pending_reconciliation = self._pending_pre_release_reconciliation
+        if not had_pending_reconciliation:
+            self._pending_pre_release_original_apps_config = original_apps_config
+        self._pending_pre_release_reconciliation = True
+        self._pending_pre_release_current_apps_config = curr_apps_config
+        if changed_file_paths is None:
+            self._pending_pre_release_changed_paths = None
+        elif not had_pending_reconciliation:
+            self._pending_pre_release_changed_paths = changed_file_paths
+        elif self._pending_pre_release_changed_paths is None:
+            self._pending_pre_release_changed_paths = None
+        else:
+            self._pending_pre_release_changed_paths |= changed_file_paths
+
+    def _take_pre_release_reconciliation(
+        self,
+    ) -> tuple[dict[str, "AppManifest"] | None, dict[str, "AppManifest"] | None, frozenset[Path] | None]:
+        original_apps_config = self._pending_pre_release_original_apps_config
+        curr_apps_config = self._pending_pre_release_current_apps_config
+        changed_file_paths = self._pending_pre_release_changed_paths
+        self._pending_pre_release_reconciliation = False
+        self._pending_pre_release_original_apps_config = None
+        self._pending_pre_release_current_apps_config = None
+        self._pending_pre_release_changed_paths = None
+        return original_apps_config, curr_apps_config, changed_file_paths
+
+    async def bootstrap_apps(self, *, admission_mode: AppAdmissionMode) -> None:
         """Initialize all configured and enabled apps, called at AppHandler startup.
 
         All declared dependencies are guaranteed ready by AppHandler's depends_on
@@ -305,13 +370,17 @@ class AppLifecycleService(Resource):
         """
         if not self.registry.manifests:
             self.logger.debug("No apps configured, skipping initialization")
+            if admission_mode is AppAdmissionMode.WAIT_FOR_RELEASE:
+                await self.bootstrap_coordinator.wait_released()
+                await self._replay_pre_release_reconciliation_if_needed()
             return
 
         try:
             await self.resolve_only_apps()
             self.reconcile_blocked_apps()
             await self.persist_manifests()
-            await self.start_apps()
+            await self.start_apps(admission_mode=admission_mode)
+            await self._replay_pre_release_reconciliation_if_needed()
             snapshot = self.registry.get_snapshot()
             if not snapshot.running_count and not snapshot.failed_count:
                 self.logger.warning("No apps were initialized (all apps may be disabled)")
@@ -330,7 +399,13 @@ class AppLifecycleService(Resource):
             await handle_crash(self, exc)
             raise
 
-    async def start_app(self, app_key: str, force_reload: bool = False) -> None:
+    async def start_app(
+        self,
+        app_key: str,
+        force_reload: bool = False,
+        *,
+        admission_mode: AppAdmissionMode = AppAdmissionMode.REJECT_IF_UNRELEASED,
+    ) -> None:
         """Create instances for an app and await their initialization.
 
         Args:
@@ -341,6 +416,8 @@ class AppLifecycleService(Resource):
         if not app_manifest:
             self.logger.debug("Skipping disabled or unknown app %s", app_key)
             return
+
+        await self._admit_start(app_key=app_key, admission_mode=admission_mode)
 
         try:
             self.logger.debug("Creating instances for app %s", app_key)
@@ -377,7 +454,13 @@ class AppLifecycleService(Resource):
         except Exception:
             self.logger.error("Failed to stop app %s:\n%s", app_key, get_short_traceback())
 
-    async def reload_app(self, app_key: str, force_reload: bool = False) -> None:
+    async def reload_app(
+        self,
+        app_key: str,
+        force_reload: bool = False,
+        *,
+        admission_mode: AppAdmissionMode = AppAdmissionMode.REJECT_IF_UNRELEASED,
+    ) -> None:
         """Stop and reinitialize a single app by key (based on current config).
 
         Args:
@@ -385,9 +468,10 @@ class AppLifecycleService(Resource):
             force_reload: Whether to force-reload the app class from disk
         """
         self.logger.debug("Reloading app %s", app_key)
+        await self._admit_start(app_key=app_key, admission_mode=admission_mode)
         try:
             await self.stop_app(app_key)
-            await self.start_app(app_key, force_reload=force_reload)
+            await self.start_app(app_key, force_reload=force_reload, admission_mode=admission_mode)
         except Exception:
             self.logger.error("Failed to reload app %s:\n%s", app_key, get_short_traceback())
 
@@ -400,7 +484,12 @@ class AppLifecycleService(Resource):
         """Already-running apps are always reconciled; dormant apps only if autostart."""
         return app_key in self.registry or self.should_autostart(app_key)
 
-    async def start_apps(self, apps: set[str] | None = None) -> None:
+    async def start_apps(
+        self,
+        apps: set[str] | None = None,
+        *,
+        admission_mode: AppAdmissionMode = AppAdmissionMode.REJECT_IF_UNRELEASED,
+    ) -> None:
         """Create initialization tasks for apps.
 
         Args:
@@ -408,7 +497,10 @@ class AppLifecycleService(Resource):
         """
         apps = apps if apps is not None else set(self.registry.autostart_manifests.keys())
 
-        results = await asyncio.gather(*[self.start_app(app_key) for app_key in apps], return_exceptions=True)
+        results = await asyncio.gather(
+            *[self.start_app(app_key, admission_mode=admission_mode) for app_key in apps],
+            return_exceptions=True,
+        )
         exception_results = [r for r in results if isinstance(r, Exception)]
         for result in exception_results:
             self.logger.error("Error during app initialization: %s", result, exc_info=result)
@@ -461,40 +553,68 @@ class AppLifecycleService(Resource):
     ) -> None:
         """Handle changes detected by the file watcher.
 
-        Called as a Bus event handler with DI-injected ``changed_file_paths``.
+        Called as a Bus event handler with DI-injected ``changed_file_paths``. Serialized by
+        ``self._change_event_lock`` — this listener runs in the bus's ``parallel`` execution
+        mode (framework tier), so two file-watcher events dispatched close together would
+        otherwise run this method concurrently and race on ``_pending_pre_release_*`` and on
+        ``refresh_config()``'s in-place mutation of ``self.registry.manifests``.
         """
-        self.logger.debug("Handling app change event for files: %s", changed_file_paths)
+        async with self._change_event_lock:
+            self.logger.debug("Handling app change event for files: %s", changed_file_paths)
 
-        original_apps_config, curr_apps_config = await self.refresh_config()
-        await self.resolve_only_apps()
+            original_apps_config, curr_apps_config = await self.refresh_config()
+            await self.resolve_only_apps()
 
-        changes = self.change_detector.detect_changes(
-            original_apps_config, curr_apps_config, changed_file_paths, only_apps=self.registry.only_apps
-        )
+            if self.bootstrap_coordinator.is_released() and self._pending_pre_release_reconciliation:
+                # A pre-release change is still queued. Fold it into this diff's baseline so the
+                # comparison spans everything since before release, then clear the queue — otherwise
+                # bootstrap's later replay would apply that stale snapshot on top of a config it no
+                # longer matches (see integration review finding on stale pre-release replay).
+                self.logger.debug("Merging queued pre-release reconciliation into post-release change")
+                pending_original, _, pending_paths = self._take_pre_release_reconciliation()
+                if pending_original is not None:
+                    original_apps_config = pending_original
+                    if pending_paths is None or changed_file_paths is None:
+                        changed_file_paths = None
+                    else:
+                        changed_file_paths |= pending_paths
 
-        # Reconcile blocked apps — start any that were unblocked
-        unblocked = self.reconcile_blocked_apps()
-        to_start = unblocked - set(self.registry.app_keys()) - changes.new_apps - changes.reimport_apps
-        if to_start:
-            self.logger.debug("Starting previously-blocked apps: %s", to_start)
-            changes = ChangeSet(
-                orphans=changes.orphans,
-                new_apps=changes.new_apps | frozenset(to_start),
-                reimport_apps=changes.reimport_apps,
-                reload_apps=changes.reload_apps - to_start,
+            changes = self.change_detector.detect_changes(
+                original_apps_config, curr_apps_config, changed_file_paths, only_apps=self.registry.only_apps
             )
 
-        if not changes.has_changes:
-            self.logger.debug("%s changed but no app changes detected", changed_file_paths)
-            return
+            # Reconcile blocked apps — start any that were unblocked
+            unblocked = self.reconcile_blocked_apps()
+            to_start = unblocked - set(self.registry.app_keys()) - changes.new_apps - changes.reimport_apps
+            if to_start:
+                self.logger.debug("Starting previously-blocked apps: %s", to_start)
+                changes = ChangeSet(
+                    orphans=changes.orphans,
+                    new_apps=changes.new_apps | frozenset(to_start),
+                    reimport_apps=changes.reimport_apps,
+                    reload_apps=changes.reload_apps - to_start,
+                )
 
-        self.logger.debug("%s changed, app changes detected - %s", changed_file_paths, changes)
+            if not changes.has_changes:
+                self.logger.debug("%s changed but no app changes detected", changed_file_paths)
+                return
 
-        await self.apply_changes(changes)
+            if not self.bootstrap_coordinator.is_released():
+                self.logger.debug("Deferring app reconciliation until bootstrap release opens")
+                self._record_pre_release_reconciliation(
+                    original_apps_config=original_apps_config,
+                    curr_apps_config=curr_apps_config,
+                    changed_file_paths=changed_file_paths,
+                )
+                return
 
-        await self.hassette.send_event(
-            HassetteSimpleEvent.from_topic(topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED),
-        )
+            self.logger.debug("%s changed, app changes detected - %s", changed_file_paths, changes)
+
+            await self.apply_changes(changes)
+
+            await self.hassette.send_event(
+                HassetteSimpleEvent.from_topic(topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED),
+            )
 
     async def refresh_config(self) -> tuple[dict[str, "AppManifest"], dict[str, "AppManifest"]]:
         """Reload the configuration and return (original_apps_config, current_apps_config)."""
@@ -513,6 +633,36 @@ class AppLifecycleService(Resource):
         curr_apps_config = {k: deepcopy(v) for k, v in self.registry.manifests.items() if v.enabled}
 
         return original_apps_config, curr_apps_config
+
+    async def _replay_pre_release_reconciliation_if_needed(self) -> None:
+        if not self._pending_pre_release_reconciliation:
+            return
+
+        original_apps_config, curr_apps_config, changed_file_paths = self._take_pre_release_reconciliation()
+        if original_apps_config is None or curr_apps_config is None:
+            return
+        self.logger.debug("Replaying deferred app reconciliation after bootstrap release opens")
+        await self.resolve_only_apps()
+
+        changes = self.change_detector.detect_changes(
+            original_apps_config, curr_apps_config, changed_file_paths, only_apps=self.registry.only_apps
+        )
+
+        unblocked = self.reconcile_blocked_apps()
+        to_start = unblocked - set(self.registry.app_keys()) - changes.new_apps - changes.reimport_apps
+        if to_start:
+            changes = ChangeSet(
+                orphans=changes.orphans,
+                new_apps=changes.new_apps | frozenset(to_start),
+                reimport_apps=changes.reimport_apps,
+                reload_apps=changes.reload_apps - to_start,
+            )
+
+        if not changes.has_changes:
+            self.logger.debug("Deferred app reconciliation produced no changes")
+            return
+
+        await self.apply_changes(changes)
 
     async def persist_manifests(self) -> None:
         """Upsert all current manifests into the ``app_manifests`` DB table concurrently.

@@ -154,6 +154,10 @@ class ResourceNotReadyError(HassetteError):
     """Custom exception to indicate that a resource is not ready for use."""
 
 
+class AppBootstrapNotReleasedError(HassetteError):
+    """Raised when an app start/reload is requested before bootstrap release opens."""
+
+
 class AppPrecheckFailedError(HassetteError):
     """Custom exception to indicate that one or more prechecks for an app failed."""
 

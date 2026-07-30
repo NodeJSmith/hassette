@@ -214,6 +214,9 @@ def create_hassette_stub(
         hassette._websocket_service.wait_initial_connection = AsyncMock(return_value=False)
 
     hassette.app_handler = hassette._app_handler
+    hassette.app_bootstrap_coordinator = hassette._app_bootstrap_coordinator
+    hassette._app_bootstrap_coordinator.is_released = MagicMock(return_value=True)
+    hassette._app_bootstrap_coordinator.wait_released = AsyncMock(return_value=True)
 
     # New-style manifest snapshot
     snapshot = make_full_snapshot(manifests)

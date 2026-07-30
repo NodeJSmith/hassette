@@ -27,6 +27,7 @@ from hassette.utils.service_utils import topological_levels, topological_sort, v
 from hassette.utils.url_utils import build_rest_url, build_ws_url
 
 from .api_resource import ApiResource
+from .app_bootstrap_coordinator import AppBootstrapCoordinator
 from .app_handler import AppHandler
 from .block_io_guard import install as install_block_io_guard
 from .block_io_guard import uninstall as uninstall_block_io_guard
@@ -121,6 +122,7 @@ class Hassette(Resource):
         self._file_watcher: FileWatcherService | None = None
         self._web_ui_watcher: WebUiWatcherService | None = None
         self._app_handler: AppHandler | None = None
+        self._app_bootstrap_coordinator: AppBootstrapCoordinator | None = None
         self._api_service: ApiResource | None = None
         self._state_proxy: StateProxy | None = None
         self._runtime_query_service: RuntimeQueryService | None = None
@@ -211,10 +213,10 @@ class Hassette(Resource):
         self._websocket_service = self.add_child(WebsocketService)
         self._file_watcher = self.add_child(FileWatcherService)
         self._web_ui_watcher = self.add_child(WebUiWatcherService)
-        self._app_handler = self.add_child(AppHandler)
-
         self._api_service = self.add_child(ApiResource)
         self._state_proxy = self.add_child(StateProxy)
+        self._app_bootstrap_coordinator = self.add_child(AppBootstrapCoordinator)
+        self._app_handler = self.add_child(AppHandler)
 
         self._runtime_query_service = self.add_child(RuntimeQueryService)
         self._telemetry_query_service = self.add_child(TelemetryQueryService)
@@ -414,6 +416,13 @@ class Hassette(Resource):
         if self._app_handler is None:
             raise _service_not_wired_error("AppHandler")
         return self._app_handler
+
+    @property
+    def app_bootstrap_coordinator(self) -> AppBootstrapCoordinator:
+        """AppBootstrapCoordinator instance for app-bootstrap release control."""
+        if self._app_bootstrap_coordinator is None:
+            raise _service_not_wired_error("AppBootstrapCoordinator")
+        return self._app_bootstrap_coordinator
 
     @property
     def websocket_service(self) -> WebsocketService:

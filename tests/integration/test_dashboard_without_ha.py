@@ -187,6 +187,7 @@ class TestInitialStateSyncBeforeApps:
             hassette.websocket_service.set_connection_state(ConnectionState.CONNECTING)
             connection_attempted.set()
             await release_connection.wait()
+            hassette.websocket_service._connected_generation = 1  # pyright: ignore[reportPrivateUsage]  # test-only readiness simulation
             hassette.websocket_service.set_connection_state(ConnectionState.CONNECTED)
             await hassette.websocket_service.send_connection_established_event()
             hassette.websocket_service._connected_event.set()  # pyright: ignore[reportPrivateUsage]  # coordinator-internal

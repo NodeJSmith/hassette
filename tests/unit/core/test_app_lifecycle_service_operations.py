@@ -3,8 +3,11 @@
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, Mock
 
+import pytest
+
 from hassette.core.app_change_detector import ChangeSet
-from hassette.core.app_lifecycle_service import AppLifecycleService
+from hassette.core.app_lifecycle_service import AppAdmissionMode, AppLifecycleService
+from hassette.exceptions import AppBootstrapNotReleasedError
 from hassette.test_utils import EventCapture
 from hassette.types import Topic
 from hassette.types.enums import BlockReason, ResourceStatus
@@ -37,6 +40,39 @@ class TestApplyChanges:
 
 
 class TestStartApp:
+    async def test_wait_mode_awaits_release_before_creating_instances(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        mock_manifest: MagicMock,
+        mock_factory: MagicMock,
+        mock_hassette: MagicMock,
+    ) -> None:
+        mock_registry.get_manifest = Mock(return_value=mock_manifest)
+        mock_registry.get_apps_by_key = Mock(return_value={})
+        mock_hassette.app_bootstrap_coordinator.is_released.return_value = False
+
+        await lifecycle_service.start_app("test_app", admission_mode=AppAdmissionMode.WAIT_FOR_RELEASE)
+
+        mock_hassette.app_bootstrap_coordinator.wait_released.assert_awaited_once_with()
+        mock_factory.create_instances.assert_called_once_with("test_app", mock_manifest, force_reload=False)
+
+    async def test_rejects_when_unreleased_in_manual_mode(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        mock_manifest: MagicMock,
+        mock_factory: MagicMock,
+        mock_hassette: MagicMock,
+    ) -> None:
+        mock_registry.get_manifest = Mock(return_value=mock_manifest)
+        mock_hassette.app_bootstrap_coordinator.is_released.return_value = False
+
+        with pytest.raises(AppBootstrapNotReleasedError):
+            await lifecycle_service.start_app("test_app")
+
+        mock_factory.create_instances.assert_not_called()
+
     async def test_creates_instances_via_factory(
         self,
         lifecycle_service: AppLifecycleService,
@@ -158,6 +194,21 @@ class TestStopApp:
 
 
 class TestReloadApp:
+    async def test_rejects_before_stopping_when_unreleased(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_hassette: MagicMock,
+    ) -> None:
+        mock_hassette.app_bootstrap_coordinator.is_released.return_value = False
+        lifecycle_service.stop_app = AsyncMock()
+        lifecycle_service.start_app = AsyncMock()
+
+        with pytest.raises(AppBootstrapNotReleasedError):
+            await lifecycle_service.reload_app("test_app")
+
+        lifecycle_service.stop_app.assert_not_called()
+        lifecycle_service.start_app.assert_not_called()
+
     async def test_stops_then_starts(
         self,
         lifecycle_service: AppLifecycleService,

@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from hassette.exceptions import TelemetryUnavailableError
+from hassette.exceptions import AppBootstrapNotReleasedError, TelemetryUnavailableError
 from hassette.schemas.listener_models import ListenerSummary
 from hassette.test_utils.web_manifest_helpers import make_manifest_db_row
 from hassette.web.config_view import MASK_SENTINEL
@@ -119,6 +119,15 @@ class TestAppEndpoints:
         data = response.json()
         assert data["action"] == "start"
 
+    async def test_start_app_returns_retryable_conflict_before_release(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        mock_hassette.app_handler.start_app = AsyncMock(side_effect=AppBootstrapNotReleasedError("not released"))
+
+        response = await client.post("/api/apps/my_app/start")
+
+        assert response.status_code == 409
+
     async def test_stop_app(self, client: "AsyncClient") -> None:
         response = await client.post("/api/apps/my_app/stop")
         assert response.status_code == 202
@@ -136,6 +145,15 @@ class TestAppEndpoints:
         data = response.json()
         assert data["action"] == "reload"
         mock_hassette.app_handler.reload_app.assert_awaited_once_with("my_app", force_reload=True)
+
+    async def test_reload_app_returns_retryable_conflict_before_release(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        mock_hassette.app_handler.reload_app = AsyncMock(side_effect=AppBootstrapNotReleasedError("not released"))
+
+        response = await client.post("/api/apps/my_app/reload")
+
+        assert response.status_code == 409
 
     async def test_app_management_works_without_dev_mode(self, client: "AsyncClient", mock_hassette) -> None:
         mock_hassette.config.dev_mode = False

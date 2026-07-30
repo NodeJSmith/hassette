@@ -21,6 +21,7 @@ from hassette.bus.error_context import BusErrorContext
 from hassette.commands import ExecuteJob, InvokeHandler
 from hassette.conversion import STATE_REGISTRY, TYPE_REGISTRY
 from hassette.core.api_resource import ApiResource
+from hassette.core.app_bootstrap_coordinator import AppBootstrapCoordinator
 from hassette.core.app_handler import AppHandler
 from hassette.core.bus_service import BusService
 from hassette.core.command_executor import CommandExecutor
@@ -60,7 +61,8 @@ DEPENDENCIES: dict[str, set[str]] = {
     "scheduler": {"sync_executor"},
     "file_watcher": set(),
     "api_mock": set(),
-    "app_handler": {"bus", "scheduler", "state_proxy", "sync_executor"},
+    "app_bootstrap_coordinator": {"bus", "scheduler", "state_proxy", "sync_executor"},
+    "app_handler": {"app_bootstrap_coordinator"},
     "state_proxy": {"bus", "scheduler"},
     "state_registry": set(),
     # service_watcher removed: ServiceWatcher is a real framework service but has no
@@ -72,8 +74,6 @@ DEPENDENCIES: dict[str, set[str]] = {
 # real service depends_on declarations.
 #
 # Omitted entries:
-#   "api_mock"       — harness-specific: wraps ApiResource with URL/header patches and
-#                      a local HTTP mock server; there is no single real class equivalent.
 #   "file_watcher"   — FileWatcherService has no depends_on (empty list), so consistency
 #                      checks would be vacuous.  Omitting avoids false-positive drift.
 #   "state_registry" — StateRegistry is not a Resource subclass; it is a plain dataclass
@@ -85,6 +85,7 @@ COMPONENT_CLASS_MAP: dict[str, type[Resource]] = {
     "sync_executor": SyncExecutorService,
     "bus": BusService,
     "scheduler": SchedulerService,
+    "app_bootstrap_coordinator": AppBootstrapCoordinator,
     "app_handler": AppHandler,
     "state_proxy": StateProxy,
 }
@@ -802,9 +803,9 @@ class HassetteHarness:
         self.hassette._command_executor = Mock(spec=CommandExecutor)
         self.hassette._command_executor.reconcile_registrations = AsyncMock()
         self.hassette._app_handler = self.hassette.add_child(AppHandler)
-        self.hassette._websocket_service = Mock()
-        self.hassette._websocket_service._status = ResourceStatus.RUNNING
-        self._configure_ready_websocket_mock(self.hassette._websocket_service)
+
+    async def _start_app_bootstrap_coordinator(self) -> None:
+        self.hassette._app_bootstrap_coordinator = self.hassette.add_child(AppBootstrapCoordinator)
 
     async def _start_api_mock(self) -> None:
         if not self.api_base_url:
@@ -834,6 +835,10 @@ class HassetteHarness:
         self.api_mock = mock_server
 
     async def _start_state_proxy(self) -> None:
+        if self.hassette._websocket_service is None:
+            self.hassette._websocket_service = Mock()
+            self.hassette._websocket_service._status = ResourceStatus.RUNNING
+            self._configure_ready_websocket_mock(self.hassette._websocket_service)
         self.hassette._state_proxy = self.hassette.add_child(StateProxy)
 
     async def _start_state_registry(self) -> None:
@@ -847,6 +852,7 @@ class HassetteHarness:
         "scheduler": _start_scheduler,
         "file_watcher": _start_file_watcher,
         "api_mock": _start_api_mock,
+        "app_bootstrap_coordinator": _start_app_bootstrap_coordinator,
         "app_handler": _start_app_handler,
         "state_proxy": _start_state_proxy,
         "state_registry": _start_state_registry,

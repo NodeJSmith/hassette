@@ -6,7 +6,7 @@ import pytest
 
 from hassette.bus import Bus
 from hassette.core.app_change_detector import ChangeSet
-from hassette.core.app_lifecycle_service import AppLifecycleService
+from hassette.core.app_lifecycle_service import AppAdmissionMode, AppLifecycleService
 from hassette.test_utils import EventCapture
 from hassette.types import Topic
 from hassette.types.enums import ResourceStatus
@@ -87,6 +87,86 @@ class TestOnlyAppRegistryAgreement:
 
         assert len(captured_only_apps) == 1
         assert captured_only_apps[0] == mock_registry.only_apps
+
+
+class TestBootstrapAppsAdmission:
+    async def test_bootstrap_uses_wait_for_release_mode(
+        self, lifecycle_service: AppLifecycleService, mock_hassette: MagicMock, mock_registry: MagicMock
+    ) -> None:
+        mock_registry.manifests = {"app_a": MagicMock()}
+        mock_registry.get_snapshot = Mock(return_value=MagicMock(running_count=0, failed_count=0))
+        lifecycle_service.start_apps = AsyncMock()
+
+        await lifecycle_service.bootstrap_apps(admission_mode=AppAdmissionMode.WAIT_FOR_RELEASE)
+
+        mock_hassette.app_bootstrap_coordinator.wait_released.assert_not_awaited()
+        lifecycle_service.start_apps.assert_awaited_once_with(admission_mode=AppAdmissionMode.WAIT_FOR_RELEASE)
+
+    async def test_bootstrap_replays_deferred_reconciliation_after_startup(
+        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
+    ) -> None:
+        manifest = MagicMock()
+        original_manifest = MagicMock()
+        mock_registry.manifests = {"app_a": manifest}
+        mock_registry.enabled_manifests = {"app_a": manifest}
+        mock_registry.get_snapshot = Mock(return_value=MagicMock(running_count=0, failed_count=0))
+        lifecycle_service.start_apps = AsyncMock()
+        lifecycle_service.resolve_only_apps = AsyncMock()
+        lifecycle_service.change_detector.detect_changes = Mock(
+            return_value=ChangeSet(
+                orphans=frozenset(),
+                new_apps=frozenset({"app_a"}),
+                reimport_apps=frozenset(),
+                reload_apps=frozenset(),
+            )
+        )
+        lifecycle_service.apply_changes = AsyncMock()
+        lifecycle_service._record_pre_release_reconciliation(
+            original_apps_config={"old_app": original_manifest},
+            curr_apps_config={"app_a": manifest},
+            changed_file_paths=frozenset(),
+        )
+
+        await lifecycle_service.bootstrap_apps(admission_mode=AppAdmissionMode.WAIT_FOR_RELEASE)
+
+        lifecycle_service.start_apps.assert_awaited_once_with(admission_mode=AppAdmissionMode.WAIT_FOR_RELEASE)
+        lifecycle_service.apply_changes.assert_awaited_once()
+
+    async def test_bootstrap_replays_deferred_reconciliation_when_no_manifests(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        mock_hassette: MagicMock,
+    ) -> None:
+        """The empty-manifest early return must still await release and replay a queued
+        pre-release reconciliation rather than silently dropping it.
+
+        `registry.manifests == {}` short-circuits bootstrap_apps() before start_apps() and
+        the unconditional `_replay_pre_release_reconciliation_if_needed()` call that follows
+        it, so that replay must happen on this early-return path too.
+        """
+        mock_registry.manifests = {}
+        lifecycle_service.resolve_only_apps = AsyncMock()
+        lifecycle_service.change_detector.detect_changes = Mock(
+            return_value=ChangeSet(
+                orphans=frozenset(),
+                new_apps=frozenset({"app_a"}),
+                reimport_apps=frozenset(),
+                reload_apps=frozenset(),
+            )
+        )
+        lifecycle_service.apply_changes = AsyncMock()
+        lifecycle_service._record_pre_release_reconciliation(
+            original_apps_config={"old_app": MagicMock()},
+            curr_apps_config={"app_a": MagicMock()},
+            changed_file_paths=frozenset(),
+        )
+
+        await lifecycle_service.bootstrap_apps(admission_mode=AppAdmissionMode.WAIT_FOR_RELEASE)
+
+        mock_hassette.app_bootstrap_coordinator.wait_released.assert_awaited_once()
+        lifecycle_service.apply_changes.assert_awaited_once()
+        assert lifecycle_service._pending_pre_release_reconciliation is False
 
 
 class TestAppLifecycleServiceProperties:
@@ -460,7 +540,7 @@ class TestBootstrapApps:
         """Returns early when no manifests are configured."""
         mock_registry.manifests = {}
 
-        await lifecycle_service.bootstrap_apps()
+        await lifecycle_service.bootstrap_apps(admission_mode=AppAdmissionMode.WAIT_FOR_RELEASE)
 
         mock_hassette.send_event.assert_not_called()
 
@@ -477,7 +557,7 @@ class TestBootstrapApps:
         mock_registry.active_manifests = {}
         mock_registry.get_snapshot = Mock(return_value=MagicMock(running_count=0, failed_count=0))
 
-        await lifecycle_service.bootstrap_apps()
+        await lifecycle_service.bootstrap_apps(admission_mode=AppAdmissionMode.WAIT_FOR_RELEASE)
 
         completed_calls = event_capture.by_topic(Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED)
         assert len(completed_calls) == 1
@@ -489,7 +569,7 @@ class TestBootstrapApps:
 
         with patch("hassette.core.app_lifecycle_service.handle_crash") as mock_handle_crash:
             with pytest.raises(RuntimeError, match="crash"):
-                await lifecycle_service.bootstrap_apps()
+                await lifecycle_service.bootstrap_apps(admission_mode=AppAdmissionMode.WAIT_FOR_RELEASE)
 
             mock_handle_crash.assert_called_once()
             assert mock_handle_crash.call_args[0][0] is lifecycle_service

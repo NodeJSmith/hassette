@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Add bootstrap coordinator and admission"
-status: "planned"
+status: "done"
 depends_on: ["T02"]
 implements: ["FR#1", "FR#2", "FR#3", "FR#4", "FR#5", "FR#7", "FR#25", "FR#29", "FR#30", "FR#32", "FR#33", "AC#1", "AC#3", "AC#4", "AC#17", "AC#20", "AC#21", "AC#23", "AC#24"]
 ---

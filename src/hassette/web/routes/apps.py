@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException, Response
 
 from hassette.app.app_config import AppConfig
 from hassette.config.classes import AppManifest
-from hassette.exceptions import TelemetryUnavailableError
+from hassette.exceptions import AppBootstrapNotReleasedError, TelemetryUnavailableError
 from hassette.schemas.app_snapshots import AppFullSnapshot, tally_manifest_statuses
 from hassette.web.config_view import deref_schema, mask_app_config, mask_values, resolve_app_config_cls
 from hassette.web.dependencies import HassetteDep, RuntimeDep, TelemetryDep, db_degrades_to
@@ -148,6 +148,10 @@ async def start_app(app_key: str, hassette: HassetteDep) -> ActionResponse:
     _require_known_app(app_key, hassette)
     try:
         await hassette.app_handler.start_app(app_key)
+    except AppBootstrapNotReleasedError as exc:
+        raise HTTPException(
+            status_code=409, detail="App bootstrap prerequisites are not ready yet; retry later"
+        ) from exc
     except (ValueError, RuntimeError) as exc:
         LOGGER.warning("Failed to start app %s", app_key, exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to start app") from exc
@@ -174,6 +178,10 @@ async def reload_app(app_key: str, hassette: HassetteDep) -> ActionResponse:
         # Always re-import from disk so a previously-failed app recovers once its
         # source is fixed -- without force_reload the cached failed class is reused (#1005).
         await hassette.app_handler.reload_app(app_key, force_reload=True)
+    except AppBootstrapNotReleasedError as exc:
+        raise HTTPException(
+            status_code=409, detail="App bootstrap prerequisites are not ready yet; retry later"
+        ) from exc
     except (ValueError, RuntimeError) as exc:
         LOGGER.warning("Failed to reload app %s", app_key, exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to reload app") from exc

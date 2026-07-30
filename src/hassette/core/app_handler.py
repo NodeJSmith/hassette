@@ -4,18 +4,15 @@ Owns the AppRegistry and delegates all lifecycle operations to
 AppLifecycleService (a Resource child).
 """
 
+import asyncio
 import typing
 from typing import ClassVar
 
 from hassette.bus import Bus
-from hassette.core.api_resource import ApiResource
+from hassette.core.app_bootstrap_coordinator import AppBootstrapCoordinator
 from hassette.core.app_change_detector import ChangeSet
-from hassette.core.app_lifecycle_service import AppLifecycleService
+from hassette.core.app_lifecycle_service import AppAdmissionMode, AppLifecycleService
 from hassette.core.app_registry import AppRegistry
-from hassette.core.bus_service import BusService
-from hassette.core.scheduler_service import SchedulerService
-from hassette.core.state_proxy import StateProxy
-from hassette.core.sync_executor_service import SyncExecutorService
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_not_ready, mark_ready
 from hassette.schemas.app_snapshots import AppStatusSnapshot
@@ -35,16 +32,7 @@ class AppHandler(Resource):
     - AppLifecycleService: Lifecycle orchestration, change detection, factory
     """
 
-    # CommandExecutor is not listed: bootstrap_apps() fires registrations that
-    # flow through CommandExecutor, but CommandExecutor's internal wait_for_ready
-    # guards protect those calls.  AppHandler does not call CommandExecutor directly.
-    depends_on: ClassVar[list[type[Resource]]] = [
-        ApiResource,
-        BusService,
-        SchedulerService,
-        StateProxy,
-        SyncExecutorService,
-    ]
+    depends_on: ClassVar[list[type[Resource]]] = [AppBootstrapCoordinator]
 
     # Per-instance restart instead of full app-key restart (#796)
 
@@ -63,6 +51,8 @@ class AppHandler(Resource):
         self.registry = AppRegistry()
         self.lifecycle = self.add_child(AppLifecycleService, registry=self.registry)
         self.lifecycle.set_apps_configs(hassette.config.apps.manifests)
+        self._bootstrap_task: asyncio.Task[None] | None = None
+        self._bootstrap_completed = asyncio.Event()
 
     def get_status_snapshot(self) -> AppStatusSnapshot:
         """Get immutable snapshot of all app states for web UI."""
@@ -83,9 +73,8 @@ class AppHandler(Resource):
     async def on_initialize(self) -> None:
         """Set up file-watcher subscription.
 
-        All declared dependencies (ApiResource, BusService, SchedulerService, StateProxy,
-        SyncExecutorService) are guaranteed ready by depends_on auto-wait. Readiness is
-        deferred to after_initialize once bootstrap_apps completes.
+        The bootstrap coordinator is guaranteed wired by depends_on auto-wait.
+        Readiness is deferred to after_initialize once app bootstrap completes.
         """
         if self.hassette.config.dev_mode or self.hassette.config.allow_reload_in_prod:
             if self.hassette.config.allow_reload_in_prod:
@@ -100,20 +89,41 @@ class AppHandler(Resource):
             self.logger.debug("Not watching for app changes, dev_mode is disabled")
 
     async def after_initialize(self) -> None:
-        """Await app bootstrap, then signal readiness.
+        """Schedule app bootstrap, then signal readiness.
 
-        All declared dependencies are guaranteed ready by depends_on auto-wait before
-        on_initialize() runs. Readiness is deferred until bootstrap completes so the
-        wave-based startup in run_forever() does not proceed until apps are available.
+        The bootstrap coordinator is guaranteed wired by depends_on auto-wait before
+        on_initialize() runs. App bootstrap itself runs in background work so the
+        finite startup wave can complete even while Home Assistant remains unavailable.
         """
-        self.logger.debug("Bootstrapping apps")
-        await self.lifecycle.bootstrap_apps()
-        mark_ready(self, reason="apps-bootstrapped")
+        self.logger.debug("Scheduling app bootstrap")
+        self._bootstrap_task = self.task_bucket.spawn(
+            self.bootstrap_apps(admission_mode=AppAdmissionMode.WAIT_FOR_RELEASE),
+            name="app_handler:bootstrap_apps",
+        )
+        mark_ready(self, reason="app handler wired")
+
+    async def bootstrap_apps(self, *, admission_mode: AppAdmissionMode = AppAdmissionMode.WAIT_FOR_RELEASE) -> None:
+        """Bootstrap apps and record completion — delegates to the lifecycle service.
+
+        This is the one entrypoint that both the normal startup path (spawned as a
+        background task above) and test-reset helpers must use to re-bootstrap apps.
+        Calling ``lifecycle.bootstrap_apps()`` directly would bypass ``_bootstrap_completed``
+        bookkeeping, creating a second bootstrap path that can drift from this one.
+        """
+        await self.lifecycle.bootstrap_apps(admission_mode=admission_mode)
+        self._bootstrap_completed.set()
+
+    def has_bootstrapped(self) -> bool:
+        return self._bootstrap_completed.is_set()
 
     async def on_shutdown(self) -> None:
         """Shutdown all app instances gracefully."""
         self.logger.debug("Stopping '%s' %s", self.class_name, self.role)
         mark_not_ready(self, reason="shutting-down")
+        if self._bootstrap_task is not None:
+            self._bootstrap_task.cancel()
+            await asyncio.gather(self._bootstrap_task, return_exceptions=True)
+            self._bootstrap_task = None
         await self.lifecycle.shutdown_all()
 
     async def start_app(self, app_key: str, force_reload: bool = False) -> None:
