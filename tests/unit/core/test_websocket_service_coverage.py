@@ -71,7 +71,8 @@ class TestSubscribeEvents:
             if fut and not fut.done():
                 fut.set_result(None)
 
-        websocket_service.send_json = AsyncMock(side_effect=fake_send_json)
+        websocket_service._send_ready_event.set()
+        websocket_service._send_json_when_socket_live = AsyncMock(side_effect=fake_send_json)
 
         sub_id = await websocket_service.subscribe_events()
 
@@ -90,7 +91,8 @@ class TestSubscribeEvents:
             if fut and not fut.done():
                 fut.set_result(None)
 
-        websocket_service.send_json = AsyncMock(side_effect=fake_send_json)
+        websocket_service._send_ready_event.set()
+        websocket_service._send_json_when_socket_live = AsyncMock(side_effect=fake_send_json)
 
         sub_id = await websocket_service.subscribe_events(event_type="state_changed")
 

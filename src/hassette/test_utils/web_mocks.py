@@ -14,6 +14,7 @@ from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.core.telemetry.query_service import AppHealthAggregates
 from hassette.schemas.app_snapshots import AppManifestInfo, AppStatusSnapshot
 from hassette.test_utils.web_manifest_helpers import make_full_snapshot
+from hassette.test_utils.ws_mocks import configure_ready_websocket_mock
 from hassette.types.enums import ResourceStatus
 from hassette.web.app import create_fastapi_app
 
@@ -189,8 +190,17 @@ def create_hassette_stub(
 
     hassette.websocket_service = hassette._websocket_service
     hassette._websocket_service._status = ResourceStatus.RUNNING
-    hassette._websocket_service.is_connected = is_ready
-    hassette._websocket_service.has_ever_connected = is_ready
+    if is_ready:
+        configure_ready_websocket_mock(hassette._websocket_service)
+    else:
+        hassette._websocket_service._connected_event = asyncio.Event()
+        hassette._websocket_service._send_ready_event = asyncio.Event()
+        hassette._websocket_service.is_connected = False
+        hassette._websocket_service.has_ever_connected = False
+        hassette._websocket_service.get_connected_generation.return_value = None
+        hassette._websocket_service.wait_connected = AsyncMock(return_value=False)
+        hassette._websocket_service.wait_connected_generation = AsyncMock(return_value=None)
+        hassette._websocket_service.wait_initial_connection = AsyncMock(return_value=False)
 
     hassette.app_handler = hassette._app_handler
 

@@ -113,8 +113,14 @@ class WebsocketService(Service):
     _connect_lock: asyncio.Lock
     """Lock to prevent concurrent connection attempts."""
 
+    _send_ready_event: asyncio.Event
+    """Private send capability: auth succeeded and recv loop is running for request/reply setup."""
+
     _connected_at: float | None
     """Monotonic timestamp of the most recent successful connection, or None."""
+
+    _connected_signal_active: bool
+    """Whether the current external-readiness transition has emitted its public connected signal."""
 
     def __init__(self, hassette: "Hassette", *, parent: "Resource | None" = None) -> None:
         super().__init__(hassette, parent=parent)
@@ -127,11 +133,15 @@ class WebsocketService(Service):
         self._recv_task = None
         self._subscription_ids = set()
         self._connect_lock = asyncio.Lock()
+        self._send_ready_event = asyncio.Event()
         self._connected_event = asyncio.Event()
         self._first_connection_attempt_done_event = asyncio.Event()
         self._connected_at = None
+        self._connected_signal_active = False
         self._connection_state: ConnectionState = ConnectionState.DISCONNECTED
         self._ever_connected: bool = False
+        self._generation_seq = count(1)
+        self._connected_generation: int | None = None
 
     async def on_initialize(self) -> None:
         """Mark the service lifecycle-ready unconditionally, independent of HA reachability.
@@ -200,6 +210,8 @@ class WebsocketService(Service):
         else:
             if hasattr(self, "_connected_event"):
                 self._connected_event.clear()
+            if hasattr(self, "_connected_generation"):
+                self._connected_generation = None
 
     @property
     def resp_timeout_seconds(self) -> int:
@@ -242,6 +254,21 @@ class WebsocketService(Service):
         except TimeoutError:
             return False
         return self.is_connected
+
+    def get_connected_generation(self) -> int | None:
+        """Return the active externally ready connection generation, if any."""
+        if not self.is_connected or not self._connected_event.is_set():
+            return None
+        return self._connected_generation
+
+    async def wait_connected_generation(self, *, timeout: float | None = None) -> int | None:
+        """Wait for an externally ready connection and return its active generation."""
+        if self.get_connected_generation() is not None and self._connected_event.is_set():
+            return self._connected_generation
+        connected = await self.wait_connected(timeout=timeout)
+        if not connected:
+            return None
+        return self._connected_generation
 
     async def wait_initial_connection(self, *, timeout: float | None = None) -> bool:
         """Wait for initial connection success, or the first failed connection attempt.
@@ -322,17 +349,18 @@ class WebsocketService(Service):
             max_early_drops,
             f", close_code={close_code}" if close_code is not None else "",
         )
+        self.set_connection_state(ConnectionState.CONNECTING)
+        self._send_ready_event.clear()
         await self.send_connection_lost_event()
         mark_not_ready(self, reason="Early drop detected")
         await self._emit_readiness_event()
         await self.partial_cleanup()
         await self.early_drop_backoff(early_drop_attempts)
-        # Set CONNECTING before the next retry
-        self.set_connection_state(ConnectionState.CONNECTING)
 
     async def handle_genuine_failure(self) -> None:
         """Transition to DISCONNECTED and notify listeners of a non-recoverable serve() failure."""
         self.set_connection_state(ConnectionState.DISCONNECTED)
+        self._send_ready_event.clear()
         await self.send_connection_lost_event()
         mark_not_ready(self, reason="WebSocket recv loop failed")
         await self._emit_readiness_event()
@@ -398,7 +426,7 @@ class WebsocketService(Service):
         await self.authenticate()
 
     async def start_recv_and_subscribe(self) -> asyncio.Task:
-        """Spawn the recv loop, send connection event, subscribe, mark ready, and record connected_at.
+        """Spawn the recv loop, open private send capability, subscribe, then advertise readiness.
 
         Returns:
             The recv loop task.
@@ -408,18 +436,21 @@ class WebsocketService(Service):
         recv_task = self.task_bucket.spawn(self.recv_loop(), name="ws:recv")
         self._recv_task = recv_task
 
-        # CONNECTED before subscribe — send_json() gates on self.is_connected
-        self.set_connection_state(ConnectionState.CONNECTED)
-
-        await self.send_connection_established_event()
+        self._send_ready_event.set()
         self._subscription_ids.add(await self.subscribe_events())
+        self._connected_generation = next(self._generation_seq)
+        self.set_connection_state(ConnectionState.CONNECTED)
 
         self._connected_event.set()
         self._first_connection_attempt_done_event.set()
 
+        self._connected_at = time.monotonic()
+
         mark_ready(self, reason="WebSocket connected, authenticated, and subscribed")
         await self._emit_readiness_event()
-        self._connected_at = time.monotonic()
+        self._connected_signal_active = True
+        with suppress(Exception):
+            await self.send_connection_established_event()
         return recv_task
 
     async def partial_cleanup(self) -> None:
@@ -428,6 +459,8 @@ class WebsocketService(Service):
         Does NOT close self._session — that is owned by serve()'s async with block.
         Suppresses all exceptions so cleanup never prevents retry.
         """
+        self._send_ready_event.clear()
+
         if self._recv_task is not None:
             self._recv_task.cancel()
             with suppress(Exception):
@@ -491,7 +524,9 @@ class WebsocketService(Service):
         while True:
             await self.raw_recv()
 
-    async def send_and_await_response(self, payload: dict[str, Any], msg_id: int) -> Any:
+    async def send_and_await_response(
+        self, payload: dict[str, Any], msg_id: int, *, allow_pre_ready: bool = False
+    ) -> Any:
         """Register a response future for msg_id, send payload, and await the reply.
 
         Registers the future before sending so a fast reply arriving before ``send_json``
@@ -501,6 +536,7 @@ class WebsocketService(Service):
         Args:
             payload: The JSON payload to send. Must already include ``"id": msg_id``.
             msg_id: The message id used to correlate the response future.
+            allow_pre_ready: Whether to use the private pre-readiness send path for setup traffic.
 
         Returns:
             The response payload once ``respond_if_necessary`` resolves the future.
@@ -511,7 +547,10 @@ class WebsocketService(Service):
         fut = self.hassette.loop.create_future()
         self._response_futures[msg_id] = fut
         try:
-            await self.send_json(**payload)
+            if allow_pre_ready:
+                await self._send_json_when_socket_live(**payload)
+            else:
+                await self.send_json(**payload)
             return await asyncio.wait_for(fut, timeout=self.resp_timeout_seconds)
         finally:
             self._response_futures.pop(msg_id, None)
@@ -542,7 +581,7 @@ class WebsocketService(Service):
             nonlocal last_abandoned_id
             if last_abandoned_id is not None:
                 with suppress(Exception):
-                    await self.send_json(
+                    await self._send_json_when_socket_live(
                         type="unsubscribe_events",
                         subscription=last_abandoned_id,
                         id=self.get_next_message_id(),
@@ -550,7 +589,7 @@ class WebsocketService(Service):
 
             msg_id = self.get_next_message_id()
             try:
-                await self.send_and_await_response({**payload, "id": msg_id}, msg_id)
+                await self.send_and_await_response({**payload, "id": msg_id}, msg_id, allow_pre_ready=True)
                 return msg_id
             except TimeoutError:
                 last_abandoned_id = msg_id
@@ -563,6 +602,7 @@ class WebsocketService(Service):
     async def cleanup(self) -> None:
         """Cleanup resources after the WebSocket connection is closed."""
         self.set_connection_state(ConnectionState.DISCONNECTED)
+        self._send_ready_event.clear()
 
         # Set exceptions for all pending response futures
         for fut in list(self._response_futures.values()):
@@ -672,13 +712,13 @@ class WebsocketService(Service):
                 )
             fut.set_exception(FailedMessageError.from_error_response(err, code=code, original_data=message))
 
-    async def send_json(self, **data: Any) -> None:
+    async def _send_json_when_socket_live(self, **data: Any) -> None:
         self.logger.debug("Sending WebSocket message: %s", data)
 
-        if not self.is_connected:
+        if not self._send_ready_event.is_set():
             raise ConnectionClosedError("WebSocket connection is not established")
 
-        # this should never be an issue because self.is_connected checks for this already
+        # The private send gate is only opened after authentication assigns the socket.
         assert self._ws is not None, "WebSocket must be initialized before sending messages"
 
         if "id" not in data:
@@ -692,6 +732,9 @@ class WebsocketService(Service):
         except Exception as exc:
             self.logger.exception("Exception when sending message: %s", data)
             raise FailedMessageError(f"Failed to send message: {data}") from exc
+
+    async def send_json(self, **data: Any) -> None:
+        await self._send_json_when_socket_live(**data)
 
     async def authenticate(self) -> None:
         """Authenticate with the Home Assistant WebSocket API."""
@@ -792,15 +835,16 @@ class WebsocketService(Service):
 
         Idempotent: skips if the connection has never been established (prevents spurious
         DISCONNECTED events before the first successful connection, and duplicate events
-        during early-drop retry cycles and before_shutdown calls). Gated on
-        `has_ever_connected` rather than `is_ready()` because `mark_ready()` now fires
-        unconditionally in `on_initialize()` — readiness no longer implies a connection
-        was ever established.
+        during early-drop retry cycles, failed pre-readiness reconnect attempts, and
+        before_shutdown calls). Gated on the active public connected signal rather than
+        `is_ready()` because `mark_ready()` now fires unconditionally in `on_initialize()` —
+        readiness no longer implies a connection was ever established.
         Self-suppressing: bus dispatch errors are silently swallowed so callers never
         need external suppress() wrappers and a bus failure cannot mask a network error.
         """
-        if not self.has_ever_connected:
+        if not self._connected_signal_active:
             return
+        self._connected_signal_active = False
         event = HassetteSimpleEvent.from_topic(topic=Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED)
         with suppress(Exception):
             await self.hassette.send_event(event)

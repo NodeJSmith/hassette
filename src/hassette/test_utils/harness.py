@@ -41,6 +41,7 @@ from hassette.task_bucket import TaskBucket, make_task_factory
 from hassette.test_utils.config import TEST_TOKEN
 from hassette.test_utils.reset import reset_app_handler, reset_bus, reset_mock_api, reset_scheduler, reset_state_proxy
 from hassette.test_utils.test_server import SimpleTestServer
+from hassette.test_utils.ws_mocks import configure_ready_websocket_mock
 from hassette.types.enums import ResourceStatus
 from hassette.utils.func_utils import is_async_callable
 
@@ -645,13 +646,7 @@ class HassetteHarness:
 
     @staticmethod
     def _configure_ready_websocket_mock(websocket_service: Mock) -> None:
-        websocket_service.ready_event = asyncio.Event()
-        websocket_service.ready_event.set()
-        websocket_service.is_connected = True
-        websocket_service.has_ever_connected = True
-        websocket_service.total_timeout_seconds = 1
-        websocket_service.wait_connected = AsyncMock(return_value=True)
-        websocket_service.wait_initial_connection = AsyncMock(return_value=True)
+        configure_ready_websocket_mock(websocket_service)
 
     def _capture_original_app_manifests(self) -> None:
         """Snapshot app manifests after startup so reset() can restore them between tests."""
