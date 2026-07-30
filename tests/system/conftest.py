@@ -12,7 +12,7 @@ import subprocess
 import sys
 import threading
 import time
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -155,8 +155,14 @@ def session_ready(hassette: Hassette) -> bool:
     """Check if Hassette is fully ready: session, WebSocket, and app bootstrap complete.
 
     session_id > 0 becomes true after Phase 1 (database + session creation).
-    websocket_service.is_ready() fires after authentication AND event subscriptions.
-    app_handler.is_ready() fires once the handler is wired; has_bootstrapped() marks completed bootstrap.
+    websocket_service.is_ready() fires after the service lifecycle is wired (independent of HA
+    connectivity — see ``WebsocketService.on_initialize()``). app_handler.is_ready() fires once
+    the handler is wired; has_bootstrapped() marks completed app bootstrap, which under
+    ``AppBootstrapCoordinator`` only resolves once Home Assistant reaches external readiness and
+    an initial state snapshot commits. This predicate is therefore only reachable when HA is
+    available — no-HA scenarios must use ``dashboard_ready_without_apps`` instead, or bootstrap
+    never completes and this loops until the WebSocket's connect-retry budget exhausts and
+    ``run_forever()`` raises a fatal error.
     """
     try:
         return (
@@ -169,19 +175,48 @@ def session_ready(hassette: Hassette) -> bool:
         return False
 
 
+def dashboard_ready_without_apps(hassette: Hassette) -> bool:
+    """Check if the web API is serving while Home Assistant remains unreachable and apps wait.
+
+    Deliberately omits ``app_handler.has_bootstrapped()``: under ``AppBootstrapCoordinator``,
+    app bootstrap intentionally stays blocked until Home Assistant reaches external WebSocket
+    readiness and an initial state snapshot commits (see design/specs/089-issue-1484-lifecycle),
+    so a no-HA startup test must not wait on it. Used by no-HA system tests as the
+    ``ready_check`` for ``startup_context`` in place of ``session_ready``.
+    """
+    try:
+        return (
+            hassette.session_id > 0
+            and hassette.websocket_service.is_ready()
+            and hassette._web_api_service is not None  # pyright: ignore[reportPrivateUsage]
+            and hassette._web_api_service.is_ready()  # pyright: ignore[reportPrivateUsage]
+        )
+    except Exception:
+        return False
+
+
 @asynccontextmanager
-async def startup_context(config: HassetteConfig, timeout: int = 30) -> AsyncIterator[Hassette]:
+async def startup_context(
+    config: HassetteConfig,
+    timeout: int = 30,
+    *,
+    ready_check: Callable[[Hassette], bool] = session_ready,
+) -> AsyncIterator[Hassette]:
     """Run Hassette.run_forever() in a background task until ready, then yield for assertions.
 
     Args:
         config: The HassetteConfig to use when constructing the Hassette instance.
         timeout: Maximum seconds to wait for Hassette to reach a running state.
+        ready_check: Predicate deciding when Hassette has reached the state under test. Defaults
+            to ``session_ready`` (full readiness, including app bootstrap). No-HA scenarios must
+            pass ``dashboard_ready_without_apps`` — waiting on ``session_ready`` would loop until
+            the WebSocket's connect-retry budget is exhausted and ``run_forever()`` raises.
 
     Yields:
         The running Hassette instance.
 
     Raises:
-        TimeoutError: If Hassette does not reach running state within ``timeout`` seconds.
+        TimeoutError: If Hassette does not reach the ready state within ``timeout`` seconds.
     """
     hassette = Hassette(config)
     hassette.wire_services()
@@ -189,7 +224,7 @@ async def startup_context(config: HassetteConfig, timeout: int = 30) -> AsyncIte
     try:
         loop = asyncio.get_running_loop()
         deadline = loop.time() + timeout
-        while not session_ready(hassette):
+        while not ready_check(hassette):
             if task.done():
                 await task  # re-raises any startup exception immediately
                 raise RuntimeError("Hassette exited during startup without reaching running state")

@@ -1,7 +1,7 @@
 ---
 task_id: "T05"
 title: "Finish no-HA regressions and docs"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02", "T03", "T04"]
 implements: ["FR#3", "FR#4", "FR#5", "FR#6", "FR#7", "FR#25", "FR#26", "FR#29", "FR#32", "FR#33", "FR#34", "AC#2", "AC#3", "AC#4", "AC#17", "AC#18", "AC#20", "AC#23", "AC#24", "AC#26"]
 ---

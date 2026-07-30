@@ -65,6 +65,7 @@ class TestStartApp:
         mock_factory: MagicMock,
         mock_hassette: MagicMock,
     ) -> None:
+        """REJECT_IF_UNRELEASED fails immediately and retains no waiting task."""
         mock_registry.get_manifest = Mock(return_value=mock_manifest)
         mock_hassette.app_bootstrap_coordinator.is_released.return_value = False
 
@@ -72,6 +73,9 @@ class TestStartApp:
             await lifecycle_service.start_app("test_app")
 
         mock_factory.create_instances.assert_not_called()
+        # The manual-mode admission check must never await the release latch — that would
+        # retain a waiting task instead of failing immediately.
+        mock_hassette.app_bootstrap_coordinator.wait_released.assert_not_awaited()
 
     async def test_creates_instances_via_factory(
         self,
@@ -199,12 +203,15 @@ class TestReloadApp:
         lifecycle_service: AppLifecycleService,
         mock_hassette: MagicMock,
     ) -> None:
+        """REJECT_IF_UNRELEASED fails immediately and retains no waiting task."""
         mock_hassette.app_bootstrap_coordinator.is_released.return_value = False
         lifecycle_service.stop_app = AsyncMock()
         lifecycle_service.start_app = AsyncMock()
 
         with pytest.raises(AppBootstrapNotReleasedError):
             await lifecycle_service.reload_app("test_app")
+
+        mock_hassette.app_bootstrap_coordinator.wait_released.assert_not_awaited()
 
         lifecycle_service.stop_app.assert_not_called()
         lifecycle_service.start_app.assert_not_called()

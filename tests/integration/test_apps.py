@@ -262,6 +262,37 @@ class TestApps:
 
         assert "my_app_sync" in self.app_handler.registry
 
+    async def test_disconnect_after_release_leaves_running_apps_registered(self) -> None:
+        """A runtime disconnect after bootstrap release does not stop or suspend running apps.
+
+        The bootstrap coordinator makes a one-time release decision rather than continuously
+        enforcing capabilities, so an already-running app instance must stay registered (same
+        instance, not restarted) across a post-release disconnect.
+        """
+        assert "my_app" in self.app_handler.registry, "Precondition: my_app is running"
+        my_app_instance_before = self.app_handler.get("my_app", 0)
+        assert my_app_instance_before is not None
+
+        await self.hassette.state_proxy.on_disconnect()
+
+        assert "my_app" in self.app_handler.registry, "my_app must remain registered after disconnect"
+        my_app_instance_after = self.app_handler.get("my_app", 0)
+        assert my_app_instance_after is my_app_instance_before, "The same running instance must be preserved"
+        assert my_app_instance_after.is_ready()
+
+    async def test_manual_start_reload_still_allowed_after_disconnect_when_already_released(self) -> None:
+        """Once bootstrap has released, later disconnects never re-block start/reload.
+
+        Complements ``test_start_remains_allowed_after_disconnect_once_bootstrap_released``
+        (which restarts an app that was manually stopped first) by proving reload on an
+        app that stayed running through the disconnect is also unaffected.
+        """
+        await self.hassette.state_proxy.on_disconnect()
+
+        await self.app_handler.reload_app("my_app_sync", force_reload=False)
+
+        assert "my_app_sync" in self.app_handler.registry
+
     async def test_new_app_changeset_does_not_start_autostart_false_app(self) -> None:
         """A reload ChangeSet with new_apps containing an autostart=false app leaves it unstarted."""
         assert "no_autostart_app" not in self.app_handler.registry, "Precondition: not running"

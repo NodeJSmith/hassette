@@ -115,7 +115,14 @@ class TestDashboardWithoutHA:
     async def test_webapi_ready_without_ha_connection(
         self, tmp_path: Path, unused_tcp_port_factory: Callable[[], int]
     ) -> None:
-        """WebApiService reaches ready, apps bootstrap, and /api/health serves 200 without HA."""
+        """WebApiService reaches ready and /api/health serves 200 while no app instance bootstraps.
+
+        AppBootstrapCoordinator keeps app bootstrap blocked until Home Assistant reaches
+        external WebSocket readiness. Registry metadata (manifests) is still queryable
+        pre-bootstrap, but no live app instance may exist while the connection never
+        succeeds — the web API's independence from Home Assistant is exactly the property
+        under test here.
+        """
         async with _running_hassette_without_ha(tmp_path, unused_tcp_port_factory) as hassette:
             assert hassette._web_api_service is not None
             assert hassette._web_api_service.is_ready()
@@ -123,6 +130,12 @@ class TestDashboardWithoutHA:
             snapshot = hassette.app_handler.registry.get_full_snapshot()
             assert snapshot.total >= 1
             assert any(manifest.app_key == "my_app" for manifest in snapshot.manifests)
+
+            # Registry metadata is queryable, but no app instance has bootstrapped.
+            assert hassette.app_handler.has_bootstrapped() is False
+            assert hassette.app_handler.get("my_app", 0) is None
+            assert hassette.app_handler.all() == []
+            assert hassette.app_bootstrap_coordinator.is_released() is False
 
             response = await _get_health(hassette)
 
