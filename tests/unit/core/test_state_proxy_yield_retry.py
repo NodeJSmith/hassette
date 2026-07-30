@@ -9,7 +9,7 @@ can wrap it; this pins the eager-raise behavior.
 
 import pytest
 
-from hassette.core.state_proxy import StateProxy
+from hassette.core.state_proxy import StateCacheFreshness, StateProxy
 from hassette.exceptions import ResourceNotReadyError
 from hassette.resources.base import Resource
 from hassette.test_utils import make_mock_hassette
@@ -26,6 +26,7 @@ def stub_state_proxy() -> StateProxy:
     # Freshly-constructed Resource: ready_event is unset, so is_ready() is naturally
     # False — no need to patch the method. Empty states + not-ready is the cold-start path.
     obj.states = {}
+    obj._cache_freshness = StateCacheFreshness.UNAVAILABLE
     obj._ready_reason = "test cold start"
     return obj
 

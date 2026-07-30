@@ -347,6 +347,7 @@ class HassetteHarness:
         self._hassette_ctx_token: typing.Any = None  # Token[Hassette] | None
         self._original_app_manifests: dict[str, AppManifest] | None = None
         self._original_tz = date_utils._configured_tz
+        self._require_state_capability = True
 
         if not skip_global_set:
             self._hassette_ctx_token = context.set_global_hassette(self.hassette)
@@ -455,7 +456,10 @@ class HassetteHarness:
         if self.has_component("app_handler") and self._original_app_manifests is not None:
             await reset_app_handler(self.app_handler, self._original_app_manifests)
         if self.has_component("state_proxy"):
-            await reset_state_proxy(self.state_proxy)
+            await reset_state_proxy(
+                self.state_proxy,
+                require_initial_state_capability=self._require_state_capability,
+            )
         if self.has_component("bus"):
             await reset_bus(self.bus)
         if self.has_component("scheduler"):
@@ -510,8 +514,9 @@ class HassetteHarness:
         self._components.add("api_mock")
         return self
 
-    def with_state_proxy(self) -> "HassetteHarness":
+    def with_state_proxy(self, *, require_initial_state_capability: bool = True) -> "HassetteHarness":
         self._components.add("state_proxy")
+        self._require_state_capability = require_initial_state_capability
         return self
 
     def with_state_registry(self) -> "HassetteHarness":
@@ -561,10 +566,24 @@ class HassetteHarness:
 
         self.hassette.ready_event.set()
         await start_children_and_wait(self.hassette, timeout=Timeouts.WAIT_FOR_READY)
+        await self._maybe_wait_for_state_capability()
 
         self._capture_original_app_manifests()
 
         return self
+
+    async def _maybe_wait_for_state_capability(self) -> None:
+        if not self.has_component("state_proxy"):
+            return
+        websocket_service = self.hassette.websocket_service
+        generation = websocket_service.get_connected_generation()
+        if generation is None:
+            return
+        if not self._require_state_capability:
+            return
+        ready = await self.state_proxy.wait_initial_state_capability(timeout=Timeouts.WAIT_FOR_READY)
+        if not ready:
+            raise TimeoutError("Timed out waiting for StateProxy initial state capability")
 
     def _setup_loop_emulation(self) -> tuple[asyncio.AbstractEventLoop, int]:
         """Emulate run_forever() on the real Hassette: populate the backing slots that the

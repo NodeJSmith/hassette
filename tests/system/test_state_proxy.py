@@ -2,6 +2,7 @@
 
 import pytest
 
+from hassette.core.state_proxy import StateCacheFreshness
 from hassette.test_utils import wait_for
 
 from .conftest import make_system_config, startup_context
@@ -18,9 +19,9 @@ async def test_initial_state_loaded(ha_container: str, tmp_path) -> None:
     async with startup_context(config) as hassette:
         state_proxy = hassette.state_proxy
         await wait_for(
-            lambda: state_proxy.is_ready() and len(state_proxy.states) > 0,
+            lambda: state_proxy.cache_freshness == StateCacheFreshness.FRESH and len(state_proxy.states) > 0,
             timeout=15.0,
-            desc="state proxy ready with populated states",
+            desc="state proxy fresh with populated states",
         )
         assert len(state_proxy.states) > 0
         assert ENTITY in state_proxy
@@ -32,9 +33,9 @@ async def test_state_change_propagates_to_proxy(ha_container: str, tmp_path) -> 
     async with startup_context(config) as hassette:
         state_proxy = hassette.state_proxy
         await wait_for(
-            lambda: state_proxy.is_ready() and len(state_proxy.states) > 0,
+            lambda: state_proxy.cache_freshness == StateCacheFreshness.FRESH and len(state_proxy.states) > 0,
             timeout=15.0,
-            desc="state proxy ready with populated states",
+            desc="state proxy fresh with populated states",
         )
 
         # Read the original state BEFORE toggling so we can detect the change
@@ -62,9 +63,10 @@ async def test_state_manager_typed_access(ha_container: str, tmp_path) -> None:
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
         await wait_for(
-            lambda: hassette.state_proxy.is_ready() and len(hassette.state_proxy.states) > 0,
+            lambda: hassette.state_proxy.cache_freshness == StateCacheFreshness.FRESH
+            and len(hassette.state_proxy.states) > 0,
             timeout=15.0,
-            desc="state proxy ready with populated states",
+            desc="state proxy fresh with populated states",
         )
         state = hassette.states.light["kitchen_lights"]
         assert isinstance(state.value, bool)
@@ -78,9 +80,10 @@ async def test_state_manager_domain_iteration(ha_container: str, tmp_path) -> No
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
         await wait_for(
-            lambda: hassette.state_proxy.is_ready() and len(hassette.state_proxy.states) > 0,
+            lambda: hassette.state_proxy.cache_freshness == StateCacheFreshness.FRESH
+            and len(hassette.state_proxy.states) > 0,
             timeout=15.0,
-            desc="state proxy ready with populated states",
+            desc="state proxy fresh with populated states",
         )
         entities = list(hassette.states.light.items())
         assert len(entities) > 0

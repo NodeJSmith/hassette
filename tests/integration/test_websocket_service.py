@@ -12,6 +12,8 @@ import hassette.core.websocket_service as websocket_module
 import hassette.resources.lifecycle as lifecycle_module
 from hassette.api.api import Api
 from hassette.core.websocket_service import WebsocketService
+from hassette.events import RawStateChangeEvent
+from hassette.events.metadata import get_websocket_generation
 from hassette.exceptions import (
     ConnectionClosedError,
     CouldNotFindHomeAssistantError,
@@ -329,6 +331,34 @@ async def test_dispatch_sends_events(monkeypatch: pytest.MonkeyPatch, websocket_
 
     mock_create.assert_called_once_with(data)
     send_event_mock.assert_awaited_once_with(dummy_event)
+
+
+async def test_dispatch_stamps_state_change_event_with_connected_generation(
+    websocket_service: WebsocketService,
+) -> None:
+    mark_websocket_service_connected(websocket_service, reason="test connected")
+    websocket_service.hassette.send_event = AsyncMock()
+
+    await websocket_service.dispatch(
+        {
+            "type": "event",
+            "event": {
+                "event_type": "state_changed",
+                "origin": "LOCAL",
+                "time_fired": "2024-01-01T00:00:00+00:00",
+                "context": {"id": "ctx", "parent_id": None, "user_id": None},
+                "data": {
+                    "entity_id": "light.kitchen",
+                    "old_state": None,
+                    "new_state": {"entity_id": "light.kitchen", "state": "on"},
+                },
+            },
+        }
+    )
+
+    event = websocket_service.hassette.send_event.await_args.args[0]
+    assert isinstance(event, RawStateChangeEvent)
+    assert get_websocket_generation(event) == 1
 
 
 async def test_dispatch_routes_result_messages(

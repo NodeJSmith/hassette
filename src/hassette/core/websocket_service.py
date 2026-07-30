@@ -5,6 +5,7 @@ import random
 import time
 import traceback
 import typing
+from collections.abc import Callable
 from contextlib import AsyncExitStack, suppress
 from itertools import count
 from typing import Any, ClassVar, cast
@@ -23,7 +24,8 @@ from tenacity import (
     wait_exponential_jitter,
 )
 
-from hassette.events import HassetteSimpleEvent, create_event_from_hass
+from hassette.events import HassetteSimpleEvent, RawStateChangeEvent, create_event_from_hass
+from hassette.events.metadata import stamp_websocket_generation
 from hassette.exceptions import (
     ConnectionClosedError,
     CouldNotFindHomeAssistantError,
@@ -142,6 +144,8 @@ class WebsocketService(Service):
         self._ever_connected: bool = False
         self._generation_seq = count(1)
         self._connected_generation: int | None = None
+        self._connected_observers: list[Callable[[int], typing.Awaitable[None]]] = []
+        self._disconnected_observers: list[Callable[[], typing.Awaitable[None]]] = []
 
     async def on_initialize(self) -> None:
         """Mark the service lifecycle-ready unconditionally, independent of HA reachability.
@@ -301,7 +305,40 @@ class WebsocketService(Service):
         return next(self._seq)
 
     async def before_shutdown(self) -> None:
+        await self._notify_disconnected_observers()
         await self.send_connection_lost_event()
+
+    def add_connected_observer(self, observer: Callable[[int], typing.Awaitable[None]]) -> None:
+        if observer not in self._connected_observers:
+            self._connected_observers.append(observer)
+
+    def remove_connected_observer(self, observer: Callable[[int], typing.Awaitable[None]]) -> None:
+        if observer in self._connected_observers:
+            self._connected_observers.remove(observer)
+
+    def add_disconnected_observer(self, observer: Callable[[], typing.Awaitable[None]]) -> None:
+        if observer not in self._disconnected_observers:
+            self._disconnected_observers.append(observer)
+
+    def remove_disconnected_observer(self, observer: Callable[[], typing.Awaitable[None]]) -> None:
+        if observer in self._disconnected_observers:
+            self._disconnected_observers.remove(observer)
+
+    async def _notify_connected_observers(self, generation: int) -> None:
+        for observer in tuple(self._connected_observers):
+            try:
+                await observer(generation)
+            except Exception:
+                self.logger.exception("Connected observer failed")
+
+    async def _notify_disconnected_observers(self) -> None:
+        if not self._connected_signal_active:
+            return
+        for observer in tuple(self._disconnected_observers):
+            try:
+                await observer()
+            except Exception:
+                self.logger.exception("Disconnected observer failed")
 
     def log_resilience_budget(self) -> None:
         """Log the early-drop and connection retry budget that bounds recovery time."""
@@ -351,6 +388,7 @@ class WebsocketService(Service):
         )
         self.set_connection_state(ConnectionState.CONNECTING)
         self._send_ready_event.clear()
+        await self._notify_disconnected_observers()
         await self.send_connection_lost_event()
         mark_not_ready(self, reason="Early drop detected")
         await self._emit_readiness_event()
@@ -361,6 +399,7 @@ class WebsocketService(Service):
         """Transition to DISCONNECTED and notify listeners of a non-recoverable serve() failure."""
         self.set_connection_state(ConnectionState.DISCONNECTED)
         self._send_ready_event.clear()
+        await self._notify_disconnected_observers()
         await self.send_connection_lost_event()
         mark_not_ready(self, reason="WebSocket recv loop failed")
         await self._emit_readiness_event()
@@ -449,6 +488,7 @@ class WebsocketService(Service):
         mark_ready(self, reason="WebSocket connected, authenticated, and subscribed")
         await self._emit_readiness_event()
         self._connected_signal_active = True
+        await self._notify_connected_observers(self._connected_generation)
         with suppress(Exception):
             await self.send_connection_established_event()
         return recv_task
@@ -828,6 +868,8 @@ class WebsocketService(Service):
     async def dispatch_hass_event(self, data: "HassEventEnvelopeDict") -> None:
         """Dispatch a Home Assistant event to the event bus."""
         event = create_event_from_hass(data)
+        if isinstance(event, RawStateChangeEvent):
+            stamp_websocket_generation(event, self.get_connected_generation())
         await self.hassette.send_event(event)
 
     async def send_connection_lost_event(self) -> None:

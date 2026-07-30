@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Rebuild state proxy capability and sync"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#12", "FR#13", "FR#14", "FR#15", "FR#16", "FR#17", "FR#18", "FR#19", "FR#20", "FR#21", "FR#22", "FR#23", "FR#24", "FR#25", "FR#31", "FR#34", "AC#5", "AC#9", "AC#10", "AC#11", "AC#12", "AC#13", "AC#14", "AC#15", "AC#16", "AC#17", "AC#22", "AC#26"]
 ---

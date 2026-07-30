@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from hassette.test_utils.test_server import SimpleTestServer
 
 
-async def reset_state_proxy(proxy: "StateProxy") -> None:
+async def reset_state_proxy(proxy: "StateProxy", *, require_initial_state_capability: bool = True) -> None:
     """Reset StateProxy to a clean state for testing.
 
     Performs a full shutdown/initialize cycle so that the proxy and its children
@@ -38,6 +38,13 @@ async def reset_state_proxy(proxy: "StateProxy") -> None:
     """
     await proxy.shutdown()
     await proxy.initialize()
+    generation = proxy.hassette.websocket_service.get_connected_generation()
+    if generation is not None:
+        if not require_initial_state_capability:
+            return
+        ready = await proxy.wait_initial_state_capability(timeout=5.0)
+        if not ready:
+            raise TimeoutError("Timed out waiting for StateProxy initial state capability during reset")
 
 
 async def reset_bus(bus: "Bus") -> None:
