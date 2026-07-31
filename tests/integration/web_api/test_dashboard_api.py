@@ -12,6 +12,7 @@ class TestVersionInHealth:
             return_value=SystemStatus(
                 status="ok",
                 websocket_connected=True,
+                bootstrap_released=True,
                 uptime_seconds=10.0,
                 entity_count=5,
                 app_count=1,
@@ -31,6 +32,7 @@ class TestVersionInHealth:
             return_value=SystemStatus(
                 status="ok",
                 websocket_connected=True,
+                bootstrap_released=True,
                 uptime_seconds=5.0,
                 entity_count=0,
                 app_count=0,
@@ -56,6 +58,7 @@ class TestVersionInHealth:
             return_value=SystemStatus(
                 status="ok",
                 websocket_connected=True,
+                bootstrap_released=True,
                 uptime_seconds=1.0,
                 entity_count=0,
                 app_count=0,

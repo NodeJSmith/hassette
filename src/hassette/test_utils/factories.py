@@ -22,6 +22,7 @@ from hassette.scheduler.scheduler import Scheduler
 from hassette.test_utils.config import DEFAULT_TEST_APP_KEY, TEST_SOURCE_LOCATION
 from hassette.test_utils.mock_hassette import make_mock_hassette
 from hassette.test_utils.recording_api import RecordingApi
+from hassette.test_utils.state_proxy_mocks import configure_state_proxy_mock
 from hassette.types import JobCallable, SchedulerErrorHandlerType, TriggerProtocol
 from hassette.types.enums import DEFAULT_OVERLAP_MODE, ExecutionMode
 from hassette.types.types import SchedulerPredicate, SourceTier
@@ -321,8 +322,7 @@ def make_recording_api(states: dict[str, Any] | None = None) -> RecordingApi:
     hassette.state_registry = STATE_REGISTRY
 
     state_proxy = AsyncMock(spec=StateProxy)
-    state_proxy.states = states or {}
-    state_proxy.is_ready = lambda: True
+    configure_state_proxy_mock(state_proxy, states=states or {})
 
     return RecordingApi(hassette, state_proxy=state_proxy)
 

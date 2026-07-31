@@ -31,7 +31,6 @@ from hassette.events import (
 )
 from hassette.events.base import HassettePayload
 from hassette.events.hassette import HassetteFileWatcherEvent, HassetteServiceEvent, ServiceStatusPayload
-from hassette.resources.lifecycle import mark_ready
 from hassette.types import StateT
 from hassette.types.enums import BackpressurePolicy, ExecutionMode, ResourceRole, ResourceStatus, Topic
 from hassette.utils.func_utils import callable_name, callable_short_name
@@ -40,7 +39,6 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from hassette.bus.bus import Bus
-    from hassette.core.websocket_service import WebsocketService
     from hassette.events import HassEventEnvelopeDict, HassStateDict
     from hassette.resources.service import Service
     from hassette.types.types import BusErrorHandlerType, HandlerType, Predicate, SourceTier
@@ -54,21 +52,6 @@ def noop() -> None:
 
 async def async_noop() -> None:
     """Async no-op — call it to get a coroutine object (e.g. bucket.spawn(async_noop()))."""
-
-
-def mark_websocket_service_connected(websocket_service: "WebsocketService", *, reason: str) -> None:
-    """Mark a WebsocketService ready and flag a prior successful connection.
-
-    Directly flips the `_ever_connected` latch that the real connect flow sets via
-    set_connection_state(CONNECTED) — without validating the transition or updating
-    `_connection_state` — so tests can drive the `has_ever_connected` guard on
-    send_connection_lost_event() without going through an actual connection.
-
-    For a heavier-weight alternative that fires a real event through the bus, see
-    ``AppTestHarness.simulate_websocket_connected()`` in ``hassette.test_utils.simulation``.
-    """
-    mark_ready(websocket_service, reason=reason)
-    websocket_service._ever_connected = True
 
 
 def create_hass_event(event_type: str, data: dict[str, Any]) -> Any:

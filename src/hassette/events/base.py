@@ -122,5 +122,8 @@ class Event(Generic[PayloadT]):
     payload: PayloadT
     """The event payload."""
 
+    websocket_generation: int | None = field(default=None, kw_only=True)
+    """Internal generation metadata for framework coordination."""
+
     def __repr__(self) -> str:
         return f"Event({self.payload})"

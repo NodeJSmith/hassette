@@ -58,7 +58,6 @@ from .helpers import make_full_state_change_event as make_full_state_change_even
 from .helpers import make_service_failed_event as make_service_failed_event
 from .helpers import make_service_running_event as make_service_running_event
 from .helpers import make_task_bucket as make_task_bucket
-from .helpers import mark_websocket_service_connected as mark_websocket_service_connected
 from .helpers import wire_up_app_running_listener as wire_up_app_running_listener
 from .helpers import wire_up_app_state_listener as wire_up_app_state_listener
 from .helpers import write_app_toml as write_app_toml
@@ -75,6 +74,7 @@ from .web_mocks import create_hassette_stub as create_hassette_stub
 from .web_mocks import create_mock_runtime_query_service as create_mock_runtime_query_service
 from .web_mocks import create_test_fastapi_app as create_test_fastapi_app
 from .ws_mocks import build_fake_ws as build_fake_ws
+from .ws_mocks import mark_websocket_service_connected as mark_websocket_service_connected
 
 __all__ = [
     # Tier 1 only

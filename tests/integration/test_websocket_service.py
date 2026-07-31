@@ -10,7 +10,10 @@ from aiohttp.client_exceptions import ClientConnectionResetError, ClientConnecto
 
 import hassette.core.websocket_service as websocket_module
 import hassette.resources.lifecycle as lifecycle_module
+from hassette.api.api import Api
 from hassette.core.websocket_service import WebsocketService
+from hassette.events import RawStateChangeEvent
+from hassette.events.metadata import get_websocket_generation
 from hassette.exceptions import (
     ConnectionClosedError,
     CouldNotFindHomeAssistantError,
@@ -64,7 +67,7 @@ async def test_send_json_injects_message_id_when_absent(websocket_service: Webso
     """Ensure send_json injects a message id and forwards the payload."""
     fake_ws = build_fake_ws()
     websocket_service._ws = fake_ws
-    websocket_service._connection_state = ConnectionState.CONNECTED
+    mark_websocket_service_connected(websocket_service, reason="test connected")
 
     await websocket_service.send_json(type="ping")
     payload = fake_ws.send_json.await_args.args[0]  # pyright: ignore
@@ -76,11 +79,27 @@ async def test_send_json_preserves_message_id_when_present(websocket_service: We
     """Ensure send_json preserves a message id when present."""
     fake_ws = build_fake_ws()
     websocket_service._ws = fake_ws
-    websocket_service._connection_state = ConnectionState.CONNECTED
+    mark_websocket_service_connected(websocket_service, reason="test connected")
 
     await websocket_service.send_json(type="pong", id=41)
     second_payload = fake_ws.send_json.await_args_list[0].args[0]  # pyright: ignore
     assert second_payload["id"] == 41, "Expected explicit message id to be preserved"
+
+
+async def test_private_send_allows_setup_send_before_external_readiness(
+    websocket_service: WebsocketService,
+) -> None:
+    """Internal setup can use private send capability before CONNECTED is advertised."""
+    fake_ws = build_fake_ws()
+    websocket_service._ws = fake_ws
+    websocket_service._connection_state = ConnectionState.CONNECTING
+    websocket_service._send_ready_event.set()
+
+    await websocket_service._send_json_when_socket_live(type="subscribe_events")
+
+    payload = fake_ws.send_json.await_args.args[0]  # pyright: ignore
+    assert payload["type"] == "subscribe_events"
+    assert payload["id"] == 1
 
 
 async def test_send_json_requires_connection(websocket_service: WebsocketService) -> None:
@@ -90,14 +109,43 @@ async def test_send_json_requires_connection(websocket_service: WebsocketService
 
 
 async def test_send_json_checks_connection_state(websocket_service: WebsocketService) -> None:
-    """Raise when connection_state is not CONNECTED (CONNECTING state)."""
+    """Service-level send_json uses the private send capability during setup."""
     fake_ws = build_fake_ws(is_closed=True)
     websocket_service._ws = fake_ws
-    # State machine is CONNECTING — not yet CONNECTED, so connected returns False
     websocket_service._connection_state = ConnectionState.CONNECTING
+    websocket_service._send_ready_event.set()
+
+    await websocket_service.send_json(type="ping")
+
+    assert fake_ws.send_json.await_count == 1  # pyright: ignore[reportUnknownMemberType]
+
+
+async def test_api_ws_send_json_checks_external_readiness() -> None:
+    """App-facing fire-and-forget sends remain gated on external readiness."""
+    api = Api.__new__(Api)
+    ws_conn = MagicMock()
+    ws_conn.is_connected = False
+    ws_conn.send_json = AsyncMock()
+    api._api_service = SimpleNamespace(ws_conn=ws_conn)
 
     with pytest.raises(ConnectionClosedError):
-        await websocket_service.send_json(type="ping")
+        await api.ws_send_json(type="ping")
+
+    ws_conn.send_json.assert_not_awaited()
+
+
+async def test_api_ws_send_and_wait_checks_external_readiness() -> None:
+    """App-facing request/reply sends remain gated on external readiness."""
+    api = Api.__new__(Api)
+    ws_conn = MagicMock()
+    ws_conn.is_connected = False
+    ws_conn.send_and_wait = AsyncMock()
+    api._api_service = SimpleNamespace(ws_conn=ws_conn)
+
+    with pytest.raises(ConnectionClosedError):
+        await api.ws_send_and_wait(type="ping")
+
+    ws_conn.send_and_wait.assert_not_awaited()
 
 
 async def test_send_json_propagates_reset_error(websocket_service: WebsocketService) -> None:
@@ -106,7 +154,7 @@ async def test_send_json_propagates_reset_error(websocket_service: WebsocketServ
     fake_ws.send_json.side_effect = ClientConnectionResetError("boom")  # pyright: ignore
 
     websocket_service._ws = fake_ws
-    websocket_service._connection_state = ConnectionState.CONNECTED
+    mark_websocket_service_connected(websocket_service, reason="test connected")
 
     with pytest.raises(ClientConnectionResetError):
         await websocket_service.send_json(type="ping")
@@ -118,7 +166,7 @@ async def test_send_json_wraps_generic_exceptions(websocket_service: WebsocketSe
     fake_ws.send_json.side_effect = RuntimeError("unexpected")  # pyright: ignore
 
     websocket_service._ws = fake_ws
-    websocket_service._connection_state = ConnectionState.CONNECTED
+    mark_websocket_service_connected(websocket_service, reason="test connected")
 
     with pytest.raises(FailedMessageError):
         await websocket_service.send_json(type="ping")
@@ -275,6 +323,34 @@ async def test_dispatch_sends_events(monkeypatch: pytest.MonkeyPatch, websocket_
 
     mock_create.assert_called_once_with(data)
     send_event_mock.assert_awaited_once_with(dummy_event)
+
+
+async def test_dispatch_stamps_state_change_event_with_connected_generation(
+    websocket_service: WebsocketService,
+) -> None:
+    mark_websocket_service_connected(websocket_service, reason="test connected")
+    websocket_service.hassette.send_event = AsyncMock()
+
+    await websocket_service.dispatch(
+        {
+            "type": "event",
+            "event": {
+                "event_type": "state_changed",
+                "origin": "LOCAL",
+                "time_fired": "2024-01-01T00:00:00+00:00",
+                "context": {"id": "ctx", "parent_id": None, "user_id": None},
+                "data": {
+                    "entity_id": "light.kitchen",
+                    "old_state": None,
+                    "new_state": {"entity_id": "light.kitchen", "state": "on"},
+                },
+            },
+        }
+    )
+
+    event = websocket_service.hassette.send_event.await_args.args[0]
+    assert isinstance(event, RawStateChangeEvent)
+    assert get_websocket_generation(event) == 1
 
 
 async def test_dispatch_routes_result_messages(
@@ -475,8 +551,106 @@ async def test_start_recv_and_subscribe_marks_ready(websocket_service: Websocket
     )
     assert websocket_service._connected_at is not None
     assert websocket_service._subscription_ids == {42}
+    assert websocket_service.connection_state == ConnectionState.CONNECTED
+    assert websocket_service.get_connected_generation() == 1
     # Clean up the task
     fake_task.cancel()
+
+
+async def test_start_recv_and_subscribe_emits_connected_only_after_subscription_succeeds(
+    websocket_service: WebsocketService,
+) -> None:
+    """External readiness and the public connected signal happen after subscription confirmation."""
+    capture = EventCapture()
+    capture.install(websocket_service.hassette)
+
+    fake_task = asyncio.create_task(asyncio.sleep(0))
+    websocket_service.task_bucket = MagicMock()
+    spawned_coros = []
+
+    def _spawn_side_effect(coro, *, name=None):  # noqa: ARG001
+        spawned_coros.append(coro)
+        return fake_task
+
+    websocket_service.task_bucket.spawn = Mock(side_effect=_spawn_side_effect)
+    websocket_service._emit_readiness_event = AsyncMock()
+    websocket_service._connection_state = ConnectionState.CONNECTING
+
+    async def fake_subscribe_events() -> int:
+        assert websocket_service.is_connected is False
+        assert websocket_service.has_ever_connected is False
+        assert websocket_service._connected_event.is_set() is False
+        return 99
+
+    websocket_service.subscribe_events = AsyncMock(side_effect=fake_subscribe_events)
+
+    await websocket_service.start_recv_and_subscribe()
+
+    assert websocket_service.is_connected is True
+    assert websocket_service.has_ever_connected is True
+    assert websocket_service._connected_event.is_set() is True
+    assert websocket_service.get_connected_generation() == 1
+    assert capture.by_topic(Topic.HASSETTE_EVENT_WEBSOCKET_CONNECTED)
+    for coro in spawned_coros:
+        coro.close()
+    fake_task.cancel()
+
+
+async def test_subscription_failure_before_external_readiness_leaves_history_false_and_emits_no_public_signal(
+    websocket_service: WebsocketService,
+) -> None:
+    """A failed pre-readiness subscription attempt does not publish connected/disconnected signals."""
+    capture = EventCapture()
+    capture.install(websocket_service.hassette)
+
+    fake_task = asyncio.create_task(asyncio.sleep(0))
+    websocket_service.task_bucket = MagicMock()
+    spawned_coros = []
+
+    def _spawn_side_effect(coro, *, name=None):  # noqa: ARG001
+        spawned_coros.append(coro)
+        return fake_task
+
+    websocket_service.task_bucket.spawn = Mock(side_effect=_spawn_side_effect)
+    websocket_service._connection_state = ConnectionState.CONNECTING
+    websocket_service.subscribe_events = AsyncMock(side_effect=FailedMessageError("subscribe failed"))
+
+    with pytest.raises(FailedMessageError, match="subscribe failed"):
+        await websocket_service.start_recv_and_subscribe()
+
+    assert websocket_service.has_ever_connected is False
+    assert websocket_service.is_connected is False
+    assert websocket_service._connected_event.is_set() is False
+    assert websocket_service.get_connected_generation() is None
+    assert capture.by_topic(Topic.HASSETTE_EVENT_WEBSOCKET_CONNECTED) == []
+    assert capture.by_topic(Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED) == []
+    for coro in spawned_coros:
+        coro.close()
+    fake_task.cancel()
+
+
+async def test_pre_readiness_failure_after_prior_disconnect_emits_no_second_public_disconnect(
+    websocket_service: WebsocketService,
+) -> None:
+    """A failed reconnect attempt before external readiness does not emit a second disconnect."""
+    capture = EventCapture()
+    capture.install(websocket_service.hassette)
+
+    mark_websocket_service_connected(websocket_service, reason="test: prior external connection")
+    websocket_service.partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+    websocket_service.early_drop_backoff = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+    websocket_service._emit_readiness_event = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+
+    await websocket_service.handle_early_drop(
+        RetryableConnectionClosedError("peer gone"),
+        elapsed=1.0,
+        early_drop_attempts=1,
+        max_early_drops=3,
+    )
+    await websocket_service.handle_genuine_failure()
+
+    disconnected_events = capture.by_topic(Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED)
+    assert len(disconnected_events) == 1
 
 
 async def test_partial_cleanup_cancels_recv_and_closes_ws(websocket_service: WebsocketService) -> None:
@@ -907,7 +1081,7 @@ async def test_service_status_stays_running_during_early_drop(
 
 
 def _make_subscribe_side_effect(ws: WebsocketService, *, succeed_on_call: int = 2):
-    """Build a send_json side effect that times out subscribe_events until the Nth call."""
+    """Build a send side effect that times out subscribe_events until the Nth call."""
     call_count = 0
 
     async def side_effect(**data: object) -> None:
@@ -928,14 +1102,16 @@ class TestSubscribeEventsRetry:
     async def test_returns_confirmed_id_after_retry(self, websocket_service: WebsocketService) -> None:
         """After a timeout+retry, subscribe_events returns the ID from the successful attempt."""
         websocket_service.hassette.config.websocket.response_timeout_seconds = 0
-        websocket_service.send_json = AsyncMock(
+        websocket_service._send_json_when_socket_live = AsyncMock(
             side_effect=_make_subscribe_side_effect(websocket_service, succeed_on_call=2)
         )
 
         sub_id = await websocket_service.subscribe_events()
 
         subscribe_calls = [
-            c for c in websocket_service.send_json.call_args_list if c.kwargs.get("type") == "subscribe_events"
+            c
+            for c in websocket_service._send_json_when_socket_live.call_args_list
+            if c.kwargs.get("type") == "subscribe_events"
         ]
         first_attempt_id = subscribe_calls[0].kwargs["id"]
         second_attempt_id = subscribe_calls[1].kwargs["id"]
@@ -947,13 +1123,13 @@ class TestSubscribeEventsRetry:
     async def test_proactively_unsubscribes_abandoned_attempt(self, websocket_service: WebsocketService) -> None:
         """On retry, the abandoned subscription is proactively unsubscribed."""
         websocket_service.hassette.config.websocket.response_timeout_seconds = 0
-        websocket_service.send_json = AsyncMock(
+        websocket_service._send_json_when_socket_live = AsyncMock(
             side_effect=_make_subscribe_side_effect(websocket_service, succeed_on_call=3)
         )
 
         await websocket_service.subscribe_events()
 
-        all_calls = websocket_service.send_json.call_args_list
+        all_calls = websocket_service._send_json_when_socket_live.call_args_list
         unsubscribe_calls = [c for c in all_calls if c.kwargs.get("type") == "unsubscribe_events"]
         subscribe_calls = [c for c in all_calls if c.kwargs.get("type") == "subscribe_events"]
         first_attempt_id = subscribe_calls[0].kwargs["id"]
@@ -964,7 +1140,7 @@ class TestSubscribeEventsRetry:
     async def test_cleanup_targets_confirmed_id_only(self, websocket_service: WebsocketService) -> None:
         """_subscription_ids contains only the confirmed ID, not abandoned ones."""
         websocket_service.hassette.config.websocket.response_timeout_seconds = 0
-        websocket_service.send_json = AsyncMock(
+        websocket_service._send_json_when_socket_live = AsyncMock(
             side_effect=_make_subscribe_side_effect(websocket_service, succeed_on_call=2)
         )
 
@@ -972,7 +1148,9 @@ class TestSubscribeEventsRetry:
         websocket_service._subscription_ids.add(sub_id)
 
         subscribe_calls = [
-            c for c in websocket_service.send_json.call_args_list if c.kwargs.get("type") == "subscribe_events"
+            c
+            for c in websocket_service._send_json_when_socket_live.call_args_list
+            if c.kwargs.get("type") == "subscribe_events"
         ]
         first_attempt_id = subscribe_calls[0].kwargs["id"]
 
@@ -982,7 +1160,7 @@ class TestSubscribeEventsRetry:
     async def test_no_response_futures_leak_after_retry(self, websocket_service: WebsocketService) -> None:
         """All response futures are cleaned up after retry, even for abandoned attempts."""
         websocket_service.hassette.config.websocket.response_timeout_seconds = 0
-        websocket_service.send_json = AsyncMock(
+        websocket_service._send_json_when_socket_live = AsyncMock(
             side_effect=_make_subscribe_side_effect(websocket_service, succeed_on_call=2)
         )
 

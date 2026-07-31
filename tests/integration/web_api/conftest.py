@@ -72,6 +72,22 @@ def set_websocket_state(mock_hassette: MagicMock, *, connected: bool, ever_conne
     mock_hassette._websocket_service.has_ever_connected = ever_connected
 
 
+def set_app_status_snapshot(
+    mock_hassette: MagicMock,
+    *,
+    running: list[AppInstanceInfo] | None = None,
+    failed: list[AppInstanceInfo] | None = None,
+) -> None:
+    """Set the mock AppHandler's live status snapshot — used to model pre-bootstrap (zero-app) state.
+
+    RuntimeQueryService no longer depends on AppHandler, so the dashboard must serve a correct
+    zero-app response before AppHandler finishes bootstrapping.
+    """
+    mock_hassette._app_handler.get_status_snapshot.return_value = AppStatusSnapshot(
+        running=running or [], failed=failed or []
+    )
+
+
 def make_log_record(  # factory-local: timestamp=float(seq) is load-bearing for ordering tests
     seq: int,
     level: str = "INFO",

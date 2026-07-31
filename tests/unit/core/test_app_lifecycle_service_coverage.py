@@ -8,12 +8,14 @@ handle_change_event's unblock-and-no-op branches, resolve_only_apps's error/prod
 paths, and reconcile_app_registrations' degraded-mode fallbacks.
 """
 
+import asyncio
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, Mock, seal
 
 from hassette.core.app_change_detector import ChangeSet
-from hassette.core.app_lifecycle_service import AppLifecycleService
+from hassette.core.app_lifecycle_service import AppAdmissionMode, AppLifecycleService
 from hassette.exceptions import InvalidInheritanceError, UndefinedUserConfigError
-from hassette.test_utils import EventCapture
+from hassette.test_utils import EventCapture, wait_for
 from hassette.types import Topic
 
 from .conftest import set_registry_apps
@@ -33,7 +35,7 @@ class TestBootstrapAppsSuccessLogging:
         mock_registry.active_manifests = {}
         mock_registry.get_snapshot = Mock(return_value=MagicMock(running_count=1, failed_count=0))
 
-        await lifecycle_service.bootstrap_apps()
+        await lifecycle_service.bootstrap_apps(admission_mode=AppAdmissionMode.WAIT_FOR_RELEASE)
 
         completed_calls = event_capture.by_topic(Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED)
         assert len(completed_calls) == 1
@@ -109,7 +111,8 @@ class TestStartAppsErrorAggregation:
 
         started: list[str] = []
 
-        async def fake_start_app(app_key: str) -> None:
+        async def fake_start_app(app_key: str, *, admission_mode: AppAdmissionMode) -> None:
+            assert admission_mode is AppAdmissionMode.REJECT_IF_UNRELEASED
             if app_key == "app_a":
                 raise RuntimeError("app_a exploded")
             started.append(app_key)
@@ -176,6 +179,199 @@ class TestHandleChangeEventBranches:
 
         completed_calls = event_capture.by_topic(Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED)
         assert len(completed_calls) == 1
+
+    async def test_pre_release_changes_are_deferred_and_coalesced(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_hassette: MagicMock,
+        event_capture: EventCapture,
+    ) -> None:
+        event_capture.install(mock_hassette)
+        mock_hassette.app_bootstrap_coordinator.is_released.return_value = False
+        lifecycle_service.change_detector.detect_changes = Mock(  # pyright: ignore[reportAttributeAccessIssue]
+            return_value=ChangeSet(
+                orphans=frozenset(),
+                new_apps=frozenset({"my_app"}),
+                reimport_apps=frozenset(),
+                reload_apps=frozenset(),
+            )
+        )
+        lifecycle_service.apply_changes = AsyncMock()
+
+        await lifecycle_service.handle_change_event(changed_file_paths=frozenset({Path("/tmp/first.py")}))
+        await lifecycle_service.handle_change_event(changed_file_paths=frozenset({Path("/tmp/second.py")}))
+
+        lifecycle_service.apply_changes.assert_not_called()
+        assert lifecycle_service._pending_pre_release_reconciliation is True
+        assert lifecycle_service._pending_pre_release_original_apps_config is not None
+        assert lifecycle_service._pending_pre_release_current_apps_config is not None
+        assert lifecycle_service._pending_pre_release_changed_paths == frozenset(
+            {Path("/tmp/first.py"), Path("/tmp/second.py")}
+        )
+        assert event_capture.by_topic(Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED) == []
+
+    async def test_stale_pre_release_diff_is_merged_into_post_release_change(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_hassette: MagicMock,
+    ) -> None:
+        """A pre-release reconciliation still queued when release opens must be folded into
+        the next post-release diff's baseline and paths (not dropped, not left to be replayed
+        later as a stale standalone diff), and the queue must be cleared afterward.
+        """
+        # Queue a pre-release change while still unreleased.
+        mock_hassette.app_bootstrap_coordinator.is_released.return_value = False
+        lifecycle_service.change_detector.detect_changes = Mock(  # pyright: ignore[reportAttributeAccessIssue]
+            return_value=ChangeSet(
+                orphans=frozenset(),
+                new_apps=frozenset({"pre_release_app"}),
+                reimport_apps=frozenset(),
+                reload_apps=frozenset(),
+            )
+        )
+        lifecycle_service.apply_changes = AsyncMock()
+
+        await lifecycle_service.handle_change_event(changed_file_paths=frozenset({Path("/tmp/pre.py")}))
+
+        assert lifecycle_service._pending_pre_release_reconciliation is True
+        pending_original_snapshot = lifecycle_service._pending_pre_release_original_apps_config
+        assert pending_original_snapshot is not None
+
+        # Release opens; a newer post-release change arrives with its own fresh baseline.
+        mock_hassette.app_bootstrap_coordinator.is_released.return_value = True
+
+        captured_calls: list[tuple[dict | None, dict | None, frozenset[Path] | None]] = []
+
+        def capture_detect_changes(original, current, changed_paths, **_kwargs):
+            captured_calls.append((original, current, changed_paths))
+            return ChangeSet(
+                orphans=frozenset(),
+                new_apps=frozenset({"post_release_app"}),
+                reimport_apps=frozenset(),
+                reload_apps=frozenset(),
+            )
+
+        lifecycle_service.change_detector.detect_changes = capture_detect_changes  # pyright: ignore[reportAttributeAccessIssue]
+        lifecycle_service.apply_changes = AsyncMock()
+
+        await lifecycle_service.handle_change_event(changed_file_paths=frozenset({Path("/tmp/post.py")}))
+
+        # The merge must use the pre-release baseline (not the fresh refresh_config() original
+        # from this call) and union the changed paths, proving the queued snapshot was folded
+        # into this diff rather than dropped or replayed later on its own.
+        assert captured_calls[0][0] is pending_original_snapshot
+        assert captured_calls[0][2] == frozenset({Path("/tmp/pre.py"), Path("/tmp/post.py")})
+
+        # The queue is cleared so bootstrap's later replay can't re-apply this stale snapshot.
+        assert lifecycle_service._pending_pre_release_reconciliation is False
+        lifecycle_service.apply_changes.assert_awaited_once()
+
+    async def test_concurrent_invocations_are_serialized_by_the_change_event_lock(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        mock_hassette: MagicMock,
+    ) -> None:
+        """Two overlapping handle_change_event() calls — as the bus's ``parallel`` dispatch
+        mode produces when two file-watcher events fire close together (BusService._dispatch
+        spawns one task per handler invocation rather than awaiting handlers sequentially) —
+        must not run concurrently. Without serialization, the second call's refresh_config()
+        could start (and mutate self.registry.manifests) before the first call finishes
+        reading it, tearing the "what was the world like before this change" snapshot.
+        """
+        gate = asyncio.Event()
+        first_entered = asyncio.Event()
+        call_count = 0
+        empty = ChangeSet(orphans=frozenset(), new_apps=frozenset(), reimport_apps=frozenset(), reload_apps=frozenset())
+
+        async def gated_refresh_config() -> tuple[dict, dict]:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                first_entered.set()
+                await gate.wait()
+            return {}, {}
+
+        lifecycle_service.refresh_config = gated_refresh_config  # pyright: ignore[reportAttributeAccessIssue]
+        lifecycle_service.resolve_only_apps = AsyncMock()
+        lifecycle_service.change_detector.detect_changes = Mock(return_value=empty)  # pyright: ignore[reportAttributeAccessIssue]
+
+        task1 = asyncio.create_task(lifecycle_service.handle_change_event())
+        await asyncio.wait_for(first_entered.wait(), timeout=1.0)
+
+        task2 = asyncio.create_task(lifecycle_service.handle_change_event())
+        # Deterministically wait until task2 has actually queued on the lock (asyncio.Lock.acquire()
+        # appends a waiter future synchronously, before its own await) rather than assuming a single
+        # scheduler tick is enough — see CLAUDE.md's "Deterministic Async Race Gate" convention.
+        await wait_for(lambda: bool(lifecycle_service._change_event_lock._waiters), desc="task2 queued on the lock")
+
+        # task2 must be blocked acquiring the lock, not yet inside refresh_config.
+        assert lifecycle_service._change_event_lock.locked()
+        assert call_count == 1
+        assert not task2.done()
+
+        gate.set()
+        await asyncio.wait_for(task1, timeout=1.0)
+        await asyncio.wait_for(task2, timeout=1.0)
+
+        assert call_count == 2
+
+
+class TestReplayPreReleaseReconciliationSerialization:
+    async def test_replay_and_handle_change_event_do_not_race(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        mock_hassette: MagicMock,
+    ) -> None:
+        """_replay_pre_release_reconciliation_if_needed() (called from bootstrap_apps()) reads and
+        clears the same _pending_pre_release_* state as handle_change_event(); both must serialize on
+        _change_event_lock. Without that, a file-watcher event arriving while bootstrap is replaying
+        could race the take/clear of that state.
+        """
+        gate = asyncio.Event()
+        first_entered = asyncio.Event()
+        call_count = 0
+        empty = ChangeSet(orphans=frozenset(), new_apps=frozenset(), reimport_apps=frozenset(), reload_apps=frozenset())
+
+        async def gated_resolve_only_apps() -> None:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                first_entered.set()
+                await gate.wait()
+
+        lifecycle_service._pending_pre_release_reconciliation = True
+        lifecycle_service._pending_pre_release_original_apps_config = {}
+        lifecycle_service._pending_pre_release_current_apps_config = {}
+        lifecycle_service._pending_pre_release_changed_paths = None
+
+        lifecycle_service.resolve_only_apps = gated_resolve_only_apps  # pyright: ignore[reportAttributeAccessIssue]
+        lifecycle_service.refresh_config = AsyncMock(return_value=({}, {}))  # pyright: ignore[reportAttributeAccessIssue]
+        lifecycle_service.change_detector.detect_changes = Mock(return_value=empty)  # pyright: ignore[reportAttributeAccessIssue]
+
+        task1 = asyncio.create_task(lifecycle_service._replay_pre_release_reconciliation_if_needed())
+        await asyncio.wait_for(first_entered.wait(), timeout=1.0)
+
+        # The lock-holding take() already ran before the gated await, so the pending state is
+        # already cleared even though task1 hasn't finished — proving the take happens inside the lock.
+        assert lifecycle_service._pending_pre_release_reconciliation is False
+
+        task2 = asyncio.create_task(lifecycle_service.handle_change_event())
+        # Deterministically wait until task2 has actually queued on the lock (asyncio.Lock.acquire()
+        # appends a waiter future synchronously, before its own await) rather than assuming a single
+        # scheduler tick is enough — see CLAUDE.md's "Deterministic Async Race Gate" convention.
+        await wait_for(lambda: bool(lifecycle_service._change_event_lock._waiters), desc="task2 queued on the lock")
+
+        assert lifecycle_service._change_event_lock.locked()
+        assert call_count == 1
+        assert not task2.done()
+
+        gate.set()
+        await asyncio.wait_for(task1, timeout=1.0)
+        await asyncio.wait_for(task2, timeout=1.0)
+
+        assert call_count == 2
 
 
 class TestRefreshConfigFailure:

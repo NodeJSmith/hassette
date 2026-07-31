@@ -195,6 +195,9 @@
               }
             }
           },
+          "409": {
+            "description": "App bootstrap prerequisites are not ready yet; retry later"
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -278,6 +281,9 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "App bootstrap prerequisites are not ready yet; retry later"
           },
           "422": {
             "description": "Validation Error",
@@ -3622,6 +3628,10 @@
             "type": "boolean",
             "title": "Websocket Connected"
           },
+          "bootstrap_released": {
+            "type": "boolean",
+            "title": "Bootstrap Released"
+          },
           "uptime_seconds": {
             "type": "number",
             "title": "Uptime Seconds"
@@ -3673,6 +3683,7 @@
         "required": [
           "status",
           "websocket_connected",
+          "bootstrap_released",
           "uptime_seconds",
           "entity_count",
           "app_count"

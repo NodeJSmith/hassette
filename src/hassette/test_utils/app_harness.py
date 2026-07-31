@@ -36,7 +36,7 @@ from hassette.app.app_config import AppConfig
 from hassette.app.utils import get_app_config_class
 from hassette.bus import Bus
 from hassette.config.classes import AppManifest
-from hassette.resources.lifecycle import mark_ready, start
+from hassette.resources.lifecycle import start
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
 from hassette.test_utils.config import make_test_config
@@ -308,10 +308,7 @@ class AppTestHarness(SimulationMixin, TimeControlMixin, Generic[AppType]):
             context.use(context.HASSETTE_INSTANCE, cast("Hassette", harness.hassette))  # pyright: ignore[reportArgumentType]
         )
 
-        # Step 8: Mark state proxy ready
-        mark_ready(harness.state_proxy, reason="AppTestHarness: mark ready for test")
-
-        # Step 9: Synthesize a per-instance manifest and validate the config.
+        # Step 8: Synthesize a per-instance manifest and validate the config.
         # synthesize_manifest is a pure function of the class. make_hermetic_config writes
         # a shared closure cell, but writes and reads it with no await in between, so
         # concurrent harnesses cannot interleave there. Neither path mutates the App class,
@@ -319,7 +316,7 @@ class AppTestHarness(SimulationMixin, TimeControlMixin, Generic[AppType]):
         manifest = synthesize_manifest(self._app_cls)
         validated_config = make_hermetic_config(self._app_cls, app_config_cls, self._config_dict)
 
-        # Step 10: Instantiate the app with RecordingApi injected via constructor.
+        # Step 9: Instantiate the app with RecordingApi injected via constructor.
         # The manifest is passed per instance, so its app_key is authoritative for
         # the test and no class-level attribute is touched.
         app = self._app_cls(
