@@ -471,6 +471,7 @@ async def test_retry_failure_schedules_next_generation_scoped_retry() -> None:
     call_count = 0
     original_schedule_retry = proxy._schedule_retry
     first_retry_scheduled = asyncio.Event()
+    first_retry_task: asyncio.Task[None] | None = None
 
     async def failing_get_states_raw() -> list[dict[str, object]]:
         nonlocal call_count
@@ -478,13 +479,19 @@ async def test_retry_failure_schedules_next_generation_scoped_retry() -> None:
         raise RuntimeError(f"boom-{call_count}")
 
     # The first real retry uses a 0s delay (per _compute_retry_delay's side_effect above), so it
-    # can run to completion and schedule a *second* retry task before a polled check or a single
-    # "entered" signal would reliably observe the first one — that's the exact race this test used
-    # to hit in CI. Wrapping _schedule_retry lets us capture `proxy._retry_task` synchronously, in
-    # the same coroutine step that assigns it, with no timing window for it to be superseded first.
+    # can run to completion and schedule a *second* retry task before the test task gets a chance
+    # to resume from `first_retry_scheduled.wait()` — that's the exact race this test used to hit
+    # in CI. Capturing `proxy._retry_task` into `first_retry_task` *inside* the wrapper, in the
+    # same coroutine step that assigns it, is what actually closes the window; reading
+    # `proxy._retry_task` after the event fires (outside the wrapper) does not, since the second
+    # retry may have already superseded it by then. The `is None` guard keeps the second
+    # invocation (for the 60s-delay retry) from overwriting the captured first task.
     async def observed_schedule_retry(generation: int) -> None:
+        nonlocal first_retry_task
         await original_schedule_retry(generation)
-        first_retry_scheduled.set()
+        if first_retry_task is None:
+            first_retry_task = proxy._retry_task
+            first_retry_scheduled.set()
 
     proxy.hassette.api.get_states_raw = AsyncMock(side_effect=failing_get_states_raw)
     proxy._schedule_retry = observed_schedule_retry  # pyright: ignore[reportAttributeAccessIssue]
@@ -493,7 +500,7 @@ async def test_retry_failure_schedules_next_generation_scoped_retry() -> None:
     await asyncio.wait_for(first_retry_scheduled.wait(), timeout=SYNC_WAIT_TIMEOUT)
     proxy._schedule_retry = original_schedule_retry  # pyright: ignore[reportAttributeAccessIssue]
 
-    first_retry = proxy._retry_task
+    first_retry = first_retry_task
     assert first_retry is not None
     await asyncio.wait_for(first_retry, timeout=SYNC_WAIT_TIMEOUT)
 
