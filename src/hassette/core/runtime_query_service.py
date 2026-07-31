@@ -276,6 +276,23 @@ class RuntimeQueryService(Resource):
         """
         return sorted(self.hassette.app_handler.registry.only_apps)
 
+    def is_bootstrap_released(self) -> bool:
+        """Return whether app bootstrap has been released, tolerating an unwired coordinator.
+
+        ``app_bootstrap_coordinator`` is a lazily-wired ``Hassette`` attribute, like
+        ``app_handler``/``websocket_service``/``state_proxy`` elsewhere in this class — reading it
+        before it's wired (or after teardown) raises ``AttributeError``/``RuntimeError``. Shared by
+        both ``get_system_status()`` and ``collect_boot_issues()`` so the tolerance lives in one place.
+
+        Returns:
+            True when the bootstrap latch is open. False when the latch is closed or the
+            coordinator is not reachable.
+        """
+        try:
+            return self.hassette.app_bootstrap_coordinator.is_released()
+        except (AttributeError, RuntimeError):
+            return False
+
     def get_system_status(self) -> SystemStatus:
         websocket_service = self.hassette.websocket_service
         is_connected = websocket_service.is_connected
@@ -302,7 +319,7 @@ class RuntimeQueryService(Resource):
             )
             for child in self.hassette.children
         ]
-        bootstrap_released = self.hassette.app_bootstrap_coordinator.is_released()
+        bootstrap_released = self.is_bootstrap_released()
         if is_connected and bootstrap_released:
             status = "ok"
         elif websocket_service.has_ever_connected:
@@ -344,9 +361,7 @@ class RuntimeQueryService(Resource):
         except (AttributeError, RuntimeError):
             return issues
 
-        if not self.hassette.app_bootstrap_coordinator.is_released() and any(
-            manifest.autostart for manifest in full_snapshot.manifests
-        ):
+        if not self.is_bootstrap_released() and any(manifest.autostart for manifest in full_snapshot.manifests):
             issues.append(
                 BootIssue(
                     severity="warn",

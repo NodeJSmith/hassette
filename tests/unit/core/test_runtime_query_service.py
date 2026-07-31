@@ -2,7 +2,7 @@
 
 import asyncio
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, Mock
+from unittest.mock import AsyncMock, MagicMock, Mock, PropertyMock
 
 import pytest
 
@@ -183,7 +183,7 @@ class TestPreBootstrapAppState:
     def test_collect_boot_issues_warns_when_bootstrap_unreleased_with_autostart_app(
         self, runtime: RuntimeQueryService, tmp_path: Path
     ) -> None:
-        """An autostart app configured while bootstrap is unreleased produces an info-level warning."""
+        """An autostart app configured while bootstrap is unreleased produces a warn-level issue."""
         registry = AppRegistry()
         manifest = create_app_manifest("pending_ha", tmp_path)
         registry.set_manifests({manifest.app_key: manifest})
@@ -192,7 +192,8 @@ class TestPreBootstrapAppState:
 
         issues = runtime.collect_boot_issues()
 
-        assert any(issue.label == "Apps pending on Home Assistant" for issue in issues)
+        [pending] = [issue for issue in issues if issue.label == "Apps pending on Home Assistant"]
+        assert pending.severity == "warn"
 
     def test_collect_boot_issues_omits_pending_warning_once_bootstrap_released(
         self, runtime: RuntimeQueryService, tmp_path: Path
@@ -272,6 +273,38 @@ class TestConcurrentAppHandlerTeardown:
 
         assert len(broadcast_calls) == 1
         assert broadcast_calls[0]["data"]["app_key"] == "gone_app"
+
+
+class TestUnwiredBootstrapCoordinator:
+    """The class docstring promises every cross-resource read tolerates teardown/unwired state.
+
+    ``app_bootstrap_coordinator`` is a lazily-wired ``Hassette`` property that raises
+    ``RuntimeError`` when the slot hasn't been set yet (see ``core.py``'s
+    ``_service_not_wired_error``) — mirroring how ``websocket_service``/``app_handler`` raise.
+    Simulated here via ``PropertyMock`` on the mock's per-instance class (the documented way to
+    mock a property with ``unittest.mock``), since attribute *access* itself must raise, not a
+    method call on the accessed object.
+    """
+
+    def test_get_system_status_tolerates_unwired_bootstrap_coordinator(self, runtime: RuntimeQueryService) -> None:
+        type(runtime.hassette).app_bootstrap_coordinator = PropertyMock(side_effect=RuntimeError("not wired"))
+
+        status = runtime.get_system_status()
+
+        assert status.bootstrap_released is False
+
+    def test_collect_boot_issues_tolerates_unwired_bootstrap_coordinator(
+        self, runtime: RuntimeQueryService, tmp_path: Path
+    ) -> None:
+        registry = AppRegistry()
+        manifest = create_app_manifest("unwired", tmp_path)
+        registry.set_manifests({manifest.app_key: manifest})
+        runtime.hassette.app_handler.registry = registry
+        type(runtime.hassette).app_bootstrap_coordinator = PropertyMock(side_effect=RuntimeError("not wired"))
+
+        issues = runtime.collect_boot_issues()
+
+        assert any(issue.label == "Apps pending on Home Assistant" for issue in issues)
 
 
 class TestAppStatus:
