@@ -171,7 +171,7 @@ def session_ready(hassette: Hassette) -> bool:
             and hassette.app_handler.is_ready()
             and hassette.app_handler.has_bootstrapped()
         )
-    except Exception:
+    except RuntimeError:
         return False
 
 
@@ -191,7 +191,7 @@ def dashboard_ready_without_apps(hassette: Hassette) -> bool:
             and hassette._web_api_service is not None  # pyright: ignore[reportPrivateUsage]
             and hassette._web_api_service.is_ready()  # pyright: ignore[reportPrivateUsage]
         )
-    except Exception:
+    except RuntimeError:
         return False
 
 
