@@ -437,6 +437,16 @@ class AppLifecycleService(Resource):
         await self._admit_start(app_key=app_key, admission_mode=admission_mode)
 
         async with self._get_app_key_lock(app_key):
+            # Re-fetch under the lock: _admit_start() can block indefinitely (WAIT_FOR_RELEASE
+            # awaits AppBootstrapCoordinator's release latch), and a concurrent file-watcher
+            # reconciliation can remove or replace this app's manifest while that wait is
+            # parked. Acting on the pre-wait manifest would create instances for an app that
+            # no longer exists (or no longer matches current config).
+            app_manifest = self.registry.get_manifest(app_key)
+            if not app_manifest:
+                self.logger.debug("Skipping disabled or unknown app %s", app_key)
+                return
+
             try:
                 self.logger.debug("Creating instances for app %s", app_key)
                 self.factory.create_instances(app_key, app_manifest, force_reload=force_reload)
@@ -519,6 +529,18 @@ class AppLifecycleService(Resource):
             *[self.start_app(app_key, admission_mode=admission_mode) for app_key in apps],
             return_exceptions=True,
         )
+
+        # asyncio.CancelledError is a BaseException, not an Exception, so it is invisible to
+        # the `isinstance(r, Exception)` filter below — asyncio.gather(return_exceptions=True)
+        # collects it as an ordinary result instead of propagating it. Left unchecked, a
+        # cancelled start_app() (e.g. shutdown firing while _admit_start() is parked) would be
+        # silently dropped here, and bootstrap_apps() would proceed to emit
+        # HASSETTE_EVENT_APP_LOAD_COMPLETED as if startup finished normally. Re-raise the first
+        # one found so cancellation propagates to the caller instead.
+        for result in results:
+            if isinstance(result, asyncio.CancelledError):
+                raise result
+
         exception_results = [r for r in results if isinstance(r, Exception)]
         for result in exception_results:
             self.logger.error("Error during app initialization: %s", result, exc_info=result)

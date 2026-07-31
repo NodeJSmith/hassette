@@ -475,6 +475,7 @@ class WebsocketService(Service):
         # so partial_cleanup can cancel it if a later step (subscribe, event) raises
         recv_task = self.task_bucket.spawn(self.recv_loop(), name="ws:recv")
         self._recv_task = recv_task
+        recv_task.add_done_callback(self._handle_recv_task_done)
 
         self._send_ready_event.set()
         self._subscription_ids.add(await self.subscribe_events())
@@ -493,6 +494,31 @@ class WebsocketService(Service):
         with suppress(Exception):
             await self.send_connection_established_event()
         return recv_task
+
+    def _handle_recv_task_done(self, task: asyncio.Task) -> None:
+        """Invalidate connection state the instant the recv task dies, independent of serve().
+
+        serve() only learns a recv task died once it gets the task handle back from
+        start_recv_and_subscribe() and awaits it — but that method can be delayed arbitrarily
+        long by _notify_connected_observers() running a slow observer (e.g. StateProxy's initial
+        sync). Attaching this callback directly to the task (asyncio.Task.add_done_callback
+        fires synchronously in the event loop the moment the task completes, regardless of who
+        is awaiting it) means get_connected_generation()/is_connected reflect the disconnect the
+        instant the task actually dies, not only after the whole notification pass completes.
+
+        Deliberate cancellation (serve()'s own cleanup tearing the task down on purpose) is not a
+        failure and is skipped here — those paths already run their own state transitions.
+        set_connection_state() itself no-ops if the state is already DISCONNECTED, so this never
+        duplicates or conflicts with serve()'s subsequent handle_early_drop/handle_genuine_failure
+        cleanup — it only makes the transition visible earlier.
+        """
+        if task is not self._recv_task:
+            return
+        if task.cancelled():
+            return
+        if task.exception() is None:
+            return
+        self.set_connection_state(ConnectionState.DISCONNECTED)
 
     async def partial_cleanup(self) -> None:
         """Cancel recv task, close WebSocket, clear futures and subscriptions.
@@ -643,7 +669,6 @@ class WebsocketService(Service):
     async def cleanup(self) -> None:
         """Cleanup resources after the WebSocket connection is closed."""
         self.set_connection_state(ConnectionState.DISCONNECTED)
-        self._send_ready_event.clear()
 
         # Set exceptions for all pending response futures
         for fut in list(self._response_futures.values()):
@@ -651,12 +676,16 @@ class WebsocketService(Service):
                 fut.set_exception(RetryableConnectionClosedError("WebSocket disconnected"))
         self._response_futures.clear()
 
-        # Try to unsubscribe (best-effort; ignore errors if socket is going away)
+        # Try to unsubscribe (best-effort; ignore errors if socket is going away). This must run
+        # before the send-ready gate closes below — send_json() raises immediately once the gate
+        # is shut, which would otherwise make this loop a silent no-op.
         if self._ws and not self._ws.closed and self._subscription_ids:
             for sid in list(self._subscription_ids):
                 with suppress(Exception):
                     await self.send_json(type="unsubscribe_events", subscription=sid)
             self._subscription_ids.clear()
+
+        self._send_ready_event.clear()
 
         # Stop the recv loop
         if self._recv_task:

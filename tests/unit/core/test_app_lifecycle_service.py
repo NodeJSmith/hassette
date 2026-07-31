@@ -1,5 +1,6 @@
 """Unit tests for AppLifecycleService."""
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, Mock, call, patch
 
 import pytest
@@ -131,6 +132,7 @@ class TestBootstrapAppsAdmission:
 
         lifecycle_service.start_apps.assert_awaited_once_with(admission_mode=AppAdmissionMode.WAIT_FOR_RELEASE)
         lifecycle_service.apply_changes.assert_awaited_once()
+        assert lifecycle_service._pending_pre_release_reconciliation is False
 
     async def test_bootstrap_replays_deferred_reconciliation_when_no_manifests(
         self,
@@ -610,6 +612,29 @@ class TestStartApps:
         await lifecycle_service.start_apps()
 
         assert mock_factory.create_instances.call_count == 1
+
+    async def test_cancelled_error_is_not_swallowed(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+    ) -> None:
+        """A CancelledError from one gathered start_app() call must propagate, not be dropped.
+
+        asyncio.CancelledError is a BaseException, not an Exception, so the
+        `isinstance(r, Exception)` filter silently drops it from asyncio.gather's
+        return_exceptions=True results. Swallowing it here means bootstrap_apps() proceeds
+        as if startup completed normally after a cancellation mid-flight.
+        """
+        mock_registry.autostart_manifests = {"app_a": MagicMock(), "app_b": MagicMock()}
+
+        async def maybe_cancel(app_key: str, **_kwargs: object) -> None:
+            if app_key == "app_a":
+                raise asyncio.CancelledError()
+
+        lifecycle_service.start_app = AsyncMock(side_effect=maybe_cancel)
+
+        with pytest.raises(asyncio.CancelledError):
+            await lifecycle_service.start_apps()
 
 
 class TestShouldAutostart:

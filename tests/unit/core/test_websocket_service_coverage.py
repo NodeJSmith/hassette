@@ -21,6 +21,7 @@ from hassette.exceptions import FailedMessageError, InvalidAuthError, RetryableC
 from hassette.resources.service import Service
 from hassette.test_utils import EventCapture, build_fake_ws, make_ws_hassette_stub, mark_websocket_service_connected
 from hassette.types import Topic
+from hassette.types.enums import ConnectionState
 
 
 @pytest.fixture
@@ -266,6 +267,100 @@ class TestCleanup:
         assert recv_task.cancelled()
         fake_ws.close.assert_awaited_once()
         fake_session.close.assert_awaited_once()
+
+    async def test_cleanup_unsubscribe_loop_actually_reaches_the_socket(
+        self, websocket_service: WebsocketService
+    ) -> None:
+        """cleanup()'s best-effort unsubscribe loop must run while the send-ready gate is open.
+
+        Regression test: `_send_ready_event.clear()` used to run before the unsubscribe loop, so
+        every `send_json()` call inside it raised `ConnectionClosedError` immediately — silently
+        swallowed by `with suppress(Exception)` — and the "best-effort unsubscribe" loop never
+        actually sent anything to the websocket. Unlike
+        `test_cleanup_attempts_unsubscribe_for_each_subscription_and_clears_ids` above (which mocks
+        `send_json` directly and so never exercises the `_send_ready_event` gate), this test uses
+        the real `send_json` -> `_send_json_when_socket_live` path and asserts on the underlying
+        fake websocket's `send_json`.
+        """
+        fake_ws = build_fake_ws(is_closed=False)
+        websocket_service._ws = fake_ws
+        websocket_service._subscription_ids = {1, 2}
+        websocket_service._session = None
+        websocket_service._recv_task = None
+        # Simulate a live, connected socket — the gate a real cleanup() call would see.
+        websocket_service._send_ready_event.set()
+
+        with patch.object(Service, "cleanup", new=AsyncMock()):
+            await websocket_service.cleanup()
+
+        assert fake_ws.send_json.await_count == 2, (
+            "expected send_json to actually reach the websocket for each subscription, not be "
+            "swallowed by the send-ready gate closing too early"
+        )
+        sent_subscriptions = {call.args[0]["subscription"] for call in fake_ws.send_json.await_args_list}
+        assert sent_subscriptions == {1, 2}
+
+
+class TestRecvTaskDeathDuringObserverNotification:
+    """Regression coverage for the P1 bug: a dead recv task must be visible immediately.
+
+    `start_recv_and_subscribe()` awaits `_notify_connected_observers()` before it returns, and
+    `serve()` can't notice the recv task died until it gets the task handle back from
+    `start_recv_and_subscribe()` and awaits it. If the recv task dies while a slow observer
+    (e.g. StateProxy's initial sync) is still running, `get_connected_generation()` must reflect
+    the disconnect immediately — not only after the whole notification pass completes.
+    """
+
+    async def test_recv_task_death_invalidates_generation_before_slow_observer_returns(
+        self, websocket_service: WebsocketService
+    ) -> None:
+        observer_entered = asyncio.Event()
+        observer_may_continue = asyncio.Event()
+
+        async def slow_observer(generation: int) -> None:  # noqa: ARG001
+            observer_entered.set()
+            await observer_may_continue.wait()
+
+        websocket_service.add_connected_observer(slow_observer)
+
+        fail_trigger = asyncio.Event()
+
+        async def failing_recv_loop() -> None:
+            await fail_trigger.wait()
+            raise RetryableConnectionClosedError("peer gone")
+
+        websocket_service.recv_loop = failing_recv_loop  # pyright: ignore[reportAttributeAccessIssue]
+        websocket_service.subscribe_events = AsyncMock(return_value=42)  # pyright: ignore[reportAttributeAccessIssue]
+        websocket_service.send_connection_established_event = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+        # start_recv_and_subscribe transitions to CONNECTED; CONNECTING is the valid predecessor.
+        websocket_service._connection_state = ConnectionState.CONNECTING
+
+        start_task = asyncio.create_task(websocket_service.start_recv_and_subscribe())
+
+        # Deterministic gate: wait for the observer to actually be parked, not a scheduler-tick guess.
+        await asyncio.wait_for(observer_entered.wait(), timeout=1)
+        assert not start_task.done(), "start_recv_and_subscribe must still be parked in the observer"
+
+        recv_task = websocket_service._recv_task
+        assert recv_task is not None
+
+        # Kill the recv task while the observer is still parked — the exact race from the bug report.
+        fail_trigger.set()
+        with pytest.raises(RetryableConnectionClosedError):
+            await asyncio.wait_for(recv_task, timeout=1)
+        await asyncio.sleep(0)  # let the recv task's done-callback actually run
+
+        # The regression assertion: the connection must already look invalid here, even though
+        # _notify_connected_observers() (and therefore start_recv_and_subscribe()) has not returned.
+        assert websocket_service.get_connected_generation() is None, (
+            "recv task death must invalidate the connection generation immediately, not only "
+            "after the slow observer returns"
+        )
+        assert websocket_service.is_connected is False
+
+        # Let the observer (and start_recv_and_subscribe) finish so the test cleans up.
+        observer_may_continue.set()
+        await asyncio.wait_for(start_task, timeout=1)
 
 
 class TestRawRecvEdgeCases:

@@ -169,6 +169,57 @@ class TestStartApp:
         mock_registry.get_apps_by_key.assert_not_called()
 
 
+class TestStartAppStaleManifestRace:
+    """Pin: a manifest removed while start_app() is parked in _admit_start() must not be used.
+
+    _admit_start() can block indefinitely (WAIT_FOR_RELEASE awaits AppBootstrapCoordinator's
+    release latch). If start_app() captures ``app_manifest`` before that wait and never
+    rechecks, a concurrent file-watcher event that removes the manifest while the wait is
+    parked leaves start_app() creating instances from a manifest that no longer exists in
+    the registry.
+    """
+
+    async def test_manifest_removed_during_admission_wait_is_not_used(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        mock_manifest: MagicMock,
+        mock_factory: MagicMock,
+        mock_hassette: MagicMock,
+    ) -> None:
+        gate = asyncio.Event()
+        entered = asyncio.Event()
+        manifest_removed = False
+
+        def get_manifest_side_effect(_key: str) -> MagicMock | None:
+            return None if manifest_removed else mock_manifest
+
+        mock_registry.get_manifest = Mock(side_effect=get_manifest_side_effect)
+        mock_registry.get_apps_by_key = Mock(return_value={})
+
+        async def blocked_wait_released() -> None:
+            entered.set()  # signal the moment the admission wait is entered
+            await gate.wait()
+
+        mock_hassette.app_bootstrap_coordinator.wait_released = AsyncMock(side_effect=blocked_wait_released)
+
+        task = asyncio.create_task(
+            lifecycle_service.start_app("test_app", admission_mode=AppAdmissionMode.WAIT_FOR_RELEASE)
+        )
+        await asyncio.wait_for(entered.wait(), timeout=1)
+        assert not task.done()  # confirms the gate is actually blocking start_app()
+
+        # Simulate a concurrent file-watcher reconciliation removing the app's manifest
+        # while start_app() is parked in the admission wait.
+        manifest_removed = True
+
+        gate.set()
+        await asyncio.wait_for(task, timeout=1)
+
+        # The stale, pre-admission manifest must never reach the factory.
+        mock_factory.create_instances.assert_not_called()
+
+
 class TestStopApp:
     async def test_unregisters_and_shuts_down(
         self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
