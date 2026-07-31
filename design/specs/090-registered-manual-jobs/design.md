@@ -1,7 +1,7 @@
 # Design: Registered and Manual Jobs
 
 **Date:** 2026-07-30
-**Status:** draft
+**Status:** approved
 **Scope-mode:** hold
 **Research:** `design/research/2026-07-30-trigger-agnostic-job-execution/research.md`
 
@@ -212,7 +212,7 @@ Manual jobs use:
 - no jitter or predicate
 - persisted `trigger_type="manual"`, `trigger_label="Manual only"`, and `trigger_detail=NULL`
 
-The migration extends the `scheduled_jobs.trigger_type` check constraint to include `manual`, and the Python `TriggerDbType`/registration typing includes the same discriminator. `manual` is reserved for jobs created by `Scheduler.register()`; custom triggers continue using `custom`.
+The migration extends the `scheduled_jobs.trigger_type` check constraint to include `manual`. Each trigger class defines its own `trigger_db_type() -> Literal[...]` method; `SchedulerService.add_job()` calls this when `job.trigger is not None`. For manual jobs (`job.trigger is None`), the existing "unreachable" `else` branch must set `trigger_type="manual"`, `trigger_label="Manual only"`, `trigger_detail=None`. `manual` is reserved for jobs created by `Scheduler.register()`; custom triggers continue using `custom`.
 
 `SchedulerService.add_job()` performs this order:
 

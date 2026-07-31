@@ -20,7 +20,6 @@ Rename `ScheduledJob` to `Job` in `src/hassette/scheduler/classes.py`. Add the `
 - modify: `src/hassette/commands.py`
 - modify: `src/hassette/exceptions.py`
 - modify: `src/hassette/core/state_proxy.py`
-- modify: `src/hassette/execution_mode.py`
 - read: `design/specs/090-registered-manual-jobs/design.md` (Architecture > One Scheduler-Owned Job)
 - modify: `tests/unit/test_scheduled_job.py`
 - modify: `tests/unit/scheduler/test_scheduled_job_lifecycle.py`
@@ -58,11 +57,14 @@ class ScheduleStatusReason(StrEnum):
 - Sets `schedule_status`, `next_run`, `fire_at`, and `schedule_status_reason` atomically.
 - Updates `sort_index` only when `next_run` is set.
 
-**Make timing optional**: `next_run` and `fire_at` become `ZonedDateTime | None` on `Job`. `_ScheduledJobQueue.add()` already rejects jobs without timing — verify this guard still works.
+**Make timing optional**: `next_run` and `fire_at` become `ZonedDateTime | None` on `Job`. This requires three changes:
+1. **`__post_init__`** (`classes.py:289-296`) unconditionally calls `self.set_next_run(self.next_run)` which calls `.round("second")` — guard against `None` (skip the `set_next_run` call when `next_run is None`).
+2. **`set_next_run()`** (`classes.py:400-410`) unconditionally calls `next_run.round("second")` and assigns `sort_index` — guard against `None` (clear `sort_index` when `next_run is None`).
+3. **`_ScheduledJobQueue.add()`** (`scheduler_service.py:773-797`) currently has no guard against `None` timing because the field was previously non-optional. Add an explicit check: reject any job that is not `SCHEDULED` or has `next_run is None`.
 
 **Add handle methods** on `Job`:
-- `submit(self) -> None` — delegates to `self._scheduler_service.submit_job(self)` (the service method is implemented in T03).
-- `remove(self) -> None` — delegates to the removal path (implemented in T04).
+- `submit(self) -> None` — delegates to `self._scheduler_service.submit_job(self)` (the service method is implemented in T04).
+- `remove(self) -> None` — delegates to the removal path (implemented in T05).
 
 **Add `JobRemovedError`** to `src/hassette/exceptions.py`.
 
@@ -78,7 +80,7 @@ class ScheduleStatusReason(StrEnum):
 - Widen `TriggerProtocol.next_run_time()` return type to `ZonedDateTime | None | _WaitingSentinel`.
 - Update `EntityTime.resolve()` to return `WAITING` instead of `NO_OCCURRENCE` when the source is unavailable.
 
-**Update imports** in `__init__.py`, `commands.py`, `types.py` (`SchedulerServiceProtocol.mark_job_cancelled` → `mark_job_removed`), `state_proxy.py`, `execution_mode.py`.
+**Update imports** in `__init__.py`, `commands.py`, `types.py` (`SchedulerServiceProtocol.mark_job_cancelled` → `mark_job_removed`), `state_proxy.py`.
 
 **Update all unit tests** that reference `ScheduledJob` by name, `cancel_job`, `cancel_group`, or `NO_OCCURRENCE`. The listed test files are the known set; grep for `ScheduledJob` to catch any others.
 
@@ -86,9 +88,8 @@ See design doc: Architecture > One Scheduler-Owned Job, Architecture > EntityTim
 
 ## Focus
 
-- `_ScheduledJobQueue` in `scheduler_service.py` uses `job.next_run` for heap ordering — verify the `add()` guard rejects jobs with `next_run is None`.
+- `_ScheduledJobQueue.add()` in `scheduler_service.py` currently has NO guard against `None` timing (the field was non-optional, so the type system prevented it). You must add an explicit guard that rejects jobs with `schedule_status != SCHEDULED` or `next_run is None`.
 - `state_proxy.py` has `poll_job: "ScheduledJob | None"` field — rename to `Job`.
-- `execution_mode.py` references `ScheduledJob` in type hints.
 - `tests/unit/resources/lifecycle/test_init.py` has `_ScheduledJobQueue` in `LEAF_TYPES` — update the string.
 - `tests/unit/types/test_service_protocols.py` asserts `mark_job_cancelled` exists on the protocol — change to `mark_job_removed`.
 - `tests/pyright_probes/forgotten_await_probe.py` references scheduler types.

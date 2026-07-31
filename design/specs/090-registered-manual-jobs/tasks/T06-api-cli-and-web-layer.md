@@ -33,7 +33,7 @@ Update the web API routes, response models, CLI job command, and live enrichment
 
 **Update enrichment** in `src/hassette/web/utils.py`:
 
-- `enrich_jobs_with_heap()` → rename/refactor to `enrich_jobs_with_live()`. Join all live jobs from `_jobs_by_id` (the registry), not just the heap.
+- Rename both the sync helper `enrich_jobs_with_heap()` → `enrich_jobs_with_live()` and the async wrapper `enrich_jobs_with_live_heap()` → `enrich_jobs_with_live_data()` (or similar — the "heap" in both names is now misleading since enrichment reads from the registry). Join all live jobs from `_jobs_by_id` (the registry), not just the heap.
 - Include `schedule_status`, `schedule_status_reason`, nullable `next_run`, `fire_at`, and `jitter` in the enrichment overlay.
 - Scheduled jobs get timing from live state; waiting/completed/manual jobs get null timing.
 - On enrichment failure, persisted status and reason remain available but timing is null.

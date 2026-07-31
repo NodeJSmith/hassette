@@ -27,6 +27,7 @@ Add `SchedulerService._jobs_by_id` as the service-level live registry. Implement
 - modify: `tests/unit/scheduler/test_scheduler_coroutine_conversion.py`
 - modify: `tests/unit/scheduler/test_scheduler_where.py`
 - modify: `tests/unit/scheduler/test_scheduler_error_handler.py`
+- read: `tests/unit/core/conftest.py`
 
 ## Prompt
 
@@ -48,6 +49,9 @@ Add `SchedulerService._jobs_by_id` as the service-level live registry. Implement
 - Manual jobs use `schedule_status=MANUAL`, `trigger=None`, `next_run=None`, `fire_at=None`.
 - Persists `trigger_type="manual"`, `trigger_label="Manual only"`, `trigger_detail=NULL`.
 
+**Handle manual trigger-type in `add_job()`:**
+There is no `TriggerDbType` enum in the codebase. Each trigger class has its own `trigger_db_type() -> Literal[...]` method. `SchedulerService.add_job()` calls `trigger.trigger_db_type()` when `job.trigger is not None`, with an `else` branch (currently "unreachable") that hardcodes `trigger_type = "custom"`. For manual jobs (`job.trigger is None`), this branch becomes reachable — change it to set `trigger_type="manual"`, `trigger_label="Manual only"`, `trigger_detail=None`.
+
 **Extract common job construction** from `schedule()` so `schedule()` and `register()` share policy resolution and `Job` construction. This prevents drift.
 
 **Implement EntityTime waiting:**
@@ -58,7 +62,7 @@ Add `SchedulerService._jobs_by_id` as the service-level live registry. Implement
 - Remove all `NO_OCCURRENCE` references.
 
 **Implement rollback:**
-- `Scheduler._add_job()`'s call to `scheduler_service.add_job()` is wrapped in try/except. On exception, call the removal helper (same one used by `remove_job()`), passing the job even if it never reached the heap. If persistence produced a row ID, rollback sets `removed_at`.
+- `Scheduler._add_job()`'s call to `scheduler_service.add_job()` is wrapped in try/except. On exception, call a lightweight cleanup helper that removes the job from registry (`_jobs_by_id`), per-app indexes (`_jobs_by_name`, `_jobs_by_group`), and heap if present. If persistence produced a row ID, set `removed_at`. This helper is a subset of the full unified removal operation (which T05 builds to also handle guard cancellation, queued-execution draining, etc.) — T03's rollback path handles only registration-time failures where no execution has been spawned.
 
 **Implement awaited removal in replace path:**
 - `if_exists="replace"` must await the old job's removal persistence before issuing the new registration's upsert. Change `cancel_job(existing)` in `_add_job()` to await the persistence write rather than spawning it fire-and-forget.

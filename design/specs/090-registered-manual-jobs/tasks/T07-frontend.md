@@ -74,7 +74,7 @@ See design doc: Architecture > Operator Surfaces, FR#26, AC#8, AC#9, AC#13.
 
 ## Focus
 
-- `frontend/src/utils/handler-rows.ts` currently has `cancelled: number` field — rename to match the new API field name.
+- `frontend/src/utils/handler-rows.ts` has a `cancelled: number` field — this is an execution-outcome count (FR#23 says "continue using `cancelled` only for interrupted executions"), NOT the registration `cancelled_at` column. Do NOT rename it.
 - `frontend/src/api/endpoints.ts` has `triggerJob` — the endpoint path likely stays the same, but the response contract changes (always 202, never 409 for overlap/completion reasons).
 - `frontend/src/api/generated-types.ts` is git-tracked and regenerated — don't hand-edit it.
 - Follow existing Tailwind/shadcn patterns for the status badge. Check `design/context.md` for design tokens.
