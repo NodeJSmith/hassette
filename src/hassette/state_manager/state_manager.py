@@ -88,13 +88,13 @@ class DomainStates(Mapping[str, StateT]):
         if cached is not None and last_updated is not None and cached.last_updated == last_updated:
             return cached.model
 
-        # no last_updated to go by, so compare the frozen states
+        # fast path didn't match — compare full content
         frozen_state = deepfreeze(state)
         if cached is not None and cached.frozen_state == frozen_state:
             return cached.model
 
         validated = STATE_REGISTRY.coerce_and_construct(self._model, state, entity_id)
-        self._cache[entity_id] = CacheValue(last_updated, frozen_state, validated)
+        self._cache[entity_id] = CacheValue(last_updated=last_updated, frozen_state=frozen_state, model=validated)
         return validated
 
     def to_dict(self) -> dict[str, StateT]:
