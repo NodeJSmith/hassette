@@ -40,7 +40,7 @@ Docker restarts Hassette only when the process crashes (non-zero exit). HA outag
 
 ## Readiness: `/api/health/ready`
 
-The readiness endpoint returns HTTP 200 when the WebSocket connection is active (`ok`). It returns HTTP 503 when the status is `degraded` or `starting`.
+The readiness endpoint returns HTTP 200 when the WebSocket connection is active *and* app bootstrap has released (`ok`). It returns HTTP 503 when the status is `degraded` or `starting` — including the case where the WebSocket is connected but Hassette is still waiting on the initial Home Assistant state snapshot to complete.
 
 | `status` | HTTP | `ready` |
 |---|---|---|
@@ -58,11 +58,13 @@ The full status endpoint returns HTTP 200 in all states while the process can se
 
 | `status` body field | HTTP | Meaning |
 |---|---|---|
-| `ok` | 200 | WebSocket connected |
-| `degraded` | 200 | Was connected; currently disconnected |
-| `starting` | 200 | Initial connection not yet complete |
+| `ok` | 200 | WebSocket connected *and* app bootstrap released |
+| `degraded` | 200 | Was connected previously but currently disconnected, **or** currently connected while app bootstrap has not yet released (e.g. still waiting on the initial state snapshot) |
+| `starting` | 200 | No connection has ever been established |
 
 The handler never returns 503. This endpoint is not suitable as a restart or routing signal.
+
+The response body also includes `bootstrap_released` (bool): whether `AppBootstrapCoordinator` has released app bootstrap. It is a one-time latch — once `true`, it stays `true` for the rest of the process lifetime even across a later WebSocket disconnect. While it is `false`, configured autostart apps have not started yet; `boot_issues` includes a `warn`-severity entry ("Apps pending on Home Assistant") in that case.
 
 ## Fatal exit
 

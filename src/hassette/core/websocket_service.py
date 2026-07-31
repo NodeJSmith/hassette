@@ -27,6 +27,7 @@ from tenacity import (
 from hassette.events import HassetteSimpleEvent, RawStateChangeEvent, create_event_from_hass
 from hassette.events.metadata import stamp_websocket_generation
 from hassette.exceptions import (
+    WS_NOT_CONNECTED_MESSAGE,
     ConnectionClosedError,
     CouldNotFindHomeAssistantError,
     FailedMessageError,
@@ -756,7 +757,7 @@ class WebsocketService(Service):
         self.logger.debug("Sending WebSocket message: %s", data)
 
         if not self._send_ready_event.is_set():
-            raise ConnectionClosedError("WebSocket connection is not established")
+            raise ConnectionClosedError(WS_NOT_CONNECTED_MESSAGE)
 
         # The private send gate is only opened after authentication assigns the socket.
         assert self._ws is not None, "WebSocket must be initialized before sending messages"
@@ -812,7 +813,7 @@ class WebsocketService(Service):
             ConnectionClosedError: If the connection is closed.
         """
         if not self._ws:
-            raise RuntimeError("WebSocket connection is not established")
+            raise RuntimeError(WS_NOT_CONNECTED_MESSAGE)
 
         if self._ws.closed:
             raise RetryableConnectionClosedError("WebSocket connection is closed")

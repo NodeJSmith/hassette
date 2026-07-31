@@ -28,7 +28,7 @@ class AppBootstrapCoordinator(Resource):
     def __init__(self, hassette: "Hassette", *, parent: Resource | None = None) -> None:
         super().__init__(hassette, parent=parent)
         self._released_event = asyncio.Event()
-        self._release_task: asyncio.Task[None] | None = None
+        self._bootstrap_task: asyncio.Task[None] | None = None
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
@@ -65,7 +65,7 @@ class AppBootstrapCoordinator(Resource):
     async def on_initialize(self) -> None:
         self.logger.debug("Dependencies ready, wiring bootstrap coordinator")
         mark_ready(self, reason="bootstrap coordinator wired")
-        self._release_task = self.task_bucket.spawn(
+        self._bootstrap_task = self.task_bucket.spawn(
             self._await_initial_state_capability(),
             name="app_bootstrap_coordinator:await_release",
         )
@@ -83,7 +83,7 @@ class AppBootstrapCoordinator(Resource):
 
     async def on_shutdown(self) -> None:
         mark_not_ready(self, reason="shutting-down")
-        if self._release_task is not None:
-            self._release_task.cancel()
-            await asyncio.gather(self._release_task, return_exceptions=True)
-            self._release_task = None
+        if self._bootstrap_task is not None:
+            self._bootstrap_task.cancel()
+            await asyncio.gather(self._bootstrap_task, return_exceptions=True)
+            self._bootstrap_task = None

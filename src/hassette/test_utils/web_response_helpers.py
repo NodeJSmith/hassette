@@ -22,6 +22,7 @@ from hassette.web.models import (
 def make_system_status_response(
     status: str = "ok",
     websocket_connected: bool = True,
+    bootstrap_released: bool = True,
     uptime_seconds: float = 3600.0,
     entity_count: int = 120,
     app_count: int = 3,
@@ -32,6 +33,7 @@ def make_system_status_response(
     return SystemStatusResponse(
         status=status,  # pyright: ignore[reportArgumentType]
         websocket_connected=websocket_connected,
+        bootstrap_released=bootstrap_released,
         uptime_seconds=uptime_seconds,
         entity_count=entity_count,
         app_count=app_count,

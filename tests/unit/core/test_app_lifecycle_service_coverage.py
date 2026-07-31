@@ -15,7 +15,7 @@ from unittest.mock import AsyncMock, MagicMock, Mock, seal
 from hassette.core.app_change_detector import ChangeSet
 from hassette.core.app_lifecycle_service import AppAdmissionMode, AppLifecycleService
 from hassette.exceptions import InvalidInheritanceError, UndefinedUserConfigError
-from hassette.test_utils import EventCapture
+from hassette.test_utils import EventCapture, wait_for
 from hassette.types import Topic
 
 from .conftest import set_registry_apps
@@ -260,7 +260,7 @@ class TestHandleChangeEventBranches:
         # Release opens; a newer post-release change arrives with its own fresh baseline.
         mock_hassette.app_bootstrap_coordinator.is_released.return_value = True
 
-        captured_calls: list[tuple] = []
+        captured_calls: list[tuple[dict | None, dict | None, frozenset[Path] | None]] = []
 
         def capture_detect_changes(original, current, changed_paths, **_kwargs):
             captured_calls.append((original, current, changed_paths))
@@ -323,6 +323,63 @@ class TestHandleChangeEventBranches:
         await asyncio.sleep(0)  # give task2 a chance to attempt the lock and suspend on it
 
         # task2 must be blocked acquiring the lock, not yet inside refresh_config.
+        assert lifecycle_service._change_event_lock.locked()
+        assert call_count == 1
+        assert not task2.done()
+
+        gate.set()
+        await asyncio.wait_for(task1, timeout=1.0)
+        await asyncio.wait_for(task2, timeout=1.0)
+
+        assert call_count == 2
+
+
+class TestReplayPreReleaseReconciliationSerialization:
+    async def test_replay_and_handle_change_event_do_not_race(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        mock_hassette: MagicMock,
+    ) -> None:
+        """_replay_pre_release_reconciliation_if_needed() (called from bootstrap_apps()) reads and
+        clears the same _pending_pre_release_* state as handle_change_event(); both must serialize on
+        _change_event_lock. Without that, a file-watcher event arriving while bootstrap is replaying
+        could race the take/clear of that state.
+        """
+        gate = asyncio.Event()
+        first_entered = asyncio.Event()
+        call_count = 0
+        empty = ChangeSet(orphans=frozenset(), new_apps=frozenset(), reimport_apps=frozenset(), reload_apps=frozenset())
+
+        async def gated_resolve_only_apps() -> None:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                first_entered.set()
+                await gate.wait()
+
+        lifecycle_service._pending_pre_release_reconciliation = True
+        lifecycle_service._pending_pre_release_original_apps_config = {}
+        lifecycle_service._pending_pre_release_current_apps_config = {}
+        lifecycle_service._pending_pre_release_changed_paths = None
+
+        lifecycle_service.resolve_only_apps = gated_resolve_only_apps  # pyright: ignore[reportAttributeAccessIssue]
+        lifecycle_service.refresh_config = AsyncMock(return_value=({}, {}))  # pyright: ignore[reportAttributeAccessIssue]
+        lifecycle_service.change_detector.detect_changes = Mock(return_value=empty)  # pyright: ignore[reportAttributeAccessIssue]
+
+        task1 = asyncio.create_task(lifecycle_service._replay_pre_release_reconciliation_if_needed())
+        await asyncio.wait_for(first_entered.wait(), timeout=1.0)
+
+        # The lock-holding take() already ran before the gated await, so the pending state is
+        # already cleared even though task1 hasn't finished — proving the take happens inside the lock.
+        assert lifecycle_service._pending_pre_release_reconciliation is False
+
+        task2 = asyncio.create_task(lifecycle_service.handle_change_event())
+        # Deterministically wait until task2 has actually queued on the lock (asyncio.Lock.acquire()
+        # appends a waiter future synchronously, before its own await) rather than assuming a single
+        # scheduler tick is enough — see CLAUDE.md's "Deterministic Async Race Gate" convention.
+        await wait_for(lambda: bool(lifecycle_service._change_event_lock._waiters), desc="task2 queued on the lock")
+
         assert lifecycle_service._change_event_lock.locked()
         assert call_count == 1
         assert not task2.done()

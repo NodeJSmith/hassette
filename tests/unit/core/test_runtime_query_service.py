@@ -180,6 +180,33 @@ class TestPreBootstrapAppState:
         assert len(issues) == 1
         assert issues[0].severity == "warn"
 
+    def test_collect_boot_issues_warns_when_bootstrap_unreleased_with_autostart_app(
+        self, runtime: RuntimeQueryService, tmp_path: Path
+    ) -> None:
+        """An autostart app configured while bootstrap is unreleased produces an info-level warning."""
+        registry = AppRegistry()
+        manifest = create_app_manifest("pending_ha", tmp_path)
+        registry.set_manifests({manifest.app_key: manifest})
+        runtime.hassette.app_handler.registry = registry
+        runtime.hassette.app_bootstrap_coordinator.is_released = Mock(return_value=False)
+
+        issues = runtime.collect_boot_issues()
+
+        assert any(issue.label == "Apps pending on Home Assistant" for issue in issues)
+
+    def test_collect_boot_issues_omits_pending_warning_once_bootstrap_released(
+        self, runtime: RuntimeQueryService, tmp_path: Path
+    ) -> None:
+        registry = AppRegistry()
+        manifest = create_app_manifest("released", tmp_path)
+        registry.set_manifests({manifest.app_key: manifest})
+        runtime.hassette.app_handler.registry = registry
+        runtime.hassette.app_bootstrap_coordinator.is_released = Mock(return_value=True)
+
+        issues = runtime.collect_boot_issues()
+
+        assert not any(issue.label == "Apps pending on Home Assistant" for issue in issues)
+
 
 class TestConcurrentAppHandlerTeardown:
     """Reads stay safe under concurrent AppHandler teardown.
@@ -473,6 +500,24 @@ class TestSystemStatus:
         runtime.hassette.websocket_service.has_ever_connected = True
         status = runtime.get_system_status()
         assert status.status == "ok"
+        assert status.bootstrap_released is True
+
+    def test_system_status_degraded_when_connected_but_bootstrap_not_released(
+        self, runtime: RuntimeQueryService
+    ) -> None:
+        """Status is 'degraded' (not 'ok') when WS is connected but app bootstrap hasn't released.
+
+        Covers a permanently-failing state sync with a healthy WebSocket connection: without this
+        check, get_system_status() would report "ok" forever while every app stays unbootstrapped.
+        """
+        runtime.hassette.websocket_service.is_connected = True
+        runtime.hassette.websocket_service.has_ever_connected = True
+        runtime.hassette.app_bootstrap_coordinator.is_released = Mock(return_value=False)
+
+        status = runtime.get_system_status()
+
+        assert status.status == "degraded"
+        assert status.bootstrap_released is False
 
     def test_system_status_reports_log_persistence_active(self, runtime: RuntimeQueryService) -> None:
         """log_persistence_active is carried through from the Hassette instance."""

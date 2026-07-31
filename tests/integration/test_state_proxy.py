@@ -11,6 +11,15 @@ from hassette.resources.lifecycle import mark_ready
 from hassette.test_utils import make_full_state_change_event, make_light_state_dict, make_mock_hassette
 from hassette.test_utils.ws_mocks import configure_ready_websocket_mock
 
+# Generous bound for deterministic gate/task waits below — long enough to absorb slow CI,
+# short enough to fail fast on a genuine hang instead of stalling the suite.
+SYNC_WAIT_TIMEOUT = 1.0
+
+# Short bound used only to prove a negative (e.g. "capability did not become ready in time").
+# Long enough to rule out a race with the awaited coroutine; short because a correct assertion
+# never needs to wait it out.
+NO_SIGNAL_TIMEOUT = 0.05
+
 
 def build_state_proxy(*, disable_state_proxy_polling: bool = True) -> StateProxy:
     hassette = make_mock_hassette(
@@ -46,7 +55,7 @@ async def state_proxy() -> StateProxy:
 
 
 async def test_successful_empty_snapshot_establishes_initial_capability(state_proxy: StateProxy) -> None:
-    ready = await state_proxy.wait_initial_state_capability(timeout=1.0)
+    ready = await state_proxy.wait_initial_state_capability(timeout=SYNC_WAIT_TIMEOUT)
 
     assert ready is True
     assert state_proxy.is_ready() is True
@@ -62,7 +71,7 @@ async def test_failed_initial_sync_keeps_cold_cache_blocked() -> None:
 
     await proxy.on_initialize()
 
-    ready = await proxy.wait_initial_state_capability(timeout=0.05)
+    ready = await proxy.wait_initial_state_capability(timeout=NO_SIGNAL_TIMEOUT)
 
     assert ready is False
     assert proxy.is_ready() is True
@@ -73,11 +82,33 @@ async def test_failed_initial_sync_keeps_cold_cache_blocked() -> None:
     await proxy.on_shutdown()
 
 
+async def test_repeated_sync_failure_for_same_generation_downgrades_to_warning() -> None:
+    """First failure per generation logs a full traceback; repeats for that generation downgrade
+    to a one-line WARNING, bounding log volume during an extended connected-but-failing outage.
+    """
+    proxy = build_state_proxy()
+    proxy.hassette.api.get_states_raw = AsyncMock(side_effect=RuntimeError("boom"))
+    proxy.logger = Mock()
+
+    await proxy.on_initialize()
+    assert await proxy.wait_initial_state_capability(timeout=NO_SIGNAL_TIMEOUT) is False
+    assert proxy.logger.exception.call_count == 1
+    warning_count_after_first_failure = proxy.logger.warning.call_count
+
+    # A second failure for the same (still-current) generation downgrades to WARNING.
+    await proxy._run_synchronization(request_id=999, generation=1, status=StateSynchronizationStatus.RECONNECT)
+
+    assert proxy.logger.exception.call_count == 1
+    assert proxy.logger.warning.call_count == warning_count_after_first_failure + 1
+
+    await proxy.on_shutdown()
+
+
 async def test_pre_capability_event_does_not_unlock_partial_cold_cache() -> None:
     proxy = build_state_proxy()
     proxy.hassette.api.get_states_raw = AsyncMock(side_effect=RuntimeError("boom"))
     await proxy.on_initialize()
-    assert await proxy.wait_initial_state_capability(timeout=0.05) is False
+    assert await proxy.wait_initial_state_capability(timeout=NO_SIGNAL_TIMEOUT) is False
 
     await proxy.on_state_change(
         make_full_state_change_event("light.kitchen", None, make_light_state_dict("light.kitchen", "on"))
@@ -103,13 +134,13 @@ async def test_pre_capability_event_during_failed_initial_sync_keeps_cold_cache_
 
     proxy.hassette.api.get_states_raw = AsyncMock(side_effect=failing_snapshot)
     await proxy.on_initialize()
-    await asyncio.wait_for(snapshot_entered.wait(), timeout=1.0)
+    await asyncio.wait_for(snapshot_entered.wait(), timeout=SYNC_WAIT_TIMEOUT)
 
     await proxy.on_state_change(
         make_full_state_change_event("light.kitchen", None, make_light_state_dict("light.kitchen", "on"))
     )
     release_snapshot.set()
-    assert await proxy.wait_initial_state_capability(timeout=0.05) is False
+    assert await proxy.wait_initial_state_capability(timeout=NO_SIGNAL_TIMEOUT) is False
 
     assert proxy.states["light.kitchen"]["state"] == "on"
     assert proxy.cache_freshness == StateCacheFreshness.UNAVAILABLE
@@ -141,14 +172,14 @@ async def test_duplicate_startup_and_connected_signals_coalesce_one_initial_sync
     proxy.hassette.api.get_states_raw = AsyncMock(side_effect=gated_get_states_raw)
 
     await proxy.on_initialize()
-    await asyncio.wait_for(wait_entered.wait(), timeout=1.0)
+    await asyncio.wait_for(wait_entered.wait(), timeout=SYNC_WAIT_TIMEOUT)
 
     reconnect_task = asyncio.create_task(proxy.on_reconnect())
-    await asyncio.wait_for(snapshot_entered.wait(), timeout=1.0)
+    await asyncio.wait_for(snapshot_entered.wait(), timeout=SYNC_WAIT_TIMEOUT)
     release_wait.set()
     release_snapshot.set()
-    await asyncio.wait_for(reconnect_task, timeout=1.0)
-    ready = await proxy.wait_initial_state_capability(timeout=1.0)
+    await asyncio.wait_for(reconnect_task, timeout=SYNC_WAIT_TIMEOUT)
+    ready = await proxy.wait_initial_state_capability(timeout=SYNC_WAIT_TIMEOUT)
 
     assert ready is True
     assert proxy.hassette.api.get_states_raw.await_count == 1
@@ -169,10 +200,10 @@ async def test_duplicate_initial_signal_waiters_do_not_retry_immediately_after_f
     proxy.hassette.api.get_states_raw = AsyncMock(side_effect=failing_snapshot)
 
     await proxy.on_initialize()
-    await asyncio.wait_for(snapshot_entered.wait(), timeout=1.0)
+    await asyncio.wait_for(snapshot_entered.wait(), timeout=SYNC_WAIT_TIMEOUT)
     reconnect_task = asyncio.create_task(proxy.on_reconnect())
     release_snapshot.set()
-    await asyncio.wait_for(reconnect_task, timeout=1.0)
+    await asyncio.wait_for(reconnect_task, timeout=SYNC_WAIT_TIMEOUT)
 
     assert proxy.hassette.api.get_states_raw.await_count == 1
     assert proxy.has_initial_state_capability() is False
@@ -201,12 +232,12 @@ async def test_new_generation_is_not_lost_before_active_sync_is_initialized() ->
     proxy.hassette.api.get_states_raw = AsyncMock(side_effect=snapshot)
 
     task1 = asyncio.create_task(proxy.on_reconnect())
-    await asyncio.wait_for(begin_entered.wait(), timeout=1.0)
+    await asyncio.wait_for(begin_entered.wait(), timeout=SYNC_WAIT_TIMEOUT)
 
     proxy.hassette.websocket_service.get_connected_generation.return_value = 2
     task2 = asyncio.create_task(proxy.on_reconnect())
     release_begin.set()
-    await asyncio.wait_for(asyncio.gather(task1, task2), timeout=1.0)
+    await asyncio.wait_for(asyncio.gather(task1, task2), timeout=SYNC_WAIT_TIMEOUT)
 
     assert calls == [2, 2]
     assert proxy.maintained_generation == 2
@@ -230,7 +261,7 @@ async def test_poll_skips_during_active_sync_and_reconnect_afterward_runs_once(s
     state_proxy.hassette.websocket_service.get_connected_generation.return_value = 1
 
     poll_task = asyncio.create_task(state_proxy.load_cache())
-    await asyncio.wait_for(sync_entered.wait(), timeout=1.0)
+    await asyncio.wait_for(sync_entered.wait(), timeout=SYNC_WAIT_TIMEOUT)
 
     await state_proxy.load_cache()
     state_proxy.hassette.websocket_service.get_connected_generation.return_value = 2
@@ -238,7 +269,7 @@ async def test_poll_skips_during_active_sync_and_reconnect_afterward_runs_once(s
     reconnect_task_2 = asyncio.create_task(state_proxy.on_reconnect())
 
     gate.set()
-    await asyncio.wait_for(asyncio.gather(poll_task, reconnect_task_1, reconnect_task_2), timeout=1.0)
+    await asyncio.wait_for(asyncio.gather(poll_task, reconnect_task_1, reconnect_task_2), timeout=SYNC_WAIT_TIMEOUT)
 
     assert calls == [1, 2]
     assert state_proxy.maintained_generation == 2
@@ -257,12 +288,12 @@ async def test_obsolete_generation_sync_cannot_publish_freshness_or_capability()
 
     proxy.hassette.api.get_states_raw = AsyncMock(side_effect=gated_get_states_raw)
     await proxy.on_initialize()
-    await asyncio.wait_for(snapshot_entered.wait(), timeout=1.0)
+    await asyncio.wait_for(snapshot_entered.wait(), timeout=SYNC_WAIT_TIMEOUT)
     sync_task = proxy._sync_task
     assert sync_task is not None
     proxy.hassette.websocket_service.get_connected_generation.return_value = 2
     release_snapshot.set()
-    await asyncio.wait_for(sync_task, timeout=1.0)
+    await asyncio.wait_for(sync_task, timeout=SYNC_WAIT_TIMEOUT)
 
     assert proxy.has_initial_state_capability() is False
     assert proxy.cache_freshness == StateCacheFreshness.UNAVAILABLE
@@ -287,10 +318,10 @@ async def test_obsolete_generation_failure_cannot_publish_freshness(state_proxy:
     state_proxy.hassette.websocket_service.get_connected_generation.return_value = 1
 
     sync_task = asyncio.create_task(state_proxy.load_cache())
-    await asyncio.wait_for(snapshot_entered.wait(), timeout=1.0)
+    await asyncio.wait_for(snapshot_entered.wait(), timeout=SYNC_WAIT_TIMEOUT)
     state_proxy.hassette.websocket_service.get_connected_generation.return_value = 2
     release_snapshot.set()
-    await asyncio.wait_for(sync_task, timeout=1.0)
+    await asyncio.wait_for(sync_task, timeout=SYNC_WAIT_TIMEOUT)
 
     assert state_proxy.cache_freshness == StateCacheFreshness.FRESH
     assert state_proxy.maintained_generation == 1
@@ -338,7 +369,7 @@ async def test_journaled_updates_and_tombstones_win_over_snapshot(state_proxy: S
 
     state_proxy.hassette.api.get_states_raw = AsyncMock(side_effect=gated_get_states_raw)
     reconnect_task = asyncio.create_task(state_proxy.on_reconnect())
-    await asyncio.wait_for(snapshot_entered.wait(), timeout=1.0)
+    await asyncio.wait_for(snapshot_entered.wait(), timeout=SYNC_WAIT_TIMEOUT)
 
     await state_proxy.on_state_change(
         make_full_state_change_event(
@@ -352,7 +383,7 @@ async def test_journaled_updates_and_tombstones_win_over_snapshot(state_proxy: S
     )
 
     release_snapshot.set()
-    await asyncio.wait_for(reconnect_task, timeout=1.0)
+    await asyncio.wait_for(reconnect_task, timeout=SYNC_WAIT_TIMEOUT)
 
     assert state_proxy.states["light.kitchen"]["state"] == "on"
     assert "light.garage" not in state_proxy.states
@@ -383,11 +414,11 @@ async def test_pre_sync_state_event_does_not_overwrite_reconnect_snapshot(state_
 
     state_proxy.hassette.api.get_states_raw = AsyncMock(side_effect=gated_snapshot)
     reconnect_task = asyncio.create_task(state_proxy.on_reconnect())
-    await asyncio.wait_for(snapshot_entered.wait(), timeout=1.0)
+    await asyncio.wait_for(snapshot_entered.wait(), timeout=SYNC_WAIT_TIMEOUT)
 
     await state_proxy.on_state_change(stale_event)
     release_snapshot.set()
-    await asyncio.wait_for(reconnect_task, timeout=1.0)
+    await asyncio.wait_for(reconnect_task, timeout=SYNC_WAIT_TIMEOUT)
 
     assert state_proxy.states["light.kitchen"]["state"] == "on"
     assert state_proxy.cache_freshness == StateCacheFreshness.FRESH
@@ -439,11 +470,11 @@ async def test_retry_failure_schedules_next_generation_scoped_retry() -> None:
     proxy.hassette.api.get_states_raw = AsyncMock(side_effect=failing_get_states_raw)
 
     await proxy.on_initialize()
-    await asyncio.wait_for(first_sync_entered.wait(), timeout=1.0)
+    await asyncio.wait_for(first_sync_entered.wait(), timeout=SYNC_WAIT_TIMEOUT)
 
     first_retry = proxy._retry_task
     assert first_retry is not None
-    await asyncio.wait_for(first_retry, timeout=1.0)
+    await asyncio.wait_for(first_retry, timeout=SYNC_WAIT_TIMEOUT)
 
     assert proxy._retry_task is not None
     assert proxy._retry_task is not first_retry
@@ -463,9 +494,9 @@ async def test_retry_attempt_resets_when_generation_changes() -> None:
 
     proxy.hassette.api.get_states_raw = AsyncMock(side_effect=failing_initial_snapshot)
     await proxy.on_initialize()
-    await asyncio.wait_for(first_sync_entered.wait(), timeout=1.0)
+    await asyncio.wait_for(first_sync_entered.wait(), timeout=SYNC_WAIT_TIMEOUT)
     assert proxy._bootstrap_task is not None
-    await asyncio.wait_for(proxy._bootstrap_task, timeout=1.0)
+    await asyncio.wait_for(proxy._bootstrap_task, timeout=SYNC_WAIT_TIMEOUT)
 
     proxy.hassette.websocket_service.get_connected_generation.return_value = 2
     proxy.hassette.api.get_states_raw = AsyncMock(side_effect=RuntimeError("boom-2"))
@@ -490,13 +521,13 @@ async def test_poll_enabled_initial_failure_converges_through_next_poll() -> Non
     proxy.hassette.api.get_states_raw = AsyncMock(side_effect=initial_then_successful_snapshot)
 
     await proxy.on_initialize()
-    await asyncio.wait_for(first_sync_entered.wait(), timeout=1.0)
+    await asyncio.wait_for(first_sync_entered.wait(), timeout=SYNC_WAIT_TIMEOUT)
 
-    assert await proxy.wait_initial_state_capability(timeout=0.05) is False
+    assert await proxy.wait_initial_state_capability(timeout=NO_SIGNAL_TIMEOUT) is False
 
     await proxy.load_cache()
 
-    assert await proxy.wait_initial_state_capability(timeout=1.0) is True
+    assert await proxy.wait_initial_state_capability(timeout=SYNC_WAIT_TIMEOUT) is True
     assert proxy.hassette.api.get_states_raw.await_count == 2
     assert proxy.cache_freshness == StateCacheFreshness.FRESH
     assert proxy.maintained_generation == 1
@@ -548,10 +579,10 @@ async def test_duplicate_reconnect_waiters_do_not_retry_immediately_after_failur
     state_proxy.hassette.api.get_states_raw = AsyncMock(side_effect=failing_snapshot)
 
     reconnect_task_1 = asyncio.create_task(state_proxy.on_reconnect())
-    await asyncio.wait_for(snapshot_entered.wait(), timeout=1.0)
+    await asyncio.wait_for(snapshot_entered.wait(), timeout=SYNC_WAIT_TIMEOUT)
     reconnect_task_2 = asyncio.create_task(state_proxy.on_reconnect())
     release_snapshot.set()
-    await asyncio.wait_for(asyncio.gather(reconnect_task_1, reconnect_task_2), timeout=1.0)
+    await asyncio.wait_for(asyncio.gather(reconnect_task_1, reconnect_task_2), timeout=SYNC_WAIT_TIMEOUT)
 
     assert state_proxy.hassette.api.get_states_raw.await_count == 1
     assert state_proxy.cache_freshness == StateCacheFreshness.STALE
@@ -571,7 +602,7 @@ async def test_disconnect_cancels_active_sync_so_reconnect_can_start_fresh(state
     state_proxy.hassette.websocket_service.get_connected_generation.return_value = 1
 
     poll_task = asyncio.create_task(state_proxy.load_cache())
-    await asyncio.wait_for(sync_entered.wait(), timeout=1.0)
+    await asyncio.wait_for(sync_entered.wait(), timeout=SYNC_WAIT_TIMEOUT)
 
     await state_proxy.on_disconnect()
     assert state_proxy._sync_task is None
@@ -579,7 +610,7 @@ async def test_disconnect_cancels_active_sync_so_reconnect_can_start_fresh(state
     state_proxy.hassette.websocket_service.get_connected_generation.return_value = 2
     state_proxy.hassette.api.get_states_raw = AsyncMock(return_value=[make_light_state_dict("light.kitchen", "off")])
 
-    await asyncio.wait_for(state_proxy.on_reconnect(), timeout=1.0)
+    await asyncio.wait_for(state_proxy.on_reconnect(), timeout=SYNC_WAIT_TIMEOUT)
     await asyncio.gather(poll_task, return_exceptions=True)
 
     assert state_proxy.cache_freshness == StateCacheFreshness.FRESH
@@ -604,8 +635,8 @@ async def test_superseded_retry_task_is_canceled_when_new_generation_sync_starts
     proxy._schedule_retry = observed_schedule_retry  # pyright: ignore[reportAttributeAccessIssue]
 
     await proxy.on_initialize()
-    await asyncio.wait_for(first_sync_entered.wait(), timeout=1.0)
-    await asyncio.wait_for(retry_started.wait(), timeout=1.0)
+    await asyncio.wait_for(first_sync_entered.wait(), timeout=SYNC_WAIT_TIMEOUT)
+    await asyncio.wait_for(retry_started.wait(), timeout=SYNC_WAIT_TIMEOUT)
     proxy._schedule_retry = original_schedule_retry  # pyright: ignore[reportAttributeAccessIssue]
     await original_schedule_retry(1)
 
@@ -618,7 +649,7 @@ async def test_superseded_retry_task_is_canceled_when_new_generation_sync_starts
     await proxy.on_reconnect()
 
     with pytest.raises(asyncio.CancelledError):
-        await asyncio.wait_for(first_retry, timeout=1.0)
+        await asyncio.wait_for(first_retry, timeout=SYNC_WAIT_TIMEOUT)
 
     assert proxy.has_initial_state_capability() is True
     assert proxy.maintained_generation == 2

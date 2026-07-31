@@ -7,6 +7,9 @@ if TYPE_CHECKING:
 
 MAX_ISSUES_IN_SUMMARY = 5
 
+WS_NOT_CONNECTED_MESSAGE = "WebSocket connection is not established"
+"""Shared message for the various ways a caller can observe an unestablished WebSocket connection."""
+
 
 class HassetteForgottenAwaitWarning(RuntimeWarning):
     """Warning emitted when a protected registration/scheduling method is called without ``await``.

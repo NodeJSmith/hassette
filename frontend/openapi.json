@@ -3622,6 +3622,10 @@
             "type": "boolean",
             "title": "Websocket Connected"
           },
+          "bootstrap_released": {
+            "type": "boolean",
+            "title": "Bootstrap Released"
+          },
           "uptime_seconds": {
             "type": "number",
             "title": "Uptime Seconds"
@@ -3673,6 +3677,7 @@
         "required": [
           "status",
           "websocket_connected",
+          "bootstrap_released",
           "uptime_seconds",
           "entity_count",
           "app_count"

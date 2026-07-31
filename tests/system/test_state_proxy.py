@@ -1,5 +1,7 @@
 """System tests for the state proxy — verifying cache population, live updates, and StateManager typed access."""
 
+import typing
+
 import pytest
 
 from hassette.core.state_proxy import StateCacheFreshness
@@ -7,10 +9,22 @@ from hassette.test_utils import wait_for
 
 from .conftest import make_system_config, startup_context
 
+if typing.TYPE_CHECKING:
+    from hassette.core.state_proxy import StateProxy
+
 pytestmark = [pytest.mark.system]
 
 ENTITY = "light.kitchen_lights"
 DOMAIN = "light"
+
+
+async def wait_for_fresh_state_proxy(state_proxy: "StateProxy", *, timeout: float = 15.0) -> None:
+    """Wait until the proxy's cache is fresh and non-empty — the common precondition across this file's tests."""
+    await wait_for(
+        lambda: state_proxy.cache_freshness == StateCacheFreshness.FRESH and len(state_proxy.states) > 0,
+        timeout=timeout,
+        desc="state proxy fresh with populated states",
+    )
 
 
 async def test_initial_state_loaded(ha_container: str, tmp_path) -> None:
@@ -18,11 +32,7 @@ async def test_initial_state_loaded(ha_container: str, tmp_path) -> None:
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
         state_proxy = hassette.state_proxy
-        await wait_for(
-            lambda: state_proxy.cache_freshness == StateCacheFreshness.FRESH and len(state_proxy.states) > 0,
-            timeout=15.0,
-            desc="state proxy fresh with populated states",
-        )
+        await wait_for_fresh_state_proxy(state_proxy)
         assert len(state_proxy.states) > 0
         assert ENTITY in state_proxy
 
@@ -32,11 +42,7 @@ async def test_state_change_propagates_to_proxy(ha_container: str, tmp_path) -> 
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
         state_proxy = hassette.state_proxy
-        await wait_for(
-            lambda: state_proxy.cache_freshness == StateCacheFreshness.FRESH and len(state_proxy.states) > 0,
-            timeout=15.0,
-            desc="state proxy fresh with populated states",
-        )
+        await wait_for_fresh_state_proxy(state_proxy)
 
         # Read the original state BEFORE toggling so we can detect the change
         original = state_proxy.get_state(ENTITY)
@@ -62,12 +68,7 @@ async def test_state_manager_typed_access(ha_container: str, tmp_path) -> None:
     """StateManager.states.light['kitchen_lights'] returns a typed state with .value and .attributes."""
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
-        await wait_for(
-            lambda: hassette.state_proxy.cache_freshness == StateCacheFreshness.FRESH
-            and len(hassette.state_proxy.states) > 0,
-            timeout=15.0,
-            desc="state proxy fresh with populated states",
-        )
+        await wait_for_fresh_state_proxy(hassette.state_proxy)
         state = hassette.states.light["kitchen_lights"]
         assert isinstance(state.value, bool)
         # attributes is a Pydantic model but behaves like a dict-accessible object
@@ -79,12 +80,7 @@ async def test_state_manager_domain_iteration(ha_container: str, tmp_path) -> No
     """Iterating hassette.states.light yields (entity_id, state) tuples for each light entity."""
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
-        await wait_for(
-            lambda: hassette.state_proxy.cache_freshness == StateCacheFreshness.FRESH
-            and len(hassette.state_proxy.states) > 0,
-            timeout=15.0,
-            desc="state proxy fresh with populated states",
-        )
+        await wait_for_fresh_state_proxy(hassette.state_proxy)
         entities = list(hassette.states.light.items())
         assert len(entities) > 0
         for entity_id, state in entities:

@@ -302,9 +302,14 @@ class RuntimeQueryService(Resource):
             )
             for child in self.hassette.children
         ]
-        if is_connected:
+        bootstrap_released = self.hassette.app_bootstrap_coordinator.is_released()
+        if is_connected and bootstrap_released:
             status = "ok"
         elif websocket_service.has_ever_connected:
+            # "degraded" covers two distinct situations: a connection that was live and is now
+            # lost, and a currently-live connection where app bootstrap hasn't released yet (e.g.
+            # still waiting on the initial state snapshot). Both mean "not fully healthy yet/anymore",
+            # but only `bootstrap_released` + `websocket_connected` on the response distinguish them.
             status = "degraded"
         else:
             status = "starting"
@@ -314,6 +319,7 @@ class RuntimeQueryService(Resource):
         return SystemStatus(
             status=status,
             websocket_connected=is_connected,
+            bootstrap_released=bootstrap_released,
             uptime_seconds=uptime,
             entity_count=entity_count,
             app_count=app_count,
@@ -325,9 +331,10 @@ class RuntimeQueryService(Resource):
         )
 
     def collect_boot_issues(self) -> list[BootIssue]:
-        """Collect boot-time issues from blocked apps and failed app instances.
+        """Collect boot-time issues from blocked apps, failed app instances, and pending bootstrap.
 
         Returns a list of ``BootIssue`` objects derived from:
+        - App bootstrap not yet released while at least one autostart app is configured — severity ``warn``
         - Apps that are blocked (e.g. import error, pre-check failure) — severity ``warn``
         - Apps that failed to start — severity ``err``
         """
@@ -336,6 +343,20 @@ class RuntimeQueryService(Resource):
             full_snapshot = self.hassette.app_handler.registry.get_full_snapshot()
         except (AttributeError, RuntimeError):
             return issues
+
+        if not self.hassette.app_bootstrap_coordinator.is_released() and any(
+            manifest.autostart for manifest in full_snapshot.manifests
+        ):
+            issues.append(
+                BootIssue(
+                    severity="warn",
+                    label="Apps pending on Home Assistant",
+                    detail=(
+                        "App bootstrap has not been released — autostart apps will remain stopped "
+                        "until Home Assistant connects and the initial state snapshot succeeds."
+                    ),
+                )
+            )
 
         for manifest in full_snapshot.manifests:
             if manifest.status == "blocked" and manifest.block_reason:

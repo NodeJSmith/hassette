@@ -6,6 +6,7 @@ in the serve() reconnect paths.
 
 import asyncio
 import time
+import typing
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -23,6 +24,26 @@ async def websocket_service() -> WebsocketService:
     """Create a WebsocketService with a fully-mocked hassette stub."""
     hassette = make_ws_hassette_stub(sealed=False)
     return WebsocketService(hassette=hassette)
+
+
+def make_task_bucket_spawn_stub() -> tuple[list[typing.Coroutine], Mock]:
+    """Build a ``task_bucket.spawn`` stub that records coroutines without running them.
+
+    Returns the list that gets populated with each spawned coroutine (callers close()
+    them after the test to suppress ResourceWarning) and the ``Mock`` to assign as
+    ``websocket_service.task_bucket.spawn``.
+    """
+    spawned_coros: list[typing.Coroutine] = []
+
+    def _spawn_side_effect(coro, *, name=None):  # noqa: ARG001
+        spawned_coros.append(coro)
+
+        async def _noop():
+            pass
+
+        return asyncio.create_task(_noop())
+
+    return spawned_coros, Mock(side_effect=_spawn_side_effect)
 
 
 class TestWebsocketReadinessEvents:
@@ -134,18 +155,10 @@ class TestWebsocketReadinessEvents:
 
         # Stub out the sub-methods that start_recv_and_subscribe calls so we can run the
         # real method and observe whether it calls _emit_readiness_event() after mark_ready().
-        spawned_coros: list = []
-
-        def _spawn_side_effect(coro, *, name=None):  # noqa: ARG001
-            spawned_coros.append(coro)
-
-            async def _noop():
-                pass
-
-            return asyncio.create_task(_noop())
+        spawned_coros, spawn_stub = make_task_bucket_spawn_stub()
 
         websocket_service.task_bucket = Mock()  # pyright: ignore[reportAttributeAccessIssue]
-        websocket_service.task_bucket.spawn = Mock(side_effect=_spawn_side_effect)
+        websocket_service.task_bucket.spawn = spawn_stub
         websocket_service.send_connection_established_event = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
         websocket_service.subscribe_events = AsyncMock(return_value=42)  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -183,19 +196,11 @@ class TestWebsocketReadinessEvents:
             if event.topic == Topic.HASSETTE_EVENT_WEBSOCKET_CONNECTED:
                 await websocket_service.send_connection_lost_event()
 
-        spawned_coros: list = []
-
-        def _spawn_side_effect(coro, *, name=None):  # noqa: ARG001
-            spawned_coros.append(coro)
-
-            async def _noop():
-                pass
-
-            return asyncio.create_task(_noop())
+        spawned_coros, spawn_stub = make_task_bucket_spawn_stub()
 
         websocket_service.hassette.send_event = reentrant_send
         websocket_service.task_bucket = Mock()  # pyright: ignore[reportAttributeAccessIssue]
-        websocket_service.task_bucket.spawn = Mock(side_effect=_spawn_side_effect)
+        websocket_service.task_bucket.spawn = spawn_stub
         websocket_service.subscribe_events = AsyncMock(return_value=42)  # pyright: ignore[reportAttributeAccessIssue]
 
         websocket_service._connection_state = ConnectionState.CONNECTING
@@ -217,15 +222,7 @@ class TestWebsocketReadinessEvents:
         websocket_service: WebsocketService,
     ) -> None:
         """Connected-event delivery is observational, not part of WebSocket capability."""
-        spawned_coros: list = []
-
-        def _spawn_side_effect(coro, *, name=None):  # noqa: ARG001
-            spawned_coros.append(coro)
-
-            async def _noop():
-                pass
-
-            return asyncio.create_task(_noop())
+        spawned_coros, spawn_stub = make_task_bucket_spawn_stub()
 
         async def fail_connected_event(event) -> None:
             if event.topic == Topic.HASSETTE_EVENT_WEBSOCKET_CONNECTED:
@@ -233,7 +230,7 @@ class TestWebsocketReadinessEvents:
 
         websocket_service.hassette.send_event = fail_connected_event
         websocket_service.task_bucket = Mock()  # pyright: ignore[reportAttributeAccessIssue]
-        websocket_service.task_bucket.spawn = Mock(side_effect=_spawn_side_effect)
+        websocket_service.task_bucket.spawn = spawn_stub
         websocket_service.subscribe_events = AsyncMock(return_value=42)  # pyright: ignore[reportAttributeAccessIssue]
         websocket_service._connection_state = ConnectionState.CONNECTING
 

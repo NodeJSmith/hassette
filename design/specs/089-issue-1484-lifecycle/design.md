@@ -1,7 +1,7 @@
 # Design: App Bootstrap and Home Assistant State Lifecycle
 
 **Date:** 2026-07-29
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Research:** design/research/2026-07-29-issue-1484-lifecycle/research.md; design/research/2026-07-29-issue-1484-lifecycle/prior-art.md
 
@@ -117,7 +117,7 @@ Hassette needs one narrow coordinator that owns the complete one-time app-bootst
 - **FR#23** Cold-cache reads before state capability exists must raise `ResourceNotReadyError`.
 - **FR#24** State-change capture must remain installed across reconnect snapshot failures.
 - **FR#25** Failed reconnect recovery must not stop or suspend apps that already bootstrapped.
-- **FR#26** Runtime health must retain the existing `starting`, `degraded`, and `ok` meanings.
+- **FR#26** Runtime health must retain the existing `starting` and `degraded` meanings; `ok` additionally requires that app bootstrap has released, so a permanently-connected WebSocket with permanently-failing state synchronization is not reported as healthy.
 - **FR#27** Existing public app-author WebSocket listener APIs must remain source-compatible.
 - **FR#28** Invalid authentication must preserve the existing fatal service-failure behavior and require corrected configuration plus process restart.
 - **FR#29** Framework shutdown must cancel app-bootstrap capability waits without waiting for Home Assistant recovery.
@@ -167,7 +167,7 @@ Hassette needs one narrow coordinator that owns the complete one-time app-bootst
 - **AC#15** Disconnect with populated cache permits stale reads, while not-ready empty-cache reads raise `ResourceNotReadyError`. Covers FR#22, FR#23.
 - **AC#16** The lifetime state-change listener remains installed through reconnect snapshot failure without marking the failed snapshot fresh. Covers FR#24.
 - **AC#17** A runtime disconnect marks state stale but does not stop or suspend already-running apps. Covers FR#25.
-- **AC#18** Runtime health remains `starting` before first external connection, `degraded` after losing a prior external connection, and `ok` while externally connected. Covers FR#26.
+- **AC#18** Runtime health remains `starting` before first external connection, `degraded` after losing a prior external connection or while externally connected without bootstrap release, and `ok` only while externally connected with bootstrap released. Covers FR#26.
 - **AC#19** Existing `on_websocket_connected` and `on_websocket_disconnected` handlers work without signature changes. Covers FR#27.
 - **AC#20** Shutdown cancels an indefinitely waiting bootstrap coordinator without delaying framework shutdown. Covers FR#29.
 - **AC#21** The shared app-creation boundary prevents every caller from creating an app before release; after release, runtime disconnects do not re-block creation. Covers FR#25, FR#30.
@@ -333,13 +333,15 @@ These runtime failures do not stop already-running apps. Existing service superv
 
 ### Health Semantics
 
-`RuntimeQueryService.get_system_status()` continues to derive external health from WebsocketService:
+`RuntimeQueryService.get_system_status()` derives external health from WebsocketService and `AppBootstrapCoordinator.is_released()`:
 
 - `starting`: no connection generation has ever reached external readiness.
-- `degraded`: external readiness was reached previously but is not current.
-- `ok`: WebsocketService is externally ready.
+- `degraded`: external readiness was reached previously but is not current, or WebsocketService is externally ready while app bootstrap has not yet released.
+- `ok`: WebsocketService is externally ready and app bootstrap has released.
 
-While HA is unavailable at cold startup, health remains `starting`, the web API serves, and apps remain unbootstrapped. Richer explanation of app-bootstrap or state-sync phases is deferred.
+This is a deliberate amendment to the original plan: deriving health from WebsocketService alone leaves one uncovered failure mode — WebsocketService can stay externally ready indefinitely while the initial state snapshot keeps failing (malformed response, HA-side bug), so `is_released()` never fires. Without folding release into `status`, that combination reports `ok` forever while every app stays permanently unbootstrapped, which is a materially misleading health signal, not a cosmetic gap. Because `is_released()` is a one-time latch, this does not reintroduce continuous bootstrap enforcement or a later runtime disconnect re-blocking `ok`: once released, only WebsocketService's current external readiness continues to gate `ok`/`degraded`.
+
+While HA is unavailable at cold startup, health remains `starting`, the web API serves, and apps remain unbootstrapped. Richer explanation of app-bootstrap or state-sync phases beyond this `status` value (e.g., a dedicated dashboard indicator distinguishing "waiting on HA" from "waiting on snapshot success") remains deferred.
 
 ## Implementation Preferences
 

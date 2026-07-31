@@ -24,10 +24,21 @@ from hassette.utils.hass_utils import extract_domain
 
 MAX_RETRY_ATTEMPTS = 5
 
+# Backoff for the `@_retry_on_not_ready` decorator, applied to read methods that may be called
+# briefly before initial state capability is established (see ResourceNotReadyError). Distinct
+# from `_compute_retry_delay`'s connect-retry backoff, which governs whole-synchronization retries.
+RETRY_ON_NOT_READY_INITIAL_WAIT_SECONDS = 0.01
+RETRY_ON_NOT_READY_MAX_WAIT_SECONDS = 0.1
+
+# Base of the exponential backoff used by `_compute_retry_delay` for synchronization retries.
+SYNC_RETRY_BACKOFF_BASE = 2
+
 _retry_on_not_ready = retry(
     retry=retry_if_exception_type(ResourceNotReadyError),
     stop=stop_after_attempt(MAX_RETRY_ATTEMPTS),
-    wait=wait_exponential_jitter(initial=0.01, max=0.1),
+    wait=wait_exponential_jitter(
+        initial=RETRY_ON_NOT_READY_INITIAL_WAIT_SECONDS, max=RETRY_ON_NOT_READY_MAX_WAIT_SECONDS
+    ),
     reraise=True,
 )
 
@@ -52,9 +63,16 @@ class _ActiveSynchronization:
     journal: list[_JournalOperation]
 
 
-class _ConnectedSyncCause:
-    CONNECTED = "connected"
-    RETRY = "retry"
+class _ConnectedSyncCause(StrEnum):
+    """Why a connected-generation synchronization was requested.
+
+    ``CONNECTED_SIGNAL`` uses a distinct value from ``ConnectionState.CONNECTED`` — the two
+    enums represent unrelated concepts (a sync trigger vs. a WebSocket connection state) and
+    sharing the string "connected" made it easy to grep for the wrong one.
+    """
+
+    CONNECTED_SIGNAL = "connected_signal"
+    RETRY = auto()
 
 
 class StateSynchronizationStatus(StrEnum):
@@ -106,6 +124,9 @@ class StateProxy(Resource):
         self._retry_task: asyncio.Task[None] | None = None
         self._retry_generation: int | None = None
         self._retry_attempt = 0
+        # Bounds ERROR-level traceback logging during an extended connected-but-failing outage:
+        # only the first failure per generation logs a full traceback, repeats downgrade to WARNING.
+        self._last_logged_sync_failure_generation: int | None = None
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
@@ -172,6 +193,11 @@ class StateProxy(Resource):
         )
 
     async def _bootstrap_initial_sync(self) -> None:
+        # StateProxy.depends_on excludes WebsocketService, and WebsocketService has no depends_on of
+        # its own, so WebsocketService routinely reaches CONNECTED before StateProxy's own dependencies
+        # (gated behind DatabaseService/SyncExecutorService) let it register its connected-observer. This
+        # explicit post-registration check is what catches that race and starts sync anyway — it is not
+        # redundant with the observer callbacks.
         websocket_service = self.hassette.websocket_service
         timeout = websocket_service.total_timeout_seconds
         self.logger.debug("Waiting up to %.1fs for initial WebSocket connection before state sync", timeout)
@@ -182,7 +208,7 @@ class StateProxy(Resource):
 
         generation = websocket_service.get_connected_generation()
         if generation is not None:
-            await self._request_connected_synchronization(generation, cause=_ConnectedSyncCause.CONNECTED)
+            await self._request_connected_synchronization(generation, cause=_ConnectedSyncCause.CONNECTED_SIGNAL)
 
     async def on_shutdown(self) -> None:
         self.hassette.websocket_service.remove_connected_observer(self._on_websocket_connected)
@@ -223,7 +249,10 @@ class StateProxy(Resource):
 
     def _check_ready(self) -> None:
         if self._cache_freshness == StateCacheFreshness.UNAVAILABLE:
-            raise ResourceNotReadyError(f"StateProxy is not ready (reason: {self._ready_reason}).")
+            raise ResourceNotReadyError(
+                f"StateProxy cache is not available yet (freshness={self._cache_freshness}, "
+                f"initial_capability={self.has_initial_state_capability()})."
+            )
 
     def get_state_once(self, entity_id: str) -> "HassStateDict | None":
         self._check_ready()
@@ -259,14 +288,19 @@ class StateProxy(Resource):
         current_generation = self.hassette.websocket_service.get_connected_generation()
         if event_generation is None:
             event_generation = current_generation
-        elif current_generation is not None and event_generation != current_generation:
-            self.logger.debug(
-                "Ignoring stale state event for %s from generation %s (current=%s)",
-                entity_id,
-                event_generation,
-                current_generation,
-            )
-            return
+        else:
+            # While disconnected, current_generation is None — fall back to the last generation
+            # this cache actually committed, so an event carrying a stale generation from a prior
+            # connection is still rejected instead of falling through unconditionally accepted.
+            reference_generation = current_generation if current_generation is not None else self._maintained_generation
+            if reference_generation is not None and event_generation != reference_generation:
+                self.logger.debug(
+                    "Ignoring stale state event for %s from generation %s (reference=%s)",
+                    entity_id,
+                    event_generation,
+                    reference_generation,
+                )
+                return
 
         self.logger.debug("State changed event for %s", entity_id)
         async with self.lock:
@@ -321,10 +355,10 @@ class StateProxy(Resource):
         generation = self.hassette.websocket_service.get_connected_generation()
         if generation is None:
             return
-        await self._request_connected_synchronization(generation, cause=_ConnectedSyncCause.CONNECTED)
+        await self._request_connected_synchronization(generation, cause=_ConnectedSyncCause.CONNECTED_SIGNAL)
 
     async def _on_websocket_connected(self, generation: int) -> None:
-        await self._request_connected_synchronization(generation, cause=_ConnectedSyncCause.CONNECTED)
+        await self._request_connected_synchronization(generation, cause=_ConnectedSyncCause.CONNECTED_SIGNAL)
 
     async def _on_websocket_disconnected(self) -> None:
         await self.on_disconnect()
@@ -352,7 +386,7 @@ class StateProxy(Resource):
                 task = self._start_sync_task(generation, StateSynchronizationStatus.POLL)
         await task
 
-    async def _request_connected_synchronization(self, generation: int, *, cause: str) -> None:
+    async def _request_connected_synchronization(self, generation: int, *, cause: _ConnectedSyncCause) -> None:
         while True:
             started_new_task = False
             continue_after_active_task = False
@@ -398,7 +432,7 @@ class StateProxy(Resource):
         self,
         generation: int,
         *,
-        cause: str,
+        cause: _ConnectedSyncCause,
     ) -> StateSynchronizationStatus:
         if not self.has_initial_state_capability():
             return StateSynchronizationStatus.INITIAL
@@ -430,11 +464,10 @@ class StateProxy(Resource):
         if current_task is None:
             raise RuntimeError("StateProxy synchronization must run inside an asyncio task")
         baseline_states = await self._begin_synchronization(request_id=request_id, generation=generation, status=status)
-        committed = False
         try:
             raw_states = await self.hassette.api.get_states_raw()
             candidate_states = self._build_candidate_states(raw_states, baseline_states)
-            committed = await self._commit_candidate_states(
+            await self._commit_candidate_states(
                 request_id=request_id,
                 generation=generation,
                 status=status,
@@ -442,11 +475,17 @@ class StateProxy(Resource):
             )
         except asyncio.CancelledError:
             raise
-        except Exception:
-            self.logger.exception("State synchronization failed (%s generation=%s)", status, generation)
+        except Exception as exc:
+            if self._last_logged_sync_failure_generation == generation:
+                self.logger.warning(
+                    "State synchronization still failing (%s generation=%s): %s", status, generation, exc
+                )
+            else:
+                self.logger.exception("State synchronization failed (%s generation=%s)", status, generation)
+                self._last_logged_sync_failure_generation = generation
             await self._handle_synchronization_failure(generation)
         finally:
-            await self._finish_synchronization(request_id=request_id, task=current_task, committed=committed)
+            await self._finish_synchronization(request_id=request_id, task=current_task)
 
     async def _begin_synchronization(
         self,
@@ -494,9 +533,21 @@ class StateProxy(Resource):
         async with self.lock:
             active_sync = self._active_sync
             if active_sync is None or active_sync.request_id != request_id or active_sync.generation != generation:
+                self.logger.debug(
+                    "Abandoning synchronization commit: active_sync mismatch (request_id=%s, generation=%s, "
+                    "active_sync=%s)",
+                    request_id,
+                    generation,
+                    active_sync,
+                )
                 return False
 
             if self.hassette.websocket_service.get_connected_generation() != generation:
+                self.logger.debug(
+                    "Abandoning synchronization commit: generation %s is no longer the connected generation (%s)",
+                    generation,
+                    self.hassette.websocket_service.get_connected_generation(),
+                )
                 return False
 
             for operation in active_sync.journal:
@@ -509,6 +560,7 @@ class StateProxy(Resource):
             self._cache_freshness = StateCacheFreshness.FRESH
             self._maintained_generation = generation
             self._retry_attempt = 0
+            self._last_logged_sync_failure_generation = None
             if status == StateSynchronizationStatus.INITIAL:
                 self._initial_state_capability_event.set()
             return True
@@ -543,7 +595,6 @@ class StateProxy(Resource):
         *,
         request_id: int,
         task: asyncio.Task[None],
-        committed: bool,
     ) -> None:
         async with self.lock:
             if self._active_sync is not None and self._active_sync.request_id == request_id:
@@ -554,8 +605,6 @@ class StateProxy(Resource):
                 self._sync_task = None
                 self._sync_generation = None
                 self._synchronization_status = StateSynchronizationStatus.IDLE
-            if not committed and self._pending_reconnect_generation is None:
-                return
 
     async def _schedule_retry(self, generation: int) -> None:
         async with self._sync_control_lock:
@@ -578,7 +627,7 @@ class StateProxy(Resource):
     def _compute_retry_delay(self, attempt: int) -> float:
         initial = self.hassette.config.websocket.connect_retry_initial_wait_seconds
         max_wait = self.hassette.config.websocket.connect_retry_max_wait_seconds
-        return min(initial * (2 ** max(attempt - 1, 0)), max_wait)
+        return min(initial * (SYNC_RETRY_BACKOFF_BASE ** max(attempt - 1, 0)), max_wait)
 
     async def _run_retry_after_delay(self, *, generation: int, delay: float) -> None:
         current_task = asyncio.current_task()

@@ -131,6 +131,7 @@ def system_status_response_from(status: SystemStatus) -> SystemStatusResponse:
     return SystemStatusResponse(
         status=status.status,
         websocket_connected=status.websocket_connected,
+        bootstrap_released=status.bootstrap_released,
         uptime_seconds=status.uptime_seconds,
         entity_count=status.entity_count,
         app_count=status.app_count,

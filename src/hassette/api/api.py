@@ -174,6 +174,7 @@ from whenever import Date, PlainDateTime, ZonedDateTime
 from hassette.const.misc import FalseySentinel
 from hassette.event_handling.accessors import get_path
 from hassette.exceptions import (
+    WS_NOT_CONNECTED_MESSAGE,
     ConnectionClosedError,
     EntityNotFoundError,
     FailedMessageError,
@@ -328,13 +329,13 @@ class Api(Resource):
     async def ws_send_and_wait(self, **data: Any) -> Any:
         """Send a WebSocket message and wait for a response."""
         if not self._api_service.ws_conn.is_connected:
-            raise ConnectionClosedError("WebSocket connection is not established")
+            raise ConnectionClosedError(WS_NOT_CONNECTED_MESSAGE)
         return await self._api_service.ws_conn.send_and_wait(**data)
 
     async def ws_send_json(self, **data: Any) -> None:
         """Send a WebSocket message without waiting for a response."""
         if not self._api_service.ws_conn.is_connected:
-            raise ConnectionClosedError("WebSocket connection is not established")
+            raise ConnectionClosedError(WS_NOT_CONNECTED_MESSAGE)
         await self._api_service.ws_conn.send_json(**data)
 
     async def rest_request(

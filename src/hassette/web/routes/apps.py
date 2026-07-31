@@ -2,7 +2,7 @@
 
 import re
 from logging import getLogger
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NoReturn
 
 import tomli_w
 from fastapi import APIRouter, HTTPException, Response
@@ -62,6 +62,11 @@ def _validate_app_key(app_key: str) -> None:
 def _require_known_app(app_key: str, hassette: HassetteDep) -> None:
     if hassette.app_handler.registry.get_manifest(app_key) is None:
         raise HTTPException(status_code=404, detail=f"App {app_key!r} not found")
+
+
+def _raise_bootstrap_not_released(exc: AppBootstrapNotReleasedError) -> NoReturn:
+    """Map a pre-release start/reload attempt to a retryable 409, shared by start_app/reload_app."""
+    raise HTTPException(status_code=409, detail="App bootstrap prerequisites are not ready yet; retry later") from exc
 
 
 @router.get("/apps", response_model=AppStatusResponse)
@@ -149,9 +154,7 @@ async def start_app(app_key: str, hassette: HassetteDep) -> ActionResponse:
     try:
         await hassette.app_handler.start_app(app_key)
     except AppBootstrapNotReleasedError as exc:
-        raise HTTPException(
-            status_code=409, detail="App bootstrap prerequisites are not ready yet; retry later"
-        ) from exc
+        _raise_bootstrap_not_released(exc)
     except (ValueError, RuntimeError) as exc:
         LOGGER.warning("Failed to start app %s", app_key, exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to start app") from exc
@@ -179,9 +182,7 @@ async def reload_app(app_key: str, hassette: HassetteDep) -> ActionResponse:
         # source is fixed -- without force_reload the cached failed class is reused (#1005).
         await hassette.app_handler.reload_app(app_key, force_reload=True)
     except AppBootstrapNotReleasedError as exc:
-        raise HTTPException(
-            status_code=409, detail="App bootstrap prerequisites are not ready yet; retry later"
-        ) from exc
+        _raise_bootstrap_not_released(exc)
     except (ValueError, RuntimeError) as exc:
         LOGGER.warning("Failed to reload app %s", app_key, exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to reload app") from exc

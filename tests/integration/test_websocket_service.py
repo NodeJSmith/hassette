@@ -67,9 +67,7 @@ async def test_send_json_injects_message_id_when_absent(websocket_service: Webso
     """Ensure send_json injects a message id and forwards the payload."""
     fake_ws = build_fake_ws()
     websocket_service._ws = fake_ws
-    websocket_service._connection_state = ConnectionState.CONNECTED
-    websocket_service._connected_event.set()
-    websocket_service._send_ready_event.set()
+    mark_websocket_service_connected(websocket_service, reason="test connected")
 
     await websocket_service.send_json(type="ping")
     payload = fake_ws.send_json.await_args.args[0]  # pyright: ignore
@@ -81,9 +79,7 @@ async def test_send_json_preserves_message_id_when_present(websocket_service: We
     """Ensure send_json preserves a message id when present."""
     fake_ws = build_fake_ws()
     websocket_service._ws = fake_ws
-    websocket_service._connection_state = ConnectionState.CONNECTED
-    websocket_service._connected_event.set()
-    websocket_service._send_ready_event.set()
+    mark_websocket_service_connected(websocket_service, reason="test connected")
 
     await websocket_service.send_json(type="pong", id=41)
     second_payload = fake_ws.send_json.await_args_list[0].args[0]  # pyright: ignore
@@ -158,9 +154,7 @@ async def test_send_json_propagates_reset_error(websocket_service: WebsocketServ
     fake_ws.send_json.side_effect = ClientConnectionResetError("boom")  # pyright: ignore
 
     websocket_service._ws = fake_ws
-    websocket_service._connection_state = ConnectionState.CONNECTED
-    websocket_service._connected_event.set()
-    websocket_service._send_ready_event.set()
+    mark_websocket_service_connected(websocket_service, reason="test connected")
 
     with pytest.raises(ClientConnectionResetError):
         await websocket_service.send_json(type="ping")
@@ -172,9 +166,7 @@ async def test_send_json_wraps_generic_exceptions(websocket_service: WebsocketSe
     fake_ws.send_json.side_effect = RuntimeError("unexpected")  # pyright: ignore
 
     websocket_service._ws = fake_ws
-    websocket_service._connection_state = ConnectionState.CONNECTED
-    websocket_service._connected_event.set()
-    websocket_service._send_ready_event.set()
+    mark_websocket_service_connected(websocket_service, reason="test connected")
 
     with pytest.raises(FailedMessageError):
         await websocket_service.send_json(type="ping")

@@ -1487,6 +1487,8 @@ export interface components {
             status: "ok" | "degraded" | "starting";
             /** Websocket Connected */
             websocket_connected: boolean;
+            /** Bootstrap Released */
+            bootstrap_released: boolean;
             /** Uptime Seconds */
             uptime_seconds: number;
             /** Entity Count */

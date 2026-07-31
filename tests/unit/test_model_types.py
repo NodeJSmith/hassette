@@ -613,6 +613,7 @@ class TestSystemHealthStatus:
             obj = SystemStatusResponse(
                 status=value,
                 websocket_connected=True,
+                bootstrap_released=True,
                 uptime_seconds=0.0,
                 entity_count=0,
                 app_count=0,
