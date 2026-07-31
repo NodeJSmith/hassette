@@ -28,7 +28,7 @@ if typing.TYPE_CHECKING:
     from hassette.events import HassStateDict
 
 class CacheValue(Generic[StateT], NamedTuple):
-    context_id: str | None
+    last_updated: str | None
     frozen_state: frozendict
     model: StateT
 

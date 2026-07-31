@@ -27,7 +27,7 @@ HOME_STATE = "home"
 
 
 class CacheValue(Generic[StateT], NamedTuple):
-    context_id: str | None
+    last_updated: str | None
     frozen_state: frozendict
     model: StateT
 
@@ -76,21 +76,25 @@ class DomainStates(Mapping[str, StateT]):
         self._cache: dict[str, CacheValue[StateT]] = {}
 
     def _validate_or_return_from_cache(self, entity_id: str, state: "HassStateDict") -> StateT:
-        context_id: str | None = state.get("context", {}).get("id")
+        last_updated: str | None = state.get("last_updated")
 
         cached = self._cache.get(entity_id)
 
-        # first check if the context ID matches
-        if cached is not None and context_id is not None and cached.context_id == context_id:  # pyright: ignore[reportUnnecessaryComparison]
+        # last_updated moves whenever the state or its attributes change, so it
+        # identifies the content. The context id does not: Home Assistant attaches
+        # one context to every state that results from the same cause, so a lamp
+        # ramping through a transition or an automation run reports several
+        # different states under a single id.
+        if cached is not None and last_updated is not None and cached.last_updated == last_updated:
             return cached.model
 
-        # if not then use deepfreeze and see if frozen states match
+        # fast path didn't match — compare full content
         frozen_state = deepfreeze(state)
         if cached is not None and cached.frozen_state == frozen_state:
             return cached.model
 
         validated = STATE_REGISTRY.coerce_and_construct(self._model, state, entity_id)
-        self._cache[entity_id] = CacheValue(context_id, frozen_state, validated)
+        self._cache[entity_id] = CacheValue(last_updated=last_updated, frozen_state=frozen_state, model=validated)
         return validated
 
     def to_dict(self) -> dict[str, StateT]:
