@@ -147,7 +147,12 @@ async def get_app_manifest(app_key: str, runtime: RuntimeDep, telemetry: Telemet
     return result.model_copy(update={"recent_invocations_1h": invocations})
 
 
-@router.post("/apps/{app_key}/start", status_code=202, response_model=ActionResponse)
+@router.post(
+    "/apps/{app_key}/start",
+    status_code=202,
+    response_model=ActionResponse,
+    responses={409: {"description": "App bootstrap prerequisites are not ready yet; retry later"}},
+)
 async def start_app(app_key: str, hassette: HassetteDep) -> ActionResponse:
     _validate_app_key(app_key)
     _require_known_app(app_key, hassette)
@@ -173,7 +178,12 @@ async def stop_app(app_key: str, hassette: HassetteDep) -> ActionResponse:
     return ActionResponse(status="accepted", app_key=app_key, action="stop")
 
 
-@router.post("/apps/{app_key}/reload", status_code=202, response_model=ActionResponse)
+@router.post(
+    "/apps/{app_key}/reload",
+    status_code=202,
+    response_model=ActionResponse,
+    responses={409: {"description": "App bootstrap prerequisites are not ready yet; retry later"}},
+)
 async def reload_app(app_key: str, hassette: HassetteDep) -> ActionResponse:
     _validate_app_key(app_key)
     _require_known_app(app_key, hassette)
