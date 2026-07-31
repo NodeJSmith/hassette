@@ -4,7 +4,7 @@ Complements test_service_watcher_exhausted.py (handle_exhaustion/cooldown_and_re
 status-setting) and tests/integration/test_service_watcher.py (restart_service branch
 coverage via a real bus-backed watcher). This file targets the remaining branches:
 listener registration, the BusService-recovery gate, on_service_running's early-return
-guards, cooldown abort/failure paths, and the multiple-services-found warning path.
+guards, cooldown abort/failure paths, and service lookup.
 """
 
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
@@ -256,34 +256,34 @@ class TestCooldownAndRetry:
         await watcher.cooldown_and_retry("GoneService", "Service", "GoneService:Service", spec)
 
 
-class TestRestartServiceMultipleMatches:
-    async def test_restarts_all_matching_services_and_warns(self) -> None:
-        """When two services share class_name/role, restart_service restarts both and warns."""
+class TestGetService:
+    def test_returns_the_matching_service(self) -> None:
+        """get_service resolves a child by class_name/role."""
         hassette = build_watcher_hassette()
         watcher = make_watcher(hassette)
-        watcher.logger = Mock()
+        dummy = DummyService(hassette)
+        hassette.children = [dummy]
 
-        svc_a = DummyService(hassette)
-        svc_b = DummyService(hassette)
-        hassette.children = [svc_a, svc_b]
+        assert watcher.get_service(dummy.class_name, dummy.role) is dummy
 
-        spec = RestartSpec(restart_type=RestartType.TRANSIENT, backoff_base_seconds=0, budget_intensity=10)
-        svc_a.restart_spec = spec  # pyright: ignore[reportAttributeAccessIssue]
+    def test_returns_none_when_no_match(self) -> None:
+        """get_service returns None rather than an empty collection when nothing matches."""
+        hassette = build_watcher_hassette()
+        watcher = make_watcher(hassette)
+        hassette.children = [DummyService(hassette)]
 
-        event = make_service_failed_event(svc_a)
+        assert watcher.get_service("GoneService", ResourceRole.SERVICE) is None
 
-        # restart() is a module-level function (hassette.resources.operations), not a
-        # method — patch it at the call site (service_watcher.py) rather than reassigning
-        # instance attributes, since execute_restart() calls the free function directly.
-        with patch("hassette.core.service_watcher.restart", new_callable=AsyncMock) as mock_restart:
-            await watcher.restart_service(event)
-            key = watcher.service_key(svc_a.class_name, svc_a.role)
-            await wait_for(lambda: key not in watcher._restarting, desc="execute_restart completed")
+    def test_ignores_non_service_children(self) -> None:
+        """A non-Service child sharing the name is not returned."""
+        hassette = build_watcher_hassette()
+        watcher = make_watcher(hassette)
+        plain = MagicMock()
+        plain.class_name = "DummyService"
+        plain.role = ResourceRole.SERVICE
+        hassette.children = [plain]
 
-            mock_restart.assert_any_await(svc_a)
-            mock_restart.assert_any_await(svc_b)
-            assert mock_restart.await_count == 2
-        watcher.logger.warning.assert_called_once()
+        assert watcher.get_service("DummyService", ResourceRole.SERVICE) is None
 
 
 class TestRestartServiceNoServiceFound:

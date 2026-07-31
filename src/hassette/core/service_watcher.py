@@ -22,7 +22,6 @@ from hassette.types.types import LOG_LEVEL_TYPE
 if typing.TYPE_CHECKING:
     from hassette import Hassette
 
-DEFAULT_READINESS_TIMEOUT = 30.0
 SERVICE_STATUS_PATH = "payload.data.status"
 
 
@@ -116,9 +115,16 @@ class ServiceWatcher(Resource):
     def service_key(name: str, role: object) -> str:
         return f"{name}:{role}"
 
-    def get_service(self, name: str, role: object) -> list[Service]:
-        """Return matching Service instances from hassette.children."""
-        return [c for c in self.hassette.children if isinstance(c, Service) and c.class_name == name and c.role == role]
+    def get_service(self, name: str, role: object) -> Service | None:
+        """Return the Service child matching name/role, or None if there is no match.
+
+        Hassette rejects duplicate child types at construction, so (class_name, role)
+        identifies at most one service.
+        """
+        return next(
+            (c for c in self.hassette.children if isinstance(c, Service) and c.class_name == name and c.role == role),
+            None,
+        )
 
     def get_budget(self, key: str, spec: RestartSpec) -> RestartBudget:
         """Return existing budget for key or create a new one from spec."""
@@ -128,12 +134,12 @@ class ServiceWatcher(Resource):
 
     def set_service_status(self, name: str, role: object, status: ResourceStatus, context: str | None = None) -> None:
         """Find the service by name/role and set its status, warning if not found."""
-        services = self.get_service(name, role)
-        if not services:
+        service = self.get_service(name, role)
+        if service is None:
             label = context if context is not None else status.name
             self.logger.warning("No %s found for '%s' after %s, skipping status set", role, name, label)
             return
-        services[0].status = status
+        service.status = status
 
     async def shutdown_safe_sleep(self, duration: float) -> bool:
         """Sleep for duration seconds, waking early if shutdown is requested.
@@ -298,17 +304,16 @@ class ServiceWatcher(Resource):
         if budget:
             budget.reset()
 
-        services = self.get_service(name, role)
-        if not services:
+        service = self.get_service(name, role)
+        if service is None:
             self.logger.warning("No %s found for '%s' after cooldown, skipping restart", role, name)
             return
 
         self.logger.info("%s '%s' cooldown complete, attempting restart", role, name)
-        for service in services:
-            try:
-                await restart(service)
-            except Exception as exc:
-                self.logger.error("%s '%s' restart after cooldown failed: %s", role, name, exc)
+        try:
+            await restart(service)
+        except Exception as exc:
+            self.logger.error("%s '%s' restart after cooldown failed: %s", role, name, exc)
 
     async def restart_service(self, event: HassetteServiceEvent) -> None:
         """Restart a failed service using per-service RestartSpec-driven behavior."""
@@ -319,12 +324,11 @@ class ServiceWatcher(Resource):
         key = self.service_key(name, role)
 
         # Resolve the service and its restart_spec
-        services = self.get_service(name, role)
-        if not services:
+        service = self.get_service(name, role)
+        if service is None:
             self.logger.warning("No %s found for '%s', skipping restart", role, name)
             return
 
-        service = services[0]
         spec = service.restart_spec
 
         # Step 1: Check fatal errors — immediate shutdown regardless of restart type
@@ -383,7 +387,7 @@ class ServiceWatcher(Resource):
         # Spawn the backoff + restart as a detached task so this handler returns
         # immediately and releases its dispatch semaphore slot.
         self.task_bucket.spawn(
-            self.execute_restart(name, role, key, spec, services, budget),
+            self.execute_restart(name, role, key, spec, service, budget),
             name=f"service_watcher:restart:{key}",
         )
 
@@ -393,7 +397,7 @@ class ServiceWatcher(Resource):
         role: object,
         key: str,
         spec: RestartSpec,
-        services: list[Service],
+        service: Service,
         budget: RestartBudget,
     ) -> None:
         """Execute backoff sleep and service restart (runs as a detached task)."""
@@ -421,22 +425,18 @@ class ServiceWatcher(Resource):
 
             self.logger.debug("%s '%s' is being restarted", role, name)
 
-            if len(services) > 1:
-                self.logger.warning("Multiple %s found for '%s', restarting all", role, name)
-
             # Step 7: Restart the service — catch and log exceptions, do NOT double-count budget.
-            # Clear in-restart guard in the finally AFTER the entire loop so concurrent FAILED
-            # events cannot enter restart_service() while restarts are still in progress.
-            for service in services:
-                try:
-                    await restart(service)
-                except Exception as exc:
-                    self.logger.error(
-                        "%s '%s' restart raised an exception (service left in FAILED state): %s",
-                        role,
-                        name,
-                        exc,
-                    )
+            # Clear the in-restart guard in the finally so concurrent FAILED events cannot enter
+            # restart_service() while the restart is still in progress.
+            try:
+                await restart(service)
+            except Exception as exc:
+                self.logger.error(
+                    "%s '%s' restart raised an exception (service left in FAILED state): %s",
+                    role,
+                    name,
+                    exc,
+                )
         finally:
             self._restarting.discard(key)
 
@@ -500,17 +500,15 @@ class ServiceWatcher(Resource):
         if key not in self._budgets and key not in self._restarting:
             return
 
-        # Find the service to verify it actually becomes ready (not just RUNNING)
-        service = next(
-            (c for c in self.hassette.children if c.class_name == name and c.role == role),
-            None,
-        )
+        # Find the service to verify it actually becomes ready (not just RUNNING).
+        # Only Services reach this point — budget and in-restart keys are only ever
+        # recorded for Services.
+        service = self.get_service(name, role)
         if service is None:
             return
 
         # Use per-service startup_timeout_seconds from restart_spec
-        spec = service.restart_spec if isinstance(service, Service) else None
-        readiness_timeout = spec.startup_timeout_seconds if spec is not None else DEFAULT_READINESS_TIMEOUT
+        readiness_timeout = service.restart_spec.startup_timeout_seconds
 
         # Spawn readiness check as a detached task so this handler returns
         # immediately and releases its dispatch semaphore slot.
@@ -521,7 +519,7 @@ class ServiceWatcher(Resource):
 
     async def await_service_readiness(
         self,
-        service: Resource,
+        service: Service,
         name: str,
         role: object,
         key: str,
