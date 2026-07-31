@@ -17,7 +17,7 @@ from hassette.core.registration import ListenerRegistration, ScheduledJobRegistr
 from hassette.core.state_proxy import StateProxy
 from hassette.core.sync_executor import SyncExecutor
 from hassette.events.base import Event, HassContext, HassettePayload, HassPayload
-from hassette.scheduler.classes import ScheduledJob
+from hassette.scheduler.classes import Job
 from hassette.scheduler.scheduler import Scheduler
 from hassette.test_utils.config import DEFAULT_TEST_APP_KEY, TEST_SOURCE_LOCATION
 from hassette.test_utils.mock_hassette import make_mock_hassette
@@ -211,9 +211,9 @@ def make_scheduled_job(
     mode: ExecutionMode = DEFAULT_OVERLAP_MODE,
     db_id: int | None = None,
     predicate: SchedulerPredicate | None = None,
-) -> ScheduledJob:
-    """Build a real ScheduledJob for testing, with sensible defaults for every field."""
-    return ScheduledJob(
+) -> Job:
+    """Build a real Job for testing, with sensible defaults for every field."""
+    return Job(
         owner_id=owner_id,
         next_run=next_run if next_run is not None else date_utils.now(),
         job=job if job is not None else (lambda: None),
@@ -241,7 +241,7 @@ def make_scheduler(
 
     Uses a dynamic subclass per call so property overrides don't mutate the
     shared Scheduler class (safe for parallel test workers). wire_dequeue=True
-    makes dequeue_job also fire _on_job_removed (needed for cancel_job paths).
+    makes dequeue_job also fire _on_job_removed (needed for remove_job paths).
     """
     mock_parent = make_mock_parent(
         app_key=app_key,
@@ -260,7 +260,7 @@ def make_scheduler(
 
     if wire_dequeue:
 
-        def _mock_dequeue(job: ScheduledJob) -> bool:
+        def _mock_dequeue(job: Job) -> bool:
             job._dequeued = True
             scheduler._on_job_removed(job)
             return True
@@ -268,16 +268,16 @@ def make_scheduler(
         mock_service.dequeue_job = Mock(side_effect=_mock_dequeue)
     else:
 
-        def _simple_dequeue(job: ScheduledJob) -> bool:
+        def _simple_dequeue(job: Job) -> bool:
             job._dequeued = True
             return True
 
         mock_service.dequeue_job = Mock(side_effect=_simple_dequeue)
 
-    async def _add_job(job: ScheduledJob) -> None:
+    async def _add_job(job: Job) -> None:
         job.mark_registered(1)
 
-    async def _reschedule_job(job: ScheduledJob, next_run: ZonedDateTime) -> None:
+    async def _reschedule_job(job: Job, next_run: ZonedDateTime) -> None:
         job.set_next_run(next_run)
 
     mock_service.add_job = AsyncMock(side_effect=_add_job)

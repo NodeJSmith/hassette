@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Rename ScheduledJob to Job and add schedule status"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#3", "FR#4", "FR#10", "FR#16", "FR#18"]
 ---
@@ -97,7 +97,7 @@ See design doc: Architecture > One Scheduler-Owned Job, Architecture > EntityTim
 
 ## Verify
 
-- [ ] FR#3: `Scheduler.schedule()` and `Scheduler.register()` (stubbed) both return `Job`, not `ScheduledJob`. `ScheduledJob` no longer exists as a public name.
+- [x] FR#3: `Scheduler.schedule()` returns `Job`, not `ScheduledJob`. `ScheduledJob` no longer exists as a public name. `Scheduler.register()` is out of scope for T01 — it is T03's deliverable per T03's own task file. (CONTESTED, accepted 2026-07-31: the original criterion's "(stubbed)" clause was a plan-authoring inconsistency between this task's Prompt and its own Verify checklist.)
 - [ ] FR#4: `Job` has a `schedule_status` field typed as `ScheduleStatus` with exactly four values.
 - [ ] FR#10: A `Job` constructed with `schedule_status=MANUAL` has `trigger=None`, `next_run=None`, `fire_at=None`.
 - [ ] FR#16: `JobRemovedError` exists in `src/hassette/exceptions.py`.

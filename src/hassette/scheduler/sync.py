@@ -13,7 +13,7 @@ from whenever import ZonedDateTime
 
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
-from hassette.scheduler.classes import ScheduledJob
+from hassette.scheduler.classes import Job
 from hassette.types.types import LOG_LEVEL_TYPE, IfExistsPolicy
 
 if typing.TYPE_CHECKING:
@@ -49,7 +49,7 @@ class SchedulerSyncFacade(Resource):
     def config_log_level(self) -> LOG_LEVEL_TYPE:
         return self.hassette.config.logging.scheduler_service
 
-    def add_job(self, job: "ScheduledJob", *, if_exists: IfExistsPolicy = "error") -> ScheduledJob:
+    def add_job(self, job: "Job", *, if_exists: IfExistsPolicy = "error") -> Job:
         """Add a job to the scheduler.
 
         Scheduling completes before the call returns.
@@ -65,7 +65,7 @@ class SchedulerSyncFacade(Resource):
                 ``"error"`` (default) raises ``ValueError``.
                 ``"skip"`` returns the existing job if it matches; raises
                 ``ValueError`` if the name matches but the configuration differs.
-                ``"replace"`` cancels the existing job (recording it as cancelled
+                ``"replace"`` removes the existing job (recording it as removed
                 in telemetry) and registers the new job in its place.
 
         Returns:
@@ -74,7 +74,7 @@ class SchedulerSyncFacade(Resource):
             integer immediately on return.
 
         Raises:
-            TypeError: If job is not a ScheduledJob.
+            TypeError: If job is not a Job.
             SchedulerNameRequiredError: If ``job.name`` is empty.
             ValueError: If a job with the same name already exists and either
                 ``if_exists="error"`` or the existing job's configuration differs.
@@ -97,7 +97,7 @@ class SchedulerSyncFacade(Resource):
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
-    ) -> ScheduledJob:
+    ) -> Job:
         """Schedule a job using a trigger object.
 
         Scheduling completes before the call returns.
@@ -115,10 +115,10 @@ class SchedulerSyncFacade(Resource):
                 moves whenever the entity's time changes.
             name: Required stable name for the job. Used for uniqueness validation
                 within this scheduler instance and for logging/telemetry.
-            group: Optional group name for bulk management (see ``cancel_group``).
+            group: Optional group name for bulk management (see ``remove_group``).
             jitter: Optional seconds of random offset to apply at enqueue time.
                 Jitter is applied via ``SchedulerService.apply_jitter_to_heap`` on enqueue.
-                See the ``fire_at`` field on ``ScheduledJob``.
+                See the ``fire_at`` field on ``Job``.
             timeout: Per-job timeout in seconds. ``None`` uses the global default.
                 A positive ``float`` overrides the default.
             timeout_disabled: When ``True``, timeout enforcement is disabled for this
@@ -143,7 +143,7 @@ class SchedulerSyncFacade(Resource):
             where: Optional predicate (or sequence of predicates) evaluated at dispatch
                 time, before the handler runs. Predicate signatures are inspected via
                 the shared DI layer (``hassette.di``): a parameter annotated as
-                ``ScheduledJob`` receives the job instance at dispatch time; unannotated
+                ``Job`` receives the job instance at dispatch time; unannotated
                 predicates are called with zero arguments. A sequence is collapsed into
                 a single combinator that ANDs all members — each member keeps the
                 single-predicate contract. Predicates must be synchronous; async
@@ -196,7 +196,7 @@ class SchedulerSyncFacade(Resource):
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
-    ) -> ScheduledJob:
+    ) -> Job:
         """Schedule a job to run after a fixed delay (one-shot).
 
         Scheduling completes before the call returns.
@@ -260,7 +260,7 @@ class SchedulerSyncFacade(Resource):
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
-    ) -> ScheduledJob:
+    ) -> Job:
         """Schedule a job to run once at a specific wall-clock time (one-shot).
 
         Scheduling completes before the call returns.
@@ -332,7 +332,7 @@ class SchedulerSyncFacade(Resource):
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
-    ) -> ScheduledJob:
+    ) -> Job:
         """Schedule a job to run at a fixed interval.
 
         Scheduling completes before the call returns.
@@ -399,7 +399,7 @@ class SchedulerSyncFacade(Resource):
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
-    ) -> ScheduledJob:
+    ) -> Job:
         """Schedule a job to run every N minutes.
 
         Scheduling completes before the call returns.
@@ -462,7 +462,7 @@ class SchedulerSyncFacade(Resource):
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
-    ) -> ScheduledJob:
+    ) -> Job:
         """Schedule a job to run every N hours.
 
         Scheduling completes before the call returns.
@@ -525,7 +525,7 @@ class SchedulerSyncFacade(Resource):
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
-    ) -> ScheduledJob:
+    ) -> Job:
         """Schedule a job to run once per day at a fixed wall-clock time.
 
         Scheduling completes before the call returns.
@@ -591,7 +591,7 @@ class SchedulerSyncFacade(Resource):
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
-    ) -> ScheduledJob:
+    ) -> Job:
         """Schedule a job using a cron expression.
 
         Scheduling completes before the call returns.
@@ -666,40 +666,40 @@ class SchedulerSyncFacade(Resource):
         """
         return self._scheduler.on_error(handler)
 
-    def cancel_job(self, job: "ScheduledJob") -> None:
-        """Cancel an individual job and persist the cancellation to the database.
+    def remove_job(self, job: "Job") -> None:
+        """Remove an individual job's registration and persist the removal to the database.
 
-        Idempotent: a second cancel on the same job is a silent no-op. Raises
+        Idempotent: a second removal of the same job is a silent no-op. Raises
         ``ValueError`` if the job belongs to a different scheduler instance.
-        Spawns a durable ``mark_job_cancelled`` DB write (when ``db_id`` is set),
+        Spawns a durable ``mark_job_removed`` DB write (when ``db_id`` is set),
         dequeues the job from the service, and sets ``job._dequeued = True``.
 
-        Must NOT call ``job.cancel()`` internally — that delegates back here and
+        Must NOT call ``job.remove()`` internally — that delegates back here and
         would cause infinite recursion.
 
         Args:
-            job: The job to cancel.
+            job: The job to remove.
 
         Raises:
             ValueError: If the job belongs to a different scheduler instance.
         """
-        return self._scheduler.cancel_job(job)
+        return self._scheduler.remove_job(job)
 
-    def cancel_group(self, group: str) -> None:
-        """Cancel all jobs in the given group.
+    def remove_group(self, group: str) -> None:
+        """Remove all jobs in the given group.
 
-        Delegates to ``cancel_job`` per-member, which handles the DB write,
+        Delegates to ``remove_job`` per-member, which handles the DB write,
         dequeue, and ``_dequeued`` flag. Dict cleanup (``_jobs_by_group`` and
         ``_jobs_by_name``) is handled by the ``_on_job_removed`` callback
         fired by ``scheduler_service.dequeue_job``. No-op if the group does
         not exist.
 
         Args:
-            group: The group name to cancel.
+            group: The group name to remove.
         """
-        return self._scheduler.cancel_group(group)
+        return self._scheduler.remove_group(group)
 
-    def list_jobs(self, group: str | None = None) -> list["ScheduledJob"]:
+    def list_jobs(self, group: str | None = None) -> list["Job"]:
         """Return all or group-filtered jobs.
 
         Args:
@@ -707,6 +707,6 @@ class SchedulerSyncFacade(Resource):
                 If ``None`` (default), return all jobs.
 
         Returns:
-            List of ScheduledJob instances.
+            List of Job instances.
         """
         return self._scheduler.list_jobs(group)

@@ -18,8 +18,9 @@ if TYPE_CHECKING:
     from hassette.events import HassStateDict
     from hassette.events.base import Event, EventPayload
     from hassette.models.states.base import BaseState
-    from hassette.scheduler.classes import ScheduledJob
+    from hassette.scheduler.classes import Job
     from hassette.scheduler.error_context import SchedulerErrorContext
+    from hassette.scheduler.triggers import _WaitingSentinel
     from hassette.task_bucket import TaskBucket
 
 
@@ -161,7 +162,7 @@ SchedulerPredicate = Callable[..., bool]
 """Synchronous callable used as a scheduler ``where=`` gate.
 
 Dispatch arity is determined by the shared DI layer (``hassette.di``): a parameter
-annotated as ``ScheduledJob`` receives the job instance via kwargs; unannotated
+annotated as ``Job`` receives the job instance via kwargs; unannotated
 predicates (including lambdas) are called with zero arguments. Async callables raise
 ``TypeError`` at registration time."""
 
@@ -189,13 +190,21 @@ class TriggerProtocol(Protocol):
     - trigger_detail: optional human-readable detail string
     - trigger_db_type: canonical type string for database storage
     - trigger_id: stable string identifier used for deduplication
+
+    ``first_run_time()``/``next_run_time()`` additionally accommodate the ``_WaitingSentinel``
+    (``hassette.scheduler.triggers.WAITING``) that ``EntityTime`` returns when its source
+    entity currently reports no usable time. Every built-in non-``EntityTime`` trigger keeps
+    returning its narrower original type — a narrower return type is compatible with this
+    wider protocol declaration.
     """
 
-    def first_run_time(self, current_time: ZonedDateTime) -> ZonedDateTime:
+    def first_run_time(self, current_time: ZonedDateTime) -> "ZonedDateTime | _WaitingSentinel":
         """Return the first scheduled run time at or after current_time."""
         ...
 
-    def next_run_time(self, previous_run: ZonedDateTime, current_time: ZonedDateTime) -> ZonedDateTime | None:
+    def next_run_time(
+        self, previous_run: ZonedDateTime, current_time: ZonedDateTime
+    ) -> "ZonedDateTime | None | _WaitingSentinel":
         """Return the next run time after previous_run, or None for one-shot triggers."""
         ...
 
@@ -228,26 +237,32 @@ class SchedulerServiceProtocol(Protocol):
     """Protocol for the scheduler-service surface consumed by Scheduler.
 
     Describes the surface Scheduler calls on its scheduler_service: the
-    ``task_bucket`` attribute plus seven async/sync methods. SchedulerService
+    ``task_bucket`` attribute plus its async/sync methods. SchedulerService
     satisfies this protocol structurally — no changes to the concrete class
     are required.
     """
 
     task_bucket: "TaskBucket"
 
-    async def add_job(self, job: "ScheduledJob") -> None: ...
+    async def add_job(self, job: "Job") -> None: ...
 
-    def dequeue_job(self, job: "ScheduledJob") -> bool: ...
+    def dequeue_job(self, job: "Job") -> bool: ...
 
-    async def reschedule_job(self, job: "ScheduledJob", next_run: "ZonedDateTime") -> None: ...
+    async def reschedule_job(self, job: "Job", next_run: "ZonedDateTime") -> None: ...
 
-    def register_removal_callback(self, owner_id: str, callback: "Callable[[ScheduledJob], None]") -> None: ...
+    def register_removal_callback(self, owner_id: str, callback: "Callable[[Job], None]") -> None: ...
 
     def deregister_removal_callback(self, owner_id: str) -> None: ...
 
-    async def mark_job_cancelled(self, db_id: int) -> None: ...
+    async def mark_job_removed(self, db_id: int) -> None: ...
 
     def remove_jobs_by_owner(self, owner: str) -> "asyncio.Task[None]": ...
+
+    def submit_job(self, job: "Job") -> None:
+        """Submit one manual invocation of ``job``. Implemented in a later task;
+        declared here now so ``Job.submit()`` type-checks against this protocol.
+        """
+        ...
 
 
 class StateReader(Protocol):

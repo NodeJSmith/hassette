@@ -148,7 +148,7 @@ from whenever import ZonedDateTime
 
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
-from hassette.scheduler.classes import ScheduledJob
+from hassette.scheduler.classes import Job
 from hassette.types.types import LOG_LEVEL_TYPE, IfExistsPolicy
 
 if typing.TYPE_CHECKING:

@@ -1,11 +1,11 @@
-"""Tests for ScheduledJob.mark_registered — one-time db_id assignment.
+"""Tests for Job.mark_registered — one-time db_id assignment.
 
 Mirrors tests/integration/test_listeners.py::TestMarkRegistered. The scheduler
 keeps the first db_id (first call wins); the second call now also logs a WARNING
 so a double-registration anomaly is surfaced rather than silently swallowed.
 """
 
-from hassette.scheduler.classes import ScheduledJob
+from hassette.scheduler.classes import Job
 from hassette.test_utils.factories import make_scheduled_job
 from hassette.test_utils.helpers import noop
 from hassette.utils.date_utils import now
@@ -31,7 +31,7 @@ def test_mark_registered_keeps_first_db_id_on_double_call() -> None:
 
 def test_mark_registered_unaffected_by_predicate() -> None:
     """A job constructed with a predicate registers normally — predicate doesn't interfere."""
-    job = ScheduledJob(owner_id="test_owner", next_run=now(), job=noop, name="job", predicate=lambda: True)
+    job = Job(owner_id="test_owner", next_run=now(), job=noop, name="job", predicate=lambda: True)
     assert job.db_id is None
 
     job.mark_registered(7)

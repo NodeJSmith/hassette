@@ -7,14 +7,14 @@ from hassette.schemas.job_models import JobSummary
 
 if TYPE_CHECKING:
     from hassette.core.scheduler_service import SchedulerService
-    from hassette.scheduler.classes import ScheduledJob
+    from hassette.scheduler.classes import Job
 
 LOGGER = getLogger(__name__)
 
 
 def enrich_jobs_with_heap(
     db_jobs: list[JobSummary],
-    live_jobs: "list[ScheduledJob]",
+    live_jobs: "list[Job]",
 ) -> list[JobSummary]:
     """Enrich DB job summaries with live scheduler heap data.
 
@@ -30,13 +30,15 @@ def enrich_jobs_with_heap(
     for js in db_jobs:
         try:
             live_job = live_by_db_id.get(js.job_id)
-            if live_job is not None:
+            if live_job is not None and live_job.next_run is not None:
                 guard = live_job.guard
                 enriched.append(
                     js.model_copy(
                         update={
                             "next_run": live_job.next_run.timestamp(),
-                            "fire_at": live_job.fire_at.timestamp() if live_job.jitter is not None else None,
+                            "fire_at": live_job.fire_at.timestamp()
+                            if live_job.jitter is not None and live_job.fire_at is not None
+                            else None,
                             "jitter": live_job.jitter,
                             "suppressed_count": guard.suppressed,
                             "dropped_count": guard.dropped,
@@ -44,6 +46,9 @@ def enrich_jobs_with_heap(
                     )
                 )
             else:
+                # No live match, or a live match with no concrete timing (waiting, completed,
+                # or manual-only job) — the DB row's own timing (null for these statuses once
+                # a later task persists schedule_status) stays authoritative.
                 enriched.append(js)
         except (AttributeError, TypeError, ValueError):
             LOGGER.warning("Failed to enrich job summary for job_id=%s; using DB row", js.job_id, exc_info=True)

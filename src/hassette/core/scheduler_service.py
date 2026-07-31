@@ -23,8 +23,9 @@ from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_not_ready, mark_ready
 from hassette.resources.restart import CORE_PERMANENT_RESTART
 from hassette.resources.service import Service
-from hassette.scheduler.classes import ScheduledJob
+from hassette.scheduler.classes import Job, ScheduleStatus
 from hassette.scheduler.error_context import SchedulerErrorContext
+from hassette.scheduler.triggers import _WaitingSentinel
 from hassette.types.enums import ExecutionMode
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.func_utils import callable_stable_name
@@ -56,7 +57,7 @@ class SchedulerService(Service):
     _executor: "CommandExecutor"
     """Command executor for running jobs and persisting registration/execution records."""
 
-    _removal_callbacks: dict[str, Callable[["ScheduledJob"], None]]
+    _removal_callbacks: dict[str, Callable[["Job"], None]]
     """Per-owner callbacks invoked whenever a job is removed via dequeue_job() or _remove_job()."""
 
     def __init__(self, hassette: "Hassette", *, executor: "CommandExecutor", parent: Resource | None = None) -> None:
@@ -107,13 +108,13 @@ class SchedulerService(Service):
     def kick(self) -> None:
         self._wakeup_event.set()
 
-    async def enqueue_job(self, job: "ScheduledJob") -> None:
+    async def enqueue_job(self, job: "Job") -> None:
         """Push a job onto the queue and wake the scheduler."""
         self.apply_jitter_to_heap(job)
         await self._job_queue.add(job)
         self.kick()
 
-    async def reschedule_job(self, job: "ScheduledJob", next_run: ZonedDateTime) -> None:
+    async def reschedule_job(self, job: "Job", next_run: ZonedDateTime) -> None:
         """Move a queued job to a new fire time without deregistering it.
 
         Unlike ``dequeue_job``/``_remove_job``, no removal callbacks fire and the job keeps
@@ -151,7 +152,7 @@ class SchedulerService(Service):
                 drain_pending_done(job.pending_done)
             self.fire_removal_callbacks(removed)
 
-    def register_removal_callback(self, owner_id: str, callback: Callable[["ScheduledJob"], None]) -> None:
+    def register_removal_callback(self, owner_id: str, callback: Callable[["Job"], None]) -> None:
         """Register a callback to be called whenever a job belonging to owner_id is removed.
 
         If a callback is already registered for owner_id, the new callback replaces it.
@@ -160,7 +161,7 @@ class SchedulerService(Service):
 
         Args:
             owner_id: The owner whose job removals should trigger the callback.
-            callback: Called with the removed ScheduledJob as its single argument.
+            callback: Called with the removed Job as its single argument.
         """
         self._removal_callbacks[owner_id] = callback
 
@@ -176,14 +177,14 @@ class SchedulerService(Service):
         """
         self._removal_callbacks.pop(owner_id, None)
 
-    def fire_removal_callbacks(self, jobs: "list[ScheduledJob]") -> None:
+    def fire_removal_callbacks(self, jobs: "list[Job]") -> None:
         """Invoke per-owner removal callbacks for each job in jobs."""
         for job in jobs:
             callback = self._removal_callbacks.get(job.owner_id)
             if callback is not None:
                 callback(job)
 
-    def apply_jitter_to_heap(self, job: "ScheduledJob") -> None:
+    def apply_jitter_to_heap(self, job: "Job") -> None:
         """Apply jitter to the heap sort_index and fire_at without mutating job.next_run.
 
         If job.jitter is not None, a random offset in [0, jitter) seconds is added
@@ -195,23 +196,29 @@ class SchedulerService(Service):
         Args:
             job: The job whose sort_index and fire_at should be jittered.
         """
-        if job.jitter is not None:
-            offset = random.uniform(0, job.jitter)
-            try:
-                jittered_time = job.next_run.add(seconds=offset)
-            except ValueError:
-                jittered_time = job.next_run
-            job.fire_at = jittered_time
-            job.sort_index = (jittered_time.timestamp_nanos(), id(job))
-            self.logger.debug(
-                "Applied jitter offset=%.3fs to job %s: next_run=%s → fire_at=%s",
-                offset,
-                job,
-                job.next_run,
-                job.fire_at,
-            )
+        if job.jitter is None:
+            return
+        # Only a SCHEDULED job is ever passed here (enqueue_job() is only reachable for
+        # jobs with a concrete occurrence) — asserted rather than silently no-op'd so a
+        # future caller violating that invariant fails loudly instead of corrupting the heap.
+        assert job.next_run is not None, "apply_jitter_to_heap requires a job with a concrete next_run"
 
-    async def _remove_job(self, job: "ScheduledJob") -> None:
+        offset = random.uniform(0, job.jitter)
+        try:
+            jittered_time = job.next_run.add(seconds=offset)
+        except ValueError:
+            jittered_time = job.next_run
+        job.fire_at = jittered_time
+        job.sort_index = (jittered_time.timestamp_nanos(), id(job))
+        self.logger.debug(
+            "Applied jitter offset=%.3fs to job %s: next_run=%s → fire_at=%s",
+            offset,
+            job,
+            job.next_run,
+            job.fire_at,
+        )
+
+    async def _remove_job(self, job: "Job") -> None:
         """Remove a specific job via the async path (acquires lock) and wake the scheduler.
 
         Used by the serve loop for job exhaustion and trigger errors in dispatch_and_log.
@@ -277,7 +284,7 @@ class SchedulerService(Service):
 
         return TimeDelta(seconds=delay)
 
-    async def add_job(self, job: "ScheduledJob") -> None:
+    async def add_job(self, job: "Job") -> None:
         """Register the job in DB, then push it to the queue.
 
         DB registration is awaited inline — job.db_id is set before the job
@@ -332,7 +339,7 @@ class SchedulerService(Service):
         job.mark_registered(await self._executor.register_job(reg))
         await self.enqueue_job(job)
 
-    async def dispatch_and_log(self, job: "ScheduledJob") -> None:
+    async def dispatch_and_log(self, job: "Job") -> None:
         """Dispatch a job and log its execution.
 
         Ordering: skip-if-dequeued → compute next → (enqueue next OR mark for removal) →
@@ -357,6 +364,10 @@ class SchedulerService(Service):
         # The current fire ALWAYS runs regardless of the trigger outcome.
         remove_after_fire = False
         if job.trigger is not None:
+            # Only a SCHEDULED job (concrete next_run) is ever popped for dispatch — the
+            # due-time heap enforces this. Asserted rather than silently skipped so a future
+            # caller violating that invariant fails loudly instead of dispatching bad state.
+            assert job.next_run is not None, "dispatch_and_log requires a job with a concrete next_run"
             try:
                 if job._pending_next_run is not None:
                     next_run = job._pending_next_run
@@ -374,9 +385,18 @@ class SchedulerService(Service):
                 next_run = None
                 remove_after_fire = True
 
+            # EntityTime's WAITING return mid-recurrence needs the three-way schedule-status
+            # transition (scheduled/completed/waiting) that a later task adds here. isinstance
+            # (not `is WAITING`) so pyright narrows next_run below — identity comparison
+            # against a plain-object singleton does not narrow.
+            assert not isinstance(next_run, _WaitingSentinel), (
+                "dispatch_and_log: WAITING mid-recurrence is not yet handled by this dispatch path"
+            )
+
             if next_run is not None:
                 curr_next_run = job.next_run
                 job.set_next_run(next_run)
+                assert job.next_run is not None
                 delta_to_now = (job.next_run - date_utils.now()).total("seconds")
                 if delta_to_now <= 0:
                     self.logger.warning(
@@ -412,7 +432,7 @@ class SchedulerService(Service):
         if job.predicate is not None:
             predicate_start = time.time()
             try:
-                kwargs = job.predicate_invoker.invoke({ScheduledJob: job}) if job.predicate_invoker else {}
+                kwargs = job.predicate_invoker.invoke({Job: job}) if job.predicate_invoker else {}
                 should_run = job.predicate(**kwargs)
             except Exception as exc:
                 self.logger.exception("Predicate raised for job %s — recording failure; the job does not run", job)
@@ -442,7 +462,7 @@ class SchedulerService(Service):
         if remove_after_fire:
             await self._try_remove_job(job, "exhausted")
 
-    def _record_skipped(self, job: "ScheduledJob") -> None:
+    def _record_skipped(self, job: "Job") -> None:
         """Build and enqueue a 'skipped' ExecutionRecord for a job whose predicate returned False.
 
         Bypasses ``CommandExecutor._execute()``/``track_execution()`` entirely — a skip has no
@@ -469,7 +489,7 @@ class SchedulerService(Service):
         )
         self._executor.enqueue_record(record)
 
-    def _record_predicate_failure(self, job: "ScheduledJob", exc: Exception, start_ts: float) -> None:
+    def _record_predicate_failure(self, job: "Job", exc: Exception, start_ts: float) -> None:
         """Record a raising predicate as a failed execution and route it to error handlers.
 
         The handler never ran, so this bypasses ``CommandExecutor._execute()`` the same way
@@ -525,7 +545,7 @@ class SchedulerService(Service):
                 name="scheduler:predicate_error_handler",
             )
 
-    async def _try_remove_job(self, job: "ScheduledJob", reason: str) -> None:
+    async def _try_remove_job(self, job: "Job", reason: str) -> None:
         """Remove a job, logging any exception without propagating it.
 
         Args:
@@ -537,7 +557,7 @@ class SchedulerService(Service):
         except Exception:
             self.logger.exception("Error removing %s job %s", reason, job)
 
-    async def run_job_with_guard(self, job: "ScheduledJob", trigger_mode: str | None = None) -> None:
+    async def run_job_with_guard(self, job: "Job", trigger_mode: str | None = None) -> None:
         """Route one job invocation through the job's execution-mode guard.
 
         - ``parallel``: awaits ``run_job`` inline — concurrency comes from ``serve()``
@@ -564,7 +584,7 @@ class SchedulerService(Service):
             threshold=STALL_THRESHOLD_SECONDS,
         )
 
-    def warn_stalled_job(self, job: "ScheduledJob", threshold: float) -> None:
+    def warn_stalled_job(self, job: "Job", threshold: float) -> None:
         """Emit the stall WARNING: a non-parallel job is still holding its guard.
 
         Called by the stall watchdog after ``threshold`` seconds. Named after the job
@@ -581,7 +601,7 @@ class SchedulerService(Service):
             threshold,
         )
 
-    async def run_job(self, job: "ScheduledJob", trigger_mode: str | None = None) -> None:
+    async def run_job(self, job: "Job", trigger_mode: str | None = None) -> None:
         """Run a scheduled job by delegating to the CommandExecutor.
 
         All jobs go through ``ExecuteJob`` regardless of whether ``db_id`` is set.
@@ -593,6 +613,11 @@ class SchedulerService(Service):
             trigger_mode: How this execution was triggered (e.g., "manual" for a
                 run-now request). None for regular scheduled fires.
         """
+        # Only reachable today via automatic dispatch (concrete fire_at). Manual submission
+        # via SchedulerService.submit_job() lands in a later task and must skip this lag
+        # calculation entirely rather than asserting — see the design's Manual Submission
+        # section.
+        assert job.fire_at is not None, "run_job requires a job with a concrete fire_at"
         lag = (date_utils.now() - job.fire_at).total("seconds")
         if lag > self.hassette.config.scheduler.behind_schedule_threshold_seconds:
             self.logger.warning("Job %s is behind schedule by %.2fs", job, lag)
@@ -662,11 +687,11 @@ class SchedulerService(Service):
 
         return count
 
-    async def get_all_jobs(self) -> list["ScheduledJob"]:
+    async def get_all_jobs(self) -> list["Job"]:
         """Return all currently scheduled jobs across all apps."""
         return await self._job_queue.get_all()
 
-    async def trigger_job(self, job_id: int) -> "ScheduledJob":
+    async def trigger_job(self, job_id: int) -> "Job":
         """Look up a job on the live scheduler heap by its database id.
 
         Used by the manual-trigger route handler (``POST /api/scheduler/jobs/{job_id}/trigger``)
@@ -674,10 +699,10 @@ class SchedulerService(Service):
         responsible for any guard pre-check and for dispatching the job.
 
         Args:
-            job_id: The job's ``scheduled_jobs.id`` database row id (``ScheduledJob.db_id``).
+            job_id: The job's ``scheduled_jobs.id`` database row id (``Job.db_id``).
 
         Returns:
-            The matching ScheduledJob from the live heap.
+            The matching Job from the live heap.
 
         Raises:
             ValueError: If no job with the given job_id is found on the live heap. This covers
@@ -700,7 +725,7 @@ class SchedulerService(Service):
         """
         return self.task_bucket.spawn(self._remove_jobs_by_owner(owner), name="scheduler:remove_jobs_by_owner")
 
-    def dequeue_job(self, job: "ScheduledJob") -> bool:
+    def dequeue_job(self, job: "Job") -> bool:
         """Remove a job from the scheduler synchronously, fire removal callbacks, and kick.
 
         Calls ``_ScheduledJobQueue.remove_item_sync`` directly (no lock). Fires
@@ -738,15 +763,29 @@ class SchedulerService(Service):
         self.fire_removal_callbacks([job])
         return removed
 
-    async def mark_job_cancelled(self, db_id: int) -> None:
-        """Persist durable cancellation state for a job by setting ``cancelled_at`` in the DB.
+    async def mark_job_removed(self, db_id: int) -> None:
+        """Persist durable removal state for a job registration.
 
-        Delegates to ``CommandExecutor.mark_job_cancelled``. No-op when ``db_id`` is None.
+        Delegates to ``CommandExecutor.mark_job_cancelled`` — the underlying persisted
+        column (currently ``cancelled_at``) is renamed to ``removed_at`` by a later task's
+        migration; this method's name already reflects the removal terminology used by the
+        public API (``Job.remove()``, ``Scheduler.remove_job()``). No-op when ``db_id`` is None.
 
         Args:
-            db_id: The ``id`` of the ``scheduled_jobs`` row to mark as cancelled.
+            db_id: The ``id`` of the ``scheduled_jobs`` row to mark as removed.
         """
         await self._executor.mark_job_cancelled(db_id)
+
+    def submit_job(self, job: "Job") -> None:
+        """Submit one manual invocation of ``job``.
+
+        Stub — the real fire-and-observe implementation (registry lookup, spawn
+        ``run_job_with_guard(job, trigger_mode="manual")`` through ``task_bucket``, raise
+        ``JobRemovedError`` for a stale handle) lands in a later task. Declared now so
+        ``Job.submit()`` and the ``SchedulerServiceProtocol`` structural-conformance checks
+        type-check against a concrete method.
+        """
+        raise NotImplementedError("SchedulerService.submit_job() is implemented in a later task")
 
 
 class _ScheduledJobQueue(Resource):
@@ -755,7 +794,7 @@ class _ScheduledJobQueue(Resource):
     _lock: FairAsyncRLock
     """Lock to protect access to the queue."""
 
-    _queue: "HeapQueue[ScheduledJob]"
+    _queue: "HeapQueue[Job]"
     """The heap queue of scheduled jobs."""
 
     def __init__(self, hassette: "Hassette", *, parent: Resource | None = None) -> None:
@@ -770,15 +809,31 @@ class _ScheduledJobQueue(Resource):
     def config_log_level(self) -> LOG_LEVEL_TYPE:
         return self.hassette.config.logging.scheduler_service
 
-    async def add(self, job: "ScheduledJob") -> None:
+    async def add(self, job: "Job") -> None:
         """Add a job to the queue.
+
+        The due-time heap must contain only jobs with a concrete automatic occurrence —
+        rejects any job that is not ``SCHEDULED`` or lacks a concrete ``next_run`` before
+        ever touching the heap, so a waiting/completed/manual job can never corrupt heap
+        comparisons with a missing timestamp.
 
         The ``_dequeued`` flag is re-checked inside the lock, atomic with the heap
         push, to guard against a cancel arriving at any await point after the entry-level
         check in ``dispatch_and_log`` and before the push here. ``dequeue_job``
         sets ``_dequeued`` lock-free but on the same event-loop thread, so the in-lock
         read here sees any set that preceded this lock acquisition.
+
+        Raises:
+            ValueError: If ``job.schedule_status`` is not ``SCHEDULED``, or ``job.next_run``
+                is ``None``.
         """
+        if job.schedule_status is not ScheduleStatus.SCHEDULED or job.next_run is None:
+            raise ValueError(
+                f"Cannot enqueue job {job.name!r}: only SCHEDULED jobs with a concrete "
+                f"next_run may enter the heap (schedule_status={job.schedule_status!r}, "
+                f"next_run={job.next_run!r})"
+            )
+
         async with self._lock:
             if job._dequeued:
                 self.logger.debug("Job %s was dequeued during re-enqueue window; skipping push", job)
@@ -796,17 +851,19 @@ class _ScheduledJobQueue(Resource):
         else:
             self.logger.debug("Queued job %s for %s", job, job.next_run)
 
-    async def pop_due_and_peek_next(
-        self, reference_time: ZonedDateTime
-    ) -> tuple[list["ScheduledJob"], ZonedDateTime | None]:
+    async def pop_due_and_peek_next(self, reference_time: ZonedDateTime) -> tuple[list["Job"], ZonedDateTime | None]:
         """Pop all due jobs and return the next run time in a single lock acquisition."""
-        due_jobs: list[ScheduledJob] = []
+        due_jobs: list[Job] = []
 
         async with self._lock:
             current_time = reference_time
             while not self._queue.is_empty():
                 candidate = self._queue.peek()
-                if candidate is None or candidate.fire_at > current_time:
+                if candidate is None:
+                    break
+                # Heap invariant, enforced by add(): every enqueued job has a concrete fire_at.
+                assert candidate.fire_at is not None
+                if candidate.fire_at > current_time:
                     break
 
                 due_jobs.append(self._queue.pop())
@@ -820,7 +877,7 @@ class _ScheduledJobQueue(Resource):
 
         return due_jobs, next_run
 
-    async def remove_owner(self, owner: str) -> "list[ScheduledJob]":
+    async def remove_owner(self, owner: str) -> "list[Job]":
         """Remove all jobs belonging to the given owner. Returns the removed jobs."""
         async with self._lock:
             removed = self._queue.remove_where(lambda job: job.owner_id == owner)
@@ -832,7 +889,7 @@ class _ScheduledJobQueue(Resource):
 
         return removed
 
-    async def remove_job(self, job: "ScheduledJob") -> bool:
+    async def remove_job(self, job: "Job") -> bool:
         """Remove a specific job if it exists."""
         async with self._lock:
             removed = self._queue.remove_item(job)
@@ -844,7 +901,7 @@ class _ScheduledJobQueue(Resource):
         self.logger.debug("Job not found in queue, cannot remove: %s", job)
         return removed
 
-    def remove_item_sync(self, job: "ScheduledJob") -> bool:
+    def remove_item_sync(self, job: "Job") -> bool:
         """Remove a specific job from the heap synchronously, without acquiring the lock.
 
         Calls ``self._queue.remove_item(job)`` directly. Safe to call from
@@ -859,7 +916,7 @@ class _ScheduledJobQueue(Resource):
         """
         return self._queue.remove_item(job)
 
-    async def get_all(self) -> list["ScheduledJob"]:
+    async def get_all(self) -> list["Job"]:
         """Return a snapshot of all queued jobs (non-destructive)."""
         async with self._lock:
             return list(self._queue)

@@ -350,6 +350,23 @@ class SchedulerNameRequiredError(HassetteError):
         )
 
 
+class JobRemovedError(HassetteError):
+    """Raised when submitting or otherwise acting on a scheduler job whose registration
+    has been removed.
+
+    Raised by ``SchedulerService.submit_job()`` when a job's ``db_id`` no longer maps to
+    the same live object in the service's registry — the registration was removed (via
+    ``Job.remove()``, ``Scheduler.remove_job()``/``remove_group()``, owner shutdown, or
+    ``if_exists="replace"``) after the caller obtained its handle. The HTTP layer translates
+    this into a 409 response for remote submission of a non-live persisted job.
+    """
+
+    def __init__(self, job_name: str, db_id: int | None = None) -> None:
+        self.job_name = job_name
+        self.db_id = db_id
+        super().__init__(f"Job {job_name!r} (db_id={db_id!r}) is no longer registered and cannot be submitted.")
+
+
 class DuplicateListenerError(HassetteError):
     """Raised at call time when a second listener with the same ``(name, topic)`` is
     registered within the same app instance in the same session.

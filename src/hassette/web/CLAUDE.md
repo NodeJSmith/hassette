@@ -10,7 +10,7 @@ from hassette.web.dependencies import RuntimeDep, TelemetryDep, SchedulerDep, Ha
 
 - `RuntimeDep` — live system state (app status, events, WebSocket)
 - `TelemetryDep` — historical telemetry from the database (listeners, jobs, errors, summaries)
-- `SchedulerDep` — live scheduler heap access (`get_all_jobs()`, `mark_job_cancelled()`)
+- `SchedulerDep` — live scheduler heap access (`get_all_jobs()`, `mark_job_removed()`)
 - `HassetteDep` — the root Hassette instance (drop counters, ready event)
 - `ApiDep` — Home Assistant REST/WebSocket API
 

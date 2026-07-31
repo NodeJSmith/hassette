@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from hassette.events.base import Event, HassettePayload, HassPayload
-from hassette.scheduler.classes import ScheduledJob
+from hassette.scheduler.classes import Job
 from hassette.scheduler.triggers import After
 from hassette.test_utils.factories import (
     make_hass_event,
@@ -27,7 +27,7 @@ from hassette.test_utils.recording_api import RecordingApi
 class TestMakeScheduledJob:
     def test_defaults(self):
         job = make_scheduled_job()
-        assert isinstance(job, ScheduledJob)
+        assert isinstance(job, Job)
         assert job.owner_id == "test_owner"
         assert job.name == "test_job"
         assert job.job() is None

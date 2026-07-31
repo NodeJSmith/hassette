@@ -33,7 +33,7 @@ async def test_run_cron_accepts_valid(hassette_with_scheduler: "HassetteHarness"
     """Valid cron expressions schedule jobs successfully."""
     scheduled_job = await hassette_with_scheduler.scheduler.run_cron(lambda: None, "* * * * *", name="valid_cron_job")
     await asyncio.sleep(0)
-    scheduled_job.cancel()
+    scheduled_job.remove()
 
 
 def test_after_first_run_time() -> None:

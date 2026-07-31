@@ -9,7 +9,7 @@ from hassette.app.app_config import AppConfig
 from hassette.commands import ExecuteJob, InvokeHandler
 from hassette.core.execution_record import ExecutionRecord
 from hassette.exceptions import DependencyError, DependencyInjectionError
-from hassette.scheduler.classes import ScheduledJob
+from hassette.scheduler.classes import Job
 from hassette.schemas.job_models import JobErrorRecord
 from hassette.schemas.listener_models import HandlerErrorRecord
 from hassette.test_utils.config import TEST_EPOCH_A
@@ -184,14 +184,14 @@ class TestAppConfigSentinelGuard:
         assert config is not None
 
 
-class TestScheduledJobSourceTier:
+class TestJobSourceTier:
     def test_scheduled_job_has_source_tier(self) -> None:
-        """ScheduledJob gains source_tier field."""
+        """Job gains source_tier field."""
 
         async def job_fn() -> None:
             pass
 
-        job = ScheduledJob(
+        job = Job(
             owner_id="test_owner",
             next_run=ZonedDateTime.now("UTC"),
             job=job_fn,
@@ -201,12 +201,12 @@ class TestScheduledJobSourceTier:
         assert job.source_tier == "app"
 
     def test_scheduled_job_framework_source_tier(self) -> None:
-        """ScheduledJob source_tier='framework' is stored correctly."""
+        """Job source_tier='framework' is stored correctly."""
 
         async def job_fn() -> None:
             pass
 
-        job = ScheduledJob(
+        job = Job(
             owner_id="framework_owner",
             next_run=ZonedDateTime.now("UTC"),
             job=job_fn,

@@ -4,8 +4,8 @@
 
 - ``make_job()`` — builds a ``SimpleNamespace`` job stub with a real trigger object.
   Use for web/serialization tests that only need duck-typed attribute access.
-- ``make_real_job()`` — builds a real ``ScheduledJob`` instance.
-  Use for tests that exercise ``ScheduledJob.__post_init__``, ``matches()``,
+- ``make_real_job()`` — builds a real ``Job`` instance.
+  Use for tests that exercise ``Job.__post_init__``, ``matches()``,
   ``sort_index``, ``set_next_run``, or ``fire_at`` behavior.
 """
 
@@ -15,7 +15,7 @@ from types import SimpleNamespace
 from whenever import ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
-from hassette.scheduler.classes import ScheduledJob
+from hassette.scheduler.classes import Job
 from hassette.scheduler.triggers import After, Cron, Every, Once
 from hassette.schemas.job_models import JobSummary
 from hassette.test_utils.config import DEFAULT_TEST_APP_KEY, TEST_EPOCH_B
@@ -81,10 +81,10 @@ def make_real_job(
     predicate: SchedulerPredicate | None = None,
     mode: ExecutionMode = ExecutionMode.SINGLE,
     db_id: int | None = None,
-) -> ScheduledJob:
-    """Build a real ``ScheduledJob`` instance for tests that need full object behavior.
+) -> Job:
+    """Build a real ``Job`` instance for tests that need full object behavior.
 
-    Use this instead of ``make_job()`` when the test exercises ``ScheduledJob.__post_init__``,
+    Use this instead of ``make_job()`` when the test exercises ``Job.__post_init__``,
     ``matches()``, ``sort_index``, ``set_next_run``, or ``fire_at`` behavior.
     Use ``make_job()`` for web/serialization tests that only need duck-typed attribute access.
 
@@ -102,7 +102,7 @@ def make_real_job(
         db_id: Database row id to stamp onto the job, as if already registered. Defaults to
             ``None`` (unregistered).
     """
-    return ScheduledJob(
+    return Job(
         owner_id=owner_id,
         next_run=date_utils.now(),
         job=lambda: None,

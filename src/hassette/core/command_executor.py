@@ -980,7 +980,7 @@ class CommandExecutor(Service):
         handler from job completions.
 
         Payloads include ``app_key`` and ``instance_index`` sourced directly from the
-        in-memory record (populated at build time from the Listener/ScheduledJob object).
+        in-memory record (populated at build time from the Listener/Job object).
 
         Errors are suppressed so that emission failures never affect telemetry persistence.
         """

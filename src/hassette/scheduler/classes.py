@@ -1,6 +1,7 @@
 import typing
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from enum import StrEnum
 from logging import getLogger
 from typing import Any
 
@@ -20,11 +21,45 @@ if typing.TYPE_CHECKING:
 
     from hassette.di import CallableInvoker
     from hassette.scheduler.scheduler import Scheduler
-    from hassette.types import JobCallable, TriggerProtocol
+    from hassette.types import JobCallable, SchedulerServiceProtocol, TriggerProtocol
     from hassette.types.types import SchedulerErrorHandlerType, SchedulerPredicate
 
 
 LOGGER = getLogger(__name__)
+
+
+class ScheduleStatus(StrEnum):
+    """Current schedule status of a live :class:`Job`.
+
+    Live ``Job.schedule_status`` is authoritative for future automatic scheduling
+    availability. Only ``SCHEDULED`` jobs carry a concrete ``next_run``/``fire_at`` and
+    sit on the scheduler's due-time heap.
+
+    - ``SCHEDULED``: has a concrete automatic next occurrence.
+    - ``WAITING``: an ``EntityTime``-triggered job whose source currently reports no usable
+      time. Stays registered and watched by the entity-change listener, but off the heap.
+    - ``COMPLETED``: every automatic occurrence has fired, or the trigger raised while
+      computing the next one. The job remains live and submit-capable.
+    - ``MANUAL``: registered via ``Scheduler.register()`` with no trigger at all.
+    """
+
+    SCHEDULED = "scheduled"
+    WAITING = "waiting"
+    COMPLETED = "completed"
+    MANUAL = "manual"
+
+
+class ScheduleStatusReason(StrEnum):
+    """Optional diagnostic reason qualifying :class:`Job`'s ``schedule_status``.
+
+    ``None`` means the status needs no further explanation. A non-``None`` reason overrides
+    the normal guarantees implied by the status alone — e.g. a ``COMPLETED`` job with
+    ``TRIGGER_ERROR`` stopped because its trigger raised while computing the next
+    occurrence, not because it ran out of occurrences normally.
+    """
+
+    LEGACY_UNKNOWN = "legacy_unknown"
+    TRIGGER_ERROR = "trigger_error"
 
 
 class CronTrigger:
@@ -137,25 +172,35 @@ class CronTrigger:
 
 
 @dataclass(order=True)
-class ScheduledJob:
-    """A job scheduled to run based on a trigger or at a specific time."""
+class Job:
+    """A live scheduler registration — automatically triggered, entity-waiting, completed, or manual-only."""
 
     sort_index: tuple[int, int] = field(init=False, repr=False)
-    """Tuple of (next_run timestamp with nanoseconds, object id) for ordering in a priority queue."""
+    """Tuple of (next_run timestamp with nanoseconds, object id) for ordering in a priority queue.
+
+    Assigned only when the job transitions to ``SCHEDULED`` with a concrete ``next_run``
+    (see ``set_next_run``/``transition_to``). Unset on a freshly constructed ``WAITING``,
+    ``COMPLETED``, or ``MANUAL`` job — such a job must never be inserted into the heap, so a
+    stale or absent ``sort_index`` is never read.
+    """
 
     owner_id: str = field(compare=False)
     """Unique string identifier for the owner of the job, e.g., a component or integration name."""
 
-    next_run: ZonedDateTime = field(compare=False)
-    """Unjittered logical fire time — used as `previous_run` in subsequent trigger calls."""
+    next_run: ZonedDateTime | None = field(compare=False)
+    """Unjittered logical fire time — used as `previous_run` in subsequent trigger calls.
 
-    fire_at: ZonedDateTime = field(init=False, compare=False)
+    ``None`` for every status other than ``SCHEDULED`` (waiting, completed, or manual-only).
+    """
+
+    fire_at: ZonedDateTime | None = field(default=None, init=False, compare=False)
     """Actual dispatch time, including any jitter offset.
 
     Equals ``next_run`` when no jitter is configured. Set by
     ``SchedulerService.apply_jitter_to_heap()`` at enqueue time when jitter > 0.
     The pop loop in ``_ScheduledJobQueue.pop_due_and_peek_next`` compares against
-    ``fire_at`` (not ``next_run``) to decide when to dispatch.
+    ``fire_at`` (not ``next_run``) to decide when to dispatch. ``None`` for every status
+    other than ``SCHEDULED``.
     """
 
     job: "JobCallable" = field(compare=False)
@@ -172,7 +217,20 @@ class ScheduledJob:
     None for framework-tier jobs and non-App owners."""
 
     trigger: "TriggerProtocol | None" = field(compare=False, default=None)
-    """The trigger that determines the job's schedule."""
+    """The trigger that determines the job's schedule. ``None`` for a manual-only job."""
+
+    schedule_status: ScheduleStatus = field(default=ScheduleStatus.SCHEDULED, compare=False)
+    """Current schedule status. Defaults to ``SCHEDULED`` so existing direct ``Job(...)``
+    constructions (mostly in tests) remain valid without passing it explicitly, as long as
+    ``next_run`` is also given — ``__post_init__`` raises ``ValueError`` for the
+    ``SCHEDULED``-with-no-``next_run`` combination, mirroring ``transition_to()``'s guard.
+    A ``WAITING``/``COMPLETED``/``MANUAL`` construction must pass ``schedule_status``
+    explicitly. Real jobs built through ``Scheduler.schedule()``/``Scheduler.register()`` set
+    it explicitly, and every transition after construction routes through ``transition_to()``."""
+
+    schedule_status_reason: ScheduleStatusReason | None = field(default=None, compare=False)
+    """Optional diagnostic reason qualifying ``schedule_status``. ``None`` for a clean status
+    with no override. Set (or cleared) only through ``transition_to()``."""
 
     group: str | None = field(default=None, compare=False)
     """Optional group name for grouping related jobs. Included in deduplication comparison."""
@@ -181,7 +239,7 @@ class ScheduledJob:
     """Seconds of random offset applied at enqueue time by ``SchedulerService.apply_jitter_to_heap()``.
 
     Does not affect ``next_run`` (unjittered logical fire time). See the ``fire_at`` field on
-    ``ScheduledJob`` for the actual dispatch time after jitter is applied.
+    ``Job`` for the actual dispatch time after jitter is applied.
     """
 
     timeout: float | None = field(default=None, compare=False)
@@ -226,7 +284,7 @@ class ScheduledJob:
     mode: ExecutionMode = field(default=ExecutionMode.SINGLE, compare=False)
     """Resolved overlap mode for this job. Determines behavior when a prior invocation is still
     running as the next occurrence becomes due. Defaults to ``ExecutionMode.SINGLE`` so existing
-    direct ``ScheduledJob(...)`` constructions in tests remain valid; the real resolution happens
+    direct ``Job(...)`` constructions in tests remain valid; the real resolution happens
     in ``Scheduler.schedule()``."""
 
     predicate: "SchedulerPredicate | None" = field(default=None, compare=False)
@@ -242,7 +300,7 @@ class ScheduledJob:
 
     Built once at registration time by ``Scheduler.schedule()`` using the shared DI layer
     (``hassette.di``) and passed alongside ``predicate``. At dispatch time,
-    ``predicate_invoker.invoke({ScheduledJob: job})`` produces kwargs and the predicate is
+    ``predicate_invoker.invoke({Job: job})`` produces kwargs and the predicate is
     called with ``predicate(**kwargs)``."""
 
     guard: ExecutionModeGuard = field(init=False, compare=False)
@@ -252,6 +310,13 @@ class ScheduledJob:
 
     _scheduler: "Scheduler | None" = field(default=None, repr=False, compare=False)
     """Back-reference to the Scheduler that owns this job. Set by Scheduler.add_job()."""
+
+    _scheduler_service: "SchedulerServiceProtocol | None" = field(default=None, repr=False, compare=False)
+    """Back-reference to the SchedulerService that owns this job's runtime lifecycle.
+
+    Set alongside ``_scheduler`` at registration time. Used by ``submit()`` to reach
+    ``SchedulerService.submit_job()`` directly, without routing through the per-app
+    ``Scheduler``."""
 
     app_error_handler_resolver: "Callable[[], SchedulerErrorHandlerType | None] | None" = field(
         default=None, init=False, repr=False
@@ -276,7 +341,7 @@ class ScheduledJob:
     """
 
     def __hash__(self) -> int:
-        # Hashing on object identity is safe: each ScheduledJob is a unique object,
+        # Hashing on object identity is safe: each Job is a unique object,
         # and sort_index includes id(self) as the tiebreaker, so the hash contract
         # (a == b implies hash(a) == hash(b)) holds. @dataclass(order=True) generates
         # __eq__ based on all compare=True fields (sort_index only), so two distinct
@@ -284,16 +349,19 @@ class ScheduledJob:
         return id(self)
 
     def __repr__(self) -> str:
-        return f"ScheduledJob(name={self.name!r}, owner_id={self.owner_id})"
+        return f"Job(name={self.name!r}, owner_id={self.owner_id})"
 
     def __post_init__(self) -> None:
         if self.timeout is not None and (isinstance(self.timeout, bool) or self.timeout <= 0):
             raise ValueError("timeout must be a positive number")
         if self.timeout_disabled and self.timeout is not None:
             raise ValueError("Cannot specify both 'timeout' and 'timeout_disabled=True'")
+        if self.schedule_status is ScheduleStatus.SCHEDULED and self.next_run is None:
+            raise ValueError("Job(schedule_status=ScheduleStatus.SCHEDULED, ...) requires a concrete next_run")
 
         self.guard = ExecutionModeGuard(self.mode)
-        self.set_next_run(self.next_run)
+        if self.next_run is not None:
+            self.set_next_run(self.next_run)
 
         self.args = tuple(self.args)
         self.kwargs = dict(self.kwargs)
@@ -307,7 +375,7 @@ class ScheduledJob:
         """
         if self.db_id is not None:
             LOGGER.warning(
-                "ScheduledJob %s already registered with db_id=%s, ignoring new db_id=%s",
+                "Job %s already registered with db_id=%s, ignoring new db_id=%s",
                 self.name,
                 self.db_id,
                 db_id,
@@ -315,7 +383,7 @@ class ScheduledJob:
             return
         self.db_id = db_id
 
-    def matches(self, other: "ScheduledJob") -> bool:
+    def matches(self, other: "Job") -> bool:
         """Check whether two jobs represent the same logical configuration.
 
         Compares callable, trigger (by trigger_id()), group, jitter, timeout,
@@ -345,7 +413,7 @@ class ScheduledJob:
             and self.predicate == other.predicate
         )
 
-    def diff_fields(self, other: "ScheduledJob") -> list[str]:
+    def diff_fields(self, other: "Job") -> list[str]:
         """Return a list of configuration field names that differ between two jobs.
 
         Compares the same fields as ``matches()`` — callable, trigger, group,
@@ -383,28 +451,98 @@ class ScheduledJob:
         """Set the closure that resolves the app-level error handler at dispatch time."""
         self.app_error_handler_resolver = resolver
 
-    def cancel(self) -> None:
-        """Cancel the job by delegating to the owning Scheduler.
+    def remove(self) -> None:
+        """Remove this job's registration by delegating to the owning Scheduler.
 
         Raises:
             RuntimeError: When called on a job that has not been registered with a Scheduler.
-                Use ``Scheduler.cancel_job(job)`` directly, or register the job first.
+                Use ``Scheduler.remove_job(job)`` directly, or register the job first.
         """
         if self._scheduler is None:
             raise RuntimeError(
-                "cancel() called on a job not registered with a Scheduler. "
-                "Use Scheduler.cancel_job(job) or register the job first."
+                "remove() called on a job not registered with a Scheduler. "
+                "Use Scheduler.remove_job(job) or register the job first."
             )
-        self._scheduler.cancel_job(self)
+        self._scheduler.remove_job(self)
 
-    def set_next_run(self, next_run: ZonedDateTime) -> None:
+    def submit(self) -> None:
+        """Submit one manual invocation of this job through the owning SchedulerService.
+
+        Fire-and-observe: submits through the existing overlap guard, task bucket, executor,
+        and telemetry, then returns ``None`` immediately. Uses the job's registered
+        args/kwargs and bypasses its predicate. Does not accept per-invocation arguments,
+        and never mutates the job's automatic schedule.
+
+        Raises:
+            RuntimeError: When called on a job that has no owning SchedulerService — register
+                the job via ``Scheduler.schedule()`` or ``Scheduler.register()`` first.
+            JobRemovedError: When the job's registration has since been removed.
+        """
+        if self._scheduler_service is None:
+            raise RuntimeError(
+                "submit() called on a job with no owning SchedulerService. "
+                "Register the job via Scheduler.schedule() or Scheduler.register() first."
+            )
+        self._scheduler_service.submit_job(self)
+
+    def set_next_run(self, next_run: ZonedDateTime | None) -> None:
         """Update the next run timestamp, fire_at, and ordering metadata.
 
         Both ``next_run`` and ``fire_at`` are set to the rounded value. Call
         ``SchedulerService.apply_jitter_to_heap()`` after this to set a jittered
         ``fire_at`` when the job has ``jitter`` configured.
+
+        When ``next_run`` is ``None`` (a job with no concrete automatic occurrence —
+        waiting, completed, or manual), both ``next_run`` and ``fire_at`` are cleared to
+        ``None`` and ``sort_index`` is left untouched: a job in this state must never be
+        inserted into the heap, so a stale ``sort_index`` is never read.
         """
+        if next_run is None:
+            self.next_run = None
+            self.fire_at = None
+            return
+
         rounded = next_run.round("second")
         self.next_run = rounded
         self.fire_at = rounded
         self.sort_index = (rounded.timestamp_nanos(), id(self))
+
+    def transition_to(
+        self,
+        status: ScheduleStatus,
+        *,
+        next_run: ZonedDateTime | None = None,
+        fire_at: ZonedDateTime | None = None,
+        reason: ScheduleStatusReason | None = None,
+    ) -> None:
+        """Atomically update ``schedule_status``, timing, and ``schedule_status_reason``.
+
+        Centralizes every schedule-status transition so a call site can never forget to
+        clear stale timing when leaving ``SCHEDULED``. ``SCHEDULED`` requires a concrete
+        ``next_run``; every other status clears ``next_run``/``fire_at`` to ``None``
+        regardless of what was passed in.
+
+        Args:
+            status: The schedule status to transition to.
+            next_run: Concrete next occurrence. Required when ``status`` is ``SCHEDULED``;
+                ignored (and cleared) for every other status.
+            fire_at: Actual dispatch time including jitter. Defaults to the rounded
+                ``next_run`` when omitted. Ignored (and cleared) for every non-``SCHEDULED``
+                status.
+            reason: Optional diagnostic reason. Cleared to ``None`` unless explicitly passed.
+
+        Raises:
+            ValueError: If ``status`` is ``SCHEDULED`` and ``next_run`` is ``None``.
+        """
+        if status is ScheduleStatus.SCHEDULED:
+            if next_run is None:
+                raise ValueError("transition_to(ScheduleStatus.SCHEDULED, ...) requires a concrete next_run")
+            self.set_next_run(next_run)
+            if fire_at is not None:
+                self.fire_at = fire_at
+        else:
+            self.next_run = None
+            self.fire_at = None
+
+        self.schedule_status = status
+        self.schedule_status_reason = reason

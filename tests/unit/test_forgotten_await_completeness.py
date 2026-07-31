@@ -26,7 +26,7 @@ from hassette.api.api import Api
 from hassette.bus.bus import Bus
 from hassette.bus.listeners import Listener
 from hassette.exceptions import HassetteForgottenAwaitWarning
-from hassette.scheduler.classes import ScheduledJob
+from hassette.scheduler.classes import Job
 from hassette.scheduler.scheduler import Scheduler
 from hassette.scheduler.triggers import Every as _Every
 from hassette.test_utils.factories import make_mock_parent
@@ -174,7 +174,7 @@ DOCUMENTED_EXCLUSIONS: dict[type, set[str]] = {
 # collect these cases in different orders and abort with "Different tests were collected between
 # gw0 and gwN" under `-n` (the suite only survived because pytest-randomly syncs the seed).
 _BUS_METHODS_PARAMETRIZED = sorted(m for m in CANONICAL_PROTECTED[Bus] if m != "add_listener")
-# add_job is handled separately (requires a ScheduledJob object).
+# add_job is handled separately (requires a Job object).
 # sorted() for the same cross-process determinism reason as _BUS_METHODS_PARAMETRIZED above.
 _SCHED_METHODS_PARAMETRIZED = sorted(m for m in CANONICAL_PROTECTED[Scheduler] if m != "add_job")
 _API_METHOD_CALLS: dict[str, object] = {
@@ -419,7 +419,7 @@ def _make_scheduler() -> Scheduler:
     sched._error_handler = None
     mock_service = MagicMock()
 
-    async def _add_job(job: ScheduledJob) -> None:
+    async def _add_job(job: Job) -> None:
         job.mark_registered(1)
 
     mock_service.add_job = AsyncMock(side_effect=_add_job)
@@ -504,7 +504,7 @@ def test_bus_add_listener_warns_on_forgotten_await() -> None:
 def test_scheduler_add_job_warns_on_forgotten_await() -> None:
     """Dropping an un-awaited Scheduler.add_job() handle emits HassetteForgottenAwaitWarning."""
     sched = _make_scheduler()
-    job = ScheduledJob(owner_id="test_app.0", next_run=now(), job=noop, name="completeness_add_job")
+    job = Job(owner_id="test_app.0", next_run=now(), job=noop, name="completeness_add_job")
     with pytest.warns(HassetteForgottenAwaitWarning):
         _ = sched.add_job(job)
         del _

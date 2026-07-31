@@ -19,7 +19,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
 from hassette.resources.base import Resource
-from hassette.scheduler.classes import ScheduledJob
+from hassette.scheduler.classes import Job
 from hassette.scheduler.scheduler import Scheduler
 from hassette.test_utils import make_mock_hassette
 from hassette.test_utils.factories import make_scheduled_job
@@ -34,7 +34,7 @@ async def test_scheduler_on_shutdown_dequeues_all_jobs():
     hassette = make_mock_hassette(sealed=False)
 
     # add_job is now awaited inline — must be an AsyncMock
-    async def _add_job(job: ScheduledJob) -> None:
+    async def _add_job(job: Job) -> None:
         job.mark_registered(1)
 
     hassette.scheduler_service.add_job = AsyncMock(side_effect=_add_job)

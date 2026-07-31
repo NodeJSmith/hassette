@@ -4,7 +4,7 @@ Verifies:
 - Resource defaults to source_tier='framework'
 - App/AppSync override to source_tier='app'
 - Bus.on() reads parent.source_tier and passes it to Listener
-- Scheduler.schedule() reads parent.source_tier and passes it to ScheduledJob
+- Scheduler.schedule() reads parent.source_tier and passes it to Job
 - Service inherits 'framework' from Resource
 """
 

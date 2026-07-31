@@ -65,7 +65,14 @@ async def trigger_job(job_id: int, scheduler_service: SchedulerDep) -> JobTrigge
     if job.mode is ExecutionMode.SINGLE and job.guard.is_running():
         raise HTTPException(status_code=409, detail="Job is currently executing")
 
-    if job.trigger is None or job.trigger.next_run_time(job.next_run, date_utils.now()) is None:
+    # Only a SCHEDULED job (concrete next_run) is ever found on the live heap that
+    # trigger_job() looks up from.
+    next_occurrence = (
+        job.trigger.next_run_time(job.next_run, date_utils.now())
+        if job.trigger is not None and job.next_run is not None
+        else None
+    )
+    if next_occurrence is None:
         scheduler_service.dequeue_job(job)
 
     scheduler_service.task_bucket.spawn(

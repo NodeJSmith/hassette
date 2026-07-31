@@ -1,4 +1,4 @@
-"""Tests for ScheduledJob timeout/jitter/error_handler fields and matches()."""
+"""Tests for Job timeout/jitter/error_handler fields and matches()."""
 
 import heapq
 from typing import TYPE_CHECKING
@@ -10,10 +10,10 @@ from hassette.test_utils.factories import make_scheduled_job
 from hassette.test_utils.helpers import noop
 
 if TYPE_CHECKING:
-    from hassette.scheduler.classes import ScheduledJob
+    from hassette.scheduler.classes import Job
 
 
-class TestScheduledJobTimeoutFields:
+class TestJobTimeoutFields:
     def test_scheduled_job_timeout_field_default(self) -> None:
         """Timeout defaults to None."""
         job = make_scheduled_job()
@@ -69,7 +69,7 @@ async def error_handler_b(ctx) -> None:
     pass
 
 
-class TestScheduledJobErrorHandlerField:
+class TestJobErrorHandlerField:
     def test_error_handler_field_default_none(self) -> None:
         """error_handler defaults to None."""
         job = make_scheduled_job()
@@ -102,7 +102,7 @@ class TestScheduledJobErrorHandlerField:
         """
         job1 = make_scheduled_job(job=noop, trigger=Every(hours=1), error_handler=error_handler_a, name="job1")
         job2 = make_scheduled_job(job=noop, trigger=Every(hours=1), error_handler=error_handler_b, name="job2")
-        heap: list[ScheduledJob] = []
+        heap: list[Job] = []
         # Must not raise TypeError — proves compare=False is in effect
         heapq.heappush(heap, job1)
         heapq.heappush(heap, job2)

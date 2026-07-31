@@ -280,7 +280,7 @@ class BusService(Service):
         Delegates to ``CommandExecutor.mark_listener_cancelled``. Called from the bus cancel
         path (``Subscription.cancel`` → ``Bus.remove_listener``, ``replace``'s cancel-old
         step, or a once-listener firing) so that a replaced or cancelled listener's removal
-        is observable in telemetry, mirroring ``SchedulerService.mark_job_cancelled``.
+        is observable in telemetry, mirroring ``SchedulerService.mark_job_removed``.
 
         Args:
             db_id: The ``id`` of the ``listeners`` row to mark as cancelled.
