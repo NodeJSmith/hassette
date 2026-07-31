@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Add migration 012 and update persistence layer"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#23", "AC#6"]
 ---

@@ -147,6 +147,8 @@ def job_insert_params(registration: ScheduledJobRegistration) -> dict[str, Any]:
         "mode": registration.mode,
         "predicate_description": registration.predicate_description,
         "human_description": registration.human_description,
+        "schedule_status": registration.schedule_status,
+        "schedule_status_reason": registration.schedule_status_reason,
     }
 
 
@@ -374,7 +376,7 @@ class TelemetryRepository:
                 mode = excluded.mode,
                 backpressure = excluded.backpressure,
                 retired_at = NULL,
-                cancelled_at = NULL  -- re-registration clears cancellation
+                removed_at = NULL  -- re-registration clears removal
             RETURNING id
             """,
             listener_insert_params(registration),
@@ -412,7 +414,8 @@ class TelemetryRepository:
                 args_json, kwargs_json,
                 source_location, registration_source, source_tier,
                 "group", mode,
-                predicate_description, human_description
+                predicate_description, human_description,
+                schedule_status, schedule_status_reason
             ) VALUES (
                 :app_key, :instance_index, :job_name, :handler_method,
                 :trigger_type,
@@ -421,7 +424,8 @@ class TelemetryRepository:
                 :args_json, :kwargs_json,
                 :source_location, :registration_source, :source_tier,
                 :group, :mode,
-                :predicate_description, :human_description
+                :predicate_description, :human_description,
+                :schedule_status, :schedule_status_reason
             )
             ON CONFLICT(app_key, instance_index, job_name)
             DO UPDATE SET
@@ -439,8 +443,10 @@ class TelemetryRepository:
                 mode = excluded.mode,
                 predicate_description = excluded.predicate_description,
                 human_description = excluded.human_description,
+                schedule_status = excluded.schedule_status,
+                schedule_status_reason = excluded.schedule_status_reason,
                 retired_at = NULL,
-                cancelled_at = NULL  -- re-registration clears cancellation
+                removed_at = NULL  -- re-registration clears removal
             RETURNING id
             """,
             job_insert_params(registration),
@@ -491,35 +497,40 @@ class TelemetryRepository:
         await db.commit()
         return row[0]  # pyright: ignore[reportOptionalSubscript] — RETURNING always yields one row
 
-    async def mark_job_cancelled(self, db_id: int) -> None:
-        """Set ``cancelled_at`` to the current epoch time for the given job row.
+    async def mark_job_removed(self, db_id: int) -> None:
+        """Set ``removed_at`` to the current epoch time for the given job row.
 
-        Called from the cancel path in ``SchedulerService`` when a job is cancelled
-        so that the durable ``cancelled`` state survives heap removal.
+        Called from the removal path in ``SchedulerService`` when a job is removed
+        so that the durable ``removed`` state survives heap removal.
 
         Args:
-            db_id: The ``id`` of the ``scheduled_jobs`` row to mark as cancelled.
+            db_id: The ``id`` of the ``scheduled_jobs`` row to mark as removed.
         """
         db = self._db_service.db
         await db.execute(
-            "UPDATE scheduled_jobs SET cancelled_at = :cancelled_at WHERE id = :id",
-            {"cancelled_at": time.time(), "id": db_id},
+            "UPDATE scheduled_jobs SET removed_at = :removed_at WHERE id = :id",
+            {"removed_at": time.time(), "id": db_id},
         )
         await db.commit()
 
     async def mark_listener_cancelled(self, db_id: int) -> None:
-        """Set ``cancelled_at`` to the current epoch time for the given listener row.
+        """Set ``removed_at`` to the current epoch time for the given listener row.
 
         Called from the cancel path in ``BusService`` when a listener is cancelled
-        so that the durable ``cancelled`` state survives memory removal.
+        so that the durable ``removed`` state survives memory removal.
+
+        This method intentionally keeps "cancelled" terminology (unlike its scheduler
+        counterpart ``mark_job_removed``) because the Bus's public API still uses
+        ``Subscription.cancel()``/removal, not ``Job.remove()``/``Scheduler.remove_job()`` —
+        see design/specs/090-registered-manual-jobs/design.md's Key Constraints section.
 
         Args:
-            db_id: The ``id`` of the ``listeners`` row to mark as cancelled.
+            db_id: The ``id`` of the ``listeners`` row to mark as removed.
         """
         db = self._db_service.db
         await db.execute(
-            "UPDATE listeners SET cancelled_at = :cancelled_at WHERE id = :id",
-            {"cancelled_at": time.time(), "id": db_id},
+            "UPDATE listeners SET removed_at = :removed_at WHERE id = :id",
+            {"removed_at": time.time(), "id": db_id},
         )
         await db.commit()
 

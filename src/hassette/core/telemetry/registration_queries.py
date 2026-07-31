@@ -108,7 +108,7 @@ class RegistrationQueriesMixin:
             LEFT JOIN executions e ON {join_condition} AND e.kind = 'handler'
             LEFT JOIN ranked_errors last_err ON last_err.listener_id = l.id AND last_err.rn = 1
             WHERE {where_clause}
-            AND l.cancelled_at IS NULL
+            AND l.removed_at IS NULL
             {tier_clause}
             GROUP BY l.id
         """
@@ -201,7 +201,8 @@ class RegistrationQueriesMixin:
             LEFT JOIN executions e ON {join_condition} AND e.kind = 'job'
             LEFT JOIN ranked_errors last_err ON last_err.job_id = sj.id AND last_err.rn = 1
             WHERE {where_clause}
-            AND sj.cancelled_at IS NULL
+            AND sj.removed_at IS NULL
+            AND sj.retired_at IS NULL
             {tier_clause}
             GROUP BY sj.id
         """

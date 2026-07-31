@@ -111,8 +111,9 @@ class TestFreshMigration:
         try:
             conn.execute("INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (1.0, 1.0, 'running')")
             conn.execute(
-                "INSERT INTO scheduled_jobs (app_key, instance_index, job_name, handler_method, source_location)"
-                " VALUES ('app', 0, 'my_job', 'do_thing', 'app.py:1')"
+                "INSERT INTO scheduled_jobs "
+                "(app_key, instance_index, job_name, handler_method, source_location, schedule_status)"
+                " VALUES ('app', 0, 'my_job', 'do_thing', 'app.py:1', 'scheduled')"
             )
             conn.commit()
             conn.execute(
@@ -160,8 +161,8 @@ class TestFreshMigration:
             conn.execute("INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (1.0, 1.0, 'running')")
             conn.execute(
                 "INSERT INTO scheduled_jobs "
-                "(app_key, instance_index, job_name, handler_method, source_location, source_tier)"
-                " VALUES ('app', 0, 'my_job', 'on_x', 'app.py:1', 'app')"
+                "(app_key, instance_index, job_name, handler_method, source_location, source_tier, schedule_status)"
+                " VALUES ('app', 0, 'my_job', 'on_x', 'app.py:1', 'app', 'scheduled')"
             )
             conn.commit()
             conn.execute(
@@ -240,7 +241,7 @@ class TestFreshMigration:
             conn.close()
 
     def test_user_version_set_after_migration(self, tmp_path: Path) -> None:
-        """PRAGMA user_version is 11 after all migrations run."""
+        """PRAGMA user_version is LATEST_MIGRATION_VERSION after all migrations run."""
         db_path = tmp_path / "test.db"
         run_migrations(db_path)
 
@@ -331,8 +332,8 @@ class TestFreshMigration:
 
             conn.execute(
                 "INSERT INTO scheduled_jobs"
-                " (app_key, instance_index, job_name, handler_method, source_location, source_tier)"
-                " VALUES ('app', 0, 'my_job', 'on_x', 'app.py:1', 'app')"
+                " (app_key, instance_index, job_name, handler_method, source_location, source_tier, schedule_status)"
+                " VALUES ('app', 0, 'my_job', 'on_x', 'app.py:1', 'app', 'scheduled')"
             )
             conn.commit()
             row = conn.execute("SELECT mode FROM scheduled_jobs WHERE job_name = 'my_job'").fetchone()

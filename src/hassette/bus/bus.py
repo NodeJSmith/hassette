@@ -150,7 +150,7 @@ class Bus(Resource):
         self.sync = self.add_child(BusSyncFacade, bus=self)
 
         # Register removal callback so once-fired listeners release their natural key and
-        # record cancelled_at, mirroring Scheduler's register_removal_callback pattern.
+        # record removed_at, mirroring Scheduler's register_removal_callback pattern.
         # owner_id derives from self.parent; the callback registry key must stay stable across
         # register/deregister even if a test fixture swaps self.parent after construction
         # (production never does — a hot-reload builds a fresh Bus). Freezing the key here keeps
@@ -175,7 +175,7 @@ class Bus(Resource):
 
         Closes the once-fire gap: the dispatch finally block calls BusService.remove_listener
         directly without going through Bus.remove_listener, leaving the natural key stale and
-        cancelled_at unwritten. This callback pops the key and spawns mark_listener_cancelled.
+        removed_at unwritten. This callback pops the key and spawns mark_listener_cancelled.
 
         The spawn guard (key must still be present) prevents a double write when Bus.remove_listener
         already popped the key and spawned mark_listener_cancelled before calling BusService:
@@ -183,7 +183,7 @@ class Bus(Resource):
 
         Accepted trade-off: during shutdown, remove_all_listeners clears _registered_listeners
         before delegating to remove_listeners_by_owner, so a once-listener that fires concurrently
-        with teardown finds was_present=False and skips its cancelled_at write. This loses only a
+        with teardown finds was_present=False and skips its removed_at write. This loses only a
         telemetry write in a narrow teardown window — no routing impact — and is not worth guarding.
         """
         if listener.identity.name is None:
@@ -411,8 +411,8 @@ class Bus(Resource):
     def remove_all_listeners(self) -> None:
         """Remove all listeners owned by this bus's owner."""
         # Pre-clear is load-bearing: it must run before remove_listeners_by_owner so that
-        # _on_listener_removed finds was_present=False and skips the cancelled_at spawn for every
-        # listener on clean shutdown (shutdown maps to retired_at via reconciliation, not cancelled_at).
+        # _on_listener_removed finds was_present=False and skips the removed_at spawn for every
+        # listener on clean shutdown (shutdown maps to retired_at via reconciliation, not removed_at).
         self._registered_listeners.clear()
         self.bus_service.remove_listeners_by_owner(self.owner_id)
 

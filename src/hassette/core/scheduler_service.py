@@ -335,6 +335,10 @@ class SchedulerService(Service):
             mode=job.mode,
             predicate_description=predicate_description,
             human_description=human_description,
+            schedule_status=job.schedule_status.value,
+            schedule_status_reason=(
+                job.schedule_status_reason.value if job.schedule_status_reason is not None else None
+            ),
         )
         job.mark_registered(await self._executor.register_job(reg))
         await self.enqueue_job(job)
@@ -766,15 +770,14 @@ class SchedulerService(Service):
     async def mark_job_removed(self, db_id: int) -> None:
         """Persist durable removal state for a job registration.
 
-        Delegates to ``CommandExecutor.mark_job_cancelled`` — the underlying persisted
-        column (currently ``cancelled_at``) is renamed to ``removed_at`` by a later task's
-        migration; this method's name already reflects the removal terminology used by the
-        public API (``Job.remove()``, ``Scheduler.remove_job()``). No-op when ``db_id`` is None.
+        Delegates to ``CommandExecutor.mark_job_removed``, which sets the ``removed_at``
+        column — this method's name reflects the removal terminology used by the public
+        API (``Job.remove()``, ``Scheduler.remove_job()``). No-op when ``db_id`` is None.
 
         Args:
             db_id: The ``id`` of the ``scheduled_jobs`` row to mark as removed.
         """
-        await self._executor.mark_job_cancelled(db_id)
+        await self._executor.mark_job_removed(db_id)
 
     def submit_job(self, job: "Job") -> None:
         """Submit one manual invocation of ``job``.

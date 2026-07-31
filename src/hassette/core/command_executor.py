@@ -708,23 +708,23 @@ class CommandExecutor(Service):
         manifest_id = await self.hassette.database_service.submit(self.repository.upsert_app_manifest(manifest))
         return manifest_id
 
-    async def mark_job_cancelled(self, db_id: int) -> None:
-        """Set ``cancelled_at`` on the scheduled_jobs row to persist durable cancellation state.
+    async def mark_job_removed(self, db_id: int) -> None:
+        """Set ``removed_at`` on the scheduled_jobs row to persist durable removal state.
 
-        Delegates to ``TelemetryRepository.mark_job_cancelled`` via ``DatabaseService.submit``.
+        Delegates to ``TelemetryRepository.mark_job_removed`` via ``DatabaseService.submit``.
 
         Args:
-            db_id: The ``id`` of the ``scheduled_jobs`` row to mark as cancelled.
+            db_id: The ``id`` of the ``scheduled_jobs`` row to mark as removed.
         """
-        await self.hassette.database_service.submit(self.repository.mark_job_cancelled(db_id))
+        await self.hassette.database_service.submit(self.repository.mark_job_removed(db_id))
 
     async def mark_listener_cancelled(self, db_id: int) -> None:
-        """Set ``cancelled_at`` on the listeners row to persist durable cancellation state.
+        """Set ``removed_at`` on the listeners row to persist durable removal state.
 
         Delegates to ``TelemetryRepository.mark_listener_cancelled`` via ``DatabaseService.submit``.
 
         Args:
-            db_id: The ``id`` of the ``listeners`` row to mark as cancelled.
+            db_id: The ``id`` of the ``listeners`` row to mark as removed.
         """
         await self.hassette.database_service.submit(self.repository.mark_listener_cancelled(db_id))
 

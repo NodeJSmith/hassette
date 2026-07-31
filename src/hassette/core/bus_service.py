@@ -275,7 +275,7 @@ class BusService(Service):
         return counts
 
     async def mark_listener_cancelled(self, db_id: int) -> None:
-        """Persist durable cancellation state for a listener by setting ``cancelled_at`` in the DB.
+        """Persist durable removal state for a listener by setting ``removed_at`` in the DB.
 
         Delegates to ``CommandExecutor.mark_listener_cancelled``. Called from the bus cancel
         path (``Subscription.cancel`` → ``Bus.remove_listener``, ``replace``'s cancel-old
@@ -283,7 +283,7 @@ class BusService(Service):
         is observable in telemetry, mirroring ``SchedulerService.mark_job_removed``.
 
         Args:
-            db_id: The ``id`` of the ``listeners`` row to mark as cancelled.
+            db_id: The ``id`` of the ``listeners`` row to mark as removed.
         """
         await self._executor.mark_listener_cancelled(db_id)
 
@@ -328,7 +328,7 @@ class BusService(Service):
         Fires the per-owner removal callback for each removed listener, mirroring
         SchedulerService._remove_jobs_by_owner. On the shutdown path Bus.remove_all_listeners
         pre-clears _registered_listeners first, so the callbacks find nothing to pop and skip
-        the cancelled_at spawn; firing them here keeps this method correct for any future caller
+        the removed_at spawn; firing them here keeps this method correct for any future caller
         that removes listeners without that pre-clear.
         """
         removed = self.router.clear_owner(owner)

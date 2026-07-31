@@ -88,10 +88,10 @@ class SummaryQueriesMixin:
                 LEFT JOIN scheduled_jobs sj ON sj.id = e.job_id AND e.kind = 'job'
                 WHERE (
                     (e.kind = 'handler' AND l.app_key = :app_key AND l.instance_index = :instance_index
-                     AND l.cancelled_at IS NULL)
+                     AND l.removed_at IS NULL)
                     OR
                     (e.kind = 'job' AND sj.app_key = :app_key AND sj.instance_index = :instance_index
-                     AND sj.cancelled_at IS NULL)
+                     AND sj.removed_at IS NULL)
                 )
                 {tier_e_clause}
                 {since_sql}
