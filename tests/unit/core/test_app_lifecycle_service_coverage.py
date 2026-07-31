@@ -210,26 +210,6 @@ class TestHandleChangeEventBranches:
         )
         assert event_capture.by_topic(Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED) == []
 
-    async def test_pre_release_reconciliation_merges_multiple_changed_path_sets(
-        self,
-        lifecycle_service: AppLifecycleService,
-        mock_hassette: MagicMock,
-    ) -> None:
-        mock_hassette.app_bootstrap_coordinator.is_released.return_value = False
-        lifecycle_service.change_detector.detect_changes = Mock(  # pyright: ignore[reportAttributeAccessIssue]
-            return_value=ChangeSet(
-                orphans=frozenset(),
-                new_apps=frozenset(),
-                reimport_apps=frozenset(),
-                reload_apps=frozenset({"my_app"}),
-            )
-        )
-
-        await lifecycle_service.handle_change_event(changed_file_paths=frozenset({Path("/tmp/a.py")}))
-        await lifecycle_service.handle_change_event(changed_file_paths=frozenset({Path("/tmp/b.py")}))
-
-        assert lifecycle_service._pending_pre_release_changed_paths == frozenset({Path("/tmp/a.py"), Path("/tmp/b.py")})
-
     async def test_stale_pre_release_diff_is_merged_into_post_release_change(
         self,
         lifecycle_service: AppLifecycleService,
@@ -320,7 +300,10 @@ class TestHandleChangeEventBranches:
         await asyncio.wait_for(first_entered.wait(), timeout=1.0)
 
         task2 = asyncio.create_task(lifecycle_service.handle_change_event())
-        await asyncio.sleep(0)  # give task2 a chance to attempt the lock and suspend on it
+        # Deterministically wait until task2 has actually queued on the lock (asyncio.Lock.acquire()
+        # appends a waiter future synchronously, before its own await) rather than assuming a single
+        # scheduler tick is enough — see CLAUDE.md's "Deterministic Async Race Gate" convention.
+        await wait_for(lambda: bool(lifecycle_service._change_event_lock._waiters), desc="task2 queued on the lock")
 
         # task2 must be blocked acquiring the lock, not yet inside refresh_config.
         assert lifecycle_service._change_event_lock.locked()

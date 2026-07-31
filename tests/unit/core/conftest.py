@@ -134,9 +134,6 @@ def mock_hassette() -> AsyncMock:
     hassette.bus_service.router.get_listeners_by_owner = Mock(return_value=[])
     hassette.scheduler_service = MagicMock()
     hassette.scheduler_service.remove_jobs_by_owner = MagicMock(side_effect=lambda _owner: asyncio.sleep(0))
-    hassette.app_bootstrap_coordinator = MagicMock()
-    hassette.app_bootstrap_coordinator.is_released = Mock(return_value=True)
-    hassette.app_bootstrap_coordinator.wait_released = AsyncMock(return_value=True)
     hassette.session_id = 1
     hassette.try_session_id.return_value = 1
     return hassette

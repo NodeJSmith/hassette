@@ -26,6 +26,7 @@ def build_fake_ws(*, is_closed: bool = False, close_code: int | None = None) -> 
 
     Args:
         is_closed: Whether the stub reports itself as closed via `.closed`.
+        close_code: The value the stub reports via `.close_code`.
 
     Returns:
         A `ClientWebSocketResponse` stub whose `send_json`, `receive_json`,
