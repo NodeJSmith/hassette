@@ -31,6 +31,7 @@ Adding a new screenshot:
 import argparse
 import contextlib
 import json
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -113,6 +114,22 @@ def _wait_for_error_data(hassette_port: int) -> None:
         )
 
 
+def _needs_xvfb() -> bool:
+    """Check if xvfb-run is needed (no working X display) and available."""
+    if shutil.which("xvfb-run") is None:
+        return False
+    try:
+        subprocess.run(
+            ["xdpyinfo"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=5,
+        )
+        return False
+    except (FileNotFoundError, subprocess.TimeoutExpired, subprocess.CalledProcessError):
+        return True
+
+
 def _resolve_manifest(entries: list[object], port: str) -> list[dict[str, object]]:
     """Replace {port} placeholders and prepend the animation-disabling JS."""
     resolved: list[dict[str, object]] = []
@@ -141,6 +158,13 @@ def main() -> None:
         "--only",
         help="Comma-separated substrings to match against output filenames. "
         "Only matching entries are captured. Example: --only column_picker,sidebar",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=30000,
+        help="Playwright page timeout in milliseconds (default: 30000). "
+        "Increase if Page.screenshot times out waiting for fonts or rendering.",
     )
     args = parser.parse_args()
 
@@ -182,8 +206,13 @@ def main() -> None:
         try:
             print(f"\nRunning shot-scraper ({len(resolved)} screenshots)...", flush=True)
             try:
+                shot_cmd = ["uv", "run", "shot-scraper", "multi", tmp_manifest_path]
+                if args.timeout != 30000:
+                    shot_cmd.extend(["--timeout", str(args.timeout)])
+                if _needs_xvfb():
+                    shot_cmd = ["xvfb-run", "--auto-servernum", "--server-args=-screen 0 1920x1080x24", *shot_cmd]
                 shot_result = subprocess.run(
-                    ["uv", "run", "shot-scraper", "multi", tmp_manifest_path],
+                    shot_cmd,
                     cwd=str(repo_root),
                     timeout=SCREENSHOT_CAPTURE_TIMEOUT_SECONDS,
                 )
