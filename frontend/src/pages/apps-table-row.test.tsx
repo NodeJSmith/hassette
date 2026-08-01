@@ -68,7 +68,7 @@ describe("AppTableRow", () => {
     expect(getByTestId("app-row-motion_lights")).toBeDefined();
   });
 
-  it("shows display_name as the link text, not app_key", () => {
+  it("shows display_name as the link text", () => {
     const { getByRole } = renderRow({
       app: createAppRow({ app_key: "examples.security_monitor.SecurityMonitor", display_name: "SecurityMonitor" }),
     });
