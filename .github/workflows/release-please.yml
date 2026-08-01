@@ -109,6 +109,58 @@ jobs:
                       sleep $((attempt * 3))
                   done
 
+    # After a release is created, replace the auto-generated GitHub Release notes
+    # with the curated section from CHANGELOG.md (which we edit on the release-please
+    # branch before merging). The auto-generated notes are release-please's raw PR
+    # list; the curated version groups by topic, removes internal entries, and adds
+    # contributor attribution.
+    sync-release-notes:
+        needs: release-please
+        if: >-
+            always()
+            && (
+              (github.event_name == 'push' && needs.release-please.outputs.release_created == 'true')
+              || github.event_name == 'workflow_dispatch'
+            )
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        steps:
+            - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+              with:
+                  ref: ${{ needs.release-please.outputs.tag_name || inputs.tag_name }}
+                  persist-credentials: false
+
+            # github.token (not the app token) is sufficient here: we only need
+            # contents:write to edit the release body, and unlike sync-lockfile's
+            # git push, this doesn't need to re-trigger downstream workflows.
+            - name: Extract and sync release notes
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  TAG_NAME: ${{ needs.release-please.outputs.tag_name || inputs.tag_name }}
+              run: |
+                  set -euo pipefail
+
+                  version="${TAG_NAME#v}"
+
+                  # Extract the section for this version from CHANGELOG.md.
+                  # Captures everything between "## [<version>]" and the next "## [" heading.
+                  notes=$(awk -v ver="$version" '
+                    /^## \[/ {
+                      if (found) exit
+                      if (index($0, "## [" ver "]")) found=1
+                      next
+                    }
+                    found { print }
+                  ' CHANGELOG.md)
+
+                  if [ -z "$notes" ]; then
+                      echo "::warning::No CHANGELOG.md section found for version ${version} — skipping release notes sync"
+                      exit 0
+                  fi
+
+                  echo "Syncing $(echo "$notes" | wc -l) lines of curated notes to GitHub Release ${TAG_NAME}"
+                  gh release edit "$TAG_NAME" --notes "$notes"
+
     build-pypi:
         needs: release-please
         if: >-
