@@ -301,6 +301,22 @@ def make_scheduler(
     mock_service.remove_jobs = Mock(side_effect=lambda _jobs: Mock())
     mock_service.mark_job_removed = AsyncMock()
 
+    async def _remove_job(job: Job) -> bool:
+        """Mirrors the real unified removal operation at the mock boundary: sets the
+        removed flag, fires _on_job_removed when wired (matching dequeue_job's mock), and
+        persists removed_at via mark_job_removed when the job has a db_id — so tests that
+        override mark_job_removed to track call ordering (e.g. replace-path write-ordering)
+        still observe it invoked through this path.
+        """
+        job._dequeued = True
+        if wire_dequeue:
+            scheduler._on_job_removed(job)
+        if job.db_id is not None:
+            await mock_service.mark_job_removed(job.db_id)
+        return True
+
+    mock_service.remove_job = AsyncMock(side_effect=_remove_job)
+
     # Default task_bucket.spawn closes whatever coroutine it's given instead of just
     # recording the call — mark_job_removed() (an AsyncMock) produces a real coroutine
     # object when called from remove_job()'s fire-and-forget spawn, and an unconfigured

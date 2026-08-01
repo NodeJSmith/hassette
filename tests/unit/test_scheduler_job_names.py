@@ -212,9 +212,9 @@ class TestIfExistsReplace:
         assert new_job.db_id is None
         assert "sensor_check" not in scheduler._jobs_by_name
 
-        # Rollback ran for the failed new job specifically (identity, not just name).
-        scheduler.scheduler_service.deregister_job.assert_any_call(new_job)
-        scheduler.scheduler_service.dequeue_job.assert_any_call(new_job)
+        # Rollback ran for the failed new job specifically (identity, not just name),
+        # through the unified removal operation.
+        scheduler.scheduler_service.remove_job.assert_any_call(new_job)
 
     async def test_rollback_removes_generic_job_after_post_persist_failure(self) -> None:
         """Generic (non-EntityTime, non-replace) rollback path: a plain registration whose
@@ -240,8 +240,7 @@ class TestIfExistsReplace:
         assert job.db_id == 42
         assert "flaky_job" not in scheduler._jobs_by_name
         assert job not in scheduler._jobs_by_group.get("monitors", set())
-        scheduler.scheduler_service.deregister_job.assert_called_once_with(job)
-        scheduler.scheduler_service.dequeue_job.assert_called_once_with(job)
+        scheduler.scheduler_service.remove_job.assert_awaited_once_with(job)
         scheduler.scheduler_service.mark_job_removed.assert_awaited_once_with(42)
 
 

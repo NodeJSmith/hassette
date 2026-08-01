@@ -1,7 +1,7 @@
 ---
 task_id: "T05"
 title: "Implement unified removal and lifecycle cleanup"
-status: "planned"
+status: "done"
 depends_on: ["T03", "T04"]
 implements: ["FR#19", "AC#5"]
 ---

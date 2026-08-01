@@ -1,6 +1,5 @@
 """Unit tests for Scheduler resource: new schedule() entry point, job groups, convenience wrappers."""
 
-import asyncio
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
@@ -180,36 +179,30 @@ class TestRemoveGroup:
         # dequeue_job called twice
         assert scheduler.scheduler_service.dequeue_job.call_count == 2
 
-    async def test_remove_group_persists_removed_at_for_registered_jobs(self) -> None:
-        """remove_group spawns mark_job_removed for each job with a db_id set.
+    async def test_remove_group_reaches_service_with_registered_jobs(self) -> None:
+        """remove_group delegates every group member (with its assigned db_id) to the
+        unified removal operation (``SchedulerService.dequeue_job()``).
 
-        With async registration, jobs always have db_id set after schedule() returns,
-        so mark_job_removed is always spawned for jobs in the group.
+        With async registration, jobs always have db_id set after schedule() returns.
+        Persisting ``removed_at`` for a registered job is now ``dequeue_job()``'s own
+        responsibility (it spawns the guard-release/persistence tail internally) — see
+        ``TestDequeueJobRemovalPersistence`` in ``test_scheduler_service_dequeue.py`` for
+        coverage of that spawn. This test only proves ``remove_group`` still reaches the
+        service, with the jobs it registered, so that persistence has something to act on.
         """
         scheduler = make_scheduler()
-        # Add a task_bucket mock. Close any coroutine passed to spawn to avoid
-        # "coroutine never awaited" warnings when mark_job_removed returns a real coro.
-        spawned_coroutines: list = []
-
-        def _spawn_and_close(coro, *, name=""):
-            spawned_coroutines.append((coro, name))
-            if asyncio.iscoroutine(coro):
-                coro.close()  # clean up to avoid "never awaited" warnings
-
-        scheduler.scheduler_service.task_bucket = MagicMock()
-        scheduler.scheduler_service.task_bucket.spawn.side_effect = _spawn_and_close
 
         # With async registration, db_id is set by add_job (mock sets it to 1)
-        await scheduler.schedule(noop, Every(hours=1), name="job1", group="morning")
-        await scheduler.schedule(noop, Every(hours=2), name="job2", group="morning")
+        job1 = await scheduler.schedule(noop, Every(hours=1), name="job1", group="morning")
+        job2 = await scheduler.schedule(noop, Every(hours=2), name="job2", group="morning")
+        assert job1.db_id is not None
+        assert job2.db_id is not None
 
         scheduler.remove_group("morning")
 
-        # task_bucket.spawn must have been called once per job with a db_id
-        assert scheduler.scheduler_service.task_bucket.spawn.call_count == 2
-        # Verify the spawn calls used the correct task name
-        for _coro, name in spawned_coroutines:
-            assert name == "scheduler:mark_job_removed"
+        calls = scheduler.scheduler_service.dequeue_job.call_args_list
+        dequeued_jobs = {c.args[0] for c in calls}
+        assert {job1, job2} <= dequeued_jobs
 
     async def test_remove_group_skips_mark_job_removed_when_db_id_none(self) -> None:
         """remove_group does not spawn mark_job_removed for jobs without db_id.

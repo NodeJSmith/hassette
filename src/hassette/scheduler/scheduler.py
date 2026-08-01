@@ -286,14 +286,12 @@ class Scheduler(Resource):
         if existing is not None:
             if if_exists == "replace":
                 self.logger.debug("Replacing existing job '%s' (removing old, registering new)", job.name)
-                # Awaited (not remove_job()'s fire-and-forget spawn): both this write and the
-                # new registration's upsert below target the same DB row via the natural key.
-                # Spawning here would let the new upsert reach the write queue first, and the
-                # old job's removed_at write would then land on the live row.
-                if existing.db_id is not None:
-                    await self.scheduler_service.mark_job_removed(existing.db_id)
-                self.scheduler_service.deregister_job(existing)
-                self.scheduler_service.dequeue_job(existing)
+                # Awaited unified removal (not remove_job()'s fire-and-forget dequeue_job()
+                # spawn): both this write and the new registration's upsert below target the
+                # same DB row via the natural key. Spawning here would let the new upsert
+                # reach the write queue first, and the old job's removed_at write would then
+                # land on the live row.
+                await self.scheduler_service.remove_job(existing)
             elif if_exists == "skip" and existing.matches(job):
                 return existing
             elif if_exists == "skip":
@@ -329,26 +327,27 @@ class Scheduler(Resource):
     async def _rollback_failed_registration(self, job: "Job") -> None:
         """Undo a partial registration after ``scheduler_service.add_job()`` raised.
 
-        A lightweight subset of full job removal: no execution has been spawned yet at
-        registration time, so there is no guard state worth releasing beyond what
-        ``dequeue_job()`` already does and no queued invocation to drain. Removes registry
-        membership (``_jobs_by_id``, if the job reached it), any heap entry, and this
-        scheduler's name/group indexes (via the removal callback ``dequeue_job()`` fires);
-        persists ``removed_at`` when persistence produced a row ID before a later step failed,
-        so a failed registration can never appear live.
+        Delegates to the unified removal operation (``scheduler_service.remove_job()``).
+        In practice this is a lightweight case of it: no execution has been spawned yet at
+        registration time, so there is no guard state worth releasing and no queued
+        invocation to drain. Still removes registry membership (``_jobs_by_id``, if the job
+        reached it), any heap entry, and this scheduler's name/group indexes (via the
+        removal callback the operation fires), and persists ``removed_at`` when persistence
+        produced a row ID before a later step failed, so a failed registration can never
+        appear live.
         """
-        self.scheduler_service.deregister_job(job)
-        self.scheduler_service.dequeue_job(job)
-        if job.db_id is not None:
-            await self.scheduler_service.mark_job_removed(job.db_id)
+        await self.scheduler_service.remove_job(job)
 
     def remove_job(self, job: "Job") -> None:
-        """Remove an individual job's registration and persist the removal to the database.
+        """Remove an individual job's registration via the unified removal operation.
 
         Idempotent: a second removal of the same job is a silent no-op. Raises
-        ``ValueError`` if the job belongs to a different scheduler instance.
-        Spawns a durable ``mark_job_removed`` DB write (when ``db_id`` is set),
-        dequeues the job from the service, and sets ``job._dequeued = True``.
+        ``ValueError`` if the job belongs to a different scheduler instance. Delegates to
+        ``SchedulerService.dequeue_job()`` — the synchronous entry point for the unified
+        removal operation — which removes registry membership, any heap occurrence, and
+        this scheduler's name/group indexes synchronously, and spawns the guard-release/
+        ``removed_at``-persistence tail as a background task on the service's own
+        ``task_bucket`` (so the DB write survives this Scheduler resource's own shutdown).
 
         Must NOT call ``job.remove()`` internally — that delegates back here and
         would cause infinite recursion.
@@ -365,14 +364,6 @@ class Scheduler(Resource):
             raise ValueError(
                 f"remove_job() called with a job belonging to a different scheduler "
                 f"(job owner: {job._scheduler}, this scheduler: {self})"
-            )
-        if job.db_id is not None:
-            # Spawn on scheduler_service.task_bucket (not self.task_bucket) so the
-            # DB write survives Scheduler resource shutdown — the service's lifecycle
-            # extends past the resource's cleanup phase.
-            self.scheduler_service.task_bucket.spawn(
-                self.scheduler_service.mark_job_removed(job.db_id),
-                name="scheduler:mark_job_removed",
             )
         self.scheduler_service.dequeue_job(job)
 

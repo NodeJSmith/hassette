@@ -5,6 +5,7 @@ import asyncio
 import pytest
 
 import hassette.utils.date_utils as date_utils
+from hassette.scheduler import EntityTime, ScheduleStatus
 from hassette.test_utils import wait_for
 
 from .conftest import make_system_config, startup_context
@@ -57,8 +58,8 @@ async def test_run_once_at_time(ha_container: str, tmp_path) -> None:
         await wait_for(lambda: len(fired) >= 1, timeout=8.0, desc="run_once callback to fire at target time")
 
 
-async def test_job_cancellation(ha_container: str, tmp_path) -> None:
-    """A cancelled job does not fire after cancellation."""
+async def test_job_removal(ha_container: str, tmp_path) -> None:
+    """A removed job does not fire after removal."""
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
         scheduler = hassette._scheduler  # pyright: ignore[reportPrivateUsage]
@@ -67,16 +68,16 @@ async def test_job_cancellation(ha_container: str, tmp_path) -> None:
         async def _callback() -> None:
             fired.append(1)
 
-        job = await scheduler.run_in(_callback, 2, name="job_cancellation_run_in")
-        job.cancel()
+        job = await scheduler.run_in(_callback, 2, name="job_removal_run_in")
+        job.remove()
 
         # Wait past the job's scheduled time to confirm it never fired.
         await asyncio.sleep(3)
         assert len(fired) == 0
 
 
-async def test_group_cancellation(ha_container: str, tmp_path) -> None:
-    """All jobs in a group are cancelled before any fires."""
+async def test_group_removal(ha_container: str, tmp_path) -> None:
+    """All jobs in a group are removed before any fires."""
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
         scheduler = hassette._scheduler  # pyright: ignore[reportPrivateUsage]
@@ -85,11 +86,11 @@ async def test_group_cancellation(ha_container: str, tmp_path) -> None:
         async def _callback() -> None:
             fired.append(1)
 
-        await scheduler.run_in(_callback, 2, group="test_group", name="group_cancellation_run_in")
-        await scheduler.run_in(_callback, 3, group="test_group", name="group_cancellation_run_in_2")
-        await scheduler.run_in(_callback, 4, group="test_group", name="group_cancellation_run_in_3")
+        await scheduler.run_in(_callback, 2, group="test_group", name="group_removal_run_in")
+        await scheduler.run_in(_callback, 3, group="test_group", name="group_removal_run_in_2")
+        await scheduler.run_in(_callback, 4, group="test_group", name="group_removal_run_in_3")
 
-        scheduler.cancel_group("test_group")
+        scheduler.remove_group("test_group")
 
         # Wait past the last job's scheduled time to confirm none fired.
         await asyncio.sleep(5)
@@ -138,6 +139,64 @@ async def test_run_cron_fires(ha_container: str, tmp_path) -> None:
         # 6-field cron: every 2 seconds (minute hour dom month dow second)
         await scheduler.run_cron(_callback, "* * * * * */2", name="run_cron_fires_run_cron")
         await wait_for(lambda: len(fired) >= 1, timeout=10.0, desc="cron callback to fire")
+
+
+async def test_owner_cleanup_removes_all_job_statuses(ha_container: str, tmp_path) -> None:
+    """Scheduler.remove_all_jobs() (the owner-cleanup path used by on_shutdown() and app
+    reload) removes every live registration regardless of schedule status — scheduled,
+    completed, waiting, and manual — not just heap-resident scheduled jobs. Confirms via
+    the persisted ``removed_at`` column, since waiting/completed/manual jobs never touch
+    the heap and would be invisible to a heap-only removal scan.
+    """
+    config = make_system_config(ha_container, tmp_path)
+    async with startup_context(config) as hassette:
+        scheduler = hassette._scheduler  # pyright: ignore[reportPrivateUsage]
+
+        async def _noop() -> None:
+            pass
+
+        scheduled_job = await scheduler.run_every(_noop, seconds=3600, name="owner_cleanup_scheduled")
+        assert scheduled_job.schedule_status is ScheduleStatus.SCHEDULED
+
+        completed_job = await scheduler.run_in(_noop, 1, name="owner_cleanup_completed")
+        await wait_for(
+            lambda: completed_job.schedule_status is ScheduleStatus.COMPLETED,
+            timeout=5.0,
+            desc="one-shot job to complete",
+        )
+
+        waiting_job = await scheduler.schedule(
+            _noop, EntityTime("sensor.owner_cleanup_nonexistent"), name="owner_cleanup_waiting"
+        )
+        assert waiting_job.schedule_status is ScheduleStatus.WAITING
+
+        manual_job = await scheduler.register(_noop, name="owner_cleanup_manual")
+        assert manual_job.schedule_status is ScheduleStatus.MANUAL
+
+        jobs = (scheduled_job, completed_job, waiting_job, manual_job)
+        db_ids = [job.db_id for job in jobs]
+        assert all(db_id is not None for db_id in db_ids), "every job must have persisted before cleanup"
+
+        await scheduler.remove_all_jobs()
+
+        for job in jobs:
+            assert job._dequeued is True  # pyright: ignore[reportPrivateUsage]
+
+        async def _all_removed() -> bool:
+            placeholders = ",".join("?" for _ in db_ids)
+            async with hassette.database_service.read_db.execute(
+                f"SELECT COUNT(*) FROM scheduled_jobs WHERE id IN ({placeholders}) AND removed_at IS NULL",
+                db_ids,
+            ) as cursor:
+                row = await cursor.fetchone()
+                return row is not None and row[0] == 0
+
+        await wait_for(
+            _all_removed,
+            timeout=5.0,
+            interval=0.1,
+            desc="all four jobs (scheduled/completed/waiting/manual) to have removed_at set",
+        )
 
 
 async def test_jitter_applied(ha_container: str, tmp_path) -> None:

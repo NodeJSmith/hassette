@@ -733,12 +733,15 @@ class SchedulerSyncFacade(Resource):
         return self._scheduler.on_error(handler)
 
     def remove_job(self, job: "Job") -> None:
-        """Remove an individual job's registration and persist the removal to the database.
+        """Remove an individual job's registration via the unified removal operation.
 
         Idempotent: a second removal of the same job is a silent no-op. Raises
-        ``ValueError`` if the job belongs to a different scheduler instance.
-        Spawns a durable ``mark_job_removed`` DB write (when ``db_id`` is set),
-        dequeues the job from the service, and sets ``job._dequeued = True``.
+        ``ValueError`` if the job belongs to a different scheduler instance. Delegates to
+        ``SchedulerService.dequeue_job()`` — the synchronous entry point for the unified
+        removal operation — which removes registry membership, any heap occurrence, and
+        this scheduler's name/group indexes synchronously, and spawns the guard-release/
+        ``removed_at``-persistence tail as a background task on the service's own
+        ``task_bucket`` (so the DB write survives this Scheduler resource's own shutdown).
 
         Must NOT call ``job.remove()`` internally — that delegates back here and
         would cause infinite recursion.

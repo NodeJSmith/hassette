@@ -570,11 +570,11 @@ async def test_queued_mode_serializes_overrun() -> None:
         assert run_order.index(1) < run_order.index(2), "Invocations should run in arrival order"
 
 
-# queued mode: QUEUED_ACCEPTED + cancel does not hang dispatch task
+# queued mode: QUEUED_ACCEPTED + removal does not hang dispatch task
 
 
-async def test_queued_accepted_then_cancel_does_not_hang() -> None:
-    """A queued invocation accepted (QUEUED_ACCEPTED) before the job is cancelled must not
+async def test_queued_accepted_then_remove_does_not_hang() -> None:
+    """A queued invocation accepted (QUEUED_ACCEPTED) before the job is removed must not
     leave the dispatch task hanging forever on ``await done``.
 
     Without pending_done drain: guard.release() drops the queued factory without calling
@@ -615,7 +615,7 @@ async def test_queued_accepted_then_cancel_does_not_hang() -> None:
         dispatch2 = asyncio.create_task(scheduler_service.dispatch_and_log(next_job))
         await asyncio.sleep(0)  # let dispatch2 park on await done
 
-        # Cancel the job while dispatch2 is parked on QUEUED_ACCEPTED.
+        # Remove the job while dispatch2 is parked on QUEUED_ACCEPTED.
         # dequeue_job → guard.release() drops the queued factory → drain_pending_done
         # must resolve done so dispatch2 returns promptly (not hang).
         harness.app.scheduler.remove_job(job)
@@ -854,11 +854,11 @@ async def test_dequeued_race_in_lock_prevents_spurious_repush() -> None:
         )
 
 
-# Guard release on cancel clears in-flight invocation
+# Guard release on removal clears in-flight invocation
 
 
-async def test_guard_release_on_cancel_clears_in_flight() -> None:
-    """Cancelling a job with an in-flight invocation releases its guard."""
+async def test_guard_release_on_remove_clears_in_flight() -> None:
+    """Removing a job with an in-flight invocation releases its guard."""
 
     class _HoldingApp(App[_OverlapConfig]):
         started: asyncio.Event
@@ -893,7 +893,7 @@ async def test_guard_release_on_cancel_clears_in_flight() -> None:
         # Guard should be holding current_task
         assert job.guard.is_running(), "Guard should be running"
 
-        # Cancel the job — should release the guard
+        # Remove the job — should release the guard
         scheduler.remove_job(job)
         await job.guard.release()  # explicit release to cancel in-flight
 
@@ -905,6 +905,34 @@ async def test_guard_release_on_cancel_clears_in_flight() -> None:
         dispatch_task.cancel()
         with contextlib.suppress(asyncio.CancelledError, TimeoutError):
             await asyncio.wait_for(dispatch_task, timeout=1.0)
+
+
+# Removing a COMPLETED job (never heap-resident) still releases its guard
+
+
+async def test_remove_completed_job_releases_guard_without_heap_entry() -> None:
+    """Removing an already-``COMPLETED`` job (never on the heap) still releases its guard.
+
+    ``dequeue_job()``'s heap removal returns ``False`` for a completed job — the guard
+    release/drain tail must not be skipped just because there was no heap occurrence to
+    remove; the unified removal operation runs it unconditionally.
+    """
+    async with AppTestHarness(_RunOnceModeApp, config={}) as harness:
+        scheduler = harness.app.scheduler
+        job = next(j for j in scheduler.list_jobs() if j.name == "runonce_mode_job")
+
+        harness.freeze_time(job.next_run.add(seconds=1))
+        await harness.trigger_due_jobs()
+        assert job.schedule_status is ScheduleStatus.COMPLETED
+        assert not job.guard.is_running(), "guard should already be free after the one-shot fire completed"
+
+        scheduler.remove_job(job)
+
+        assert job._dequeued is True
+        assert not job.guard.is_running(), "guard must remain released after removing a completed job"
+
+        # Idempotent: removing an already-removed job is a silent no-op, not a crash.
+        scheduler.remove_job(job)
 
 
 # Stall watchdog emits WARNING for non-parallel modes; parallel mode has no watchdog

@@ -772,13 +772,71 @@ class SchedulerService(Service):
         """
         return self.task_bucket.spawn(self._remove_jobs_by_owner(owner), name="scheduler:remove_jobs_by_owner")
 
-    def dequeue_job(self, job: "Job") -> bool:
-        """Remove a job from the scheduler synchronously, fire removal callbacks, and kick.
+    def _remove_from_live_state(self, job: "Job") -> bool:
+        """Synchronous core of the unified removal operation: registry, heap, callbacks.
 
-        Calls ``_ScheduledJobQueue.remove_item_sync`` directly (no lock). Fires
-        ``fire_removal_callbacks`` unconditionally — even when the job was not in
-        the heap — to prevent dict leaks when the serve loop already popped the job.
-        Calls ``kick()`` only when the job was actually removed from the heap.
+        Removes ``job`` from the live registry (``_jobs_by_id``, identity-checked via
+        ``deregister_job``) first, so no concurrent ``submit_job()`` call can be accepted
+        once this returns. Then marks the private ``_dequeued`` flag, removes any heap
+        occurrence via ``_ScheduledJobQueue.remove_item_sync`` (no lock), kicks the
+        scheduler when the job was actually heap-resident, and fires per-owner removal
+        callbacks unconditionally — even when the job was never on the heap (waiting,
+        completed, manual, or already popped by the serve loop) — to prevent dict leaks
+        in ``Scheduler._jobs_by_name``/``_jobs_by_group``.
+
+        Every step here runs to completion with no ``await`` point, which is required so
+        callers with no way to await a removal (``dequeue_job()``'s synchronous entry
+        point, used by ``Job.remove()``/``Scheduler.remove_job()``) still get the
+        no-new-submission and index-cleanup guarantees synchronously, before this method
+        returns.
+
+        Args:
+            job: The job to remove from live state.
+
+        Returns:
+            True if the job was found and removed from the heap, False otherwise.
+        """
+        self.deregister_job(job)
+        removed_from_heap = self._job_queue.remove_item_sync(job)
+        if removed_from_heap:
+            self.logger.debug("Dequeued job: %s", job)
+            self.kick()
+        else:
+            self.logger.debug("Job not in heap (already popped by serve loop, or never enqueued): %s", job)
+        # Set _dequeued unconditionally — even when the job was already popped
+        # from the heap by the serve loop. This prevents the dispatch race
+        # (guard in dispatch_and_log) and makes removal idempotent.
+        job._dequeued = True
+        self.fire_removal_callbacks([job])
+        return removed_from_heap
+
+    async def _finish_removal(self, job: "Job") -> None:
+        """Async tail of the unified removal operation: guard release, drain, persistence.
+
+        Releases ``job``'s ``ExecutionModeGuard`` — cancels an active ``single``/
+        ``restart`` invocation, drains a queued ``queued``-mode factory (so a dispatch task
+        parked on ``await done`` unwinds instead of hanging — see
+        ``run_through_guard``/``drain_pending_done``), or releases every active task for
+        ``parallel``. Then persists ``removed_at`` when the job was ever assigned a
+        ``db_id`` — no-op for a job whose registration never reached persistence.
+
+        Args:
+            job: The job whose guard/pending futures/persistence should be finalized.
+        """
+        await job.guard.release()
+        drain_pending_done(job.pending_done)
+        if job.db_id is not None:
+            await self.mark_job_removed(job.db_id)
+
+    def dequeue_job(self, job: "Job") -> bool:
+        """Synchronous entry point for the unified removal operation.
+
+        Used by ``Scheduler.remove_job()``/``remove_group()`` — the public, non-awaited
+        removal API — which has no way to await the guard-release/persistence tail. Runs
+        ``_remove_from_live_state()`` inline (registry, heap, ``_dequeued`` flag,
+        callbacks) and spawns ``_finish_removal()`` as a fire-and-forget task on this
+        service's own ``task_bucket`` so the guard release and ``removed_at`` write survive
+        the caller's own shutdown/cancellation window.
 
         Args:
             job: The job to remove.
@@ -786,29 +844,32 @@ class SchedulerService(Service):
         Returns:
             True if the job was found and removed from the heap, False otherwise.
         """
-        removed = self._job_queue.remove_item_sync(job)
-        if removed:
-            self.logger.debug("Dequeued job: %s", job)
-            self.kick()
-        else:
-            self.logger.debug("Job not in heap (already popped by serve loop): %s", job)
-        # Set _dequeued unconditionally — even when the job was already popped
-        # from the heap by the serve loop. This prevents the dispatch race
-        # (guard in dispatch_and_log) and makes cancel idempotent.
-        job._dequeued = True
+        removed_from_heap = self._remove_from_live_state(job)
+        self.task_bucket.spawn(self._finish_removal(job), name="scheduler:guard_release")
+        return removed_from_heap
 
-        # Release guard: cancels in-flight invocation, drops queued factories.
-        # dequeue_job is synchronous, so spawn the release as a fire-and-forget task.
-        # drain_pending_done runs after the release completes so QUEUED_ACCEPTED dispatch
-        # tasks unwind. The drain_next/release interleave edge this detached release exposes
-        # is described in run_through_guard's docstring (execution_mode.py); fix tracked in #1099.
-        async def _release_and_drain() -> None:
-            await job.guard.release()
-            drain_pending_done(job.pending_done)
+    async def remove_job(self, job: "Job") -> bool:
+        """Awaited entry point for the unified removal operation.
 
-        self.task_bucket.spawn(_release_and_drain(), name="scheduler:guard_release")
-        self.fire_removal_callbacks([job])
-        return removed
+        Used where the caller must observe the guard-release/persistence tail complete
+        before proceeding: destructive replacement (``if_exists="replace"``, which must
+        await the old job's ``removed_at`` write landing before issuing the new
+        registration's upsert against the same natural-key row — see
+        ``Scheduler._add_job()``), registration rollback (``_rollback_failed_registration``),
+        and owner cleanup (``remove_jobs()``, which awaits this per job).
+
+        Not to be confused with ``_ScheduledJobQueue.remove_job``, which only touches the
+        heap under its own lock.
+
+        Args:
+            job: The job to remove.
+
+        Returns:
+            True if the job was found and removed from the heap, False otherwise.
+        """
+        removed_from_heap = self._remove_from_live_state(job)
+        await self._finish_removal(job)
+        return removed_from_heap
 
     async def mark_job_removed(self, db_id: int) -> None:
         """Persist durable removal state for a job registration.
@@ -856,24 +917,11 @@ class SchedulerService(Service):
         return self.task_bucket.spawn(self._remove_jobs(jobs), name="scheduler:remove_jobs")
 
     async def _remove_jobs(self, jobs: "list[Job]") -> None:
-        """Async body for ``remove_jobs()`` — see that method for the removal contract."""
-        on_heap: list[Job] = []
+        """Async body for ``remove_jobs()``: removes each job via the unified removal
+        operation (``remove_job()``) — see that method for the removal contract.
+        """
         for job in jobs:
-            self.deregister_job(job)
-            if self._job_queue.remove_item_sync(job):
-                on_heap.append(job)
-            job._dequeued = True
-
-        if on_heap:
-            self.kick()
-
-        for job in jobs:
-            await job.guard.release()
-            drain_pending_done(job.pending_done)
-            if job.db_id is not None:
-                await self.mark_job_removed(job.db_id)
-
-        self.fire_removal_callbacks(jobs)
+            await self.remove_job(job)
 
     def submit_job(self, job: "Job") -> None:
         """Submit one manual invocation of ``job``. Fire-and-observe: returns immediately.
@@ -1010,7 +1058,11 @@ class _ScheduledJobQueue(Resource):
         return removed
 
     async def remove_job(self, job: "Job") -> bool:
-        """Remove a specific job if it exists."""
+        """Remove a specific job if it exists.
+
+        Not to be confused with ``SchedulerService.remove_job``, which performs the full
+        registry+heap+guard+persistence removal operation.
+        """
         async with self._lock:
             removed = self._queue.remove_item(job)
 
