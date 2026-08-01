@@ -70,6 +70,7 @@ CANONICAL_PROTECTED: dict[type, set[str]] = {
         "add_job",
         # Shape B delegates
         "schedule",
+        "register",
         "run_in",
         "run_once",
         "run_every",
@@ -433,6 +434,7 @@ def _sched_call(method_name: str):
     _every = _Every(hours=1)
     _calls = {
         "schedule": lambda s: s.schedule(noop, _every, name="n"),
+        "register": lambda s: s.register(noop, name="n"),
         "run_in": lambda s: s.run_in(noop, 30, name="n"),
         "run_once": lambda s: s.run_once(noop, at="23:59", name="n"),
         "run_every": lambda s: s.run_every(noop, minutes=5, name="n"),

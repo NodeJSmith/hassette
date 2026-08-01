@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Add live registry and registration paths"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02"]
 implements: ["FR#1", "FR#2", "FR#5", "FR#6", "FR#7", "FR#8", "FR#20", "FR#21", "AC#1", "AC#2"]
 ---
@@ -95,7 +95,7 @@ See design doc: Architecture > Registry Separate From Heap, Registration, Entity
 - [ ] FR#6: The heap contains only jobs with `schedule_status == SCHEDULED` and concrete timing.
 - [ ] FR#7: An `EntityTime` job with unavailable source is `WAITING`, registered, watched, and outside the heap.
 - [ ] FR#8: An `EntityTime` job transitions between `WAITING` and `SCHEDULED` when its entity value changes, without losing registration or missing a change during setup.
-- [ ] FR#20: `if_exists="replace"` awaits the old job's removal write before the new upsert. Replacement failure leaves no old registration and no partial new one.
-- [ ] FR#21: `_remove_all_jobs()` removes every owned job including waiting, completed, and manual jobs.
+- [x] FR#20: `if_exists="replace"` awaits the old job's removal write before the new upsert. Replacement failure leaves no old registration and no partial new one. Covered by `test_replace_failure_leaves_no_old_and_no_partial_new` and `test_rollback_removes_generic_job_after_post_persist_failure` in `tests/unit/test_scheduler_job_names.py`.
+- [x] FR#21: `remove_all_jobs()` removes every owned job including waiting, completed, and manual jobs. (CONTESTED, resolved 2026-07-31: initial implementation covered only the normal shutdown path; `AppLifecycleService.cleanup_failed_instance()`'s reload/failure-cleanup path called the heap-only `remove_jobs_by_owner()`, missing waiting/completed/manual jobs. Fixed by routing that call site through `Scheduler.remove_all_jobs()` — renamed public during this fix since it now has 3+ cross-file callers — the same registry-aware path used for normal shutdown.)
 - [ ] AC#1: Tests demonstrate `register()` returns a persisted `Job` with manual status and no heap entry.
 - [ ] AC#2: Tests demonstrate waiting EntityTime registration, invalid/valid transitions, watcher cleanup, and race reconciliation.

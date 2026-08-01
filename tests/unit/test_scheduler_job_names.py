@@ -1,5 +1,7 @@
 """Tests for Scheduler job name uniqueness validation."""
 
+from unittest.mock import AsyncMock
+
 import pytest
 
 from hassette.exceptions import SchedulerNameRequiredError
@@ -43,7 +45,7 @@ class TestJobNameUniqueness:
         await scheduler.add_job(make_scheduled_job(name="b"))
         assert set(scheduler._jobs_by_name) == {"a", "b"}
 
-        scheduler._remove_all_jobs()
+        scheduler.remove_all_jobs()
         assert scheduler._jobs_by_name == {}
 
 
@@ -165,6 +167,82 @@ class TestIfExistsReplace:
 
         assert "old_group" not in scheduler._jobs_by_group or scheduler._jobs_by_group["old_group"] == set()
         assert new_job in scheduler._jobs_by_group["new_group"]
+
+    async def test_replace_failure_leaves_no_old_and_no_partial_new(self) -> None:
+        """When the new registration's ``add_job()`` raises after the old job's removal
+        write has already succeeded, the old registration must be gone (removed) and the
+        new registration must never become live (no partial state, no residual name/group
+        entry). Also asserts the write-ordering guarantee that replacement depends on: the
+        old job's ``mark_job_removed`` write is awaited strictly before the new job's
+        ``add_job`` upsert is attempted — the exact fire-and-forget race this behavior
+        exists to prevent.
+        """
+        scheduler = make_scheduler(wire_dequeue=True)
+        fn_old = lambda: None  # noqa: E731
+        fn_new = lambda: None  # noqa: E731
+        old_job = await scheduler.add_job(make_scheduled_job(name="sensor_check", job=fn_old))
+        assert old_job.db_id is not None
+
+        call_order: list[str] = []
+
+        async def _tracking_mark_job_removed(db_id: int) -> None:
+            call_order.append(f"mark_job_removed:{db_id}")
+
+        async def _failing_add_job(job) -> None:
+            call_order.append(f"add_job:{job.name}")
+            raise RuntimeError("simulated new-registration failure")
+
+        scheduler.scheduler_service.mark_job_removed = AsyncMock(side_effect=_tracking_mark_job_removed)
+        scheduler.scheduler_service.add_job = AsyncMock(side_effect=_failing_add_job)
+
+        new_job = make_scheduled_job(name="sensor_check", job=fn_new)
+
+        with pytest.raises(RuntimeError, match="simulated new-registration failure"):
+            await scheduler.add_job(new_job, if_exists="replace")
+
+        # Write-ordering guarantee: old removal write awaited before the new upsert is attempted.
+        assert call_order == [f"mark_job_removed:{old_job.db_id}", "add_job:sensor_check"]
+
+        # Old registration is gone.
+        assert old_job._dequeued is True
+
+        # New registration never became live: its add_job() raised before mark_registered()
+        # ran, so it has no db_id (no partial DB row), and the name is freed entirely (both
+        # the old and the failed-new job are gone from the local indexes).
+        assert new_job.db_id is None
+        assert "sensor_check" not in scheduler._jobs_by_name
+
+        # Rollback ran for the failed new job specifically (identity, not just name).
+        scheduler.scheduler_service.deregister_job.assert_any_call(new_job)
+        scheduler.scheduler_service.dequeue_job.assert_any_call(new_job)
+
+    async def test_rollback_removes_generic_job_after_post_persist_failure(self) -> None:
+        """Generic (non-EntityTime, non-replace) rollback path: a plain registration whose
+        persistence succeeds (``db_id`` assigned) but a later registration step fails must
+        leave no registry, group, or name residue, and the persisted row must be marked
+        removed via ``mark_job_removed``. Exercises ``Scheduler._rollback_failed_registration()``
+        through the ordinary ``add_job()`` path (no ``if_exists='replace'`` involved).
+        """
+        scheduler = make_scheduler(wire_dequeue=True)
+        fn = lambda: None  # noqa: E731
+
+        async def _persist_then_fail(job) -> None:
+            job.mark_registered(42)  # simulates persist + registry insertion succeeding
+            raise RuntimeError("simulated enqueue failure")
+
+        scheduler.scheduler_service.add_job = AsyncMock(side_effect=_persist_then_fail)
+
+        job = make_scheduled_job(name="flaky_job", job=fn, group="monitors")
+
+        with pytest.raises(RuntimeError, match="simulated enqueue failure"):
+            await scheduler.add_job(job)
+
+        assert job.db_id == 42
+        assert "flaky_job" not in scheduler._jobs_by_name
+        assert job not in scheduler._jobs_by_group.get("monitors", set())
+        scheduler.scheduler_service.deregister_job.assert_called_once_with(job)
+        scheduler.scheduler_service.dequeue_job.assert_called_once_with(job)
+        scheduler.scheduler_service.mark_job_removed.assert_awaited_once_with(42)
 
 
 class TestSchedulerNameRequired:

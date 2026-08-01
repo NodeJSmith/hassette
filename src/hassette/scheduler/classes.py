@@ -21,6 +21,7 @@ if typing.TYPE_CHECKING:
 
     from hassette.di import CallableInvoker
     from hassette.scheduler.scheduler import Scheduler
+    from hassette.scheduler.triggers import _WaitingSentinel
     from hassette.types import JobCallable, SchedulerServiceProtocol, TriggerProtocol
     from hassette.types.types import SchedulerErrorHandlerType, SchedulerPredicate
 
@@ -326,8 +327,15 @@ class Job:
     _dequeued: bool = field(default=False, repr=False, compare=False)
     """True after the job has been synchronously removed from the heap via dequeue_job()."""
 
-    _pending_next_run: ZonedDateTime | None = field(default=None, repr=False, compare=False)
-    """Event-derived next run to apply when the job was popped before a reschedule landed."""
+    _pending_entity_time_transition: "ZonedDateTime | _WaitingSentinel | None" = field(
+        default=None, repr=False, compare=False
+    )
+    """Event-derived EntityTime transition to apply once the job's own due fire (which popped
+    it from the heap) finishes. Concrete when the entity now names a later time; ``WAITING``
+    when it lost its usable time entirely. Only ever set for a ``SCHEDULED`` job caught
+    mid-dispatch — see ``SchedulerService.reschedule_job()``, which applies the transition
+    immediately (no pending state) for a job in any other status, since there is no
+    in-flight dispatch to race in that case."""
 
     pending_done: "set[asyncio.Future[None]]" = field(default_factory=set, init=False, repr=False, compare=False)
     """Unresolved per-invocation completion futures for non-parallel modes.

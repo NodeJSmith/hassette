@@ -194,7 +194,27 @@ class AppLifecycleService(Resource):
                         exc_info=True,
                     )
                 try:
-                    await self.hassette.scheduler_service.remove_jobs_by_owner(inst.scheduler.owner_id)
+                    # Goes straight to Scheduler.remove_all_jobs() rather than
+                    # SchedulerService.remove_jobs_by_owner() — the per-app Scheduler already
+                    # holds its owned jobs (including waiting, completed, and manual jobs that
+                    # never touch the heap) in _jobs_by_name, and remove_all_jobs() is the
+                    # same identity-checked, registry-aware path the normal shutdown uses
+                    # (Scheduler.on_shutdown). remove_jobs_by_owner()'s heap-only scan would
+                    # miss those jobs and leak their entity-watch subscriptions.
+                    #
+                    # Also deregisters the removal callback, mirroring on_shutdown()'s second
+                    # statement — remove_all_jobs() itself never does this (test_utils/reset.py
+                    # calls it on a Scheduler instance meant to be reused across tests, where
+                    # deregistering would silently break future job removals on that instance).
+                    # A failed-init instance is discarded, not reused: Scheduler.__init__
+                    # registers this callback unconditionally, before on_initialize ever runs,
+                    # so a failed instance always has one registered, and nothing here will
+                    # reuse this Scheduler object afterward — skipping the deregister would
+                    # leak the stale callback (and the Scheduler it closes over) in
+                    # SchedulerService._removal_callbacks until/unless a future instance for
+                    # the same owner_id happens to overwrite that dict entry.
+                    await inst.scheduler.remove_all_jobs()
+                    inst.scheduler.scheduler_service.deregister_removal_callback(inst.scheduler.owner_id)
                 except Exception:
                     self.logger.warning(
                         "Job cleanup failed for instance '%s'",

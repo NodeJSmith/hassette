@@ -5,7 +5,7 @@ from whenever import ZonedDateTime
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
 from hassette.commands import ExecuteJob
-from hassette.scheduler import ScheduledJob
+from hassette.scheduler import Job
 from hassette.scheduler.triggers import Every
 from hassette.test_utils.app_harness import AppTestHarness
 from hassette.test_utils.harness import HassetteHarness
@@ -26,7 +26,7 @@ async def test_run_in_passes_args_kwargs_async(hassette_with_scheduler: Hassette
     )
 
     await asyncio.wait_for(job_executed.wait(), timeout=1)
-    scheduled_job.cancel()
+    scheduled_job.remove()
 
     assert captured_arguments == [(1, 2, True)], f"Expected [(1, 2, True)], got {captured_arguments}"
 
@@ -46,17 +46,17 @@ async def test_run_in_passes_args_kwargs_sync(hassette_with_scheduler: HassetteH
     )
 
     await asyncio.wait_for(job_executed.wait(), timeout=1)
-    scheduled_job.cancel()
+    scheduled_job.remove()
 
     assert captured_arguments == [("sensor", 3)], f"Expected [('sensor', 3)], got {captured_arguments}"
 
 
 def test_scheduled_job_copies_args_kwargs() -> None:
-    """ScheduledJob stores copies so external mutations do not leak in."""
+    """Job stores copies so external mutations do not leak in."""
     args = [1, 2]
     kwargs = {"alpha": 99}
 
-    job = ScheduledJob(
+    job = Job(
         owner_id="owner",
         next_run=ZonedDateTime.from_system_tz(2030, 1, 1, 0, 0, 0),
         job=lambda *a, **kw: None,  # noqa
@@ -100,7 +100,7 @@ async def test_run_job_calls_executor(hassette_with_scheduler: HassetteHarness) 
     scheduled_job.mark_registered(99)
 
     await asyncio.wait_for(job_executed.wait(), timeout=1)
-    scheduled_job.cancel()
+    scheduled_job.remove()
 
     assert len(executed_cmds) == 1, f"Expected executor.execute() called once, got {len(executed_cmds)} calls"
     assert isinstance(executed_cmds[0], ExecuteJob), "Expected ExecuteJob command"
@@ -123,7 +123,7 @@ async def test_run_job_non_app_routes_through_executor(hassette_with_scheduler: 
     )
 
     await asyncio.wait_for(job_executed.wait(), timeout=1)
-    scheduled_job.cancel()
+    scheduled_job.remove()
 
     executor.execute.assert_called_once()
     cmd = executor.execute.call_args[0][0]
@@ -161,7 +161,7 @@ async def test_job_registration_sets_db_id(hassette_with_scheduler: HassetteHarn
         assert scheduled_job.db_id is not None, "job.db_id should be set immediately after await run_in() returns"
         assert scheduled_job.db_id == db_id, f"Expected db_id={db_id}, got {scheduled_job.db_id}"
 
-        scheduled_job.cancel()
+        scheduled_job.remove()
     finally:
         executor.register_job.side_effect = original_side_effect
         executor.register_job.return_value = original_return_value
@@ -197,8 +197,8 @@ async def test_jobs_execute_in_run_order(hassette_with_scheduler: HassetteHarnes
 
 
 def test_scheduled_job_has_app_key_and_instance_index() -> None:
-    """Create a ScheduledJob with app_key and instance_index, verify fields are set."""
-    job = ScheduledJob(
+    """Create a Job with app_key and instance_index, verify fields are set."""
+    job = Job(
         owner_id="MyApp.MyApp.0",
         next_run=ZonedDateTime.from_system_tz(2030, 1, 1, 0, 0, 0),
         job=lambda: None,
@@ -212,8 +212,8 @@ def test_scheduled_job_has_app_key_and_instance_index() -> None:
 
 
 def test_scheduled_job_defaults_empty_app_key() -> None:
-    """Create a ScheduledJob without app_key, verify it defaults to empty string."""
-    job = ScheduledJob(
+    """Create a Job without app_key, verify it defaults to empty string."""
+    job = Job(
         owner_id="test",
         next_run=ZonedDateTime.from_system_tz(2030, 1, 1, 0, 0, 0),
         job=lambda: None,
@@ -225,7 +225,7 @@ def test_scheduled_job_defaults_empty_app_key() -> None:
 
 def test_scheduled_job_mark_registered_sets_db_id() -> None:
     """mark_registered() sets db_id on first call."""
-    job = ScheduledJob(
+    job = Job(
         owner_id="test",
         next_run=ZonedDateTime.from_system_tz(2030, 1, 1, 0, 0, 0),
         job=lambda: None,
@@ -238,7 +238,7 @@ def test_scheduled_job_mark_registered_sets_db_id() -> None:
 
 def test_scheduled_job_mark_registered_keeps_original_on_double_call() -> None:
     """mark_registered() keeps the original db_id when called a second time."""
-    job = ScheduledJob(
+    job = Job(
         owner_id="test",
         next_run=ZonedDateTime.from_system_tz(2030, 1, 1, 0, 0, 0),
         job=lambda: None,
@@ -380,8 +380,8 @@ async def test_jitter_offset_applied_to_sort_index() -> None:
         assert offset_seconds <= 60, f"sort_index offset ({offset_seconds:.2f}s) exceeds jitter bound (60s)"
 
 
-async def test_group_cancel_removes_all_members() -> None:
-    """cancel_group marks all group members as cancelled and removes from list_jobs."""
+async def test_group_remove_removes_all_members() -> None:
+    """remove_group marks all group members as cancelled and removes from list_jobs."""
     async with AppTestHarness(_GroupApp, config={}) as harness:
         scheduler = harness.app.scheduler
 
@@ -390,7 +390,7 @@ async def test_group_cancel_removes_all_members() -> None:
         assert len(group_jobs) == 3, f"Expected 3 jobs in 'morning' group, got {len(group_jobs)}"
 
         # Cancel the group
-        scheduler.cancel_group("morning")
+        scheduler.remove_group("morning")
 
         # All jobs should be absent from list_jobs (behaviorally cancelled)
         remaining = scheduler.list_jobs(group="morning")
@@ -398,7 +398,7 @@ async def test_group_cancel_removes_all_members() -> None:
 
         all_jobs = scheduler.list_jobs()
         for job in group_jobs:
-            assert job not in all_jobs, f"Job {job.name} should not be in list_jobs() after cancel_group"
+            assert job not in all_jobs, f"Job {job.name} should not be in list_jobs() after remove_group"
 
 
 async def test_once_job_removed_from_group_after_exhaustion() -> None:
@@ -429,11 +429,11 @@ async def test_once_job_removed_from_group_after_exhaustion() -> None:
         assert any(j.name == "recurring_in_group" for j in group_after), "Recurring job should remain in group"
 
 
-async def test_job_cancel_via_back_reference_persists_cancelled_at(hassette_with_scheduler: HassetteHarness) -> None:
-    """job.cancel() delegates to Scheduler.cancel_job(), which spawns mark_job_cancelled(db_id).
+async def test_job_remove_via_back_reference_persists_removed_at(hassette_with_scheduler: HassetteHarness) -> None:
+    """job.remove() delegates to Scheduler.remove_job(), which spawns mark_job_removed(db_id).
 
     The back-reference cancel path produces a durable DB write
-    (cancelled_at IS NOT NULL). Verified via the mock_executor call record since
+    (removed_at IS NOT NULL). Verified via the mock_executor call record since
     the integration harness uses a mock executor at the repository boundary.
     """
     scheduler_service = hassette_with_scheduler.scheduler_service
@@ -441,7 +441,7 @@ async def test_job_cancel_via_back_reference_persists_cancelled_at(hassette_with
     executor = scheduler_service._executor
 
     # Reset call history so we only see calls from this test
-    executor.mark_job_cancelled.reset_mock()
+    executor.mark_job_removed.reset_mock()
 
     job_done = asyncio.Event()
 
@@ -455,31 +455,31 @@ async def test_job_cancel_via_back_reference_persists_cancelled_at(hassette_with
     assert scheduled_job.db_id is not None, "db_id should be set by async registration"
     registered_db_id = scheduled_job.db_id
 
-    # Cancel via the back-reference (job.cancel() → scheduler.cancel_job())
-    scheduled_job.cancel()
+    # Cancel via the back-reference (job.remove() → scheduler.remove_job())
+    scheduled_job.remove()
 
-    # Give the spawned mark_job_cancelled task a chance to execute
+    # Give the spawned mark_job_removed task a chance to execute
     await asyncio.sleep(0)
 
-    # Verify mark_job_cancelled was called with the db_id set at registration
-    executor.mark_job_cancelled.assert_called_once_with(registered_db_id)
+    # Verify mark_job_removed was called with the db_id set at registration
+    executor.mark_job_removed.assert_called_once_with(registered_db_id)
 
     # Verify the job is dequeued (no longer in the scheduler)
     remaining = hassette_with_scheduler.scheduler.list_jobs()
     assert not any(j is scheduled_job for j in remaining), "Cancelled job should be removed from scheduler"
 
 
-async def test_cancel_before_db_id_set_does_not_raise(hassette_with_scheduler: HassetteHarness) -> None:
-    """job.cancel() does not raise when db_id is None (registration not yet complete).
+async def test_remove_before_db_id_set_does_not_raise(hassette_with_scheduler: HassetteHarness) -> None:
+    """job.remove() does not raise when db_id is None (registration not yet complete).
 
     The cancel path is safe to call before DB registration completes.
-    No mark_job_cancelled DB write should be spawned when db_id is None.
+    No mark_job_removed DB write should be spawned when db_id is None.
     """
     scheduler_service = hassette_with_scheduler.scheduler_service
     assert scheduler_service is not None
     executor = scheduler_service._executor
 
-    executor.mark_job_cancelled.reset_mock()
+    executor.mark_job_removed.reset_mock()
 
     async def target() -> None:
         pass
@@ -501,10 +501,10 @@ async def test_cancel_before_db_id_set_does_not_raise(hassette_with_scheduler: H
         assert scheduled_job.db_id is None, "db_id should be None when register_job returns None"
 
         # Cancel via back-reference — must not raise
-        scheduled_job.cancel()
+        scheduled_job.remove()
 
         # No DB write should be spawned (db_id is None)
-        executor.mark_job_cancelled.assert_not_called()
+        executor.mark_job_removed.assert_not_called()
     finally:
         executor.register_job.side_effect = original_side_effect
         executor.register_job.return_value = original_return_value
@@ -545,7 +545,7 @@ async def test_recurring_job_skip_records_and_reschedules(hassette_with_schedule
         remaining = hassette_with_scheduler.scheduler.list_jobs()
         assert any(j is job for j in remaining), "Recurring job should remain scheduled after a skip"
     finally:
-        job.cancel()
+        job.remove()
 
 
 async def test_one_shot_job_skip_records_and_removes(hassette_with_scheduler: HassetteHarness) -> None:
@@ -632,13 +632,13 @@ async def test_predicate_exception_records_failure_and_does_not_run(
 
 
 async def test_predicate_receives_scheduled_job(hassette_with_scheduler: HassetteHarness) -> None:
-    """A one-arg predicate receives the ScheduledJob instance and can inspect its kwargs."""
+    """A one-arg predicate receives the Job instance and can inspect its kwargs."""
     job_ran = asyncio.Event()
 
     async def target(**_kwargs: object) -> None:
         hassette_with_scheduler.task_bucket.post_to_loop(job_ran.set)
 
-    def predicate(job: ScheduledJob) -> bool:
+    def predicate(job: Job) -> bool:
         return job.kwargs.get("key") == "expected"
 
     scheduler_service = hassette_with_scheduler.scheduler_service

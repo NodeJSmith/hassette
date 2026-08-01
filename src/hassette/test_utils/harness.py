@@ -447,7 +447,7 @@ class HassetteHarness:
 
         Components are only reset when active (``has_component()`` guard or non-None
         check). The cost is negligible per test — one ``remove_all_listeners()`` and
-        one ``_remove_all_jobs()`` call at most.
+        one ``remove_all_jobs()`` call at most.
         """
         # app_handler resets first: re-bootstrap registers fresh listeners/jobs,
         # then bus/scheduler resets clear any stale test-added ones.

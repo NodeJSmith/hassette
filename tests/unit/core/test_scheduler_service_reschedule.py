@@ -25,7 +25,7 @@ from whenever import ZonedDateTime
 import hassette.core.scheduler_service as hassette_svc_module
 import hassette.utils.date_utils as date_utils
 from hassette.core.scheduler_service import HeapQueue, SchedulerService, _ScheduledJobQueue
-from hassette.scheduler.classes import ScheduledJob
+from hassette.scheduler.classes import Job, ScheduleStatus
 from hassette.scheduler.triggers import Every
 from hassette.test_utils.factories import make_scheduled_job
 
@@ -133,8 +133,8 @@ class TestRescheduleRecurring:
         job = make_scheduled_job(trigger=trig)
         svc.run_job_with_guard = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
-        # Confirm that ScheduledJob has no 'repeat' attribute
-        assert not hasattr(job, "repeat"), "ScheduledJob must not have a 'repeat' attribute"
+        # Confirm that Job has no 'repeat' attribute
+        assert not hasattr(job, "repeat"), "Job must not have a 'repeat' attribute"
 
         # dispatch must succeed without referencing it
         await svc.dispatch_and_log(job)
@@ -215,6 +215,7 @@ class TestJitter:
         svc.hassette.config.scheduler.max_delay_seconds = 300.0
         svc.hassette.config.scheduler.default_delay_seconds = 10.0
         svc._removal_callbacks = {}
+        svc._jobs_by_id = {}
         svc.logger = MagicMock()
         svc._wakeup_event = asyncio.Event()
 
@@ -339,6 +340,7 @@ class TestEnqueueThenRegisterUsesProtocol:
         svc = SchedulerService.__new__(SchedulerService)
         svc.hassette = MagicMock()
         svc._removal_callbacks = {}
+        svc._jobs_by_id = {}
         svc.logger = MagicMock()
         svc._wakeup_event = asyncio.Event()
 
@@ -357,7 +359,7 @@ class TestEnqueueThenRegisterUsesProtocol:
 
         trigger = Every(hours=1)
         now = date_utils.now()
-        job = ScheduledJob(
+        job = Job(
             owner_id="test",
             next_run=now,
             job=lambda: None,
@@ -373,6 +375,49 @@ class TestEnqueueThenRegisterUsesProtocol:
         assert reg.trigger_type == "interval", f"Expected 'interval', got {reg.trigger_type!r}"
         assert reg.trigger_label == "every"
         assert reg.trigger_detail == "3600s"
+
+    async def test_add_job_manual_persists_manual_trigger_metadata(self) -> None:
+        """A manual job (trigger=None) persists trigger_type='manual', label='Manual only',
+        no detail. It is also added to the live registry but never enqueued onto the heap.
+        """
+        svc = SchedulerService.__new__(SchedulerService)
+        svc.hassette = MagicMock()
+        svc._removal_callbacks = {}
+        svc._jobs_by_id = {}
+        svc.logger = MagicMock()
+        svc._wakeup_event = asyncio.Event()
+
+        svc._job_queue = MagicMock()
+        svc._job_queue.add = AsyncMock(return_value=None)
+        svc._job_queue.remove_job = AsyncMock(return_value=True)
+
+        captured_registrations = []
+
+        async def _fake_register_job(reg):
+            captured_registrations.append(reg)
+            return 99  # fake db_id
+
+        svc._executor = MagicMock()
+        svc._executor.register_job = _fake_register_job
+
+        job = make_scheduled_job(
+            trigger=None,
+            next_run=None,
+            schedule_status=ScheduleStatus.MANUAL,
+        )
+
+        await svc.add_job(job)
+
+        assert len(captured_registrations) == 1
+        reg = captured_registrations[0]
+        assert reg.trigger_type == "manual"
+        assert reg.trigger_label == "Manual only"
+        assert reg.trigger_detail is None
+
+        # Added to the live registry, independent of heap membership.
+        assert svc._jobs_by_id[job.db_id] is job
+        # Never touches the heap — only SCHEDULED jobs are enqueued.
+        svc._job_queue.add.assert_not_called()
 
     async def test_enqueue_then_register_no_isinstance_import(self) -> None:
         """IntervalTrigger and CronTrigger are not imported in the scheduler_service module."""
@@ -505,6 +550,7 @@ class TestAddJobDbFailure:
         svc = SchedulerService.__new__(SchedulerService)
         svc.hassette = MagicMock()
         svc._removal_callbacks = {}
+        svc._jobs_by_id = {}
         svc.logger = MagicMock()
         svc._wakeup_event = asyncio.Event()
 
@@ -518,7 +564,7 @@ class TestAddJobDbFailure:
         svc._executor.register_job = _failing_register_job
 
         trigger = Every(hours=1)
-        job = ScheduledJob(
+        job = Job(
             owner_id="test",
             next_run=date_utils.now(),
             job=lambda: None,
@@ -550,7 +596,7 @@ class TestBehindScheduleWarning:
         # next_run is earlier (unjittered), fire_at is later (jitter applied).
         base_time = ZonedDateTime(2025, 6, 1, 12, 0, 0, tz="UTC")
         trigger = Every(hours=1)
-        job = ScheduledJob(
+        job = Job(
             owner_id="test_owner",
             next_run=base_time.add(seconds=-120),  # 2 minutes before fire_at
             job=lambda: None,

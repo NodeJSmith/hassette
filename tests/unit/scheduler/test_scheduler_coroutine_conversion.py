@@ -1,12 +1,12 @@
-"""Tests for Scheduler scheduling methods converted to def -> Coroutine[Any, Any, ScheduledJob].
+"""Tests for Scheduler scheduling methods converted to def -> Coroutine[Any, Any, Job].
 
 Covers:
-    - Awaiting returns ScheduledJob with db_id set
+    - Awaiting returns Job with db_id set
     - No HassetteForgottenAwaitWarning or native coroutine warning when awaited
     - Every public scheduling method is a plain def (not async def)
     - Forgotten await on a delegate emits HassetteForgottenAwaitWarning
-    - Awaited method returns ScheduledJob with db_id; no warning
-    - ScheduledJob.source_location populated after conversion (add_job backfill)
+    - Awaited method returns Job with db_id; no warning
+    - Job.source_location populated after conversion (add_job backfill)
     - add_job("not-a-job") raises synchronously at call time, before handle is constructed
 """
 
@@ -17,7 +17,7 @@ import warnings
 import pytest
 
 from hassette.exceptions import HassetteForgottenAwaitWarning
-from hassette.scheduler.classes import ScheduledJob
+from hassette.scheduler.classes import Job
 from hassette.scheduler.scheduler import Scheduler
 from hassette.scheduler.triggers import Every
 from hassette.test_utils.helpers import noop
@@ -52,14 +52,14 @@ def test_scheduling_method_is_plain_def(method_name: str) -> None:
 # Annotation-origin guard lives in tests/unit/test_forgotten_await_completeness.py::TestAnnotationOriginGuard.
 
 
-# Awaiting returns ScheduledJob with db_id; no warnings emitted
+# Awaiting returns Job with db_id; no warnings emitted
 
 
 @pytest.mark.parametrize(
     "call",
     [
         pytest.param(
-            lambda s: s.add_job(ScheduledJob(owner_id="o", next_run=now(), job=noop, name="t")),
+            lambda s: s.add_job(Job(owner_id="o", next_run=now(), job=noop, name="t")),
             id="add_job",
         ),
         pytest.param(lambda s: s.schedule(noop, Every(hours=1), name="t"), id="schedule"),
@@ -73,12 +73,12 @@ def test_scheduling_method_is_plain_def(method_name: str) -> None:
     ],
 )
 async def test_await_returns_scheduled_job(call) -> None:
-    """Awaiting any scheduling method returns a ScheduledJob with db_id set, no warning."""
+    """Awaiting any scheduling method returns a Job with db_id set, no warning."""
     scheduler = make_scheduler()
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         job = await call(scheduler)
-    assert isinstance(job, ScheduledJob)
+    assert isinstance(job, Job)
     assert job.db_id is not None
     assert isinstance(job.db_id, int)
 
@@ -91,8 +91,8 @@ def test_add_job_existing_name_no_valueerror_at_call_time() -> None:
     name must not raise at call time.
     """
     scheduler = make_scheduler()
-    job_a = ScheduledJob(owner_id="test_owner", next_run=now(), job=noop, name="duplicate_name")
-    job_b = ScheduledJob(owner_id="test_owner", next_run=now(), job=noop, name="duplicate_name")
+    job_a = Job(owner_id="test_owner", next_run=now(), job=noop, name="duplicate_name")
+    job_b = Job(owner_id="test_owner", next_run=now(), job=noop, name="duplicate_name")
 
     handle_a = scheduler.add_job(job_a)
     # Second call with same name — must NOT raise ValueError here (collision check is async).
@@ -112,7 +112,7 @@ def test_add_job_existing_name_no_valueerror_at_call_time() -> None:
     "call",
     [
         pytest.param(
-            lambda s: s.add_job(ScheduledJob(owner_id="o", next_run=now(), job=noop, name="t")),
+            lambda s: s.add_job(Job(owner_id="o", next_run=now(), job=noop, name="t")),
             id="add_job",
         ),
         pytest.param(lambda s: s.schedule(noop, Every(hours=1), name="t"), id="schedule"),
@@ -134,7 +134,7 @@ def test_returns_registration_handle(call) -> None:
     "call",
     [
         pytest.param(
-            lambda s: s.add_job(ScheduledJob(owner_id="o", next_run=now(), job=noop, name="t")),
+            lambda s: s.add_job(Job(owner_id="o", next_run=now(), job=noop, name="t")),
             id="add_job",
         ),
         pytest.param(lambda s: s.schedule(noop, Every(hours=1), name="t"), id="schedule"),
@@ -156,22 +156,22 @@ def test_forgotten_await_warns(call) -> None:
         gc.collect()
 
 
-# Source threading — ScheduledJob.source_location is non-empty via add_job backfill
+# Source threading — Job.source_location is non-empty via add_job backfill
 
 
 async def test_source_location_backfilled_via_schedule() -> None:
-    """Source location captured in add_job is backfilled onto ScheduledJob via schedule()."""
+    """Source location captured in add_job is backfilled onto Job via schedule()."""
     scheduler = make_scheduler()
     job = await scheduler.schedule(noop, Every(hours=1), name="src_schedule")
     assert job.source_location, (
-        "ScheduledJob.source_location must be non-empty after conversion — "
+        "Job.source_location must be non-empty after conversion — "
         "add_job must backfill it from the captured source_location."
     )
     assert ":" in job.source_location, f"source_location should be 'file:lineno', got {job.source_location!r}"
 
 
 async def test_source_location_backfilled_via_run_in() -> None:
-    """Source location captured in add_job is backfilled onto ScheduledJob via run_in() two-hop chain."""
+    """Source location captured in add_job is backfilled onto Job via run_in() two-hop chain."""
     scheduler = make_scheduler()
     job = await scheduler.run_in(noop, 30, name="src_run_in")
     assert job.source_location, "source_location must be non-empty"
@@ -182,7 +182,7 @@ async def test_source_location_preserved_when_already_set() -> None:
     """add_job backfill does NOT overwrite source_location already set on the job."""
     scheduler = make_scheduler()
     pre_set = "custom_file.py:42"
-    job = ScheduledJob(
+    job = Job(
         owner_id="test_owner",
         next_run=now(),
         job=noop,
@@ -204,7 +204,7 @@ def test_add_job_wrong_type_raises_typeerror_synchronously() -> None:
     scheduler = make_scheduler()
     with warnings.catch_warnings():
         warnings.simplefilter("error", HassetteForgottenAwaitWarning)
-        with pytest.raises(TypeError, match="Expected ScheduledJob"):
+        with pytest.raises(TypeError, match="Expected Job"):
             scheduler.add_job("not-a-job")  # pyright: ignore[reportArgumentType]
 
 
