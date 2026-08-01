@@ -134,6 +134,11 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     """Whether to verify SSL certificates when connecting to Home Assistant. Useful to disable for self-signed
     certificates."""
 
+    rest_request_timeout_seconds: float = Field(default=30.0, gt=0, allow_inf_nan=False)
+    """Default total timeout in seconds for outbound REST requests to Home Assistant, applied per retry attempt.
+    Passed to aiohttp as a :class:`aiohttp.ClientTimeout`. Override per call by passing a ``timeout=`` kwarg to
+    :meth:`~hassette.core.api_resource.ApiResource.rest_request`."""
+
     token: SecretStr | None = Field(
         default=None,
         validation_alias=AliasChoices("token", "hassette__token", "ha_token", "home_assistant_token"),
