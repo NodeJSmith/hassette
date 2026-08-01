@@ -1,7 +1,7 @@
 # Design: Registered and Manual Jobs
 
 **Date:** 2026-07-30
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Research:** `design/research/2026-07-30-trigger-agnostic-job-execution/research.md`
 
