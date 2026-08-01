@@ -83,7 +83,7 @@ See design doc: Architecture > Operator Surfaces, FR#26, AC#8, AC#9, AC#13.
 
 ## Verify
 
-- [ ] FR#26: Run Now button shows a success toast when execution completes, and "No execution recorded" after timeout.
-- [ ] AC#8: Frontend tests demonstrate distinct scheduled/waiting/completed/manual rendering and Run Now availability for every live status.
+- [x] FR#26: Run Now button shows a success toast when execution completes, and "No execution recorded" after timeout.
+- [x] AC#8: Frontend tests demonstrate distinct scheduled/waiting/completed/manual rendering and Run Now availability for every live status.
 - [x] AC#9: Playwright E2E demonstrates a manual-only job displayed and submitted through the live UI with execution activity subsequently visible. (CONTESTED, resolved 2026-08-01: executor covered the fixture-level pieces per its literal Target Files list but no Playwright test file was named as a target; orchestrator added `test_manual_job_run_now_shows_execution_activity` in `tests/e2e/test_app_detail.py`, verified passing.)
-- [ ] AC#13: Frontend tests demonstrate success toast and timeout fallback toast for all live statuses.
+- [x] AC#13: Frontend tests demonstrate success toast and timeout fallback toast for all live statuses. (2026-08-01: the two toast tests only exercised `schedule_status: "scheduled"` — parameterized both with `it.each` over scheduled/waiting/completed/manual in `frontend/src/components/app-detail/handlers-tab.job.test.tsx`.)

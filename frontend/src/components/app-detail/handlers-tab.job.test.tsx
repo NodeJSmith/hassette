@@ -349,55 +349,63 @@ describe("HandlersTab job detail", () => {
       });
     });
 
-    it("shows a success toast when a matching execution record appears after submission", async () => {
-      vi.useFakeTimers({ shouldAdvanceTime: true });
-      const user = userEvent.setup();
-      const job = createJob({ job_id: 70 });
-      const { getByTestId } = renderHandlersTab([], [job], "job/70");
-      await waitFor(() => getByTestId("job-detail-70"));
+    it.each(["scheduled", "waiting", "completed", "manual"] as const)(
+      "shows a success toast when a matching execution record appears after submission (status '%s')",
+      async (status) => {
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        const user = userEvent.setup();
+        const jobId = 700 + ["scheduled", "waiting", "completed", "manual"].indexOf(status);
+        const job = createJob({ job_id: jobId, schedule_status: status });
+        const { getByTestId } = renderHandlersTab([], [job], `job/${jobId}`);
+        await waitFor(() => getByTestId(`job-detail-${jobId}`));
 
-      await user.click(getByTestId("run-now-btn"));
-      await waitFor(() => expect(toast.success).not.toHaveBeenCalled());
+        await user.click(getByTestId("run-now-btn"));
+        await waitFor(() => expect(toast.success).not.toHaveBeenCalled());
 
-      act(() => {
-        useAppStore.setState({
-          executionCompleted: [
-            {
-              kind: "job",
-              job_id: 70,
-              app_key: "test_app",
-              instance_index: 0,
-              status: "success",
-              duration_ms: 10,
-              error_type: null,
-              thread_leaked: false,
-            },
-          ],
+        act(() => {
+          useAppStore.setState({
+            executionCompleted: [
+              {
+                kind: "job",
+                job_id: jobId,
+                app_key: "test_app",
+                instance_index: 0,
+                status: "success",
+                duration_ms: 10,
+                error_type: null,
+                thread_leaked: false,
+              },
+            ],
+          });
         });
-      });
 
-      await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Execution recorded"));
-      expect(toast.error).not.toHaveBeenCalled();
-      vi.useRealTimers();
-    });
+        await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Execution recorded"));
+        expect(toast.error).not.toHaveBeenCalled();
+        vi.useRealTimers();
+      },
+    );
 
-    it("shows a 'No execution recorded' toast when no matching record appears within the timeout", async () => {
-      vi.useFakeTimers({ shouldAdvanceTime: true });
-      const user = userEvent.setup();
-      const job = createJob({ job_id: 71 });
-      const { getByTestId } = renderHandlersTab([], [job], "job/71");
-      await waitFor(() => getByTestId("job-detail-71"));
+    it.each(["scheduled", "waiting", "completed", "manual"] as const)(
+      "shows a 'No execution recorded' toast when no matching record appears within the timeout (status '%s')",
+      async (status) => {
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        const user = userEvent.setup();
+        const jobId = 710 + ["scheduled", "waiting", "completed", "manual"].indexOf(status);
+        const job = createJob({ job_id: jobId, schedule_status: status });
+        const { getByTestId } = renderHandlersTab([], [job], `job/${jobId}`);
+        await waitFor(() => getByTestId(`job-detail-${jobId}`));
 
-      await user.click(getByTestId("run-now-btn"));
+        await user.click(getByTestId("run-now-btn"));
 
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(10000);
-      });
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(10000);
+        });
 
-      expect(toast.error).toHaveBeenCalledWith("No execution recorded");
-      expect(toast.success).not.toHaveBeenCalled();
-      vi.useRealTimers();
-    });
+        expect(toast.error).toHaveBeenCalledWith("No execution recorded");
+        expect(toast.success).not.toHaveBeenCalled();
+        vi.useRealTimers();
+      },
+    );
 
     it("ignores executionCompleted records for a different job_id", async () => {
       vi.useFakeTimers({ shouldAdvanceTime: true });

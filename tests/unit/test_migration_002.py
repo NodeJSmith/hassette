@@ -70,11 +70,11 @@ class TestScheduledJobsSchema:
                     INSERT INTO scheduled_jobs (
                         app_key, instance_index, job_name, handler_method,
                         trigger_type, trigger_label,
-                        args_json, kwargs_json, source_location, source_tier
+                        args_json, kwargs_json, source_location, source_tier, schedule_status
                     ) VALUES (
                         'my_app', 0, 'bad_job', 'my_app.MyApp.my_handler',
                         'unknown_type', '',
-                        '[]', '{}', 'app.py:10', 'app'
+                        '[]', '{}', 'app.py:10', 'app', 'scheduled'
                     )
                     """
                 )
