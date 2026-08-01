@@ -29,15 +29,11 @@ import pytest
 from pydantic import ValidationError
 
 import hassette.task_bucket.interruptible_executor as ie_module
-from hassette.config import HassetteConfig
-from hassette.core.command_executor import (  # pyright: ignore[reportPrivateUsage]
-    _CAPACITY_WARN_RATE_LIMIT_SECS,
-    _CAPACITY_WARN_THRESHOLD,
-)
+from hassette.config import HassetteConfig, LifecycleConfig
 from hassette.core.sync_executor import (  # pyright: ignore[reportPrivateUsage]
+    _DEFAULT_SATURATION_WARN_RATE_LIMIT_SECS,
+    _DEFAULT_SATURATION_WARN_THRESHOLD,
     _SATURATION_PROBE_INTERVAL_SECS,
-    _SATURATION_WARN_RATE_LIMIT_SECS,
-    _SATURATION_WARN_THRESHOLD,
     SyncExecutor,
 )
 from hassette.core.sync_executor_service import SyncExecutorService
@@ -112,35 +108,58 @@ class TestOnShutdown:
 class TestConstantInvariant:
     """Verify the coupling invariant documented in the module-level comments."""
 
-    def test_probe_interval_gte_suppress_window(self) -> None:
-        """Probe interval must be >= suppress window to prevent self-suppression.
+    def test_probe_interval_gte_default_suppress_window(self) -> None:
+        """Probe interval must be >= the default suppress window to prevent self-suppression
+        at default settings.
 
         If the probe fires more often than the rate-limit expires, the probe
         would always find the rate-limit unexpired and silently suppress the WARNING.
         This is the coupling invariant documented in sync_executor_service.py.
         """
-        assert _SATURATION_PROBE_INTERVAL_SECS >= _SATURATION_WARN_RATE_LIMIT_SECS, (
+        assert _SATURATION_PROBE_INTERVAL_SECS >= _DEFAULT_SATURATION_WARN_RATE_LIMIT_SECS, (
             f"Probe interval ({_SATURATION_PROBE_INTERVAL_SECS}s) must be >= "
-            f"suppress window ({_SATURATION_WARN_RATE_LIMIT_SECS}s) to prevent self-suppression"
+            f"default suppress window ({_DEFAULT_SATURATION_WARN_RATE_LIMIT_SECS}s) "
+            "to prevent self-suppression"
         )
 
-    def test_threshold_is_75_percent(self) -> None:
-        """Saturation warning threshold must be 75% to match command_executor pattern."""
-        assert _SATURATION_WARN_THRESHOLD == 0.75
+    def test_default_threshold_is_75_percent(self) -> None:
+        """Default saturation warning threshold must be 75% to match command_executor pattern."""
+        assert _DEFAULT_SATURATION_WARN_THRESHOLD == 0.75
 
-    def test_constants_match_command_executor(self) -> None:
-        """Threshold and rate-limit values must agree with command_executor equivalents.
+    def test_module_defaults_match_lifecycle_config_field_defaults(self) -> None:
+        """sync_executor.py's standalone-construction fallbacks must track LifecycleConfig's
+        Field defaults exactly.
 
-        Both modules define the same values independently.  This test catches drift —
-        if an operator tunes one, they must tune the other.
+        These two values live in separate files with no structural link — rebuild_pool()'s
+        keyword defaults exist only so SyncExecutor works without a HassetteConfig (e.g. in
+        tests). If someone bumps the config default without updating the module constant,
+        SyncExecutor instances built standalone would silently diverge from the documented
+        default. This test turns that into a caught regression instead of a silent drift.
         """
-        assert _SATURATION_WARN_THRESHOLD == _CAPACITY_WARN_THRESHOLD, (
-            f"sync_executor threshold ({_SATURATION_WARN_THRESHOLD}) must match "
-            f"command_executor threshold ({_CAPACITY_WARN_THRESHOLD})"
+        assert (
+            LifecycleConfig.model_fields["sync_executor_saturation_warn_threshold"].default
+            == _DEFAULT_SATURATION_WARN_THRESHOLD
         )
-        assert _SATURATION_WARN_RATE_LIMIT_SECS == _CAPACITY_WARN_RATE_LIMIT_SECS, (
-            f"sync_executor rate-limit ({_SATURATION_WARN_RATE_LIMIT_SECS}s) must match "
-            f"command_executor rate-limit ({_CAPACITY_WARN_RATE_LIMIT_SECS}s)"
+        assert (
+            LifecycleConfig.model_fields["sync_executor_saturation_warn_rate_limit_seconds"].default
+            == _DEFAULT_SATURATION_WARN_RATE_LIMIT_SECS
+        )
+
+    def test_config_defaults_match_command_executor(self) -> None:
+        """Default threshold and rate-limit values agree with command_executor's defaults.
+
+        The two subsystems are independently configurable (see #1041) — an operator can
+        tune one without the other — but their defaults still agree so default behavior
+        is unchanged from before the fields were surfaced as config.
+        """
+        config = HassetteConfig(token=TEST_TOKEN)
+        assert (
+            config.lifecycle.sync_executor_saturation_warn_threshold
+            == config.lifecycle.command_executor_capacity_warn_threshold
+        )
+        assert (
+            config.lifecycle.sync_executor_saturation_warn_rate_limit_seconds
+            == config.lifecycle.command_executor_capacity_warn_rate_limit_seconds
         )
 
 
@@ -275,7 +294,7 @@ class TestSubmissionTimeSaturationWarning:
         first_count = len(warning_calls)
 
         # Manually expire the rate-limit window
-        sync_executor._last_saturation_warn_ts = time.monotonic() - _SATURATION_WARN_RATE_LIMIT_SECS - 1.0
+        sync_executor._last_saturation_warn_ts = time.monotonic() - sync_executor.saturation_warn_rate_limit_secs - 1.0
 
         sync_executor.log_saturation_rate_limited()
         second_count = len(warning_calls)
@@ -662,6 +681,38 @@ class TestConfigBehavior:
                     "total_shutdown_timeout_seconds": 30,  # equal — must be rejected
                 },
             )
+
+    def test_default_saturation_warn_threshold_and_rate_limit(self) -> None:
+        """Defaults preserve current behavior: 0.75 threshold, 30.0s rate-limit."""
+        config = HassetteConfig(token=TEST_TOKEN)
+        assert config.lifecycle.sync_executor_saturation_warn_threshold == 0.75
+        assert config.lifecycle.sync_executor_saturation_warn_rate_limit_seconds == 30.0
+
+    def test_custom_saturation_warn_threshold_and_rate_limit_are_respected(self) -> None:
+        """on_initialize() threads the configured threshold/rate-limit into SyncExecutor."""
+        svc = make_service(max_workers=2, saturation_warn_threshold=0.5, saturation_warn_rate_limit_seconds=10.0)
+        assert svc.sync_executor.saturation_warn_threshold == 0.5
+        assert svc.sync_executor.saturation_warn_rate_limit_secs == 10.0
+        svc.sync_executor.executor.shutdown(join_threads_or_timeout=False)
+
+    def test_lowered_threshold_fires_warning_earlier(self) -> None:
+        """A lower configured threshold fires a WARNING at an occupancy that the default would not."""
+        sync_executor = SyncExecutor()
+        sync_executor.rebuild_pool(max_workers=4, saturation_warn_threshold=0.5)
+        sync_executor._outstanding_submissions = 2  # 50% occupancy — below the 0.75 default
+
+        warning_calls = _capture_saturation_warnings(sync_executor)
+        sync_executor.log_saturation_rate_limited()
+
+        assert any("approaching saturation" in str(c) for c in warning_calls), (
+            "WARNING must fire at 50% occupancy when threshold is configured to 0.5"
+        )
+        sync_executor.executor.shutdown(join_threads_or_timeout=False)
+
+    def test_validator_rejects_threshold_outside_unit_interval(self) -> None:
+        """sync_executor_saturation_warn_threshold must be within [0, 1]."""
+        with pytest.raises(ValidationError, match="sync_executor_saturation_warn_threshold"):
+            HassetteConfig(token=TEST_TOKEN, lifecycle={"sync_executor_saturation_warn_threshold": 1.5})
 
 
 class TestTrackSubmission:

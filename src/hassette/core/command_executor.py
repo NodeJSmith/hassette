@@ -43,8 +43,6 @@ if typing.TYPE_CHECKING:
     from hassette.config.classes import AppManifest
 
 _MAX_RETRY_COUNT = 3
-_CAPACITY_WARN_THRESHOLD = 0.75
-_CAPACITY_WARN_RATE_LIMIT_SECS = 30.0
 _UNOWNED_WARN_RATE_LIMIT_SECS = 30.0
 _TIMEOUT_WARN_SUPPRESS_SECS = 60.0
 _TIMEOUT_WARN_CACHE_MAX = 1000
@@ -403,15 +401,18 @@ class CommandExecutor(Service):
     def enqueue_record(self, record: ExecutionRecord) -> None:
         """Enqueue a record, dropping and logging if the queue is full.
 
-        Also logs a WARNING when the queue exceeds 75% capacity (rate-limited).
+        Also logs a WARNING when the queue exceeds the configured capacity threshold
+        (rate-limited), per lifecycle.command_executor_capacity_warn_threshold /
+        lifecycle.command_executor_capacity_warn_rate_limit_seconds.
         """
         max_size = self._write_queue.maxsize
         current_size = self._write_queue.qsize()
+        lifecycle = self.hassette.config.lifecycle
 
-        # 75% capacity warning (rate-limited)
-        if max_size > 0 and current_size >= int(max_size * _CAPACITY_WARN_THRESHOLD):
+        # Capacity warning (rate-limited)
+        if max_size > 0 and current_size >= int(max_size * lifecycle.command_executor_capacity_warn_threshold):
             now = time.monotonic()
-            if now - self._last_capacity_warn_ts >= _CAPACITY_WARN_RATE_LIMIT_SECS:
+            if now - self._last_capacity_warn_ts >= lifecycle.command_executor_capacity_warn_rate_limit_seconds:
                 self._last_capacity_warn_ts = now
                 self.logger.warning(
                     "Write queue at %d/%d (%.0f%%) — high telemetry load",

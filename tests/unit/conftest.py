@@ -45,18 +45,35 @@ if TYPE_CHECKING:
 TEST_TOKEN = "test-token"
 
 
-def make_sync_executor_config(max_workers: int = 4, shutdown_timeout: float = 5.0) -> HassetteConfig:
+def make_sync_executor_config(
+    max_workers: int = 4,
+    shutdown_timeout: float = 5.0,
+    saturation_warn_threshold: float = 0.75,
+    saturation_warn_rate_limit_seconds: float = 30.0,
+) -> HassetteConfig:
     return HassetteConfig(
         token=TEST_TOKEN,
         lifecycle={
             "sync_executor_max_workers": max_workers,
             "sync_executor_shutdown_timeout_seconds": shutdown_timeout,
+            "sync_executor_saturation_warn_threshold": saturation_warn_threshold,
+            "sync_executor_saturation_warn_rate_limit_seconds": saturation_warn_rate_limit_seconds,
         },
     )
 
 
-def make_sync_executor_hassette(max_workers: int = 4, shutdown_timeout: float = 5.0) -> MagicMock:
-    config = make_sync_executor_config(max_workers=max_workers, shutdown_timeout=shutdown_timeout)
+def make_sync_executor_hassette(
+    max_workers: int = 4,
+    shutdown_timeout: float = 5.0,
+    saturation_warn_threshold: float = 0.75,
+    saturation_warn_rate_limit_seconds: float = 30.0,
+) -> MagicMock:
+    config = make_sync_executor_config(
+        max_workers=max_workers,
+        shutdown_timeout=shutdown_timeout,
+        saturation_warn_threshold=saturation_warn_threshold,
+        saturation_warn_rate_limit_seconds=saturation_warn_rate_limit_seconds,
+    )
     mock_hassette = MagicMock()
     mock_hassette.config = config
     mock_hassette.task_bucket = MagicMock()
@@ -67,13 +84,27 @@ def make_sync_executor_hassette(max_workers: int = 4, shutdown_timeout: float = 
     # that in production is constructed in Hassette.__init__() before the lifecycle starts.
     # Tests call rebuild_pool() explicitly since the constructor no longer creates one.
     sync_executor = SyncExecutor()
-    sync_executor.rebuild_pool(max_workers=max_workers)
+    sync_executor.rebuild_pool(
+        max_workers=max_workers,
+        saturation_warn_threshold=saturation_warn_threshold,
+        saturation_warn_rate_limit_secs=saturation_warn_rate_limit_seconds,
+    )
     mock_hassette.sync_executor = sync_executor
     return mock_hassette
 
 
-def make_service(max_workers: int = 4, shutdown_timeout: float = 5.0) -> SyncExecutorService:
-    mock_hassette = make_sync_executor_hassette(max_workers=max_workers, shutdown_timeout=shutdown_timeout)
+def make_service(
+    max_workers: int = 4,
+    shutdown_timeout: float = 5.0,
+    saturation_warn_threshold: float = 0.75,
+    saturation_warn_rate_limit_seconds: float = 30.0,
+) -> SyncExecutorService:
+    mock_hassette = make_sync_executor_hassette(
+        max_workers=max_workers,
+        shutdown_timeout=shutdown_timeout,
+        saturation_warn_threshold=saturation_warn_threshold,
+        saturation_warn_rate_limit_seconds=saturation_warn_rate_limit_seconds,
+    )
     return SyncExecutorService(mock_hassette)
 
 

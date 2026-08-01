@@ -33,25 +33,23 @@ if TYPE_CHECKING:
 P = ParamSpec("P")
 R = TypeVar("R")
 
-# Pool saturation constants — mirror command_executor._CAPACITY_WARN_THRESHOLD /
-# _CAPACITY_WARN_RATE_LIMIT_SECS but scoped to global pool saturation.
-# Pool saturation is a global condition (not per-entity), so a single global
-# timestamp is the right rate-limit model (cf. enqueue_record in command_executor).
-_SATURATION_WARN_THRESHOLD = 0.75
-
-# Suppression window: rate-limit repeated saturation WARNINGs to at most once per
-# this many seconds.  The periodic probe fires every _SATURATION_PROBE_INTERVAL_SECS;
-# keeping the probe interval >= this window ensures the probe does NOT self-suppress —
-# i.e. the probe always has a chance to fire even when submissions have stopped.
-# WARNING: if you shorten _SATURATION_PROBE_INTERVAL_SECS below _SATURATION_WARN_RATE_LIMIT_SECS
-# the probe will silently suppress itself and operators will see no signal during total
-# pool starvation.  Keep probe interval >= suppress window.
-_SATURATION_WARN_RATE_LIMIT_SECS = 30.0
+# Pool saturation defaults — mirror command_executor's capacity-warning defaults but scoped
+# to global pool saturation. Pool saturation is a global condition (not per-entity), so a
+# single global timestamp is the right rate-limit model (cf. enqueue_record in command_executor).
+# Both are user-configurable via lifecycle.sync_executor_saturation_warn_threshold /
+# lifecycle.sync_executor_saturation_warn_rate_limit_seconds (see config/models.py); these
+# module-level defaults exist only so SyncExecutor works standalone (e.g. in tests) without
+# a HassetteConfig, and are what rebuild_pool() falls back to when the caller omits them.
+_DEFAULT_SATURATION_WARN_THRESHOLD = 0.75
+_DEFAULT_SATURATION_WARN_RATE_LIMIT_SECS = 30.0
 
 # Probe cadence — how often serve() reads pool occupancy when there are no new submissions.
 # This is the "8/8 workers stuck" detection signal: a submission-only check goes silent
 # exactly when the pool is fully starved, so the probe fires regardless of submission rate.
-# Must be >= _SATURATION_WARN_RATE_LIMIT_SECS to avoid self-suppression (see above).
+# Fixed (not user-configurable): keeping it >= the *default* rate-limit window prevents
+# self-suppression at default settings. Raising the configured rate-limit window above this
+# probe interval doesn't silence the probe — it just aligns probe-triggered warnings to the
+# rate-limit cadence instead of the probe cadence.
 _SATURATION_PROBE_INTERVAL_SECS = 30.0
 
 # Worker thread name prefix for the dedicated sync-user-code pool. Shared with the test
@@ -110,13 +108,29 @@ class SyncExecutor:
     _last_saturation_warn_ts: float
     """Monotonic timestamp of the last pool-saturation WARNING (global rate-limit)."""
 
+    saturation_warn_threshold: float
+    """Occupancy fraction (0-1) above which log_saturation_rate_limited() warns.
+    Set by rebuild_pool(), sourced from lifecycle.sync_executor_saturation_warn_threshold."""
+
+    saturation_warn_rate_limit_secs: float
+    """Minimum seconds between repeated saturation WARNINGs. Set by rebuild_pool(), sourced
+    from lifecycle.sync_executor_saturation_warn_rate_limit_seconds."""
+
     def __init__(self) -> None:
         self.executor = None
         self._outstanding_submissions = 0
         self._last_saturation_warn_ts = 0.0
+        self.saturation_warn_threshold = _DEFAULT_SATURATION_WARN_THRESHOLD
+        self.saturation_warn_rate_limit_secs = _DEFAULT_SATURATION_WARN_RATE_LIMIT_SECS
         self.logger = getLogger(f"{__name__}.SyncExecutor")
 
-    def rebuild_pool(self, max_workers: int, thread_name_prefix: str = SYNC_EXECUTOR_THREAD_NAME_PREFIX) -> None:
+    def rebuild_pool(
+        self,
+        max_workers: int,
+        thread_name_prefix: str = SYNC_EXECUTOR_THREAD_NAME_PREFIX,
+        saturation_warn_threshold: float = _DEFAULT_SATURATION_WARN_THRESHOLD,
+        saturation_warn_rate_limit_secs: float = _DEFAULT_SATURATION_WARN_RATE_LIMIT_SECS,
+    ) -> None:
         """Create a fresh thread pool and reset saturation state.
 
         Sole pool constructor — called by ``SyncExecutorService.on_initialize()`` on both
@@ -126,6 +140,12 @@ class SyncExecutor:
         Args:
             max_workers: Maximum number of worker threads for the new pool.
             thread_name_prefix: Prefix applied to spawned worker thread names.
+            saturation_warn_threshold: Occupancy fraction (0-1) above which a saturation
+                WARNING is logged. Defaults to lifecycle.sync_executor_saturation_warn_threshold's
+                default value.
+            saturation_warn_rate_limit_secs: Minimum seconds between repeated saturation
+                WARNINGs. Defaults to lifecycle.sync_executor_saturation_warn_rate_limit_seconds's
+                default value.
         """
         self.executor = InterruptibleThreadPoolExecutor(
             max_workers=max_workers,
@@ -133,6 +153,8 @@ class SyncExecutor:
         )
         self._outstanding_submissions = 0
         self._last_saturation_warn_ts = 0.0
+        self.saturation_warn_threshold = saturation_warn_threshold
+        self.saturation_warn_rate_limit_secs = saturation_warn_rate_limit_secs
 
     def shutdown_pool(self, timeout: float) -> None:
         """Shut down the thread pool within the given join/interrupt budget.
@@ -199,7 +221,8 @@ class SyncExecutor:
         self.log_saturation_rate_limited()
 
     def log_saturation_rate_limited(self) -> None:
-        """Emit a pool-saturation WARNING when outstanding submissions cross ~75%, rate-limited.
+        """Emit a pool-saturation WARNING when outstanding submissions cross the configured
+        threshold, rate-limited.
 
         Uses a single global timestamp for rate-limiting — pool saturation is a global
         condition, not per-entity, so the global-timestamp model from enqueue_record
@@ -210,17 +233,22 @@ class SyncExecutor:
         submission and decremented in the future's done-callback. Both operations run on
         the event loop thread, so the counter needs no lock. The queue depth is read for
         log context only — it does not gate the warning.
+
+        Threshold and rate-limit are set by rebuild_pool() (sourced from
+        lifecycle.sync_executor_saturation_warn_threshold /
+        lifecycle.sync_executor_saturation_warn_rate_limit_seconds), not read here directly —
+        SyncExecutor is a plain capability class with no ``hassette`` reference.
         """
         if self.executor is None:
             return
         max_workers: int = self.executor._max_workers  # pyright: ignore[reportAttributeAccessIssue]
 
         occupancy = self._outstanding_submissions / max_workers
-        if occupancy < _SATURATION_WARN_THRESHOLD:
+        if occupancy < self.saturation_warn_threshold:
             return  # below threshold — nothing to warn about
 
         now = time.monotonic()
-        if now - self._last_saturation_warn_ts < _SATURATION_WARN_RATE_LIMIT_SECS:
+        if now - self._last_saturation_warn_ts < self.saturation_warn_rate_limit_secs:
             return  # rate-limited — suppress until window expires
         self._last_saturation_warn_ts = now
 

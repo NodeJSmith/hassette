@@ -55,9 +55,12 @@ class SyncExecutorService(Service):
 
     async def on_initialize(self) -> None:
         """Create the thread pool — covers both initial start and restart-in-place."""
+        lifecycle = self.hassette.config.lifecycle
         self.sync_executor.rebuild_pool(
-            self.hassette.config.lifecycle.sync_executor_max_workers,
+            lifecycle.sync_executor_max_workers,
             SYNC_EXECUTOR_THREAD_NAME_PREFIX,
+            saturation_warn_threshold=lifecycle.sync_executor_saturation_warn_threshold,
+            saturation_warn_rate_limit_secs=lifecycle.sync_executor_saturation_warn_rate_limit_seconds,
         )
 
     async def serve(self) -> None:
@@ -68,10 +71,11 @@ class SyncExecutorService(Service):
         arrive when all workers are blocked).  The probe fires regardless of submission
         rate so the operator still sees the WARNING at the configured cadence.
 
-        Probe cadence (_SATURATION_PROBE_INTERVAL_SECS) is set equal to the rate-limit
-        suppress window — see the module-level constant comments in sync_executor.py
-        for the coupling invariant (shortening the probe interval below the suppress
-        window causes self-suppression).
+        Probe cadence (_SATURATION_PROBE_INTERVAL_SECS) is fixed and equal to the *default*
+        rate-limit suppress window — see the module-level constant comments in
+        sync_executor.py. Configuring lifecycle.sync_executor_saturation_warn_rate_limit_seconds
+        above this fixed probe interval does not silence the probe; it aligns probe-triggered
+        warnings to the configured rate-limit cadence instead of the probe cadence.
         """
         mark_ready(self, reason="SyncExecutorService started")
         while not self.shutdown_event.is_set():
