@@ -40,7 +40,7 @@ Triggers are passed to `schedule()` when the convenience methods do not fit. See
 
 ## Entity-Driven Times
 
-`EntityTime` reads its fire time from a Home Assistant entity. The scheduler moves the job whenever that entity changes. Phone alarms, `input_datetime` helpers, and `sun.sun` attributes all name moving times. `EntityTime` follows those times without app-level cancel-and-reschedule code.
+`EntityTime` reads its fire time from a Home Assistant entity. The scheduler moves the job whenever that entity changes. Phone alarms, `input_datetime` helpers, and `sun.sun` attributes all name moving times. `EntityTime` follows those times without app-level remove-and-reschedule code.
 
 ```python
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_entity_time.py:alarm"
@@ -73,9 +73,9 @@ That job fires 30 minutes before the configured routine time each day. Without `
 
 ### When the entity has no time
 
-An entity can be unavailable, report `unknown`, or hold a non-time value. A phone with no alarm set does exactly this. The job stays registered and has nowhere to fire. Hassette parks it at a time it will never reach. The entity's next change puts it back on a real schedule.
+An entity can be unavailable, report `unknown`, or hold a non-time value. A phone with no alarm set does exactly this. The job's `schedule_status` becomes `waiting`: it stays registered and watched by the entity-change listener, but carries no `next_run` and sits off the scheduler's due-time heap. The entity's next change puts it back on a real schedule — reactivation goes through the same watcher, so no polling or timer is involved.
 
-The parking time is in the year 9999. [`hassette job`](../../cli/commands.md#hassette-job) and the web UI render relative next runs. A parked job therefore reads as millions of days away. An absurd next run means the entity currently names no time.
+[`hassette job`](../../cli/commands.md#hassette-job) and the web UI render a `waiting` job as "Waiting for entity time" instead of a next-run timestamp. A missing next run means the entity currently names no time, not that the job stopped.
 
 !!! warning "Entity-driven times still use the configured timezone"
     A time-only or naive value uses the configured timezone, like `Daily(at="07:00")`. A container defaulting to UTC can disagree with Home Assistant's local zone. That mismatch makes jobs fire at the wrong hour.
@@ -117,5 +117,5 @@ The remaining four methods cover display and deduplication.
 ## See Also
 
 - [Scheduling Methods](methods.md): `schedule()` and the convenience methods that create triggers
-- [Job Management](management.md): cancelling, inspecting, and handling errors on scheduled jobs
+- [Job Management](management.md): removing, inspecting, schedule status, and handling errors on live jobs
 - [Scheduler Overview](index.md): getting started with the scheduler

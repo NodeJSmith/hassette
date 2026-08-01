@@ -1,7 +1,7 @@
 ---
 task_id: "T08"
 title: "Update docs, tooling, sync facade, and codegen"
-status: "planned"
+status: "done"
 depends_on: ["T06", "T07"]
 implements: ["AC#10"]
 ---
@@ -92,4 +92,4 @@ See design doc: Documentation Updates, Changed Files.
 
 ## Verify
 
-- [ ] AC#10: `prek -a` passes. `uv run nox -s dev` passes (full unit+integration suite). `grep -rn 'ScheduledJob\|cancel_job\|cancel_group\|cancelled_at\|NO_OCCURRENCE' src/ docs/ tools/ scripts/ codegen/` returns zero matches outside of migration SQL files, comments explaining the rename, and test assertions about the old names.
+- [ ] AC#10: `prek -a` passes. `uv run nox -s dev` passes (full unit+integration suite). `grep -rn 'ScheduledJob\|cancel_job\|cancel_group\|cancelled_at\|NO_OCCURRENCE' src/ docs/ tools/ scripts/ codegen/` returns zero matches outside of migration SQL files, comments explaining the rename, test assertions about the old names, and the internal `ScheduledJobRegistration` (persistence DTO) / `_ScheduledJobQueue` (internal heap class) names — accepted as out of scope for the public `ScheduledJob` -> `Job` rename; no task file or the design doc calls for renaming them.

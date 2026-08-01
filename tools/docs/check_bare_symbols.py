@@ -27,7 +27,6 @@ SYMBOLS = {
     "DomainStates",
     "LightState",
     "RawStateChangeEvent",
-    "ScheduledJob",
     "Scheduler",
     "SensorState",
     "StateManager",

@@ -1,7 +1,7 @@
 import random
 
 from hassette import App, AppConfig
-from hassette.scheduler import ScheduledJob
+from hassette.scheduler import Job
 
 VACATION_TOGGLE = "input_boolean.vacation_mode"
 LIGHTS = ("light.living_room", "light.kitchen", "light.bedroom")
@@ -16,7 +16,7 @@ class VacationModeConfig(AppConfig):
 
 
 class VacationMode(App[VacationModeConfig]):
-    presence_job: ScheduledJob | None = None
+    presence_job: Job | None = None
 
     async def on_initialize(self) -> None:
         await self.bus.on_state_change(
@@ -43,7 +43,7 @@ class VacationMode(App[VacationModeConfig]):
     async def on_vacation_end(self) -> None:
         self.logger.info("Vacation mode disabled — stopping presence simulation")
         if self.presence_job is not None:
-            self.presence_job.cancel()
+            self.presence_job.remove()
             self.presence_job = None
         for light in self.app_config.lights:
             await self.api.turn_off(light, domain="light")

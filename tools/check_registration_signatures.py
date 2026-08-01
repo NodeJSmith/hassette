@@ -16,7 +16,7 @@ named ``name`` is checked for two invariants:
    when a bare ``*`` or ``*args`` precedes it in the signature) rather than positional.
 2. The keyword-only ``name`` has no default value (its ``kw_defaults`` entry is ``None``).
 
-Methods without a ``name`` parameter at all (``on_error``, ``cancel_job``, ...) are not
+Methods without a ``name`` parameter at all (``on_error``, ``remove_job``, ...) are not
 flagged — the scan is structural, not name-prefix-based.
 
 Usage:

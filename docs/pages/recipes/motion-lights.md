@@ -26,9 +26,9 @@ The section name (`motion_lights`) is the app key the `hassette` CLI commands be
 
 [`D.StateNew[states.BinarySensorState]`](../core-concepts/bus/dependency-injection.md) is a [dependency injection](../core-concepts/bus/dependency-injection.md) annotation — Hassette inspects the handler's parameter types at registration and passes the extracted value in automatically. `D.StateNew` delivers the new state, already converted to a [`BinarySensorState`](../core-concepts/states/index.md) object. `BinarySensorState.value` is `bool | None`: `True` when the sensor is on (motion detected), `False` when off (motion cleared), `None` when the state is unknown or unavailable — not the raw HA strings `"on"` and `"off"`. The handler covers both transitions in one place rather than two separate subscriptions.
 
-When motion turns on, any pending off job is cancelled before the light turns on. This resets the timer. If motion fires again while the delay is running, the timeout starts over instead of firing at the original time.
+When motion turns on, any pending off job is removed before the light turns on. This resets the timer. If motion fires again while the delay is running, the timeout starts over instead of firing at the original time.
 
-When motion clears, `self.scheduler.run_in` schedules `turn_off_light` for `off_delay_seconds` seconds later. The returned [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob] handle exposes a `.cancel()` method — storing it on `self.off_job` lets the on-handler cancel the pending job on re-trigger.
+When motion clears, `self.scheduler.run_in` schedules `turn_off_light` for `off_delay_seconds` seconds later. The returned [`Job`][hassette.scheduler.classes.Job] handle exposes a `.remove()` method — storing it on `self.off_job` lets the on-handler remove the pending job on re-trigger.
 
 `OFF_JOB_NAME` gives the scheduled job a stable name for log readability.
 

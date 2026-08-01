@@ -26,11 +26,11 @@ Every `App` instance carries `self.bus` (delivers HA events to handlers), `self.
 
 Two `on_state_change` subscriptions watch the same `input_boolean`. `changed_to` filters each subscription to one transition: `"on"` or `"off"`. Each handler does exactly one thing, so the two paths stay independent and easy to trace. `name=` on each subscription is required — it labels the listener in logs and in `hassette listener` output; omitting it raises `ListenerNameRequiredError` at registration time.
 
-When vacation mode activates, `run_every` schedules `simulate_presence` to run on a fixed interval. `run_every` returns a [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob] — a handle for the running job. It is stored on the instance so `on_vacation_end` can cancel it later. The class-level `presence_job: ScheduledJob | None = None` line declares and defaults that attribute; it is a type annotation, not framework boilerplate.
+When vacation mode activates, `run_every` schedules `simulate_presence` to run on a fixed interval. `run_every` returns a [`Job`][hassette.scheduler.classes.Job] — a handle for the running job. It is stored on the instance so `on_vacation_end` can remove it later. The class-level `presence_job: Job | None = None` line declares and defaults that attribute; it is a type annotation, not framework boilerplate.
 
 Each tick, `simulate_presence` picks a random light from the configured list and reads its current state via `self.api.get_state`. Hassette converts light state to a `bool`: `.value` is `True` for on and `False` for off — not the raw HA strings `"on"` and `"off"`, so `state.value == "on"` never matches. If the light is on, it turns it off. If it is off, it turns it on. The random selection is what creates the irregular pattern. Toggling the same light at a fixed interval would look mechanical. Cycling through a random pick each time does not.
 
-When vacation mode deactivates, the stored job is cancelled and all configured lights are turned off. Turning off the lights explicitly restores a known state. Without that step, whatever lights happened to be on at cancellation time would stay on.
+When vacation mode deactivates, the stored job is removed and all configured lights are turned off. Turning off the lights explicitly restores a known state. Without that step, whatever lights happened to be on at removal time would stay on.
 
 Entity IDs and the interval come from `VacationModeConfig`. Adjusting the light list or simulation frequency is a config change in `hassette.toml`, not a code change.
 

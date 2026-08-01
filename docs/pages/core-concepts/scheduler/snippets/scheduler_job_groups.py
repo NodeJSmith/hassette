@@ -14,7 +14,7 @@ class MorningApp(App[AppConfig]):
         )
 
     async def on_vacation_start(self) -> None:
-        self.scheduler.cancel_group("morning")
+        self.scheduler.remove_group("morning")
 
     async def open_blinds(self) -> None: ...
     async def play_music(self) -> None: ...

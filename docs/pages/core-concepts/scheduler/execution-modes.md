@@ -128,6 +128,14 @@ removed, so no overlap is possible.
 The value passed is stored on the job and appears in the jobs API
 response, but it never triggers guard logic.
 
+## Manual Submission
+
+`job.submit()`, the [Run Now button](../../web-ui/debug-handler.md), and the REST API it calls all dispatch through the same overlap guard as an automatic fire — a manual submission is not a separate execution path with its own admission rules.
+
+A `single`-mode job already running suppresses the submission. A `queued`-mode job at its cap drops it. A `restart`-mode job cancels the running invocation and starts the submitted one. A `parallel`-mode job runs the submission concurrently, same as any other invocation. `submit()` never previews which of these will happen — it always accepts a live job and returns `None` immediately; the guard decides the outcome afterward.
+
+Because suppression and drop are no longer synchronously visible to the caller, they're telemetry-only outcomes: the suppressed/dropped counters described below still increment, and the [monitoring UI's Run Now button](../../web-ui/debug-handler.md) polls for a resulting execution record to give the operator feedback, rather than reading a return value.
+
 ## Observability
 
 ### Suppressed and dropped counts
@@ -188,8 +196,8 @@ other field.
 
 - [Scheduling Methods](methods.md): full parameter reference, including
   `name`, `group`, `jitter`, `timeout`, and `if_exists`
-- [Job Management](management.md): cancellation, groups, error handling,
-  and the [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob] object
+- [Job Management](management.md): removal, groups, error handling,
+  schedule status, and the [`Job`][hassette.scheduler.classes.Job] object
 - [Triggers](triggers.md): built-in trigger types and writing custom
   triggers
 - [Bus Execution Modes](../bus/execution-modes.md): the same four modes

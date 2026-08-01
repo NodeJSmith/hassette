@@ -9,7 +9,7 @@ The scheduler runs functions after a delay, at a specific time, or on a repeatin
 
 All scheduling methods delegate to `schedule(func, trigger)`. `schedule` pairs a callable with a trigger object — a value like `After(seconds=5)` or `Daily(at="07:00")` that describes the schedule. Sync callables (plain `def`) are wrapped in a thread pool automatically, so blocking I/O is safe without extra setup.
 
-Each call returns a [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob] handle. The handle cancels the job, inspects its next fire time, or checks whether it has already run. [Job Management](management.md) covers the full handle API.
+Each call returns a [`Job`][hassette.scheduler.classes.Job] handle. The handle removes the job, inspects its next fire time, or checks whether it has already run. [Job Management](management.md) covers the full handle API.
 
 ## Common Patterns
 
@@ -48,6 +48,22 @@ The `at` parameter accepts `"HH:MM"` strings. Without `at=`, the job fires at mi
 
 `name=` identifies each job in logs and the [monitoring UI](../../web-ui/index.md). It must be unique within the app instance — duplicates raise `ValueError`. See [Scheduling Methods](methods.md) for details.
 
+### Register a job with no automatic schedule
+
+`register()` creates a job with no trigger. It never fires on its own — it exists only to be run on demand, through `job.submit()`, the [Run Now button](../../web-ui/debug-handler.md) in the monitoring UI, or the REST API.
+
+```python
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_register_manual.py:register"
+```
+
+A manual-only job is still a fully live registration: it shows up in `list_jobs()` and the monitoring UI, participates in groups and `if_exists` handling, and removes the same way a scheduled job does. Submitting it runs the registered callable immediately, using its registered `args`/`kwargs`.
+
+```python
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_register_manual.py:submit"
+```
+
+Use `register()` for maintenance routines, on-demand reports, or any job that should carry a name, group, and telemetry history without ever firing by itself. [Job Management](management.md#schedule-status) covers the full set of schedule statuses a job can carry.
+
 ## Conditional Execution
 
 `where=` accepts a predicate — a callable returning `bool` — checked right before the handler runs. When the predicate returns `False`, the handler doesn't run. The job body needs no guard clause of its own.
@@ -56,7 +72,7 @@ The `at` parameter accepts `"HH:MM"` strings. Without `at=`, the job fires at mi
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_where_state_check.py:where_state"
 ```
 
-A predicate with no [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob] annotation takes zero arguments (the common case). A predicate with a positional parameter annotated as `ScheduledJob` receives the job instance, for access to `job.args` and `job.kwargs`. Recurring jobs keep their schedule regardless of the outcome. Only a one-shot job (`run_in`, `run_once`) is consumed when skipped. Register a new one-shot job to retry a skipped execution.
+A predicate with no [`Job`][hassette.scheduler.classes.Job] annotation takes zero arguments (the common case). A predicate with a positional parameter annotated as `Job` receives the job instance, for access to `job.args` and `job.kwargs`. Recurring jobs keep their schedule regardless of the outcome. Only a one-shot job (`run_in`, `run_once`) is consumed when skipped. Register a new one-shot job to retry a skipped execution.
 
 A skipped run still shows up in telemetry, with a `skipped` status and no error. The [monitoring UI](../../web-ui/index.md) distinguishes "didn't run because the condition wasn't met" from "ran and failed."
 
@@ -72,5 +88,5 @@ Run `hassette job` to see all scheduled jobs for your running instance, where `<
 
 - [Scheduling Methods](methods.md): full method reference, cron expressions, and per-job options including `group`, `jitter`, and `if_exists`
 - [Triggers](triggers.md): built-in trigger types, `TriggerProtocol`, and writing custom triggers
-- [Job Management](management.md): cancelling, grouping, error handling, and the [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob] object
+- [Job Management](management.md): removing, grouping, error handling, schedule status, and the [`Job`][hassette.scheduler.classes.Job] object
 - [Execution Modes](execution-modes.md): controlling overlap behavior for recurring jobs — `single`, `restart`, `queued`, `parallel`

@@ -3,7 +3,7 @@
 
 The test suite has a shared factory registry (``hassette.test_utils.factories``,
 the ``web_*_helpers`` modules, ``helpers``) built to absorb the same handful of conceptual
-objects — ``ScheduledJob``, ``Event``, a mock ``CommandExecutor`` — that kept
+objects — ``Job``, ``Event``, a mock ``CommandExecutor`` — that kept
 getting hand-rolled again in each new test file. Left unchecked, an LLM (or a
 developer in a hurry) reinvents the same ``make_*`` function in a new file
 instead of importing the shared one, and the duplication compounds silently.
@@ -22,7 +22,7 @@ guard polices.
 The ``# factory-local:`` annotation is the escape hatch for local factories that
 legitimately share a name with a registry entry but build something different
 (e.g. a ``make_job()`` that returns a ``MagicMock`` instead of a real
-``ScheduledJob``). It requires a non-empty reason and must appear on the same
+``Job``). It requires a non-empty reason and must appear on the same
 physical line as the ``def``/``async def`` keyword — unlike a lazy import, a
 factory definition's signature can span many lines, so anchoring to the exact
 ``def`` line (rather than the whole span) keeps the exemption unambiguous.

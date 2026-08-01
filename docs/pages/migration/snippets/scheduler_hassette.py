@@ -14,7 +14,7 @@ class NightLight(App[MyConfig]):
         )
         self.logger.info("Scheduled job: %r", job)
 
-        # 2025-10-13 19:57:02.670 INFO hassette.NightLight.0.on_initialize:11 - Scheduled job: ScheduledJob(name='run_daily_callback', owner=NightLight.0)
+        # 2025-10-13 19:57:02.670 INFO hassette.NightLight.0.on_initialize:11 - Scheduled job: Job(name='run_daily_callback', owner_id=NightLight.0)
 
     # Our callback function will be called by the scheduler every day at 7pm
     async def run_daily_callback(self):

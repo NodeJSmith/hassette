@@ -1,9 +1,9 @@
 from hassette import App, AppConfig
-from hassette.scheduler.classes import ScheduledJob
+from hassette.scheduler.classes import Job
 
 
 class PollApp(App[AppConfig]):
-    poll_job: ScheduledJob | None = None
+    poll_job: Job | None = None
 
     async def on_initialize(self):
         self.poll_job = await self.scheduler.run_every(
@@ -17,5 +17,5 @@ class PollApp(App[AppConfig]):
         if state is not None and not state.is_unavailable and state.value == "online":
             self.logger.info("Device is online, stopping poll")
             if self.poll_job is not None:
-                self.poll_job.cancel()
+                self.poll_job.remove()
                 self.poll_job = None
