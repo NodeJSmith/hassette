@@ -446,6 +446,80 @@ describe("HandlersTab job detail", () => {
       expect(toast.error).toHaveBeenCalledWith("No execution recorded");
       vi.useRealTimers();
     });
+
+    it("still shows a success toast when the completion event arrives before the trigger POST resolves", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const user = userEvent.setup();
+      const jobId = 730;
+      const job = createJob({ job_id: jobId });
+
+      let resolveTrigger: () => void = () => {};
+      server.use(
+        http.post(
+          "/api/scheduler/jobs/:id/trigger",
+          () =>
+            new Promise((resolve) => {
+              resolveTrigger = () =>
+                resolve(HttpResponse.json({ status: "accepted", job_id: jobId, job_name: job.job_name }));
+            }),
+        ),
+      );
+
+      const { getByTestId } = renderHandlersTab([], [job], `job/${jobId}`);
+      await waitFor(() => getByTestId(`job-detail-${jobId}`));
+
+      await user.click(getByTestId("run-now-btn"));
+
+      // Simulate the WebSocket completion event arriving while the trigger POST is still in flight.
+      act(() => {
+        useAppStore.setState({
+          executionCompleted: [
+            {
+              kind: "job",
+              job_id: jobId,
+              app_key: "test_app",
+              instance_index: 0,
+              status: "success",
+              duration_ms: 10,
+              error_type: null,
+              thread_leaked: false,
+            },
+          ],
+        });
+      });
+
+      await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Execution recorded"));
+      expect(toast.error).not.toHaveBeenCalled();
+
+      resolveTrigger();
+      vi.useRealTimers();
+    });
+
+    it("does not show a stale 'No execution recorded' toast when the trigger request itself fails", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const user = userEvent.setup();
+      const jobId = 740;
+      const job = createJob({ job_id: jobId });
+      server.use(
+        http.post("/api/scheduler/jobs/:id/trigger", () => {
+          return HttpResponse.json({ detail: "job is currently executing" }, { status: 409 });
+        }),
+      );
+      const { getByTestId } = renderHandlersTab([], [job], `job/${jobId}`);
+      await waitFor(() => getByTestId(`job-detail-${jobId}`));
+
+      await user.click(getByTestId("run-now-btn"));
+      await waitFor(() => {
+        expect(getByTestId("run-now-error").textContent).toContain("job is currently executing");
+      });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(PAST_RUN_NOW_FEEDBACK_TIMEOUT_MS);
+      });
+
+      expect(toast.error).not.toHaveBeenCalledWith("No execution recorded");
+      vi.useRealTimers();
+    });
   });
 
   describe("job detail: schedule status text", () => {

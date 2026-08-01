@@ -56,7 +56,14 @@ const RUN_NOW_FEEDBACK_TIMEOUT_MS = 8000;
  * dropped invocations never produce an execution record, so the timeout is the only signal for
  * those outcomes (FR#26/AC#13).
  */
-function useRunNowFeedback(jobId: number): () => void {
+interface RunNowFeedback {
+  /** Arm the watcher before submitting, so a completion event racing the POST isn't missed. */
+  startWatching: () => void;
+  /** Disarm the watcher without a toast — call when the submission itself fails. */
+  cancelWatching: () => void;
+}
+
+function useRunNowFeedback(jobId: number): RunNowFeedback {
   const executionCompleted = useAppStore((s) => s.executionCompleted);
   const watchingRef = useRef(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -77,7 +84,7 @@ function useRunNowFeedback(jobId: number): () => void {
     [],
   );
 
-  return () => {
+  const startWatching = () => {
     watchingRef.current = true;
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     timeoutRef.current = setTimeout(() => {
@@ -86,11 +93,21 @@ function useRunNowFeedback(jobId: number): () => void {
       toast.error("No execution recorded");
     }, RUN_NOW_FEEDBACK_TIMEOUT_MS);
   };
+
+  const cancelWatching = () => {
+    watchingRef.current = false;
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+  };
+
+  return { startWatching, cancelWatching };
 }
 
 function RunNowButton({ jobId }: { jobId: number }) {
   const { loading, error, run } = useAsyncAction();
-  const startWatching = useRunNowFeedback(jobId);
+  const { startWatching, cancelWatching } = useRunNowFeedback(jobId);
 
   return (
     <div className="flex flex-col items-start gap-1">
@@ -101,8 +118,13 @@ function RunNowButton({ jobId }: { jobId: number }) {
         disabled={loading}
         onClick={() =>
           void run(async () => {
-            await triggerJob(jobId);
             startWatching();
+            try {
+              await triggerJob(jobId);
+            } catch (err) {
+              cancelWatching();
+              throw err;
+            }
           })
         }
       >
