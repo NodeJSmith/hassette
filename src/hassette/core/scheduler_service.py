@@ -735,27 +735,32 @@ class SchedulerService(Service):
         return count
 
     async def get_all_jobs(self) -> list["Job"]:
-        """Return all currently scheduled jobs across all apps."""
-        return await self._job_queue.get_all()
+        """Return all live registered jobs across all apps.
+
+        Sourced from ``_jobs_by_id`` — the service-level live registry — not the due-time
+        heap, so waiting, completed, and manual-only jobs (which never touch the heap) are
+        included alongside scheduled ones. This is a synchronous dict-values snapshot; unlike
+        the heap's ``_ScheduledJobQueue.get_all()``, no lock is needed since ``_jobs_by_id``
+        mutations happen only on the event loop thread.
+        """
+        return list(self._jobs_by_id.values())
 
     async def trigger_job(self, job_id: int) -> "Job":
-        """Look up a job on the live scheduler heap by its database id.
+        """Look up a job in the live registry by its database id.
 
-        Used by the manual-trigger route handler (``POST /api/scheduler/jobs/{job_id}/trigger``)
-        to find the job to dispatch. Only looks up and returns the job — the caller is
-        responsible for any guard pre-check and for dispatching the job.
+        Used by the manual-submission route handler (``POST /api/scheduler/jobs/{job_id}/trigger``)
+        to find the job to submit. Only looks up and returns the job — the caller is
+        responsible for calling ``submit_job()``.
 
         Args:
             job_id: The job's ``scheduled_jobs.id`` database row id (``Job.db_id``).
 
         Returns:
-            The matching Job from the live heap.
+            The matching Job from the live registry, regardless of its ``schedule_status``.
 
         Raises:
-            ValueError: If no job with the given job_id is found on the live heap. This covers
-                a one-shot job that already fired, a job mid-execution from its scheduled fire
-                (popped from the heap by ``dispatch_and_log`` and not yet re-enqueued), and a
-                job whose owning app is not running.
+            ValueError: If no job with the given job_id is currently registered — the
+                registration was never made, was removed, or the owning app is not running.
         """
         live_jobs = await self.get_all_jobs()
         live_by_job_id = {job.db_id: job for job in live_jobs if job.db_id is not None}

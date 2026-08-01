@@ -183,6 +183,8 @@ export function createJob(overrides: Partial<JobSummary> = {}): JobSummary {
     total_duration_ms: 0,
     avg_duration_ms: 0,
     group: null,
+    schedule_status: "scheduled",
+    schedule_status_reason: null,
     next_run: null,
     fire_at: null,
     jitter: null,

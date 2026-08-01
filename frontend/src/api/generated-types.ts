@@ -438,11 +438,12 @@ export interface paths {
         };
         /**
          * App Jobs
-         * @description Job summaries for a single app instance, enriched with live heap data.
+         * @description Job summaries for a single app instance, enriched with live registry data.
          *
-         *     Live fields (``next_run``, ``fire_at``, ``jitter``) are joined
-         *     from the live scheduler heap by ``db_id``. On heap failure the DB rows are
-         *     returned without enrichment (degraded but functional; logged warning, no 500).
+         *     ``schedule_status``/``schedule_status_reason`` and, for ``SCHEDULED`` jobs, live timing
+         *     (``next_run``, ``fire_at``, ``jitter``) are joined from the live scheduler registry by
+         *     ``db_id``. On registry failure the DB rows are returned without enrichment (degraded but
+         *     functional; logged warning, no 500).
          */
         get: operations["app_jobs_api_telemetry_app__app_key__jobs_get"];
         put?: never;
@@ -574,13 +575,14 @@ export interface paths {
         };
         /**
          * All Jobs
-         * @description All scheduled jobs across all apps, enriched with live heap data.
+         * @description All scheduled jobs across all apps, enriched with live registry data.
          *
-         *     Live fields (``next_run``, ``fire_at``, ``jitter``) are joined
-         *     from the live scheduler heap by ``db_id``.  On heap failure the DB rows are
-         *     returned without enrichment (degraded but functional; logged warning, no 500).
+         *     ``schedule_status``/``schedule_status_reason`` and, for ``SCHEDULED`` jobs, live timing
+         *     (``next_run``, ``fire_at``, ``jitter``) are joined from the live scheduler registry by
+         *     ``db_id``. On registry failure the DB rows are returned without enrichment (degraded but
+         *     functional; logged warning, no 500).
          *
-         *     The heap snapshot is taken once — not per app — to avoid fan-out overhead.
+         *     The registry snapshot is taken once — not per app — to avoid fan-out overhead.
          */
         get: operations["all_jobs_api_scheduler_jobs_get"];
         put?: never;
@@ -602,16 +604,21 @@ export interface paths {
         put?: never;
         /**
          * Trigger Job
-         * @description Manually trigger a scheduled job to run immediately.
+         * @description Manually submit a job for immediate execution.
          *
-         *     Looks up the job on the live scheduler heap by ``job_id`` (the job's ``db_id``). Returns
-         *     202 and dispatches the job through the same ``run_job_with_guard()`` path as a scheduled
-         *     fire, recording the execution with ``trigger_mode="manual"``. Returns 409 when the job
-         *     is not currently triggerable (already fired, mid-execution from its scheduled fire, or its
-         *     owning app is not running) or when a ``SINGLE``-mode job is currently executing.
+         *     Resolves the job by ``job_id`` (the job's ``db_id``) in the live scheduler registry, then
+         *     submits it through the same ``SchedulerService.submit_job()`` path used by ``Job.submit()``
+         *     — fire-and-observe, dispatched via ``run_job_with_guard(job, trigger_mode="manual")``.
          *
-         *     A still-pending one-shot job (``After``/``Once`` trigger) is dequeued from the heap
-         *     before dispatch to prevent a second scheduled fire at its original time.
+         *     A live registration always returns 202 accepted, even when overlap policy (``single``
+         *     mode, queue capacity) later suppresses or drops the invocation — those outcomes are
+         *     decided asynchronously by the job's existing guard and are not previewed here. Returns
+         *     409 when the job has no live registration: never registered, or removed via
+         *     ``Job.remove()``, ``Scheduler.remove_job()``/``remove_group()``, owner shutdown, or
+         *     ``if_exists="replace"`` since the caller last saw it.
+         *
+         *     Manual submission never consumes, moves, or completes a pending automatic occurrence —
+         *     a pending one-shot or recurring schedule still fires at its own time.
          */
         post: operations["trigger_job_api_scheduler_jobs__job_id__trigger_post"];
         delete?: never;
@@ -1175,6 +1182,13 @@ export interface components {
             avg_duration_ms: number;
             /** Group */
             group?: string | null;
+            /**
+             * Schedule Status
+             * @default scheduled
+             */
+            schedule_status: string;
+            /** Schedule Status Reason */
+            schedule_status_reason?: string | null;
             /** Next Run */
             next_run?: number | null;
             /** Fire At */
@@ -1208,10 +1222,13 @@ export interface components {
         };
         /**
          * JobTriggerResponse
-         * @description Response for POST /api/scheduler/jobs/{job_id}/trigger.
+         * @description Response for POST /api/scheduler/jobs/{job_id}/trigger — manual job submission.
          *
          *     Separate from ``ActionResponse`` (which has ``app_key``/``action`` but no ``job_id``) —
-         *     the trigger response identifies the job, not an app action.
+         *     the trigger response identifies the job, not an app action. ``status`` is always
+         *     ``"accepted"`` for a live registration (the endpoint returns 409 instead of this model
+         *     when the job has no live registration) — overlap-policy suppression or dropping happens
+         *     asynchronously and is not previewed in this response.
          */
         JobTriggerResponse: {
             /**
@@ -2420,7 +2437,7 @@ export interface operations {
                     "application/json": components["schemas"]["JobTriggerResponse"];
                 };
             };
-            /** @description Job is not currently triggerable or is already executing */
+            /** @description Job is not currently registered (no live registration) */
             409: {
                 headers: {
                     [name: string]: unknown;

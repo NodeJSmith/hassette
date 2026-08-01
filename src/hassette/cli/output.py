@@ -169,6 +169,11 @@ class Column:
     max_width: int | None = None
     overflow: OverflowMethod = "ellipsis"
     formatter: Callable[[Any], str] | None = dc_field(default=None, compare=False, hash=False)
+    row_formatter: Callable[[Any], str] | None = dc_field(default=None, compare=False, hash=False)
+    """Optional callable that receives the whole row item (not just ``field``'s extracted
+    value) and returns the display string. Takes precedence over both ``formatter`` and any
+    ``CliFormat`` model-field fallback. Use when a cell's text depends on more than one field
+    (e.g. a nullable timestamp whose placeholder text varies by a sibling status field)."""
 
 
 def _extract_field(item: Any, field_path: str) -> Any:
@@ -243,7 +248,12 @@ def render_table(
     table = _build_table(columns, is_terminal)
     fallback_meta = _resolve_cli_format_meta(type(items[0]))
     for item in items:
-        row = [_cell_text(_extract_field(item, col.field), col, fallback_meta.get(col.field)) for col in columns]
+        row = [
+            col.row_formatter(item)
+            if col.row_formatter is not None
+            else _cell_text(_extract_field(item, col.field), col, fallback_meta.get(col.field))
+            for col in columns
+        ]
         table.add_row(*row)
 
     stdout_console.print(table)

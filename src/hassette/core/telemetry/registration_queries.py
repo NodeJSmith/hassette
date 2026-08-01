@@ -181,6 +181,8 @@ class RegistrationQueriesMixin:
                 sj.mode,
                 sj.predicate_description,
                 sj.human_description,
+                sj.schedule_status,
+                sj.schedule_status_reason,
                 COUNT(e.rowid) AS total_executions,
                 SUM(CASE WHEN e.status = 'success' THEN 1 ELSE 0 END) AS successful,
                 SUM(CASE WHEN e.status = 'error' THEN 1 ELSE 0 END) AS failed,

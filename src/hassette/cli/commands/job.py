@@ -9,20 +9,6 @@ from hassette.cli.types import AppKeyArg, InstanceArg, LimitArg, SinceArg, Sourc
 from hassette.schemas.execution_models import Execution
 from hassette.schemas.job_models import JobSummary
 
-JOB_LIST_COLUMNS: list[Column] = [
-    Column("job_id", "ID", max_width=6),
-    Column("app_key", "App", max_width=18),
-    Column("job_name", "Handler", max_width=22),
-    Column("trigger_type", "Trigger", max_width=10),
-    Column("trigger_detail", "Schedule", max_width=20),
-    Column("mode", "Mode", max_width=9),
-    Column("total_executions", "Total", max_width=7),
-    Column("successful", "OK", max_width=6),
-    Column("failed", "Fail", max_width=6),
-    Column("avg_duration_ms", "Avg", max_width=7, formatter=fmt_duration_ms),
-    Column("next_run", "Next Run", max_width=11),
-]
-
 JOB_EXECUTION_COLUMNS: list[Column] = [
     Column("status", "Status", max_width=10),
     Column("duration_ms", "Duration", max_width=9, formatter=fmt_duration_ms),
@@ -30,6 +16,57 @@ JOB_EXECUTION_COLUMNS: list[Column] = [
     Column("error_message", "Error Message", max_width=28),
     Column("execution_start_ts", "When", max_width=11, formatter=fmt_relative_time),
     Column("execution_id", "Execution ID", max_width=14),
+]
+
+#: schedule_status -> schedule_status_reason -> display text, for combinations that override
+#: the default per-status text below. ``None`` reason keys are handled by the plain
+#: _SCHEDULE_STATUS_TEXT fallback in _next_run_display().
+_SCHEDULE_STATUS_REASON_TEXT: dict[tuple[str, str], str] = {
+    ("scheduled", "legacy_unknown"): "Legacy status unknown",
+    ("completed", "trigger_error"): "Schedule stopped after trigger error.",
+}
+
+#: Fallback text for a null next_run, keyed by schedule_status, when no reason override
+#: applies. "scheduled" here means live enrichment ran but returned no concrete timing.
+_SCHEDULE_STATUS_TEXT: dict[str, str] = {
+    "scheduled": "Timing unavailable",
+    "waiting": "Waiting for entity time",
+    "completed": "Schedule completed",
+    "manual": "Manual only",
+}
+
+
+def _next_run_display(job: JobSummary) -> str:
+    """Status-aware display text for the Next Run column.
+
+    A concrete ``next_run`` always wins (relative-time text). Otherwise the text is chosen
+    from ``schedule_status``/``schedule_status_reason`` — null timing no longer means "done";
+    it means waiting, completed, manual-only, or (for a nominally scheduled job) that live
+    timing is temporarily unavailable.
+    """
+    if job.next_run is not None:
+        return fmt_relative_time(job.next_run)
+    if job.schedule_status_reason is not None:
+        reason_text = _SCHEDULE_STATUS_REASON_TEXT.get((job.schedule_status, job.schedule_status_reason))
+        if reason_text is not None:
+            return reason_text
+    return _SCHEDULE_STATUS_TEXT.get(job.schedule_status, "")
+
+
+# constant-after-def: JOB_LIST_COLUMNS' next_run column wires _next_run_display, defined
+# immediately above, as its row_formatter.
+JOB_LIST_COLUMNS: list[Column] = [
+    Column("job_id", "ID", max_width=6),
+    Column("app_key", "App", max_width=18),
+    Column("job_name", "Handler", max_width=22),
+    Column("trigger_type", "Trigger", max_width=10),
+    Column("schedule_status", "Status", max_width=10, formatter=lambda v: str(v).capitalize()),
+    Column("mode", "Mode", max_width=9),
+    Column("total_executions", "Total", max_width=7),
+    Column("successful", "OK", max_width=6),
+    Column("failed", "Fail", max_width=6),
+    Column("avg_duration_ms", "Avg", max_width=7, formatter=fmt_duration_ms),
+    Column("next_run", "Next Run", max_width=11, row_formatter=_next_run_display),
 ]
 
 

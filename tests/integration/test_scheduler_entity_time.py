@@ -168,20 +168,27 @@ async def test_entity_going_unavailable_parks_a_scheduled_job(entity_time_harnes
 
 
 async def test_waiting_job_removed_from_heap_but_stays_registered(entity_time_harness: HassetteHarness) -> None:
-    """A job moved to waiting is no longer on the scheduler heap, but remains live."""
+    """A job moved to waiting is no longer on the scheduler heap, but remains live.
+
+    ``get_all_jobs()`` sources from the live registry (``_jobs_by_id``), not the heap, so a
+    waiting job is still found there — the heap-specific check goes through ``_job_queue``
+    directly.
+    """
     alarm = iso_in(60)
     await seed_alarm(entity_time_harness, alarm)
 
     job = await entity_time_harness.scheduler.schedule(
         noop, EntityTime(ALARM_ENTITY), name="entity_time_waiting_off_heap"
     )
-    live_before = await entity_time_harness.scheduler_service.get_all_jobs()
-    assert any(j is job for j in live_before)
+    heap_before = await entity_time_harness.scheduler_service._job_queue.get_all()
+    assert any(j is job for j in heap_before)
 
     await change_alarm(entity_time_harness, alarm, "unavailable")
 
+    heap_after = await entity_time_harness.scheduler_service._job_queue.get_all()
+    assert not any(j is job for j in heap_after), "waiting job must not be on the heap"
     live_after = await entity_time_harness.scheduler_service.get_all_jobs()
-    assert not any(j is job for j in live_after), "waiting job must not be on the heap"
+    assert any(j is job for j in live_after), "waiting job must stay in the live registry"
     assert job.name in entity_time_harness.scheduler._jobs_by_name, "waiting job must stay registered"
     job.remove()
 
@@ -204,20 +211,24 @@ async def test_parked_job_recovers_when_entity_reports_a_time(entity_time_harnes
 
 
 async def test_waiting_job_reactivates_onto_the_heap(entity_time_harness: HassetteHarness) -> None:
-    """Recovery from waiting puts the job back on the live heap, not just changes its status."""
+    """Recovery from waiting puts the job back on the live heap, not just changes its status.
+
+    ``get_all_jobs()`` sources from the live registry, so a waiting job is already present
+    there before recovery — the heap-membership check goes through ``_job_queue`` directly.
+    """
     await seed_alarm(entity_time_harness, "unavailable")
 
     job = await entity_time_harness.scheduler.schedule(
         noop, EntityTime(ALARM_ENTITY), name="entity_time_waiting_reactivates"
     )
-    live_while_waiting = await entity_time_harness.scheduler_service.get_all_jobs()
-    assert not any(j is job for j in live_while_waiting)
+    heap_while_waiting = await entity_time_harness.scheduler_service._job_queue.get_all()
+    assert not any(j is job for j in heap_while_waiting)
 
     alarm = iso_in(45)
     await change_alarm(entity_time_harness, "unavailable", alarm)
 
-    live_after = await entity_time_harness.scheduler_service.get_all_jobs()
-    assert any(j is job for j in live_after), "job must be back on the heap after recovering a usable time"
+    heap_after = await entity_time_harness.scheduler_service._job_queue.get_all()
+    assert any(j is job for j in heap_after), "job must be back on the heap after recovering a usable time"
     job.remove()
 
 

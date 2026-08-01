@@ -6,8 +6,10 @@ from unittest.mock import patch
 import pytest
 
 from hassette.cli.commands.job import (
+    _SCHEDULE_STATUS_TEXT,
     JOB_EXECUTION_COLUMNS,
     JOB_LIST_COLUMNS,
+    _next_run_display,
     cmd_job,
 )
 from hassette.cli.context import CLIContext
@@ -151,6 +153,43 @@ class TestCmdJob:
 
         assert "No results" in err_buf.getvalue()
 
+    @pytest.mark.parametrize(
+        ("schedule_status", "schedule_status_reason", "expected_text"),
+        [
+            ("scheduled", None, "Timing unavailable"),
+            ("scheduled", "legacy_unknown", "Legacy status unknown"),
+            ("waiting", None, "Waiting for entity time"),
+            ("completed", None, "Schedule completed"),
+            ("completed", "trigger_error", "Schedule stopped after trigger error."),
+            ("manual", None, "Manual only"),
+        ],
+    )
+    def test_null_next_run_renders_status_aware_text(
+        self,
+        schedule_status: str,
+        schedule_status_reason: str | None,
+        expected_text: str,
+    ) -> None:
+        """A null next_run renders truthful, status-aware text instead of generic 'done'.
+
+        Exercises ``_next_run_display`` directly rather than through the rendered table —
+        the table's fixed capture width can ellipsis-truncate the longer status strings,
+        which is a display artifact of column width, not a correctness signal for the text
+        the row_formatter produces.
+        """
+        job = make_job_summary(
+            job_id=1, next_run=None, schedule_status=schedule_status, schedule_status_reason=schedule_status_reason
+        )
+
+        assert _next_run_display(job) == expected_text
+
+    def test_concrete_next_run_renders_relative_time(self) -> None:
+        """A concrete next_run still renders via fmt_relative_time, not status text."""
+        job = make_job_summary(job_id=1, next_run=SINCE_EPOCH, schedule_status="scheduled")
+
+        assert _next_run_display(job) != ""
+        assert _next_run_display(job) not in _SCHEDULE_STATUS_TEXT.values()
+
     def test_job_list_columns_defined(self) -> None:
         """JOB_LIST_COLUMNS includes key job fields."""
         field_names = [c.field for c in JOB_LIST_COLUMNS]
@@ -164,6 +203,11 @@ class TestCmdJob:
     def test_job_list_columns_count_is_compact(self) -> None:
         """JOB_LIST_COLUMNS uses at most 11 columns for wide terminal fit."""
         assert len(JOB_LIST_COLUMNS) <= 11
+
+    def test_job_list_columns_includes_schedule_status(self) -> None:
+        """JOB_LIST_COLUMNS includes a schedule_status column."""
+        field_names = [c.field for c in JOB_LIST_COLUMNS]
+        assert "schedule_status" in field_names
 
 
 class TestCmdJobDetail:

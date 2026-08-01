@@ -1059,7 +1059,7 @@
           "telemetry"
         ],
         "summary": "App Jobs",
-        "description": "Job summaries for a single app instance, enriched with live heap data.\n\nLive fields (``next_run``, ``fire_at``, ``jitter``) are joined\nfrom the live scheduler heap by ``db_id``. On heap failure the DB rows are\nreturned without enrichment (degraded but functional; logged warning, no 500).",
+        "description": "Job summaries for a single app instance, enriched with live registry data.\n\n``schedule_status``/``schedule_status_reason`` and, for ``SCHEDULED`` jobs, live timing\n(``next_run``, ``fire_at``, ``jitter``) are joined from the live scheduler registry by\n``db_id``. On registry failure the DB rows are returned without enrichment (degraded but\nfunctional; logged warning, no 500).",
         "operationId": "app_jobs_api_telemetry_app__app_key__jobs_get",
         "parameters": [
           {
@@ -1492,7 +1492,7 @@
           "scheduler"
         ],
         "summary": "All Jobs",
-        "description": "All scheduled jobs across all apps, enriched with live heap data.\n\nLive fields (``next_run``, ``fire_at``, ``jitter``) are joined\nfrom the live scheduler heap by ``db_id``.  On heap failure the DB rows are\nreturned without enrichment (degraded but functional; logged warning, no 500).\n\nThe heap snapshot is taken once \u2014 not per app \u2014 to avoid fan-out overhead.",
+        "description": "All scheduled jobs across all apps, enriched with live registry data.\n\n``schedule_status``/``schedule_status_reason`` and, for ``SCHEDULED`` jobs, live timing\n(``next_run``, ``fire_at``, ``jitter``) are joined from the live scheduler registry by\n``db_id``. On registry failure the DB rows are returned without enrichment (degraded but\nfunctional; logged warning, no 500).\n\nThe registry snapshot is taken once \u2014 not per app \u2014 to avoid fan-out overhead.",
         "operationId": "all_jobs_api_scheduler_jobs_get",
         "parameters": [
           {
@@ -1563,7 +1563,7 @@
           "scheduler"
         ],
         "summary": "Trigger Job",
-        "description": "Manually trigger a scheduled job to run immediately.\n\nLooks up the job on the live scheduler heap by ``job_id`` (the job's ``db_id``). Returns\n202 and dispatches the job through the same ``run_job_with_guard()`` path as a scheduled\nfire, recording the execution with ``trigger_mode=\"manual\"``. Returns 409 when the job\nis not currently triggerable (already fired, mid-execution from its scheduled fire, or its\nowning app is not running) or when a ``SINGLE``-mode job is currently executing.\n\nA still-pending one-shot job (``After``/``Once`` trigger) is dequeued from the heap\nbefore dispatch to prevent a second scheduled fire at its original time.",
+        "description": "Manually submit a job for immediate execution.\n\nResolves the job by ``job_id`` (the job's ``db_id``) in the live scheduler registry, then\nsubmits it through the same ``SchedulerService.submit_job()`` path used by ``Job.submit()``\n\u2014 fire-and-observe, dispatched via ``run_job_with_guard(job, trigger_mode=\"manual\")``.\n\nA live registration always returns 202 accepted, even when overlap policy (``single``\nmode, queue capacity) later suppresses or drops the invocation \u2014 those outcomes are\ndecided asynchronously by the job's existing guard and are not previewed here. Returns\n409 when the job has no live registration: never registered, or removed via\n``Job.remove()``, ``Scheduler.remove_job()``/``remove_group()``, owner shutdown, or\n``if_exists=\"replace\"`` since the caller last saw it.\n\nManual submission never consumes, moves, or completes a pending automatic occurrence \u2014\na pending one-shot or recurring schedule still fires at its own time.",
         "operationId": "trigger_job_api_scheduler_jobs__job_id__trigger_post",
         "parameters": [
           {
@@ -1588,7 +1588,7 @@
             }
           },
           "409": {
-            "description": "Job is not currently triggerable or is already executing"
+            "description": "Job is not currently registered (no live registration)"
           },
           "422": {
             "description": "Validation Error",
@@ -2824,6 +2824,22 @@
             ],
             "title": "Group"
           },
+          "schedule_status": {
+            "type": "string",
+            "title": "Schedule Status",
+            "default": "scheduled"
+          },
+          "schedule_status_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schedule Status Reason"
+          },
           "next_run": {
             "anyOf": [
               {
@@ -2983,7 +2999,7 @@
           "job_name"
         ],
         "title": "JobTriggerResponse",
-        "description": "Response for POST /api/scheduler/jobs/{job_id}/trigger.\n\nSeparate from ``ActionResponse`` (which has ``app_key``/``action`` but no ``job_id``) \u2014\nthe trigger response identifies the job, not an app action."
+        "description": "Response for POST /api/scheduler/jobs/{job_id}/trigger \u2014 manual job submission.\n\nSeparate from ``ActionResponse`` (which has ``app_key``/``action`` but no ``job_id``) \u2014\nthe trigger response identifies the job, not an app action. ``status`` is always\n``\"accepted\"`` for a live registration (the endpoint returns 409 instead of this model\nwhen the job has no live registration) \u2014 overlap-policy suppression or dropping happens\nasynchronously and is not previewed in this response."
       },
       "ListenerWithSummary": {
         "properties": {

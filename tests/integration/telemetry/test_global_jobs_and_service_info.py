@@ -17,6 +17,7 @@ from hassette.core.database_service import DatabaseService
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.exceptions import TelemetryUnavailableError
+from hassette.scheduler.classes import ScheduleStatus, ScheduleStatusReason
 from hassette.scheduler.triggers import Every
 from hassette.schemas.domain_models import ServiceInfo, SystemStatus
 from hassette.schemas.job_models import JobSummary
@@ -328,6 +329,92 @@ class TestGlobalJobsEndpointEnrichesWithLiveData:
         assert isinstance(row["next_run"], float)
         assert row["jitter"] == 10.0
         assert row["fire_at"] is not None
+        assert row["schedule_status"] == "scheduled"
+
+    @pytest.mark.parametrize(
+        ("status", "reason"),
+        [
+            (ScheduleStatus.WAITING, None),
+            (ScheduleStatus.COMPLETED, None),
+            (ScheduleStatus.COMPLETED, ScheduleStatusReason.TRIGGER_ERROR),
+            (ScheduleStatus.MANUAL, None),
+        ],
+    )
+    async def test_enriches_non_scheduled_statuses_with_null_timing(
+        self, scheduler_client, mock_hassette_scheduler, status: ScheduleStatus, reason: ScheduleStatusReason | None
+    ) -> None:
+        """A waiting/completed/manual live job overlays its status but keeps timing null."""
+        db_summary = make_job_summary(job_id=42, app_key="my_app", next_run=None)
+        mock_hassette_scheduler.telemetry_query_service.get_job_summary = AsyncMock(return_value=[db_summary])
+
+        live_job = make_real_job(name="test_job", trigger=None)
+        live_job.mark_registered(42)
+        live_job.transition_to(status, reason=reason)
+        mock_hassette_scheduler.scheduler_service.get_all_jobs = AsyncMock(return_value=[live_job])
+
+        response = await scheduler_client.get("/api/scheduler/jobs")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        row = data[0]
+
+        assert row["next_run"] is None
+        assert row["fire_at"] is None
+        assert row["schedule_status"] == status.value
+        assert row["schedule_status_reason"] == (reason.value if reason is not None else None)
+
+
+class TestGlobalJobsEndpointLegacyUnknown:
+    async def test_legacy_row_with_no_live_match_renders_unknown_reason(
+        self, scheduler_client, mock_hassette_scheduler
+    ) -> None:
+        """A persisted legacy row with no live registration keeps its legacy_unknown reason."""
+        db_summary = make_job_summary(
+            job_id=77,
+            app_key="legacy_app",
+            next_run=None,
+            schedule_status="scheduled",
+            schedule_status_reason="legacy_unknown",
+        )
+        mock_hassette_scheduler.telemetry_query_service.get_job_summary = AsyncMock(return_value=[db_summary])
+        mock_hassette_scheduler.scheduler_service.get_all_jobs = AsyncMock(return_value=[])
+
+        response = await scheduler_client.get("/api/scheduler/jobs")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        row = data[0]
+
+        assert row["schedule_status"] == "scheduled"
+        assert row["schedule_status_reason"] == "legacy_unknown"
+        assert row["next_run"] is None
+
+    async def test_live_reregistration_clears_legacy_placeholder(
+        self, scheduler_client, mock_hassette_scheduler
+    ) -> None:
+        """Live re-registration overlays the exact current status and clears legacy_unknown."""
+        db_summary = make_job_summary(
+            job_id=77,
+            app_key="legacy_app",
+            next_run=None,
+            schedule_status="scheduled",
+            schedule_status_reason="legacy_unknown",
+        )
+        mock_hassette_scheduler.telemetry_query_service.get_job_summary = AsyncMock(return_value=[db_summary])
+
+        trigger = Every(hours=1)
+        live_job = make_real_job(name="legacy_job", trigger=trigger)
+        live_job.mark_registered(77)
+        mock_hassette_scheduler.scheduler_service.get_all_jobs = AsyncMock(return_value=[live_job])
+
+        response = await scheduler_client.get("/api/scheduler/jobs")
+        assert response.status_code == 200
+        data = response.json()
+        row = data[0]
+
+        assert row["schedule_status"] == "scheduled"
+        assert row["schedule_status_reason"] is None
+        assert row["next_run"] is not None
 
 
 class TestGlobalJobsEndpointDegradedOnHeapFailure:
@@ -353,6 +440,27 @@ class TestGlobalJobsEndpointDegradedOnHeapFailure:
         response = await scheduler_client.get("/api/scheduler/jobs")
         assert response.status_code == 503
         assert response.json() == []
+
+    async def test_trigger_error_reason_survives_degraded_fallback(
+        self, scheduler_client, mock_hassette_scheduler
+    ) -> None:
+        """A completed/trigger_error row keeps its reason when live enrichment is unavailable."""
+        db_summary = make_job_summary(
+            job_id=88,
+            next_run=None,
+            schedule_status="completed",
+            schedule_status_reason="trigger_error",
+        )
+        mock_hassette_scheduler.telemetry_query_service.get_job_summary = AsyncMock(return_value=[db_summary])
+        mock_hassette_scheduler.scheduler_service.get_all_jobs = AsyncMock(side_effect=RuntimeError("heap unavailable"))
+
+        response = await scheduler_client.get("/api/scheduler/jobs")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["schedule_status"] == "completed"
+        assert data[0]["schedule_status_reason"] == "trigger_error"
+        assert data[0]["next_run"] is None
 
 
 class TestServiceInfoResponseExtension:

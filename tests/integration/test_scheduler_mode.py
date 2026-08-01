@@ -847,9 +847,12 @@ async def test_dequeued_race_in_lock_prevents_spurious_repush() -> None:
         finally:
             scheduler_service.enqueue_job = original_enqueue  # pyright: ignore[reportAttributeAccessIssue]
 
-        # Heap must not have a re-pushed copy of the cancelled job
-        all_jobs = await scheduler_service.get_all_jobs()
-        assert not any(j is job for j in all_jobs), (
+        # Heap must not have a re-pushed copy of the cancelled job. get_all_jobs() now
+        # sources from the live registry (not the heap), so it still finds the job here
+        # (its registration was never removed, only its heap occurrence) — check the heap
+        # queue directly instead.
+        heap_jobs = await scheduler_service._job_queue.get_all()
+        assert not any(j is job for j in heap_jobs), (
             "A job cancelled during the re-enqueue window must not appear on the heap"
         )
 

@@ -58,8 +58,21 @@ class JobSummary(BaseModel):
     avg_duration_ms: float
     group: str | None = None
     """Scheduler group name, persisted at registration."""
-    next_run: Annotated[float | None, CliFormat("relative_time", none_text="done")] = None
-    """Unix epoch seconds of the next scheduled fire time (unjittered); sourced from live heap."""
+    schedule_status: str = "scheduled"
+    """Current schedule status: ``scheduled``, ``waiting``, ``completed``, or ``manual``.
+    Persisted at registration and every status transition; live enrichment overlays the
+    current in-process value, so a DB-only degraded response still reflects the last
+    persisted status."""
+    schedule_status_reason: str | None = None
+    """Optional diagnostic reason qualifying ``schedule_status``: ``legacy_unknown`` for rows
+    backfilled by the schema migration before live re-registration establishes an exact
+    status, or ``trigger_error`` for a ``completed`` job whose trigger raised while computing
+    its next occurrence. ``None`` for a clean status with no override."""
+    next_run: Annotated[float | None, CliFormat("relative_time")] = None
+    """Unix epoch seconds of the next scheduled fire time (unjittered); live-only — always
+    ``None`` in a DB-only response, and ``None`` for every status except ``scheduled`` with
+    live timing available. A ``None`` value no longer implies the job is done; see
+    ``schedule_status``/``schedule_status_reason`` for the reason timing is unavailable."""
     fire_at: float | None = None
     """Unix epoch seconds of actual dispatch time when jitter applied; sourced from live heap."""
     jitter: float | None = None

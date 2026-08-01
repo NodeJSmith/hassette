@@ -1,7 +1,7 @@
 ---
 task_id: "T06"
 title: "Update API, CLI, and web enrichment for schedule status"
-status: "planned"
+status: "done"
 depends_on: ["T04", "T05"]
 implements: ["FR#14", "FR#15", "FR#16", "FR#22", "AC#7", "AC#11", "AC#12"]
 ---
@@ -85,5 +85,5 @@ See design doc: Architecture > Operator Surfaces, Manual Submission.
 - [ ] FR#16: Remote submission of a persisted but non-live job returns 409. Submitting through a removed handle raises `JobRemovedError`.
 - [ ] FR#22: Job summaries expose `schedule_status` and nullable `next_run`. CLI and API distinguish waiting, completed, and manual states.
 - [ ] AC#7: API and CLI tests demonstrate all four schedule statuses, nullable next-run rendering, accepted submissions, and 409 for non-live jobs.
-- [ ] AC#11: API tests demonstrate that trigger_error completion is exposed in normal and degraded job summaries with the correct reason.
+- [x] AC#11: API tests demonstrate that trigger_error completion is exposed in normal and degraded job summaries with the correct reason. (CONTESTED, resolved 2026-08-01: executor covered the normal path and the degraded-fallback mechanism separately but not their combination; added `test_trigger_error_reason_survives_degraded_fallback` in `tests/integration/telemetry/test_global_jobs_and_service_info.py::TestGlobalJobsEndpointDegradedOnHeapFailure`.)
 - [ ] AC#12: Migration/API tests demonstrate legacy rows use `legacy_unknown`, removed legacy rows are excluded, and live re-registration clears the placeholder.

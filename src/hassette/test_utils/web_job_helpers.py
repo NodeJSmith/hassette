@@ -137,6 +137,8 @@ def make_job_summary(
     last_error_type: str | None = None,
     last_error_message: str | None = None,
     group: str | None = None,
+    schedule_status: str = "scheduled",
+    schedule_status_reason: str | None = None,
 ) -> JobSummary:
     """Build a JobSummary with sensible defaults."""
     effective_duration_ms = total_duration_ms if total_duration_ms is not None else total_executions * avg_duration_ms
@@ -163,4 +165,6 @@ def make_job_summary(
         last_error_type=last_error_type,
         last_error_message=last_error_message,
         group=group,
+        schedule_status=schedule_status,
+        schedule_status_reason=schedule_status_reason,
     )
