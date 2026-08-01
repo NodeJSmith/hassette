@@ -165,7 +165,8 @@ class AppManifest(ExcludeExtrasMixin, BaseModel):
 
         values["app_dir"] = app_dir = Path(values["app_dir"]).resolve()
 
-        values["display_name"] = values.get("display_name") or values.get("class_name")
+        if not values.get("display_name"):
+            values["display_name"] = values.get("class_name") if values.get("auto_loaded") else values.get("app_key")
 
         if app_dir.is_file():
             LOGGER.warning("App directory %s is a file, using the parent directory as app_dir", app_dir)

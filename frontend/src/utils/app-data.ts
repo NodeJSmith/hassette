@@ -100,7 +100,7 @@ export function compareAppRows(
   const bStatus = appLiveStatus(appStatuses, b);
   switch (sort.key) {
     case "name":
-      return dir * a.app_key.localeCompare(b.app_key);
+      return dir * a.display_name.localeCompare(b.display_name) || a.app_key.localeCompare(b.app_key);
     case "status": {
       const statusDiff = statusPriority(aStatus) - statusPriority(bStatus);
       if (statusDiff !== 0) return dir * statusDiff;

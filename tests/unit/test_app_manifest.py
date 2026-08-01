@@ -60,7 +60,7 @@ class TestAppManifest:
         try:
             assert app_a.app_manifest is manifest_a
             assert app_b.app_manifest is manifest_b
-            assert app_a.app_manifest.display_name == "MyAppA"
-            assert app_b.app_manifest.display_name == "MyAppB"
+            assert app_a.app_manifest.display_name == "my_app_a"
+            assert app_b.app_manifest.display_name == "my_app_b"
         finally:
             del App.app_manifest
