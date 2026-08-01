@@ -148,6 +148,11 @@ class ApiResource(Resource):
             if params:
                 request_kwargs["params"] = params
 
+            if "timeout" not in kwargs:
+                request_kwargs["timeout"] = aiohttp.ClientTimeout(
+                    total=self.hassette.config.rest_request_timeout_seconds
+                )
+
             try:
                 response = await self._session.request(
                     method, url, ssl=self.hassette.config.verify_ssl, **request_kwargs, **kwargs

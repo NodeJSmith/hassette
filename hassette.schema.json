@@ -111,6 +111,13 @@
             "label": "Verify SSL"
           }
         },
+        "rest_request_timeout_seconds": {
+          "default": 30.0,
+          "description": "Default total timeout in seconds for outbound REST requests to Home Assistant, applied per retry attempt.\nPassed to aiohttp as a :class:`aiohttp.ClientTimeout`. Override per call by passing a ``timeout=`` kwarg to\n:meth:`~hassette.core.api_resource.ApiResource.rest_request`.",
+          "exclusiveMinimum": 0,
+          "title": "Rest Request Timeout Seconds",
+          "type": "number"
+        },
         "token": {
           "anyOf": [
             {

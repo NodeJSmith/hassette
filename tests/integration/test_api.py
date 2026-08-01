@@ -1,7 +1,12 @@
 from typing import Any
+from unittest.mock import patch
+
+import aiohttp
+import pytest
 
 from hassette import STATE_REGISTRY
 from hassette.api import Api
+from hassette.core import api_resource as api_resource_module
 from hassette.models.entities.light import LightEntity
 from hassette.test_utils import SimpleTestServer
 from hassette.utils.request_utils import clean_kwargs
@@ -80,6 +85,57 @@ async def test_get_state_or_none_returns_none_for_missing_entity(
     result = await api_client.get_state_or_none("light.nonexistent")
 
     assert result is None, f"Expected None for missing entity, got {result!r}"
+
+
+async def test_rest_request_uses_configured_timeout(hassette_with_mock_api: tuple[Api, SimpleTestServer]):
+    """rest_request passes a ClientTimeout sourced from config when the caller doesn't override it."""
+    api_client, mock_server = hassette_with_mock_api
+
+    mock_server.expect("GET", "/api/thing", "", status=200)
+
+    session = api_client._api_service._session
+    assert session is not None
+
+    with patch.object(session, "request", wraps=session.request) as spy:
+        await api_client.rest_request("GET", "/api/thing")
+
+    timeout = spy.call_args.kwargs["timeout"]
+    assert isinstance(timeout, aiohttp.ClientTimeout)
+    assert timeout.total == api_client.hassette.config.rest_request_timeout_seconds
+
+
+async def test_rest_request_per_call_timeout_overrides_config(hassette_with_mock_api: tuple[Api, SimpleTestServer]):
+    """A caller-supplied timeout kwarg is passed through untouched instead of the config default."""
+    api_client, mock_server = hassette_with_mock_api
+
+    mock_server.expect("GET", "/api/thing", "", status=200)
+
+    session = api_client._api_service._session
+    assert session is not None
+    override = aiohttp.ClientTimeout(total=1.5)
+
+    with patch.object(session, "request", wraps=session.request) as spy:
+        await api_client.rest_request("GET", "/api/thing", timeout=override)
+
+    assert spy.call_args.kwargs["timeout"] is override
+
+
+async def test_rest_request_propagates_timeout_error(
+    hassette_with_mock_api: tuple[Api, SimpleTestServer], monkeypatch: pytest.MonkeyPatch
+):
+    """A request that times out at the aiohttp boundary surfaces as a ClientError, not a silent hang."""
+    api_client, _ = hassette_with_mock_api
+
+    session = api_client._api_service._session
+    assert session is not None
+    # Avoid exercising the real retry/backoff schedule in a fast unit-level check.
+    monkeypatch.setattr(api_resource_module, "MAX_RETRY_ATTEMPTS", 1)
+
+    with (
+        patch.object(session, "request", side_effect=aiohttp.ServerTimeoutError("boom")),
+        pytest.raises(aiohttp.ServerTimeoutError),
+    ):
+        await api_client.rest_request("GET", "/api/thing")
 
 
 async def test_get_entity_or_none_returns_none_for_missing_entity(
