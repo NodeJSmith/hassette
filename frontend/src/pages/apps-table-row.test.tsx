@@ -68,11 +68,14 @@ describe("AppTableRow", () => {
     expect(getByTestId("app-row-motion_lights")).toBeDefined();
   });
 
-  it("shows app name as a link", () => {
-    const { getByRole } = renderRow({ app: createAppRow({ app_key: "my_app" }) });
-    const link = getByRole("link", { name: /my_app/i });
+  it("shows display_name as the link text, not app_key", () => {
+    const { getByRole } = renderRow({
+      app: createAppRow({ app_key: "examples.security_monitor.SecurityMonitor", display_name: "SecurityMonitor" }),
+    });
+    const link = getByRole("link", { name: "SecurityMonitor" });
     expect(link).toBeDefined();
-    expect((link as HTMLAnchorElement).href).toContain("/apps/my_app");
+    expect(link.textContent).toBe("SecurityMonitor");
+    expect((link as HTMLAnchorElement).href).toContain("/apps/examples.security_monitor.SecurityMonitor");
   });
 
   it("shows class_name", () => {

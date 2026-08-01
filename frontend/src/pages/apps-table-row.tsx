@@ -69,7 +69,7 @@ export function AppTableRow({
               )}
             </span>
             <StatusShape kind={kind} size={7} muted={muteStatus} />
-            <AppLink appKey={app.app_key} />
+            <AppLink appKey={app.app_key}>{app.display_name}</AppLink>
             <span className={cn("text-xs text-muted-foreground max-sidebar:hidden", compact && "hidden")}>
               {app.class_name}
             </span>
