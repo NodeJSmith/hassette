@@ -5,6 +5,54 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.51.0](https://github.com/NodeJSmith/hassette/compare/v0.50.0...v0.51.0) (2026-08-01)
+
+
+### ⚠ BREAKING CHANGES
+
+* **Scheduler renames: `ScheduledJob` → `Job`, `cancel` → `remove`** — `ScheduledJob` is renamed to `Job`, the single public runtime type returned by both `schedule()` and the new `register()`. `ScheduledJob.cancel()` → `Job.remove()`, `Scheduler.cancel_job()` → `Scheduler.remove_job()`, `Scheduler.cancel_group()` → `Scheduler.remove_group()`. The persisted `cancelled_at` columns are renamed to `removed_at` (migration 012 handles this automatically). `next_run == null` no longer implies a job has finished — read the new `schedule_status` field (`scheduled`, `waiting`, `completed`, or `manual`) instead. No compatibility aliases are kept. ([#1500](https://github.com/NodeJSmith/hassette/issues/1500))
+* **Health endpoint reports `degraded` during app bootstrap** — `GET /api/health/ready` now returns 503 during the window between WebSocket connection and initial state-sync completion, where it previously returned 200. `SystemStatusResponse` gained a `bootstrap_released` field, and a synthesized boot issue ("Apps pending on Home Assistant") appears while bootstrap is pending. Monitoring integrations polling `/api/health/ready` will see the new 503 window on upgrade. ([#1495](https://github.com/NodeJSmith/hassette/issues/1495))
+* **`SystemStatusResponse.log_records_dropped` split into two fields** — replaced by `log_queue_drops` and `db_write_queue_drops`. Consumers reading the old field should sum the two new ones, or read whichever queue they care about. `Hassette.get_log_records_dropped()` is likewise replaced by `get_log_queue_drops()` and `get_db_write_queue_drops()`. ([#1469](https://github.com/NodeJSmith/hassette/issues/1469))
+* **`ListenerWithSummary.entity_id` renamed to `target`** — the web API response field (on `GET /api/bus/listeners` and `GET /api/telemetry/app/{key}/listeners`) now populates event-type listeners with a topic-derived name instead of `null`. ([#1442](https://github.com/NodeJSmith/hassette/issues/1442))
+* **`only_app` renamed to `only_apps`** — the field on `GET /api/apps` and `GET /api/apps/manifests` now returns a list of app keys instead of a single key or null. ([#1464](https://github.com/NodeJSmith/hassette/issues/1464))
+
+### Scheduler
+
+- **Manual-only job registration** — `Scheduler.register()` creates a named job with no automatic trigger, addressable via `Job.submit()` from Python, the REST API, the CLI, or the UI's Run Now button. No fake far-future schedule required. ([#1500](https://github.com/NodeJSmith/hassette/issues/1500))
+- **Explicit schedule status** — jobs carry a `schedule_status` field (`scheduled`, `waiting`, `completed`, or `manual`) instead of inferring state from a null `next_run`. One-shot jobs stay visible as `completed` after firing instead of disappearing. ([#1500](https://github.com/NodeJSmith/hassette/issues/1500))
+- **EntityTime trigger** — schedule a job driven by an entity's time-valued state (e.g., `sun.sun`'s `next_rising`). The job re-evaluates whenever the entity updates and stays in `waiting` when the source entity is temporarily unavailable. ([#1471](https://github.com/NodeJSmith/hassette/issues/1471))
+
+### API
+
+- **`Api.notify()` and `Api.get_notify_services()`** — typed wrapper for HA's notify services with notifier normalization (accepts `"mobile_app_phone"` or `"notify.mobile_app_phone"`), available through the sync facade and test harness ([#1422](https://github.com/NodeJSmith/hassette/issues/1422))
+- **State and type registries exposed on App instances** — `self.state_registry` and `self.type_registry` give app authors direct access to the conversion registries without reaching into framework internals ([#1481](https://github.com/NodeJSmith/hassette/issues/1481))
+- **`hassette run --app`** — run only named apps instead of the full config ([#1425](https://github.com/NodeJSmith/hassette/issues/1425))
+- **Configurable timeout on outbound REST requests** — all REST calls to Home Assistant now have an explicit configurable timeout instead of waiting indefinitely ([#1497](https://github.com/NodeJSmith/hassette/issues/1497))
+
+### Dashboard
+
+- **New color palette and app shell redesign** — higher-chroma palette with distinct job/listener family colors; health indicators and theme toggle moved to a collapsible sidebar footer; status bar shows route-derived breadcrumbs; sidebar collapses on desktop (persisted, toggled with `[`) ([#1414](https://github.com/NodeJSmith/hassette/issues/1414))
+- **Frontend migrated to React 19, shadcn/ui, and Tailwind v4** — full migration from Preact/CSS Modules. No backend behavior changes. ([#1478](https://github.com/NodeJSmith/hassette/issues/1478))
+- **Dashboard starts without a live HA connection** — the web UI is reachable while Hassette waits for Home Assistant, showing `starting` status and queryable metadata; apps bootstrap only after initial state sync completes ([#1458](https://github.com/NodeJSmith/hassette/issues/1458))
+- **Toast feedback for app actions** — start, stop, and reload now show success/error toasts instead of silently succeeding ([#1424](https://github.com/NodeJSmith/hassette/issues/1424))
+- **Apps table shows display names** instead of raw `app_key` ([#1504](https://github.com/NodeJSmith/hassette/issues/1504))
+- **Docker images tagged with semver** — releases now publish `v0.51.0`, `v0.51`, and `v0` tags alongside `latest` ([#1475](https://github.com/NodeJSmith/hassette/issues/1475))
+
+### Health & Observability
+
+- **Log persistence health reporting** — `GET /api/health` now reports whether log writes to the database are succeeding, alongside per-queue drop counts (`log_queue_drops` and `db_write_queue_drops`) ([#1468](https://github.com/NodeJSmith/hassette/issues/1468), [#1469](https://github.com/NodeJSmith/hassette/issues/1469))
+- **Saturation/capacity warning thresholds configurable** — bus and scheduler queue saturation thresholds are now config fields instead of hard-coded constants ([#1498](https://github.com/NodeJSmith/hassette/issues/1498))
+- **App manifests persisted to the database** — the apps list and dashboard read from persisted manifests instead of runtime-only state, so registered apps remain queryable across restarts ([#1464](https://github.com/NodeJSmith/hassette/issues/1464))
+
+### Bug Fixes
+
+- fix state model cache keying on context ID instead of `last_updated`, causing stale cached models to persist across state changes — thanks [@thiesgerken](https://github.com/thiesgerken)! ([#1496](https://github.com/NodeJSmith/hassette/issues/1496))
+- wait for initial WebSocket connection before attempting state sync, preventing a race where state sync could start before authentication completed ([#1483](https://github.com/NodeJSmith/hassette/issues/1483))
+- rate-limit empty `app_key` warning on execution completion events to one per minute instead of per-event ([#1480](https://github.com/NodeJSmith/hassette/issues/1480))
+- fix page title sizing and baseline rule for consistent heading hierarchy ([#1439](https://github.com/NodeJSmith/hassette/issues/1439))
+- fix heading+badge row alignment with mixed font sizes ([#1459](https://github.com/NodeJSmith/hassette/issues/1459))
+- fix filter panel layout shift when opening on pages with long content ([#1423](https://github.com/NodeJSmith/hassette/issues/1423))
+
 ## [0.50.0](https://github.com/NodeJSmith/hassette/compare/v0.49.0...v0.50.0) (2026-07-24)
 
 
