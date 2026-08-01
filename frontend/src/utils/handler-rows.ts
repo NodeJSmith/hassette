@@ -1,6 +1,7 @@
 import type { JobData, ListenerData } from "../api/endpoints";
 import type { SortState } from "../components/shared/sort-header";
 import { lastDotSegment } from "./format";
+import { scheduleStatusDisplay } from "./schedule-status";
 
 export interface UnifiedRow {
   kind: "listener" | "job";
@@ -28,11 +29,7 @@ export interface UnifiedRow {
  * callers fall back to their own placeholder text).
  */
 export function scheduleStatusLabel(status: string | null, reason?: string | null): string | null {
-  if (status === "manual") return "manual";
-  if (status === "waiting") return "waiting";
-  if (status === "completed") return "completed";
-  if (status === "scheduled" && reason === "legacy_unknown") return "unknown";
-  return null;
+  return scheduleStatusDisplay(status, reason)?.label ?? null;
 }
 
 /** Secondary sort rank for jobs with no `next_run_ts`, per design: manual < waiting < completed < unknown/degraded. */

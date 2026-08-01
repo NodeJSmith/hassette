@@ -4,7 +4,7 @@ Durable issues discovered during orchestration that were intentionally not fixed
 
 ## KI-001: Trailing-period inconsistency between design doc and shipped status text
 
-Status: open
+Status: resolved — trailing periods added to the CLI's 5 unpunctuated status strings (matching the frontend's existing convention), and design.md's two `legacy_unknown` quotes updated to match.
 Source: impl-review
 Reason not fixed now: needs-decision
 Observed in: T06 (CLI), T07 (frontend), commit 87db5785 (final state)
@@ -27,7 +27,7 @@ Acceptance criteria:
 
 ## KI-002: Stale "heap" terminology in test naming
 
-Status: open
+Status: resolved — test renamed to `test_returns_job_found_in_registry`, docstrings updated to say "registry" instead of "heap".
 Source: impl-review
 Reason not fixed now: out-of-scope
 Observed in: T03 (registry and registration)
@@ -48,7 +48,7 @@ Acceptance criteria:
 
 ## KI-003: schedule_status display-text mapping hand-maintained in two files
 
-Status: open
+Status: resolved — extracted to `frontend/src/utils/schedule-status.ts` (`scheduleStatusDisplay(status, reason)`), consumed by both `handler-rows.ts` and `job-detail.tsx`.
 Source: clean-code
 Reason not fixed now: needs-decision
 Observed in: T07 (frontend), clean-code pass at commit 56e24551 (branch base before clean-code fixes)

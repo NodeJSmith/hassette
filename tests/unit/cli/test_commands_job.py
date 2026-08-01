@@ -156,12 +156,12 @@ class TestCmdJob:
     @pytest.mark.parametrize(
         ("schedule_status", "schedule_status_reason", "expected_text"),
         [
-            ("scheduled", None, "Timing unavailable"),
-            ("scheduled", "legacy_unknown", "Legacy status unknown"),
-            ("waiting", None, "Waiting for entity time"),
-            ("completed", None, "Schedule completed"),
+            ("scheduled", None, "Timing unavailable."),
+            ("scheduled", "legacy_unknown", "Legacy status unknown."),
+            ("waiting", None, "Waiting for entity time."),
+            ("completed", None, "Schedule completed."),
             ("completed", "trigger_error", "Schedule stopped after trigger error."),
-            ("manual", None, "Manual only"),
+            ("manual", None, "Manual only."),
         ],
     )
     def test_null_next_run_renders_status_aware_text(

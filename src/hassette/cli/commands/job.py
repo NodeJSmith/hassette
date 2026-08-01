@@ -22,17 +22,17 @@ JOB_EXECUTION_COLUMNS: list[Column] = [
 #: the default per-status text below. ``None`` reason keys are handled by the plain
 #: _SCHEDULE_STATUS_TEXT fallback in _next_run_display().
 _SCHEDULE_STATUS_REASON_TEXT: dict[tuple[str, str], str] = {
-    ("scheduled", "legacy_unknown"): "Legacy status unknown",
+    ("scheduled", "legacy_unknown"): "Legacy status unknown.",
     ("completed", "trigger_error"): "Schedule stopped after trigger error.",
 }
 
 #: Fallback text for a null next_run, keyed by schedule_status, when no reason override
 #: applies. "scheduled" here means live enrichment ran but returned no concrete timing.
 _SCHEDULE_STATUS_TEXT: dict[str, str] = {
-    "scheduled": "Timing unavailable",
-    "waiting": "Waiting for entity time",
-    "completed": "Schedule completed",
-    "manual": "Manual only",
+    "scheduled": "Timing unavailable.",
+    "waiting": "Waiting for entity time.",
+    "completed": "Schedule completed.",
+    "manual": "Manual only.",
 }
 
 

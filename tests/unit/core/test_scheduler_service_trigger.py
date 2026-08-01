@@ -7,7 +7,7 @@ Tests cover:
 - run_job_with_guard() threads trigger_mode through for non-parallel modes (invoke lambda)
 - run_job_with_guard() defaults trigger_mode to None (existing call sites unaffected)
 - run_job_with_guard()/run_job() thread the dispatch-local fire_at fallback through
-- trigger_job() finds a job on the live heap by db_id, or raises ValueError when absent
+- trigger_job() finds a job in the live registry by db_id, or raises ValueError when absent
 - submit_job() spawns a manual invocation for a live registered job across all execution modes
 - submit_job() raises JobRemovedError for an unregistered or stale-handle job
 - submit_job() bypasses the job's predicate and does not mutate its automatic schedule
@@ -108,8 +108,8 @@ class TestRunJobWithGuardTriggerMode:
 
 
 class TestTriggerJob:
-    async def test_returns_job_found_on_heap(self) -> None:
-        """trigger_job() returns the ScheduledJob whose db_id matches on the live heap."""
+    async def test_returns_job_found_in_registry(self) -> None:
+        """trigger_job() returns the ScheduledJob whose db_id matches in the live registry."""
         svc = _make_trigger_service()
         job = make_real_job(db_id=42)
         svc.get_all_jobs = AsyncMock(return_value=[job])
@@ -119,7 +119,7 @@ class TestTriggerJob:
         assert result is job
 
     async def test_raises_value_error_for_missing_db_id(self) -> None:
-        """trigger_job() raises ValueError when no job on the heap matches db_id."""
+        """trigger_job() raises ValueError when no job in the registry matches db_id."""
         svc = _make_trigger_service()
         other_job = make_real_job(db_id=1)
         svc.get_all_jobs = AsyncMock(return_value=[other_job])

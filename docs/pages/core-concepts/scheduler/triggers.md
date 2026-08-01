@@ -75,7 +75,7 @@ That job fires 30 minutes before the configured routine time each day. Without `
 
 An entity can be unavailable, report `unknown`, or hold a non-time value. A phone with no alarm set does exactly this. The job's `schedule_status` becomes `waiting`: it stays registered and watched by the entity-change listener, but carries no `next_run` and sits off the scheduler's due-time heap. The entity's next change puts it back on a real schedule — reactivation goes through the same watcher, so no polling or timer is involved.
 
-[`hassette job`](../../cli/commands.md#hassette-job) and the web UI render a `waiting` job as "Waiting for entity time" instead of a next-run timestamp. A missing next run means the entity currently names no time, not that the job stopped.
+[`hassette job`](../../cli/commands.md#hassette-job) and the web UI render a `waiting` job as "Waiting for entity time." instead of a next-run timestamp. A missing next run means the entity currently names no time, not that the job stopped.
 
 !!! warning "Entity-driven times still use the configured timezone"
     A time-only or naive value uses the configured timezone, like `Daily(at="07:00")`. A container defaulting to UTC can disagree with Home Assistant's local zone. That mismatch makes jobs fire at the wrong hour.

@@ -14,6 +14,7 @@ import { queryKeys } from "../../lib/query-keys";
 import { useAppStore } from "../../state/store";
 import { DETAIL_FETCH_LIMIT } from "../../utils/constants";
 import { formatTriggerDetail } from "../../utils/format";
+import { scheduleStatusDisplay } from "../../utils/schedule-status";
 import { handlerKindLabel } from "../../utils/status";
 import type { DetailStatsCell } from "../shared/detail-stats";
 import { DetailStats } from "../shared/detail-stats";
@@ -130,21 +131,10 @@ function RunNowButton({ jobId }: { jobId: number }) {
  * that state, so the caller falls back to it.
  */
 function scheduleStatusText(job: JobData, nextRunText: string | null): string | null {
-  switch (job.schedule_status) {
-    case "manual":
-      return "Manual only.";
-    case "waiting":
-      return "Waiting for entity time.";
-    case "completed":
-      return job.schedule_status_reason === "trigger_error"
-        ? "Schedule stopped after trigger error."
-        : "Schedule completed.";
-    case "scheduled":
-      if (job.schedule_status_reason === "legacy_unknown") return "Legacy status unknown.";
-      return nextRunText === null ? "Timing unavailable." : null;
-    default:
-      return null;
-  }
+  const display = scheduleStatusDisplay(job.schedule_status, job.schedule_status_reason);
+  if (display) return display.text;
+  if (job.schedule_status === "scheduled") return nextRunText === null ? "Timing unavailable." : null;
+  return null;
 }
 
 function buildJobStatsCells(job: JobData, lastExecutedLabel: string, nextRunText: string | null): DetailStatsCell[] {
