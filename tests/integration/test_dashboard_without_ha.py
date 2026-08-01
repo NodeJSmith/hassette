@@ -21,6 +21,7 @@ from httpx2 import ASGITransport, AsyncClient, Response
 
 from hassette import Hassette
 from hassette.test_utils import make_light_state_dict, wait_for
+from hassette.test_utils.config import TEST_TOTAL_TIMEOUT_SECONDS
 from hassette.test_utils.helpers import cleanup_hassette_streams
 from hassette.types.enums import ConnectionState
 from hassette.web.app import create_fastapi_app
@@ -67,7 +68,7 @@ async def _running_hassette_without_ha(
     config = TestConfig(
         data_dir=tmp_path / "data",
         web_api={"run": True, "port": unused_tcp_port_factory()},
-        websocket={"total_timeout_seconds": 30},
+        websocket={"total_timeout_seconds": TEST_TOTAL_TIMEOUT_SECONDS},
         apps={
             "directory": TEST_APPS_PATH,
             "autodetect": False,
@@ -178,7 +179,7 @@ class TestInitialStateSyncBeforeApps:
             # release_connection.set() is called) or StateProxy._bootstrap_initial_sync gives up on
             # the connection before that release fires — this raced and flaked under CI scheduling
             # jitter at 2s. See CLAUDE.md's "Config-driven real-clock timeouts" pattern.
-            websocket={"total_timeout_seconds": 30},
+            websocket={"total_timeout_seconds": TEST_TOTAL_TIMEOUT_SECONDS},
             apps={
                 "directory": app_dir,
                 "autodetect": False,

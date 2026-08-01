@@ -15,6 +15,7 @@ from unittest.mock import AsyncMock, Mock
 from aiohttp import ClientWebSocketResponse
 
 from hassette.resources.lifecycle import mark_ready
+from hassette.test_utils.config import TEST_TOTAL_TIMEOUT_SECONDS
 from hassette.types.enums import ConnectionState
 
 if TYPE_CHECKING:
@@ -69,7 +70,7 @@ def configure_ready_websocket_mock(websocket_service: Mock, *, generation: int =
     websocket_service.is_connected = True
     websocket_service.has_ever_connected = True
     websocket_service.get_connected_generation = Mock(return_value=generation)
-    websocket_service.total_timeout_seconds = 30
+    websocket_service.total_timeout_seconds = TEST_TOTAL_TIMEOUT_SECONDS
     websocket_service.wait_connected = AsyncMock(return_value=True)
     websocket_service.wait_connected_generation = AsyncMock(return_value=generation)
     websocket_service.wait_initial_connection = AsyncMock(return_value=True)

@@ -10,6 +10,7 @@ from hassette.events.metadata import stamp_websocket_generation
 from hassette.exceptions import ResourceNotReadyError
 from hassette.resources.lifecycle import mark_ready
 from hassette.test_utils import make_full_state_change_event, make_light_state_dict, make_mock_hassette
+from hassette.test_utils.config import TEST_TOTAL_TIMEOUT_SECONDS
 from hassette.test_utils.ws_mocks import configure_ready_websocket_mock
 
 # Generous bound for deterministic gate/task waits below — long enough to absorb slow CI,
@@ -168,7 +169,7 @@ async def test_duplicate_startup_and_connected_signals_coalesce_one_initial_sync
     release_snapshot = asyncio.Event()
 
     async def blocked_wait_initial_connection(*, timeout: float | None = None) -> bool:
-        assert timeout == 30
+        assert timeout == TEST_TOTAL_TIMEOUT_SECONDS
         wait_entered.set()
         await release_wait.wait()
         return True
