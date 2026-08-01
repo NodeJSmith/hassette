@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Implement completion retention and manual submission"
-status: "planned"
+status: "done"
 depends_on: ["T03"]
 implements: ["FR#9", "FR#11", "FR#12", "FR#13", "FR#15", "FR#17", "FR#24", "FR#25", "AC#3", "AC#4"]
 ---

@@ -513,6 +513,27 @@ class TelemetryRepository:
         )
         await db.commit()
 
+    async def mark_job_status(self, db_id: int, status: str, reason: str | None) -> None:
+        """Persist a ``Job.transition_to()`` status change for the given job row.
+
+        Called after every schedule-status transition (scheduled, waiting, completed) so a
+        degraded (DB-only) response still reflects the job's true status when live
+        enrichment is unavailable. Does not touch ``removed_at`` — that is a separate
+        lifecycle axis handled by ``mark_job_removed``.
+
+        Args:
+            db_id: The ``id`` of the ``scheduled_jobs`` row to update.
+            status: The new ``schedule_status`` value (a ``ScheduleStatus.value``).
+            reason: The new ``schedule_status_reason`` value, or ``None`` to clear it.
+        """
+        db = self._db_service.db
+        await db.execute(
+            "UPDATE scheduled_jobs SET schedule_status = :schedule_status, "
+            "schedule_status_reason = :schedule_status_reason WHERE id = :id",
+            {"schedule_status": status, "schedule_status_reason": reason, "id": db_id},
+        )
+        await db.commit()
+
     async def mark_listener_cancelled(self, db_id: int) -> None:
         """Set ``removed_at`` to the current epoch time for the given listener row.
 

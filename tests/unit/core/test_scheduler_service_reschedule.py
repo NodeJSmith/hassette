@@ -2,14 +2,15 @@
 removal callbacks, and _enqueue_then_register protocol dispatch.
 
 Tests cover:
-- dispatch_and_log(): None exhaustion removes job
-- dispatch_and_log(): exception from next_run_time() removes job and logs
+- dispatch_and_log(): None exhaustion completes the job (stays live, not removed)
+- dispatch_and_log(): exception from next_run_time() completes the job with TRIGGER_ERROR
+  and still runs the current due fire
 - dispatch_and_log(): recurring trigger re-enqueues job with updated next_run
 - dispatch_and_log(): does not branch on job.repeat (field doesn't exist)
 - Jitter: sort_index offset applied; job.next_run not mutated
 - Jitter: absent when job.jitter is None
-- Removal callbacks: invoked on None exhaustion
-- Removal callbacks: invoked on exception from next_run_time()
+- Removal callbacks: NOT invoked on completion (None exhaustion or trigger error) —
+  completion is not removal; the job stays registered and submit-capable
 - Removal callbacks: NOT invoked when job is successfully rescheduled
 - _enqueue_then_register: uses trigger protocol methods; no isinstance dispatch
 """
@@ -25,8 +26,8 @@ from whenever import ZonedDateTime
 import hassette.core.scheduler_service as hassette_svc_module
 import hassette.utils.date_utils as date_utils
 from hassette.core.scheduler_service import HeapQueue, SchedulerService, _ScheduledJobQueue
-from hassette.scheduler.classes import Job, ScheduleStatus
-from hassette.scheduler.triggers import Every
+from hassette.scheduler.classes import Job, ScheduleStatus, ScheduleStatusReason
+from hassette.scheduler.triggers import WAITING, Every
 from hassette.test_utils.factories import make_scheduled_job
 
 from .conftest import make_scheduler_service
@@ -47,8 +48,10 @@ def make_interval_trigger(*, next_returns=None, next_raises=None):
 
 
 class TestRescheduleNoneRemovesJob:
-    async def test_reschedule_none_removes_job(self) -> None:
-        """next_run_time() returning None removes the job; job not re-enqueued."""
+    async def test_reschedule_none_completes_job(self) -> None:
+        """next_run_time() returning None completes the job; job not re-enqueued or removed
+        from the heap (it was already popped before dispatch — completion is not removal).
+        """
         svc = make_scheduler_service()
         trig = make_interval_trigger(next_returns=None)
         job = make_scheduled_job(trigger=trig)
@@ -59,11 +62,15 @@ class TestRescheduleNoneRemovesJob:
 
         await svc.dispatch_and_log(job)
 
-        svc._job_queue.remove_job.assert_called_once_with(job)
+        svc._job_queue.remove_job.assert_not_called()
         svc._job_queue.add.assert_not_called()
+        assert job.schedule_status is ScheduleStatus.COMPLETED
+        assert job.schedule_status_reason is None
+        assert job.next_run is None
+        assert job.fire_at is None
 
     async def test_reschedule_exhausted_job_via_none_trigger(self) -> None:
-        """Exhausted job (trigger returns None) is removed via _remove_job."""
+        """Exhausted job (trigger returns None) completes and stays live."""
         svc = make_scheduler_service()
         trig = make_interval_trigger(next_returns=None)
         job = make_scheduled_job(trigger=trig)
@@ -71,13 +78,17 @@ class TestRescheduleNoneRemovesJob:
 
         await svc.dispatch_and_log(job)
 
-        svc._job_queue.remove_job.assert_called_once_with(job)
+        assert job.schedule_status is ScheduleStatus.COMPLETED
         trig.next_run_time.assert_called_once()
+        # The current due fire still runs even though the job completed.
+        svc.run_job_with_guard.assert_called_once()
 
 
 class TestRescheduleExceptionRemovesJob:
-    async def test_reschedule_exception_removes_job_and_logs(self) -> None:
-        """next_run_time() raising removes job and logs exception with job_id, callable, trigger."""
+    async def test_reschedule_exception_completes_job_with_trigger_error_and_logs(self) -> None:
+        """next_run_time() raising completes the job with TRIGGER_ERROR, logs the exception
+        with job_id/callable/trigger context, and still runs the current due fire.
+        """
         svc = make_scheduler_service()
         trig = make_interval_trigger(next_raises=RuntimeError("bad trigger"))
         job = make_scheduled_job(trigger=trig)
@@ -85,8 +96,11 @@ class TestRescheduleExceptionRemovesJob:
 
         await svc.dispatch_and_log(job)
 
-        svc._job_queue.remove_job.assert_called_once_with(job)
+        svc._job_queue.remove_job.assert_not_called()
+        assert job.schedule_status is ScheduleStatus.COMPLETED
+        assert job.schedule_status_reason is ScheduleStatusReason.TRIGGER_ERROR
         svc.logger.exception.assert_called_once()
+        svc.run_job_with_guard.assert_called_once()
 
         # Verify the log message contains db_id, callable name, trigger repr context
         call_args = svc.logger.exception.call_args
@@ -243,8 +257,12 @@ class TestJitter:
 
 
 class TestRemovalCallbacks:
-    async def test_removal_callback_called_on_none_exhaustion(self) -> None:
-        """Registered callback invoked when next_run_time() returns None."""
+    async def test_removal_callback_not_called_on_none_exhaustion(self) -> None:
+        """Completion (next_run_time() returns None) is not removal — no callback fires.
+
+        The job stays registered and submit-capable; removal callbacks are reserved for
+        explicit removal (Job.remove()/Scheduler.remove_job()/owner cleanup).
+        """
         svc = make_scheduler_service()
         trig = make_interval_trigger(next_returns=None)
         job = make_scheduled_job(trigger=trig, owner_id="owner_a")
@@ -255,10 +273,11 @@ class TestRemovalCallbacks:
 
         await svc.dispatch_and_log(job)
 
-        callback.assert_called_once_with(job)
+        callback.assert_not_called()
+        assert job.schedule_status is ScheduleStatus.COMPLETED
 
-    async def test_removal_callback_called_on_exception(self) -> None:
-        """Registered callback invoked when next_run_time() raises."""
+    async def test_removal_callback_not_called_on_trigger_error(self) -> None:
+        """Completion via trigger error is not removal — no callback fires."""
         svc = make_scheduler_service()
         trig = make_interval_trigger(next_raises=RuntimeError("oops"))
         job = make_scheduled_job(trigger=trig, owner_id="owner_b")
@@ -269,7 +288,9 @@ class TestRemovalCallbacks:
 
         await svc.dispatch_and_log(job)
 
-        callback.assert_called_once_with(job)
+        callback.assert_not_called()
+        assert job.schedule_status is ScheduleStatus.COMPLETED
+        assert job.schedule_status_reason is ScheduleStatusReason.TRIGGER_ERROR
 
     async def test_removal_callback_not_called_on_reschedule(self) -> None:
         """Callback NOT called when job is successfully rescheduled."""
@@ -292,42 +313,6 @@ class TestRemovalCallbacks:
         callback = MagicMock()
         svc.register_removal_callback("my_owner", callback)
         assert svc._removal_callbacks.get("my_owner") is callback
-
-    async def test_removal_callback_not_called_for_different_owner(self) -> None:
-        """Callback registered for owner_A is not called when owner_B's job is removed."""
-        svc = make_scheduler_service()
-        trig = make_interval_trigger(next_returns=None)
-        job = make_scheduled_job(trigger=trig, owner_id="owner_b")
-        svc.run_job_with_guard = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
-
-        callback_a = MagicMock()
-        svc.register_removal_callback("owner_a", callback_a)
-
-        await svc.dispatch_and_log(job)
-
-        callback_a.assert_not_called()
-
-    async def test_removal_callback_fires_even_when_job_not_in_queue(self) -> None:
-        """Callback fires even when _job_queue.remove_job returns False.
-
-        In the normal dispatch path the serve loop already pops the job from the
-        queue before dispatch_and_log calls _remove_job. remove_job(job) then
-        returns False, but the callback must still fire — otherwise one-shot
-        exhaustion never notifies the Scheduler to clean up _jobs_by_group/_jobs_by_name.
-        """
-        svc = make_scheduler_service()
-        # Simulate job already popped by serve loop
-        svc._job_queue.remove_job = AsyncMock(return_value=False)
-        trig = make_interval_trigger(next_returns=None)
-        job = make_scheduled_job(trigger=trig, owner_id="owner_d")
-        svc.run_job_with_guard = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
-
-        callback = MagicMock()
-        svc.register_removal_callback("owner_d", callback)
-
-        await svc.dispatch_and_log(job)
-
-        callback.assert_called_once_with(job)
 
 
 class TestEnqueueThenRegisterUsesProtocol:
@@ -623,3 +608,106 @@ class TestBehindScheduleWarning:
             await svc.run_job(job)
 
         svc.logger.warning.assert_called_once()
+
+    async def test_manual_trigger_mode_skips_lag_calculation_even_with_pending_fire_at(self) -> None:
+        """A manually-submitted job with a concrete (pending automatic) fire_at must not
+        produce a behind-schedule warning — the lag calculation is gated on trigger_mode,
+        not on whether fire_at happens to be set. Reproduces the edge case where a
+        SCHEDULED one-shot with a pending occurrence is submitted manually via
+        ``submit_job()`` (which never mutates schedule state, so ``job.fire_at`` stays set).
+        """
+        svc = make_scheduler_service()
+        svc.hassette.config.scheduler.behind_schedule_threshold_seconds = 60
+
+        base_time = ZonedDateTime(2025, 6, 1, 12, 0, 0, tz="UTC")
+        job = Job(owner_id="test_owner", next_run=base_time, job=lambda: None)
+        # Simulate a pending automatic occurrence: fire_at is set and far in the past
+        # relative to "now" below, which would trip the lag warning for trigger_mode=None.
+        job.fire_at = base_time
+
+        svc._executor = MagicMock()
+        svc._executor.execute = AsyncMock(return_value=None)
+        svc.task_bucket = MagicMock()
+        svc.task_bucket.make_async_adapter = MagicMock(return_value=AsyncMock())
+
+        late_time = base_time.add(seconds=90)  # 90s > 60s threshold
+        with patch("hassette.core.scheduler_service.date_utils.now", return_value=late_time):
+            await svc.run_job(job, trigger_mode="manual")
+
+        svc.logger.warning.assert_not_called()
+
+        # Sanity check: the same fire_at with trigger_mode=None (automatic) DOES warn —
+        # confirms the gate is on trigger_mode, not a change to the underlying calculation.
+        svc.logger.warning.reset_mock()
+        with patch("hassette.core.scheduler_service.date_utils.now", return_value=late_time):
+            await svc.run_job(job, trigger_mode=None)
+
+        svc.logger.warning.assert_called_once()
+
+
+class TestPersistScheduleStatus:
+    """Scheduler-level assertions that persist_schedule_status()/mark_job_status() is
+    invoked with the right (db_id, status, reason) after every schedule-status transition
+    in dispatch_and_log() and reschedule_job().
+    """
+
+    async def test_dispatch_scheduled_branch_persists_status(self) -> None:
+        svc = make_scheduler_service()
+        future_time = date_utils.now().add(seconds=60)
+        trig = make_interval_trigger(next_returns=future_time)
+        job = make_scheduled_job(trigger=trig, db_id=42)
+        svc.run_job_with_guard = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+
+        await svc.dispatch_and_log(job)
+
+        svc._executor.mark_job_status.assert_awaited_once_with(42, "scheduled", None)
+
+    async def test_dispatch_completed_branch_persists_status(self) -> None:
+        svc = make_scheduler_service()
+        trig = make_interval_trigger(next_returns=None)
+        job = make_scheduled_job(trigger=trig, db_id=42)
+        svc.run_job_with_guard = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+
+        await svc.dispatch_and_log(job)
+
+        svc._executor.mark_job_status.assert_awaited_once_with(42, "completed", None)
+
+    async def test_dispatch_trigger_error_branch_persists_status(self) -> None:
+        svc = make_scheduler_service()
+        trig = make_interval_trigger(next_raises=RuntimeError("bad trigger"))
+        job = make_scheduled_job(trigger=trig, db_id=42)
+        svc.run_job_with_guard = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+
+        await svc.dispatch_and_log(job)
+
+        svc._executor.mark_job_status.assert_awaited_once_with(42, "completed", "trigger_error")
+
+    async def test_dispatch_waiting_branch_persists_status(self) -> None:
+        svc = make_scheduler_service()
+        trig = make_interval_trigger(next_returns=WAITING)
+        job = make_scheduled_job(trigger=trig, db_id=42)
+        svc.run_job_with_guard = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+
+        await svc.dispatch_and_log(job)
+
+        svc._executor.mark_job_status.assert_awaited_once_with(42, "waiting", None)
+        assert job.schedule_status is ScheduleStatus.WAITING
+
+    async def test_reschedule_job_waiting_transition_persists_status(self) -> None:
+        svc = make_scheduler_service()
+        # WAITING status is never on the heap, so reschedule_job skips heap removal entirely.
+        job = make_scheduled_job(db_id=7, schedule_status=ScheduleStatus.WAITING)
+
+        await svc.reschedule_job(job, WAITING)
+
+        svc._executor.mark_job_status.assert_awaited_once_with(7, "waiting", None)
+
+    async def test_reschedule_job_scheduled_transition_persists_status(self) -> None:
+        svc = make_scheduler_service()
+        # WAITING status is never on the heap, so reschedule_job skips heap removal entirely.
+        job = make_scheduled_job(db_id=7, schedule_status=ScheduleStatus.WAITING)
+
+        new_time = date_utils.now().add(seconds=120)
+        await svc.reschedule_job(job, new_time)
+
+        svc._executor.mark_job_status.assert_awaited_once_with(7, "scheduled", None)

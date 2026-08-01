@@ -103,6 +103,37 @@ async def test_mark_job_removed_sets_removed_at(
     )
 
 
+async def test_mark_job_status_updates_status_and_reason(
+    telemetry_repo: TelemetryRepository,
+    telemetry_db: aiosqlite.Connection,
+) -> None:
+    """mark_job_status() writes schedule_status and schedule_status_reason to the row."""
+    reg = make_job_registration(job_name="status_job")
+    job_id = await telemetry_repo.register_job(reg)
+
+    await telemetry_repo.mark_job_status(job_id, "waiting", None)
+
+    cursor = await telemetry_db.execute(
+        "SELECT schedule_status, schedule_status_reason FROM scheduled_jobs WHERE id = ?", (job_id,)
+    )
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row["schedule_status"] == "waiting"
+    assert row["schedule_status_reason"] is None
+
+    await telemetry_repo.mark_job_status(job_id, "completed", "trigger_error")
+
+    cursor = await telemetry_db.execute(
+        "SELECT schedule_status, schedule_status_reason FROM scheduled_jobs WHERE id = ?", (job_id,)
+    )
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row["schedule_status"] == "completed"
+    assert row["schedule_status_reason"] == "trigger_error", (
+        f"Expected schedule_status_reason='trigger_error', got {row['schedule_status_reason']!r}"
+    )
+
+
 async def test_reconcile_deletes_stale_without_history(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,

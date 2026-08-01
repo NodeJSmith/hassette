@@ -33,7 +33,7 @@ import hassette.utils.date_utils as date_utils
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
 from hassette.execution_mode import ExecutionModeGuard
-from hassette.scheduler import ScheduledJob
+from hassette.scheduler import Job, ScheduleStatus, ScheduleStatusReason
 from hassette.scheduler.triggers import Every
 from hassette.test_utils.app_harness import AppTestHarness
 from hassette.test_utils.helpers import noop
@@ -99,11 +99,12 @@ async def test_run_in_with_mode_fires_exactly_once() -> None:
         assert count == 1, f"Expected exactly 1 job dispatched, got {count}"
         assert harness.app.fired_count == 1, f"Expected fired_count=1, got {harness.app.fired_count}"
 
-        # Job is exhausted after firing — should be removed from the scheduler
+        # Job is exhausted after firing — stays live (submit-capable) but leaves the heap.
         remaining = scheduler.list_jobs()
-        assert not any(j.name == "oneshot_mode_job" for j in remaining), (
-            "One-shot job should be removed after exhaustion"
-        )
+        completed_job = next((j for j in remaining if j.name == "oneshot_mode_job"), None)
+        assert completed_job is not None, "One-shot job should remain registered after exhaustion"
+        assert completed_job.schedule_status is ScheduleStatus.COMPLETED
+        assert completed_job.next_run is None
 
 
 async def test_run_once_with_mode_fires_exactly_once() -> None:
@@ -123,10 +124,12 @@ async def test_run_once_with_mode_fires_exactly_once() -> None:
         assert count == 1, f"Expected exactly 1 job dispatched, got {count}"
         assert harness.app.fired_count == 1, f"Expected fired_count=1, got {harness.app.fired_count}"
 
+        # Job is exhausted after firing — stays live (submit-capable) but leaves the heap.
         remaining = scheduler.list_jobs()
-        assert not any(j.name == "runonce_mode_job" for j in remaining), (
-            "One-shot job should be removed after exhaustion"
-        )
+        completed_job = next((j for j in remaining if j.name == "runonce_mode_job"), None)
+        assert completed_job is not None, "One-shot job should remain registered after exhaustion"
+        assert completed_job.schedule_status is ScheduleStatus.COMPLETED
+        assert completed_job.next_run is None
 
 
 # Integration tests via hassette_with_scheduler (framework-tier scheduler)
@@ -141,7 +144,7 @@ class TestSchedulerModeViaHarness:
             noop, Every(seconds=3600), name="framework_tier_omitted_mode_resolves_to__schedule"
         )
         assert job.mode is ExecutionMode.PARALLEL
-        hassette_with_scheduler.scheduler.cancel_job(job)
+        hassette_with_scheduler.scheduler.remove_job(job)
 
     async def test_explicit_mode_enum_passes_through(self, hassette_with_scheduler) -> None:
         """An explicit ExecutionMode enum is stored unchanged."""
@@ -150,7 +153,7 @@ class TestSchedulerModeViaHarness:
                 noop, Every(seconds=3600), mode=mode, name=f"passthrough_{mode.value}"
             )
             assert job.mode is mode
-            hassette_with_scheduler.scheduler.cancel_job(job)
+            hassette_with_scheduler.scheduler.remove_job(job)
 
     async def test_string_coercion_all_modes(self, hassette_with_scheduler) -> None:
         """Each valid mode string is coerced to the corresponding ExecutionMode member."""
@@ -165,7 +168,7 @@ class TestSchedulerModeViaHarness:
                 noop, Every(seconds=3600), mode=string_val, name=f"coerce_{string_val}"
             )
             assert job.mode is expected, f"mode={string_val!r}: expected {expected}, got {job.mode}"
-            hassette_with_scheduler.scheduler.cancel_job(job)
+            hassette_with_scheduler.scheduler.remove_job(job)
 
     async def test_invalid_string_raises_value_error(self, hassette_with_scheduler) -> None:
         """An invalid mode string raises ValueError naming all valid values."""
@@ -192,7 +195,7 @@ class TestSchedulerModeViaHarness:
             noop, Every(seconds=3600), mode=ExecutionMode.SINGLE, name="guard_check"
         )
         assert isinstance(job.guard, ExecutionModeGuard)
-        hassette_with_scheduler.scheduler.cancel_job(job)
+        hassette_with_scheduler.scheduler.remove_job(job)
 
 
 # One-shot acceptance tests — run_in / run_once accept mode= without error
@@ -205,7 +208,7 @@ class TestOneShotModeAcceptance:
             noop, delay=3600, mode=ExecutionMode.QUEUED, name="run_in_accepts_mode_no_error_run_in"
         )
         assert job.mode is ExecutionMode.QUEUED
-        hassette_with_scheduler.scheduler.cancel_job(job)
+        hassette_with_scheduler.scheduler.remove_job(job)
 
     async def test_run_once_accepts_mode_no_error(self, hassette_with_scheduler) -> None:
         """run_once accepts mode= keyword argument without raising."""
@@ -213,7 +216,7 @@ class TestOneShotModeAcceptance:
             noop, at="23:59", mode=ExecutionMode.RESTART, name="run_once_accepts_mode_no_error_run_once"
         )
         assert job.mode is ExecutionMode.RESTART
-        hassette_with_scheduler.scheduler.cancel_job(job)
+        hassette_with_scheduler.scheduler.remove_job(job)
 
     async def test_run_in_string_mode_coerced(self, hassette_with_scheduler) -> None:
         """run_in accepts a string mode and coerces it correctly."""
@@ -221,7 +224,7 @@ class TestOneShotModeAcceptance:
             noop, delay=3600, mode="parallel", name="run_in_string_mode_coerced_run_in"
         )
         assert job.mode is ExecutionMode.PARALLEL
-        hassette_with_scheduler.scheduler.cancel_job(job)
+        hassette_with_scheduler.scheduler.remove_job(job)
 
     async def test_run_in_invalid_string_raises(self, hassette_with_scheduler) -> None:
         """run_in with an invalid mode string raises ValueError (delegates to schedule())."""
@@ -237,7 +240,7 @@ class TestOneShotModeAcceptance:
         )
         assert job.mode is ExecutionMode.QUEUED
         assert isinstance(job.guard, ExecutionModeGuard)
-        hassette_with_scheduler.scheduler.cancel_job(job)
+        hassette_with_scheduler.scheduler.remove_job(job)
 
 
 # Convenience method forwarding
@@ -250,13 +253,13 @@ class TestConvenienceMethodModeForwarding:
             noop, seconds=60, mode=ExecutionMode.RESTART, name="every_restart"
         )
         assert job.mode is ExecutionMode.RESTART
-        hassette_with_scheduler.scheduler.cancel_job(job)
+        hassette_with_scheduler.scheduler.remove_job(job)
 
     async def test_run_daily_forwards_mode(self, hassette_with_scheduler) -> None:
         """run_daily forwards mode= to schedule()."""
         job = await hassette_with_scheduler.scheduler.run_daily(noop, at="03:00", mode="queued", name="daily_queued")
         assert job.mode is ExecutionMode.QUEUED
-        hassette_with_scheduler.scheduler.cancel_job(job)
+        hassette_with_scheduler.scheduler.remove_job(job)
 
     async def test_run_cron_forwards_mode(self, hassette_with_scheduler) -> None:
         """run_cron forwards mode= to schedule()."""
@@ -264,7 +267,7 @@ class TestConvenienceMethodModeForwarding:
             noop, "0 * * * *", mode=ExecutionMode.SINGLE, name="cron_single"
         )
         assert job.mode is ExecutionMode.SINGLE
-        hassette_with_scheduler.scheduler.cancel_job(job)
+        hassette_with_scheduler.scheduler.remove_job(job)
 
     async def test_run_minutely_forwards_mode(self, hassette_with_scheduler) -> None:
         """run_minutely forwards mode= to schedule()."""
@@ -272,7 +275,7 @@ class TestConvenienceMethodModeForwarding:
             noop, minutes=5, mode="restart", name="minutely_restart"
         )
         assert job.mode is ExecutionMode.RESTART
-        hassette_with_scheduler.scheduler.cancel_job(job)
+        hassette_with_scheduler.scheduler.remove_job(job)
 
     async def test_run_hourly_forwards_mode(self, hassette_with_scheduler) -> None:
         """run_hourly forwards mode= to schedule()."""
@@ -280,7 +283,7 @@ class TestConvenienceMethodModeForwarding:
             noop, hours=2, mode=ExecutionMode.QUEUED, name="hourly_queued"
         )
         assert job.mode is ExecutionMode.QUEUED
-        hassette_with_scheduler.scheduler.cancel_job(job)
+        hassette_with_scheduler.scheduler.remove_job(job)
 
     async def test_omitted_mode_default_is_parallel_for_framework(self, hassette_with_scheduler) -> None:
         """Omitting mode= on the framework-tier harness scheduler gives PARALLEL."""
@@ -295,7 +298,7 @@ class TestConvenienceMethodModeForwarding:
             assert job.mode is ExecutionMode.PARALLEL, (
                 f"{job.name} expected PARALLEL (framework default), got {job.mode}"
             )
-            hassette_with_scheduler.scheduler.cancel_job(job)
+            hassette_with_scheduler.scheduler.remove_job(job)
 
 
 # Dispatch-time reschedule and guard routing tests
@@ -615,7 +618,7 @@ async def test_queued_accepted_then_cancel_does_not_hang() -> None:
         # Cancel the job while dispatch2 is parked on QUEUED_ACCEPTED.
         # dequeue_job → guard.release() drops the queued factory → drain_pending_done
         # must resolve done so dispatch2 returns promptly (not hang).
-        harness.app.scheduler.cancel_job(job)
+        harness.app.scheduler.remove_job(job)
 
         # dispatch2 must complete within a short timeout; a hang means the fix is missing.
         try:
@@ -722,12 +725,13 @@ async def test_restart_mode_cancels_and_starts_fresh() -> None:
             await asyncio.wait_for(dispatch2, timeout=1.0)
 
 
-# Trigger error: current fire runs, then job is removed
+# Trigger error: current fire runs, then job completes (stays live, no future fires)
 
 
-async def test_trigger_error_runs_current_fire_then_removes_job() -> None:
+async def test_trigger_error_runs_current_fire_then_completes_job() -> None:
     """A recurring job whose trigger raises on a given cycle still runs the current
-    due fire, then is removed with no future fires.
+    due fire, then completes with TRIGGER_ERROR — no future fires, but the job stays
+    live and submit-capable.
     """
     fired = asyncio.Event()
 
@@ -757,7 +761,7 @@ async def test_trigger_error_runs_current_fire_then_removes_job() -> None:
                     raise RuntimeError("trigger intentionally raises")
 
             trigger = _RaisingTrigger()
-            job = ScheduledJob(
+            job = Job(
                 owner_id=self.scheduler.owner_id,
                 next_run=date_utils.now().add(seconds=10),
                 job=self.task,
@@ -783,9 +787,13 @@ async def test_trigger_error_runs_current_fire_then_removes_job() -> None:
         # Current fire should have run
         assert fired.is_set(), "Current fire should have run even when trigger raises"
 
-        # Job should be removed (trigger error = no future fires)
-        remaining = await scheduler_service.get_all_jobs()
-        assert not any(j.name == "bad_trigger_job" for j in remaining), "Job should be removed after trigger raises"
+        # Job completes (no future fires) but stays live in the per-app registry.
+        assert job.schedule_status is ScheduleStatus.COMPLETED
+        assert job.schedule_status_reason is ScheduleStatusReason.TRIGGER_ERROR
+        assert job.next_run is None
+
+        still_registered = harness.app.scheduler.list_jobs()
+        assert any(j is job for j in still_registered), "Job should remain registered after a trigger error"
 
 
 # Dequeued race: in-lock re-check prevents spurious re-push
@@ -886,7 +894,7 @@ async def test_guard_release_on_cancel_clears_in_flight() -> None:
         assert job.guard.is_running(), "Guard should be running"
 
         # Cancel the job — should release the guard
-        scheduler.cancel_job(job)
+        scheduler.remove_job(job)
         await job.guard.release()  # explicit release to cancel in-flight
 
         # In-flight task should be cancelled

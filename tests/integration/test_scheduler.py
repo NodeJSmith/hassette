@@ -5,7 +5,7 @@ from whenever import ZonedDateTime
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
 from hassette.commands import ExecuteJob
-from hassette.scheduler import Job
+from hassette.scheduler import Job, ScheduleStatus
 from hassette.scheduler.triggers import Every
 from hassette.test_utils.app_harness import AppTestHarness
 from hassette.test_utils.harness import HassetteHarness
@@ -311,7 +311,7 @@ class _OnceGroupApp(App[_ExhaustionConfig]):
 
 
 async def test_once_job_exhausts_after_firing() -> None:
-    """A Once job is removed from the scheduler after it fires."""
+    """A Once job completes (stays live, leaves the heap) after it fires."""
     async with AppTestHarness(_OnceExhaustionApp, config={}) as harness:
         scheduler = harness.app.scheduler
 
@@ -327,13 +327,16 @@ async def test_once_job_exhausts_after_firing() -> None:
         assert count == 1
         assert harness.app.fired is True
 
-        # Job should be exhausted and removed
+        # Job is exhausted (no future fires) but remains registered and submit-capable.
         remaining = scheduler.list_jobs()
-        assert not any(j.name == "once_job" for j in remaining), "Once job should be removed after exhaustion"
+        completed_job = next((j for j in remaining if j.name == "once_job"), None)
+        assert completed_job is not None, "Once job should remain registered after exhaustion"
+        assert completed_job.schedule_status is ScheduleStatus.COMPLETED
+        assert completed_job.next_run is None
 
 
 async def test_after_job_exhausts_after_firing() -> None:
-    """An After job is removed from the scheduler after it fires."""
+    """An After job completes (stays live, leaves the heap) after it fires."""
     async with AppTestHarness(_AfterExhaustionApp, config={}) as harness:
         scheduler = harness.app.scheduler
 
@@ -349,9 +352,12 @@ async def test_after_job_exhausts_after_firing() -> None:
         assert count == 1
         assert harness.app.fired is True
 
-        # Job should be exhausted and removed
+        # Job is exhausted (no future fires) but remains registered and submit-capable.
         remaining = scheduler.list_jobs()
-        assert not any(j.name == "after_job" for j in remaining), "After job should be removed after exhaustion"
+        completed_job = next((j for j in remaining if j.name == "after_job"), None)
+        assert completed_job is not None, "After job should remain registered after exhaustion"
+        assert completed_job.schedule_status is ScheduleStatus.COMPLETED
+        assert completed_job.next_run is None
 
 
 async def test_jitter_offset_applied_to_sort_index() -> None:
@@ -401,8 +407,8 @@ async def test_group_remove_removes_all_members() -> None:
             assert job not in all_jobs, f"Job {job.name} should not be in list_jobs() after remove_group"
 
 
-async def test_once_job_removed_from_group_after_exhaustion() -> None:
-    """A Once job in a group is removed from the group when it exhausts."""
+async def test_once_job_completes_but_remains_in_group_after_exhaustion() -> None:
+    """A Once job in a group completes (stays live and in the group) when it exhausts."""
     async with AppTestHarness(_OnceGroupApp, config={}) as harness:
         scheduler = harness.app.scheduler
 
@@ -420,11 +426,11 @@ async def test_once_job_removed_from_group_after_exhaustion() -> None:
         assert count >= 1, "At least the Once job should have fired"
         assert harness.app.fired is True
 
-        # The Once job should be removed from the group
+        # The Once job stays live and in the group; it just leaves the heap.
         group_after = scheduler.list_jobs(group="morning")
-        assert not any(j.name == "once_in_group" for j in group_after), (
-            "Once job should be removed from group after exhaustion"
-        )
+        completed_job = next((j for j in group_after if j.name == "once_in_group"), None)
+        assert completed_job is not None, "Once job should remain in group after exhaustion"
+        assert completed_job.schedule_status is ScheduleStatus.COMPLETED
         # The recurring job should still be in the group (it re-enqueues after firing)
         assert any(j.name == "recurring_in_group" for j in group_after), "Recurring job should remain in group"
 
@@ -548,8 +554,10 @@ async def test_recurring_job_skip_records_and_reschedules(hassette_with_schedule
         job.remove()
 
 
-async def test_one_shot_job_skip_records_and_removes(hassette_with_scheduler: HassetteHarness) -> None:
-    """A one-shot job whose predicate returns False is skipped, recorded, and consumed."""
+async def test_one_shot_job_skip_records_and_completes(hassette_with_scheduler: HassetteHarness) -> None:
+    """A one-shot job whose predicate returns False is skipped, recorded, and completes
+    (stays live) — the schedule-status transition happens before the predicate check.
+    """
     handler_called = False
 
     def target() -> None:
@@ -573,8 +581,9 @@ async def test_one_shot_job_skip_records_and_removes(hassette_with_scheduler: Ha
     assert record.status == "skipped", f"Expected status='skipped', got {record.status!r}"
     assert record.duration_ms == 0.0, f"Expected duration_ms=0.0, got {record.duration_ms}"
 
+    assert job.schedule_status is ScheduleStatus.COMPLETED
     remaining = hassette_with_scheduler.scheduler.list_jobs()
-    assert not any(j is job for j in remaining), "One-shot job should be removed from scheduler after a skip"
+    assert any(j is job for j in remaining), "One-shot job should remain registered after a skip"
 
 
 async def test_predicate_exception_records_failure_and_does_not_run(
@@ -583,8 +592,9 @@ async def test_predicate_exception_records_failure_and_does_not_run(
     """A predicate that raises is recorded as an 'error' execution — the job does not run.
 
     The exception must not propagate out of ``dispatch_and_log``: it is logged, recorded
-    with error details, routed to the job's ``on_error`` handler, and (for a one-shot)
-    the job is still removed from the scheduler instead of leaking in ``_jobs_by_name``.
+    with error details, routed to the job's ``on_error`` handler, and (for a one-shot) the
+    job still completes — its schedule-status transition happens before the predicate
+    check — and remains registered in ``_jobs_by_name`` rather than leaking or vanishing.
     """
     job_ran = asyncio.Event()
 
@@ -627,8 +637,9 @@ async def test_predicate_exception_records_failure_and_does_not_run(
     assert ctx.job_name == "predicate_raises_job"
     assert ctx.execution_id == record.execution_id
 
+    assert job.schedule_status is ScheduleStatus.COMPLETED
     remaining = hassette_with_scheduler.scheduler.list_jobs()
-    assert not any(j is job for j in remaining), "One-shot job should be removed after a predicate failure"
+    assert any(j is job for j in remaining), "One-shot job should remain registered after a predicate failure"
 
 
 async def test_predicate_receives_scheduled_job(hassette_with_scheduler: HassetteHarness) -> None:
@@ -674,3 +685,46 @@ async def test_job_without_predicate_executes_unconditionally(hassette_with_sche
 
     await asyncio.wait_for(job_ran.wait(), timeout=1)
     executor.enqueue_record.assert_not_called()
+
+
+async def test_manual_submission_does_not_consume_pending_one_shot(
+    hassette_with_scheduler: HassetteHarness,
+) -> None:
+    """Submitting a pending one-shot manually runs it once without touching its automatic
+    schedule; the one-shot still fires normally at its own scheduled time afterward.
+    """
+    manual_ran = asyncio.Event()
+    auto_ran = asyncio.Event()
+    call_count = 0
+
+    async def target() -> None:
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            hassette_with_scheduler.task_bucket.post_to_loop(manual_ran.set)
+        else:
+            hassette_with_scheduler.task_bucket.post_to_loop(auto_ran.set)
+
+    scheduler_service = hassette_with_scheduler.scheduler_service
+    assert scheduler_service is not None
+
+    job = await hassette_with_scheduler.scheduler.run_in(target, delay=10, name="pending_one_shot_manual_submit")
+    original_status = job.schedule_status
+    original_next_run = job.next_run
+
+    try:
+        # Submit manually — runs once, does not mutate the job's automatic schedule.
+        job.submit()
+        await asyncio.wait_for(manual_ran.wait(), timeout=1)
+
+        assert job.schedule_status == original_status
+        assert job.next_run == original_next_run
+
+        # The pending automatic occurrence still fires normally afterward.
+        await scheduler_service.dispatch_and_log(job)
+        await asyncio.wait_for(auto_ran.wait(), timeout=1)
+
+        assert call_count == 2, f"Expected one manual and one automatic fire, got {call_count} total"
+        assert job.schedule_status is ScheduleStatus.COMPLETED
+    finally:
+        job.remove()

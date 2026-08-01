@@ -18,12 +18,13 @@ from hassette.core.database_service import DatabaseService
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.registration import ScheduledJobRegistration
 from hassette.core.sync_executor_service import SyncExecutorService
+from hassette.exceptions import JobRemovedError
 from hassette.execution_mode import STALL_THRESHOLD_SECONDS, drain_pending_done, run_through_guard
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_not_ready, mark_ready
 from hassette.resources.restart import CORE_PERMANENT_RESTART
 from hassette.resources.service import Service
-from hassette.scheduler.classes import Job, ScheduleStatus
+from hassette.scheduler.classes import Job, ScheduleStatus, ScheduleStatusReason
 from hassette.scheduler.error_context import SchedulerErrorContext
 from hassette.scheduler.triggers import _WaitingSentinel
 from hassette.types.enums import ExecutionMode
@@ -58,7 +59,7 @@ class SchedulerService(Service):
     """Command executor for running jobs and persisting registration/execution records."""
 
     _removal_callbacks: dict[str, Callable[["Job"], None]]
-    """Per-owner callbacks invoked whenever a job is removed via dequeue_job() or _remove_job()."""
+    """Per-owner callbacks invoked whenever a job is removed via dequeue_job() or _remove_jobs()."""
 
     _jobs_by_id: dict[int, "Job"]
     """Service-level live registry: the authority for live runtime existence and O(1) API
@@ -126,7 +127,7 @@ class SchedulerService(Service):
     async def reschedule_job(self, job: "Job", result: "ZonedDateTime | _WaitingSentinel") -> None:
         """Move a registered EntityTime job to a new concrete time, or to/from WAITING.
 
-        Unlike ``dequeue_job``/``_remove_job``, no removal callbacks fire and the job keeps
+        Unlike ``dequeue_job``/``_remove_jobs``, no removal callbacks fire and the job keeps
         its ``db_id`` — it stays a registered job that either moves to a different slot on
         the heap, activates onto the heap from ``WAITING``, or leaves the heap for
         ``WAITING``. Used by ``Scheduler`` when an entity-driven trigger's source entity
@@ -142,7 +143,11 @@ class SchedulerService(Service):
         right now — the transition is stored as pending so ``dispatch_and_log`` can apply it
         after that fire completes, instead of enqueuing the same job twice. A ``SCHEDULED``
         job found on the heap, or a job in any other status, applies the transition
-        immediately since there is no in-flight dispatch to race.
+        immediately since there is no in-flight dispatch to race. Every transition applied
+        here is persisted via ``persist_schedule_status`` immediately after
+        ``transition_to()``, same as ``dispatch_and_log`` — a pending transition (stored for
+        ``dispatch_and_log`` to apply later) is not persisted here since no transition has
+        happened yet; ``dispatch_and_log`` persists it when it applies the stored result.
 
         Args:
             job: The job to move.
@@ -161,10 +166,12 @@ class SchedulerService(Service):
 
         if isinstance(result, _WaitingSentinel):
             job.transition_to(ScheduleStatus.WAITING)
+            await self.persist_schedule_status(job)
             self.logger.debug("Job %s moved to waiting (entity has no usable time)", job)
             return
 
         job.transition_to(ScheduleStatus.SCHEDULED, next_run=result)
+        await self.persist_schedule_status(job)
         await self.enqueue_job(job)
         self.logger.debug("Rescheduled job %s to %s", job, job.next_run)
 
@@ -246,32 +253,21 @@ class SchedulerService(Service):
             job.fire_at,
         )
 
-    async def _remove_job(self, job: "Job") -> None:
-        """Remove a specific job via the async path (acquires lock) and wake the scheduler.
+    async def persist_schedule_status(self, job: "Job") -> None:
+        """Persist ``job``'s current ``schedule_status``/``schedule_status_reason`` to the DB.
 
-        Used by the serve loop for job exhaustion and trigger errors in dispatch_and_log.
-        The serve loop pops the job from the heap before dispatch_and_log calls this, so
-        ``remove_job`` often returns False (the job is already absent). Removal callbacks
-        fire unconditionally regardless, so the Scheduler still clears ``_jobs_by_name``
-        and ``_jobs_by_group``.
+        Called after every ``Job.transition_to()`` call in ``dispatch_and_log`` and
+        ``reschedule_job`` so a degraded (DB-only) response still reflects the job's true
+        status when live enrichment is unavailable. No-op for a job with no ``db_id`` yet —
+        an unregistered or degraded-registration job has no row to update.
 
-        Releases the job's guard so any in-flight or queued invocations are cancelled
-        and dropped.
-
-        Note: for cancel-initiated removal, use ``dequeue_job`` (synchronous path)
-        instead. Both paths fire ``fire_removal_callbacks`` unconditionally.
+        Args:
+            job: The job whose current schedule status should be persisted.
         """
-        removed = await self._job_queue.remove_job(job)
-
-        if removed:
-            self.kick()
-
-        # Release guard (cancels in-flight invocation, drops queued factories), then drain
-        # pending done-futures so QUEUED_ACCEPTED dispatch tasks don't hang.
-        await job.guard.release()
-        drain_pending_done(job.pending_done)
-
-        self.fire_removal_callbacks([job])
+        if job.db_id is None:
+            return
+        reason = job.schedule_status_reason.value if job.schedule_status_reason is not None else None
+        await self._executor.mark_job_status(job.db_id, job.schedule_status.value, reason)
 
     async def sleep(self, next_run_time: ZonedDateTime | None = None) -> None:
         """Sleep until the next job is due or a kick is received.
@@ -388,13 +384,16 @@ class SchedulerService(Service):
     async def dispatch_and_log(self, job: "Job") -> None:
         """Dispatch a job and log its execution.
 
-        Ordering: skip-if-dequeued → compute next → (enqueue next OR mark for removal) →
-        predicate check → run-through-guard → remove-if-marked.
+        Ordering: skip-if-dequeued → compute next schedule status → (enqueue OR persist the
+        new status) → predicate check → run-through-guard.
 
-        The current due fire ALWAYS runs once popped. Computing the next occurrence
-        happens first so the next tick is on the heap before the run completes, enabling
-        overlap for recurring jobs. A trigger that raises or returns None marks the job for
-        removal after the current fire — the current fire is never skipped.
+        The current due fire ALWAYS runs once popped, regardless of what the trigger
+        produces. Computing the next occurrence happens first so a recurring job's next
+        tick is on the heap before the current run completes, enabling overlap. A trigger
+        that returns ``None``, returns ``WAITING``, or raises never removes the job's live
+        registration — those outcomes only change ``schedule_status`` (to ``COMPLETED`` or
+        ``WAITING``). The job stays addressable and submit-capable via ``_jobs_by_id`` until
+        explicit removal (``Job.remove()``/``Scheduler.remove_job()``).
 
         Args:
             job: The job to dispatch.
@@ -405,10 +404,14 @@ class SchedulerService(Service):
 
         self.logger.debug("Dispatching job: %s", job)
 
-        # Step 1: Compute next occurrence and either enqueue it or mark for removal.
-        # For one-shots (trigger is None or next_run_time() → None) nothing is enqueued.
-        # The current fire ALWAYS runs regardless of the trigger outcome.
-        remove_after_fire = False
+        # Dispatch-local timing: the due occurrence's fire_at, captured before any transition
+        # below can clear job.next_run/fire_at (COMPLETED and WAITING both wipe them). run_job()
+        # falls back to this value for its lag calculation when the job's own fire_at has
+        # already been cleared by the time it runs.
+        dispatch_fire_at = job.fire_at
+
+        # Step 1: Compute the next schedule status and either enqueue the next occurrence or
+        # persist the new (non-heap) status. The current fire ALWAYS runs regardless of outcome.
         if job.trigger is not None:
             # Only a SCHEDULED job (concrete next_run) is ever popped for dispatch — the
             # due-time heap enforces this. Asserted rather than silently skipped so a future
@@ -423,58 +426,62 @@ class SchedulerService(Service):
             except Exception:
                 self.logger.exception(
                     "dispatch_and_log: trigger raised for db_id=%s callable=%s trigger=%r — "
-                    "running current fire then removing job",
+                    "running current fire then completing job",
                     job.db_id,
                     getattr(job.job, "__qualname__", str(job.job)),
                     job.trigger,
                 )
-                next_run = None
-                remove_after_fire = True
-
-            # EntityTime's WAITING return mid-recurrence needs the three-way schedule-status
-            # transition (scheduled/completed/waiting) that a later task adds here. isinstance
-            # (not `is WAITING`) so pyright narrows next_run below — identity comparison
-            # against a plain-object singleton does not narrow.
-            assert not isinstance(next_run, _WaitingSentinel), (
-                "dispatch_and_log: WAITING mid-recurrence is not yet handled by this dispatch path"
-            )
-
-            if next_run is not None:
-                curr_next_run = job.next_run
-                job.set_next_run(next_run)
-                assert job.next_run is not None
-                delta_to_now = (job.next_run - date_utils.now()).total("seconds")
-                if delta_to_now <= 0:
-                    self.logger.warning(
-                        "Trigger produced non-future next_run (%.3fs in the past), advancing by 1s",
-                        -delta_to_now,
+                job.transition_to(ScheduleStatus.COMPLETED, reason=ScheduleStatusReason.TRIGGER_ERROR)
+                await self.persist_schedule_status(job)
+            else:
+                if isinstance(next_run, _WaitingSentinel):
+                    # EntityTime's source has no usable time right now, mid-recurrence (the
+                    # third WAITING leg — registration-time and reconciliation-time waiting
+                    # are handled elsewhere). The job stays registered and watched, off the heap.
+                    job.transition_to(ScheduleStatus.WAITING)
+                    await self.persist_schedule_status(job)
+                    self.logger.debug("Job %s has no usable next occurrence right now — waiting", job)
+                elif next_run is not None:
+                    curr_next_run = job.next_run
+                    job.transition_to(ScheduleStatus.SCHEDULED, next_run=next_run)
+                    assert job.next_run is not None
+                    delta_to_now = (job.next_run - date_utils.now()).total("seconds")
+                    if delta_to_now <= 0:
+                        self.logger.warning(
+                            "Trigger produced non-future next_run (%.3fs in the past), advancing by 1s",
+                            -delta_to_now,
+                        )
+                        job.transition_to(ScheduleStatus.SCHEDULED, next_run=date_utils.now().add(seconds=1))
+                    await self.persist_schedule_status(job)
+                    self.logger.debug(
+                        "Rescheduling repeating job %s from %s to %s",
+                        job,
+                        curr_next_run,
+                        job.next_run,
                     )
-                    job.set_next_run(date_utils.now().add(seconds=1))
-                self.logger.debug(
-                    "Rescheduling repeating job %s from %s to %s",
-                    job,
-                    curr_next_run,
-                    job.next_run,
-                )
-                # Enqueue next occurrence BEFORE running — enables overlap.
-                # The in-lock _dequeued re-check inside _job_queue.add guards
-                # against a cancel landing between here and the push.
-                await self.enqueue_job(job)
-                if job._pending_entity_time_transition is not None:
-                    pending_transition = job._pending_entity_time_transition
-                    job._pending_entity_time_transition = None
-                    await self.reschedule_job(job, pending_transition)
-            elif not remove_after_fire:
-                # next_run_time() returned None (trigger exhausted) — remove after fire.
-                remove_after_fire = True
-        # else: no trigger → one-shot, remove after fire
+                    # Enqueue next occurrence BEFORE running — enables overlap.
+                    # The in-lock _dequeued re-check inside _job_queue.add guards
+                    # against a cancel landing between here and the push.
+                    await self.enqueue_job(job)
+                    if job._pending_entity_time_transition is not None:
+                        pending_transition = job._pending_entity_time_transition
+                        job._pending_entity_time_transition = None
+                        await self.reschedule_job(job, pending_transition)
+                else:
+                    # next_run_time() returned None — trigger exhausted normally. The job
+                    # remains live and submit-capable; it just leaves the heap.
+                    job.transition_to(ScheduleStatus.COMPLETED)
+                    await self.persist_schedule_status(job)
         else:
-            remove_after_fire = True
+            # No trigger, yet reached the heap — should never happen (manual-only jobs never
+            # enqueue), but complete defensively rather than leaving stale SCHEDULED timing.
+            job.transition_to(ScheduleStatus.COMPLETED)
+            await self.persist_schedule_status(job)
 
         # Step 2: Evaluate the job's predicate (if any) before running the handler.
-        # This must come after step 1 (next occurrence computed/enqueued) so a skipped
-        # recurring job still continues its schedule, and before step 3 (guard/execution)
-        # so a skip never invokes the handler.
+        # This must come after step 1 (next occurrence computed/enqueued/status persisted) so
+        # a skipped recurring job still continues its schedule, and before step 3
+        # (guard/execution) so a skip never invokes the handler.
         if job.predicate is not None:
             predicate_start = time.time()
             try:
@@ -483,30 +490,22 @@ class SchedulerService(Service):
             except Exception as exc:
                 self.logger.exception("Predicate raised for job %s — recording failure; the job does not run", job)
                 self._record_predicate_failure(job, exc, predicate_start)
-                if remove_after_fire:
-                    await self._try_remove_job(job, "predicate-error")
                 return
 
             if not should_run:
                 self.logger.debug("Predicate returned False for job %s — skipping", job)
                 self._record_skipped(job)
-                if remove_after_fire:
-                    await self._try_remove_job(job, "skipped")
                 return
 
-        # Step 3: Run the current due fire through the mode guard.
+        # Step 3: Run the current due fire through the mode guard. dispatch_fire_at is a
+        # fallback used only when the job's own fire_at was cleared above (COMPLETED/WAITING);
+        # a still-SCHEDULED (recurring) job's own (already-updated) fire_at takes priority in
+        # run_job(), matching existing behavior.
         try:
-            await self.run_job_with_guard(job)
+            await self.run_job_with_guard(job, fire_at=dispatch_fire_at)
         except asyncio.CancelledError:
-            # Step 4 is skipped on cancellation: a job marked for removal stays in
-            # _jobs_by_name until Scheduler.on_shutdown clears it unconditionally. This
-            # only happens during shutdown-driven task cancellation.
             self.logger.debug("Dispatch cancelled for job %s", job)
             raise
-
-        # Step 4: Remove if marked (trigger exhausted or raised, or one-shot).
-        if remove_after_fire:
-            await self._try_remove_job(job, "exhausted")
 
     def _record_skipped(self, job: "Job") -> None:
         """Build and enqueue a 'skipped' ExecutionRecord for a job whose predicate returned False.
@@ -591,19 +590,9 @@ class SchedulerService(Service):
                 name="scheduler:predicate_error_handler",
             )
 
-    async def _try_remove_job(self, job: "Job", reason: str) -> None:
-        """Remove a job, logging any exception without propagating it.
-
-        Args:
-            job: The job to remove.
-            reason: Why the job is being removed (e.g. "skipped", "exhausted") — used in the log message.
-        """
-        try:
-            await self._remove_job(job)
-        except Exception:
-            self.logger.exception("Error removing %s job %s", reason, job)
-
-    async def run_job_with_guard(self, job: "Job", trigger_mode: str | None = None) -> None:
+    async def run_job_with_guard(
+        self, job: "Job", trigger_mode: str | None = None, fire_at: ZonedDateTime | None = None
+    ) -> None:
         """Route one job invocation through the job's execution-mode guard.
 
         - ``parallel``: awaits ``run_job`` inline — concurrency comes from ``serve()``
@@ -615,16 +604,19 @@ class SchedulerService(Service):
             job: The job to invoke.
             trigger_mode: How this execution was triggered (e.g., "manual" for a
                 run-now request). None for regular scheduled fires.
+            fire_at: Dispatch-local due time, forwarded to ``run_job`` for its lag
+                calculation. See ``run_job``'s docstring for precedence against
+                ``job.fire_at``.
         """
         if job.mode is ExecutionMode.PARALLEL:
-            await self.run_job(job, trigger_mode=trigger_mode)
+            await self.run_job(job, trigger_mode=trigger_mode, fire_at=fire_at)
             return
 
         await run_through_guard(
             guard=job.guard,
             spawn=lambda coro, *, name: self.task_bucket.spawn(coro, name=name),
             pending_done=job.pending_done,
-            invoke=lambda: self.run_job(job, trigger_mode=trigger_mode),
+            invoke=lambda: self.run_job(job, trigger_mode=trigger_mode, fire_at=fire_at),
             warn=lambda secs: self.warn_stalled_job(job, secs),
             spawn_name="scheduler:mode_invocation",
             threshold=STALL_THRESHOLD_SECONDS,
@@ -647,7 +639,7 @@ class SchedulerService(Service):
             threshold,
         )
 
-    async def run_job(self, job: "Job", trigger_mode: str | None = None) -> None:
+    async def run_job(self, job: "Job", trigger_mode: str | None = None, fire_at: ZonedDateTime | None = None) -> None:
         """Run a scheduled job by delegating to the CommandExecutor.
 
         All jobs go through ``ExecuteJob`` regardless of whether ``db_id`` is set.
@@ -658,15 +650,24 @@ class SchedulerService(Service):
             job: The job to run.
             trigger_mode: How this execution was triggered (e.g., "manual" for a
                 run-now request). None for regular scheduled fires.
+            fire_at: Dispatch-local fallback due time for the schedule-lag calculation.
+                ``job.fire_at`` takes priority when set — a still-``SCHEDULED`` (recurring)
+                job's own (already-updated) ``fire_at`` reflects existing behavior. This
+                parameter only matters when ``job.fire_at`` has been cleared (a completing
+                dispatch transitions the job to ``COMPLETED``/``WAITING`` before this runs),
+                supplying the timing of the occurrence actually being dispatched. The lag
+                calculation itself is gated on ``trigger_mode`` rather than on either timing
+                value being set — a manually-submitted job (``trigger_mode="manual"``) may
+                still have a concrete ``job.fire_at`` from a pending automatic occurrence
+                (submission never mutates automatic schedule state), and attributing that
+                unrelated schedule timing to the manual invocation would be a spurious
+                "behind schedule" warning.
         """
-        # Only reachable today via automatic dispatch (concrete fire_at). Manual submission
-        # via SchedulerService.submit_job() lands in a later task and must skip this lag
-        # calculation entirely rather than asserting — see the design's Manual Submission
-        # section.
-        assert job.fire_at is not None, "run_job requires a job with a concrete fire_at"
-        lag = (date_utils.now() - job.fire_at).total("seconds")
-        if lag > self.hassette.config.scheduler.behind_schedule_threshold_seconds:
-            self.logger.warning("Job %s is behind schedule by %.2fs", job, lag)
+        effective_fire_at = job.fire_at if job.fire_at is not None else fire_at
+        if trigger_mode != "manual" and effective_fire_at is not None:
+            lag = (date_utils.now() - effective_fire_at).total("seconds")
+            if lag > self.hassette.config.scheduler.behind_schedule_threshold_seconds:
+                self.logger.warning("Job %s is behind schedule by %.2fs", job, lag)
 
         async_fn = self.task_bucket.make_async_adapter(job.job)
 
@@ -875,15 +876,36 @@ class SchedulerService(Service):
         self.fire_removal_callbacks(jobs)
 
     def submit_job(self, job: "Job") -> None:
-        """Submit one manual invocation of ``job``.
+        """Submit one manual invocation of ``job``. Fire-and-observe: returns immediately.
 
-        Stub — the real fire-and-observe implementation (registry lookup, spawn
-        ``run_job_with_guard(job, trigger_mode="manual")`` through ``task_bucket``, raise
-        ``JobRemovedError`` for a stale handle) lands in a later task. Declared now so
-        ``Job.submit()`` and the ``SchedulerServiceProtocol`` structural-conformance checks
-        type-check against a concrete method.
+        Confirms ``job.db_id`` still maps to the same live object in ``_jobs_by_id`` — an
+        identity check, not just a key lookup, for the same crash-restart orphan-collision
+        reason ``deregister_job()`` documents — then spawns
+        ``run_job_with_guard(job, trigger_mode="manual")`` on this service's ``task_bucket``.
+
+        Does not inspect or mutate schedule status, timing, trigger, or predicate, and does
+        not preflight ``single`` mode or queue capacity: the job's existing
+        ``ExecutionModeGuard`` and telemetry decide suppression, queuing, or dropping exactly
+        as they do for an automatic dispatch. Manual submission never touches the job's
+        automatic schedule — a pending one-shot or recurring occurrence still fires at its
+        own time.
+
+        Args:
+            job: The job to submit for manual invocation.
+
+        Raises:
+            JobRemovedError: When ``job.db_id`` is ``None`` (never registered) or no longer
+                maps to this same live object in the registry (the registration was removed
+                — via ``Job.remove()``, ``Scheduler.remove_job()``/``remove_group()``, owner
+                shutdown, or ``if_exists="replace"`` — after the caller obtained its handle).
         """
-        raise NotImplementedError("SchedulerService.submit_job() is implemented in a later task")
+        if job.db_id is None or self._jobs_by_id.get(job.db_id) is not job:
+            raise JobRemovedError(job.name, job.db_id)
+
+        self.task_bucket.spawn(
+            self.run_job_with_guard(job, trigger_mode="manual"),
+            name="scheduler:manual_trigger",
+        )
 
 
 class _ScheduledJobQueue(Resource):

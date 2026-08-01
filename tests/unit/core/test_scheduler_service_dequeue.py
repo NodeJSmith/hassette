@@ -190,7 +190,7 @@ class TestDispatchRaceGuard:
         # so a broken _dequeued guard would still leave run_called False and pass.
         run_called = False
 
-        async def spy_run_job_with_guard(_j):
+        async def spy_run_job_with_guard(_j, **_kwargs):
             nonlocal run_called
             run_called = True
 
@@ -207,7 +207,7 @@ class TestDispatchRaceGuard:
 
         run_called = False
 
-        async def spy_run_job_with_guard(_j):
+        async def spy_run_job_with_guard(_j, **_kwargs):
             nonlocal run_called
             run_called = True
 

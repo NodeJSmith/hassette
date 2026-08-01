@@ -444,6 +444,7 @@ def make_scheduler_service(
 
     svc._executor = MagicMock()
     svc._executor.execute = AsyncMock()
+    svc._executor.mark_job_status = AsyncMock()
 
     svc.task_bucket = MagicMock()
     svc.task_bucket.make_async_adapter = MagicMock(side_effect=lambda fn: fn)
