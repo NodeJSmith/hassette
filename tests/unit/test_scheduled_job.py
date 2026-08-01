@@ -1,4 +1,4 @@
-"""Tests for ScheduledJob dataclass — group, jitter, trigger_id matching."""
+"""Tests for Job dataclass — group, jitter, trigger_id matching."""
 
 from whenever import ZonedDateTime
 
@@ -59,7 +59,7 @@ class TestNewFields:
         assert job.jitter is None
 
     def test_no_repeat_field(self) -> None:
-        """ScheduledJob must not have a repeat attribute at runtime."""
+        """Job must not have a repeat attribute at runtime."""
         job = make_scheduled_job()
         assert not hasattr(job, "repeat")
 

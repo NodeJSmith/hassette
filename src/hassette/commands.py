@@ -2,7 +2,7 @@
 
 This module is a dependency-free leaf (stdlib + ``hassette.types``) so that
 neither ``bus/`` nor ``scheduler/`` has to import ``core/`` at runtime to get
-these types.  ``Listener``, ``ScheduledJob``, and ``Event`` are used only as
+these types.  ``Listener``, ``Job``, and ``Event`` are used only as
 field type annotations and are therefore imported under ``TYPE_CHECKING`` only —
 their string-literal annotations are safe because these are plain frozen
 dataclasses (no Pydantic, no ``get_type_hints()`` at runtime).
@@ -16,7 +16,7 @@ from hassette.types import AsyncHandlerType, SourceTier
 if TYPE_CHECKING:
     from hassette.bus.listeners import Listener
     from hassette.events.base import Event
-    from hassette.scheduler.classes import ScheduledJob
+    from hassette.scheduler.classes import Job
     from hassette.types.types import BusErrorHandlerType, SchedulerErrorHandlerType
 
 
@@ -68,7 +68,7 @@ class InvokeHandler:
 class ExecuteJob:
     """Command to execute a scheduled job."""
 
-    job: "ScheduledJob"
+    job: "Job"
     """The scheduled job to execute."""
 
     callable: AsyncHandlerType

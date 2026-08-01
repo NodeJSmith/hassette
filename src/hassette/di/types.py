@@ -31,7 +31,7 @@ class AnnotationDetails(Generic[T]):
     """Optional converter function to convert the extracted value to the desired type."""
 
     source_type: type[T] | None = None
-    """The source type this extractor operates on, e.g. `Event` or `ScheduledJob`.
+    """The source type this extractor operates on, e.g. `Event` or `Job`.
 
     When `None`, the consuming matcher (e.g. `AnnotatedMatcher`) falls back to its own
     constructor-provided `source_type`. Set this to override the matcher's default on a

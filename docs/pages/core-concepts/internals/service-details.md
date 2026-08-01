@@ -117,7 +117,7 @@ flowchart TD
     end
 
     methods --> T
-    T -- "ScheduledJob" --> heap
+    T -- "Job" --> heap
     exec -. "re-enqueue<br/>if recurring" .-> heap
 
     style api fill:#e8f0ff,stroke:#6688cc
@@ -154,7 +154,9 @@ When no jobs are queued, the loop sleeps for `default_delay` seconds. The `kick(
 
 ### Jitter and Job Groups
 
-`jitter=N` adds a random offset drawn from `[0, N]` seconds at enqueue time. Jobs in the same group share a `group=` label. `Scheduler.cancel_group(name)` cancels all jobs with that label. Named jobs (`name=`) support deduplication: `if_exists="skip"` returns the existing job only when the new registration matches its configuration; a changed configuration raises `ValueError`. `if_exists="replace"` cancels the existing job and re-registers.
+`jitter=N` adds a random offset drawn from `[0, N]` seconds at enqueue time. Jobs in the same group share a `group=` label. `Scheduler.remove_group(name)` removes all jobs with that label. Named jobs (`name=`) support deduplication: `if_exists="skip"` returns the existing job only when the new registration matches its configuration; a changed configuration raises `ValueError`. `if_exists="replace"` removes the existing job and re-registers.
+
+Only jobs with `schedule_status=SCHEDULED` sit in the heap. `SchedulerService._jobs_by_id` is the service-level live registry — the authority for whether a job exists at all, independent of heap membership. A `waiting` (`EntityTime` with no current occurrence), `completed` (exhausted trigger), or `manual` (`Scheduler.register()`) job stays in the registry and is fully addressable — for listing, removal, and manual submission — without ever occupying a heap slot.
 
 ## `StateManager` and `StateProxy`
 

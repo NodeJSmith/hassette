@@ -78,7 +78,7 @@ design.
 
 **Bus** (`src/hassette/bus/`) - Event pub/sub with filtering. Methods: `on_state_change`, `on_attribute_change`, `on_call_service`, `on`. All registration methods are `async` and must be awaited. `name=` is required on every DB-registered listener — omitting it raises `ListenerNameRequiredError` at call time. Supports glob patterns, predicates, conditions, debounce, throttle. The internal `Listener` dataclass composes four sub-structs: `ListenerIdentity` (ownership/telemetry fields), `ListenerOptions` (behavioral timing parameters), `HandlerInvoker` (handler invocation, dispatch, rate limiting), and `DurationConfig` (duration-hold configuration and timer lifecycle). Registration is synchronous with the DB — `sub.listener.db_id` is a valid integer immediately when the awaited call returns. `Subscription` no longer has a `registration_task` field.
 
-**Scheduler** (`src/hassette/scheduler/`) - Task scheduling via trigger objects. Primary entry: `schedule(func, trigger)`. Convenience methods: `run_in()`, `run_once()`, `run_every()`, `run_daily()`, `run_cron()`. Trigger types: `After`, `Once`, `Every`, `Daily`, `Cron` (all in `hassette.scheduler.triggers`). Custom triggers implement `TriggerProtocol`. Supports job groups (`group=`, `cancel_group()`, `list_jobs(group=)`) and jitter (`jitter=`).
+**Scheduler** (`src/hassette/scheduler/`) - Task scheduling via trigger objects. Primary entry: `schedule(func, trigger)`. Convenience methods: `run_in()`, `run_once()`, `run_every()`, `run_daily()`, `run_cron()`. Trigger types: `After`, `Once`, `Every`, `Daily`, `Cron` (all in `hassette.scheduler.triggers`). Custom triggers implement `TriggerProtocol`. Supports job groups (`group=`, `remove_group()`, `list_jobs(group=)`) and jitter (`jitter=`).
 
 **Api** (`src/hassette/api/`) - Home Assistant REST/WebSocket interface. Async methods: `get_state()`, `get_states()`, `call_service()`, `set_state()`, `fire_event()`. `Api.helpers` returns a `HelperClient` (`src/hassette/api/helpers.py`) — the single entry point for CRUD on HA helper entities (`input_boolean`, `input_number`, `input_text`, `input_select`, `input_datetime`, `input_button`, `counter`, `timer`). `HelperClient` exposes 4 generic methods (`list`, `create`, `update`, `delete`) with hand-maintained `@overload` declarations per domain for full type safety, plus 3 counter shortcuts (`increment`, `decrement`, `reset`).
 
@@ -166,6 +166,25 @@ gate.set()
 result = await task
 assert result > 0                                  # confirms registration succeeded after unblocking
 ```
+
+**Config-driven real-clock timeouts** — a test that overrides a production timeout config (e.g.
+`websocket.total_timeout_seconds`) races that value in real wall-clock time against any deliberate
+delay in the same test — an `asyncio.wait_for(..., timeout=1)` wrapped in
+`pytest.raises(TimeoutError)` to prove something hasn't happened yet, an `asyncio.sleep()`, or
+scheduling overhead. The two are independent real-time clocks the test author rarely reasons about
+together; CI's noisier scheduling is what finally exposes the collision, so it passes locally for
+months. This happened: `test_app_bootstrap_waits_for_first_websocket_connection_and_state_sync` set
+`total_timeout_seconds=2` for speed while a nested `asyncio.wait_for(..., timeout=1)` deliberately
+held ~1 real second to prove state wasn't loaded early — under a second of margin, which CI jitter
+eventually ate.
+
+Reproduce by driving the overridden timeout down far enough to fail on any machine (e.g. `0`),
+confirm the failure signature matches CI, then widen the override to give the deliberate real-time
+hold generous headroom. The plain Pydantic field default is usually the right value to reuse (here,
+`HassetteConfig`'s `total_timeout_seconds` default of 30) — not because it happens to match, but
+because it's already the value the framework considers "give this operation a reasonable real-world
+chance to finish," which is exactly the property the test needs too. Do not "fix" it by shrinking
+the competing delay instead — the delay is the thing under test.
 
 **Sentinel filtering** — verify that records with unregistered IDs (listener_id=0, job_id=0, session_id=0) are silently dropped and not written to the database.
 

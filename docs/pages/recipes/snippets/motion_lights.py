@@ -1,5 +1,5 @@
 from hassette import App, AppConfig, D, states
-from hassette.scheduler import ScheduledJob
+from hassette.scheduler import Job
 
 OFF_JOB_NAME = "motion_lights_off"
 
@@ -11,7 +11,7 @@ class MotionLightsConfig(AppConfig):
 
 
 class MotionLights(App[MotionLightsConfig]):
-    off_job: ScheduledJob | None
+    off_job: Job | None
 
     async def on_initialize(self) -> None:
         self.off_job = None
@@ -23,9 +23,9 @@ class MotionLights(App[MotionLightsConfig]):
 
     async def on_motion(self, new_state: D.StateNew[states.BinarySensorState]):
         if new_state.value is True:
-            # Motion detected — cancel any pending off job and turn the light on.
+            # Motion detected — remove any pending off job and turn the light on.
             if self.off_job is not None:
-                self.off_job.cancel()
+                self.off_job.remove()
                 self.off_job = None
             await self.api.turn_on(self.app_config.light, domain="light")
 

@@ -26,8 +26,10 @@ _SCHEDULER_SERVICE_PROTOCOL_MEMBERS = [
     "dequeue_job",
     "register_removal_callback",
     "deregister_removal_callback",
-    "mark_job_cancelled",
+    "mark_job_removed",
+    "remove_job",
     "remove_jobs_by_owner",
+    "submit_job",
 ]
 
 _STATE_READER_MEMBERS = [

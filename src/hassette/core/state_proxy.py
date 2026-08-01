@@ -17,7 +17,7 @@ from hassette.events.metadata import get_websocket_generation
 from hassette.exceptions import ResourceNotReadyError
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_not_ready, mark_ready
-from hassette.scheduler import ScheduledJob, Scheduler
+from hassette.scheduler import Job, Scheduler
 from hassette.types import Topic
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.hass_utils import extract_domain
@@ -126,7 +126,7 @@ class StateProxy(Resource):
     bus: Bus
     scheduler: Scheduler
     state_change_sub: "Subscription | None"
-    poll_job: "ScheduledJob | None"
+    poll_job: "Job | None"
 
     def __init__(self, hassette: "Hassette", *, parent: Resource | None = None) -> None:
         """Initialize the state cache and synchronization bookkeeping.

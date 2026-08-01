@@ -400,8 +400,8 @@ class TestCrossSessionAndRetiredRows:
         # Insert old retired scheduled_job
         cursor = await db_svc.db.execute(
             "INSERT INTO scheduled_jobs (app_key, instance_index, job_name, handler_method, "
-            "trigger_type, repeat, source_location, retired_at) "
-            "VALUES ('test_app', 0, 'old_job', 'run_old', 'interval', 1, 'test.py:3', ?)",
+            "trigger_type, repeat, source_location, retired_at, schedule_status) "
+            "VALUES ('test_app', 0, 'old_job', 'run_old', 'interval', 1, 'test.py:3', ?, 'scheduled')",
             (old_retired_at,),
         )
         old_job_id = cursor.lastrowid
@@ -409,8 +409,8 @@ class TestCrossSessionAndRetiredRows:
         # Insert recent retired scheduled_job (should survive cleanup)
         cursor = await db_svc.db.execute(
             "INSERT INTO scheduled_jobs (app_key, instance_index, job_name, handler_method, "
-            "trigger_type, repeat, source_location, retired_at) "
-            "VALUES ('test_app', 0, 'recent_job', 'run_recent', 'interval', 1, 'test.py:4', ?)",
+            "trigger_type, repeat, source_location, retired_at, schedule_status) "
+            "VALUES ('test_app', 0, 'recent_job', 'run_recent', 'interval', 1, 'test.py:4', ?, 'scheduled')",
             (recent_retired_at,),
         )
         recent_job_id = cursor.lastrowid

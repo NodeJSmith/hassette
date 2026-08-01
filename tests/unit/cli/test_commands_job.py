@@ -6,8 +6,10 @@ from unittest.mock import patch
 import pytest
 
 from hassette.cli.commands.job import (
+    _SCHEDULE_STATUS_TEXT,
     JOB_EXECUTION_COLUMNS,
     JOB_LIST_COLUMNS,
+    _next_run_display,
     cmd_job,
 )
 from hassette.cli.context import CLIContext
@@ -23,6 +25,10 @@ from tests.unit.cli.conftest import (
 )
 
 MAKE_CLIENT_PATH = "hassette.cli.commands.job.make_client"
+JOBS_ENDPOINT = "/api/scheduler/jobs"
+MY_APP_JOBS_ENDPOINT = "/api/telemetry/app/my-app/jobs"
+JOB_5_EXECUTIONS_ENDPOINT = "/api/telemetry/job/5/executions"
+JOB_1_EXECUTIONS_ENDPOINT = "/api/telemetry/job/1/executions"
 
 # cmd_job (bare — list all jobs)
 
@@ -31,7 +37,7 @@ class TestCmdJob:
     def test_calls_global_jobs_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
         """Job (no --app) fetches from GET /api/scheduler/jobs."""
         job = make_job_summary()
-        client = cli_client_factory.build_with_routes([("GET", "/api/scheduler/jobs", 200, [job.model_dump()])])
+        client = cli_client_factory.build_with_routes([("GET", JOBS_ENDPOINT, 200, [job.model_dump()])])
         spy = GetSpy(client)
 
         with (
@@ -41,14 +47,12 @@ class TestCmdJob:
         ):
             cmd_job()
 
-        assert "/api/scheduler/jobs" in spy.paths
+        assert JOBS_ENDPOINT in spy.paths
 
     def test_app_flag_routes_to_per_app_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
         """Job --app my-app fetches from /api/telemetry/app/my-app/jobs."""
         job = make_job_summary(app_key="my-app")
-        client = cli_client_factory.build_with_routes(
-            [("GET", "/api/telemetry/app/my-app/jobs", 200, [job.model_dump()])]
-        )
+        client = cli_client_factory.build_with_routes([("GET", MY_APP_JOBS_ENDPOINT, 200, [job.model_dump()])])
         spy = GetSpy(client)
 
         with (
@@ -58,14 +62,12 @@ class TestCmdJob:
         ):
             cmd_job(app="my-app")
 
-        assert any("/api/telemetry/app/my-app/jobs" in p for p in spy.paths)
+        assert any(MY_APP_JOBS_ENDPOINT in p for p in spy.paths)
 
     def test_app_and_instance_passes_instance_index(self, cli_client_factory: CLIClientFactory) -> None:
         """Job --app my-app --instance 0 passes instance_index=0 as a query param."""
         job = make_job_summary(app_key="my-app", instance_index=0)
-        client = cli_client_factory.build_with_routes(
-            [("GET", "/api/telemetry/app/my-app/jobs", 200, [job.model_dump()])]
-        )
+        client = cli_client_factory.build_with_routes([("GET", MY_APP_JOBS_ENDPOINT, 200, [job.model_dump()])])
         spy = GetSpy(client)
 
         with (
@@ -95,7 +97,7 @@ class TestCmdJob:
     def test_source_tier_passed_as_param(self, cli_client_factory: CLIClientFactory) -> None:
         """Job --source-tier app passes source_tier=app as a query param."""
         job = make_job_summary()
-        client = cli_client_factory.build_with_routes([("GET", "/api/scheduler/jobs", 200, [job.model_dump()])])
+        client = cli_client_factory.build_with_routes([("GET", JOBS_ENDPOINT, 200, [job.model_dump()])])
         spy = GetSpy(client)
 
         with (
@@ -112,7 +114,7 @@ class TestCmdJob:
     def test_human_mode_renders_table(self, cli_client_factory: CLIClientFactory) -> None:
         """Job renders a table with job_id, app_key, and mode columns."""
         job = make_job_summary(job_id=99, handler_method="check_lights")
-        client = cli_client_factory.build_with_routes([("GET", "/api/scheduler/jobs", 200, [job.model_dump()])])
+        client = cli_client_factory.build_with_routes([("GET", JOBS_ENDPOINT, 200, [job.model_dump()])])
         with (
             capture_stdout() as buf,
             patch(MAKE_CLIENT_PATH, return_value=client),
@@ -127,7 +129,7 @@ class TestCmdJob:
     def test_json_mode_outputs_list(self, cli_client_factory: CLIClientFactory) -> None:
         """Job --json outputs the job list as a JSON array."""
         job = make_job_summary(job_id=3)
-        client = cli_client_factory.build_with_routes([("GET", "/api/scheduler/jobs", 200, [job.model_dump()])])
+        client = cli_client_factory.build_with_routes([("GET", JOBS_ENDPOINT, 200, [job.model_dump()])])
 
         with (
             patch(MAKE_CLIENT_PATH, return_value=client),
@@ -141,7 +143,7 @@ class TestCmdJob:
 
     def test_empty_result_shows_no_results(self, cli_client_factory: CLIClientFactory) -> None:
         """Job renders a no-results message when no jobs are returned."""
-        client = cli_client_factory.build_with_routes([("GET", "/api/scheduler/jobs", 200, [])])
+        client = cli_client_factory.build_with_routes([("GET", JOBS_ENDPOINT, 200, [])])
         with (
             capture_stdout(),
             capture_stderr() as err_buf,
@@ -150,6 +152,43 @@ class TestCmdJob:
             cmd_job()
 
         assert "No results" in err_buf.getvalue()
+
+    @pytest.mark.parametrize(
+        ("schedule_status", "schedule_status_reason", "expected_text"),
+        [
+            ("scheduled", None, "Timing unavailable."),
+            ("scheduled", "legacy_unknown", "Legacy status unknown."),
+            ("waiting", None, "Waiting for entity time."),
+            ("completed", None, "Schedule completed."),
+            ("completed", "trigger_error", "Schedule stopped after trigger error."),
+            ("manual", None, "Manual only."),
+        ],
+    )
+    def test_null_next_run_renders_status_aware_text(
+        self,
+        schedule_status: str,
+        schedule_status_reason: str | None,
+        expected_text: str,
+    ) -> None:
+        """A null next_run renders truthful, status-aware text instead of generic 'done'.
+
+        Exercises ``_next_run_display`` directly rather than through the rendered table —
+        the table's fixed capture width can ellipsis-truncate the longer status strings,
+        which is a display artifact of column width, not a correctness signal for the text
+        the row_formatter produces.
+        """
+        job = make_job_summary(
+            job_id=1, next_run=None, schedule_status=schedule_status, schedule_status_reason=schedule_status_reason
+        )
+
+        assert _next_run_display(job) == expected_text
+
+    def test_concrete_next_run_renders_relative_time(self) -> None:
+        """A concrete next_run still renders via fmt_relative_time, not status text."""
+        job = make_job_summary(job_id=1, next_run=SINCE_EPOCH, schedule_status="scheduled")
+
+        assert _next_run_display(job) != ""
+        assert _next_run_display(job) not in _SCHEDULE_STATUS_TEXT.values()
 
     def test_job_list_columns_defined(self) -> None:
         """JOB_LIST_COLUMNS includes key job fields."""
@@ -165,13 +204,18 @@ class TestCmdJob:
         """JOB_LIST_COLUMNS uses at most 11 columns for wide terminal fit."""
         assert len(JOB_LIST_COLUMNS) <= 11
 
+    def test_job_list_columns_includes_schedule_status(self) -> None:
+        """JOB_LIST_COLUMNS includes a schedule_status column."""
+        field_names = [c.field for c in JOB_LIST_COLUMNS]
+        assert "schedule_status" in field_names
+
 
 class TestCmdJobDetail:
     def test_calls_executions_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
         """Job <id> fetches from GET /api/telemetry/job/{id}/executions."""
         execution = make_execution(kind="job", job_id=1)
         client = cli_client_factory.build_with_routes(
-            [("GET", "/api/telemetry/job/5/executions", 200, [execution.model_dump()])]
+            [("GET", JOB_5_EXECUTIONS_ENDPOINT, 200, [execution.model_dump()])]
         )
         spy = GetSpy(client)
 
@@ -182,13 +226,13 @@ class TestCmdJobDetail:
         ):
             cmd_job(job_id=5)
 
-        assert "/api/telemetry/job/5/executions" in spy.paths
+        assert JOB_5_EXECUTIONS_ENDPOINT in spy.paths
 
     def test_limit_passed_as_param(self, cli_client_factory: CLIClientFactory) -> None:
         """Job <id> --limit 5 passes limit=5 as a query param."""
         execution = make_execution(kind="job", job_id=1)
         client = cli_client_factory.build_with_routes(
-            [("GET", "/api/telemetry/job/5/executions", 200, [execution.model_dump()])]
+            [("GET", JOB_5_EXECUTIONS_ENDPOINT, 200, [execution.model_dump()])]
         )
         spy = GetSpy(client)
 
@@ -207,7 +251,7 @@ class TestCmdJobDetail:
         """Job <id> --since passes since as a query param."""
         execution = make_execution(kind="job", job_id=1)
         client = cli_client_factory.build_with_routes(
-            [("GET", "/api/telemetry/job/5/executions", 200, [execution.model_dump()])]
+            [("GET", JOB_5_EXECUTIONS_ENDPOINT, 200, [execution.model_dump()])]
         )
         spy = GetSpy(client)
 
@@ -227,7 +271,7 @@ class TestCmdJobDetail:
         """Job <id> renders a table with status and duration."""
         execution = make_execution(kind="job", job_id=1, duration_ms=8.5)
         client = cli_client_factory.build_with_routes(
-            [("GET", "/api/telemetry/job/1/executions", 200, [execution.model_dump()])]
+            [("GET", JOB_1_EXECUTIONS_ENDPOINT, 200, [execution.model_dump()])]
         )
         with (
             capture_stdout() as buf,
@@ -242,7 +286,7 @@ class TestCmdJobDetail:
         """Job <id> --json outputs the executions as a JSON array."""
         execution = make_execution(kind="job", job_id=1, duration_ms=15.0)
         client = cli_client_factory.build_with_routes(
-            [("GET", "/api/telemetry/job/1/executions", 200, [execution.model_dump()])]
+            [("GET", JOB_1_EXECUTIONS_ENDPOINT, 200, [execution.model_dump()])]
         )
 
         with (

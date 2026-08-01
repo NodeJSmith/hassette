@@ -1,7 +1,7 @@
-"""Tests for ScheduledJob lifecycle: construction, cancellation, and diffing.
+"""Tests for Job lifecycle: construction, removal, and diffing.
 
 Covers __post_init__ (timeout/timeout_disabled conflict, bool-timeout
-rejection), __hash__, __repr__, cancel(), set_app_error_handler_resolver(), set_next_run(),
+rejection), __hash__, __repr__, remove(), set_app_error_handler_resolver(), set_next_run(),
 diff_fields(), and the matches()/trigger-None branches not covered by
 test_scheduled_job_timeout.py.
 """
@@ -13,7 +13,7 @@ import pytest
 from whenever import ZonedDateTime
 
 from hassette.execution_mode import ExecutionModeGuard
-from hassette.scheduler.classes import ScheduledJob
+from hassette.scheduler.classes import Job, ScheduleStatus, ScheduleStatusReason
 from hassette.scheduler.triggers import Every
 from hassette.test_utils.factories import make_scheduled_job
 from hassette.test_utils.helpers import noop
@@ -23,8 +23,8 @@ from hassette.utils.date_utils import now
 from .conftest import TZ
 
 
-def make_job_with_args(*, args: Any = (), kwargs: dict | None = None, **overrides) -> ScheduledJob:
-    """Build a real ScheduledJob with args/kwargs pass-through.
+def make_job_with_args(*, args: Any = (), kwargs: dict | None = None, **overrides) -> Job:
+    """Build a real Job with args/kwargs pass-through.
 
     ``args``/``kwargs`` aren't covered by the shared ``make_scheduled_job()`` factory
     (they're excluded from its parameter set), so tests exercising ``__post_init__``
@@ -32,7 +32,7 @@ def make_job_with_args(*, args: Any = (), kwargs: dict | None = None, **override
     """
     defaults: dict = {"owner_id": "test_owner", "next_run": now(), "job": noop}
     defaults.update(overrides)
-    return ScheduledJob(args=args, kwargs=kwargs or {}, **defaults)
+    return Job(args=args, kwargs=kwargs or {}, **defaults)
 
 
 class TestPostInitValidation:
@@ -69,6 +69,27 @@ class TestPostInitValidation:
         job = make_scheduled_job(mode=ExecutionMode.RESTART)
         assert isinstance(job.guard, ExecutionModeGuard)
 
+    def test_scheduled_status_without_next_run_raises(self) -> None:
+        """SCHEDULED (the default) with next_run=None raises — mirrors transition_to()'s guard."""
+        with pytest.raises(ValueError, match="requires a concrete next_run"):
+            Job(owner_id="test_owner", next_run=None, job=noop, name="bad_job")
+
+    def test_manual_construction_with_no_next_run_succeeds(self) -> None:
+        """A manual-only job (schedule_status=MANUAL, no trigger) with next_run=None is a
+        valid, non-raising construction — it never has an automatic occurrence.
+        """
+        job = Job(
+            owner_id="test_owner",
+            next_run=None,
+            job=noop,
+            name="manual_job",
+            schedule_status=ScheduleStatus.MANUAL,
+        )
+        assert job.schedule_status is ScheduleStatus.MANUAL
+        assert job.trigger is None
+        assert job.next_run is None
+        assert job.fire_at is None
+
 
 class TestHashAndRepr:
     def test_hash_matches_object_identity(self) -> None:
@@ -77,34 +98,34 @@ class TestHashAndRepr:
         assert hash(job) == id(job)
 
     def test_distinct_jobs_have_distinct_hashes(self) -> None:
-        """Two distinct ScheduledJob instances hash differently (identity-based)."""
+        """Two distinct Job instances hash differently (identity-based)."""
         job1 = make_scheduled_job(name="job1")
         job2 = make_scheduled_job(name="job2")
         assert hash(job1) != hash(job2)
 
     def test_repr_includes_name_and_owner(self) -> None:
-        """__repr__ returns 'ScheduledJob(name=..., owner_id=...)'."""
+        """__repr__ returns 'Job(name=..., owner_id=...)'."""
         job = make_scheduled_job(name="my_job", owner_id="my_owner")
-        assert repr(job) == "ScheduledJob(name='my_job', owner_id=my_owner)"
+        assert repr(job) == "Job(name='my_job', owner_id=my_owner)"
 
 
-class TestCancel:
-    def test_cancel_without_scheduler_raises_runtime_error(self) -> None:
-        """cancel() on a job with no registered _scheduler raises RuntimeError."""
+class TestRemove:
+    def test_remove_without_scheduler_raises_runtime_error(self) -> None:
+        """remove() on a job with no registered _scheduler raises RuntimeError."""
         job = make_scheduled_job()
         assert job._scheduler is None
         with pytest.raises(RuntimeError, match="not registered with a Scheduler"):
-            job.cancel()
+            job.remove()
 
-    def test_cancel_delegates_to_scheduler(self) -> None:
-        """cancel() calls scheduler.cancel_job(self) when _scheduler is set."""
+    def test_remove_delegates_to_scheduler(self) -> None:
+        """remove() calls scheduler.remove_job(self) when _scheduler is set."""
         job = make_scheduled_job()
         mock_scheduler = MagicMock()
         job._scheduler = mock_scheduler
 
-        job.cancel()
+        job.remove()
 
-        mock_scheduler.cancel_job.assert_called_once_with(job)
+        mock_scheduler.remove_job.assert_called_once_with(job)
 
 
 class TestSetAppErrorHandlerResolver:
@@ -150,6 +171,103 @@ class TestSetNextRun:
         job.set_next_run(ZonedDateTime(2020, 1, 1, tz=TZ))
 
         assert job.sort_index < earlier_sort_index
+
+    def test_set_next_run_none_clears_timing_and_leaves_sort_index(self) -> None:
+        """set_next_run(None) clears next_run/fire_at but leaves sort_index untouched —
+        a job in this state must never be inserted into the heap, so a stale sort_index
+        is never read.
+        """
+        job = make_scheduled_job(next_run=ZonedDateTime(2025, 1, 1, tz=TZ))
+        previous_sort_index = job.sort_index
+
+        job.set_next_run(None)
+
+        assert job.next_run is None
+        assert job.fire_at is None
+        assert job.sort_index == previous_sort_index
+
+
+class TestTransitionTo:
+    def test_scheduled_without_next_run_raises(self) -> None:
+        """transition_to(SCHEDULED, ...) with no next_run raises ValueError."""
+        job = make_scheduled_job()
+        with pytest.raises(ValueError, match="requires a concrete next_run"):
+            job.transition_to(ScheduleStatus.SCHEDULED)
+
+    def test_transition_to_scheduled_sets_next_run_and_fire_at(self) -> None:
+        """transition_to(SCHEDULED, next_run=...) sets next_run and defaults fire_at to it."""
+        job = make_scheduled_job()
+        target = ZonedDateTime(2030, 1, 1, 7, 0, 0, tz=TZ)
+
+        job.transition_to(ScheduleStatus.SCHEDULED, next_run=target)
+
+        assert job.schedule_status is ScheduleStatus.SCHEDULED
+        assert job.next_run == target.round("second")
+        assert job.fire_at == target.round("second")
+
+    def test_transition_to_scheduled_honors_explicit_fire_at_override(self) -> None:
+        """An explicit fire_at overrides the default (rounded next_run) fire_at."""
+        job = make_scheduled_job()
+        next_run = ZonedDateTime(2030, 1, 1, 7, 0, 0, tz=TZ)
+        jittered_fire_at = ZonedDateTime(2030, 1, 1, 7, 0, 5, tz=TZ)
+
+        job.transition_to(ScheduleStatus.SCHEDULED, next_run=next_run, fire_at=jittered_fire_at)
+
+        assert job.next_run == next_run.round("second")
+        assert job.fire_at == jittered_fire_at
+
+    def test_transition_to_non_scheduled_clears_next_run_and_fire_at(self) -> None:
+        """Leaving SCHEDULED clears next_run/fire_at regardless of what a caller passes."""
+        job = make_scheduled_job(next_run=ZonedDateTime(2025, 1, 1, tz=TZ))
+        assert job.next_run is not None
+
+        job.transition_to(ScheduleStatus.COMPLETED)
+
+        assert job.schedule_status is ScheduleStatus.COMPLETED
+        assert job.next_run is None
+        assert job.fire_at is None
+
+    def test_transition_to_non_scheduled_ignores_next_run_and_fire_at_args(self) -> None:
+        """next_run/fire_at passed alongside a non-SCHEDULED status are ignored and cleared."""
+        job = make_scheduled_job()
+
+        job.transition_to(
+            ScheduleStatus.WAITING,
+            next_run=ZonedDateTime(2030, 1, 1, tz=TZ),
+            fire_at=ZonedDateTime(2030, 1, 1, tz=TZ),
+        )
+
+        assert job.schedule_status is ScheduleStatus.WAITING
+        assert job.next_run is None
+        assert job.fire_at is None
+
+    def test_transition_to_manual_clears_timing(self) -> None:
+        """transition_to(MANUAL) clears timing like every other non-SCHEDULED status."""
+        job = make_scheduled_job()
+
+        job.transition_to(ScheduleStatus.MANUAL)
+
+        assert job.schedule_status is ScheduleStatus.MANUAL
+        assert job.next_run is None
+        assert job.fire_at is None
+
+    def test_transition_to_sets_explicit_reason(self) -> None:
+        """An explicit reason is stored on schedule_status_reason."""
+        job = make_scheduled_job()
+
+        job.transition_to(ScheduleStatus.COMPLETED, reason=ScheduleStatusReason.TRIGGER_ERROR)
+
+        assert job.schedule_status_reason is ScheduleStatusReason.TRIGGER_ERROR
+
+    def test_transition_to_clears_reason_when_not_passed(self) -> None:
+        """A prior reason does not leak into a later transition that omits reason=."""
+        job = make_scheduled_job()
+        job.transition_to(ScheduleStatus.COMPLETED, reason=ScheduleStatusReason.TRIGGER_ERROR)
+        assert job.schedule_status_reason is ScheduleStatusReason.TRIGGER_ERROR
+
+        job.transition_to(ScheduleStatus.SCHEDULED, next_run=ZonedDateTime(2030, 1, 1, tz=TZ))
+
+        assert job.schedule_status_reason is None
 
 
 class TestMatchesTriggerNoneBranches:
@@ -271,12 +389,12 @@ class TestDiffFields:
 
 class TestPredicateField:
     def test_predicate_defaults_to_none(self) -> None:
-        """ScheduledJob constructed without a predicate defaults to None."""
+        """Job constructed without a predicate defaults to None."""
         job = make_scheduled_job()
         assert job.predicate is None
 
     def test_predicate_stores_callable(self) -> None:
-        """Constructing a ScheduledJob with predicate=<callable> stores it directly."""
+        """Constructing a Job with predicate=<callable> stores it directly."""
 
         def always_true() -> bool:
             return True

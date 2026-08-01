@@ -1,8 +1,8 @@
 """Integration tests for entity-driven scheduling with the EntityTime trigger.
 
 Exercises the full path: Scheduler.schedule() binds the trigger to live state, registers a
-state-change listener for the entity, and moves the job on the heap when the entity reports a
-new time — including the parked state an entity with no usable time produces.
+state-change listener for the entity, and moves the job between WAITING and SCHEDULED when
+the entity reports (or loses) a usable time.
 """
 
 import typing
@@ -12,10 +12,10 @@ from unittest.mock import AsyncMock
 import pytest
 from whenever import TimeDelta
 
-import hassette.core.scheduler_service as scheduler_service_module
 import hassette.utils.date_utils as date_utils
 from hassette.resources.lifecycle import mark_ready
-from hassette.scheduler.triggers import NO_OCCURRENCE, EntityTime
+from hassette.scheduler.classes import ScheduleStatus
+from hassette.scheduler.triggers import EntityTime
 from hassette.test_utils.harness import HassetteHarness
 from hassette.test_utils.helpers import create_state_change_event, make_state_dict, noop
 from hassette.types import Topic
@@ -78,8 +78,9 @@ async def test_schedule_uses_the_entity_time(entity_time_harness: HassetteHarnes
         noop, EntityTime(ALARM_ENTITY), name="entity_time_uses_entity_time"
     )
 
+    assert job.schedule_status == ScheduleStatus.SCHEDULED
     assert job.next_run == date_utils.convert_datetime_str_to_tz(alarm)
-    job.cancel()
+    job.remove()
 
 
 async def test_schedule_applies_offset(entity_time_harness: HassetteHarness) -> None:
@@ -95,36 +96,37 @@ async def test_schedule_applies_offset(entity_time_harness: HassetteHarness) -> 
 
     expected = date_utils.convert_datetime_str_to_tz(alarm).add(minutes=-30)
     assert job.next_run == expected
-    job.cancel()
+    job.remove()
 
 
-async def test_unavailable_entity_parks_the_job(entity_time_harness: HassetteHarness) -> None:
-    """An unavailable entity registers the job parked rather than failing or removing it."""
+async def test_unavailable_entity_registers_the_job_waiting(entity_time_harness: HassetteHarness) -> None:
+    """An unavailable entity registers the job as waiting rather than failing or removing it."""
     await seed_alarm(entity_time_harness, "unavailable")
 
     job = await entity_time_harness.scheduler.schedule(
-        noop, EntityTime(ALARM_ENTITY), name="entity_time_unavailable_parks"
+        noop, EntityTime(ALARM_ENTITY), name="entity_time_unavailable_waiting"
     )
 
-    assert job.next_run == NO_OCCURRENCE
-    assert job.db_id is not None, "a parked job is still a registered job"
-    job.cancel()
+    assert job.schedule_status == ScheduleStatus.WAITING
+    assert job.next_run is None
+    assert job.fire_at is None
+    assert job.db_id is not None, "a waiting job is still a registered job"
+    job.remove()
 
 
-async def test_unavailable_entity_with_jitter_stays_parked(
-    entity_time_harness: HassetteHarness, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Jitter does not overflow the far-future parking timestamp."""
+async def test_unavailable_entity_with_jitter_stays_waiting(entity_time_harness: HassetteHarness) -> None:
+    """Jitter is stored on the job but never applied while it stays off-heap and waiting."""
     await seed_alarm(entity_time_harness, "unavailable")
-    monkeypatch.setattr(scheduler_service_module.random, "uniform", lambda _start, _stop: 5.0)
 
     job = await entity_time_harness.scheduler.schedule(
         noop, EntityTime(ALARM_ENTITY), name="entity_time_unavailable_jitter", jitter=5.0
     )
 
-    assert job.next_run == NO_OCCURRENCE
-    assert job.fire_at == NO_OCCURRENCE
-    job.cancel()
+    assert job.schedule_status == ScheduleStatus.WAITING
+    assert job.next_run is None
+    assert job.fire_at is None
+    assert job.jitter == 5.0
+    job.remove()
 
 
 async def test_entity_change_moves_the_job(entity_time_harness: HassetteHarness) -> None:
@@ -140,24 +142,55 @@ async def test_entity_change_moves_the_job(entity_time_harness: HassetteHarness)
     second_alarm = iso_in(15)
     await change_alarm(entity_time_harness, first_alarm, second_alarm)
 
+    assert job.schedule_status == ScheduleStatus.SCHEDULED
     assert job.next_run == date_utils.convert_datetime_str_to_tz(second_alarm)
-    job.cancel()
+    job.remove()
 
 
 async def test_entity_going_unavailable_parks_a_scheduled_job(entity_time_harness: HassetteHarness) -> None:
-    """Clearing the alarm parks the job instead of leaving it queued at a stale time."""
+    """Clearing the alarm moves a scheduled job to waiting instead of leaving it queued at a
+    stale time.
+    """
     alarm = iso_in(60)
     await seed_alarm(entity_time_harness, alarm)
 
     job = await entity_time_harness.scheduler.schedule(
         noop, EntityTime(ALARM_ENTITY), name="entity_time_unavailable_parks_running"
     )
-    assert job.next_run != NO_OCCURRENCE
+    assert job.schedule_status == ScheduleStatus.SCHEDULED
 
     await change_alarm(entity_time_harness, alarm, "unavailable")
 
-    assert job.next_run == NO_OCCURRENCE
-    job.cancel()
+    assert job.schedule_status == ScheduleStatus.WAITING
+    assert job.next_run is None
+    assert job.fire_at is None
+    job.remove()
+
+
+async def test_waiting_job_removed_from_heap_but_stays_registered(entity_time_harness: HassetteHarness) -> None:
+    """A job moved to waiting is no longer on the scheduler heap, but remains live.
+
+    ``get_all_jobs()`` sources from the live registry (``_jobs_by_id``), not the heap, so a
+    waiting job is still found there — the heap-specific check goes through ``_job_queue``
+    directly.
+    """
+    alarm = iso_in(60)
+    await seed_alarm(entity_time_harness, alarm)
+
+    job = await entity_time_harness.scheduler.schedule(
+        noop, EntityTime(ALARM_ENTITY), name="entity_time_waiting_off_heap"
+    )
+    heap_before = await entity_time_harness.scheduler_service._job_queue.get_all()
+    assert any(j is job for j in heap_before)
+
+    await change_alarm(entity_time_harness, alarm, "unavailable")
+
+    heap_after = await entity_time_harness.scheduler_service._job_queue.get_all()
+    assert not any(j is job for j in heap_after), "waiting job must not be on the heap"
+    live_after = await entity_time_harness.scheduler_service.get_all_jobs()
+    assert any(j is job for j in live_after), "waiting job must stay in the live registry"
+    assert job.name in entity_time_harness.scheduler._jobs_by_name, "waiting job must stay registered"
+    job.remove()
 
 
 async def test_parked_job_recovers_when_entity_reports_a_time(entity_time_harness: HassetteHarness) -> None:
@@ -167,13 +200,53 @@ async def test_parked_job_recovers_when_entity_reports_a_time(entity_time_harnes
     job = await entity_time_harness.scheduler.schedule(
         noop, EntityTime(ALARM_ENTITY), name="entity_time_parked_recovers"
     )
-    assert job.next_run == NO_OCCURRENCE
+    assert job.schedule_status == ScheduleStatus.WAITING
 
     alarm = iso_in(45)
     await change_alarm(entity_time_harness, "unavailable", alarm)
 
+    assert job.schedule_status == ScheduleStatus.SCHEDULED
     assert job.next_run == date_utils.convert_datetime_str_to_tz(alarm)
-    job.cancel()
+    job.remove()
+
+
+async def test_waiting_job_reactivates_onto_the_heap(entity_time_harness: HassetteHarness) -> None:
+    """Recovery from waiting puts the job back on the live heap, not just changes its status.
+
+    ``get_all_jobs()`` sources from the live registry, so a waiting job is already present
+    there before recovery — the heap-membership check goes through ``_job_queue`` directly.
+    """
+    await seed_alarm(entity_time_harness, "unavailable")
+
+    job = await entity_time_harness.scheduler.schedule(
+        noop, EntityTime(ALARM_ENTITY), name="entity_time_waiting_reactivates"
+    )
+    heap_while_waiting = await entity_time_harness.scheduler_service._job_queue.get_all()
+    assert not any(j is job for j in heap_while_waiting)
+
+    alarm = iso_in(45)
+    await change_alarm(entity_time_harness, "unavailable", alarm)
+
+    heap_after = await entity_time_harness.scheduler_service._job_queue.get_all()
+    assert any(j is job for j in heap_after), "job must be back on the heap after recovering a usable time"
+    job.remove()
+
+
+async def test_still_unavailable_change_does_not_disturb_a_waiting_job(entity_time_harness: HassetteHarness) -> None:
+    """A state change that still names no usable time is a no-op for an already-waiting job."""
+    await seed_alarm(entity_time_harness, "unavailable")
+
+    job = await entity_time_harness.scheduler.schedule(
+        noop, EntityTime(ALARM_ENTITY), name="entity_time_still_unavailable_noop"
+    )
+    assert job.schedule_status == ScheduleStatus.WAITING
+
+    # "unknown" also carries no usable time — the job should simply stay waiting.
+    await change_alarm(entity_time_harness, "unavailable", "unknown")
+
+    assert job.schedule_status == ScheduleStatus.WAITING
+    assert job.next_run is None
+    job.remove()
 
 
 async def test_daily_mode_ignores_the_entity_date(entity_time_harness: HassetteHarness) -> None:
@@ -189,7 +262,7 @@ async def test_daily_mode_ignores_the_entity_date(entity_time_harness: HassetteH
     # Cron granularity is whole minutes, so compare the wall-clock minute.
     assert (job.next_run.hour, job.next_run.minute) == (target.hour, target.minute)
     assert job.next_run > date_utils.now()
-    job.cancel()
+    job.remove()
 
 
 async def test_change_during_registration_is_picked_up(entity_time_harness: HassetteHarness) -> None:
@@ -219,7 +292,37 @@ async def test_change_during_registration_is_picked_up(entity_time_harness: Hass
         scheduler_service.add_job = original_add_job  # pyright: ignore[reportAttributeAccessIssue]
 
     assert job.next_run == date_utils.convert_datetime_str_to_tz(second_alarm)
-    job.cancel()
+    job.remove()
+
+
+async def test_registration_race_reconciles_to_waiting(entity_time_harness: HassetteHarness) -> None:
+    """A change to "no usable time" landing during registration is reconciled to waiting.
+
+    Mirrors test_change_during_registration_is_picked_up but for the opposite direction: the
+    entity goes from available to unavailable inside the registration window, so the job must
+    end up waiting rather than scheduled at a stale time.
+    """
+    first_alarm = iso_in(60)
+    await seed_alarm(entity_time_harness, first_alarm)
+
+    scheduler_service = entity_time_harness.scheduler_service
+    original_add_job = scheduler_service.add_job
+
+    async def add_job_then_clear_the_entity(job):
+        await original_add_job(job)
+        await seed_alarm(entity_time_harness, "unavailable")
+
+    scheduler_service.add_job = add_job_then_clear_the_entity  # pyright: ignore[reportAttributeAccessIssue]
+    try:
+        job = await entity_time_harness.scheduler.schedule(
+            noop, EntityTime(ALARM_ENTITY), name="entity_time_registration_race_waiting"
+        )
+    finally:
+        scheduler_service.add_job = original_add_job  # pyright: ignore[reportAttributeAccessIssue]
+
+    assert job.schedule_status == ScheduleStatus.WAITING
+    assert job.next_run is None
+    job.remove()
 
 
 async def test_change_while_job_is_mid_dispatch_is_not_lost(entity_time_harness: HassetteHarness) -> None:
@@ -237,13 +340,13 @@ async def test_change_while_job_is_mid_dispatch_is_not_lost(entity_time_harness:
     assert removed is True
 
     await change_alarm(entity_time_harness, first_alarm, second_alarm)
-    assert job._pending_next_run == expected
+    assert job._pending_entity_time_transition == expected
 
     await entity_time_harness.scheduler_service.dispatch_and_log(job)
 
     assert job.next_run == expected
-    assert job._pending_next_run is None
-    job.cancel()
+    assert job._pending_entity_time_transition is None
+    job.remove()
 
 
 async def test_change_during_dispatch_reenqueue_is_not_lost(entity_time_harness: HassetteHarness) -> None:
@@ -277,8 +380,8 @@ async def test_change_during_dispatch_reenqueue_is_not_lost(entity_time_harness:
         entity_time_harness.scheduler_service.enqueue_job = original_enqueue  # pyright: ignore[reportAttributeAccessIssue]
 
     assert job.next_run == expected
-    assert job._pending_next_run is None
-    job.cancel()
+    assert job._pending_entity_time_transition is None
+    job.remove()
 
 
 async def test_watcher_registration_failure_cleans_up_job(
@@ -314,13 +417,36 @@ async def test_watch_listener_is_registered_and_cancelled_with_the_job(
     expected_name = f"scheduler.entity_time.{entity_time_harness.scheduler.owner_id}.{job.name}"
     assert expected_name in watch_listener_names(hassette)
 
-    job.cancel()
+    job.remove()
 
     assert expected_name not in watch_listener_names(hassette)
 
 
+async def test_watcher_survives_transition_to_waiting(entity_time_harness: HassetteHarness) -> None:
+    """The entity-watch listener stays registered when the job moves to waiting.
+
+    A waiting job must still hear about later entity changes so it can recover — losing the
+    watcher here would strand it waiting forever.
+    """
+    alarm = iso_in(30)
+    await seed_alarm(entity_time_harness, alarm)
+    hassette = typing.cast("Hassette", entity_time_harness.hassette)
+
+    job = await entity_time_harness.scheduler.schedule(
+        noop, EntityTime(ALARM_ENTITY), name="entity_time_watcher_survives_waiting"
+    )
+    expected_name = f"scheduler.entity_time.{entity_time_harness.scheduler.owner_id}.{job.name}"
+    assert expected_name in watch_listener_names(hassette)
+
+    await change_alarm(entity_time_harness, alarm, "unavailable")
+
+    assert job.schedule_status == ScheduleStatus.WAITING
+    assert expected_name in watch_listener_names(hassette), "watcher must survive the waiting transition"
+    job.remove()
+
+
 async def test_cancelled_job_is_not_rescheduled(entity_time_harness: HassetteHarness) -> None:
-    """A change arriving after cancellation does not resurrect the job."""
+    """A change arriving after removal does not resurrect the job."""
     alarm = iso_in(60)
     await seed_alarm(entity_time_harness, alarm)
 
@@ -328,7 +454,7 @@ async def test_cancelled_job_is_not_rescheduled(entity_time_harness: HassetteHar
         noop, EntityTime(ALARM_ENTITY), name="entity_time_cancelled_not_rescheduled"
     )
     original_next_run = job.next_run
-    job.cancel()
+    job.remove()
 
     await change_alarm(entity_time_harness, alarm, iso_in(5))
 

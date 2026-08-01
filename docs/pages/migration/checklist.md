@@ -53,7 +53,7 @@ See [`Bus` & Events](bus.md) for side-by-side examples.
 - [ ] Convert each `self.run_once(cb, time(H, M))` to `await self.scheduler.run_once(cb, at="HH:MM")`
 - [ ] Convert each `self.run_every(cb, "now", interval)` to `await self.scheduler.run_every(cb, seconds=interval)`
 - [ ] Convert each `self.run_daily(cb, time(H, M))` to `await self.scheduler.run_daily(cb, at="HH:MM")`
-- [ ] Replace `self.cancel_timer(handle)` with `job.cancel()` — each scheduling call returns a [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob]; store it (`job = await self.scheduler.run_in(...)`) to cancel later
+- [ ] Replace `self.cancel_timer(handle)` with `job.remove()` — each scheduling call returns a [`Job`][hassette.scheduler.classes.Job]; store it (`job = await self.scheduler.run_in(...)`) to remove later
 - [ ] Check for blocking work inside callbacks. For apps with heavy sync logic, switch to `AppSync`. For isolated blocking calls inside an `App` handler, use `await self.task_bucket.run_in_thread(...)`.
 
 See [`Scheduler`](scheduler.md) for method equivalents.

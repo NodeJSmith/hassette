@@ -42,8 +42,8 @@ Examples:
         await self.scheduler.run_daily(self.open_blinds, at="08:00", name="open_blinds", group="morning")
         await self.scheduler.run_daily(self.play_music, at="08:05", name="play_music", group="morning")
 
-        # Cancel all jobs in the group
-        self.scheduler.cancel_group("morning")
+        # Remove all jobs in the group
+        self.scheduler.remove_group("morning")
 
     Using the primary entry point directly::
 
@@ -69,8 +69,8 @@ Examples:
         # Named job for easier management
         job = await self.scheduler.run_daily(self.backup_data, at="02:00", name="daily_backup")
 
-        # Cancel a specific job
-        job.cancel()
+        # Remove a specific job
+        job.remove()
 """
 
 import asyncio
@@ -85,29 +85,30 @@ import hassette.utils.date_utils as date_utils
 from hassette.di import CallableInvoker, TypeMatcher, build_injection_plan
 from hassette.events import RawStateChangeEvent
 from hassette.exceptions import SchedulerNameRequiredError
+from hassette.execution_mode import resolve_execution_mode
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
 from hassette.types import SchedulerServiceProtocol, TriggerProtocol
-from hassette.types.enums import ExecutionMode
 from hassette.types.types import LOG_LEVEL_TYPE, IfExistsPolicy
 from hassette.utils.await_guard import guard_await
 from hassette.utils.func_utils import callable_name, callable_stable_name, is_async_callable
 from hassette.utils.source_capture import capture_registration_source
 from hassette.utils.type_utils import get_typed_signature
 
-from .classes import ScheduledJob
+from .classes import Job, ScheduleStatus
 from .sync import SchedulerSyncFacade
-from .triggers import NO_OCCURRENCE, After, Cron, Daily, EntityTime, Every, Once
+from .triggers import WAITING, After, Cron, Daily, EntityTime, Every, Once, _WaitingSentinel
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
     from hassette.bus import Subscription
     from hassette.events import HassStateDict
     from hassette.types import JobCallable
-    from hassette.types.types import SchedulerErrorHandlerType, SchedulerPredicate
+    from hassette.types.enums import ExecutionMode
+    from hassette.types.types import SchedulerErrorHandlerType, SchedulerPredicate, SourceTier
 
 
-_SCHEDULER_MATCHERS = (TypeMatcher(ScheduledJob),)
+_SCHEDULER_MATCHERS = (TypeMatcher(Job),)
 
 
 class Scheduler(Resource):
@@ -119,13 +120,13 @@ class Scheduler(Resource):
     sync: SchedulerSyncFacade
     """Synchronous facade for scheduling jobs from sync code (e.g. ``AppSync`` hooks)."""
 
-    _jobs_by_name: dict[str, "ScheduledJob"]
+    _jobs_by_name: dict[str, "Job"]
     """Tracks jobs by name for uniqueness validation within this scheduler instance."""
 
-    _jobs_by_group: dict[str, set["ScheduledJob"]]
+    _jobs_by_group: dict[str, set["Job"]]
     """Tracks jobs by group for bulk cancellation.
 
-    Uses ``set`` for O(1) membership test and discard. ``ScheduledJob.__hash__``
+    Uses ``set`` for O(1) membership test and discard. ``Job.__hash__``
     is based on ``job_id``, which is unique and immutable after construction.
     """
 
@@ -143,7 +144,7 @@ class Scheduler(Resource):
         )
         self.scheduler_service = self.hassette.scheduler_service
         self._jobs_by_name = {}
-        self._jobs_by_group: dict[str, set[ScheduledJob]] = {}
+        self._jobs_by_group: dict[str, set[Job]] = {}
         self._error_handler: SchedulerErrorHandlerType | None = None
         self._entity_time_subs = {}
         self.sync = self.add_child(SchedulerSyncFacade, scheduler=self)
@@ -152,14 +153,19 @@ class Scheduler(Resource):
         # automatically when SchedulerService removes them after firing.
         self.scheduler_service.register_removal_callback(self.owner_id, self._on_job_removed)
 
-    def _on_job_removed(self, job: "ScheduledJob") -> None:
+    def _on_job_removed(self, job: "Job") -> None:
         """Callback invoked by SchedulerService when a job is auto-exhausted.
 
         Keeps _jobs_by_group and _jobs_by_name in sync when SchedulerService removes a
-        one-shot job after it fires or when a job is dequeued via cancel_job. Also cancels
+        one-shot job after it fires or when a job is dequeued via remove_job. Also cancels
         the entity-watch subscription of an ``EntityTime`` job so it does not outlive the job.
+
+        Identity-checked: a crash-restart cycle can leave an orphaned ``Job`` sharing a name
+        with a freshly re-registered live job (the upsert reuses the natural-key row), so an
+        unconditional pop keyed on name alone could silently unregister the live job.
         """
-        self._jobs_by_name.pop(job.name, None)
+        if self._jobs_by_name.get(job.name) is job:
+            del self._jobs_by_name[job.name]
         sub = self._entity_time_subs.pop(job.name, None)
         if sub is not None:
             sub.cancel()
@@ -175,7 +181,7 @@ class Scheduler(Resource):
         mark_ready(self, reason="Scheduler initialized")
 
     async def on_shutdown(self) -> None:
-        await self._remove_all_jobs()
+        await self.remove_all_jobs()
         self.scheduler_service.deregister_removal_callback(self.owner_id)
 
     def on_error(self, handler: "SchedulerErrorHandlerType") -> None:
@@ -204,9 +210,7 @@ class Scheduler(Resource):
         """Return the log level from the config for this resource."""
         return self.hassette.config.logging.scheduler_service
 
-    def add_job(
-        self, job: "ScheduledJob", *, if_exists: IfExistsPolicy = "error"
-    ) -> "Coroutine[Any, Any, ScheduledJob]":
+    def add_job(self, job: "Job", *, if_exists: IfExistsPolicy = "error") -> "Coroutine[Any, Any, Job]":
         """Add a job to the scheduler.
 
         Must be awaited. Scheduling completes before the call returns.
@@ -222,7 +226,7 @@ class Scheduler(Resource):
                 ``"error"`` (default) raises ``ValueError``.
                 ``"skip"`` returns the existing job if it matches; raises
                 ``ValueError`` if the name matches but the configuration differs.
-                ``"replace"`` cancels the existing job (recording it as cancelled
+                ``"replace"`` removes the existing job (recording it as removed
                 in telemetry) and registers the new job in its place.
 
         Returns:
@@ -231,14 +235,14 @@ class Scheduler(Resource):
             integer immediately on return.
 
         Raises:
-            TypeError: If job is not a ScheduledJob.
+            TypeError: If job is not a Job.
             SchedulerNameRequiredError: If ``job.name`` is empty.
             ValueError: If a job with the same name already exists and either
                 ``if_exists="error"`` or the existing job's configuration differs.
         """
         # Synchronous validation runs before the handle is constructed (design Edge Cases).
-        if not isinstance(job, ScheduledJob):
-            raise TypeError(f"Expected ScheduledJob, got {type(job).__name__}")
+        if not isinstance(job, Job):
+            raise TypeError(f"Expected Job, got {type(job).__name__}")
         if not job.name:
             raise SchedulerNameRequiredError(callable_name(job.job), str(job.trigger))
         # Eager capture in the public def — user frame is live here (not inside the async body).
@@ -260,12 +264,12 @@ class Scheduler(Resource):
 
     async def _add_job(
         self,
-        job: "ScheduledJob",
+        job: "Job",
         *,
         if_exists: IfExistsPolicy = "error",
         source_location: str = "",
         registration_source: str = "",
-    ) -> "ScheduledJob":
+    ) -> "Job":
         """Async body for add_job: duplicate-name check + registry mutations + DB registration.
 
         Duplicate-name handling and registry mutations must not run for a never-awaited
@@ -275,15 +279,20 @@ class Scheduler(Resource):
         source_location and registration_source are captured in the public def (user
         frame is live there) and threaded here for telemetry backfill.
         """
-        # Empty string is the "not set" sentinel (ScheduledJob fields default to "").
+        # Empty string is the "not set" sentinel (Job fields default to "").
         if not job.source_location:
             job.source_location = source_location
             job.registration_source = registration_source
         existing = self._jobs_by_name.get(job.name)
         if existing is not None:
             if if_exists == "replace":
-                self.logger.debug("Replacing existing job '%s' (cancelling old, registering new)", job.name)
-                self.cancel_job(existing)
+                self.logger.debug("Replacing existing job '%s' (removing old, registering new)", job.name)
+                # Awaited unified removal (not remove_job()'s fire-and-forget dequeue_job()
+                # spawn): both this write and the new registration's upsert below target the
+                # same DB row via the natural key. Spawning here would let the new upsert
+                # reach the write queue first, and the old job's removed_at write would then
+                # land on the live row.
+                await self.scheduler_service.remove_job(existing)
             elif if_exists == "skip" and existing.matches(job):
                 return existing
             elif if_exists == "skip":
@@ -300,6 +309,7 @@ class Scheduler(Resource):
 
         self._jobs_by_name[job.name] = job
         job._scheduler = self
+        job._scheduler_service = self.scheduler_service
 
         if job.group is not None:
             if job.group not in self._jobs_by_group:
@@ -307,70 +317,98 @@ class Scheduler(Resource):
             self._jobs_by_group[job.group].add(job)
 
         job.set_app_error_handler_resolver(lambda: self._error_handler)
-        await self.scheduler_service.add_job(job)
+        try:
+            await self.scheduler_service.add_job(job)
+        except Exception:
+            await self._rollback_failed_registration(job)
+            raise
 
         return job
 
-    def cancel_job(self, job: "ScheduledJob") -> None:
-        """Cancel an individual job and persist the cancellation to the database.
+    async def _rollback_failed_registration(self, job: "Job") -> None:
+        """Undo a partial registration after ``scheduler_service.add_job()`` raised.
 
-        Idempotent: a second cancel on the same job is a silent no-op. Raises
-        ``ValueError`` if the job belongs to a different scheduler instance.
-        Spawns a durable ``mark_job_cancelled`` DB write (when ``db_id`` is set),
-        dequeues the job from the service, and sets ``job._dequeued = True``.
+        Delegates to the unified removal operation (``scheduler_service.remove_job()``).
+        In practice this is a lightweight case of it: no execution has been spawned yet at
+        registration time, so there is no guard state worth releasing and no queued
+        invocation to drain. Still removes registry membership (``_jobs_by_id``, if the job
+        reached it), any heap entry, and this scheduler's name/group indexes (via the
+        removal callback the operation fires), and persists ``removed_at`` when persistence
+        produced a row ID before a later step failed, so a failed registration can never
+        appear live.
+        """
+        await self.scheduler_service.remove_job(job)
 
-        Must NOT call ``job.cancel()`` internally — that delegates back here and
+    def remove_job(self, job: "Job") -> None:
+        """Remove an individual job's registration via the unified removal operation.
+
+        Idempotent: a second removal of the same job is a silent no-op. Raises
+        ``ValueError`` if the job belongs to a different scheduler instance. Delegates to
+        ``SchedulerService.dequeue_job()`` — the synchronous entry point for the unified
+        removal operation — which removes registry membership, any heap occurrence, and
+        this scheduler's name/group indexes synchronously, and spawns the guard-release/
+        ``removed_at``-persistence tail as a background task on the service's own
+        ``task_bucket`` (so the DB write survives this Scheduler resource's own shutdown).
+
+        Must NOT call ``job.remove()`` internally — that delegates back here and
         would cause infinite recursion.
 
         Args:
-            job: The job to cancel.
+            job: The job to remove.
 
         Raises:
             ValueError: If the job belongs to a different scheduler instance.
         """
         if job._dequeued:
-            return  # idempotent — already cancelled
+            return  # idempotent — already removed
         if job._scheduler is not self:
             raise ValueError(
-                f"cancel_job() called with a job belonging to a different scheduler "
+                f"remove_job() called with a job belonging to a different scheduler "
                 f"(job owner: {job._scheduler}, this scheduler: {self})"
-            )
-        if job.db_id is not None:
-            # Spawn on scheduler_service.task_bucket (not self.task_bucket) so the
-            # DB write survives Scheduler resource shutdown — the service's lifecycle
-            # extends past the resource's cleanup phase.
-            self.scheduler_service.task_bucket.spawn(
-                self.scheduler_service.mark_job_cancelled(job.db_id),
-                name="scheduler:mark_job_cancelled",
             )
         self.scheduler_service.dequeue_job(job)
 
-    def _remove_all_jobs(self) -> asyncio.Task:
-        """Remove all jobs for the owner of this scheduler."""
+    def remove_all_jobs(self) -> asyncio.Task:
+        """Remove all jobs for the owner of this scheduler.
+
+        Passes this scheduler's own ``_jobs_by_name`` values to
+        ``SchedulerService.remove_jobs()`` rather than the owner-string-based
+        ``remove_jobs_by_owner()`` — the latter only finds heap-resident jobs, so it misses
+        waiting, completed, and manual jobs, which never have a heap entry.
+
+        Does NOT deregister this scheduler's removal callback (``register_removal_callback``,
+        set in ``__init__``) — callers that reuse this ``Scheduler`` instance afterward (e.g.
+        ``test_utils.reset.reset_scheduler`` between tests) need it to stay wired so future
+        ``add_job``/``remove_job`` calls keep ``_jobs_by_name``/``_jobs_by_group`` in sync.
+        A caller that is discarding this scheduler for good (``on_shutdown``,
+        ``AppLifecycleService.cleanup_failed_instance``) must call
+        ``scheduler_service.deregister_removal_callback(self.owner_id)`` itself afterward.
+        """
+        jobs = list(self._jobs_by_name.values())
         self._jobs_by_name.clear()
         self._jobs_by_group.clear()
         for sub in self._entity_time_subs.values():
             sub.cancel()
         self._entity_time_subs.clear()
-        return self.scheduler_service.remove_jobs_by_owner(self.owner_id)
+        return self.scheduler_service.remove_jobs(jobs)
 
-    def cancel_group(self, group: str) -> None:
-        """Cancel all jobs in the given group.
+    def remove_group(self, group: str) -> None:
+        """Remove all jobs in the given group.
 
-        Delegates to ``cancel_job`` per-member, which handles the DB write,
+        Delegates to ``remove_job`` per-member, which handles the DB write,
         dequeue, and ``_dequeued`` flag. Dict cleanup (``_jobs_by_group`` and
         ``_jobs_by_name``) is handled by the ``_on_job_removed`` callback
         fired by ``scheduler_service.dequeue_job``. No-op if the group does
         not exist.
 
         Args:
-            group: The group name to cancel.
+            group: The group name to remove.
         """
         jobs = list(self._jobs_by_group.get(group, set()))
         for job in jobs:
-            self.cancel_job(job)
+            self.remove_job(job)
 
-    def list_jobs(self, group: str | None = None) -> list["ScheduledJob"]:
+    def list_jobs(self, group: str | None = None) -> list["Job"]:
         """Return all or group-filtered jobs.
 
         Args:
@@ -378,7 +416,7 @@ class Scheduler(Resource):
                 If ``None`` (default), return all jobs.
 
         Returns:
-            List of ScheduledJob instances.
+            List of Job instances.
         """
         if group is None:
             return list(self._jobs_by_name.values())
@@ -397,6 +435,154 @@ class Scheduler(Resource):
         """
         return [job.db_id for job in self._jobs_by_name.values() if job.db_id is not None]
 
+    def _resolve_registration_context(
+        self, *, mode: "ExecutionMode | str | None"
+    ) -> "tuple[str, int, SourceTier, str | None, ExecutionMode]":
+        """Resolve the owner-derived fields shared by ``schedule()`` and ``register()``.
+
+        Returns:
+            A ``(app_key, instance_index, source_tier, instance_name, resolved_mode)`` tuple.
+        """
+        parent = self.parent
+        assert parent is not None
+        app_key = parent.app_key
+        instance_index = parent.index
+        source_tier = parent.source_tier
+        assert source_tier in ("app", "framework"), f"Invalid source_tier={source_tier!r} on {parent.class_name}"
+
+        resolved_mode = resolve_execution_mode(mode, source_tier)
+
+        # Resolve instance_name once at registration so the executor hot path reads it off the
+        # command instead of traversing app_handler per execution.
+        instance_name = parent.instance_name
+
+        return app_key, instance_index, source_tier, instance_name, resolved_mode
+
+    def _build_job(
+        self,
+        func: "JobCallable",
+        trigger: "TriggerProtocol | None",
+        *,
+        name: str,
+        group: str | None,
+        jitter: float | None,
+        timeout: float | None,
+        timeout_disabled: bool,
+        mode: "ExecutionMode | str | None",
+        on_error: "SchedulerErrorHandlerType | None",
+        args: tuple[Any, ...] | None,
+        kwargs: Mapping[str, Any] | None,
+        predicate: "SchedulerPredicate | None",
+        predicate_invoker: "CallableInvoker | None",
+        schedule_status: ScheduleStatus,
+        next_run: ZonedDateTime | None,
+    ) -> Job:
+        """Construct a ``Job`` from the owner-derived context plus per-call fields.
+
+        Shared by ``schedule()`` (a real trigger, initial timing already resolved by the
+        caller) and ``register()`` (no trigger, always ``MANUAL``/``next_run=None``) so the
+        two entry points cannot drift on policy resolution or field wiring.
+        """
+        app_key, instance_index, source_tier, instance_name, resolved_mode = self._resolve_registration_context(
+            mode=mode
+        )
+        return Job(
+            owner_id=self.owner_id,
+            next_run=next_run,
+            schedule_status=schedule_status,
+            job=func,
+            trigger=trigger,
+            name=name,
+            group=group,
+            jitter=jitter,
+            timeout=timeout,
+            timeout_disabled=timeout_disabled,
+            args=tuple(args) if args else (),
+            kwargs=dict(kwargs) if kwargs else {},
+            error_handler=on_error,
+            app_key=app_key,
+            instance_index=instance_index,
+            instance_name=instance_name,
+            source_tier=source_tier,
+            mode=resolved_mode,
+            predicate=predicate,
+            predicate_invoker=predicate_invoker,
+        )
+
+    def register(
+        self,
+        func: "JobCallable",
+        *,
+        name: str,
+        group: str | None = None,
+        timeout: float | None = None,
+        timeout_disabled: bool = False,
+        mode: "ExecutionMode | str | None" = None,
+        on_error: "SchedulerErrorHandlerType | None" = None,
+        if_exists: IfExistsPolicy = "error",
+        args: tuple[Any, ...] | None = None,
+        kwargs: Mapping[str, Any] | None = None,
+    ) -> "Coroutine[Any, Any, Job]":
+        """Register a manual-only job: no trigger, no automatic schedule, no heap entry.
+
+        Must be awaited. Registration completes before the call returns. ``job.db_id`` is a
+        valid integer immediately on return.
+
+        Unlike ``schedule()`` and its convenience wrappers, a manual-only job never fires on
+        its own — it exists only to be invoked via ``job.submit()`` (or the equivalent API/CLI/UI
+        submission path). It is still a fully live registration: it appears in job listings,
+        participates in ``if_exists``/group/removal handling exactly like a scheduled job, and
+        persists truthful non-time-trigger metadata (``trigger_type="manual"``).
+
+        Args:
+            func: The function to run when submitted.
+            name: Required stable name for the job. Used for uniqueness validation within
+                this scheduler instance and for logging/telemetry.
+            group: Optional group name for bulk management (see ``remove_group``).
+            timeout: Per-job timeout in seconds. ``None`` uses the global default.
+                A positive ``float`` overrides the default.
+            timeout_disabled: When ``True``, timeout enforcement is disabled for this
+                job regardless of the global default.
+            mode: Overlap behavior when a submission arrives while a prior invocation is still
+                running. See ``schedule()`` for the four values, tier-aware default, and string
+                coercion rules.
+            on_error: Optional per-job error handler. See ``schedule()`` for details.
+            if_exists: Behavior when a job with the same name already exists.
+                See :meth:`add_job` for details.
+            args: Positional arguments to pass to the callable when it executes.
+            kwargs: Keyword arguments to pass to the callable when it executes.
+
+        Returns:
+            The registered job, with ``schedule_status == ScheduleStatus.MANUAL`` and no heap
+            entry. ``job.db_id`` is a valid integer immediately on return.
+
+        Raises:
+            SchedulerNameRequiredError: If ``name`` is empty.
+        """
+        if not name:
+            raise SchedulerNameRequiredError(callable_name(func), "manual")
+
+        job = self._build_job(
+            func,
+            None,
+            name=name,
+            group=group,
+            jitter=None,
+            timeout=timeout,
+            timeout_disabled=timeout_disabled,
+            mode=mode,
+            on_error=on_error,
+            args=args,
+            kwargs=kwargs,
+            predicate=None,
+            predicate_invoker=None,
+            schedule_status=ScheduleStatus.MANUAL,
+            next_run=None,
+        )
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at add_job (the true primary). See design/071.
+        return self.add_job(job, if_exists=if_exists)
+
     def schedule(
         self,
         func: "JobCallable",
@@ -413,7 +599,7 @@ class Scheduler(Resource):
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
-    ) -> "Coroutine[Any, Any, ScheduledJob]":
+    ) -> "Coroutine[Any, Any, Job]":
         """Schedule a job using a trigger object.
 
         Must be awaited. Scheduling completes before the call returns.
@@ -431,10 +617,10 @@ class Scheduler(Resource):
                 moves whenever the entity's time changes.
             name: Required stable name for the job. Used for uniqueness validation
                 within this scheduler instance and for logging/telemetry.
-            group: Optional group name for bulk management (see ``cancel_group``).
+            group: Optional group name for bulk management (see ``remove_group``).
             jitter: Optional seconds of random offset to apply at enqueue time.
                 Jitter is applied via ``SchedulerService.apply_jitter_to_heap`` on enqueue.
-                See the ``fire_at`` field on ``ScheduledJob``.
+                See the ``fire_at`` field on ``Job``.
             timeout: Per-job timeout in seconds. ``None`` uses the global default.
                 A positive ``float`` overrides the default.
             timeout_disabled: When ``True``, timeout enforcement is disabled for this
@@ -459,7 +645,7 @@ class Scheduler(Resource):
             where: Optional predicate (or sequence of predicates) evaluated at dispatch
                 time, before the handler runs. Predicate signatures are inspected via
                 the shared DI layer (``hassette.di``): a parameter annotated as
-                ``ScheduledJob`` receives the job instance at dispatch time; unannotated
+                ``Job`` receives the job instance at dispatch time; unannotated
                 predicates are called with zero arguments. A sequence is collapsed into
                 a single combinator that ANDs all members — each member keeps the
                 single-predicate contract. Predicates must be synchronous; async
@@ -492,58 +678,41 @@ class Scheduler(Resource):
 
         predicate, predicate_invoker = _normalize_where(where)
 
-        parent = self.parent
-        assert parent is not None
-        app_key = parent.app_key
-        instance_index = parent.index
-        source_tier = parent.source_tier
-        assert source_tier in ("app", "framework"), f"Invalid source_tier={source_tier!r} on {parent.class_name}"
-
-        # Tier-aware default: an omitted mode (None) resolves to ``parallel`` for framework jobs
-        # and ``single`` for app jobs. An explicit mode always wins. A raw string is coerced here
-        # so an invalid value raises a clear ValueError at scheduling time.
-        if mode is None:
-            resolved_mode = ExecutionMode.PARALLEL if source_tier == "framework" else ExecutionMode.SINGLE
-        elif isinstance(mode, ExecutionMode):
-            resolved_mode = mode
-        else:
-            try:
-                resolved_mode = ExecutionMode(mode)
-            except ValueError as exc:
-                valid = ", ".join(repr(m.value) for m in ExecutionMode)
-                raise ValueError(f"Invalid execution mode {mode!r}; must be one of {valid}") from exc
-
         if isinstance(trigger, EntityTime):
-            # Bind before first_run_time — an unbound EntityTime resolves to NO_OCCURRENCE.
+            # Bind before first_run_time — an unbound EntityTime resolves to WAITING.
             # read_entity_state absorbs every state-read failure and returns None.
             trigger.bind_state_reader(self.hassette.bus_service.read_entity_state)
 
         run_at = trigger.first_run_time(date_utils.now())
 
-        # Resolve instance_name once at registration so the executor hot path reads it off the
-        # command instead of traversing app_handler per execution.
-        instance_name = parent.instance_name
+        # EntityTime (the only trigger whose first_run_time() can return WAITING) has no
+        # occurrence right now — construct the job as waiting instead of assigning a timestamp.
+        #
+        # isinstance (not `is WAITING`) so pyright narrows run_at to ZonedDateTime in the else
+        # branch — identity comparison against a plain-object singleton does not narrow.
+        if isinstance(run_at, _WaitingSentinel):
+            initial_next_run = None
+            initial_status = ScheduleStatus.WAITING
+        else:
+            initial_next_run = run_at
+            initial_status = ScheduleStatus.SCHEDULED
 
-        job = ScheduledJob(
-            owner_id=self.owner_id,
-            next_run=run_at,
-            job=func,
-            trigger=trigger,
+        job = self._build_job(
+            func,
+            trigger,
             name=name,
             group=group,
             jitter=jitter,
             timeout=timeout,
             timeout_disabled=timeout_disabled,
-            args=tuple(args) if args else (),
-            kwargs=dict(kwargs) if kwargs else {},
-            error_handler=on_error,
-            app_key=app_key,
-            instance_index=instance_index,
-            instance_name=instance_name,
-            source_tier=source_tier,
-            mode=resolved_mode,
+            mode=mode,
+            on_error=on_error,
+            args=args,
+            kwargs=kwargs,
             predicate=predicate,
             predicate_invoker=predicate_invoker,
+            schedule_status=initial_status,
+            next_run=initial_next_run,
         )
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at add_job (the true primary). See design/071.
@@ -560,9 +729,7 @@ class Scheduler(Resource):
             )
         return self.add_job(job, if_exists=if_exists)
 
-    async def _add_job_and_watch_entity(
-        self, job: "ScheduledJob", trigger: EntityTime, *, if_exists: IfExistsPolicy
-    ) -> "ScheduledJob":
+    async def _add_job_and_watch_entity(self, job: "Job", trigger: EntityTime, *, if_exists: IfExistsPolicy) -> "Job":
         """Register an entity-driven job and the state-change listener that keeps it current.
 
         The listener lives on the framework bus rather than the owning app's bus: it is
@@ -585,28 +752,47 @@ class Scheduler(Resource):
                 if_exists="replace",
             )
         except Exception:
-            self.cancel_job(job)
+            self.remove_job(job)
             raise
 
         # schedule() read the entity before add_job awaited a database write, and the listener
         # only exists now — a change landing in that window reached neither. Re-read once so it
         # is picked up here instead of waiting for whenever the entity next changes, which for
         # something like an alarm sensor could be a day away.
-        current = trigger.resolve(date_utils.now()) or NO_OCCURRENCE
-        if current != job.next_run:
+        #
+        # A WAITING result while the job is already WAITING (schedule()'s own registration-time
+        # read already built it that way) is a no-op — nothing changed. A WAITING result while
+        # the job is SCHEDULED means the entity went unavailable between that initial read and
+        # now; reschedule_job() removes its heap entry and transitions it to WAITING without
+        # dropping the registration or watcher.
+        #
+        # isinstance (not `is WAITING`) so pyright narrows current to ZonedDateTime in the
+        # elif — identity comparison against a plain-object singleton does not narrow.
+        current = trigger.resolve(date_utils.now())
+        if isinstance(current, _WaitingSentinel):
+            if job.schedule_status is not ScheduleStatus.WAITING:
+                await self.scheduler_service.reschedule_job(job, current)
+        elif current != job.next_run:
             await self.scheduler_service.reschedule_job(job, current)
         return registered
 
     async def _reschedule_entity_time_job(
-        self, job: "ScheduledJob", trigger: EntityTime, new_state: "HassStateDict | None"
+        self, job: "Job", trigger: EntityTime, new_state: "HassStateDict | None"
     ) -> None:
         """Move an entity-driven job to the time the entity's new state reports.
 
-        Parks the job at ``NO_OCCURRENCE`` when the new state names no usable time — the
-        alarm was cleared, the entity went unavailable — so the job survives to be
-        rescheduled by a later change.
+        When the new state names no usable time — the alarm was cleared, the entity went
+        unavailable — transitions the job to ``ScheduleStatus.WAITING`` and removes any
+        existing heap entry, without dropping the registration or watcher, so it reactivates
+        as soon as a later change reports a real time. A job that is already ``WAITING`` is
+        left alone (nothing changed).
         """
-        next_run = trigger.resolve_from_state(new_state, date_utils.now()) or NO_OCCURRENCE
+        next_run = trigger.resolve_from_state(new_state, date_utils.now())
+        if next_run is None:
+            if job.schedule_status is ScheduleStatus.WAITING:
+                return
+            await self.scheduler_service.reschedule_job(job, WAITING)
+            return
         if next_run == job.next_run:
             return
         await self.scheduler_service.reschedule_job(job, next_run)
@@ -627,7 +813,7 @@ class Scheduler(Resource):
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
-    ) -> "Coroutine[Any, Any, ScheduledJob]":
+    ) -> "Coroutine[Any, Any, Job]":
         """Schedule a job to run after a fixed delay (one-shot).
 
         Must be awaited. Scheduling completes before the call returns.
@@ -692,7 +878,7 @@ class Scheduler(Resource):
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
-    ) -> "Coroutine[Any, Any, ScheduledJob]":
+    ) -> "Coroutine[Any, Any, Job]":
         """Schedule a job to run once at a specific wall-clock time (one-shot).
 
         Must be awaited. Scheduling completes before the call returns.
@@ -764,7 +950,7 @@ class Scheduler(Resource):
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
-    ) -> "Coroutine[Any, Any, ScheduledJob]":
+    ) -> "Coroutine[Any, Any, Job]":
         """Schedule a job to run at a fixed interval.
 
         Must be awaited. Scheduling completes before the call returns.
@@ -830,7 +1016,7 @@ class Scheduler(Resource):
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
-    ) -> "Coroutine[Any, Any, ScheduledJob]":
+    ) -> "Coroutine[Any, Any, Job]":
         """Schedule a job to run every N minutes.
 
         Must be awaited. Scheduling completes before the call returns.
@@ -896,7 +1082,7 @@ class Scheduler(Resource):
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
-    ) -> "Coroutine[Any, Any, ScheduledJob]":
+    ) -> "Coroutine[Any, Any, Job]":
         """Schedule a job to run every N hours.
 
         Must be awaited. Scheduling completes before the call returns.
@@ -962,7 +1148,7 @@ class Scheduler(Resource):
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
-    ) -> "Coroutine[Any, Any, ScheduledJob]":
+    ) -> "Coroutine[Any, Any, Job]":
         """Schedule a job to run once per day at a fixed wall-clock time.
 
         Must be awaited. Scheduling completes before the call returns.
@@ -1029,7 +1215,7 @@ class Scheduler(Resource):
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
-    ) -> "Coroutine[Any, Any, ScheduledJob]":
+    ) -> "Coroutine[Any, Any, Job]":
         """Schedule a job using a cron expression.
 
         Must be awaited. Scheduling completes before the call returns.
@@ -1113,16 +1299,16 @@ class _AllPredicates:
     """Combinator that ANDs a sequence of predicates, the scheduler's analog of the bus's ``AllOf``.
 
     Each member carries its own pre-built DI invoker, so sequence members have the same
-    contract as a single ``where=`` predicate: a ``ScheduledJob``-annotated parameter
+    contract as a single ``where=`` predicate: a ``Job``-annotated parameter
     receives the job, and unannotated members are called with zero arguments. Frozen so
     two instances built from the same predicate functions compare equal — ``if_exists=``
-    collision detection relies on this (see ``ScheduledJob.matches``).
+    collision detection relies on this (see ``Job.matches``).
     """
 
     predicates: tuple[tuple["SchedulerPredicate", CallableInvoker], ...]
 
-    def __call__(self, job: ScheduledJob) -> bool:
-        available: dict[type, Any] = {ScheduledJob: job}
+    def __call__(self, job: Job) -> bool:
+        available: dict[type, Any] = {Job: job}
         return all(pred(**invoker.invoke(available)) for pred, invoker in self.predicates)
 
     def summarize(self) -> str:
@@ -1140,11 +1326,11 @@ def _normalize_where(
     - ``where=None`` -> ``(None, None)``.
     - A single callable is stored directly. Its signature is inspected once via the
       shared DI layer to build a ``CallableInvoker`` that resolves kwargs at dispatch
-      time. A parameter annotated as ``ScheduledJob`` receives the job; unannotated
+      time. A parameter annotated as ``Job`` receives the job; unannotated
       predicates are called with zero arguments.
     - A sequence of predicates collapses into an ``_AllPredicates`` combinator that ANDs
       the results. Each member must be synchronous and keeps the single-predicate
-      contract (a ``ScheduledJob``-annotated member receives the job). The returned
+      contract (a ``Job``-annotated member receives the job). The returned
       invoker injects the job into the combinator itself.
     """
     if where is None:

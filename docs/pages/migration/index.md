@@ -14,7 +14,7 @@ Four areas change: configuration, app structure, event handlers, and API calls. 
 | Listen for service calls | `self.listen_event(self.cb, "call_service", domain="light")` | `await self.bus.on_call_service(domain="light", handler=self.cb, name="...")` | [Bus & Events](bus.md) |
 | Cancel a listener | `self.cancel_listen_state(handle)` | `subscription.cancel()` | [Bus & Events](bus.md) |
 | Schedule a timer | `self.run_in(self.cb, 60)` | `await self.scheduler.run_in(self.cb, delay=60)` | [Scheduler](scheduler.md) |
-| Cancel a timer | `self.cancel_timer(handle)` | `job.cancel()` | [Scheduler](scheduler.md) |
+| Cancel a timer | `self.cancel_timer(handle)` | `job.remove()` | [Scheduler](scheduler.md) |
 | Run daily at 07:30 | `self.run_daily(self.cb, time(7, 30, 0))` | `await self.scheduler.run_daily(self.cb, at="07:30")` | [Scheduler](scheduler.md) |
 | Call a HA service | `self.call_service("light/turn_on", entity_id="light.x")` | `await self.api.call_service("light", "turn_on", target={"entity_id": "light.x"})` | [API Calls](api.md) |
 | Get entity state | `self.get_state("light.x")` | `self.states.light.get("light.x")` or `await self.api.get_state("light.x")` | [API Calls](api.md) |

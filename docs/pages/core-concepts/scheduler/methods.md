@@ -1,6 +1,6 @@
 # Scheduling Methods
 
-The scheduler runs handlers at times defined by trigger objects. The convenience methods below cover the common cases so most apps never need to construct a trigger directly. Awaiting any of these methods returns a [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob].
+The scheduler runs handlers at times defined by trigger objects. The convenience methods below cover the common cases so most apps never need to construct a trigger directly. Awaiting any of these methods returns a [`Job`][hassette.scheduler.classes.Job].
 
 !!! warning "All scheduling methods must be awaited"
     Every `run_*`, `schedule()`, and `add_job()` call returns a coroutine. Without `await`, the job is never scheduled and no error is raised. A forgotten `await` produces a [`HassetteForgottenAwaitWarning`][hassette.exceptions.HassetteForgottenAwaitWarning] naming the offending app when the coroutine is GC'd (subject to [configuration](../../troubleshooting.md#forgotten-await)). Pyright's `reportUnusedCoroutine` catches this at edit time — see [Enabling Pyright](../../troubleshooting.md#enabling-pyright).
@@ -144,7 +144,34 @@ Shared parameters apply.
 ```
 
 ??? note "Advanced: `add_job`"
-    Below `schedule` sits `add_job(job, if_exists="error")`, which registers a pre-built [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob] directly — for code that constructs job objects programmatically, such as a job factory or framework extension. Most apps never call it. `if_exists` accepts the same `"error"` / `"skip"` / `"replace"` values described under [Idempotent registration](#idempotent-registration).
+    Below `schedule` sits `add_job(job, if_exists="error")`, which registers a pre-built [`Job`][hassette.scheduler.classes.Job] directly — for code that constructs job objects programmatically, such as a job factory or framework extension. Most apps never call it. `if_exists` accepts the same `"error"` / `"skip"` / `"replace"` values described under [Idempotent registration](#idempotent-registration).
+
+## Register a job with no automatic schedule: `register`
+
+`register` creates a job with no trigger. It never fires on its own — call `job.submit()` to run it on demand. See [Job Management](management.md#schedule-status) for the full manual-job lifecycle.
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `func` | callable | *(required)* | The handler to run when submitted. |
+| `name` | `str` | *(required)* | Identifies the job in logs and the monitoring UI. |
+| `group` | `str \| None` | `None` | Group name for bulk management. |
+| `timeout` | `float \| None` | `None` | Per-job timeout in seconds. |
+| `timeout_disabled` | `bool` | `False` | Disables timeout enforcement for this job. |
+| `mode` | `ExecutionMode \| str \| None` | `None` | Overlap behavior for concurrent submissions. Same values and tier-aware default as `schedule()`. |
+| `on_error` | `SchedulerErrorHandlerType \| None` | `None` | Per-job error handler. |
+| `if_exists` | `"error"` \| `"skip"` \| `"replace"` | `"error"` | Behavior when a job with the same name already exists. |
+| `args` | `tuple \| None` | `None` | Positional arguments passed to the handler on every submission. |
+| `kwargs` | `Mapping \| None` | `None` | Keyword arguments passed to the handler on every submission. |
+
+`register` has no `trigger`, `jitter`, or `where` parameter — a manual-only job has no automatic occurrence to jitter and no dispatch to gate.
+
+```python
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_register_manual.py:register"
+```
+
+```python
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_register_manual.py:submit"
+```
 
 ## Parameters every method accepts
 
@@ -165,19 +192,19 @@ These parameters are accepted by every scheduling method. Individual method tabl
 
 ## Conditional execution with where
 
-`where=` accepts a predicate — a callable returning `bool` — evaluated at dispatch time, immediately before the handler runs. A predicate with no [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob] annotation is called with zero arguments — the common case for checking HA state or another external condition. A predicate with a positional parameter annotated as `ScheduledJob` receives the job instance at dispatch time, for access to `job.args` and `job.kwargs`. Predicates must be synchronous. An async predicate raises `TypeError` at registration time.
+`where=` accepts a predicate — a callable returning `bool` — evaluated at dispatch time, immediately before the handler runs. A predicate with no [`Job`][hassette.scheduler.classes.Job] annotation is called with zero arguments — the common case for checking HA state or another external condition. A predicate with a positional parameter annotated as `Job` receives the job instance at dispatch time, for access to `job.args` and `job.kwargs`. Predicates must be synchronous. An async predicate raises `TypeError` at registration time.
 
 ```python
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_where_state_check.py:where_state"
 ```
 
-A predicate that needs the job must use a named function with a `ScheduledJob` type annotation — lambdas cannot carry annotations and are always called with zero arguments.
+A predicate that needs the job must use a named function with a `Job` type annotation — lambdas cannot carry annotations and are always called with zero arguments.
 
 ```python
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_where_job_arg.py:where_job"
 ```
 
-A sequence of predicates collapses into a single combinator that ANDs every member together. Each member keeps the single-predicate contract — a `ScheduledJob`-annotated member receives the job. Unannotated members are called with zero arguments.
+A sequence of predicates collapses into a single combinator that ANDs every member together. Each member keeps the single-predicate contract — a `Job`-annotated member receives the job. Unannotated members are called with zero arguments.
 
 A predicate that raises an exception fails that fire — the handler does not run. The scheduler logs the exception with a traceback and records the execution with `status="error"`. It then invokes the job's `on_error` handler, or the app-level fallback if none is set — the same routing a raising handler receives (see [Handle Errors](management.md#handle-errors)). A recurring job keeps its schedule and tries again at the next occurrence. A one-shot job is consumed; register a new one-shot job to schedule another attempt.
 
@@ -204,7 +231,7 @@ Job names must be unique within an app instance. Registering a second job with a
 |---|---|
 | `"error"` (default) | Raises `ValueError` when a job with the same name already exists. |
 | `"skip"` | Returns the existing job when its configuration matches the new registration. Raises `ValueError` when names match but configurations differ. Two jobs match when they share the same callable, trigger (by `trigger_id()`), group, jitter, timeout, `timeout_disabled`, `args`, `kwargs`, and `on_error` handler. |
-| `"replace"` | Cancels the existing job and registers the new one. The new job's configuration does not need to match the old one. |
+| `"replace"` | Removes the existing job and registers the new one. The new job's configuration does not need to match the old one. |
 
 `if_exists` matters most in `on_initialize`, which re-runs on app reload (triggered by config changes or `hassette reload`).
 
@@ -221,5 +248,5 @@ Job names must be unique within an app instance. Registering a second job with a
 ## See Also
 
 - [Triggers](triggers.md): built-in trigger types, `TriggerProtocol`, and writing custom triggers
-- [Job Management](management.md): cancelling, inspecting, grouping, jitter, and error handling for scheduled jobs
+- [Job Management](management.md): removing, inspecting, grouping, jitter, error handling, and schedule status for live jobs
 - [Scheduler Overview](index.md): getting started with the scheduler

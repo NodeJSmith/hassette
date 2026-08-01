@@ -77,29 +77,60 @@ async def test_register_job_persists_null_group(
     assert row["group"] is None, f"Expected group=None, got {row['group']!r}"
 
 
-async def test_mark_job_cancelled_sets_cancelled_at(
+async def test_mark_job_removed_sets_removed_at(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
 ) -> None:
-    """mark_job_cancelled() sets cancelled_at to the current epoch time."""
-    reg = make_job_registration(job_name="cancellable_job")
+    """mark_job_removed() sets removed_at to the current epoch time."""
+    reg = make_job_registration(job_name="removable_job")
     job_id = await telemetry_repo.register_job(reg)
 
-    cursor = await telemetry_db.execute("SELECT cancelled_at FROM scheduled_jobs WHERE id = ?", (job_id,))
+    cursor = await telemetry_db.execute("SELECT removed_at FROM scheduled_jobs WHERE id = ?", (job_id,))
     row = await cursor.fetchone()
     assert row is not None
-    assert row["cancelled_at"] is None, "cancelled_at should be NULL before cancellation"
+    assert row["removed_at"] is None, "removed_at should be NULL before removal"
 
     before_ts = time.time()
-    await telemetry_repo.mark_job_cancelled(job_id)
+    await telemetry_repo.mark_job_removed(job_id)
     after_ts = time.time()
 
-    cursor = await telemetry_db.execute("SELECT cancelled_at FROM scheduled_jobs WHERE id = ?", (job_id,))
+    cursor = await telemetry_db.execute("SELECT removed_at FROM scheduled_jobs WHERE id = ?", (job_id,))
     row = await cursor.fetchone()
     assert row is not None
-    assert row["cancelled_at"] is not None, "cancelled_at should be set after mark_job_cancelled()"
-    assert before_ts <= row["cancelled_at"] <= after_ts, (
-        f"cancelled_at={row['cancelled_at']} should be between {before_ts} and {after_ts}"
+    assert row["removed_at"] is not None, "removed_at should be set after mark_job_removed()"
+    assert before_ts <= row["removed_at"] <= after_ts, (
+        f"removed_at={row['removed_at']} should be between {before_ts} and {after_ts}"
+    )
+
+
+async def test_mark_job_status_updates_status_and_reason(
+    telemetry_repo: TelemetryRepository,
+    telemetry_db: aiosqlite.Connection,
+) -> None:
+    """mark_job_status() writes schedule_status and schedule_status_reason to the row."""
+    reg = make_job_registration(job_name="status_job")
+    job_id = await telemetry_repo.register_job(reg)
+
+    await telemetry_repo.mark_job_status(job_id, "waiting", None)
+
+    cursor = await telemetry_db.execute(
+        "SELECT schedule_status, schedule_status_reason FROM scheduled_jobs WHERE id = ?", (job_id,)
+    )
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row["schedule_status"] == "waiting"
+    assert row["schedule_status_reason"] is None
+
+    await telemetry_repo.mark_job_status(job_id, "completed", "trigger_error")
+
+    cursor = await telemetry_db.execute(
+        "SELECT schedule_status, schedule_status_reason FROM scheduled_jobs WHERE id = ?", (job_id,)
+    )
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row["schedule_status"] == "completed"
+    assert row["schedule_status_reason"] == "trigger_error", (
+        f"Expected schedule_status_reason='trigger_error', got {row['schedule_status_reason']!r}"
     )
 
 
@@ -610,49 +641,49 @@ async def test_reconcile_once_true_delete_non_empty_live_listener_ids(
     assert row["count"] == 1, "Live listener should be preserved"
 
 
-async def test_mark_listener_cancelled_sets_cancelled_at(
+async def test_mark_listener_cancelled_sets_removed_at(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
 ) -> None:
-    """mark_listener_cancelled() sets cancelled_at to the current epoch time."""
+    """mark_listener_cancelled() sets removed_at to the current epoch time."""
     reg = make_listener_registration()
     listener_id = await telemetry_repo.register_listener(reg)
 
-    cursor = await telemetry_db.execute("SELECT cancelled_at FROM listeners WHERE id = ?", (listener_id,))
+    cursor = await telemetry_db.execute("SELECT removed_at FROM listeners WHERE id = ?", (listener_id,))
     row = await cursor.fetchone()
     assert row is not None
-    assert row["cancelled_at"] is None, "cancelled_at should be NULL before cancellation"
+    assert row["removed_at"] is None, "removed_at should be NULL before removal"
 
     before_ts = time.time()
     await telemetry_repo.mark_listener_cancelled(listener_id)
     after_ts = time.time()
 
-    cursor = await telemetry_db.execute("SELECT cancelled_at FROM listeners WHERE id = ?", (listener_id,))
+    cursor = await telemetry_db.execute("SELECT removed_at FROM listeners WHERE id = ?", (listener_id,))
     row = await cursor.fetchone()
     assert row is not None
-    assert row["cancelled_at"] is not None, "cancelled_at should be set after mark_listener_cancelled()"
-    assert before_ts <= row["cancelled_at"] <= after_ts
+    assert row["removed_at"] is not None, "removed_at should be set after mark_listener_cancelled()"
+    assert before_ts <= row["removed_at"] <= after_ts
 
 
-async def test_register_listener_clears_cancelled_at_on_reregistration(
+async def test_register_listener_clears_removed_at_on_reregistration(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
 ) -> None:
-    """Re-registering under the same natural key clears cancelled_at and preserves the row id."""
+    """Re-registering under the same natural key clears removed_at and preserves the row id."""
     reg = make_listener_registration()
     listener_id = await telemetry_repo.register_listener(reg)
 
     await telemetry_repo.mark_listener_cancelled(listener_id)
 
-    cursor = await telemetry_db.execute("SELECT cancelled_at FROM listeners WHERE id = ?", (listener_id,))
+    cursor = await telemetry_db.execute("SELECT removed_at FROM listeners WHERE id = ?", (listener_id,))
     row = await cursor.fetchone()
     assert row is not None
-    assert row["cancelled_at"] is not None, "cancelled_at should be set after mark_listener_cancelled()"
+    assert row["removed_at"] is not None, "removed_at should be set after mark_listener_cancelled()"
 
     new_id = await telemetry_repo.register_listener(reg)
     assert new_id == listener_id, "Re-registration must preserve the row id"
 
-    cursor = await telemetry_db.execute("SELECT cancelled_at FROM listeners WHERE id = ?", (listener_id,))
+    cursor = await telemetry_db.execute("SELECT removed_at FROM listeners WHERE id = ?", (listener_id,))
     row = await cursor.fetchone()
     assert row is not None
-    assert row["cancelled_at"] is None, "cancelled_at should be cleared to NULL after re-registration"
+    assert row["removed_at"] is None, "removed_at should be cleared to NULL after re-registration"

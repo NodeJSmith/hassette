@@ -1,7 +1,7 @@
 """Tests for the EntityTime trigger and the state-value parsing it relies on.
 
 Covers value parsing (parse_entity_time), resolution against a bound state reader,
-the NO_OCCURRENCE parking behaviour for entities with no usable time, daily rollover,
+the WAITING parking behaviour for entities with no usable time, daily rollover,
 and the telemetry/dedup metadata methods.
 """
 
@@ -12,7 +12,7 @@ import pytest
 from whenever import TimeDelta, ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
-from hassette.scheduler.triggers import NO_OCCURRENCE, EntityTime, parse_entity_time
+from hassette.scheduler.triggers import WAITING, EntityTime, parse_entity_time
 from hassette.types import TriggerProtocol
 
 from .conftest import TZ, zdt
@@ -114,25 +114,25 @@ class TestEntityTimeConstruction:
 
 
 class TestEntityTimeResolve:
-    def test_unbound_trigger_resolves_to_none(self) -> None:
+    def test_unbound_trigger_resolves_to_waiting(self) -> None:
         """A trigger used outside the scheduler has no state source and never fires."""
         trigger = EntityTime(ENTITY_ID)
-        assert trigger.resolve(zdt(2026, 7, 28, 6, 0)) is None
+        assert trigger.resolve(zdt(2026, 7, 28, 6, 0)) is WAITING
 
-    def test_missing_entity_resolves_to_none(self) -> None:
-        """An entity absent from the state cache resolves to None."""
+    def test_missing_entity_resolves_to_waiting(self) -> None:
+        """An entity absent from the state cache resolves to WAITING."""
         trigger = bound_trigger(present=False)
-        assert trigger.resolve(zdt(2026, 7, 28, 6, 0)) is None
+        assert trigger.resolve(zdt(2026, 7, 28, 6, 0)) is WAITING
 
     def test_future_time_resolves_to_that_time(self) -> None:
         """A future alarm time is the fire time."""
         trigger = bound_trigger("2026-07-28T07:00:00-05:00")
         assert trigger.resolve(zdt(2026, 7, 28, 6, 0)) == zdt(2026, 7, 28, 7, 0)
 
-    def test_past_time_resolves_to_none(self) -> None:
+    def test_past_time_resolves_to_waiting(self) -> None:
         """An alarm time that has already passed leaves nothing to schedule."""
         trigger = bound_trigger("2026-07-28T07:00:00-05:00")
-        assert trigger.resolve(zdt(2026, 7, 28, 8, 0)) is None
+        assert trigger.resolve(zdt(2026, 7, 28, 8, 0)) is WAITING
 
     def test_negative_offset_fires_early(self) -> None:
         """A negative offset moves the fire time before the entity's time."""
@@ -153,10 +153,10 @@ class TestEntityTimeResolve:
         )
         assert trigger.resolve(zdt(2026, 7, 28, 4, 0)) == zdt(2026, 7, 28, 5, 45)
 
-    def test_missing_attribute_resolves_to_none(self) -> None:
-        """An attribute the entity does not expose resolves to None."""
+    def test_missing_attribute_resolves_to_waiting(self) -> None:
+        """An attribute the entity does not expose resolves to WAITING."""
         trigger = bound_trigger("above_horizon", attribute="next_dawn")
-        assert trigger.resolve(zdt(2026, 7, 28, 4, 0)) is None
+        assert trigger.resolve(zdt(2026, 7, 28, 4, 0)) is WAITING
 
 
 class TestEntityTimeDaily:
@@ -186,13 +186,13 @@ class TestEntityTimeParking:
     def test_first_run_time_parks_when_unresolvable(self) -> None:
         """An unavailable entity parks the job instead of failing registration."""
         trigger = bound_trigger("unavailable")
-        assert trigger.first_run_time(zdt(2026, 7, 28, 6, 0)) == NO_OCCURRENCE
+        assert trigger.first_run_time(zdt(2026, 7, 28, 6, 0)) is WAITING
 
     def test_next_run_time_parks_instead_of_returning_none(self) -> None:
         """Returning None would remove the job; the entity must be able to schedule it again."""
         trigger = bound_trigger("2026-07-28T07:00:00-05:00")
         result = trigger.next_run_time(zdt(2026, 7, 28, 7, 0), zdt(2026, 7, 28, 7, 0, 1))
-        assert result == NO_OCCURRENCE
+        assert result is WAITING
 
     def test_parked_trigger_recovers_when_entity_reports_a_time(self) -> None:
         """A parked trigger returns a real time as soon as the entity has one."""
@@ -200,7 +200,7 @@ class TestEntityTimeParking:
         trigger = EntityTime(ENTITY_ID)
         trigger.bind_state_reader(make_reader(states))
         now = zdt(2026, 7, 28, 6, 0)
-        assert trigger.first_run_time(now) == NO_OCCURRENCE
+        assert trigger.first_run_time(now) is WAITING
 
         states[ENTITY_ID] = {
             "entity_id": ENTITY_ID,
@@ -208,10 +208,6 @@ class TestEntityTimeParking:
             "attributes": {},
         }
         assert trigger.first_run_time(now) == zdt(2026, 7, 28, 7, 0)
-
-    def test_no_occurrence_is_far_enough_out_to_never_fire(self) -> None:
-        """The parking time must never come due while the process is running."""
-        assert date_utils.now().add(hours=24 * 365 * 100) < NO_OCCURRENCE
 
 
 class TestEntityTimeMetadata:

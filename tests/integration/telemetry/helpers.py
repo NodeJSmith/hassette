@@ -43,14 +43,15 @@ async def insert_job(
     job_name: str = "my_job",
     handler_method: str = "run_job",
     source_tier: str = "app",
+    schedule_status: str = "scheduled",
 ) -> int:
     cursor = await db_svc.db.execute(
         """INSERT INTO scheduled_jobs
                (app_key, instance_index, job_name, handler_method,
                 trigger_type, repeat,
-                source_location, source_tier)
-           VALUES (?, ?, ?, ?, 'interval', 1, ?, ?)""",
-        (app_key, instance_index, job_name, handler_method, TEST_SOURCE_LOCATION, source_tier),
+                source_location, source_tier, schedule_status)
+           VALUES (?, ?, ?, ?, 'interval', 1, ?, ?, ?)""",
+        (app_key, instance_index, job_name, handler_method, TEST_SOURCE_LOCATION, source_tier, schedule_status),
     )
     await db_svc.db.commit()
     assert cursor.lastrowid is not None

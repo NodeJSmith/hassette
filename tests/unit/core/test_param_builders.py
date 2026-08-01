@@ -25,8 +25,9 @@ from hassette.test_utils.factories import (
 # Columns present in the real schema but intentionally absent from the registration
 # dataclasses / param builders -- they are post-registration lifecycle state, set
 # separately by the seed script's SeedContext.add_listener/add_job (see design doc's
-# Lifecycle Field Contract) and by TelemetryRepository.mark_*_cancelled/reconcile_registrations.
-_LIFECYCLE_ONLY_COLUMNS = {"retired_at", "cancelled_at"}
+# Lifecycle Field Contract) and by
+# TelemetryRepository.mark_job_removed/mark_listener_cancelled/reconcile_registrations.
+_LIFECYCLE_ONLY_COLUMNS = {"retired_at", "removed_at"}
 
 
 def _table_columns(db_path: Path, table: str) -> set[str]:

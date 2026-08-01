@@ -97,7 +97,8 @@ def create_hassette_stub(
     manifests: list[AppManifestInfo] | None = None,
     old_snapshot: AppStatusSnapshot | None = None,
     app_action_mocks: bool = False,
-    # Scheduler
+    # Scheduler — jobs returned by get_all_jobs(), i.e. the live registry (_jobs_by_id), not
+    # just heap-resident jobs; include waiting/completed/manual jobs here to test enrichment.
     scheduler_jobs: list[Any] | None = None,
 ) -> MagicMock:
     """Build a fully-wired MagicMock Hassette stub for web/API test fixtures.

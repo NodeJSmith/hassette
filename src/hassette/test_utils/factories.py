@@ -17,7 +17,7 @@ from hassette.core.registration import ListenerRegistration, ScheduledJobRegistr
 from hassette.core.state_proxy import StateProxy
 from hassette.core.sync_executor import SyncExecutor
 from hassette.events.base import Event, HassContext, HassettePayload, HassPayload
-from hassette.scheduler.classes import ScheduledJob
+from hassette.scheduler.classes import Job, ScheduleStatus
 from hassette.scheduler.scheduler import Scheduler
 from hassette.test_utils.config import DEFAULT_TEST_APP_KEY, TEST_SOURCE_LOCATION
 from hassette.test_utils.mock_hassette import make_mock_hassette
@@ -212,11 +212,26 @@ def make_scheduled_job(
     mode: ExecutionMode = DEFAULT_OVERLAP_MODE,
     db_id: int | None = None,
     predicate: SchedulerPredicate | None = None,
-) -> ScheduledJob:
-    """Build a real ScheduledJob for testing, with sensible defaults for every field."""
-    return ScheduledJob(
+    schedule_status: ScheduleStatus = ScheduleStatus.SCHEDULED,
+) -> Job:
+    """Build a real Job for testing, with sensible defaults for every field.
+
+    ``next_run`` defaults to ``now()`` when ``schedule_status`` is ``SCHEDULED`` (the common
+    case across existing tests) and to ``None`` for any other status, matching ``Job``'s own
+    SCHEDULED-requires-``next_run`` invariant — pass ``schedule_status=ScheduleStatus.WAITING``/
+    ``COMPLETED``/``MANUAL`` to build a non-scheduled job without also having to pass
+    ``next_run=None`` explicitly.
+    """
+    if next_run is not None:
+        resolved_next_run = next_run
+    elif schedule_status is ScheduleStatus.SCHEDULED:
+        resolved_next_run = date_utils.now()
+    else:
+        resolved_next_run = None
+    return Job(
         owner_id=owner_id,
-        next_run=next_run if next_run is not None else date_utils.now(),
+        next_run=resolved_next_run,
+        schedule_status=schedule_status,
         job=job if job is not None else (lambda: None),
         name=name,
         trigger=trigger,
@@ -242,7 +257,7 @@ def make_scheduler(
 
     Uses a dynamic subclass per call so property overrides don't mutate the
     shared Scheduler class (safe for parallel test workers). wire_dequeue=True
-    makes dequeue_job also fire _on_job_removed (needed for cancel_job paths).
+    makes dequeue_job also fire _on_job_removed (needed for remove_job paths).
     """
     mock_parent = make_mock_parent(
         app_key=app_key,
@@ -261,7 +276,7 @@ def make_scheduler(
 
     if wire_dequeue:
 
-        def _mock_dequeue(job: ScheduledJob) -> bool:
+        def _mock_dequeue(job: Job) -> bool:
             job._dequeued = True
             scheduler._on_job_removed(job)
             return True
@@ -269,20 +284,54 @@ def make_scheduler(
         mock_service.dequeue_job = Mock(side_effect=_mock_dequeue)
     else:
 
-        def _simple_dequeue(job: ScheduledJob) -> bool:
+        def _simple_dequeue(job: Job) -> bool:
             job._dequeued = True
             return True
 
         mock_service.dequeue_job = Mock(side_effect=_simple_dequeue)
 
-    async def _add_job(job: ScheduledJob) -> None:
+    async def _add_job(job: Job) -> None:
         job.mark_registered(1)
 
-    async def _reschedule_job(job: ScheduledJob, next_run: ZonedDateTime) -> None:
+    async def _reschedule_job(job: Job, next_run: ZonedDateTime) -> None:
         job.set_next_run(next_run)
 
     mock_service.add_job = AsyncMock(side_effect=_add_job)
     mock_service.reschedule_job = AsyncMock(side_effect=_reschedule_job)
+    mock_service.deregister_job = Mock()
+    mock_service.remove_jobs = Mock(side_effect=lambda _jobs: Mock())
+    mock_service.mark_job_removed = AsyncMock()
+
+    async def _remove_job(job: Job) -> bool:
+        """Mirrors the real unified removal operation at the mock boundary: sets the
+        removed flag, fires _on_job_removed when wired (matching dequeue_job's mock), and
+        persists removed_at via mark_job_removed when the job has a db_id — so tests that
+        override mark_job_removed to track call ordering (e.g. replace-path write-ordering)
+        still observe it invoked through this path.
+        """
+        job._dequeued = True
+        if wire_dequeue:
+            scheduler._on_job_removed(job)
+        if job.db_id is not None:
+            await mock_service.mark_job_removed(job.db_id)
+        return True
+
+    mock_service.remove_job = AsyncMock(side_effect=_remove_job)
+
+    # Default task_bucket.spawn closes whatever coroutine it's given instead of just
+    # recording the call — mark_job_removed() (an AsyncMock) produces a real coroutine
+    # object when called from remove_job()'s fire-and-forget spawn, and an unconfigured
+    # Mock().task_bucket.spawn(coro, ...) never runs or closes it, leaking a "coroutine
+    # was never awaited" warning at some later, unrelated test's garbage collection.
+    # Callers that need to inspect what was spawned still can — this only changes what
+    # happens to the coroutine argument, not the mock's call-tracking.
+    def _default_spawn(coro, **_kwargs):
+        if hasattr(coro, "close"):
+            coro.close()
+        return Mock()
+
+    mock_service.task_bucket = Mock()
+    mock_service.task_bucket.spawn = Mock(side_effect=_default_spawn)
     scheduler.scheduler_service = mock_service
     scheduler._jobs_by_name = {}
     scheduler._jobs_by_group = {}

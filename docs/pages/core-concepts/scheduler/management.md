@@ -1,60 +1,85 @@
 # Job Management
 
-`schedule()` and all convenience methods return a [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob]. This page covers cancellation, groups, jitter, error handling, and job metadata for jobs already scheduled.
+`schedule()`, `register()`, and all convenience methods return a [`Job`][hassette.scheduler.classes.Job]. This page covers schedule status, removal, groups, jitter, error handling, and job metadata for live jobs.
 
-## Cancel a job
+## Schedule status
 
-`job.cancel()` removes the job from the scheduler queue immediately. The job does not fire again.
+Every live job carries a `schedule_status` — what it's doing right now, independent of whether it has ever run:
+
+| Status | Meaning |
+|---|---|
+| `scheduled` | Has a concrete next automatic occurrence. |
+| `waiting` | An [`EntityTime`](triggers.md#entity-driven-times) job whose source entity currently names no usable time. Stays registered and watched; reactivates when the entity's value becomes usable again. |
+| `completed` | Every automatic occurrence has fired, or the trigger raised while computing the next one. The job stays live and can still be submitted manually. |
+| `manual` | Registered via `register()` with no trigger at all. Never fires on its own. |
+
+`schedule_status` is not the same as "has this job ever run." A `completed` job that has never been submitted manually is still `completed` — completion tracks the automatic schedule, not execution history. The [monitoring UI](../../web-ui/index.md) shows the status directly instead of a fabricated or blank next-run time.
+
+## Remove a job
+
+`job.remove()` removes the job's registration immediately. The job does not fire again, on any schedule status.
 
 ```python
---8<-- "pages/core-concepts/scheduler/snippets/scheduler_cancel_job.py"
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_remove_job.py"
 ```
 
-Calling `cancel()` on an already-cancelled job is a silent no-op. The scheduler checks dequeue state at entry and returns immediately if the job is already gone.
+Calling `remove()` on an already-removed job is a silent no-op. The scheduler checks dequeue state at entry and returns immediately if the job is already gone.
 
 ## Check whether a job is active
 
-`ScheduledJob` has no `cancelled` attribute. Cancellation removes the job from the scheduler's internal index. The canonical check is membership in `list_jobs()`:
+`Job` has no `removed` attribute. Removal takes the job out of the scheduler's internal index. The canonical check is membership in `list_jobs()`:
 
 ```python
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_management_patterns.py:is_running"
 ```
 
-For the common case of guarding against a double-cancel, storing `None` after cancellation is simpler and avoids the `list_jobs()` scan:
+For the common case of guarding against a double-remove, storing `None` after removal is simpler and avoids the `list_jobs()` scan:
 
 ```python
---8<-- "pages/core-concepts/scheduler/snippets/scheduler_management_patterns.py:cancel_null"
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_management_patterns.py:remove_null"
 ```
 
 ## Jobs stop automatically when the app stops
 
-Hassette cancels all jobs created by an app when that app stops or reloads. Manual cancellation is only necessary to stop a job while the app is still running.
+Hassette removes every job created by an app — scheduled, waiting, completed, or manual — when that app stops or reloads. Manual removal is only necessary to stop a job while the app is still running.
 
 ## Group related jobs
 
-The `group=` parameter assigns a job to a named group at registration time. A named group can be cancelled or listed as a unit.
+The `group=` parameter assigns a job to a named group at registration time. A named group can be removed or listed as a unit.
 
 ```python
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_job_groups.py"
 ```
 
-`list_jobs(group=group)` returns all active jobs in the group. `list_jobs()` without `group=` returns all jobs for the app instance.
+`list_jobs(group=group)` returns all live jobs in the group. `list_jobs()` without `group=` returns all jobs for the app instance.
 
 ```python
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_management_patterns.py:list_jobs"
 ```
 
-`cancel_group(group)` cancels every job in a named group. Each member is individually dequeued and recorded as cancelled in the database. The call is a no-op when the group does not exist.
+`remove_group(group)` removes every job in a named group. Each member is individually removed and recorded as removed in the database. The call is a no-op when the group does not exist.
 
 ## Stop a job from inside its handler
 
-A job can cancel itself from inside its own handler. The `ScheduledJob` reference is stored on the app instance so the handler can reach it:
+A job can remove itself from inside its own handler. The `Job` reference is stored on the app instance so the handler can reach it:
 
 ```python
---8<-- "pages/core-concepts/scheduler/snippets/scheduler_self_cancel.py"
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_self_remove.py"
 ```
 
-`cancel()` removes the job from the queue immediately. If the dispatch loop has already picked up the job for execution, it checks dequeue state after acquiring the job and skips the handler. Double-execution cannot occur.
+`remove()` removes the job from the queue immediately. If the dispatch loop has already picked up the job for execution, it checks dequeue state after acquiring the job and skips the handler. Double-execution cannot occur.
+
+## Run a job on demand: `submit()`
+
+`job.submit()` runs the job's callable immediately, using its registered `args`/`kwargs`, and returns `None` without waiting for the invocation to finish. It bypasses the job's predicate and never touches its automatic schedule — a pending one-shot still fires at its original time even after a manual submission, and a `waiting`/`completed`/`manual` job stays at that status.
+
+```python
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_register_manual.py:submit"
+```
+
+`submit()` goes through the same overlap guard as an automatic fire. A `single`-mode job already running suppresses the submission; a full `queued` cap drops it. Both outcomes are recorded in telemetry, not raised as an exception — `submit()` always accepts a live job. The [Execution Modes](execution-modes.md#manual-submission) page covers overlap behavior for manual submissions in detail.
+
+Submitting a removed job's handle raises `JobRemovedError`. The [Run Now button](../../web-ui/debug-handler.md) in the monitoring UI, and the REST API it calls, use the same submission path — see [Scheduler Overview](index.md#register-a-job-with-no-automatic-schedule) for registering a manual-only job.
 
 ## Prevent overlapping executions
 
@@ -138,16 +163,17 @@ Jitter is useful when several apps schedule work at the same wall-clock time and
 
 ## Inspect a job's metadata
 
-`ScheduledJob` exposes read-only metadata set at registration time and updated by the scheduler as the job runs.
+`Job` exposes read-only metadata set at registration time and updated by the scheduler as the job runs.
 
 | Attribute | Type | Description |
 |---|---|---|
 | `name` | `str` | Human-readable name. Auto-generated from the callable and trigger when not provided. Appears in logs; idempotent re-registration matches on this name. |
-| `next_run` | `ZonedDateTime` | Unjittered logical fire time. Subsequent trigger calculations use this as `previous_run`. |
-| `trigger` | `TriggerProtocol \| None` | The trigger that drives scheduling. |
-| `group` | `str \| None` | Group name, set when the job was registered with `group=`. `cancel_group()` uses this for bulk cancellation. |
+| `schedule_status` | `ScheduleStatus` | One of `scheduled`, `waiting`, `completed`, `manual`. See [Schedule status](#schedule-status). |
+| `next_run` | `ZonedDateTime \| None` | Unjittered logical fire time. `None` for every status except `scheduled`. Subsequent trigger calculations use this as `previous_run`. |
+| `trigger` | `TriggerProtocol \| None` | The trigger that drives scheduling. `None` for a manual-only job. |
+| `group` | `str \| None` | Group name, set when the job was registered with `group=`. `remove_group()` uses this for bulk removal. |
 | `jitter` | `float \| None` | Seconds of random offset applied at enqueue time, if configured. |
-| `fire_at` | `ZonedDateTime` | Actual dispatch time including the jitter offset. Equals `next_run` when `jitter` is not set. |
+| `fire_at` | `ZonedDateTime \| None` | Actual dispatch time including the jitter offset. Equals `next_run` when `jitter` is not set. `None` for every status except `scheduled`. |
 | `db_id` | `int \| None` | Database row ID assigned after registration. Valid immediately when the scheduling call returns. |
 
 ```python
@@ -161,7 +187,8 @@ Jitter is useful when several apps schedule work at the same wall-clock time and
 
     - **Wrong schedule.** A wrong time string or interval is the most common cause. `run_daily(at="07:00")` fires at 7 AM. `run_once(at="07:00")` fires at 7 AM today, or tomorrow if 7 AM has already passed.
     - **Unhandled exception.** When a job raises, the scheduler catches it, logs at `ERROR`, and keeps the job on schedule. The job is not removed. Look for `ERROR hassette.CommandExecutor` lines followed by a traceback.
-    - **Lost reference.** Losing the `ScheduledJob` variable does not stop the job. The scheduler holds a strong reference. Losing the reference only prevents manual cancellation.
+    - **Lost reference.** Losing the `Job` variable does not stop the job. The scheduler holds a strong reference. Losing the reference only prevents manual removal.
+    - **Job is `completed`.** A finite trigger (`run_in`, `run_once`, or a custom trigger whose `next_run_time()` returned `None`) has fired its last occurrence. The job stays live and submit-capable — check `job.schedule_status` or the monitoring UI rather than assuming a missing next run means the job vanished.
 
     ### Job runs too often?
 
@@ -170,6 +197,6 @@ Jitter is useful when several apps schedule work at the same wall-clock time and
 
 ## See Also
 
-- [Scheduling Methods](methods.md) for registration options, `if_exists`, and per-job parameters
-- [Triggers](triggers.md) for built-in trigger types and writing custom triggers
+- [Scheduling Methods](methods.md) for registration options, `register()`, `if_exists`, and per-job parameters
+- [Triggers](triggers.md) for built-in trigger types, `EntityTime` waiting, and writing custom triggers
 - [Apps Lifecycle](../apps/lifecycle.md) for how shutdown triggers automatic job cleanup

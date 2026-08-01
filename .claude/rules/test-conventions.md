@@ -23,7 +23,7 @@ Full decision table: `tests/TESTING.md` (Choosing a Mock Strategy, lines 27-37).
 - `make_listener_registration(**kw)` — `ListenerRegistration`
 - `make_job_registration(**kw)` — `ScheduledJobRegistration`
 - `make_invoke_handler_cmd(**kw)` — `MagicMock(spec=InvokeHandler)`
-- `make_scheduled_job(**kw)` — real `ScheduledJob`, for unit/scheduler tests
+- `make_scheduled_job(**kw)` — real `Job`, for unit/scheduler tests
 - `make_mock_executor()` — `MagicMock` with `execute = AsyncMock()`
 - `make_mock_listener(**kw)` — `MagicMock` stand-in for a `Listener` (invoke wiring, identity fields, registration fields)
 - `make_scheduler(**kw)` — real `Scheduler` via dynamic subclass, mocked service; params: `wire_dequeue`, `source_tier`, `app_key`
@@ -50,7 +50,7 @@ Full decision table: `tests/TESTING.md` (Choosing a Mock Strategy, lines 27-37).
 `src/hassette/test_utils/web_job_helpers.py` — job/scheduler web-layer models:
 
 - `make_job(**kw)` — `SimpleNamespace` job stub for serialization tests
-- `make_real_job(**kw)` — real `ScheduledJob` for web-layer behavior tests
+- `make_real_job(**kw)` — real `Job` for web-layer behavior tests
 
 `src/hassette/test_utils/web_response_helpers.py` — system/app status and config response models
 

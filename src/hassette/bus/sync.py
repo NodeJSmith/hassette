@@ -871,7 +871,7 @@ class BusSyncFacade(Resource):
         Pops the natural key from the in-memory registry, removes the listener from routing
         (via BusService), and — when ``db_id`` is set — spawns ``mark_listener_cancelled``
         on ``bus_service.task_bucket`` so the write survives resource shutdown, mirroring
-        ``Scheduler.cancel_job``.
+        ``Scheduler.remove_job``.
 
         BusService.remove_listener also fires _on_listener_removed, but that callback only
         spawns mark_listener_cancelled when the key is still present (once-fire path). Because

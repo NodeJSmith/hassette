@@ -9,21 +9,23 @@ at specific times, intervals, or based on cron expressions.
 # internal types packages.
 from hassette.types import TriggerProtocol
 
-from .classes import ScheduledJob
+from .classes import Job, ScheduleStatus, ScheduleStatusReason
 from .error_context import SchedulerErrorContext
 from .scheduler import Scheduler
 from .sync import SchedulerSyncFacade
-from .triggers import NO_OCCURRENCE, After, Cron, Daily, EntityTime, Every, Once
+from .triggers import WAITING, After, Cron, Daily, EntityTime, Every, Once
 
 __all__ = [
-    "NO_OCCURRENCE",
+    "WAITING",
     "After",
     "Cron",
     "Daily",
     "EntityTime",
     "Every",
+    "Job",
     "Once",
-    "ScheduledJob",
+    "ScheduleStatus",
+    "ScheduleStatusReason",
     "Scheduler",
     "SchedulerErrorContext",
     "SchedulerSyncFacade",

@@ -24,7 +24,7 @@ TEST_ISO_TIMESTAMP = "2024-01-01T00:00:00.000000"
 """ISO-format counterpart to TEST_EPOCH_* for DB rows whose timestamp columns are TEXT
 (e.g. app_manifests.created_at/updated_at) rather than epoch floats."""
 
-LATEST_MIGRATION_VERSION = 11
+LATEST_MIGRATION_VERSION = 12
 """PRAGMA user_version after a fresh DB is migrated to head. Bump alongside adding a new
 numbered file to migrations_sql/."""
 

@@ -432,10 +432,13 @@ class ActionResponse(BaseModel):
 
 
 class JobTriggerResponse(BaseModel):
-    """Response for POST /api/scheduler/jobs/{job_id}/trigger.
+    """Response for POST /api/scheduler/jobs/{job_id}/trigger — manual job submission.
 
     Separate from ``ActionResponse`` (which has ``app_key``/``action`` but no ``job_id``) —
-    the trigger response identifies the job, not an app action.
+    the trigger response identifies the job, not an app action. ``status`` is always
+    ``"accepted"`` for a live registration (the endpoint returns 409 instead of this model
+    when the job has no live registration) — overlap-policy suppression or dropping happens
+    asynchronously and is not previewed in this response.
     """
 
     status: Literal["accepted"] = "accepted"

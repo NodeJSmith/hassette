@@ -44,7 +44,7 @@ from hassette.web.telemetry_helpers import (
     compute_error_rate,
     compute_success_rate,
 )
-from hassette.web.utils import enrich_jobs_with_live_heap
+from hassette.web.utils import enrich_jobs_with_live_data
 
 if TYPE_CHECKING:
     from hassette.schemas.app_snapshots import AppManifestInfo
@@ -207,11 +207,12 @@ async def app_jobs(
     since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
     source_tier: QuerySourceTier = SOURCE_TIER_PARAM,
 ) -> list[JobSummary]:
-    """Job summaries for a single app instance, enriched with live heap data.
+    """Job summaries for a single app instance, enriched with live registry data.
 
-    Live fields (``next_run``, ``fire_at``, ``jitter``) are joined
-    from the live scheduler heap by ``db_id``. On heap failure the DB rows are
-    returned without enrichment (degraded but functional; logged warning, no 500).
+    ``schedule_status``/``schedule_status_reason`` and, for ``SCHEDULED`` jobs, live timing
+    (``next_run``, ``fire_at``, ``jitter``) are joined from the live scheduler registry by
+    ``db_id``. On registry failure the DB rows are returned without enrichment (degraded but
+    functional; logged warning, no 500).
     """
     jobs: list[JobSummary] = []
     with db_degrades_to(response):
@@ -220,7 +221,7 @@ async def app_jobs(
                 app_key=app_key, instance_index=instance_index, since=since, source_tier=source_tier
             )
         )
-        jobs = await enrich_jobs_with_live_heap(db_jobs, scheduler_service)
+        jobs = await enrich_jobs_with_live_data(db_jobs, scheduler_service)
     return jobs
 
 

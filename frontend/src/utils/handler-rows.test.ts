@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import type { SortState } from "../components/shared/sort-header";
-import { createJob, createListener } from "../test/factories";
-import type { HandlerSortKey, UnifiedRow } from "./handler-rows";
-import { compareHandlerRows, jobToRow, listenerToRow } from "./handler-rows";
+import { createJob, createListener, createUnifiedRow } from "../test/factories";
+import type { HandlerSortKey } from "./handler-rows";
+import { compareHandlerRows, jobToRow, listenerToRow, scheduleStatusLabel } from "./handler-rows";
 
 describe("listenerToRow", () => {
   it("sets kind to listener", () => {
@@ -74,6 +74,11 @@ describe("listenerToRow", () => {
   it("always sets next_run_ts to null", () => {
     const row = listenerToRow(createListener());
     expect(row.next_run_ts).toBeNull();
+  });
+
+  it("always sets schedule_status to null", () => {
+    const row = listenerToRow(createListener());
+    expect(row.schedule_status).toBeNull();
   });
 });
 
@@ -157,6 +162,51 @@ describe("jobToRow", () => {
     const row = jobToRow(createJob({ next_run: null }));
     expect(row.next_run_ts).toBeNull();
   });
+
+  it.each(["scheduled", "waiting", "completed", "manual"] as const)("maps schedule_status %s", (status) => {
+    const row = jobToRow(createJob({ schedule_status: status }));
+    expect(row.schedule_status).toBe(status);
+  });
+
+  it("maps schedule_status_reason when present", () => {
+    const row = jobToRow(createJob({ schedule_status: "scheduled", schedule_status_reason: "legacy_unknown" }));
+    expect(row.schedule_status_reason).toBe("legacy_unknown");
+  });
+
+  it("sets schedule_status_reason to null when absent", () => {
+    const row = jobToRow(createJob({ schedule_status_reason: null }));
+    expect(row.schedule_status_reason).toBeNull();
+  });
+});
+
+describe("scheduleStatusLabel", () => {
+  it("returns 'manual' for manual status", () => {
+    expect(scheduleStatusLabel("manual")).toBe("manual");
+  });
+
+  it("returns 'waiting' for waiting status", () => {
+    expect(scheduleStatusLabel("waiting")).toBe("waiting");
+  });
+
+  it("returns 'completed' for completed status", () => {
+    expect(scheduleStatusLabel("completed")).toBe("completed");
+  });
+
+  it("returns 'unknown' for scheduled + legacy_unknown reason", () => {
+    expect(scheduleStatusLabel("scheduled", "legacy_unknown")).toBe("unknown");
+  });
+
+  it("returns null for scheduled with no reason", () => {
+    expect(scheduleStatusLabel("scheduled", null)).toBeNull();
+  });
+
+  it("returns null for scheduled with no reason argument passed", () => {
+    expect(scheduleStatusLabel("scheduled")).toBeNull();
+  });
+
+  it("returns null for null status", () => {
+    expect(scheduleStatusLabel(null)).toBeNull();
+  });
 });
 
 function asc(key: HandlerSortKey): SortState<HandlerSortKey> {
@@ -167,25 +217,7 @@ function desc(key: HandlerSortKey): SortState<HandlerSortKey> {
   return { key, dir: "desc" };
 }
 
-function row(overrides: Partial<UnifiedRow>): UnifiedRow {
-  return {
-    kind: "listener",
-    id: "listener/1",
-    handlerId: 1,
-    app_key: "app_a",
-    name: "handler",
-    handler_method: "app.Handler.handler",
-    trigger: "state change",
-    runs: 10,
-    failed: 0,
-    timed_out: 0,
-    cancelled: 0,
-    avg_duration_ms: 50,
-    next_run_ts: null,
-    source_tier: "app",
-    ...overrides,
-  };
-}
+const row = createUnifiedRow;
 
 describe("compareHandlerRows — kind", () => {
   it("asc: job sorts before listener (j < l lexically)", () => {
@@ -365,10 +397,34 @@ describe("compareHandlerRows — next_run", () => {
     expect(compareHandlerRows(a, b, asc("next_run"))).toBeLessThan(0);
   });
 
-  it("both null next_run sort as equal", () => {
+  it("both null next_run sort as equal when schedule_status matches", () => {
     const a = row({ next_run_ts: null });
     const b = row({ next_run_ts: null });
     expect(compareHandlerRows(a, b, asc("next_run"))).toBe(0);
+  });
+
+  it("asc: manual sorts before waiting when both have null next_run_ts", () => {
+    const a = row({ next_run_ts: null, schedule_status: "manual" });
+    const b = row({ next_run_ts: null, schedule_status: "waiting" });
+    expect(compareHandlerRows(a, b, asc("next_run"))).toBeLessThan(0);
+  });
+
+  it("asc: waiting sorts before completed when both have null next_run_ts", () => {
+    const a = row({ next_run_ts: null, schedule_status: "waiting" });
+    const b = row({ next_run_ts: null, schedule_status: "completed" });
+    expect(compareHandlerRows(a, b, asc("next_run"))).toBeLessThan(0);
+  });
+
+  it("asc: completed sorts before null/unknown schedule_status", () => {
+    const a = row({ next_run_ts: null, schedule_status: "completed" });
+    const b = row({ next_run_ts: null, schedule_status: null });
+    expect(compareHandlerRows(a, b, asc("next_run"))).toBeLessThan(0);
+  });
+
+  it("desc: reverses the schedule_status secondary sort order", () => {
+    const a = row({ next_run_ts: null, schedule_status: "manual" });
+    const b = row({ next_run_ts: null, schedule_status: "waiting" });
+    expect(compareHandlerRows(a, b, desc("next_run"))).toBeGreaterThan(0);
   });
 });
 

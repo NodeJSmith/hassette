@@ -56,7 +56,9 @@ Select your handler. The detail panel shows:
 
 A gray ring on a handler in the left panel means it has never been invoked. A red square means at least one invocation has failed or timed out.
 
-The detail panel adds a **Run Now** button when a scheduled job is selected instead of a handler. The button triggers the job immediately, outside its normal schedule. It shows a spinner while the request is in flight, then stays disabled until the request completes — a second click can't fire a duplicate execution. A 409 response means the job is already running in single mode, or has already fired as a one-shot; either case shows an inline error below the button.
+The detail panel adds a **Run Now** button when a scheduled job is selected instead of a handler. The button submits the job for immediate execution, outside its normal schedule. It shows a spinner while the request is in flight, then stays disabled until the request completes — a second click can't fire a duplicate execution. A 409 response means the job has no live registration — never registered, or removed since the page loaded (`Job.remove()`, `Scheduler.remove_job()`/`remove_group()`, owner shutdown, or `if_exists="replace"`). It does not mean the job is busy: a job running in `single` mode or holding a full `queued` cap still accepts the submission with 202.
+
+Because acceptance doesn't guarantee the invocation actually ran — `single` mode and a full `queued` cap can still suppress or drop it, silently and after the fact — the button watches for a matching execution record after submission. A success toast ("Execution recorded") confirms one appeared; a "No execution recorded" toast appears if none shows up within a few seconds. Suppressed and dropped invocations never produce an execution record, so the timeout is the only signal for those outcomes.
 
 The execution history updates with the new run over the WebSocket connection — no refresh needed. A manually triggered row carries a **manual** badge next to its status. The badge sets it apart from a scheduled fire at a glance.
 

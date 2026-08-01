@@ -1,13 +1,13 @@
 """Unit tests for Scheduler resource: new schedule() entry point, job groups, convenience wrappers."""
 
-import asyncio
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 from whenever import ZonedDateTime
 
+from hassette.exceptions import SchedulerNameRequiredError
 from hassette.resources.base import Resource
-from hassette.scheduler.classes import ScheduledJob
+from hassette.scheduler.classes import Job, ScheduleStatus
 from hassette.scheduler.scheduler import Scheduler
 from hassette.scheduler.triggers import After, Cron, Daily, Every, Once
 from hassette.test_utils.factories import make_mock_parent, make_scheduled_job, make_scheduler
@@ -17,11 +17,11 @@ from hassette.utils.date_utils import now
 
 class TestScheduleEntryPoint:
     async def test_schedule_creates_job_with_trigger(self) -> None:
-        """schedule(cb, Every(hours=1)) returns a ScheduledJob with the correct trigger."""
+        """schedule(cb, Every(hours=1)) returns a Job with the correct trigger."""
         scheduler = make_scheduler()
         trigger = Every(hours=1)
         job = await scheduler.schedule(noop, trigger, name="schedule_creates_job_with_trigger_schedule")
-        assert isinstance(job, ScheduledJob)
+        assert isinstance(job, Job)
         assert job.trigger is trigger
 
     async def test_schedule_fires_first_run_time_from_trigger(self) -> None:
@@ -49,26 +49,117 @@ class TestScheduleEntryPoint:
         assert scheduler._jobs_by_group == {}
 
 
-class TestCancelGroup:
-    async def test_cancel_group_cancels_all_members(self) -> None:
-        """All jobs in a group are dequeued after cancel_group()."""
+class TestRegisterEntryPoint:
+    """register() creates a live manual-only Job with no heap entry."""
+
+    async def test_register_returns_manual_job_with_db_id(self) -> None:
+        """register() returns a Job with schedule_status MANUAL and a valid db_id."""
+        scheduler = make_scheduler()
+        job = await scheduler.register(noop, name="register_returns_manual_job_with_db_id")
+        assert isinstance(job, Job)
+        assert job.schedule_status == ScheduleStatus.MANUAL
+        assert job.db_id is not None
+        assert isinstance(job.db_id, int)
+
+    async def test_register_has_no_trigger_and_no_heap_timing(self) -> None:
+        """A manual-only job has trigger=None and no next_run/fire_at (never enqueued)."""
+        scheduler = make_scheduler()
+        job = await scheduler.register(noop, name="register_has_no_trigger_and_no_heap_timing")
+        assert job.trigger is None
+        assert job.next_run is None
+        assert job.fire_at is None
+
+    async def test_register_does_not_touch_heap(self) -> None:
+        """register() never calls scheduler_service.enqueue_job (no heap entry)."""
+        scheduler = make_scheduler()
+        scheduler.scheduler_service.enqueue_job = AsyncMock()
+        await scheduler.register(noop, name="register_does_not_touch_heap")
+        scheduler.scheduler_service.enqueue_job.assert_not_called()
+
+    async def test_register_requires_name(self) -> None:
+        """register() with an empty name raises SchedulerNameRequiredError."""
+        scheduler = make_scheduler()
+        with pytest.raises(SchedulerNameRequiredError):
+            await scheduler.register(noop, name="")
+
+    async def test_register_accepts_group_timeout_mode_error_handler_args_kwargs(self) -> None:
+        """register() accepts group, timeout, mode, on_error, args, kwargs."""
+
+        def handler_a(ctx) -> None:
+            pass
+
+        scheduler = make_scheduler()
+        job = await scheduler.register(
+            noop,
+            name="register_accepts_group_timeout_mode_error_handler_args_kwargs",
+            group="manual_group",
+            timeout=5.0,
+            mode="queued",
+            on_error=handler_a,
+            args=(1, 2),
+            kwargs={"x": 3},
+        )
+        assert job.group == "manual_group"
+        assert job.timeout == 5.0
+        assert job.args == (1, 2)
+        assert job.kwargs == {"x": 3}
+        assert job.error_handler is handler_a
+        assert job in scheduler._jobs_by_group["manual_group"]
+
+    async def test_register_persists_manual_trigger_metadata(self) -> None:
+        """register() persists trigger_type='manual', trigger_label='Manual only', no detail."""
+        scheduler = make_scheduler()
+        captured: list = []
+
+        original_add_job = scheduler.scheduler_service.add_job
+
+        async def _capturing_add_job(job: Job) -> None:
+            await original_add_job(job)
+            captured.append(job)
+
+        scheduler.scheduler_service.add_job = _capturing_add_job
+        job = await scheduler.register(noop, name="register_persists_manual_trigger_metadata")
+        assert captured == [job]
+        # Manual jobs have no trigger object at all — the DB-facing trigger_type/label/detail
+        # are derived from job.trigger is None inside SchedulerService.add_job(), not stored
+        # on the Job itself; this test just pins that the job reaching add_job() has no trigger.
+        assert job.trigger is None
+
+    async def test_register_does_not_accept_trigger_jitter_or_where(self) -> None:
+        """register() has no trigger/jitter/where parameters at all (TypeError if passed)."""
+        scheduler = make_scheduler()
+        with pytest.raises(TypeError):
+            await scheduler.register(  # pyright: ignore[reportCallIssue]
+                noop, name="n", trigger=Every(hours=1)
+            )
+        with pytest.raises(TypeError):
+            await scheduler.register(noop, name="n", jitter=5.0)  # pyright: ignore[reportCallIssue]
+        with pytest.raises(TypeError):
+            await scheduler.register(  # pyright: ignore[reportCallIssue]
+                noop, name="n", where=lambda: True
+            )
+
+
+class TestRemoveGroup:
+    async def test_remove_group_removes_all_members(self) -> None:
+        """All jobs in a group are dequeued after remove_group()."""
         scheduler = make_scheduler()
         job1 = await scheduler.schedule(noop, Every(hours=1), name="job1", group="morning")
         job2 = await scheduler.schedule(noop, Every(hours=2), name="job2", group="morning")
-        scheduler.cancel_group("morning")
+        scheduler.remove_group("morning")
         # Verify dequeue_job was called for each member
         calls = scheduler.scheduler_service.dequeue_job.call_args_list
         dequeued_jobs = {c.args[0] for c in calls}
         assert job1 in dequeued_jobs
         assert job2 in dequeued_jobs
 
-    def test_cancel_group_nonexistent_noop(self) -> None:
-        """cancel_group('ghost') does not raise."""
+    def test_remove_group_nonexistent_noop(self) -> None:
+        """remove_group('ghost') does not raise."""
         scheduler = make_scheduler()
-        scheduler.cancel_group("ghost")  # should not raise
+        scheduler.remove_group("ghost")  # should not raise
 
-    async def test_cancel_group_clears_group_key(self) -> None:
-        """After cancellation, the group key is removed from _jobs_by_group via _on_job_removed callback."""
+    async def test_remove_group_clears_group_key(self) -> None:
+        """After removal, the group key is removed from _jobs_by_group via _on_job_removed callback."""
         scheduler = make_scheduler()
         job = await scheduler.schedule(
             noop, Every(hours=1), group="morning", name="cancel_group_clears_group_key_schedule"
@@ -79,54 +170,49 @@ class TestCancelGroup:
         scheduler._on_job_removed(job)
         assert "morning" not in scheduler._jobs_by_group
 
-    async def test_cancel_group_calls_dequeue_job_on_service(self) -> None:
-        """cancel_group calls scheduler_service.dequeue_job for each member."""
+    async def test_remove_group_calls_dequeue_job_on_service(self) -> None:
+        """remove_group calls scheduler_service.dequeue_job for each member."""
         scheduler = make_scheduler()
         await scheduler.schedule(noop, Every(hours=1), name="job1", group="morning")
         await scheduler.schedule(noop, Every(hours=2), name="job2", group="morning")
-        scheduler.cancel_group("morning")
+        scheduler.remove_group("morning")
         # dequeue_job called twice
         assert scheduler.scheduler_service.dequeue_job.call_count == 2
 
-    async def test_cancel_group_persists_cancelled_at_for_registered_jobs(self) -> None:
-        """cancel_group spawns mark_job_cancelled for each job with a db_id set.
+    async def test_remove_group_reaches_service_with_registered_jobs(self) -> None:
+        """remove_group delegates every group member (with its assigned db_id) to the
+        unified removal operation (``SchedulerService.dequeue_job()``).
 
-        With async registration, jobs always have db_id set after schedule() returns,
-        so mark_job_cancelled is always spawned for jobs in the group.
+        With async registration, jobs always have db_id set after schedule() returns.
+        Persisting ``removed_at`` for a registered job is now ``dequeue_job()``'s own
+        responsibility (it spawns the guard-release/persistence tail internally) — see
+        ``TestDequeueJobRemovalPersistence`` in ``test_scheduler_service_dequeue.py`` for
+        coverage of that spawn. This test only proves ``remove_group`` still reaches the
+        service, with the jobs it registered, so that persistence has something to act on.
         """
         scheduler = make_scheduler()
-        # Add a task_bucket mock. Close any coroutine passed to spawn to avoid
-        # "coroutine never awaited" warnings when mark_job_cancelled returns a real coro.
-        spawned_coroutines: list = []
-
-        def _spawn_and_close(coro, *, name=""):
-            spawned_coroutines.append((coro, name))
-            if asyncio.iscoroutine(coro):
-                coro.close()  # clean up to avoid "never awaited" warnings
-
-        scheduler.scheduler_service.task_bucket = MagicMock()
-        scheduler.scheduler_service.task_bucket.spawn.side_effect = _spawn_and_close
 
         # With async registration, db_id is set by add_job (mock sets it to 1)
-        await scheduler.schedule(noop, Every(hours=1), name="job1", group="morning")
-        await scheduler.schedule(noop, Every(hours=2), name="job2", group="morning")
+        job1 = await scheduler.schedule(noop, Every(hours=1), name="job1", group="morning")
+        job2 = await scheduler.schedule(noop, Every(hours=2), name="job2", group="morning")
+        assert job1.db_id is not None
+        assert job2.db_id is not None
 
-        scheduler.cancel_group("morning")
+        scheduler.remove_group("morning")
 
-        # task_bucket.spawn must have been called once per job with a db_id
-        assert scheduler.scheduler_service.task_bucket.spawn.call_count == 2
-        # Verify the spawn calls used the correct task name
-        for _coro, name in spawned_coroutines:
-            assert name == "scheduler:mark_job_cancelled"
+        calls = scheduler.scheduler_service.dequeue_job.call_args_list
+        dequeued_jobs = {c.args[0] for c in calls}
+        assert {job1, job2} <= dequeued_jobs
 
-    async def test_cancel_group_skips_mark_job_cancelled_when_db_id_none(self) -> None:
-        """cancel_group does not spawn mark_job_cancelled for jobs without db_id.
+    async def test_remove_group_skips_mark_job_removed_when_db_id_none(self) -> None:
+        """remove_group does not spawn mark_job_removed for jobs without db_id.
 
         This is a defensive test: with async registration, db_id is normally always set.
         We override add_job to NOT set the db_id to test the guard still works.
         """
         scheduler = make_scheduler()
         scheduler.scheduler_service.task_bucket = MagicMock()
+        scheduler.scheduler_service.task_bucket.spawn = MagicMock(side_effect=lambda coro, **_: coro.close() or None)
 
         # Override add_job to skip mark_registered so db_id stays None
         scheduler.scheduler_service.add_job = AsyncMock()
@@ -134,7 +220,7 @@ class TestCancelGroup:
         await scheduler.schedule(noop, Every(hours=1), name="job1", group="morning")
         await scheduler.schedule(noop, Every(hours=2), name="job2", group="morning")
 
-        scheduler.cancel_group("morning")
+        scheduler.remove_group("morning")
 
         # task_bucket.spawn must NOT be called (no db_ids set)
         scheduler.scheduler_service.task_bucket.spawn.assert_not_called()
@@ -187,11 +273,11 @@ class TestJobsByGroupMaintenance:
         assert job2 in scheduler._jobs_by_group["g"]
 
     async def test_remove_all_jobs_clears_groups(self) -> None:
-        """_remove_all_jobs() empties _jobs_by_group."""
+        """remove_all_jobs() empties _jobs_by_group."""
         scheduler = make_scheduler()
         await scheduler.schedule(noop, Every(hours=1), name="a", group="g1")
         await scheduler.schedule(noop, Every(hours=2), name="b", group="g2")
-        scheduler._remove_all_jobs()
+        scheduler.remove_all_jobs()
         assert scheduler._jobs_by_group == {}
 
     async def test_removal_callback_called_on_exhaustion(self) -> None:
@@ -419,9 +505,9 @@ class TestAddJobBackReference:
         )
 
 
-class TestCancelJob:
-    async def test_cancel_job_idempotent(self) -> None:
-        """Second cancel_job call on the same job is a silent no-op."""
+class TestRemoveJob:
+    async def test_remove_job_idempotent(self) -> None:
+        """Second remove_job call on the same job is a silent no-op."""
         scheduler = make_scheduler()
         scheduler.scheduler_service.task_bucket = MagicMock()
         scheduler.scheduler_service.task_bucket.spawn = MagicMock(side_effect=lambda coro, **_: coro.close() or None)
@@ -429,22 +515,22 @@ class TestCancelJob:
         job = await scheduler.schedule(noop, Every(hours=1), name="job1")
         # db_id already set by mock add_job — no need to call mark_registered
 
-        # First cancel
-        scheduler.cancel_job(job)
+        # First removal
+        scheduler.remove_job(job)
         first_spawn_count = scheduler.scheduler_service.task_bucket.spawn.call_count
         first_dequeue_count = scheduler.scheduler_service.dequeue_job.call_count
 
-        # Second cancel — must be a no-op
-        scheduler.cancel_job(job)
+        # Second removal — must be a no-op
+        scheduler.remove_job(job)
         assert scheduler.scheduler_service.task_bucket.spawn.call_count == first_spawn_count, (
-            "No additional DB write on second cancel"
+            "No additional DB write on second removal"
         )
         assert scheduler.scheduler_service.dequeue_job.call_count == first_dequeue_count, (
-            "No additional dequeue on second cancel"
+            "No additional dequeue on second removal"
         )
 
-    async def test_cancel_job_rejects_wrong_scheduler(self) -> None:
-        """cancel_job raises ValueError when job belongs to a different scheduler."""
+    async def test_remove_job_rejects_wrong_scheduler(self) -> None:
+        """remove_job raises ValueError when job belongs to a different scheduler."""
         scheduler_a = make_scheduler()
         scheduler_b = make_scheduler()
         # Provide minimal unique_id so __repr__ doesn't crash when constructing the error message
@@ -454,31 +540,32 @@ class TestCancelJob:
         job = await scheduler_a.schedule(noop, Every(hours=1), name="job1")
 
         with pytest.raises(ValueError, match="different scheduler"):
-            scheduler_b.cancel_job(job)
+            scheduler_b.remove_job(job)
 
-    async def test_cancel_group_delegates_to_cancel_job(self) -> None:
-        """cancel_group calls cancel_job once per member."""
+    async def test_remove_group_delegates_to_remove_job(self) -> None:
+        """remove_group calls remove_job once per member."""
         scheduler = make_scheduler()
         await scheduler.schedule(noop, Every(hours=1), name="job1", group="morning")
         await scheduler.schedule(noop, Every(hours=2), name="job2", group="morning")
 
-        with patch.object(scheduler, "cancel_job", wraps=scheduler.cancel_job) as mock_cancel:
-            scheduler.cancel_group("morning")
+        with patch.object(scheduler, "remove_job", wraps=scheduler.remove_job) as mock_cancel:
+            scheduler.remove_group("morning")
 
         assert mock_cancel.call_count == 2
 
-    async def test_cancel_job_calls_dequeue_job(self) -> None:
-        """cancel_job delegates to scheduler_service.dequeue_job."""
+    async def test_remove_job_calls_dequeue_job(self) -> None:
+        """remove_job delegates to scheduler_service.dequeue_job."""
         scheduler = make_scheduler()
 
         job = await scheduler.schedule(noop, Every(hours=1), name="job1")
-        scheduler.cancel_job(job)
+        scheduler.remove_job(job)
         scheduler.scheduler_service.dequeue_job.assert_called_once_with(job)
 
-    async def test_cancel_job_dequeued_set_by_dequeue_job(self) -> None:
+    async def test_remove_job_dequeued_set_by_dequeue_job(self) -> None:
         """job._dequeued is False when dequeue_job runs (set True afterward by SchedulerService)."""
         scheduler = make_scheduler()
         scheduler.scheduler_service.task_bucket = MagicMock()
+        scheduler.scheduler_service.task_bucket.spawn = MagicMock(side_effect=lambda coro, **_: coro.close() or None)
 
         dequeued_state_during_dequeue: list[bool] = []
 
@@ -491,33 +578,34 @@ class TestCancelJob:
         scheduler.scheduler_service.dequeue_job = capturing_dequeue
 
         job = await scheduler.schedule(noop, Every(hours=1), name="job1")
-        scheduler.cancel_job(job)
+        scheduler.remove_job(job)
 
         assert dequeued_state_during_dequeue == [False], (
             "_dequeued must be False when dequeue_job runs; set True afterward"
         )
 
 
-class TestJobCancelDelegation:
-    async def test_job_cancel_delegates_to_scheduler(self) -> None:
-        """job.cancel() calls scheduler.cancel_job(self)."""
+class TestJobRemoveDelegation:
+    async def test_job_remove_delegates_to_scheduler(self) -> None:
+        """job.remove() calls scheduler.remove_job(self)."""
         scheduler = make_scheduler()
         scheduler.scheduler_service.task_bucket = MagicMock()
+        scheduler.scheduler_service.task_bucket.spawn = MagicMock(side_effect=lambda coro, **_: coro.close() or None)
 
         job = await scheduler.schedule(noop, Every(hours=1), name="job1")
 
-        with patch.object(scheduler, "cancel_job", wraps=scheduler.cancel_job) as mock_cancel:
-            job.cancel()
+        with patch.object(scheduler, "remove_job", wraps=scheduler.remove_job) as mock_cancel:
+            job.remove()
 
         mock_cancel.assert_called_once_with(job)
 
-    def test_job_cancel_raises_without_scheduler(self) -> None:
-        """job.cancel() raises RuntimeError on a bare job with no _scheduler set."""
+    def test_job_remove_raises_without_scheduler(self) -> None:
+        """job.remove() raises RuntimeError on a bare job with no _scheduler set."""
         job = make_scheduled_job(name="bare_job")
         assert job._scheduler is None
 
         with pytest.raises(RuntimeError, match="not registered with a Scheduler"):
-            job.cancel()
+            job.remove()
 
 
 class TestIdentityPassThrough:

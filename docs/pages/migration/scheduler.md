@@ -1,6 +1,6 @@
 # Scheduler
 
-Hassette scheduling lives on `self.scheduler`. All methods are `async` and return a [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob] object for cancellation.
+Hassette scheduling lives on `self.scheduler`. All methods are `async` and return a [`Job`][hassette.scheduler.classes.Job] object for removal.
 
 !!! note "Coming from synchronous AppDaemon?"
     The mechanical rule: declare `on_initialize` as `async def` and put `await` in front of every scheduling call. Omitting `await` means the job is never scheduled — no error, just silence. [Migration Concepts](concepts.md#async-vs-sync) covers the async model.
@@ -15,14 +15,14 @@ Hassette scheduling lives on `self.scheduler`. All methods are `async` and retur
 | `self.run_minutely(cb)` | `await self.scheduler.run_minutely(cb)` | Every 1 minute |
 | `self.run_hourly(cb, time(0, 30))` | `await self.scheduler.run_hourly(cb)` | Every 1 hour |
 | `self.run_daily(cb, time(7, 30))` | `await self.scheduler.run_daily(cb, at="07:30")` | Wall-clock, DST-safe |
-| `self.cancel_timer(handle)` | `job.cancel()` | Cancel via the returned job object |
+| `self.cancel_timer(handle)` | `job.remove()` | Remove via the returned job object |
 | — | `await self.scheduler.run_cron(cb, "0 7 * * *")` | Hassette-only; cron expression |
 | — | `await self.scheduler.schedule(cb, trigger)` | Hassette-only; custom [trigger object](../core-concepts/scheduler/triggers.md) |
 
 !!! note "`run_daily` is now cron-backed"
     Hassette's `run_daily` fires at the specified wall-clock time every day, handling DST transitions correctly. An interval-based approach drifts by an hour across a DST boundary. The cron-backed implementation does not.
 
-Every scheduling call returns a [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob]. Call `.cancel()` on it to stop the job.
+Every scheduling call returns a [`Job`][hassette.scheduler.classes.Job]. Call `.remove()` on it to stop the job.
 
 ## Callback Signatures
 
@@ -58,7 +58,7 @@ The complete before/after for an app that uses `run_in`, `run_daily`, and `run_e
 - `await` every scheduling call
 - `run_daily` takes `at="HH:MM"` instead of a `datetime.time` object
 - `run_every` takes `hours=`, `minutes=`, or `seconds=` instead of a positional interval
-- Jobs return `ScheduledJob` objects; cancel with `job.cancel()` instead of `self.cancel_timer(handle)`
+- Jobs return `Job` objects; remove with `job.remove()` instead of `self.cancel_timer(handle)`
 
 ## Blocking Work
 
@@ -86,4 +86,4 @@ Run `hassette job --app <key>` to confirm the jobs registered with the expected 
 
 - [`Scheduler` Overview](../core-concepts/scheduler/index.md). The full scheduler API.
 - [Scheduling Methods](../core-concepts/scheduler/methods.md). All helpers with examples.
-- [Job Management](../core-concepts/scheduler/management.md). Inspecting and canceling jobs.
+- [Job Management](../core-concepts/scheduler/management.md). Inspecting and removing jobs.

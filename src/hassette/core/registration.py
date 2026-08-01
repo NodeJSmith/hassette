@@ -124,3 +124,13 @@ class ScheduledJobRegistration:
     human_description: str | None = None
     """Stable, human-readable summary of the predicate — ``predicate.summarize()`` when
     available, otherwise ``callable_stable_name()`` as a fallback. None if no predicate."""
+
+    schedule_status: str = "scheduled"
+    """Current :class:`~hassette.scheduler.classes.ScheduleStatus` value at registration time.
+    Persisted to the ``scheduled_jobs.schedule_status`` column, which is ``NOT NULL`` with no
+    DEFAULT — every registration must supply its live status explicitly."""
+
+    schedule_status_reason: str | None = None
+    """Optional :class:`~hassette.scheduler.classes.ScheduleStatusReason` value qualifying
+    ``schedule_status``. Persisted to the nullable ``scheduled_jobs.schedule_status_reason``
+    column. None for a clean status with no further explanation needed."""

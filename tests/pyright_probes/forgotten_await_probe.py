@@ -23,7 +23,7 @@ from pathlib import Path
 from hassette.api.api import Api
 from hassette.bus.bus import Bus
 from hassette.cache.wrapper import AsyncCache
-from hassette.scheduler.classes import ScheduledJob
+from hassette.scheduler.classes import Job
 from hassette.scheduler.scheduler import Scheduler
 from unittest.mock import MagicMock, AsyncMock
 
@@ -60,7 +60,7 @@ def _make_scheduler() -> Scheduler:
     sched._error_handler = None
     mock_service = MagicMock()
 
-    async def _add_job(job: ScheduledJob) -> None:
+    async def _add_job(job: Job) -> None:
         job.mark_registered(1)
 
     mock_service.add_job = AsyncMock(side_effect=_add_job)

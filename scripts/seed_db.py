@@ -220,11 +220,11 @@ class SeedContext:
         registration: ListenerRegistration,
         *,
         retired_at: float | None = None,
-        cancelled_at: float | None = None,
+        removed_at: float | None = None,
     ) -> int:
         """Insert a listeners row and return its id.
 
-        ``retired_at``/``cancelled_at`` are not part of ``ListenerRegistration`` (they are
+        ``retired_at``/``removed_at`` are not part of ``ListenerRegistration`` (they are
         post-registration lifecycle state) so they are accepted separately here — see the
         design doc's Lifecycle Field Contract for reachable combinations.
         """
@@ -232,7 +232,7 @@ class SeedContext:
             raise ValueError("Seeded listeners must have a non-empty name (DB-registered listeners require name=)")
         params = listener_insert_params(registration)
         params["retired_at"] = retired_at
-        params["cancelled_at"] = cancelled_at
+        params["removed_at"] = removed_at
         sql = _build_insert_sql("listeners", params, returning=True)
         return insert_row(self.cursor, sql, params)
 
@@ -241,12 +241,12 @@ class SeedContext:
         registration: ScheduledJobRegistration,
         *,
         retired_at: float | None = None,
-        cancelled_at: float | None = None,
+        removed_at: float | None = None,
     ) -> int:
         """Insert a scheduled_jobs row and return its id."""
         params = job_insert_params(registration)
         params["retired_at"] = retired_at
-        params["cancelled_at"] = cancelled_at
+        params["removed_at"] = removed_at
         sql = _build_insert_sql("scheduled_jobs", params, returning=True)
         return insert_row(self.cursor, sql, params)
 
@@ -1087,7 +1087,7 @@ def scenario_lifecycle(ctx: SeedContext) -> None:
             trigger_label="nightly at 02:00",
             source_location=f"{app_key}.py:40",
         ),
-        cancelled_at=ts(base + 200.0),
+        removed_at=ts(base + 200.0),
     )
     _seed_executions(
         ctx,
@@ -1136,7 +1136,7 @@ def scenario_lifecycle(ctx: SeedContext) -> None:
             source_location=f"{app_key}.py:18",
         )
     )
-    # cancelled during runtime, then retired on the next startup reconciliation -- both set.
+    # removed during runtime, then retired on the next startup reconciliation -- both set.
     ctx.add_listener(
         make_listener_registration(
             app_key=app_key,
@@ -1146,7 +1146,7 @@ def scenario_lifecycle(ctx: SeedContext) -> None:
             name=f"{app_key}_old_listener",
             source_location=f"{app_key}.py:60",
         ),
-        cancelled_at=ts(base + 1800.0),
+        removed_at=ts(base + 1800.0),
         retired_at=ts(base + 3600.0),
     )
     _seed_executions(

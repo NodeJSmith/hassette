@@ -79,7 +79,7 @@ class TestGetAppHealthAggregates:
         cancelled = await insert_listener(db_svc, app_key="test_app", handler_method="on_cancelled")
         await insert_invocation(db_svc, live, session_id, status="success", duration_ms=10.0)
         await insert_invocation(db_svc, cancelled, session_id, status="error", duration_ms=20.0)
-        await db_svc.db.execute("UPDATE listeners SET cancelled_at = ? WHERE id = ?", (1000.0, cancelled))
+        await db_svc.db.execute("UPDATE listeners SET removed_at = ? WHERE id = ?", (1000.0, cancelled))
         await db_svc.db.commit()
 
         agg = await query_service.get_app_health_aggregates(app_key="test_app", instance_index=0)

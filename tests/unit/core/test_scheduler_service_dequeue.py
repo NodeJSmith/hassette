@@ -10,11 +10,12 @@ Tests verify:
 """
 
 import inspect
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 from fair_async_rlock import FairAsyncRLock
 
 from hassette.core.scheduler_service import HeapQueue, SchedulerService, _ScheduledJobQueue
+from hassette.scheduler.classes import ScheduleStatus
 from hassette.test_utils.factories import make_scheduled_job
 
 from .conftest import make_scheduler_service
@@ -166,6 +167,95 @@ class TestDequeueJobIsSynchronous:
         assert not inspect.iscoroutinefunction(svc.dequeue_job), "dequeue_job must be synchronous — no async def"
 
 
+class TestDequeueJobRegistryRemoval:
+    """dequeue_job must deregister from _jobs_by_id, not just the heap.
+
+    The unified removal operation removes registry membership first so no new
+    ``submit_job()`` call can be accepted once ``dequeue_job()`` returns — this must hold
+    for a job that was never on the heap (waiting/completed/manual) just as much as for a
+    heap-resident scheduled job.
+    """
+
+    async def test_dequeue_job_removes_from_registry(self) -> None:
+        """A heap-resident job is removed from _jobs_by_id by dequeue_job."""
+        svc = make_dequeue_service()
+        job = make_scheduled_job(db_id=1)
+        svc._job_queue._queue.push(job)
+        svc._jobs_by_id[1] = job
+
+        svc.dequeue_job(job)
+
+        assert 1 not in svc._jobs_by_id
+
+    async def test_dequeue_job_removes_from_registry_when_not_on_heap(self) -> None:
+        """A non-heap-resident job (waiting/completed/manual) is still deregistered."""
+        svc = make_dequeue_service()
+        job = make_scheduled_job(db_id=2, schedule_status=ScheduleStatus.MANUAL)
+        svc._jobs_by_id[2] = job
+        # Do NOT push to heap — manual jobs never touch it.
+
+        removed = svc.dequeue_job(job)
+
+        assert removed is False, "manual job was never on the heap"
+        assert 2 not in svc._jobs_by_id
+
+    async def test_dequeue_job_registry_removal_is_identity_checked(self) -> None:
+        """dequeue_job must not remove a different live job sharing the same db_id.
+
+        Mirrors the crash-restart orphan-collision scenario deregister_job() guards
+        against: an orphaned Job sharing a db_id with a freshly re-registered live Job.
+        """
+        svc = make_dequeue_service()
+        orphan = make_scheduled_job(db_id=3, name="orphan")
+        live = make_scheduled_job(db_id=3, name="live")
+        svc._jobs_by_id[3] = live
+
+        svc.dequeue_job(orphan)
+
+        assert svc._jobs_by_id[3] is live, "removing the orphan must not unregister the live job"
+
+
+class TestDequeueJobRemovalPersistence:
+    """dequeue_job spawns the guard-release/persistence tail (_finish_removal) as a
+    background task, rather than persisting removed_at itself inline — this is the piece
+    that moved out of Scheduler.remove_job() in the unification (see
+    Scheduler.remove_job()'s docstring).
+    """
+
+    async def test_dequeue_job_spawns_finish_removal_that_persists_removed_at(self) -> None:
+        """The spawned tail calls mark_job_removed(db_id) when the job has a db_id."""
+        svc = make_dequeue_service()
+        job = make_scheduled_job(db_id=5)
+        svc._jobs_by_id[5] = job
+        svc._executor.mark_job_removed = AsyncMock()
+
+        spawned: list = []
+        svc.task_bucket = MagicMock()
+        svc.task_bucket.spawn = MagicMock(side_effect=lambda coro, **_kw: spawned.append(coro))
+
+        svc.dequeue_job(job)
+
+        assert len(spawned) == 1, "dequeue_job must spawn exactly one tail task"
+        await spawned[0]
+        svc._executor.mark_job_removed.assert_awaited_once_with(5)
+
+    async def test_dequeue_job_spawned_tail_skips_persistence_without_db_id(self) -> None:
+        """No mark_job_removed call when the job never reached persistence (db_id is None)."""
+        svc = make_dequeue_service()
+        job = make_scheduled_job()
+        assert job.db_id is None
+        svc._executor.mark_job_removed = AsyncMock()
+
+        spawned: list = []
+        svc.task_bucket = MagicMock()
+        svc.task_bucket.spawn = MagicMock(side_effect=lambda coro, **_kw: spawned.append(coro))
+
+        svc.dequeue_job(job)
+
+        await spawned[0]
+        svc._executor.mark_job_removed.assert_not_awaited()
+
+
 class TestDispatchRaceGuard:
     """Regression test for the dispatch race window (#518 spec).
 
@@ -190,7 +280,7 @@ class TestDispatchRaceGuard:
         # so a broken _dequeued guard would still leave run_called False and pass.
         run_called = False
 
-        async def spy_run_job_with_guard(_j):
+        async def spy_run_job_with_guard(_j, **_kwargs):
             nonlocal run_called
             run_called = True
 
@@ -207,7 +297,7 @@ class TestDispatchRaceGuard:
 
         run_called = False
 
-        async def spy_run_job_with_guard(_j):
+        async def spy_run_job_with_guard(_j, **_kwargs):
             nonlocal run_called
             run_called = True
 

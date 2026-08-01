@@ -19,7 +19,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
 from hassette.resources.base import Resource
-from hassette.scheduler.classes import ScheduledJob
+from hassette.scheduler.classes import Job
 from hassette.scheduler.scheduler import Scheduler
 from hassette.test_utils import make_mock_hassette
 from hassette.test_utils.factories import make_scheduled_job
@@ -30,11 +30,11 @@ from .conftest import HangingChild, ShutdownCounter, SimpleParent, SimpleService
 
 
 async def test_scheduler_on_shutdown_dequeues_all_jobs():
-    """Scheduler.on_shutdown() awaits _remove_all_jobs (via remove_jobs_by_owner)."""
+    """Scheduler.on_shutdown() awaits remove_all_jobs (via remove_jobs)."""
     hassette = make_mock_hassette(sealed=False)
 
     # add_job is now awaited inline — must be an AsyncMock
-    async def _add_job(job: ScheduledJob) -> None:
+    async def _add_job(job: Job) -> None:
         job.mark_registered(1)
 
     hassette.scheduler_service.add_job = AsyncMock(side_effect=_add_job)
@@ -43,14 +43,15 @@ async def test_scheduler_on_shutdown_dequeues_all_jobs():
     await scheduler.initialize()
 
     # Add a job so we know there's something to remove
-    await scheduler.add_job(
-        make_scheduled_job(owner_id=scheduler.owner_id, name="test_job"),
-    )
+    job = make_scheduled_job(owner_id=scheduler.owner_id, name="test_job")
+    await scheduler.add_job(job)
 
     await scheduler.shutdown()
 
-    # remove_jobs_by_owner is called by remove_all_jobs, and it's on the mock service
-    hassette.scheduler_service.remove_jobs_by_owner.assert_awaited_once_with(scheduler.owner_id)
+    # remove_jobs is called by remove_all_jobs with this scheduler's own owned jobs
+    # (including waiting/completed/manual jobs that remove_jobs_by_owner's heap-only scan
+    # would miss), and it's on the mock service.
+    hassette.scheduler_service.remove_jobs.assert_awaited_once_with([job])
 
 
 async def test_app_shutdown_propagates_to_bus_and_scheduler():

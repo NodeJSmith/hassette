@@ -256,61 +256,73 @@ class TestExecutorOffloadProducesNoBlocking:
         mock_hassette = executor.hassette
         loop = asyncio.get_running_loop()
 
-        # A short lag threshold so the watchdog is sensitive. The interval must be SMALLER than the
-        # threshold: otherwise the gap between ticks alone exceeds the threshold and a responsive
-        # loop can look stale, producing false positives that would mask a real regression here.
-        orig_lag = mock_hassette.config.blocking_io.lag_threshold_seconds
-        orig_interval = mock_hassette.config.blocking_io.watchdog_interval_seconds
-        mock_hassette.config.blocking_io.lag_threshold_seconds = 0.05
-        mock_hassette.config.blocking_io.watchdog_interval_seconds = 0.01
-
-        stall_events: list[object] = []
-        watchdog = LoopWatchdog(
-            mock_hassette,
-            loop=loop,
-            loop_thread_id=loop_thread_id,
-            executor=executor,
-            on_stall=stall_events.append,
-        )
-        watchdog.start()
-
-        caught_warnings: list[warnings.WarningMessage] = []
+        # Pre-warm the pool OUTSIDE the watched window below. ThreadPoolExecutor's first task
+        # submission spawns its worker via a synchronous OS thread-creation syscall that runs on
+        # the calling (loop) thread — under CI's noisier scheduling that cold-start cost can itself
+        # exceed the tight lag_threshold_seconds set below, producing a stall unrelated to the
+        # worker-thread sleep this test actually exercises. See CLAUDE.md's "Config-driven
+        # real-clock timeouts" pattern.
+        pool = ThreadPoolExecutor(max_workers=1)
         try:
-            with warnings.catch_warnings(record=True) as caught_warnings:
-                warnings.simplefilter("always", HassetteBlockingIOWarning)
+            await loop.run_in_executor(pool, lambda: None)
 
-                # Sleep on a WORKER thread — the loop is free the whole time. Capture the
-                # worker thread id to prove it ran off the loop thread.
-                worker_tids: list[int] = []
+            # A short lag threshold so the watchdog is sensitive. The interval must be SMALLER than
+            # the threshold: otherwise the gap between ticks alone exceeds the threshold and a
+            # responsive loop can look stale, producing false positives that would mask a real
+            # regression here.
+            orig_lag = mock_hassette.config.blocking_io.lag_threshold_seconds
+            orig_interval = mock_hassette.config.blocking_io.watchdog_interval_seconds
+            mock_hassette.config.blocking_io.lag_threshold_seconds = 0.05
+            mock_hassette.config.blocking_io.watchdog_interval_seconds = 0.01
 
-                def _sleep_on_worker(duration: float) -> None:
-                    worker_tids.append(threading.get_ident())
-                    time.sleep(duration)
+            stall_events: list[object] = []
+            watchdog = LoopWatchdog(
+                mock_hassette,
+                loop=loop,
+                loop_thread_id=loop_thread_id,
+                executor=executor,
+                on_stall=stall_events.append,
+            )
+            watchdog.start()
 
-                # Bind a live execution while the worker sleeps. The watchdog only attributes and
-                # persists a stall when a marker is live; without one a wrongly-detected stall would
-                # be skipped and the zero-rows assertion could pass vacuously. With it bound, any
-                # false stall is attributed and surfaces — so zero rows genuinely proves the loop
-                # stayed responsive while the sleep ran off-thread.
-                _exec_id, token = executor.bind_execution_context("sync_handler_app", 0, None)
-                try:
-                    with ThreadPoolExecutor(max_workers=1) as pool:
+            caught_warnings: list[warnings.WarningMessage] = []
+            try:
+                with warnings.catch_warnings(record=True) as caught_warnings:
+                    warnings.simplefilter("always", HassetteBlockingIOWarning)
+
+                    # Sleep on a WORKER thread — the loop is free the whole time. Capture the
+                    # worker thread id to prove it ran off the loop thread.
+                    worker_tids: list[int] = []
+
+                    def _sleep_on_worker(duration: float) -> None:
+                        worker_tids.append(threading.get_ident())
+                        time.sleep(duration)
+
+                    # Bind a live execution while the worker sleeps. The watchdog only attributes and
+                    # persists a stall when a marker is live; without one a wrongly-detected stall
+                    # would be skipped and the zero-rows assertion could pass vacuously. With it
+                    # bound, any false stall is attributed and surfaces — so zero rows genuinely
+                    # proves the loop stayed responsive while the sleep ran off-thread.
+                    _exec_id, token = executor.bind_execution_context("sync_handler_app", 0, None)
+                    try:
                         await loop.run_in_executor(pool, _sleep_on_worker, 0.2)
 
-                    assert worker_tids, "worker callable did not run"
-                    assert worker_tids[0] != loop_thread_id, (
-                        "sleep must have run on a worker thread, not the loop thread"
-                    )
+                        assert worker_tids, "worker callable did not run"
+                        assert worker_tids[0] != loop_thread_id, (
+                            "sleep must have run on a worker thread, not the loop thread"
+                        )
 
-                    # Give the watchdog multiple poll cycles to notice if it wrongly flags.
-                    await asyncio.sleep(0.3)
-                    await _drain(db_svc)
-                finally:
-                    executor.unbind_execution_context(token)
+                        # Give the watchdog multiple poll cycles to notice if it wrongly flags.
+                        await asyncio.sleep(0.3)
+                        await _drain(db_svc)
+                    finally:
+                        executor.unbind_execution_context(token)
+            finally:
+                watchdog.stop()
+                mock_hassette.config.blocking_io.lag_threshold_seconds = orig_lag
+                mock_hassette.config.blocking_io.watchdog_interval_seconds = orig_interval
         finally:
-            watchdog.stop()
-            mock_hassette.config.blocking_io.lag_threshold_seconds = orig_lag
-            mock_hassette.config.blocking_io.watchdog_interval_seconds = orig_interval
+            pool.shutdown(wait=True)
 
         blocking_warnings = [w for w in caught_warnings if issubclass(w.category, HassetteBlockingIOWarning)]
         assert blocking_warnings == [], (

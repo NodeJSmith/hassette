@@ -8,7 +8,10 @@ import pytest
 from hassette.bus import Bus
 from hassette.core.app_change_detector import ChangeSet
 from hassette.core.app_lifecycle_service import AppAdmissionMode, AppLifecycleService
-from hassette.test_utils import EventCapture
+from hassette.scheduler.scheduler import Scheduler
+from hassette.test_utils import EventCapture, make_mock_hassette
+from hassette.test_utils.factories import make_mock_parent
+from hassette.test_utils.helpers import noop
 from hassette.types import Topic
 from hassette.types.enums import ResourceStatus
 
@@ -335,15 +338,17 @@ class TestCleanupFailedInstance:
         mock_manifest: MagicMock,
         mock_hassette: MagicMock,
     ) -> None:
-        """Scheduler jobs registered before the failure are removed."""
+        """Scheduler jobs registered before the failure are removed via the same
+        registry-aware path as normal shutdown (Scheduler.remove_all_jobs), not the
+        heap-only SchedulerService.remove_jobs_by_owner (see the manual-job regression
+        test below, which covers a job that never touches the heap).
+        """
         mock_app_instance.initialize.side_effect = ValueError("boom")
         instances = {0: mock_app_instance}
 
         await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
 
-        mock_hassette.scheduler_service.remove_jobs_by_owner.assert_called_once_with(
-            mock_app_instance.scheduler.owner_id,
-        )
+        mock_app_instance.scheduler.remove_all_jobs.assert_called_once()
 
     async def test_timeout_cleans_up_listeners_and_jobs(
         self,
@@ -359,9 +364,7 @@ class TestCleanupFailedInstance:
         await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
 
         mock_app_instance.bus.remove_all_listeners.assert_called_once()
-        mock_hassette.scheduler_service.remove_jobs_by_owner.assert_called_once_with(
-            mock_app_instance.scheduler.owner_id,
-        )
+        mock_app_instance.scheduler.remove_all_jobs.assert_called_once()
 
     async def test_cleanup_runs_before_record_failure(
         self,
@@ -375,13 +378,12 @@ class TestCleanupFailedInstance:
         call_order: list[str] = []
 
         mock_app_instance.bus.remove_all_listeners = Mock(side_effect=lambda: call_order.append("cleanup_listeners"))
-        original_side_effect = mock_hassette.scheduler_service.remove_jobs_by_owner.side_effect
 
-        async def track_jobs(owner):
+        async def track_jobs():
             call_order.append("cleanup_jobs")
-            return await original_side_effect(owner)
+            return await asyncio.sleep(0)
 
-        mock_hassette.scheduler_service.remove_jobs_by_owner = MagicMock(side_effect=track_jobs)
+        mock_app_instance.scheduler.remove_all_jobs = Mock(side_effect=track_jobs)
         mock_registry.record_failure.side_effect = lambda *_args: call_order.append("record_failure")
         mock_app_instance.initialize.side_effect = ValueError("boom")
         instances = {0: mock_app_instance}
@@ -420,9 +422,50 @@ class TestCleanupFailedInstance:
 
         await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
 
-        mock_hassette.scheduler_service.remove_jobs_by_owner.assert_called_once_with(
-            mock_app_instance.scheduler.owner_id,
-        )
+        mock_app_instance.scheduler.remove_all_jobs.assert_called_once()
+
+    async def test_manual_job_reaches_removal_not_just_heap_resident_jobs(self) -> None:
+        """A manual job (never on the scheduler heap) owned by a failed-init instance
+        must still be removed by cleanup_failed_instance().
+
+        Uses a real Scheduler (not a mock) so the manual job actually lives only in
+        the scheduler's own registry, never on the heap — exactly the case the old
+        SchedulerService.remove_jobs_by_owner() (a heap-only scan) could not reach.
+        Asserting SchedulerService.remove_jobs() was awaited with the manual job proves
+        cleanup now goes through the same identity-checked, registry-aware path as
+        normal shutdown (Scheduler.remove_all_jobs), not the heap-only owner scan.
+
+        Also asserts the removal callback registered by Scheduler.__init__ is
+        deregistered afterward — cleanup_failed_instance() discards this Scheduler for
+        good (unlike test_utils.reset.reset_scheduler, which reuses its instance), so it
+        must explicitly deregister rather than leak the stale callback.
+        """
+        hassette = make_mock_hassette(sealed=False)
+
+        async def _add_job(job):
+            job.mark_registered(1)
+
+        hassette.scheduler_service.add_job = AsyncMock(side_effect=_add_job)
+
+        scheduler = Scheduler(hassette, parent=make_mock_parent())
+        await scheduler.initialize()
+
+        # Manual jobs have no trigger and never touch the heap.
+        job = await scheduler.register(noop, name="manual_job")
+
+        registry = MagicMock()
+        lifecycle_service = AppLifecycleService(hassette, parent=None, registry=registry)
+
+        inst = MagicMock()
+        inst.app_config.instance_name = "failed_instance"
+        inst.bus.remove_all_listeners = Mock()
+        inst.scheduler = scheduler
+        inst.cache.close = AsyncMock()
+
+        await lifecycle_service.cleanup_failed_instance(inst)
+
+        hassette.scheduler_service.remove_jobs.assert_awaited_once_with([job])
+        hassette.scheduler_service.deregister_removal_callback.assert_called_once_with(scheduler.owner_id)
 
 
 class TestShutdownInstance:

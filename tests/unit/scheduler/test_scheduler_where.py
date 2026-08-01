@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from hassette.exceptions import DependencyInjectionError
-from hassette.scheduler.classes import ScheduledJob
+from hassette.scheduler.classes import Job
 from hassette.scheduler.scheduler import _build_predicate_invoker, _normalize_where
 from hassette.scheduler.triggers import Every
 from hassette.test_utils.config import TEST_SOURCE_LOCATION
@@ -29,7 +29,7 @@ def is_dark() -> bool:
 
 
 class TestBuildPredicateInvoker:
-    """Unit tests for `_build_predicate_invoker()` — DI-based ScheduledJob detection."""
+    """Unit tests for `_build_predicate_invoker()` — DI-based Job detection."""
 
     def test_zero_arg_predicate_empty_plan(self) -> None:
         def pred() -> bool:
@@ -39,22 +39,22 @@ class TestBuildPredicateInvoker:
         assert len(invoker.params) == 0
 
     def test_annotated_scheduled_job_has_plan(self) -> None:
-        def pred(_job: ScheduledJob) -> bool:
+        def pred(_job: Job) -> bool:
             return True
 
         invoker = _build_predicate_invoker(pred)
         assert len(invoker.params) == 1
-        assert invoker.params[0].source_type is ScheduledJob
+        assert invoker.params[0].source_type is Job
 
     def test_optional_scheduled_job_annotation_has_plan(self) -> None:
-        def pred(_job: ScheduledJob | None = None) -> bool:
+        def pred(_job: Job | None = None) -> bool:
             return True
 
         invoker = _build_predicate_invoker(pred)
         assert len(invoker.params) == 1
 
     def test_scheduled_job_with_extra_optional_has_plan(self) -> None:
-        def pred(_job: ScheduledJob, _threshold: float = 0.5) -> bool:
+        def pred(_job: Job, _threshold: float = 0.5) -> bool:
             return True
 
         invoker = _build_predicate_invoker(pred)
@@ -119,14 +119,14 @@ class TestBuildPredicateInvoker:
             _build_predicate_invoker(pred)
 
     def test_invoker_resolves_kwargs_for_annotated_predicate(self) -> None:
-        def pred(job: ScheduledJob) -> bool:
+        def pred(job: Job) -> bool:
             return job.name == "test"
 
         invoker = _build_predicate_invoker(pred)
-        mock_job = MagicMock(spec=ScheduledJob)
+        mock_job = MagicMock(spec=Job)
         mock_job.name = "test"
 
-        kwargs = invoker.invoke({ScheduledJob: mock_job})
+        kwargs = invoker.invoke({Job: mock_job})
         assert kwargs == {"job": mock_job}
 
     def test_invoker_resolves_empty_kwargs_for_zero_arg(self) -> None:
@@ -134,7 +134,7 @@ class TestBuildPredicateInvoker:
             return True
 
         invoker = _build_predicate_invoker(pred)
-        kwargs = invoker.invoke({ScheduledJob: MagicMock()})
+        kwargs = invoker.invoke({Job: MagicMock()})
         assert kwargs == {}
 
 
@@ -156,7 +156,7 @@ class TestNormalizeWhere:
         assert len(invoker.params) == 0
 
     def test_single_annotated_callable_has_invoker_with_plan(self) -> None:
-        def pred(_job: ScheduledJob) -> bool:
+        def pred(_job: Job) -> bool:
             return True
 
         predicate, invoker = _normalize_where(pred)
@@ -182,7 +182,7 @@ class TestNormalizeWhere:
         assert callable(predicate)
         assert predicate is not pred_true
         assert predicate is not pred_false
-        kwargs = invoker.invoke({ScheduledJob: MagicMock(spec=ScheduledJob)})
+        kwargs = invoker.invoke({Job: MagicMock(spec=Job)})
         assert predicate(**kwargs) is False
         assert calls == ["true", "false"]
 
@@ -190,7 +190,7 @@ class TestNormalizeWhere:
         predicate, invoker = _normalize_where([lambda: True, lambda: True])
         assert predicate is not None
         assert invoker is not None
-        kwargs = invoker.invoke({ScheduledJob: MagicMock(spec=ScheduledJob)})
+        kwargs = invoker.invoke({Job: MagicMock(spec=Job)})
         assert predicate(**kwargs) is True
 
     def test_sequence_with_async_member_raises_type_error_at_registration(self) -> None:
@@ -203,7 +203,7 @@ class TestNormalizeWhere:
     def test_sequence_member_with_scheduled_job_annotation_receives_job(self) -> None:
         seen: list[str] = []
 
-        def job_pred(job: ScheduledJob) -> bool:
+        def job_pred(job: Job) -> bool:
             seen.append(job.name)
             return job.name == "expected"
 
@@ -211,9 +211,9 @@ class TestNormalizeWhere:
         assert predicate is not None
         assert invoker is not None
 
-        mock_job = MagicMock(spec=ScheduledJob)
+        mock_job = MagicMock(spec=Job)
         mock_job.name = "expected"
-        kwargs = invoker.invoke({ScheduledJob: mock_job})
+        kwargs = invoker.invoke({Job: mock_job})
         assert predicate(**kwargs) is True
         assert seen == ["expected"]
 
@@ -253,7 +253,7 @@ class TestNormalizeWhere:
 
         assert predicate is not None
         assert invoker is not None
-        kwargs = invoker.invoke({ScheduledJob: MagicMock(spec=ScheduledJob)})
+        kwargs = invoker.invoke({Job: MagicMock(spec=Job)})
         assert predicate(**kwargs) is True
 
 
@@ -279,7 +279,7 @@ class TestScheduleAcceptsWhere:
         with patch(PATCH_TARGET, return_value=(TEST_SOURCE_LOCATION, "schedule(...)")):
             scheduler = make_scheduler()
 
-            def pred(_job: ScheduledJob) -> bool:
+            def pred(_job: Job) -> bool:
                 return True
 
             job = await scheduler.schedule(

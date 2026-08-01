@@ -13,27 +13,27 @@ from hassette.utils.type_utils import get_typed_signature
 
 
 @dataclass
-class ScheduledJobStub:
-    """Stand-in for a future scheduler ScheduledJob - a plain, non-Event dataclass."""
+class JobStub:
+    """Stand-in for the scheduler Job - a plain, non-Event dataclass."""
 
     job_id: int
     name: str
 
 
-def get_job_name(job: ScheduledJobStub) -> str:
+def get_job_name(job: JobStub) -> str:
     return job.name
 
 
 def test_type_matcher_resolves_non_event_dataclass():
-    def predicate(job: ScheduledJobStub) -> bool:
+    def predicate(job: JobStub) -> bool:
         return job.job_id > 0
 
     sig = get_typed_signature(predicate)
-    plan = build_injection_plan(sig, [TypeMatcher(ScheduledJobStub)])
+    plan = build_injection_plan(sig, [TypeMatcher(JobStub)])
     invoker = CallableInvoker(plan)
 
-    job = ScheduledJobStub(job_id=42, name="every_five_minutes")
-    kwargs = invoker.invoke({ScheduledJobStub: job})
+    job = JobStub(job_id=42, name="every_five_minutes")
+    kwargs = invoker.invoke({JobStub: job})
 
     assert predicate(**kwargs) is True
 
@@ -43,7 +43,7 @@ def test_zero_arg_predicate_resolves_to_empty_kwargs():
         return True
 
     sig = get_typed_signature(predicate)
-    plan = build_injection_plan(sig, [TypeMatcher(ScheduledJobStub)])
+    plan = build_injection_plan(sig, [TypeMatcher(JobStub)])
     invoker = CallableInvoker(plan)
 
     kwargs = invoker.invoke({})
@@ -57,11 +57,11 @@ def test_annotated_matcher_extracts_field_from_non_event_source():
         return name.startswith("every")
 
     sig = get_typed_signature(predicate)
-    plan = build_injection_plan(sig, [AnnotatedMatcher(source_type=ScheduledJobStub)])
+    plan = build_injection_plan(sig, [AnnotatedMatcher(source_type=JobStub)])
     invoker = CallableInvoker(plan)
 
-    job = ScheduledJobStub(job_id=1, name="every_five_minutes")
-    kwargs = invoker.invoke({ScheduledJobStub: job})
+    job = JobStub(job_id=1, name="every_five_minutes")
+    kwargs = invoker.invoke({JobStub: job})
 
     assert kwargs == {"name": "every_five_minutes"}
     assert predicate(**kwargs) is True
@@ -69,7 +69,7 @@ def test_annotated_matcher_extracts_field_from_non_event_source():
 
 def test_mixed_matchers_resolve_full_job_and_extracted_field():
     def predicate(
-        job: ScheduledJobStub,
+        job: JobStub,
         name: Annotated[str, AnnotationDetails(extractor=get_job_name)],
     ) -> bool:
         return job.job_id > 0 and name == job.name
@@ -77,11 +77,11 @@ def test_mixed_matchers_resolve_full_job_and_extracted_field():
     sig = get_typed_signature(predicate)
     plan = build_injection_plan(
         sig,
-        [AnnotatedMatcher(source_type=ScheduledJobStub), TypeMatcher(ScheduledJobStub)],
+        [AnnotatedMatcher(source_type=JobStub), TypeMatcher(JobStub)],
     )
     invoker = CallableInvoker(plan)
 
-    job = ScheduledJobStub(job_id=7, name="daily_reset")
-    kwargs = invoker.invoke({ScheduledJobStub: job})
+    job = JobStub(job_id=7, name="daily_reset")
+    kwargs = invoker.invoke({JobStub: job})
 
     assert predicate(**kwargs) is True

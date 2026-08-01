@@ -5,6 +5,7 @@ import type { JobData, ListenerData } from "../../api/endpoints";
 import { useRelativeTime } from "../../hooks/use-relative-time";
 import { STATUS_DOT_SIZE } from "../../utils/constants";
 import { formatTimestamp, pluralize } from "../../utils/format";
+import { scheduleStatusLabel } from "../../utils/handler-rows";
 import type { StatusKind } from "../../utils/status";
 import { StatusShape } from "../shared/status-shape";
 import { isFailing, itemErrorMessage, itemKindChip, itemRunCount } from "./overview-tab-helpers";
@@ -59,6 +60,10 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
     }
   }
 
+  const scheduleStatus =
+    item.kind === "job"
+      ? scheduleStatusLabel(item.data.schedule_status ?? null, item.data.schedule_status_reason ?? null)
+      : null;
   const callLabel = item.kind === "listener" ? "call" : "run";
   const isIdle = item.statusKind === "mute";
   const label = item.humanDescription ? `${item.name}: ${item.humanDescription}` : item.name;
@@ -113,6 +118,11 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
             >
               {item.data.mode}
             </span>
+          )}
+          {scheduleStatus !== null && (
+            <Badge variant="muted" size="xs" data-testid="schedule-status-badge">
+              {scheduleStatus}
+            </Badge>
           )}
           <span title={`Total ${callLabel}s`}>{pluralize(runCount, callLabel)}</span>
           {failed > 0 && (

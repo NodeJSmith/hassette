@@ -133,7 +133,6 @@ def mock_hassette() -> AsyncMock:
     hassette.bus_service.router = MagicMock()
     hassette.bus_service.router.get_listeners_by_owner = Mock(return_value=[])
     hassette.scheduler_service = MagicMock()
-    hassette.scheduler_service.remove_jobs_by_owner = MagicMock(side_effect=lambda _owner: asyncio.sleep(0))
     hassette.session_id = 1
     hassette.try_session_id.return_value = 1
     return hassette
@@ -211,6 +210,7 @@ def make_mock_app_instance(*, instance_name: str = "test_instance", class_name: 
     app.bus.owner_id = f"{class_name}.{instance_name}"
     app.scheduler = MagicMock()
     app.scheduler.get_job_db_ids = Mock(return_value=[])
+    app.scheduler.remove_all_jobs = Mock(side_effect=lambda: asyncio.sleep(0))
     return app
 
 
@@ -434,6 +434,7 @@ def make_scheduler_service(
     svc.hassette.config.scheduler.behind_schedule_threshold_seconds = behind_schedule_threshold
     svc.hassette.config.scheduler.job_timeout_seconds = config_timeout
     svc._removal_callbacks = {}
+    svc._jobs_by_id = {}
     svc.logger = MagicMock()
     svc._wakeup_event = asyncio.Event()
 
@@ -443,6 +444,7 @@ def make_scheduler_service(
 
     svc._executor = MagicMock()
     svc._executor.execute = AsyncMock()
+    svc._executor.mark_job_status = AsyncMock()
 
     svc.task_bucket = MagicMock()
     svc.task_bucket.make_async_adapter = MagicMock(side_effect=lambda fn: fn)

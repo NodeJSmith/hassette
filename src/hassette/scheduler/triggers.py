@@ -23,18 +23,30 @@ if typing.TYPE_CHECKING:
 
 LOGGER = getLogger(__name__)
 
-NO_OCCURRENCE = ZonedDateTime(9999, 12, 31, 23, 59, 59, tz="UTC")
-"""Fire time used by :class:`EntityTime` when the entity carries no usable time.
-
-The scheduler heap has no "registered but unscheduled" state, so a trigger that
-currently has nowhere to fire parks the job at a time it will never reach. The job
-keeps its database row and its telemetry, and the state-change listener that
-``Scheduler`` registers alongside it moves the job back to a real time as soon as
-the entity reports one.
-"""
-
 UNUSABLE_STATE_VALUES = frozenset({"", "unknown", "unavailable", "none", "null"})
 """Entity state strings that carry no time value."""
+
+
+class _WaitingSentinel:
+    """Typed sentinel returned by :class:`EntityTime` when it has no occurrence right now.
+
+    Distinct from ``None`` (the trigger is permanently exhausted) and from a concrete
+    ``ZonedDateTime`` (a real due occurrence): ``WAITING`` means "nowhere to fire right now,
+    but not exhausted — the entity may report a usable time later." Only ``EntityTime``
+    returns this value; every other trigger's ``first_run_time()``/``next_run_time()``
+    return type never includes it.
+
+    Replaces the old year-9999 ``NO_OCCURRENCE`` timestamp sentinel, which parked a waiting
+    job on the due-time heap. ``WAITING`` instead keeps the job registered and watched but
+    off the heap — see ``Job.schedule_status`` (``ScheduleStatus.WAITING``).
+    """
+
+    def __repr__(self) -> str:
+        return "WAITING"
+
+
+WAITING = _WaitingSentinel()
+"""Singleton sentinel: an :class:`EntityTime`-triggered job has no occurrence right now."""
 
 
 def parse_entity_time(value: Any) -> ZonedDateTime | None:
@@ -410,9 +422,10 @@ class EntityTime:
     changes, ``Scheduler`` moves the job to the new time — no manual cancel and
     reschedule.
 
-    An entity with no usable value (unavailable, ``unknown``, no alarm set) parks
-    the job at :data:`NO_OCCURRENCE` instead of removing it. The job stays
-    registered and starts firing again as soon as the entity reports a time.
+    An entity with no usable value (unavailable, ``unknown``, no alarm set) returns
+    :data:`WAITING` instead of a timestamp. The job stays registered and watched — see
+    ``Job.schedule_status`` (``ScheduleStatus.WAITING``) — and starts firing again as soon
+    as the entity reports a time.
 
     Args:
         entity_id: The entity holding the time, e.g. ``"sensor.phone_next_alarm"``.
@@ -452,17 +465,20 @@ class EntityTime:
         """Attach the state source used to read the entity.
 
         Called by ``Scheduler.schedule()`` before the first run time is computed.
-        An unbound trigger resolves to :data:`NO_OCCURRENCE`, so a trigger used
+        An unbound trigger resolves to :data:`WAITING`, so a trigger used
         outside the scheduler never fires rather than raising.
         """
         self._state_reader = reader
 
-    def resolve(self, current_time: ZonedDateTime) -> ZonedDateTime | None:
-        """Return the next fire time read from the bound state source, or ``None``."""
+    def resolve(self, current_time: ZonedDateTime) -> "ZonedDateTime | _WaitingSentinel":
+        """Return the next fire time read from the bound state source, or :data:`WAITING`
+        when the source has no usable time right now.
+        """
         if self._state_reader is None:
             LOGGER.debug("EntityTime(%s): no state reader bound", self.entity_id)
-            return None
-        return self.resolve_from_state(self._state_reader(self.entity_id), current_time)
+            return WAITING
+        result = self.resolve_from_state(self._state_reader(self.entity_id), current_time)
+        return result if result is not None else WAITING
 
     def resolve_from_state(self, state: "HassStateDict | None", current_time: ZonedDateTime) -> ZonedDateTime | None:
         """Return the next fire time for an explicit state, or ``None`` when there is none.
@@ -497,17 +513,19 @@ class EntityTime:
             return None
         return target.round("second")
 
-    def first_run_time(self, current_time: ZonedDateTime) -> ZonedDateTime:
-        """Return the entity's next time, or ``NO_OCCURRENCE`` when it has none."""
-        return self.resolve(current_time) or NO_OCCURRENCE
+    def first_run_time(self, current_time: ZonedDateTime) -> "ZonedDateTime | _WaitingSentinel":
+        """Return the entity's next time, or :data:`WAITING` when it has none right now."""
+        return self.resolve(current_time)
 
-    def next_run_time(self, previous_run: ZonedDateTime, current_time: ZonedDateTime) -> ZonedDateTime:
-        """Re-read the entity and return its next time, or ``NO_OCCURRENCE`` when it has none.
+    def next_run_time(
+        self, previous_run: ZonedDateTime, current_time: ZonedDateTime
+    ) -> "ZonedDateTime | _WaitingSentinel":
+        """Re-read the entity and return its next time, or :data:`WAITING` when it has none right now.
 
         Never returns ``None``: the job outlives any individual fire so the entity can
         schedule it again.
         """
-        return self.resolve(current_time) or NO_OCCURRENCE
+        return self.resolve(current_time)
 
     def trigger_label(self) -> str:
         return "entity_time"

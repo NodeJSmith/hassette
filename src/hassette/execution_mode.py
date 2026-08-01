@@ -10,8 +10,10 @@ cancellable handle, and (for ``queued``) drains pending factories one at a time.
 This module also provides the stateless dispatch-bridge helpers — ``run_with_stall_watch``,
 ``run_through_guard``, ``drain_pending_done`` — that both the bus (``HandlerInvoker``) and the
 scheduler (``SchedulerService``) call to wrap the guard with a completion-future bridge, a stall
-watchdog, and the drain. The module stays a dependency-free leaf (stdlib + ``hassette.types.enums``)
-so neither subsystem has to import the other.
+watchdog, and the drain. The module also provides ``resolve_execution_mode()``, the tier-aware
+mode resolution shared by both subsystems' registration paths. The module stays a dependency-free
+leaf (stdlib + ``hassette.types.enums`` + ``hassette.types.types``) so neither subsystem has to
+import the other.
 """
 
 import asyncio
@@ -21,6 +23,7 @@ from logging import getLogger
 from typing import Final
 
 from hassette.types.enums import ExecutionMode, Outcome
+from hassette.types.types import SourceTier
 
 LOGGER = getLogger(__name__)
 
@@ -38,6 +41,26 @@ default binds at definition time and would defeat test patches)."""
 
 RunAndTrack = Callable[[], "asyncio.Task[None]"]
 """A caller-supplied callable that spawns one handler invocation and returns its task."""
+
+
+def resolve_execution_mode(mode: "ExecutionMode | str | None", source_tier: SourceTier) -> ExecutionMode:
+    """Resolve a registration-time ``mode`` argument to a concrete ``ExecutionMode``.
+
+    Shared by the bus and scheduler so both registration paths apply the same tier-aware
+    default and string-coercion rule. An omitted mode (``None``) resolves to ``parallel`` for
+    framework registrations and ``single`` for app registrations. An explicit mode always wins.
+    A raw string is coerced here so an invalid value raises a clear ``ValueError`` at
+    registration time rather than surfacing later as an attribute error.
+    """
+    if mode is None:
+        return ExecutionMode.PARALLEL if source_tier == "framework" else ExecutionMode.SINGLE
+    if isinstance(mode, ExecutionMode):
+        return mode
+    try:
+        return ExecutionMode(mode)
+    except ValueError as exc:
+        valid = ", ".join(repr(m.value) for m in ExecutionMode)
+        raise ValueError(f"Invalid execution mode {mode!r}; must be one of {valid}") from exc
 
 
 class ExecutionModeGuard:

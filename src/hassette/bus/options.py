@@ -56,7 +56,7 @@ class Options(TypedDict, total=False):
     raises ``ValueError`` listing changed fields if the configuration differs. The returned
     subscription is the same live handle as the original registrant's — cancelling it removes
     the listener for all holders (there is no reference counting).
-    ``"replace"`` cancels the existing listener (recording ``cancelled_at`` in telemetry)
+    ``"replace"`` cancels the existing listener (recording ``removed_at`` in telemetry)
     and registers the new listener on the same natural-key row.
 
     Lambda/closure predicates compare by identity, so re-registering under ``"skip"`` with a

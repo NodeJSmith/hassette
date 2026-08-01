@@ -25,6 +25,10 @@ TS_RECENT = 1_704_067_100.0
 TS_OLDER = 1_704_067_050.0
 TS_OLDEST = 1_704_067_000.0
 
+# job_id of the manual-only job seeded so it's discoverable and submittable through the live
+# UI. Shared between the DB telemetry row and the trigger stub.
+MANUAL_JOB_ID = 4
+
 
 def build_manifests() -> list[AppManifestInfo]:
     """Build a rich set of app manifests for e2e tests."""
@@ -361,6 +365,27 @@ def build_job_telemetry() -> dict[str, list[JobSummary]]:
             total_duration_ms=60.0,
             avg_duration_ms=12.0,
         ),
+        # Manual-only job — no automatic trigger, submitted only via Run Now. Trigger
+        # submission is wired via `wire_scheduler_trigger()` below.
+        JobSummary(
+            job_id=MANUAL_JOB_ID,
+            app_key="my_app",
+            instance_index=0,
+            job_name="send_notification",
+            handler_method="send_notification",
+            trigger_type=None,
+            args_json="[]",
+            kwargs_json="{}",
+            source_location="my_app.py:60",
+            registration_source="on_initialize",
+            total_executions=0,
+            successful=0,
+            failed=0,
+            last_executed_at=None,
+            total_duration_ms=0.0,
+            avg_duration_ms=0.0,
+            schedule_status="manual",
+        ),
     ]
     telemetry_jobs_broken_app = [
         JobSummary(
@@ -627,6 +652,26 @@ def wire_job_telemetry(hassette, jobs_by_app: dict[str, list[JobSummary]]) -> No
         return jobs_by_app.get(app_key, [])
 
     hassette._telemetry_query_service.get_job_summary = AsyncMock(side_effect=_job_side_effect)
+
+
+def wire_scheduler_trigger(hassette, job_names_by_id: dict[int, str]) -> None:
+    """Wire ``POST /api/scheduler/jobs/{id}/trigger`` to succeed for known job ids.
+
+    ``SchedulerService.trigger_job()``/``submit_job()`` normally resolve against the live
+    registry (``_jobs_by_id``); this stub bypasses that and just returns a minimal live-job
+    stand-in so the route's ``job.name`` access and 202 response construction succeed. Used by
+    e2e tests that click "Run Now" — a job id not present in
+    ``job_names_by_id`` raises, mirroring the real 409 "no live registration" outcome.
+    """
+
+    async def _trigger_job(job_id: int):
+        name = job_names_by_id.get(job_id)
+        if name is None:
+            raise ValueError(f"No live registration for job_id={job_id}")
+        return SimpleNamespace(name=name, db_id=job_id)
+
+    hassette._scheduler_service.trigger_job = AsyncMock(side_effect=_trigger_job)
+    hassette._scheduler_service.submit_job = MagicMock()
 
 
 def wire_invocation_telemetry(hassette, executions: list[Execution]) -> None:

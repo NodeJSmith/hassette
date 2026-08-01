@@ -1,17 +1,16 @@
 """Global scheduler jobs endpoint for the Hassette Web API.
 
-Returns all scheduled jobs across all apps, enriched with live heap data.
+Returns all scheduled jobs across all apps, enriched with live registry data.
 """
 
 from fastapi import APIRouter, HTTPException, Query, Response
 
-import hassette.utils.date_utils as date_utils
+from hassette.exceptions import JobRemovedError
 from hassette.schemas.job_models import JobSummary
-from hassette.types.enums import ExecutionMode
 from hassette.types.types import QuerySourceTier
 from hassette.web.dependencies import SOURCE_TIER_PARAM, SchedulerDep, TelemetryDep, db_degrades_to
 from hassette.web.models import JobTriggerResponse
-from hassette.web.utils import enrich_jobs_with_live_heap
+from hassette.web.utils import enrich_jobs_with_live_data
 
 router = APIRouter(prefix="/scheduler", tags=["scheduler"])
 
@@ -24,18 +23,19 @@ async def all_jobs(
     since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
     source_tier: QuerySourceTier = SOURCE_TIER_PARAM,
 ) -> list[JobSummary]:
-    """All scheduled jobs across all apps, enriched with live heap data.
+    """All scheduled jobs across all apps, enriched with live registry data.
 
-    Live fields (``next_run``, ``fire_at``, ``jitter``) are joined
-    from the live scheduler heap by ``db_id``.  On heap failure the DB rows are
-    returned without enrichment (degraded but functional; logged warning, no 500).
+    ``schedule_status``/``schedule_status_reason`` and, for ``SCHEDULED`` jobs, live timing
+    (``next_run``, ``fire_at``, ``jitter``) are joined from the live scheduler registry by
+    ``db_id``. On registry failure the DB rows are returned without enrichment (degraded but
+    functional; logged warning, no 500).
 
-    The heap snapshot is taken once — not per app — to avoid fan-out overhead.
+    The registry snapshot is taken once — not per app — to avoid fan-out overhead.
     """
     jobs: list[JobSummary] = []
     with db_degrades_to(response):
         db_jobs = list(await telemetry.get_job_summary(since=since, source_tier=source_tier))
-        jobs = await enrich_jobs_with_live_heap(db_jobs, scheduler_service, context="global enrichment")
+        jobs = await enrich_jobs_with_live_data(db_jobs, scheduler_service, context="global enrichment")
     return jobs
 
 
@@ -43,34 +43,33 @@ async def all_jobs(
     "/jobs/{job_id}/trigger",
     status_code=202,
     response_model=JobTriggerResponse,
-    responses={409: {"description": "Job is not currently triggerable or is already executing"}},
+    responses={409: {"description": "Job is not currently registered (no live registration)"}},
 )
 async def trigger_job(job_id: int, scheduler_service: SchedulerDep) -> JobTriggerResponse:
-    """Manually trigger a scheduled job to run immediately.
+    """Manually submit a job for immediate execution.
 
-    Looks up the job on the live scheduler heap by ``job_id`` (the job's ``db_id``). Returns
-    202 and dispatches the job through the same ``run_job_with_guard()`` path as a scheduled
-    fire, recording the execution with ``trigger_mode="manual"``. Returns 409 when the job
-    is not currently triggerable (already fired, mid-execution from its scheduled fire, or its
-    owning app is not running) or when a ``SINGLE``-mode job is currently executing.
+    Resolves the job by ``job_id`` (the job's ``db_id``) in the live scheduler registry, then
+    submits it through the same ``SchedulerService.submit_job()`` path used by ``Job.submit()``
+    — fire-and-observe, dispatched via ``run_job_with_guard(job, trigger_mode="manual")``.
 
-    A still-pending one-shot job (``After``/``Once`` trigger) is dequeued from the heap
-    before dispatch to prevent a second scheduled fire at its original time.
+    A live registration always returns 202 accepted, even when overlap policy (``single``
+    mode, queue capacity) later suppresses or drops the invocation — those outcomes are
+    decided asynchronously by the job's existing guard and are not previewed here. Returns
+    409 when the job has no live registration: never registered, or removed via
+    ``Job.remove()``, ``Scheduler.remove_job()``/``remove_group()``, owner shutdown, or
+    ``if_exists="replace"`` since the caller last saw it.
+
+    Manual submission never consumes, moves, or completes a pending automatic occurrence —
+    a pending one-shot or recurring schedule still fires at its own time.
     """
     try:
         job = await scheduler_service.trigger_job(job_id)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
-    if job.mode is ExecutionMode.SINGLE and job.guard.is_running():
-        raise HTTPException(status_code=409, detail="Job is currently executing")
-
-    if job.trigger is None or job.trigger.next_run_time(job.next_run, date_utils.now()) is None:
-        scheduler_service.dequeue_job(job)
-
-    scheduler_service.task_bucket.spawn(
-        scheduler_service.run_job_with_guard(job, trigger_mode="manual"),
-        name="scheduler:manual_trigger",
-    )
+    try:
+        scheduler_service.submit_job(job)
+    except JobRemovedError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     return JobTriggerResponse(status="accepted", job_id=job_id, job_name=job.name)

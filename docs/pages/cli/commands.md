@@ -198,14 +198,14 @@ Lists all scheduled jobs, or shows execution history for a specific job. A job i
 
 ```console
 $ hassette job
-┏━━━━┳━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━┳━━━━┳━━━━━━┳━━━━━┳━━━━━━━━━━┓
-┃ ID ┃ App              ┃ Handler              ┃ Trigger  ┃ Schedule ┃ Total ┃ OK ┃ Fail ┃ Avg ┃ Next Run ┃
-┡━━━━╇━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━╇━━━━╇━━━━━━╇━━━━━╇━━━━━━━━━━┩
-│ 1  │ config_app       │ StateProxy.sync_all  │ interval │ every    │ 0     │ 0  │ 0    │ 0ms │ soon     │
-└────┴──────────────────┴──────────────────────┴──────────┴──────────┴───────┴────┴──────┴─────┴──────────┘
+┏━━━━┳━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━┳━━━━┳━━━━━━┳━━━━━┳━━━━━━━━━━┓
+┃ ID ┃ App              ┃ Handler              ┃ Trigger  ┃ Status    ┃ Total ┃ OK ┃ Fail ┃ Avg ┃ Next Run ┃
+┡━━━━╇━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━╇━━━━╇━━━━━━╇━━━━━╇━━━━━━━━━━┩
+│ 1  │ config_app       │ StateProxy.sync_all  │ interval │ scheduled │ 0     │ 0  │ 0    │ 0ms │ soon     │
+└────┴──────────────────┴──────────────────────┴──────────┴───────────┴───────┴────┴──────┴─────┴──────────┘
 ```
 
-Each row shows the job ID, app key, handler method, trigger type, schedule label, execution counts, average duration, and next scheduled run time.
+Each row shows the job ID, app key, handler method, trigger type, schedule status (`scheduled`, `waiting`, `completed`, or `manual`), execution counts, average duration, and next scheduled run time (blank unless the status is `scheduled`).
 
 Passing a job ID shows its execution history:
 

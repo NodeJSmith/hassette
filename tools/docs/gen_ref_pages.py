@@ -38,7 +38,7 @@ PUBLIC_MODULES: frozenset[str] = frozenset(
         "hassette.event_handling.predicates",  # P / predicates
         # Tier B: curated additions beyond __all__
         "hassette.models.states.base",  # BaseState, StringBaseState, NumericBaseState, etc.
-        "hassette.scheduler.classes",  # ScheduledJob
+        "hassette.scheduler.classes",  # Job
         "hassette.test_utils",  # AppTestHarness, RecordingApi, event factories, etc.
         # Tier C: autoref targets in narrative docs
         "hassette.exceptions",  # HassetteError, EntityNotFoundError, InvalidAuthError, HassetteForgottenAwaitWarning

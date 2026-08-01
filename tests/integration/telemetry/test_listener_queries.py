@@ -58,11 +58,11 @@ class TestGetListenerSummary:
         query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
-        """get_listener_summary excludes listeners with cancelled_at set (replace/cancel)."""
+        """get_listener_summary excludes listeners with removed_at set (replace/cancel)."""
         db_svc, _session_id = db
         live = await insert_listener(db_svc, handler_method="on_live")
         cancelled = await insert_listener(db_svc, handler_method="on_cancelled")
-        await db_svc.db.execute("UPDATE listeners SET cancelled_at = ? WHERE id = ?", (BASE_TS, cancelled))
+        await db_svc.db.execute("UPDATE listeners SET removed_at = ? WHERE id = ?", (BASE_TS, cancelled))
         await db_svc.db.commit()
 
         scoped = await query_service.get_listener_summary("test_app", 0)
@@ -73,11 +73,11 @@ class TestGetListenerSummary:
         query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
-        """get_listener_summary(app_key=None) excludes listeners with cancelled_at set."""
+        """get_listener_summary(app_key=None) excludes listeners with removed_at set."""
         db_svc, _session_id = db
         live = await insert_listener(db_svc, handler_method="on_live")
         cancelled = await insert_listener(db_svc, handler_method="on_cancelled")
-        await db_svc.db.execute("UPDATE listeners SET cancelled_at = ? WHERE id = ?", (BASE_TS, cancelled))
+        await db_svc.db.execute("UPDATE listeners SET removed_at = ? WHERE id = ?", (BASE_TS, cancelled))
         await db_svc.db.commit()
 
         all_rows = await query_service.get_listener_summary()

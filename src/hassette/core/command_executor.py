@@ -708,23 +708,35 @@ class CommandExecutor(Service):
         manifest_id = await self.hassette.database_service.submit(self.repository.upsert_app_manifest(manifest))
         return manifest_id
 
-    async def mark_job_cancelled(self, db_id: int) -> None:
-        """Set ``cancelled_at`` on the scheduled_jobs row to persist durable cancellation state.
+    async def mark_job_removed(self, db_id: int) -> None:
+        """Set ``removed_at`` on the scheduled_jobs row to persist durable removal state.
 
-        Delegates to ``TelemetryRepository.mark_job_cancelled`` via ``DatabaseService.submit``.
+        Delegates to ``TelemetryRepository.mark_job_removed`` via ``DatabaseService.submit``.
 
         Args:
-            db_id: The ``id`` of the ``scheduled_jobs`` row to mark as cancelled.
+            db_id: The ``id`` of the ``scheduled_jobs`` row to mark as removed.
         """
-        await self.hassette.database_service.submit(self.repository.mark_job_cancelled(db_id))
+        await self.hassette.database_service.submit(self.repository.mark_job_removed(db_id))
+
+    async def mark_job_status(self, db_id: int, status: str, reason: str | None) -> None:
+        """Persist a schedule-status transition for a scheduled_jobs row.
+
+        Delegates to ``TelemetryRepository.mark_job_status`` via ``DatabaseService.submit``.
+
+        Args:
+            db_id: The ``id`` of the ``scheduled_jobs`` row to update.
+            status: The new ``schedule_status`` value.
+            reason: The new ``schedule_status_reason`` value, or ``None``.
+        """
+        await self.hassette.database_service.submit(self.repository.mark_job_status(db_id, status, reason))
 
     async def mark_listener_cancelled(self, db_id: int) -> None:
-        """Set ``cancelled_at`` on the listeners row to persist durable cancellation state.
+        """Set ``removed_at`` on the listeners row to persist durable removal state.
 
         Delegates to ``TelemetryRepository.mark_listener_cancelled`` via ``DatabaseService.submit``.
 
         Args:
-            db_id: The ``id`` of the ``listeners`` row to mark as cancelled.
+            db_id: The ``id`` of the ``listeners`` row to mark as removed.
         """
         await self.hassette.database_service.submit(self.repository.mark_listener_cancelled(db_id))
 
@@ -980,7 +992,7 @@ class CommandExecutor(Service):
         handler from job completions.
 
         Payloads include ``app_key`` and ``instance_index`` sourced directly from the
-        in-memory record (populated at build time from the Listener/ScheduledJob object).
+        in-memory record (populated at build time from the Listener/Job object).
 
         Errors are suppressed so that emission failures never affect telemetry persistence.
         """

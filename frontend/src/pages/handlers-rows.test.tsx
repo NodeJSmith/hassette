@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { createUnifiedRow } from "../test/factories";
 import { createWouterMock } from "../test/mock-wouter";
 import { renderWithAppState } from "../test/render-helpers";
 import { formatRate, SECONDS_PER_HOUR } from "../utils/format";
@@ -9,23 +10,16 @@ import { HandlerMobileRow, HandlerTableRow } from "./handlers-rows";
 vi.mock("wouter", () => createWouterMock());
 
 function createRow(overrides: Partial<UnifiedRow> = {}): UnifiedRow {
-  return {
-    kind: "listener",
-    id: "listener/1",
-    handlerId: 1,
+  return createUnifiedRow({
     app_key: "my_app",
     name: "on_light_change",
     handler_method: "my_app.MyApp.on_light_change",
-    trigger: "state change",
     runs: 42,
     failed: 2,
     timed_out: 1,
-    cancelled: 0,
     avg_duration_ms: 150,
-    next_run_ts: null,
-    source_tier: "app",
     ...overrides,
-  };
+  });
 }
 
 // HandlerTableRow must be inside <table><tbody> or the DOM is invalid
@@ -134,9 +128,41 @@ describe("HandlerTableRow", () => {
     expect(getByText(expected)).toBeDefined();
   });
 
-  it("shows '—' for next_run when next_run_ts is null", () => {
-    const { container } = renderTableRow(createRow({ next_run_ts: null }));
+  it("shows '—' for next_run when next_run_ts is null and there is no schedule_status", () => {
+    const { container } = renderTableRow(createRow({ next_run_ts: null, schedule_status: null }));
     // Last td (index 10) is the next_run cell
+    const tds = container.querySelectorAll("td");
+    expect(tds[10].textContent).toBe("—");
+  });
+
+  it.each([
+    ["manual", "manual"],
+    ["waiting", "waiting"],
+    ["completed", "completed"],
+  ] as const)(
+    "shows schedule_status '%s' label in the next_run cell for jobs with null next_run_ts",
+    (status, label) => {
+      const { container } = renderTableRow(createRow({ kind: "job", next_run_ts: null, schedule_status: status }));
+      const tds = container.querySelectorAll("td");
+      expect(tds[10].textContent).toBe(label);
+    },
+  );
+
+  it("shows 'unknown' in the next_run cell for legacy_unknown scheduled jobs", () => {
+    const { container } = renderTableRow(
+      createRow({
+        kind: "job",
+        next_run_ts: null,
+        schedule_status: "scheduled",
+        schedule_status_reason: "legacy_unknown",
+      }),
+    );
+    const tds = container.querySelectorAll("td");
+    expect(tds[10].textContent).toBe("unknown");
+  });
+
+  it("does not show schedule_status label for listeners even if schedule_status were set", () => {
+    const { container } = renderTableRow(createRow({ kind: "listener", next_run_ts: null, schedule_status: "manual" }));
     const tds = container.querySelectorAll("td");
     expect(tds[10].textContent).toBe("—");
   });
@@ -215,10 +241,16 @@ describe("HandlerMobileRow", () => {
     expect(queryByText(/^next /i)).toBeNull();
   });
 
-  it("does not show footer for jobs with null next_run_ts", () => {
-    const row = createRow({ kind: "job", next_run_ts: null });
+  it("does not show footer for jobs with null next_run_ts and no schedule_status", () => {
+    const row = createRow({ kind: "job", next_run_ts: null, schedule_status: null });
     const { queryByText } = renderMobileRow(row);
     expect(queryByText(/^next /i)).toBeNull();
+  });
+
+  it("shows schedule_status label (without 'next' prefix) for jobs with null next_run_ts", () => {
+    const row = createRow({ kind: "job", next_run_ts: null, schedule_status: "manual" });
+    const { getByTestId } = renderMobileRow(row);
+    expect(getByTestId("handler-row-schedule-status").textContent).toBe("manual");
   });
 
   it("has correct data-testid", () => {

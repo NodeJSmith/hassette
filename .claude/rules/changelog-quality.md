@@ -88,15 +88,25 @@ The `BREAKING CHANGE:` footer is a [conventional commit trailer](https://www.con
 
 ### Multiple breaking changes
 
-Use multiple `BREAKING CHANGE:` footers, each separated by a blank line:
+Do **not** use multiple `BREAKING CHANGE:` footers. Verified directly against release-please's
+own commit parser (`src/commit.ts`, `@conventional-commits/parser`): only the *first* `BREAKING
+CHANGE:` footer in a commit becomes a note — every subsequent one is silently dropped, not merged
+and not appended. A PR with four separate footers will surface exactly one breaking-change bullet
+in the changelog.
+
+Use **one** `BREAKING CHANGE:` footer, with a `####` header + `- ` bulleted list for each
+additional item on the lines that follow. This is release-please's documented extended-context
+format (see `hasExtendedContext` in `commit.ts`) and was confirmed to survive parsing intact,
+including all bullets:
 
 ```
-BREAKING CHANGE: `HassettePayload.event_id` changed from `int` to
-`str` (UUID4). Update comparisons to use string UUIDs.
-
-BREAKING CHANGE: `RecordingApi.get_entity` now requires an explicit
-`BaseEntity` subclass model argument. Call `get_state(entity_id)` for
-registry-converted state without a specific model.
+BREAKING CHANGE: This release renames the scheduler's public job type and its removal API.
+#### Renamed types and methods
+- `ScheduledJob` is renamed to `Job`, the single public runtime type returned by both
+  `schedule()` and the new `register()`.
+- `ScheduledJob.cancel()` is renamed to `Job.remove()`.
+#### Renamed database columns
+- The persisted `cancelled_at` column is renamed to `removed_at`.
 ```
 
 ## Pre-release changelog review

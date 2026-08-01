@@ -10,7 +10,7 @@ from hassette.web.dependencies import RuntimeDep, TelemetryDep, SchedulerDep, Ha
 
 - `RuntimeDep` — live system state (app status, events, WebSocket)
 - `TelemetryDep` — historical telemetry from the database (listeners, jobs, errors, summaries)
-- `SchedulerDep` — live scheduler heap access (`get_all_jobs()`, `mark_job_cancelled()`)
+- `SchedulerDep` — live scheduler registry access (`get_all_jobs()`, `mark_job_removed()`)
 - `HassetteDep` — the root Hassette instance (drop counters, ready event)
 - `ApiDep` — Home Assistant REST/WebSocket API
 
@@ -67,7 +67,7 @@ Line numbers are approximate (captured during planning, pre-migration) — grep 
 | 2 | `telemetry.py` | 132 | `app_health` | 503 | `AppHealthResponse(error_rate=0.0, ...)` | **B** | Move `error_rate` computation and success `AppHealthResponse` inside `with`; tail return |
 | 3 | `telemetry.py` | 176 | `app_listeners` | 503 | `[]` | **B** | Move `live_counts` fetch and list-comp inside `with` (both depend on `listeners`); tail return |
 | 4 | `telemetry.py` | 206 | `app_activity` | 503 | `[]` | **A** | One-line wrap; `return` is inside the current `try` |
-| 5 | `telemetry.py` | 234 | `app_jobs` | 503 | `[]` | **B** | Move `enrich_jobs_with_live_heap` call inside `with` (must skip on failure); tail return |
+| 5 | `telemetry.py` | 234 | `app_jobs` | 503 | `[]` | **B** | Move `enrich_jobs_with_live_data` call inside `with` (must skip on failure); tail return |
 | 6 | `telemetry.py` | 259 | `list_executions` | 503 | `[]` | **A** | One-line wrap; `return` is inside the current `try` |
 | 7 | `telemetry.py` | 276 | `listener_executions` | 503 | `[]` | **A** | One-line wrap; `return` is inside the current `try` |
 | 8 | `telemetry.py` | 293 | `job_executions` | 503 | `[]` | **A** | One-line wrap; `return` is inside the current `try` |
@@ -82,11 +82,11 @@ Line numbers are approximate (captured during planning, pre-migration) — grep 
 | 14 | `executions.py` | 41 | `check_retention_expired_uuid4` (helper) | 200 (returns `False`) | `False` | **D** | EXCLUDED — silent false, no 503; part of multi-failure `get_execution_logs` |
 | 15 | `executions.py` | 75 | `get_execution_logs` — record fetch | 503 | `LogsByExecutionResponse(records=[], ...)` | **D** | EXCLUDED — multi-failure: record fetch is 503, retention check is silent-false; separate semantics |
 | 16 | `logs.py` | 54 | `get_logs` | 503 | `[]` | **A** | One-line wrap; list-comp + `return` are both inside the current `try` |
-| 17 | `scheduler.py` | 38 | `all_jobs` | 503 | `[]` | **B** | Move `enrich_jobs_with_live_heap` call inside `with` (must skip on failure); tail return |
+| 17 | `scheduler.py` | 38 | `all_jobs` | 503 | `[]` | **B** | Move `enrich_jobs_with_live_data` call inside `with` (must skip on failure); tail return |
 
 **Count:** A: 5, B: 8, C: 4, D: 3 — 20 total.  All A/B sites are migrated to `db_degrades_to`: 10 in #1108a (rows 1-8, 16, 17) plus row 13 (`get_listener_metrics`) in #1095/T05 (deferred from #1108a to avoid double-touching, since #1095 also collapsed its dispatch), plus rows 18-19 (`dashboard_app_grid`/`get_app_manifests` DB spine queries) in #1236/T03 — 13 migrated. Category-C sites (rows 9-12) keep their inline `try/except` unchanged — they are enrichment queries, independent of the Category B spine. Category-D sites (rows 14-15, 20) handle multiple failure modes inline; row 20 (`get_app_manifest`) is new in #1236/T03 — 503 for DB failure vs. 404 for a genuinely unknown `app_key`.
 
-**B-site criterion:** "does any code after the query need to be skipped when the query fails?"  For sites 3, 5, 13, 17: the post-query call (`live_execution_counts()`, `enrich_jobs_with_live_heap`) runs against an empty list today only because the explicit `return []` exits early — a tail-return CM would run it against the default, so it must move inside the `with`.  For sites 1, 2: the success-path response construction uses data from the query result directly and must be skipped.
+**B-site criterion:** "does any code after the query need to be skipped when the query fails?"  For sites 3, 5, 13, 17: the post-query call (`live_execution_counts()`, `enrich_jobs_with_live_data`) runs against an empty list today only because the explicit `return []` exits early — a tail-return CM would run it against the default, so it must move inside the `with`.  For sites 1, 2: the success-path response construction uses data from the query result directly and must be skipped.
 
 ## Route Registration Pattern
 
