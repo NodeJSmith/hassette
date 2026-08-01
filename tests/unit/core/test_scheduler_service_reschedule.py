@@ -15,6 +15,7 @@ Tests cover:
 - _enqueue_then_register: uses trigger protocol methods; no isinstance dispatch
 """
 
+import asyncio
 import inspect
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -224,6 +225,10 @@ class TestJitter:
         """pop_due_and_peek_next dequeues based on fire_at, not next_run.
 
         A job with fire_at > current_time must NOT be dequeued even when next_run <= current_time.
+
+        Uses __new__ to bypass _ScheduledJobQueue.__init__ (which requires full Resource
+        wiring) — this test exercises queue pop logic in isolation, not scheduler service
+        integration.
         """
         queue = _ScheduledJobQueue.__new__(_ScheduledJobQueue)
         queue._lock = FairAsyncRLock()
