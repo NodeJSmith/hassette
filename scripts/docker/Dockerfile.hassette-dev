@@ -4,7 +4,7 @@ COPY --from=ghcr.io/astral-sh/uv:0.11.26 /uv /bin/uv
 
 ARG UID=1000
 ARG GID=1000
-RUN groupadd --gid "$GID" hassette \
+RUN (getent group "$GID" >/dev/null 2>&1 || groupadd --gid "$GID" hassette) \
     && useradd --uid "$UID" --gid "$GID" --create-home hassette \
     && mkdir -p /opt/venv \
     && chown hassette:hassette /opt/venv
