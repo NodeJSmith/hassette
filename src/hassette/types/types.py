@@ -264,11 +264,7 @@ class SchedulerServiceProtocol(Protocol):
 
     def remove_jobs_by_owner(self, owner: str) -> "asyncio.Task[None]": ...
 
-    def submit_job(self, job: "Job") -> None:
-        """Submit one manual invocation of ``job``. Implemented in a later task;
-        declared here now so ``Job.submit()`` type-checks against this protocol.
-        """
-        ...
+    def submit_job(self, job: "Job") -> None: ...
 
 
 class StateReader(Protocol):
