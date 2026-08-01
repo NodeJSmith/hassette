@@ -85,10 +85,10 @@ import hassette.utils.date_utils as date_utils
 from hassette.di import CallableInvoker, TypeMatcher, build_injection_plan
 from hassette.events import RawStateChangeEvent
 from hassette.exceptions import SchedulerNameRequiredError
+from hassette.execution_mode import resolve_execution_mode
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
 from hassette.types import SchedulerServiceProtocol, TriggerProtocol
-from hassette.types.enums import ExecutionMode
 from hassette.types.types import LOG_LEVEL_TYPE, IfExistsPolicy
 from hassette.utils.await_guard import guard_await
 from hassette.utils.func_utils import callable_name, callable_stable_name, is_async_callable
@@ -104,6 +104,7 @@ if typing.TYPE_CHECKING:
     from hassette.bus import Subscription
     from hassette.events import HassStateDict
     from hassette.types import JobCallable
+    from hassette.types.enums import ExecutionMode
     from hassette.types.types import SchedulerErrorHandlerType, SchedulerPredicate, SourceTier
 
 
@@ -449,19 +450,7 @@ class Scheduler(Resource):
         source_tier = parent.source_tier
         assert source_tier in ("app", "framework"), f"Invalid source_tier={source_tier!r} on {parent.class_name}"
 
-        # Tier-aware default: an omitted mode (None) resolves to ``parallel`` for framework jobs
-        # and ``single`` for app jobs. An explicit mode always wins. A raw string is coerced here
-        # so an invalid value raises a clear ValueError at scheduling time.
-        if mode is None:
-            resolved_mode = ExecutionMode.PARALLEL if source_tier == "framework" else ExecutionMode.SINGLE
-        elif isinstance(mode, ExecutionMode):
-            resolved_mode = mode
-        else:
-            try:
-                resolved_mode = ExecutionMode(mode)
-            except ValueError as exc:
-                valid = ", ".join(repr(m.value) for m in ExecutionMode)
-                raise ValueError(f"Invalid execution mode {mode!r}; must be one of {valid}") from exc
+        resolved_mode = resolve_execution_mode(mode, source_tier)
 
         # Resolve instance_name once at registration so the executor hot path reads it off the
         # command instead of traversing app_handler per execution.

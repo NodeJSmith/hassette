@@ -1,5 +1,5 @@
 from hassette import App, AppConfig
-from hassette.scheduler.classes import Job
+from hassette.scheduler import Job
 
 
 class PollApp(App[AppConfig]):

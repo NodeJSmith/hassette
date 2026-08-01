@@ -1,9 +1,9 @@
 from hassette import App, AppConfig
-from hassette.scheduler.classes import Job
+from hassette.scheduler import Job
 
 
 class ManagementPatternApp(App[AppConfig]):
-    my_job: Job | None
+    my_job: Job | None = None
 
     async def on_initialize(self) -> None:
         self.my_job = await self.scheduler.run_every(
@@ -19,8 +19,10 @@ class ManagementPatternApp(App[AppConfig]):
     # --8<-- [start:list_jobs]
     async def show_jobs(self) -> None:
         all_jobs = self.scheduler.list_jobs()
+        self.logger.info("All jobs: %r", all_jobs)
 
         morning_jobs = self.scheduler.list_jobs(group="morning")
+        self.logger.info("Morning jobs: %r", morning_jobs)
 
     # --8<-- [end:list_jobs]
 

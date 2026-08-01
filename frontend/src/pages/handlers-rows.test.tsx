@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { createUnifiedRow } from "../test/factories";
 import { createWouterMock } from "../test/mock-wouter";
 import { renderWithAppState } from "../test/render-helpers";
 import { formatRate, SECONDS_PER_HOUR } from "../utils/format";
@@ -9,24 +10,16 @@ import { HandlerMobileRow, HandlerTableRow } from "./handlers-rows";
 vi.mock("wouter", () => createWouterMock());
 
 function createRow(overrides: Partial<UnifiedRow> = {}): UnifiedRow {
-  return {
-    kind: "listener",
-    id: "listener/1",
-    handlerId: 1,
+  return createUnifiedRow({
     app_key: "my_app",
     name: "on_light_change",
     handler_method: "my_app.MyApp.on_light_change",
-    trigger: "state change",
     runs: 42,
     failed: 2,
     timed_out: 1,
-    cancelled: 0,
     avg_duration_ms: 150,
-    next_run_ts: null,
-    source_tier: "app",
-    schedule_status: null,
     ...overrides,
-  };
+  });
 }
 
 // HandlerTableRow must be inside <table><tbody> or the DOM is invalid

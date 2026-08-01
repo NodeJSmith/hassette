@@ -36,6 +36,11 @@ vi.mock("./execution-detail", () => ({
 const mockNavigate = vi.fn();
 const mockCorrectUrl = vi.fn();
 
+const SCHEDULE_STATUSES = ["scheduled", "waiting", "completed", "manual"] as const;
+
+/** Past RUN_NOW_FEEDBACK_TIMEOUT_MS (8000ms in job-detail.tsx) so the timeout fallback fires. */
+const PAST_RUN_NOW_FEEDBACK_TIMEOUT_MS = 10000;
+
 vi.mock("wouter", () => createWouterMock({ useLocation: () => ["/apps/test_app/handlers", mockNavigate] }));
 
 vi.mock("../../hooks/use-correct-url", () => ({
@@ -349,12 +354,12 @@ describe("HandlersTab job detail", () => {
       });
     });
 
-    it.each(["scheduled", "waiting", "completed", "manual"] as const)(
+    it.each(SCHEDULE_STATUSES)(
       "shows a success toast when a matching execution record appears after submission (status '%s')",
       async (status) => {
         vi.useFakeTimers({ shouldAdvanceTime: true });
         const user = userEvent.setup();
-        const jobId = 700 + ["scheduled", "waiting", "completed", "manual"].indexOf(status);
+        const jobId = 700 + SCHEDULE_STATUSES.indexOf(status);
         const job = createJob({ job_id: jobId, schedule_status: status });
         const { getByTestId } = renderHandlersTab([], [job], `job/${jobId}`);
         await waitFor(() => getByTestId(`job-detail-${jobId}`));
@@ -385,12 +390,12 @@ describe("HandlersTab job detail", () => {
       },
     );
 
-    it.each(["scheduled", "waiting", "completed", "manual"] as const)(
+    it.each(SCHEDULE_STATUSES)(
       "shows a 'No execution recorded' toast when no matching record appears within the timeout (status '%s')",
       async (status) => {
         vi.useFakeTimers({ shouldAdvanceTime: true });
         const user = userEvent.setup();
-        const jobId = 710 + ["scheduled", "waiting", "completed", "manual"].indexOf(status);
+        const jobId = 710 + SCHEDULE_STATUSES.indexOf(status);
         const job = createJob({ job_id: jobId, schedule_status: status });
         const { getByTestId } = renderHandlersTab([], [job], `job/${jobId}`);
         await waitFor(() => getByTestId(`job-detail-${jobId}`));
@@ -398,7 +403,7 @@ describe("HandlersTab job detail", () => {
         await user.click(getByTestId("run-now-btn"));
 
         await act(async () => {
-          await vi.advanceTimersByTimeAsync(10000);
+          await vi.advanceTimersByTimeAsync(PAST_RUN_NOW_FEEDBACK_TIMEOUT_MS);
         });
 
         expect(toast.error).toHaveBeenCalledWith("No execution recorded");
@@ -434,7 +439,7 @@ describe("HandlersTab job detail", () => {
       });
 
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(10000);
+        await vi.advanceTimersByTimeAsync(PAST_RUN_NOW_FEEDBACK_TIMEOUT_MS);
       });
 
       expect(toast.success).not.toHaveBeenCalled();

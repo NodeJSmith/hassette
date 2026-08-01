@@ -11,6 +11,7 @@
 
 import type { components } from "../api/generated-types";
 import type { WsExecutionCompletedPayload } from "../api/ws-types";
+import type { UnifiedRow } from "../utils/handler-rows";
 
 type AppManifestResponse = components["schemas"]["AppManifestResponse"];
 type ConfigSchemaResponse = components["schemas"]["ConfigSchemaResponse"];
@@ -153,6 +154,27 @@ export function createListener(overrides: Partial<ListenerWithSummary> = {}): Li
     last_error_traceback: null,
     ...overrides,
   } satisfies ListenerWithSummary;
+}
+
+export function createUnifiedRow(overrides: Partial<UnifiedRow> = {}): UnifiedRow {
+  return {
+    kind: "listener",
+    id: "listener/1",
+    handlerId: 1,
+    app_key: "app_a",
+    name: "handler",
+    handler_method: "app.Handler.handler",
+    trigger: "state change",
+    runs: 10,
+    failed: 0,
+    timed_out: 0,
+    cancelled: 0,
+    avg_duration_ms: 50,
+    next_run_ts: null,
+    source_tier: "app",
+    schedule_status: null,
+    ...overrides,
+  };
 }
 
 export function createJob(overrides: Partial<JobSummary> = {}): JobSummary {

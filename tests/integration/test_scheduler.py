@@ -706,7 +706,6 @@ async def test_manual_submission_does_not_consume_pending_one_shot(
             hassette_with_scheduler.task_bucket.post_to_loop(auto_ran.set)
 
     scheduler_service = hassette_with_scheduler.scheduler_service
-    assert scheduler_service is not None
 
     job = await hassette_with_scheduler.scheduler.run_in(target, delay=10, name="pending_one_shot_manual_submit")
     original_status = job.schedule_status

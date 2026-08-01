@@ -566,6 +566,9 @@ class TestAddJobDbFailure:
 
 
 class TestBehindScheduleWarning:
+    BEHIND_SCHEDULE_THRESHOLD_SECONDS = 60
+    BASE_TIME = ZonedDateTime(2025, 6, 1, 12, 0, 0, tz="UTC")
+
     async def test_behind_schedule_uses_fire_at_not_next_run(self) -> None:
         """Behind-schedule warning is based on fire_at, not next_run.
 
@@ -575,11 +578,11 @@ class TestBehindScheduleWarning:
         """
         svc = make_scheduler_service()
         # threshold is 60s (configured in make_scheduler_service via mock)
-        svc.hassette.config.scheduler.behind_schedule_threshold_seconds = 60
+        svc.hassette.config.scheduler.behind_schedule_threshold_seconds = self.BEHIND_SCHEDULE_THRESHOLD_SECONDS
 
         # Create a job whose fire_at is the scheduled dispatch time.
         # next_run is earlier (unjittered), fire_at is later (jitter applied).
-        base_time = ZonedDateTime(2025, 6, 1, 12, 0, 0, tz="UTC")
+        base_time = self.BASE_TIME
         trigger = Every(hours=1)
         job = Job(
             owner_id="test_owner",
@@ -617,9 +620,9 @@ class TestBehindScheduleWarning:
         ``submit_job()`` (which never mutates schedule state, so ``job.fire_at`` stays set).
         """
         svc = make_scheduler_service()
-        svc.hassette.config.scheduler.behind_schedule_threshold_seconds = 60
+        svc.hassette.config.scheduler.behind_schedule_threshold_seconds = self.BEHIND_SCHEDULE_THRESHOLD_SECONDS
 
-        base_time = ZonedDateTime(2025, 6, 1, 12, 0, 0, tz="UTC")
+        base_time = self.BASE_TIME
         job = Job(owner_id="test_owner", next_run=base_time, job=lambda: None)
         # Simulate a pending automatic occurrence: fire_at is set and far in the past
         # relative to "now" below, which would trip the lag warning for trigger_mode=None.

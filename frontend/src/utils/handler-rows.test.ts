@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import type { SortState } from "../components/shared/sort-header";
-import { createJob, createListener } from "../test/factories";
-import type { HandlerSortKey, UnifiedRow } from "./handler-rows";
+import { createJob, createListener, createUnifiedRow } from "../test/factories";
+import type { HandlerSortKey } from "./handler-rows";
 import { compareHandlerRows, jobToRow, listenerToRow, scheduleStatusLabel } from "./handler-rows";
 
 describe("listenerToRow", () => {
@@ -207,26 +207,7 @@ function desc(key: HandlerSortKey): SortState<HandlerSortKey> {
   return { key, dir: "desc" };
 }
 
-function row(overrides: Partial<UnifiedRow>): UnifiedRow {
-  return {
-    kind: "listener",
-    id: "listener/1",
-    handlerId: 1,
-    app_key: "app_a",
-    name: "handler",
-    handler_method: "app.Handler.handler",
-    trigger: "state change",
-    runs: 10,
-    failed: 0,
-    timed_out: 0,
-    cancelled: 0,
-    avg_duration_ms: 50,
-    next_run_ts: null,
-    source_tier: "app",
-    schedule_status: null,
-    ...overrides,
-  };
-}
+const row = createUnifiedRow;
 
 describe("compareHandlerRows — kind", () => {
   it("asc: job sorts before listener (j < l lexically)", () => {

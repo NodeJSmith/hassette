@@ -21,6 +21,7 @@ from logging import getLogger
 from typing import Final
 
 from hassette.types.enums import ExecutionMode, Outcome
+from hassette.types.types import SourceTier
 
 LOGGER = getLogger(__name__)
 
@@ -38,6 +39,26 @@ default binds at definition time and would defeat test patches)."""
 
 RunAndTrack = Callable[[], "asyncio.Task[None]"]
 """A caller-supplied callable that spawns one handler invocation and returns its task."""
+
+
+def resolve_execution_mode(mode: "ExecutionMode | str | None", source_tier: SourceTier) -> ExecutionMode:
+    """Resolve a registration-time ``mode`` argument to a concrete ``ExecutionMode``.
+
+    Shared by the bus and scheduler so both registration paths apply the same tier-aware
+    default and string-coercion rule. An omitted mode (``None``) resolves to ``parallel`` for
+    framework registrations and ``single`` for app registrations. An explicit mode always wins.
+    A raw string is coerced here so an invalid value raises a clear ``ValueError`` at
+    registration time rather than surfacing later as an attribute error.
+    """
+    if mode is None:
+        return ExecutionMode.PARALLEL if source_tier == "framework" else ExecutionMode.SINGLE
+    if isinstance(mode, ExecutionMode):
+        return mode
+    try:
+        return ExecutionMode(mode)
+    except ValueError as exc:
+        valid = ", ".join(repr(m.value) for m in ExecutionMode)
+        raise ValueError(f"Invalid execution mode {mode!r}; must be one of {valid}") from exc
 
 
 class ExecutionModeGuard:

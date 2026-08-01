@@ -101,6 +101,7 @@ from hassette.event_handling import predicates as P
 from hassette.event_handling.accessors import get_path
 from hassette.events.base import Event, HassettePayload
 from hassette.exceptions import DuplicateListenerError, ListenerNameRequiredError
+from hassette.execution_mode import resolve_execution_mode
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
 from hassette.types import ComparisonCondition, Topic
@@ -574,20 +575,10 @@ class Bus(Resource):
         source_tier = parent.source_tier
         assert source_tier in ("app", "framework"), f"Invalid source_tier={source_tier!r} on {parent.class_name}"
 
-        # Tier-aware default: an omitted mode (None) resolves to ``parallel`` for framework
-        # listeners — preserving the supervisor/state-cache concurrency — and ``single`` for app
-        # listeners. An explicit mode always wins. A raw string is coerced here so an invalid value
-        # raises a clear ValueError at registration time.
-        if mode is None:
-            resolved_mode = ExecutionMode.PARALLEL if source_tier == "framework" else ExecutionMode.SINGLE
-        elif isinstance(mode, ExecutionMode):
-            resolved_mode = mode
-        else:
-            try:
-                resolved_mode = ExecutionMode(mode)
-            except ValueError as exc:
-                valid = ", ".join(repr(m.value) for m in ExecutionMode)
-                raise ValueError(f"Invalid execution mode {mode!r}; must be one of {valid}") from exc
+        # Tier-aware default (see resolve_execution_mode): framework listeners default to
+        # ``parallel`` to preserve supervisor/state-cache concurrency; app listeners default to
+        # ``single``.
+        resolved_mode = resolve_execution_mode(mode, source_tier)
 
         handler_name = callable_name(handler)
         short_name = callable_short_name(handler)
