@@ -109,12 +109,17 @@ class DemoStack:
             self._tmp_dir = None
             raise
 
+        # Pre-create so Docker doesn't auto-create it as root on first bind-mount
+        (self._repo_root / ".demo-data").mkdir(exist_ok=True)
+
         env = {
             **os.environ,
             "HA_CONFIG_PATH": self._tmp_dir,
             "DEMO_HA_PORT": str(self._ha_port),
             "DEMO_HASSETTE_PORT": str(self._hassette_port),
             "DEMO_VITE_PORT": str(self._vite_port),
+            "HOST_UID": str(os.getuid()),
+            "HOST_GID": str(os.getgid()),
         }
 
         try:

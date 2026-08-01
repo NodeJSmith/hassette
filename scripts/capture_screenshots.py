@@ -67,8 +67,9 @@ def _clean_stale_demo_db(repo_root: Path) -> None:
             try:
                 db_file.unlink()
             except PermissionError:
+                # Pre-existing root-owned files from before the non-root container fix
                 print(
-                    f"WARNING: cannot delete root-owned {db_file.name} (will be overwritten by the new demo run)",
+                    f"WARNING: cannot delete root-owned {db_file.name} — run: sudo rm -rf {repo_root / '.demo-data'}",
                     file=sys.stderr,
                     flush=True,
                 )

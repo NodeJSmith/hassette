@@ -19,6 +19,9 @@ services:
     build:
       context: ../..
       dockerfile: scripts/docker/Dockerfile.hassette-dev
+      args:
+        UID: "${HOST_UID:-1000}"
+        GID: "${HOST_GID:-1000}"
     container_name: "hassette-demo-hassette"
     ports:
       - "127.0.0.1:${DEMO_HASSETTE_PORT:-18126}:8126"
