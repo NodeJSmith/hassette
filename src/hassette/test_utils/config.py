@@ -32,6 +32,11 @@ numbered file to migrations_sql/."""
 # at test teardown. Generous relative to test workloads so it never masks a real hang.
 TEST_SYNC_EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS = 5.0
 
+# Matches the production default (WebSocketConfig.total_timeout_seconds). Tests use this
+# instead of a tight override to avoid the config-driven real-clock timeout race
+# documented in CLAUDE.md.
+TEST_TOTAL_TIMEOUT_SECONDS = 30
+
 # Cached (hermetic_subclass, init_kwargs_ref) pair — avoids creating a new class per
 # make_test_config call, which would accumulate permanently in __subclasses__()
 # and Pydantic's internal model cache.

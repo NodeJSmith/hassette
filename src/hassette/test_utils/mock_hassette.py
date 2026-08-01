@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, Mock, seal
 
-from hassette.test_utils.config import TEST_WS_URL, make_test_config
+from hassette.test_utils.config import TEST_TOTAL_TIMEOUT_SECONDS, TEST_WS_URL, make_test_config
 
 
 def make_mock_hassette(
@@ -189,7 +189,9 @@ def make_ws_hassette_stub(*, strict_lifecycle: bool = False, sealed: bool = True
     Both test files share an identical config shape — this wrapper eliminates duplication.
 
     The ``websocket.*`` overrides use low retry/timeout values (sub-millisecond for backoff,
-    low-single-digit seconds for connection timeouts) so tests complete quickly. The
+    low-single-digit seconds for per-phase timeouts) so tests complete quickly.
+    ``total_timeout_seconds`` uses ``TEST_TOTAL_TIMEOUT_SECONDS`` (the production default)
+    to avoid the config-driven real-clock timeout race documented in CLAUDE.md. The
     non-websocket overrides set DEBUG logging and fast lifecycle timeouts.
 
     Args:
@@ -210,7 +212,7 @@ def make_ws_hassette_stub(*, strict_lifecycle: bool = False, sealed: bool = True
         websocket={
             "response_timeout_seconds": 1,
             "connection_timeout_seconds": 1,
-            "total_timeout_seconds": 2,
+            "total_timeout_seconds": TEST_TOTAL_TIMEOUT_SECONDS,
             "heartbeat_interval_seconds": 5,
             "authentication_timeout_seconds": 5,
             "connect_retry_max_attempts": 3,
