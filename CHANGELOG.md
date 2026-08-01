@@ -5,6 +5,84 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.51.0](https://github.com/NodeJSmith/hassette/compare/v0.50.0...v0.51.0) (2026-08-01)
+
+
+### ⚠ BREAKING CHANGES
+
+* This release renames the scheduler's public job type and its removal API.
+    #### Renamed types and methods
+    - `ScheduledJob` is renamed to `Job`, the single public runtime type
+    returned by both `schedule()` and the new `register()`.
+    - `ScheduledJob.cancel()` is renamed to `Job.remove()`,
+    `Scheduler.cancel_job()` to `Scheduler.remove_job()`, and
+    `Scheduler.cancel_group()` to `Scheduler.remove_group()`. No
+    compatibility aliases are kept.
+    #### Renamed database columns
+    - The persisted `cancelled_at` columns on `scheduled_jobs` and
+    `listeners` are renamed to `removed_at`. Migration 012 renames them
+    automatically and preserves existing timestamps.
+    #### Changed API semantics
+    - `next_run == null` no longer implies a job has finished. Read the new
+    `schedule_status` field (`scheduled`, `waiting`, `completed`, or
+    `manual`) instead.
+* model app bootstrap and HA state lifecycle explicitly ([#1495](https://github.com/NodeJSmith/hassette/issues/1495))
+* `SystemStatusResponse.log_records_dropped` (returned by `GET /api/health` and `hassette status --json`) is replaced by `log_queue_drops` and `db_write_queue_drops`. Consumers reading the old field should sum the two new ones, or read whichever queue they care about. `Hassette.get_log_records_dropped()` is likewise replaced by `get_log_queue_drops()` and `get_db_write_queue_drops()`.
+* `ListenerWithSummary.entity_id` (web API response field, `GET /api/bus/listeners` and `GET /api/telemetry/app/{key}/listeners`) is renamed to `target`. API clients reading `entity_id` must switch to `target`; event-type listeners now populate it with a topic-derived name instead of `null`.
+* the `only_app` field on `GET /api/apps` and `GET /api/apps/manifests` is now `only_apps`, and returns a list of app keys instead of a single key or null. Clients reading `only_app` must read `only_apps` and handle a list.
+
+### Features
+
+* add deterministic DB seed script for dashboard QA ([#1437](https://github.com/NodeJSmith/hassette/issues/1437)) ([eb8bc8b](https://github.com/NodeJSmith/hassette/commit/eb8bc8be53a6c552b5fd90d1ea8e1448f23c8990))
+* add EntityTime trigger for schedules driven by an entity's time ([#1471](https://github.com/NodeJSmith/hassette/issues/1471)) ([8e3d3aa](https://github.com/NodeJSmith/hassette/commit/8e3d3aad883aac0e91a704b5caa74454436f8226)), closes [#969](https://github.com/NodeJSmith/hassette/issues/969)
+* add hassette run --app to run only the named apps ([#1425](https://github.com/NodeJSmith/hassette/issues/1425)) ([3a102e4](https://github.com/NodeJSmith/hassette/commit/3a102e45f2be880d65b1a162aa059e7e5c8f8188))
+* add manual-only job registration and explicit schedule status ([#1500](https://github.com/NodeJSmith/hassette/issues/1500)) ([8002b12](https://github.com/NodeJSmith/hassette/commit/8002b1224a8f5323358064e8a12289d1274f8c77))
+* add notify() and get_notify_services() to Api ([#1422](https://github.com/NodeJSmith/hassette/issues/1422)) ([a1467d2](https://github.com/NodeJSmith/hassette/commit/a1467d270d3506c2474fc3eb81b4a4b98d38acaf)), closes [#949](https://github.com/NodeJSmith/hassette/issues/949)
+* expose state and type registries on App instances ([#1481](https://github.com/NodeJSmith/hassette/issues/1481)) ([8a93c9b](https://github.com/NodeJSmith/hassette/commit/8a93c9b5e7dd7544095371696f29b5e58ea85f8d)), closes [#971](https://github.com/NodeJSmith/hassette/issues/971)
+* persist app manifests to DB for dashboard and apps list ([#1464](https://github.com/NodeJSmith/hassette/issues/1464)) ([7cb36c5](https://github.com/NodeJSmith/hassette/commit/7cb36c58d5a7b83ffac56390d1be0932943d69c4)), closes [#1436](https://github.com/NodeJSmith/hassette/issues/1436)
+* report log persistence health alongside dropped record count ([#1468](https://github.com/NodeJSmith/hassette/issues/1468)) ([99e217e](https://github.com/NodeJSmith/hassette/commit/99e217e8b24d9b568a451793baee0e8ae5eb9d5b)), closes [#882](https://github.com/NodeJSmith/hassette/issues/882)
+* resolve CliFormat metadata as render_table fallback ([#1441](https://github.com/NodeJSmith/hassette/issues/1441)) ([9e8536e](https://github.com/NodeJSmith/hassette/commit/9e8536e3959250fcb320d51aaa0a735c772836b2)), closes [#878](https://github.com/NodeJSmith/hassette/issues/878)
+* show toast feedback for app start, stop, and reload actions ([#1424](https://github.com/NodeJSmith/hassette/issues/1424)) ([a1f36d2](https://github.com/NodeJSmith/hassette/commit/a1f36d27a7fc43bda735f3c672bc152aa3900bc9)), closes [#957](https://github.com/NodeJSmith/hassette/issues/957)
+* split log-queue and DB-write-queue drop counters ([#1469](https://github.com/NodeJSmith/hassette/issues/1469)) ([b67bbda](https://github.com/NodeJSmith/hassette/commit/b67bbda912229fbe940f36a6d76fd03c2e74208b))
+* surface saturation/capacity warning thresholds as config ([#1498](https://github.com/NodeJSmith/hassette/issues/1498)) ([f67e932](https://github.com/NodeJSmith/hassette/commit/f67e9321203c3674b4670349d332b06e70b8440a)), closes [#1041](https://github.com/NodeJSmith/hassette/issues/1041)
+* **ui:** commit to a color direction and rework the app shell ([#1414](https://github.com/NodeJSmith/hassette/issues/1414)) ([a176b7f](https://github.com/NodeJSmith/hassette/commit/a176b7fccc4ec222ac483ef0adfb0a3ead32c6f5)), closes [#1384](https://github.com/NodeJSmith/hassette/issues/1384)
+
+
+### Bug Fixes
+
+* add explicit configurable timeout to outbound REST requests ([#1497](https://github.com/NodeJSmith/hassette/issues/1497)) ([a3099fb](https://github.com/NodeJSmith/hassette/commit/a3099fb6f3eca13ebcc1f16357a46a5ef7b27f00)), closes [#1035](https://github.com/NodeJSmith/hassette/issues/1035)
+* allow web dashboard to start without a live HA connection ([#1458](https://github.com/NodeJSmith/hassette/issues/1458)) ([98b797c](https://github.com/NodeJSmith/hassette/commit/98b797c5c5944f6ebada2ff42daa9f447d277cfb)), closes [#1435](https://github.com/NodeJSmith/hassette/issues/1435)
+* eliminate CI-flaky tests from suppressed timeouts and races ([#1507](https://github.com/NodeJSmith/hassette/issues/1507)) ([3ff3753](https://github.com/NodeJSmith/hassette/commit/3ff3753a9ab4e9f6bd1ecbfe67f1545e05d0b30d))
+* ground page titles with size and a baseline rule ([#1439](https://github.com/NodeJSmith/hassette/issues/1439)) ([6f94345](https://github.com/NodeJSmith/hassette/commit/6f94345beb131dcfa186159bc657b1ccda098916)), closes [#849](https://github.com/NodeJSmith/hassette/issues/849)
+* key the state model cache on last_updated, not the context id ([#1496](https://github.com/NodeJSmith/hassette/issues/1496)) ([3291fd2](https://github.com/NodeJSmith/hassette/commit/3291fd2eae4122bc2f38d3a17d4b55ba9b72e945))
+* prevent filter panel layout shift on open ([#1423](https://github.com/NodeJSmith/hassette/issues/1423)) ([b6d3e8d](https://github.com/NodeJSmith/hassette/commit/b6d3e8d4aa66f46f13c1ff79cab249257a12e168)), closes [#956](https://github.com/NodeJSmith/hassette/issues/956)
+* publish docker semver images for releases ([#1475](https://github.com/NodeJSmith/hassette/issues/1475)) ([4615ed7](https://github.com/NodeJSmith/hassette/commit/4615ed72624481713a2543dbec82e0e67cc22671)), closes [#1473](https://github.com/NodeJSmith/hassette/issues/1473)
+* rate-limit empty app_key warning on execution completion events ([#1480](https://github.com/NodeJSmith/hassette/issues/1480)) ([70e4356](https://github.com/NodeJSmith/hassette/commit/70e43564c604985ee581dc8b607e451d134bca1d)), closes [#727](https://github.com/NodeJSmith/hassette/issues/727)
+* refine dashboard border styling ([#1485](https://github.com/NodeJSmith/hassette/issues/1485)) ([bd4f1fa](https://github.com/NodeJSmith/hassette/commit/bd4f1faf6002f53b861417cc5483e760c51d1fa5))
+* rename ListenerWithSummary.entity_id to target and populate it for event listeners ([#1442](https://github.com/NodeJSmith/hassette/issues/1442)) ([45ddf19](https://github.com/NodeJSmith/hassette/commit/45ddf195c481423a439d8a9ebabf5fe3d666a158))
+* run demo container as non-root to prevent root-owned files ([#1506](https://github.com/NodeJSmith/hassette/issues/1506)) ([65f84ab](https://github.com/NodeJSmith/hassette/commit/65f84abddb20c27b6ef4e9ce31ac998d1ccbe358)), closes [#1505](https://github.com/NodeJSmith/hassette/issues/1505)
+* show display_name instead of app_key in apps table ([#1504](https://github.com/NodeJSmith/hassette/issues/1504)) ([805e8b6](https://github.com/NodeJSmith/hassette/commit/805e8b6a61248b1574d06dedaf7efa060ba76884)), closes [#1008](https://github.com/NodeJSmith/hassette/issues/1008)
+* use baseline alignment for heading+badge rows with mixed font sizes ([#1459](https://github.com/NodeJSmith/hassette/issues/1459)) ([a5e751d](https://github.com/NodeJSmith/hassette/commit/a5e751dd0a4eea155d5e116f17d8894998821dac)), closes [#847](https://github.com/NodeJSmith/hassette/issues/847)
+* wait for initial WebSocket before state sync ([#1483](https://github.com/NodeJSmith/hassette/issues/1483)) ([fce67d3](https://github.com/NodeJSmith/hassette/commit/fce67d35c7959bb569eacd8f3d886af3a811cf85))
+
+
+### Refactoring
+
+* migrate frontend to React 19, shadcn/ui, and Tailwind v4 ([#1478](https://github.com/NodeJSmith/hassette/issues/1478)) ([3b0accb](https://github.com/NodeJSmith/hassette/commit/3b0accb83532d47d23888ed12d84474e43d22367))
+* model app bootstrap and HA state lifecycle explicitly ([#1495](https://github.com/NodeJSmith/hassette/issues/1495)) ([87e8830](https://github.com/NodeJSmith/hassette/commit/87e8830a550efd040dbe9ecfb6a025eca8707f32)), closes [#1484](https://github.com/NodeJSmith/hassette/issues/1484)
+* resolve ServiceWatcher services to a single match instead of a list ([#1490](https://github.com/NodeJSmith/hassette/issues/1490)) ([19a1215](https://github.com/NodeJSmith/hassette/commit/19a1215dcbf4c21ff8ca0a9d3b2a0f16b84c8c5f)), closes [#703](https://github.com/NodeJSmith/hassette/issues/703)
+* split oversized handler UI and telemetry modules by domain ([#1438](https://github.com/NodeJSmith/hassette/issues/1438)) ([5fa1b24](https://github.com/NodeJSmith/hassette/commit/5fa1b2443c364630df36e6751efa3efb42e100bd)), closes [#1410](https://github.com/NodeJSmith/hassette/issues/1410)
+* **ui:** clean up app-detail, sidebar, system-health structure ([#1433](https://github.com/NodeJSmith/hassette/issues/1433)) ([03e1d8f](https://github.com/NodeJSmith/hassette/commit/03e1d8f8406a2abb06271a1cee3655997ca0d761)), closes [#1416](https://github.com/NodeJSmith/hassette/issues/1416) [#1417](https://github.com/NodeJSmith/hassette/issues/1417)
+* **ui:** dedupe CSS tokens, StatusShape, and wouter test mocks ([#1426](https://github.com/NodeJSmith/hassette/issues/1426)) ([349d432](https://github.com/NodeJSmith/hassette/commit/349d4329cc276359cc24a38296b59e3cedc32a00))
+
+
+### Documentation
+
+* add auto-merge step to review-autofixes skill ([#1444](https://github.com/NodeJSmith/hassette/issues/1444)) ([352a480](https://github.com/NodeJSmith/hassette/commit/352a4802ad0572eb8661a0f29685fa8dbd8a2b89))
+* add review-autofixes skill for daily autofix PR review ([#1443](https://github.com/NodeJSmith/hassette/issues/1443)) ([393326c](https://github.com/NodeJSmith/hassette/commit/393326c23fbf53e47dd14851e2ad4b09c257d640))
+* align service internals docs ([#1486](https://github.com/NodeJSmith/hassette/issues/1486)) ([cd938c3](https://github.com/NodeJSmith/hassette/commit/cd938c3bd1a6d501ee7ebbbad03651a4aec82418)), closes [#1479](https://github.com/NodeJSmith/hassette/issues/1479)
+* regenerate all doc screenshots and fix stale manifest selectors ([#1434](https://github.com/NodeJSmith/hassette/issues/1434)) ([363995e](https://github.com/NodeJSmith/hassette/commit/363995e944105804e0bc5b749a6bf13044268494))
+
 ## [0.50.0](https://github.com/NodeJSmith/hassette/compare/v0.49.0...v0.50.0) (2026-07-24)
 
 
