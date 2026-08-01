@@ -22,10 +22,10 @@ def test_apps_list_renders_all_apps(page: Page, base_url: str) -> None:
     """All configured apps should be visible on the apps list page."""
     page.goto(base_url + "/apps")
     body = page.locator("body")
-    expect(body).to_contain_text("my_app")
-    expect(body).to_contain_text("other_app")
-    expect(body).to_contain_text("broken_app")
-    expect(body).to_contain_text("disabled_app")
+    expect(body).to_contain_text("My App")
+    expect(body).to_contain_text("Other App")
+    expect(body).to_contain_text("Broken App")
+    expect(body).to_contain_text("Disabled App")
 
 
 def test_apps_list_status_filter_pills(page: Page, base_url: str) -> None:
