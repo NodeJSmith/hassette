@@ -236,10 +236,10 @@
         "overflow": "ellipsis"
       },
       {
-        "field": "trigger_detail",
-        "formatter": null,
-        "header": "Schedule",
-        "max_width": 20,
+        "field": "schedule_status",
+        "formatter": "<lambda>",
+        "header": "Status",
+        "max_width": 10,
         "overflow": "ellipsis"
       },
       {
