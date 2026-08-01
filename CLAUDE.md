@@ -167,6 +167,25 @@ result = await task
 assert result > 0                                  # confirms registration succeeded after unblocking
 ```
 
+**Config-driven real-clock timeouts** — a test that overrides a production timeout config (e.g.
+`websocket.total_timeout_seconds`) races that value in real wall-clock time against any deliberate
+delay in the same test — an `asyncio.wait_for(..., timeout=1)` wrapped in
+`pytest.raises(TimeoutError)` to prove something hasn't happened yet, an `asyncio.sleep()`, or
+scheduling overhead. The two are independent real-time clocks the test author rarely reasons about
+together; CI's noisier scheduling is what finally exposes the collision, so it passes locally for
+months. This happened: `test_app_bootstrap_waits_for_first_websocket_connection_and_state_sync` set
+`total_timeout_seconds=2` for speed while a nested `asyncio.wait_for(..., timeout=1)` deliberately
+held ~1 real second to prove state wasn't loaded early — under a second of margin, which CI jitter
+eventually ate.
+
+Reproduce by driving the overridden timeout down far enough to fail on any machine (e.g. `0`),
+confirm the failure signature matches CI, then widen the override to give the deliberate real-time
+hold generous headroom. The plain Pydantic field default is usually the right value to reuse (here,
+`HassetteConfig`'s `total_timeout_seconds` default of 30) — not because it happens to match, but
+because it's already the value the framework considers "give this operation a reasonable real-world
+chance to finish," which is exactly the property the test needs too. Do not "fix" it by shrinking
+the competing delay instead — the delay is the thing under test.
+
 **Sentinel filtering** — verify that records with unregistered IDs (listener_id=0, job_id=0, session_id=0) are silently dropped and not written to the database.
 
 **Error isolation** — confirm that exceptions raised inside `execute()` do not propagate out of the method; the caller (TaskBucket) must not crash.

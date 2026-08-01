@@ -173,7 +173,12 @@ class TestInitialStateSyncBeforeApps:
         config = TestConfig(
             data_dir=tmp_path / "data",
             web_api={"run": True, "port": unused_tcp_port_factory()},
-            websocket={"total_timeout_seconds": 2},
+            # Must stay well above this test's own real-time hold further down (the
+            # asyncio.wait_for(..., timeout=1) wrapped in pytest.raises(TimeoutError), just before
+            # release_connection.set() is called) or StateProxy._bootstrap_initial_sync gives up on
+            # the connection before that release fires — this raced and flaked under CI scheduling
+            # jitter at 2s. See CLAUDE.md's "Config-driven real-clock timeouts" pattern.
+            websocket={"total_timeout_seconds": 30},
             apps={
                 "directory": app_dir,
                 "autodetect": False,
