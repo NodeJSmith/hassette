@@ -130,7 +130,7 @@ Sync handlers, sync jobs, and App sync lifecycle hooks run on a dedicated thread
 
 The shutdown budget (`sync_executor_shutdown_timeout_seconds`) is documented in the [Startup and Shutdown Timeouts](#startup-and-shutdown-timeouts) table below.
 
-When the pool nears its ceiling (≥ `sync_executor_saturation_warn_threshold`, 75% by default), Hassette logs a rate-limited WARNING at most once every `sync_executor_saturation_warn_rate_limit_seconds` (30s by default). The WARNING fires on submission and from a periodic background probe, so it appears even when the pool is fully starved and no new work is being submitted. Lower the threshold for earlier headroom alerting on a quiet instance, or raise the rate-limit window to quiet a busy instance that's already near its ceiling by design.
+When the pool nears its ceiling (≥ `sync_executor_saturation_warn_threshold`, 75% by default), Hassette logs a rate-limited WARNING at most once every `sync_executor_saturation_warn_rate_limit_seconds` (30s by default). The WARNING fires on submission and from a periodic background probe, so it appears even when the pool is fully starved and no new work is being submitted. A lower threshold provides earlier headroom alerts on quiet instances. A higher rate-limit window reduces repeated WARNINGs on busy instances that operate near the ceiling by design.
 
 At shutdown, Hassette joins workers within the budget. Threads still alive after the join attempt receive `SystemExit` (best-effort — C-blocked threads such as `time.sleep()` or native I/O cannot be interrupted at the Python level and are abandoned when the budget expires). Shutdown still completes within `total_shutdown_timeout_seconds` regardless.
 

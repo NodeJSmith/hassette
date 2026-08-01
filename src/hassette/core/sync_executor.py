@@ -105,23 +105,23 @@ class SyncExecutor:
     _outstanding_submissions: int
     """Count of futures submitted but not yet completed (loop-thread-only, no lock needed)."""
 
-    _last_saturation_warn_ts: float
-    """Monotonic timestamp of the last pool-saturation WARNING (global rate-limit)."""
+    _last_saturation_warn_ts: float | None
+    """Monotonic timestamp of the last pool-saturation WARNING, or None if no warning has fired yet."""
 
     saturation_warn_threshold: float
     """Occupancy fraction (0-1) above which log_saturation_rate_limited() warns.
     Set by rebuild_pool(), sourced from lifecycle.sync_executor_saturation_warn_threshold."""
 
-    saturation_warn_rate_limit_secs: float
+    saturation_warn_rate_limit_seconds: float
     """Minimum seconds between repeated saturation WARNINGs. Set by rebuild_pool(), sourced
     from lifecycle.sync_executor_saturation_warn_rate_limit_seconds."""
 
     def __init__(self) -> None:
         self.executor = None
         self._outstanding_submissions = 0
-        self._last_saturation_warn_ts = 0.0
+        self._last_saturation_warn_ts = None
         self.saturation_warn_threshold = _DEFAULT_SATURATION_WARN_THRESHOLD
-        self.saturation_warn_rate_limit_secs = _DEFAULT_SATURATION_WARN_RATE_LIMIT_SECS
+        self.saturation_warn_rate_limit_seconds = _DEFAULT_SATURATION_WARN_RATE_LIMIT_SECS
         self.logger = getLogger(f"{__name__}.SyncExecutor")
 
     def rebuild_pool(
@@ -129,7 +129,7 @@ class SyncExecutor:
         max_workers: int,
         thread_name_prefix: str = SYNC_EXECUTOR_THREAD_NAME_PREFIX,
         saturation_warn_threshold: float = _DEFAULT_SATURATION_WARN_THRESHOLD,
-        saturation_warn_rate_limit_secs: float = _DEFAULT_SATURATION_WARN_RATE_LIMIT_SECS,
+        saturation_warn_rate_limit_seconds: float = _DEFAULT_SATURATION_WARN_RATE_LIMIT_SECS,
     ) -> None:
         """Create a fresh thread pool and reset saturation state.
 
@@ -143,7 +143,7 @@ class SyncExecutor:
             saturation_warn_threshold: Occupancy fraction (0-1) above which a saturation
                 WARNING is logged. Defaults to lifecycle.sync_executor_saturation_warn_threshold's
                 default value.
-            saturation_warn_rate_limit_secs: Minimum seconds between repeated saturation
+            saturation_warn_rate_limit_seconds: Minimum seconds between repeated saturation
                 WARNINGs. Defaults to lifecycle.sync_executor_saturation_warn_rate_limit_seconds's
                 default value.
         """
@@ -152,9 +152,9 @@ class SyncExecutor:
             thread_name_prefix=thread_name_prefix,
         )
         self._outstanding_submissions = 0
-        self._last_saturation_warn_ts = 0.0
+        self._last_saturation_warn_ts = None
         self.saturation_warn_threshold = saturation_warn_threshold
-        self.saturation_warn_rate_limit_secs = saturation_warn_rate_limit_secs
+        self.saturation_warn_rate_limit_seconds = saturation_warn_rate_limit_seconds
 
     def shutdown_pool(self, timeout: float) -> None:
         """Shut down the thread pool within the given join/interrupt budget.
@@ -248,7 +248,10 @@ class SyncExecutor:
             return  # below threshold — nothing to warn about
 
         now = time.monotonic()
-        if now - self._last_saturation_warn_ts < self.saturation_warn_rate_limit_secs:
+        if (
+            self._last_saturation_warn_ts is not None
+            and now - self._last_saturation_warn_ts < self.saturation_warn_rate_limit_seconds
+        ):
             return  # rate-limited — suppress until window expires
         self._last_saturation_warn_ts = now
 

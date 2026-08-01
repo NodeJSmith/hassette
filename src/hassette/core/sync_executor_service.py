@@ -60,7 +60,7 @@ class SyncExecutorService(Service):
             lifecycle.sync_executor_max_workers,
             SYNC_EXECUTOR_THREAD_NAME_PREFIX,
             saturation_warn_threshold=lifecycle.sync_executor_saturation_warn_threshold,
-            saturation_warn_rate_limit_secs=lifecycle.sync_executor_saturation_warn_rate_limit_seconds,
+            saturation_warn_rate_limit_seconds=lifecycle.sync_executor_saturation_warn_rate_limit_seconds,
         )
 
     async def serve(self) -> None:

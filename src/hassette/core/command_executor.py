@@ -137,8 +137,8 @@ class CommandExecutor(Service):
     _error_handler_failures: int
     """Count of user-registered error handler invocations that raised an exception or timed out."""
 
-    _last_capacity_warn_ts: float
-    """Monotonic timestamp of the last 75%-capacity warning (rate-limiting)."""
+    _last_capacity_warn_ts: float | None
+    """Monotonic timestamp of the last capacity warning, or None if no warning has fired yet."""
 
     _last_unowned_warn_ts: float | None
     """Monotonic timestamp of the last empty-app_key completion warning, or None before first warning."""
@@ -171,7 +171,7 @@ class CommandExecutor(Service):
         self._dropped_exhausted = 0
         self._dropped_shutdown = 0
         self._error_handler_failures = 0
-        self._last_capacity_warn_ts = 0.0
+        self._last_capacity_warn_ts = None
         self._last_unowned_warn_ts = None
         self._timeout_warn_timestamps = {}
 
@@ -410,9 +410,12 @@ class CommandExecutor(Service):
         lifecycle = self.hassette.config.lifecycle
 
         # Capacity warning (rate-limited)
-        if max_size > 0 and current_size >= int(max_size * lifecycle.command_executor_capacity_warn_threshold):
+        if max_size > 0 and current_size >= max_size * lifecycle.command_executor_capacity_warn_threshold:
             now = time.monotonic()
-            if now - self._last_capacity_warn_ts >= lifecycle.command_executor_capacity_warn_rate_limit_seconds:
+            if (
+                self._last_capacity_warn_ts is None
+                or now - self._last_capacity_warn_ts >= lifecycle.command_executor_capacity_warn_rate_limit_seconds
+            ):
                 self._last_capacity_warn_ts = now
                 self.logger.warning(
                     "Write queue at %d/%d (%.0f%%) — high telemetry load",

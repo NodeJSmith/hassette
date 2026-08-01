@@ -87,7 +87,7 @@ def make_sync_executor_hassette(
     sync_executor.rebuild_pool(
         max_workers=max_workers,
         saturation_warn_threshold=saturation_warn_threshold,
-        saturation_warn_rate_limit_secs=saturation_warn_rate_limit_seconds,
+        saturation_warn_rate_limit_seconds=saturation_warn_rate_limit_seconds,
     )
     mock_hassette.sync_executor = sync_executor
     return mock_hassette

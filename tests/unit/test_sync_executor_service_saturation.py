@@ -294,7 +294,9 @@ class TestSubmissionTimeSaturationWarning:
         first_count = len(warning_calls)
 
         # Manually expire the rate-limit window
-        sync_executor._last_saturation_warn_ts = time.monotonic() - sync_executor.saturation_warn_rate_limit_secs - 1.0
+        sync_executor._last_saturation_warn_ts = (
+            time.monotonic() - sync_executor.saturation_warn_rate_limit_seconds - 1.0
+        )
 
         sync_executor.log_saturation_rate_limited()
         second_count = len(warning_calls)
@@ -692,7 +694,7 @@ class TestConfigBehavior:
         """on_initialize() threads the configured threshold/rate-limit into SyncExecutor."""
         svc = make_service(max_workers=2, saturation_warn_threshold=0.5, saturation_warn_rate_limit_seconds=10.0)
         assert svc.sync_executor.saturation_warn_threshold == 0.5
-        assert svc.sync_executor.saturation_warn_rate_limit_secs == 10.0
+        assert svc.sync_executor.saturation_warn_rate_limit_seconds == 10.0
         svc.sync_executor.executor.shutdown(join_threads_or_timeout=False)
 
     def test_lowered_threshold_fires_warning_earlier(self) -> None:

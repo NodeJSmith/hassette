@@ -119,7 +119,7 @@ async def test_bounded_queue_drops_on_full():
     assert executor._write_queue.qsize() == 3
 
 
-async def test_enqueue_record_warns_at_configured_capacity_threshold():
+async def test_enqueue_record_warns_at_configured_capacity_threshold() -> None:
     """enqueue_record logs a capacity WARNING once occupancy *before* the enqueue reaches the
     configured threshold, using lifecycle.command_executor_capacity_warn_threshold (#1041).
     """
@@ -137,7 +137,7 @@ async def test_enqueue_record_warns_at_configured_capacity_threshold():
     assert executor.logger.warning.call_count == 1
 
 
-async def test_enqueue_record_capacity_warning_respects_configured_rate_limit():
+async def test_enqueue_record_capacity_warning_respects_configured_rate_limit() -> None:
     """A second enqueue past the threshold is suppressed until the configured rate-limit window
     elapses (#1041).
     """
