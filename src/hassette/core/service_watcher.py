@@ -118,8 +118,12 @@ class ServiceWatcher(Resource):
     def get_service(self, name: str, role: object) -> Service | None:
         """Return the Service child matching name/role, or None if there is no match.
 
-        Hassette rejects duplicate child types at construction, so (class_name, role)
-        identifies at most one service.
+        Hassette rejects duplicate child *types* at construction (see the
+        `type_counts`/`duplicates` check in `Hassette.__init__`, core.py). Since
+        `class_name` is set to `type(self).__name__` and `role` is a fixed
+        `ClassVar` per subclass, at most one instance of a given type can ever
+        exist in `hassette.children`, so (class_name, role) identifies at most
+        one service.
         """
         return next(
             (c for c in self.hassette.children if isinstance(c, Service) and c.class_name == name and c.role == role),
@@ -501,8 +505,7 @@ class ServiceWatcher(Resource):
             return
 
         # Find the service to verify it actually becomes ready (not just RUNNING).
-        # Only Services reach this point — budget and in-restart keys are only ever
-        # recorded for Services.
+        # See get_service() for why (class_name, role) resolves to at most one match.
         service = self.get_service(name, role)
         if service is None:
             return

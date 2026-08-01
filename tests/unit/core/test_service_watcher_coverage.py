@@ -278,10 +278,10 @@ class TestGetService:
         """A non-Service child sharing the name is not returned."""
         hassette = build_watcher_hassette()
         watcher = make_watcher(hassette)
-        plain = MagicMock()
-        plain.class_name = "DummyService"
-        plain.role = ResourceRole.SERVICE
-        hassette.children = [plain]
+        not_a_service = MagicMock()
+        not_a_service.class_name = "DummyService"
+        not_a_service.role = ResourceRole.SERVICE
+        hassette.children = [not_a_service]
 
         assert watcher.get_service("DummyService", ResourceRole.SERVICE) is None
 
