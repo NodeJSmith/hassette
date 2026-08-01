@@ -225,22 +225,15 @@ class TestJitter:
         """pop_due_and_peek_next dequeues based on fire_at, not next_run.
 
         A job with fire_at > current_time must NOT be dequeued even when next_run <= current_time.
-        """
-        svc = SchedulerService.__new__(SchedulerService)
-        svc.hassette = MagicMock()
-        svc.hassette.config.scheduler.behind_schedule_threshold_seconds = 60
-        svc.hassette.config.scheduler.min_delay_seconds = 0.1
-        svc.hassette.config.scheduler.max_delay_seconds = 300.0
-        svc.hassette.config.scheduler.default_delay_seconds = 10.0
-        svc._removal_callbacks = {}
-        svc._jobs_by_id = {}
-        svc.logger = MagicMock()
-        svc._wakeup_event = asyncio.Event()
 
-        svc._job_queue = _ScheduledJobQueue.__new__(_ScheduledJobQueue)
-        svc._job_queue._lock = FairAsyncRLock()
-        svc._job_queue._queue = HeapQueue()
-        svc._job_queue.logger = MagicMock()
+        Uses __new__ to bypass _ScheduledJobQueue.__init__ (which requires full Resource
+        wiring) — this test exercises queue pop logic in isolation, not scheduler service
+        integration.
+        """
+        queue = _ScheduledJobQueue.__new__(_ScheduledJobQueue)
+        queue._lock = FairAsyncRLock()
+        queue._queue = HeapQueue()
+        queue.logger = MagicMock()
 
         # next_run is in the past, but fire_at is in the future (jitter applied)
         base_time = date_utils.now()
@@ -250,11 +243,11 @@ class TestJitter:
         job.set_next_run(base_time.add(seconds=-10))  # next_run in past
         job.fire_at = future_fire  # fire_at in future
 
-        await svc._job_queue.add(job)
+        await queue.add(job)
 
         # Ask for due jobs at current time — job should NOT be dequeued (fire_at > now)
         current_time = date_utils.now()
-        due_jobs, next_run_time = await svc._job_queue.pop_due_and_peek_next(current_time)
+        due_jobs, next_run_time = await queue.pop_due_and_peek_next(current_time)
 
         assert len(due_jobs) == 0, f"Job should not fire yet (fire_at={job.fire_at} > now={current_time})"
         assert next_run_time == job.fire_at
@@ -326,16 +319,7 @@ class TestEnqueueThenRegisterUsesProtocol:
         Verifies that trigger_type in the ScheduledJobRegistration equals
         trigger.trigger_db_type() for an Every trigger (which returns "interval").
         """
-        svc = SchedulerService.__new__(SchedulerService)
-        svc.hassette = MagicMock()
-        svc._removal_callbacks = {}
-        svc._jobs_by_id = {}
-        svc.logger = MagicMock()
-        svc._wakeup_event = asyncio.Event()
-
-        svc._job_queue = MagicMock()
-        svc._job_queue.add = AsyncMock(return_value=None)
-        svc._job_queue.remove_job = AsyncMock(return_value=True)
+        svc = make_scheduler_service()
 
         captured_registrations = []
 
@@ -343,7 +327,6 @@ class TestEnqueueThenRegisterUsesProtocol:
             captured_registrations.append(reg)
             return 42  # fake db_id
 
-        svc._executor = MagicMock()
         svc._executor.register_job = _fake_register_job
 
         trigger = Every(hours=1)
@@ -536,20 +519,11 @@ class TestAddJobDbFailure:
         and fail app startup rather than degrading silently. The job is NOT
         enqueued when registration fails.
         """
-        svc = SchedulerService.__new__(SchedulerService)
-        svc.hassette = MagicMock()
-        svc._removal_callbacks = {}
-        svc._jobs_by_id = {}
-        svc.logger = MagicMock()
-        svc._wakeup_event = asyncio.Event()
-
-        svc._job_queue = MagicMock()
-        svc._job_queue.add = AsyncMock(return_value=None)
+        svc = make_scheduler_service()
 
         async def _failing_register_job(_reg):
             raise RuntimeError("DB unavailable")
 
-        svc._executor = MagicMock()
         svc._executor.register_job = _failing_register_job
 
         trigger = Every(hours=1)
