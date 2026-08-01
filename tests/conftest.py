@@ -69,7 +69,8 @@ def build_websocket_config() -> WebSocketConfig:
     return WebSocketConfig(
         connection_timeout_seconds=1,
         authentication_timeout_seconds=1,
-        total_timeout_seconds=2,
+        # Matches production default; see CLAUDE.md "Config-driven real-clock timeouts".
+        total_timeout_seconds=30,
         response_timeout_seconds=1,
         heartbeat_interval_seconds=5,
     )

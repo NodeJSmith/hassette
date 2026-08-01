@@ -1,9 +1,9 @@
 import asyncio
-import contextlib
 import typing
 from typing import Any
 
 import anyio
+import pytest
 
 from hassette.events.hassette import Event
 from hassette.types import Topic
@@ -38,11 +38,14 @@ async def test_event_emitted_on_file_change(hassette_with_file_watcher: "Hassett
     assert updated_files, "No watchable files found to touch in test_event_emitted_on_file_change"
 
     # Event emission can be racy, so retry briefly.
-    for _ in range(2):
-        with contextlib.suppress(asyncio.TimeoutError):
-            with anyio.fail_after(1):
+    for attempt in range(2):
+        try:
+            with anyio.fail_after(2):
                 await file_event_received.wait()
                 assert file_event_received.is_set(), (
                     f"Expected file_event_received to be set, got {file_event_received.is_set()}"
                 )
                 return
+        except TimeoutError:
+            if attempt == 1:
+                pytest.fail("file_event_received was never set after 2 attempts")

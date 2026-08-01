@@ -69,7 +69,7 @@ def configure_ready_websocket_mock(websocket_service: Mock, *, generation: int =
     websocket_service.is_connected = True
     websocket_service.has_ever_connected = True
     websocket_service.get_connected_generation = Mock(return_value=generation)
-    websocket_service.total_timeout_seconds = 1
+    websocket_service.total_timeout_seconds = 30
     websocket_service.wait_connected = AsyncMock(return_value=True)
     websocket_service.wait_connected_generation = AsyncMock(return_value=generation)
     websocket_service.wait_initial_connection = AsyncMock(return_value=True)

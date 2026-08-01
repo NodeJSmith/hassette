@@ -272,8 +272,11 @@ class TestExecutorOffloadProducesNoBlocking:
             # regression here.
             orig_lag = mock_hassette.config.blocking_io.lag_threshold_seconds
             orig_interval = mock_hassette.config.blocking_io.watchdog_interval_seconds
-            mock_hassette.config.blocking_io.lag_threshold_seconds = 0.05
-            mock_hassette.config.blocking_io.watchdog_interval_seconds = 0.01
+            # CI scheduling jitter produces 58-71ms loop lag even with no blocking I/O;
+            # 50ms tripped false positives. 150ms tolerates jitter while still detecting
+            # real stalls (multi-hundred-ms).
+            mock_hassette.config.blocking_io.lag_threshold_seconds = 0.15
+            mock_hassette.config.blocking_io.watchdog_interval_seconds = 0.03
 
             stall_events: list[object] = []
             watchdog = LoopWatchdog(

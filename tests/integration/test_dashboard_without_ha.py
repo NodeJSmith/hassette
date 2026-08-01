@@ -67,7 +67,7 @@ async def _running_hassette_without_ha(
     config = TestConfig(
         data_dir=tmp_path / "data",
         web_api={"run": True, "port": unused_tcp_port_factory()},
-        websocket={"total_timeout_seconds": 1},
+        websocket={"total_timeout_seconds": 30},
         apps={
             "directory": TEST_APPS_PATH,
             "autodetect": False,
@@ -228,8 +228,8 @@ class TestInitialStateSyncBeforeApps:
 
         run_task = asyncio.create_task(hassette.run_forever())
         try:
-            await asyncio.wait_for(connection_attempted.wait(), timeout=1)
-            await asyncio.wait_for(state_proxy_subscribed.wait(), timeout=1)
+            await asyncio.wait_for(connection_attempted.wait(), timeout=5)
+            await asyncio.wait_for(state_proxy_subscribed.wait(), timeout=5)
 
             with pytest.raises(TimeoutError):
                 await asyncio.wait_for(load_cache_entered.wait(), timeout=1)
@@ -242,7 +242,7 @@ class TestInitialStateSyncBeforeApps:
                 timeout=WEBAPI_READY_TIMEOUT,
                 desc="state-reading app ready",
             )
-            await asyncio.wait_for(load_cache_entered.wait(), timeout=1)
+            await asyncio.wait_for(load_cache_entered.wait(), timeout=5)
             hassette.api.get_states_raw.assert_awaited_once()
 
             app = hassette.app_handler.registry.get("state_reader", 0)

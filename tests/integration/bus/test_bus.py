@@ -1,7 +1,6 @@
 # pyright: reportInvalidTypeArguments=none, reportArgumentType=none
 
 import asyncio
-import contextlib
 import inspect
 from types import SimpleNamespace
 from typing import TYPE_CHECKING
@@ -340,8 +339,7 @@ async def assert_glob_matching(
             create_state_change_event(entity_id=entity, old_value="off", new_value="on", new_attrs=attrs),
         )
 
-    with contextlib.suppress(asyncio.TimeoutError):
-        await asyncio.wait_for(events_processed.wait(), timeout=0.2)
+    await asyncio.wait_for(events_processed.wait(), timeout=5.0)
 
     actual = set(received_entity_ids)
     assert actual == expected, f"Expected handler to receive {expected}, got {actual}"
@@ -401,8 +399,7 @@ async def test_can_subscribe_to_all_state_change_events(hassette_with_bus: "Hass
     await hassette.send_event(create_state_change_event(entity_id="light.living_room", old_value="off", new_value="on"))
     await hassette.send_event(create_state_change_event(entity_id="switch.garage", old_value="off", new_value="on"))
 
-    with contextlib.suppress(asyncio.TimeoutError):
-        await asyncio.wait_for(events_processed.wait(), timeout=0.2)
+    await asyncio.wait_for(events_processed.wait(), timeout=5.0)
 
     actual = set(received_entity_ids)
 

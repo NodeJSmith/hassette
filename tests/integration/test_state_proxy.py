@@ -168,7 +168,7 @@ async def test_duplicate_startup_and_connected_signals_coalesce_one_initial_sync
     release_snapshot = asyncio.Event()
 
     async def blocked_wait_initial_connection(*, timeout: float | None = None) -> bool:
-        assert timeout == 1
+        assert timeout == 30
         wait_entered.set()
         await release_wait.wait()
         return True
