@@ -66,6 +66,35 @@ class TestWaitConnected:
         assert await websocket_service.wait_connected(timeout=0.01) is False
 
 
+class TestConnectedGeneration:
+    async def test_returns_generation_only_for_externally_ready_connection(
+        self, websocket_service: WebsocketService
+    ) -> None:
+        assert websocket_service.get_connected_generation() is None
+
+        websocket_service._connection_state = ConnectionState.CONNECTING
+        websocket_service._connected_generation = 3
+        assert websocket_service.get_connected_generation() is None
+
+        websocket_service._connection_state = ConnectionState.CONNECTED
+        assert websocket_service.get_connected_generation() is None
+
+        websocket_service._connected_event.set()
+        assert websocket_service.get_connected_generation() == 3
+
+    async def test_wait_connected_generation_returns_active_generation(
+        self, websocket_service: WebsocketService
+    ) -> None:
+        websocket_service._connection_state = ConnectionState.CONNECTED
+        websocket_service._connected_generation = 7
+        websocket_service._connected_event.set()
+
+        assert await websocket_service.wait_connected_generation(timeout=0.01) == 7
+
+    async def test_wait_connected_generation_times_out(self, websocket_service: WebsocketService) -> None:
+        assert await websocket_service.wait_connected_generation(timeout=0.01) is None
+
+
 class TestWaitInitialConnection:
     async def test_returns_true_when_connected(self, websocket_service: WebsocketService) -> None:
         websocket_service._connection_state = ConnectionState.CONNECTING

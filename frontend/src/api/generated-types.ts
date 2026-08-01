@@ -1504,6 +1504,8 @@ export interface components {
             status: "ok" | "degraded" | "starting";
             /** Websocket Connected */
             websocket_connected: boolean;
+            /** Bootstrap Released */
+            bootstrap_released: boolean;
             /** Uptime Seconds */
             uptime_seconds: number;
             /** Entity Count */
@@ -1745,6 +1747,13 @@ export interface operations {
                     "application/json": components["schemas"]["ActionResponse"];
                 };
             };
+            /** @description App bootstrap prerequisites are not ready yet; retry later */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -1806,6 +1815,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ActionResponse"];
                 };
+            };
+            /** @description App bootstrap prerequisites are not ready yet; retry later */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

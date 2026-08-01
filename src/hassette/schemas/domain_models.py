@@ -71,6 +71,14 @@ class SystemStatus(BaseModel):
     websocket_connected: bool
     """Whether the Home Assistant WebSocket connection is live."""
 
+    bootstrap_released: bool
+    """Whether AppBootstrapCoordinator has released app bootstrap.
+
+    False while apps are configured but blocked waiting on Home Assistant connectivity and
+    initial state capability. Once true, remains true for the rest of the process lifetime
+    even across later WebSocket disconnects.
+    """
+
     uptime_seconds: float
     """Seconds since startup."""
 

@@ -11,9 +11,12 @@ from unittest.mock import AsyncMock, MagicMock
 
 from hassette.config.models import DEFAULT_WEB_API_PORT
 from hassette.core.runtime_query_service import RuntimeQueryService
+from hassette.core.state_proxy import StateCacheFreshness
 from hassette.core.telemetry.query_service import AppHealthAggregates
 from hassette.schemas.app_snapshots import AppManifestInfo, AppStatusSnapshot
+from hassette.test_utils.state_proxy_mocks import configure_state_proxy_mock
 from hassette.test_utils.web_manifest_helpers import make_full_snapshot
+from hassette.test_utils.ws_mocks import configure_ready_websocket_mock
 from hassette.types.enums import ResourceStatus
 from hassette.web.app import create_fastapi_app
 
@@ -85,6 +88,11 @@ def create_hassette_stub(
     # State
     states: dict[str, dict[str, Any]] | None = None,
     is_ready: bool = True,
+    has_state_capability: bool | None = None,
+    cache_freshness: StateCacheFreshness | None = None,
+    # Websocket / bootstrap
+    websocket_connected: bool = True,
+    bootstrap_released: bool | None = None,
     # Apps
     manifests: list[AppManifestInfo] | None = None,
     old_snapshot: AppStatusSnapshot | None = None,
@@ -97,8 +105,25 @@ def create_hassette_stub(
 
     All ``hassette.<public> = hassette._<private>`` wiring, state proxy
     side effects, and snapshot plumbing is handled automatically.
+
+    ``is_ready``, ``websocket_connected``, and ``bootstrap_released`` are three
+    independent lifecycle signals in the real framework (see CLAUDE.md's
+    description of ``StateProxy``, ``WebsocketService``, and
+    ``AppBootstrapCoordinator``) and are kept independent here:
+
+    - ``is_ready`` controls only the mocked StateProxy's readiness.
+    - ``websocket_connected`` controls only the mocked WebsocketService's
+      connection state.
+    - ``bootstrap_released`` controls only the mocked AppBootstrapCoordinator's
+      release latch. Defaults to ``has_state_capability`` when not given
+      explicitly, since a real coordinator only releases once initial state
+      capability has been reached.
     """
     hassette = MagicMock()
+    if has_state_capability is None:
+        has_state_capability = True
+    if bootstrap_released is None:
+        bootstrap_released = has_state_capability
 
     # Matches a real fresh Hassette (no fatal reason yet) so code branching on
     # `fatal_shutdown_reason is not None` sees None, not MagicMock's auto-truthy attribute.
@@ -181,19 +206,36 @@ def create_hassette_stub(
     }
 
     hassette.state_proxy = hassette._state_proxy
-    hassette._state_proxy.states = states if states is not None else {}
+    configure_state_proxy_mock(
+        hassette._state_proxy,
+        states=states,
+        is_ready=is_ready,
+        has_state_capability=has_state_capability,
+        cache_freshness=cache_freshness,
+    )
     hassette._state_proxy.get_state.side_effect = lambda eid: hassette._state_proxy.states.get(eid)
     hassette._state_proxy.get_domain_states.side_effect = lambda domain: {
         eid: s for eid, s in hassette._state_proxy.states.items() if eid.startswith(f"{domain}.")
     }
-    hassette._state_proxy.is_ready.return_value = is_ready
 
     hassette.websocket_service = hassette._websocket_service
     hassette._websocket_service._status = ResourceStatus.RUNNING
-    hassette._websocket_service.is_connected = is_ready
-    hassette._websocket_service.has_ever_connected = is_ready
+    if websocket_connected:
+        configure_ready_websocket_mock(hassette._websocket_service)
+    else:
+        hassette._websocket_service._connected_event = asyncio.Event()
+        hassette._websocket_service._send_ready_event = asyncio.Event()
+        hassette._websocket_service.is_connected = False
+        hassette._websocket_service.has_ever_connected = False
+        hassette._websocket_service.get_connected_generation.return_value = None
+        hassette._websocket_service.wait_connected = AsyncMock(return_value=False)
+        hassette._websocket_service.wait_connected_generation = AsyncMock(return_value=None)
+        hassette._websocket_service.wait_initial_connection = AsyncMock(return_value=False)
 
     hassette.app_handler = hassette._app_handler
+    hassette.app_bootstrap_coordinator = hassette._app_bootstrap_coordinator
+    hassette._app_bootstrap_coordinator.is_released = MagicMock(return_value=bootstrap_released)
+    hassette._app_bootstrap_coordinator.wait_released = AsyncMock(return_value=bootstrap_released)
 
     # New-style manifest snapshot
     snapshot = make_full_snapshot(manifests)

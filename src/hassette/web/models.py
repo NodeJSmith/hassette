@@ -70,6 +70,7 @@ class ServiceInfoResponse(BaseModel):
 class SystemStatusResponse(BaseModel):
     status: SystemHealthStatus
     websocket_connected: bool
+    bootstrap_released: bool
     uptime_seconds: Annotated[float, CliFormat("uptime")]
     entity_count: int
     app_count: int

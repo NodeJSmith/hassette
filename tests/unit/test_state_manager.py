@@ -96,7 +96,7 @@ def domain_states() -> DomainStates[LightState]:
 
 
 class TestDomainStatesCacheValidation:
-    def test_context_id_match_returns_cached_object(self, domain_states: DomainStates[LightState]) -> None:
+    def test_last_updated_match_returns_cached_object(self, domain_states: DomainStates[LightState]) -> None:
         ds = domain_states
         ts = "2026-01-01T00:00:00+00:00"
         ctx = {"id": "fixed-context-id", "parent_id": None, "user_id": None}
@@ -126,25 +126,24 @@ class TestDomainStatesCacheValidation:
         assert spy.call_count == 1
 
     def test_frozen_state_match_returns_cached_object(self, domain_states: DomainStates[LightState]) -> None:
+        """Without last_updated to compare, identical states still hit the cache."""
         ds = domain_states
         ts = "2026-01-01T00:00:00+00:00"
 
-        state_1 = make_light_state_dict(
-            "light.bedroom",
-            "on",
-            brightness=150,
-            last_changed=ts,
-            last_updated=ts,
-            context={"id": None, "parent_id": None, "user_id": None},
-        )
-        state_2 = make_light_state_dict(
-            "light.bedroom",
-            "on",
-            brightness=150,
-            last_changed=ts,
-            last_updated=ts,
-            context={"id": None, "parent_id": None, "user_id": None},
-        )
+        def state_without_last_updated() -> dict:
+            state = make_light_state_dict(
+                "light.bedroom",
+                "on",
+                brightness=150,
+                last_changed=ts,
+                last_updated=ts,
+                context={"id": None, "parent_id": None, "user_id": None},
+            )
+            del state["last_updated"]
+            return state
+
+        state_1 = state_without_last_updated()
+        state_2 = state_without_last_updated()
 
         with patch.object(STATE_REGISTRY, "coerce_and_construct", wraps=STATE_REGISTRY.coerce_and_construct) as spy:
             first = ds._validate_or_return_from_cache("light.bedroom", state_1)
@@ -152,6 +151,40 @@ class TestDomainStatesCacheValidation:
 
         assert first is second
         assert spy.call_count == 1
+
+    def test_shared_context_id_does_not_mask_a_newer_state(self, domain_states: DomainStates[LightState]) -> None:
+        """Home Assistant attaches one context to every state a single cause produces.
+
+        A light driven through a transition reports its ramp and its settled value
+        under the context of the originating turn_on, so the context id must not be
+        treated as a content key -- doing so let the first state answer for all the
+        later ones, permanently.
+        """
+        ds = domain_states
+        ctx = {"id": "01ABCDEF", "parent_id": None, "user_id": None}
+
+        turned_on = make_light_state_dict(
+            "light.bedroom",
+            "on",
+            brightness=15,
+            last_changed="2026-01-01T00:00:00.434000+00:00",
+            last_updated="2026-01-01T00:00:00.434000+00:00",
+            context=ctx,
+        )
+        settled_off = make_light_state_dict(
+            "light.bedroom",
+            "off",
+            last_changed="2026-01-01T00:00:02.830000+00:00",
+            last_updated="2026-01-01T00:00:02.830000+00:00",
+            context=ctx,
+        )
+
+        first = ds._validate_or_return_from_cache("light.bedroom", turned_on)
+        second = ds._validate_or_return_from_cache("light.bedroom", settled_off)
+
+        assert first.value is True
+        assert second.value is False
+        assert ds._cache["light.bedroom"].model is second
 
     def test_changed_state_produces_new_object(self, domain_states: DomainStates[LightState]) -> None:
         ds = domain_states

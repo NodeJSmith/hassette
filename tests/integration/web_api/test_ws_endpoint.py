@@ -14,6 +14,8 @@ from hassette.types.enums import ResourceStatus
 from hassette.web.app import create_fastapi_app
 from hassette.web.routes.ws import _read_client, websocket_endpoint
 
+from .conftest import set_app_status_snapshot, set_websocket_state
+
 try:
     from starlette.testclient import TestClient
 
@@ -114,6 +116,19 @@ class TestWebSocketConnection:
             assert msg["type"] == "connected"
             assert msg["data"]["entity_count"] == 1
             assert msg["data"]["app_count"] == 3
+
+    def test_connect_reports_zero_apps_before_bootstrap(self, client: "TestClient", mock_hassette) -> None:
+        """The connected payload reports app_count=0 before AppHandler bootstraps any apps.
+
+        The websocket handshake must not require any live app instances — RuntimeQueryService's
+        registry reads and system-status derivation are independent of AppHandler readiness.
+        """
+        set_websocket_state(mock_hassette, connected=False, ever_connected=False)
+        set_app_status_snapshot(mock_hassette, running=[], failed=[])
+        with client.websocket_connect("/api/ws") as ws:
+            msg = ws.receive_json()
+            assert msg["type"] == "connected"
+            assert msg["data"]["app_count"] == 0
 
     def test_ping_pong(self, client: "TestClient") -> None:
         with client.websocket_connect("/api/ws") as ws:

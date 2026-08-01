@@ -20,6 +20,7 @@ function makeSystemStatus(overrides: Partial<SystemStatusResponse> = {}): System
   return {
     status: "ok",
     websocket_connected: true,
+    bootstrap_released: true,
     uptime_seconds: 120,
     entity_count: 10,
     app_count: 2,

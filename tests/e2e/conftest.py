@@ -105,7 +105,10 @@ def build_mock_hassette(*, is_ready: bool = True):
     ``is_ready=False`` simulates WebsocketService never having connected to HA
     (the "starting" system-status scenario) — states are empty, matching what
     StateProxy.on_initialize() produces in that case (see
-    design/specs/018-dashboard-without-ha/design.md).
+    design/specs/018-dashboard-without-ha/design.md). This wrapper deliberately
+    drives StateProxy readiness and WebsocketService connectivity together
+    (both reflect "never connected to HA"); ``create_hassette_stub`` itself
+    keeps those two signals independent.
     """
     hassette = create_hassette_stub(
         states=_READY_STATES if is_ready else {},
@@ -113,6 +116,7 @@ def build_mock_hassette(*, is_ready: bool = True):
         old_snapshot=build_old_snapshot(),
         scheduler_jobs=build_scheduler_jobs(),
         is_ready=is_ready,
+        websocket_connected=is_ready,
     )
 
     # Wire telemetry seed data.

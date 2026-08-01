@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from pydantic import BaseModel
 
 from hassette.bus import Bus
-from hassette.core.app_handler import AppHandler
 from hassette.core.app_registry import overlay_runtime_state
 from hassette.core.bus_service import BusService
 from hassette.core.logging_service import LoggingService
@@ -45,9 +44,17 @@ class RuntimeQueryService(Resource):
     Reads from in-memory sources: AppHandler, log buffer, WS clients.
     All reads are instant — no database I/O. LoggingService is in depends_on to
     guarantee the capture handler is ready before WS broadcast wiring runs.
+
+    AppHandler is deliberately absent from ``depends_on``: AppHandler and its ``AppRegistry``
+    are constructed before the Resource lifecycle starts (see ``Hassette.wire_services()``), so
+    registry metadata (manifests, only-app filter) is safely queryable before apps bootstrap and
+    the dashboard is not gated on app-bootstrap release. This also removes the guaranteed reverse
+    shutdown ordering that a ``depends_on`` edge would otherwise provide, so every AppHandler read
+    below tolerates concurrent AppHandler teardown (registry state clearing mid-read) without
+    raising.
     """
 
-    depends_on: ClassVar[list[type[Resource]]] = [BusService, StateProxy, AppHandler, LoggingService]
+    depends_on: ClassVar[list[type[Resource]]] = [BusService, StateProxy, LoggingService]
 
     bus: Bus
     _ws_clients: set[asyncio.Queue[dict[str, Any] | None]]
@@ -83,7 +90,8 @@ class RuntimeQueryService(Resource):
             mark_ready(self, reason="Web API disabled")
             return
 
-        # BusService, StateProxy, and AppHandler are guaranteed ready by depends_on auto-wait.
+        # BusService, StateProxy, and LoggingService are guaranteed ready by depends_on auto-wait.
+        # AppHandler is not a dependency — its registry may still be pre-bootstrap here.
 
         # Subscribe to bus events
         self._subscriptions.append(
@@ -268,6 +276,23 @@ class RuntimeQueryService(Resource):
         """
         return sorted(self.hassette.app_handler.registry.only_apps)
 
+    def is_bootstrap_released(self) -> bool:
+        """Return whether app bootstrap has been released, tolerating an unwired coordinator.
+
+        ``app_bootstrap_coordinator`` is a lazily-wired ``Hassette`` attribute, like
+        ``app_handler``/``websocket_service``/``state_proxy`` elsewhere in this class — reading it
+        before it's wired (or after teardown) raises ``AttributeError``/``RuntimeError``. Shared by
+        both ``get_system_status()`` and ``collect_boot_issues()`` so the tolerance lives in one place.
+
+        Returns:
+            True when the bootstrap latch is open. False when the latch is closed or the
+            coordinator is not reachable.
+        """
+        try:
+            return self.hassette.app_bootstrap_coordinator.is_released()
+        except (AttributeError, RuntimeError):
+            return False
+
     def get_system_status(self) -> SystemStatus:
         websocket_service = self.hassette.websocket_service
         is_connected = websocket_service.is_connected
@@ -294,9 +319,14 @@ class RuntimeQueryService(Resource):
             )
             for child in self.hassette.children
         ]
-        if is_connected:
+        bootstrap_released = self.is_bootstrap_released()
+        if is_connected and bootstrap_released:
             status = "ok"
         elif websocket_service.has_ever_connected:
+            # "degraded" covers two distinct situations: a connection that was live and is now
+            # lost, and a currently-live connection where app bootstrap hasn't released yet (e.g.
+            # still waiting on the initial state snapshot). Both mean "not fully healthy yet/anymore",
+            # but only `bootstrap_released` + `websocket_connected` on the response distinguish them.
             status = "degraded"
         else:
             status = "starting"
@@ -306,6 +336,7 @@ class RuntimeQueryService(Resource):
         return SystemStatus(
             status=status,
             websocket_connected=is_connected,
+            bootstrap_released=bootstrap_released,
             uptime_seconds=uptime,
             entity_count=entity_count,
             app_count=app_count,
@@ -317,9 +348,10 @@ class RuntimeQueryService(Resource):
         )
 
     def collect_boot_issues(self) -> list[BootIssue]:
-        """Collect boot-time issues from blocked apps and failed app instances.
+        """Collect boot-time issues from blocked apps, failed app instances, and pending bootstrap.
 
         Returns a list of ``BootIssue`` objects derived from:
+        - App bootstrap not yet released while at least one autostart app is configured — severity ``warn``
         - Apps that are blocked (e.g. import error, pre-check failure) — severity ``warn``
         - Apps that failed to start — severity ``err``
         """
@@ -328,6 +360,18 @@ class RuntimeQueryService(Resource):
             full_snapshot = self.hassette.app_handler.registry.get_full_snapshot()
         except (AttributeError, RuntimeError):
             return issues
+
+        if not self.is_bootstrap_released() and any(manifest.autostart for manifest in full_snapshot.manifests):
+            issues.append(
+                BootIssue(
+                    severity="warn",
+                    label="Apps pending on Home Assistant",
+                    detail=(
+                        "App bootstrap has not been released — autostart apps will remain stopped "
+                        "until Home Assistant connects and the initial state snapshot succeeds."
+                    ),
+                )
+            )
 
         for manifest in full_snapshot.manifests:
             if manifest.status == "blocked" and manifest.block_reason:

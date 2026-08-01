@@ -7,9 +7,11 @@ time. Retries never fired on cold start. The check must run eagerly so @retry
 can wrap it; this pins the eager-raise behavior.
 """
 
+import asyncio
+
 import pytest
 
-from hassette.core.state_proxy import StateProxy
+from hassette.core.state_proxy import StateCacheFreshness, StateProxy
 from hassette.exceptions import ResourceNotReadyError
 from hassette.resources.base import Resource
 from hassette.test_utils import make_mock_hassette
@@ -26,7 +28,11 @@ def stub_state_proxy() -> StateProxy:
     # Freshly-constructed Resource: ready_event is unset, so is_ready() is naturally
     # False — no need to patch the method. Empty states + not-ready is the cold-start path.
     obj.states = {}
+    obj._cache_freshness = StateCacheFreshness.UNAVAILABLE
     obj._ready_reason = "test cold start"
+    # has_initial_state_capability() reads this event; a real StateProxy.__init__ always
+    # creates it unset, matching the cold-start "capability not reached" state under test.
+    obj._initial_state_capability_event = asyncio.Event()
     return obj
 
 

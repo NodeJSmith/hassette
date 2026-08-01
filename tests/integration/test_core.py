@@ -14,6 +14,7 @@ from hassette import Hassette
 from hassette.api import Api
 from hassette.bus import Bus
 from hassette.core.api_resource import ApiResource
+from hassette.core.app_bootstrap_coordinator import AppBootstrapCoordinator
 from hassette.core.app_handler import AppHandler
 from hassette.core.bus_service import BusService
 from hassette.core.command_executor import CommandExecutor
@@ -65,9 +66,10 @@ def test_constructor_registers_background_services(hassette_instance: Hassette) 
         WebsocketService,
         FileWatcherService,
         WebUiWatcherService,
-        AppHandler,
         ApiResource,
         StateProxy,
+        AppBootstrapCoordinator,
+        AppHandler,
         RuntimeQueryService,
         TelemetryQueryService,
         WebApiService,

@@ -69,6 +69,9 @@ def make_mock_hassette(
         - ``.bus_service.register_removal_callback``: :class:`~unittest.mock.Mock`
         - ``.bus_service.deregister_removal_callback``: :class:`~unittest.mock.Mock`
         - ``.app_handler.get``: :class:`~unittest.mock.Mock` returning ``None`` (no app running)
+        - ``.app_bootstrap_coordinator.is_released``: :class:`~unittest.mock.Mock` returning ``True``
+        - ``.app_bootstrap_coordinator.wait_released``: :class:`~unittest.mock.AsyncMock` returning
+            ``True``
         - ``._runtime_query_service``: ``None`` (wired at runtime by the framework)
         - ``.session_id``: ``None``
         - ``.database_service``: ``None``
@@ -139,6 +142,10 @@ def make_mock_hassette(
 
     # App handler stubs — get() is synchronous; return None (no app running by default)
     hassette.app_handler.get = Mock(return_value=None)
+
+    # App bootstrap coordinator stubs — released by default so lifecycle admission passes.
+    hassette.app_bootstrap_coordinator.is_released = Mock(return_value=True)
+    hassette.app_bootstrap_coordinator.wait_released = AsyncMock(return_value=True)
 
     # Runtime query service — None by default; set_runtime_query_service() wires it at runtime
     hassette._runtime_query_service = None

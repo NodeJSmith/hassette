@@ -104,6 +104,11 @@ def test_real_dependencies_subset_of_harness() -> None:
             )
 
 
+def test_api_mock_is_harness_only_optional_plumbing() -> None:
+    """api_mock remains a harness-only helper, not a stand-in for ApiResource."""
+    assert "api_mock" not in COMPONENT_CLASS_MAP
+
+
 def test_starters_match_component_map() -> None:
     """_starters.keys() must equal COMPONENT_CLASS_MAP.keys() | harness_only_components.
 

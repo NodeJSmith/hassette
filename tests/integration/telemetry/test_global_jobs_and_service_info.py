@@ -489,6 +489,7 @@ class TestServiceInfoResponseExtension:
         status = SystemStatus(
             status="ok",
             websocket_connected=True,
+            bootstrap_released=True,
             uptime_seconds=60.0,
             entity_count=5,
             app_count=2,

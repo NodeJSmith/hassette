@@ -6,12 +6,12 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from hassette.exceptions import TelemetryUnavailableError
+from hassette.exceptions import AppBootstrapNotReleasedError, TelemetryUnavailableError
 from hassette.schemas.listener_models import ListenerSummary
 from hassette.test_utils.web_manifest_helpers import make_manifest_db_row
 from hassette.web.config_view import MASK_SENTINEL
 
-from .conftest import make_log_record, set_websocket_state
+from .conftest import make_log_record, set_app_status_snapshot, set_websocket_state
 
 if TYPE_CHECKING:
     from httpx2 import AsyncClient
@@ -84,6 +84,22 @@ class TestHealthEndpoints:
         response = await client.get("/api/healthz")
         assert response.status_code == 404
 
+    async def test_health_reports_zero_apps_and_starting_before_bootstrap(
+        self, client: "AsyncClient", mock_hassette
+    ) -> None:
+        """The dashboard serves with app_count=0 while apps have not bootstrapped.
+
+        RuntimeQueryService no longer depends on AppHandler, so this must not require any
+        AppHandler readiness — only a cold WebSocket (never connected) and an empty live snapshot.
+        """
+        set_websocket_state(mock_hassette, connected=False, ever_connected=False)
+        set_app_status_snapshot(mock_hassette, running=[], failed=[])
+        response = await client.get("/api/health")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "starting"
+        assert data["app_count"] == 0
+
 
 class TestSPACatchAll:
     async def test_path_traversal_returns_404_or_spa(self, client: "AsyncClient") -> None:
@@ -119,6 +135,15 @@ class TestAppEndpoints:
         data = response.json()
         assert data["action"] == "start"
 
+    async def test_start_app_returns_retryable_conflict_before_release(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        mock_hassette.app_handler.start_app = AsyncMock(side_effect=AppBootstrapNotReleasedError("not released"))
+
+        response = await client.post("/api/apps/my_app/start")
+
+        assert response.status_code == 409
+
     async def test_stop_app(self, client: "AsyncClient") -> None:
         response = await client.post("/api/apps/my_app/stop")
         assert response.status_code == 202
@@ -136,6 +161,15 @@ class TestAppEndpoints:
         data = response.json()
         assert data["action"] == "reload"
         mock_hassette.app_handler.reload_app.assert_awaited_once_with("my_app", force_reload=True)
+
+    async def test_reload_app_returns_retryable_conflict_before_release(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        mock_hassette.app_handler.reload_app = AsyncMock(side_effect=AppBootstrapNotReleasedError("not released"))
+
+        response = await client.post("/api/apps/my_app/reload")
+
+        assert response.status_code == 409
 
     async def test_app_management_works_without_dev_mode(self, client: "AsyncClient", mock_hassette) -> None:
         mock_hassette.config.dev_mode = False

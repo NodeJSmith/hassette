@@ -268,6 +268,7 @@ def make_system_status(**overrides) -> SystemStatus:
     defaults = {
         "status": "ok",
         "websocket_connected": True,
+        "bootstrap_released": True,
         "uptime_seconds": 123.4,
         "entity_count": 42,
         "app_count": 3,
@@ -285,6 +286,7 @@ def test_system_status_response_from_preserves_all_fields():
     assert isinstance(result, SystemStatusResponse)
     assert result.status == "ok"
     assert result.websocket_connected is True
+    assert result.bootstrap_released is True
     assert result.uptime_seconds == 123.4
     assert result.entity_count == 42
     assert result.app_count == 3
