@@ -75,7 +75,7 @@ def init_executor(queue_max: int = 10) -> CommandExecutor:
     executor._dropped_exhausted = 0
     executor._dropped_shutdown = 0
     executor._error_handler_failures = 0
-    executor._last_capacity_warn_ts = 0.0
+    executor._last_capacity_warn_ts = None
     executor._last_unowned_warn_ts = None
     executor._timeout_warn_timestamps = {}
     executor.repository = MagicMock()
@@ -84,6 +84,8 @@ def init_executor(queue_max: int = 10) -> CommandExecutor:
     executor.hassette.session_id = 42
     executor.hassette.try_session_id.return_value = 42
     executor.hassette.config.database.telemetry_write_queue_max = queue_max
+    executor.hassette.config.lifecycle.command_executor_capacity_warn_threshold = 0.75
+    executor.hassette.config.lifecycle.command_executor_capacity_warn_rate_limit_seconds = 30.0
     executor.hassette.database_service = MagicMock()
     executor.hassette.database_service.submit = AsyncMock(return_value=None)
     executor.logger = MagicMock()
@@ -115,6 +117,43 @@ async def test_bounded_queue_drops_on_full():
 
     assert executor._dropped_overflow == 1
     assert executor._write_queue.qsize() == 3
+
+
+async def test_enqueue_record_warns_at_configured_capacity_threshold() -> None:
+    """enqueue_record logs a capacity WARNING once occupancy *before* the enqueue reaches the
+    configured threshold, using lifecycle.command_executor_capacity_warn_threshold (#1041).
+    """
+    executor = init_executor(queue_max=4)
+    executor.hassette.config.lifecycle.command_executor_capacity_warn_threshold = 0.5  # 2/4
+
+    rec = make_invocation()
+    executor.enqueue_record(rec)  # current_size=0 before put — below threshold
+    assert executor.logger.warning.call_count == 0
+
+    executor.enqueue_record(rec)  # current_size=1 before put — still below threshold
+    assert executor.logger.warning.call_count == 0
+
+    executor.enqueue_record(rec)  # current_size=2 before put — at threshold
+    assert executor.logger.warning.call_count == 1
+
+
+async def test_enqueue_record_capacity_warning_respects_configured_rate_limit() -> None:
+    """A second enqueue past the threshold is suppressed until the configured rate-limit window
+    elapses (#1041).
+    """
+    executor = init_executor(queue_max=2)
+    executor.hassette.config.lifecycle.command_executor_capacity_warn_threshold = 0.5  # 1/2
+    executor.hassette.config.lifecycle.command_executor_capacity_warn_rate_limit_seconds = 1000.0
+
+    rec = make_invocation()
+    executor.enqueue_record(rec)  # current_size=0 before put — below threshold
+    assert executor.logger.warning.call_count == 0
+
+    executor.enqueue_record(rec)  # current_size=1 before put — at threshold, fires
+    assert executor.logger.warning.call_count == 1
+
+    executor.enqueue_record(rec)  # current_size=2 before put — still at/above threshold
+    assert executor.logger.warning.call_count == 1, "second warning should be suppressed by rate-limit"
 
 
 async def test_retryable_batch_expanded_in_drain():

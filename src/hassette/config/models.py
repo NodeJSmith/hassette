@@ -254,6 +254,25 @@ class LifecycleConfig(ExcludeExtrasMixin, BaseModel):
     Must be less than total_shutdown_timeout_seconds so the outer shutdown budget is not
     exceeded by the executor interrupt phase."""
 
+    sync_executor_saturation_warn_threshold: float = Field(default=0.75, ge=0.0, le=1.0)
+    """Fraction of the sync-handler thread pool that must be occupied before Hassette logs a
+    pool-saturation WARNING. Independent from command_executor_capacity_warn_threshold — the two
+    govern different subsystems (thread-pool occupancy vs. per-entity write-queue depth) and may
+    be tuned separately."""
+
+    sync_executor_saturation_warn_rate_limit_seconds: float = Field(default=30.0, gt=0)
+    """Minimum seconds between repeated pool-saturation WARNINGs. Raising this above the internal
+    30s probe cadence delays, but does not eliminate, probe-triggered warnings during sustained
+    pool starvation."""
+
+    command_executor_capacity_warn_threshold: float = Field(default=0.75, ge=0.0, le=1.0)
+    """Fraction of the telemetry write-queue capacity that must be filled before Hassette logs a
+    queue-capacity WARNING. Independent from sync_executor_saturation_warn_threshold — see there
+    for why the two are not shared."""
+
+    command_executor_capacity_warn_rate_limit_seconds: float = Field(default=30.0, gt=0)
+    """Minimum seconds between repeated queue-capacity WARNINGs."""
+
     registration_await_timeout: int = Field(default=30)
     """Timeout in seconds to wait for all pending listener/job DB registrations to flush
     before post-ready reconciliation. Prevents indefinite hangs if the DB write queue stalls."""

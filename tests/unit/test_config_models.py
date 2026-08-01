@@ -244,6 +244,10 @@ class TestLifecycleConfig:
         assert cfg.task_cancellation_timeout_seconds == 5
         assert cfg.sync_executor_max_workers == min(32, (os.cpu_count() or 1) + 4)
         assert cfg.sync_executor_shutdown_timeout_seconds == 10.0
+        assert cfg.sync_executor_saturation_warn_threshold == 0.75
+        assert cfg.sync_executor_saturation_warn_rate_limit_seconds == 30.0
+        assert cfg.command_executor_capacity_warn_threshold == 0.75
+        assert cfg.command_executor_capacity_warn_rate_limit_seconds == 30.0
 
     def test_resource_shutdown_timeout_defaults_from_app_shutdown(self):
         """resource_shutdown_timeout_seconds defaults to app_shutdown_timeout_seconds."""
@@ -320,6 +324,47 @@ class TestLifecycleConfig:
         """Default budget (10.0) is safely under default total (30), so default config is valid."""
         cfg = LifecycleConfig()
         assert cfg.sync_executor_shutdown_timeout_seconds < cfg.total_shutdown_timeout_seconds
+
+    def test_sync_executor_saturation_warn_threshold_custom(self) -> None:
+        """sync_executor_saturation_warn_threshold accepts a custom value in [0, 1]."""
+        cfg = LifecycleConfig(sync_executor_saturation_warn_threshold=0.6)
+        assert cfg.sync_executor_saturation_warn_threshold == 0.6
+
+    def test_sync_executor_saturation_warn_threshold_rejects_out_of_range(self) -> None:
+        """sync_executor_saturation_warn_threshold rejects values outside [0, 1]."""
+        with pytest.raises(ValidationError):
+            LifecycleConfig(sync_executor_saturation_warn_threshold=1.1)
+        with pytest.raises(ValidationError):
+            LifecycleConfig(sync_executor_saturation_warn_threshold=-0.1)
+
+    def test_sync_executor_saturation_warn_rate_limit_rejects_non_positive(self) -> None:
+        """sync_executor_saturation_warn_rate_limit_seconds rejects zero and negative values."""
+        with pytest.raises(ValidationError):
+            LifecycleConfig(sync_executor_saturation_warn_rate_limit_seconds=0.0)
+
+    def test_command_executor_capacity_warn_threshold_custom(self) -> None:
+        """command_executor_capacity_warn_threshold accepts a custom value in [0, 1]."""
+        cfg = LifecycleConfig(command_executor_capacity_warn_threshold=0.9)
+        assert cfg.command_executor_capacity_warn_threshold == 0.9
+
+    def test_command_executor_capacity_warn_threshold_rejects_out_of_range(self) -> None:
+        """command_executor_capacity_warn_threshold rejects values outside [0, 1]."""
+        with pytest.raises(ValidationError):
+            LifecycleConfig(command_executor_capacity_warn_threshold=1.1)
+
+    def test_command_executor_capacity_warn_rate_limit_rejects_non_positive(self) -> None:
+        """command_executor_capacity_warn_rate_limit_seconds rejects zero and negative values."""
+        with pytest.raises(ValidationError):
+            LifecycleConfig(command_executor_capacity_warn_rate_limit_seconds=0.0)
+
+    def test_sync_and_command_warn_thresholds_are_independent(self) -> None:
+        """sync_executor and command_executor warning thresholds can diverge (#1041)."""
+        cfg = LifecycleConfig(
+            sync_executor_saturation_warn_threshold=0.5,
+            command_executor_capacity_warn_threshold=0.9,
+        )
+        assert cfg.sync_executor_saturation_warn_threshold == 0.5
+        assert cfg.command_executor_capacity_warn_threshold == 0.9
 
 
 class TestWebApiConfig:

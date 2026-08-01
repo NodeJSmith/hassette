@@ -110,7 +110,7 @@ Individual subscriptions and jobs can override the global default:
 !!! warning "Shutdown interruption runs `finally` blocks — not proof of clean completion"
     When a sync worker is interrupted at shutdown, Python unwinds its stack normally: every `finally` block and context-manager `__exit__` runs before the thread dies. A `finally` that commits a database write or flushes a file will execute, but the handler did not complete cleanly — only part of its work ran. Do not treat `finally` execution as confirmation that a sync handler finished successfully.
 
-**Pool saturation.** When all workers in the sync-handler pool are blocked, new sync work queues up and no sync handlers or jobs fire until a slot opens. Hassette logs a rate-limited WARNING as the pool approaches its ceiling. The recourse is to raise `lifecycle.sync_executor_max_workers`, fix the slow handler, or convert it to `async`. See [Sync-handler pool configuration](#sync-handler-pool) below.
+**Pool saturation.** When all workers in the sync-handler pool are blocked, new sync work queues up and no sync handlers or jobs fire until a slot opens. Hassette logs a rate-limited WARNING as the pool approaches its ceiling (default: 75% occupied, at most once every 30s — both configurable). The recourse is to raise `lifecycle.sync_executor_max_workers`, fix the slow handler, or convert it to `async`. See [Sync-handler pool configuration](#sync-handler-pool) below.
 
 **Catching `TimeoutError` internally.** A handler that catches `TimeoutError` before it propagates to Hassette prevents the cancellation from taking effect. The handler continues running; the record shows `status='success'`. Catching `TimeoutError` in handler bodies without re-raising it defeats the timeout mechanism.
 
@@ -120,15 +120,17 @@ Individual subscriptions and jobs can override the global default:
 
 Sync handlers, sync jobs, and App sync lifecycle hooks run on a dedicated thread pool owned by Hassette. The pool is separate from the framework's internal thread pool (used by logging and the database), so slow sync handlers cannot starve framework internals.
 
-Two `[hassette.lifecycle]` fields control the pool:
+`[hassette.lifecycle]` fields control the pool and its saturation WARNING:
 
 | Field | Default | Effect |
 |---|---|---|
 | `sync_executor_max_workers` | `min(32, cpu_count + 4)` | Pool ceiling — the maximum number of sync workers that can run concurrently. |
+| `sync_executor_saturation_warn_threshold` | `0.75` | Fraction of the pool that must be occupied before the saturation WARNING fires. |
+| `sync_executor_saturation_warn_rate_limit_seconds` | `30.0` | Minimum seconds between repeated saturation WARNINGs. |
 
 The shutdown budget (`sync_executor_shutdown_timeout_seconds`) is documented in the [Startup and Shutdown Timeouts](#startup-and-shutdown-timeouts) table below.
 
-When the pool nears its ceiling (≥ 75% occupied), Hassette logs a rate-limited WARNING at most once every 30 seconds. The WARNING fires on submission and from a periodic background probe, so it appears even when the pool is fully starved and no new work is being submitted.
+When the pool nears its ceiling (≥ `sync_executor_saturation_warn_threshold`, 75% by default), Hassette logs a rate-limited WARNING at most once every `sync_executor_saturation_warn_rate_limit_seconds` (30s by default). The WARNING fires on submission and from a periodic background probe, so it appears even when the pool is fully starved and no new work is being submitted. A lower threshold provides earlier headroom alerts on quiet instances. A higher rate-limit window reduces repeated WARNINGs on busy instances that operate near the ceiling by design.
 
 At shutdown, Hassette joins workers within the budget. Threads still alive after the join attempt receive `SystemExit` (best-effort — C-blocked threads such as `time.sleep()` or native I/O cannot be interrupted at the Python level and are abandoned when the budget expires). Shutdown still completes within `total_shutdown_timeout_seconds` regardless.
 

@@ -687,6 +687,36 @@
           "title": "Sync Executor Shutdown Timeout Seconds",
           "type": "number"
         },
+        "sync_executor_saturation_warn_threshold": {
+          "default": 0.75,
+          "description": "Fraction of the sync-handler thread pool that must be occupied before Hassette logs a\npool-saturation WARNING. Independent from command_executor_capacity_warn_threshold \u2014 the two\ngovern different subsystems (thread-pool occupancy vs. per-entity write-queue depth) and may\nbe tuned separately.",
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Sync Executor Saturation Warn Threshold",
+          "type": "number"
+        },
+        "sync_executor_saturation_warn_rate_limit_seconds": {
+          "default": 30.0,
+          "description": "Minimum seconds between repeated pool-saturation WARNINGs. Raising this above the internal\n30s probe cadence delays, but does not eliminate, probe-triggered warnings during sustained\npool starvation.",
+          "exclusiveMinimum": 0,
+          "title": "Sync Executor Saturation Warn Rate Limit Seconds",
+          "type": "number"
+        },
+        "command_executor_capacity_warn_threshold": {
+          "default": 0.75,
+          "description": "Fraction of the telemetry write-queue capacity that must be filled before Hassette logs a\nqueue-capacity WARNING. Independent from sync_executor_saturation_warn_threshold \u2014 see there\nfor why the two are not shared.",
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Command Executor Capacity Warn Threshold",
+          "type": "number"
+        },
+        "command_executor_capacity_warn_rate_limit_seconds": {
+          "default": 30.0,
+          "description": "Minimum seconds between repeated queue-capacity WARNINGs.",
+          "exclusiveMinimum": 0,
+          "title": "Command Executor Capacity Warn Rate Limit Seconds",
+          "type": "number"
+        },
         "registration_await_timeout": {
           "default": 30,
           "description": "Timeout in seconds to wait for all pending listener/job DB registrations to flush\nbefore post-ready reconciliation. Prevents indefinite hangs if the DB write queue stalls.",
