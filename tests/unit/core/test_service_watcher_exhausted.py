@@ -4,7 +4,7 @@ Verifies:
 - handle_exhaustion sets EXHAUSTED_COOLING on the service instance for TRANSIENT services
 - handle_exhaustion sets EXHAUSTED_DEAD on the service instance for TEMPORARY services
 - cooldown_and_retry transitions EXHAUSTED_COOLING → EXHAUSTED_DEAD when cooldown cycle limit exceeded
-- Status assignment is skipped (with warning) when get_service returns empty list
+- Status assignment is skipped (with warning) when get_service returns None
 """
 
 from unittest.mock import MagicMock, patch
@@ -125,7 +125,7 @@ async def test_cooldown_exceeded_sets_exhausted_dead():
 
 
 async def test_exhausted_status_skipped_when_service_not_found():
-    """When get_service returns empty list, status set is skipped — no exception, event still emitted."""
+    """When get_service returns None, status set is skipped — no exception, event still emitted."""
     hassette = build_watcher_hassette()
     hassette.children = []
 
