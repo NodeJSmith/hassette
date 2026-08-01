@@ -49,8 +49,12 @@ def make_interval_trigger(*, next_returns=None, next_raises=None):
 
 class TestRescheduleNoneRemovesJob:
     async def test_reschedule_none_completes_job(self) -> None:
-        """next_run_time() returning None completes the job; job not re-enqueued or removed
-        from the heap (it was already popped before dispatch — completion is not removal).
+        """next_run_time() returning None completes the job and is not re-enqueued. Heap
+        removal is still attempted defensively (a no-op here since the job was already
+        popped before dispatch) in case dispatch_and_log was invoked on a still heap-resident
+        job — see tests/integration/test_scheduler.py's tests that force early dispatch via a
+        direct dispatch_and_log() call (e.g. test_one_shot_job_skip_records_and_completes) for
+        that real heap-resident scenario.
         """
         svc = make_scheduler_service()
         trig = make_interval_trigger(next_returns=None)
@@ -62,7 +66,7 @@ class TestRescheduleNoneRemovesJob:
 
         await svc.dispatch_and_log(job)
 
-        svc._job_queue.remove_job.assert_not_called()
+        svc._job_queue.remove_job.assert_called_once_with(job)
         svc._job_queue.add.assert_not_called()
         assert job.schedule_status is ScheduleStatus.COMPLETED
         assert job.schedule_status_reason is None
@@ -96,7 +100,7 @@ class TestRescheduleExceptionRemovesJob:
 
         await svc.dispatch_and_log(job)
 
-        svc._job_queue.remove_job.assert_not_called()
+        svc._job_queue.remove_job.assert_called_once_with(job)
         assert job.schedule_status is ScheduleStatus.COMPLETED
         assert job.schedule_status_reason is ScheduleStatusReason.TRIGGER_ERROR
         svc.logger.exception.assert_called_once()
@@ -695,6 +699,7 @@ class TestPersistScheduleStatus:
 
         svc._executor.mark_job_status.assert_awaited_once_with(42, "waiting", None)
         assert job.schedule_status is ScheduleStatus.WAITING
+        svc._job_queue.remove_job.assert_called_once_with(job)
 
     async def test_reschedule_job_waiting_transition_persists_status(self) -> None:
         svc = make_scheduler_service()

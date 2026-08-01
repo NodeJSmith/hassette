@@ -478,6 +478,31 @@ class SchedulerService(Service):
             job.transition_to(ScheduleStatus.COMPLETED)
             await self.persist_schedule_status(job)
 
+        # A job that just transitioned away from SCHEDULED (COMPLETED via the trigger-raised,
+        # trigger-exhausted, or no-trigger branch above, or WAITING via the mid-recurrence
+        # branch) must not remain on the due-time heap. One check here — rather than a
+        # removal call inlined at each of those four transition sites — because the condition
+        # they all share is simply "did this dispatch leave the job off SCHEDULED", which is
+        # cheaper and less error-prone to ask once than to repeat at each call site. The
+        # recurring/re-enqueue branch is excluded because it leaves the job SCHEDULED with a
+        # freshly pushed heap entry that must stay. `job.trigger is not None` excludes the
+        # no-trigger branch for a different reason: a trigger-less job never reaches the heap
+        # in the first place (manual-only jobs never call enqueue_job), so there is nothing to
+        # remove — the check would be harmless either way, but this makes that explicit.
+        #
+        # Normally this call is a no-op: the serve loop already popped this job from the heap
+        # before spawning dispatch_and_log. It only does real work when dispatch_and_log was
+        # invoked directly on a job that is still heap-resident, as several tests in
+        # tests/integration/test_scheduler.py do deliberately, to force a future occurrence to
+        # fire early — e.g. run_in(delay=10) followed by an immediate
+        # `await scheduler_service.dispatch_and_log(job)`. Without this cleanup, that job's
+        # original heap entry survives with its next_run/fire_at wiped to None by the
+        # COMPLETED/WAITING transition, corrupting the heap's sort order and crashing
+        # pop_due_and_peek_next's `assert candidate.fire_at is not None` — see KI-006 in
+        # design/specs/090-registered-manual-jobs/known-issues.md for the full incident.
+        if job.trigger is not None and job.schedule_status is not ScheduleStatus.SCHEDULED:
+            await self._job_queue.remove_job(job)
+
         # Step 2: Evaluate the job's predicate (if any) before running the handler.
         # This must come after step 1 (next occurrence computed/enqueued/status persisted) so
         # a skipped recurring job still continues its schedule, and before step 3

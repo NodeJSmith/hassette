@@ -116,23 +116,49 @@ Extract a shared parametrized helper (e.g. `assert_last_error_row_coherence(quer
 Acceptance criteria:
 - The row-coherence behavior is asserted from one shared implementation, parametrized over entity type and scope, rather than four independent copies.
 
-## KI-006: tests/integration/test_scheduler.py has pre-existing test-order-dependent flakiness
+## KI-006: tests/integration/test_scheduler.py flaked under random test ordering
 
-Status: open
-Source: clean-code
-Reason not fixed now: out-of-scope
-Observed in: clean-code pass test-suite verification at commit 56e24551 (pre-existing on main, not introduced by this branch)
+Status: resolved — root-caused and fixed. The earlier "pre-existing on main" conclusion was
+wrong; this was a genuine regression introduced by T04 of this branch.
+
+Source: clean-code (originally); root-caused during PR readiness follow-up.
 Affected files:
-- tests/integration/test_scheduler.py
+- src/hassette/core/scheduler_service.py (fix)
+- tests/unit/core/test_scheduler_service_reschedule.py (updated assertions + new coverage)
 
-Issue:
-Running `uv run nox -s dev` (or `pytest tests/integration/test_scheduler.py` with `pytest-randomly`'s default random ordering) intermittently fails 2-5 tests in this file with `TimeoutError` — observed on `test_run_job_calls_executor`, `test_run_job_non_app_routes_through_executor`, `test_run_in_passes_args_kwargs_sync`, `test_run_in_passes_args_kwargs_async`, and `test_jobs_execute_in_run_order`, in varying combinations across runs. Confirmed pre-existing and unrelated to this clean-code pass's edits: stashing all clean-code changes and re-running the full file with a fixed `--randomly-seed` reproduces the identical failure set on the unmodified baseline. Running the same tests in isolation (via `-k`) always passes; the failures only appear when the full file (or the full suite via `-n 4 --dist loadscope`) runs many scheduler integration tests back to back, suggesting real-timer/asyncio contention under load rather than a logic bug in any single test.
+What it actually was:
+The original note claimed this reproduced on an unmodified `main` baseline and was therefore
+pre-existing and unrelated to spec 090. That claim was never checked against actual `main` —
+it only stashed this clean-code pass's own diff, not the full branch. Re-verifying against
+real `main` (`git diff`/checkout comparison, both the single file and the full 8500+-test
+suite under `-n 4 --dist loadscope`) found **zero** flakiness there, even under heavier load
+than the failing subset. Bisecting the branch's 8 task commits (T01-T08) against
+`tests/integration/test_scheduler.py` pinned the regression to T04 ("Implement completion
+retention and manual submission").
 
-Why deferred:
-This is a pre-existing test-reliability issue orthogonal to spec 090's scope and to this clean-code pass — root-causing timer/asyncio contention across a 24-test integration file is a debugging task, not a stylistic fix, and touching this file's timing assumptions carries real risk of masking a genuine race instead of fixing test isolation.
+Root cause: T04 deleted `SchedulerService._remove_job()`, which used to unconditionally strip
+a job from the due-time heap at the end of every dispatch. In its place, `dispatch_and_log()`
+now only updates `job.schedule_status` (COMPLETED/WAITING) when a trigger is exhausted, raises,
+or goes mid-recurrence-WAITING — it never removes the corresponding heap entry. Several tests
+in this file legitimately schedule a job for the near future (`run_in(delay=10)`) and then
+force an early fire via a direct `await scheduler_service.dispatch_and_log(job)` call, without
+removing the still-pending heap entry first. That entry survives with its `next_run`/`fire_at`
+wiped to `None` by the COMPLETED/WAITING transition. When the real due-time heap pops it later
+(sometimes seconds into a later test, depending on random ordering), it hits
+`pop_due_and_peek_next()`'s `assert candidate.fire_at is not None` and crashes the
+`SchedulerService.serve()` task permanently for the rest of the test module — every subsequent
+`run_in()`-scheduled job across the remaining tests in the file then times out waiting for an
+event that can never fire, since nothing pops the heap anymore.
 
-Recommended follow-up:
-Investigate whether these tests share mutable state (e.g. a module-scoped mock executor, as flagged in this same clean-code pass for the save/restore-mock-attributes pattern) or whether they need longer/more robust waits (`wait_for()` helper instead of bare `asyncio.wait_for(..., timeout=1)`) to tolerate scheduler contention when many real-timer tests run consecutively in one process.
+Fix: `dispatch_and_log()` now calls `await self._job_queue.remove_job(job)` whenever a job
+transitions away from `SCHEDULED` (COMPLETED or WAITING), mirroring what `reschedule_job()`
+already did correctly for its own WAITING/re-SCHEDULED paths. This is a no-op in the normal
+case (the job was already popped off the heap by `serve()` before dispatch), and correctly
+clears the stale entry in the edge case (dispatch forced early on a still heap-resident job).
+Verified: 10/10 clean runs of the single file, 3/3 clean runs of the full integration suite
+under `-n 4 --dist loadscope`, and a full 8500+-test suite run with zero failures.
 
 Acceptance criteria:
-- `pytest tests/integration/test_scheduler.py` passes consistently across at least 10 consecutive runs with random test ordering (`pytest-randomly` default, no fixed seed).
+- [x] `pytest tests/integration/test_scheduler.py` passes consistently across at least 10
+  consecutive runs with random test ordering.
+- [x] Root cause identified and fixed at the source, not papered over with longer timeouts.
