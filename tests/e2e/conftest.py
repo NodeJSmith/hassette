@@ -17,6 +17,7 @@ from hassette.logging_ import LogCaptureHandler, LogEntry
 from hassette.test_utils.web_mocks import create_hassette_stub, create_mock_runtime_query_service
 from hassette.web.app import create_fastapi_app
 from tests.e2e.mock_fixtures import (
+    MANUAL_JOB_ID,
     build_app_health_summaries,
     build_error_records,
     build_executions,
@@ -36,6 +37,7 @@ from tests.e2e.mock_fixtures import (
     wire_job_telemetry,
     wire_listener_telemetry,
     wire_owner_resolution,
+    wire_scheduler_trigger,
     wire_session_telemetry,
 )
 
@@ -116,6 +118,7 @@ def build_mock_hassette(*, is_ready: bool = True):
     # Wire telemetry seed data.
     wire_listener_telemetry(hassette, build_listener_telemetry())
     wire_job_telemetry(hassette, build_job_telemetry())
+    wire_scheduler_trigger(hassette, {MANUAL_JOB_ID: "send_notification"})
     wire_invocation_telemetry(hassette, build_executions())
     wire_app_health_summaries(hassette, build_app_health_summaries())
     wire_session_telemetry(hassette, build_session_list())

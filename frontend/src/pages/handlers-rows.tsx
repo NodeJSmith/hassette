@@ -9,6 +9,7 @@ import { useRelativeTime } from "../hooks/use-relative-time";
 import { handlerPath } from "../utils/app-routes";
 import { formatDurationOrDash, formatRate, MS_PER_SECOND } from "../utils/format";
 import type { UnifiedRow } from "../utils/handler-rows";
+import { scheduleStatusLabel } from "../utils/handler-rows";
 
 // Coarse kind labels for the table view — overview-tab-helpers uses handlerKindLabel() for richer per-listener kinds
 const KIND_LABELS: Record<"listener" | "job", string> = {
@@ -62,11 +63,15 @@ function useHandlerRowData(row: UnifiedRow) {
   const isOverdue = row.next_run_ts !== null && row.next_run_ts < now;
 
   let nextRunDisplay: string | null = null;
+  let isScheduleStatus = false;
   if (row.next_run_ts !== null) {
     nextRunDisplay = isOverdue ? "overdue" : nextRunRelative;
+  } else if (row.kind === "job") {
+    nextRunDisplay = scheduleStatusLabel(row.schedule_status);
+    isScheduleStatus = nextRunDisplay !== null;
   }
 
-  return { errorRate, avgDuration, isOverdue, nextRunDisplay };
+  return { errorRate, avgDuration, isOverdue, nextRunDisplay, isScheduleStatus };
 }
 
 interface HandlerRowProps {
@@ -134,7 +139,7 @@ export function HandlerTableRow({ row }: HandlerRowProps) {
 }
 
 export function HandlerMobileRow({ row }: HandlerRowProps) {
-  const { errorRate, avgDuration, nextRunDisplay } = useHandlerRowData(row);
+  const { errorRate, avgDuration, nextRunDisplay, isScheduleStatus } = useHandlerRowData(row);
 
   return (
     <MobileCard
@@ -169,7 +174,9 @@ export function HandlerMobileRow({ row }: HandlerRowProps) {
       }
       footer={
         row.kind === "job" && nextRunDisplay !== null ? (
-          <span className="text-muted-foreground">next {nextRunDisplay}</span>
+          <span className="text-muted-foreground" data-testid="handler-row-schedule-status">
+            {isScheduleStatus ? nextRunDisplay : `next ${nextRunDisplay}`}
+          </span>
         ) : undefined
       }
     />

@@ -17,6 +17,34 @@ export interface UnifiedRow {
   avg_duration_ms: number;
   next_run_ts: number | null;
   source_tier: string;
+  schedule_status: string | null;
+}
+
+/**
+ * Short list-view label for a job's schedule status, used when `next_run_ts` is null.
+ *
+ * Returns null for a normal "scheduled" status (the next-run timestamp already conveys that
+ * state) and for a "scheduled" status without a `legacy_unknown` reason (degraded timing —
+ * callers fall back to their own placeholder text).
+ */
+export function scheduleStatusLabel(status: string | null, reason?: string | null): string | null {
+  if (status === "manual") return "manual";
+  if (status === "waiting") return "waiting";
+  if (status === "completed") return "completed";
+  if (status === "scheduled" && reason === "legacy_unknown") return "unknown";
+  return null;
+}
+
+/** Secondary sort rank for jobs with no `next_run_ts`, per design: manual < waiting < completed < unknown/degraded. */
+const SCHEDULE_STATUS_SORT_RANK: Record<string, number> = {
+  manual: 0,
+  waiting: 1,
+  completed: 2,
+};
+
+function scheduleStatusRank(status: string | null): number {
+  if (status === null) return 3;
+  return SCHEDULE_STATUS_SORT_RANK[status] ?? 3;
 }
 
 export function listenerToRow(l: ListenerData): UnifiedRow {
@@ -35,6 +63,7 @@ export function listenerToRow(l: ListenerData): UnifiedRow {
     avg_duration_ms: l.avg_duration_ms,
     next_run_ts: null,
     source_tier: l.source_tier,
+    schedule_status: null,
   };
 }
 
@@ -54,6 +83,7 @@ export function jobToRow(j: JobData): UnifiedRow {
     avg_duration_ms: j.avg_duration_ms,
     next_run_ts: j.next_run ?? null,
     source_tier: j.source_tier,
+    schedule_status: j.schedule_status ?? null,
   };
 }
 
@@ -100,7 +130,12 @@ export function compareHandlerRows(a: UnifiedRow, b: UnifiedRow, sort: SortState
       return dir * (a.avg_duration_ms - b.avg_duration_ms);
     case "next_run": {
       const ts = (r: UnifiedRow) => r.next_run_ts ?? NO_NEXT_RUN;
-      return dir * (ts(a) - ts(b));
+      const primary = ts(a) - ts(b);
+      if (primary !== 0) return dir * primary;
+      if (a.next_run_ts === null && b.next_run_ts === null) {
+        return dir * (scheduleStatusRank(a.schedule_status) - scheduleStatusRank(b.schedule_status));
+      }
+      return 0;
     }
     default:
       return 0;

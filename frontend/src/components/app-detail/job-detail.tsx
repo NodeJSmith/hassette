@@ -1,3 +1,6 @@
+import { useEffect, useRef } from "react";
+import { toast } from "sonner";
+
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -42,8 +45,51 @@ function ScheduleChips({ job }: { job: JobData }) {
   );
 }
 
+/** Max time to wait for an execution record after Run Now submission before showing the timeout fallback (FR#26). */
+const RUN_NOW_FEEDBACK_TIMEOUT_MS = 8000;
+
+/**
+ * Watches the WebSocket `executionCompleted` stream for a record matching `jobId` after a Run
+ * Now submission. Shows a success toast when a matching record appears, or a "No execution
+ * recorded" fallback toast if none appears within `RUN_NOW_FEEDBACK_TIMEOUT_MS` — suppressed or
+ * dropped invocations never produce an execution record, so the timeout is the only signal for
+ * those outcomes (FR#26/AC#13).
+ */
+function useRunNowFeedback(jobId: number): () => void {
+  const executionCompleted = useAppStore((s) => s.executionCompleted);
+  const watchingRef = useRef(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!watchingRef.current) return;
+    const matched = executionCompleted?.some((e) => e.kind === "job" && e.job_id === jobId);
+    if (!matched) return;
+    watchingRef.current = false;
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    toast.success("Execution recorded");
+  }, [executionCompleted, jobId]);
+
+  useEffect(
+    () => () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    },
+    [],
+  );
+
+  return () => {
+    watchingRef.current = true;
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => {
+      if (!watchingRef.current) return;
+      watchingRef.current = false;
+      toast.error("No execution recorded");
+    }, RUN_NOW_FEEDBACK_TIMEOUT_MS);
+  };
+}
+
 function RunNowButton({ jobId }: { jobId: number }) {
   const { loading, error, run } = useAsyncAction();
+  const startWatching = useRunNowFeedback(jobId);
 
   return (
     <div className="flex flex-col items-start gap-1">
@@ -52,7 +98,12 @@ function RunNowButton({ jobId }: { jobId: number }) {
         size="sm"
         data-testid="run-now-btn"
         disabled={loading}
-        onClick={() => void run(() => triggerJob(jobId))}
+        onClick={() =>
+          void run(async () => {
+            await triggerJob(jobId);
+            startWatching();
+          })
+        }
       >
         {loading ? (
           <>
@@ -73,14 +124,38 @@ function RunNowButton({ jobId }: { jobId: number }) {
   );
 }
 
+/**
+ * Status-specific text for a job's `schedule_status`, per design/specs/090 Operator Surfaces.
+ * Returns null for a normally-scheduled job with live timing — `nextRunText` already conveys
+ * that state, so the caller falls back to it.
+ */
+function scheduleStatusText(job: JobData, nextRunText: string | null): string | null {
+  switch (job.schedule_status) {
+    case "manual":
+      return "Manual only.";
+    case "waiting":
+      return "Waiting for entity time.";
+    case "completed":
+      return job.schedule_status_reason === "trigger_error"
+        ? "Schedule stopped after trigger error."
+        : "Schedule completed.";
+    case "scheduled":
+      if (job.schedule_status_reason === "legacy_unknown") return "Legacy status unknown.";
+      return nextRunText === null ? "Timing unavailable." : null;
+    default:
+      return null;
+  }
+}
+
 function buildJobStatsCells(job: JobData, lastExecutedLabel: string, nextRunText: string | null): DetailStatsCell[] {
+  const statusText = scheduleStatusText(job, nextRunText);
   const input: CommonStatInput = {
     totalLabel: "Runs",
     total: job.total_executions,
     failed: job.failed,
     avgDurationMs: job.avg_duration_ms,
-    lastLabel: nextRunText ?? (job.last_executed_at ? lastExecutedLabel || "—" : "—"),
-    lastFieldLabel: nextRunText ? "Next" : "Last",
+    lastLabel: statusText ?? nextRunText ?? (job.last_executed_at ? lastExecutedLabel || "—" : "—"),
+    lastFieldLabel: statusText ? "Schedule" : nextRunText ? "Next" : "Last",
     timedOut: job.timed_out,
     cancelled: job.cancelled,
     threadLeaked: job.thread_leaked,

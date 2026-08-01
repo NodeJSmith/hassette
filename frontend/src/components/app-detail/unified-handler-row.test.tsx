@@ -296,4 +296,32 @@ describe("UnifiedHandlerRow — job", () => {
     expect(getByText("2 failed")).toBeDefined();
     expect(getByText("1 timed out")).toBeDefined();
   });
+
+  it.each([
+    ["manual", "manual"],
+    ["waiting", "waiting"],
+    ["completed", "completed"],
+  ] as const)("renders schedule status badge '%s' for jobs", (status, label) => {
+    const item = makeJobItem({ job_id: 1, schedule_status: status, next_run: null });
+    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
+    expect(getByTestId("schedule-status-badge").textContent).toBe(label);
+  });
+
+  it("does not render a schedule status badge for a normal scheduled job", () => {
+    const item = makeJobItem({ job_id: 1, schedule_status: "scheduled", schedule_status_reason: null });
+    const { queryByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
+    expect(queryByTestId("schedule-status-badge")).toBeNull();
+  });
+
+  it("renders 'unknown' badge for scheduled jobs with legacy_unknown reason", () => {
+    const item = makeJobItem({ job_id: 1, schedule_status: "scheduled", schedule_status_reason: "legacy_unknown" });
+    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
+    expect(getByTestId("schedule-status-badge").textContent).toBe("unknown");
+  });
+
+  it("does not render a schedule status badge for listeners", () => {
+    const item = makeListenerItem();
+    const { queryByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />);
+    expect(queryByTestId("schedule-status-badge")).toBeNull();
+  });
 });

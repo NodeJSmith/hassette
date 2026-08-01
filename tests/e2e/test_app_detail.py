@@ -5,6 +5,7 @@ master/detail layout, action buttons, code tab, config tab.
 """
 
 import re
+import time
 
 import pytest
 from playwright.sync_api import Page, expect
@@ -15,6 +16,7 @@ from tests.e2e.mock_fixtures import (
     JOB_MY_APP_2_TOTAL_EXECUTIONS,
     LISTENER_MY_APP_1_TOTAL_INVOCATIONS,
     LISTENER_MY_APP_2_TOTAL_INVOCATIONS,
+    MANUAL_JOB_ID,
 )
 
 pytestmark = pytest.mark.e2e
@@ -305,3 +307,63 @@ def test_multi_instance_parent_logs_tab(page: Page, base_url: str) -> None:
     page.goto(base_url + "/apps/multi_app/logs")
     page.wait_for_load_state("networkidle")
     expect(page.locator("[data-testid='logs-section']")).to_be_visible()
+
+
+def test_manual_job_run_now_shows_execution_activity(page: Page, live_server_ws_inject) -> None:
+    """A manual-only job is displayed, submitted via Run Now, and execution activity appears.
+
+    The manual job (schedule_status
+    "manual", no automatic trigger) is discoverable in the unified handler list, "Run Now"
+    submits it (202 via the `wire_scheduler_trigger` stub), and a WS `execution_completed`
+    message for that job_id — the real signal `useRunNowFeedback` listens for — surfaces a
+    success toast, proving execution activity became visible after submission.
+
+    Modelled on test_execution_completed_ws_message_triggers_activity_refetch, which
+    establishes the live_server_ws_inject + broadcast_sync pattern for injecting WS events.
+    """
+    base = live_server_ws_inject.url
+    broadcast_sync = live_server_ws_inject.broadcast_sync
+
+    page.goto(base + "/apps/my_app/handlers")
+
+    # Wait for WS to connect before triggering — useRunNowFeedback subscribes via the WS store.
+    ws_indicator = page.locator("[data-testid='ws-indicator']")
+    expect(ws_indicator.first).to_have_text("Connected", timeout=10000)
+
+    job_row = page.locator(f"[data-testid='unified-row-job-{MANUAL_JOB_ID}']")
+    expect(job_row).to_be_visible()
+    expect(job_row).to_contain_text("send_notification")
+    expect(job_row).to_contain_text("manual")
+
+    job_row.click()
+    detail = page.locator(f"[data-testid='job-detail-{MANUAL_JOB_ID}']")
+    expect(detail).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
+    expect(detail).to_contain_text("Manual only")
+
+    run_now_btn = detail.locator("[data-testid='run-now-btn']")
+    expect(run_now_btn).to_be_visible()
+    run_now_btn.click()
+
+    # Give the POST /trigger request (202) time to land before injecting the WS event.
+    page.wait_for_timeout(500)
+
+    broadcast_sync(
+        {
+            "type": "execution_completed",
+            "data": [
+                {
+                    "kind": "job",
+                    "app_key": "my_app",
+                    "instance_index": 0,
+                    "status": "success",
+                    "duration_ms": 8.0,
+                    "error_type": None,
+                    "listener_id": None,
+                    "job_id": MANUAL_JOB_ID,
+                }
+            ],
+            "timestamp": time.time(),
+        }
+    )
+
+    expect(page.get_by_text("Execution recorded")).to_be_visible(timeout=5000)

@@ -1,12 +1,22 @@
-import { waitFor } from "@testing-library/react";
+import { act, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
+import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { useAppStore } from "../../state/store";
 import { createJob } from "../../test/factories";
 import { createWouterMock } from "../../test/mock-wouter";
 import { server } from "../../test/server";
 import { renderHandlersTab } from "./handlers-tab.test-helpers";
+
+vi.mock("sonner", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("sonner")>();
+  return {
+    ...actual,
+    toast: { ...actual.toast, success: vi.fn(), error: vi.fn() },
+  };
+});
 
 // Mock child components that make API calls
 vi.mock("../shared/execution-table", () => ({
@@ -337,6 +347,181 @@ describe("HandlersTab job detail", () => {
       await waitFor(() => {
         expect(button.disabled).toBe(false);
       });
+    });
+
+    it("shows a success toast when a matching execution record appears after submission", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const user = userEvent.setup();
+      const job = createJob({ job_id: 70 });
+      const { getByTestId } = renderHandlersTab([], [job], "job/70");
+      await waitFor(() => getByTestId("job-detail-70"));
+
+      await user.click(getByTestId("run-now-btn"));
+      await waitFor(() => expect(toast.success).not.toHaveBeenCalled());
+
+      act(() => {
+        useAppStore.setState({
+          executionCompleted: [
+            {
+              kind: "job",
+              job_id: 70,
+              app_key: "test_app",
+              instance_index: 0,
+              status: "success",
+              duration_ms: 10,
+              error_type: null,
+              thread_leaked: false,
+            },
+          ],
+        });
+      });
+
+      await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Execution recorded"));
+      expect(toast.error).not.toHaveBeenCalled();
+      vi.useRealTimers();
+    });
+
+    it("shows a 'No execution recorded' toast when no matching record appears within the timeout", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const user = userEvent.setup();
+      const job = createJob({ job_id: 71 });
+      const { getByTestId } = renderHandlersTab([], [job], "job/71");
+      await waitFor(() => getByTestId("job-detail-71"));
+
+      await user.click(getByTestId("run-now-btn"));
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10000);
+      });
+
+      expect(toast.error).toHaveBeenCalledWith("No execution recorded");
+      expect(toast.success).not.toHaveBeenCalled();
+      vi.useRealTimers();
+    });
+
+    it("ignores executionCompleted records for a different job_id", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const user = userEvent.setup();
+      const job = createJob({ job_id: 72 });
+      const { getByTestId } = renderHandlersTab([], [job], "job/72");
+      await waitFor(() => getByTestId("job-detail-72"));
+
+      await user.click(getByTestId("run-now-btn"));
+
+      act(() => {
+        useAppStore.setState({
+          executionCompleted: [
+            {
+              kind: "job",
+              job_id: 999,
+              app_key: "test_app",
+              instance_index: 0,
+              status: "success",
+              duration_ms: 10,
+              error_type: null,
+              thread_leaked: false,
+            },
+          ],
+        });
+      });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10000);
+      });
+
+      expect(toast.success).not.toHaveBeenCalled();
+      expect(toast.error).toHaveBeenCalledWith("No execution recorded");
+      vi.useRealTimers();
+    });
+  });
+
+  describe("job detail: schedule status text", () => {
+    it("shows 'Manual only.' for a manual job", async () => {
+      const job = createJob({ job_id: 80, schedule_status: "manual", next_run: null, fire_at: null });
+      const { getByTestId } = renderHandlersTab([], [job], "job/80");
+      await waitFor(() => getByTestId("job-stats-row"));
+      expect(getByTestId("job-stats-row").textContent).toContain("Manual only.");
+    });
+
+    it("shows 'Waiting for entity time.' for a waiting job", async () => {
+      const job = createJob({ job_id: 81, schedule_status: "waiting", next_run: null, fire_at: null });
+      const { getByTestId } = renderHandlersTab([], [job], "job/81");
+      await waitFor(() => getByTestId("job-stats-row"));
+      expect(getByTestId("job-stats-row").textContent).toContain("Waiting for entity time.");
+    });
+
+    it("shows 'Schedule completed.' for a completed job with no reason", async () => {
+      const job = createJob({
+        job_id: 82,
+        schedule_status: "completed",
+        schedule_status_reason: null,
+        next_run: null,
+        fire_at: null,
+      });
+      const { getByTestId } = renderHandlersTab([], [job], "job/82");
+      await waitFor(() => getByTestId("job-stats-row"));
+      expect(getByTestId("job-stats-row").textContent).toContain("Schedule completed.");
+    });
+
+    it("shows 'Schedule stopped after trigger error.' for a completed job with trigger_error reason", async () => {
+      const job = createJob({
+        job_id: 83,
+        schedule_status: "completed",
+        schedule_status_reason: "trigger_error",
+        next_run: null,
+        fire_at: null,
+      });
+      const { getByTestId } = renderHandlersTab([], [job], "job/83");
+      await waitFor(() => getByTestId("job-stats-row"));
+      expect(getByTestId("job-stats-row").textContent).toContain("Schedule stopped after trigger error.");
+    });
+
+    it("shows 'Legacy status unknown.' for a scheduled job with legacy_unknown reason", async () => {
+      const job = createJob({
+        job_id: 84,
+        schedule_status: "scheduled",
+        schedule_status_reason: "legacy_unknown",
+        next_run: null,
+        fire_at: null,
+      });
+      const { getByTestId } = renderHandlersTab([], [job], "job/84");
+      await waitFor(() => getByTestId("job-stats-row"));
+      expect(getByTestId("job-stats-row").textContent).toContain("Legacy status unknown.");
+    });
+
+    it("shows 'Timing unavailable.' for a scheduled job with null timing and no reason", async () => {
+      const job = createJob({
+        job_id: 85,
+        schedule_status: "scheduled",
+        schedule_status_reason: null,
+        next_run: null,
+        fire_at: null,
+      });
+      const { getByTestId } = renderHandlersTab([], [job], "job/85");
+      await waitFor(() => getByTestId("job-stats-row"));
+      expect(getByTestId("job-stats-row").textContent).toContain("Timing unavailable.");
+    });
+
+    it("shows the next relative time (not status text) for a normally scheduled job", async () => {
+      const job = createJob({
+        job_id: 86,
+        schedule_status: "scheduled",
+        schedule_status_reason: null,
+        next_run: Date.now() / 1000 + 300,
+      });
+      const { getByTestId } = renderHandlersTab([], [job], "job/86");
+      await waitFor(() => getByTestId("job-stats-row"));
+      const statsRow = getByTestId("job-stats-row");
+      expect(statsRow.textContent).toContain("next");
+      expect(statsRow.textContent).not.toContain("Timing unavailable.");
+    });
+
+    it.each(["manual", "waiting", "completed"] as const)("Run Now stays available for status '%s'", async (status) => {
+      const job = createJob({ job_id: 90, schedule_status: status, next_run: null, fire_at: null });
+      const { getByTestId } = renderHandlersTab([], [job], "job/90");
+      await waitFor(() => getByTestId("job-detail-90"));
+      const button = getByTestId("run-now-btn") as HTMLButtonElement;
+      expect(button.disabled).toBe(false);
     });
   });
 });

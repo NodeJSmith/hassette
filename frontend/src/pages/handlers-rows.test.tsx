@@ -24,6 +24,7 @@ function createRow(overrides: Partial<UnifiedRow> = {}): UnifiedRow {
     avg_duration_ms: 150,
     next_run_ts: null,
     source_tier: "app",
+    schedule_status: null,
     ...overrides,
   };
 }
@@ -134,9 +135,28 @@ describe("HandlerTableRow", () => {
     expect(getByText(expected)).toBeDefined();
   });
 
-  it("shows '—' for next_run when next_run_ts is null", () => {
-    const { container } = renderTableRow(createRow({ next_run_ts: null }));
+  it("shows '—' for next_run when next_run_ts is null and there is no schedule_status", () => {
+    const { container } = renderTableRow(createRow({ next_run_ts: null, schedule_status: null }));
     // Last td (index 10) is the next_run cell
+    const tds = container.querySelectorAll("td");
+    expect(tds[10].textContent).toBe("—");
+  });
+
+  it.each([
+    ["manual", "manual"],
+    ["waiting", "waiting"],
+    ["completed", "completed"],
+  ] as const)(
+    "shows schedule_status '%s' label in the next_run cell for jobs with null next_run_ts",
+    (status, label) => {
+      const { container } = renderTableRow(createRow({ kind: "job", next_run_ts: null, schedule_status: status }));
+      const tds = container.querySelectorAll("td");
+      expect(tds[10].textContent).toBe(label);
+    },
+  );
+
+  it("does not show schedule_status label for listeners even if schedule_status were set", () => {
+    const { container } = renderTableRow(createRow({ kind: "listener", next_run_ts: null, schedule_status: "manual" }));
     const tds = container.querySelectorAll("td");
     expect(tds[10].textContent).toBe("—");
   });
@@ -215,10 +235,16 @@ describe("HandlerMobileRow", () => {
     expect(queryByText(/^next /i)).toBeNull();
   });
 
-  it("does not show footer for jobs with null next_run_ts", () => {
-    const row = createRow({ kind: "job", next_run_ts: null });
+  it("does not show footer for jobs with null next_run_ts and no schedule_status", () => {
+    const row = createRow({ kind: "job", next_run_ts: null, schedule_status: null });
     const { queryByText } = renderMobileRow(row);
     expect(queryByText(/^next /i)).toBeNull();
+  });
+
+  it("shows schedule_status label (without 'next' prefix) for jobs with null next_run_ts", () => {
+    const row = createRow({ kind: "job", next_run_ts: null, schedule_status: "manual" });
+    const { getByTestId } = renderMobileRow(row);
+    expect(getByTestId("handler-row-schedule-status").textContent).toBe("manual");
   });
 
   it("has correct data-testid", () => {
