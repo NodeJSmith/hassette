@@ -96,12 +96,17 @@ async def test_rest_request_uses_configured_timeout(hassette_with_mock_api: tupl
     session = api_client._api_service._session
     assert session is not None
 
-    with patch.object(session, "request", wraps=session.request) as spy:
-        await api_client.rest_request("GET", "/api/thing")
+    original = api_client.hassette.config.rest_request_timeout_seconds
+    api_client.hassette.config.rest_request_timeout_seconds = 7.25
+    try:
+        with patch.object(session, "request", wraps=session.request) as spy:
+            await api_client.rest_request("GET", "/api/thing")
+    finally:
+        api_client.hassette.config.rest_request_timeout_seconds = original
 
     timeout = spy.call_args.kwargs["timeout"]
     assert isinstance(timeout, aiohttp.ClientTimeout)
-    assert timeout.total == api_client.hassette.config.rest_request_timeout_seconds
+    assert timeout.total == 7.25
 
 
 async def test_rest_request_per_call_timeout_overrides_config(hassette_with_mock_api: tuple[Api, SimpleTestServer]):

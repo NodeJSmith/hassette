@@ -1,3 +1,4 @@
+import math
 import os
 import sys
 import textwrap
@@ -7,7 +8,7 @@ from pathlib import Path
 
 import dotenv
 import pytest
-from pydantic import SecretStr
+from pydantic import SecretStr, ValidationError
 
 from hassette import HassetteConfig, context
 from hassette.config.classes import HassetteTomlConfigSettingsSource
@@ -571,6 +572,22 @@ class TestErrorHandlerTimeoutSeconds:
         """lifecycle.error_handler_timeout_seconds rejects booleans."""
         with pytest.raises(Exception, match="timeout must be"):
             LogLevelTestConfig(lifecycle={"error_handler_timeout_seconds": True})
+
+
+class TestRestRequestTimeout:
+    """Tests for HassetteConfig.rest_request_timeout_seconds field."""
+
+    def test_rejects_infinity(self) -> None:
+        with pytest.raises(ValidationError):
+            LogLevelTestConfig(rest_request_timeout_seconds=math.inf)
+
+    def test_rejects_nan(self) -> None:
+        with pytest.raises(ValidationError):
+            LogLevelTestConfig(rest_request_timeout_seconds=math.nan)
+
+    def test_accepts_positive_float(self) -> None:
+        config = LogLevelTestConfig(rest_request_timeout_seconds=7.25)
+        assert config.rest_request_timeout_seconds == 7.25
 
 
 class TestDefaultCacheTtl:
