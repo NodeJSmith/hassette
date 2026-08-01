@@ -148,6 +148,19 @@ describe("HandlerTableRow", () => {
     },
   );
 
+  it("shows 'unknown' in the next_run cell for legacy_unknown scheduled jobs", () => {
+    const { container } = renderTableRow(
+      createRow({
+        kind: "job",
+        next_run_ts: null,
+        schedule_status: "scheduled",
+        schedule_status_reason: "legacy_unknown",
+      }),
+    );
+    const tds = container.querySelectorAll("td");
+    expect(tds[10].textContent).toBe("unknown");
+  });
+
   it("does not show schedule_status label for listeners even if schedule_status were set", () => {
     const { container } = renderTableRow(createRow({ kind: "listener", next_run_ts: null, schedule_status: "manual" }));
     const tds = container.querySelectorAll("td");

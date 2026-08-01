@@ -67,7 +67,7 @@ function useHandlerRowData(row: UnifiedRow) {
   if (row.next_run_ts !== null) {
     nextRunDisplay = isOverdue ? "overdue" : nextRunRelative;
   } else if (row.kind === "job") {
-    nextRunDisplay = scheduleStatusLabel(row.schedule_status);
+    nextRunDisplay = scheduleStatusLabel(row.schedule_status, row.schedule_status_reason);
     isScheduleStatus = nextRunDisplay !== null;
   }
 

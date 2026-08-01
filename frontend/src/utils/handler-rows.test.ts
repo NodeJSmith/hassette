@@ -167,6 +167,16 @@ describe("jobToRow", () => {
     const row = jobToRow(createJob({ schedule_status: status }));
     expect(row.schedule_status).toBe(status);
   });
+
+  it("maps schedule_status_reason when present", () => {
+    const row = jobToRow(createJob({ schedule_status: "scheduled", schedule_status_reason: "legacy_unknown" }));
+    expect(row.schedule_status_reason).toBe("legacy_unknown");
+  });
+
+  it("sets schedule_status_reason to null when absent", () => {
+    const row = jobToRow(createJob({ schedule_status_reason: null }));
+    expect(row.schedule_status_reason).toBeNull();
+  });
 });
 
 describe("scheduleStatusLabel", () => {

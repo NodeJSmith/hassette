@@ -173,6 +173,7 @@ export function createUnifiedRow(overrides: Partial<UnifiedRow> = {}): UnifiedRo
     next_run_ts: null,
     source_tier: "app",
     schedule_status: null,
+    schedule_status_reason: null,
     ...overrides,
   };
 }

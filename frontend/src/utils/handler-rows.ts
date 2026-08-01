@@ -19,6 +19,7 @@ export interface UnifiedRow {
   next_run_ts: number | null;
   source_tier: string;
   schedule_status: string | null;
+  schedule_status_reason: string | null;
 }
 
 /**
@@ -61,6 +62,7 @@ export function listenerToRow(l: ListenerData): UnifiedRow {
     next_run_ts: null,
     source_tier: l.source_tier,
     schedule_status: null,
+    schedule_status_reason: null,
   };
 }
 
@@ -81,6 +83,7 @@ export function jobToRow(j: JobData): UnifiedRow {
     next_run_ts: j.next_run ?? null,
     source_tier: j.source_tier,
     schedule_status: j.schedule_status ?? null,
+    schedule_status_reason: j.schedule_status_reason ?? null,
   };
 }
 
