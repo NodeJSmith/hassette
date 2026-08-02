@@ -11,6 +11,15 @@ if TYPE_CHECKING:
     from hassette.scheduler import Scheduler
     from hassette.test_utils.harness import HassetteHarness
 
+SETTLE = 0.05
+"""Seconds to let a stray extra handler call land before asserting it did not happen."""
+
+
+async def settle() -> None:
+    """Give a stray extra handler call time to land before a negative assertion."""
+    # negative-assertion: no event-driven alternative
+    await asyncio.sleep(SETTLE)
+
 
 @pytest.fixture
 def scheduler(hassette_with_scheduler: "HassetteHarness") -> "Scheduler":
@@ -67,8 +76,7 @@ async def test_per_job_error_handler_wins(hassette_with_scheduler: "HassetteHarn
 
     await asyncio.wait_for(per_job_ran.wait(), timeout=2.0)
 
-    # negative-assertion: no event-driven alternative
-    await asyncio.sleep(0.05)
+    await settle()
 
     assert len(per_job_calls) == 1, f"Expected 1 per-job call, got {len(per_job_calls)}"
     assert len(app_level_calls) == 0, "App-level handler should not be called when per-job handler wins"
@@ -90,8 +98,7 @@ async def test_no_handler_framework_default(hassette_with_scheduler: "HassetteHa
 
     # Job ran (exception was raised) and harness didn't crash
     await asyncio.wait_for(ran.wait(), timeout=2.0)
-    # negative-assertion: no event-driven alternative
-    await asyncio.sleep(0.05)
+    await settle()
 
 
 async def test_error_context_contains_args_kwargs(hassette_with_scheduler: "HassetteHarness") -> None:

@@ -13,17 +13,17 @@ class WeatherApp(App[AppConfig]):
         # Check cache first
         entry = await self.cache.get(cache_key)
         if entry is not None:
-            cached_time, data = entry
-            # Return cached data if less than 30 minutes old
+            cached_time, forecast = entry
+            # Return the cached forecast if less than 30 minutes old
             if cached_time > self.now().subtract(minutes=30):
                 self.logger.info("Using cached weather for %s", location)
-                return data
+                return forecast
 
-        # Fetch fresh data from API
+        # Fetch a fresh forecast from the API
         self.logger.info("Fetching fresh weather for %s", location)
-        data = await self.fetch_weather_api(location)
-        await self.cache.set(cache_key, (self.now(), data))
-        return data
+        forecast = await self.fetch_weather_api(location)
+        await self.cache.set(cache_key, (self.now(), forecast))
+        return forecast
 
     async def fetch_weather_api(self, location: str) -> dict:
         # Your external API call here

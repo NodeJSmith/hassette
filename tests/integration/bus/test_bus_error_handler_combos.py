@@ -8,6 +8,7 @@ Covers gaps in the test matrix:
 """
 
 import asyncio
+import functools
 from typing import TYPE_CHECKING
 
 from whenever import ZonedDateTime
@@ -28,41 +29,66 @@ from .helpers import seed, send_state_change
 if TYPE_CHECKING:
     from hassette import Hassette
     from hassette.bus import Bus
+    from hassette.types.types import BusErrorHandlerType
+
+ERROR_TIMEOUT = 2.0
+"""Seconds to wait for an error handler that fires without a duration timer in front of it."""
+
+SETTLE = 0.05
+"""Seconds to let a stray extra handler call land before asserting it did not happen."""
+
+
+class _ErrorCollector:
+    """Records the `BusErrorContext` values an `on_error` handler receives.
+
+    `record` takes `hassette` as a parameter rather than the collector holding it, because the
+    passthrough tests at the bottom of this file construct their collector before the app exists
+    and only reach a `Hassette` through `self.hassette` inside the handler.
+    """
+
+    def __init__(self) -> None:
+        self.contexts: list[BusErrorContext] = []
+        self.ran = asyncio.Event()
+
+    async def record(self, hassette: "Hassette", ctx: BusErrorContext) -> None:
+        self.contexts.append(ctx)
+        hassette.task_bucket.post_to_loop(self.ran.set)
+
+    def bound(self, hassette: "Hassette") -> "BusErrorHandlerType":
+        """Return an `on_error` handler that records into this collector."""
+        return functools.partial(self.record, hassette)
+
+    async def wait(self, timeout: float = ERROR_TIMEOUT) -> None:
+        """Block until the first error is recorded."""
+        await asyncio.wait_for(self.ran.wait(), timeout=timeout)
+
+    def single(self, exc_type: type[Exception]) -> BusErrorContext:
+        """Assert exactly one error of `exc_type` was recorded, and return its context."""
+        assert len(self.contexts) == 1
+        assert isinstance(self.contexts[0].exception, exc_type)
+        return self.contexts[0]
+
+
+async def _settle() -> None:
+    """Give a stray extra handler call time to land before a negative assertion."""
+    # negative-assertion: no event-driven alternative
+    await asyncio.sleep(SETTLE)
 
 
 class _ErrorPassthroughConfig(AppConfig):
     """Minimal AppConfig for the on_error passthrough delegate tests below."""
 
 
-async def _record_passthrough_error(
-    hassette: "Hassette", ctx: BusErrorContext, contexts: list[BusErrorContext], ran: asyncio.Event
-) -> None:
-    """Shared on_err body for the passthrough tests below — records the context and signals ran."""
-    contexts.append(ctx)
-    hassette.task_bucket.post_to_loop(ran.set)
-
-
-def _assert_single_passthrough_error(contexts: list[BusErrorContext], exc_type: type[Exception]) -> None:
-    """Shared assertion for the passthrough tests below — exactly one error of the expected type."""
-    assert len(contexts) == 1
-    assert isinstance(contexts[0].exception, exc_type)
-
-
 async def test_duration_app_level_error_handler(bus_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
     """Duration timer fires, handler raises → app-level on_error receives the error context."""
     harness, hassette, bus = bus_harness
 
-    error_contexts: list[BusErrorContext] = []
-    error_ran = asyncio.Event()
-
-    async def on_error(ctx: BusErrorContext) -> None:
-        error_contexts.append(ctx)
-        hassette.task_bucket.post_to_loop(error_ran.set)
+    errors = _ErrorCollector()
 
     async def bad_handler(_event: RawStateChangeEvent) -> None:
         raise ValueError("duration handler failed")
 
-    bus.on_error(on_error)
+    bus.on_error(errors.bound(hassette))
     await bus.on_state_change(
         "light.kitchen",
         changed_to="on",
@@ -74,12 +100,11 @@ async def test_duration_app_level_error_handler(bus_harness: tuple[HassetteHarne
     await send_state_change(harness, "light.kitchen", "off", "on")
     await seed(harness, "light.kitchen", "on")
 
-    await asyncio.wait_for(error_ran.wait(), timeout=DURATION + 1.0)
+    await errors.wait(timeout=DURATION + 1.0)
 
-    assert len(error_contexts) == 1
-    assert isinstance(error_contexts[0].exception, ValueError)
-    assert str(error_contexts[0].exception) == "duration handler failed"
-    assert "bad_handler" in error_contexts[0].listener_name
+    ctx = errors.single(ValueError)
+    assert str(ctx.exception) == "duration handler failed"
+    assert "bad_handler" in ctx.listener_name
 
 
 async def test_duration_per_listener_error_handler_wins(
@@ -88,40 +113,30 @@ async def test_duration_per_listener_error_handler_wins(
     """Duration fire + per-listener on_error takes precedence over app-level handler."""
     harness, hassette, bus = bus_harness
 
-    app_level_calls: list[BusErrorContext] = []
-    per_listener_calls: list[BusErrorContext] = []
-    per_listener_ran = asyncio.Event()
-
-    async def app_level_handler(ctx: BusErrorContext) -> None:
-        app_level_calls.append(ctx)
-
-    async def per_listener_handler(ctx: BusErrorContext) -> None:
-        per_listener_calls.append(ctx)
-        hassette.task_bucket.post_to_loop(per_listener_ran.set)
+    app_level = _ErrorCollector()
+    per_listener = _ErrorCollector()
 
     async def bad_handler(_event: RawStateChangeEvent) -> None:
         raise RuntimeError("per-listener duration failure")
 
-    bus.on_error(app_level_handler)
+    bus.on_error(app_level.bound(hassette))
     await bus.on_state_change(
         "light.kitchen",
         changed_to="on",
         handler=bad_handler,
         duration=DURATION,
-        on_error=per_listener_handler,
+        on_error=per_listener.bound(hassette),
         name="duration_per_listener_error_handler_wins",
     )
 
     await send_state_change(harness, "light.kitchen", "off", "on")
     await seed(harness, "light.kitchen", "on")
 
-    await asyncio.wait_for(per_listener_ran.wait(), timeout=DURATION + 1.0)
-    # negative-assertion: no event-driven alternative
-    await asyncio.sleep(0.05)
+    await per_listener.wait(timeout=DURATION + 1.0)
+    await _settle()
 
-    assert len(per_listener_calls) == 1
-    assert len(app_level_calls) == 0
-    assert isinstance(per_listener_calls[0].exception, RuntimeError)
+    per_listener.single(RuntimeError)
+    assert not app_level.contexts
 
 
 async def test_duration_error_handler_receives_original_event(
@@ -130,17 +145,12 @@ async def test_duration_error_handler_receives_original_event(
     """Error context from a duration fire carries the original triggering event."""
     harness, hassette, bus = bus_harness
 
-    error_contexts: list[BusErrorContext] = []
-    error_ran = asyncio.Event()
-
-    async def on_error(ctx: BusErrorContext) -> None:
-        error_contexts.append(ctx)
-        hassette.task_bucket.post_to_loop(error_ran.set)
+    errors = _ErrorCollector()
 
     async def bad_handler(_event: RawStateChangeEvent) -> None:
         raise TypeError("check event in context")
 
-    bus.on_error(on_error)
+    bus.on_error(errors.bound(hassette))
     await bus.on_state_change(
         "light.kitchen",
         changed_to="on",
@@ -152,10 +162,9 @@ async def test_duration_error_handler_receives_original_event(
     await send_state_change(harness, "light.kitchen", "off", "on")
     await seed(harness, "light.kitchen", "on")
 
-    await asyncio.wait_for(error_ran.wait(), timeout=DURATION + 1.0)
+    await errors.wait(timeout=DURATION + 1.0)
 
-    assert len(error_contexts) == 1
-    ctx = error_contexts[0]
+    ctx = errors.single(TypeError)
     assert isinstance(ctx.event, RawStateChangeEvent)
     assert ctx.event.payload.data.new_state is not None
     assert ctx.event.payload.data.new_state["state"] == "on"
@@ -167,20 +176,15 @@ async def test_duration_once_error_handler_and_removal(
     """once=True + duration + on_error: handler raises, error handler fires, listener still removed."""
     harness, hassette, bus = bus_harness
 
-    error_contexts: list[BusErrorContext] = []
-    error_ran = asyncio.Event()
+    errors = _ErrorCollector()
     call_count = 0
-
-    async def on_error(ctx: BusErrorContext) -> None:
-        error_contexts.append(ctx)
-        hassette.task_bucket.post_to_loop(error_ran.set)
 
     async def bad_handler(_event: RawStateChangeEvent) -> None:
         nonlocal call_count
         call_count += 1
         raise ValueError("once + duration + error")
 
-    bus.on_error(on_error)
+    bus.on_error(errors.bound(hassette))
     await bus.on_state_change(
         "light.kitchen",
         changed_to="on",
@@ -193,9 +197,9 @@ async def test_duration_once_error_handler_and_removal(
     await send_state_change(harness, "light.kitchen", "off", "on")
     await seed(harness, "light.kitchen", "on")
 
-    await asyncio.wait_for(error_ran.wait(), timeout=DURATION + 1.0)
+    await errors.wait(timeout=DURATION + 1.0)
     assert call_count == 1
-    assert len(error_contexts) == 1
+    errors.single(ValueError)
 
     await wait_for(lambda: not bus.task_bucket.pending_tasks(), desc="tasks drain")
 
@@ -207,7 +211,7 @@ async def test_duration_once_error_handler_and_removal(
     await asyncio.sleep(DURATION + 0.1)
 
     assert call_count == 1, f"once=True handler fired {call_count} times despite error"
-    assert len(error_contexts) == 1
+    assert len(errors.contexts) == 1
 
 
 async def test_immediate_app_level_error_handler(bus_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
@@ -216,27 +220,21 @@ async def test_immediate_app_level_error_handler(bus_harness: tuple[HassetteHarn
 
     await harness.seed_state("light.kitchen", make_state_dict("light.kitchen", "on"))
 
-    error_contexts: list[BusErrorContext] = []
-    error_ran = asyncio.Event()
-
-    async def on_error(ctx: BusErrorContext) -> None:
-        error_contexts.append(ctx)
-        hassette.task_bucket.post_to_loop(error_ran.set)
+    errors = _ErrorCollector()
 
     async def bad_handler(_event: RawStateChangeEvent) -> None:
         raise ValueError("immediate handler failed")
 
-    bus.on_error(on_error)
+    bus.on_error(errors.bound(hassette))
     await bus.on_state_change(
         "light.kitchen", handler=bad_handler, changed=False, immediate=True, name="immediate_app_level_error_handler"
     )
 
-    await asyncio.wait_for(error_ran.wait(), timeout=2.0)
+    await errors.wait()
 
-    assert len(error_contexts) == 1
-    assert isinstance(error_contexts[0].exception, ValueError)
-    assert str(error_contexts[0].exception) == "immediate handler failed"
-    assert "bad_handler" in error_contexts[0].listener_name
+    ctx = errors.single(ValueError)
+    assert str(ctx.exception) == "immediate handler failed"
+    assert "bad_handler" in ctx.listener_name
 
 
 async def test_immediate_per_listener_error_handler_wins(
@@ -247,37 +245,27 @@ async def test_immediate_per_listener_error_handler_wins(
 
     await harness.seed_state("switch.outlet", make_state_dict("switch.outlet", "on"))
 
-    app_level_calls: list[BusErrorContext] = []
-    per_listener_calls: list[BusErrorContext] = []
-    per_listener_ran = asyncio.Event()
-
-    async def app_level_handler(ctx: BusErrorContext) -> None:
-        app_level_calls.append(ctx)
-
-    async def per_listener_handler(ctx: BusErrorContext) -> None:
-        per_listener_calls.append(ctx)
-        hassette.task_bucket.post_to_loop(per_listener_ran.set)
+    app_level = _ErrorCollector()
+    per_listener = _ErrorCollector()
 
     async def bad_handler(_event: RawStateChangeEvent) -> None:
         raise RuntimeError("per-listener immediate failure")
 
-    bus.on_error(app_level_handler)
+    bus.on_error(app_level.bound(hassette))
     await bus.on_state_change(
         "switch.outlet",
         handler=bad_handler,
         changed=False,
         immediate=True,
-        on_error=per_listener_handler,
+        on_error=per_listener.bound(hassette),
         name="immediate_per_listener_error_handler_wins",
     )
 
-    await asyncio.wait_for(per_listener_ran.wait(), timeout=2.0)
-    # negative-assertion: no event-driven alternative
-    await asyncio.sleep(0.05)
+    await per_listener.wait()
+    await _settle()
 
-    assert len(per_listener_calls) == 1
-    assert len(app_level_calls) == 0
-    assert isinstance(per_listener_calls[0].exception, RuntimeError)
+    per_listener.single(RuntimeError)
+    assert not app_level.contexts
 
 
 async def test_immediate_once_error_handler_and_removal(
@@ -288,20 +276,15 @@ async def test_immediate_once_error_handler_and_removal(
 
     await harness.seed_state("switch.outlet", make_state_dict("switch.outlet", "on"))
 
-    error_contexts: list[BusErrorContext] = []
-    error_ran = asyncio.Event()
+    errors = _ErrorCollector()
     call_count = 0
-
-    async def on_error(ctx: BusErrorContext) -> None:
-        error_contexts.append(ctx)
-        hassette.task_bucket.post_to_loop(error_ran.set)
 
     async def bad_handler(_event: RawStateChangeEvent) -> None:
         nonlocal call_count
         call_count += 1
         raise ValueError("immediate + once + error")
 
-    bus.on_error(on_error)
+    bus.on_error(errors.bound(hassette))
     await bus.on_state_change(
         "switch.outlet",
         handler=bad_handler,
@@ -311,9 +294,9 @@ async def test_immediate_once_error_handler_and_removal(
         name="immediate_once_error_handler_and_removal",
     )
 
-    await asyncio.wait_for(error_ran.wait(), timeout=2.0)
+    await errors.wait()
     assert call_count == 1
-    assert len(error_contexts) == 1
+    errors.single(ValueError)
 
     # Live event — listener should be consumed
     live_event = create_state_change_event(entity_id="switch.outlet", old_value="on", new_value="off")
@@ -331,17 +314,12 @@ async def test_immediate_error_handler_receives_synthetic_event(
 
     await harness.seed_state("sensor.temp", make_state_dict("sensor.temp", "25.5"))
 
-    error_contexts: list[BusErrorContext] = []
-    error_ran = asyncio.Event()
-
-    async def on_error(ctx: BusErrorContext) -> None:
-        error_contexts.append(ctx)
-        hassette.task_bucket.post_to_loop(error_ran.set)
+    errors = _ErrorCollector()
 
     async def bad_handler(_event: RawStateChangeEvent) -> None:
         raise TypeError("check synthetic event in error context")
 
-    bus.on_error(on_error)
+    bus.on_error(errors.bound(hassette))
     await bus.on_state_change(
         "sensor.temp",
         handler=bad_handler,
@@ -350,10 +328,9 @@ async def test_immediate_error_handler_receives_synthetic_event(
         name="immediate_error_handler_receives_synthetic_event",
     )
 
-    await asyncio.wait_for(error_ran.wait(), timeout=2.0)
+    await errors.wait()
 
-    assert len(error_contexts) == 1
-    ctx = error_contexts[0]
+    ctx = errors.single(TypeError)
     assert isinstance(ctx.event, RawStateChangeEvent)
     assert ctx.event.payload.data.old_state is None
     assert ctx.event.payload.data.new_state is not None
@@ -372,17 +349,12 @@ async def test_immediate_duration_elapsed_exceeds_error_handler(
         make_state_dict("switch.boiler", "on", last_changed=past.format_iso()),
     )
 
-    error_contexts: list[BusErrorContext] = []
-    error_ran = asyncio.Event()
-
-    async def on_error(ctx: BusErrorContext) -> None:
-        error_contexts.append(ctx)
-        hassette.task_bucket.post_to_loop(error_ran.set)
+    errors = _ErrorCollector()
 
     async def bad_handler(_event: RawStateChangeEvent) -> None:
         raise ValueError("immediate + duration + error (elapsed exceeds)")
 
-    bus.on_error(on_error)
+    bus.on_error(errors.bound(hassette))
     await bus.on_state_change(
         "switch.boiler",
         handler=bad_handler,
@@ -392,11 +364,10 @@ async def test_immediate_duration_elapsed_exceeds_error_handler(
         name="immediate_duration_elapsed_exceeds_error_handler",
     )
 
-    await asyncio.wait_for(error_ran.wait(), timeout=2.0)
+    await errors.wait()
 
-    assert len(error_contexts) == 1
-    assert isinstance(error_contexts[0].exception, ValueError)
-    assert "bad_handler" in error_contexts[0].listener_name
+    ctx = errors.single(ValueError)
+    assert "bad_handler" in ctx.listener_name
 
 
 async def test_immediate_duration_remaining_timer_error_handler(
@@ -411,17 +382,12 @@ async def test_immediate_duration_remaining_timer_error_handler(
         make_state_dict("switch.fan", "on", last_changed=past.format_iso()),
     )
 
-    error_contexts: list[BusErrorContext] = []
-    error_ran = asyncio.Event()
-
-    async def on_error(ctx: BusErrorContext) -> None:
-        error_contexts.append(ctx)
-        hassette.task_bucket.post_to_loop(error_ran.set)
+    errors = _ErrorCollector()
 
     async def bad_handler(_event: RawStateChangeEvent) -> None:
         raise RuntimeError("timer fire after remaining")
 
-    bus.on_error(on_error)
+    bus.on_error(errors.bound(hassette))
     await bus.on_state_change(
         "switch.fan",
         handler=bad_handler,
@@ -431,15 +397,13 @@ async def test_immediate_duration_remaining_timer_error_handler(
         name="immediate_duration_remaining_timer_error_handler",
     )
 
-    # negative-assertion: no event-driven alternative
-    await asyncio.sleep(0.05)
-    assert len(error_contexts) == 0
+    await _settle()
+    assert not errors.contexts
 
     # Should fire after remaining ~2s
-    await asyncio.wait_for(error_ran.wait(), timeout=4.0)
+    await errors.wait(timeout=4.0)
 
-    assert len(error_contexts) == 1
-    assert isinstance(error_contexts[0].exception, RuntimeError)
+    errors.single(RuntimeError)
 
 
 async def test_immediate_duration_per_listener_error_handler(
@@ -454,38 +418,28 @@ async def test_immediate_duration_per_listener_error_handler(
         make_state_dict("switch.heater", "on", last_changed=past.format_iso()),
     )
 
-    app_level_calls: list[BusErrorContext] = []
-    per_listener_calls: list[BusErrorContext] = []
-    per_listener_ran = asyncio.Event()
-
-    async def app_level_handler(ctx: BusErrorContext) -> None:
-        app_level_calls.append(ctx)
-
-    async def per_listener_handler(ctx: BusErrorContext) -> None:
-        per_listener_calls.append(ctx)
-        hassette.task_bucket.post_to_loop(per_listener_ran.set)
+    app_level = _ErrorCollector()
+    per_listener = _ErrorCollector()
 
     async def bad_handler(_event: RawStateChangeEvent) -> None:
         raise TypeError("three-way combo per-listener")
 
-    bus.on_error(app_level_handler)
+    bus.on_error(app_level.bound(hassette))
     await bus.on_state_change(
         "switch.heater",
         handler=bad_handler,
         changed=False,
         immediate=True,
         duration=5.0,
-        on_error=per_listener_handler,
+        on_error=per_listener.bound(hassette),
         name="immediate_duration_per_listener_error_handler",
     )
 
-    await asyncio.wait_for(per_listener_ran.wait(), timeout=2.0)
-    # negative-assertion: no event-driven alternative
-    await asyncio.sleep(0.05)
+    await per_listener.wait()
+    await _settle()
 
-    assert len(per_listener_calls) == 1
-    assert len(app_level_calls) == 0
-    assert isinstance(per_listener_calls[0].exception, TypeError)
+    per_listener.single(TypeError)
+    assert not app_level.contexts
 
 
 # on_error passthrough on Shape B delegates (design 007) — each delegate forwards its on_error
@@ -495,8 +449,7 @@ async def test_immediate_duration_per_listener_error_handler(
 
 async def test_on_homeassistant_start_on_error_passthrough() -> None:
     """on_error passed to on_homeassistant_start fires via the on_call_service primary."""
-    error_contexts: list[BusErrorContext] = []
-    error_ran = asyncio.Event()
+    errors = _ErrorCollector()
 
     class HaStartErrorApp(App[_ErrorPassthroughConfig]):
         async def on_initialize(self) -> None:
@@ -506,19 +459,18 @@ async def test_on_homeassistant_start_on_error_passthrough() -> None:
             raise ValueError("ha start handler failed")
 
         async def on_err(self, ctx: BusErrorContext) -> None:
-            await _record_passthrough_error(self.hassette, ctx, error_contexts, error_ran)
+            await errors.record(self.hassette, ctx)
 
     async with AppTestHarness(HaStartErrorApp, config={}) as harness:
         await harness.simulate_homeassistant_start()
-        await asyncio.wait_for(error_ran.wait(), timeout=2.0)
+        await errors.wait()
 
-    _assert_single_passthrough_error(error_contexts, ValueError)
+    errors.single(ValueError)
 
 
 async def test_on_hassette_service_failed_on_error_passthrough() -> None:
     """on_error passed to on_hassette_service_failed fires via the on_hassette_service_status primary."""
-    error_contexts: list[BusErrorContext] = []
-    error_ran = asyncio.Event()
+    errors = _ErrorCollector()
 
     class ServiceFailedErrorApp(App[_ErrorPassthroughConfig]):
         async def on_initialize(self) -> None:
@@ -530,19 +482,18 @@ async def test_on_hassette_service_failed_on_error_passthrough() -> None:
             raise ValueError("service failed handler failed")
 
         async def on_err(self, ctx: BusErrorContext) -> None:
-            await _record_passthrough_error(self.hassette, ctx, error_contexts, error_ran)
+            await errors.record(self.hassette, ctx)
 
     async with AppTestHarness(ServiceFailedErrorApp, config={}) as harness:
         await harness.simulate_hassette_service_failed("SyntheticErrorPassthroughService")
-        await asyncio.wait_for(error_ran.wait(), timeout=2.0)
+        await errors.wait()
 
-    _assert_single_passthrough_error(error_contexts, ValueError)
+    errors.single(ValueError)
 
 
 async def test_on_websocket_connected_on_error_passthrough() -> None:
     """on_error passed to on_websocket_connected fires via the on() primary."""
-    error_contexts: list[BusErrorContext] = []
-    error_ran = asyncio.Event()
+    errors = _ErrorCollector()
 
     class WebsocketConnectedErrorApp(App[_ErrorPassthroughConfig]):
         async def on_initialize(self) -> None:
@@ -554,19 +505,18 @@ async def test_on_websocket_connected_on_error_passthrough() -> None:
             raise ValueError("websocket connected handler failed")
 
         async def on_err(self, ctx: BusErrorContext) -> None:
-            await _record_passthrough_error(self.hassette, ctx, error_contexts, error_ran)
+            await errors.record(self.hassette, ctx)
 
     async with AppTestHarness(WebsocketConnectedErrorApp, config={}) as harness:
         await harness.simulate_websocket_connected()
-        await asyncio.wait_for(error_ran.wait(), timeout=2.0)
+        await errors.wait()
 
-    _assert_single_passthrough_error(error_contexts, ValueError)
+    errors.single(ValueError)
 
 
 async def test_on_app_running_on_error_passthrough() -> None:
     """on_error passed to on_app_running fires via the on_app_state_changed primary."""
-    error_contexts: list[BusErrorContext] = []
-    error_ran = asyncio.Event()
+    errors = _ErrorCollector()
 
     class AppRunningErrorApp(App[_ErrorPassthroughConfig]):
         async def on_initialize(self) -> None:
@@ -576,10 +526,10 @@ async def test_on_app_running_on_error_passthrough() -> None:
             raise ValueError("app running handler failed")
 
         async def on_err(self, ctx: BusErrorContext) -> None:
-            await _record_passthrough_error(self.hassette, ctx, error_contexts, error_ran)
+            await errors.record(self.hassette, ctx)
 
     async with AppTestHarness(AppRunningErrorApp, config={}) as harness:
         await harness.simulate_app_running()
-        await asyncio.wait_for(error_ran.wait(), timeout=2.0)
+        await errors.wait()
 
-    _assert_single_passthrough_error(error_contexts, ValueError)
+    errors.single(ValueError)
