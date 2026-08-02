@@ -16,6 +16,9 @@ Operational scripts for building, running, and demoing hassette.
 - **`hassette_demo.py`** — thin wrapper around `DemoStack` for interactive visual
   QA: starts the compose stack, prints URLs, blocks until signaled; also
   `mise run demo`. See CLAUDE.md → "Demo Stack & Doc Screenshots".
+- **`release_contributors.py`** — find external contributors between two git
+  tags. Filters bots and repo owner, resolves GitHub usernames from noreply
+  emails. Used by the `changelog-review` command during release prep.
 - **`docker_start.sh`** — Docker container entrypoint.
 - **`docker/`** — Docker Compose configs for demo/test environments
   (`ha-demo.yml` defines the HA + hassette + Vite demo stack;

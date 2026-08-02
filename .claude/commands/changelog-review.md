@@ -28,6 +28,20 @@ For each commit that produced a changelog entry, fetch its PR body via `gh pr vi
 - Breaking change migration details
 - Whether the change is internal-only
 
+## Step 3.5: Check for external contributors
+
+Run `uv run python scripts/release_contributors.py <prev-tag> <base-commit>` (using the same range from Step 3).
+
+If external contributors are found, surface them as a finding:
+
+> **External contributors detected — ensure attribution in the changelog:**
+>
+> <script output>
+
+When rewriting entries in Step 4, add "thanks @username!" (or "thanks Name!" if no GitHub username is available) to the relevant changelog bullet. See v0.24.0's `@mlsteele` attribution for the format.
+
+If no external contributors are found, continue silently.
+
 ## Step 4: Rewrite
 
 Rewrite the release section to match the v0.24.0 style:
