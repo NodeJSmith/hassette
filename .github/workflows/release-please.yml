@@ -159,7 +159,10 @@ jobs:
                   fi
 
                   echo "Syncing $(echo "$notes" | wc -l) lines of curated notes to GitHub Release ${TAG_NAME}"
-                  gh release edit "$TAG_NAME" --notes "$notes"
+                  notes_file=$(mktemp)
+                  printf '%s\n' "$notes" > "$notes_file"
+                  gh release edit "$TAG_NAME" --notes-file "$notes_file"
+                  rm -f "$notes_file"
 
     build-pypi:
         needs: release-please
