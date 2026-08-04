@@ -1,7 +1,7 @@
 ---
 task_id: "T09"
 title: "Attach bearer token to CLI requests from file or env"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02"]
 implements: ["FR#18", "AC#14"]
 ---

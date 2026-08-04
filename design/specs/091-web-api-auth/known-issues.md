@@ -54,3 +54,49 @@ Acceptance criteria:
 - The event-loop capture (`broadcast_sync`'s requirement) still works via whichever hook
   mechanism is added.
 - No behavior change to the `broadcast_sync` API or any test that depends on this fixture.
+
+## KI-002: `test_missing_token_401_gives_clear_hint` is not isolated from ambient machine state
+
+Status: open
+Run: 54
+Source: T09
+Reason not fixed now: out-of-scope
+Observed in: T09
+Affected files:
+- tests/unit/cli/test_client.py:589-597
+
+Issue:
+`test_missing_token_401_gives_clear_hint` (tests/unit/cli/test_client.py:589-597) builds its
+config with the module-level `_make_config()` helper (line 53), which does not set `data_dir`.
+`HassetteConfig.data_dir` defaults to `default_data_dir()`
+(src/hassette/config/helpers.py:81-89), which resolves — in order — the
+`HASSETTE__DATA_DIR`/`HASSETTE_DATA_DIR` env var, `/data` (Docker convention), or
+`platformdirs.user_data_path`: a real, shared, machine-global directory, not an isolated
+per-test path. `HassetteCLIClient` reads the persisted token from
+`config.data_dir / TOKEN_FILENAME` (src/hassette/cli/client.py:74). If that resolved directory
+happens to contain a real `.web_api_token` file — e.g. a developer who has run `hassette run`
+locally, or a persistent `/data` volume in a dev container — the test's assumption that no
+token resolves would be violated, and its assertion that `"has hassette been started"` appears
+in stderr output would fail, not because the feature is broken but because the test wasn't
+isolated from ambient machine state. Its sibling test
+`test_resolved_token_401_omits_missing_token_hint` (line 599) correctly uses
+`_make_config_for_auth(tmp_path, ...)` (line 501) for the same feature area, confirming this is
+an inconsistency/oversight in this one test rather than a deliberate choice.
+
+Why deferred:
+This is a test-isolation flakiness issue only — the shipped `client.py` bearer-token-attachment
+and 401-hint behavior is correct and already covered by passing regression tests (including the
+sibling test above, which uses proper isolation). The fix is a one-line swap
+(`_make_config()` → `_make_config_for_auth(tmp_path)`) but T09's fixer-pass budget for this run
+is exhausted.
+
+Recommended follow-up:
+In `test_missing_token_401_gives_clear_hint`, replace `config = _make_config()` with
+`config = _make_config_for_auth(tmp_path)` and add the `tmp_path: Path` fixture parameter to the
+test signature, matching `test_resolved_token_401_omits_missing_token_hint`.
+
+Acceptance criteria:
+- `test_missing_token_401_gives_clear_hint` no longer relies on `HassetteConfig`'s default
+  `data_dir` resolution — it passes an isolated `tmp_path`-backed `data_dir` explicitly.
+- The test still passes and still exercises the "no token resolves, 401 gets the missing-token
+  hint" behavior.

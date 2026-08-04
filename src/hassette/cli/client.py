@@ -18,6 +18,7 @@ import httpx2 as httpx
 import hassette.cli.output as cli_output
 from hassette.cli.context import CLIContext
 from hassette.config.config import HassetteConfig
+from hassette.web.auth import TOKEN_FILENAME
 from hassette.web.models import AppManifestListResponse
 
 DEFAULT_TIMEOUT = 10.0
@@ -44,6 +45,40 @@ def _format_host(host: str) -> str:
     return substituted
 
 
+def _resolve_web_api_token(config: HassetteConfig) -> str | None:
+    """Resolve the web API bearer token the CLI should attach to outgoing requests.
+
+    Checks, in order:
+
+    1. ``config.web_api.auth_token`` — populated from the config file or the
+       ``HASSETTE__WEB_API__AUTH_TOKEN`` environment variable via the normal
+       pydantic-settings machinery, since ``config`` is already a fully-resolved
+       ``HassetteConfig``. There is no separate ``os.environ`` read here — a second
+       lookup path would silently diverge from the config file and any alias the field
+       carries.
+    2. ``<data_dir>/.web_api_token`` — the file the service-side resolver
+       (``hassette.web.auth.resolve_auth_token``) writes on first start.
+
+    Unlike ``resolve_auth_token()``, this never generates a token: the CLI is a
+    *consumer* of an already-resolved credential, not the service that owns
+    generation — a CLI-minted token would never match what the running service
+    actually validates against.
+
+    Returns:
+        The plaintext token, or ``None`` if neither source has one (e.g. hassette has
+        never been started, or auth is disabled and no token was ever generated).
+    """
+    if config.web_api.auth_token is not None:
+        return config.web_api.auth_token.get_secret_value()
+
+    token_path = config.data_dir / TOKEN_FILENAME
+    try:
+        content = token_path.read_text(encoding="utf-8").strip()
+    except (OSError, UnicodeDecodeError):
+        return None
+    return content or None
+
+
 class HassetteCLIClient:
     """Synchronous HTTP client for querying the hassette REST API."""
 
@@ -61,7 +96,10 @@ class HassetteCLIClient:
         self.json_mode = json_mode
         self.debug_mode = debug_mode
         self.timeout = timeout
-        self._client = httpx.Client(base_url=self.base_url, transport=transport)
+        token = _resolve_web_api_token(config)
+        self._token_resolved = bool(token)
+        headers = {"Authorization": f"Bearer {token}"} if token else {}
+        self._client = httpx.Client(base_url=self.base_url, transport=transport, headers=headers)
 
     def close(self) -> None:
         self._client.close()
@@ -213,6 +251,12 @@ class HassetteCLIClient:
             detail = response.json().get("detail", response.text)
         except (ValueError, AttributeError):
             detail = response.text
+
+        if response.status_code == 401 and not self._token_resolved:
+            # No config value and no token file — distinguish this from "token was
+            # wrong" so the operator isn't left guessing why an unauthenticated
+            # request failed.
+            detail = f"{detail} (no auth token found — has hassette been started?)"
 
         if self.json_mode:
             extra = {"url": str(response.url), "method": response.request.method, "body": response.text}
