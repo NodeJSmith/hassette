@@ -24,6 +24,7 @@ code is needed.
 - modify: `hassette.schema.json` — regenerated (do not hand-edit)
 - create: `tests/unit/config/test_web_api_config.py` — unit tests for the new fields and validator
 - modify: `tests/system/test_web_api.py` — new `auth_token` non-disclosure test
+- modify: `tests/system/conftest.py` — keep `make_web_system_config`/`wait_for_web_server` working under default-on auth
 - read: `src/hassette/config/config.py:142-151,248-256` — `SecretStr` field + `.get_secret_value()` pattern to mirror
 - read: `src/hassette/config/models.py:323-358` — current `WebApiConfig` (fields, `model_config`, `Field(default=...)` + docstring + `ui.label`/`ui.group_label` pattern)
 
@@ -75,6 +76,28 @@ returned field is masked the same way the HA `token` field is (via the existing 
 mechanism, `web/config_view.py:74-98` — read but do not modify this file, it already handles any
 `SecretStr` field generically).
 
+**System-test infrastructure fix (required — flipping `auth_enabled`'s default to `True` breaks this
+today's code path otherwise, with no other task scoped to catch it):** `tests/system/conftest.py`'s
+`make_web_system_config()` (lines 273-301, used by `test_web_api.py`, `test_startup_without_ha.py`,
+and `test_cli_smoke.py`) builds `SystemTestConfig(web_api={"run": True, "port": port}, ...)` with no
+`auth_enabled` override — once this task's default flips to `True`, every existing system test making
+unauthenticated `httpx` calls against the live server starts getting 401s. Add `"auth_enabled": False`
+to that `web_api={...}` dict, mirroring the same opt-in-preserves-old-behavior pattern used for
+`create_hassette_stub(auth_enabled=False)` above — this keeps every existing system test passing
+unchanged; the new AC#11 test in this same task explicitly overrides it to `True` **and** sets a
+known `"auth_token"` value in the same `web_api={...}` dict (e.g. `"auth_token": "test-token-value"`),
+attaching `Authorization: Bearer test-token-value` to its `GET /api/config` call — without both of
+these the request would 401 before ever reaching the masking logic under test.
+
+Separately, `wait_for_web_server()` (lines 344-359) polls `GET /api/health` to detect the server is
+up — that route is **not** one of FR#1's three exemptions (`/api/health/live`, `/api/health/ready`,
+`POST /api/auth/session`), so it would 401-loop-to-timeout under auth-enabled configs regardless of
+the fix above (e.g. the new AC#11 test, which needs auth on). Change its poll target to
+`GET /api/health/live` instead — per `web/routes/health.py`, that route always returns 200 once the
+service loop can serve ("liveness is the absence of a check"), which is a better fit for "has the
+server started" polling than `/api/health`'s full system-status response anyway, and it's exempt
+under FR#1 so it works regardless of `auth_enabled`.
+
 ## Focus
 
 - This is the foundational task — every other backend task reads `WebApiConfig.auth_enabled` /
@@ -91,10 +114,14 @@ mechanism, `web/config_view.py:74-98` — read but do not modify this file, it a
 - The schema-freshness check (`tools/check_schemas_fresh.py`, wired into the pre-push hook) will fail
   if `hassette.schema.json` isn't regenerated after this change — run the regen command above before
   finishing this task.
+- The `tests/system/conftest.py` fix is not optional cleanup — without it, flipping `auth_enabled`'s
+  default breaks the entire existing system-test suite (`test_web_api.py`,
+  `test_startup_without_ha.py`, `test_cli_smoke.py` all use `make_web_system_config`/
+  `wait_for_web_server`), and no other task in this plan touches that file.
 
 ## Verify
 
 - [ ] FR#15: Config load with `cors_origins=("*",)` raises a `ValidationError` (unit test in `tests/unit/config/test_web_api_config.py`); config load with `cors_origins=("http://localhost:3000",)` succeeds.
 - [ ] FR#19: `auth_token` is declared as `SecretStr | None` on `WebApiConfig`; a `WebApiConfig` instance with `auth_token` set renders it masked (not plaintext) via `repr()`/`str()`.
 - [ ] AC#10: Unit test confirms `WebApiConfig(cors_origins=("*",))` raises at construction/validation time.
-- [ ] AC#11: New system test in `tests/system/test_web_api.py` confirms `GET /api/config` (authenticated) never contains the plaintext `auth_token` value in its response body, mirroring the existing HA-token test at lines 75-93.
+- [ ] AC#11: New system test in `tests/system/test_web_api.py` confirms `GET /api/config` (authenticated) never contains the plaintext `auth_token` value in its response body, mirroring the existing HA-token test at lines 75-93; the full existing system-test suite (`test_web_api.py`, `test_startup_without_ha.py`, `test_cli_smoke.py`) still passes unchanged after `auth_enabled`'s default flips to `True`, via `make_web_system_config`'s `auth_enabled=False` override and `wait_for_web_server`'s switch to `/api/health/live`.

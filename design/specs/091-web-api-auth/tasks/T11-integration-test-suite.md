@@ -32,6 +32,15 @@ that bullet is the authoritative list of assertions this task must add.
 Using `create_hassette_stub(auth_enabled=True)` (T01) and `httpx.AsyncClient`/`ASGITransport` (the
 existing `client` fixture pattern at `tests/integration/web_api/conftest.py:55-66`), add tests for:
 
+**A known test token is required for the positive-auth assertions below.** The shared `app` fixture
+builds the app via `create_fastapi_app(mock_hassette)` (T05 adds an `auth_token: str | None = None`
+parameter to this function, `web/app.py:45`). Tests that need a bearer token or cookie to actually
+validate (AC#2, AC#3, AC#15, AC#18) need the app built with a known value —
+e.g. `create_fastapi_app(mock_hassette, auth_token="test-token-value")` in a local fixture override or
+inline in each test — rather than relying on the shared `app` fixture's default `None`. Tests that
+only exercise the trusted-peer path (AC#4, AC#5, AC#6) don't need a real token at all, since no
+credential is ever presented in those requests.
+
 - A wrong bearer token returns 401; a correct `Authorization: Bearer <token>` header returns 200
   (AC#2).
 - A correct session cookie (minted via T04's mint function directly, or via `POST

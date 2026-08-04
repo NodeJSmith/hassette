@@ -2,7 +2,7 @@
 task_id: "T04"
 title: "Add bearer token and session cookie mint/verify to web/auth.py"
 status: "planned"
-depends_on: ["T01", "T02"]
+depends_on: ["T01", "T02", "T03"]
 implements: ["FR#6", "FR#7", "FR#8", "FR#20"]
 ---
 

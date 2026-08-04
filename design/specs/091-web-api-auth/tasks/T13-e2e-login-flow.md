@@ -22,11 +22,10 @@ against the real serving origin).
 - create: `tests/e2e/test_auth_flow.py` (or add to an existing relevant e2e test file, if a more
   appropriate one exists — check `tests/e2e/` for a file already covering dashboard-load or
   WS-connection e2e tests)
-- modify: `tests/e2e/conftest.py` — read `live_server`/`base_url` fixtures (lines 335-359) for the
-  pattern; no new fixture is required for cookie injection since `context.add_cookies` is a native
-  Playwright API
 - read: `tests/e2e/conftest.py:113-120` — `create_hassette_stub(...)` call for e2e mocks
-- read: `tests/e2e/conftest.py:335-359` — `live_server`/`base_url` fixtures
+- read: `tests/e2e/conftest.py:335-359` — `live_server`/`base_url` fixtures; no new fixture is
+  required for cookie injection since `context.add_cookies` is a native Playwright API, so this file
+  is read for the existing pattern, not modified
 
 ## Prompt
 

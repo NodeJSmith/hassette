@@ -60,10 +60,18 @@ Whichever branch fires (1, 2, or 3), log at INFO with a distinct, identifiable m
 auth_token, written to <path>" — via the existing `"hassette"` logger (`getLogger(__name__)`
 convention). This logging must fire on every startup, not only the generate branch.
 
+**Branch 3's log line must also include a ready-to-use URL (FR#9, User Scenarios "First start after
+install or upgrade")** — e.g. `f"generated new auth_token, written to {path}. Open http://{config.host}:{config.port} to log in."`
+(exact wording flexible; the URL is the concrete requirement). `resolve_auth_token(config:
+WebApiConfig, data_dir: Path)` already receives `config`, which carries `host`/`port` — build the URL
+from those fields directly in this function; there is no need to construct it anywhere else. Branches
+1 and 2 (explicit config, existing file) do not need a URL — the User Scenarios text frames the URL
+specifically as part of the *first-start-with-no-token* flow.
+
 This task only builds and unit-tests the resolution function itself — wiring it into
-`WebApiService.on_initialize()` (so it actually runs at startup, and the generated-token INFO log
-with a ready-to-use URL per User Scenarios appears in `docker logs`) is T08's job, which imports and
-calls this function.
+`WebApiService.on_initialize()` (so it actually runs at startup) is T08's job, which imports and
+calls this function; T08 does not need to add anything for the URL itself, since it's already part
+of the log line this function produces.
 
 ## Focus
 
@@ -79,10 +87,13 @@ calls this function.
   design's own analysis. Don't add speculative locking.
 - FR#21 requires a **distinct, identifiable** log line per branch, verified by asserting on log
   output in the unit test — don't use one generic "token resolved" message for all three branches.
+- FR#9's ready-to-use URL is easy to drop silently (it's a small addition to one branch's log
+  message, not a separate mechanism) — make sure the unit test for the "generated" branch explicitly
+  asserts the URL is present in that log line, not just that a log line exists.
 
 ## Verify
 
-- [ ] FR#9: Unit test confirms that with no configured token and no existing file, a token is generated via `secrets.token_urlsafe(32)`, persisted atomically (temp file + `os.replace()`) with mode `0600` to `<data_dir>/.web_api_token`, and an INFO log line fires.
+- [ ] FR#9: Unit test confirms that with no configured token and no existing file, a token is generated via `secrets.token_urlsafe(32)`, persisted atomically (temp file + `os.replace()`) with mode `0600` to `<data_dir>/.web_api_token`, and an INFO log line fires containing a ready-to-use URL built from `config.host`/`config.port`.
 - [ ] FR#10: Unit test confirms a corrupt/truncated existing token file results in a fresh token being generated (not a crash), with an ERROR-level log line making the regeneration visible.
 - [ ] FR#21: Unit test exercises each of the three resolution branches (explicit config, existing file, freshly generated) and asserts each produces a distinct INFO log message, not a shared generic one.
 - [ ] AC#12: Unit test confirms a corrupted/truncated token file at resolution time results in a fresh token, an ERROR log line, and the function returning successfully (not raising).

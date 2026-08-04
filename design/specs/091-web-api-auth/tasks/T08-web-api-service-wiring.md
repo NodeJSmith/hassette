@@ -2,7 +2,7 @@
 task_id: "T08"
 title: "Wire startup guards, proxy_headers=False, and periodic trusted-proxy refresh"
 status: "planned"
-depends_on: ["T01", "T02", "T03"]
+depends_on: ["T01", "T02", "T03", "T05"]
 implements: ["FR#4", "FR#5", "FR#13", "FR#14", "AC#8", "AC#9"]
 ---
 
@@ -34,8 +34,14 @@ In `src/hassette/core/web_api_service.py`:
 2. In `on_initialize()` (currently lines 49-56), add a child `Scheduler` via `self.add_child(Scheduler)`
    — follow `StateProxy`'s exact pattern at `core/state_proxy.py:142` (`self.scheduler =
    self.add_child(Scheduler)`).
-3. Call T02's token resolution function, so the resolved token (and its INFO branch log) actually
-   fires on real startup, not just in T02's unit tests.
+3. Also in `on_initialize()` (same method as step 2, not `serve()`): call T02's token resolution
+   function and store the result as an instance attribute (e.g.
+   `self._resolved_auth_token: str`), so the resolved token (and its INFO branch log) actually fires
+   on real startup, not just in T02's unit tests. This attribute is what step 5 below threads into
+   `create_fastapi_app()` — there is no public accessor for `WebApiService` on `Hassette`/`Core` today
+   (only a private `_web_api_service` attribute, `core/core.py:130,223`), so the resolved token can't
+   be reached via `request.app.state.hassette.<something>` the way other framework services are
+   (T06's `AuthDep` depends on this).
 4. Call T03's hostname-resolve function once at startup, then schedule it to re-run periodically via
    `self.scheduler.run_every(...)` — follow `StateProxy._install_poll_job`'s pattern at
    `state_proxy.py:255-261` (`if_exists="skip"`, `mode="single"`) for the periodic job registration.
@@ -45,7 +51,12 @@ In `src/hassette/core/web_api_service.py`:
    `uvicorn.Config(...)` call (currently lines 65-73, which has no `proxy_headers` argument today) —
    this disables uvicorn's own `ProxyHeadersMiddleware`, which would otherwise silently trust
    `X-Forwarded-For` from whatever `FORWARDED_ALLOW_IPS` resolves to (default `"127.0.0.1"`) and
-   rewrite `scope["client"]` before T03's trusted-peer check ever sees the real peer.
+   rewrite `scope["client"]` before T03's trusted-peer check ever sees the real peer. Also in
+   `serve()`, change the existing `app = create_fastapi_app(self.hassette)` call to
+   `app = create_fastapi_app(self.hassette, auth_token=self._resolved_auth_token)` — T05 adds the
+   `auth_token` parameter to `create_fastapi_app()`, which sets `app.state.auth_token` internally
+   (a sibling to `app.state.hassette`); this is how T06's `AuthDep` and T05's middleware reach the
+   resolved token at request time without a new public accessor on `Hassette`/`Core`.
 6. Add the hard-block startup guard: if `config.web_api.auth_enabled is False` and `host` (from
    `config.web_api.host`) is not a loopback address, refuse to start — raise an error naming both
    settings explicitly (not a generic message).
@@ -63,15 +74,23 @@ In `src/hassette/core/web_api_service.py`:
   disabled; step 7 fires regardless of auth state whenever there's no evidence of a fronting proxy.
 - `proxy_headers=False` is a one-line addition to an existing `uvicorn.Config(...)` call — don't
   restructure the surrounding `serve()` method beyond what's needed for this line and the guards.
-- Loopback-address checking: use the stdlib `ipaddress` module's `is_loopback` property (parse
-  `host` as an `ipaddress.ip_address` first) rather than a hand-rolled string comparison against
-  `"127.0.0.1"` — `host` could be `"localhost"` or another loopback form.
+- Loopback-address checking: `WebApiConfig.host` is a plain `str` with no format restriction — it can
+  be an IP literal (`"127.0.0.1"`, `"::1"`, `"0.0.0.0"`) or the hostname `"localhost"`.
+  `ipaddress.ip_address("localhost")` raises `ValueError` — it does not accept hostnames, so a literal
+  `ipaddress.ip_address(host).is_loopback` call will crash on the exact input this guard must handle.
+  Write a small helper that tries `ipaddress.ip_address(host).is_loopback` first, and on `ValueError`
+  falls back to `host.lower() == "localhost"` — this mirrors the existing bind-all-substitution
+  pattern in `cli/client.py:26-29` (`_BIND_ALL_SUBSTITUTIONS`), which also treats specific string
+  literals as special cases rather than resolving arbitrary hostnames via DNS. Do not add a
+  `socket.getaddrinfo()` resolution step to this startup guard — that would introduce a new failure
+  mode (resolution failure) into a hard-block code path for a check that only needs to recognize the
+  handful of conventional loopback spellings operators actually use.
 
 ## Verify
 
 - [ ] FR#4: Unit test confirms `WebApiService.serve()` constructs `uvicorn.Config` with `proxy_headers=False` (inspect the call, e.g. via mock/spy on `uvicorn.Config`).
 - [ ] FR#5: Unit test confirms `on_initialize()` schedules a periodic job via `self.scheduler.run_every(...)` that calls T03's refresh function, in addition to calling it once at startup.
-- [ ] FR#13: Unit test confirms `WebApiService` raises a startup error naming both `auth_enabled` and `host` when `auth_enabled=False` and `host="0.0.0.0"`.
-- [ ] FR#14: Unit test confirms a WARNING log line naming TLS is emitted when `host="0.0.0.0"` and `trusted_proxies=()`, and confirms no such warning fires when `trusted_proxies` is non-empty.
+- [ ] FR#13: Unit test confirms `WebApiService` raises a startup error naming both `auth_enabled` and `host` when `auth_enabled=False` and `host="0.0.0.0"`; confirms no error when `auth_enabled=False` and `host="127.0.0.1"` or `host="localhost"` (the loopback-check helper must not raise on either input).
+- [ ] FR#14: Unit test confirms a WARNING log line naming TLS is emitted when `host="0.0.0.0"` and `trusted_proxies=()`, and confirms no such warning fires when `trusted_proxies` is non-empty or when `host="localhost"`.
 - [ ] AC#8: Unit test confirms starting with `auth_enabled=false` and `host="0.0.0.0"` fails at startup with an error naming both settings (same test as FR#13, phrased at the AC's exact scenario).
 - [ ] AC#9: Unit test confirms the WARNING fires for empty `trusted_proxies` with non-loopback host, and does not fire when `trusted_proxies` is non-empty (same test as FR#14, phrased at the AC's exact scenario).

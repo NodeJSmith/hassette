@@ -31,11 +31,12 @@ In `src/hassette/web/auth.py`, add:
 
 1. **Config-load-time parsing** of each `trusted_proxies` entry: IP and CIDR literals parse via the
    stdlib `ipaddress` module (`ipaddress.ip_address()` / `ipaddress.ip_network()`), failing loudly on
-   a malformed entry (per the Edge Case: this is a real footgun — an auth *bypass*, not an additive
-   check — so a typo'd CIDR like `0.0.0.0/0` should be rejected or at minimum the config validator
-   should make it very hard to get there silently; if full "obviously wrong entry" detection is
-   ambiguous to implement generically, at minimum ensure malformed IP/CIDR/hostname syntax raises
-   immediately rather than being silently ignored).
+   a malformed entry. Additionally, per the Edge Case "A `trusted_proxies` entry that's wrong or too
+   broad" — which names `0.0.0.0/0` explicitly as an example the validator must reject — reject the
+   two CIDR entries that match the entire address space: `0.0.0.0/0` (IPv4) and `::/0` (IPv6). This
+   is a narrow, unambiguous rule (an exact-match check against these two literal networks), not a
+   general "is this CIDR suspiciously broad" heuristic — a `/8` or `/16` entry is a legitimate
+   (if unusual) operator choice and is not rejected.
 2. **Hostname resolution**: for entries that aren't valid IP/CIDR literals, resolve via
    `socket.getaddrinfo()`. A resolution failure at this stage fails loudly (same posture as an
    invalid IP/CIDR literal) — this task builds the resolve function; T08 wires it into startup and a
@@ -57,7 +58,8 @@ matches only that IP; a CIDR entry matches any address in range; a hostname entr
 matches the resolved IP; calling the refresh function with a changed DNS response updates which
 addresses are trusted (this is the "simulated periodic-refresh tick" the design's AC#5 describes —
 mock `socket.getaddrinfo` to return different results on two successive calls and confirm the trusted
-set changes accordingly); a malformed IP/CIDR entry raises at parse time.
+set changes accordingly); a malformed IP/CIDR entry raises at parse time; `trusted_proxies=("0.0.0.0/0",)`
+and `trusted_proxies=("::/0",)` both raise at parse time.
 
 ## Focus
 
@@ -71,14 +73,14 @@ set changes accordingly); a malformed IP/CIDR entry raises at parse time.
   results — it does not require the real `Scheduler` or `WebApiService` to be running. Full app-level
   AC#5 verification (an actual request through the middleware landing as trusted after a hostname's
   IP changes) happens in T11's integration suite, which depends on this task.
-- Malformed-entry detection doesn't need to catch every conceivable "too broad" CIDR (e.g. detecting
-  `0.0.0.0/0` specifically as "too broad" is a judgment call, not a syntax error) — the concrete,
-  testable requirement is that syntactically invalid entries fail loudly at parse time. Don't build
-  a heuristic "is this CIDR suspiciously broad" checker; that's speculative validation beyond what
-  FR#2/FR#3 ask for.
+- Reject exactly `0.0.0.0/0` and `::/0` (design.md's own named example) — do not build a broader
+  heuristic for other "too broad but not maximal" CIDRs (e.g. a `/8` is a legitimate operator choice
+  and must not be rejected). The line between "reject" and "allow" is the entire-address-space case
+  specifically, not a fuzzy breadth judgment — that would be speculative validation beyond what
+  design.md's Edge Case actually asks for.
 
 ## Verify
 
-- [ ] FR#2: Unit test confirms a peer address matching a `trusted_proxies` IP, CIDR, or resolved-hostname entry is reported as trusted by the matcher function.
+- [ ] FR#2: Unit test confirms a peer address matching a `trusted_proxies` IP, CIDR, or resolved-hostname entry is reported as trusted by the matcher function; confirms `trusted_proxies=("0.0.0.0/0",)` and `("::/0",)` both raise at parse time rather than being accepted.
 - [ ] FR#3: The peer-match function's signature accepts only an address string (verified by inspection/type signature — no headers parameter exists); unit test confirms passing a non-matching address with no other input still returns not-trusted (there is no header input to spoof).
 - [ ] AC#4: Unit test confirms a peer address matching a `trusted_proxies` IP or CIDR entry is trusted by the matcher, and a non-matching address is not.

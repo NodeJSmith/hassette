@@ -36,17 +36,21 @@ websocket_endpoint(websocket: WebSocket) -> None:` at 86, `await websocket.accep
 this to:
 
 ```python
-if not authorize_ws(websocket, hassette.config.web_api):
+if not authorize_ws(websocket):
     await websocket.close(code=1008)
     return
 await websocket.accept()
 ```
 
 (adapt the exact call signature to whatever `authorize_ws()` actually takes, per T05's
-implementation — the design's own code excerpt is illustrative, not a literal signature). Non-browser
-clients (CLI, scripts) attach `Authorization: Bearer <token>` via the `websockets` library's
-`additional_headers` parameter at connect time — `authorize_ws()` (T05) must check
-`websocket.headers` for this, in addition to `websocket.cookies` for browser clients.
+implementation — the design's own code excerpt is illustrative, not a literal signature). Read the
+resolved token the same way the existing `runtime` accessor at `ws.py:88` does —
+`websocket.app.state.auth_token` (the sibling attribute to `websocket.app.state.hassette`, set by
+`create_fastapi_app()`'s `auth_token` parameter per T05/T08 — **not** `hassette.config.web_api`,
+which only ever holds the raw configured value and may be `None`). Non-browser clients (CLI, scripts)
+attach `Authorization: Bearer <token>` via the `websockets` library's `additional_headers` parameter
+at connect time — `authorize_ws()` (T05) must check `websocket.headers` for this, in addition to
+`websocket.cookies` for browser clients.
 
 Extend `tests/integration/web_api/test_ws_endpoint.py` (existing file) with: an unauthenticated
 connection attempt is rejected with close code `1008` before any application data flows, verified
@@ -56,7 +60,11 @@ doesn't silently complete-then-close in a way that changes what a real client's 
 observe); a connection with a valid cookie is accepted; a connection with a valid
 `Authorization: Bearer <token>` header (via `additional_headers`, using the `websockets` library
 directly rather than any existing test helper — the codebase currently has no precedent for a
-non-browser WS auth test, per design.md's Test Strategy) is accepted.
+non-browser WS auth test, per design.md's Test Strategy) is accepted. The positive-auth cases need a
+known token value threaded into the test app the same way T06/T11 do —
+`create_fastapi_app(mock_hassette, auth_token="test-token-value")` (the `auth_token` parameter T05
+adds to `web/app.py`) — rather than relying on this file's existing app-construction fixture's
+default.
 
 ## Focus
 
