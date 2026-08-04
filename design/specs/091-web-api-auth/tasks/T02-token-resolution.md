@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Add auth exceptions and token resolution/persistence logic"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#9", "FR#10", "FR#21", "AC#12", "AC#19"]
 ---
