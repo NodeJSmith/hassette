@@ -1,6 +1,6 @@
 ---
 task_id: "T12"
-title: "Add frontend login view, credentialed fetch, and WS stop-on-1008"
+title: "Add frontend login view, credentialed fetch, and WS stop-on-rejected-handshake"
 status: "planned"
 depends_on: []
 implements: ["FR#12", "AC#13"]
@@ -12,13 +12,26 @@ Adds the browser-side half of the login flow: `frontend/src/api/client.ts` sends
 request and redirects to a new login view on 401; a new `frontend/src/pages/login.tsx` lets the
 operator paste the token from the startup log and exchanges it for a session cookie via `POST
 /api/auth/session`; `frontend/src/hooks/use-websocket.ts` stops its reconnect backoff loop and
-redirects to the login view when the WebSocket closes with code `1008`, instead of retrying
-indefinitely against a connection a fresh cookie won't fix. `App()` in `app.tsx` is changed to
-render `/login` as a standalone tree, bypassing its normal always-mounted shell (`WebSocketEffect`,
-`TelemetryHealthEffect`, `Sidebar`, `StatusBar`) entirely — without this, an unauthenticated visit to
-`/login` would immediately trigger the very 401s/1008-close this task is built to handle, before the
-operator has a credential. This task has no runtime dependency on the backend tasks (T01-T11) — it's
-pure frontend code, independently developable and testable via mocked fetch/WebSocket.
+redirects to the login view when a connection attempt fails as a **rejected handshake** (closes
+before `onopen` ever fires), instead of retrying indefinitely against a connection a fresh cookie
+won't fix. `App()` in `app.tsx` is changed to render `/login` as a standalone tree, bypassing its
+normal always-mounted shell (`WebSocketEffect`, `TelemetryHealthEffect`, `Sidebar`, `StatusBar`)
+entirely — without this, an unauthenticated visit to `/login` would immediately trigger the very
+401s/rejected-handshake behavior this task is built to handle, before the operator has a credential.
+This task has no runtime dependency on the backend tasks (T01-T11) — it's pure frontend code,
+independently developable and testable via mocked fetch/WebSocket.
+
+**Design note (resolved via CONTESTED during T07):** design.md's original plan was for
+`use-websocket.ts` to branch on `event.code === 1008`. T07 found empirically that this project's
+`ws="websockets-sansio"` uvicorn backend never delivers a pre-accept `close(code=1008)` as a real WS
+close frame — it becomes an HTTP 403-equivalent handshake rejection instead, which a browser's native
+`WebSocket` surfaces as `onclose` firing with code `1006` (abnormal closure), and critically, this
+happens **before `onopen` ever fires** for that connection attempt. `1006` alone is not a reliable
+signal (it also covers ordinary network blips on an already-open connection), so the actual signal
+this task uses is: did `onopen` ever fire for the current connection attempt? A close that arrives
+before `onopen` has ever fired for that attempt is treated as a rejected handshake (auth failure) and
+stops the reconnect loop; a close that arrives after `onopen` had already fired (a real, previously
+working connection dropping) keeps the existing reconnect-with-backoff behavior unchanged.
 
 ## Target Files
 
@@ -28,8 +41,8 @@ pure frontend code, independently developable and testable via mocked fetch/WebS
 - create: `frontend/src/pages/login.test.tsx` — component test
 - modify: `frontend/src/app.tsx` — branch `App()`'s return to bypass the shell for `/login`
 - modify: `frontend/src/app.test.tsx` — test confirming `/login` does not mount the shell
-- modify: `frontend/src/hooks/use-websocket.ts` — stop-and-redirect on close code 1008
-- modify: `frontend/src/hooks/use-websocket.test.tsx` (or equivalent existing test file, if present) — new test for the 1008 branch
+- modify: `frontend/src/hooks/use-websocket.ts` — stop-and-redirect on a rejected handshake (close before `onopen` ever fires)
+- modify: `frontend/src/hooks/use-websocket.test.tsx` (or equivalent existing test file, if present) — new test for the rejected-handshake branch
 - read: `frontend/src/pages/not-found.tsx` — closest existing precedent for a simple standalone page + route wiring
 - read: `frontend/src/app.tsx:69-296` — `App()` in full: hooks (lines 69-158), the always-mounted shell (`WebSocketEffect`, `TelemetryHealthEffect`, `Sidebar`, `StatusBar`) wrapping the routed `Switch` (lines 241-289)
 
@@ -88,11 +101,16 @@ current `return (` around line 160) and before that `return`.
 
 In `frontend/src/hooks/use-websocket.ts`, the `onclose` handler (currently lines 148-158) takes no
 `event` parameter and unconditionally calls `scheduleReconnect()` (defined at lines 165-169, called
-from `onclose` at line 157) on every close. Change this to accept the close `event`, check
-`event.code === 1008`, and on that condition: stop the backoff loop (do not call
-`scheduleReconnect()`) and redirect to the new login route instead — retrying against a connection
-that a fresh cookie won't fix wastes the backoff cycle and never recovers on its own. For any other
-close code, keep the existing reconnect behavior unchanged.
+from `onclose` at line 157) on every close. Track whether `onopen` has fired for the current
+connection attempt (a `hasOpened`-style flag reset at the start of each connect attempt, set `true`
+in the `onopen` handler). Change `onclose` to check that flag: if `onopen` never fired for this
+attempt (a rejected handshake — this is the actual observable signal on this backend, see the Summary
+design note above; do **not** check `event.code === 1008`, since that code never arrives), stop the
+backoff loop (do not call `scheduleReconnect()`) and redirect to the new login route instead —
+retrying against a connection that a fresh cookie won't fix wastes the backoff cycle and never
+recovers on its own. If `onopen` already fired before this close (a previously working connection
+dropping — a real network blip, server restart, etc.), keep the existing reconnect behavior
+unchanged, regardless of close code.
 
 ## Focus
 
@@ -115,7 +133,7 @@ close code, keep the existing reconnect behavior unchanged.
 
 ## Verify
 
-- [ ] FR#12: Component/unit test confirms `use-websocket.ts`'s `onclose` handler, on receiving `event.code === 1008`, does not call `scheduleReconnect()` and instead redirects to the login route; confirms other close codes still trigger the existing reconnect behavior unchanged. Additionally, a test in `app.test.tsx` confirms rendering `App()` at the `/login` route does **not** mount `WebSocketEffect`, `TelemetryHealthEffect`, `Sidebar`, or `StatusBar` — the specific mechanism that keeps the 1008-redirect from looping back onto itself.
-- [ ] AC#13: Frontend component test confirms the WS client stops reconnecting and navigates to the login view on close code 1008, rather than retrying indefinitely.
+- [ ] FR#12: Component/unit test confirms `use-websocket.ts`'s `onclose` handler, when the connection closes before `onopen` ever fired for that attempt (a rejected handshake), does not call `scheduleReconnect()` and instead redirects to the login route; confirms a close that occurs after `onopen` had already fired still triggers the existing reconnect behavior unchanged, regardless of close code. Additionally, a test in `app.test.tsx` confirms rendering `App()` at the `/login` route does **not** mount `WebSocketEffect`, `TelemetryHealthEffect`, `Sidebar`, or `StatusBar` — the specific mechanism that keeps the rejected-handshake redirect from looping back onto itself.
+- [ ] AC#13: Frontend component test confirms the WS client stops reconnecting and navigates to the login view when a connection attempt is rejected before ever opening, rather than retrying indefinitely.
 - [ ] `login.test.tsx` confirms that submitting a wrong token renders a visible error and leaves the operator on the login view — it does not silently redirect or appear to do nothing. Neither T13's e2e test (which injects a valid cookie and never submits a bad one) nor any backend test covers this path.
 - [ ] The 401 redirect lives in `query-client.ts`'s `QueryCache.onError`, not inside `apiFetch` — verified by inspection, plus a test confirming `apiFetch` still throws `ApiError` on a 401 rather than navigating.

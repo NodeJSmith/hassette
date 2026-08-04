@@ -66,6 +66,9 @@ from .mock_hassette import make_mock_hassette as make_mock_hassette
 from .mock_hassette import make_ws_hassette_stub as make_ws_hassette_stub
 from .recording_api import RecordingApi
 from .test_server import SimpleTestServer as SimpleTestServer
+from .uvicorn_server import get_free_port as get_free_port
+from .uvicorn_server import start_uvicorn_server as start_uvicorn_server
+from .uvicorn_server import stop_uvicorn_server as stop_uvicorn_server
 from .web_job_helpers import make_job as make_job
 from .web_job_helpers import make_real_job as make_real_job
 from .web_manifest_helpers import make_full_snapshot as make_full_snapshot
