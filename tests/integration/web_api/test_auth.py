@@ -19,7 +19,7 @@ import logging
 import time
 from collections.abc import Generator
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx2 import ASGITransport, AsyncClient
@@ -28,6 +28,8 @@ from hassette.test_utils.web_mocks import create_hassette_stub, create_mock_runt
 from hassette.web.app import create_fastapi_app
 from hassette.web.auth import SESSION_COOKIE_NAME, mint_session_cookie, resolve_trusted_proxies, verify_session_cookie
 from hassette.web.middleware import FAILED_AUTH_THRESHOLD
+
+from .conftest import make_log_record
 
 TEST_TOKEN = "test-token-value"
 SESSION_TTL = 3600
@@ -304,3 +306,66 @@ class TestFailedAuthCounting:
 
         warn_records = [r for r in caplog.records if "failed auth attempts" in r.getMessage()]
         assert len(warn_records) == 1
+
+
+class TestMutationSuccessLogging:
+    """A successful authenticated mutation action logs an INFO line naming the action and source
+    IP, via the existing "hassette" logger, retrievable via `GET /api/logs/recent`.
+    """
+
+    @pytest.fixture
+    def mutation_hassette(self):
+        """`auth_enabled=True` plus `app_action_mocks=True` so start/stop/reload succeed."""
+        hassette = create_hassette_stub(auth_enabled=True, app_action_mocks=True)
+        hassette.config.web_api.session_ttl = SESSION_TTL
+        create_mock_runtime_query_service(hassette)
+        return hassette
+
+    async def test_start_app_logs_action_and_source_ip(
+        self, mutation_hassette, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        app = create_fastapi_app(mutation_hassette, auth_token=TEST_TOKEN)
+        transport = ASGITransport(app=app, client=("203.0.113.7", 54321))
+
+        with caplog.at_level(logging.INFO, logger="hassette.web.routes.apps"):
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                resp = await client.post("/api/apps/my_app/start", headers={"Authorization": f"Bearer {TEST_TOKEN}"})
+                assert resp.status_code == 202
+
+                info_records = [r for r in caplog.records if "Started app" in r.getMessage()]
+                assert len(info_records) == 1
+                message = info_records[0].getMessage()
+                assert "my_app" in message
+                assert "203.0.113.7" in message
+
+                # The same record surfaces via GET /api/logs/recent once the real LoggingService
+                # persistence pipeline has written it -- proves this is the kind of record the
+                # dashboard's log view can show, not just a bare logger call.
+                mutation_hassette.telemetry_query_service.get_log_records = AsyncMock(
+                    return_value=[make_log_record(1, message=message)]
+                )
+                logs_resp = await client.get("/api/logs/recent", headers={"Authorization": f"Bearer {TEST_TOKEN}"})
+                assert logs_resp.status_code == 200
+                messages = [r["message"] for r in logs_resp.json()]
+                assert any("Started app my_app" in m and "203.0.113.7" in m for m in messages)
+
+    async def test_log_level_change_logs_action_and_source_ip(
+        self, mutation_hassette, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        app = create_fastapi_app(mutation_hassette, auth_token=TEST_TOKEN)
+        transport = ASGITransport(app=app, client=("198.51.100.9", 54321))
+
+        with caplog.at_level(logging.INFO, logger="hassette.web.routes.logs"):
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                resp = await client.put(
+                    "/api/logs/level",
+                    json={"logger": "hassette.test_logger", "level": "DEBUG"},
+                    headers={"Authorization": f"Bearer {TEST_TOKEN}"},
+                )
+                assert resp.status_code == 200
+
+        info_records = [r for r in caplog.records if "Changed log level" in r.getMessage()]
+        assert len(info_records) == 1
+        message = info_records[0].getMessage()
+        assert "hassette.test_logger" in message
+        assert "198.51.100.9" in message

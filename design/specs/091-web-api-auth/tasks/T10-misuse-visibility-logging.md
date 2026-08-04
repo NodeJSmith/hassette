@@ -1,7 +1,7 @@
 ---
 task_id: "T10"
 title: "Log successful mutation actions with source IP"
-status: "planned"
+status: "done"
 depends_on: ["T05", "T11"]
 implements: ["FR#16", "AC#16"]
 ---
