@@ -1,7 +1,7 @@
 ---
 task_id: "T15"
 title: "Authenticate the demo stack and the doc-screenshot pipeline"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T06", "T08", "T12"]
 implements: []
 ---

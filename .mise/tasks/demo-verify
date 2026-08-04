@@ -13,6 +13,10 @@ HASSETTE_URL="http://localhost:$HASSETTE_PORT"
 # Expected app instance count — derived from hassette.toml config sections
 EXPECTED_APPS=7
 
+# Must match HASSETTE__WEB_API__AUTH_TOKEN in scripts/docker/ha-demo.yml and
+# DEMO_AUTH_TOKEN in scripts/capture_screenshots.py
+AUTH_HEADER="Authorization: Bearer demo-token"
+
 cleanup() {
     if [[ -n "${DEMO_PID:-}" ]]; then
         # Kill the process group (uv + python child), not just the uv PID
@@ -28,7 +32,7 @@ DEMO_PID=$!
 
 # Poll the configured hassette URL until it reports healthy
 DEADLINE=$((SECONDS + TIMEOUT))
-until curl -sf --max-time 5 "$HASSETTE_URL/api/health" >/dev/null 2>&1; do
+until curl -sf --max-time 5 -H "$AUTH_HEADER" "$HASSETTE_URL/api/health" >/dev/null 2>&1; do
     if ! kill -0 "$DEMO_PID" 2>/dev/null; then
         echo "FAIL: orchestrator process exited before hassette became healthy"
         exit 1
@@ -46,7 +50,7 @@ echo "Demo ready: hassette=$HASSETTE_URL"
 RUNNING=0
 DEADLINE=$((SECONDS + POLL_TIMEOUT))
 while ((SECONDS < DEADLINE)); do
-    RESPONSE=$(curl -sf "$HASSETTE_URL/api/apps" 2>/dev/null) || { sleep 1; continue; }
+    RESPONSE=$(curl -sf -H "$AUTH_HEADER" "$HASSETTE_URL/api/apps" 2>/dev/null) || { sleep 1; continue; }
     RUNNING=$(echo "$RESPONSE" | python3 -c "
 import json, sys
 data = json.load(sys.stdin)
@@ -70,7 +74,7 @@ for a in json.load(sys.stdin).get('apps', []):
 fi
 
 # Verify listeners exist (framework wiring)
-LISTENERS=$(curl -sf "$HASSETTE_URL/api/bus/listeners" 2>/dev/null) || {
+LISTENERS=$(curl -sf -H "$AUTH_HEADER" "$HASSETTE_URL/api/bus/listeners" 2>/dev/null) || {
     echo "FAIL: GET /api/bus/listeners failed"
     exit 1
 }
