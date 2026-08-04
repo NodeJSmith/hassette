@@ -28,7 +28,7 @@ The `image:` line pulls Hassette from GitHub Container Registry (`ghcr.io`) — 
 - `./config` and `./apps` mount your local directories into the container.
 - `data` and `uv_cache` are named volumes for persistent data and the package cache. Docker Compose creates them automatically — no action needed.
 
-Port `8126` exposes the web UI. It is unauthenticated, so keep it off public networks. Add `HASSETTE__TIMEZONE=America/Chicago` (with your own timezone) to `config/.env` so scheduled automations fire at the right times. The `TZ` environment variable on the container works as a fallback.
+Port `8126` exposes the web UI. Hassette requires a credential for it — on first start it generates one and logs it (see Step 4). Add `HASSETTE__TIMEZONE=America/Chicago` (with your own timezone) to `config/.env` so scheduled automations fire at the right times. The `TZ` environment variable on the container works as a fallback.
 
 ### Step 3: Create config/.env
 
@@ -55,10 +55,21 @@ Check the logs:
 You see output like:
 
 ```
+INFO hassette ... ─ No web API auth token configured — generated one and saved it to /data/.web_api_token
+INFO hassette ... ─ Open http://localhost:8126 and paste this token to log in: <generated-token>
 INFO hassette ... ─ Hassette is running.
 ```
 
-Hassette is running, and the web UI is available at `http://localhost:8126`. If you see an error instead of this line, head to [Troubleshooting](troubleshooting.md).
+Hassette is running, and the web UI is available at `http://localhost:8126`. Open it, and paste the token from the log line above into the login screen. If you see an error instead of these lines, head to [Troubleshooting](troubleshooting.md).
+
+!!! note "Upgrading an existing deployment"
+    Hassette requires this token starting with the version that introduced
+    authentication. On the first restart after upgrading, existing
+    deployments generate a token the same way and log it — the dashboard and
+    API return 401 until that token is retrieved and used. This is
+    intentional (auth is now on by default), not a bug. See
+    [401 after upgrading](troubleshooting.md#dashboard-or-api-returns-401-after-upgrading)
+    if you land here after an upgrade instead of a fresh install.
 
 ## Write Your First App
 

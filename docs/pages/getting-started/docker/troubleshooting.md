@@ -102,6 +102,20 @@ docker compose restart hassette
 
 To apply edits without restarting, set `allow_reload_in_prod = true` under `[hassette]` in your `hassette.toml` (in your `config/` directory). File watching itself is already on by default.
 
+## Dashboard or API Returns 401 After Upgrading
+
+**Symptom:** After upgrading to a newer Hassette version, the web UI shows a login screen — or a script that used to work now gets HTTP 401 — where no credential was needed before.
+
+**Cause:** This is intentional, not a regression. Hassette now requires a credential for every `/api/*` route by default. On the first restart after upgrading, with no `HASSETTE__WEB_API__AUTH_TOKEN` configured and no existing token file, Hassette generates a token and logs it once — closing a real security gap where any peer on the network could reach mutation endpoints (start/stop/reload apps, trigger jobs) with no credential at all.
+
+**Fix:** Retrieve the generated token from the container logs:
+
+```bash
+docker compose logs hassette | grep -i token
+```
+
+Paste it into the login screen at `http://your-host:8126`, or attach it as `Authorization: Bearer <token>` for scripts. To pin a token of your own choosing instead of the generated one, set `HASSETTE__WEB_API__AUTH_TOKEN` in `config/.env` and restart — see [CLI Configuration](../../cli/configuration.md#web-api-token) for how the `hassette` CLI resolves the same credential automatically.
+
 ## Hassette Restarts Whenever Home Assistant Goes Down
 
 **Symptom:** Hassette keeps restarting in a loop whenever Home Assistant restarts or goes offline, even though Hassette itself is healthy.

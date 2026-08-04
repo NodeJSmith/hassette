@@ -14,14 +14,38 @@ http://<host>:8126/
 
 The default bind address is `0.0.0.0:8126`. The `host` and `port` fields under `[hassette.web_api]` in `hassette.toml` control the bind address.
 
-!!! warning "No authentication"
-    The web UI has no built-in authentication. The default bind address `0.0.0.0`
-    makes it reachable by anyone on the local network, including endpoints that
-    start, stop, and reload automations.
+!!! note "Authentication is on by default"
+    Hassette requires a credential for every `/api/*` route. On first start
+    with no token configured, Hassette generates one, logs it once, and writes
+    it to `<data_dir>/.web_api_token` (mode `0600`). Open the dashboard and
+    paste that token into the login screen, or send it as
+    `Authorization: Bearer <token>` from a script — see
+    [CLI Configuration](../cli/configuration.md) for how the `hassette` CLI
+    picks up the same token automatically.
 
-    For local-only access, set `host = "127.0.0.1"` under `[hassette.web_api]`.
-    For remote access, place Hassette behind a reverse proxy with authentication
-    (Caddy, nginx, and Traefik all work).
+    Setting `host = "127.0.0.1"` under `[hassette.web_api]` adds an extra layer
+    for local-only access, but it isn't what stops an unauthenticated peer from
+    reaching the API — the token does that regardless of bind address.
+
+    Running a reverse proxy in front of Hassette — Caddy, Traefik, nginx, or
+    the Home Assistant add-on's own ingress proxy — and listing its address
+    under `trusted_proxies` relocates trust to that proxy: Hassette skips its
+    own token check for requests from that peer. The Caddyfile below is a
+    bare proxy hop and adds no login by itself — pair it with a forward-auth
+    layer such as Authelia or tinyauth (or the add-on's own ingress auth) to
+    put a login prompt at the gateway instead of Hassette's token:
+
+    ```caddyfile title="Caddyfile"
+    --8<-- "pages/web-ui/snippets/reverse-proxy-caddy.txt"
+    ```
+
+    ```toml title="hassette.toml"
+    --8<-- "pages/web-ui/snippets/trusted-proxies.toml"
+    ```
+
+    `trusted_proxies` matches only the raw peer address of the request — never
+    a client-suppliable header like `X-Forwarded-For` — so a bad actor on the
+    same network can't spoof their way past it.
 
 The UI can be disabled independently while the REST API stays active:
 
@@ -44,6 +68,10 @@ The UI can be disabled independently while the REST API stays active:
     | `[hassette.web_api] run_ui` | bool | `true` | Serves the web UI (requires `run = true`) |
     | `[hassette.web_api] host` | string | `"0.0.0.0"` | Bind host |
     | `[hassette.web_api] port` | int | `8126` | Bind port |
+    | `[hassette.web_api] auth_enabled` | bool | `true` | Requires a credential for every `/api/*` route |
+    | `[hassette.web_api] auth_token` | string | *(generated)* | Bearer token; generated and persisted to `<data_dir>/.web_api_token` when unset |
+    | `[hassette.web_api] trusted_proxies` | tuple | `()` | IPs, CIDRs, or hostnames exempt from the token check |
+    | `[hassette.web_api] session_ttl` | int | `3600` | Seconds before a browser login session cookie expires |
     | `[hassette.web_api] cors_origins` | tuple | `("http://localhost:3000", "http://localhost:5173")` | Allowed CORS origins |
     | `[hassette.web_api] log_buffer_size` | int | `2000` | How many log entries the UI keeps in memory |
     | `[hassette.web_api] job_history_size` | int | `1000` | Job execution records to keep |

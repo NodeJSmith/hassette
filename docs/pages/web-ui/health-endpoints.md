@@ -6,7 +6,7 @@ Hassette exposes three HTTP health endpoints and a telemetry-specific status end
 |---|---|---|
 | Restart automation | `/api/health/live` (or non-zero exit + restart policy) | Docker healthcheck, systemd, autoheal |
 | Traffic routing | `/api/health/ready` | Load balancer, reverse proxy |
-| Human inspection | `/api/health` | Dashboards, `hassette status`, manual checks |
+| Human inspection | `/api/health` (requires a credential) | Dashboards, `hassette status`, manual checks |
 | Telemetry health | `/api/telemetry/status` | Monitoring whether the telemetry DB is functional |
 
 ## Quick Check
@@ -53,6 +53,8 @@ Response body: `{"status": "<status>", "ready": <bool>}`.
 This endpoint serves load-balancer traffic routing, holding traffic until the WebSocket connection is live. It is not suitable for restart automation. It returns 503 during any HA outage, which triggers a restart loop.
 
 ## Aggregate status: `/api/health`
+
+Unlike `/api/health/live` and `/api/health/ready`, `/api/health` requires the same bearer token, cookie, or trusted-proxy match as any other `/api/*` route — it is not one of the unauthenticated exemptions, so a monitoring script hitting this endpoint needs a credential the same way `hassette status` does. See [Web UI](index.md) for how the credential works.
 
 The full status endpoint returns HTTP 200 in all states while the process can serve. The response body is the complete `SystemStatusResponse`: uptime, entity count, app count, running services, version, and boot issues. Per-service detail is in the `services` field of the response.
 

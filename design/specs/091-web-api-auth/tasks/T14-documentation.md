@@ -1,7 +1,7 @@
 ---
 task_id: "T14"
 title: "Document the new auth model across the docs site"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02", "T03", "T05", "T09"]
 implements: ["FR#1", "FR#2", "FR#9", "FR#18"]
 ---
