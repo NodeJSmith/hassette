@@ -100,7 +100,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 SPA_INDEX = REPO_ROOT / "src" / "hassette" / "web" / "static" / "spa" / "index.html"
 
 
-def build_mock_hassette(*, is_ready: bool = True):
+def build_mock_hassette(*, is_ready: bool = True, auth_enabled: bool = False):
     """Build a fully-wired mock Hassette stub with rich seed telemetry data.
 
     ``is_ready=False`` simulates WebsocketService never having connected to HA
@@ -118,6 +118,7 @@ def build_mock_hassette(*, is_ready: bool = True):
         scheduler_jobs=build_scheduler_jobs(),
         is_ready=is_ready,
         websocket_connected=is_ready,
+        auth_enabled=auth_enabled,
     )
 
     # Wire telemetry seed data.
@@ -350,7 +351,7 @@ def set_time_preset_to_1h(request: pytest.FixtureRequest, page, base_url: str) -
     have the preset forced — they receive uptimeSeconds from the real WS
     connected message and test the "since-restart" gate.
     """
-    if "live_server_ws" in request.fixturenames or "live_server_ws_inject" in request.fixturenames:
+    if any(name.startswith("live_server_ws") for name in request.fixturenames):
         return
     seed_time_preset_1h(page, base_url)
 
