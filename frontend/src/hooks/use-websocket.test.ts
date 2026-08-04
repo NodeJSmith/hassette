@@ -2,8 +2,13 @@ import { act } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useAppStore } from "../state/store";
+import { createWouterMock } from "../test/mock-wouter";
 import { createTestQueryClient, renderHookWithProviders } from "../test/query-test-utils";
 import { useWebSocket } from "./use-websocket";
+
+const mockNavigate = vi.hoisted(() => vi.fn());
+
+vi.mock("wouter", () => createWouterMock({ useLocation: vi.fn().mockReturnValue(["/", mockNavigate]) }));
 
 /** Minimal mock WebSocket that tracks construction and allows simulating messages. */
 class MockWebSocket {
@@ -44,6 +49,7 @@ describe("useWebSocket", () => {
   beforeEach(() => {
     MockWebSocket.instances = [];
     vi.stubGlobal("WebSocket", MockWebSocket);
+    mockNavigate.mockClear();
   });
 
   afterEach(() => {
@@ -134,6 +140,55 @@ describe("useWebSocket", () => {
 
     // Should be "disconnected" (not "reconnecting") since never connected
     expect(useAppStore.getState().connection).toBe("disconnected");
+  });
+
+  describe("rejected handshake (closed before onopen ever fires)", () => {
+    it("stops reconnecting and redirects to /login instead of scheduling a retry", () => {
+      vi.useFakeTimers();
+      const queryClient = createTestQueryClient();
+
+      renderHookWithProviders(() => useWebSocket(), { queryClient });
+
+      const ws = MockWebSocket.instances[0];
+
+      // Close arrives before onopen ever fired for this attempt — a rejected handshake.
+      act(() => {
+        ws.onclose?.();
+      });
+
+      expect(mockNavigate).toHaveBeenCalledWith("/login");
+
+      // Advance well past the backoff window — no reconnect attempt should have been scheduled.
+      act(() => {
+        vi.advanceTimersByTime(30_000);
+      });
+      expect(MockWebSocket.instances).toHaveLength(1);
+    });
+
+    it("keeps reconnecting (no redirect) when a close arrives after onopen already fired", () => {
+      vi.useFakeTimers();
+      const queryClient = createTestQueryClient();
+
+      renderHookWithProviders(() => useWebSocket(), { queryClient });
+
+      const ws = MockWebSocket.instances[0];
+
+      // onopen fires (transport-level connect succeeded) before the close — a previously
+      // working connection dropping, not a rejected handshake — even though the app-level
+      // "connected" message never arrived and hasConnectedRef is still false.
+      act(() => {
+        ws.simulateOpen();
+        ws.onclose?.();
+      });
+
+      expect(mockNavigate).not.toHaveBeenCalled();
+
+      // The existing reconnect-with-backoff behavior fires a new connection attempt.
+      act(() => {
+        vi.advanceTimersByTime(2_000);
+      });
+      expect(MockWebSocket.instances).toHaveLength(2);
+    });
   });
 
   it("closes socket on handshake timeout when server never sends connected message", () => {

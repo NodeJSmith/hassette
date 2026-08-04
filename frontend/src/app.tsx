@@ -41,10 +41,11 @@ import { ConfigPage } from "./pages/config";
 import { DesignPage } from "./pages/design";
 import { DiagnosticsPage } from "./pages/diagnostics";
 import { HandlersPage } from "./pages/handlers";
+import { LoginPage } from "./pages/login";
 import { LogsPage } from "./pages/logs";
 import { NotFoundPage } from "./pages/not-found";
 import { RELATIVE_TIME_TICK_MS, useAppStore } from "./state/store";
-import { HOME_PATH } from "./utils/app-routes";
+import { HOME_PATH, LOGIN_PATH } from "./utils/app-routes";
 import { statusToKind } from "./utils/status";
 
 const PALETTE_STALE_TIME_MS = 300_000;
@@ -156,6 +157,19 @@ export function App() {
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, [drawerOpen, belowSidebarBreakpoint]);
+
+  // The login view bypasses the always-mounted shell entirely: WebSocketEffect and
+  // TelemetryHealthEffect would immediately hit a rejected handshake / 401 against an
+  // unauthenticated request, and the rejected-handshake redirect in use-websocket.ts would
+  // send us right back here, looping. Sidebar/StatusBar also fetch data that would 401.
+  if (location === LOGIN_PATH) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <Toaster position="bottom-right" theme={theme} closeButton richColors />
+        <LoginPage />
+      </QueryClientProvider>
+    );
+  }
 
   return (
     <QueryClientProvider client={queryClient}>

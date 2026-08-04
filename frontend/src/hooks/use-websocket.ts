@@ -1,10 +1,12 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
+import { useLocation } from "wouter";
 
 import { WS_PATH } from "../api/endpoints";
 import type { WsServerMessage } from "../api/ws-types";
 import { validateWsMessage, WsValidationError } from "../api/ws-validator";
 import { appStatusKey, useAppStore } from "../state/store";
+import { LOGIN_PATH } from "../utils/app-routes";
 
 const MAX_BACKOFF_MS = 30_000;
 const INITIAL_BACKOFF_MS = 1_000;
@@ -21,6 +23,9 @@ function buildSubscribePayload(level: string): string {
 
 export function useWebSocket(): void {
   const queryClient = useQueryClient();
+  const [, navigate] = useLocation();
+  const navigateRef = useRef(navigate);
+  navigateRef.current = navigate;
   const wsRef = useRef<WebSocket | null>(null);
   const backoffRef = useRef(INITIAL_BACKOFF_MS);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -42,9 +47,17 @@ export function useWebSocket(): void {
       const socket = new WebSocket(`${proto}//${location.host}${WS_PATH}`);
       wsRef.current = socket;
 
+      // Tracks whether onopen has fired for THIS connection attempt (reset on every connect()
+      // call via this closure). A close that arrives before onopen ever fired is this backend's
+      // observable signal for a rejected handshake (auth failure) — see onclose below. This is
+      // deliberately not `hasConnectedRef`, which tracks the app-level "connected" message across
+      // the whole hook lifetime, not per-attempt transport-level open.
+      let openedThisAttempt = false;
+
       let handshakeTimer: ReturnType<typeof setTimeout> | null = null;
 
       socket.onopen = () => {
+        openedThisAttempt = true;
         handshakeTimer = setTimeout(() => {
           if (!hasConnectedRef.current || useAppStore.getState().connection !== "connected") {
             socket.close();
@@ -154,6 +167,16 @@ export function useWebSocket(): void {
         useAppStore.getState().setSendLogLevel(() => {});
         if (unmounted) return;
         useAppStore.getState().setConnection(hasConnectedRef.current ? "reconnecting" : "disconnected");
+
+        if (!openedThisAttempt) {
+          // Rejected handshake: closed before onopen ever fired for this attempt. On this
+          // backend a pre-accept auth rejection never delivers a real WS close(1008) frame —
+          // it manifests as onclose firing before onopen. Retrying won't help without a fresh
+          // credential, so stop the backoff loop and send the operator to log in instead.
+          navigateRef.current(LOGIN_PATH);
+          return;
+        }
+
         scheduleReconnect();
       };
 

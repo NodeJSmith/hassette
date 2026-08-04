@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "../api/client";
 import { createQueryClient, DEFAULT_STALE_TIME_MS } from "./query-client";
@@ -78,6 +78,54 @@ describe("createQueryClient", () => {
     it("returns false for network errors after 2 failures (failureCount >= 2)", () => {
       const error = new Error("fetch failed");
       expect(getRetry(2, error)).toBe(false);
+    });
+  });
+
+  describe("QueryCache.onError — 401 redirect", () => {
+    const originalLocation = window.location;
+
+    beforeEach(() => {
+      Object.defineProperty(window, "location", {
+        value: { ...originalLocation, assign: vi.fn() },
+        writable: true,
+        configurable: true,
+      });
+    });
+
+    afterEach(() => {
+      Object.defineProperty(window, "location", {
+        value: originalLocation,
+        writable: true,
+        configurable: true,
+      });
+    });
+
+    function triggerQueryError(error: Error) {
+      const client = createQueryClient();
+      client.getQueryCache().config.onError?.(error, {
+        state: {},
+        queryKey: ["test"],
+        queryHash: "test",
+        options: {},
+      } as never);
+    }
+
+    it("redirects to /login on a 401 ApiError", () => {
+      triggerQueryError(new ApiError(401, "Unauthorized"));
+
+      expect(window.location.assign).toHaveBeenCalledWith("/login");
+    });
+
+    it("does not redirect on a non-401 ApiError", () => {
+      triggerQueryError(new ApiError(500, "Internal Server Error"));
+
+      expect(window.location.assign).not.toHaveBeenCalled();
+    });
+
+    it("does not redirect on a non-ApiError error", () => {
+      triggerQueryError(new Error("network down"));
+
+      expect(window.location.assign).not.toHaveBeenCalled();
     });
   });
 });

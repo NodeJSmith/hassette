@@ -34,6 +34,7 @@ export const NAV_PAGES: readonly NavPage[] = [
 ];
 
 export const HOME_PATH = "/apps";
+export const LOGIN_PATH = "/login";
 
 const DECIMAL_INSTANCE_PARAM_RE = /^\d+$/;
 

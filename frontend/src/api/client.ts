@@ -13,10 +13,22 @@ export class ApiError extends Error {
   }
 }
 
+/** Extracts a human-readable error message from a non-ok response's JSON body, if present. */
+async function extractErrorMessage(response: Response): Promise<string | undefined> {
+  try {
+    const body: Record<string, unknown> = await response.json();
+    const raw = body.detail ?? body.message;
+    return typeof raw === "string" ? raw : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const url = `${BASE_URL}${path}`;
   const response = await fetch(url, {
     ...init,
+    credentials: "same-origin",
     headers: {
       Accept: "application/json",
       ...init?.headers,
@@ -24,14 +36,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   });
 
   if (!response.ok) {
-    let detail: string | undefined;
-    try {
-      const body: Record<string, unknown> = await response.json();
-      const raw = body.detail ?? body.message;
-      detail = typeof raw === "string" ? raw : undefined;
-    } catch {
-      /* non-JSON error body */
-    }
+    const detail = await extractErrorMessage(response);
     throw new ApiError(response.status, response.statusText, detail);
   }
 
@@ -48,3 +53,33 @@ function apiWrite<T>(method: "POST" | "PUT", path: string, body?: unknown): Prom
 
 export const apiPost = <T>(path: string, body?: unknown) => apiWrite<T>("POST", path, body);
 export const apiPut = <T>(path: string, body?: unknown) => apiWrite<T>("PUT", path, body);
+
+export type PostSessionResult = { ok: true } | { ok: false; message: string };
+
+/**
+ * Exchange a bearer token for a session cookie via `POST /api/auth/session`.
+ *
+ * Deliberately bypasses `apiFetch`/`apiPost` — those throw `ApiError` on a non-ok response,
+ * which would trip the global 401 handling in `query-client.ts`'s `QueryCache.onError` and
+ * bounce the caller straight back to the login view with no error shown. Wrong-token rejection
+ * is exactly the case this route's own caller (the login form) needs to render inline instead.
+ */
+export async function postSession(token: string): Promise<PostSessionResult> {
+  let response: Response;
+  try {
+    response = await fetch(`${BASE_URL}/auth/session`, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
+    });
+  } catch {
+    return { ok: false, message: "Could not reach the server. Check your connection and try again." };
+  }
+
+  if (response.ok) return { ok: true };
+
+  const detail = await extractErrorMessage(response);
+  const message = detail ?? `API error: ${response.status} ${response.statusText}`;
+  return { ok: false, message };
+}

@@ -1,7 +1,7 @@
 ---
 task_id: "T12"
 title: "Add frontend login view, credentialed fetch, and WS stop-on-rejected-handshake"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#12", "AC#13"]
 ---
