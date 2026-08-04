@@ -1,7 +1,7 @@
 ---
 task_id: "T11"
 title: "Extend test_auth.py with the full assembled auth-flow coverage"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02", "T03", "T04", "T05", "T06"]
 implements: ["AC#2", "AC#3", "AC#4", "AC#5", "AC#6", "AC#15", "AC#18"]
 ---
