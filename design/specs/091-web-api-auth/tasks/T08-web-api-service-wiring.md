@@ -1,7 +1,7 @@
 ---
 task_id: "T08"
 title: "Wire startup guards, proxy_headers=False, and periodic trusted-proxy refresh"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02", "T03", "T05"]
 implements: ["FR#4", "FR#5", "FR#13", "FR#14", "AC#8", "AC#9"]
 ---
