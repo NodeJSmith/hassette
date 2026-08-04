@@ -1,7 +1,7 @@
 ---
 task_id: "T06"
 title: "Add POST /api/auth/session route and AuthDep"
-status: "planned"
+status: "done"
 depends_on: ["T04", "T05"]
 implements: ["AC#7"]
 ---

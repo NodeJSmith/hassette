@@ -2,14 +2,13 @@
 
 Covers the generic deny/exempt/bypass behavior across the endpoint categories the design names
 (mutation endpoints, source-disclosure endpoints, config), the `/api/` prefix scope, sliding
-session-cookie renewal, and coalesced failed-auth counting.
+session-cookie renewal, coalesced failed-auth counting, and the `POST /api/auth/session` login
+exchange itself, reachable with zero prior credential.
 
-`POST /api/auth/session` doesn't exist as a real route yet (its handler ships separately), so this
-file's exemption test only asserts "not 401" (proving the middleware let the request through to the
-router) rather than a real 2xx -- that assertion gets tightened once the route exists. The
-failed-auth counting test against the login path stubs in a temporary handler at that exact path to
-prove the counting *mechanism* (any outgoing 401 from an exempt route is counted) without depending
-on the real token-validation handler.
+The failed-auth counting test against the login path drives the real `POST /api/auth/session`
+handler with a wrong token to prove the counting *mechanism* (any outgoing 401 from an exempt
+route is counted, not just the middleware's own reject branch) -- the login handler is exempt from
+`DefaultDenyMiddleware`'s default-deny but still issues its own 401 for an invalid token.
 
 A later test suite extends this file with the full assembled bearer/cookie/trusted-proxy/CORS
 coverage -- this file covers only the generic deny/exempt/bypass/scope/renewal/counting behavior.
@@ -24,7 +23,6 @@ from unittest.mock import patch
 
 import pytest
 from httpx2 import ASGITransport, AsyncClient
-from starlette.responses import JSONResponse
 
 from hassette.test_utils.web_mocks import create_hassette_stub, create_mock_runtime_query_service
 from hassette.web.app import create_fastapi_app
@@ -138,11 +136,36 @@ class TestExemptRoutes:
         assert resp.status_code != 401
 
     async def test_auth_session_reachable_with_no_credential(self, auth_client: AsyncClient) -> None:
-        # No router registers this path yet -- a 404 here still proves the middleware let the
-        # request through to routing instead of rejecting it with 401. This assertion tightens to
-        # a real 2xx once the handler exists.
-        resp = await auth_client.post("/api/auth/session", json={"token": "whatever"})
-        assert resp.status_code != 401
+        # A correct-token request with zero prior credential succeeds -- proving the route is
+        # reachable *and* functional, not just "not rejected by the middleware".
+        resp = await auth_client.post("/api/auth/session", json={"token": TEST_TOKEN})
+        assert resp.status_code == 200
+        assert SESSION_COOKIE_NAME in resp.cookies
+
+
+class TestAuthSessionRoute:
+    """`POST /api/auth/session` validates the presented token and mints a session cookie."""
+
+    async def test_correct_token_mints_verifiable_cookie(self, auth_client: AsyncClient) -> None:
+        resp = await auth_client.post("/api/auth/session", json={"token": TEST_TOKEN})
+
+        assert resp.status_code == 200
+        cookie_value = resp.cookies.get(SESSION_COOKIE_NAME)
+        assert cookie_value is not None
+        assert verify_session_cookie(cookie_value, TEST_TOKEN, SESSION_TTL) is not None
+
+    async def test_incorrect_token_returns_401(self, auth_client: AsyncClient) -> None:
+        resp = await auth_client.post("/api/auth/session", json={"token": "wrong-token"})
+
+        assert resp.status_code == 401
+        assert SESSION_COOKIE_NAME not in resp.cookies
+
+    async def test_minted_cookie_authenticates_subsequent_request(self, auth_client: AsyncClient) -> None:
+        login_resp = await auth_client.post("/api/auth/session", json={"token": TEST_TOKEN})
+        assert login_resp.status_code == 200
+
+        resp = await auth_client.get("/api/config")
+        assert resp.status_code == 200
 
 
 class TestAuthDisabledBypass:
@@ -265,16 +288,12 @@ class TestFailedAuthCounting:
         """The counter keys off the outgoing 401, not off this middleware's own reject branch --
         an exempt route's own handler-issued 401 must be counted by the same rule.
 
-        `POST /api/auth/session` has no real handler yet -- this test registers a stub handler at
-        that exact exempt path that always returns 401 (standing in for the real login route's
-        wrong-token rejection), so the counting *mechanism* is proven here without depending on
-        that not-yet-built token-validation handler.
+        `POST /api/auth/session` is exempt from `DefaultDenyMiddleware`'s default-deny (it must be
+        reachable with zero prior credential), so this drives the real handler with a wrong token --
+        it rejects with its own 401 rather than the middleware's -- to prove the counting mechanism
+        applies there too.
         """
         app = create_fastapi_app(auth_hassette, auth_token=TEST_TOKEN)
-
-        @app.post("/api/auth/session")
-        async def _stub_wrong_token_login() -> JSONResponse:  # pyright: ignore[reportUnusedFunction]
-            return JSONResponse({"detail": "Invalid token"}, status_code=401)
 
         transport = ASGITransport(app=app)
         with caplog.at_level(logging.WARNING, logger="hassette.web.middleware"):

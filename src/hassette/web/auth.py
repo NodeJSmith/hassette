@@ -30,6 +30,8 @@ from dataclasses import dataclass
 from logging import getLogger
 from pathlib import Path
 
+from starlette.datastructures import State
+from starlette.requests import Request
 from starlette.websockets import WebSocket
 from whenever import Instant
 
@@ -203,6 +205,28 @@ provided (e.g. a test app built via ``create_fastapi_app(hassette)`` with no ``t
 argument, or ``trusted_proxies=()`` in config) — ``is_trusted_peer`` against this always returns
 ``False`` rather than the caller needing a ``None``/``AttributeError`` guard at every call site.
 """
+
+
+def get_trusted_proxies(state: State) -> TrustedProxySet:
+    """Resolve the trusted-proxy set off ASGI app state, defaulting to :data:`EMPTY_TRUSTED_PROXY_SET`.
+
+    Shared by :class:`~hassette.web.middleware.DefaultDenyMiddleware`, :func:`authorize_ws`, and
+    ``POST /api/auth/session`` (``web/routes/auth.py``) — all three need the same
+    lookup-with-fallback for ``app.state.trusted_proxies``, set by
+    :func:`hassette.web.app.create_fastapi_app`.
+    """
+    return getattr(state, "trusted_proxies", None) or EMPTY_TRUSTED_PROXY_SET
+
+
+def peer_address(request: Request) -> str | None:
+    """Raw ASGI peer address for ``request``, or ``None`` if the transport reports no client.
+
+    Shared by :class:`~hassette.web.middleware.DefaultDenyMiddleware` and
+    ``POST /api/auth/session`` (``web/routes/auth.py``) — both need the same null-safe
+    ``request.client.host`` extraction.
+    """
+    client = request.client
+    return client.host if client is not None else None
 
 
 def _parse_literal(entry: str) -> ipaddress.IPv4Network | ipaddress.IPv6Network | None:
@@ -561,7 +585,7 @@ def authorize_ws(websocket: WebSocket) -> bool:
     if not web_api_config.auth_enabled:
         return True
 
-    trusted_proxies = getattr(websocket.app.state, "trusted_proxies", None) or EMPTY_TRUSTED_PROXY_SET
+    trusted_proxies = get_trusted_proxies(websocket.app.state)
     resolved_token = getattr(websocket.app.state, "auth_token", None)
 
     client = websocket.client

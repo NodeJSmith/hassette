@@ -27,11 +27,12 @@ from starlette.responses import JSONResponse, Response
 from starlette.types import ASGIApp
 
 from hassette.web.auth import (
-    EMPTY_TRUSTED_PROXY_SET,
     SESSION_COOKIE_NAME,
     check_bearer_token,
+    get_trusted_proxies,
     is_trusted_peer,
     mint_session_cookie,
+    peer_address,
     should_renew_session_cookie,
     should_set_secure_cookie_flag,
     verify_session_cookie,
@@ -113,11 +114,6 @@ def _extract_bearer_token(request: Request) -> str | None:
     return value
 
 
-def _peer_address(request: Request) -> str | None:
-    client = request.client
-    return client.host if client is not None else None
-
-
 def _source_key(request: Request) -> str:
     """Identify the failed-auth counter's "source" for a request — the raw peer address.
 
@@ -125,7 +121,7 @@ def _source_key(request: Request) -> str:
     transports) so the tracker still has a stable key to coalesce against, rather than treating
     every such request as a distinct source.
     """
-    return _peer_address(request) or "unknown"
+    return peer_address(request) or "unknown"
 
 
 class DefaultDenyMiddleware(BaseHTTPMiddleware):
@@ -166,13 +162,13 @@ class DefaultDenyMiddleware(BaseHTTPMiddleware):
                 self._failed_auth.record(_source_key(request))
             return response
 
-        trusted_proxies = getattr(request.app.state, "trusted_proxies", None) or EMPTY_TRUSTED_PROXY_SET
+        trusted_proxies = get_trusted_proxies(request.app.state)
         resolved_token = getattr(request.app.state, "auth_token", None)
 
-        peer_address = _peer_address(request)
+        request_peer_address = peer_address(request)
         authenticated_via_cookie_issued_at: int | None = None
 
-        authenticated = peer_address is not None and is_trusted_peer(peer_address, trusted_proxies)
+        authenticated = request_peer_address is not None and is_trusted_peer(request_peer_address, trusted_proxies)
 
         if not authenticated:
             bearer = _extract_bearer_token(request)
@@ -196,7 +192,7 @@ class DefaultDenyMiddleware(BaseHTTPMiddleware):
             if should_renew_session_cookie(authenticated_via_cookie_issued_at, web_api_config.session_ttl):
                 new_cookie_value = mint_session_cookie(resolved_token)
                 secure = should_set_secure_cookie_flag(
-                    peer_address, request.headers.get("x-forwarded-proto"), trusted_proxies
+                    request_peer_address, request.headers.get("x-forwarded-proto"), trusted_proxies
                 )
                 response.set_cookie(
                     SESSION_COOKIE_NAME,

@@ -384,6 +384,51 @@
         }
       }
     },
+    "/api/auth/session": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Create Session",
+        "description": "Exchange a bearer token for an `HttpOnly`/`SameSite=Strict` session cookie.\n\nExempt from ``DefaultDenyMiddleware``'s default-deny by path (see\n``web/middleware.py``'s ``EXEMPT_ROUTES``) -- this handler performs its own\nbody-based token validation instead, since it's the one endpoint that must be\nreachable with zero prior credential (see design.md's Functional Requirements and\nthe Edge Case \"POST /api/auth/session with a correct token but no existing cookie\").",
+        "operationId": "create_session_api_auth_session_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid token"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/logs/recent": {
       "get": {
         "tags": [
@@ -3628,6 +3673,33 @@
         ],
         "title": "ServiceInfoResponse",
         "description": "Structured info for one internal service."
+      },
+      "SessionRequest": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "title": "Token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "title": "SessionRequest",
+        "description": "Request body for POST /api/auth/session.\n\nThe pinned wire contract for the login exchange (design.md's Middleware and routing\nsection): ``{\"token\": \"<bearer-token>\"}``. The backend (this route) and the frontend\n(``postSession()`` in ``client.ts``) target this exact field name independently."
+      },
+      "SessionResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ok",
+            "title": "Status",
+            "default": "ok"
+          }
+        },
+        "type": "object",
+        "title": "SessionResponse",
+        "description": "Response for POST /api/auth/session on a correct token.\n\nThe session cookie itself travels via the ``Set-Cookie`` response header, minted by\n``mint_session_cookie()`` \u2014 this body just confirms success for callers that inspect\nthe JSON payload rather than only the status code."
       },
       "SystemStatusResponse": {
         "properties": {

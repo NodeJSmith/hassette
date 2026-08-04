@@ -232,6 +232,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Session
+         * @description Exchange a bearer token for an `HttpOnly`/`SameSite=Strict` session cookie.
+         *
+         *     Exempt from ``DefaultDenyMiddleware``'s default-deny by path (see
+         *     ``web/middleware.py``'s ``EXEMPT_ROUTES``) -- this handler performs its own
+         *     body-based token validation instead, since it's the one endpoint that must be
+         *     reachable with zero prior credential (see design.md's Functional Requirements and
+         *     the Edge Case "POST /api/auth/session with a correct token but no existing cookie").
+         */
+        post: operations["create_session_api_auth_session_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/logs/recent": {
         parameters: {
             query?: never;
@@ -1495,6 +1521,34 @@ export interface components {
             /** Retry At */
             retry_at?: number | null;
         };
+        /**
+         * SessionRequest
+         * @description Request body for POST /api/auth/session.
+         *
+         *     The pinned wire contract for the login exchange (design.md's Middleware and routing
+         *     section): ``{"token": "<bearer-token>"}``. The backend (this route) and the frontend
+         *     (``postSession()`` in ``client.ts``) target this exact field name independently.
+         */
+        SessionRequest: {
+            /** Token */
+            token: string;
+        };
+        /**
+         * SessionResponse
+         * @description Response for POST /api/auth/session on a correct token.
+         *
+         *     The session cookie itself travels via the ``Set-Cookie`` response header, minted by
+         *     ``mint_session_cookie()`` — this body just confirms success for callers that inspect
+         *     the JSON payload rather than only the status code.
+         */
+        SessionResponse: {
+            /**
+             * Status
+             * @default ok
+             * @constant
+             */
+            status: "ok";
+        };
         /** SystemStatusResponse */
         SystemStatusResponse: {
             /**
@@ -1884,6 +1938,46 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["AppSourceResponse"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_session_api_auth_session_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SessionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionResponse"];
+                };
+            };
+            /** @description Invalid token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

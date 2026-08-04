@@ -12,6 +12,7 @@ from starlette.responses import FileResponse
 from hassette.web.auth import EMPTY_TRUSTED_PROXY_SET, TrustedProxySet
 from hassette.web.middleware import DefaultDenyMiddleware
 from hassette.web.routes.apps import router as apps_router
+from hassette.web.routes.auth import router as auth_router
 from hassette.web.routes.bus import router as bus_router
 from hassette.web.routes.config import router as config_router
 from hassette.web.routes.executions import router as executions_router
@@ -79,6 +80,7 @@ def create_fastapi_app(
     # API routes
     app.include_router(health_router, prefix="/api")
     app.include_router(apps_router, prefix="/api")
+    app.include_router(auth_router, prefix="/api")
     app.include_router(logs_router, prefix="/api")
     app.include_router(executions_router, prefix="/api")
     app.include_router(bus_router, prefix="/api")
