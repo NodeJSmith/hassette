@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Add trusted_proxies IP/CIDR/hostname matching to web/auth.py"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02"]
 implements: ["FR#2", "FR#3", "AC#4"]
 ---

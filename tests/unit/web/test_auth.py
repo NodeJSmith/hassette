@@ -1,8 +1,13 @@
 """Unit tests for web API auth token resolution: explicit config, existing token file,
 freshly generated token, corrupt-file recovery, and distinct per-branch logging.
+
+Also covers ``trusted_proxies`` peer matching: IP/CIDR/hostname parsing, DNS resolution,
+periodic refresh, and the peer-match function's header-free signature.
 """
 
 import logging
+import re
+import socket
 import stat
 from pathlib import Path
 from typing import Any
@@ -12,8 +17,14 @@ import pytest
 from pydantic import SecretStr
 
 from hassette.config.models import WebApiConfig
-from hassette.exceptions import AuthTokenWriteError
-from hassette.web.auth import TOKEN_FILENAME, resolve_auth_token
+from hassette.exceptions import AuthTokenWriteError, TrustedProxyConfigError
+from hassette.web.auth import (
+    TOKEN_FILENAME,
+    is_trusted_peer,
+    refresh_trusted_proxies,
+    resolve_auth_token,
+    resolve_trusted_proxies,
+)
 
 
 def _make_config(**overrides: Any) -> WebApiConfig:
@@ -180,3 +191,110 @@ class TestResolveAuthTokenDistinctLogMessages:
         caplog.clear()
 
         assert len(set(messages)) == 3, f"expected 3 distinct messages, got: {messages}"
+
+
+def _addrinfo(ip: str) -> tuple[Any, ...]:
+    """Build one ``socket.getaddrinfo``-shaped result tuple for ``ip``."""
+    if ":" in ip:
+        return (socket.AF_INET6, socket.SOCK_STREAM, 6, "", (ip, 0, 0, 0))
+    return (socket.AF_INET, socket.SOCK_STREAM, 6, "", (ip, 0))
+
+
+class TestResolveTrustedProxiesLiteral:
+    def test_ip_entry_matches_only_that_ip(self) -> None:
+        trusted = resolve_trusted_proxies(("192.168.1.10",))
+
+        assert is_trusted_peer("192.168.1.10", trusted) is True
+        assert is_trusted_peer("192.168.1.11", trusted) is False
+
+    def test_cidr_entry_matches_any_address_in_range(self) -> None:
+        trusted = resolve_trusted_proxies(("10.0.0.0/24",))
+
+        assert is_trusted_peer("10.0.0.1", trusted) is True
+        assert is_trusted_peer("10.0.0.254", trusted) is True
+        assert is_trusted_peer("10.0.1.1", trusted) is False
+
+    def test_malformed_entry_raises_at_parse_time(self) -> None:
+        # Not a valid IP/CIDR literal, and DNS resolution also fails for it — this is the
+        # "neither a literal nor a resolvable hostname" case that must fail loudly rather
+        # than silently skip the bad entry.
+        with (
+            patch("hassette.web.auth.socket.getaddrinfo", side_effect=socket.gaierror("not found")),
+            pytest.raises(TrustedProxyConfigError, match="not-a-valid-entry"),
+        ):
+            resolve_trusted_proxies(("not-a-valid-entry!!!",))
+
+    def test_non_matching_address_not_trusted_with_no_header_input(self) -> None:
+        """The match function only ever sees an address string — there is no headers
+        parameter through which a spoofed value could influence the result.
+        """
+        trusted = resolve_trusted_proxies(("192.168.1.10",))
+
+        assert is_trusted_peer("203.0.113.4", trusted) is False
+
+
+class TestResolveTrustedProxiesRejectsEntireAddressSpace:
+    def test_rejects_ipv4_entire_address_space(self) -> None:
+        with pytest.raises(TrustedProxyConfigError, match=re.escape("0.0.0.0/0")):
+            resolve_trusted_proxies(("0.0.0.0/0",))
+
+    def test_rejects_ipv6_entire_address_space(self) -> None:
+        with pytest.raises(TrustedProxyConfigError, match=re.escape("::/0")):
+            resolve_trusted_proxies(("::/0",))
+
+    def test_narrow_cidr_is_not_rejected(self) -> None:
+        """A /8 is a legitimate operator choice, not a broad-CIDR heuristic violation."""
+        trusted = resolve_trusted_proxies(("10.0.0.0/8",))
+
+        assert is_trusted_peer("10.255.255.255", trusted) is True
+
+
+class TestResolveTrustedProxiesHostname:
+    def test_hostname_entry_resolves_and_matches_resolved_ip(self) -> None:
+        with patch("hassette.web.auth.socket.getaddrinfo", return_value=[_addrinfo("172.30.32.2")]):
+            trusted = resolve_trusted_proxies(("proxy.internal",))
+
+        assert is_trusted_peer("172.30.32.2", trusted) is True
+        assert is_trusted_peer("172.30.32.3", trusted) is False
+
+    def test_hostname_resolution_failure_raises_at_parse_time(self) -> None:
+        with (
+            patch("hassette.web.auth.socket.getaddrinfo", side_effect=socket.gaierror("no such host")),
+            pytest.raises(TrustedProxyConfigError, match=re.escape("proxy.internal")),
+        ):
+            resolve_trusted_proxies(("proxy.internal",))
+
+
+class TestRefreshTrustedProxies:
+    def test_changed_dns_response_updates_trusted_set(self) -> None:
+        """Simulated periodic-refresh tick: two successive ``socket.getaddrinfo`` results,
+        second call's IP becomes trusted, first call's IP is no longer trusted.
+        """
+        with patch("hassette.web.auth.socket.getaddrinfo", return_value=[_addrinfo("172.30.32.2")]):
+            trusted = resolve_trusted_proxies(("proxy.internal",))
+        assert is_trusted_peer("172.30.32.2", trusted) is True
+
+        with patch("hassette.web.auth.socket.getaddrinfo", return_value=[_addrinfo("172.30.32.9")]):
+            refreshed = refresh_trusted_proxies(trusted)
+
+        assert is_trusted_peer("172.30.32.9", refreshed) is True
+        assert is_trusted_peer("172.30.32.2", refreshed) is False
+
+    def test_transient_refresh_failure_keeps_last_known_good_address(self) -> None:
+        with patch("hassette.web.auth.socket.getaddrinfo", return_value=[_addrinfo("172.30.32.2")]):
+            trusted = resolve_trusted_proxies(("proxy.internal",))
+
+        with patch("hassette.web.auth.socket.getaddrinfo", side_effect=socket.gaierror("temporary failure")):
+            refreshed = refresh_trusted_proxies(trusted)
+
+        # The stale-but-last-known-good address is still trusted — a flaky DNS blip must not
+        # lock out the proxy.
+        assert is_trusted_peer("172.30.32.2", refreshed) is True
+
+    def test_refresh_does_not_affect_literal_entries(self) -> None:
+        trusted = resolve_trusted_proxies(("192.168.1.10",))
+
+        refreshed = refresh_trusted_proxies(trusted)
+
+        assert refreshed.literal_networks == trusted.literal_networks
+        assert is_trusted_peer("192.168.1.10", refreshed) is True
