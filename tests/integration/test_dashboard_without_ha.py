@@ -67,7 +67,11 @@ async def _running_hassette_without_ha(
 
     config = TestConfig(
         data_dir=tmp_path / "data",
-        web_api={"run": True, "port": unused_tcp_port_factory()},
+        # auth_enabled=False + a loopback host: this test hits /api/health with no credential via
+        # `_get_health()`, and auth is on by default now that the default-deny middleware actually
+        # enforces it. Pinning host to loopback alongside disabling auth matches the project's
+        # startup guard (a non-loopback host with auth disabled refuses to start).
+        web_api={"run": True, "port": unused_tcp_port_factory(), "auth_enabled": False, "host": "127.0.0.1"},
         websocket={"total_timeout_seconds": TEST_TOTAL_TIMEOUT_SECONDS},
         apps={
             "directory": TEST_APPS_PATH,

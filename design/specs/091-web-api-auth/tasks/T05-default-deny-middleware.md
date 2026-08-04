@@ -1,7 +1,7 @@
 ---
 task_id: "T05"
 title: "Add default-deny ASGI middleware and authorize_ws() helper"
-status: "planned"
+status: "done"
 depends_on: ["T03", "T04"]
 implements: ["FR#1", "FR#17", "FR#22", "FR#23", "AC#1", "AC#17", "AC#20", "AC#21", "AC#22"]
 ---

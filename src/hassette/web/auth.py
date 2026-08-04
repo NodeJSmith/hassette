@@ -30,6 +30,7 @@ from dataclasses import dataclass
 from logging import getLogger
 from pathlib import Path
 
+from starlette.websockets import WebSocket
 from whenever import Instant
 
 from hassette.config.models import WebApiConfig
@@ -192,6 +193,16 @@ class TrustedProxySet:
         for networks in self.hostname_entries.values():
             combined |= networks
         return frozenset(combined)
+
+
+EMPTY_TRUSTED_PROXY_SET = TrustedProxySet(literal_networks=frozenset(), hostname_entries={})
+"""A :class:`TrustedProxySet` that matches no peer address.
+
+Used as the fallback wherever a resolved trusted-proxy set is read from ``app.state`` but wasn't
+provided (e.g. a test app built via ``create_fastapi_app(hassette)`` with no ``trusted_proxies``
+argument, or ``trusted_proxies=()`` in config) — ``is_trusted_peer`` against this always returns
+``False`` rather than the caller needing a ``None``/``AttributeError`` guard at every call site.
+"""
 
 
 def _parse_literal(entry: str) -> ipaddress.IPv4Network | ipaddress.IPv6Network | None:
@@ -510,3 +521,62 @@ def should_renew_session_cookie(issued_at: int, session_ttl: int) -> bool:
     """
     age = _current_timestamp() - issued_at
     return session_ttl / 2 <= age <= session_ttl
+
+
+def authorize_ws(websocket: WebSocket) -> bool:
+    """Composed trusted-peer/bearer/cookie authorization check for the WebSocket handshake.
+
+    The WebSocket half of the default-deny gate — the identical trust composition
+    :class:`~hassette.web.middleware.DefaultDenyMiddleware` applies to HTTP requests (trusted-peer
+    match, then bearer token, then session cookie), reused here rather than duplicated, since
+    ``BaseHTTPMiddleware`` only ever sees ``http``-scope requests and never runs for a WebSocket
+    upgrade — this is the "same validator used by the HTTP middleware" property design.md's
+    WebSocket auth section requires.
+
+    Includes the same ``auth_enabled`` bypass (step 0) as the HTTP middleware, for the same
+    reason: ``create_hassette_stub(auth_enabled=False)`` (the default) must keep every existing WS
+    test passing unchanged.
+
+    Reads the resolved credential from ``websocket.app.state.auth_token`` and the resolved
+    trusted-proxy set from ``websocket.app.state.trusted_proxies`` — both set by
+    :func:`hassette.web.app.create_fastapi_app` as siblings to the existing
+    ``websocket.app.state.hassette`` (the same accessor pattern ``web/routes/ws.py`` already uses)
+    — never from ``websocket.app.state.hassette.config.web_api``, which only ever holds the raw,
+    possibly-unresolved operator-configured values.
+
+    Non-browser clients (CLI, scripts) attach ``Authorization: Bearer <token>`` via the
+    ``websockets`` library's ``additional_headers`` parameter at connect time; this function checks
+    ``websocket.headers`` for that, in addition to ``websocket.cookies`` for browser clients.
+
+    Args:
+        websocket: The incoming WebSocket connection, checked before ``accept()`` is called.
+
+    Returns:
+        ``True`` if the connection should be accepted; ``False`` if it should be closed with code
+        ``1008`` (policy violation) instead of being accepted.
+    """
+    hassette = websocket.app.state.hassette
+    web_api_config = hassette.config.web_api
+
+    if not web_api_config.auth_enabled:
+        return True
+
+    trusted_proxies = getattr(websocket.app.state, "trusted_proxies", None) or EMPTY_TRUSTED_PROXY_SET
+    resolved_token = getattr(websocket.app.state, "auth_token", None)
+
+    client = websocket.client
+    peer_address = client.host if client is not None else None
+    if peer_address is not None and is_trusted_peer(peer_address, trusted_proxies):
+        return True
+
+    presented_token = None
+    auth_header = websocket.headers.get("authorization")
+    if auth_header is not None:
+        scheme, _, value = auth_header.partition(" ")
+        if scheme.lower() == "bearer" and value:
+            presented_token = value
+    if check_bearer_token(presented_token, resolved_token):
+        return True
+
+    cookie_value = websocket.cookies.get(SESSION_COOKIE_NAME)
+    return verify_session_cookie(cookie_value, resolved_token, web_api_config.session_ttl) is not None
