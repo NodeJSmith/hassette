@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Add WebApiConfig auth fields and CORS wildcard validator"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#15", "FR#19", "AC#10", "AC#11"]
 ---

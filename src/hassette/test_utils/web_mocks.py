@@ -82,6 +82,7 @@ def create_hassette_stub(
     run_web_api: bool = True,
     run_web_ui: bool = True,
     cors_origins: tuple[str, ...] = STUB_CORS_ORIGINS,
+    auth_enabled: bool = False,
     log_level: str = "INFO",
     dev_mode: bool = True,
     allow_reload_in_prod: bool = False,
@@ -146,6 +147,7 @@ def create_hassette_stub(
     hassette.config.web_api.cors_origins = cors_origins
     hassette.config.web_api.log_buffer_size = STUB_LOG_BUFFER_SIZE
     hassette.config.web_api.job_history_size = STUB_JOB_HISTORY_SIZE
+    hassette.config.web_api.auth_enabled = auth_enabled
     # logging group
     hassette.config.logging.log_level = log_level
     hassette.config.logging.web_api = log_level
