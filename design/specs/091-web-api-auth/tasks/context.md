@@ -37,7 +37,11 @@ None.
    `scope["client"]` already matched `trusted_proxies` (the identical check reused, not duplicated).
 5. **Session cookie is stateless** — HMAC-derived, keyed by the auth token, with an embedded
    issuance timestamp checked against a TTL at validation time. No server-side session table, so it
-   survives `WebApiService`'s `RestartType.TRANSIENT` restarts.
+   survives `WebApiService`'s `RestartType.TRANSIENT` restarts. **`session_ttl` bounds the life of a
+   cookie value, not of a session**: a cookie past its half-life is replaced on the next request it
+   authenticates (sliding renewal, FR#22), so an active operator is never interrupted while a leaked
+   cookie still stops working within `session_ttl`. The TTL is the only revocation lever in the
+   design — revoking one session otherwise means rotating the token, which invalidates everything.
 6. **`trusted_proxies` hostname entries resolve via DNS at startup and periodically thereafter**
    (via `Scheduler.run_every()`), never per-request — per-request resolution was rejected as a
    DNS-rebinding risk.
@@ -51,7 +55,27 @@ None.
    schema-fingerprinting surface).
 10. **Default `host` bind stays `0.0.0.0`.** Safety comes from auth-on-by-default plus the startup
     guards, not from changing the bind address — flipping it would silently break existing
-    `docker run -p`/Compose deployments.
+    `docker run -p`/Compose deployments. Corollary: because the default host is non-loopback,
+    `auth_enabled=false` on its own always trips FR#13's hard block. Anything that disables auth
+    (notably `make_web_system_config` in the system tests) must pin `host` to loopback in the same
+    change.
+11. **The middleware gates the `/api/` prefix only.** The SPA bundle served by the same app
+    (`web/app.py:73-94`) stays reachable with no credential, because the login view lives in that
+    bundle — gating it would 401 the HTML and every asset, leaving the operator nowhere to paste the
+    token. The bundle carries client code and route names only, never operator data.
+12. **The middleware is a `BaseHTTPMiddleware`, not raw ASGI.** Two of its jobs are response-side
+    (sliding renewal sets `Set-Cookie`; failed-auth counting reads the outgoing status), and it must
+    not see `websocket` scope — the WS handshake is gated separately by `authorize_ws()`.
+13. **Failed-auth counting keys off any outgoing 401**, not off the middleware's own reject branch.
+    Exempt routes still traverse the middleware, so `POST /api/auth/session`'s handler-issued 401 —
+    the primary token-guessing surface — is covered by the same rule with no shared tracker object.
+14. **WebSocket authorization happens at connect only.** Cookies travel only in the upgrade request,
+    so sliding renewal never reaches an open socket; any periodic or scheduled re-check would
+    re-validate the stale connect-time cookie and close the socket of an actively-used dashboard.
+    Documented limitation, not an oversight.
+15. **The demo stack keeps auth on and uses a fixed known token** (`ha-demo.yml`), so demo behavior
+    and every doc screenshot reflect what operators get. Disabling auth there is both misleading and
+    impossible — the demo must bind non-loopback, which trips the FR#13 guard.
 
 ## Constraints & Anti-Patterns
 
@@ -70,6 +94,16 @@ None.
   multiple individually-revocable tokens — all explicit Non-Goals.
 - Do not fold issue #708 (secret redaction hardening for `/api/config`) into this work — separate
   follow-up issue.
+- Do not gate the static SPA bundle. If an unauthenticated browser cannot load `/` and `/assets/*`,
+  the login view is unreachable and the whole feature is unusable.
+- Do not set `auth_enabled=false` to make tooling or tests work. Every place that needs unauthenticated
+  access either pins loopback alongside it (system tests) or authenticates properly (demo stack).
+- Do not read `HASSETTE__WEB_API__AUTH_TOKEN` from `os.environ` in the CLI — `make_client()` already
+  builds a `HassetteConfig`, so pydantic-settings resolves it. A second path diverges on config-file
+  values and alias handling.
+- Do not put the frontend's 401 redirect inside `apiFetch`. It belongs in `QueryCache.onError`, and
+  the login POST must bypass it entirely or a wrong token looks like a form that does nothing.
+- Do not re-check authorization on an already-open WebSocket (see Key Decision 14).
 - Do not edit the HA add-on epic's design artifacts (ADR-0005, prereq-03, prereq-04) as part of
   implementation — those are sequenced as a documented follow-up (see design.md Replacement
   Targets), not part of any task here.
@@ -80,11 +114,11 @@ None.
 - `## Goals` / `## Non-Goals` — scope boundaries; read before adding anything not explicitly listed.
 - `## User Scenarios` — four flows: forward-auth-gateway operator, no-gateway/bare-Docker operator,
   CLI/script access, and the non-loopback-no-proxy misconfiguration warning.
-- `## Functional Requirements` — FR#1 through FR#21, the authoritative numbered requirements.
+- `## Functional Requirements` — FR#1 through FR#23, the authoritative numbered requirements.
 - `## Edge Cases` — DNS resolution failure, sibling proxy container recreated mid-run, token file
   write failure, corrupt token file, bad `trusted_proxies` entry, health endpoints must always be
   reachable.
-- `## Acceptance Criteria` — AC#1 through AC#19, each mapped to one or more FRs.
+- `## Acceptance Criteria` — AC#1 through AC#22, each mapped to one or more FRs.
 - `## Key Constraints` — the non-negotiable technical constraints (peer-only trust, no
   `InvalidAuthError` reuse, no new deps, no password accounts, periodic not per-request DNS, don't
   change the bind).

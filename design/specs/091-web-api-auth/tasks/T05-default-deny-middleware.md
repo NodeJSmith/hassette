@@ -3,7 +3,7 @@ task_id: "T05"
 title: "Add default-deny ASGI middleware and authorize_ws() helper"
 status: "planned"
 depends_on: ["T03", "T04"]
-implements: ["FR#1", "AC#1"]
+implements: ["FR#1", "FR#17", "FR#22", "FR#23", "AC#1", "AC#17", "AC#20", "AC#21", "AC#22"]
 ---
 
 ## Summary
@@ -30,10 +30,24 @@ Read design.md's `## Architecture → Middleware and routing` in full, and FR#1,
 FR#4's `proxy_headers=False` change is T08's job, not this task's), plus the Edge Cases entries for
 health endpoints and `/api/docs`/`/api/openapi.json`.
 
-In `src/hassette/web/middleware.py`, implement a single ASGI middleware (Starlette
-`BaseHTTPMiddleware` or a raw ASGI middleware class — follow whichever this project's FastAPI version
-makes more idiomatic; check for any existing middleware pattern in the codebase first, though the
-design notes this is "the first custom middleware in the project") that, for every request:
+In `src/hassette/web/middleware.py`, implement a Starlette `BaseHTTPMiddleware` subclass. Use
+`BaseHTTPMiddleware` specifically, not a raw ASGI middleware class: two of this middleware's jobs are
+response-side — sliding renewal (FR#22) sets a `Set-Cookie` header on the way out, and the coalesced
+failed-auth counter (FR#17) reads the outgoing status — and a raw implementation would have to
+intercept the `send` callable for both. `BaseHTTPMiddleware` also only receives `http`-scope
+requests, which is what this design wants: the WebSocket handshake bypasses it entirely and is gated
+separately by `authorize_ws()` below.
+
+**Scope the gate to the `/api/` path prefix (FR#23).** A request whose path does not start with
+`/api/` passes through untouched — no trusted-peer check, no credential check, no counting. This is
+not an optimization; it is what makes the feature usable. `web/app.py:73-94` serves the entire SPA
+from this same app (the `/assets` and `/fonts` `StaticFiles` mounts plus the
+`@app.get("/{path:path}")` catch-all returning `index.html`), and the login view T12 builds is part
+of that bundle. Gating it would 401 the HTML document and every JS/CSS asset for a browser that has
+no cookie yet — the operator would have nowhere to paste the token they just read out of
+`docker logs`. The bundle exposes client code and route names only, never operator data.
+
+For every request under `/api/`:
 
 0. If `hassette.config.web_api.auth_enabled` is `False`, let the request through unconditionally —
    no trusted-peer check, no bearer/cookie check, no exemption logic. **This is the mechanism that
@@ -51,6 +65,33 @@ design notes this is "the first custom middleware in the project") that, for eve
 3. Otherwise, reject with 401 — **except** for exactly three paths, which bypass steps 1-3 entirely:
    `GET /api/health/live`, `GET /api/health/ready`, `POST /api/auth/session`. `/api/docs` and
    `/api/openapi.json` are explicitly **not** in this exemption list.
+
+Then, on the response returned by `call_next`, two things happen regardless of which branch above
+let the request through:
+
+4. **Sliding renewal (FR#22).** If the request authenticated via a session cookie and T04's renewal
+   predicate says that cookie is past its half-life, mint a replacement (T04) and set it on the
+   response with the same `HttpOnly`/`SameSite=Strict`/`Secure` attributes T06's login route uses —
+   reuse T04's Secure-flag decision function, don't re-derive the flag. Requests authenticated by
+   bearer token or trusted-proxy match never mint a cookie; neither does a request whose cookie is
+   still fresh. This is what keeps `session_ttl` short without making the operator re-paste the token
+   on a timer: the TTL bounds the life of a cookie *value*, not the life of a session.
+5. **Failed-auth counting (FR#17).** If the response status is 401, increment a per-source counter
+   and emit the coalesced WARN when a source crosses the threshold. Key off the **outgoing status**,
+   not off whether step 3 was the thing that rejected — an exempt route still traverses this
+   middleware, so `POST /api/auth/session`'s own handler-issued 401 (T06) gets counted by this same
+   rule with no shared tracker object between the two modules. Without this, the one endpoint whose
+   entire job is validating a credential would be the only unmonitored surface in the design. Auth is
+   the only source of 401 in this application, so there is nothing else to miscount. The counter
+   never rejects or throttles anything — rate limiting is an explicit Non-Goal — and it must evict
+   old entries so a sustained burst can't grow it without bound. Pick concrete threshold/window
+   values consistent with design.md's example ("12 failed auth attempts from 203.0.113.4 in the last
+   5 minutes"), e.g. 10 attempts / 5 minutes, and document the choice; there is no existing
+   coalescing-log utility in this codebase to reuse (`bus/rate_limiter.py` is handler-call
+   debounce/throttle via task cancellation, not log suppression). The 10/5-minute figure here is a
+   deliberate, rounder choice, not a copy of design.md's illustrative "12" — design.md phrases its
+   number as an "e.g." rather than a pinned requirement, so any concrete threshold in that ballpark
+   satisfies FR#17.
 
 In `src/hassette/web/app.py`, add a parameter `auth_token: str | None = None` to
 `create_fastapi_app(hassette: "Hassette", auth_token: str | None = None) -> FastAPI` (currently line
@@ -105,6 +146,13 @@ specific endpoint categories AC#1 names.
 - This is the first custom middleware in the project (per design.md's own Open Questions) — there is
   no existing pattern to copy. Read Starlette/FastAPI's middleware documentation via context7 if the
   exact registration API (`app.add_middleware(...)` ordering semantics) is unclear before guessing.
+- The `/api/` prefix scope is the single highest-consequence line in this task. If it is wrong in the
+  restrictive direction, the dashboard does not load at all and the feature is unusable; the AC#21
+  test exists specifically to catch that. Do not "tighten" it later to cover static assets.
+- `app.state.auth_token` is legitimately `None` in several test configurations while
+  `auth_enabled=True` — T04's checks are specified to treat `None` as never-authenticating. Don't add
+  a second `None` guard here; rely on T04's, and if you see a `TypeError` from `compare_digest`, the
+  bug is in T04's implementation, not a missing check in this file.
 - The `/api/docs`/`/api/openapi.json` un-exemption is a deliberate behavior change (closes an
   unauthenticated API-schema fingerprinting surface) — do not add them to the exemption list even
   though `web/app.py:48-49` currently wires them as always-on FastAPI features.
@@ -117,3 +165,7 @@ specific endpoint categories AC#1 names.
 
 - [ ] FR#1: Integration test confirms `GET /api/apps` (a representative non-exempt route) with no credential returns 401 when `auth_enabled=True`, and each of `GET /api/health/live`, `GET /api/health/ready`, `POST /api/auth/session` returns a non-401 response with no credential; a request to `GET /api/docs` with no credential returns 401 (confirming it is no longer exempt); the same non-exempt route with no credential returns a non-401 response when `auth_enabled=False` (step 0's bypass).
 - [ ] AC#1 (REST portion): Integration test confirms a mutation endpoint (`POST /api/apps/{app_key}/start`), `GET /api/apps/{app_key}/source`, and `GET /api/config`, each with no credential, all return 401. (The WS-upgrade portion of AC#1 is verified separately in T07.)
+- [ ] FR#23 / AC#21: Integration test confirms `GET /` and a representative path under `/assets` return their content with no credential while `auth_enabled=True`, and that `GET /api/config` with no credential still returns 401 — the test that catches a middleware which has accidentally gated the login view's own assets.
+- [ ] FR#22 / AC#20: Integration test confirms a request carrying a cookie past its half-life comes back with a `Set-Cookie` header whose new value verifies successfully; a request carrying a fresh cookie returns no `Set-Cookie`; and requests authenticated by bearer token or trusted-proxy match return no `Set-Cookie`.
+- [ ] FR#17 / AC#17: Integration test confirms a burst of failed-auth requests from one source within the window produces exactly one coalesced WARN log line, not one per attempt, visible via `GET /api/logs/recent`.
+- [ ] AC#22: The same test confirms a burst of wrong-token `POST /api/auth/session` requests produces that same coalesced WARN — proving the counter keys off the outgoing 401 rather than off the middleware's own reject branch, which is the whole reason the login endpoint is covered at all.

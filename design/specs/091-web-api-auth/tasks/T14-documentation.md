@@ -20,6 +20,7 @@ site is where operators discover the new required behavior, and every existing d
 - modify: `docs/pages/cli/configuration.md` — document `HASSETTE__WEB_API__AUTH_TOKEN`, token file location, CLI credential-resolution order
 - modify: `docs/pages/getting-started/docker/index.md` — document the token-on-first-start flow and the upgrade-transition behavior
 - modify: `docs/pages/getting-started/docker/troubleshooting.md` — add a troubleshooting entry for "dashboard/API returns 401 after upgrade"
+- modify: `docs/pages/web-ui/health-endpoints.md` — note that `GET /api/health` (unlike `/live` and `/ready`) now requires a credential
 - read: `design.md`'s `## Documentation Updates` section — the authoritative list this task implements
 - read: `design.md`'s `## Migration` section — the exact "Operational transition worth documenting explicitly" language to draw from
 
@@ -49,6 +50,14 @@ uses it. This is intentional (closing an active security gap), not a bug — phr
 add a troubleshooting entry for "I upgraded and now get 401" pointing at where to find the generated
 token in `docker logs`.
 
+In `docs/pages/web-ui/health-endpoints.md`: `/api/health` (the "Aggregate status" section and its
+table row, currently described as "Human inspection... manual checks" with no mention of a
+credential) is **not** one of FR#1's three exemptions — only `/api/health/live` and
+`/api/health/ready` stay reachable with zero credentials. Update the table row and the "Aggregate
+status" section to say `/api/health` now requires the same bearer token, cookie, or trusted-proxy
+match as any other `/api/*` route. Leave the `/live` and `/ready` sections, and the Quick Check
+(which already curls `/api/health/live` only), unchanged.
+
 Do not edit `design/adrs/0005-ha-addon-packaging.md`,
 `design/research/2026-07-07-ha-addon-architecture/prereq-03-ingress-source-guard.md`, or
 `prereq-04-addon-repo-skeleton.md` — design.md's Replacement Targets section explicitly sequences
@@ -74,3 +83,4 @@ written at PR-creation time, not during feature work.
 - [ ] FR#2: `docs/pages/web-ui/index.md` documents `trusted_proxies` as the recommended path for a forward-auth gateway setup, including a concrete reverse-proxy TLS-termination config snippet.
 - [ ] FR#9: `docs/pages/getting-started/docker/index.md` documents the generated-token-on-first-start flow, and `docs/pages/getting-started/docker/troubleshooting.md` includes a "401 after upgrade" entry pointing at `docker logs` for the token.
 - [ ] FR#18: `docs/pages/cli/configuration.md` documents `HASSETTE__WEB_API__AUTH_TOKEN` and the CLI's credential-resolution order.
+- [ ] FR#1: `docs/pages/web-ui/health-endpoints.md` no longer implies `GET /api/health` is reachable with no credential — the table row and "Aggregate status" section both state it requires the same auth as any other `/api/*` route, while `/live` and `/ready` stay documented as unauthenticated.

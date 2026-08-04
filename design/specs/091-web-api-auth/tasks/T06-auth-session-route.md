@@ -18,12 +18,14 @@ working handler.
 ## Target Files
 
 - create: `src/hassette/web/routes/auth.py` — `POST /api/auth/session`
+- modify: `src/hassette/web/models.py` — add `SessionRequest` (single `token: str` field)
 - modify: `src/hassette/web/dependencies.py` — add `AuthDep`
 - modify: `src/hassette/web/app.py` — `app.include_router(auth_router, prefix="/api")`
 - modify: `tests/integration/web_api/test_auth.py` — tighten T05's placeholder assertion, add login-route tests
 - read: `src/hassette/web/routes/health.py` — full file, router pattern to follow
 - read: `src/hassette/web/routes/scheduler.py` — full file, router pattern for a more complex handler
 - read: `src/hassette/web/dependencies.py:46-71` — accessor + `Annotated[X, Depends(...)]` pattern
+- read: `src/hassette/web/models.py` — `LogLevelRequest`, the existing single-field request-body precedent to follow for `SessionRequest`
 
 ## Prompt
 
@@ -39,11 +41,17 @@ see Focus below for why it lives there rather than through `hassette`), plus
 `AuthDep = Annotated[str, Depends(get_resolved_auth_token)]`. Route handlers pass this resolved token
 string directly into T04's bearer-check and cookie-mint functions.
 
+In `src/hassette/web/models.py`, add `SessionRequest(BaseModel)` with a single field, `token: str`
+— following `LogLevelRequest`'s shape as the existing single-field request-body precedent. This is
+the pinned wire contract design.md's Middleware and routing section specifies (`{"token":
+"<bearer-token>"}`); T12 (frontend) targets this exact field name independently.
+
 In the new `src/hassette/web/routes/auth.py`, following `web/routes/health.py`'s shape
 (`APIRouter(tags=["auth"])`, `response_model=` on the route): implement `POST /api/auth/session`
-accepting a token in the request body (not a header — this route's entire job is validating a
-credential presented in the body, since it's the one endpoint that must be reachable with zero prior
-credential per FR#1's exemption). On a correct token (checked via T04's bearer-check function),
+accepting `SessionRequest` as the request body (not a header — this route's entire job is validating
+a credential presented in the body, since it's the one endpoint that must be reachable with zero
+prior credential per FR#1's exemption). On a correct token (`body.token`, checked via T04's
+bearer-check function),
 mint a session cookie (T04) and set it on the response as `HttpOnly`/`SameSite=Strict`, with `Secure`
 set per T04's Secure-flag decision function (reading the request's raw peer + `X-Forwarded-Proto`).
 On an incorrect token, return 401 — this route performs its own body-based validation and is exempt

@@ -47,9 +47,11 @@ pattern already used by `host`, `port`, `cors_origins` in the same class:
 - `trusted_proxies: tuple[str, ...] = Field(default=())` — IP, CIDR, or hostname entries. This task
   only declares the field; parsing/validation of individual entries happens in T03 (trusted-proxy
   matching) and T08 (WebApiService startup wiring), not here.
-- `session_ttl: int = Field(default=<short default, e.g. 3600>)` — seconds. Pick a short default
-  consistent with design.md's "short default, configurable" language (User Scenarios, FR#8) — 3600
-  (1 hour) is a reasonable default; document the choice in the field's docstring.
+- `session_ttl: int = Field(default=3600)` — seconds. This bounds the lifetime of a single cookie
+  *value*, not the length of a working session: T04/T05 implement sliding renewal (FR#22), so a
+  cookie past its half-life is replaced on the next request it authenticates. Say that in the
+  docstring — a reader who sees `3600` without it will reasonably assume the operator re-logs-in
+  hourly, which is exactly the behavior renewal exists to prevent.
 
 Add a `field_validator` (or `model_validator`) on `WebApiConfig` that raises a `ValueError` (which
 Pydantic surfaces as a `ValidationError` at config load) when `"*"` appears in `cors_origins`. Per
@@ -81,10 +83,21 @@ today's code path otherwise, with no other task scoped to catch it):** `tests/sy
 `make_web_system_config()` (lines 273-301, used by `test_web_api.py`, `test_startup_without_ha.py`,
 and `test_cli_smoke.py`) builds `SystemTestConfig(web_api={"run": True, "port": port}, ...)` with no
 `auth_enabled` override — once this task's default flips to `True`, every existing system test making
-unauthenticated `httpx` calls against the live server starts getting 401s. Add `"auth_enabled": False`
-to that `web_api={...}` dict, mirroring the same opt-in-preserves-old-behavior pattern used for
-`create_hassette_stub(auth_enabled=False)` above — this keeps every existing system test passing
-unchanged; the new AC#11 test in this same task explicitly overrides it to `True` **and** sets a
+unauthenticated `httpx` calls against the live server starts getting 401s. Add **both**
+`"auth_enabled": False` and `"host": "127.0.0.1"` to that `web_api={...}` dict, mirroring the same
+opt-in-preserves-old-behavior pattern used for `create_hassette_stub(auth_enabled=False)` above.
+
+The `host` pin is not optional and not cosmetic. `WebApiConfig.host` defaults to `"0.0.0.0"`
+(`config/models.py:342`), and T08 adds a hard-block startup guard (FR#13) that refuses to start on
+`auth_enabled=False` + non-loopback host. Setting `auth_enabled: False` alone would trade a
+suite-wide 401 failure for a suite-wide *startup* failure — every system test using this helper dies
+before serving a request. Nothing in T08 touches this file, and T08's own tests exercise the guard in
+isolation, so this is the only place the interaction gets caught. Loopback is also correct on its
+merits here: `make_web_system_config` already returns `http://127.0.0.1:{port}` as the base URL, so
+the bind-all default was never doing anything for these tests.
+
+This keeps every existing system test passing unchanged. The new AC#11 test in this same task
+explicitly overrides `auth_enabled` back to `True` **and** sets a
 known `"auth_token"` value in the same `web_api={...}` dict (e.g. `"auth_token": "test-token-value"`),
 attaching `Authorization: Bearer test-token-value` to its `GET /api/config` call — without both of
 these the request would 401 before ever reaching the masking logic under test.
@@ -117,11 +130,16 @@ under FR#1 so it works regardless of `auth_enabled`.
 - The `tests/system/conftest.py` fix is not optional cleanup — without it, flipping `auth_enabled`'s
   default breaks the entire existing system-test suite (`test_web_api.py`,
   `test_startup_without_ha.py`, `test_cli_smoke.py` all use `make_web_system_config`/
-  `wait_for_web_server`), and no other task in this plan touches that file.
+  `wait_for_web_server`), and no other task in this plan touches that file. Both halves are load
+  bearing and they fail differently: without `auth_enabled: False` the tests get 401s, without
+  `"host": "127.0.0.1"` they never start at all once T08 lands.
+- `session_ttl`'s default is a real number now, not a placeholder — sliding renewal (FR#22, built in
+  T04/T05) is what makes 3600 a sane choice. Do not shorten or lengthen it on the assumption that it
+  controls how often an operator logs in; it doesn't.
 
 ## Verify
 
 - [ ] FR#15: Config load with `cors_origins=("*",)` raises a `ValidationError` (unit test in `tests/unit/config/test_web_api_config.py`); config load with `cors_origins=("http://localhost:3000",)` succeeds.
 - [ ] FR#19: `auth_token` is declared as `SecretStr | None` on `WebApiConfig`; a `WebApiConfig` instance with `auth_token` set renders it masked (not plaintext) via `repr()`/`str()`.
 - [ ] AC#10: Unit test confirms `WebApiConfig(cors_origins=("*",))` raises at construction/validation time.
-- [ ] AC#11: New system test in `tests/system/test_web_api.py` confirms `GET /api/config` (authenticated) never contains the plaintext `auth_token` value in its response body, mirroring the existing HA-token test at lines 75-93; the full existing system-test suite (`test_web_api.py`, `test_startup_without_ha.py`, `test_cli_smoke.py`) still passes unchanged after `auth_enabled`'s default flips to `True`, via `make_web_system_config`'s `auth_enabled=False` override and `wait_for_web_server`'s switch to `/api/health/live`.
+- [ ] AC#11: New system test in `tests/system/test_web_api.py` confirms `GET /api/config` (authenticated) never contains the plaintext `auth_token` value in its response body, mirroring the existing HA-token test at lines 75-93; the full existing system-test suite (`test_web_api.py`, `test_startup_without_ha.py`, `test_cli_smoke.py`) still passes unchanged after `auth_enabled`'s default flips to `True`, via `make_web_system_config`'s `auth_enabled=False` **and** `host="127.0.0.1"` overrides and `wait_for_web_server`'s switch to `/api/health/live`. Run the system suite (`uv run nox -s system`) to confirm this — the failure mode this guards against is a startup refusal, which no unit test in this plan would surface.

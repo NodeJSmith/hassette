@@ -22,7 +22,8 @@ pure frontend code, independently developable and testable via mocked fetch/WebS
 
 ## Target Files
 
-- modify: `frontend/src/api/client.ts` — `credentials: "same-origin"`, 401 → redirect to login
+- modify: `frontend/src/api/client.ts` — `credentials: "same-origin"`; add `postSession()`
+- modify: `frontend/src/lib/query-client.ts` — 401 → redirect to login, via `QueryCache.onError`
 - create: `frontend/src/pages/login.tsx` — new login view
 - create: `frontend/src/pages/login.test.tsx` — component test
 - modify: `frontend/src/app.tsx` — branch `App()`'s return to bypass the shell for `/login`
@@ -40,14 +41,31 @@ covering `use-websocket.ts`.
 
 In `frontend/src/api/client.ts` (`apiFetch<T>`, currently lines 16-39, with no `credentials` option
 set today), add `credentials: "same-origin"` to the `fetch(...)` call (lines 18-24) so the session
-cookie is sent automatically on every request. Add 401 handling: on a 401 response, redirect to the
-new login route rather than letting `ApiError` propagate generically as it does for every other
-non-ok response today.
+cookie is sent automatically on every request. Leave `apiFetch`'s error behavior alone — it keeps
+throwing `ApiError` for every non-ok response exactly as it does today.
+
+**Put the 401 → login redirect in `frontend/src/lib/query-client.ts`, not in `apiFetch`.** The app
+already builds its client through `createQueryClient()` (line 12, called from `app.tsx:71`), so a
+`QueryCache`-level `onError` that checks for `ApiError` with `status === 401` and navigates to
+`/login` is both the idiomatic TanStack Query location for cross-cutting error policy and the one a
+reader will look in. A fetch helper that navigates is a reader-load trap: "what can send me to
+/login?" stops being answerable from any call site.
+
+Also add a `postSession(token: string)` to `client.ts` that calls `fetch` directly, sending
+`{"token": token}` as the JSON body — this is the pinned wire contract from design.md's Middleware
+and routing section (`SessionRequest.token` on the backend, T06) — and returns a result the caller
+can branch on (success vs. rejected), rather than routing through `apiFetch`. This
+is what the login form submits with. Without it, a wrong token 401s, trips whatever global 401
+handling exists, and bounces the operator back to the login page with no error shown — the form
+appears to do nothing when given a bad token, which is the single most likely thing a first-time
+operator will do. Do **not** solve this by adding a `skipAuthRedirect` flag to `apiFetch`; that adds
+a branch to a shared function for exactly one caller.
 
 Create `frontend/src/pages/login.tsx` following the existing page co-location convention (a
 `.tsx` + matching `.test.tsx`, per `frontend/src/pages/not-found.tsx` and its siblings): a minimal
-form where the operator pastes the token from the startup log/`docker logs` output, submits it to
-`POST /api/auth/session`, and on success is redirected to the main dashboard.
+form where the operator pastes the token from the startup log/`docker logs` output, submits it via
+`postSession()`, renders an inline error on rejection, and on success redirects to the main
+dashboard.
 
 **Do not wire `/login` as a sibling `<Route>` inside the existing `<Switch>` (lines 241-289).** That
 `Switch` sits inside `App()`'s always-mounted shell (`frontend/src/app.tsx` uses `wouter`, not
@@ -99,3 +117,5 @@ close code, keep the existing reconnect behavior unchanged.
 
 - [ ] FR#12: Component/unit test confirms `use-websocket.ts`'s `onclose` handler, on receiving `event.code === 1008`, does not call `scheduleReconnect()` and instead redirects to the login route; confirms other close codes still trigger the existing reconnect behavior unchanged. Additionally, a test in `app.test.tsx` confirms rendering `App()` at the `/login` route does **not** mount `WebSocketEffect`, `TelemetryHealthEffect`, `Sidebar`, or `StatusBar` — the specific mechanism that keeps the 1008-redirect from looping back onto itself.
 - [ ] AC#13: Frontend component test confirms the WS client stops reconnecting and navigates to the login view on close code 1008, rather than retrying indefinitely.
+- [ ] `login.test.tsx` confirms that submitting a wrong token renders a visible error and leaves the operator on the login view — it does not silently redirect or appear to do nothing. Neither T13's e2e test (which injects a valid cookie and never submits a bad one) nor any backend test covers this path.
+- [ ] The 401 redirect lives in `query-client.ts`'s `QueryCache.onError`, not inside `apiFetch` — verified by inspection, plus a test confirming `apiFetch` still throws `ApiError` on a 401 rather than navigating.

@@ -3,7 +3,7 @@ task_id: "T04"
 title: "Add bearer token and session cookie mint/verify to web/auth.py"
 status: "planned"
 depends_on: ["T01", "T02", "T03"]
-implements: ["FR#6", "FR#7", "FR#8", "FR#20"]
+implements: ["FR#6", "FR#7", "FR#8", "FR#20", "FR#22"]
 ---
 
 ## Summary
@@ -44,6 +44,20 @@ In `src/hassette/web/auth.py`, add:
    peer-trust decision T03 already makes, reused here, not a second parallel implementation of
    peer-trust logic.
 
+5. **Renewal predicate** — a function answering "should this verified cookie be replaced?", returning
+   `True` once the cookie's embedded issuance timestamp is older than half of
+   `config.web_api.session_ttl`. T05's middleware calls this after a successful cookie verification
+   and, when it returns `True`, mints a replacement via step 2 and sets it on the response (FR#22).
+   Keep the predicate and the minting separate from the response handling — this task owns the
+   *decision* and the *value*; T05 owns writing the `Set-Cookie` header.
+
+**Every function in this task must treat a `None` resolved token as "never authenticates."** T05
+deliberately allows `auth_enabled=True` with `app.state.auth_token = None` (its no-credential-401
+tests are built that way), so `None` reaches the bearer check and the cookie verify on a real code
+path. `secrets.compare_digest(presented, None)` raises `TypeError`, which would turn an intended 401
+into a 500 — guard for `None` explicitly and return "not authenticated" rather than letting it reach
+the comparison.
+
 Do not implement `authorize_ws()` or the composed default-deny check here — that composition (which
 calls both T03's matcher and this task's bearer/cookie checks together) is T05's job, in
 `web/middleware.py`.
@@ -68,3 +82,5 @@ calls both T03's matcher and this task's bearer/cookie checks together) is T05's
 - [ ] FR#7: Unit test confirms a cookie minted for a given token can be verified successfully against that same token, and that minting/verifying does not depend on any server-side state (e.g., verify works correctly if called from a fresh process with no prior mint call in memory, given only the token and cookie value).
 - [ ] FR#8: Unit test confirms a cookie whose embedded issuance timestamp exceeds `session_ttl` is rejected by the verify function, and one within the TTL is accepted.
 - [ ] FR#20: Unit test confirms the Secure-flag decision function returns `True` only when the peer is trusted (per T03's matcher) AND `X-Forwarded-Proto` says `https`; returns `False` when the peer is untrusted regardless of the header value, and confirms it calls T03's matcher rather than a separate comparison.
+- [ ] FR#22: Unit test confirms the renewal predicate returns `False` for a freshly minted cookie, `True` for one whose issuance timestamp is past half of `session_ttl`, and `False` again for one already past full `session_ttl` (that case is rejected by verify, not renewed).
+- [ ] A `None` resolved token returns "not authenticated" from both the bearer check and the cookie verify, without raising — asserted directly, since the `TypeError` this prevents would surface as a 500 in T05's tests rather than as a failure here.
