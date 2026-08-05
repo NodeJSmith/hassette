@@ -33,12 +33,15 @@ reviews:
 
     - path: "frontend/**"
       instructions: |
-        Preact + TypeScript. Use `class=` not `className=`. No `any` (use
-        `unknown` and narrow), no `as` casts outside validated boundaries, no
-        TS enums (use `as const` or unions). Functional components only; every
-        subscribing useEffect returns a cleanup. CSS Modules with `ht-` design
-        tokens from tokens.css — no raw hex/px values, no bare `.ht-*` class
-        names in module CSS (use `:global()`). Generated type files
+        React + TypeScript, Tailwind CSS v4. Use `className=` (not `class=`).
+        No `any` (use `unknown` and narrow), no `as` casts outside validated
+        boundaries, no TS enums (use `as const` or unions). Functional
+        components only; every subscribing useEffect returns a cleanup. Style
+        with Tailwind utilities directly in JSX via `cn()` from `@/lib/utils`
+        (no `clsx`, no CSS Modules, no `@apply`); reference project tokens
+        with arbitrary values like `text-[var(--ink-1)]`. Use shadcn
+        primitives from `@/components/ui` for standard controls instead of
+        rebuilding them with raw markup. Generated type files
         (generated-types.ts, ws-types.ts) are not hand-edited.
 
     - path: "docs/**"
