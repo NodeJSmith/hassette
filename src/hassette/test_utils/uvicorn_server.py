@@ -65,7 +65,7 @@ def start_uvicorn_server(
     if on_startup is not None:
         original_startup = server.startup
 
-        async def _startup_and_hook(sockets=None):
+        async def _startup_and_hook(sockets: list[socket.socket] | None = None) -> None:
             await original_startup(sockets=sockets)
             on_startup()
 
@@ -79,12 +79,15 @@ def start_uvicorn_server(
     # prevents a tight spin on connection-refused (which returns instantly).
     deadline = time.monotonic() + LIVE_SERVER_START_TIMEOUT_SECONDS
     while time.monotonic() < deadline:
+        if not thread.is_alive():
+            raise RuntimeError(f"Live server thread exited before accepting connections on port {port}")
         try:
             with socket.create_connection(("127.0.0.1", port), timeout=0.5):
                 break
         except OSError:
             time.sleep(0.05)
     else:
+        stop_uvicorn_server(server, thread)
         raise RuntimeError(f"Live server did not start within {LIVE_SERVER_START_TIMEOUT_SECONDS}s on port {port}")
 
     return server, thread, port
