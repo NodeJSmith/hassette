@@ -13,10 +13,10 @@ from hassette.web.auth import (
 from hassette.web.dependencies import AuthDep, HassetteDep
 from hassette.web.models import SessionRequest, SessionResponse
 
-router = APIRouter(tags=["auth"])
+router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/auth/session", response_model=SessionResponse, responses={401: {"description": "Invalid token"}})
+@router.post("/session", response_model=SessionResponse, responses={401: {"description": "Invalid token"}})
 async def create_session(
     body: SessionRequest,
     request: Request,

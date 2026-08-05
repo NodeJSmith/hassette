@@ -64,7 +64,12 @@ def get_api(request: Request) -> "Api":
 
 
 def get_resolved_auth_token(request: Request) -> str | None:
-    return request.app.state.auth_token
+    """Return the resolved web API credential from app state, or ``None`` if unset.
+
+    Mirrors the guarded lookup used by ``DefaultDenyMiddleware`` and ``authorize_ws`` so an
+    app built without an ``auth_token`` argument degrades to ``None`` rather than raising.
+    """
+    return getattr(request.app.state, "auth_token", None)
 
 
 # Shared dependency type aliases — import these instead of re-defining locally.

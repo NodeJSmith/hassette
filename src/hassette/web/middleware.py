@@ -18,7 +18,7 @@ full mechanism this implements.
 """
 
 import time
-from collections import defaultdict
+from collections import OrderedDict
 from logging import getLogger
 
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
@@ -72,26 +72,48 @@ coalesced WARN. A deliberate, rounder choice in the ballpark of design.md's own 
 FAILED_AUTH_WINDOW_SECONDS = 300
 """Sliding window, in seconds, over which :data:`FAILED_AUTH_THRESHOLD` is evaluated (5 minutes)."""
 
+MAX_TRACKED_SOURCES = 1024
+"""Upper bound on distinct source addresses held by :class:`_FailedAuthTracker` at once.
+
+The tracker is a logging aid, not a control (rate limiting is an explicit Non-Goal — see
+design.md Non-Goals), so discarding the least-recently-touched source under pressure is
+preferable to unbounded growth driven by an unauthenticated peer that varies its source address
+across requests (e.g. sweeping an IPv6 /64).
+"""
+
 
 class _FailedAuthTracker:
     """Coalesced failed-auth counter, keyed by source peer address.
 
-    Evicts attempts older than :data:`FAILED_AUTH_WINDOW_SECONDS` on every :meth:`record` call, so
-    a sustained burst cannot grow the tracker without bound. Emits exactly one WARN the moment a
-    source's attempt count *reaches* the threshold within the window — not one per attempt, and not
-    a repeat warning for every attempt past the threshold. The counter never rejects or throttles
-    anything; rate limiting is an explicit Non-Goal (design.md Non-Goals).
+    Evicts attempts older than :data:`FAILED_AUTH_WINDOW_SECONDS` on every :meth:`record` call and
+    drops a source's key entirely once its window has fully elapsed, so a sustained burst cannot
+    grow the tracker without bound — across sources as well as within one, since the number of
+    distinct sources held at once is additionally capped at :data:`MAX_TRACKED_SOURCES` via
+    least-recently-touched eviction. Emits exactly one WARN the moment a source's attempt count
+    *reaches* the threshold within the window — not one per attempt, and not a repeat warning for
+    every attempt past the threshold. The counter never rejects or throttles anything; rate
+    limiting is an explicit Non-Goal (design.md Non-Goals).
     """
 
     def __init__(self) -> None:
-        self._attempts: dict[str, list[float]] = defaultdict(list)
+        self._attempts: OrderedDict[str, list[float]] = OrderedDict()
 
     def record(self, source: str) -> None:
         now = time.monotonic()
         window_start = now - FAILED_AUTH_WINDOW_SECONDS
-        attempts = [t for t in self._attempts[source] if t >= window_start]
+        attempts = [t for t in self._attempts.get(source, ()) if t >= window_start]
         attempts.append(now)
         self._attempts[source] = attempts
+        self._attempts.move_to_end(source)
+
+        # Drop any other source whose most recent attempt has aged out of the window, then cap
+        # what remains so an attacker who varies the source address per request can't grow this
+        # dict without bound.
+        stale = [key for key, times in self._attempts.items() if key != source and times[-1] < window_start]
+        for key in stale:
+            del self._attempts[key]
+        while len(self._attempts) > MAX_TRACKED_SOURCES:
+            self._attempts.popitem(last=False)
 
         if len(attempts) == FAILED_AUTH_THRESHOLD:
             LOGGER.warning(
