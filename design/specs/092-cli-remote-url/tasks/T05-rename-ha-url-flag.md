@@ -1,7 +1,7 @@
 ---
 task_id: "T05"
 title: "Rename hassette run --base-url/-u/--url to --ha-url/-u"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#13", "AC#12"]
 ---

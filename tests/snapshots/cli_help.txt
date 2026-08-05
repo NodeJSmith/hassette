@@ -237,12 +237,12 @@ Usage: hassette run [OPTIONS] [ARGS]
 Start the Hassette framework server.
 
 ╭─ Parameters ─────────────────────────────────────────────────────────────────────────────────────╮
-│ TOKEN --token -t              Home Assistant access token.                                       │
-│ BASE-URL --base-url --url -u  Base URL of the Home Assistant instance.                           │
-│ VERIFY-SSL --verify-ssl       Whether to verify SSL certificates.                                │
-│ DEV-MODE --dev-mode           Enable developer mode.                                             │
-│ APP --app -a                  Run only this app key, excluding all others. Repeatable, or        │
-│                               comma-separated.                                                   │
+│ TOKEN --token -t         Home Assistant access token.                                            │
+│ HA-URL --ha-url -u       URL of the Home Assistant instance to connect to.                       │
+│ VERIFY-SSL --verify-ssl  Whether to verify SSL certificates.                                     │
+│ DEV-MODE --dev-mode      Enable developer mode.                                                  │
+│ APP --app -a             Run only this app key, excluding all others. Repeatable, or             │
+│                          comma-separated.                                                        │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
 │ --config-file -c     Path to the TOML configuration file.                                        │

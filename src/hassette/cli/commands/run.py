@@ -23,7 +23,7 @@ def split_app_keys(values: list[str]) -> tuple[str, ...]:
 def cmd_run(
     token: Annotated[str | None, Parameter(name=["--token", "-t"], help="Home Assistant access token.")] = None,
     base_url: Annotated[
-        str | None, Parameter(name=["--base-url", "-u", "--url"], help="Base URL of the Home Assistant instance.")
+        str | None, Parameter(name=["--ha-url", "-u"], help="URL of the Home Assistant instance to connect to.")
     ] = None,
     verify_ssl: Annotated[
         bool | None,
