@@ -29,6 +29,7 @@ from starlette.types import ASGIApp
 from hassette.web.auth import (
     SESSION_COOKIE_NAME,
     check_bearer_token,
+    extract_bearer_token,
     get_trusted_proxies,
     is_trusted_peer,
     mint_session_cookie,
@@ -104,16 +105,6 @@ def _unauthorized_response() -> JSONResponse:
     return JSONResponse({"detail": "Not authenticated"}, status_code=401)
 
 
-def _extract_bearer_token(request: Request) -> str | None:
-    header = request.headers.get("authorization")
-    if header is None:
-        return None
-    scheme, _, value = header.partition(" ")
-    if scheme.lower() != "bearer" or not value:
-        return None
-    return value
-
-
 def _source_key(request: Request) -> str:
     """Identify the failed-auth counter's "source" for a request — the raw peer address.
 
@@ -171,7 +162,7 @@ class DefaultDenyMiddleware(BaseHTTPMiddleware):
         authenticated = request_peer_address is not None and is_trusted_peer(request_peer_address, trusted_proxies)
 
         if not authenticated:
-            bearer = _extract_bearer_token(request)
+            bearer = extract_bearer_token(request.headers)
             if check_bearer_token(bearer, resolved_token):
                 authenticated = True
             else:

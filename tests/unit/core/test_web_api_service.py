@@ -2,10 +2,12 @@
 
 import asyncio
 import ipaddress
+import socket
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from httpx2 import ASGITransport, AsyncClient
 
 from hassette.core.core import Hassette
 from hassette.core.scheduler_service import SchedulerService
@@ -194,6 +196,13 @@ class TestTrustedProxyRefreshScheduling:
         assert service._trusted_proxies == "sentinel-refreshed"
 
 
+def _addrinfo(ip: str) -> tuple:
+    """Build one ``socket.getaddrinfo``-shaped result tuple for ``ip``."""
+    if ":" in ip:
+        return (socket.AF_INET6, socket.SOCK_STREAM, 6, "", (ip, 0, 0, 0))
+    return (socket.AF_INET, socket.SOCK_STREAM, 6, "", (ip, 0))
+
+
 class TestTokenResolution:
     async def test_resolves_and_stores_auth_token(self, unused_tcp_port_factory, tmp_path) -> None:
         service = _make_web_api_service(unused_tcp_port_factory, tmp_path, host="127.0.0.1")
@@ -239,3 +248,62 @@ class TestSchedulerChildLifecycle:
 
         assert service.scheduler is first_scheduler
         assert service.children == children_after_construction
+
+
+class TestLiveAppTrustedProxyRefresh:
+    """Regression coverage for a periodic refresh tick reaching the *already-serving* FastAPI
+    app, not just ``WebApiService``'s own ``_trusted_proxies`` attribute.
+
+    ``serve()`` builds the FastAPI app exactly once via ``create_fastapi_app()``, which copies
+    the resolved trusted-proxy set onto ``app.state.trusted_proxies`` as a single reference.
+    Before this fix, ``_refresh_trusted_proxies()`` only rebound the service's own attribute —
+    nothing downstream re-read it, so the periodic ``Scheduler.run_every()`` job silently updated
+    a value the live, already-serving app never saw again. A unit test of
+    ``refresh_trusted_proxies()`` alone (or one that builds a brand-new ``create_fastapi_app()``
+    with the refreshed value) can't catch this — it has to exercise a live app that was already
+    built by ``serve()`` before the refresh tick fires.
+    """
+
+    async def test_refresh_after_serve_updates_live_app_trusted_proxies(
+        self, unused_tcp_port_factory, tmp_path
+    ) -> None:
+        service = _make_web_api_service(
+            unused_tcp_port_factory, tmp_path, host="127.0.0.1", trusted_proxies=("proxy.internal",)
+        )
+
+        with patch("hassette.web.auth.socket.getaddrinfo", return_value=[_addrinfo("172.30.32.2")]):
+            await service.on_initialize()
+
+        # Simulate serve() building the live FastAPI app, without actually binding a socket.
+        with patch("hassette.core.web_api_service.uvicorn") as mock_uvicorn:
+            mock_server = MagicMock()
+            mock_server.serve = AsyncMock()
+            mock_uvicorn.Server.return_value = mock_server
+            await service.serve()
+
+        assert service._app is not None
+        live_app = service._app
+
+        # Before the refresh tick: the original resolved address is trusted.
+        transport = ASGITransport(app=live_app, client=("172.30.32.2", 12345))
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get("/api/config")
+        assert resp.status_code == 200
+
+        # Periodic refresh tick: the sibling proxy container was recreated with a new IP (same
+        # hostname) -- exactly as Scheduler.run_every() would observe on its next run.
+        with patch("hassette.web.auth.socket.getaddrinfo", return_value=[_addrinfo("172.30.32.9")]):
+            await service._refresh_trusted_proxies()
+
+        # The refresh must be visible on the SAME already-serving app instance -- no rebuild.
+        assert service._app is live_app
+
+        new_transport = ASGITransport(app=live_app, client=("172.30.32.9", 12345))
+        async with AsyncClient(transport=new_transport, base_url="http://test") as client:
+            new_resp = await client.get("/api/config")
+        assert new_resp.status_code == 200
+
+        old_transport = ASGITransport(app=live_app, client=("172.30.32.2", 12345))
+        async with AsyncClient(transport=old_transport, base_url="http://test") as client:
+            old_resp = await client.get("/api/config")
+        assert old_resp.status_code == 401

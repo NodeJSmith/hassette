@@ -55,12 +55,17 @@ Check the logs:
 You see output like:
 
 ```
-INFO hassette ... ─ No web API auth token configured — generated one and saved it to /data/.web_api_token
-INFO hassette ... ─ Open http://localhost:8126 and paste this token to log in: <generated-token>
+INFO hassette ... ─ Generated new web API auth_token, written to /data/.web_api_token. Open http://localhost:8126 to log in.
 INFO hassette ... ─ Hassette is running.
 ```
 
-Hassette is running, and the web UI is available at `http://localhost:8126`. Open it, and paste the token from the log line above into the login screen. If you see an error instead of these lines, head to [Troubleshooting](troubleshooting.md).
+That log line confirms a token was generated and names the file it lives in — it never prints the token itself. Read the value from that file:
+
+```bash
+docker compose exec hassette cat /data/.web_api_token
+```
+
+Hassette is running, and the web UI is available at `http://localhost:8126`. Open it, and paste the token from the file into the login screen. If you see an error instead of these lines, head to [Troubleshooting](troubleshooting.md).
 
 !!! note "Upgrading an existing deployment"
     Hassette requires this token starting with the version that introduced

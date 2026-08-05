@@ -19,12 +19,14 @@ from unittest.mock import patch
 
 import pytest
 from pydantic import SecretStr
+from starlette.datastructures import Headers
 
 from hassette.config.models import WebApiConfig
 from hassette.exceptions import AuthTokenWriteError, TrustedProxyConfigError
 from hassette.web.auth import (
     TOKEN_FILENAME,
     check_bearer_token,
+    extract_bearer_token,
     is_trusted_peer,
     mint_session_cookie,
     refresh_trusted_proxies,
@@ -343,6 +345,31 @@ class TestCheckBearerToken:
         not raise.
         """
         assert check_bearer_token("wrong-token\xff", "the-real-token") is False
+
+
+class TestExtractBearerToken:
+    """Shared by DefaultDenyMiddleware (request.headers) and authorize_ws (websocket.headers) —
+    both are the same Starlette Headers type, so one parser serves both call sites.
+    """
+
+    def test_valid_bearer_header_extracts_token(self) -> None:
+        headers = Headers({"authorization": "Bearer the-real-token"})
+        assert extract_bearer_token(headers) == "the-real-token"
+
+    def test_missing_header_returns_none(self) -> None:
+        assert extract_bearer_token(Headers({})) is None
+
+    def test_wrong_scheme_returns_none(self) -> None:
+        headers = Headers({"authorization": "Basic the-real-token"})
+        assert extract_bearer_token(headers) is None
+
+    def test_empty_token_returns_none(self) -> None:
+        headers = Headers({"authorization": "Bearer "})
+        assert extract_bearer_token(headers) is None
+
+    def test_scheme_match_is_case_insensitive(self) -> None:
+        headers = Headers({"authorization": "bearer the-real-token"})
+        assert extract_bearer_token(headers) == "the-real-token"
 
 
 class TestSessionCookieMintAndVerify:

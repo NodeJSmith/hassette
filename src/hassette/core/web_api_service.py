@@ -6,6 +6,7 @@ import typing
 from typing import ClassVar
 
 import uvicorn
+from fastapi import FastAPI
 
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.core.scheduler_service import SchedulerService
@@ -71,6 +72,7 @@ class WebApiService(Service):
     port: int
     scheduler: Scheduler
     _server: uvicorn.Server | None
+    _app: FastAPI | None
     _resolved_auth_token: str | None
     _trusted_proxies: TrustedProxySet
 
@@ -79,6 +81,7 @@ class WebApiService(Service):
         self.host = hassette.config.web_api.host
         self.port = hassette.config.web_api.port
         self._server = None
+        self._app = None
         self._resolved_auth_token = None
         self._trusted_proxies = EMPTY_TRUSTED_PROXY_SET
         self.scheduler = self.add_child(Scheduler)
@@ -138,8 +141,19 @@ class WebApiService(Service):
         Scheduled via ``self.scheduler.run_every()`` in ``on_initialize()``. Delegates entirely
         to :func:`hassette.web.auth.refresh_trusted_proxies`, which never raises — a hostname
         that fails to re-resolve keeps its last-known-good addresses.
+
+        ``serve()`` builds the FastAPI app once and hands ``self._trusted_proxies`` to
+        :func:`hassette.web.app.create_fastapi_app`, which copies it onto ``app.state`` as a
+        single reference — rebinding ``self._trusted_proxies`` alone would leave that reference
+        stale for the life of the running server. Once ``serve()`` has built ``self._app``, this
+        also writes the refreshed set through to ``self._app.state.trusted_proxies`` so a request
+        against the already-serving app observes the refresh immediately, not just a future
+        restart.
         """
-        self._trusted_proxies = refresh_trusted_proxies(self._trusted_proxies)
+        refreshed = refresh_trusted_proxies(self._trusted_proxies)
+        self._trusted_proxies = refreshed
+        if self._app is not None:
+            self._app.state.trusted_proxies = refreshed
 
     async def serve(self) -> None:
         if not self.hassette.config.web_api.run:
@@ -151,6 +165,7 @@ class WebApiService(Service):
             auth_token=self._resolved_auth_token,
             trusted_proxies=self._trusted_proxies,
         )
+        self._app = app
 
         config = uvicorn.Config(
             app=app,
@@ -192,3 +207,4 @@ class WebApiService(Service):
         if self._server is not None:
             self.logger.debug("Cleaning up Web API server reference")
             self._server = None
+        self._app = None

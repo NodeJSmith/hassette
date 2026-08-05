@@ -30,7 +30,7 @@ from dataclasses import dataclass
 from logging import getLogger
 from pathlib import Path
 
-from starlette.datastructures import State
+from starlette.datastructures import Headers, State
 from starlette.requests import Request
 from starlette.websockets import WebSocket
 from whenever import Instant
@@ -367,6 +367,31 @@ def _current_timestamp() -> int:
     return int(Instant.now().timestamp())
 
 
+def extract_bearer_token(headers: Headers) -> str | None:
+    """Parse an ``Authorization: Bearer <token>`` header out of ``headers``.
+
+    Shared by :class:`~hassette.web.middleware.DefaultDenyMiddleware` (via
+    ``request.headers``) and :func:`authorize_ws` (via ``websocket.headers``) — both
+    ``Request.headers`` and ``WebSocket.headers`` are the same Starlette
+    :class:`~starlette.datastructures.Headers` type, so one parser serves both call sites.
+
+    Args:
+        headers: The incoming request's or WebSocket's headers.
+
+    Returns:
+        The token value if the ``Authorization`` header is present and shaped
+        ``"Bearer <token>"`` with a non-empty token; ``None`` if the header is absent, uses a
+        different scheme, or the token portion is empty.
+    """
+    header = headers.get("authorization")
+    if header is None:
+        return None
+    scheme, _, value = header.partition(" ")
+    if scheme.lower() != "bearer" or not value:
+        return None
+    return value
+
+
 def check_bearer_token(presented: str | None, resolved_token: str | None) -> bool:
     """Timing-safe comparison of a presented bearer token against the resolved credential.
 
@@ -593,12 +618,7 @@ def authorize_ws(websocket: WebSocket) -> bool:
     if peer_address is not None and is_trusted_peer(peer_address, trusted_proxies):
         return True
 
-    presented_token = None
-    auth_header = websocket.headers.get("authorization")
-    if auth_header is not None:
-        scheme, _, value = auth_header.partition(" ")
-        if scheme.lower() == "bearer" and value:
-            presented_token = value
+    presented_token = extract_bearer_token(websocket.headers)
     if check_bearer_token(presented_token, resolved_token):
         return True
 

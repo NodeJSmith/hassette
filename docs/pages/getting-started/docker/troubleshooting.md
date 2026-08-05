@@ -108,13 +108,23 @@ To apply edits without restarting, set `allow_reload_in_prod = true` under `[has
 
 **Cause:** This is intentional, not a regression. Hassette now requires a credential for every `/api/*` route by default. On the first restart after upgrading, with no `HASSETTE__WEB_API__AUTH_TOKEN` configured and no existing token file, Hassette generates a token and logs it once — closing a real security gap where any peer on the network could reach mutation endpoints (start/stop/reload apps, trigger jobs) with no credential at all.
 
-**Fix:** Retrieve the generated token from the container logs:
+**Fix:** Read the token directly from the token file inside the container:
+
+```bash
+docker compose exec hassette cat /data/.web_api_token
+```
+
+Paste it into the login screen at `http://your-host:8126`, or attach it as `Authorization: Bearer <token>` for scripts.
+
+To confirm a token was generated in the first place, the logs work — but only to confirm, not to retrieve the value:
 
 ```bash
 docker compose logs hassette | grep -i token
 ```
 
-Paste it into the login screen at `http://your-host:8126`, or attach it as `Authorization: Bearer <token>` for scripts. To pin a token of your own choosing instead of the generated one, set `HASSETTE__WEB_API__AUTH_TOKEN` in `config/.env` and restart — see [CLI Configuration](../../cli/configuration.md#web-api-token) for how the `hassette` CLI resolves the same credential automatically.
+This shows a line like `Generated new web API auth_token, written to /data/.web_api_token. Open http://your-host:8126 to log in.` — it names the file the token was written to, but never prints the plaintext token itself.
+
+To pin a token of your own choosing instead of the generated one, set `HASSETTE__WEB_API__AUTH_TOKEN` in `config/.env` and restart — see [CLI Configuration](../../cli/configuration.md#web-api-token) for how the `hassette` CLI resolves the same credential automatically.
 
 ## Hassette Restarts Whenever Home Assistant Goes Down
 
