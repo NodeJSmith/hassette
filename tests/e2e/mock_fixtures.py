@@ -878,7 +878,7 @@ def wire_owner_resolution(hassette) -> None:
     )
 
 
-def wire_config(hassette, *, auth_enabled: bool = False) -> None:
+def wire_config(hassette: MagicMock, *, auth_enabled: bool = False) -> None:
     """Wire a real HassetteConfig on mock_hassette so GET /config works.
 
     The /config route serializes the live config with ``hassette.config.model_dump(mode="json")``

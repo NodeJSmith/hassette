@@ -3,6 +3,7 @@
 import asyncio
 import json
 import time
+from pathlib import Path
 from typing import Any
 
 import httpx2 as httpx
@@ -93,7 +94,7 @@ async def test_config_endpoint_masks_token(ha_container: str, tmp_path) -> None:
         assert config_values["token"] == MASK_SENTINEL
 
 
-async def test_config_endpoint_masks_auth_token(ha_container: str, tmp_path) -> None:
+async def test_config_endpoint_masks_auth_token(ha_container: str, tmp_path: Path) -> None:
     """GET /api/config never leaks the plaintext web API auth_token on a live response.
 
     Mirrors test_config_endpoint_masks_token above, but for the new web_api.auth_token field —

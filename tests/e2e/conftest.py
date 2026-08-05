@@ -7,6 +7,7 @@ import subprocess
 import threading
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -97,7 +98,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 SPA_INDEX = REPO_ROOT / "src" / "hassette" / "web" / "static" / "spa" / "index.html"
 
 
-def build_mock_hassette(*, is_ready: bool = True, auth_enabled: bool = False):
+def build_mock_hassette(*, is_ready: bool = True, auth_enabled: bool = False) -> MagicMock:
     """Build a fully-wired mock Hassette stub with rich seed telemetry data.
 
     ``is_ready=False`` simulates WebsocketService never having connected to HA

@@ -19,10 +19,14 @@ against.
 """
 
 import asyncio
+from collections.abc import Iterator
+from unittest.mock import MagicMock
 
 import pytest
+from fastapi import FastAPI
 from playwright.sync_api import Page, expect
 
+from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.test_utils.config import TEST_SESSION_TTL, WEB_API_TEST_TOKEN
 from hassette.test_utils.uvicorn_server import start_uvicorn_server, stop_uvicorn_server
 from hassette.test_utils.web_mocks import create_mock_runtime_query_service
@@ -36,7 +40,7 @@ WS_CONNECT_TIMEOUT_MS = 10000
 
 
 @pytest.fixture
-def mock_hassette_auth(ensure_spa_built):  # noqa: ARG001
+def mock_hassette_auth(ensure_spa_built: None) -> MagicMock:  # noqa: ARG001
     """A mock Hassette with auth enabled and a real ``session_ttl`` for cookie verification.
 
     ``create_hassette_stub()`` builds ``hassette.config.web_api`` as a ``MagicMock``, so
@@ -52,7 +56,7 @@ def mock_hassette_auth(ensure_spa_built):  # noqa: ARG001
 
 
 @pytest.fixture
-def runtime_query_service_auth(mock_hassette_auth):
+def runtime_query_service_auth(mock_hassette_auth: MagicMock) -> RuntimeQueryService:
     """Built with a mock lock -- swapped for a real ``asyncio.Lock`` in ``live_server_ws_auth``
     right before the server starts, mirroring ``conftest.py``'s ``live_server_ws`` fixture (see
     its docstring for why the swap happens that late rather than up front).
@@ -61,13 +65,16 @@ def runtime_query_service_auth(mock_hassette_auth):
 
 
 @pytest.fixture
-def fastapi_app_auth(mock_hassette_auth, runtime_query_service_auth):  # noqa: ARG001
+def fastapi_app_auth(
+    mock_hassette_auth: MagicMock,
+    runtime_query_service_auth: RuntimeQueryService,  # noqa: ARG001
+) -> FastAPI:
     """FastAPI app built with a known bearer token, so a cookie can be minted directly against it."""
     return create_fastapi_app(mock_hassette_auth, auth_token=WEB_API_TEST_TOKEN)
 
 
 @pytest.fixture
-def live_server_ws_auth(fastapi_app_auth, runtime_query_service_auth):
+def live_server_ws_auth(fastapi_app_auth: FastAPI, runtime_query_service_auth: RuntimeQueryService) -> Iterator[str]:
     """WebSocket-enabled uvicorn server (``ws='websockets-sansio'``) backed by an auth-enabled app.
 
     Function-scoped, mirroring ``conftest.py``'s ``live_server_ws`` -- the WS half of this test
