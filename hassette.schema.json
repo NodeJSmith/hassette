@@ -1275,6 +1275,7 @@
         "session_ttl": {
           "default": 3600,
           "description": "Maximum lifetime, in seconds, of a single session cookie *value* \u2014 not of a working session.\n\nA cookie whose remaining lifetime has fallen below half of this TTL is replaced with a\nfreshly minted cookie on the next request it authenticates (sliding renewal), so an actively\nused dashboard is never interrupted mid-session. This is the only revocation lever in the\ndesign: a leaked cookie stops working within ``session_ttl`` seconds of the moment it was\nminted, without requiring the operator to rotate ``auth_token`` (which would invalidate every\nsession and script at once).",
+          "exclusiveMinimum": 0,
           "title": "Session Ttl",
           "type": "integer",
           "ui": {

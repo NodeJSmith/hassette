@@ -393,7 +393,7 @@ class WebApiConfig(ExcludeExtrasMixin, BaseModel):
     periodically; entry parsing and matching are implemented separately from this field
     declaration."""
 
-    session_ttl: int = Field(default=3600, json_schema_extra={"ui": {"label": "Session TTL (seconds)"}})
+    session_ttl: int = Field(default=3600, gt=0, json_schema_extra={"ui": {"label": "Session TTL (seconds)"}})
     """Maximum lifetime, in seconds, of a single session cookie *value* — not of a working session.
 
     A cookie whose remaining lifetime has fallen below half of this TTL is replaced with a

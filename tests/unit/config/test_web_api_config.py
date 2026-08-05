@@ -24,6 +24,20 @@ class TestAuthFieldDefaults:
         assert config.session_ttl == 3600
 
 
+class TestSessionTtlConstraint:
+    def test_zero_session_ttl_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            WebApiConfig(session_ttl=0)
+
+    def test_negative_session_ttl_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            WebApiConfig(session_ttl=-1)
+
+    def test_positive_session_ttl_accepted(self) -> None:
+        config = WebApiConfig(session_ttl=1)
+        assert config.session_ttl == 1
+
+
 class TestAuthTokenMasking:
     def test_auth_token_is_secret_str(self) -> None:
         config = WebApiConfig(auth_token="super-secret-token")
