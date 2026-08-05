@@ -68,8 +68,9 @@ _BIND_ALL_SUBSTITUTIONS: dict[str, str] = {
 
 Duplicates ``cli/client.py``'s identically-named ``_BIND_ALL_SUBSTITUTIONS`` rather than importing
 it: ``cli/client.py`` already imports :data:`TOKEN_FILENAME` from this module, so importing the
-mapping back here would form an import cycle. ``core/web_api_service.py``'s ``_is_loopback_host``
-takes the same duplicate-rather-than-cycle tradeoff for the same reason.
+mapping back here would form an import cycle. Loopback *classification* (as opposed to this
+bind-all substitution) does not take that tradeoff — ``utils/net_utils.py``'s
+``is_loopback_host`` is shared by both the web API service and the CLI rather than duplicated.
 """
 
 _ENTIRE_ADDRESS_SPACE = (ipaddress.ip_network("0.0.0.0/0"), ipaddress.ip_network("::/0"))

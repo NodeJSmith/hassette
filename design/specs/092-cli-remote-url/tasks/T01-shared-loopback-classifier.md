@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Extract shared loopback classifier to utils/net_utils.py"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#9", "AC#8"]
 ---
