@@ -11,6 +11,7 @@ import pytest
 from websockets import connect as ws_connect
 
 from hassette.test_utils import wait_for
+from hassette.test_utils.config import WEB_API_TEST_TOKEN
 from hassette.web.config_view import MASK_SENTINEL
 
 from .conftest import HA_TOKEN, make_web_system_config, startup_context, toggle_and_capture, wait_for_web_server
@@ -105,7 +106,7 @@ async def test_config_endpoint_masks_auth_token(ha_container: str, tmp_path: Pat
     ever reaching the masking logic under test.
     """
     config, base_url = make_web_system_config(ha_container, tmp_path)
-    web_auth_token = "test-token-value"
+    web_auth_token = WEB_API_TEST_TOKEN
     # WebApiConfig.model_validate() (not model_copy(update=...), which skips validation and
     # would leave auth_token as a plain str instead of coercing it to SecretStr) rebuilds the
     # nested group with auth re-enabled and a known token.

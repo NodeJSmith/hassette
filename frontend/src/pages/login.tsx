@@ -2,18 +2,24 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 
 import { Button } from "@/components/ui/button";
+import { cardVariants } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 import { postSession } from "../api/client";
 import { useDocumentTitle } from "../hooks/use-document-title";
 import { HOME_PATH } from "../utils/app-routes";
 
 const PAGE_CLASS = "flex min-h-screen flex-1 flex-col items-center justify-center gap-6 p-8";
-const CARD_CLASS = "flex w-full max-w-sm flex-col gap-4 rounded-md border border-border bg-card p-6 shadow-sm";
+// The card surface comes from the shared primitive rather than a hand-copied class list, so
+// theme changes to Card reach the login view too. The element stays a <form>, which is why
+// cardVariants() is composed here instead of rendering <Card>.
+const CARD_CLASS = cn(cardVariants(), "flex w-full max-w-sm flex-col gap-4 p-6");
 const TITLE_CLASS = "m-0 font-heading text-[length:var(--text-display)] font-normal text-foreground";
 const LABEL_CLASS = "text-sm font-medium text-foreground-secondary";
 const INPUT_CLASS =
   "w-full rounded-md border border-[var(--line-1)] bg-[var(--bg-sunken)] px-3 py-2 text-sm text-[var(--ink-1)] outline-none transition-colors placeholder:text-[var(--ink-4)] focus-visible:border-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--accent-soft)]";
-const ERROR_CLASS = "rounded-md border border-destructive bg-[var(--destructive-bg)] px-3 py-2 text-sm text-foreground";
+const ALERT_CLASS =
+  "flex items-start gap-3 rounded-md border border-destructive bg-[var(--destructive-bg)] px-4 py-3 text-sm text-foreground";
 
 export function LoginPage() {
   useDocumentTitle("Log in");
@@ -61,7 +67,7 @@ export function LoginPage() {
           />
         </div>
         {error && (
-          <div className={ERROR_CLASS} role="alert" data-testid="login-error">
+          <div className={ALERT_CLASS} role="alert" data-testid="login-error">
             {error}
           </div>
         )}

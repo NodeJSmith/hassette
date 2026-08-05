@@ -4,7 +4,7 @@ Durable issues discovered during orchestration that were intentionally not fixed
 
 ## KI-001: `live_server_ws_inject` fixture still duplicates the uvicorn bring-up/teardown logic extracted into `uvicorn_server.py`
 
-Status: open
+Status: resolved (commit 83ecc630 — "refactor(test-utils): migrate live_server_ws_inject onto shared uvicorn helper", not filed as a separate issue since the fix already landed on this branch)
 Run: 54
 Source: T07
 Reason not fixed now: needs-decision
@@ -57,7 +57,7 @@ Acceptance criteria:
 
 ## KI-002: `test_missing_token_401_gives_clear_hint` is not isolated from ambient machine state
 
-Status: open
+Status: resolved (commit 77600aa4 — "test(cli): use shared client factory and isolate data_dir test", not filed as a separate issue since the fix already landed on this branch)
 Run: 54
 Source: T09
 Reason not fixed now: out-of-scope
@@ -103,7 +103,7 @@ Acceptance criteria:
 
 ## KI-003: The demo auth token `"demo-token"` is hardcoded independently in three files with no single source of truth
 
-Status: open
+Status: filed (#1523)
 Run: 54
 Source: clean-code
 Reason not fixed now: out-of-scope
@@ -186,7 +186,7 @@ Acceptance criteria:
 
 ## KI-005: Repeated trusted-peer/renewal request-building sequence in `test_auth.py` is not extracted to a helper
 
-Status: open
+Status: filed (#1524)
 Run: 54
 Source: clean-code
 Reason not fixed now: out-of-scope

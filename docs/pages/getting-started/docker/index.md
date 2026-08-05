@@ -55,7 +55,7 @@ Check the logs:
 You see output like:
 
 ```
-INFO hassette ... ─ Generated new web API auth_token, written to /data/.web_api_token. Open http://localhost:8126 to log in.
+INFO hassette ... ─ Generated new web API auth_token, written to /data/.web_api_token. Open http://127.0.0.1:8126 to log in.
 INFO hassette ... ─ Hassette is running.
 ```
 
