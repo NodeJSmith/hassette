@@ -252,6 +252,47 @@ describe("useWebSocket", () => {
       expect(MockWebSocket.instances).toHaveLength(2);
     });
 
+    it("reconnects instead of hanging forever when the auth check itself stalls", async () => {
+      // Simulates a request that never settles on its own (e.g. server hung, dropped
+      // connection with no TCP RST). Only the bounded timeout inside confirmAuthRejection
+      // unblocks it — without that, scheduleReconnect would never run and the app would
+      // stay disconnected indefinitely.
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      mockedGetSystemStatus.mockImplementation(
+        (signal) =>
+          new Promise((_resolve, reject) => {
+            signal?.addEventListener("abort", () =>
+              reject(new DOMException("The operation was aborted", "AbortError")),
+            );
+          }),
+      );
+      const queryClient = createTestQueryClient();
+
+      renderHookWithProviders(() => useWebSocket(), { queryClient });
+
+      const ws = MockWebSocket.instances[0];
+
+      act(() => {
+        ws.onclose?.();
+      });
+
+      // Advance past the auth-check timeout — the stalled request should now be aborted.
+      // Use the async variant so the rejection's catch/finally chain (and the subsequent
+      // scheduleReconnect() call) actually runs before we advance further.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+
+      expect(mockNavigate).not.toHaveBeenCalled();
+
+      // Advance past reconnect backoff — must still fire even though the auth check never
+      // resolved or rejected on its own.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2_000);
+      });
+      expect(MockWebSocket.instances).toHaveLength(2);
+    });
+
     it("keeps reconnecting (no redirect, no REST check) when a close arrives after onopen already fired", () => {
       vi.useFakeTimers();
       const queryClient = createTestQueryClient();

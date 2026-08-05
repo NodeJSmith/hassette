@@ -13,6 +13,7 @@ const MAX_BACKOFF_MS = 30_000;
 const INITIAL_BACKOFF_MS = 1_000;
 const BACKOFF_MULTIPLIER = 1.5;
 const HANDSHAKE_TIMEOUT_MS = 10_000;
+const AUTH_CHECK_TIMEOUT_MS = 5_000;
 const DEFAULT_LOG_LEVEL = "INFO";
 const UNAUTHORIZED_STATUS = 401;
 
@@ -189,17 +190,24 @@ export function useWebSocket(): void {
       };
 
       async function confirmAuthRejection() {
+        // Bound the check so a stalled request can't leave the socket disconnected forever —
+        // `scheduleReconnect` must still run even if the server never responds.
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), AUTH_CHECK_TIMEOUT_MS);
         try {
-          await getSystemStatus();
+          await getSystemStatus(controller.signal);
         } catch (err) {
           if (err instanceof ApiError && err.status === UNAUTHORIZED_STATUS) {
             if (!unmounted) navigateRef.current(LOGIN_PATH);
             return;
           }
+        } finally {
+          clearTimeout(timeoutId);
         }
         // Either the check succeeded (still authenticated — the WS failure wasn't an auth
-        // problem) or it failed for a non-auth reason (network error, 5xx). Neither confirms
-        // a rejected handshake, so retry like any other connection failure.
+        // problem) or it failed for a non-auth reason (network error, 5xx, or the bounded
+        // timeout above firing). Neither confirms a rejected handshake, so retry like any
+        // other connection failure.
         if (!unmounted) scheduleReconnect();
       }
     }
