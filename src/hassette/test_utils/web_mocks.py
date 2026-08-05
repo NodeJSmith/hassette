@@ -188,6 +188,7 @@ def create_hassette_stub(
             "cors_origins": list(cors_origins),
             "log_buffer_size": STUB_LOG_BUFFER_SIZE,
             "job_history_size": STUB_JOB_HISTORY_SIZE,
+            "auth_enabled": auth_enabled,
         },
         "logging": {"log_level": log_level, "web_api": log_level},
         "lifecycle": {
