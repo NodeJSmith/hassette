@@ -1,7 +1,7 @@
 # Design: Web API Authentication and Safe Default Bind
 
 **Date:** 2026-08-03
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Research:** design/research/2026-08-03-web-api-auth/research.md (includes Addendum 1: hardening gaps, and Addendum 2: challenge resolution)
 
