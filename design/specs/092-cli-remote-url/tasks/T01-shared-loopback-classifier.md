@@ -16,6 +16,7 @@ Move `_is_loopback_host` out of `core/web_api_service.py` into a new `utils/net_
 - create: `tests/unit/utils/test_net_utils.py`
 - modify: `src/hassette/core/web_api_service.py`
 - modify: `src/hassette/web/auth.py`
+- read: `tests/unit/core/test_web_api_service.py`
 - read: `design/specs/092-cli-remote-url/design.md`
 - read: `design/specs/092-cli-remote-url/tasks/context.md`
 
@@ -39,9 +40,9 @@ See `## Architecture → Credential scoping` and `## Key Constraints` in the des
 
 Behavior worth knowing while writing the tests: `ipaddress.ip_address("::ffff:127.0.0.1").is_loopback` is `True` (IPv4-mapped form), `ipaddress.ip_address("127.0.0.53").is_loopback` is `True` (systemd-resolved's stub, inside `127.0.0.0/8`), and `ipaddress.ip_address("0.0.0.0").is_loopback` is `False`. The hostname fallback is case-insensitive via `.lower()`, so `LOCALHOST` classifies as loopback.
 
-Bracketed IPv6 (`[::1]`) does not reach this function in bracketed form from the CLI — `yarl.URL.host` returns the unbracketed spelling. Test the unbracketed form here; T03 owns the bracket-stripping path.
+Make the function bracket-tolerant: strip surrounding `[]` from the host before parsing. `yarl.URL.host` returns IPv6 unbracketed, so the CLI path never passes brackets, but the function now has two callers with different input provenance and AC#8 lists `[::1]` in its table. One `.strip("[]")` makes it correct for any caller rather than correct-by-coincidence for the current two.
 
 ## Verify
 
 - [ ] FR#9: `is_loopback_host` in `src/hassette/utils/net_utils.py` classifies by parsing the host as an IP literal and reporting `is_loopback`, falling back to a fixed hostname set, with no DNS call anywhere in the function; `grep -rn "_is_loopback_host" src/hassette/core/` returns no match.
-- [ ] AC#8: `uv run pytest tests/unit/utils/test_net_utils.py -v` passes with assertions that `localhost`, `LOCALHOST`, `127.0.0.1`, `127.0.0.53`, `::1`, and `::ffff:127.0.0.1` classify as loopback while `192.168.1.5`, `example.com`, and `0.0.0.0` do not.
+- [ ] AC#8: `uv run pytest tests/unit/utils/test_net_utils.py tests/unit/core/test_web_api_service.py -v` passes, with the new table asserting `localhost`, `LOCALHOST`, `127.0.0.1`, `127.0.0.53`, `::1`, `[::1]`, and `::ffff:127.0.0.1` classify as loopback while `192.168.1.5`, `example.com`, and `0.0.0.0` do not; and `grep -rn "_is_loopback_host" src/hassette/core/` returns no match, proving one definition remains rather than two that could diverge.

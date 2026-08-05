@@ -112,7 +112,7 @@ Watch the IPv6 round-trip: `http://[::1]:8126` must survive normalization and co
 ## Verify
 
 - [ ] FR#1: A unit test asserts the precedence `server_url_flag` > `config.cli.server_url` > derived-from-`web_api`, including that a blank `config.cli.server_url` falls through to the derived branch.
-- [ ] FR#2: A unit test asserts `https://example.com/hassette` resolves to a `base_url` that, joined with `/api/health` by `httpx2`, yields `https://example.com/hassette/api/health`; a second asserts `http://[::1]:8126` round-trips with brackets intact.
+- [ ] FR#2: A unit test asserts `https://example.com/hassette` resolves to a `base_url` that, joined with `/api/health` by `httpx2`, yields `https://example.com/hassette/api/health`; a second asserts `http://[::1]:8126` round-trips with brackets intact in `base_url` and yields `is_loopback=True`.
 - [ ] FR#3: A unit test asserts a scheme-less URL raises the missing-scheme exception with the offending value in the message.
 - [ ] FR#4: A unit test asserts a URL whose path ends in `/api` raises, and that the message names the corrected form.
 - [ ] FR#5: A unit test asserts `https://example.com/hassette/` and `https://example.com/hassette` produce identical `base_url` values.

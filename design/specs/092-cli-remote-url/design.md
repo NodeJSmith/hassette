@@ -125,13 +125,13 @@ Both are correctly scoped to the local instance; the CLI reads them as though th
 ## Acceptance Criteria
 
 - **AC#1** `uv run pytest tests/unit/cli/test_client.py` passes, with the four existing `TestBaseUrl` tests unmodified. (FR#1)
-- **AC#2** A unit test constructs a client with `--server-url https://example.com/hassette` and asserts a request to `/api/health` produces `https://example.com/hassette/api/health`. (FR#2)
+- **AC#2** A unit test resolves `https://example.com/hassette` through `resolve_server_target` and asserts the resulting `base_url`, joined with `/api/health` by `httpx2`, produces `https://example.com/hassette/api/health`. The assertion sits at the resolver layer because that is where the composition is decided; no HTTP client is needed to prove it. (FR#2)
 - **AC#3** Unit tests assert that a scheme-less URL and a URL ending in `/api` each raise a usage error whose message names the corrected form. (FR#3, FR#4)
 - **AC#4** A unit test asserts `https://example.com/hassette/` and `https://example.com/hassette` produce identical base URLs. (FR#5)
 - **AC#5** A unit test asserts `httpx.Client` receives `verify=False` when `cli.verify_ssl` is false and `verify=True` by default. (FR#6)
 - **AC#6** Unit tests cover each step of the credential precedence chain, including `--token-file` overriding `cli.auth_token` and `cli.auth_token` overriding `web_api.auth_token`. (FR#7)
 - **AC#7** Unit tests assert no `authorization` header is sent when the target is non-loopback and the only available credential is `<data_dir>/.web_api_token`, and separately when it is `web_api.auth_token`. A third asserts `cli.auth_token` *is* sent to a non-loopback target. A fourth iterates `CREDENTIAL_SOURCES` and asserts every entry declares a `scope` of `cli` or `server`, so a source added later cannot omit the classification. (FR#8)
-- **AC#8** Unit tests assert `localhost`, `LOCALHOST`, `127.0.0.1`, `127.0.0.53`, `::1`, `[::1]`, and `::ffff:127.0.0.1` classify as loopback while `192.168.1.5`, `example.com`, and `0.0.0.0` do not, with no DNS lookup performed. The same table runs against the shared helper and against `WebApiService`'s use of it, so the two can never diverge. (FR#9)
+- **AC#8** Unit tests assert `localhost`, `LOCALHOST`, `127.0.0.1`, `127.0.0.53`, `::1`, `[::1]`, and `::ffff:127.0.0.1` classify as loopback while `192.168.1.5`, `example.com`, and `0.0.0.0` do not, with no DNS lookup performed. Non-divergence between the CLI and the server is guaranteed structurally rather than by a duplicated table: `grep -rn "_is_loopback_host" src/hassette/core/` returns no match, proving one definition remains and `WebApiService` calls the shared helper. (FR#9)
 - **AC#9** A unit test asserts a request is issued (transport receives it) for a non-loopback target with no credential. (FR#10)
 - **AC#10** A unit test asserts the 401 message for a suppressed-credential remote target names `--token-file`, `cli.token_file`, `HASSETTE__CLI__AUTH_TOKEN`, and `trusted_proxies`, and that the `trusted_proxies` mention is qualified as applying to the remote instance — asserted on the qualifying phrase, not on substring presence alone. (FR#11)
 - **AC#11** A unit test asserts a 302 response produces an error mentioning a redirect, forward auth, and a pointer to the reverse-proxy docs section. (FR#12)
@@ -334,6 +334,7 @@ Today's echoing is thinner than it looks. `_handle_network_error` does include t
 | `_resolve_cli_auth_token` (`client.py:48-84`) | `resolve_cli_auth_token()` in `cli/target.py` | Move and extend with the loopback gate; do not leave a shim in `client.py` |
 | `hassette run --base-url` / `-u` / `--url` (`commands/run.py:26`) | `--ha-url` / `-u` | Remove outright; no alias, no deprecation warning |
 | `_is_loopback_host` (`core/web_api_service.py:45-58`) + `_LOOPBACK_HOSTNAMES` (`:41`) | `is_loopback_host()` in `utils/net_utils.py` | Move, don't copy — `WebApiService` imports it from the new home; no local definition remains |
+| The duplicate-rather-than-cycle note in `web/auth.py:71` | A pointer to the shared `utils/net_utils.py` helper | Rewrite — that function is no longer an instance of accepted duplication, so citing it as one is now misleading |
 | "Remote instances" tip (`docs/pages/cli/configuration.md:18-30`) | New remote-target section | Rewrite — the `HASSETTE__WEB_API__HOST` recipe it documents is the antipattern this change fixes |
 
 ## Convention Examples
@@ -497,6 +498,7 @@ Per `.claude/rules/doc-rules.md`, run `doc-persona-review` and `doc-accuracy-rev
 | `src/hassette/exceptions.py` | modify | Two `FatalError` subclasses for server-URL validation |
 | `src/hassette/utils/net_utils.py` | create | `is_loopback_host()` moved out of `core/web_api_service.py` so CLI and server share one classifier |
 | `src/hassette/core/web_api_service.py` | modify | Import `is_loopback_host` from utils; drop the local `_is_loopback_host` and `_LOOPBACK_HOSTNAMES` |
+| `src/hassette/web/auth.py` | modify | Docstring at `:71` cross-references the old location of `_is_loopback_host`; repoint it and drop the duplicate-rather-than-cycle framing |
 | `src/hassette/cli/target.py` | create | `ServerTarget`, `resolve_server_target`, `resolve_cli_auth_token` |
 | `src/hassette/cli/client.py` | modify | Consume the resolver; add `verify=`; 3xx and suppressed-token error branches; remove inline URL build and `_resolve_cli_auth_token` |
 | `src/hassette/cli/context.py` | modify | Add `server_url`, `token_file`, `verify_ssl` to `CLIContext` |

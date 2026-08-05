@@ -2,7 +2,7 @@
 task_id: "T04"
 title: "Wire global flags, CLIContext, and the HTTP client"
 status: "planned"
-depends_on: ["T03"]
+depends_on: ["T03", "T05"]
 implements: ["FR#6", "FR#10", "FR#11", "FR#12", "FR#14", "FR#16", "FR#17", "AC#1", "AC#5", "AC#9", "AC#10", "AC#11", "AC#17", "AC#18", "AC#20"]
 ---
 
@@ -18,6 +18,8 @@ Connect the resolver from T03 to the actual CLI: three new global flags, three n
 - modify: `tests/unit/cli/conftest.py`
 - modify: `tests/unit/cli/test_client.py`
 - modify: `tests/unit/cli/test_context.py`
+- modify: `tests/unit/cli/test_parse_args.py`
+- read: `tests/unit/cli/CLAUDE.md`
 - read: `src/hassette/cli/target.py`
 - read: `src/hassette/core/web_api_service.py`
 - read: `design/specs/092-cli-remote-url/design.md`
@@ -72,6 +74,8 @@ Catch the validation exceptions T03 raises (missing scheme, `/api` suffix, unrea
 
 `tests/unit/cli/test_context.py` asserts `CLIContext()` defaults for the two existing fields; add assertions for the three new ones alongside them.
 
+**Wiring tests are mandatory here.** `tests/unit/cli/CLAUDE.md` requires a `parse_args` test for every new flag, and documents why: a `--since 7d` bug shipped because every test called the command function directly with pre-converted values, so the cyclopts layer bridging user input to the function was never executed. Three new global flags is exactly that risk. Add cases to `tests/unit/cli/test_parse_args.py` using `app.meta.parse_args(argv)` (the global-flag form — `app.parse_args` is for subcommand flags), extending the existing `TestGlobalFlagWiring` class rather than starting a new one. Cover `--server-url`, `-s`, `--token-file`, and `--no-verify-ssl`, asserting each lands on the resulting `CLIContext` with the right type — including that `--no-verify-ssl` yields `verify_ssl=False` while its absence yields `None`, not `True`.
+
 ## Focus
 
 **`TestBaseUrl`'s four tests in `tests/unit/cli/test_client.py` must pass completely unmodified.** They are the regression signal that the zero-config local path is byte-identical. If they need editing, the derived fallback in T03 is wrong — fix that rather than the tests.
@@ -80,7 +84,7 @@ Catch the validation exceptions T03 raises (missing scheme, `/api` suffix, unrea
 
 `tests/unit/cli/test_context.py:16-19` (`TestCLIContextDefaults.test_defaults`) currently asserts exactly two fields — it will not fail when fields are added, but leaving it unextended means the new defaults are untested. This was flagged by the plan's reverse-dependency gap check.
 
-Seven command modules import `make_client` (`app.py`, `job.py`, `listener.py`, `log.py`, `misc.py`, `status.py`) — none should need changes, since the signature `make_client(ctx)` is unchanged. Confirm with `grep -rn "make_client" src/hassette/cli/commands/` after the change.
+Six command modules import `make_client` (`app.py`, `job.py`, `listener.py`, `log.py`, `misc.py`, `status.py`) — none should need changes, since the signature `make_client(ctx)` is unchanged. Confirm with `grep -rn "make_client" src/hassette/cli/commands/` after the change.
 
 `tests/system/test_cli_smoke.py:67` hardcodes `f"http://127.0.0.1:{port}"` and must keep passing untouched — it exercises the derived path against a real server.
 
@@ -95,7 +99,7 @@ Credential assertions read the captured request header, never an internal attrib
 - [ ] FR#14: A unit test asserts a network error and an HTTP error against `https://example.com/hassette` each report that full base URL.
 - [ ] FR#16: Unit tests assert the target appears on a successful non-loopback request, is absent on a successful loopback request, and appears on a 401 against a non-loopback target **without** `--debug`.
 - [ ] FR#17: A unit test asserts a config-sourced `verify_ssl=false` emits the warning while the `--no-verify-ssl` flag does not.
-- [ ] AC#1: `uv run pytest tests/unit/cli/test_client.py -v` passes with `TestBaseUrl`'s four tests unmodified (`git diff` shows no change to that class).
+- [ ] AC#1: `uv run pytest tests/unit/cli/test_client.py tests/unit/cli/test_parse_args.py tests/unit/cli/test_context.py -v` passes, with `TestBaseUrl`'s four tests unmodified (`git diff` shows no change to that class) and new `app.meta.parse_args` cases covering `--server-url`, `-s`, `--token-file`, and `--no-verify-ssl`.
 - [ ] AC#5: The `verify=` assertions from FR#6 pass.
 - [ ] AC#9: The request-issued assertion from FR#10 passes.
 - [ ] AC#10: The 401 message assertion from FR#11 passes, asserted on the qualifying phrase rather than substring presence alone.
