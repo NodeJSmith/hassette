@@ -9,6 +9,7 @@ a genuine uvicorn server on a free port instead.
 import socket
 import threading
 import time
+from collections.abc import Callable
 
 import uvicorn
 from fastapi import FastAPI
@@ -29,6 +30,7 @@ def start_uvicorn_server(
     *,
     ws: str = "none",
     timeout_graceful_shutdown: int | None = None,
+    on_startup: Callable[[], None] | None = None,
 ) -> tuple[uvicorn.Server, threading.Thread, int]:
     """Start `app` under uvicorn in a daemon thread; block until it accepts connections.
 
@@ -39,6 +41,13 @@ def start_uvicorn_server(
 
     `timeout_graceful_shutdown` bounds how long uvicorn waits for in-flight connections
     (e.g. a browser-held WebSocket) to close during shutdown before it cancels them.
+
+    `on_startup`, if given, is called synchronously from inside uvicorn's own
+    `server.startup()` coroutine, once the server is up but before this function
+    returns. It runs on the server's event loop in the server's thread, so a caller
+    that needs a live reference to that loop (e.g. to schedule work on it later via
+    `asyncio.run_coroutine_threadsafe`) can call `asyncio.get_running_loop()` from
+    within the hook.
 
     Returns `(server, thread, port)`. Caller tears down via `stop_uvicorn_server`.
     """
@@ -52,6 +61,15 @@ def start_uvicorn_server(
         timeout_graceful_shutdown=timeout_graceful_shutdown,
     )
     server = uvicorn.Server(config)
+
+    if on_startup is not None:
+        original_startup = server.startup
+
+        async def _startup_and_hook(sockets=None):
+            await original_startup(sockets=sockets)
+            on_startup()
+
+        server.startup = _startup_and_hook
 
     thread = threading.Thread(target=server.run, daemon=True)
     thread.start()
