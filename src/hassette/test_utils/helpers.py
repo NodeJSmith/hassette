@@ -3,11 +3,11 @@ import json
 import socket
 import textwrap
 from collections.abc import Mapping, Sequence
-from contextlib import suppress
+from contextlib import AbstractContextManager, suppress
 from logging import Logger, getLogger
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import tomli_w
@@ -523,11 +523,35 @@ def make_addrinfo(ip: str) -> tuple[Any, ...]:
 
     Shared by ``trusted_proxies`` hostname-resolution tests (``tests/unit/web/test_auth.py``,
     ``tests/integration/web_api/test_auth.py``, ``tests/unit/core/test_web_api_service.py``) that
-    patch ``socket.getaddrinfo`` and need a fixed-shape stdlib stand-in for its return value.
+    patch the event loop's resolver (see :func:`patch_loop_getaddrinfo`) and need a fixed-shape
+    stdlib stand-in for its return value — ``loop.getaddrinfo`` returns the identical tuple shape
+    as ``socket.getaddrinfo``.
     """
     if ":" in ip:
         return (socket.AF_INET6, socket.SOCK_STREAM, 6, "", (ip, 0, 0, 0))
     return (socket.AF_INET, socket.SOCK_STREAM, 6, "", (ip, 0))
+
+
+def patch_loop_getaddrinfo(
+    *, return_value: list[tuple[Any, ...]] | None = None, side_effect: BaseException | None = None
+) -> AbstractContextManager[AsyncMock]:
+    """Patch the running event loop's DNS resolver for ``trusted_proxies`` hostname-resolution tests.
+
+    ``hassette.web.auth._resolve_hostname`` resolves hostnames via
+    ``asyncio.get_running_loop().getaddrinfo(...)`` (bounded by an explicit timeout) rather than
+    calling the blocking ``socket.getaddrinfo`` directly, so tests must patch
+    ``asyncio.BaseEventLoop.getaddrinfo`` — the coroutine method looked up on whatever concrete
+    loop class is running — with an async replacement, not the synchronous stdlib call. Shared by
+    ``tests/unit/web/test_auth.py``, ``tests/integration/web_api/test_auth.py``, and
+    ``tests/unit/core/test_web_api_service.py``.
+
+    Pass exactly one of ``return_value`` (a list of :func:`make_addrinfo`-shaped tuples, the
+    success case) or ``side_effect`` (an exception instance to raise, e.g.
+    ``socket.gaierror("no such host")``, the failure case).
+    """
+    if side_effect is not None:
+        return patch("asyncio.BaseEventLoop.getaddrinfo", new_callable=AsyncMock, side_effect=side_effect)
+    return patch("asyncio.BaseEventLoop.getaddrinfo", new_callable=AsyncMock, return_value=return_value)
 
 
 def create_listener(

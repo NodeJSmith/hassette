@@ -12,16 +12,14 @@ from hassette.core.core import Hassette
 from hassette.core.scheduler_service import SchedulerService
 from hassette.core.web_api_service import WebApiService
 from hassette.exceptions import FatalError
-from hassette.test_utils import make_addrinfo
+from hassette.test_utils import make_addrinfo, patch_loop_getaddrinfo
 from hassette.web.auth import EMPTY_TRUSTED_PROXY_SET, TOKEN_FILENAME
+from tests.conftest import TestConfig as HassetteTestConfig  # aliased so pytest does not collect it
 
 
 def _make_web_api_service(unused_tcp_port_factory, tmp_path, **web_api_overrides: Any) -> WebApiService:
-    # lazy-import: a module-level import makes pytest try to collect TestConfig as a test class
-    from tests.conftest import TestConfig
-
     web_api_config = {"port": unused_tcp_port_factory(), **web_api_overrides}
-    config = TestConfig(web_api=web_api_config, data_dir=tmp_path)
+    config = HassetteTestConfig(web_api=web_api_config, data_dir=tmp_path)
     hassette = Hassette(config)
 
     # WebApiService.__init__ creates its Scheduler child (self.add_child(Scheduler)), which
@@ -282,7 +280,7 @@ class TestLiveAppTrustedProxyRefresh:
             unused_tcp_port_factory, tmp_path, host="127.0.0.1", trusted_proxies=("proxy.internal",)
         )
 
-        with patch("hassette.web.auth.socket.getaddrinfo", return_value=[make_addrinfo("172.30.32.2")]):
+        with patch_loop_getaddrinfo(return_value=[make_addrinfo("172.30.32.2")]):
             await service.on_initialize()
 
         # Simulate serve() building the live FastAPI app, without actually binding a socket.
@@ -303,7 +301,7 @@ class TestLiveAppTrustedProxyRefresh:
 
         # Periodic refresh tick: the sibling proxy container was recreated with a new IP (same
         # hostname) -- exactly as Scheduler.run_every() would observe on its next run.
-        with patch("hassette.web.auth.socket.getaddrinfo", return_value=[make_addrinfo("172.30.32.9")]):
+        with patch_loop_getaddrinfo(return_value=[make_addrinfo("172.30.32.9")]):
             await service._refresh_trusted_proxies()
 
         # The refresh must be visible on the SAME already-serving app instance -- no rebuild.

@@ -127,7 +127,7 @@ class WebApiService(Service):
         if web_api_config.auth_enabled:
             self._resolved_auth_token = resolve_auth_token(web_api_config, self.hassette.config.data_dir)
 
-            self._trusted_proxies = resolve_trusted_proxies(web_api_config.trusted_proxies)
+            self._trusted_proxies = await resolve_trusted_proxies(web_api_config.trusted_proxies)
             await self.scheduler.run_every(
                 self._refresh_trusted_proxies,
                 minutes=_TRUSTED_PROXY_REFRESH_INTERVAL_MINUTES,
@@ -155,7 +155,7 @@ class WebApiService(Service):
         against the already-serving app observes the refresh immediately, not just a future
         restart.
         """
-        refreshed = refresh_trusted_proxies(self._trusted_proxies)
+        refreshed = await refresh_trusted_proxies(self._trusted_proxies)
         self._trusted_proxies = refreshed
         if self._app is not None:
             self._app.state.trusted_proxies = refreshed

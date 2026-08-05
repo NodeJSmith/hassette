@@ -19,12 +19,12 @@ See ``design/specs/091-web-api-auth/design.md`` (Architecture → Credential mod
 Cookie ``Secure`` flag) for the full mechanism this implements.
 """
 
+import asyncio
 import hashlib
 import hmac
 import ipaddress
 import os
 import secrets
-import socket
 from contextlib import suppress
 from dataclasses import dataclass
 from logging import getLogger
@@ -60,6 +60,18 @@ WS_POLICY_VIOLATION_CLOSE_CODE = 1008
 pre-``accept()`` rejection. See :func:`authorize_ws` and design.md's WebSocket auth section for why
 this code is not literally observed by the client on this project's uvicorn backend."""
 
+_BIND_ALL_SUBSTITUTIONS: dict[str, str] = {
+    "0.0.0.0": "127.0.0.1",
+    "::": "::1",
+}
+"""Bind-all addresses that are not dialable as a login URL host, mapped to a loopback equivalent.
+
+Duplicates ``cli/client.py``'s identically-named ``_BIND_ALL_SUBSTITUTIONS`` rather than importing
+it: ``cli/client.py`` already imports :data:`TOKEN_FILENAME` from this module, so importing the
+mapping back here would form an import cycle. ``core/web_api_service.py``'s ``_is_loopback_host``
+takes the same duplicate-rather-than-cycle tradeoff for the same reason.
+"""
+
 _ENTIRE_ADDRESS_SPACE = (ipaddress.ip_network("0.0.0.0/0"), ipaddress.ip_network("::/0"))
 """The two CIDRs that match every possible peer address.
 
@@ -69,6 +81,29 @@ disable authentication for every peer. This is a narrow, exact-match rejection o
 literal networks, not a general "is this CIDR suspiciously broad" heuristic; a ``/8`` or ``/16``
 entry is a legitimate (if unusual) operator choice and is not rejected.
 """
+
+_DNS_RESOLVE_TIMEOUT_SECONDS = 5
+"""Upper bound on a single ``trusted_proxies`` hostname DNS resolution.
+
+``_resolve_hostname`` is reachable from a recurring ``Scheduler.run_every()`` job
+(:func:`refresh_trusted_proxies`, invoked every 5 minutes from
+``WebApiService._refresh_trusted_proxies``) as well as startup (:func:`resolve_trusted_proxies`).
+Without an explicit deadline, a slow or unreachable resolver would leave the awaiting coroutine
+(and, on the refresh path, that scheduler tick) hanging for however long the OS resolver takes to
+give up — this bounds the wait instead of trusting the OS default.
+"""
+
+
+def _dialable_host(host: str) -> str:
+    """Substitute a bind-all address for a dialable host and bracket IPv6 for use in a URL.
+
+    Used only to build the login URL logged on the generate branch — ``config.host`` itself is
+    left untouched, since it still needs to be the literal bind-all value passed to uvicorn.
+    """
+    substituted = _BIND_ALL_SUBSTITUTIONS.get(host, host)
+    if ":" in substituted:
+        return f"[{substituted}]"
+    return substituted
 
 
 def resolve_auth_token(config: WebApiConfig, data_dir: Path) -> str:
@@ -126,7 +161,7 @@ def resolve_auth_token(config: WebApiConfig, data_dir: Path) -> str:
 
     token = secrets.token_urlsafe(TOKEN_BYTE_LENGTH)
     _write_token_atomic(token_path, token)
-    login_url = f"http://{config.host}:{config.port}"
+    login_url = f"http://{_dialable_host(config.host)}:{config.port}"
     LOGGER.info(
         "Generated new web API auth_token, written to %s. Open %s to log in.",
         token_path,
@@ -281,15 +316,27 @@ def _parse_literal(entry: str) -> ipaddress.IPv4Network | ipaddress.IPv6Network 
     return network
 
 
-def _resolve_hostname(hostname: str) -> frozenset[ipaddress.IPv4Network | ipaddress.IPv6Network]:
-    """Resolve ``hostname`` via ``socket.getaddrinfo``, returning each address as a /32 or /128 network.
+async def _resolve_hostname(hostname: str) -> frozenset[ipaddress.IPv4Network | ipaddress.IPv6Network]:
+    """Resolve ``hostname`` via the running event loop's resolver, returning each address as a /32 or /128 network.
+
+    Uses ``loop.getaddrinfo`` rather than calling ``socket.getaddrinfo`` directly — the latter is a
+    blocking call, and this function runs on the event loop thread from both call sites: startup
+    (:func:`resolve_trusted_proxies`, from ``WebApiService.on_initialize()``) and the periodic
+    refresh job (:func:`refresh_trusted_proxies`, an ``async def`` scheduler job body). A blocking
+    resolver call there would stall the whole event loop — the web API, the Home Assistant
+    WebSocket, and every other scheduled job — for as long as DNS takes to respond or time out.
+    ``loop.getaddrinfo`` offloads the actual blocking call to a worker thread, and the wait is
+    additionally bounded by :data:`_DNS_RESOLVE_TIMEOUT_SECONDS` so a hung resolver fails fast
+    instead of blocking this coroutine indefinitely.
 
     Raises:
-        TrustedProxyConfigError: DNS resolution failed, or resolved to zero addresses.
+        TrustedProxyConfigError: DNS resolution failed, timed out, or resolved to zero addresses.
     """
+    loop = asyncio.get_running_loop()
     try:
-        infos = socket.getaddrinfo(hostname, None)
-    except OSError as exc:
+        async with asyncio.timeout(_DNS_RESOLVE_TIMEOUT_SECONDS):
+            infos = await loop.getaddrinfo(hostname, None)
+    except (OSError, TimeoutError) as exc:
         raise TrustedProxyConfigError(
             f"trusted_proxies entry {hostname!r} is not a valid IP/CIDR literal and could not be "
             f"resolved as a hostname: {exc}"
@@ -301,7 +348,7 @@ def _resolve_hostname(hostname: str) -> frozenset[ipaddress.IPv4Network | ipaddr
     return frozenset(networks)
 
 
-def resolve_trusted_proxies(entries: tuple[str, ...]) -> TrustedProxySet:
+async def resolve_trusted_proxies(entries: tuple[str, ...]) -> TrustedProxySet:
     """Parse and resolve every ``trusted_proxies`` config entry.
 
     Called once at startup (``WebApiService.on_initialize()``). Each entry is tried as an
@@ -328,11 +375,11 @@ def resolve_trusted_proxies(entries: tuple[str, ...]) -> TrustedProxySet:
         if network is not None:
             literal_networks.add(network)
             continue
-        hostname_entries[entry] = _resolve_hostname(entry)
+        hostname_entries[entry] = await _resolve_hostname(entry)
     return TrustedProxySet(literal_networks=frozenset(literal_networks), hostname_entries=hostname_entries)
 
 
-def refresh_trusted_proxies(current: TrustedProxySet) -> TrustedProxySet:
+async def refresh_trusted_proxies(current: TrustedProxySet) -> TrustedProxySet:
     """Re-resolve every hostname entry in ``current``; literal entries are unchanged.
 
     Called periodically (``Scheduler.run_every()``) so a sibling proxy container recreated
@@ -353,7 +400,7 @@ def refresh_trusted_proxies(current: TrustedProxySet) -> TrustedProxySet:
     updated: dict[str, frozenset[ipaddress.IPv4Network | ipaddress.IPv6Network]] = {}
     for hostname, previous_networks in current.hostname_entries.items():
         try:
-            updated[hostname] = _resolve_hostname(hostname)
+            updated[hostname] = await _resolve_hostname(hostname)
         except TrustedProxyConfigError:
             LOGGER.warning(
                 "Could not refresh trusted_proxies hostname %r; keeping last-known-good address(es)",

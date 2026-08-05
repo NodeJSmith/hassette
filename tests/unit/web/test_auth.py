@@ -9,13 +9,14 @@ cookie mint/verify with TTL enforcement, the cookie ``Secure``-flag decision (re
 trusted-peer matcher), and the sliding-renewal predicate.
 """
 
+import asyncio
 import logging
 import re
 import socket
 import stat
 from pathlib import Path
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from pydantic import SecretStr
@@ -23,7 +24,7 @@ from starlette.datastructures import Headers
 
 from hassette.config.models import WebApiConfig
 from hassette.exceptions import AuthTokenWriteError, TrustedProxyConfigError
-from hassette.test_utils import make_addrinfo
+from hassette.test_utils import make_addrinfo, patch_loop_getaddrinfo
 from hassette.web.auth import (
     TOKEN_FILENAME,
     check_bearer_token,
@@ -121,6 +122,35 @@ class TestResolveAuthTokenGenerated:
         generated_messages = [m for m in messages if "generated" in m.lower()]
         assert generated_messages, messages
         assert any("http://127.0.0.1:8126" in m for m in generated_messages), generated_messages
+
+    @pytest.mark.parametrize(
+        ("configured_host", "expected_host_in_url"),
+        [
+            ("0.0.0.0", "127.0.0.1"),
+            ("::", "[::1]"),
+        ],
+    )
+    def test_bind_all_host_logs_dialable_login_url(
+        self,
+        tmp_path: Path,
+        caplog: pytest.LogCaptureFixture,
+        configured_host: str,
+        expected_host_in_url: str,
+    ) -> None:
+        """A bind-all ``host`` (0.0.0.0/::) must not appear verbatim in the logged login URL —
+        an operator can't dial it. Regression test for the substitution `resolve_auth_token`
+        applies via `_dialable_host`, mirroring `cli/client.py`'s `_BIND_ALL_SUBSTITUTIONS`.
+        """
+        config = _make_config(host=configured_host, port=8126)
+
+        with caplog.at_level("INFO", logger="hassette.web.auth"):
+            resolve_auth_token(config, tmp_path)
+
+        messages = [r.message for r in caplog.records]
+        generated_messages = [m for m in messages if "generated" in m.lower()]
+        assert generated_messages, messages
+        assert any(f"http://{expected_host_in_url}:8126" in m for m in generated_messages), generated_messages
+        assert not any(f"http://{configured_host}:8126" in m for m in generated_messages), generated_messages
 
     def test_no_leftover_temp_file(self, tmp_path: Path) -> None:
         config = _make_config()
@@ -223,100 +253,118 @@ class TestResolveAuthTokenDistinctLogMessages:
 
 
 class TestResolveTrustedProxiesLiteral:
-    def test_ip_entry_matches_only_that_ip(self) -> None:
-        trusted = resolve_trusted_proxies(("192.168.1.10",))
+    async def test_ip_entry_matches_only_that_ip(self) -> None:
+        trusted = await resolve_trusted_proxies(("192.168.1.10",))
 
         assert is_trusted_peer("192.168.1.10", trusted) is True
         assert is_trusted_peer("192.168.1.11", trusted) is False
 
-    def test_cidr_entry_matches_any_address_in_range(self) -> None:
-        trusted = resolve_trusted_proxies(("10.0.0.0/24",))
+    async def test_cidr_entry_matches_any_address_in_range(self) -> None:
+        trusted = await resolve_trusted_proxies(("10.0.0.0/24",))
 
         assert is_trusted_peer("10.0.0.1", trusted) is True
         assert is_trusted_peer("10.0.0.254", trusted) is True
         assert is_trusted_peer("10.0.1.1", trusted) is False
 
-    def test_malformed_entry_raises_at_parse_time(self) -> None:
+    async def test_malformed_entry_raises_at_parse_time(self) -> None:
         # Not a valid IP/CIDR literal, and DNS resolution also fails for it — this is the
         # "neither a literal nor a resolvable hostname" case that must fail loudly rather
         # than silently skip the bad entry.
         with (
-            patch("hassette.web.auth.socket.getaddrinfo", side_effect=socket.gaierror("not found")),
+            patch_loop_getaddrinfo(side_effect=socket.gaierror("not found")),
             pytest.raises(TrustedProxyConfigError, match="not-a-valid-entry"),
         ):
-            resolve_trusted_proxies(("not-a-valid-entry!!!",))
+            await resolve_trusted_proxies(("not-a-valid-entry!!!",))
 
-    def test_non_matching_address_not_trusted_with_no_header_input(self) -> None:
+    async def test_non_matching_address_not_trusted_with_no_header_input(self) -> None:
         """The match function only ever sees an address string — there is no headers
         parameter through which a spoofed value could influence the result.
         """
-        trusted = resolve_trusted_proxies(("192.168.1.10",))
+        trusted = await resolve_trusted_proxies(("192.168.1.10",))
 
         assert is_trusted_peer("203.0.113.4", trusted) is False
 
 
 class TestResolveTrustedProxiesRejectsEntireAddressSpace:
-    def test_rejects_ipv4_entire_address_space(self) -> None:
+    async def test_rejects_ipv4_entire_address_space(self) -> None:
         with pytest.raises(TrustedProxyConfigError, match=re.escape("0.0.0.0/0")):
-            resolve_trusted_proxies(("0.0.0.0/0",))
+            await resolve_trusted_proxies(("0.0.0.0/0",))
 
-    def test_rejects_ipv6_entire_address_space(self) -> None:
+    async def test_rejects_ipv6_entire_address_space(self) -> None:
         with pytest.raises(TrustedProxyConfigError, match=re.escape("::/0")):
-            resolve_trusted_proxies(("::/0",))
+            await resolve_trusted_proxies(("::/0",))
 
-    def test_narrow_cidr_is_not_rejected(self) -> None:
+    async def test_narrow_cidr_is_not_rejected(self) -> None:
         """A /8 is a legitimate operator choice, not a broad-CIDR heuristic violation."""
-        trusted = resolve_trusted_proxies(("10.0.0.0/8",))
+        trusted = await resolve_trusted_proxies(("10.0.0.0/8",))
 
         assert is_trusted_peer("10.255.255.255", trusted) is True
 
 
 class TestResolveTrustedProxiesHostname:
-    def test_hostname_entry_resolves_and_matches_resolved_ip(self) -> None:
-        with patch("hassette.web.auth.socket.getaddrinfo", return_value=[make_addrinfo("172.30.32.2")]):
-            trusted = resolve_trusted_proxies(("proxy.internal",))
+    async def test_hostname_entry_resolves_and_matches_resolved_ip(self) -> None:
+        with patch_loop_getaddrinfo(return_value=[make_addrinfo("172.30.32.2")]):
+            trusted = await resolve_trusted_proxies(("proxy.internal",))
 
         assert is_trusted_peer("172.30.32.2", trusted) is True
         assert is_trusted_peer("172.30.32.3", trusted) is False
 
-    def test_hostname_resolution_failure_raises_at_parse_time(self) -> None:
+    async def test_hostname_resolution_failure_raises_at_parse_time(self) -> None:
         with (
-            patch("hassette.web.auth.socket.getaddrinfo", side_effect=socket.gaierror("no such host")),
+            patch_loop_getaddrinfo(side_effect=socket.gaierror("no such host")),
             pytest.raises(TrustedProxyConfigError, match=re.escape("proxy.internal")),
         ):
-            resolve_trusted_proxies(("proxy.internal",))
+            await resolve_trusted_proxies(("proxy.internal",))
+
+    async def test_resolution_exceeding_timeout_raises_trusted_proxy_config_error(self) -> None:
+        """A resolver that never returns must not hang ``_resolve_hostname`` forever -- the
+        call is bounded by ``_DNS_RESOLVE_TIMEOUT_SECONDS`` and a timeout surfaces as the same
+        ``TrustedProxyConfigError`` any other resolution failure raises, not an unhandled
+        ``TimeoutError``.
+        """
+
+        async def hang(*_args: object, **_kwargs: object) -> list[tuple[Any, ...]]:
+            await asyncio.sleep(10)
+            return [make_addrinfo("172.30.32.2")]
+
+        with (
+            patch("hassette.web.auth._DNS_RESOLVE_TIMEOUT_SECONDS", 0.01),
+            patch("asyncio.BaseEventLoop.getaddrinfo", new_callable=AsyncMock, side_effect=hang),
+            pytest.raises(TrustedProxyConfigError, match=re.escape("proxy.internal")),
+        ):
+            await resolve_trusted_proxies(("proxy.internal",))
 
 
 class TestRefreshTrustedProxies:
-    def test_changed_dns_response_updates_trusted_set(self) -> None:
-        """Simulated periodic-refresh tick: two successive ``socket.getaddrinfo`` results,
-        second call's IP becomes trusted, first call's IP is no longer trusted.
+    async def test_changed_dns_response_updates_trusted_set(self) -> None:
+        """Simulated periodic-refresh tick: two successive resolver results, second call's IP
+        becomes trusted, first call's IP is no longer trusted.
         """
-        with patch("hassette.web.auth.socket.getaddrinfo", return_value=[make_addrinfo("172.30.32.2")]):
-            trusted = resolve_trusted_proxies(("proxy.internal",))
+        with patch_loop_getaddrinfo(return_value=[make_addrinfo("172.30.32.2")]):
+            trusted = await resolve_trusted_proxies(("proxy.internal",))
         assert is_trusted_peer("172.30.32.2", trusted) is True
 
-        with patch("hassette.web.auth.socket.getaddrinfo", return_value=[make_addrinfo("172.30.32.9")]):
-            refreshed = refresh_trusted_proxies(trusted)
+        with patch_loop_getaddrinfo(return_value=[make_addrinfo("172.30.32.9")]):
+            refreshed = await refresh_trusted_proxies(trusted)
 
         assert is_trusted_peer("172.30.32.9", refreshed) is True
         assert is_trusted_peer("172.30.32.2", refreshed) is False
 
-    def test_transient_refresh_failure_keeps_last_known_good_address(self) -> None:
-        with patch("hassette.web.auth.socket.getaddrinfo", return_value=[make_addrinfo("172.30.32.2")]):
-            trusted = resolve_trusted_proxies(("proxy.internal",))
+    async def test_transient_refresh_failure_keeps_last_known_good_address(self) -> None:
+        with patch_loop_getaddrinfo(return_value=[make_addrinfo("172.30.32.2")]):
+            trusted = await resolve_trusted_proxies(("proxy.internal",))
 
-        with patch("hassette.web.auth.socket.getaddrinfo", side_effect=socket.gaierror("temporary failure")):
-            refreshed = refresh_trusted_proxies(trusted)
+        with patch_loop_getaddrinfo(side_effect=socket.gaierror("temporary failure")):
+            refreshed = await refresh_trusted_proxies(trusted)
 
         # The stale-but-last-known-good address is still trusted — a flaky DNS blip must not
         # lock out the proxy.
         assert is_trusted_peer("172.30.32.2", refreshed) is True
 
-    def test_refresh_does_not_affect_literal_entries(self) -> None:
-        trusted = resolve_trusted_proxies(("192.168.1.10",))
+    async def test_refresh_does_not_affect_literal_entries(self) -> None:
+        trusted = await resolve_trusted_proxies(("192.168.1.10",))
 
-        refreshed = refresh_trusted_proxies(trusted)
+        refreshed = await refresh_trusted_proxies(trusted)
 
         assert refreshed.literal_networks == trusted.literal_networks
         assert is_trusted_peer("192.168.1.10", refreshed) is True
@@ -488,53 +536,53 @@ class TestSessionCookieTtl:
 
 
 class TestShouldSetSecureCookieFlag:
-    def test_trusted_peer_with_https_forwarded_proto_returns_true(self) -> None:
-        trusted = resolve_trusted_proxies(("192.168.1.10",))
+    async def test_trusted_peer_with_https_forwarded_proto_returns_true(self) -> None:
+        trusted = await resolve_trusted_proxies(("192.168.1.10",))
 
         assert should_set_secure_cookie_flag("192.168.1.10", "https", trusted) is True
 
-    def test_trusted_peer_with_http_forwarded_proto_returns_false(self) -> None:
-        trusted = resolve_trusted_proxies(("192.168.1.10",))
+    async def test_trusted_peer_with_http_forwarded_proto_returns_false(self) -> None:
+        trusted = await resolve_trusted_proxies(("192.168.1.10",))
 
         assert should_set_secure_cookie_flag("192.168.1.10", "http", trusted) is False
 
-    def test_trusted_peer_with_no_forwarded_proto_returns_false(self) -> None:
-        trusted = resolve_trusted_proxies(("192.168.1.10",))
+    async def test_trusted_peer_with_no_forwarded_proto_returns_false(self) -> None:
+        trusted = await resolve_trusted_proxies(("192.168.1.10",))
 
         assert should_set_secure_cookie_flag("192.168.1.10", None, trusted) is False
 
-    def test_untrusted_peer_returns_false_regardless_of_forwarded_proto(self) -> None:
-        trusted = resolve_trusted_proxies(("192.168.1.10",))
+    async def test_untrusted_peer_returns_false_regardless_of_forwarded_proto(self) -> None:
+        trusted = await resolve_trusted_proxies(("192.168.1.10",))
 
         assert should_set_secure_cookie_flag("203.0.113.4", "https", trusted) is False
 
-    def test_forwarded_proto_check_is_case_insensitive(self) -> None:
-        trusted = resolve_trusted_proxies(("192.168.1.10",))
+    async def test_forwarded_proto_check_is_case_insensitive(self) -> None:
+        trusted = await resolve_trusted_proxies(("192.168.1.10",))
 
         assert should_set_secure_cookie_flag("192.168.1.10", "HTTPS", trusted) is True
 
-    def test_none_client_address_returns_false(self) -> None:
-        trusted = resolve_trusted_proxies(("192.168.1.10",))
+    async def test_none_client_address_returns_false(self) -> None:
+        trusted = await resolve_trusted_proxies(("192.168.1.10",))
 
         assert should_set_secure_cookie_flag(None, "https", trusted) is False
 
-    def test_calls_is_trusted_peer_rather_than_reimplementing_peer_matching(self) -> None:
+    async def test_calls_is_trusted_peer_rather_than_reimplementing_peer_matching(self) -> None:
         """Confirm the Secure-flag decision delegates to the shared trusted-peer matcher
         instead of a second, parallel IP/CIDR comparison.
         """
-        trusted = resolve_trusted_proxies(("192.168.1.10",))
+        trusted = await resolve_trusted_proxies(("192.168.1.10",))
 
         with patch("hassette.web.auth.is_trusted_peer", return_value=True) as mock_is_trusted:
             should_set_secure_cookie_flag("203.0.113.4", "https", trusted)
 
         mock_is_trusted.assert_called_once_with("203.0.113.4", trusted)
 
-    def test_untrusted_peer_forwarded_proto_header_value_never_consulted(self) -> None:
+    async def test_untrusted_peer_forwarded_proto_header_value_never_consulted(self) -> None:
         """An untrusted peer's X-Forwarded-Proto must not even be read -- confirmed here by
         patching is_trusted_peer to return False and asserting the outcome is False regardless
         of how "convincing" the header value is.
         """
-        trusted = resolve_trusted_proxies(("192.168.1.10",))
+        trusted = await resolve_trusted_proxies(("192.168.1.10",))
 
         with patch("hassette.web.auth.is_trusted_peer", return_value=False):
             assert should_set_secure_cookie_flag("203.0.113.4", "https", trusted) is False
@@ -542,7 +590,8 @@ class TestShouldSetSecureCookieFlag:
 
 class TestShouldRenewSessionCookie:
     def test_freshly_minted_cookie_is_not_renewed(self) -> None:
-        assert should_renew_session_cookie(issued_at=1_000_000, session_ttl=3600) is False
+        with patch("hassette.web.auth._current_timestamp", return_value=1_000_000 + 5):
+            assert should_renew_session_cookie(issued_at=1_000_000, session_ttl=3600) is False
 
     def test_past_half_life_is_renewed(self) -> None:
         with patch("hassette.web.auth._current_timestamp", return_value=1_000_000 + 1801):
