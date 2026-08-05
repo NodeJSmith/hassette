@@ -2,7 +2,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 
-import { WS_PATH } from "../api/endpoints";
+import { ApiError } from "../api/client";
+import { getSystemStatus, WS_PATH } from "../api/endpoints";
 import type { WsServerMessage } from "../api/ws-types";
 import { validateWsMessage, WsValidationError } from "../api/ws-validator";
 import { appStatusKey, useAppStore } from "../state/store";
@@ -13,6 +14,7 @@ const INITIAL_BACKOFF_MS = 1_000;
 const BACKOFF_MULTIPLIER = 1.5;
 const HANDSHAKE_TIMEOUT_MS = 10_000;
 const DEFAULT_LOG_LEVEL = "INFO";
+const UNAUTHORIZED_STATUS = 401;
 
 function buildSubscribePayload(level: string): string {
   return JSON.stringify({
@@ -169,11 +171,13 @@ export function useWebSocket(): void {
         useAppStore.getState().setConnection(hasConnectedRef.current ? "reconnecting" : "disconnected");
 
         if (!openedThisAttempt) {
-          // Rejected handshake: closed before onopen ever fired for this attempt. On this
-          // backend a pre-accept auth rejection never delivers a real WS close(1008) frame —
-          // it manifests as onclose firing before onopen. Retrying won't help without a fresh
-          // credential, so stop the backoff loop and send the operator to log in instead.
-          navigateRef.current(LOGIN_PATH);
+          // Closed before onopen ever fired for this attempt. On this backend a pre-accept
+          // auth rejection never delivers a real WS close(1008) frame — it manifests exactly
+          // the same way as any other pre-open failure (no WS support on the server, a
+          // transient network blip, the server still starting up). The WS handshake itself
+          // carries no usable status here, so confirm via a real HTTP response before treating
+          // this as an auth rejection — a REST 401 is unambiguous where "closed early" is not.
+          void confirmAuthRejection();
           return;
         }
 
@@ -183,6 +187,21 @@ export function useWebSocket(): void {
       socket.onerror = () => {
         socket.close();
       };
+
+      async function confirmAuthRejection() {
+        try {
+          await getSystemStatus();
+        } catch (err) {
+          if (err instanceof ApiError && err.status === UNAUTHORIZED_STATUS) {
+            if (!unmounted) navigateRef.current(LOGIN_PATH);
+            return;
+          }
+        }
+        // Either the check succeeded (still authenticated — the WS failure wasn't an auth
+        // problem) or it failed for a non-auth reason (network error, 5xx). Neither confirms
+        // a rejected handshake, so retry like any other connection failure.
+        if (!unmounted) scheduleReconnect();
+      }
     }
 
     function scheduleReconnect() {
