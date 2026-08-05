@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 
+import { Button } from "@/components/ui/button";
+
 import { postSession } from "../api/client";
 import { useDocumentTitle } from "../hooks/use-document-title";
 import { HOME_PATH } from "../utils/app-routes";
@@ -12,11 +14,6 @@ const LABEL_CLASS = "text-sm font-medium text-foreground-secondary";
 const INPUT_CLASS =
   "w-full rounded-md border border-[var(--line-1)] bg-[var(--bg-sunken)] px-3 py-2 text-sm text-[var(--ink-1)] outline-none transition-colors placeholder:text-[var(--ink-4)] focus-visible:border-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--accent-soft)]";
 const ERROR_CLASS = "rounded-md border border-destructive bg-[var(--destructive-bg)] px-3 py-2 text-sm text-foreground";
-// A native <button> rather than the shadcn Button primitive — Button hardcodes type="button"
-// (see components/ui/button.tsx), which would break native Enter-to-submit behavior on the
-// only <form> in this codebase.
-const SUBMIT_CLASS =
-  "inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:pointer-events-none disabled:opacity-50";
 
 export function LoginPage() {
   useDocumentTitle("Log in");
@@ -68,9 +65,9 @@ export function LoginPage() {
             {error}
           </div>
         )}
-        <button type="submit" className={SUBMIT_CLASS} disabled={submitting || token.length === 0}>
+        <Button type="submit" disabled={submitting || token.length === 0}>
           {submitting ? "Signing in…" : "Sign in"}
-        </button>
+        </Button>
       </form>
     </div>
   );

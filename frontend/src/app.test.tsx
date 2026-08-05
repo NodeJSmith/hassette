@@ -48,7 +48,8 @@ vi.mock("wouter", async () => {
 // navigate function lets command palette tests assert on where it navigates.
 const wouter = await import("wouter");
 const mockNavigate = vi.fn();
-(wouter.useLocation as ReturnType<typeof vi.fn>).mockReturnValue(["/", mockNavigate]);
+const mockUseLocation = vi.mocked(wouter.useLocation);
+mockUseLocation.mockReturnValue(["/", mockNavigate]);
 
 vi.mock("./pages/apps", () => ({
   AppsPage: () => <div data-testid="apps-page">Apps</div>,
@@ -466,11 +467,11 @@ describe("App — command palette", () => {
 describe("App — /login route", () => {
   afterEach(() => {
     // Restore the module-wide default location used by every other describe block in this file.
-    (wouter.useLocation as ReturnType<typeof vi.fn>).mockReturnValue(["/", mockNavigate]);
+    mockUseLocation.mockReturnValue(["/", mockNavigate]);
   });
 
   it("renders LoginPage instead of the normal shell", () => {
-    (wouter.useLocation as ReturnType<typeof vi.fn>).mockReturnValue([LOGIN_PATH, vi.fn()]);
+    mockUseLocation.mockReturnValue([LOGIN_PATH, vi.fn()]);
 
     const { container } = render(<App />);
 
@@ -480,7 +481,7 @@ describe("App — /login route", () => {
   });
 
   it("does not mount WebSocketEffect or TelemetryHealthEffect", () => {
-    (wouter.useLocation as ReturnType<typeof vi.fn>).mockReturnValue([LOGIN_PATH, vi.fn()]);
+    mockUseLocation.mockReturnValue([LOGIN_PATH, vi.fn()]);
     vi.mocked(useWebSocket).mockClear();
     vi.mocked(useTelemetryHealth).mockClear();
 
@@ -494,7 +495,7 @@ describe("App — /login route", () => {
   });
 
   it("mounts WebSocketEffect and TelemetryHealthEffect on other routes", () => {
-    (wouter.useLocation as ReturnType<typeof vi.fn>).mockReturnValue(["/", vi.fn()]);
+    mockUseLocation.mockReturnValue(["/", vi.fn()]);
     vi.mocked(useWebSocket).mockClear();
     vi.mocked(useTelemetryHealth).mockClear();
 

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -37,8 +37,8 @@ describe("LoginPage", () => {
     await user.type(screen.getByTestId("login-token-input"), "correct-token");
     await user.click(screen.getByRole("button", { name: /sign in/i }));
 
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith(HOME_PATH));
     expect(receivedBody).toEqual({ token: "correct-token" });
-    expect(mockNavigate).toHaveBeenCalledWith(HOME_PATH);
   });
 
   it("renders a visible error and stays on the login view when the token is rejected", async () => {
@@ -68,7 +68,7 @@ describe("LoginPage", () => {
     );
     expect(mockNavigate).not.toHaveBeenCalled();
     // Submit button is re-enabled, not stuck on "Signing in…" forever.
-    const submitButton = screen.getByRole("button", { name: /sign in/i }) as HTMLButtonElement;
-    expect(submitButton.disabled).toBe(false);
+    const submitButton = screen.getByRole("button", { name: /sign in/i });
+    expect(submitButton.hasAttribute("disabled")).toBe(false);
   });
 });
