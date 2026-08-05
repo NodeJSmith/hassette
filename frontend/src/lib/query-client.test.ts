@@ -101,30 +101,35 @@ describe("createQueryClient", () => {
       });
     });
 
-    function triggerQueryError(error: Error) {
+    // Drives a real query through QueryCache.onError instead of invoking the callback
+    // directly — `retry: false` keeps the failure (and the resulting onError call)
+    // immediate, since retry behavior is already covered by the "retry function" tests
+    // above and isn't what's under test here.
+    async function triggerQueryError(error: Error) {
       const client = createQueryClient();
-      client.getQueryCache().config.onError?.(error, {
-        state: {},
-        queryKey: ["test"],
-        queryHash: "test",
-        options: {},
-      } as never);
+      await expect(
+        client.fetchQuery({
+          queryKey: ["test"],
+          queryFn: () => Promise.reject(error),
+          retry: false,
+        }),
+      ).rejects.toThrow(error);
     }
 
-    it("redirects to /login on a 401 ApiError", () => {
-      triggerQueryError(new ApiError(401, "Unauthorized"));
+    it("redirects to /login on a 401 ApiError", async () => {
+      await triggerQueryError(new ApiError(401, "Unauthorized"));
 
       expect(window.location.assign).toHaveBeenCalledWith(LOGIN_PATH);
     });
 
-    it("does not redirect on a non-401 ApiError", () => {
-      triggerQueryError(new ApiError(500, "Internal Server Error"));
+    it("does not redirect on a non-401 ApiError", async () => {
+      await triggerQueryError(new ApiError(500, "Internal Server Error"));
 
       expect(window.location.assign).not.toHaveBeenCalled();
     });
 
-    it("does not redirect on a non-ApiError error", () => {
-      triggerQueryError(new Error("network down"));
+    it("does not redirect on a non-ApiError error", async () => {
+      await triggerQueryError(new Error("network down"));
 
       expect(window.location.assign).not.toHaveBeenCalled();
     });
