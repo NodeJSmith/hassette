@@ -15,7 +15,7 @@ from hassette.config.models import WebApiConfig
 from hassette.test_utils.web_manifest_helpers import make_manifest_list_response, make_manifest_response
 from hassette.web.auth import TOKEN_FILENAME
 from hassette.web.models import AppInstanceResponse
-from tests.unit.cli.conftest import capture_stderr
+from tests.unit.cli.conftest import CLIClientFactory, capture_stderr
 
 HEALTH_ENDPOINT = "/api/health"
 
@@ -70,20 +70,6 @@ def url_capturing_transport() -> tuple[httpx.MockTransport, list[str]]:
         return httpx.Response(200, content=b"[]", headers={"content-type": "application/json"})
 
     return httpx.MockTransport(handler), captured_urls
-
-
-def header_capturing_transport(
-    status_code: int = 200, body: Any = None
-) -> tuple[httpx.MockTransport, list[httpx.Headers]]:
-    """Build a MockTransport that records every request's headers."""
-    captured_headers: list[httpx.Headers] = []
-    json_body = json.dumps(body if body is not None else {})
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        captured_headers.append(request.headers)
-        return httpx.Response(status_code, content=json_body.encode(), headers={"content-type": "application/json"})
-
-    return httpx.MockTransport(handler), captured_headers
 
 
 # Base URL construction & address substitution
@@ -518,14 +504,15 @@ class TestCredentialAttachment:
     """The CLI resolves a web API bearer token and attaches it to outgoing requests."""
 
     def test_config_auth_token_attaches_bearer_header(self, tmp_path: Path) -> None:
-        config = _make_config_for_auth(tmp_path, auth_token="config-token")
-        transport, captured_headers = header_capturing_transport()
-        client = HassetteCLIClient(config, json_mode=False, transport=transport)
+        factory = CLIClientFactory(_make_config_for_auth(tmp_path, auth_token="config-token"))
+        client, captured_headers = factory.build_capturing_headers()
         client.get(HEALTH_ENDPOINT, dict)
         assert captured_headers[0]["authorization"] == "Bearer config-token"
 
     def test_env_var_populates_config_and_attaches_bearer_header(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """The token arrives via pydantic-settings, not a hand-rolled os.environ read.
 
@@ -538,39 +525,35 @@ class TestCredentialAttachment:
         assert config.web_api.auth_token is not None
         assert config.web_api.auth_token.get_secret_value() == "env-token"
 
-        transport, captured_headers = header_capturing_transport()
-        client = HassetteCLIClient(config, json_mode=False, transport=transport)
+        factory = CLIClientFactory(config)
+        client, captured_headers = factory.build_capturing_headers()
         client.get(HEALTH_ENDPOINT, dict)
         assert captured_headers[0]["authorization"] == "Bearer env-token"
 
     def test_falls_back_to_token_file_when_config_value_absent(self, tmp_path: Path) -> None:
         (tmp_path / TOKEN_FILENAME).write_text("file-token", encoding="utf-8")
-        config = _make_config_for_auth(tmp_path)
-        transport, captured_headers = header_capturing_transport()
-        client = HassetteCLIClient(config, json_mode=False, transport=transport)
+        factory = CLIClientFactory(_make_config_for_auth(tmp_path))
+        client, captured_headers = factory.build_capturing_headers()
         client.get(HEALTH_ENDPOINT, dict)
         assert captured_headers[0]["authorization"] == "Bearer file-token"
 
     def test_config_value_takes_precedence_over_token_file(self, tmp_path: Path) -> None:
         (tmp_path / TOKEN_FILENAME).write_text("file-token", encoding="utf-8")
-        config = _make_config_for_auth(tmp_path, auth_token="config-token")
-        transport, captured_headers = header_capturing_transport()
-        client = HassetteCLIClient(config, json_mode=False, transport=transport)
+        factory = CLIClientFactory(_make_config_for_auth(tmp_path, auth_token="config-token"))
+        client, captured_headers = factory.build_capturing_headers()
         client.get(HEALTH_ENDPOINT, dict)
         assert captured_headers[0]["authorization"] == "Bearer config-token"
 
     def test_no_config_value_and_no_token_file_sends_no_authorization_header(self, tmp_path: Path) -> None:
-        config = _make_config_for_auth(tmp_path)
-        transport, captured_headers = header_capturing_transport()
-        client = HassetteCLIClient(config, json_mode=False, transport=transport)
+        factory = CLIClientFactory(_make_config_for_auth(tmp_path))
+        client, captured_headers = factory.build_capturing_headers()
         client.get(HEALTH_ENDPOINT, dict)
         assert "authorization" not in captured_headers[0]
 
     def test_empty_token_file_treated_as_no_token(self, tmp_path: Path) -> None:
         (tmp_path / TOKEN_FILENAME).write_text("", encoding="utf-8")
-        config = _make_config_for_auth(tmp_path)
-        transport, captured_headers = header_capturing_transport()
-        client = HassetteCLIClient(config, json_mode=False, transport=transport)
+        factory = CLIClientFactory(_make_config_for_auth(tmp_path))
+        client, captured_headers = factory.build_capturing_headers()
         client.get(HEALTH_ENDPOINT, dict)
         assert "authorization" not in captured_headers[0]
 
@@ -581,17 +564,16 @@ class TestCredentialAttachment:
         behavior is to send the request with no credential (letting the server 401 it),
         not to silently create a value that looks like success.
         """
-        config = _make_config_for_auth(tmp_path)
-        transport, captured_headers = header_capturing_transport()
-        client = HassetteCLIClient(config, json_mode=False, transport=transport)
+        factory = CLIClientFactory(_make_config_for_auth(tmp_path))
+        client, captured_headers = factory.build_capturing_headers()
         client.get(HEALTH_ENDPOINT, dict)
         assert "authorization" not in captured_headers[0]
         assert not (tmp_path / TOKEN_FILENAME).exists()
 
-    def test_missing_token_401_gives_clear_hint(self) -> None:
-        config = _make_config()
+    def test_missing_token_401_gives_clear_hint(self, tmp_path: Path) -> None:
+        factory = CLIClientFactory(_make_config_for_auth(tmp_path))
         transport = make_transport(401, {"detail": "Unauthorized"})
-        client = HassetteCLIClient(config, json_mode=False, transport=transport)
+        client = factory.build(transport)
         with capture_stderr() as buf, pytest.raises(SystemExit) as exc_info:
             client.get(HEALTH_ENDPOINT, SimpleModel)
         assert exc_info.value.code == 1
@@ -600,9 +582,9 @@ class TestCredentialAttachment:
 
     def test_resolved_token_401_omits_missing_token_hint(self, tmp_path: Path) -> None:
         """A wrong-but-present token gets the plain server error, not the missing-token hint."""
-        config = _make_config_for_auth(tmp_path, auth_token="wrong-token")
+        factory = CLIClientFactory(_make_config_for_auth(tmp_path, auth_token="wrong-token"))
         transport = make_transport(401, {"detail": "Invalid token"})
-        client = HassetteCLIClient(config, json_mode=False, transport=transport)
+        client = factory.build(transport)
         with capture_stderr() as buf, pytest.raises(SystemExit):
             client.get(HEALTH_ENDPOINT, SimpleModel)
         output = buf.getvalue()
@@ -613,9 +595,8 @@ class TestCredentialAttachment:
         as ``HASSETTE__WEB_API__AUTH_TOKEN=""``) must be treated the same as no token at all:
         no Authorization header is attached.
         """
-        config = _make_config_for_auth(tmp_path, auth_token="")
-        transport, captured_headers = header_capturing_transport()
-        client = HassetteCLIClient(config, json_mode=False, transport=transport)
+        factory = CLIClientFactory(_make_config_for_auth(tmp_path, auth_token=""))
+        client, captured_headers = factory.build_capturing_headers()
         client.get(HEALTH_ENDPOINT, dict)
         assert "authorization" not in captured_headers[0]
 
@@ -627,9 +608,8 @@ class TestCredentialAttachment:
         config value.
         """
         (tmp_path / TOKEN_FILENAME).write_text("file-token", encoding="utf-8")
-        config = _make_config_for_auth(tmp_path, auth_token="  ")
-        transport, captured_headers = header_capturing_transport()
-        client = HassetteCLIClient(config, json_mode=False, transport=transport)
+        factory = CLIClientFactory(_make_config_for_auth(tmp_path, auth_token="  "))
+        client, captured_headers = factory.build_capturing_headers()
         client.get(HEALTH_ENDPOINT, dict)
         assert captured_headers[0]["authorization"] == "Bearer file-token"
 
@@ -638,9 +618,9 @@ class TestCredentialAttachment:
         "present" — a resulting 401 should get the missing-token hint, not be treated as a
         plain server error from a real-but-wrong credential.
         """
-        config = _make_config_for_auth(tmp_path, auth_token="")
+        factory = CLIClientFactory(_make_config_for_auth(tmp_path, auth_token=""))
         transport = make_transport(401, {"detail": "Unauthorized"})
-        client = HassetteCLIClient(config, json_mode=False, transport=transport)
+        client = factory.build(transport)
         with capture_stderr() as buf, pytest.raises(SystemExit):
             client.get(HEALTH_ENDPOINT, SimpleModel)
         output = buf.getvalue()

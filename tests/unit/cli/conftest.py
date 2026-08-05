@@ -102,6 +102,7 @@ class MockTransportBuilder:
 
     def __init__(self) -> None:
         self._routes: list[tuple[str, str, int, Any]] = []
+        self.captured_headers: list[httpx.Headers] = []
 
     def add(self, method: str, path_fragment: str, status: int, body: Any) -> None:
         """Register a mock response for requests whose URL contains ``path_fragment``.
@@ -111,9 +112,15 @@ class MockTransportBuilder:
         self._routes.append((method.upper(), path_fragment, status, body))
 
     def build(self) -> httpx.MockTransport:
+        """Build the transport.
+
+        Every request's headers are recorded to ``self.captured_headers`` in order,
+        regardless of which route (if any) matched.
+        """
         routes = list(self._routes)
 
         def handler(request: httpx.Request) -> httpx.Response:
+            self.captured_headers.append(request.headers)
             url = str(request.url)
             method = request.method.upper()
             for route_method, fragment, status, body in routes:
@@ -132,8 +139,8 @@ class MockTransportBuilder:
 class CLIClientFactory:
     """Creates HassetteCLIClient instances with mock transports for testing."""
 
-    def __init__(self) -> None:
-        self.config = HassetteConfig(token=None)
+    def __init__(self, config: HassetteConfig | None = None) -> None:
+        self.config = config if config is not None else HassetteConfig(token=None)
 
     def build(
         self,
@@ -160,6 +167,23 @@ class CLIClientFactory:
         transport = builder.build()
         return self.build(transport, json_mode=json_mode)
 
+    def build_capturing_headers(
+        self,
+        status_code: int = 200,
+        body: Any = None,
+        json_mode: bool = False,
+    ) -> tuple[HassetteCLIClient, list[httpx.Headers]]:
+        """Build a client whose mock transport returns a fixed response for every GET request.
+
+        Returns the client and a list that accumulates ``httpx.Headers`` for each request made
+        through it, in order — for tests asserting on outgoing request headers (e.g. credential
+        attachment).
+        """
+        builder = MockTransportBuilder()
+        builder.add("GET", "", status_code, body if body is not None else {})
+        transport = builder.build()
+        return self.build(transport, json_mode=json_mode), builder.captured_headers
+
 
 @pytest.fixture
 def cli_client_factory() -> CLIClientFactory:
@@ -172,5 +196,9 @@ def cli_client_factory() -> CLIClientFactory:
                 ("GET", "/api/health", 200, {"status": "ok", ...}),
             ])
             # call command with client
+
+    Tests that need a non-default config (e.g. a ``tmp_path``-scoped ``data_dir`` or an
+    explicit ``auth_token``) should construct their own ``CLIClientFactory(config)`` instead
+    of using this fixture — the fixture's config is fixed at ``HassetteConfig(token=None)``.
     """
     return CLIClientFactory()
