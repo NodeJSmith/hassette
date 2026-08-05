@@ -120,16 +120,21 @@ class WebApiService(Service):
                 web_api_config.host,
             )
 
-        self._resolved_auth_token = resolve_auth_token(web_api_config, self.hassette.config.data_dir)
+        # Neither DefaultDenyMiddleware nor authorize_ws ever consults the resolved token or
+        # trusted_proxies when auth is disabled (both bypass entirely on auth_enabled=False) — so
+        # resolving/writing them here would be pure overhead, and could even fail startup
+        # (AuthTokenWriteError, TrustedProxyConfigError) for machinery this run never uses.
+        if web_api_config.auth_enabled:
+            self._resolved_auth_token = resolve_auth_token(web_api_config, self.hassette.config.data_dir)
 
-        self._trusted_proxies = resolve_trusted_proxies(web_api_config.trusted_proxies)
-        await self.scheduler.run_every(
-            self._refresh_trusted_proxies,
-            minutes=_TRUSTED_PROXY_REFRESH_INTERVAL_MINUTES,
-            name=_TRUSTED_PROXY_REFRESH_JOB_NAME,
-            if_exists="skip",
-            mode="single",
-        )
+            self._trusted_proxies = resolve_trusted_proxies(web_api_config.trusted_proxies)
+            await self.scheduler.run_every(
+                self._refresh_trusted_proxies,
+                minutes=_TRUSTED_PROXY_REFRESH_INTERVAL_MINUTES,
+                name=_TRUSTED_PROXY_REFRESH_JOB_NAME,
+                if_exists="skip",
+                mode="single",
+            )
 
         # RuntimeQueryService, TelemetryQueryService, and SchedulerService are guaranteed ready
         # by depends_on auto-wait.

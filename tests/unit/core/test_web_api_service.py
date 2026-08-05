@@ -206,6 +206,24 @@ class TestTokenResolution:
         assert isinstance(service._resolved_auth_token, str)
         assert (tmp_path / TOKEN_FILENAME).exists()
 
+    async def test_auth_disabled_skips_token_and_trusted_proxy_resolution(
+        self, unused_tcp_port_factory, tmp_path
+    ) -> None:
+        """Neither DefaultDenyMiddleware nor authorize_ws consult the resolved token or
+        trusted_proxies when auth_enabled=False (both bypass entirely) — resolving/writing them
+        would be pure overhead for a run that never uses them.
+        """
+        service = _make_web_api_service(
+            unused_tcp_port_factory, tmp_path, host="127.0.0.1", auth_enabled=False, trusted_proxies=("10.0.0.5",)
+        )
+
+        await service.on_initialize()
+
+        assert service._resolved_auth_token is None
+        assert not (tmp_path / TOKEN_FILENAME).exists()
+        assert service._trusted_proxies is EMPTY_TRUSTED_PROXY_SET
+        service.scheduler.run_every.assert_not_awaited()
+
 
 class TestSchedulerServiceDependency:
     def test_depends_on_includes_scheduler_service(self) -> None:
