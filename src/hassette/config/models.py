@@ -593,3 +593,31 @@ class BlockingIODetectionConfig(ExcludeExtrasMixin, BaseModel):
     When True, Tier 2 call-site interception is active even when ``dev_mode`` is False,
     regardless of ``deep_detection_enabled``. Mirrors ``allow_reload_in_prod`` semantics.
     Defaults to False."""
+
+
+class CliConfig(ExcludeExtrasMixin, BaseModel):
+    """CLI client connect target, TLS, and credential settings."""
+
+    # Group label on the model's own config — see WebApiConfig above for why this can't go on
+    # the field reference in HassetteConfig (deref drops `$ref` sibling keys).
+    model_config = ConfigDict(json_schema_extra={"ui": {"group_label": "CLI"}})
+
+    server_url: str | None = Field(default=None, json_schema_extra={"ui": {"label": "Server URL"}})
+    """Full base URL (scheme, host, port, and optional path prefix) of the Hassette instance the
+    CLI connects to. When unset, the CLI derives its target from ``web_api.host``/``web_api.port``."""
+
+    verify_ssl: bool = Field(default=True, json_schema_extra={"ui": {"label": "Verify SSL"}})
+    """Whether to verify TLS certificates when connecting to a ``https://`` server_url. Disable for
+    a self-signed deployment."""
+
+    token_file: Path | None = Field(default=None, json_schema_extra={"ui": {"label": "Token File"}})
+    """Path to a file containing the bearer credential for the target Hassette instance. Applies
+    to any target, unlike the loopback-only ``<data_dir>/.web_api_token`` fallback."""
+
+    auth_token: SecretStr | None = Field(default=None, json_schema_extra={"ui": {"label": "Auth Token"}})
+    """Bearer credential for the target Hassette instance.
+
+    Stored as a :class:`~pydantic.SecretStr` so the value is masked in logs, string
+    representations, and the ``GET /api/config`` response. Unwrap with
+    ``auth_token.get_secret_value()`` only at the point of use. Applies to any target, unlike
+    ``web_api.auth_token`` which is scoped to the local instance only."""

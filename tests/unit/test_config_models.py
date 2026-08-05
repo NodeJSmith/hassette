@@ -18,6 +18,7 @@ from hassette.config.defaults import AUTODETECT_EXCLUDE_DIRS_DEFAULT
 from hassette.config.models import (
     DEFAULT_WEB_API_PORT,
     AppsConfig,
+    CliConfig,
     DatabaseConfig,
     FileWatcherConfig,
     LifecycleConfig,
@@ -40,6 +41,7 @@ from hassette.test_utils.config import TEST_TOKEN
         AppsConfig,
         SchedulerConfig,
         FileWatcherConfig,
+        CliConfig,
     ],
     ids=[
         "DatabaseConfig",
@@ -50,6 +52,7 @@ from hassette.test_utils.config import TEST_TOKEN
         "AppsConfig",
         "SchedulerConfig",
         "FileWatcherConfig",
+        "CliConfig",
     ],
 )
 def test_nested_models_are_base_model_not_base_settings(model_cls):
@@ -493,6 +496,16 @@ class TestFileWatcherConfig:
         assert cfg.watch_files is True
 
 
+class TestCliConfig:
+    def test_defaults(self):
+        """CliConfig constructs with all defaults."""
+        cfg = CliConfig()
+        assert cfg.server_url is None
+        assert cfg.verify_ssl is True
+        assert cfg.token_file is None
+        assert cfg.auth_token is None
+
+
 class TestHassetteConfigNested:
     """Integration tests: nested model fields accessible on HassetteConfig."""
 
@@ -663,6 +676,44 @@ class TestEnvVarPartialUpdate:
 
         config = EnvLoggingConfig()
         assert config.logging.log_level == "DEBUG"
+
+    def test_env_var_cli_server_url(self, monkeypatch):
+        """HASSETTE__CLI__SERVER_URL=https://example.com sets only cli.server_url."""
+        monkeypatch.setenv("HASSETTE__CLI__SERVER_URL", "https://example.com")
+
+        class EnvCliServerUrlConfig(HassetteConfig):
+            model_config = HassetteConfig.model_config.copy() | {
+                "cli_parse_args": False,
+                "toml_file": None,
+                "env_file": None,
+            }
+
+            token: SecretStr = SecretStr(TEST_TOKEN)
+            run_app_precheck: bool = False
+
+        config = EnvCliServerUrlConfig()
+        assert config.cli.server_url == "https://example.com"
+        # Other cli defaults are preserved
+        assert config.cli.verify_ssl is True
+
+    def test_env_var_cli_verify_ssl(self, monkeypatch):
+        """HASSETTE__CLI__VERIFY_SSL=false sets only cli.verify_ssl."""
+        monkeypatch.setenv("HASSETTE__CLI__VERIFY_SSL", "false")
+
+        class EnvCliVerifySslConfig(HassetteConfig):
+            model_config = HassetteConfig.model_config.copy() | {
+                "cli_parse_args": False,
+                "toml_file": None,
+                "env_file": None,
+            }
+
+            token: SecretStr = SecretStr(TEST_TOKEN)
+            run_app_precheck: bool = False
+
+        config = EnvCliVerifySslConfig()
+        assert config.cli.verify_ssl is False
+        # Other cli defaults are preserved
+        assert config.cli.server_url is None
 
 
 class TestCrossModelValidation:

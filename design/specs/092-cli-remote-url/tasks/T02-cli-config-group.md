@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Add CliConfig group and regenerate config schema"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["AC#13"]
 ---
