@@ -142,7 +142,7 @@ def build_mock_hassette(*, is_ready: bool = True, auth_enabled: bool = False):
     wire_app_manifest_lookups(hassette, build_manifests())
 
     # Wire realistic config stub so GET /config returns valid data.
-    wire_config(hassette)
+    wire_config(hassette, auth_enabled=auth_enabled)
 
     hassette.telemetry_query_service = hassette._telemetry_query_service
 
