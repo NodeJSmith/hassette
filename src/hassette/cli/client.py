@@ -55,7 +55,10 @@ def _resolve_cli_auth_token(config: HassetteConfig) -> str | None:
        pydantic-settings machinery, since ``config`` is already a fully-resolved
        ``HassetteConfig``. There is no separate ``os.environ`` read here — a second
        lookup path would silently diverge from the config file and any alias the field
-       carries.
+       carries. A blank/whitespace-only value is treated as unset and falls through to
+       step 2 — mirroring ``resolve_auth_token()``'s own blank-token handling, since the
+       service side falls back to the token file in that case too, and this resolver
+       must land on the same credential the running service actually validates against.
     2. ``<data_dir>/.web_api_token`` — the file the service-side resolver
        (``hassette.web.auth.resolve_auth_token``) writes on first start.
 
@@ -69,7 +72,9 @@ def _resolve_cli_auth_token(config: HassetteConfig) -> str | None:
         never been started, or auth is disabled and no token was ever generated).
     """
     if config.web_api.auth_token is not None:
-        return config.web_api.auth_token.get_secret_value()
+        configured_token = config.web_api.auth_token.get_secret_value().strip()
+        if configured_token:
+            return configured_token
 
     token_path = config.data_dir / TOKEN_FILENAME
     try:

@@ -619,6 +619,20 @@ class TestCredentialAttachment:
         client.get(HEALTH_ENDPOINT, dict)
         assert "authorization" not in captured_headers[0]
 
+    def test_blank_config_token_falls_back_to_token_file(self, tmp_path: Path) -> None:
+        """A blank configured token must mirror resolve_auth_token()'s server-side handling:
+        treated as unset and falling through to the token file, not just suppressed. Otherwise
+        the CLI could resolve a different (missing) credential than the service actually
+        validates against, once the service falls back to a generated token for the same blank
+        config value.
+        """
+        (tmp_path / TOKEN_FILENAME).write_text("file-token", encoding="utf-8")
+        config = _make_config_for_auth(tmp_path, auth_token="  ")
+        transport, captured_headers = header_capturing_transport()
+        client = HassetteCLIClient(config, json_mode=False, transport=transport)
+        client.get(HEALTH_ENDPOINT, dict)
+        assert captured_headers[0]["authorization"] == "Bearer file-token"
+
     def test_empty_string_config_token_401_gives_clear_hint(self, tmp_path: Path) -> None:
         """An empty-string config token must not attach a header and must not resolve as
         "present" — a resulting 401 should get the missing-token hint, not be treated as a
