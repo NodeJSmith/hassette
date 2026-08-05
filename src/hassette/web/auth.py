@@ -76,7 +76,12 @@ def resolve_auth_token(config: WebApiConfig, data_dir: Path) -> str:
 
     Tries, in order:
 
-    1. ``config.auth_token`` if explicitly configured (non-``None``).
+    1. ``config.auth_token`` if explicitly configured (non-``None``) and non-blank. A
+       configured value that is empty or whitespace-only is treated identically to "not
+       configured" and falls through to step 2 — accepting it as-is would resolve to a
+       publicly-guessable empty credential (e.g. from ``AUTH_TOKEN=""`` in the
+       environment), which ``check_bearer_token`` would then accept from any caller
+       presenting an empty token.
     2. An existing ``<data_dir>/.web_api_token`` file. A corrupt or unreadable file
        (empty, undecodable, or an OS-level read failure) is treated identically to
        "no file exists" — the failure is logged at ERROR and resolution falls through
@@ -107,8 +112,11 @@ def resolve_auth_token(config: WebApiConfig, data_dir: Path) -> str:
             docstring for why silent fallback is unacceptable here.
     """
     if config.auth_token is not None:
-        LOGGER.info("Using configured web API auth_token")
-        return config.auth_token.get_secret_value()
+        configured_token = config.auth_token.get_secret_value().strip()
+        if configured_token:
+            LOGGER.info("Using configured web API auth_token")
+            return configured_token
+        LOGGER.error("Configured web API auth_token is blank; generating a new token instead")
 
     token_path = data_dir / TOKEN_FILENAME
     existing_token = _read_existing_token(token_path)

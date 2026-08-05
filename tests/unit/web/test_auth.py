@@ -69,6 +69,23 @@ class TestResolveAuthTokenExplicitConfig:
         messages = [r.message for r in caplog.records]
         assert any("configured" in m.lower() for m in messages), messages
 
+    @pytest.mark.parametrize("blank_value", ["", "   ", "\t\n"])
+    def test_blank_configured_token_falls_back_to_generation(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture, blank_value: str
+    ) -> None:
+        config = _make_config(auth_token=SecretStr(blank_value))
+
+        with caplog.at_level("INFO", logger="hassette.web.auth"):
+            token = resolve_auth_token(config, tmp_path)
+
+        assert token != blank_value
+        assert len(token) > 32  # secrets.token_urlsafe(32) produces a 43-char string
+        assert (tmp_path / TOKEN_FILENAME).exists()
+
+        messages = [r.message for r in caplog.records]
+        assert any("blank" in m.lower() for m in messages), messages
+        assert any("generated" in m.lower() for m in messages), messages
+
 
 class TestResolveAuthTokenExistingFile:
     def test_loads_existing_token_file(self, tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
