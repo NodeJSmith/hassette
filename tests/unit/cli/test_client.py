@@ -17,6 +17,8 @@ from hassette.web.auth import TOKEN_FILENAME
 from hassette.web.models import AppInstanceResponse
 from tests.unit.cli.conftest import capture_stderr
 
+HEALTH_ENDPOINT = "/api/health"
+
 # Helpers
 
 
@@ -519,7 +521,7 @@ class TestCredentialAttachment:
         config = _make_config_for_auth(tmp_path, auth_token="config-token")
         transport, captured_headers = header_capturing_transport()
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
-        client.get("/api/health", dict)
+        client.get(HEALTH_ENDPOINT, dict)
         assert captured_headers[0]["authorization"] == "Bearer config-token"
 
     def test_env_var_populates_config_and_attaches_bearer_header(
@@ -538,7 +540,7 @@ class TestCredentialAttachment:
 
         transport, captured_headers = header_capturing_transport()
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
-        client.get("/api/health", dict)
+        client.get(HEALTH_ENDPOINT, dict)
         assert captured_headers[0]["authorization"] == "Bearer env-token"
 
     def test_falls_back_to_token_file_when_config_value_absent(self, tmp_path: Path) -> None:
@@ -546,7 +548,7 @@ class TestCredentialAttachment:
         config = _make_config_for_auth(tmp_path)
         transport, captured_headers = header_capturing_transport()
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
-        client.get("/api/health", dict)
+        client.get(HEALTH_ENDPOINT, dict)
         assert captured_headers[0]["authorization"] == "Bearer file-token"
 
     def test_config_value_takes_precedence_over_token_file(self, tmp_path: Path) -> None:
@@ -554,14 +556,14 @@ class TestCredentialAttachment:
         config = _make_config_for_auth(tmp_path, auth_token="config-token")
         transport, captured_headers = header_capturing_transport()
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
-        client.get("/api/health", dict)
+        client.get(HEALTH_ENDPOINT, dict)
         assert captured_headers[0]["authorization"] == "Bearer config-token"
 
     def test_no_config_value_and_no_token_file_sends_no_authorization_header(self, tmp_path: Path) -> None:
         config = _make_config_for_auth(tmp_path)
         transport, captured_headers = header_capturing_transport()
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
-        client.get("/api/health", dict)
+        client.get(HEALTH_ENDPOINT, dict)
         assert "authorization" not in captured_headers[0]
 
     def test_empty_token_file_treated_as_no_token(self, tmp_path: Path) -> None:
@@ -569,7 +571,7 @@ class TestCredentialAttachment:
         config = _make_config_for_auth(tmp_path)
         transport, captured_headers = header_capturing_transport()
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
-        client.get("/api/health", dict)
+        client.get(HEALTH_ENDPOINT, dict)
         assert "authorization" not in captured_headers[0]
 
     def test_missing_token_never_calls_generating_resolver(self, tmp_path: Path) -> None:
@@ -582,7 +584,7 @@ class TestCredentialAttachment:
         config = _make_config_for_auth(tmp_path)
         transport, captured_headers = header_capturing_transport()
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
-        client.get("/api/health", dict)
+        client.get(HEALTH_ENDPOINT, dict)
         assert "authorization" not in captured_headers[0]
         assert not (tmp_path / TOKEN_FILENAME).exists()
 
@@ -591,7 +593,7 @@ class TestCredentialAttachment:
         transport = make_transport(401, {"detail": "Unauthorized"})
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
         with capture_stderr() as buf, pytest.raises(SystemExit) as exc_info:
-            client.get("/api/health", SimpleModel)
+            client.get(HEALTH_ENDPOINT, SimpleModel)
         assert exc_info.value.code == 1
         output = buf.getvalue()
         assert "has hassette been started" in output
@@ -602,7 +604,7 @@ class TestCredentialAttachment:
         transport = make_transport(401, {"detail": "Invalid token"})
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
         with capture_stderr() as buf, pytest.raises(SystemExit):
-            client.get("/api/health", SimpleModel)
+            client.get(HEALTH_ENDPOINT, SimpleModel)
         output = buf.getvalue()
         assert "has hassette been started" not in output
 
@@ -614,7 +616,7 @@ class TestCredentialAttachment:
         config = _make_config_for_auth(tmp_path, auth_token="")
         transport, captured_headers = header_capturing_transport()
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
-        client.get("/api/health", dict)
+        client.get(HEALTH_ENDPOINT, dict)
         assert "authorization" not in captured_headers[0]
 
     def test_empty_string_config_token_401_gives_clear_hint(self, tmp_path: Path) -> None:
@@ -626,7 +628,7 @@ class TestCredentialAttachment:
         transport = make_transport(401, {"detail": "Unauthorized"})
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
         with capture_stderr() as buf, pytest.raises(SystemExit):
-            client.get("/api/health", SimpleModel)
+            client.get(HEALTH_ENDPOINT, SimpleModel)
         output = buf.getvalue()
         assert "has hassette been started" in output
 
@@ -639,7 +641,7 @@ class TestNoLiteralWebApiTokenArgument:
         """The only ``--token``-shaped flag anywhere in the CLI is run.py's HA token flag.
 
         No literal token argument exists for the web API bearer credential — it is
-        resolved exclusively from config/env/file (see ``_resolve_web_api_token`` in
+        resolved exclusively from config/env/file (see ``_resolve_cli_auth_token`` in
         ``hassette/cli/client.py``), never accepted as a bare CLI argument (shell-history/
         ``ps`` exposure risk).
         """

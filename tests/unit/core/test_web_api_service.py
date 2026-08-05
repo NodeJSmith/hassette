@@ -2,7 +2,6 @@
 
 import asyncio
 import ipaddress
-import socket
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -13,7 +12,8 @@ from hassette.core.core import Hassette
 from hassette.core.scheduler_service import SchedulerService
 from hassette.core.web_api_service import WebApiService
 from hassette.exceptions import FatalError
-from hassette.web.auth import EMPTY_TRUSTED_PROXY_SET
+from hassette.test_utils import make_addrinfo
+from hassette.web.auth import EMPTY_TRUSTED_PROXY_SET, TOKEN_FILENAME
 
 
 def _make_web_api_service(unused_tcp_port_factory, tmp_path, **web_api_overrides: Any) -> WebApiService:
@@ -196,13 +196,6 @@ class TestTrustedProxyRefreshScheduling:
         assert service._trusted_proxies == "sentinel-refreshed"
 
 
-def _addrinfo(ip: str) -> tuple:
-    """Build one ``socket.getaddrinfo``-shaped result tuple for ``ip``."""
-    if ":" in ip:
-        return (socket.AF_INET6, socket.SOCK_STREAM, 6, "", (ip, 0, 0, 0))
-    return (socket.AF_INET, socket.SOCK_STREAM, 6, "", (ip, 0))
-
-
 class TestTokenResolution:
     async def test_resolves_and_stores_auth_token(self, unused_tcp_port_factory, tmp_path) -> None:
         service = _make_web_api_service(unused_tcp_port_factory, tmp_path, host="127.0.0.1")
@@ -211,7 +204,7 @@ class TestTokenResolution:
 
         assert service._resolved_auth_token
         assert isinstance(service._resolved_auth_token, str)
-        assert (tmp_path / ".web_api_token").exists()
+        assert (tmp_path / TOKEN_FILENAME).exists()
 
 
 class TestSchedulerServiceDependency:
@@ -271,7 +264,7 @@ class TestLiveAppTrustedProxyRefresh:
             unused_tcp_port_factory, tmp_path, host="127.0.0.1", trusted_proxies=("proxy.internal",)
         )
 
-        with patch("hassette.web.auth.socket.getaddrinfo", return_value=[_addrinfo("172.30.32.2")]):
+        with patch("hassette.web.auth.socket.getaddrinfo", return_value=[make_addrinfo("172.30.32.2")]):
             await service.on_initialize()
 
         # Simulate serve() building the live FastAPI app, without actually binding a socket.
@@ -292,7 +285,7 @@ class TestLiveAppTrustedProxyRefresh:
 
         # Periodic refresh tick: the sibling proxy container was recreated with a new IP (same
         # hostname) -- exactly as Scheduler.run_every() would observe on its next run.
-        with patch("hassette.web.auth.socket.getaddrinfo", return_value=[_addrinfo("172.30.32.9")]):
+        with patch("hassette.web.auth.socket.getaddrinfo", return_value=[make_addrinfo("172.30.32.9")]):
             await service._refresh_trusted_proxies()
 
         # The refresh must be visible on the SAME already-serving app instance -- no rebuild.

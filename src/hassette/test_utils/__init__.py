@@ -54,6 +54,7 @@ from .helpers import (
 )
 from .helpers import create_listener as create_listener
 from .helpers import emit_file_change_event as emit_file_change_event
+from .helpers import make_addrinfo as make_addrinfo
 from .helpers import make_full_state_change_event as make_full_state_change_event
 from .helpers import make_service_failed_event as make_service_failed_event
 from .helpers import make_service_running_event as make_service_running_event

@@ -5,11 +5,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createWouterMock } from "../test/mock-wouter";
 import { server } from "../test/server";
+import { HOME_PATH, LOGIN_PATH } from "../utils/app-routes";
 import { LoginPage } from "./login";
 
 const mockNavigate = vi.hoisted(() => vi.fn());
 
-vi.mock("wouter", () => createWouterMock({ useLocation: vi.fn().mockReturnValue(["/login", mockNavigate]) }));
+vi.mock("wouter", () => createWouterMock({ useLocation: vi.fn().mockReturnValue([LOGIN_PATH, mockNavigate]) }));
 
 describe("LoginPage", () => {
   beforeEach(() => {
@@ -37,7 +38,7 @@ describe("LoginPage", () => {
     await user.click(screen.getByRole("button", { name: /sign in/i }));
 
     expect(receivedBody).toEqual({ token: "correct-token" });
-    expect(mockNavigate).toHaveBeenCalledWith("/apps");
+    expect(mockNavigate).toHaveBeenCalledWith(HOME_PATH);
   });
 
   it("renders a visible error and stays on the login view when the token is rejected", async () => {

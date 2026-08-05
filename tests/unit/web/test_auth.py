@@ -23,6 +23,7 @@ from starlette.datastructures import Headers
 
 from hassette.config.models import WebApiConfig
 from hassette.exceptions import AuthTokenWriteError, TrustedProxyConfigError
+from hassette.test_utils import make_addrinfo
 from hassette.web.auth import (
     TOKEN_FILENAME,
     check_bearer_token,
@@ -204,13 +205,6 @@ class TestResolveAuthTokenDistinctLogMessages:
         assert len(set(messages)) == 3, f"expected 3 distinct messages, got: {messages}"
 
 
-def _addrinfo(ip: str) -> tuple[Any, ...]:
-    """Build one ``socket.getaddrinfo``-shaped result tuple for ``ip``."""
-    if ":" in ip:
-        return (socket.AF_INET6, socket.SOCK_STREAM, 6, "", (ip, 0, 0, 0))
-    return (socket.AF_INET, socket.SOCK_STREAM, 6, "", (ip, 0))
-
-
 class TestResolveTrustedProxiesLiteral:
     def test_ip_entry_matches_only_that_ip(self) -> None:
         trusted = resolve_trusted_proxies(("192.168.1.10",))
@@ -262,7 +256,7 @@ class TestResolveTrustedProxiesRejectsEntireAddressSpace:
 
 class TestResolveTrustedProxiesHostname:
     def test_hostname_entry_resolves_and_matches_resolved_ip(self) -> None:
-        with patch("hassette.web.auth.socket.getaddrinfo", return_value=[_addrinfo("172.30.32.2")]):
+        with patch("hassette.web.auth.socket.getaddrinfo", return_value=[make_addrinfo("172.30.32.2")]):
             trusted = resolve_trusted_proxies(("proxy.internal",))
 
         assert is_trusted_peer("172.30.32.2", trusted) is True
@@ -281,18 +275,18 @@ class TestRefreshTrustedProxies:
         """Simulated periodic-refresh tick: two successive ``socket.getaddrinfo`` results,
         second call's IP becomes trusted, first call's IP is no longer trusted.
         """
-        with patch("hassette.web.auth.socket.getaddrinfo", return_value=[_addrinfo("172.30.32.2")]):
+        with patch("hassette.web.auth.socket.getaddrinfo", return_value=[make_addrinfo("172.30.32.2")]):
             trusted = resolve_trusted_proxies(("proxy.internal",))
         assert is_trusted_peer("172.30.32.2", trusted) is True
 
-        with patch("hassette.web.auth.socket.getaddrinfo", return_value=[_addrinfo("172.30.32.9")]):
+        with patch("hassette.web.auth.socket.getaddrinfo", return_value=[make_addrinfo("172.30.32.9")]):
             refreshed = refresh_trusted_proxies(trusted)
 
         assert is_trusted_peer("172.30.32.9", refreshed) is True
         assert is_trusted_peer("172.30.32.2", refreshed) is False
 
     def test_transient_refresh_failure_keeps_last_known_good_address(self) -> None:
-        with patch("hassette.web.auth.socket.getaddrinfo", return_value=[_addrinfo("172.30.32.2")]):
+        with patch("hassette.web.auth.socket.getaddrinfo", return_value=[make_addrinfo("172.30.32.2")]):
             trusted = resolve_trusted_proxies(("proxy.internal",))
 
         with patch("hassette.web.auth.socket.getaddrinfo", side_effect=socket.gaierror("temporary failure")):

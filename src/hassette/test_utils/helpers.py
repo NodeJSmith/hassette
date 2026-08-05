@@ -1,5 +1,6 @@
 import asyncio
 import json
+import socket
 import textwrap
 from collections.abc import Mapping, Sequence
 from contextlib import suppress
@@ -515,6 +516,18 @@ def make_task_bucket() -> MagicMock:
 
     tb.spawn = MagicMock(side_effect=spawn_side_effect)
     return tb
+
+
+def make_addrinfo(ip: str) -> tuple[Any, ...]:
+    """Build one ``socket.getaddrinfo``-shaped result tuple for ``ip``.
+
+    Shared by ``trusted_proxies`` hostname-resolution tests (``tests/unit/web/test_auth.py``,
+    ``tests/integration/web_api/test_auth.py``, ``tests/unit/core/test_web_api_service.py``) that
+    patch ``socket.getaddrinfo`` and need a fixed-shape stdlib stand-in for its return value.
+    """
+    if ":" in ip:
+        return (socket.AF_INET6, socket.SOCK_STREAM, 6, "", (ip, 0, 0, 0))
+    return (socket.AF_INET, socket.SOCK_STREAM, 6, "", (ip, 0))
 
 
 def create_listener(

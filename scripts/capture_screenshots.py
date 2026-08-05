@@ -58,6 +58,9 @@ DEFAULT_SESSION_MAX_AGE_SECONDS = 3600  # WebApiConfig.session_ttl's own default
 # Must match HASSETTE__WEB_API__AUTH_TOKEN in scripts/docker/ha-demo.yml
 DEMO_AUTH_TOKEN = "demo-token"
 
+EXPECTED_COOKIE_COUNT = 1
+"""Set-Cookie from POST /api/auth/session mints exactly one cookie (the session cookie)."""
+
 ANIMATION_DISABLE_JS = (
     "const s=document.createElement('style');"
     "s.textContent='*,*::before,*::after{"
@@ -164,7 +167,7 @@ def _mint_auth_storage_state(hassette_port: int) -> dict[str, object]:
 
     cookie: http.cookies.SimpleCookie = http.cookies.SimpleCookie()
     cookie.load(set_cookie)
-    if len(cookie) != 1:
+    if len(cookie) != EXPECTED_COOKIE_COUNT:
         print(f"ERROR: expected exactly one cookie in Set-Cookie, got {len(cookie)}", file=sys.stderr, flush=True)
         sys.exit(1)
     ((name, morsel),) = cookie.items()

@@ -34,6 +34,7 @@ from hassette.web.auth import (
     is_trusted_peer,
     mint_session_cookie,
     peer_address,
+    peer_address_or_unknown,
     should_renew_session_cookie,
     should_set_secure_cookie_flag,
     verify_session_cookie,
@@ -112,7 +113,7 @@ def _source_key(request: Request) -> str:
     transports) so the tracker still has a stable key to coalesce against, rather than treating
     every such request as a distinct source.
     """
-    return peer_address(request) or "unknown"
+    return peer_address_or_unknown(request)
 
 
 class DefaultDenyMiddleware(BaseHTTPMiddleware):

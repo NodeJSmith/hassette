@@ -23,6 +23,7 @@ import asyncio
 import pytest
 from playwright.sync_api import Page, expect
 
+from hassette.test_utils.config import TEST_SESSION_TTL, WEB_API_TEST_TOKEN
 from hassette.test_utils.uvicorn_server import start_uvicorn_server, stop_uvicorn_server
 from hassette.test_utils.web_mocks import create_mock_runtime_query_service
 from hassette.web.app import create_fastapi_app
@@ -31,8 +32,6 @@ from tests.e2e.conftest import build_mock_hassette
 
 pytestmark = pytest.mark.e2e
 
-TEST_AUTH_TOKEN = "e2e-test-session-auth-token"
-SESSION_TTL_SECONDS = 3600
 WS_CONNECT_TIMEOUT_MS = 10000
 
 
@@ -48,7 +47,7 @@ def mock_hassette_auth(ensure_spa_built):  # noqa: ARG001
     test relies on.
     """
     hassette = build_mock_hassette(is_ready=True, auth_enabled=True)
-    hassette.config.web_api.session_ttl = SESSION_TTL_SECONDS
+    hassette.config.web_api.session_ttl = TEST_SESSION_TTL
     return hassette
 
 
@@ -64,7 +63,7 @@ def runtime_query_service_auth(mock_hassette_auth):
 @pytest.fixture
 def fastapi_app_auth(mock_hassette_auth, runtime_query_service_auth):  # noqa: ARG001
     """FastAPI app built with a known bearer token, so a cookie can be minted directly against it."""
-    return create_fastapi_app(mock_hassette_auth, auth_token=TEST_AUTH_TOKEN)
+    return create_fastapi_app(mock_hassette_auth, auth_token=WEB_API_TEST_TOKEN)
 
 
 @pytest.fixture
@@ -92,7 +91,7 @@ def test_cookie_authenticates_rest_and_websocket(page: Page, live_server_ws_auth
     """A session cookie injected via ``context.add_cookies`` authenticates both the dashboard's
     initial REST load and the WebSocket handshake -- without driving the login form.
     """
-    cookie_value = mint_session_cookie(TEST_AUTH_TOKEN)
+    cookie_value = mint_session_cookie(WEB_API_TEST_TOKEN)
     page.context.add_cookies(
         [
             {

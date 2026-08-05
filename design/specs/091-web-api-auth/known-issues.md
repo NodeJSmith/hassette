@@ -100,3 +100,121 @@ Acceptance criteria:
   `data_dir` resolution — it passes an isolated `tmp_path`-backed `data_dir` explicitly.
 - The test still passes and still exercises the "no token resolves, 401 gets the missing-token
   hint" behavior.
+
+## KI-003: The demo auth token `"demo-token"` is hardcoded independently in three files with no single source of truth
+
+Status: open
+Run: 54
+Source: clean-code
+Reason not fixed now: out-of-scope
+Observed in: clean-code review (lazy-checker + nitpicker, batch A)
+Affected files:
+- scripts/docker/ha-demo.yml:36
+- scripts/capture_screenshots.py:59
+- .mise/tasks/demo-verify:18
+
+Issue:
+The literal `"demo-token"` is declared independently in three files spanning three languages —
+YAML (`HASSETTE__WEB_API__AUTH_TOKEN` in the docker-compose env block), Python
+(`DEMO_AUTH_TOKEN` in `capture_screenshots.py`), and bash (`AUTH_HEADER` in `demo-verify`). Each
+site carries a hand-written comment telling the reader to keep the other two in sync ("Must match
+X in Y"), which is a tell that this is comment-based synchronization rather than a real single
+source of truth. If one is changed without the other two, the demo stack / screenshot capture /
+demo-verify pipeline breaks — the failure mode is a 401 against the demo stack, not a compile-time
+or type error, so it would only surface at CI/demo-run time.
+
+Why deferred:
+Unifying these three requires introducing a new shared mechanism that crosses process/language
+boundaries (e.g. a `.env` file docker-compose auto-loads that the Python and bash scripts also
+read, with new path-resolution logic in both), not a same-language rename or constant extraction.
+That is an infrastructure change to the demo-stack tooling, not a style/hygiene fix, and carries a
+real risk of silently breaking `mise run demo`/`capture_screenshots.py` if the interpolation or
+path resolution doesn't behave identically across all three consumers — out of scope for a
+clean-code pass.
+
+Recommended follow-up:
+Introduce a single source of truth for the demo token — e.g. a `scripts/docker/.env` file (or
+similar) that docker-compose loads automatically for `ha-demo.yml`, with `capture_screenshots.py`
+and `demo-verify` reading the same file/path explicitly — and delete the three independent
+literals plus their cross-referencing comments.
+
+Acceptance criteria:
+- The demo auth token is defined in exactly one place.
+- `mise run demo`, `scripts/capture_screenshots.py`, and `.mise/tasks/demo-verify` all
+  authenticate successfully against the demo stack using the single source.
+- Changing the token in the one place changes it for all three consumers with no other edit.
+
+## KI-004: `web/auth.py` and its two dedicated test files exceed the project's 400-line "typical" file-size guideline
+
+Status: filed (#1520)
+Run: 54
+Source: clean-code
+Reason not fixed now: needs-decision
+Observed in: clean-code review (nitpicker, batch A + batch B)
+Affected files:
+- src/hassette/web/auth.py (627 lines)
+- tests/unit/web/test_auth.py (~550 lines)
+- tests/integration/web_api/test_auth.py (~575 lines)
+
+Issue:
+`web/auth.py`'s own module docstring already enumerates three independent concerns it bundles:
+token resolution/persistence, `trusted_proxies` peer/hostname matching, and bearer/cookie session
+auth primitives. At 627 lines it sits well under the 800-line hard cap but comfortably past the
+200-400 "typical" guidance in `CLAUDE.md`'s Coding Style section, and each of its three concerns
+is independently testable. Its two dedicated test files have grown in step (~550 and ~575 lines),
+tracking the same three-concern shape.
+
+Why deferred:
+Splitting `web/auth.py` into per-concern modules (e.g. `auth/tokens.py`,
+`auth/trusted_proxies.py`, `auth/session.py`) is a real structural refactor: it touches every
+importer (`middleware.py`, `routes/auth.py`, `routes/ws.py`, `core/web_api_service.py`,
+`cli/client.py`, and all three test files), and choosing the split boundary and re-export shape is
+an architectural decision, not a mechanical rename — exactly the kind of judgment call this
+clean-code pass is scoped to flag, not perform. Attempting it now, on top of the file-size-driven
+edits already made in this same pass, would meaningfully raise the risk of a merge conflict or a
+missed import site.
+
+Recommended follow-up:
+When `web/auth.py` needs its next substantive addition, split it along the boundary its own
+docstring already names (token resolution, trusted-proxy matching, session/cookie auth), splitting
+the two test files along the same lines, and update every importer in one dedicated PR.
+
+Acceptance criteria:
+- `web/auth.py` is split into per-concern modules, each within the 200-400 line typical range.
+- Every existing importer is updated to the new module paths; no behavior change.
+- The two test files are split to mirror the new module boundaries.
+
+## KI-005: Repeated trusted-peer/renewal request-building sequence in `test_auth.py` is not extracted to a helper
+
+Status: open
+Run: 54
+Source: clean-code
+Reason not fixed now: out-of-scope
+Observed in: clean-code review (lazy-checker, batch B)
+Affected files:
+- tests/integration/web_api/test_auth.py:282-291, 433-497, 546-578
+
+Issue:
+The "build a trusted-peer app, wrap it in an `ASGITransport`, open an `AsyncClient`, issue one
+request" sequence (5-7 lines) is repeated near-verbatim across at least 6 tests in the
+trusted-proxy/renewal/cookie sections, differing only in the peer IP, `trusted_proxies` args, and
+the asserted status code.
+
+Why deferred:
+This is a security-relevant test file (the default-deny auth middleware) that already received a
+substantial mechanical diff in this same clean-code pass (constant renames, an `_addrinfo`
+consolidation). Extracting a shared request-building helper here is a real test refactor —
+choosing the helper's parameter shape affects every one of the 6+ call sites — and stacking it on
+top of the renames already applied raises the risk of a subtle test-behavior change going
+unnoticed in a file whose entire job is proving the auth gate is correct. Better done as its own
+reviewed, standalone change.
+
+Recommended follow-up:
+Add a small helper (e.g. `_request_from_peer(hassette, peer, trusted_proxies=..., **app_kwargs)`)
+that builds the trusted-peer app + transport + client + request in one call, and migrate the 6+
+call sites in the trusted-proxy/renewal/cookie sections to use it.
+
+Acceptance criteria:
+- The repeated app/transport/client/request sequence is extracted to one helper.
+- All 6+ affected tests use the helper and still pass with no behavior change.
+- No net increase in test file line count beyond what the helper itself adds.

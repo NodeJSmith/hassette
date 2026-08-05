@@ -45,7 +45,7 @@ def _format_host(host: str) -> str:
     return substituted
 
 
-def _resolve_web_api_token(config: HassetteConfig) -> str | None:
+def _resolve_cli_auth_token(config: HassetteConfig) -> str | None:
     """Resolve the web API bearer token the CLI should attach to outgoing requests.
 
     Checks, in order:
@@ -96,7 +96,7 @@ class HassetteCLIClient:
         self.json_mode = json_mode
         self.debug_mode = debug_mode
         self.timeout = timeout
-        token = _resolve_web_api_token(config)
+        token = _resolve_cli_auth_token(config)
         self._token_resolved = bool(token)
         headers = {"Authorization": f"Bearer {token}"} if token else {}
         self._client = httpx.Client(base_url=self.base_url, transport=transport, headers=headers)

@@ -52,6 +52,14 @@ SESSION_COOKIE_NAME = "hassette_session"
 SESSION_ID_BYTE_LENGTH = 32
 """Byte length passed to ``secrets.token_urlsafe()`` for a session cookie's random session id."""
 
+COOKIE_SEGMENT_COUNT = 3
+"""Number of dot-separated segments in a valid session cookie value: ``session_id.issued_at.signature``."""
+
+WS_POLICY_VIOLATION_CLOSE_CODE = 1008
+"""WebSocket close code for a policy violation (RFC 6455 §7.4.1) — used for an unauthorized
+pre-``accept()`` rejection. See :func:`authorize_ws` and design.md's WebSocket auth section for why
+this code is not literally observed by the client on this project's uvicorn backend."""
+
 _ENTIRE_ADDRESS_SPACE = (ipaddress.ip_network("0.0.0.0/0"), ipaddress.ip_network("::/0"))
 """The two CIDRs that match every possible peer address.
 
@@ -227,6 +235,18 @@ def peer_address(request: Request) -> str | None:
     """
     client = request.client
     return client.host if client is not None else None
+
+
+def peer_address_or_unknown(request: Request) -> str:
+    """:func:`peer_address`, falling back to the literal ``"unknown"`` when the transport reports no client.
+
+    Shared by every route handler that logs a source IP alongside a mutation action
+    (``web/routes/apps.py``, ``web/routes/logs.py``, ``web/routes/scheduler.py``) and by the
+    default-deny middleware's failed-auth source key (``web/middleware.py``) — all of these want
+    the same null-safe fallback rather than repeating ``peer_address(request) or "unknown"`` at
+    each call site.
+    """
+    return peer_address(request) or "unknown"
 
 
 def _parse_literal(entry: str) -> ipaddress.IPv4Network | ipaddress.IPv6Network | None:
@@ -489,7 +509,7 @@ def verify_session_cookie(cookie_value: str | None, resolved_token: str | None, 
         return None
 
     parts = cookie_value.split(".")
-    if len(parts) != 3:
+    if len(parts) != COOKIE_SEGMENT_COUNT:
         return None
 
     session_id, issued_at_raw, signature = parts
@@ -602,7 +622,7 @@ def authorize_ws(websocket: WebSocket) -> bool:
 
     Returns:
         ``True`` if the connection should be accepted; ``False`` if it should be closed with code
-        ``1008`` (policy violation) instead of being accepted.
+        :data:`WS_POLICY_VIOLATION_CLOSE_CODE` instead of being accepted.
     """
     hassette = websocket.app.state.hassette
     web_api_config = hassette.config.web_api
@@ -614,8 +634,8 @@ def authorize_ws(websocket: WebSocket) -> bool:
     resolved_token = getattr(websocket.app.state, "auth_token", None)
 
     client = websocket.client
-    peer_address = client.host if client is not None else None
-    if peer_address is not None and is_trusted_peer(peer_address, trusted_proxies):
+    ws_peer_address = client.host if client is not None else None
+    if ws_peer_address is not None and is_trusted_peer(ws_peer_address, trusted_proxies):
         return True
 
     presented_token = extract_bearer_token(websocket.headers)

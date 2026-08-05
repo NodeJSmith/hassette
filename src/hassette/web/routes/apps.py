@@ -11,7 +11,7 @@ from hassette.app.app_config import AppConfig
 from hassette.config.classes import AppManifest
 from hassette.exceptions import AppBootstrapNotReleasedError, TelemetryUnavailableError
 from hassette.schemas.app_snapshots import AppFullSnapshot, tally_manifest_statuses
-from hassette.web.auth import peer_address
+from hassette.web.auth import peer_address_or_unknown
 from hassette.web.config_view import deref_schema, mask_app_config, mask_values, resolve_app_config_cls
 from hassette.web.dependencies import HassetteDep, RuntimeDep, TelemetryDep, db_degrades_to
 from hassette.web.mappers import app_manifest_list_response_from, app_manifest_response_from, app_status_response_from
@@ -164,7 +164,7 @@ async def start_app(app_key: str, hassette: HassetteDep, request: Request) -> Ac
     except (ValueError, RuntimeError) as exc:
         LOGGER.warning("Failed to start app %s", app_key, exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to start app") from exc
-    LOGGER.info("Started app %s (source=%s)", app_key, peer_address(request) or "unknown")
+    LOGGER.info("Started app %s (source=%s)", app_key, peer_address_or_unknown(request))
     return ActionResponse(status="accepted", app_key=app_key, action="start")
 
 
@@ -177,7 +177,7 @@ async def stop_app(app_key: str, hassette: HassetteDep, request: Request) -> Act
     except (ValueError, RuntimeError) as exc:
         LOGGER.warning("Failed to stop app %s", app_key, exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to stop app") from exc
-    LOGGER.info("Stopped app %s (source=%s)", app_key, peer_address(request) or "unknown")
+    LOGGER.info("Stopped app %s (source=%s)", app_key, peer_address_or_unknown(request))
     return ActionResponse(status="accepted", app_key=app_key, action="stop")
 
 
@@ -199,7 +199,7 @@ async def reload_app(app_key: str, hassette: HassetteDep, request: Request) -> A
     except (ValueError, RuntimeError) as exc:
         LOGGER.warning("Failed to reload app %s", app_key, exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to reload app") from exc
-    LOGGER.info("Reloaded app %s (source=%s)", app_key, peer_address(request) or "unknown")
+    LOGGER.info("Reloaded app %s (source=%s)", app_key, peer_address_or_unknown(request))
     return ActionResponse(status="accepted", app_key=app_key, action="reload")
 
 

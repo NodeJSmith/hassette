@@ -17,6 +17,15 @@ TEST_BASE_URL = "http://test.invalid:8123"
 TEST_WS_URL = "ws://test.invalid:8123/api/websocket"
 TEST_SOURCE_LOCATION = "test.py:1"
 
+# Bearer token used across the web-API auth test suites (integration + e2e) to build a
+# `create_fastapi_app(..., auth_token=...)` instance and mint matching session cookies.
+# Distinct from TEST_TOKEN above, which is the HA connection token used by make_test_config.
+WEB_API_TEST_TOKEN = "test-token-value"
+
+# Matches the `session_ttl` override the web-API auth tests apply to `config.web_api` before
+# minting or verifying session cookies.
+TEST_SESSION_TTL = 3600
+
 DEFAULT_TEST_APP_KEY = "test_app"
 TEST_EPOCH_A = 1_234_567_890.0
 TEST_EPOCH_B = 1_700_000_000.0

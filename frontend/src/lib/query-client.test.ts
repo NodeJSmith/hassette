@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "../api/client";
+import { LOGIN_PATH } from "../utils/app-routes";
 import { createQueryClient, DEFAULT_STALE_TIME_MS } from "./query-client";
 
 describe("createQueryClient", () => {
@@ -113,7 +114,7 @@ describe("createQueryClient", () => {
     it("redirects to /login on a 401 ApiError", () => {
       triggerQueryError(new ApiError(401, "Unauthorized"));
 
-      expect(window.location.assign).toHaveBeenCalledWith("/login");
+      expect(window.location.assign).toHaveBeenCalledWith(LOGIN_PATH);
     });
 
     it("does not redirect on a non-401 ApiError", () => {

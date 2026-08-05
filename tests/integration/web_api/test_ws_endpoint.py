@@ -6,12 +6,12 @@ from collections.abc import Iterator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-import websockets
 import websockets.exceptions
 from starlette.websockets import WebSocket
 
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.schemas.app_snapshots import AppInstanceInfo, AppStatusSnapshot
+from hassette.test_utils.config import TEST_SESSION_TTL, WEB_API_TEST_TOKEN
 from hassette.test_utils.uvicorn_server import start_uvicorn_server, stop_uvicorn_server
 from hassette.test_utils.web_mocks import create_hassette_stub, create_mock_runtime_query_service
 from hassette.types.enums import ResourceStatus
@@ -29,9 +29,6 @@ except ImportError:
     HAS_STARLETTE_TC = False
 
 pytestmark = pytest.mark.skipif(not HAS_STARLETTE_TC, reason="starlette testclient not available")
-
-AUTH_TEST_TOKEN = "test-token-value"
-AUTH_SESSION_TTL = 3600
 
 
 @pytest.fixture
@@ -458,7 +455,7 @@ def auth_hassette() -> MagicMock:
         auth_enabled=True,
         states={"light.kitchen": {"entity_id": "light.kitchen", "state": "on"}},
     )
-    hassette.config.web_api.session_ttl = AUTH_SESSION_TTL
+    hassette.config.web_api.session_ttl = TEST_SESSION_TTL
     create_mock_runtime_query_service(hassette)
     return hassette
 
@@ -473,7 +470,7 @@ def live_auth_server(auth_hassette: MagicMock) -> Iterator[str]:
     pins (`ws="websockets-sansio"`, `core/web_api_service.py:71`) -- this is the specific
     empirical verification design.md's Open Questions flagged as unresolved at design time.
     """
-    app = create_fastapi_app(auth_hassette, auth_token=AUTH_TEST_TOKEN)
+    app = create_fastapi_app(auth_hassette, auth_token=WEB_API_TEST_TOKEN)
     # Short graceful shutdown: a still-open `websockets.connect()` client can hold the
     # connection past test end, and this backend does not release it quickly on its own
     # (see conftest.py's live_server_ws, which needs the same setting for the same reason).
@@ -517,7 +514,7 @@ class TestWebSocketAuthorization:
         assert exc_info.value.response.status_code == 403
 
     async def test_valid_session_cookie_is_accepted(self, live_auth_server: str) -> None:
-        cookie_value = mint_session_cookie(AUTH_TEST_TOKEN)
+        cookie_value = mint_session_cookie(WEB_API_TEST_TOKEN)
         async with websockets.connect(
             live_auth_server,
             additional_headers={"Cookie": f"{SESSION_COOKIE_NAME}={cookie_value}"},
@@ -535,7 +532,7 @@ class TestWebSocketAuthorization:
         """
         async with websockets.connect(
             live_auth_server,
-            additional_headers={"Authorization": f"Bearer {AUTH_TEST_TOKEN}"},
+            additional_headers={"Authorization": f"Bearer {WEB_API_TEST_TOKEN}"},
             open_timeout=5,
         ) as ws:
             msg = await asyncio.wait_for(ws.recv(), timeout=5)

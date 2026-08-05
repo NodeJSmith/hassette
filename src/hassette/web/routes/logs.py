@@ -6,7 +6,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response
 
-from hassette.web.auth import peer_address
+from hassette.web.auth import peer_address_or_unknown
 from hassette.web.dependencies import VALID_LOG_LEVEL_NAMES, VALID_SOURCE_TIERS, TelemetryDep, db_degrades_to
 from hassette.web.models import LogEntryResponse, LogLevelRequest, LogLevelResponse
 
@@ -79,6 +79,6 @@ async def set_log_level(
         "Changed log level for %s to %s (source=%s)",
         body.logger,
         effective,
-        peer_address(request) or "unknown",
+        peer_address_or_unknown(request),
     )
     return LogLevelResponse(logger=body.logger, effective_level=str(effective))

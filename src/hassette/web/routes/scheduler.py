@@ -10,7 +10,7 @@ from fastapi import APIRouter, HTTPException, Query, Request, Response
 from hassette.exceptions import JobRemovedError
 from hassette.schemas.job_models import JobSummary
 from hassette.types.types import QuerySourceTier
-from hassette.web.auth import peer_address
+from hassette.web.auth import peer_address_or_unknown
 from hassette.web.dependencies import SOURCE_TIER_PARAM, SchedulerDep, TelemetryDep, db_degrades_to
 from hassette.web.models import JobTriggerResponse
 from hassette.web.utils import enrich_jobs_with_live_data
@@ -77,5 +77,5 @@ async def trigger_job(job_id: int, scheduler_service: SchedulerDep, request: Req
     except JobRemovedError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
-    LOGGER.info("Triggered job %s (%s) (source=%s)", job_id, job.name, peer_address(request) or "unknown")
+    LOGGER.info("Triggered job %s (%s) (source=%s)", job_id, job.name, peer_address_or_unknown(request))
     return JobTriggerResponse(status="accepted", job_id=job_id, job_name=job.name)

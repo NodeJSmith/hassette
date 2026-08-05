@@ -11,6 +11,7 @@ import { useWebSocket } from "./hooks/use-websocket";
 import { createInstance, createListener, createManifest } from "./test/factories";
 import { withManifests as installManifests } from "./test/handlers";
 import { server } from "./test/server";
+import { LOGIN_PATH } from "./utils/app-routes";
 
 type AppManifest = components["schemas"]["AppManifestResponse"];
 type ListenerWithSummary = components["schemas"]["ListenerWithSummary"];
@@ -469,7 +470,7 @@ describe("App — /login route", () => {
   });
 
   it("renders LoginPage instead of the normal shell", () => {
-    (wouter.useLocation as ReturnType<typeof vi.fn>).mockReturnValue(["/login", vi.fn()]);
+    (wouter.useLocation as ReturnType<typeof vi.fn>).mockReturnValue([LOGIN_PATH, vi.fn()]);
 
     const { container } = render(<App />);
 
@@ -479,7 +480,7 @@ describe("App — /login route", () => {
   });
 
   it("does not mount WebSocketEffect or TelemetryHealthEffect", () => {
-    (wouter.useLocation as ReturnType<typeof vi.fn>).mockReturnValue(["/login", vi.fn()]);
+    (wouter.useLocation as ReturnType<typeof vi.fn>).mockReturnValue([LOGIN_PATH, vi.fn()]);
     vi.mocked(useWebSocket).mockClear();
     vi.mocked(useTelemetryHealth).mockClear();
 
