@@ -57,6 +57,39 @@ class SchemeRequiredInBaseUrlError(FatalError):
     """Custom exception to indicate that the base_url must include a scheme (http:// or https://)."""
 
 
+class ServerUrlSchemeRequiredError(FatalError):
+    """Custom exception to indicate that a CLI ``server_url`` must include a scheme (http:// or https://).
+
+    Distinct from :class:`SchemeRequiredInBaseUrlError`, which covers ``HassetteConfig.base_url``
+    (the Home Assistant connection target) — this covers ``cli.server_url``/``--server-url``
+    (the target the CLI itself connects to), a different config field with a different audience.
+    """
+
+
+class ServerUrlApiSuffixError(FatalError):
+    """Custom exception to indicate that a CLI ``server_url`` path ends in ``/api``.
+
+    Every command path already starts with ``/api/...``, so a ``server_url`` ending in ``/api``
+    would double up (``/api/api/health``). The message names the corrected form so a user who
+    copied a URL like ``https://hassette.example.com/hassette/api`` straight out of an issue or
+    doc knows exactly what to drop.
+    """
+
+
+class CredentialResolutionError(FatalError):
+    """Custom exception to indicate that a CLI bearer credential could not be resolved.
+
+    Raised by :func:`hassette.cli.target.resolve_cli_auth_token`'s helpers for both of its
+    user-attributable failure modes: an unreadable ``--token-file`` and a credential value that
+    is not safe for use as an HTTP header (non-ASCII or containing control characters). Kept as
+    its own typed exception — rather than a bare ``ValueError`` — so a caller can catch this
+    specific failure and route it through ``error_usage()`` without also swallowing unrelated
+    ``ValueError``s raised deeper in the call chain (e.g. from Pydantic validation), matching the
+    same convention :class:`ServerUrlSchemeRequiredError`/:class:`ServerUrlApiSuffixError`
+    already establish for the URL-resolution side of the same module.
+    """
+
+
 class ConnectionClosedError(HassetteError):
     """Custom exception to indicate that the WebSocket connection was closed unexpectedly."""
 
