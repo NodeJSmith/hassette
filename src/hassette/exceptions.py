@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from yarl import URL
@@ -139,6 +140,39 @@ class FailedMessageError(HassetteError):
 
 class InvalidAuthError(FatalError):
     """Custom exception to indicate that the authentication token is invalid."""
+
+
+class AuthTokenWriteError(HassetteError):
+    """Raised when a freshly generated web API auth token could not be persisted to disk.
+
+    Deliberately a plain :class:`HassetteError`, not :class:`FatalError` — an auth failure
+    must not crash or block-restart ``WebApiService``. Startup fails loudly here rather than
+    silently falling back to an ephemeral in-memory token: every ``WebApiService`` restart
+    (it is ``RestartType.TRANSIENT``) would otherwise mint a fresh token and invalidate
+    whatever credential the operator was just given.
+
+    Attributes:
+        path: The token file path that could not be written.
+        original_error: The underlying ``OSError`` that caused the failure.
+    """
+
+    def __init__(self, path: Path, original_error: OSError) -> None:
+        self.path = path
+        self.original_error = original_error
+        super().__init__(f"Could not write web API auth token to {path}: {original_error}")
+
+
+class TrustedProxyConfigError(HassetteError):
+    """Raised when a ``trusted_proxies`` entry cannot be parsed or resolved.
+
+    Covers three failure modes, all fail-loud at config-load/first-resolution time rather than
+    silently skipping the bad entry: an entry that is neither a valid IP/CIDR literal nor a
+    resolvable hostname, a literal that matches the entire IPv4/IPv6 address space (``0.0.0.0/0``,
+    ``::/0`` — an auth *bypass*, not an additive check), and a hostname that resolves to zero
+    addresses. Deliberately a plain :class:`HassetteError`, not :class:`FatalError` — a bad
+    ``trusted_proxies`` entry should not crash or block-restart ``WebApiService``; the caller
+    (``WebApiService.on_initialize()``) decides how to surface it at startup.
+    """
 
 
 class InvalidInheritanceError(TypeError, HassetteError):

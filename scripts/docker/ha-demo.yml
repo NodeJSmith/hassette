@@ -32,6 +32,8 @@ services:
       HASSETTE__BASE_URL: "http://homeassistant:8123"
       # JWT must match HA_TOKEN in scripts/hassette_demo.py and tests/fixtures/demo-ha-config/.storage/auth
       HASSETTE__TOKEN: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiIwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMyIsImlhdCI6MTczNTY4OTYwMCwiZXhwIjoyMDUxMDQ5NjAwfQ.q-p85dOe-MMnKQhSNh_LEWnWJGK-GA3xdmqb4LKvkU0"
+      # Must match DEMO_AUTH_TOKEN in scripts/capture_screenshots.py
+      HASSETTE__WEB_API__AUTH_TOKEN: "demo-token"
       HASSETTE__WEB_API__PORT: "8126"
       HASSETTE__APPS__DIRECTORY: "/app/examples"
       HASSETTE__DATA_DIR: "/app/.demo-data"
@@ -40,7 +42,10 @@ services:
         condition: service_healthy
     restart: "no"
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:8126/api/health"]
+      # /api/health/live is the one FR#1 exemption exempt from auth -- /api/health itself now
+      # requires a credential (design/specs/091-web-api-auth/design.md), which would otherwise
+      # fail this healthcheck unconditionally under the auth token set above.
+      test: ["CMD", "curl", "-sf", "http://localhost:8126/api/health/live"]
       interval: 5s
       timeout: 5s
       retries: 6

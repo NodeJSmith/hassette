@@ -297,7 +297,7 @@ def make_web_system_config(ha_url: str, tmp_path: Path) -> tuple[HassetteConfig,
         token=HA_TOKEN,
         data_dir=tmp_path / "data",
         apps={"directory": app_dir, "autodetect": False},
-        web_api={"run": True, "port": port},
+        web_api={"run": True, "port": port, "auth_enabled": False, "host": "127.0.0.1"},
         lifecycle={"startup_timeout_seconds": 30},
     )
     return config, f"http://127.0.0.1:{port}"
@@ -342,17 +342,20 @@ async def toggle_and_capture(
 
 
 async def wait_for_web_server(base_url: str, *, timeout: float = 30.0) -> None:
-    """Poll the health endpoint until the web server responds.
+    """Poll the liveness endpoint until the web server responds.
 
     The uvicorn server starts asynchronously alongside Hassette's other services;
-    it may take a second or two before it accepts connections.
+    it may take a second or two before it accepts connections. Uses ``/api/health/live``
+    rather than the aggregate ``/api/health`` because it is one of the default-deny
+    middleware's auth exemptions — it works regardless of ``auth_enabled``, unlike
+    ``/api/health``, which requires a credential like any other ``/api/*`` route.
     """
     deadline = asyncio.get_running_loop().time() + timeout
     last_exc: Exception | None = None
     async with httpx.AsyncClient() as client:
         while asyncio.get_running_loop().time() < deadline:
             try:
-                r = await client.get(f"{base_url}/api/health", timeout=2.0)
+                r = await client.get(f"{base_url}/api/health/live", timeout=2.0)
                 if r.status_code in (200, 503):
                     return
             except Exception as exc:

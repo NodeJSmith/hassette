@@ -31,7 +31,16 @@ Bind-all addresses are rewritten for the client connection: when `web_api.host` 
 
 ### Token
 
-The access token (`HASSETTE__TOKEN`) is the long-lived HA token that `hassette run` uses to connect to Home Assistant. Query commands (`status`, `app`, `listener`, and the rest) talk to Hassette's own web API instead and need no token.
+The access token (`HASSETTE__TOKEN`) is the long-lived HA token that `hassette run` uses to connect to Home Assistant. Query commands (`status`, `app`, `listener`, and the rest) talk to Hassette's own web API instead, which requires a separate credential of its own — see [Web API Token](#web-api-token) below.
+
+### Web API Token
+
+The server's web API requires a credential for every request (see [Web UI](../web-ui/index.md)). The CLI attaches it automatically as `Authorization: Bearer <token>`, resolved in this order:
+
+1. **`HASSETTE__WEB_API__AUTH_TOKEN`** (environment variable) — set this to point the CLI at a specific token without touching the filesystem.
+2. **`<data_dir>/.web_api_token`** — the file the server writes on first start when no token is configured. The CLI reads it from the same `data_dir` the server uses.
+
+No CLI flag accepts a literal token value as a bare argument — passing a secret as `--token <value>` leaves it visible in shell history and `ps` output for the life of the process, so the token only ever comes from the environment or the file.
 
 ## Output Modes
 

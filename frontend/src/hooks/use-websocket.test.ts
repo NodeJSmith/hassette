@@ -1,9 +1,40 @@
-import { act } from "@testing-library/react";
+import { act, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useAppStore } from "../state/store";
+import { createWouterMock } from "../test/mock-wouter";
 import { createTestQueryClient, renderHookWithProviders } from "../test/query-test-utils";
+import { LOGIN_PATH } from "../utils/app-routes";
 import { useWebSocket } from "./use-websocket";
+
+const mockNavigate = vi.hoisted(() => vi.fn());
+
+vi.mock("wouter", () => createWouterMock({ useLocation: vi.fn().mockReturnValue(["/", mockNavigate]) }));
+
+vi.mock("../api/endpoints", async () => {
+  const actual = await vi.importActual<typeof import("../api/endpoints")>("../api/endpoints");
+  return { ...actual, getSystemStatus: vi.fn() };
+});
+
+import { ApiError } from "../api/client";
+import { getSystemStatus, type SystemStatus } from "../api/endpoints";
+
+const mockedGetSystemStatus = vi.mocked(getSystemStatus);
+
+const HEALTHY_SYSTEM_STATUS: SystemStatus = {
+  status: "ok",
+  websocket_connected: true,
+  bootstrap_released: true,
+  uptime_seconds: 120,
+  entity_count: 10,
+  app_count: 2,
+  services: [],
+  version: "1.0.0",
+  boot_issues: [],
+  log_queue_drops: 0,
+  db_write_queue_drops: 0,
+  log_persistence_active: true,
+};
 
 /** Minimal mock WebSocket that tracks construction and allows simulating messages. */
 class MockWebSocket {
@@ -44,6 +75,11 @@ describe("useWebSocket", () => {
   beforeEach(() => {
     MockWebSocket.instances = [];
     vi.stubGlobal("WebSocket", MockWebSocket);
+    mockNavigate.mockClear();
+    mockedGetSystemStatus.mockReset();
+    // Default: the REST auth check confirms a real 401, so a close-before-onopen redirects.
+    // Tests exercising the "false positive" path (still authenticated) override this.
+    mockedGetSystemStatus.mockRejectedValue(new ApiError(401, "Unauthorized"));
   });
 
   afterEach(() => {
@@ -134,6 +170,154 @@ describe("useWebSocket", () => {
 
     // Should be "disconnected" (not "reconnecting") since never connected
     expect(useAppStore.getState().connection).toBe("disconnected");
+  });
+
+  describe("closed before onopen ever fires (ambiguous signal: could be a rejected handshake or any other pre-open failure)", () => {
+    it("redirects to /login only after a REST check confirms a real 401", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      mockedGetSystemStatus.mockRejectedValue(new ApiError(401, "Unauthorized"));
+      const queryClient = createTestQueryClient();
+
+      renderHookWithProviders(() => useWebSocket(), { queryClient });
+
+      const ws = MockWebSocket.instances[0];
+
+      // Close arrives before onopen ever fired for this attempt.
+      act(() => {
+        ws.onclose?.();
+      });
+
+      await waitFor(() => {
+        expect(mockNavigate).toHaveBeenCalledWith(LOGIN_PATH);
+      });
+
+      // Advance well past the backoff window — no reconnect attempt should have been scheduled.
+      act(() => {
+        vi.advanceTimersByTime(30_000);
+      });
+      expect(MockWebSocket.instances).toHaveLength(1);
+    });
+
+    it("does not redirect and reconnects with backoff when the REST check shows we're still authenticated", async () => {
+      // Same observable signal (closed before onopen) but caused by something other than auth
+      // rejection — e.g. a test server with no WS support, a transient network blip. The health
+      // check succeeding proves the session is fine, so this must not bounce the user to /login.
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      mockedGetSystemStatus.mockResolvedValue(HEALTHY_SYSTEM_STATUS);
+      const queryClient = createTestQueryClient();
+
+      renderHookWithProviders(() => useWebSocket(), { queryClient });
+
+      const ws = MockWebSocket.instances[0];
+
+      act(() => {
+        ws.onclose?.();
+      });
+
+      await waitFor(() => {
+        expect(mockedGetSystemStatus).toHaveBeenCalledTimes(1);
+      });
+      expect(mockNavigate).not.toHaveBeenCalled();
+
+      // The existing reconnect-with-backoff behavior fires a new connection attempt.
+      act(() => {
+        vi.advanceTimersByTime(2_000);
+      });
+      expect(MockWebSocket.instances).toHaveLength(2);
+    });
+
+    it("does not redirect and reconnects with backoff when the REST check itself fails for a non-auth reason", async () => {
+      // A network error (not an ApiError, or an ApiError that isn't 401) proves nothing about
+      // auth -- must not be treated as a confirmed rejection.
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      mockedGetSystemStatus.mockRejectedValue(new Error("network error"));
+      const queryClient = createTestQueryClient();
+
+      renderHookWithProviders(() => useWebSocket(), { queryClient });
+
+      const ws = MockWebSocket.instances[0];
+
+      act(() => {
+        ws.onclose?.();
+      });
+
+      await waitFor(() => {
+        expect(mockedGetSystemStatus).toHaveBeenCalledTimes(1);
+      });
+      expect(mockNavigate).not.toHaveBeenCalled();
+
+      act(() => {
+        vi.advanceTimersByTime(2_000);
+      });
+      expect(MockWebSocket.instances).toHaveLength(2);
+    });
+
+    it("reconnects instead of hanging forever when the auth check itself stalls", async () => {
+      // Simulates a request that never settles on its own (e.g. server hung, dropped
+      // connection with no TCP RST). Only the bounded timeout inside confirmAuthRejection
+      // unblocks it — without that, scheduleReconnect would never run and the app would
+      // stay disconnected indefinitely.
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      mockedGetSystemStatus.mockImplementation(
+        (signal) =>
+          new Promise((_resolve, reject) => {
+            signal?.addEventListener("abort", () =>
+              reject(new DOMException("The operation was aborted", "AbortError")),
+            );
+          }),
+      );
+      const queryClient = createTestQueryClient();
+
+      renderHookWithProviders(() => useWebSocket(), { queryClient });
+
+      const ws = MockWebSocket.instances[0];
+
+      act(() => {
+        ws.onclose?.();
+      });
+
+      // Advance past the auth-check timeout — the stalled request should now be aborted.
+      // Use the async variant so the rejection's catch/finally chain (and the subsequent
+      // scheduleReconnect() call) actually runs before we advance further.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+
+      expect(mockNavigate).not.toHaveBeenCalled();
+
+      // Advance past reconnect backoff — must still fire even though the auth check never
+      // resolved or rejected on its own.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2_000);
+      });
+      expect(MockWebSocket.instances).toHaveLength(2);
+    });
+
+    it("keeps reconnecting (no redirect, no REST check) when a close arrives after onopen already fired", () => {
+      vi.useFakeTimers();
+      const queryClient = createTestQueryClient();
+
+      renderHookWithProviders(() => useWebSocket(), { queryClient });
+
+      const ws = MockWebSocket.instances[0];
+
+      // onopen fires (transport-level connect succeeded) before the close — a previously
+      // working connection dropping, not a rejected handshake — even though the app-level
+      // "connected" message never arrived and hasConnectedRef is still false.
+      act(() => {
+        ws.simulateOpen();
+        ws.onclose?.();
+      });
+
+      expect(mockNavigate).not.toHaveBeenCalled();
+      expect(mockedGetSystemStatus).not.toHaveBeenCalled();
+
+      // The existing reconnect-with-backoff behavior fires a new connection attempt.
+      act(() => {
+        vi.advanceTimersByTime(2_000);
+      });
+      expect(MockWebSocket.instances).toHaveLength(2);
+    });
   });
 
   it("closes socket on handshake timeout when server never sends connected message", () => {

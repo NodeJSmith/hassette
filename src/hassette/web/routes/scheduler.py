@@ -3,14 +3,19 @@
 Returns all scheduled jobs across all apps, enriched with live registry data.
 """
 
-from fastapi import APIRouter, HTTPException, Query, Response
+from logging import getLogger
+
+from fastapi import APIRouter, HTTPException, Query, Request, Response
 
 from hassette.exceptions import JobRemovedError
 from hassette.schemas.job_models import JobSummary
 from hassette.types.types import QuerySourceTier
+from hassette.web.auth import peer_address_or_unknown
 from hassette.web.dependencies import SOURCE_TIER_PARAM, SchedulerDep, TelemetryDep, db_degrades_to
 from hassette.web.models import JobTriggerResponse
 from hassette.web.utils import enrich_jobs_with_live_data
+
+LOGGER = getLogger(__name__)
 
 router = APIRouter(prefix="/scheduler", tags=["scheduler"])
 
@@ -45,7 +50,7 @@ async def all_jobs(
     response_model=JobTriggerResponse,
     responses={409: {"description": "Job is not currently registered (no live registration)"}},
 )
-async def trigger_job(job_id: int, scheduler_service: SchedulerDep) -> JobTriggerResponse:
+async def trigger_job(job_id: int, scheduler_service: SchedulerDep, request: Request) -> JobTriggerResponse:
     """Manually submit a job for immediate execution.
 
     Resolves the job by ``job_id`` (the job's ``db_id``) in the live scheduler registry, then
@@ -72,4 +77,5 @@ async def trigger_job(job_id: int, scheduler_service: SchedulerDep) -> JobTrigge
     except JobRemovedError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
+    LOGGER.info("Triggered job %s (%s) (source=%s)", job_id, job.name, peer_address_or_unknown(request))
     return JobTriggerResponse(status="accepted", job_id=job_id, job_name=job.name)

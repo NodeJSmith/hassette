@@ -54,10 +54,12 @@ from .helpers import (
 )
 from .helpers import create_listener as create_listener
 from .helpers import emit_file_change_event as emit_file_change_event
+from .helpers import make_addrinfo as make_addrinfo
 from .helpers import make_full_state_change_event as make_full_state_change_event
 from .helpers import make_service_failed_event as make_service_failed_event
 from .helpers import make_service_running_event as make_service_running_event
 from .helpers import make_task_bucket as make_task_bucket
+from .helpers import patch_loop_getaddrinfo as patch_loop_getaddrinfo
 from .helpers import wire_up_app_running_listener as wire_up_app_running_listener
 from .helpers import wire_up_app_state_listener as wire_up_app_state_listener
 from .helpers import write_app_toml as write_app_toml
@@ -66,6 +68,9 @@ from .mock_hassette import make_mock_hassette as make_mock_hassette
 from .mock_hassette import make_ws_hassette_stub as make_ws_hassette_stub
 from .recording_api import RecordingApi
 from .test_server import SimpleTestServer as SimpleTestServer
+from .uvicorn_server import get_free_port as get_free_port
+from .uvicorn_server import start_uvicorn_server as start_uvicorn_server
+from .uvicorn_server import stop_uvicorn_server as stop_uvicorn_server
 from .web_job_helpers import make_job as make_job
 from .web_job_helpers import make_real_job as make_real_job
 from .web_manifest_helpers import make_full_snapshot as make_full_snapshot

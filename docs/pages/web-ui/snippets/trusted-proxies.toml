@@ -1,0 +1,2 @@
+[hassette.web_api]
+trusted_proxies = ["caddy"]

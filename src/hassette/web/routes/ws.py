@@ -8,6 +8,7 @@ import anyio
 from fastapi import APIRouter
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
+from hassette.web.auth import WS_POLICY_VIOLATION_CLOSE_CODE, authorize_ws
 from hassette.web.dependencies import DEFAULT_LOG_LEVEL, LOG_LEVELS
 from hassette.web.mappers import connected_payload_from
 
@@ -84,6 +85,9 @@ async def _send_from_queue(websocket: WebSocket, queue: asyncio.Queue, ws_state:
 
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket) -> None:
+    if not authorize_ws(websocket):
+        await websocket.close(code=WS_POLICY_VIOLATION_CLOSE_CODE)
+        return
     await websocket.accept()
     runtime = websocket.app.state.hassette.runtime_query_service
     queue = await runtime.register_ws_client()

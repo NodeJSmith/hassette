@@ -56,8 +56,9 @@ function Button({
   variant = "default",
   size = "default",
   asChild = false,
+  type = "button",
   ...props
-}: Omit<React.ComponentProps<"button">, "type"> &
+}: React.ComponentProps<"button"> &
   VariantProps<typeof buttonVariants> & {
     asChild?: boolean;
   }) {
@@ -65,7 +66,7 @@ function Button({
 
   return (
     <Comp
-      type="button"
+      type={type}
       data-slot="button"
       data-variant={variant}
       data-size={size}

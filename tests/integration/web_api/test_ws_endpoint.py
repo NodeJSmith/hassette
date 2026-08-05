@@ -2,16 +2,21 @@
 
 import asyncio
 import json
+from collections.abc import Iterator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import websockets.exceptions
 from starlette.websockets import WebSocket
 
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.schemas.app_snapshots import AppInstanceInfo, AppStatusSnapshot
-from hassette.test_utils.web_mocks import create_hassette_stub
+from hassette.test_utils.config import TEST_SESSION_TTL, WEB_API_TEST_TOKEN
+from hassette.test_utils.uvicorn_server import start_uvicorn_server, stop_uvicorn_server
+from hassette.test_utils.web_mocks import create_hassette_stub, create_mock_runtime_query_service
 from hassette.types.enums import ResourceStatus
 from hassette.web.app import create_fastapi_app
+from hassette.web.auth import SESSION_COOKIE_NAME, mint_session_cookie
 from hassette.web.routes.ws import _read_client, websocket_endpoint
 
 from .conftest import set_app_status_snapshot, set_websocket_state
@@ -375,6 +380,12 @@ class TestWebSocketEdgeCases:
 
         mock_ws = AsyncMock(spec=WebSocket)
         mock_ws.app.state.hassette.runtime_query_service = mock_runtime
+        # authorize_ws() (called unconditionally at the top of websocket_endpoint) reads
+        # auth_enabled off this mock; an unconfigured Mock attribute is truthy, which would send
+        # authorize_ws() further into bearer/cookie checks against other unconfigured Mock
+        # attributes and raise before accept() -- unrelated to what this test actually exercises
+        # (cancellation/cleanup), so auth is explicitly disabled here.
+        mock_ws.app.state.hassette.config.web_api.auth_enabled = False
         mock_ws.accept = AsyncMock()
         mock_ws.send_json = AsyncMock()
 
@@ -401,6 +412,29 @@ class TestWebSocketEdgeCases:
         # The finally block must have called unregister_ws_client with the queue
         mock_runtime.unregister_ws_client.assert_awaited_once_with(queue)
 
+    async def test_unauthorized_connection_closes_before_accept(self) -> None:
+        """When `authorize_ws()` returns False, the endpoint closes with 1008 and never accepts.
+
+        Fast, mocked unit-level counterpart to
+        `TestWebSocketAuthorization.test_unauthenticated_connection_rejected_before_accept`,
+        which requires a real uvicorn server. This test exercises the same routing logic in
+        `websocket_endpoint()` (reject before accept) without the live-server overhead, so a
+        regression that calls `accept()` before checking `authorize_ws()`, or that swallows the
+        early return, is caught by a fast, deterministic test.
+        """
+        mock_runtime = AsyncMock()
+        mock_ws = AsyncMock(spec=WebSocket)
+        mock_ws.app.state.hassette.runtime_query_service = mock_runtime
+        mock_ws.close = AsyncMock()
+        mock_ws.accept = AsyncMock()
+
+        with patch("hassette.web.routes.ws.authorize_ws", return_value=False):
+            await websocket_endpoint(mock_ws)
+
+        mock_ws.close.assert_awaited_once_with(code=1008)
+        mock_ws.accept.assert_not_awaited()
+        mock_runtime.register_ws_client.assert_not_awaited()
+
     def test_unknown_message_type_without_data_key_ignored(self, client: "TestClient") -> None:
         """Unknown message with no 'data' key is silently ignored; connection survives."""
         with client.websocket_connect("/api/ws") as ws:
@@ -410,3 +444,97 @@ class TestWebSocketEdgeCases:
             ws.send_json({"type": "ping"})
             msg = ws.receive_json()
             assert msg["type"] == "pong"
+
+
+@pytest.fixture
+def auth_hassette() -> MagicMock:
+    """A `create_hassette_stub()` with `auth_enabled=True` and a known token, for live-server tests."""
+    hassette = create_hassette_stub(
+        run_web_ui=False,
+        cors_origins=(),
+        auth_enabled=True,
+        states={"light.kitchen": {"entity_id": "light.kitchen", "state": "on"}},
+    )
+    hassette.config.web_api.session_ttl = TEST_SESSION_TTL
+    create_mock_runtime_query_service(hassette)
+    return hassette
+
+
+@pytest.fixture
+def live_auth_server(auth_hassette: MagicMock) -> Iterator[str]:
+    """Start a real uvicorn server (auth enabled) and yield its `/api/ws` URL.
+
+    `TestClient` (used by every other test in this file) runs the ASGI app in-process via an
+    in-memory transport and never exercises uvicorn's actual WebSocket protocol implementation.
+    The pre-accept auth check must be verified against the real backend `WebApiService.serve()`
+    pins (`ws="websockets-sansio"`, `core/web_api_service.py:71`) -- this is the specific
+    empirical verification design.md's Open Questions flagged as unresolved at design time.
+    """
+    app = create_fastapi_app(auth_hassette, auth_token=WEB_API_TEST_TOKEN)
+    # Short graceful shutdown: a still-open `websockets.connect()` client can hold the
+    # connection past test end, and this backend does not release it quickly on its own
+    # (see conftest.py's live_server_ws, which needs the same setting for the same reason).
+    server, thread, port = start_uvicorn_server(app, ws="websockets-sansio", timeout_graceful_shutdown=1)
+    try:
+        yield f"ws://127.0.0.1:{port}/api/ws"
+    finally:
+        stop_uvicorn_server(server, thread)
+
+
+class TestWebSocketAuthorization:
+    """Pre-accept auth check against the real uvicorn `websockets-sansio` backend.
+
+    These tests connect with the `websockets` client library over a real TCP socket rather than
+    `TestClient`'s in-process ASGI transport, per design.md's Test Strategy ("no existing
+    precedent... new coverage") and to actually exercise the backend the Open Questions flagged as
+    unverified.
+    """
+
+    async def test_unauthenticated_connection_rejected_before_accept(self, live_auth_server: str) -> None:
+        """An unauthenticated WS upgrade never reaches `accept()` -- no data can flow.
+
+        The design specifies the server closes with WS code 1008 before calling `accept()`.
+        Empirically confirmed here: under uvicorn's `ws="websockets-sansio"` backend, a pre-accept
+        `websocket.close()` ASGI message is never translated into a WebSocket close *frame* on the
+        wire at all. `websockets_sansio_impl.py`'s `send()` hardcodes an HTTP 403 Forbidden
+        handshake rejection for any pre-accept `websocket.close`
+        (`response = self.conn.reject(HTTPStatus.FORBIDDEN, "")`), discarding whatever code the
+        application passed. A real client (this test, or a browser's native `WebSocket`) therefore
+        never observes close code 1008 -- it sees a failed handshake (403), and a browser's
+        `onclose` would fire with code 1006 (abnormal closure) per the WebSocket spec's handling of
+        a rejected upgrade. The security property this is actually protecting -- no application
+        data reaches an unauthenticated peer, because `accept()` is never called -- does hold; only
+        the specific "delivered as WS close code 1008" mechanism does not survive contact with this
+        backend. See this task's Verify section / CONTESTED note for the full account.
+        """
+        with pytest.raises(websockets.exceptions.InvalidStatus) as exc_info:
+            async with websockets.connect(live_auth_server, open_timeout=5):
+                pass
+
+        assert exc_info.value.response.status_code == 403
+
+    async def test_valid_session_cookie_is_accepted(self, live_auth_server: str) -> None:
+        cookie_value = mint_session_cookie(WEB_API_TEST_TOKEN)
+        async with websockets.connect(
+            live_auth_server,
+            additional_headers={"Cookie": f"{SESSION_COOKIE_NAME}={cookie_value}"},
+            open_timeout=5,
+        ) as ws:
+            msg = await asyncio.wait_for(ws.recv(), timeout=5)
+            data = json.loads(msg)
+            assert data["type"] == "connected"
+
+    async def test_valid_bearer_header_is_accepted(self, live_auth_server: str) -> None:
+        """Non-browser clients (CLI, scripts) authenticate via `Authorization: Bearer <token>`,
+        attached through the `websockets` library's `additional_headers` parameter at connect
+        time -- new test coverage, no existing precedent for a non-browser WS auth test in this
+        repo (design.md Test Strategy).
+        """
+        async with websockets.connect(
+            live_auth_server,
+            additional_headers={"Authorization": f"Bearer {WEB_API_TEST_TOKEN}"},
+            open_timeout=5,
+        ) as ws:
+            msg = await asyncio.wait_for(ws.recv(), timeout=5)
+            data = json.loads(msg)
+            assert data["type"] == "connected"

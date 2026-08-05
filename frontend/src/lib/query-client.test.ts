@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "../api/client";
+import { LOGIN_PATH } from "../utils/app-routes";
 import { createQueryClient, DEFAULT_STALE_TIME_MS } from "./query-client";
 
 describe("createQueryClient", () => {
@@ -78,6 +79,59 @@ describe("createQueryClient", () => {
     it("returns false for network errors after 2 failures (failureCount >= 2)", () => {
       const error = new Error("fetch failed");
       expect(getRetry(2, error)).toBe(false);
+    });
+  });
+
+  describe("QueryCache.onError — 401 redirect", () => {
+    const originalLocation = window.location;
+
+    beforeEach(() => {
+      Object.defineProperty(window, "location", {
+        value: { ...originalLocation, assign: vi.fn() },
+        writable: true,
+        configurable: true,
+      });
+    });
+
+    afterEach(() => {
+      Object.defineProperty(window, "location", {
+        value: originalLocation,
+        writable: true,
+        configurable: true,
+      });
+    });
+
+    // Drives a real query through QueryCache.onError instead of invoking the callback
+    // directly — `retry: false` keeps the failure (and the resulting onError call)
+    // immediate, since retry behavior is already covered by the "retry function" tests
+    // above and isn't what's under test here.
+    async function triggerQueryError(error: Error) {
+      const client = createQueryClient();
+      await expect(
+        client.fetchQuery({
+          queryKey: ["test"],
+          queryFn: () => Promise.reject(error),
+          retry: false,
+        }),
+      ).rejects.toThrow(error);
+    }
+
+    it("redirects to /login on a 401 ApiError", async () => {
+      await triggerQueryError(new ApiError(401, "Unauthorized"));
+
+      expect(window.location.assign).toHaveBeenCalledWith(LOGIN_PATH);
+    });
+
+    it("does not redirect on a non-401 ApiError", async () => {
+      await triggerQueryError(new ApiError(500, "Internal Server Error"));
+
+      expect(window.location.assign).not.toHaveBeenCalled();
+    });
+
+    it("does not redirect on a non-ApiError error", async () => {
+      await triggerQueryError(new Error("network down"));
+
+      expect(window.location.assign).not.toHaveBeenCalled();
     });
   });
 });

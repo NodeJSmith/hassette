@@ -216,6 +216,28 @@ class LogLevelResponse(BaseModel):
     effective_level: str
 
 
+class SessionRequest(BaseModel):
+    """Request body for POST /api/auth/session.
+
+    The pinned wire contract for the login exchange (design.md's Middleware and routing
+    section): ``{"token": "<bearer-token>"}``. The backend (this route) and the frontend
+    (``postSession()`` in ``client.ts``) target this exact field name independently.
+    """
+
+    token: str
+
+
+class SessionResponse(BaseModel):
+    """Response for POST /api/auth/session on a correct token.
+
+    The session cookie itself travels via the ``Set-Cookie`` response header, minted by
+    ``mint_session_cookie()`` — this body just confirms success for callers that inspect
+    the JSON payload rather than only the status code.
+    """
+
+    status: Literal["ok"] = "ok"
+
+
 class ConnectedPayload(BaseModel):
     uptime_seconds: float
     entity_count: int

@@ -9,7 +9,10 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import FileResponse
 
+from hassette.web.auth import EMPTY_TRUSTED_PROXY_SET, TrustedProxySet
+from hassette.web.middleware import DefaultDenyMiddleware
 from hassette.web.routes.apps import router as apps_router
+from hassette.web.routes.auth import router as auth_router
 from hassette.web.routes.bus import router as bus_router
 from hassette.web.routes.config import router as config_router
 from hassette.web.routes.executions import router as executions_router
@@ -42,13 +45,29 @@ _STATIC_EXTENSIONS = frozenset(
 )
 
 
-def create_fastapi_app(hassette: "Hassette") -> FastAPI:
+def create_fastapi_app(
+    hassette: "Hassette",
+    auth_token: str | None = None,
+    trusted_proxies: TrustedProxySet | None = None,
+) -> FastAPI:
     app = FastAPI(
         title="Hassette Web API",
         docs_url="/api/docs",
         openapi_url="/api/openapi.json",
     )
     app.state.hassette = hassette
+    app.state.auth_token = auth_token
+    app.state.trusted_proxies = trusted_proxies or EMPTY_TRUSTED_PROXY_SET
+
+    # Registration order matters: Starlette wraps middleware so the LAST one added ends up
+    # OUTERMOST (it sees the request first, the response last). DefaultDenyMiddleware is
+    # registered first (innermost relative to CORS) so CORSMiddleware — added after — is
+    # outermost and can short-circuit a genuine preflight OPTIONS request with a proper CORS
+    # response before DefaultDenyMiddleware ever gets a chance to reject it with an opaque 401.
+    # Verified empirically by test_cors_preflight_gets_cors_response_not_opaque_401 in
+    # tests/integration/web_api/test_auth.py — see design.md's Open Questions for the ordering
+    # claim this resolves.
+    app.add_middleware(DefaultDenyMiddleware)
 
     app.add_middleware(
         CORSMiddleware,
@@ -61,6 +80,7 @@ def create_fastapi_app(hassette: "Hassette") -> FastAPI:
     # API routes
     app.include_router(health_router, prefix="/api")
     app.include_router(apps_router, prefix="/api")
+    app.include_router(auth_router, prefix="/api")
     app.include_router(logs_router, prefix="/api")
     app.include_router(executions_router, prefix="/api")
     app.include_router(bus_router, prefix="/api")

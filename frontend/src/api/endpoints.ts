@@ -168,4 +168,4 @@ export const triggerJob = (jobId: number) => apiPost<JobTriggerResponse>(`/sched
 export type SystemStatus = components["schemas"]["SystemStatusResponse"];
 export type BootIssue = components["schemas"]["BootIssueResponse"];
 
-export const getSystemStatus = () => apiFetch<SystemStatus>("/health");
+export const getSystemStatus = (signal?: AbortSignal) => apiFetch<SystemStatus>("/health", { signal });
