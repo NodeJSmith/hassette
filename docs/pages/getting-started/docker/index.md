@@ -62,7 +62,7 @@ INFO hassette ... ─ Hassette is running.
 That log line confirms a token was generated and names the file it lives in — it never prints the token itself. Read the value from that file:
 
 ```bash
-docker compose exec hassette cat /data/.web_api_token
+--8<-- "pages/getting-started/docker/snippets/read-web-api-token.sh"
 ```
 
 Hassette is running, and the web UI is available at `http://localhost:8126`. Open it, and paste the token from the file into the login screen. If you see an error instead of these lines, head to [Troubleshooting](troubleshooting.md).

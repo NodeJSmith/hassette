@@ -111,7 +111,7 @@ To apply edits without restarting, set `allow_reload_in_prod = true` under `[has
 **Fix:** Read the token directly from the token file inside the container:
 
 ```bash
-docker compose exec hassette cat /data/.web_api_token
+--8<-- "pages/getting-started/docker/snippets/read-web-api-token.sh"
 ```
 
 Paste it into the login screen at `http://your-host:8126`, or attach it as `Authorization: Bearer <token>` for scripts.
@@ -119,7 +119,7 @@ Paste it into the login screen at `http://your-host:8126`, or attach it as `Auth
 To confirm a token was generated in the first place, the logs work — but only to confirm, not to retrieve the value:
 
 ```bash
-docker compose logs hassette | grep -i token
+--8<-- "pages/getting-started/docker/snippets/ts-grep-token.sh"
 ```
 
 This shows a line like `Generated new web API auth_token, written to /data/.web_api_token. Open http://your-host:8126 to log in.` — it names the file the token was written to, but never prints the plaintext token itself.
