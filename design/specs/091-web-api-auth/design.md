@@ -5,6 +5,20 @@
 **Scope-mode:** hold
 **Research:** design/research/2026-08-03-web-api-auth/research.md (includes Addendum 1: hardening gaps, and Addendum 2: challenge resolution)
 
+!!! Superseded in part — auth precedence (issue #1530)
+
+    This document describes the trusted-peer match as an unconditional short-circuit ahead of the
+    bearer/cookie check (FR#2, and "Architecture → Middleware and routing"). That ordering shipped
+    and was later found to make `trusted_proxies` and bearer-token API access mutually exclusive on
+    one host: a wrong or malformed `Authorization` header from a trusted peer was accepted, since
+    the peer match returned before the token was ever compared.
+
+    Issue #1530 inverted it. A *presented* `Authorization` header is now authoritative and fails
+    closed on any invalid form; peer trust and the session cookie apply only when no header was
+    presented. The precedence lives in one `resolve_auth_outcome()` in `web/auth.py`, shared by
+    `DefaultDenyMiddleware` and `authorize_ws()`. Everything below is left as the original record —
+    read `web/auth.py` for the current ordering.
+
 ## Problem
 
 Hassette's web API has no authentication of any kind. Mutation endpoints (`start`/`stop`/`reload` an app, `trigger` a scheduled job, `PUT /api/logs/level`), source-disclosure endpoints (`/source`, `/config`), and the WebSocket feed are all reachable by any network peer that can reach the port — which, on the default `0.0.0.0` bind, is anyone on the same LAN, Docker bridge network, or (for a VPS deployment) potentially the wider internet.

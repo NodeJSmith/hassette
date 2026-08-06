@@ -710,6 +710,10 @@ def resolve_auth_outcome(
         The :class:`AuthOutcome`. Never raises — every malformed input degrades to "not
         authenticated" (see :func:`check_bearer_token` and :func:`verify_session_cookie`).
     """
+    # Header *presence*, not token validity, is what diverts away from the fallbacks below.
+    # `extract_bearer_token` returns None for a missing header and for a malformed one alike, so
+    # swapping this for `extract_bearer_token(...) is not None` would send exactly the malformed
+    # cases back down to peer trust — reintroducing the bypass this ordering exists to close.
     if "authorization" in connection.headers:
         presented_token = extract_bearer_token(connection.headers)
         if check_bearer_token(presented_token, resolved_token):

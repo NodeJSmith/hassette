@@ -176,7 +176,6 @@ class DefaultDenyMiddleware(BaseHTTPMiddleware):
 
         trusted_proxies = get_trusted_proxies(request.app.state)
         resolved_token = getattr(request.app.state, "auth_token", None)
-        request_peer_address = peer_address(request)
 
         outcome = resolve_auth_outcome(request, trusted_proxies, resolved_token, web_api_config.session_ttl)
 
@@ -190,8 +189,11 @@ class DefaultDenyMiddleware(BaseHTTPMiddleware):
         if outcome.session_issued_at is not None and resolved_token is not None:
             if should_renew_session_cookie(outcome.session_issued_at, web_api_config.session_ttl):
                 new_cookie_value = mint_session_cookie(resolved_token)
+                # A second, independent read of the peer address: resolve_auth_outcome consulted it
+                # to decide auth, this one decides the cookie's Secure flag. Same value, different
+                # question — see should_set_secure_cookie_flag on why the two share one signal.
                 secure = should_set_secure_cookie_flag(
-                    request_peer_address, request.headers.get("x-forwarded-proto"), trusted_proxies
+                    peer_address(request), request.headers.get("x-forwarded-proto"), trusted_proxies
                 )
                 response.set_cookie(
                     SESSION_COOKIE_NAME,
