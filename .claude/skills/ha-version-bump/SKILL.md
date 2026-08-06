@@ -12,8 +12,8 @@ does not silently rubber-stamp the diff.
 
 `.github/workflows/ha-version-drift.yml` already detects pin drift daily and files a
 tracking issue covering the pin, the local checkout, codegen, and tests. It doesn't cover
-the compose-file image tags (Renovate's job, see Phase 2) or the blog-reading step —
-this skill is the fuller recipe.
+the compose-file image tags or the blog-reading step — this skill is the fuller recipe,
+and the sole place those two are bumped.
 
 ## Phase 1: Check for drift
 
@@ -23,12 +23,37 @@ LATEST=$(gh api repos/home-assistant/core/releases/latest --jq .tag_name)
 ```
 
 If `$PINNED` already equals `$LATEST`, tell the user there's nothing to bump and stop.
+Otherwise, note the two values — each Bash tool call is a fresh shell, so `$LATEST`
+doesn't survive into later phases; treat the version string as a fact you carry forward,
+not a shell variable, and write it out literally in every command below.
 
-## Phase 2: Update the pin
+If `$LATEST`'s year component is ahead of `$PINNED`'s (a year rollover, e.g. `2026.x` to
+`2027.0`), flag this to the user before proceeding: major HA releases are far more likely
+to carry breaking entity/API changes than a routine minor bump, and this skill is now the
+only gate on that risk (Renovate's old `dependencyDashboardApproval` rule for major jumps
+was removed along with the rest of its `homeassistant/home-assistant` handling — see
+Phase 2). Ask whether to continue or wait for a closer look.
+
+## Phase 2: Update every pinned reference
 
 ```bash
-echo "$LATEST" > codegen/ha-version.txt
+echo "<LATEST from Phase 1, substituted literally>" > codegen/ha-version.txt
 ```
+
+Find every other place an HA image tag is pinned, then check each hit against `$PINNED`
+to see which are actually stale. Don't rely on a fixed list of files — HA image tags are
+minor-version only (`2026.7`, not `2026.7.1`) and new ones get added over time:
+
+```bash
+grep -rn "homeassistant/home-assistant:" --include="*.yml" --include="*.yaml" . \
+  | grep -v node_modules | grep -v /.git/
+```
+
+Update each hit to the new minor version. This skill is the sole owner of these tags —
+`renovate.json` explicitly disables Renovate for `homeassistant/home-assistant`
+(`packageRules` — `"enabled": false`) precisely so there's no second, weekly bump racing
+this monthly one. If `renovate.json` no longer has that rule, something reverted it;
+flag that to the user rather than proceeding as if Renovate will catch the drift.
 
 Then update the local core checkout (path from `reference_ha-core-local-checkout`
 memory, default `~/source/core`):
@@ -43,17 +68,6 @@ or investigate) rather than switching tags out from under in-progress work. If c
 ```bash
 git fetch --tags && git checkout "$LATEST"
 ```
-
-**Do not hand-edit the `homeassistant/home-assistant:` image tags in
-`scripts/docker/ha-demo.yml` or `tests/system/docker-compose.yml`.** `renovate.json` has
-a dedicated rule (`"Group both compose files' HA image bumps into one PR"`) that already
-bumps both on its own weekly schedule via `chore(deps)` commits kept out of the
-changelog. Editing them here duplicates that automation and produces a second commit
-racing the first. Exception: if `grep -n "homeassistant/home-assistant:" scripts/docker/ha-demo.yml
-tests/system/docker-compose.yml` shows a minor version older than what Renovate should
-already have caught (check `git log -1 --format=%ai -- renovate.json` and the open PR
-list for staleness), Renovate is behind, not you. Say so and ask the user whether to bump
-manually or wait.
 
 ## Phase 3: Regenerate and review
 
@@ -151,13 +165,15 @@ Codegen only sees what's in `~/source/core`'s Python source. Deprecations, migra
 timelines, and "this will break in HA 2027.X" warnings live in prose, not in a diff a
 generator can produce.
 
-**Why leave the compose-file image tags to Renovate?** The first run of this skill
-(2026-08-06) hand-edited both compose files in the same commit as the codegen pin. That
-duplicated a rule `renovate.json` already enforces weekly, and nothing had connected the
-two before a review pass caught it. Codegen's pin and the compose files' HA image serve
-different purposes (generation source vs. demo/test runtime) and don't need to move in
-lockstep — Renovate's weekly cadence is enough to keep the compose files from drifting
-far behind.
+**Why does this skill own the compose-file image tags instead of Renovate?** The first
+run (2026-08-06) hand-edited both compose files in the same commit as the codegen pin.
+A review pass flagged that as duplicating a Renovate rule that already bumped the same
+tags weekly — so the skill was changed to defer to Renovate instead. In practice,
+Renovate's weekly PR for this one package went unreviewed; entity-model changes almost
+never land in HA patch releases, so there was no forcing function to look at it between
+monthly bumps. Renovate is now explicitly disabled for `homeassistant/home-assistant`
+(`renovate.json`) and this skill is the sole place the tags move, in lockstep with the
+codegen pin they're meant to track.
 
 **Why verify enum-alias findings against upstream before accepting them?** This is a
 recurring false-positive pattern for this specific codegen pipeline: a code reviewer
