@@ -73,7 +73,7 @@ Read this value with `log_persistence_active`; the counter changes only while pe
 
 ## `hassette app`
 
-Lists all loaded apps with key, display name, status, instance count, and recent invocation counts. The app key is the `[hassette.apps.<key>]` section name from `hassette.toml` — the identifier every `--app` flag takes. An instance is one running copy of an app class; most apps run a single instance at index 0, but the same class can run multiple times with different configs.
+Lists all loaded apps with key, status, display name, instance count, recent invocation counts, enabled state, autostart setting, and source file. The app key is the `[hassette.apps.<key>]` section name from `hassette.toml` — the identifier every `--app` flag takes. An instance is one running copy of an app class; most apps run a single instance at index 0, but the same class can run multiple times with different configs.
 
 ```console
 $ hassette app
