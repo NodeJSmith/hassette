@@ -91,8 +91,12 @@ def _resolve_explicit_target(raw_url: str, *, verify_ssl: bool) -> ServerTarget:
     except ValueError as exc:
         raise ServerUrlParseError(f"server_url could not be parsed: {cleaned} ({exc})") from exc
 
-    if yurl.scheme not in ("http", "https"):
+    if not yurl.scheme:
         raise ServerUrlSchemeRequiredError(f"server_url must include a scheme (http:// or https://), got: {cleaned}")
+    if yurl.scheme not in ("http", "https"):
+        raise ServerUrlSchemeRequiredError(
+            f"server_url scheme must be http:// or https://, got {yurl.scheme!r} in: {cleaned}"
+        )
 
     if not yurl.host:
         raise ServerUrlHostRequiredError(f"server_url must include a host, got: {cleaned}")

@@ -300,12 +300,12 @@ class HassetteCLIClient:
 
     def _handle_network_error(self, message: str) -> NoReturn:
         """Print a network error and exit with code 2."""
+        target, tls_verified = self._target_and_tls_for_error()
         if self.json_mode:
-            target, tls_verified = self._target_and_tls_for_error()
             _write_json_error(None, message, target=target, tls_verified=tls_verified)
         else:
             cli_output.stderr_console.print(f"[bold red]Network error:[/bold red] {message}")
-            if self._insecure_from_config:
+            if tls_verified is False:
                 self._print_tls_warning()
         sys.exit(2)
 

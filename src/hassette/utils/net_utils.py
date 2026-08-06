@@ -50,7 +50,9 @@ def is_loopback_host(host: str) -> bool:
         return host.lower() in _LOOPBACK_HOSTNAMES
     if addr.is_loopback:
         return True
-    mapped = getattr(addr, "ipv4_mapped", None)
+    if not isinstance(addr, ipaddress.IPv6Address):
+        return False
+    mapped = addr.ipv4_mapped
     return mapped is not None and mapped.is_loopback
 
 
