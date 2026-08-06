@@ -497,7 +497,7 @@ class TestFileWatcherConfig:
 
 
 class TestCliConfig:
-    def test_defaults(self):
+    def test_defaults(self) -> None:
         """CliConfig constructs with all defaults."""
         cfg = CliConfig()
         assert cfg.server_url is None
@@ -677,7 +677,7 @@ class TestEnvVarPartialUpdate:
         config = EnvLoggingConfig()
         assert config.logging.log_level == "DEBUG"
 
-    def test_env_var_cli_server_url(self, monkeypatch):
+    def test_env_var_cli_server_url(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """HASSETTE__CLI__SERVER_URL=https://example.com sets only cli.server_url."""
         monkeypatch.setenv("HASSETTE__CLI__SERVER_URL", "https://example.com")
 
@@ -696,7 +696,7 @@ class TestEnvVarPartialUpdate:
         # Other cli defaults are preserved
         assert config.cli.verify_ssl is True
 
-    def test_env_var_cli_verify_ssl(self, monkeypatch):
+    def test_env_var_cli_verify_ssl(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """HASSETTE__CLI__VERIFY_SSL=false sets only cli.verify_ssl."""
         monkeypatch.setenv("HASSETTE__CLI__VERIFY_SSL", "false")
 
