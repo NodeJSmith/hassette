@@ -80,13 +80,18 @@ class TestBodyCeilingInProcess:
         assert response.status_code == 401
 
     async def test_body_just_under_the_ceiling_reaches_the_handler(self, auth_client: AsyncClient) -> None:
-        """A payload under the ceiling is handled normally — here, rejected on token mismatch (401),
-        not on size. Pins that the boundary is not off by enough to catch legitimate traffic.
+        """A payload right at the ceiling is handled normally — here, rejected by Pydantic's field
+        length validator (422), not by the body-size middleware (413). Pins that the boundary is
+        not off by enough to catch legitimate traffic.
         """
-        token = "A" * (MAX_SESSION_TOKEN_LENGTH - 1)
-        response = await auth_client.post("/api/auth/session", json={"token": token})
+        body = b'{"token":"' + b"A" * (MAX_REQUEST_BODY_BYTES - len(b'{"token":""}')) + b'"}'
+        response = await auth_client.post(
+            "/api/auth/session",
+            content=body,
+            headers={"content-type": "application/json"},
+        )
 
-        assert response.status_code == 401
+        assert response.status_code == 422
 
     async def test_token_past_field_max_length_is_a_validation_error(self, auth_client: AsyncClient) -> None:
         """Between the field cap and the body ceiling, Pydantic answers 422 — not 413, not 401."""
