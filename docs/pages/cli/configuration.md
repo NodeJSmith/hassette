@@ -70,7 +70,7 @@ The fix is a second route: one that matches `/api/*` on the same subdomain, skip
 
 This works for subdomain routing, where `cli.server_url` points at a dedicated hostname (`https://hassette.example.com`) that proxies entirely to Hassette. Path-prefix routing — one hostname serving Hassette under a subpath like `/hassette` — is supported by `server_url` (the path prefix survives through to every request, see [Discovery Order](#discovery-order)), but no worked example ships here: it has not been verified end-to-end against a path-stripping proxy.
 
-Add `trusted_proxies` (see [Web UI](../web-ui/index.md#enabling-and-accessing)) instead of a bearer token when the gateway's own login should stand in for Hassette's — the same trust relationship the web UI section documents, extended to the `/api/*` route.
+Add `trusted_proxies` (see [Web UI](../web-ui/index.md#enabling-and-accessing)) when the gateway's own login should stand in for Hassette's — the same trust relationship the web UI section documents, extended to the `/api/*` route. It composes with a bearer token rather than replacing it: peer trust admits requests that send no `Authorization` header, and any request carrying that header is still validated against Hassette's token.
 
 ## Output Modes
 
@@ -192,7 +192,7 @@ Another process — usually a second Hassette instance — holds the web API por
 Usage error: Instance 'office' not found for app 'my-app'. Available instances: 'default', 'kitchen'
 ```
 
-The instance name must match `hassette app` output exactly. The integer index also works — `--instance 0` selects the first instance.
+The instance name must match an `instances[].instance_name` value from `hassette app --json` exactly — the default `hassette app` table shows a per-app instance count, not the names themselves. The integer index also works and needs no lookup: `--instance 0` selects the first instance.
 
 **Unauthenticated remote request (401):**
 

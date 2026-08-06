@@ -21,7 +21,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from httpx2 import ASGITransport, AsyncClient
+from httpx2 import ASGITransport, AsyncClient, Response
 
 from hassette.test_utils import make_addrinfo, patch_loop_getaddrinfo
 from hassette.test_utils.config import TEST_SESSION_TTL, WEB_API_TEST_TOKEN
@@ -41,6 +41,11 @@ from .conftest import make_log_record
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 _SPA_DIR = _PROJECT_ROOT / "src" / "hassette" / "web" / "static" / "spa"
 _STUB_SPA_FILES = ("index.html", "assets/index-abc123.js")
+_TRUSTED_PEER_IP = "203.0.113.5"
+"""Peer address the trusted-proxy tests list in `trusted_proxies` (RFC 5737 doc range)."""
+
+_UNTRUSTED_PEER_IP = "198.51.100.9"
+"""Peer address deliberately outside every test's `trusted_proxies` set."""
 
 
 @pytest.fixture(autouse=True)
@@ -126,6 +131,20 @@ async def _mint_cookie_at(token: str, seconds_ago: int) -> str:
     stale_timestamp = int(time.time()) - seconds_ago
     with patch("hassette.web.auth._current_timestamp", return_value=stale_timestamp):
         return mint_session_cookie(token)
+
+
+async def _trusted_peer_get_config(auth_hassette, headers: dict[str, str] | None = None) -> Response:
+    """`GET /api/config` from a peer inside `trusted_proxies`, against an app with a real token.
+
+    Both halves matter: the peer matches, *and* `auth_token` is configured -- so a request that
+    presents a credential has something real to be validated against, rather than the
+    no-token apps `TestTrustedProxyPeerAuth` builds.
+    """
+    trusted = await resolve_trusted_proxies((_TRUSTED_PEER_IP,))
+    app = create_fastapi_app(auth_hassette, auth_token=WEB_API_TEST_TOKEN, trusted_proxies=trusted)
+    transport = ASGITransport(app=app, client=(_TRUSTED_PEER_IP, 12345))
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        return await client.get("/api/config", headers=headers)
 
 
 class TestDefaultDenyNoCredential:
@@ -274,9 +293,9 @@ class TestSlidingRenewal:
         assert resp.cookies.get(SESSION_COOKIE_NAME) is None
 
     async def test_trusted_proxy_authenticated_request_is_not_renewed(self, auth_hassette) -> None:
-        trusted = await resolve_trusted_proxies(("203.0.113.5",))
+        trusted = await resolve_trusted_proxies((_TRUSTED_PEER_IP,))
         app = create_fastapi_app(auth_hassette, auth_token=WEB_API_TEST_TOKEN, trusted_proxies=trusted)
-        transport = ASGITransport(app=app, client=("203.0.113.5", 12345))
+        transport = ASGITransport(app=app, client=(_TRUSTED_PEER_IP, 12345))
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             resp = await client.get("/api/config")
 
@@ -373,7 +392,7 @@ class TestMutationSuccessLogging:
         self, mutation_hassette, caplog: pytest.LogCaptureFixture
     ) -> None:
         app = create_fastapi_app(mutation_hassette, auth_token=WEB_API_TEST_TOKEN)
-        transport = ASGITransport(app=app, client=("198.51.100.9", 54321))
+        transport = ASGITransport(app=app, client=(_UNTRUSTED_PEER_IP, 54321))
 
         with caplog.at_level(logging.INFO, logger="hassette.web.routes.logs"):
             async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -388,7 +407,7 @@ class TestMutationSuccessLogging:
         assert len(info_records) == 1
         message = info_records[0].getMessage()
         assert "hassette.test_logger" in message
-        assert "198.51.100.9" in message
+        assert _UNTRUSTED_PEER_IP in message
 
 
 class TestBearerTokenAuth:
@@ -429,9 +448,9 @@ class TestTrustedProxyPeerAuth:
     """
 
     async def test_ip_entry_peer_returns_200_with_no_credential(self, auth_hassette) -> None:
-        trusted = await resolve_trusted_proxies(("203.0.113.5",))
+        trusted = await resolve_trusted_proxies((_TRUSTED_PEER_IP,))
         app = create_fastapi_app(auth_hassette, trusted_proxies=trusted)
-        transport = ASGITransport(app=app, client=("203.0.113.5", 12345))
+        transport = ASGITransport(app=app, client=(_TRUSTED_PEER_IP, 12345))
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             resp = await client.get("/api/config")
 
@@ -447,11 +466,66 @@ class TestTrustedProxyPeerAuth:
         assert resp.status_code == 200
 
     async def test_non_matching_peer_still_requires_credential(self, auth_hassette) -> None:
-        trusted = await resolve_trusted_proxies(("203.0.113.5",))
+        trusted = await resolve_trusted_proxies((_TRUSTED_PEER_IP,))
         app = create_fastapi_app(auth_hassette, trusted_proxies=trusted)
-        transport = ASGITransport(app=app, client=("198.51.100.9", 12345))
+        transport = ASGITransport(app=app, client=(_UNTRUSTED_PEER_IP, 12345))
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             resp = await client.get("/api/config")
+
+        assert resp.status_code == 401
+
+
+class TestPresentedCredentialPrecedence:
+    """A presented `Authorization` header is authoritative: it is always validated, and every
+    invalid form of it fails closed with a 401 -- even when the peer matches `trusted_proxies`.
+    Ambient peer trust applies only to a request presenting no `Authorization` header at all.
+
+    Without this ordering, `trusted_proxies` and bearer-token API access are mutually exclusive on
+    one host: a reverse-proxy bypass router that routes on the *presence* of an `Authorization`
+    header (Traefik `HeaderRegexp(Authorization, .+)`) becomes a full auth bypass, since the peer
+    match short-circuits before the token is ever compared.
+    """
+
+    async def test_correct_bearer_token_from_trusted_peer_returns_200(self, auth_hassette) -> None:
+        resp = await _trusted_peer_get_config(auth_hassette, headers={"Authorization": f"Bearer {WEB_API_TEST_TOKEN}"})
+
+        assert resp.status_code == 200
+
+    async def test_wrong_bearer_token_from_trusted_peer_returns_401(self, auth_hassette) -> None:
+        resp = await _trusted_peer_get_config(auth_hassette, headers={"Authorization": "Bearer wrong-token"})
+
+        assert resp.status_code == 401
+
+    async def test_unrecognized_scheme_from_trusted_peer_returns_401(self, auth_hassette) -> None:
+        """A malformed header fails closed too, not just a wrong token: a surprising 401 to a
+        misconfigured client beats a bypass a trusted peer could exploit.
+        """
+        resp = await _trusted_peer_get_config(auth_hassette, headers={"Authorization": f"Basic {WEB_API_TEST_TOKEN}"})
+
+        assert resp.status_code == 401
+
+    async def test_empty_bearer_value_from_trusted_peer_returns_401(self, auth_hassette) -> None:
+        resp = await _trusted_peer_get_config(auth_hassette, headers={"Authorization": "Bearer "})
+
+        assert resp.status_code == 401
+
+    async def test_no_authorization_header_from_trusted_peer_returns_200(self, auth_hassette) -> None:
+        """The existing no-credential peer-trust path is untouched -- this is what keeps a browser
+        behind a forward-auth proxy from having to pass Hassette's own login screen as well.
+        """
+        resp = await _trusted_peer_get_config(auth_hassette)
+
+        assert resp.status_code == 200
+
+    async def test_wrong_bearer_token_does_not_fall_back_to_valid_cookie(self, auth_client: AsyncClient) -> None:
+        """A presented header is authoritative over a valid session cookie too, not only over peer
+        trust. Browsers never send `Authorization` unprompted, so this combination only arises from
+        a deliberate client -- and a deliberate client sending a bad token should be told, not
+        silently authenticated by a leftover cookie.
+        """
+        auth_client.cookies.set(SESSION_COOKIE_NAME, mint_session_cookie(WEB_API_TEST_TOKEN))
+
+        resp = await auth_client.get("/api/config", headers={"Authorization": "Bearer wrong-token"})
 
         assert resp.status_code == 401
 
@@ -503,13 +577,13 @@ class TestSpoofedForwardedForRejected:
     """
 
     async def test_spoofed_x_forwarded_for_from_untrusted_peer_returns_401(self, auth_hassette) -> None:
-        trusted = await resolve_trusted_proxies(("203.0.113.5",))
+        trusted = await resolve_trusted_proxies((_TRUSTED_PEER_IP,))
         app = create_fastapi_app(auth_hassette, trusted_proxies=trusted)
         # The direct ASGI peer is untrusted -- only the client-suppliable header claims the
         # trusted IP, which `is_trusted_peer` must never consult.
-        transport = ASGITransport(app=app, client=("198.51.100.9", 12345))
+        transport = ASGITransport(app=app, client=(_UNTRUSTED_PEER_IP, 12345))
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            resp = await client.get("/api/config", headers={"X-Forwarded-For": "203.0.113.5"})
+            resp = await client.get("/api/config", headers={"X-Forwarded-For": _TRUSTED_PEER_IP})
 
         assert resp.status_code == 401
 
@@ -542,9 +616,9 @@ class TestCookieSecureFlag:
     """
 
     async def test_trusted_peer_with_https_forwarded_proto_gets_secure_cookie(self, auth_hassette) -> None:
-        trusted = await resolve_trusted_proxies(("203.0.113.5",))
+        trusted = await resolve_trusted_proxies((_TRUSTED_PEER_IP,))
         app = create_fastapi_app(auth_hassette, auth_token=WEB_API_TEST_TOKEN, trusted_proxies=trusted)
-        transport = ASGITransport(app=app, client=("203.0.113.5", 12345))
+        transport = ASGITransport(app=app, client=(_TRUSTED_PEER_IP, 12345))
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             resp = await client.post(
                 "/api/auth/session",
@@ -558,11 +632,11 @@ class TestCookieSecureFlag:
         assert "secure" in set_cookie_header.lower()
 
     async def test_non_trusted_peer_with_spoofed_https_header_gets_no_secure_cookie(self, auth_hassette) -> None:
-        trusted = await resolve_trusted_proxies(("203.0.113.5",))
+        trusted = await resolve_trusted_proxies((_TRUSTED_PEER_IP,))
         app = create_fastapi_app(auth_hassette, auth_token=WEB_API_TEST_TOKEN, trusted_proxies=trusted)
         # Direct peer does not match trusted_proxies -- the header is spoofed and must be ignored
         # per `should_set_secure_cookie_flag`'s contract.
-        transport = ASGITransport(app=app, client=("198.51.100.9", 12345))
+        transport = ASGITransport(app=app, client=(_UNTRUSTED_PEER_IP, 12345))
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             resp = await client.post(
                 "/api/auth/session",
