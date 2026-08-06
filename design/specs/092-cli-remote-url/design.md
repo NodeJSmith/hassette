@@ -1,7 +1,7 @@
 # Design: CLI Support for Targeting a Remote API URL
 
 **Date:** 2026-08-05
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Research:** `design/research/2026-08-05-cli-remote-url/research.md`
 

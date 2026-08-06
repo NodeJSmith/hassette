@@ -15,9 +15,52 @@ from rich.console import Console
 import hassette.cli.output as output_module
 from hassette.cli.client import HassetteCLIClient
 from hassette.config.config import HassetteConfig
+from hassette.test_utils import make_test_config
 
 SINCE_EPOCH = 1_700_000_000.0
 NOW_EPOCH = 1_748_000_000.0
+REMOTE_SERVER_URL = "https://example.com/hassette"
+REMOTE_SERVER_URL_BARE = "https://example.com"
+
+
+def make_cli_config(
+    *,
+    host: str = "127.0.0.1",
+    port: int = 8126,
+    data_dir: Path,
+    cli_server_url: str | None = None,
+    cli_verify_ssl: bool = True,
+    cli_token_file: Path | None = None,
+    cli_auth_token: str | None = None,
+    web_api_auth_token: str | None = None,
+) -> HassetteConfig:
+    """Build a HassetteConfig with explicit cli/web_api settings for CLI target/client tests.
+
+    Thin wrapper around the shared ``make_test_config`` factory (see
+    ``.claude/rules/test-conventions.md``) that maps this module's cli/web_api-focused keyword
+    shape onto ``make_test_config``'s nested-dict overrides, rather than constructing
+    ``HassetteConfig`` from scratch. Also inherits ``make_test_config``'s other safety defaults
+    (``apps.autodetect=False``, ``disable_state_proxy_polling=True``) since only the ``web_api``
+    and ``cli`` groups are overridden here. ``web_api.run=False`` is passed explicitly below
+    because supplying a ``web_api=`` override replaces (not merges with) ``make_test_config``'s
+    own ``web_api={"run": False}`` default.
+
+    Shared by ``test_target.py`` (resolver/credential precedence tests) and ``test_client.py``
+    (HTTP client credential-attachment tests) — both need the same cli/web_api override shape.
+    """
+    web_api_kwargs: dict[str, Any] = {"host": host, "port": port, "run": False}
+    if web_api_auth_token is not None:
+        web_api_kwargs["auth_token"] = web_api_auth_token
+
+    cli_kwargs: dict[str, Any] = {"verify_ssl": cli_verify_ssl}
+    if cli_server_url is not None:
+        cli_kwargs["server_url"] = cli_server_url
+    if cli_token_file is not None:
+        cli_kwargs["token_file"] = cli_token_file
+    if cli_auth_token is not None:
+        cli_kwargs["auth_token"] = cli_auth_token
+
+    return make_test_config(data_dir=data_dir, web_api=web_api_kwargs, cli=cli_kwargs)
 
 
 def fixed_now() -> float:

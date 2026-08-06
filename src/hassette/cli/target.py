@@ -18,7 +18,7 @@ from typing import Literal
 
 from yarl import URL
 
-from hassette.cli.client import _format_host, _substitute_host
+from hassette.cli.client import format_host, substitute_host
 from hassette.config.config import HassetteConfig
 from hassette.exceptions import CredentialResolutionError, ServerUrlApiSuffixError, ServerUrlSchemeRequiredError
 from hassette.utils.net_utils import is_loopback_host
@@ -108,10 +108,10 @@ def _resolve_derived_target(config: HassetteConfig, *, verify_ssl: bool) -> Serv
     Must stay byte-identical to today's ``f"http://{host}:{port}"`` construction — this is the
     zero-config local path, and ``TestBaseUrl``'s four existing tests pin it.
     """
-    host = _format_host(config.web_api.host)
+    host = format_host(config.web_api.host)
     port = config.web_api.port
     base_url = f"http://{host}:{port}"
-    is_loopback = is_loopback_host(_substitute_host(config.web_api.host))
+    is_loopback = is_loopback_host(substitute_host(config.web_api.host))
     return ServerTarget(base_url=base_url, is_loopback=is_loopback, verify_ssl=verify_ssl)
 
 
@@ -170,13 +170,13 @@ def _resolve_token_file_flag(inputs: CredentialInputs) -> str | None:
     return _ensure_header_safe(content, str(path))
 
 
-def _resolve_cli_token_file(inputs: CredentialInputs) -> str | None:
-    """``cli.token_file``. Missing/unreadable falls through to the next source — a config path is
-    reused unattended and goes stale in ways the operator isn't present to see.
+def _read_token_file(path: Path) -> str | None:
+    """Read and validate a token file, treating missing/unreadable/empty content as "no credential".
+
+    Shared by ``cli.token_file`` and ``<data_dir>/.web_api_token`` resolution — both fall through
+    to the next source on any read failure, unlike ``--token-file`` (:func:`_resolve_token_file_flag`),
+    which raises instead.
     """
-    path = inputs.config.cli.token_file
-    if path is None:
-        return None
     try:
         content = path.read_text(encoding="utf-8").strip()
     except (OSError, UnicodeDecodeError):
@@ -184,6 +184,16 @@ def _resolve_cli_token_file(inputs: CredentialInputs) -> str | None:
     if not content:
         return None
     return _ensure_header_safe(content, str(path))
+
+
+def _resolve_cli_token_file(inputs: CredentialInputs) -> str | None:
+    """``cli.token_file``. Missing/unreadable falls through to the next source — a config path is
+    reused unattended and goes stale in ways the operator isn't present to see.
+    """
+    path = inputs.config.cli.token_file
+    if path is None:
+        return None
+    return _read_token_file(path)
 
 
 def _resolve_cli_auth_token_field(inputs: CredentialInputs) -> str | None:
@@ -217,14 +227,7 @@ def _resolve_data_dir_token_file(inputs: CredentialInputs) -> str | None:
     service that owns generation — a CLI-minted token would never match what the running service
     actually validates against.
     """
-    path = inputs.config.data_dir / TOKEN_FILENAME
-    try:
-        content = path.read_text(encoding="utf-8").strip()
-    except (OSError, UnicodeDecodeError):
-        return None
-    if not content:
-        return None
-    return _ensure_header_safe(content, str(path))
+    return _read_token_file(inputs.config.data_dir / TOKEN_FILENAME)
 
 
 CREDENTIAL_SOURCES: tuple[CredentialSource, ...] = (

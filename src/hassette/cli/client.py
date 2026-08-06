@@ -33,20 +33,20 @@ _BIND_ALL_SUBSTITUTIONS: dict[str, str] = {
 T = TypeVar("T")
 
 
-def _substitute_host(host: str) -> str:
+def substitute_host(host: str) -> str:
     """Replace bind-all addresses with loopback equivalents."""
     return _BIND_ALL_SUBSTITUTIONS.get(host, host)
 
 
-def _format_host(host: str) -> str:  # pyright: ignore[reportUnusedFunction] -- consumed by cli/target.py, not in-file
+def format_host(host: str) -> str:
     """Wrap IPv6 addresses in brackets for use in URLs."""
-    substituted = _substitute_host(host)
+    substituted = substitute_host(host)
     if ":" in substituted:
         return f"[{substituted}]"
     return substituted
 
 
-# Imported here, after _substitute_host/_format_host are defined, rather than in the top import
+# Imported here, after substitute_host/format_host are defined, rather than in the top import
 # block: cli/target.py imports those two names from this module, so a top-of-file import here
 # would create a circular partial-initialization failure (target.py would try to read them off
 # hassette.cli.client before this module had defined them).

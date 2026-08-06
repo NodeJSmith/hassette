@@ -4,7 +4,7 @@ Durable issues discovered during orchestration that were intentionally not fixed
 
 ## KI-001: FR#16/FR#17 success-path JSON-mode target/TLS echo not implemented
 
-Status: open
+Status: filed (#1527)
 Run: 57
 Source: T04
 Reason not fixed now: out-of-scope
@@ -100,3 +100,50 @@ Acceptance criteria:
 - `hassette status`/`hassette app`/`hassette app health`/`hassette job`/`hassette telemetry` sample
   outputs in the page match live output field-for-field, including panel titles.
 - The Next Run column description matches `_next_run_display`'s current placeholder-text behavior.
+
+## KI-003: Two non-unified `HassetteConfig` test-builder helpers for cli/web_api overrides
+
+Status: resolved — fixed during known issues walkthrough
+Run: 57
+Source: clean-code
+Observed in: T03/T04 (clean-code review at the end of the run)
+Affected files:
+- tests/unit/cli/test_target.py
+- tests/unit/cli/test_client.py
+
+Issue:
+`tests/unit/cli/test_target.py`'s `_make_config()` (new in this branch) and
+`tests/unit/cli/test_client.py`'s `_make_config_for_auth()` (pre-existing, extended in this branch
+per the design doc's Convention Examples) both build a `HassetteConfig` with `cli`/`web_api`
+overrides for resolver/credential tests, but via two different construction strategies:
+`_make_config()` routes through the shared `make_test_config()` factory (per
+`.claude/rules/test-conventions.md`), while `_make_config_for_auth()` constructs
+`HassetteConfig(web_api=WebApiConfig(...), cli=CliConfig(...))` directly, bypassing
+`make_test_config()`'s other safety defaults (`apps.autodetect=False`,
+`disable_state_proxy_polling=True`). Neither helper reuses the other, despite covering
+overlapping ground (host/port, cli.server_url, cli.auth_token, cli.verify_ssl, web_api.auth_token).
+
+Originally deferred:
+At clean-code time, unifying the two into one shared helper looked like it meant either routing
+12+ existing `TestCredentialAttachment`/`TestVerifySslPassthrough`/etc. tests in `test_client.py`
+through `make_test_config()`'s extra safety defaults (a behavior-adjacent change to an
+actively-used, unrelated test suite) or making `test_target.py`'s newer helper match
+`test_client.py`'s bypass-`make_test_config()` style. On closer inspection during the known-issues
+walkthrough, this turned out to be a mechanical migration rather than a design decision — see Fix
+applied below.
+
+Fix applied:
+Added `make_cli_config()` to `tests/unit/cli/conftest.py` — a thin wrapper over the shared
+`make_test_config()` factory (per `.claude/rules/test-conventions.md`) covering the cli/web_api
+override shape both files need. Removed `test_target.py`'s local `_make_config()` and
+`test_client.py`'s `_make_config_for_auth()`; migrated all call sites in both files onto the
+shared helper. `test_client.py`'s separate, unrelated local `_make_config(host, port)` helper
+(used by target-derivation tests with no cli/web_api overrides) was renamed to
+`_make_host_port_config` to disambiguate it from the new shared `make_cli_config()`. Verified via
+`uv run pytest tests/unit/cli/ -n 4` (430 passed, no behavior changes) and a code-reviewer pass
+(PASS, 0 findings).
+
+Acceptance criteria:
+- One test-builder helper (shared or in `test_utils`) covers the cli/web_api override shape
+  needed by both `test_target.py` and `test_client.py`. — met (`make_cli_config` in `conftest.py`)
+- All tests in both files pass unchanged in behavior after the migration. — met (430/430 passed)
