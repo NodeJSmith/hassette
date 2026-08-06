@@ -758,4 +758,18 @@ class TestEntityWrapperEscaping:
 
         module = ast.parse(output)
         facade = next(n for n in module.body if isinstance(n, ast.ClassDef) and n.name.endswith("SyncFacade"))
-        assert [n.name for n in facade.body if isinstance(n, ast.FunctionDef)] == ["first", "second", "third"]
+        methods = [n for n in facade.body if isinstance(n, ast.FunctionDef)]
+        assert [n.name for n in methods] == ["first", "second", "third"]
+
+        # The half-open docstring did not just drop `second`: it left `first` calling the service
+        # that belonged to `second`, because the closing delimiter landed mid-method. Asserting the
+        # method names alone would miss that.
+        for method in methods:
+            called = [
+                kw.value.value
+                for node in ast.walk(method)
+                if isinstance(node, ast.Call)
+                for kw in node.keywords
+                if kw.arg == "service" and isinstance(kw.value, ast.Constant)
+            ]
+            assert called == [method.name]
