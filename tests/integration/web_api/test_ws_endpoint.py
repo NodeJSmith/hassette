@@ -3,10 +3,12 @@
 import asyncio
 import json
 from collections.abc import AsyncIterator, Iterator
+from contextlib import contextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import websockets.exceptions
+from fastapi import FastAPI
 from starlette.websockets import WebSocket
 
 from hassette.core.runtime_query_service import RuntimeQueryService
@@ -29,6 +31,10 @@ except ImportError:
     HAS_STARLETTE_TC = False
 
 pytestmark = pytest.mark.skipif(not HAS_STARLETTE_TC, reason="starlette testclient not available")
+
+LOOPBACK_PEER_IP = "127.0.0.1"
+"""The peer address uvicorn reports for the live-server tests' own client, so a `trusted_proxies`
+entry naming it makes those connections trusted."""
 
 
 @pytest.fixture
@@ -460,17 +466,20 @@ def auth_hassette() -> MagicMock:
     return hassette
 
 
-@pytest.fixture
-def live_auth_server(auth_hassette: MagicMock) -> Iterator[str]:
-    """Start a real uvicorn server (auth enabled) and yield its `/api/ws` URL.
+@contextmanager
+def serve_ws_app(app: FastAPI) -> Iterator[str]:
+    """Run `app` under a real uvicorn server for the duration of the block, yielding its `/api/ws` URL.
 
     `TestClient` (used by every other test in this file) runs the ASGI app in-process via an
     in-memory transport and never exercises uvicorn's actual WebSocket protocol implementation.
     The pre-accept auth check must be verified against the real backend `WebApiService.serve()`
     pins (`ws="websockets-sansio"`, `core/web_api_service.py:71`) -- this is the specific
     empirical verification design.md's Open Questions flagged as unresolved at design time.
+
+    Sits one layer above `start_uvicorn_server`/`stop_uvicorn_server`: those own the port/thread
+    lifecycle, this owns the backend pins and URL shape every live WS fixture here needs, so a
+    second fixture doesn't have to restate them.
     """
-    app = create_fastapi_app(auth_hassette, auth_token=WEB_API_TEST_TOKEN)
     # Short graceful shutdown: a still-open `websockets.connect()` client can hold the
     # connection past test end, and this backend does not release it quickly on its own
     # (see conftest.py's live_server_ws, which needs the same setting for the same reason).
@@ -482,8 +491,15 @@ def live_auth_server(auth_hassette: MagicMock) -> Iterator[str]:
 
 
 @pytest.fixture
+def live_auth_server(auth_hassette: MagicMock) -> Iterator[str]:
+    """A live WS server with auth enabled and no trusted proxies -- every caller needs a credential."""
+    with serve_ws_app(create_fastapi_app(auth_hassette, auth_token=WEB_API_TEST_TOKEN)) as url:
+        yield url
+
+
+@pytest.fixture
 async def live_trusted_peer_server(auth_hassette: MagicMock) -> AsyncIterator[str]:
-    """Start a real uvicorn server whose `trusted_proxies` matches the loopback test client.
+    """A live WS server whose `trusted_proxies` matches the loopback test client.
 
     The client dials `ws://127.0.0.1:<port>`, so uvicorn reports `127.0.0.1` as the raw ASGI peer
     and the trusted-peer branch is genuinely live -- this is the deployment shape where a
@@ -493,13 +509,10 @@ async def live_trusted_peer_server(auth_hassette: MagicMock) -> AsyncIterator[st
     Goes through the real `resolve_trusted_proxies()` rather than constructing a `TrustedProxySet`
     directly, so the entry parses the same way it would from operator config.
     """
-    trusted = await resolve_trusted_proxies(("127.0.0.1",))
+    trusted = await resolve_trusted_proxies((LOOPBACK_PEER_IP,))
     app = create_fastapi_app(auth_hassette, auth_token=WEB_API_TEST_TOKEN, trusted_proxies=trusted)
-    server, thread, port = start_uvicorn_server(app, ws="websockets-sansio", timeout_graceful_shutdown=1)
-    try:
-        yield f"ws://127.0.0.1:{port}/api/ws"
-    finally:
-        stop_uvicorn_server(server, thread)
+    with serve_ws_app(app) as url:
+        yield url
 
 
 class TestWebSocketAuthorization:

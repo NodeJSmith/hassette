@@ -47,6 +47,7 @@ from hassette.web.auth import (
 
 _WS_TEST_TOKEN = "the-real-token"
 _WS_TRUSTED_PEER_IP = "203.0.113.5"
+_WS_UNTRUSTED_PEER_IP = "198.51.100.9"
 _WS_TRUSTED_SET = TrustedProxySet(
     literal_networks=frozenset({ipaddress.ip_network(_WS_TRUSTED_PEER_IP)}),
     hostname_entries={},
@@ -708,7 +709,7 @@ class TestAuthorizeWsPrecedence:
         assert authorize_ws(ws) is True
 
     def test_untrusted_peer_with_correct_bearer_token_accepts(self) -> None:
-        ws = _make_websocket(headers={"authorization": f"Bearer {_WS_TEST_TOKEN}"}, client_host="198.51.100.9")
+        ws = _make_websocket(headers={"authorization": f"Bearer {_WS_TEST_TOKEN}"}, client_host=_WS_UNTRUSTED_PEER_IP)
 
         assert authorize_ws(ws) is True
 
@@ -716,7 +717,7 @@ class TestAuthorizeWsPrecedence:
         """The browser path: no `Authorization` header, no peer match, valid session cookie."""
         ws = _make_websocket(
             cookies={SESSION_COOKIE_NAME: mint_session_cookie(_WS_TEST_TOKEN)},
-            client_host="198.51.100.9",
+            client_host=_WS_UNTRUSTED_PEER_IP,
         )
 
         assert authorize_ws(ws) is True
@@ -725,19 +726,19 @@ class TestAuthorizeWsPrecedence:
         ws = _make_websocket(
             headers={"authorization": "Bearer wrong-token"},
             cookies={SESSION_COOKIE_NAME: mint_session_cookie(_WS_TEST_TOKEN)},
-            client_host="198.51.100.9",
+            client_host=_WS_UNTRUSTED_PEER_IP,
         )
 
         assert authorize_ws(ws) is False
 
     def test_untrusted_peer_with_no_credential_rejects(self) -> None:
-        ws = _make_websocket(client_host="198.51.100.9")
+        ws = _make_websocket(client_host=_WS_UNTRUSTED_PEER_IP)
 
         assert authorize_ws(ws) is False
 
     def test_auth_disabled_accepts_a_wrong_bearer_token(self) -> None:
         """`auth_enabled=False` short-circuits before any of the above, unchanged."""
-        ws = _make_websocket(headers={"authorization": "Bearer wrong-token"}, client_host="198.51.100.9")
+        ws = _make_websocket(headers={"authorization": "Bearer wrong-token"}, client_host=_WS_UNTRUSTED_PEER_IP)
         ws.app.state.hassette.config.web_api.auth_enabled = False
 
         assert authorize_ws(ws) is True

@@ -42,6 +42,10 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 _SPA_DIR = _PROJECT_ROOT / "src" / "hassette" / "web" / "static" / "spa"
 _STUB_SPA_FILES = ("index.html", "assets/index-abc123.js")
 _TRUSTED_PEER_IP = "203.0.113.5"
+"""Peer address the trusted-proxy tests list in `trusted_proxies` (RFC 5737 doc range)."""
+
+_UNTRUSTED_PEER_IP = "198.51.100.9"
+"""Peer address deliberately outside every test's `trusted_proxies` set."""
 
 
 @pytest.fixture(autouse=True)
@@ -289,9 +293,9 @@ class TestSlidingRenewal:
         assert resp.cookies.get(SESSION_COOKIE_NAME) is None
 
     async def test_trusted_proxy_authenticated_request_is_not_renewed(self, auth_hassette) -> None:
-        trusted = await resolve_trusted_proxies(("203.0.113.5",))
+        trusted = await resolve_trusted_proxies((_TRUSTED_PEER_IP,))
         app = create_fastapi_app(auth_hassette, auth_token=WEB_API_TEST_TOKEN, trusted_proxies=trusted)
-        transport = ASGITransport(app=app, client=("203.0.113.5", 12345))
+        transport = ASGITransport(app=app, client=(_TRUSTED_PEER_IP, 12345))
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             resp = await client.get("/api/config")
 
@@ -388,7 +392,7 @@ class TestMutationSuccessLogging:
         self, mutation_hassette, caplog: pytest.LogCaptureFixture
     ) -> None:
         app = create_fastapi_app(mutation_hassette, auth_token=WEB_API_TEST_TOKEN)
-        transport = ASGITransport(app=app, client=("198.51.100.9", 54321))
+        transport = ASGITransport(app=app, client=(_UNTRUSTED_PEER_IP, 54321))
 
         with caplog.at_level(logging.INFO, logger="hassette.web.routes.logs"):
             async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -403,7 +407,7 @@ class TestMutationSuccessLogging:
         assert len(info_records) == 1
         message = info_records[0].getMessage()
         assert "hassette.test_logger" in message
-        assert "198.51.100.9" in message
+        assert _UNTRUSTED_PEER_IP in message
 
 
 class TestBearerTokenAuth:
@@ -444,9 +448,9 @@ class TestTrustedProxyPeerAuth:
     """
 
     async def test_ip_entry_peer_returns_200_with_no_credential(self, auth_hassette) -> None:
-        trusted = await resolve_trusted_proxies(("203.0.113.5",))
+        trusted = await resolve_trusted_proxies((_TRUSTED_PEER_IP,))
         app = create_fastapi_app(auth_hassette, trusted_proxies=trusted)
-        transport = ASGITransport(app=app, client=("203.0.113.5", 12345))
+        transport = ASGITransport(app=app, client=(_TRUSTED_PEER_IP, 12345))
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             resp = await client.get("/api/config")
 
@@ -462,9 +466,9 @@ class TestTrustedProxyPeerAuth:
         assert resp.status_code == 200
 
     async def test_non_matching_peer_still_requires_credential(self, auth_hassette) -> None:
-        trusted = await resolve_trusted_proxies(("203.0.113.5",))
+        trusted = await resolve_trusted_proxies((_TRUSTED_PEER_IP,))
         app = create_fastapi_app(auth_hassette, trusted_proxies=trusted)
-        transport = ASGITransport(app=app, client=("198.51.100.9", 12345))
+        transport = ASGITransport(app=app, client=(_UNTRUSTED_PEER_IP, 12345))
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             resp = await client.get("/api/config")
 
@@ -573,13 +577,13 @@ class TestSpoofedForwardedForRejected:
     """
 
     async def test_spoofed_x_forwarded_for_from_untrusted_peer_returns_401(self, auth_hassette) -> None:
-        trusted = await resolve_trusted_proxies(("203.0.113.5",))
+        trusted = await resolve_trusted_proxies((_TRUSTED_PEER_IP,))
         app = create_fastapi_app(auth_hassette, trusted_proxies=trusted)
         # The direct ASGI peer is untrusted -- only the client-suppliable header claims the
         # trusted IP, which `is_trusted_peer` must never consult.
-        transport = ASGITransport(app=app, client=("198.51.100.9", 12345))
+        transport = ASGITransport(app=app, client=(_UNTRUSTED_PEER_IP, 12345))
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            resp = await client.get("/api/config", headers={"X-Forwarded-For": "203.0.113.5"})
+            resp = await client.get("/api/config", headers={"X-Forwarded-For": _TRUSTED_PEER_IP})
 
         assert resp.status_code == 401
 
@@ -612,9 +616,9 @@ class TestCookieSecureFlag:
     """
 
     async def test_trusted_peer_with_https_forwarded_proto_gets_secure_cookie(self, auth_hassette) -> None:
-        trusted = await resolve_trusted_proxies(("203.0.113.5",))
+        trusted = await resolve_trusted_proxies((_TRUSTED_PEER_IP,))
         app = create_fastapi_app(auth_hassette, auth_token=WEB_API_TEST_TOKEN, trusted_proxies=trusted)
-        transport = ASGITransport(app=app, client=("203.0.113.5", 12345))
+        transport = ASGITransport(app=app, client=(_TRUSTED_PEER_IP, 12345))
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             resp = await client.post(
                 "/api/auth/session",
@@ -628,11 +632,11 @@ class TestCookieSecureFlag:
         assert "secure" in set_cookie_header.lower()
 
     async def test_non_trusted_peer_with_spoofed_https_header_gets_no_secure_cookie(self, auth_hassette) -> None:
-        trusted = await resolve_trusted_proxies(("203.0.113.5",))
+        trusted = await resolve_trusted_proxies((_TRUSTED_PEER_IP,))
         app = create_fastapi_app(auth_hassette, auth_token=WEB_API_TEST_TOKEN, trusted_proxies=trusted)
         # Direct peer does not match trusted_proxies -- the header is spoofed and must be ignored
         # per `should_set_secure_cookie_flag`'s contract.
-        transport = ASGITransport(app=app, client=("198.51.100.9", 12345))
+        transport = ASGITransport(app=app, client=(_UNTRUSTED_PEER_IP, 12345))
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             resp = await client.post(
                 "/api/auth/session",
