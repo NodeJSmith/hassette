@@ -2,7 +2,7 @@
 
 import asyncio
 import json
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -16,7 +16,7 @@ from hassette.test_utils.uvicorn_server import start_uvicorn_server, stop_uvicor
 from hassette.test_utils.web_mocks import create_hassette_stub, create_mock_runtime_query_service
 from hassette.types.enums import ResourceStatus
 from hassette.web.app import create_fastapi_app
-from hassette.web.auth import SESSION_COOKIE_NAME, mint_session_cookie
+from hassette.web.auth import SESSION_COOKIE_NAME, mint_session_cookie, resolve_trusted_proxies
 from hassette.web.routes.ws import _read_client, websocket_endpoint
 
 from .conftest import set_app_status_snapshot, set_websocket_state
@@ -481,6 +481,27 @@ def live_auth_server(auth_hassette: MagicMock) -> Iterator[str]:
         stop_uvicorn_server(server, thread)
 
 
+@pytest.fixture
+async def live_trusted_peer_server(auth_hassette: MagicMock) -> AsyncIterator[str]:
+    """Start a real uvicorn server whose `trusted_proxies` matches the loopback test client.
+
+    The client dials `ws://127.0.0.1:<port>`, so uvicorn reports `127.0.0.1` as the raw ASGI peer
+    and the trusted-peer branch is genuinely live -- this is the deployment shape where a
+    forward-auth proxy shares a host with hassette, and the one where a presented credential and a
+    matching peer collide.
+
+    Goes through the real `resolve_trusted_proxies()` rather than constructing a `TrustedProxySet`
+    directly, so the entry parses the same way it would from operator config.
+    """
+    trusted = await resolve_trusted_proxies(("127.0.0.1",))
+    app = create_fastapi_app(auth_hassette, auth_token=WEB_API_TEST_TOKEN, trusted_proxies=trusted)
+    server, thread, port = start_uvicorn_server(app, ws="websockets-sansio", timeout_graceful_shutdown=1)
+    try:
+        yield f"ws://127.0.0.1:{port}/api/ws"
+    finally:
+        stop_uvicorn_server(server, thread)
+
+
 class TestWebSocketAuthorization:
     """Pre-accept auth check against the real uvicorn `websockets-sansio` backend.
 
@@ -538,3 +559,60 @@ class TestWebSocketAuthorization:
             msg = await asyncio.wait_for(ws.recv(), timeout=5)
             data = json.loads(msg)
             assert data["type"] == "connected"
+
+
+class TestWebSocketTrustedPeerPrecedence:
+    """A presented `Authorization` header is validated even when the peer matches
+    `trusted_proxies` -- pinned end-to-end against the real uvicorn backend.
+
+    `authorize_ws`'s precedence is already unit-tested against a `MagicMock` stand-in in
+    `tests/unit/web/test_auth.py`, where the peer address is a fixture value. These tests close the
+    remaining gap: the peer address comes from uvicorn over a real TCP handshake, so a regression in
+    how the peer is *read* -- not just how it is compared -- surfaces here.
+
+    Rejection arrives as an HTTP 403 handshake failure rather than WS close code 1008. See
+    `TestWebSocketAuthorization.test_unauthenticated_connection_rejected_before_accept` for why this
+    backend never puts the application's close code on the wire.
+    """
+
+    async def test_no_authorization_header_from_trusted_peer_is_accepted(self, live_trusted_peer_server: str) -> None:
+        """Peer trust still admits a caller presenting nothing -- the browser-behind-a-proxy path."""
+        async with websockets.connect(live_trusted_peer_server, open_timeout=5) as ws:
+            msg = await asyncio.wait_for(ws.recv(), timeout=5)
+            assert json.loads(msg)["type"] == "connected"
+
+    async def test_correct_bearer_token_from_trusted_peer_is_accepted(self, live_trusted_peer_server: str) -> None:
+        async with websockets.connect(
+            live_trusted_peer_server,
+            additional_headers={"Authorization": f"Bearer {WEB_API_TEST_TOKEN}"},
+            open_timeout=5,
+        ) as ws:
+            msg = await asyncio.wait_for(ws.recv(), timeout=5)
+            assert json.loads(msg)["type"] == "connected"
+
+    @pytest.mark.parametrize(
+        "header_value",
+        [
+            "Bearer wrong-token",
+            f"Basic {WEB_API_TEST_TOKEN}",
+            "Bearer ",
+        ],
+        ids=["wrong-token", "unrecognized-scheme", "empty-token-value"],
+    )
+    async def test_invalid_authorization_header_from_trusted_peer_is_rejected(
+        self, live_trusted_peer_server: str, header_value: str
+    ) -> None:
+        """The peer match does not rescue a header the caller chose to present.
+
+        The handshake is rejected before `accept()`, so no application data reaches the caller --
+        the same security property the unauthenticated case relies on.
+        """
+        with pytest.raises(websockets.exceptions.InvalidStatus) as exc_info:
+            async with websockets.connect(
+                live_trusted_peer_server,
+                additional_headers={"Authorization": header_value},
+                open_timeout=5,
+            ):
+                pass
+
+        assert exc_info.value.response.status_code == 403
