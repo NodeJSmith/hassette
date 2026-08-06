@@ -22,6 +22,7 @@ Note: the OpenAPI freshness check does not cover ``ui`` annotation content (it r
 ``ui``-shape drift.
 """
 
+import re
 from collections.abc import Iterator
 from logging import getLogger
 from typing import TYPE_CHECKING, Any
@@ -82,20 +83,38 @@ def _shape_candidates(node: dict[str, Any]) -> Iterator[dict[str, Any]]:
 def _mask_object(shape: dict[str, Any], value: dict[str, Any]) -> dict[str, Any] | None:
     """Mask a mapping value against an object-shaped schema node, or None if it is not one.
 
-    ``properties`` names specific keys; ``additionalProperties`` describes everything else. A
-    model with ``extra="allow"`` carries both, so named keys are resolved first and the rest
-    fall back — rather than picking one key and ignoring the other.
+    Three keys can describe a mapping's values, in descending specificity: ``properties``
+    names exact keys, ``patternProperties`` matches keys by regex (which is what Pydantic
+    emits for a mapping whose key type carries a pattern constraint), and
+    ``additionalProperties`` covers everything left. A model with ``extra="allow"`` can carry
+    more than one, so each key is resolved against the most specific match rather than
+    picking a single schema key and ignoring the others.
     """
     named_props = shape.get("properties")
+    pattern_props = shape.get("patternProperties")
     extra_props = shape.get("additionalProperties")
-    if not isinstance(named_props, dict) and not isinstance(extra_props, dict):
+    if not any(isinstance(candidate, dict) for candidate in (named_props, pattern_props, extra_props)):
         return None
     named_props = named_props if isinstance(named_props, dict) else {}
+    pattern_props = pattern_props if isinstance(pattern_props, dict) else {}
 
     masked: dict[str, Any] = {}
     for key, item in value.items():
         if key in named_props:
             masked[key] = _mask_node(named_props[key], item)
+            continue
+
+        # JSON Schema applies every patternProperties entry whose regex matches (unanchored),
+        # so all matches are folded in rather than stopping at the first.
+        matched_pattern = False
+        item_masked = item
+        for pattern, sub_node in pattern_props.items():
+            if isinstance(sub_node, dict) and re.search(pattern, key):
+                item_masked = _mask_node(sub_node, item_masked)
+                matched_pattern = True
+
+        if matched_pattern:
+            masked[key] = item_masked
         elif isinstance(extra_props, dict):
             masked[key] = _mask_node(extra_props, item)
         else:
@@ -140,20 +159,23 @@ def _mask_node(node: dict[str, Any], value: Any) -> Any:
     if _is_secret_node(node):
         return MASK_SENTINEL if value is not None and value != "" else value
 
-    for shape in _shape_candidates(node):
-        if isinstance(value, dict):
-            masked_object = _mask_object(shape, value)
-            if masked_object is not None:
-                return masked_object
-        elif isinstance(value, list):
-            masked_array = _mask_array(shape, value)
-            if masked_array is not None:
-                return masked_array
+    # A plain scalar has nothing to descend into, whatever the schema says about it.
+    if not isinstance(value, dict | list):
+        return value
 
-    # No candidate shape described this value: either it is a plain scalar, or the schema says
-    # nothing about its structure. Either way there is nothing to descend into, so it passes
-    # through unchanged — masking is type-driven and never guesses.
-    return value
+    # Every candidate shape is applied in turn rather than stopping at the first that matches.
+    # A union can offer several branches that all describe an object, and picking one means a
+    # branch that is not chosen never masks: for a discriminated union, a variant's secret key
+    # is simply absent from the other variant's properties and passes straight through. Folding
+    # is safe because masking only ever replaces a value with the sentinel or recurses -- it
+    # never restores plaintext, and re-masking the sentinel is a no-op -- so applying a branch
+    # that does not describe this value cannot mask anything extra.
+    masked = value
+    for shape in _shape_candidates(node):
+        result = _mask_object(shape, masked) if isinstance(masked, dict) else _mask_array(shape, masked)
+        if result is not None:
+            masked = result
+    return masked
 
 
 def mask_values(schema_props: dict[str, Any], values: dict[str, Any]) -> dict[str, Any]:

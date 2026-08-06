@@ -1,8 +1,9 @@
 """Unit tests for the shared config view builder (schema deref + type-driven masking)."""
 
 import json
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, SecretStr
+from pydantic import BaseModel, Field, SecretStr, StringConstraints
 
 from hassette.web.config_view import MASK_SENTINEL, build_config_view, deref_schema, mask_all_values, mask_values
 
@@ -86,6 +87,45 @@ class _PlainContainerConfig(BaseModel):
     names: list[str]
     labels: dict[str, str]
     real_secret: SecretStr
+
+
+_PatternKey = Annotated[str, StringConstraints(pattern="^svc_")]
+
+
+class _PatternMapConfig(BaseModel):
+    """Throwaway model: a mapping whose key type carries a pattern constraint.
+
+    Pydantic then emits the value schema under ``patternProperties`` keyed by the regex,
+    not under ``additionalProperties`` — a fourth container key, distinct from the three
+    that plain containers use.
+    """
+
+    creds: dict[_PatternKey, SecretStr] = {}
+
+
+class _PlainVariant(BaseModel):
+    """Discriminated-union variant carrying no secret."""
+
+    kind: Literal["plain"] = "plain"
+    label: str = "x"
+
+
+class _SecretVariant(BaseModel):
+    """Discriminated-union variant carrying a secret."""
+
+    kind: Literal["secret"] = "secret"
+    token: SecretStr
+
+
+class _DiscriminatedListConfig(BaseModel):
+    """Throwaway model: a list whose element is a discriminated union.
+
+    Pydantic emits ``oneOf`` with one object branch per variant. Masking against only the
+    first matching branch leaves a later variant's secret in plaintext, because the secret's
+    key is simply absent from the earlier branch's ``properties``.
+    """
+
+    entries: list[Annotated[_PlainVariant | _SecretVariant, Field(discriminator="kind")]] = []
 
 
 class TestTypeDrivenMasking:
@@ -318,6 +358,49 @@ class TestContainerMasking:
         result = build_config_view(schema, values)
         assert result["config_values"]["key_list"] == [MASK_SENTINEL]
         assert result["config_values"]["key_map"] == {"prod": MASK_SENTINEL}
+
+
+class TestPatternAndUnionMasking:
+    """Two further container shapes that a first-match walk hands out in plaintext.
+
+    Both were found by review after the initial container fix, and neither appears in the
+    audit write-up. They share a root cause with it: the walk has to consider every schema
+    key that can describe a value, and every union branch that can apply to it.
+    """
+
+    def test_pattern_properties_secrets_masked(self) -> None:
+        """A secret under ``patternProperties`` is masked for a key matching the regex."""
+        schema = _PatternMapConfig.model_json_schema()
+        values = {"creds": {"svc_prod": "prod-plaintext"}}
+        result = build_config_view(schema, values)
+        assert result["config_values"]["creds"] == {"svc_prod": MASK_SENTINEL}
+
+    def test_pattern_properties_non_matching_key_left_visible(self) -> None:
+        """A key the pattern does not describe is not masked — still type-driven, not blanket."""
+        schema = _PatternMapConfig.model_json_schema()
+        values = {"creds": {"other": "not-a-secret-by-schema"}}
+        result = build_config_view(schema, values)
+        assert result["config_values"]["creds"] == {"other": "not-a-secret-by-schema"}
+
+    def test_secret_in_later_union_branch_masked(self) -> None:
+        """A secret on the second ``oneOf`` branch is masked, not just the first branch's fields.
+
+        The element is a discriminated union. Returning after the first object branch that
+        matches leaves ``token`` untouched, because ``token`` is absent from the plain
+        variant's ``properties`` and therefore passes straight through.
+        """
+        schema = _DiscriminatedListConfig.model_json_schema()
+        values = {"entries": [{"kind": "secret", "token": "union-plaintext"}]}
+        result = build_config_view(schema, values)
+        assert result["config_values"]["entries"][0]["token"] == MASK_SENTINEL
+
+    def test_other_union_branch_plain_field_stays_visible(self) -> None:
+        """Considering every branch must not blanket-mask a variant's plain fields."""
+        schema = _DiscriminatedListConfig.model_json_schema()
+        values = {"entries": [{"kind": "plain", "label": "visible"}]}
+        result = build_config_view(schema, values)
+        assert result["config_values"]["entries"][0]["label"] == "visible"
+        assert result["config_values"]["entries"][0]["kind"] == "plain"
 
 
 class TestUnsetSecrets:
