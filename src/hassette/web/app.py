@@ -10,6 +10,7 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import FileResponse
 
 from hassette.web.auth import EMPTY_TRUSTED_PROXY_SET, TrustedProxySet
+from hassette.web.body_limit import RequestBodySizeLimitMiddleware
 from hassette.web.middleware import DefaultDenyMiddleware
 from hassette.web.routes.apps import router as apps_router
 from hassette.web.routes.auth import router as auth_router
@@ -68,6 +69,13 @@ def create_fastapi_app(
     # tests/integration/web_api/test_auth.py — see design.md's Open Questions for the ordering
     # claim this resolves.
     app.add_middleware(DefaultDenyMiddleware)
+
+    # Outside DefaultDenyMiddleware (added after it), so an oversized body is refused before the
+    # auth decision runs — which is the point, since POST /api/auth/session is credential-free by
+    # design and would otherwise buffer an unbounded body before comparing tokens. Still inside
+    # CORSMiddleware, so the 413 carries CORS headers and a browser sees the real status rather
+    # than an opaque network error.
+    app.add_middleware(RequestBodySizeLimitMiddleware)
 
     app.add_middleware(
         CORSMiddleware,

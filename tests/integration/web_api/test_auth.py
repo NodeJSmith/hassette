@@ -99,33 +99,6 @@ def stub_spa() -> Generator[Path, None, None]:
                 _SPA_DIR.rmdir()
 
 
-@pytest.fixture
-def auth_hassette():
-    """A `create_hassette_stub()` with `auth_enabled=True` and a real `session_ttl`.
-
-    `create_hassette_stub()` doesn't set `session_ttl` on the MagicMock stub -- this fixture sets
-    it directly so `verify_session_cookie`/`should_renew_session_cookie` (which do arithmetic
-    against it) don't operate on an auto-generated `MagicMock` attribute.
-    """
-    hassette = create_hassette_stub(auth_enabled=True)
-    hassette.config.web_api.session_ttl = TEST_SESSION_TTL
-    create_mock_runtime_query_service(hassette)
-    return hassette
-
-
-@pytest.fixture
-def auth_app(auth_hassette):
-    """FastAPI app built with a known token, so bearer/cookie assertions have a concrete value."""
-    return create_fastapi_app(auth_hassette, auth_token=WEB_API_TEST_TOKEN)
-
-
-@pytest.fixture
-async def auth_client(auth_app):
-    transport = ASGITransport(app=auth_app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        yield ac
-
-
 async def _mint_cookie_at(token: str, seconds_ago: int) -> str:
     """Mint a session cookie as if it were minted `seconds_ago` seconds in the past."""
     stale_timestamp = int(time.time()) - seconds_ago
