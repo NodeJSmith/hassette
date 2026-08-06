@@ -15,7 +15,9 @@ http://<host>:8126/
 The default bind address is `0.0.0.0:8126`. The `host` and `port` fields under `[hassette.web_api]` in `hassette.toml` control the bind address.
 
 !!! note "Authentication is on by default"
-    Hassette requires a credential for every `/api/*` route. On first start
+    Hassette requires a credential for every `/api/*` route except
+    `GET /api/health/live`, `GET /api/health/ready`, and
+    `POST /api/auth/session`, which stay reachable without one. On first start
     with no token configured, Hassette generates one, logs it once, and writes
     it to `<data_dir>/.web_api_token` (mode `0600`). Open the dashboard and
     paste that token into the login screen, or send it as
@@ -81,7 +83,7 @@ The UI can be disabled independently while the REST API stays active:
     | `[hassette.web_api] run_ui` | bool | `true` | Serves the web UI (requires `run = true`) |
     | `[hassette.web_api] host` | string | `"0.0.0.0"` | Bind host |
     | `[hassette.web_api] port` | int | `8126` | Bind port |
-    | `[hassette.web_api] auth_enabled` | bool | `true` | Requires a credential for every `/api/*` route |
+    | `[hassette.web_api] auth_enabled` | bool | `true` | Requires a credential for every `/api/*` route except the two health endpoints and `POST /api/auth/session` |
     | `[hassette.web_api] auth_token` | string | *(generated)* | Bearer token; generated and persisted to `<data_dir>/.web_api_token` when unset |
     | `[hassette.web_api] trusted_proxies` | tuple | `()` | IPs, CIDRs, or hostnames exempt from the token check when the request presents no credential |
     | `[hassette.web_api] session_ttl` | int | `3600` | Seconds before an *idle* browser session cookie expires; an actively used session is renewed past the halfway mark and never interrupted |
@@ -108,7 +110,7 @@ The **command palette** opens with Ctrl+K or Cmd+K. It jumps to pages, apps, han
 
 ![Command palette](../../_static/web_ui_detail_command_palette.png)
 
-**Alert banners** appear below the status bar when something needs attention. Red banners indicate failed apps. Amber banners mean telemetry is degraded — the database is dropping writes (queue overflow, backpressure, or an unreachable file), so some execution history may be missing. Check the database service logs for the cause.
+**Alert banners** appear below the status bar when something needs attention. Red banners indicate failed apps. Amber banners mean telemetry is degraded — Hassette's health check against the telemetry database failed, so the file is unreachable, locked, or unresponsive and some execution history may be missing. The banner also reports any writes dropped separately to queue overflow or retry exhaustion. Check the database service logs for the cause.
 
 ## Pages
 

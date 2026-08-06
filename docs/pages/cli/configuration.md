@@ -192,7 +192,7 @@ Another process — usually a second Hassette instance — holds the web API por
 Usage error: Instance 'office' not found for app 'my-app'. Available instances: 'default', 'kitchen'
 ```
 
-The instance name must match `hassette app` output exactly. The integer index also works — `--instance 0` selects the first instance.
+The instance name must match an `instances[].instance_name` value from `hassette app --json` exactly — the default `hassette app` table shows a per-app instance count, not the names themselves. The integer index also works and needs no lookup: `--instance 0` selects the first instance.
 
 **Unauthenticated remote request (401):**
 
