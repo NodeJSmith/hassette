@@ -47,6 +47,14 @@ The default bind address is `0.0.0.0:8126`. The `host` and `port` fields under `
     a client-suppliable header like `X-Forwarded-For` — so a bad actor on the
     same network can't spoof their way past it.
 
+    Peer trust covers only requests that present no credential. A request
+    carrying an `Authorization` header is always validated against the token,
+    even from a trusted peer, and a wrong or malformed header gets a 401 rather
+    than falling back to the peer match. Both mechanisms therefore work on the
+    same host: a browser arrives through the gateway with no `Authorization`
+    header and is admitted by the peer match, while the CLI presents its bearer
+    token and Hassette checks it.
+
     A gateway with a browser login usually rejects the `hassette` CLI's bearer
     token instead of passing it through — see [CLI Configuration: letting CLI
     traffic through a reverse proxy](../cli/configuration.md#letting-cli-traffic-through-a-reverse-proxy)
@@ -75,7 +83,7 @@ The UI can be disabled independently while the REST API stays active:
     | `[hassette.web_api] port` | int | `8126` | Bind port |
     | `[hassette.web_api] auth_enabled` | bool | `true` | Requires a credential for every `/api/*` route |
     | `[hassette.web_api] auth_token` | string | *(generated)* | Bearer token; generated and persisted to `<data_dir>/.web_api_token` when unset |
-    | `[hassette.web_api] trusted_proxies` | tuple | `()` | IPs, CIDRs, or hostnames exempt from the token check |
+    | `[hassette.web_api] trusted_proxies` | tuple | `()` | IPs, CIDRs, or hostnames exempt from the token check when the request presents no credential |
     | `[hassette.web_api] session_ttl` | int | `3600` | Seconds before an *idle* browser session cookie expires; an actively used session is renewed past the halfway mark and never interrupted |
     | `[hassette.web_api] cors_origins` | tuple | `("http://localhost:3000", "http://localhost:5173")` | Allowed CORS origins |
     | `[hassette.web_api] log_buffer_size` | int | `2000` | How many log entries the UI keeps in memory |

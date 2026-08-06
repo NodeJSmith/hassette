@@ -15,6 +15,11 @@ Three independent pieces live here:
   :func:`is_trusted_peer` to decide the cookie's ``Secure`` attribute), and
   :func:`should_renew_session_cookie` (the sliding-renewal decision).
 
+:func:`resolve_auth_outcome` composes those three pieces into the one precedence decision both
+halves of the default-deny gate use — the HTTP middleware and :func:`authorize_ws`. A presented
+``Authorization`` header is authoritative and fails closed on any invalid form; peer trust and the
+session cookie apply only to a caller that presents no header at all.
+
 See ``design/specs/091-web-api-auth/design.md`` (Architecture → Credential model, Architecture →
 Cookie ``Secure`` flag) for the full mechanism this implements.
 """
@@ -31,7 +36,7 @@ from logging import getLogger
 from pathlib import Path
 
 from starlette.datastructures import Headers, State
-from starlette.requests import Request
+from starlette.requests import HTTPConnection, Request
 from starlette.websockets import WebSocket
 from whenever import Instant
 
@@ -270,14 +275,15 @@ def get_trusted_proxies(state: State) -> TrustedProxySet:
     return getattr(state, "trusted_proxies", None) or EMPTY_TRUSTED_PROXY_SET
 
 
-def peer_address(request: Request) -> str | None:
-    """Raw ASGI peer address for ``request``, or ``None`` if the transport reports no client.
+def peer_address(connection: HTTPConnection) -> str | None:
+    """Raw ASGI peer address for ``connection``, or ``None`` if the transport reports no client.
 
-    Shared by :class:`~hassette.web.middleware.DefaultDenyMiddleware` and
-    ``POST /api/auth/session`` (``web/routes/auth.py``) — both need the same null-safe
-    ``request.client.host`` extraction.
+    Takes the ``HTTPConnection`` base rather than ``Request`` so the WebSocket handshake
+    (:func:`authorize_ws`) reads its peer through the same function the HTTP paths use —
+    :class:`~hassette.web.middleware.DefaultDenyMiddleware` and ``POST /api/auth/session``
+    (``web/routes/auth.py``) — instead of repeating the null-safe ``client.host`` extraction.
     """
-    client = request.client
+    client = connection.client
     return client.host if client is not None else None
 
 
@@ -648,15 +654,87 @@ def should_renew_session_cookie(issued_at: int, session_ttl: int) -> bool:
     return session_ttl / 2 <= age <= session_ttl
 
 
-def authorize_ws(websocket: WebSocket) -> bool:
-    """Composed trusted-peer/bearer/cookie authorization check for the WebSocket handshake.
+@dataclass(frozen=True)
+class AuthOutcome:
+    """The result of :func:`resolve_auth_outcome`: whether the caller is in, and how.
 
-    The WebSocket half of the default-deny gate — the identical trust composition
-    :class:`~hassette.web.middleware.DefaultDenyMiddleware` applies to HTTP requests (trusted-peer
-    match, then bearer token, then session cookie), reused here rather than duplicated, since
-    ``BaseHTTPMiddleware`` only ever sees ``http``-scope requests and never runs for a WebSocket
-    upgrade — this is the "same validator used by the HTTP middleware" property design.md's
-    WebSocket auth section requires.
+    Attributes:
+        authenticated: Whether the request or handshake may proceed.
+        session_issued_at: The issuance timestamp of the session cookie that authenticated this
+            request, or ``None`` when some other mechanism did. Only a cookie-authenticated
+            request is a candidate for sliding renewal, so this is what
+            :class:`~hassette.web.middleware.DefaultDenyMiddleware` keys that decision off.
+    """
+
+    authenticated: bool
+    session_issued_at: int | None = None
+
+
+def resolve_auth_outcome(
+    connection: HTTPConnection,
+    trusted: TrustedProxySet,
+    resolved_token: str | None,
+    session_ttl: int,
+) -> AuthOutcome:
+    """Decide whether ``connection`` is authenticated, and by which mechanism.
+
+    The single precedence decision behind both halves of the default-deny gate:
+    :class:`~hassette.web.middleware.DefaultDenyMiddleware` for HTTP and :func:`authorize_ws` for
+    the WebSocket handshake. ``BaseHTTPMiddleware`` only ever sees ``http``-scope requests and
+    never runs for a WebSocket upgrade, so without one shared function the two would each carry
+    their own copy of this ordering and could drift apart — this is the "same validator used by the
+    HTTP middleware" property design.md's WebSocket auth section requires.
+
+    **A presented credential is authoritative.** When an ``Authorization`` header is present at
+    all, the bearer token decides the outcome on its own: a wrong token, an unrecognized scheme,
+    and an empty value all fail closed, with no fall-through to peer trust or to a session cookie.
+    Failing closed on a *malformed* header, not only a wrong one, is deliberate — a surprising 401
+    to a misconfigured client beats a bypass a trusted peer could exploit, and the caller who sent
+    the bad header is the one who can see the failure.
+
+    **Ambient peer trust covers only callers presenting nothing.** With no ``Authorization``
+    header, :func:`is_trusted_peer` runs first and the session cookie second. This is what lets one
+    host serve both mechanisms at once: a browser behind a forward-auth proxy sends no
+    ``Authorization`` header and is admitted by peer match with no Hassette login, while the CLI
+    presents a bearer token that Hassette validates itself.
+
+    Args:
+        connection: The incoming request or WebSocket. Only its peer address, headers, and cookies
+            are read — never a client-suppliable forwarding header (see :func:`is_trusted_peer`).
+        trusted: The current resolved trusted-proxy set.
+        resolved_token: The web API's resolved credential, or ``None`` (never authenticates
+            anything, but does not change the precedence above).
+        session_ttl: ``WebApiConfig.session_ttl``, in seconds.
+
+    Returns:
+        The :class:`AuthOutcome`. Never raises — every malformed input degrades to "not
+        authenticated" (see :func:`check_bearer_token` and :func:`verify_session_cookie`).
+    """
+    if "authorization" in connection.headers:
+        presented_token = extract_bearer_token(connection.headers)
+        if check_bearer_token(presented_token, resolved_token):
+            return AuthOutcome(authenticated=True)
+        return AuthOutcome(authenticated=False)
+
+    client_address = peer_address(connection)
+    if client_address is not None and is_trusted_peer(client_address, trusted):
+        return AuthOutcome(authenticated=True)
+
+    cookie_value = connection.cookies.get(SESSION_COOKIE_NAME)
+    issued_at = verify_session_cookie(cookie_value, resolved_token, session_ttl)
+    if issued_at is not None:
+        return AuthOutcome(authenticated=True, session_issued_at=issued_at)
+
+    return AuthOutcome(authenticated=False)
+
+
+def authorize_ws(websocket: WebSocket) -> bool:
+    """Authorization check for the WebSocket handshake.
+
+    The WebSocket half of the default-deny gate. Delegates the precedence decision to
+    :func:`resolve_auth_outcome` — the same function
+    :class:`~hassette.web.middleware.DefaultDenyMiddleware` calls for HTTP requests — and discards
+    the sliding-renewal timestamp, which has no analogue for a handshake.
 
     Includes the same ``auth_enabled`` bypass (step 0) as the HTTP middleware, for the same
     reason: ``create_hassette_stub(auth_enabled=False)`` (the default) must keep every existing WS
@@ -670,8 +748,9 @@ def authorize_ws(websocket: WebSocket) -> bool:
     possibly-unresolved operator-configured values.
 
     Non-browser clients (CLI, scripts) attach ``Authorization: Bearer <token>`` via the
-    ``websockets`` library's ``additional_headers`` parameter at connect time; this function checks
-    ``websocket.headers`` for that, in addition to ``websocket.cookies`` for browser clients.
+    ``websockets`` library's ``additional_headers`` parameter at connect time, so the
+    presented-credential precedence :func:`resolve_auth_outcome` documents applies here in full,
+    not only on the HTTP paths.
 
     Args:
         websocket: The incoming WebSocket connection, checked before ``accept()`` is called.
@@ -686,17 +765,10 @@ def authorize_ws(websocket: WebSocket) -> bool:
     if not web_api_config.auth_enabled:
         return True
 
-    trusted_proxies = get_trusted_proxies(websocket.app.state)
-    resolved_token = getattr(websocket.app.state, "auth_token", None)
-
-    client = websocket.client
-    ws_peer_address = client.host if client is not None else None
-    if ws_peer_address is not None and is_trusted_peer(ws_peer_address, trusted_proxies):
-        return True
-
-    presented_token = extract_bearer_token(websocket.headers)
-    if check_bearer_token(presented_token, resolved_token):
-        return True
-
-    cookie_value = websocket.cookies.get(SESSION_COOKIE_NAME)
-    return verify_session_cookie(cookie_value, resolved_token, web_api_config.session_ttl) is not None
+    outcome = resolve_auth_outcome(
+        websocket,
+        get_trusted_proxies(websocket.app.state),
+        getattr(websocket.app.state, "auth_token", None),
+        web_api_config.session_ttl,
+    )
+    return outcome.authenticated

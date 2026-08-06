@@ -383,7 +383,7 @@ class WebApiConfig(ExcludeExtrasMixin, BaseModel):
     value resolved during startup — it is not itself responsible for token generation."""
 
     trusted_proxies: tuple[str, ...] = Field(default=(), json_schema_extra={"ui": {"label": "Trusted Proxies"}})
-    """Peer addresses that bypass the bearer-token/session-cookie check entirely.
+    """Peer addresses that need no credential of their own.
 
     Each entry is an IP, CIDR, or hostname compared against the raw ASGI ``scope["client"]`` peer
     address — never ``X-Forwarded-For`` or any other client-suppliable header. Intended for a
@@ -391,7 +391,13 @@ class WebApiConfig(ExcludeExtrasMixin, BaseModel):
     self-managed reverse proxy with its own login) so that gateway's own authentication can stand
     in for Hassette's. Hostname entries are resolved via DNS at startup and re-resolved
     periodically; entry parsing and matching are implemented separately from this field
-    declaration."""
+    declaration.
+
+    A matching peer skips the bearer-token/session-cookie check only for requests that present no
+    credential. A request carrying an ``Authorization`` header is validated against ``auth_token``
+    regardless of its peer, and a wrong or malformed header is rejected rather than falling back to
+    this list — so one host can serve gateway-authenticated browsers and token-authenticated API
+    clients at the same time."""
 
     session_ttl: int = Field(default=3600, gt=0, json_schema_extra={"ui": {"label": "Session TTL (seconds)"}})
     """Maximum lifetime, in seconds, of a single session cookie *value* — not of a working session.

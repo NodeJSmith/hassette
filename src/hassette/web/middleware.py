@@ -1,17 +1,18 @@
 """Default-deny ASGI middleware for the Hassette Web API.
 
-A single :class:`DefaultDenyMiddleware`, gating every route under the ``/api/`` prefix, composes
-two independent trust mechanisms built in ``web/auth.py``:
+A single :class:`DefaultDenyMiddleware` gates every route under the ``/api/`` prefix. It delegates
+the auth decision itself to :func:`~hassette.web.auth.resolve_auth_outcome`, shared with
+:func:`~hassette.web.auth.authorize_ws` so the HTTP and WebSocket halves of the gate cannot drift:
+a presented ``Authorization`` header is validated and fails closed, and trusted-peer match
+(:func:`~hassette.web.auth.is_trusted_peer`) then session cookie
+(:func:`~hassette.web.auth.verify_session_cookie`) apply only when no header was presented.
 
-1. Trusted-peer match (:func:`~hassette.web.auth.is_trusted_peer`) — no credential needed.
-2. Bearer token / session cookie (:func:`~hassette.web.auth.check_bearer_token` /
-   :func:`~hassette.web.auth.verify_session_cookie`) — the always-available fallback.
-
-Three routes bypass both checks entirely: ``GET /api/health/live``, ``GET /api/health/ready``, and
-``POST /api/auth/session``. Two response-side behaviors apply regardless of which branch let a
-request through: sliding session-cookie renewal and coalesced failed-auth counting — this is why
-the middleware is a :class:`~starlette.middleware.base.BaseHTTPMiddleware` rather than a raw ASGI
-middleware, per design.md's Architecture → Middleware and routing.
+Three routes bypass the auth decision entirely: ``GET /api/health/live``,
+``GET /api/health/ready``, and ``POST /api/auth/session``. Two response-side behaviors apply
+regardless of which branch let a request through: sliding session-cookie renewal and coalesced
+failed-auth counting — this is why the middleware is a
+:class:`~starlette.middleware.base.BaseHTTPMiddleware` rather than a raw ASGI middleware, per
+design.md's Architecture → Middleware and routing.
 
 See ``design/specs/091-web-api-auth/design.md`` (Architecture → Middleware and routing) for the
 full mechanism this implements.
@@ -28,16 +29,13 @@ from starlette.types import ASGIApp
 
 from hassette.web.auth import (
     SESSION_COOKIE_NAME,
-    check_bearer_token,
-    extract_bearer_token,
     get_trusted_proxies,
-    is_trusted_peer,
     mint_session_cookie,
     peer_address,
     peer_address_or_unknown,
+    resolve_auth_outcome,
     should_renew_session_cookie,
     should_set_secure_cookie_flag,
-    verify_session_cookie,
 )
 
 LOGGER = getLogger(__name__)
@@ -178,32 +176,19 @@ class DefaultDenyMiddleware(BaseHTTPMiddleware):
 
         trusted_proxies = get_trusted_proxies(request.app.state)
         resolved_token = getattr(request.app.state, "auth_token", None)
-
         request_peer_address = peer_address(request)
-        authenticated_via_cookie_issued_at: int | None = None
 
-        authenticated = request_peer_address is not None and is_trusted_peer(request_peer_address, trusted_proxies)
+        outcome = resolve_auth_outcome(request, trusted_proxies, resolved_token, web_api_config.session_ttl)
 
-        if not authenticated:
-            bearer = extract_bearer_token(request.headers)
-            if check_bearer_token(bearer, resolved_token):
-                authenticated = True
-            else:
-                cookie_value = request.cookies.get(SESSION_COOKIE_NAME)
-                issued_at = verify_session_cookie(cookie_value, resolved_token, web_api_config.session_ttl)
-                if issued_at is not None:
-                    authenticated = True
-                    authenticated_via_cookie_issued_at = issued_at
-
-        if not authenticated:
+        if not outcome.authenticated:
             self._failed_auth.record(_source_key(request))
             return _unauthorized_response()
 
         response = await call_next(request)
 
         # Sliding renewal — only for a request authenticated via session cookie.
-        if authenticated_via_cookie_issued_at is not None and resolved_token is not None:
-            if should_renew_session_cookie(authenticated_via_cookie_issued_at, web_api_config.session_ttl):
+        if outcome.session_issued_at is not None and resolved_token is not None:
+            if should_renew_session_cookie(outcome.session_issued_at, web_api_config.session_ttl):
                 new_cookie_value = mint_session_cookie(resolved_token)
                 secure = should_set_secure_cookie_flag(
                     request_peer_address, request.headers.get("x-forwarded-proto"), trusted_proxies
