@@ -1,6 +1,7 @@
 """Hassette CLI — cyclopts App setup and subcommand registration."""
 
 from importlib.metadata import PackageNotFoundError, version
+from pathlib import Path
 from typing import Annotated, Literal
 
 from cyclopts import App, Group, Parameter
@@ -127,8 +128,29 @@ def launcher(
     debug: Annotated[
         bool, Parameter(name=["--debug"], help="Show full HTTP response on CLI errors.", negative=[])
     ] = False,
+    server_url: Annotated[
+        str | None,
+        Parameter(name=["--server-url", "-s"], help="Base URL of a remote Hassette instance to connect to."),
+    ] = None,
+    token_file: Annotated[
+        Path | None,
+        Parameter(name=["--token-file"], help="Path to a file containing the bearer credential to attach."),
+    ] = None,
+    verify_ssl: Annotated[
+        bool | None,
+        Parameter(
+            name=["--verify-ssl"],
+            help="Verify TLS certificates for the resolved target. Pass --no-verify-ssl to disable.",
+        ),
+    ] = None,
 ) -> None:
-    ctx = CLIContext(json_mode=json, debug_mode=debug)
+    ctx = CLIContext(
+        json_mode=json,
+        debug_mode=debug,
+        server_url=server_url,
+        token_file=token_file,
+        verify_ssl=verify_ssl,
+    )
 
     if env_file:
         HassetteConfig.model_config["env_file"] = env_file

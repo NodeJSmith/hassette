@@ -3,6 +3,7 @@
 import json
 from pathlib import Path
 from typing import Any
+from unittest.mock import MagicMock, patch
 
 import httpx2 as httpx
 import pytest
@@ -11,7 +12,7 @@ from pydantic import BaseModel, SecretStr
 import hassette.cli as cli_pkg
 from hassette.cli.client import HassetteCLIClient
 from hassette.config.config import HassetteConfig
-from hassette.config.models import WebApiConfig
+from hassette.config.models import CliConfig, WebApiConfig
 from hassette.test_utils.web_manifest_helpers import make_manifest_list_response, make_manifest_response
 from hassette.web.auth import TOKEN_FILENAME
 from hassette.web.models import AppInstanceResponse
@@ -492,12 +493,30 @@ def _make_config_for_auth(
     auth_token: str | None = None,
     host: str = "127.0.0.1",
     port: int = 8126,
+    server_url: str | None = None,
+    cli_auth_token: str | None = None,
+    cli_verify_ssl: bool = True,
 ) -> HassetteConfig:
-    """Build a HassetteConfig with an explicit data_dir for credential-resolution tests."""
+    """Build a HassetteConfig with an explicit data_dir for credential-resolution tests.
+
+    ``server_url`` (and, indirectly, a non-loopback ``host``) builds a non-loopback target for
+    the credential-scoping and TLS-warning tests — the default ``host="127.0.0.1"`` keeps the
+    existing loopback-scoped test suite green as-is.
+    """
     web_api_kwargs: dict[str, Any] = {"host": host, "port": port}
     if auth_token is not None:
         web_api_kwargs["auth_token"] = SecretStr(auth_token)
-    return HassetteConfig(token=None, data_dir=data_dir, web_api=WebApiConfig(**web_api_kwargs))
+    cli_kwargs: dict[str, Any] = {"verify_ssl": cli_verify_ssl}
+    if server_url is not None:
+        cli_kwargs["server_url"] = server_url
+    if cli_auth_token is not None:
+        cli_kwargs["auth_token"] = SecretStr(cli_auth_token)
+    return HassetteConfig(
+        token=None,
+        data_dir=data_dir,
+        web_api=WebApiConfig(**web_api_kwargs),
+        cli=CliConfig(**cli_kwargs),
+    )
 
 
 class TestCredentialAttachment:
@@ -635,8 +654,8 @@ class TestNoLiteralWebApiTokenArgument:
         """The only ``--token``-shaped flag anywhere in the CLI is run.py's HA token flag.
 
         No literal token argument exists for the web API bearer credential — it is
-        resolved exclusively from config/env/file (see ``_resolve_cli_auth_token`` in
-        ``hassette/cli/client.py``), never accepted as a bare CLI argument (shell-history/
+        resolved exclusively from config/env/file (see ``resolve_cli_auth_token`` in
+        ``hassette/cli/target.py``), never accepted as a bare CLI argument (shell-history/
         ``ps`` exposure risk).
         """
         cli_dir = Path(cli_pkg.__file__).parent
@@ -650,3 +669,225 @@ class TestNoLiteralWebApiTokenArgument:
             f"Unexpected --token flag definitions: {matches}. "
             "The web API auth token must never be a literal CLI argument."
         )
+
+
+# TLS verification (--no-verify-ssl / cli.verify_ssl)
+
+
+class TestVerifySslPassthrough:
+    def test_verify_true_by_default(self) -> None:
+        config = _make_config()
+        with patch("hassette.cli.client.httpx.Client") as mock_client_cls:
+            mock_client_cls.return_value = MagicMock()
+            HassetteCLIClient(config, json_mode=False)
+        assert mock_client_cls.call_args.kwargs["verify"] is True
+
+    def test_verify_false_from_config(self, tmp_path: Path) -> None:
+        config = _make_config_for_auth(tmp_path, server_url="https://example.com/hassette", cli_verify_ssl=False)
+        with patch("hassette.cli.client.httpx.Client") as mock_client_cls:
+            mock_client_cls.return_value = MagicMock()
+            HassetteCLIClient(config, json_mode=False)
+        assert mock_client_cls.call_args.kwargs["verify"] is False
+
+
+# Non-loopback targets: fail open, not fast
+
+
+class TestRequestIssuedDespiteNoCredential:
+    def test_non_loopback_no_credential_still_issues_request(self, tmp_path: Path) -> None:
+        config = _make_config_for_auth(tmp_path, server_url="https://example.com/hassette")
+        factory = CLIClientFactory(config)
+        client, captured_headers = factory.build_capturing_headers()
+        result = client.get(HEALTH_ENDPOINT, dict)
+        assert result == {}
+        assert len(captured_headers) == 1
+        assert "authorization" not in captured_headers[0]
+
+
+# Non-loopback 401: remedies split by where they apply
+
+
+class TestNonLoopback401Message:
+    def test_401_names_local_and_remote_remedies(self, tmp_path: Path) -> None:
+        config = _make_config_for_auth(tmp_path, server_url="https://example.com/hassette")
+        transport = make_transport(401, {"detail": "Unauthorized"})
+        client = HassetteCLIClient(config, json_mode=False, transport=transport)
+        with capture_stderr() as buf, pytest.raises(SystemExit) as exc_info:
+            client.get(HEALTH_ENDPOINT, SimpleModel)
+        assert exc_info.value.code == 1
+        output = buf.getvalue()
+        assert "--token-file" in output
+        assert "cli.token_file" in output
+        assert "HASSETTE__CLI__AUTH_TOKEN" in output
+        assert "trusted_proxies" in output
+        assert "on the remote instance" in output
+        assert "has hassette been started" not in output
+
+    def test_401_with_resolved_credential_omits_the_new_hint(self, tmp_path: Path) -> None:
+        """A wrong-but-present credential for a remote target gets the plain server error,
+        not the suppressed-credential hint — mirrors the existing loopback equivalent.
+        """
+        config = _make_config_for_auth(
+            tmp_path, server_url="https://example.com/hassette", cli_auth_token="wrong-token"
+        )
+        transport = make_transport(401, {"detail": "Invalid token"})
+        client = HassetteCLIClient(config, json_mode=False, transport=transport)
+        with capture_stderr() as buf, pytest.raises(SystemExit):
+            client.get(HEALTH_ENDPOINT, SimpleModel)
+        output = buf.getvalue()
+        assert "trusted_proxies" not in output
+
+
+# 3xx redirect responses: likely forward-auth login page
+
+
+class TestRedirectResponse:
+    def test_302_mentions_redirect_forward_auth_and_docs(self) -> None:
+        config = _make_config()
+        transport = make_transport(302, {"detail": "Found"})
+        client = HassetteCLIClient(config, json_mode=False, transport=transport)
+        with capture_stderr() as buf, pytest.raises(SystemExit) as exc_info:
+            client.get(HEALTH_ENDPOINT, SimpleModel)
+        assert exc_info.value.code == 1
+        output = buf.getvalue()
+        assert "redirect" in output.lower()
+        assert "forward-auth" in output.lower()
+        assert "cli configuration docs" in output.lower()
+
+    def test_302_json_mode_mentions_redirect(self, capsys: pytest.CaptureFixture[str]) -> None:
+        config = _make_config()
+        transport = make_transport(302, {"detail": "Found"})
+        client = HassetteCLIClient(config, json_mode=True, transport=transport)
+        with pytest.raises(SystemExit):
+            client.get(HEALTH_ENDPOINT, SimpleModel)
+        captured = capsys.readouterr()
+        parsed = json.loads(captured.out)
+        assert "redirect" in parsed["detail"].lower()
+
+
+# Full base URL (scheme + path prefix) in error messages
+
+
+class TestFullBaseUrlInErrorMessages:
+    def test_network_error_reports_full_base_url(self, tmp_path: Path) -> None:
+        config = _make_config_for_auth(tmp_path, server_url="https://example.com/hassette")
+        transport = make_transport(raise_exc=httpx.ConnectError)
+        client = HassetteCLIClient(config, json_mode=False, transport=transport)
+        with capture_stderr() as buf, pytest.raises(SystemExit):
+            client.get(HEALTH_ENDPOINT, SimpleModel)
+        assert "https://example.com/hassette" in buf.getvalue()
+
+    def test_http_error_reports_full_base_url(self, tmp_path: Path) -> None:
+        config = _make_config_for_auth(tmp_path, server_url="https://example.com/hassette")
+        transport = make_transport(500, {"detail": "boom"})
+        client = HassetteCLIClient(config, json_mode=False, transport=transport)
+        with capture_stderr() as buf, pytest.raises(SystemExit):
+            client.get(HEALTH_ENDPOINT, SimpleModel)
+        assert "https://example.com/hassette" in buf.getvalue()
+
+
+# Target echo: once per invocation on the success path, and unconditionally on HTTP errors
+
+
+class TestTargetEcho:
+    def test_non_loopback_success_shows_target(self, tmp_path: Path) -> None:
+        config = _make_config_for_auth(tmp_path, server_url="https://example.com/hassette")
+        transport = make_transport(200, {"value": "hello"})
+        client = HassetteCLIClient(config, json_mode=False, transport=transport)
+        with capture_stderr() as buf:
+            client.get(HEALTH_ENDPOINT, SimpleModel)
+        assert "https://example.com/hassette" in buf.getvalue()
+
+    def test_loopback_success_omits_target(self) -> None:
+        config = _make_config()
+        transport = make_transport(200, {"value": "hello"})
+        client = HassetteCLIClient(config, json_mode=False, transport=transport)
+        with capture_stderr() as buf:
+            client.get(HEALTH_ENDPOINT, SimpleModel)
+        assert buf.getvalue() == ""
+
+    def test_401_non_loopback_shows_target_without_debug(self, tmp_path: Path) -> None:
+        config = _make_config_for_auth(tmp_path, server_url="https://example.com/hassette")
+        transport = make_transport(401, {"detail": "Unauthorized"})
+        client = HassetteCLIClient(config, json_mode=False, debug_mode=False, transport=transport)
+        with capture_stderr() as buf, pytest.raises(SystemExit):
+            client.get(HEALTH_ENDPOINT, SimpleModel)
+        assert "https://example.com/hassette" in buf.getvalue()
+
+    def test_401_non_loopback_json_mode_includes_target(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        config = _make_config_for_auth(tmp_path, server_url="https://example.com/hassette")
+        transport = make_transport(401, {"detail": "Unauthorized"})
+        client = HassetteCLIClient(config, json_mode=True, debug_mode=False, transport=transport)
+        with pytest.raises(SystemExit):
+            client.get(HEALTH_ENDPOINT, SimpleModel)
+        parsed = json.loads(capsys.readouterr().out)
+        assert parsed["target"] == "https://example.com/hassette"
+
+    def test_loopback_401_json_mode_omits_target(self, capsys: pytest.CaptureFixture[str]) -> None:
+        config = _make_config()
+        transport = make_transport(401, {"detail": "Unauthorized"})
+        client = HassetteCLIClient(config, json_mode=True, transport=transport)
+        with pytest.raises(SystemExit):
+            client.get(HEALTH_ENDPOINT, SimpleModel)
+        parsed = json.loads(capsys.readouterr().out)
+        assert "target" not in parsed
+
+
+# TLS-verification warning: config-sourced only, not the explicit flag
+
+
+class TestVerifySslWarning:
+    def test_config_sourced_insecure_warns(self, tmp_path: Path) -> None:
+        config = _make_config_for_auth(tmp_path, server_url="https://example.com/hassette", cli_verify_ssl=False)
+        transport = make_transport(200, {"value": "hello"})
+        client = HassetteCLIClient(config, json_mode=False, transport=transport)
+        with capture_stderr() as buf:
+            client.get(HEALTH_ENDPOINT, SimpleModel)
+        assert "TLS verification is disabled" in buf.getvalue()
+
+    def test_flag_sourced_insecure_does_not_warn(self, tmp_path: Path) -> None:
+        config = _make_config_for_auth(tmp_path, server_url="https://example.com/hassette", cli_verify_ssl=False)
+        transport = make_transport(200, {"value": "hello"})
+        client = HassetteCLIClient(
+            config, json_mode=False, transport=transport, verify_ssl_flag=False, server_url_flag=None
+        )
+        with capture_stderr() as buf:
+            client.get(HEALTH_ENDPOINT, SimpleModel)
+        assert "TLS verification is disabled" not in buf.getvalue()
+
+    def test_loopback_insecure_config_still_warns(self, tmp_path: Path) -> None:
+        """The warning is about a config-vs-flag distinction, not a loopback gate — it applies
+        regardless of whether the resulting target happens to be loopback.
+        """
+        config = _make_config_for_auth(tmp_path, cli_verify_ssl=False)
+        transport = make_transport(200, {"value": "hello"})
+        client = HassetteCLIClient(config, json_mode=False, transport=transport)
+        with capture_stderr() as buf:
+            client.get(HEALTH_ENDPOINT, SimpleModel)
+        assert "TLS verification is disabled" in buf.getvalue()
+
+    def test_config_sourced_insecure_warns_json_mode_error_path(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        config = _make_config_for_auth(tmp_path, server_url="https://example.com/hassette", cli_verify_ssl=False)
+        transport = make_transport(500, {"detail": "boom"})
+        client = HassetteCLIClient(config, json_mode=True, transport=transport)
+        with pytest.raises(SystemExit):
+            client.get(HEALTH_ENDPOINT, SimpleModel)
+        parsed = json.loads(capsys.readouterr().out)
+        assert parsed["tls_verified"] is False
+
+    def test_flag_sourced_insecure_omits_tls_verified_json_mode_error_path(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        config = _make_config_for_auth(tmp_path, server_url="https://example.com/hassette", cli_verify_ssl=False)
+        transport = make_transport(500, {"detail": "boom"})
+        client = HassetteCLIClient(
+            config, json_mode=True, transport=transport, verify_ssl_flag=False, server_url_flag=None
+        )
+        with pytest.raises(SystemExit):
+            client.get(HEALTH_ENDPOINT, SimpleModel)
+        parsed = json.loads(capsys.readouterr().out)
+        assert "tls_verified" not in parsed

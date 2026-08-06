@@ -7,6 +7,7 @@ performs the full pipeline and returns the resolved command function plus bound 
 without executing the command.
 """
 
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -167,3 +168,28 @@ class TestGlobalFlagWiring:
 
         assert not bound.arguments.get("json", False)
         assert not bound.arguments.get("debug", False)
+
+    def test_server_url_flag(self) -> None:
+        _cmd, bound, _ = app.meta.parse_args(["--server-url", "https://example.com/hassette", "status"])
+
+        assert bound.arguments["server_url"] == "https://example.com/hassette"
+
+    def test_server_url_short_flag(self) -> None:
+        _cmd, bound, _ = app.meta.parse_args(["-s", "https://example.com/hassette", "status"])
+
+        assert bound.arguments["server_url"] == "https://example.com/hassette"
+
+    def test_token_file_flag(self) -> None:
+        _cmd, bound, _ = app.meta.parse_args(["--token-file", "/tmp/token", "status"])
+
+        assert bound.arguments["token_file"] == Path("/tmp/token")
+
+    def test_no_verify_ssl_flag_sets_false(self) -> None:
+        _cmd, bound, _ = app.meta.parse_args(["--no-verify-ssl", "status"])
+
+        assert bound.arguments["verify_ssl"] is False
+
+    def test_verify_ssl_flag_absent_is_none(self) -> None:
+        _cmd, bound, _ = app.meta.parse_args(["status"])
+
+        assert bound.arguments.get("verify_ssl") is None
