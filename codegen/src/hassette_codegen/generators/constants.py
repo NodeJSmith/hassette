@@ -1,6 +1,7 @@
 """Generate sensor constants file from extracted data."""
 
 from hassette_codegen.extractors.constants import ExtractedConstantSet
+from hassette_codegen.rendering import py_literal
 
 
 def generate_sensor_constants(constant_sets: list[ExtractedConstantSet]) -> str:
@@ -10,7 +11,7 @@ def generate_sensor_constants(constant_sets: list[ExtractedConstantSet]) -> str:
     for cs in constant_sets:
         lines.append(f"{cs.name} = Literal[")
         for val in cs.values:
-            lines.append(f'    "{val}",')
+            lines.append(f"    {py_literal(val)},")
         lines.append("]")
         lines.append("")
 

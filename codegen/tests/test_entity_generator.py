@@ -7,6 +7,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from hassette_codegen.domain_data import ExtractedDomain
@@ -14,6 +16,7 @@ from hassette_codegen.extractors.features import ExtractedEnum
 from hassette_codegen.extractors.services import ExtractedService, ServiceField
 from hassette_codegen.generators.entities import generate_entity_wrapper
 from hassette_codegen.overrides import DomainOverride
+from hassette_codegen.rendering import UnsafeGeneratedValueError
 
 
 class TestEntityWrapperGenerator:
@@ -677,3 +680,82 @@ class TestStrEnumMatching:
             f.write(output)
             f.flush()
             py_compile.compile(f.name, doraise=True)
+
+
+class TestEntityWrapperEscaping:
+    """Service and field names come from services.yaml keys — arbitrary text, four render sites each.
+
+    ``entity_wrapper.py.j2`` emits four service blocks (async and sync facade, with and without
+    params), so every assertion here checks all occurrences rather than the first.
+    """
+
+    @staticmethod
+    def _domain(service_name: str = "turn_on", method_name: str = "turn_on", field_name: str = "percentage"):
+        return ExtractedDomain(
+            name="fan",
+            base_class="BoolBaseState",
+            services=[
+                ExtractedService(
+                    name=service_name,
+                    method_name=method_name,
+                    fields=[ServiceField(name=field_name, selector_type="number", selector_data={})],
+                ),
+                ExtractedService(name=service_name, method_name=f"{method_name}_bare", fields=[]),
+            ],
+        )
+
+    def test_quote_in_service_name_stays_one_literal_at_every_site(self) -> None:
+        hostile = 'turn_on", target={"entity_id": "light.evil'
+        output = generate_entity_wrapper(self._domain(service_name=hostile))
+        assert output is not None
+
+        module = ast.parse(output)
+        rendered = [
+            kw.value.value
+            for node in ast.walk(module)
+            if isinstance(node, ast.Call)
+            for kw in node.keywords
+            if kw.arg == "service" and isinstance(kw.value, ast.Constant)
+        ]
+        # Four service blocks in the template, two services here — every one intact.
+        assert rendered == [hostile] * 4
+
+    def test_non_identifier_method_name_is_rejected(self) -> None:
+        with pytest.raises(UnsafeGeneratedValueError):
+            generate_entity_wrapper(self._domain(method_name="turn on"))
+
+    def test_keyword_method_name_is_rejected(self) -> None:
+        with pytest.raises(UnsafeGeneratedValueError):
+            generate_entity_wrapper(self._domain(method_name="class"))
+
+    def test_non_identifier_param_name_is_rejected(self) -> None:
+        with pytest.raises(UnsafeGeneratedValueError):
+            generate_entity_wrapper(self._domain(field_name="percentage: int = 1, evil"))
+
+    def test_param_rename_is_validated_after_the_override_applies(self) -> None:
+        # An override that maps a bad name to a good one must be honoured, not rejected first.
+        domain = self._domain(field_name="for")
+        domain.override = DomainOverride(domain="fan", service_param_renames={"for": "for_"})
+        output = generate_entity_wrapper(domain)
+
+        assert output is not None
+        assert "for_:" in output
+
+    def test_whitespace_only_descriptions_do_not_swallow_sibling_methods(self) -> None:
+        # A services.yaml description of "   " is truthy, so it used to reach the docstring builder
+        # and collapse to nothing there — producing valid Python that silently lost a method.
+        domain = ExtractedDomain(
+            name="light",
+            base_class="BoolBaseState",
+            services=[
+                ExtractedService(name="first", method_name="first", fields=[], description="   "),
+                ExtractedService(name="second", method_name="second", fields=[], description="   "),
+                ExtractedService(name="third", method_name="third", fields=[], description="Turn on."),
+            ],
+        )
+        output = generate_entity_wrapper(domain)
+        assert output is not None
+
+        module = ast.parse(output)
+        facade = next(n for n in module.body if isinstance(n, ast.ClassDef) and n.name.endswith("SyncFacade"))
+        assert [n.name for n in facade.body if isinstance(n, ast.FunctionDef)] == ["first", "second", "third"]

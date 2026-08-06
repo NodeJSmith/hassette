@@ -40,7 +40,7 @@ class {{ domain_title }}Entity(BaseEntity[{{ domain_title }}State, str]):
 {{ service.doc }}
         return self.api.call_service(
             domain=self.domain,
-            service="{{ service.name }}",
+            service={{ service.name | py_literal }},
             target={"entity_id": self.entity_id},
 {% for param in service.params %}
             {{ param.name }}={{ param.name }},
@@ -52,7 +52,7 @@ class {{ domain_title }}Entity(BaseEntity[{{ domain_title }}State, str]):
 {{ service.doc }}
         return self.api.call_service(
             domain=self.domain,
-            service="{{ service.name }}",
+            service={{ service.name | py_literal }},
             target={"entity_id": self.entity_id},
         )
 {% endif %}
@@ -78,7 +78,7 @@ class {{ domain_title }}EntitySyncFacade(BaseEntitySyncFacade[{{ domain_title }}
 {{ service.doc }}
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
-            service="{{ service.name }}",
+            service={{ service.name | py_literal }},
             target={"entity_id": self.entity.entity_id},
 {% for param in service.params %}
             {{ param.name }}={{ param.name }},
@@ -89,7 +89,7 @@ class {{ domain_title }}EntitySyncFacade(BaseEntitySyncFacade[{{ domain_title }}
 {{ service.doc }}
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
-            service="{{ service.name }}",
+            service={{ service.name | py_literal }},
             target={"entity_id": self.entity.entity_id},
         )
 {% endif %}

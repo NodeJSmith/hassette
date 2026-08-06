@@ -20,7 +20,14 @@ from hassette_codegen.ha_source import (
     check_ruff_available,
     discover_domains,
 )
-from hassette_codegen.manifest import detect_orphans, load_manifest, merge_manifest, save_manifest
+from hassette_codegen.manifest import (
+    detect_orphans,
+    is_owned,
+    load_manifest,
+    manifest_exists,
+    merge_manifest,
+    save_manifest,
+)
 from hassette_codegen.output import atomic_write, check_drift
 from hassette_codegen.overrides import (
     DomainOverride,
@@ -29,6 +36,13 @@ from hassette_codegen.overrides import (
     load_overrides,
     validate_overrides,
 )
+from hassette_codegen.rendering import UnsafeGeneratedValueError, require_identifier
+
+# Hand-written files in the generated packages. A Home Assistant component directory with one of
+# these names would otherwise be written straight over them. This list is not redundant with the
+# ownership gate in _may_overwrite: on a checkout that has never run the generator there is no
+# manifest to consult, and this is what protects these files in that window.
+RESERVED_BASENAMES = frozenset({"base", "catalog", "__init__"})
 
 
 def run_pipeline(
@@ -42,10 +56,12 @@ def run_pipeline(
     check_python_version(ha_source.path)
     check_ruff_available()
 
-    all_domains = discover_domains(ha_source.path)
+    all_domains = _reject_unsafe_domain_names(discover_domains(ha_source.path))
     overrides = load_overrides()
 
-    manual_domains = _discover_manual_domains(ha_source.path, overrides, {d.name for d in all_domains})
+    manual_domains = _reject_unsafe_domain_names(
+        _discover_manual_domains(ha_source.path, overrides, {d.name for d in all_domains})
+    )
     all_domains.extend(manual_domains)
     print(f"Discovered {len(all_domains)} entity domains ({len(manual_domains)} manual)", file=sys.stderr)
 
@@ -60,6 +76,7 @@ def run_pipeline(
     validate_overrides(overrides, {d.name for d in all_domains})
 
     previous_manifest = load_manifest(repo_root)
+    manifest_tracked = manifest_exists(repo_root)
     generated_files: set[Path] = set()
     skipped_domains: list[str] = []
     any_drift = False
@@ -85,6 +102,9 @@ def run_pipeline(
                 any_drift = True
             generated_files.add(rel_state)
         else:
+            if not _may_overwrite(state_path, rel_state, previous_manifest, tracked=manifest_tracked):
+                skipped_domains.append(domain_info.name)
+                continue
             if atomic_write(state_path, state_content):
                 generated_files.add(rel_state)
             else:
@@ -92,7 +112,14 @@ def run_pipeline(
                 skipped_domains.append(domain_info.name)
                 continue
 
-        entity_content = generate_entity_wrapper(extracted)
+        try:
+            entity_content = generate_entity_wrapper(extracted)
+        except UnsafeGeneratedValueError as exc:
+            # The state model above is unaffected and stays generated — only the service wrappers
+            # depend on the rejected name.
+            print(f"WARNING: Skipped {domain_info.name} entity wrapper: {exc}", file=sys.stderr)
+            continue
+
         if entity_content is not None:
             entity_path = entities_dir / f"{domain_info.name}.py"
             rel_entity = entity_path.relative_to(repo_root)
@@ -102,6 +129,11 @@ def run_pipeline(
                     any_drift = True
                 generated_files.add(rel_entity)
             else:
+                # Unlike the state model above, the domain is not added to skipped_domains: its
+                # state model did generate. The refusal is reported by the warning, matching how
+                # an entity wrapper that fails ruff validation is already handled.
+                if not _may_overwrite(entity_path, rel_entity, previous_manifest, tracked=manifest_tracked):
+                    continue
                 if atomic_write(entity_path, entity_content):
                     generated_files.add(rel_entity)
                 else:
@@ -164,6 +196,49 @@ def run_pipeline(
         return 1
 
     return 0
+
+
+def _reject_unsafe_domain_names(domains: list[DiscoveredDomain]) -> list[DiscoveredDomain]:
+    """Drop domains whose name cannot safely become a module.
+
+    A domain name is a Home Assistant component directory name taken verbatim, and it becomes
+    both an output filename (``models/states/{name}.py``) and an import path
+    (``from hassette.models.states.{name} import ...``). A name that is not an identifier breaks
+    the import; a name matching a hand-written module overwrites it silently.
+    """
+    safe: list[DiscoveredDomain] = []
+    for domain in domains:
+        if domain.name in RESERVED_BASENAMES:
+            print(f"WARNING: Skipping domain '{domain.name}': reserved for hand-written files", file=sys.stderr)
+            continue
+        try:
+            require_identifier(domain.name, kind="domain name")
+        except UnsafeGeneratedValueError as exc:
+            print(f"WARNING: Skipping domain '{domain.name}': {exc}", file=sys.stderr)
+            continue
+        safe.append(domain)
+    return safe
+
+
+def _may_overwrite(out_path: Path, rel_path: Path, previous_manifest: set[Path], *, tracked: bool) -> bool:
+    """Whether an existing file may be replaced by generated content.
+
+    First-time generation is always allowed — the target does not exist yet. On a checkout that
+    has never run the generator (``tracked`` false) there is no ownership information to consult,
+    so the gate falls through rather than refusing every file; this is the case
+    ``RESERVED_BASENAMES`` exists to cover, since it is the one moment the ownership check cannot
+    protect the hand-written modules. A manifest that exists but lists nothing is a different
+    thing — the generator owns nothing, so it may overwrite nothing.
+
+    The manifest passed here must be the *previous* one, which still lists domains a ``--domain``
+    run did not process — reading a partially rebuilt manifest would refuse to regenerate files
+    the current run legitimately owns.
+    """
+    if not out_path.exists() or not tracked or is_owned(rel_path, previous_manifest):
+        return True
+
+    print(f"WARNING: Refusing to overwrite {rel_path}: exists and is not generator-owned", file=sys.stderr)
+    return False
 
 
 def _extract_domain(
