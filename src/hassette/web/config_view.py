@@ -22,6 +22,7 @@ Note: the OpenAPI freshness check does not cover ``ui`` annotation content (it r
 ``ui``-shape drift.
 """
 
+from collections.abc import Iterator
 from logging import getLogger
 from typing import TYPE_CHECKING, Any
 
@@ -55,47 +56,123 @@ def _is_secret_node(node: dict[str, Any]) -> bool:
     return False
 
 
-def _object_properties(node: dict[str, Any]) -> dict[str, Any] | None:
-    """Return the ``properties`` dict of an object-typed schema node, or None.
+def _shape_candidates(node: dict[str, Any]) -> Iterator[dict[str, Any]]:
+    """Yield ``node`` itself, then any ``anyOf``/``oneOf``/``allOf`` branch.
 
-    Handles a required nested model (``{type: object, properties: {...}}``) directly,
-    and an optional nested model (``SomeGroup | None``) which Pydantic emits as
-    ``anyOf: [{type: object, properties: {...}}, {type: null}]`` — without the anyOf
-    branch, secrets inside an optional nested group would pass through unmasked.
+    An optional field wraps its real shape in a union — ``SomeGroup | None`` becomes
+    ``anyOf: [{type: object, properties: {...}}, {type: null}]`` and
+    ``tuple[SecretStr, SecretStr] | None`` becomes ``anyOf: [{type: array, prefixItems:
+    [...]}, {type: null}]``. Object and container shapes therefore have to be looked for in
+    the branches as well as on the node, or secrets nested inside an optional group or
+    container pass through unmasked.
+
+    ``anyOf`` is what optional fields actually emit today. ``oneOf`` is what a discriminated
+    union would emit, which the module docstring already flags as a shape to expect. ``allOf``
+    is not emitted by the current Pydantic — a ``$ref`` with sibling keywords is inlined
+    rather than wrapped — but older versions did wrap, and looking in one extra place can only
+    ever mask more, never less, so it stays as fail-safe insurance on a security boundary.
     """
-    if node.get("type") == "object" and "properties" in node:
-        return node["properties"]
-    for branch in node.get("anyOf", []):
-        if isinstance(branch, dict) and branch.get("type") == "object" and "properties" in branch:
-            return branch["properties"]
-    return None
+    yield node
+    for keyword in ("anyOf", "oneOf", "allOf"):
+        for branch in node.get(keyword, []):
+            if isinstance(branch, dict):
+                yield branch
+
+
+def _mask_object(shape: dict[str, Any], value: dict[str, Any]) -> dict[str, Any] | None:
+    """Mask a mapping value against an object-shaped schema node, or None if it is not one.
+
+    ``properties`` names specific keys; ``additionalProperties`` describes everything else. A
+    model with ``extra="allow"`` carries both, so named keys are resolved first and the rest
+    fall back — rather than picking one key and ignoring the other.
+    """
+    named_props = shape.get("properties")
+    extra_props = shape.get("additionalProperties")
+    if not isinstance(named_props, dict) and not isinstance(extra_props, dict):
+        return None
+    named_props = named_props if isinstance(named_props, dict) else {}
+
+    masked: dict[str, Any] = {}
+    for key, item in value.items():
+        if key in named_props:
+            masked[key] = _mask_node(named_props[key], item)
+        elif isinstance(extra_props, dict):
+            masked[key] = _mask_node(extra_props, item)
+        else:
+            masked[key] = item
+    return masked
+
+
+def _mask_array(shape: dict[str, Any], value: list[Any]) -> list[Any] | None:
+    """Mask a list value against an array-shaped schema node, or None if it is not one.
+
+    ``prefixItems`` is positional and describes a fixed-length tuple; ``items`` is homogeneous
+    and describes the rest. A tuple emits only the former and a list only the latter, so both
+    are handled, with positional slots taking precedence.
+    """
+    prefix_items = shape.get("prefixItems")
+    item_schema = shape.get("items")
+    if not isinstance(prefix_items, list) and not isinstance(item_schema, dict):
+        return None
+    prefix_items = prefix_items if isinstance(prefix_items, list) else []
+
+    masked: list[Any] = []
+    for index, item in enumerate(value):
+        if index < len(prefix_items) and isinstance(prefix_items[index], dict):
+            masked.append(_mask_node(prefix_items[index], item))
+        elif isinstance(item_schema, dict):
+            masked.append(_mask_node(item_schema, item))
+        else:
+            masked.append(item)
+    return masked
+
+
+def _mask_node(node: dict[str, Any], value: Any) -> Any:
+    """Return ``value`` masked according to the schema node describing it.
+
+    The walk is schema-and-value recursive rather than property recursive: an object's
+    ``properties``/``additionalProperties`` and a container's ``prefixItems``/``items`` are
+    all descended, and each descent lands back here — so an object inside a list, or a list
+    inside a mapping, is reached the same way a top-level field is.
+
+    Returns new dicts and lists; never mutates ``value``.
+    """
+    if _is_secret_node(node):
+        return MASK_SENTINEL if value is not None and value != "" else value
+
+    for shape in _shape_candidates(node):
+        if isinstance(value, dict):
+            masked_object = _mask_object(shape, value)
+            if masked_object is not None:
+                return masked_object
+        elif isinstance(value, list):
+            masked_array = _mask_array(shape, value)
+            if masked_array is not None:
+                return masked_array
+
+    # No candidate shape described this value: either it is a plain scalar, or the schema says
+    # nothing about its structure. Either way there is nothing to descend into, so it passes
+    # through unchanged — masking is type-driven and never guesses.
+    return value
 
 
 def mask_values(schema_props: dict[str, Any], values: dict[str, Any]) -> dict[str, Any]:
     """Return a copy of ``values`` with secret fields replaced by ``MASK_SENTINEL``.
 
-    Walks ``schema_props`` (the ``properties`` dict of a deref'd schema node).
-    For each property:
-    - If the node is a secret (``writeOnly``/``format: password``), replaces the value
-      with ``MASK_SENTINEL`` when present and non-empty, leaves it ``None``/absent otherwise.
-    - If the node is a nested object with its own ``properties`` (required or optional via
-      ``anyOf``), recurses so secrets at any depth are masked.
+    Walks ``schema_props`` (the ``properties`` dict of a deref'd schema node) and masks each
+    value against its own node. A secret (``writeOnly``/``format: password``) is replaced
+    with ``MASK_SENTINEL`` when present and non-empty, and left ``None``/empty/absent
+    otherwise. Nested objects and list/tuple/mapping containers are descended, so a secret
+    is reached at any depth and through any combination of the two.
+
+    Keys absent from ``schema_props``, and plain non-secret values, are passed through
+    untouched — masking is type-driven, so an ordinary list or mapping stays readable.
 
     Does not mutate the input dict; returns a new dict.
     """
-    result = dict(values)
-    for key, node in schema_props.items():
-        if key not in result:
-            continue
-        if _is_secret_node(node):
-            current = result[key]
-            if current is not None and current != "":
-                result[key] = MASK_SENTINEL
-            continue
-        nested_props = _object_properties(node)
-        if nested_props is not None and isinstance(result.get(key), dict):
-            result[key] = mask_values(nested_props, result[key])
-    return result
+    return {
+        key: _mask_node(schema_props[key], value) if key in schema_props else value for key, value in values.items()
+    }
 
 
 def _materialize(obj: Any, seen: frozenset[int] | None = None) -> Any:
