@@ -52,7 +52,6 @@ class CredentialSource:
     the gate to apply — it cannot forget to extend a hand-written skip condition.
     """
 
-    name: str
     scope: Literal["cli", "server"]
     resolve: Callable[[CredentialInputs], str | None]
 
@@ -231,13 +230,14 @@ def _resolve_data_dir_token_file(inputs: CredentialInputs) -> str | None:
 
 
 CREDENTIAL_SOURCES: tuple[CredentialSource, ...] = (
-    CredentialSource(name="--token-file", scope="cli", resolve=_resolve_token_file_flag),
-    CredentialSource(name="cli.token_file", scope="cli", resolve=_resolve_cli_token_file),
-    CredentialSource(name="cli.auth_token", scope="cli", resolve=_resolve_cli_auth_token_field),
-    CredentialSource(name="web_api.auth_token", scope="server", resolve=_resolve_web_api_auth_token),
-    CredentialSource(name="<data_dir>/.web_api_token", scope="server", resolve=_resolve_data_dir_token_file),
+    CredentialSource(scope="cli", resolve=_resolve_token_file_flag),
+    CredentialSource(scope="cli", resolve=_resolve_cli_token_file),
+    CredentialSource(scope="cli", resolve=_resolve_cli_auth_token_field),
+    CredentialSource(scope="server", resolve=_resolve_web_api_auth_token),
+    CredentialSource(scope="server", resolve=_resolve_data_dir_token_file),
 )
-"""Credential precedence chain, in FR#7 order. See :class:`CredentialSource` for the scope gate."""
+"""Credential precedence chain, in the order documented by design/specs/092-cli-remote-url/design.md
+(Architecture -> Credential scoping). See :class:`CredentialSource` for the scope gate."""
 
 
 def resolve_cli_auth_token(

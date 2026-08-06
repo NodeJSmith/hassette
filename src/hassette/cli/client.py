@@ -260,11 +260,15 @@ class HassetteCLIClient:
         if not self.is_loopback:
             cli_output.stderr_console.print(f"[dim]Target:[/dim] {self.base_url}", highlight=False)
         if self._insecure_from_config:
-            cli_output.stderr_console.print(
-                f"[bold yellow]Warning:[/bold yellow] TLS verification is disabled for {self.base_url} "
-                "(cli.verify_ssl = false in config).",
-                highlight=False,
-            )
+            self._print_tls_warning()
+
+    def _print_tls_warning(self) -> None:
+        """Print the "TLS verification is disabled" warning for the current ``base_url``."""
+        cli_output.stderr_console.print(
+            f"[bold yellow]Warning:[/bold yellow] TLS verification is disabled for {self.base_url} "
+            "(cli.verify_ssl = false in config).",
+            highlight=False,
+        )
 
     def _handle_http_error(self, response: httpx.Response) -> NoReturn:
         """Print HTTP error and exit with code 1."""
@@ -313,11 +317,7 @@ class HassetteCLIClient:
             if target is not None:
                 cli_output.stderr_console.print(f"[dim]Target:[/dim] {target}", highlight=False)
             if tls_verified is False:
-                cli_output.stderr_console.print(
-                    f"[bold yellow]Warning:[/bold yellow] TLS verification is disabled for {self.base_url} "
-                    "(cli.verify_ssl = false in config).",
-                    highlight=False,
-                )
+                self._print_tls_warning()
             if self.debug_mode:
                 cli_output.stderr_console.print(f"  [dim]URL:[/dim]    {response.request.method} {response.url}")
                 cli_output.stderr_console.print(f"  [dim]Body:[/dim]   {response.text}")

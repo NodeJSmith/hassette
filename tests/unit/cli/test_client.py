@@ -54,6 +54,12 @@ def make_transport(
 
 
 def _make_host_port_config(host: str = "127.0.0.1", port: int = 8126) -> HassetteConfig:
+    """Bare host/port config for base-URL construction tests.
+
+    Narrower than the shared ``make_cli_config()`` (from ``conftest.py``) — no ``cli``/``data_dir``
+    overrides, so it can't be used for credential or target-resolution tests. Reach for
+    ``make_cli_config()`` unless a test only needs to vary ``web_api.host``/``web_api.port``.
+    """
     return HassetteConfig(token=None, web_api=WebApiConfig(host=host, port=port))
 
 
