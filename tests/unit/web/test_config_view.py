@@ -56,6 +56,38 @@ class _OptionalGroupConfig(BaseModel):
     inner_opt: _InnerConfig | None = None
 
 
+class _ContainerSecretConfig(BaseModel):
+    """Throwaway model: secrets held directly inside list/tuple/dict containers.
+
+    Pydantic emits a different schema key for each: ``items`` for a homogeneous list,
+    ``prefixItems`` for a fixed-length tuple, and ``additionalProperties`` for a mapping.
+    The optional tuple additionally wraps its array shape in ``anyOf``.
+    """
+
+    key_list: list[SecretStr]
+    key_pair: tuple[SecretStr, SecretStr] | None = None
+    key_map: dict[str, SecretStr]
+
+
+class _NestedContainerConfig(BaseModel):
+    """Throwaway model: containers whose elements are objects or further containers.
+
+    ``inners`` puts an object node under ``items``, so masking has to cross from a
+    container back into a property walk. ``grouped_keys`` stacks two container levels.
+    """
+
+    inners: list[_InnerConfig]
+    grouped_keys: dict[str, list[SecretStr]]
+
+
+class _PlainContainerConfig(BaseModel):
+    """Throwaway model: containers of plain values, which must stay visible."""
+
+    names: list[str]
+    labels: dict[str, str]
+    real_secret: SecretStr
+
+
 class TestTypeDrivenMasking:
     """Masking is driven by the schema's writeOnly/format:password markers, not field names."""
 
@@ -168,6 +200,124 @@ class TestNestedMasking:
         values = {"name": "test", "inner_opt": None}
         result = build_config_view(schema, values)
         assert result["config_values"]["inner_opt"] is None
+
+
+class TestContainerMasking:
+    """Masking recurses through list/tuple/dict containers, not just object properties.
+
+    Each case below covers a distinct schema key. A walk that only reads ``properties``
+    hands the secret out in plaintext on the app-config endpoints, where values come from
+    raw TOML and never passed through a ``SecretStr`` field for Pydantic to mask natively.
+    """
+
+    def test_list_of_secrets_masked(self) -> None:
+        """Secrets under ``items`` (list[SecretStr]) are masked element-wise."""
+        schema = _ContainerSecretConfig.model_json_schema()
+        values = {"key_list": ["one", "two"], "key_map": {}}
+        result = build_config_view(schema, values)
+        assert result["config_values"]["key_list"] == [MASK_SENTINEL, MASK_SENTINEL]
+
+    def test_optional_tuple_of_secrets_masked(self) -> None:
+        """Secrets under ``prefixItems`` nested in ``anyOf`` are masked positionally.
+
+        The field is optional, so Pydantic wraps the array shape in a union — container
+        detection has to look inside union branches, not just at the top-level node.
+        """
+        schema = _ContainerSecretConfig.model_json_schema()
+        values = {"key_list": [], "key_pair": ["left", "right"], "key_map": {}}
+        result = build_config_view(schema, values)
+        assert result["config_values"]["key_pair"] == [MASK_SENTINEL, MASK_SENTINEL]
+
+    def test_dict_of_secrets_masked(self) -> None:
+        """Secrets under ``additionalProperties`` (dict[str, SecretStr]) are masked by value."""
+        schema = _ContainerSecretConfig.model_json_schema()
+        values = {"key_list": [], "key_map": {"prod": "live-key", "dev": "test-key"}}
+        result = build_config_view(schema, values)
+        assert result["config_values"]["key_map"] == {"prod": MASK_SENTINEL, "dev": MASK_SENTINEL}
+
+    def test_dict_keys_are_preserved(self) -> None:
+        """Mapping keys stay visible — only the values are secret."""
+        schema = _ContainerSecretConfig.model_json_schema()
+        values = {"key_list": [], "key_map": {"prod": "live-key", "dev": "test-key"}}
+        result = build_config_view(schema, values)
+        assert set(result["config_values"]["key_map"]) == {"prod", "dev"}
+
+    def test_list_of_nested_models_masked(self) -> None:
+        """A secret inside an object under ``items`` is masked; its siblings stay visible.
+
+        This is the case a scalar-container-only fix would still miss: the element schema
+        is an object with its own ``properties``, so the walk has to cross from container
+        back into a property walk.
+        """
+        schema = _NestedContainerConfig.model_json_schema()
+        values = {
+            "inners": [
+                {"nested_secret": "first", "nested_name": "a"},
+                {"nested_secret": "second", "nested_name": "b"},
+            ],
+            "grouped_keys": {},
+        }
+        result = build_config_view(schema, values)
+        assert [i["nested_secret"] for i in result["config_values"]["inners"]] == [MASK_SENTINEL, MASK_SENTINEL]
+        assert [i["nested_name"] for i in result["config_values"]["inners"]] == ["a", "b"]
+
+    def test_two_container_levels_masked(self) -> None:
+        """dict[str, list[SecretStr]] — ``additionalProperties`` wrapping ``items``."""
+        schema = _NestedContainerConfig.model_json_schema()
+        values = {"inners": [], "grouped_keys": {"prod": ["a", "b"], "dev": ["c"]}}
+        result = build_config_view(schema, values)
+        assert result["config_values"]["grouped_keys"] == {
+            "prod": [MASK_SENTINEL, MASK_SENTINEL],
+            "dev": [MASK_SENTINEL],
+        }
+
+    def test_plain_containers_left_visible(self) -> None:
+        """list[str] and dict[str, str] stay readable — masking is type-driven, not blanket.
+
+        A regression to blanket-masking containers would break the config UI for every
+        ordinary list or mapping setting.
+        """
+        schema = _PlainContainerConfig.model_json_schema()
+        values = {
+            "names": ["alpha", "beta"],
+            "labels": {"env": "prod"},
+            "real_secret": "hunter2",
+        }
+        result = build_config_view(schema, values)
+        assert result["config_values"]["names"] == ["alpha", "beta"]
+        assert result["config_values"]["labels"] == {"env": "prod"}
+        assert result["config_values"]["real_secret"] == MASK_SENTINEL
+
+    def test_empty_and_null_inside_containers_left_untouched(self) -> None:
+        """The scalar rule carries into containers: '' and None are not masked."""
+        schema = _ContainerSecretConfig.model_json_schema()
+        values = {"key_list": ["", "set", None], "key_map": {"blank": "", "unset": None, "set": "x"}}
+        result = build_config_view(schema, values)
+        assert result["config_values"]["key_list"] == ["", MASK_SENTINEL, None]
+        assert result["config_values"]["key_map"] == {"blank": "", "unset": None, "set": MASK_SENTINEL}
+
+    def test_container_input_not_mutated(self) -> None:
+        """Masking a container returns new containers; the caller's nested data is untouched."""
+        schema = _NestedContainerConfig.model_json_schema()
+        values = {
+            "inners": [{"nested_secret": "deep", "nested_name": "a"}],
+            "grouped_keys": {"prod": ["live-key"]},
+        }
+        build_config_view(schema, values)
+        assert values["inners"][0]["nested_secret"] == "deep"
+        assert values["grouped_keys"]["prod"] == ["live-key"]
+
+    def test_masking_containers_is_idempotent(self) -> None:
+        """Masking already-masked container values is a no-op.
+
+        The global config path feeds in values Pydantic already masked, so the mask has to
+        survive a second pass unchanged.
+        """
+        schema = _ContainerSecretConfig.model_json_schema()
+        values = {"key_list": [MASK_SENTINEL], "key_map": {"prod": MASK_SENTINEL}}
+        result = build_config_view(schema, values)
+        assert result["config_values"]["key_list"] == [MASK_SENTINEL]
+        assert result["config_values"]["key_map"] == {"prod": MASK_SENTINEL}
 
 
 class TestUnsetSecrets:
