@@ -869,3 +869,25 @@ class TestVerifySslWarning:
             client.get(HEALTH_ENDPOINT, SimpleModel)
         parsed = json.loads(capsys.readouterr().out)
         assert "tls_verified" not in parsed
+
+    def test_config_sourced_insecure_warns_on_network_error_path(self, tmp_path: Path) -> None:
+        """Mirrors the HTTP-error TLS-warning path: a connection error is a common failure
+        mode, and an operator relying on ``cli.verify_ssl = false`` must be warned there too,
+        not only when the failure happens to be an HTTP error response.
+        """
+        config = make_cli_config(data_dir=tmp_path, cli_server_url=REMOTE_SERVER_URL, cli_verify_ssl=False)
+        transport = make_transport(raise_exc=httpx.ConnectError)
+        client = HassetteCLIClient(config, json_mode=False, transport=transport)
+        with capture_stderr() as buf, pytest.raises(SystemExit):
+            client.get(HEALTH_ENDPOINT, SimpleModel)
+        assert "TLS verification is disabled" in buf.getvalue()
+
+    def test_flag_sourced_insecure_does_not_warn_on_network_error_path(self, tmp_path: Path) -> None:
+        config = make_cli_config(data_dir=tmp_path, cli_server_url=REMOTE_SERVER_URL, cli_verify_ssl=False)
+        transport = make_transport(raise_exc=httpx.ConnectError)
+        client = HassetteCLIClient(
+            config, json_mode=False, transport=transport, verify_ssl_flag=False, server_url_flag=None
+        )
+        with capture_stderr() as buf, pytest.raises(SystemExit):
+            client.get(HEALTH_ENDPOINT, SimpleModel)
+        assert "TLS verification is disabled" not in buf.getvalue()

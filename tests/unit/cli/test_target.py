@@ -15,7 +15,13 @@ from hassette.cli.target import (
     resolve_cli_auth_token,
     resolve_server_target,
 )
-from hassette.exceptions import CredentialResolutionError, ServerUrlApiSuffixError, ServerUrlSchemeRequiredError
+from hassette.exceptions import (
+    CredentialResolutionError,
+    ServerUrlApiSuffixError,
+    ServerUrlHostRequiredError,
+    ServerUrlParseError,
+    ServerUrlSchemeRequiredError,
+)
 from hassette.web.auth import TOKEN_FILENAME
 from tests.unit.cli.conftest import REMOTE_SERVER_URL, REMOTE_SERVER_URL_BARE, make_cli_config
 
@@ -137,6 +143,31 @@ class TestUrlValidation:
         config = make_cli_config(data_dir=tmp_path)
         with pytest.raises(ServerUrlApiSuffixError):
             resolve_server_target(config, server_url_flag="https://example.com/hassette/api/")
+
+
+# URL validation: distinct failure modes get distinct exception types
+
+
+class TestUrlValidationFailureModes:
+    def test_non_numeric_port_raises_parse_error(self, tmp_path: Path) -> None:
+        config = make_cli_config(data_dir=tmp_path)
+        with pytest.raises(ServerUrlParseError, match=r"host:notnum"):
+            resolve_server_target(config, server_url_flag="https://host:notnum")
+
+    def test_invalid_ipv6_brackets_raises_parse_error(self, tmp_path: Path) -> None:
+        config = make_cli_config(data_dir=tmp_path)
+        with pytest.raises(ServerUrlParseError, match=r"\[bad\]"):
+            resolve_server_target(config, server_url_flag="http://[bad]")
+
+    def test_non_http_scheme_raises_scheme_required(self, tmp_path: Path) -> None:
+        config = make_cli_config(data_dir=tmp_path)
+        with pytest.raises(ServerUrlSchemeRequiredError, match=r"ftp://host"):
+            resolve_server_target(config, server_url_flag="ftp://host")
+
+    def test_missing_host_raises_host_required(self, tmp_path: Path) -> None:
+        config = make_cli_config(data_dir=tmp_path)
+        with pytest.raises(ServerUrlHostRequiredError, match=r"https:///foo"):
+            resolve_server_target(config, server_url_flag="https:///foo")
 
 
 # Credential precedence chain

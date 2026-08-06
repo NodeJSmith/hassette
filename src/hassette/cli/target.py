@@ -18,10 +18,15 @@ from typing import Literal
 
 from yarl import URL
 
-from hassette.cli.client import format_host, substitute_host
 from hassette.config.config import HassetteConfig
-from hassette.exceptions import CredentialResolutionError, ServerUrlApiSuffixError, ServerUrlSchemeRequiredError
-from hassette.utils.net_utils import is_loopback_host
+from hassette.exceptions import (
+    CredentialResolutionError,
+    ServerUrlApiSuffixError,
+    ServerUrlHostRequiredError,
+    ServerUrlParseError,
+    ServerUrlSchemeRequiredError,
+)
+from hassette.utils.net_utils import format_host, is_loopback_host, substitute_host
 from hassette.web.auth import TOKEN_FILENAME
 
 
@@ -81,10 +86,16 @@ def _normalize(url: URL, path: str) -> URL:
 def _resolve_explicit_target(raw_url: str, *, verify_ssl: bool) -> ServerTarget:
     """Parse and normalize an explicitly supplied server URL (flag or config)."""
     cleaned = raw_url.strip().strip("'\"")
-    yurl = URL(cleaned)
+    try:
+        yurl = URL(cleaned)
+    except ValueError as exc:
+        raise ServerUrlParseError(f"server_url could not be parsed: {cleaned} ({exc})") from exc
 
-    if not yurl.scheme:
+    if yurl.scheme not in ("http", "https"):
         raise ServerUrlSchemeRequiredError(f"server_url must include a scheme (http:// or https://), got: {cleaned}")
+
+    if not yurl.host:
+        raise ServerUrlHostRequiredError(f"server_url must include a host, got: {cleaned}")
 
     stripped_path = yurl.path.rstrip("/")
 
@@ -97,7 +108,7 @@ def _resolve_explicit_target(raw_url: str, *, verify_ssl: bool) -> ServerTarget:
         )
 
     normalized = _normalize(yurl, stripped_path)
-    is_loopback = is_loopback_host(yurl.host or "")
+    is_loopback = is_loopback_host(yurl.host)
     return ServerTarget(base_url=str(normalized), is_loopback=is_loopback, verify_ssl=verify_ssl)
 
 
@@ -124,7 +135,12 @@ def resolve_server_target(
     tiers is treated as unset and falls through to the next.
 
     Raises:
-        ServerUrlSchemeRequiredError: An explicit URL has no scheme.
+        ServerUrlParseError: An explicit URL fails to parse (e.g. a non-numeric port or
+            malformed IPv6 brackets).
+        ServerUrlSchemeRequiredError: An explicit URL has no scheme, or a scheme other than
+            ``http``/``https``.
+        ServerUrlHostRequiredError: An explicit URL has an http/https scheme but no host
+            (e.g. ``https:///foo``).
         ServerUrlApiSuffixError: An explicit URL's path ends in ``/api``.
     """
     verify_ssl = verify_ssl_flag if verify_ssl_flag is not None else config.cli.verify_ssl

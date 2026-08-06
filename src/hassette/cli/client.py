@@ -18,39 +18,14 @@ import httpx2 as httpx
 
 import hassette.cli.output as cli_output
 from hassette.cli.context import CLIContext
+from hassette.cli.target import resolve_cli_auth_token, resolve_server_target
 from hassette.config.config import HassetteConfig
 from hassette.exceptions import FatalError
 from hassette.web.models import AppManifestListResponse
 
 DEFAULT_TIMEOUT = 10.0
 
-# Bind-all addresses that are not routable as connect targets
-_BIND_ALL_SUBSTITUTIONS: dict[str, str] = {
-    "0.0.0.0": "127.0.0.1",
-    "::": "::1",
-}
-
 T = TypeVar("T")
-
-
-def substitute_host(host: str) -> str:
-    """Replace bind-all addresses with loopback equivalents."""
-    return _BIND_ALL_SUBSTITUTIONS.get(host, host)
-
-
-def format_host(host: str) -> str:
-    """Wrap IPv6 addresses in brackets for use in URLs."""
-    substituted = substitute_host(host)
-    if ":" in substituted:
-        return f"[{substituted}]"
-    return substituted
-
-
-# Imported here, after substitute_host/format_host are defined, rather than in the top import
-# block: cli/target.py imports those two names from this module, so a top-of-file import here
-# would create a circular partial-initialization failure (target.py would try to read them off
-# hassette.cli.client before this module had defined them).
-from hassette.cli.target import resolve_cli_auth_token, resolve_server_target  # noqa: E402
 
 
 class HassetteCLIClient:
@@ -330,6 +305,8 @@ class HassetteCLIClient:
             _write_json_error(None, message, target=target, tls_verified=tls_verified)
         else:
             cli_output.stderr_console.print(f"[bold red]Network error:[/bold red] {message}")
+            if self._insecure_from_config:
+                self._print_tls_warning()
         sys.exit(2)
 
     def _target_and_tls_for_error(self) -> tuple[str | None, bool | None]:

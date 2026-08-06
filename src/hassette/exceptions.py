@@ -57,7 +57,17 @@ class SchemeRequiredInBaseUrlError(FatalError):
     """Custom exception to indicate that the base_url must include a scheme (http:// or https://)."""
 
 
-class ServerUrlSchemeRequiredError(FatalError):
+class ServerUrlError(FatalError):
+    """Base class for every way a caller-supplied CLI ``--server-url``/``cli.server_url`` target
+    fails to resolve to a connectable server, before the CLI opens any network connection to it.
+
+    Kept as one base rather than folding every failure mode into a single exception, so a caller
+    that only cares "did the server-url resolve" can catch one type, while a caller that wants to
+    render a distinct message per failure mode can catch the specific subclass.
+    """
+
+
+class ServerUrlSchemeRequiredError(ServerUrlError):
     """Custom exception to indicate that a CLI ``server_url`` must include a scheme (http:// or https://).
 
     Distinct from :class:`SchemeRequiredInBaseUrlError`, which covers ``HassetteConfig.base_url``
@@ -66,13 +76,32 @@ class ServerUrlSchemeRequiredError(FatalError):
     """
 
 
-class ServerUrlApiSuffixError(FatalError):
+class ServerUrlApiSuffixError(ServerUrlError):
     """Custom exception to indicate that a CLI ``server_url`` path ends in ``/api``.
 
     Every command path already starts with ``/api/...``, so a ``server_url`` ending in ``/api``
     would double up (``/api/api/health``). The message names the corrected form so a user who
     copied a URL like ``https://hassette.example.com/hassette/api`` straight out of an issue or
     doc knows exactly what to drop.
+    """
+
+
+class ServerUrlParseError(ServerUrlError):
+    """Custom exception to indicate that a CLI ``server_url`` could not be parsed at all.
+
+    Raised when constructing a ``yarl.URL`` from the cleaned ``server_url`` string raises
+    ``ValueError`` (e.g. a non-numeric port like ``host:notnum``, or malformed IPv6 brackets like
+    ``[bad]``). Wraps the ``yarl`` parse failure with the CLI's structured usage-error path
+    (``error_usage()``) instead of letting it propagate as a bare, unhandled traceback.
+    """
+
+
+class ServerUrlHostRequiredError(ServerUrlError):
+    """Custom exception to indicate that a CLI ``server_url`` has a valid scheme but no usable host.
+
+    Covers URLs like ``https:///foo``, which parse successfully and have an accepted http/https
+    scheme but resolve to an empty/``None`` host — a URL that would otherwise silently build an
+    unusable base URL rather than failing with a clear, attributable message.
     """
 
 
