@@ -1,5 +1,6 @@
 """Unit tests for constants extraction and __init__.py generation."""
 
+import ast
 import os
 import py_compile
 import sys
@@ -10,7 +11,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from hassette_codegen.extractors.constants import extract_sensor_constants
+from hassette_codegen.extractors.constants import ExtractedConstantSet, extract_sensor_constants
 from hassette_codegen.generators.constants import generate_sensor_constants
 from hassette_codegen.generators.exports import generate_init_py
 
@@ -75,3 +76,35 @@ class TestExportsGenerator:
             f.write(output)
             f.flush()
             py_compile.compile(f.name, doraise=True)
+
+
+class TestConstantsEscaping:
+    """Sensor constant values come from HA's StrEnum members and land inside a ``Literal[...]``.
+
+    Hand-quoting made a value containing a quote split into two literals — valid syntax, wrong
+    content — so the assertions count literals rather than compare strings.
+    """
+
+    @staticmethod
+    def _literals(output: str) -> list[str]:
+        module = ast.parse(output)
+        return [
+            node.value for node in ast.walk(module) if isinstance(node, ast.Constant) and isinstance(node.value, str)
+        ]
+
+    def test_quote_in_value_stays_one_literal(self) -> None:
+        hostile = 'closes", "and reopens'
+        output = generate_sensor_constants([ExtractedConstantSet(name="DEVICE_CLASS", values=[hostile])])
+
+        assert self._literals(output) == [hostile]
+
+    def test_backslash_in_value_is_not_read_as_an_escape(self) -> None:
+        output = generate_sensor_constants([ExtractedConstantSet(name="DEVICE_CLASS", values=["C:\\new"])])
+
+        assert self._literals(output) == ["C:\\new"]
+
+    def test_hostile_values_still_compile(self) -> None:
+        values = ['a", "b', "trailing \\", 'quote " here', "newline\nhere"]
+        output = generate_sensor_constants([ExtractedConstantSet(name="DEVICE_CLASS", values=values)])
+
+        assert self._literals(output) == values

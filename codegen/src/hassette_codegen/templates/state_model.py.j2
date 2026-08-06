@@ -22,7 +22,7 @@ from .base import AttributesBase, {{ base_class }}
 
 class {{ enum.name }}(StrEnum):
 {% for member_name, member_value in enum.members %}
-    {{ member_name }} = "{{ member_value }}"
+    {{ member_name }} = {{ member_value | py_literal }}
 {% endfor %}
 {% endfor %}
 {% for enum in features %}
@@ -30,7 +30,7 @@ class {{ enum.name }}(StrEnum):
 
 class {{ enum.name }}(IntFlag):
 {% for member_name, member_value in enum.members %}
-    {{ member_name }} = {{ member_value }}
+    {{ member_name }} = {{ member_value | py_literal }}
 {% endfor %}
 {% endfor %}
 
@@ -65,6 +65,6 @@ class {{ domain_title }}State({{ base_class }}):
     See: https://www.home-assistant.io/integrations/{{ domain }}/
     """
 
-    domain: Literal["{{ domain }}"]
+    domain: Literal[{{ domain | py_literal }}]
 
     attributes: {{ domain_title }}Attributes

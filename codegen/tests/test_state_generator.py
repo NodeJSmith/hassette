@@ -1,5 +1,6 @@
 """Unit tests for the state model generator."""
 
+import ast
 import py_compile
 import sys
 import tempfile
@@ -219,3 +220,48 @@ class TestNormalizeEnumPrefixes:
         assert "class WaterHeaterEntityStateAttribute(StrEnum):" in output
         assert "WaterHeaterCapabilityAttribute" not in output
         assert "WaterHeaterStateAttribute" not in output
+
+
+class TestStateModelEscaping:
+    """StrEnum member values and the domain name are HA-derived and land in literal positions."""
+
+    @staticmethod
+    def _enum_member_values(output: str, enum_name: str) -> list[object]:
+        module = ast.parse(output)
+        cls = next(n for n in module.body if isinstance(n, ast.ClassDef) and n.name == enum_name)
+        assigns = [n for n in cls.body if isinstance(n, ast.Assign)]
+        for assign in assigns:
+            # A member whose value parsed as anything but a literal means the input became code.
+            assert isinstance(assign.value, ast.Constant), ast.dump(assign.value)
+        return [assign.value.value for assign in assigns]  # pyright: ignore[reportAttributeAccessIssue]
+
+    def test_strenum_member_value_stays_one_literal(self) -> None:
+        hostile = 'off"\n    INJECTED = "yes'
+        domain = ExtractedDomain(
+            name="fan",
+            base_class="StringBaseState",
+            strenums=[ExtractedEnum(name="FanMode", members=[("OFF", hostile)], kind="StrEnum")],
+        )
+
+        assert self._enum_member_values(generate_state_model(domain), "FanMode") == [hostile]
+
+    def test_intflag_member_value_is_not_an_arbitrary_expression(self) -> None:
+        # The extractor only yields ints today, so this pins the unquoted template position rather
+        # than a reachable input: a string here used to render as bare source.
+        domain = ExtractedDomain(
+            name="fan",
+            base_class="StringBaseState",
+            features=[ExtractedEnum(name="FanEntityFeature", members=[("EVIL", "__import__('os')")])],
+        )
+
+        assert self._enum_member_values(generate_state_model(domain), "FanEntityFeature") == ["__import__('os')"]
+
+    def test_domain_renders_as_one_literal(self) -> None:
+        domain = ExtractedDomain(name="fan", base_class="StringBaseState")
+        module = ast.parse(generate_state_model(domain))
+        cls = next(n for n in module.body if isinstance(n, ast.ClassDef) and n.name == "FanState")
+        annotation = next(n for n in cls.body if isinstance(n, ast.AnnAssign)).annotation
+
+        assert isinstance(annotation, ast.Subscript)
+        assert isinstance(annotation.slice, ast.Constant)
+        assert annotation.slice.value == "fan"

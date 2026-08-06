@@ -13,7 +13,13 @@ _ATTRIBUTE_SUFFIX_RE = re.compile(r"(?:Entity)?(?P<attr_type>State|Capability)At
 
 
 def generate_state_model(domain: ExtractedDomain) -> str:
-    """Render a state model .py file for a domain."""
+    """Render a state model .py file for a domain.
+
+    Unlike ``generate_entity_wrapper``, this does not validate the identifiers it emits. Enum
+    member names and property names both come from ``ast.Name`` targets the extractors read out of
+    Home Assistant's parsed Python, so they are identifiers by construction; only services.yaml
+    keys are free text. Member *values* still go through ``py_literal`` in the template.
+    """
     env = get_jinja_env()
     template = env.get_template("state_model.py.j2")
 

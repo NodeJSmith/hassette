@@ -19,6 +19,7 @@ from hassette_codegen.domain_data import ExtractedDomain, domain_to_title
 from hassette_codegen.extractors.features import ExtractedEnum
 from hassette_codegen.generators._env import get_jinja_env
 from hassette_codegen.generators.states import rename_collisions
+from hassette_codegen.rendering import escape_docstring_text, require_identifier
 from hassette_codegen.type_mapping import map_selector_to_type
 
 DOCSTRING_INDENT = " " * 8
@@ -74,11 +75,18 @@ def generate_entity_wrapper(domain: ExtractedDomain) -> str | None:
         enum_name_lookup[original.lower()] = renamed
 
     for service in domain.services:
+        # Service and field names come straight from the domain's services.yaml keys, which are
+        # arbitrary text — unlike enum members and properties, which the extractors read out of
+        # parsed Python and are identifiers by construction. Nothing downstream can escape an
+        # identifier position, so reject here; the pipeline drops this domain's entity wrapper.
+        require_identifier(service.method_name, kind=f"{domain.name} service method name")
+
         params: list[ServiceParam] = []
         for field in service.fields:
             param_name = field.name
             if domain.override and param_name in domain.override.service_param_renames:
                 param_name = domain.override.service_param_renames[param_name]
+            require_identifier(param_name, kind=f"{domain.name}.{service.name} parameter name")
 
             type_from_override = False
             if domain.override and field.name in domain.override.param_type_overrides:
@@ -129,7 +137,9 @@ def generate_entity_wrapper(domain: ExtractedDomain) -> str | None:
             )
 
         sorted_params = sorted(params, key=lambda p: (not p.required, p.name))
-        summary = service.description or f"Call the {domain.name}.{service.name} service."
+        # A whitespace-only description is as good as absent — it collapses to nothing during
+        # wrapping, and an empty summary produces a docstring with no text to carry.
+        summary = (service.description or "").strip() or f"Call the {domain.name}.{service.name} service."
         services_for_template.append(
             ServiceForTemplate(
                 name=service.name,
@@ -163,17 +173,25 @@ def build_method_docstring(summary: str, params: list[ServiceParam]) -> str:
     a resolved field description appear in ``Args``. Text is rewrapped to the project line length
     and given a trailing period when it lacks terminal punctuation. No ``Returns`` section is
     emitted — the ``-> None`` / ``-> Coroutine`` annotation already states the return.
+
+    Because the result lands in the template at raw statement position, upstream text is escaped
+    before it is wrapped — escaping afterwards would let the added characters push past the line
+    width, and not escaping at all lets a ``\"\"\"`` in a service description close the docstring
+    and land in executable position.
     """
+    # textwrap.fill drops initial_indent entirely when the text collapses to nothing, which would
+    # leave the opening delimiter off and turn the closing one into a string that swallows the rest
+    # of the class. Fall back to an empty docstring rather than a half-open one.
     lines = textwrap.fill(
-        _with_period(summary),
+        _with_period(escape_docstring_text(summary)),
         width=LINE_LENGTH,
         initial_indent=f'{DOCSTRING_INDENT}"""',
         subsequent_indent=DOCSTRING_INDENT,
         break_long_words=False,
         break_on_hyphens=False,
-    ).splitlines()
+    ).splitlines() or [f'{DOCSTRING_INDENT}"""']
 
-    documented = [p for p in params if p.description]
+    documented = [p for p in params if (p.description or "").strip()]
     if documented:
         lines.append("")
         lines.append(f"{DOCSTRING_INDENT}Args:")
@@ -181,7 +199,7 @@ def build_method_docstring(summary: str, params: list[ServiceParam]) -> str:
             # Google hanging indent: the ``name:`` label sits at +4, continuation lines at +8.
             lines.append(
                 textwrap.fill(
-                    _with_period(param.description or ""),
+                    _with_period(escape_docstring_text(param.description or "")),
                     width=LINE_LENGTH,
                     initial_indent=f"{DOCSTRING_INDENT}    {param.name}: ",
                     subsequent_indent=f"{DOCSTRING_INDENT}        ",

@@ -5,6 +5,16 @@ from pathlib import Path
 MANIFEST_FILENAME = ".generated-manifest"
 
 
+def manifest_exists(repo_root: Path) -> bool:
+    """Whether ownership information has ever been recorded.
+
+    An absent manifest and an empty one mean different things: the first is a checkout that has
+    never run the generator, the second is a generator that currently owns nothing. Callers that
+    gate on ownership need to tell them apart, which ``load_manifest`` alone cannot.
+    """
+    return (repo_root / MANIFEST_FILENAME).exists()
+
+
 def load_manifest(repo_root: Path) -> set[Path]:
     """Read the manifest and return owned file paths (relative to repo root)."""
     manifest_path = repo_root / MANIFEST_FILENAME

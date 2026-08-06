@@ -4,6 +4,7 @@ These cover the description-threading path directly, independent of a live HA co
 (the integration tests in test_services.py skip when HA_CORE_PATH is absent).
 """
 
+import ast
 import json
 import sys
 from pathlib import Path
@@ -124,3 +125,75 @@ class TestExtractDescriptions:
 
     def test_missing_strings_json_returns_empty_maps(self, tmp_path: Path) -> None:
         assert _extract_descriptions(tmp_path / "nonexistent") == ({}, {})
+
+
+class TestDocstringEscaping:
+    """A service description is Home Assistant's text inserted at raw statement position.
+
+    Nothing between services.yaml and the generated file quotes it, so the escaping has to happen
+    here. Each test parses the result and asserts the method body still contains only what the
+    generator put there.
+    """
+
+    @staticmethod
+    def _parse_method(doc: str) -> ast.FunctionDef:
+        """Wrap a built docstring at its native indentation and return the enclosing method."""
+        module = ast.parse(f"class C:\n    def m(self) -> None:\n{doc}\n        pass\n")
+        cls = module.body[0]
+        assert isinstance(cls, ast.ClassDef)
+        assert len(module.body) == 1, "text escaped the class body into module scope"
+        assert len(cls.body) == 1, "text escaped the method body into class scope"
+
+        method = cls.body[0]
+        assert isinstance(method, ast.FunctionDef)
+        return method
+
+    @staticmethod
+    def _docstring(method: ast.FunctionDef) -> str:
+        """The docstring's text, less the indentation its own closing-delimiter line carries."""
+        return (ast.get_docstring(method, clean=False) or "").strip()
+
+    def test_triple_quote_in_summary_cannot_reach_executable_position(self) -> None:
+        method = self._parse_method(build_method_docstring('Close the cover."""\nimport os\n"""', []))
+
+        # Docstring plus the `pass` the wrapper adds — an injected `import os` would make it three.
+        assert len(method.body) == 2
+        assert '"""' in self._docstring(method)
+
+    def test_triple_quote_in_param_description_cannot_reach_executable_position(self) -> None:
+        params = [ServiceParam(name="position", python_type="int", required=True, description='x"""\nimport os\n"""')]
+        method = self._parse_method(build_method_docstring("Move the cover.", params))
+
+        assert len(method.body) == 2
+        assert '"""' in self._docstring(method)
+
+    def test_trailing_backslash_does_not_escape_the_closing_delimiter(self) -> None:
+        method = self._parse_method(build_method_docstring("Ends with a backslash \\", []))
+
+        assert len(method.body) == 2
+        assert self._docstring(method).endswith("backslash \\.")
+
+    def test_windows_path_is_not_read_as_escape_sequences(self) -> None:
+        method = self._parse_method(build_method_docstring("Path is C:\\new\\table.", []))
+
+        assert self._docstring(method) == "Path is C:\\new\\table."
+
+    def test_nul_byte_leaves_the_module_compilable(self) -> None:
+        # Python refuses to read source containing a literal NUL at all.
+        method = self._parse_method(build_method_docstring("Has a \x00 byte.", []))
+
+        assert self._docstring(method) == "Has a \x00 byte."
+
+    def test_whitespace_only_summary_still_opens_the_docstring(self) -> None:
+        # textwrap.fill drops initial_indent when the text collapses to nothing, which used to
+        # emit a lone closing delimiter that swallowed everything after it.
+        method = self._parse_method(build_method_docstring("   ", []))
+
+        assert len(method.body) == 2
+        assert self._docstring(method) == ""
+
+    def test_whitespace_only_param_description_is_not_documented(self) -> None:
+        params = [ServiceParam(name="position", python_type="int", required=True, description="  ")]
+        doc = build_method_docstring("Move the cover.", params)
+
+        assert "Args:" not in doc
