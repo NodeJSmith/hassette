@@ -123,19 +123,14 @@ class TestBodyCeilingAgainstRealServer:
         assert response.status_code == 413
 
     async def test_chunked_oversized_body_rejected_by_real_server(self, live_server: str) -> None:
-        """A streamed body with no Content-Length is still bounded.
+        """A streamed body with no Content-Length is still bounded, with the documented 413.
 
         This is the case a header-only check misses entirely: httpx2 switches to
         `Transfer-Encoding: chunked` for an async-generator body, so the ceiling can only be
-        enforced by counting bytes as they arrive.
-
-        The asserted status is deliberately a range rather than 413. Answering a request whose body
-        is still streaming leaves unread bytes in the connection, and h11 reports the leftover as a
-        framing error — so the client sees 400 when the reject lands mid-stream and 413 when the
-        whole body happened to arrive first. Which one occurs depends on socket buffering, so
-        pinning either exactly would be a flake. What matters, and what the second half asserts, is
-        that the request was refused without the handler running: no session cookie, and none of
-        the 200/401/422 statuses that would prove the body was parsed.
+        enforced by counting bytes as they arrive. The middleware buffers the body itself and
+        decides pass/reject before the downstream app (and FastAPI's own body parsing) ever runs,
+        so the reject is a deterministic 413 rather than racing FastAPI's generic 400 for a body
+        error — see body_limit.py's `_buffer_body` docstring for why that race existed before.
         """
         payload = json.dumps({"token": _oversized_token()}).encode()
 
@@ -150,7 +145,8 @@ class TestBodyCeilingAgainstRealServer:
                 headers={"content-type": "application/json"},
             )
 
-        assert response.status_code in (400, 413), f"expected a size/framing rejection, got {response.status_code}"
+        assert response.status_code == 413
+        assert response.headers["x-max-body-bytes"] == str(MAX_REQUEST_BODY_BYTES)
         assert "set-cookie" not in response.headers
 
     async def test_normal_login_against_real_server_unaffected(self, live_server: str) -> None:

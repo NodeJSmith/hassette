@@ -18,6 +18,7 @@ for a deployment to raise it, and a knob in ``web_api`` config would surface in 
 the OpenAPI schema for no one's benefit.
 """
 
+from collections import deque
 from logging import getLogger
 
 from starlette.datastructures import Headers
@@ -34,24 +35,6 @@ worst legitimate case and about 1500x over a generated 43-character token. Small
 pre-authentication allocation on ``POST /api/auth/session`` cannot become memory pressure, loose
 enough that no real request comes close.
 """
-
-
-class _BodyTooLargeError(Exception):
-    """Raised out of the wrapped ``receive`` once a body exceeds the ceiling.
-
-    Private and never allowed to escape :class:`RequestBodySizeLimitMiddleware.__call__` — it
-    exists only to unwind out of whatever handler was awaiting the body, so the middleware can
-    answer 413 in its place.
-
-    The unwind crosses a middleware boundary, which is worth knowing before editing the stack:
-    the app this middleware wraps is ``DefaultDenyMiddleware``, a Starlette
-    :class:`~starlette.middleware.base.BaseHTTPMiddleware`, which runs the downstream app in its
-    own task and re-raises that task's exception on the caller's side. So a raise inside
-    ``receive`` does reach the ``except`` in ``__call__`` rather than vanishing into a task — but
-    that is a property of the wrapped stack, not a guarantee of the ASGI spec. The 413 tests in
-    ``tests/integration/web_api/test_body_limit.py`` cover both the in-process transport and a real
-    uvicorn server precisely so a reordering that broke this propagation would fail loudly.
-    """
 
 
 def _declared_content_length(headers: Headers) -> int | None:
@@ -123,43 +106,66 @@ class RequestBodySizeLimitMiddleware:
             await _send_413(send, self.max_bytes)
             return
 
+        buffered, oversized = await self._buffer_body(receive, scope)
+        if oversized:
+            await _send_413(send, self.max_bytes)
+            return
+
+        await self.app(scope, _replay_receive(buffered, receive), send)
+
+    async def _buffer_body(self, receive: Receive, scope: Scope) -> tuple[list[Message], bool]:
+        """Drain the request body into memory, stopping early once it exceeds ``max_bytes``.
+
+        Deciding pass/reject here — before ``self.app`` (``DefaultDenyMiddleware`` and, beneath
+        it, FastAPI's routing) ever runs — is what makes the 413 reachable for a streamed body
+        with no ``Content-Length``. The previous approach raised a private exception out of a
+        wrapped ``receive`` for the app to unwind through, but FastAPI's own body parsing wraps
+        ``await request.json()`` in a broad ``except Exception`` and converts anything raised
+        there — including our exception — into its own generic
+        ``400 {"detail": "There was an error parsing the body"}``, silently losing both the 413
+        and the ``X-Max-Body-Bytes`` header. Buffering ourselves sidesteps that entirely: nothing
+        downstream gets a chance to intercept the decision.
+
+        Returns the buffered ASGI messages read so far, and whether the body exceeded
+        ``max_bytes`` (``True`` means the caller must answer 413 and must not invoke
+        ``self.app`` — the buffered messages are partial and not meant to be replayed).
+        """
+        buffered: list[Message] = []
         received = 0
-        response_started = False
 
-        async def limited_receive() -> Message:
-            nonlocal received
+        while True:
             message = await receive()
-            if message["type"] == "http.request":
-                received += len(message.get("body", b""))
-                if received > self.max_bytes:
-                    LOGGER.warning(
-                        "Rejecting %s %s: body exceeded the %d-byte ceiling after %d bytes",
-                        scope.get("method", "?"),
-                        scope.get("path", "?"),
-                        self.max_bytes,
-                        received,
-                    )
-                    raise _BodyTooLargeError
-            return message
+            buffered.append(message)
+            if message["type"] != "http.request":
+                # e.g. http.disconnect — the client is gone, nothing left to read.
+                return buffered, False
 
-        async def guarded_send(message: Message) -> None:
-            nonlocal response_started
-            if message["type"] == "http.response.start":
-                response_started = True
-            await send(message)
+            received += len(message.get("body", b""))
+            if received > self.max_bytes:
+                LOGGER.warning(
+                    "Rejecting %s %s: body exceeded the %d-byte ceiling after %d bytes",
+                    scope.get("method", "?"),
+                    scope.get("path", "?"),
+                    self.max_bytes,
+                    received,
+                )
+                return buffered, True
 
-        try:
-            await self.app(scope, limited_receive, guarded_send)
-        except _BodyTooLargeError:
-            # Only safe to answer 413 if the app hadn't already started a response. A handler that
-            # streamed a status line before reading its body has committed the response, and a
-            # second http.response.start would be an ASGI violation. Re-raising instead hands the
-            # exception to the server's own error handling, which — with headers already sent —
-            # can only abort the connection mid-response, leaving the client with a truncated
-            # read. No route in this app streams a response before reading its body, so this
-            # branch is unreachable today; it exists so adding one degrades to a broken
-            # connection rather than to a protocol violation.
-            if not response_started:
-                await _send_413(send, self.max_bytes)
-                return
-            raise
+            if not message.get("more_body", False):
+                return buffered, False
+
+
+def _replay_receive(buffered: list[Message], receive: Receive) -> Receive:
+    """Build a ``receive`` that first drains ``buffered``, then falls through to the real one.
+
+    The fallthrough matters: once the buffered body is exhausted, the downstream app may still
+    legitimately call ``receive()`` again (e.g. to observe a later ``http.disconnect``).
+    """
+    queue = deque(buffered)
+
+    async def _receive() -> Message:
+        if queue:
+            return queue.popleft()
+        return await receive()
+
+    return _receive
