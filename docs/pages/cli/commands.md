@@ -16,13 +16,13 @@ hassette run
 
 ### Flags
 
-| Flag             | Description                                                         |
-| ---------------- | --------------------------------------------------------------------- |
-| `--token`, `-t`  | Home Assistant access token. Overrides config file and environment. |
-| `--ha-url`, `-u` | URL of the Home Assistant instance to connect to.                   |
-| `--verify-ssl`   | Whether to verify SSL certificates.                                 |
-| `--dev-mode`     | Enables developer mode.                                             |
-| `--app`, `-a`    | Run only this app key, excluding all others. Repeatable.            |
+| Flag              | Description                                                            |
+| ----------------- | ----------------------------------------------------------------------- |
+| `--token`, `-t`   | Home Assistant access token. Overrides config file and environment.   |
+| `--ha-url`, `-u`  | URL of the Home Assistant instance to connect to.                     |
+| `--ha-verify-ssl` | Whether to verify SSL certificates for the Home Assistant connection. |
+| `--dev-mode`      | Enables developer mode.                                               |
+| `--app`, `-a`     | Run only this app key, excluding all others. Repeatable.              |
 
 All flags are optional. Values resolve from `hassette.toml` (see [Configuration](../core-concepts/configuration/index.md)) and environment variables when not provided on the command line.
 

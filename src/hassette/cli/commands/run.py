@@ -27,7 +27,11 @@ def cmd_run(
     ] = None,
     verify_ssl: Annotated[
         bool | None,
-        Parameter(name=["--verify-ssl"], help="Whether to verify SSL certificates.", negative=[]),
+        Parameter(
+            name=["--ha-verify-ssl"],
+            help="Whether to verify SSL certificates for the Home Assistant connection.",
+            negative=[],
+        ),
     ] = None,
     dev_mode: Annotated[
         bool | None,
