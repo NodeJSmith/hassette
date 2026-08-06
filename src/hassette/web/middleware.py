@@ -19,7 +19,9 @@ full mechanism this implements.
 """
 
 import time
-from collections import OrderedDict
+from collections import OrderedDict, deque
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from logging import getLogger
 
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
@@ -80,46 +82,127 @@ across requests (e.g. sweeping an IPv6 /64).
 """
 
 
+@dataclass
+class _SourceAttempts:
+    """Bounded record of one source's recent failed-auth attempts.
+
+    ``timestamps`` is a ring buffer capped at :data:`FAILED_AUTH_THRESHOLD` entries. The tracker
+    only ever asks "did the last ``FAILED_AUTH_THRESHOLD`` attempts all land inside the window?",
+    so a timestamp older than that is unreachable by any question the tracker can pose and the
+    deque drops it for free. This cap is what keeps both retained memory and per-request work
+    constant for a source under sustained load — an unbounded list makes each
+    :meth:`_FailedAuthTracker.record` O(attempts so far) and a burst O(n^2) overall, which one
+    unauthenticated peer can aim at the shared event loop.
+
+    Mutated in place rather than replaced. The whole point of a fixed-size ring buffer is to avoid
+    the per-request copy, so the usual copy-on-write preference is inverted here deliberately.
+    """
+
+    timestamps: deque[float] = field(default_factory=lambda: deque(maxlen=FAILED_AUTH_THRESHOLD))
+    warned: bool = False
+    """Whether the WARN has already fired for the burst currently in progress.
+
+    Re-armed as soon as the in-window count falls back below the threshold, so a peer that goes
+    quiet and later resumes gets a fresh warning rather than permanent silence. See
+    :meth:`_FailedAuthTracker.record` for where the re-arm check actually happens — it must run
+    before the current attempt is appended, not after.
+    """
+
+
 class _FailedAuthTracker:
     """Coalesced failed-auth counter, keyed by source peer address.
 
-    Evicts attempts older than :data:`FAILED_AUTH_WINDOW_SECONDS` on every :meth:`record` call and
-    drops a source's key entirely once its window has fully elapsed, so a sustained burst cannot
-    grow the tracker without bound — across sources as well as within one, since the number of
-    distinct sources held at once is additionally capped at :data:`MAX_TRACKED_SOURCES` via
-    least-recently-touched eviction. Emits exactly one WARN the moment a source's attempt count
-    *reaches* the threshold within the window — not one per attempt, and not a repeat warning for
-    every attempt past the threshold. The counter never rejects or throttles anything; rate
-    limiting is an explicit Non-Goal (design.md Non-Goals).
+    Bounded on both axes an unauthenticated peer controls:
+
+    - **Across sources** — the number of distinct addresses held at once is capped at
+      :data:`MAX_TRACKED_SOURCES` via least-recently-touched eviction, and any source whose most
+      recent attempt has aged out of the window is dropped entirely. A peer varying its address
+      per request (cheap over an IPv6 /64) cannot grow the dict without bound.
+    - **Within one source** — see :class:`_SourceAttempts`. Constant memory and constant work per
+      request regardless of how many attempts that source has already made.
+
+    Emits exactly one WARN the moment a source's in-window attempt count *reaches* the threshold —
+    not one per attempt, and not a repeat for every attempt past it. The counter never rejects or
+    throttles anything; rate limiting is an explicit Non-Goal (design.md Non-Goals).
     """
 
-    def __init__(self) -> None:
-        self._attempts: OrderedDict[str, list[float]] = OrderedDict()
+    def __init__(self, clock: Callable[[], float] = time.monotonic) -> None:
+        self._attempts: OrderedDict[str, _SourceAttempts] = OrderedDict()
+        self._clock = clock
 
     def record(self, source: str) -> None:
-        now = time.monotonic()
+        now = self._clock()
         window_start = now - FAILED_AUTH_WINDOW_SECONDS
-        attempts = [t for t in self._attempts.get(source, ()) if t >= window_start]
-        attempts.append(now)
-        self._attempts[source] = attempts
-        self._attempts.move_to_end(source)
 
-        # Drop any other source whose most recent attempt has aged out of the window, then cap
-        # what remains so an attacker who varies the source address per request can't grow this
-        # dict without bound.
-        stale = [key for key, times in self._attempts.items() if key != source and times[-1] < window_start]
-        for key in stale:
-            del self._attempts[key]
-        while len(self._attempts) > MAX_TRACKED_SOURCES:
-            self._attempts.popitem(last=False)
+        state = self._evict_stale_attempts(source, window_start)
 
-        if len(attempts) == FAILED_AUTH_THRESHOLD:
+        # Re-arm while the *pre-attempt* survivor count is still below threshold — this must
+        # happen before the append below. ``timestamps`` is a ``maxlen``-bounded deque, so once a
+        # source has ever made FAILED_AUTH_THRESHOLD attempts, its length pins at exactly that
+        # value after every future append. Checking post-append length can therefore never observe
+        # a dip below threshold; it would only ever see 0 survivors (full staleness) or the cap.
+        if len(state.timestamps) < FAILED_AUTH_THRESHOLD:
+            state.warned = False
+
+        state.timestamps.append(now)
+        self._enforce_source_bounds(window_start)
+
+        if len(state.timestamps) >= FAILED_AUTH_THRESHOLD and not state.warned:
+            state.warned = True
             LOGGER.warning(
                 "%d failed auth attempts from %s in the last %d seconds",
                 FAILED_AUTH_THRESHOLD,
                 source,
                 FAILED_AUTH_WINDOW_SECONDS,
             )
+
+    def _evict_stale_attempts(self, source: str, window_start: float) -> _SourceAttempts:
+        """Return ``source``'s state with attempts older than ``window_start`` dropped.
+
+        Also moves ``source`` to the end of ``_attempts``, which is what makes the dict
+        LRU-ordered. :meth:`_evict_stale_sources` depends on that ordering — do not drop the
+        ``move_to_end`` call without reading its docstring first.
+
+        Deliberately does not append the new attempt — the caller needs the survivor count in
+        this pre-append state to decide whether to re-arm the warning latch.
+        """
+        state = self._attempts.get(source)
+        if state is None:
+            state = _SourceAttempts()
+            self._attempts[source] = state  # a fresh key lands at the end already
+        else:
+            self._attempts.move_to_end(source)
+
+        # Drop attempts that have aged out of the window. This is a *time* bound and is separate
+        # from the deque's own maxlen, which is a *count* bound — the deque cannot know that an
+        # entry it still has room for is too old to count toward the threshold.
+        while state.timestamps and state.timestamps[0] < window_start:
+            state.timestamps.popleft()
+        return state
+
+    def _enforce_source_bounds(self, window_start: float) -> None:
+        """Keep the number of tracked sources bounded: drop aged-out ones, then cap the rest."""
+        self._evict_stale_sources(window_start)
+        while len(self._attempts) > MAX_TRACKED_SOURCES:
+            self._attempts.popitem(last=False)
+
+    def _evict_stale_sources(self, window_start: float) -> None:
+        """Drop every source whose most recent attempt has aged out of the window.
+
+        The dict is LRU-ordered — :meth:`record` moves each touched source to the end — so stale
+        sources cluster at the front and the scan can stop at the first live one. That makes this
+        O(1) amortized instead of the full walk of up to :data:`MAX_TRACKED_SOURCES` entries that
+        a per-request comprehension over the whole dict would cost.
+
+        The just-touched source is safe: it sits at the end with a timestamp of ``now``, so the
+        loop stops before reaching it (and stops immediately when it is the only entry).
+        """
+        while self._attempts:
+            oldest = next(iter(self._attempts))
+            state = self._attempts[oldest]
+            if state.timestamps and state.timestamps[-1] >= window_start:
+                return
+            del self._attempts[oldest]
 
 
 def _unauthorized_response() -> JSONResponse:

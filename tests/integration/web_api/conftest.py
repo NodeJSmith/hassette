@@ -6,6 +6,7 @@ import pytest
 from httpx2 import ASGITransport, AsyncClient
 
 from hassette.schemas.app_snapshots import AppInstanceInfo, AppStatusSnapshot
+from hassette.test_utils.config import TEST_SESSION_TTL, WEB_API_TEST_TOKEN
 from hassette.test_utils.web_mocks import create_hassette_stub, create_mock_runtime_query_service
 from hassette.types.enums import ResourceStatus
 from hassette.web.app import create_fastapi_app
@@ -62,6 +63,33 @@ def app(mock_hassette, runtime_query_service):  # noqa: ARG001
 async def client(app):
     """Create an httpx2 AsyncClient for testing."""
     transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
+
+
+@pytest.fixture
+def auth_hassette():
+    """A `create_hassette_stub()` with `auth_enabled=True` and a real `session_ttl`.
+
+    `create_hassette_stub()` doesn't set `session_ttl` on the MagicMock stub -- this fixture sets
+    it directly so `verify_session_cookie`/`should_renew_session_cookie` (which do arithmetic
+    against it) don't operate on an auto-generated `MagicMock` attribute.
+    """
+    hassette = create_hassette_stub(auth_enabled=True)
+    hassette.config.web_api.session_ttl = TEST_SESSION_TTL
+    create_mock_runtime_query_service(hassette)
+    return hassette
+
+
+@pytest.fixture
+def auth_app(auth_hassette):
+    """FastAPI app built with a known token, so bearer/cookie assertions have a concrete value."""
+    return create_fastapi_app(auth_hassette, auth_token=WEB_API_TEST_TOKEN)
+
+
+@pytest.fixture
+async def auth_client(auth_app):
+    transport = ASGITransport(app=auth_app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
 

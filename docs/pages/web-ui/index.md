@@ -32,6 +32,14 @@ The default bind address is `0.0.0.0:8126`. The `host` and `port` fields under `
     for local-only access, but it isn't what stops an unauthenticated peer from
     reaching the API — the token does that regardless of bind address.
 
+    Hassette caps every HTTP request body at 64 KiB. Oversized requests
+    receive HTTP `413` before route handling, while health checks and the
+    WebSocket connection are unaffected. The cap matters most on
+    `POST /api/auth/session`, the one route reachable with no credential:
+    without it, an unauthenticated peer could make Hassette buffer an
+    arbitrarily large body before the token is ever compared. No endpoint
+    accepts a payload near that size, so the cap is not configurable.
+
     Running a reverse proxy in front of Hassette — Caddy, Traefik, nginx, or
     the Home Assistant add-on's own ingress proxy — and listing its address
     under `trusted_proxies` relocates trust to that proxy: Hassette skips its

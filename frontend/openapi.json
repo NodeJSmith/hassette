@@ -3678,6 +3678,7 @@
         "properties": {
           "token": {
             "type": "string",
+            "maxLength": 4096,
             "title": "Token"
           }
         },
