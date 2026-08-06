@@ -690,7 +690,9 @@ class TestEntityWrapperEscaping:
     """
 
     @staticmethod
-    def _domain(service_name: str = "turn_on", method_name: str = "turn_on", field_name: str = "percentage"):
+    def _domain(
+        service_name: str = "turn_on", method_name: str = "turn_on", field_name: str = "percentage"
+    ) -> ExtractedDomain:
         return ExtractedDomain(
             name="fan",
             base_class="BoolBaseState",
