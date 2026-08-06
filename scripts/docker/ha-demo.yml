@@ -1,6 +1,6 @@
 services:
   homeassistant:
-    image: homeassistant/home-assistant:2026.7
+    image: homeassistant/home-assistant:2026.8
     container_name: "hassette-demo-ha"
     ports:
       - "127.0.0.1:${DEMO_HA_PORT:-18123}:8123"

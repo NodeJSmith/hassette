@@ -59,6 +59,7 @@ class NumberDeviceClass(StrEnum):
     PRECIPITATION = "precipitation"
     PRECIPITATION_INTENSITY = "precipitation_intensity"
     PRESSURE = "pressure"
+    RADON = "radon"
     REACTIVE_ENERGY = "reactive_energy"
     REACTIVE_POWER = "reactive_power"
     SIGNAL_STRENGTH = "signal_strength"

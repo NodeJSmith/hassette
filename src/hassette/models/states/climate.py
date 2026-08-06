@@ -43,10 +43,12 @@ class ClimateEntityCapabilityAttribute(StrEnum):
 
 class ClimateEntityStateAttribute(StrEnum):
     CURRENT_TEMPERATURE = "current_temperature"
+    TARGET_TEMPERATURE = "temperature"
     TEMPERATURE = "temperature"
     TARGET_TEMP_HIGH = "target_temp_high"
     TARGET_TEMP_LOW = "target_temp_low"
     CURRENT_HUMIDITY = "current_humidity"
+    TARGET_HUMIDITY = "humidity"
     HUMIDITY = "humidity"
     FAN_MODE = "fan_mode"
     HVAC_ACTION = "hvac_action"
