@@ -159,6 +159,14 @@ def _mask_node(node: dict[str, Any], value: Any) -> Any:
     if _is_secret_node(node):
         return MASK_SENTINEL if value is not None and value != "" else value
 
+    # A tuple is what prefixItems exists to describe, so it is masked like a list and handed
+    # back as a tuple. Neither endpoint produces one today -- TOML parsing and
+    # model_dump(mode="json") both yield lists -- but passing one through unmasked would be a
+    # silent leak rather than a visible failure.
+    if isinstance(value, tuple):
+        masked_items = _mask_node(node, list(value))
+        return tuple(masked_items) if isinstance(masked_items, list) else masked_items
+
     # A plain scalar has nothing to descend into, whatever the schema says about it.
     if not isinstance(value, dict | list):
         return value

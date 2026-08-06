@@ -268,6 +268,20 @@ class TestContainerMasking:
         result = build_config_view(schema, values)
         assert result["config_values"]["key_pair"] == [MASK_SENTINEL, MASK_SENTINEL]
 
+    def test_runtime_tuple_masked_positionally(self) -> None:
+        """A runtime tuple is masked like the list form, and stays a tuple.
+
+        The endpoints only ever hand this function lists — TOML parsing and
+        ``model_dump(mode="json")`` both produce lists — so this is not reachable through
+        either route today. It is covered because ``prefixItems`` exists specifically to
+        describe tuples: accepting one and returning it unmasked would be a silent leak the
+        moment a caller passed ``model_dump(mode="python")`` output.
+        """
+        schema = _ContainerSecretConfig.model_json_schema()
+        values = {"key_list": [], "key_pair": ("left", "right"), "key_map": {}}
+        result = build_config_view(schema, values)
+        assert result["config_values"]["key_pair"] == (MASK_SENTINEL, MASK_SENTINEL)
+
     def test_dict_of_secrets_masked(self) -> None:
         """Secrets under ``additionalProperties`` (dict[str, SecretStr]) are masked by value."""
         schema = _ContainerSecretConfig.model_json_schema()
