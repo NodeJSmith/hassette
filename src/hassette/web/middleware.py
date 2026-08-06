@@ -20,6 +20,7 @@ full mechanism this implements.
 
 import time
 from collections import OrderedDict, deque
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from logging import getLogger
 
@@ -125,11 +126,12 @@ class _FailedAuthTracker:
     throttles anything; rate limiting is an explicit Non-Goal (design.md Non-Goals).
     """
 
-    def __init__(self) -> None:
+    def __init__(self, clock: Callable[[], float] = time.monotonic) -> None:
         self._attempts: OrderedDict[str, _SourceAttempts] = OrderedDict()
+        self._clock = clock
 
     def record(self, source: str) -> None:
-        now = time.monotonic()
+        now = self._clock()
         window_start = now - FAILED_AUTH_WINDOW_SECONDS
 
         state = self._evict_stale_attempts(source, window_start)

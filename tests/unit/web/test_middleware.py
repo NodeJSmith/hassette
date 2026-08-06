@@ -20,7 +20,6 @@ timeouts for how that failure mode plays out here).
 """
 
 import logging
-from collections import deque
 
 import pytest
 
@@ -41,6 +40,24 @@ def _propagate_hassette_logger() -> None:
     workaround as ``tests/unit/web/test_auth.py``.
     """
     logging.getLogger("hassette").propagate = True
+
+
+class _FakeClock:
+    """Deterministic stand-in for :func:`time.monotonic`, injected into ``_FailedAuthTracker``.
+
+    Tests advance it explicitly instead of mutating ``_SourceAttempts.timestamps`` directly, so
+    elapsed-time scenarios stay expressed in terms of the tracker's public ``record()`` behavior
+    rather than its internal ring-buffer representation.
+    """
+
+    def __init__(self) -> None:
+        self._now = 0.0
+
+    def __call__(self) -> float:
+        return self._now
+
+    def advance(self, seconds: float) -> None:
+        self._now += seconds
 
 
 class TestFailedAuthTracker:
@@ -118,19 +135,15 @@ class TestFailedAuthTracker:
         Pins that the ring buffer's ``warned`` latch is scoped to a run above the threshold rather
         than to the source's lifetime — permanent silence after one burst would be a regression.
         """
-        tracker = _FailedAuthTracker()
+        fake_clock = _FakeClock()
+        tracker = _FailedAuthTracker(clock=fake_clock)
 
         with caplog.at_level(logging.WARNING, logger="hassette.web.middleware"):
             for _ in range(FAILED_AUTH_THRESHOLD):
                 tracker.record("203.0.113.1")
 
-            # Shift every retained timestamp fully out of the window, simulating a quiet period
-            # without waiting FAILED_AUTH_WINDOW_SECONDS in real time.
-            state = tracker._attempts["203.0.113.1"]
-            state.timestamps = deque(
-                (t - FAILED_AUTH_WINDOW_SECONDS - 1 for t in state.timestamps),
-                maxlen=FAILED_AUTH_THRESHOLD,
-            )
+            # Advance past the window, simulating a quiet period.
+            fake_clock.advance(FAILED_AUTH_WINDOW_SECONDS + 1)
 
             for _ in range(FAILED_AUTH_THRESHOLD):
                 tracker.record("203.0.113.1")
@@ -140,24 +153,22 @@ class TestFailedAuthTracker:
 
     def test_attempts_aged_out_of_window_do_not_count_toward_threshold(self, caplog: pytest.LogCaptureFixture) -> None:
         """Stale attempts are evicted rather than counted, so the window stays a real sliding window."""
-        tracker = _FailedAuthTracker()
+        fake_clock = _FakeClock()
+        tracker = _FailedAuthTracker(clock=fake_clock)
 
         with caplog.at_level(logging.WARNING, logger="hassette.web.middleware"):
             for _ in range(FAILED_AUTH_THRESHOLD - 1):
                 tracker.record("203.0.113.1")
 
-            state = tracker._attempts["203.0.113.1"]
-            state.timestamps = deque(
-                (t - FAILED_AUTH_WINDOW_SECONDS - 1 for t in state.timestamps),
-                maxlen=FAILED_AUTH_THRESHOLD,
-            )
+            # Advance past the window, aging out every attempt recorded so far.
+            fake_clock.advance(FAILED_AUTH_WINDOW_SECONDS + 1)
 
             # One more attempt: 10 total recorded, but only this one is inside the window.
             tracker.record("203.0.113.1")
 
         warn_records = [r for r in caplog.records if "failed auth attempts" in r.getMessage()]
         assert len(warn_records) == 0
-        assert len(state.timestamps) == 1
+        assert len(tracker._attempts["203.0.113.1"].timestamps) == 1
 
     def test_warning_rearms_after_partial_staleness_not_only_full_quiet(self, caplog: pytest.LogCaptureFixture) -> None:
         """Re-arming must key off the survivor count, not merely "some" eviction happened.
@@ -168,23 +179,22 @@ class TestFailedAuthTracker:
         always 10 once a source has ever made 10 attempts — checking the re-arm condition after
         the append can never observe the dip to 9 survivors that should have re-armed the latch.
         """
-        tracker = _FailedAuthTracker()
+        fake_clock = _FakeClock()
+        tracker = _FailedAuthTracker(clock=fake_clock)
 
         with caplog.at_level(logging.WARNING, logger="hassette.web.middleware"):
-            for _ in range(FAILED_AUTH_THRESHOLD):
+            tracker.record("203.0.113.1")  # the eventual "oldest" survivor
+
+            # Advance just short of the window so the next 9 attempts land well inside it,
+            # bringing the source to the threshold and firing the first warning.
+            fake_clock.advance(FAILED_AUTH_WINDOW_SECONDS - 1)
+            for _ in range(FAILED_AUTH_THRESHOLD - 1):
                 tracker.record("203.0.113.1")
 
-            # Age out only the single oldest timestamp, leaving 9 of 10 survivors — below
-            # threshold, which should re-arm the latch for the next attempt.
-            state = tracker._attempts["203.0.113.1"]
-            oldest, *rest = state.timestamps
-            state.timestamps = deque(
-                [oldest - FAILED_AUTH_WINDOW_SECONDS - 1, *rest],
-                maxlen=FAILED_AUTH_THRESHOLD,
-            )
-
-            # This attempt brings the survivor count back to 10 — the second crossing of the
-            # threshold, which must warn again.
+            # Advance just past the window relative to the *first* attempt only — the other 9
+            # are still inside it. This ages out exactly one timestamp, leaving 9 survivors,
+            # which should re-arm the latch for the next attempt.
+            fake_clock.advance(2)
             tracker.record("203.0.113.1")
 
         warn_records = [r for r in caplog.records if "failed auth attempts" in r.getMessage()]
