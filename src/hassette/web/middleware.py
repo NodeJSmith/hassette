@@ -102,7 +102,9 @@ class _SourceAttempts:
     """Whether the WARN has already fired for the burst currently in progress.
 
     Re-armed as soon as the in-window count falls back below the threshold, so a peer that goes
-    quiet and later resumes gets a fresh warning rather than permanent silence.
+    quiet and later resumes gets a fresh warning rather than permanent silence. See
+    :meth:`_FailedAuthTracker.record` for where the re-arm check actually happens — it must run
+    before the current attempt is appended, not after.
     """
 
 
@@ -130,16 +132,20 @@ class _FailedAuthTracker:
         now = time.monotonic()
         window_start = now - FAILED_AUTH_WINDOW_SECONDS
 
-        state = self._record_attempt(source, now, window_start)
-        self._enforce_source_bounds(window_start)
+        state = self._evict_stale_attempts(source, window_start)
 
-        # Below the threshold the latch re-arms, so a source that quiets down and later resumes
-        # gets a fresh warning. At or above it, warn only on the transition.
+        # Re-arm while the *pre-attempt* survivor count is still below threshold — this must
+        # happen before the append below. ``timestamps`` is a ``maxlen``-bounded deque, so once a
+        # source has ever made FAILED_AUTH_THRESHOLD attempts, its length pins at exactly that
+        # value after every future append. Checking post-append length can therefore never observe
+        # a dip below threshold; it would only ever see 0 survivors (full staleness) or the cap.
         if len(state.timestamps) < FAILED_AUTH_THRESHOLD:
             state.warned = False
-            return
 
-        if not state.warned:
+        state.timestamps.append(now)
+        self._enforce_source_bounds(window_start)
+
+        if len(state.timestamps) >= FAILED_AUTH_THRESHOLD and not state.warned:
             state.warned = True
             LOGGER.warning(
                 "%d failed auth attempts from %s in the last %d seconds",
@@ -148,12 +154,15 @@ class _FailedAuthTracker:
                 FAILED_AUTH_WINDOW_SECONDS,
             )
 
-    def _record_attempt(self, source: str, now: float, window_start: float) -> _SourceAttempts:
-        """Append an attempt for ``source`` and return its (now current) state.
+    def _evict_stale_attempts(self, source: str, window_start: float) -> _SourceAttempts:
+        """Return ``source``'s state with attempts older than ``window_start`` dropped.
 
         Also moves ``source`` to the end of ``_attempts``, which is what makes the dict
         LRU-ordered. :meth:`_evict_stale_sources` depends on that ordering — do not drop the
         ``move_to_end`` call without reading its docstring first.
+
+        Deliberately does not append the new attempt — the caller needs the survivor count in
+        this pre-append state to decide whether to re-arm the warning latch.
         """
         state = self._attempts.get(source)
         if state is None:
@@ -167,7 +176,6 @@ class _FailedAuthTracker:
         # entry it still has room for is too old to count toward the threshold.
         while state.timestamps and state.timestamps[0] < window_start:
             state.timestamps.popleft()
-        state.timestamps.append(now)
         return state
 
     def _enforce_source_bounds(self, window_start: float) -> None:

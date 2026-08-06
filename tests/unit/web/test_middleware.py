@@ -158,3 +158,34 @@ class TestFailedAuthTracker:
         warn_records = [r for r in caplog.records if "failed auth attempts" in r.getMessage()]
         assert len(warn_records) == 0
         assert len(state.timestamps) == 1
+
+    def test_warning_rearms_after_partial_staleness_not_only_full_quiet(self, caplog: pytest.LogCaptureFixture) -> None:
+        """Re-arming must key off the survivor count, not merely "some" eviction happened.
+
+        Regression for a case the window-elapses test above doesn't reach: only the single
+        *oldest* timestamp ages out (9 of 10 survive), then one more attempt refills the deque
+        back to 10. Because ``timestamps`` is a ``maxlen``-bounded deque, post-append length is
+        always 10 once a source has ever made 10 attempts — checking the re-arm condition after
+        the append can never observe the dip to 9 survivors that should have re-armed the latch.
+        """
+        tracker = _FailedAuthTracker()
+
+        with caplog.at_level(logging.WARNING, logger="hassette.web.middleware"):
+            for _ in range(FAILED_AUTH_THRESHOLD):
+                tracker.record("203.0.113.1")
+
+            # Age out only the single oldest timestamp, leaving 9 of 10 survivors — below
+            # threshold, which should re-arm the latch for the next attempt.
+            state = tracker._attempts["203.0.113.1"]
+            oldest, *rest = state.timestamps
+            state.timestamps = deque(
+                [oldest - FAILED_AUTH_WINDOW_SECONDS - 1, *rest],
+                maxlen=FAILED_AUTH_THRESHOLD,
+            )
+
+            # This attempt brings the survivor count back to 10 — the second crossing of the
+            # threshold, which must warn again.
+            tracker.record("203.0.113.1")
+
+        warn_records = [r for r in caplog.records if "failed auth attempts" in r.getMessage()]
+        assert len(warn_records) == 2
