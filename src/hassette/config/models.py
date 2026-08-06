@@ -393,8 +393,8 @@ class WebApiConfig(ExcludeExtrasMixin, BaseModel):
     periodically; entry parsing and matching are implemented separately from this field
     declaration.
 
-    A matching peer skips the bearer-token/session-cookie check only for requests that present no
-    credential. A request carrying an ``Authorization`` header is validated against ``auth_token``
+    A matching peer skips the bearer-token/session-cookie check only for requests that send no
+    ``Authorization`` header. A request carrying that header is validated against ``auth_token``
     regardless of its peer, and a wrong or malformed header is rejected rather than falling back to
     this list — so one host can serve gateway-authenticated browsers and token-authenticated API
     clients at the same time."""
