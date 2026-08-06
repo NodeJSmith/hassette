@@ -2,6 +2,7 @@
 
 import sys
 from pathlib import Path
+from typing import NamedTuple
 
 from hassette_codegen.domain_data import ExtractedDomain
 from hassette_codegen.extractors.base_class import determine_base_class
@@ -42,7 +43,22 @@ from hassette_codegen.rendering import UnsafeGeneratedValueError, require_identi
 # these names would otherwise be written straight over them. This list is not redundant with the
 # ownership gate in _may_overwrite: on a checkout that has never run the generator there is no
 # manifest to consult, and this is what protects these files in that window.
-RESERVED_BASENAMES = frozenset({"base", "catalog", "__init__"})
+#
+# Only basenames that are not themselves Home Assistant domains belong here. The hand-written
+# modules that do share a domain name (calendar, zone, person, and the rest) are covered by the
+# ownership gate instead — reserving those would permanently block ever generating that domain.
+RESERVED_BASENAMES = frozenset({"base", "catalog", "input", "simple", "__init__"})
+
+
+class Rejection(NamedTuple):
+    """Output the pipeline refused to produce because a name from upstream was not safe to use.
+
+    ``domain`` stays a bare domain name so it can be matched against ``--domain``; ``what`` names
+    the output that was refused, for the operator reading why the run failed.
+    """
+
+    domain: str
+    what: str
 
 
 def run_pipeline(
@@ -52,21 +68,25 @@ def run_pipeline(
     check_mode: bool = False,
     domain_filter: set[str] | None = None,
 ) -> int:
-    """Run the full generation pipeline. Returns exit code (0=ok, 1=drift/skip)."""
+    """Run the full generation pipeline. Returns exit code (0=ok, 1=drift/skip/rejection)."""
     check_python_version(ha_source.path)
     check_ruff_available()
 
-    all_domains = _reject_unsafe_domain_names(discover_domains(ha_source.path))
+    all_domains, rejections = _reject_unsafe_domain_names(discover_domains(ha_source.path))
     overrides = load_overrides()
 
-    manual_domains = _reject_unsafe_domain_names(
+    manual_domains, manual_rejections = _reject_unsafe_domain_names(
         _discover_manual_domains(ha_source.path, overrides, {d.name for d in all_domains})
     )
     all_domains.extend(manual_domains)
+    rejections.extend(manual_rejections)
     print(f"Discovered {len(all_domains)} entity domains ({len(manual_domains)} manual)", file=sys.stderr)
 
     if domain_filter:
         domains = [d for d in all_domains if d.name in domain_filter]
+        # A rejection outside the requested filter is not this run's concern, and letting it fail
+        # --check would make every filtered run answer for the whole of upstream.
+        rejections = [r for r in rejections if r.domain in domain_filter]
         if not domains:
             print(f"WARNING: No domains matched filter: {domain_filter}", file=sys.stderr)
             return 1
@@ -78,6 +98,10 @@ def run_pipeline(
     previous_manifest = load_manifest(repo_root)
     manifest_tracked = manifest_exists(repo_root)
     generated_files: set[Path] = set()
+    # Two ways a domain can come up short, kept apart because they mean different things to the
+    # operator: a skip is "the generator tried and could not finish this domain", a rejection is
+    # "a name from upstream was not safe to put in generated source, so nothing was attempted".
+    # Both fail --check; only skips reduce the generated count in the summary.
     skipped_domains: list[str] = []
     any_drift = False
 
@@ -116,8 +140,11 @@ def run_pipeline(
             entity_content = generate_entity_wrapper(extracted)
         except UnsafeGeneratedValueError as exc:
             # The state model above is unaffected and stays generated — only the service wrappers
-            # depend on the rejected name.
-            print(f"WARNING: Skipped {domain_info.name} entity wrapper: {exc}", file=sys.stderr)
+            # depend on the rejected name, so the domain is not added to skipped_domains. It is
+            # still recorded as a rejection: the committed wrapper was never checked against
+            # upstream, and --check must not report the tree as current on that basis.
+            print(f"WARNING: Rejected {domain_info.name} entity wrapper: {exc}", file=sys.stderr)
+            rejections.append(Rejection(domain_info.name, "entity wrapper"))
             continue
 
         if entity_content is not None:
@@ -148,10 +175,12 @@ def run_pipeline(
         if check_mode:
             if not check_drift(const_path, const_content, "sensor constants"):
                 any_drift = True
-        else:
-            atomic_write(const_path, const_content)
-
-        generated_files.add(rel_const)
+            generated_files.add(rel_const)
+        elif atomic_write(const_path, const_content):
+            # Ownership is only claimed for output this run actually produced. atomic_write
+            # reports its own failure, and leaving the path out of the manifest surfaces the
+            # retained older copy as an orphan on the next full run.
+            generated_files.add(rel_const)
 
     for pkg_dir in (states_dir, entities_dir):
         init_content = generate_init_py(pkg_dir)
@@ -161,10 +190,9 @@ def run_pipeline(
         if check_mode:
             if not check_drift(init_path, init_content, f"{pkg_dir.name} __init__.py"):
                 any_drift = True
-        else:
-            atomic_write(init_path, init_content)
-
-        generated_files.add(rel_init)
+            generated_files.add(rel_init)
+        elif atomic_write(init_path, init_content):
+            generated_files.add(rel_init)
 
     if not check_mode:
         if domain_filter:
@@ -182,6 +210,10 @@ def run_pipeline(
     generated_count = len(domains) - len(skipped_domains)
     print(
         f"Summary: {generated_count} domains generated, {len(skipped_domains)} skipped"
+        # Rejections are their own count: a rejected domain never entered `domains`, and a
+        # rejected entity wrapper left its domain's state model generated, so neither is
+        # visible in the two numbers above.
+        + (f", {len(rejections)} rejected" if rejections else "")
         + (
             f", {len(detect_orphans(previous_manifest, generated_files))} orphans"
             if not check_mode and not domain_filter
@@ -190,34 +222,43 @@ def run_pipeline(
         file=sys.stderr,
     )
 
-    if check_mode and (any_drift or skipped_domains):
+    if check_mode and (any_drift or skipped_domains or rejections):
         if skipped_domains:
             print(f"Skipped domains: {', '.join(skipped_domains)}", file=sys.stderr)
+        if rejections:
+            print(f"Rejected: {', '.join(f'{r.domain} ({r.what})' for r in rejections)}", file=sys.stderr)
         return 1
 
     return 0
 
 
-def _reject_unsafe_domain_names(domains: list[DiscoveredDomain]) -> list[DiscoveredDomain]:
-    """Drop domains whose name cannot safely become a module.
+def _reject_unsafe_domain_names(domains: list[DiscoveredDomain]) -> tuple[list[DiscoveredDomain], list[Rejection]]:
+    """Split domains into those safe to generate and the rejections for those dropped.
 
     A domain name is a Home Assistant component directory name taken verbatim, and it becomes
     both an output filename (``models/states/{name}.py``) and an import path
     (``from hassette.models.states.{name} import ...``). A name that is not an identifier breaks
     the import; a name matching a hand-written module overwrites it silently.
+
+    The rejections are returned rather than only warned about because ``--check`` has to fail on
+    them. A dropped domain leaves whatever is committed for it unexamined, which is the same
+    "this tree was not verified against upstream" outcome as an extraction failure.
     """
     safe: list[DiscoveredDomain] = []
+    rejected: list[Rejection] = []
     for domain in domains:
         if domain.name in RESERVED_BASENAMES:
-            print(f"WARNING: Skipping domain '{domain.name}': reserved for hand-written files", file=sys.stderr)
+            print(f"WARNING: Rejected domain '{domain.name}': reserved for hand-written files", file=sys.stderr)
+            rejected.append(Rejection(domain.name, "domain name"))
             continue
         try:
             require_identifier(domain.name, kind="domain name")
         except UnsafeGeneratedValueError as exc:
-            print(f"WARNING: Skipping domain '{domain.name}': {exc}", file=sys.stderr)
+            print(f"WARNING: Rejected domain '{domain.name}': {exc}", file=sys.stderr)
+            rejected.append(Rejection(domain.name, "domain name"))
             continue
         safe.append(domain)
-    return safe
+    return safe, rejected
 
 
 def _may_overwrite(out_path: Path, rel_path: Path, previous_manifest: set[Path], *, tracked: bool) -> bool:
