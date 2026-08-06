@@ -1,7 +1,7 @@
 ---
 task_id: "T06"
 title: "Update CLI, config, and web UI documentation"
-status: "planned"
+status: "done"
 depends_on: ["T04", "T05"]
 implements: ["AC#14", "AC#15", "AC#19"]
 ---

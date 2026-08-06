@@ -47,6 +47,11 @@ The default bind address is `0.0.0.0:8126`. The `host` and `port` fields under `
     a client-suppliable header like `X-Forwarded-For` — so a bad actor on the
     same network can't spoof their way past it.
 
+    A gateway with a browser login usually rejects the `hassette` CLI's bearer
+    token instead of passing it through — see [CLI Configuration: letting CLI
+    traffic through a reverse proxy](../cli/configuration.md#letting-cli-traffic-through-a-reverse-proxy)
+    for the additional route that lets both coexist.
+
 The UI can be disabled independently while the REST API stays active:
 
 ```toml title="hassette.toml"

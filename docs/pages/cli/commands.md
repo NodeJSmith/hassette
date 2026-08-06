@@ -16,13 +16,13 @@ hassette run
 
 ### Flags
 
-| Flag                        | Description                                                         |
-| --------------------------- | ------------------------------------------------------------------- |
-| `--token`, `-t`             | Home Assistant access token. Overrides config file and environment. |
-| `--base-url`, `-u`, `--url` | Base URL of the Home Assistant instance.                            |
-| `--verify-ssl`              | Whether to verify SSL certificates.                                 |
-| `--dev-mode`                | Enables developer mode.                                             |
-| `--app`, `-a`               | Run only this app key, excluding all others. Repeatable.            |
+| Flag             | Description                                                         |
+| ---------------- | --------------------------------------------------------------------- |
+| `--token`, `-t`  | Home Assistant access token. Overrides config file and environment. |
+| `--ha-url`, `-u` | URL of the Home Assistant instance to connect to.                   |
+| `--verify-ssl`   | Whether to verify SSL certificates.                                 |
+| `--dev-mode`     | Enables developer mode.                                             |
+| `--app`, `-a`    | Run only this app key, excluding all others. Repeatable.            |
 
 All flags are optional. Values resolve from `hassette.toml` (see [Configuration](../core-concepts/configuration/index.md)) and environment variables when not provided on the command line.
 
@@ -46,6 +46,7 @@ $ hassette status
 ╭────────────────────── System Status ─────────────────────────╮
 │  status                  ok                                  │
 │  websocket_connected     true                                │
+│  bootstrap_released      true                                │
 │  uptime_seconds          16.57                               │
 │  entity_count            103                                 │
 │  app_count               3                                   │
@@ -76,14 +77,14 @@ Lists all loaded apps with key, display name, status, instance count, and recent
 
 ```console
 $ hassette app
-┏━━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┓
-┃ App Key         ┃ Status  ┃ Display     ┃ Instances ┃ Invoc/1h ┃ Enabled ┃ File              ┃
-┃                 ┃         ┃ Name        ┃           ┃          ┃         ┃                   ┃
-┡━━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━┩
-│ config_app      │ running │ ConfigApp   │ 1         │ 0        │ True    │ config_app.py     │
-│ trivial_app     │ running │ TrivialApp  │ 1         │ 0        │ True    │ trivial_app.py    │
-│ bus_handler_app │ running │ BusHandler… │ 1         │ 0        │ True    │ bus_handler_app.py│
-└─────────────────┴─────────┴─────────────┴───────────┴──────────┴─────────┴───────────────────┘
+┏━━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┓
+┃ App Key         ┃ Status  ┃ Display     ┃ Instances ┃ Invoc/1h ┃ Enabled ┃ Autostart ┃ File              ┃
+┃                 ┃         ┃ Name        ┃           ┃          ┃         ┃           ┃                   ┃
+┡━━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━┩
+│ config_app      │ running │ ConfigApp   │ 1         │ 0        │ True    │ True      │ config_app.py     │
+│ trivial_app     │ running │ TrivialApp  │ 1         │ 0        │ True    │ True      │ trivial_app.py    │
+│ bus_handler_app │ running │ BusHandler… │ 1         │ 0        │ True    │ True      │ bus_handler_app.py│
+└─────────────────┴─────────┴─────────────┴───────────┴──────────┴─────────┴───────────┴───────────────────┘
 ```
 
 ### Subcommands
@@ -102,7 +103,7 @@ Reports health metrics for an app: error rate, average handler and job duration,
 
 ```console
 $ hassette app health bus_handler_app
-╭──────── AppHealthResponse ────────╮
+╭────────── App Health ─────────────╮
 │  error_rate            0.0        │
 │  error_rate_class      good       │
 │  handler_avg_duration  0.0        │
@@ -198,14 +199,14 @@ Lists all scheduled jobs, or shows execution history for a specific job. A job i
 
 ```console
 $ hassette job
-┏━━━━┳━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━┳━━━━┳━━━━━━┳━━━━━┳━━━━━━━━━━┓
-┃ ID ┃ App              ┃ Handler              ┃ Trigger  ┃ Status    ┃ Total ┃ OK ┃ Fail ┃ Avg ┃ Next Run ┃
-┡━━━━╇━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━╇━━━━╇━━━━━━╇━━━━━╇━━━━━━━━━━┩
-│ 1  │ config_app       │ StateProxy.sync_all  │ interval │ scheduled │ 0     │ 0  │ 0    │ 0ms │ soon     │
-└────┴──────────────────┴──────────────────────┴──────────┴───────────┴───────┴────┴──────┴─────┴──────────┘
+┏━━━━┳━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━┳━━━━┳━━━━━━┳━━━━━┳━━━━━━━━━━━━━━━━━━━━┓
+┃ ID ┃ App              ┃ Handler              ┃ Trigger  ┃ Status    ┃ Mode    ┃ Total ┃ OK ┃ Fail ┃ Avg ┃ Next Run           ┃
+┡━━━━╇━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━╇━━━━╇━━━━━━╇━━━━━╇━━━━━━━━━━━━━━━━━━━━┩
+│ 1  │ config_app       │ StateProxy.sync_all  │ interval │ Scheduled │ single  │ 0     │ 0  │ 0    │ 0ms │ soon               │
+└────┴──────────────────┴──────────────────────┴──────────┴───────────┴─────────┴───────┴────┴──────┴─────┴────────────────────┘
 ```
 
-Each row shows the job ID, app key, handler method, trigger type, schedule status (`scheduled`, `waiting`, `completed`, or `manual`), execution counts, average duration, and next scheduled run time (blank unless the status is `scheduled`).
+Each row shows the job ID, app key, handler method, trigger type, schedule status (`scheduled`, `waiting`, `completed`, or `manual`), mode, execution counts, average duration, and next run time. The Next Run column shows a relative time when one is scheduled, or status-aware placeholder text otherwise — `Timing unavailable.`, `Waiting for entity time.`, `Schedule completed.`, or `Manual only.` — rather than a blank cell.
 
 Passing a job ID shows its execution history:
 
@@ -321,7 +322,7 @@ Hassette records every handler invocation and job execution to an internal datab
 
 ```console
 $ hassette telemetry
-╭──── TelemetryStatusResponse ────╮
+╭─────── Telemetry Status ────────╮
 │  degraded                False  │
 │  dropped_overflow        0      │
 │  dropped_exhausted       0      │
@@ -353,12 +354,15 @@ These flags appear across multiple commands.
 
 These flags apply to every command and are placed before the subcommand name.
 
-| Flag            | Aliases       | Description                                 |
-| --------------- | ------------- | ------------------------------------------- |
-| `--config-file` | `-c`          | Path to the TOML configuration file.        |
-| `--env-file`    | `-e`, `--env` | Path to the `.env` file.                    |
-| `--json`        | n/a           | Outputs results as JSON.                    |
-| `--debug`       | n/a           | Shows the full HTTP response on CLI errors. |
+| Flag              | Aliases       | Description                                                                                  |
+| ----------------- | ------------- | ---------------------------------------------------------------------------------------------- |
+| `--config-file`   | `-c`          | Path to the TOML configuration file.                                                          |
+| `--env-file`      | `-e`, `--env` | Path to the `.env` file.                                                                       |
+| `--json`          | n/a           | Outputs results as JSON.                                                                       |
+| `--debug`         | n/a           | Shows the full HTTP response on CLI errors.                                                    |
+| `--server-url`    | `-s`          | Base URL of a remote Hassette instance to connect to. See [Discovery Order](configuration.md#discovery-order). |
+| `--token-file`    | n/a           | Path to a file containing the bearer credential to attach. See [Web API Token](configuration.md#web-api-token). |
+| `--no-verify-ssl` | n/a           | Disables TLS certificate verification for the resolved target.                                |
 
 ### --since format { #--since-format }
 
