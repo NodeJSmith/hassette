@@ -23,6 +23,7 @@ from hassette.config.helpers import (
 from hassette.config.models import (
     AppsConfig,
     BlockingIODetectionConfig,
+    CliConfig,
     DatabaseConfig,
     FileWatcherConfig,
     LifecycleConfig,
@@ -105,6 +106,9 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
 
     blocking_io: BlockingIODetectionConfig = Field(default_factory=BlockingIODetectionConfig)
     """Blocking-I/O detection settings for the shared event loop."""
+
+    cli: CliConfig = Field(default_factory=CliConfig)
+    """CLI client connect target, TLS, and credential settings."""
 
     timezone: str | None = Field(default=None)
     """IANA timezone name (e.g. ``"America/Chicago"``) used for all wall-clock

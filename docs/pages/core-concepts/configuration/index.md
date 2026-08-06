@@ -57,6 +57,7 @@ HASSETTE__TOKEN=your_long_lived_access_token
 | `[hassette]` | Connection (`base_url`, `verify_ssl`, `token`), timezone, runtime flags, data directory |
 | `[hassette.apps]` | App discovery, auto-detection, individual app definitions |
 | `[hassette.web_api]` | Web UI and API server host, port, and feature flags |
+| `[hassette.cli]` | CLI connect target (`server_url`), TLS verification, and credential settings for querying a remote instance |
 | `[hassette.database]` | Storage path, retention, and write-queue settings |
 | `[hassette.websocket]` | Connection, retry, and recovery timing |
 | `[hassette.logging]` | Log level, format, queue, and per-service overrides |

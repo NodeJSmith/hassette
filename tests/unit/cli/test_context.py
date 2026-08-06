@@ -17,6 +17,9 @@ class TestCLIContextDefaults:
         ctx = CLIContext()
         assert ctx.json_mode is False
         assert ctx.debug_mode is False
+        assert ctx.server_url is None
+        assert ctx.token_file is None
+        assert ctx.verify_ssl is None
 
 
 class TestCLIContextFrozen:
@@ -46,6 +49,15 @@ class TestMakeClientReceivesContext:
     def test_make_client_no_args_raises_type_error(self) -> None:
         with pytest.raises(TypeError):
             make_client()  # pyright: ignore[reportCallIssue]
+
+    def test_make_client_forwards_server_url_flag(self, cli_client_factory: CLIClientFactory) -> None:
+        ctx = CLIContext(server_url="https://example.com/hassette")
+        with patch("hassette.cli.client.HassetteConfig") as mock_config_cls:
+            mock_config_cls.return_value = cli_client_factory.config
+            mock_config_cls.model_config = {}
+            client = make_client(ctx)
+        assert client.base_url == "https://example.com/hassette"
+        assert client.is_loopback is False
 
 
 class TestLauncherInjectsCtx:

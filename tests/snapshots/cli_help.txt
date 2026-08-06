@@ -20,10 +20,14 @@ Hassette — async-first Home Assistant automation framework.
 │ --version (-v)         Display application version.                                              │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
-│ --config-file -c     Path to the TOML configuration file.                                        │
-│ --env-file --env -e  Path to the .env file.                                                      │
-│ --json               Output results as JSON. [default: False]                                    │
-│ --debug              Show full HTTP response on CLI errors. [default: False]                     │
+│ --config-file -c              Path to the TOML configuration file.                               │
+│ --env-file --env -e           Path to the .env file.                                             │
+│ --json                        Output results as JSON. [default: False]                           │
+│ --debug                       Show full HTTP response on CLI errors. [default: False]            │
+│ --server-url -s               Base URL of a remote Hassette instance to connect to.              │
+│ --token-file                  Path to a file containing the bearer credential to attach.         │
+│ --verify-ssl --no-verify-ssl  Verify TLS certificates for the resolved target. Pass              │
+│                               --no-verify-ssl to disable.                                        │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 $ hassette app --help
@@ -38,10 +42,14 @@ List and inspect apps.
 │ source    Show app source code (GET /api/apps/{key}/source).                                     │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
-│ --config-file -c     Path to the TOML configuration file.                                        │
-│ --env-file --env -e  Path to the .env file.                                                      │
-│ --json               Output results as JSON. [default: False]                                    │
-│ --debug              Show full HTTP response on CLI errors. [default: False]                     │
+│ --config-file -c              Path to the TOML configuration file.                               │
+│ --env-file --env -e           Path to the .env file.                                             │
+│ --json                        Output results as JSON. [default: False]                           │
+│ --debug                       Show full HTTP response on CLI errors. [default: False]            │
+│ --server-url -s               Base URL of a remote Hassette instance to connect to.              │
+│ --token-file                  Path to a file containing the bearer credential to attach.         │
+│ --verify-ssl --no-verify-ssl  Verify TLS certificates for the resolved target. Pass              │
+│                               --no-verify-ssl to disable.                                        │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 $ hassette app activity --help
@@ -58,10 +66,14 @@ Show recent activity for an app (GET /api/telemetry/app/{key}/activity).
 │    LIMIT --limit        Maximum number of results to return.                                     │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
-│ --config-file -c     Path to the TOML configuration file.                                        │
-│ --env-file --env -e  Path to the .env file.                                                      │
-│ --json               Output results as JSON. [default: False]                                    │
-│ --debug              Show full HTTP response on CLI errors. [default: False]                     │
+│ --config-file -c              Path to the TOML configuration file.                               │
+│ --env-file --env -e           Path to the .env file.                                             │
+│ --json                        Output results as JSON. [default: False]                           │
+│ --debug                       Show full HTTP response on CLI errors. [default: False]            │
+│ --server-url -s               Base URL of a remote Hassette instance to connect to.              │
+│ --token-file                  Path to a file containing the bearer credential to attach.         │
+│ --verify-ssl --no-verify-ssl  Verify TLS certificates for the resolved target. Pass              │
+│                               --no-verify-ssl to disable.                                        │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 $ hassette app config --help
@@ -77,10 +89,14 @@ reader needs.
 │ *  KEY --key  [required]                                                                         │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
-│ --config-file -c     Path to the TOML configuration file.                                        │
-│ --env-file --env -e  Path to the .env file.                                                      │
-│ --json               Output results as JSON. [default: False]                                    │
-│ --debug              Show full HTTP response on CLI errors. [default: False]                     │
+│ --config-file -c              Path to the TOML configuration file.                               │
+│ --env-file --env -e           Path to the .env file.                                             │
+│ --json                        Output results as JSON. [default: False]                           │
+│ --debug                       Show full HTTP response on CLI errors. [default: False]            │
+│ --server-url -s               Base URL of a remote Hassette instance to connect to.              │
+│ --token-file                  Path to a file containing the bearer credential to attach.         │
+│ --verify-ssl --no-verify-ssl  Verify TLS certificates for the resolved target. Pass              │
+│                               --no-verify-ssl to disable.                                        │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 $ hassette app health --help
@@ -99,10 +115,14 @@ Show health metrics for an app instance (GET /api/telemetry/app/{key}/health).
 │                               [choices: app, framework, all]                                     │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
-│ --config-file -c     Path to the TOML configuration file.                                        │
-│ --env-file --env -e  Path to the .env file.                                                      │
-│ --json               Output results as JSON. [default: False]                                    │
-│ --debug              Show full HTTP response on CLI errors. [default: False]                     │
+│ --config-file -c              Path to the TOML configuration file.                               │
+│ --env-file --env -e           Path to the .env file.                                             │
+│ --json                        Output results as JSON. [default: False]                           │
+│ --debug                       Show full HTTP response on CLI errors. [default: False]            │
+│ --server-url -s               Base URL of a remote Hassette instance to connect to.              │
+│ --token-file                  Path to a file containing the bearer credential to attach.         │
+│ --verify-ssl --no-verify-ssl  Verify TLS certificates for the resolved target. Pass              │
+│                               --no-verify-ssl to disable.                                        │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 $ hassette app source --help
@@ -114,10 +134,14 @@ Show app source code (GET /api/apps/{key}/source).
 │ *  KEY --key  [required]                                                                         │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
-│ --config-file -c     Path to the TOML configuration file.                                        │
-│ --env-file --env -e  Path to the .env file.                                                      │
-│ --json               Output results as JSON. [default: False]                                    │
-│ --debug              Show full HTTP response on CLI errors. [default: False]                     │
+│ --config-file -c              Path to the TOML configuration file.                               │
+│ --env-file --env -e           Path to the .env file.                                             │
+│ --json                        Output results as JSON. [default: False]                           │
+│ --debug                       Show full HTTP response on CLI errors. [default: False]            │
+│ --server-url -s               Base URL of a remote Hassette instance to connect to.              │
+│ --token-file                  Path to a file containing the bearer credential to attach.         │
+│ --verify-ssl --no-verify-ssl  Verify TLS certificates for the resolved target. Pass              │
+│                               --no-verify-ssl to disable.                                        │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 $ hassette config --help
@@ -126,10 +150,14 @@ Usage: hassette config [OPTIONS]
 Show current configuration.
 
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
-│ --config-file -c     Path to the TOML configuration file.                                        │
-│ --env-file --env -e  Path to the .env file.                                                      │
-│ --json               Output results as JSON. [default: False]                                    │
-│ --debug              Show full HTTP response on CLI errors. [default: False]                     │
+│ --config-file -c              Path to the TOML configuration file.                               │
+│ --env-file --env -e           Path to the .env file.                                             │
+│ --json                        Output results as JSON. [default: False]                           │
+│ --debug                       Show full HTTP response on CLI errors. [default: False]            │
+│ --server-url -s               Base URL of a remote Hassette instance to connect to.              │
+│ --token-file                  Path to a file containing the bearer credential to attach.         │
+│ --verify-ssl --no-verify-ssl  Verify TLS certificates for the resolved target. Pass              │
+│                               --no-verify-ssl to disable.                                        │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 $ hassette dashboard --help
@@ -138,10 +166,14 @@ Usage: hassette dashboard [OPTIONS]
 Show app dashboard grid.
 
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
-│ --config-file -c     Path to the TOML configuration file.                                        │
-│ --env-file --env -e  Path to the .env file.                                                      │
-│ --json               Output results as JSON. [default: False]                                    │
-│ --debug              Show full HTTP response on CLI errors. [default: False]                     │
+│ --config-file -c              Path to the TOML configuration file.                               │
+│ --env-file --env -e           Path to the .env file.                                             │
+│ --json                        Output results as JSON. [default: False]                           │
+│ --debug                       Show full HTTP response on CLI errors. [default: False]            │
+│ --server-url -s               Base URL of a remote Hassette instance to connect to.              │
+│ --token-file                  Path to a file containing the bearer credential to attach.         │
+│ --verify-ssl --no-verify-ssl  Verify TLS certificates for the resolved target. Pass              │
+│                               --no-verify-ssl to disable.                                        │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 $ hassette execution --help
@@ -154,10 +186,14 @@ Show logs for a specific execution.
 │    LIMIT --limit  Maximum number of results to return.                                           │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
-│ --config-file -c     Path to the TOML configuration file.                                        │
-│ --env-file --env -e  Path to the .env file.                                                      │
-│ --json               Output results as JSON. [default: False]                                    │
-│ --debug              Show full HTTP response on CLI errors. [default: False]                     │
+│ --config-file -c              Path to the TOML configuration file.                               │
+│ --env-file --env -e           Path to the .env file.                                             │
+│ --json                        Output results as JSON. [default: False]                           │
+│ --debug                       Show full HTTP response on CLI errors. [default: False]            │
+│ --server-url -s               Base URL of a remote Hassette instance to connect to.              │
+│ --token-file                  Path to a file containing the bearer credential to attach.         │
+│ --verify-ssl --no-verify-ssl  Verify TLS certificates for the resolved target. Pass              │
+│                               --no-verify-ssl to disable.                                        │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 $ hassette job --help
@@ -178,10 +214,14 @@ List scheduled jobs and execution history.
 │ LIMIT --limit              Maximum number of results to return.                                  │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
-│ --config-file -c     Path to the TOML configuration file.                                        │
-│ --env-file --env -e  Path to the .env file.                                                      │
-│ --json               Output results as JSON. [default: False]                                    │
-│ --debug              Show full HTTP response on CLI errors. [default: False]                     │
+│ --config-file -c              Path to the TOML configuration file.                               │
+│ --env-file --env -e           Path to the .env file.                                             │
+│ --json                        Output results as JSON. [default: False]                           │
+│ --debug                       Show full HTTP response on CLI errors. [default: False]            │
+│ --server-url -s               Base URL of a remote Hassette instance to connect to.              │
+│ --token-file                  Path to a file containing the bearer credential to attach.         │
+│ --verify-ssl --no-verify-ssl  Verify TLS certificates for the resolved target. Pass              │
+│                               --no-verify-ssl to disable.                                        │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 $ hassette listener --help
@@ -202,10 +242,14 @@ List listeners and invocation history.
 │ LIMIT --limit              Maximum number of results to return.                                  │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
-│ --config-file -c     Path to the TOML configuration file.                                        │
-│ --env-file --env -e  Path to the .env file.                                                      │
-│ --json               Output results as JSON. [default: False]                                    │
-│ --debug              Show full HTTP response on CLI errors. [default: False]                     │
+│ --config-file -c              Path to the TOML configuration file.                               │
+│ --env-file --env -e           Path to the .env file.                                             │
+│ --json                        Output results as JSON. [default: False]                           │
+│ --debug                       Show full HTTP response on CLI errors. [default: False]            │
+│ --server-url -s               Base URL of a remote Hassette instance to connect to.              │
+│ --token-file                  Path to a file containing the bearer credential to attach.         │
+│ --verify-ssl --no-verify-ssl  Verify TLS certificates for the resolved target. Pass              │
+│                               --no-verify-ssl to disable.                                        │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 $ hassette log --help
@@ -225,10 +269,14 @@ Show recent log entries.
 │                            [choices: app, framework, all]                                        │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
-│ --config-file -c     Path to the TOML configuration file.                                        │
-│ --env-file --env -e  Path to the .env file.                                                      │
-│ --json               Output results as JSON. [default: False]                                    │
-│ --debug              Show full HTTP response on CLI errors. [default: False]                     │
+│ --config-file -c              Path to the TOML configuration file.                               │
+│ --env-file --env -e           Path to the .env file.                                             │
+│ --json                        Output results as JSON. [default: False]                           │
+│ --debug                       Show full HTTP response on CLI errors. [default: False]            │
+│ --server-url -s               Base URL of a remote Hassette instance to connect to.              │
+│ --token-file                  Path to a file containing the bearer credential to attach.         │
+│ --verify-ssl --no-verify-ssl  Verify TLS certificates for the resolved target. Pass              │
+│                               --no-verify-ssl to disable.                                        │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 $ hassette run --help
@@ -237,18 +285,23 @@ Usage: hassette run [OPTIONS] [ARGS]
 Start the Hassette framework server.
 
 ╭─ Parameters ─────────────────────────────────────────────────────────────────────────────────────╮
-│ TOKEN --token -t              Home Assistant access token.                                       │
-│ BASE-URL --base-url --url -u  Base URL of the Home Assistant instance.                           │
-│ VERIFY-SSL --verify-ssl       Whether to verify SSL certificates.                                │
-│ DEV-MODE --dev-mode           Enable developer mode.                                             │
-│ APP --app -a                  Run only this app key, excluding all others. Repeatable, or        │
-│                               comma-separated.                                                   │
+│ TOKEN --token -t               Home Assistant access token.                                      │
+│ HA-URL --ha-url -u             URL of the Home Assistant instance to connect to.                 │
+│ HA-VERIFY-SSL --ha-verify-ssl  Whether to verify SSL certificates for the Home Assistant         │
+│                                connection.                                                       │
+│ DEV-MODE --dev-mode            Enable developer mode.                                            │
+│ APP --app -a                   Run only this app key, excluding all others. Repeatable, or       │
+│                                comma-separated.                                                  │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
-│ --config-file -c     Path to the TOML configuration file.                                        │
-│ --env-file --env -e  Path to the .env file.                                                      │
-│ --json               Output results as JSON. [default: False]                                    │
-│ --debug              Show full HTTP response on CLI errors. [default: False]                     │
+│ --config-file -c              Path to the TOML configuration file.                               │
+│ --env-file --env -e           Path to the .env file.                                             │
+│ --json                        Output results as JSON. [default: False]                           │
+│ --debug                       Show full HTTP response on CLI errors. [default: False]            │
+│ --server-url -s               Base URL of a remote Hassette instance to connect to.              │
+│ --token-file                  Path to a file containing the bearer credential to attach.         │
+│ --verify-ssl --no-verify-ssl  Verify TLS certificates for the resolved target. Pass              │
+│                               --no-verify-ssl to disable.                                        │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 $ hassette status --help
@@ -257,10 +310,14 @@ Usage: hassette status [OPTIONS]
 Show system status.
 
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
-│ --config-file -c     Path to the TOML configuration file.                                        │
-│ --env-file --env -e  Path to the .env file.                                                      │
-│ --json               Output results as JSON. [default: False]                                    │
-│ --debug              Show full HTTP response on CLI errors. [default: False]                     │
+│ --config-file -c              Path to the TOML configuration file.                               │
+│ --env-file --env -e           Path to the .env file.                                             │
+│ --json                        Output results as JSON. [default: False]                           │
+│ --debug                       Show full HTTP response on CLI errors. [default: False]            │
+│ --server-url -s               Base URL of a remote Hassette instance to connect to.              │
+│ --token-file                  Path to a file containing the bearer credential to attach.         │
+│ --verify-ssl --no-verify-ssl  Verify TLS certificates for the resolved target. Pass              │
+│                               --no-verify-ssl to disable.                                        │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 $ hassette telemetry --help
@@ -269,8 +326,12 @@ Usage: hassette telemetry [OPTIONS]
 Show telemetry status.
 
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
-│ --config-file -c     Path to the TOML configuration file.                                        │
-│ --env-file --env -e  Path to the .env file.                                                      │
-│ --json               Output results as JSON. [default: False]                                    │
-│ --debug              Show full HTTP response on CLI errors. [default: False]                     │
+│ --config-file -c              Path to the TOML configuration file.                               │
+│ --env-file --env -e           Path to the .env file.                                             │
+│ --json                        Output results as JSON. [default: False]                           │
+│ --debug                       Show full HTTP response on CLI errors. [default: False]            │
+│ --server-url -s               Base URL of a remote Hassette instance to connect to.              │
+│ --token-file                  Path to a file containing the bearer credential to attach.         │
+│ --verify-ssl --no-verify-ssl  Verify TLS certificates for the resolved target. Pass              │
+│                               --no-verify-ssl to disable.                                        │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯

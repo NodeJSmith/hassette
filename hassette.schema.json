@@ -41,6 +41,9 @@
           "$ref": "#/$defs/BlockingIODetectionConfig",
           "description": "Blocking-I/O detection settings for the shared event loop."
         },
+        "cli": {
+          "$ref": "#/$defs/CliConfig"
+        },
         "timezone": {
           "anyOf": [
             {
@@ -480,6 +483,76 @@
       "type": "object",
       "ui": {
         "group_label": "Blocking I/O"
+      }
+    },
+    "CliConfig": {
+      "description": "CLI client connect target, TLS, and credential settings.",
+      "properties": {
+        "server_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Full base URL (scheme, host, port, and optional path prefix) of the Hassette instance the\nCLI connects to. When unset, the CLI derives its target from ``web_api.host``/``web_api.port``.",
+          "title": "Server Url",
+          "ui": {
+            "label": "Server URL"
+          }
+        },
+        "verify_ssl": {
+          "default": true,
+          "description": "Whether to verify TLS certificates when connecting to a ``https://`` server_url. Disable for\na self-signed deployment.",
+          "title": "Verify Ssl",
+          "type": "boolean",
+          "ui": {
+            "label": "Verify SSL"
+          }
+        },
+        "token_file": {
+          "anyOf": [
+            {
+              "format": "path",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Path to a file containing the bearer credential for the target Hassette instance. Applies\nto any target, unlike the loopback-only ``<data_dir>/.web_api_token`` fallback.",
+          "title": "Token File",
+          "ui": {
+            "label": "Token File"
+          }
+        },
+        "auth_token": {
+          "anyOf": [
+            {
+              "format": "password",
+              "type": "string",
+              "writeOnly": true
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Bearer credential for the target Hassette instance.\n\nStored as a :class:`~pydantic.SecretStr` so the value is masked in logs, string\nrepresentations, and the ``GET /api/config`` response. Unwrap with\n``auth_token.get_secret_value()`` only at the point of use. Applies to any target, unlike\n``web_api.auth_token`` which is scoped to the local instance only.",
+          "title": "Auth Token",
+          "ui": {
+            "label": "Auth Token"
+          }
+        }
+      },
+      "title": "CliConfig",
+      "type": "object",
+      "ui": {
+        "group_label": "CLI"
       }
     },
     "DatabaseConfig": {

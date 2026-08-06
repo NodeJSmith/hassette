@@ -1,7 +1,6 @@
 """WebApiService: runs the FastAPI/uvicorn server."""
 
 import asyncio
-import ipaddress
 import typing
 from typing import ClassVar
 
@@ -19,6 +18,7 @@ from hassette.resources.service import Service
 from hassette.scheduler import Scheduler
 from hassette.types.enums import RestartType
 from hassette.types.types import LOG_LEVEL_TYPE
+from hassette.utils.net_utils import is_loopback_host
 from hassette.web.app import create_fastapi_app
 from hassette.web.auth import (
     EMPTY_TRUSTED_PROXY_SET,
@@ -37,25 +37,6 @@ _TRUSTED_PROXY_REFRESH_INTERVAL_MINUTES = 5
 """How often trusted_proxies hostname entries are re-resolved via DNS."""
 
 _TRUSTED_PROXY_REFRESH_JOB_NAME = "web_api_trusted_proxy_refresh"
-
-_LOOPBACK_HOSTNAMES = frozenset({"localhost"})
-"""Hostname spellings treated as loopback without DNS resolution — see _is_loopback_host."""
-
-
-def _is_loopback_host(host: str) -> bool:
-    """Return whether ``host`` is a loopback address or the ``"localhost"`` hostname.
-
-    ``WebApiConfig.host`` is a plain ``str`` with no format restriction: it can be an IP
-    literal (``"127.0.0.1"``, ``"::1"``, ``"0.0.0.0"``) or the hostname ``"localhost"``.
-    ``ipaddress.ip_address()`` raises ``ValueError`` on a hostname, so that case is handled
-    separately rather than resolved via DNS — this check only needs to recognize the handful
-    of conventional loopback spellings operators actually use, not arbitrary hostnames
-    (mirrors the bind-all substitution in ``cli/client.py``'s ``_BIND_ALL_SUBSTITUTIONS``).
-    """
-    try:
-        return ipaddress.ip_address(host).is_loopback
-    except ValueError:
-        return host.lower() in _LOOPBACK_HOSTNAMES
 
 
 class WebApiService(Service):
@@ -97,7 +78,7 @@ class WebApiService(Service):
             return
 
         web_api_config = self.hassette.config.web_api
-        loopback = _is_loopback_host(web_api_config.host)
+        loopback = is_loopback_host(web_api_config.host)
 
         # Hard block: an explicitly-disabled auth on a non-loopback bind would serve an
         # unauthenticated API to any network peer that can reach the port.
