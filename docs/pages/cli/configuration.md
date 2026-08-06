@@ -38,7 +38,7 @@ An explicit `server_url` must include a scheme (`http://` or `https://`). It mus
     server_url = "https://hassette.example.com"
     ```
 
-    A remote target needs its own credential — see [Web API Token](#web-api-token) below. `web_api.host`/`web_api.port` (and `HASSETTE__WEB_API__HOST`) answer "where does the server bind?", not "where does the CLI connect?" — they no longer supply a remote target.
+    A remote target needs its own authentication: a bearer credential (see [Web API Token](#web-api-token) below), or, when the remote instance trusts the proxy in front of it, a `trusted_proxies` entry that skips the credential check entirely (see [Web UI](../web-ui/index.md#enabling-and-accessing)). `web_api.host`/`web_api.port` (and `HASSETTE__WEB_API__HOST`) answer "where does the server bind?", not "where does the CLI connect?" — they no longer supply a remote target.
 
 ### Token
 
@@ -46,7 +46,7 @@ The access token (`HASSETTE__TOKEN`) is the long-lived HA token that `hassette r
 
 ### Web API Token
 
-The server's web API requires a credential for every request (see [Web UI](../web-ui/index.md)). The CLI attaches it automatically as `Authorization: Bearer <token>`, resolved from up to five sources. Which sources apply depends on the resolved target:
+The server's web API requires authentication for every request (see [Web UI](../web-ui/index.md)). The CLI attaches its credential automatically as `Authorization: Bearer <token>`, resolved from up to five sources. Which sources apply depends on the resolved target:
 
 | Source | Scope | Applies to |
 |---|---|---|
@@ -196,18 +196,18 @@ The instance name must match `hassette app` output exactly. The integer index al
 
 **Unauthenticated remote request (401):**
 
-```
+```text
 Error 401: Unauthorized (no credential was attached to this remote request. Attach one
 locally via --token-file, cli.token_file, or the HASSETTE__CLI__AUTH_TOKEN environment
 variable — or, if this target sits behind a forward-auth proxy, configure trusted_proxies
 on the remote instance, which requires access to that host and a restart)
 ```
 
-The resolved target is non-loopback and no `cli.*` credential was found, so `web_api.auth_token` and `<data_dir>/.web_api_token` were withheld — see [Web API Token](#web-api-token). Fix it locally with `--token-file`, `cli.token_file`, or `HASSETTE__CLI__AUTH_TOKEN`, or fix it remotely by adding this host to `trusted_proxies` on the target instance.
+The resolved target is non-loopback and no `cli.*` credential was found, so `web_api.auth_token` and `<data_dir>/.web_api_token` were withheld — see [Web API Token](#web-api-token). Fix it locally with `--token-file`, `cli.token_file`, or `HASSETTE__CLI__AUTH_TOKEN`. Fixing it remotely means adding the proxy's address or CIDR — the peer address Hassette actually observes, not the CLI's own host — to `trusted_proxies` on the target instance (see [Letting CLI Traffic Through a Reverse Proxy](#letting-cli-traffic-through-a-reverse-proxy)). Keep that entry narrow: a broad range can let unintended peers on the same network skip the bearer-token check too.
 
 **Redirect response (3xx):**
 
-```
+```text
 Error 302: Found (this response is a redirect — likely a forward-auth login page in front
 of the target, not Hassette itself. See the reverse-proxy section of the CLI configuration
 docs.)
