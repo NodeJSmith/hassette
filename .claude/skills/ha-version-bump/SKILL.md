@@ -45,15 +45,15 @@ to see which are actually stale. Don't rely on a fixed list of files — HA imag
 minor-version only (`2026.7`, not `2026.7.1`) and new ones get added over time:
 
 ```bash
-grep -rn "homeassistant/home-assistant:" --include="*.yml" --include="*.yaml" . \
-  | grep -v node_modules | grep -v /.git/
+grep -rn "homeassistant/home-assistant:" . | grep -v node_modules | grep -v /.git/
 ```
 
 Update each hit to the new minor version. This skill is the sole owner of these tags —
 `renovate.json` explicitly disables Renovate for `homeassistant/home-assistant`
 (`packageRules` — `"enabled": false`) precisely so there's no second, weekly bump racing
-this monthly one. If `renovate.json` no longer has that rule, something reverted it;
-flag that to the user rather than proceeding as if Renovate will catch the drift.
+this monthly one. If `renovate.json` no longer has that rule, or the rule is present but
+its `enabled` value is no longer exactly `false`, something reverted it; flag that to the
+user rather than proceeding as if Renovate will catch the drift.
 
 Then update the local core checkout (path from `reference_ha-core-local-checkout`
 memory, default `~/source/core`):
@@ -63,10 +63,13 @@ cd ~/source/core && git status --short
 ```
 
 If that shows uncommitted changes, stop and ask the user how to proceed (stash, discard,
-or investigate) rather than switching tags out from under in-progress work. If clean:
+or investigate) rather than switching tags out from under in-progress work. If clean, run
+the checkout as its own self-contained command — re-`cd` explicitly and substitute the
+literal version from Phase 1 rather than a shell variable, since neither the working
+directory nor `$LATEST` can be assumed to have survived from the previous command:
 
 ```bash
-git fetch --tags && git checkout "$LATEST"
+cd ~/source/core && git fetch --tags && git checkout "<LATEST from Phase 1, substituted literally>"
 ```
 
 ## Phase 3: Regenerate and review
@@ -98,10 +101,10 @@ value) turned out to mirror HA's own deprecation pattern once checked against
 ## Phase 4: Test and lint
 
 ```bash
-cd codegen && HA_CORE_PATH=~/source/core uv run pytest tests/ -q --rootdir=.
-cd - && ptest uv run nox -s dev
-prek -a
-prek pyright -a --stage pre-push
+cd codegen && HA_CORE_PATH=~/source/core uv run pytest tests/ -q --rootdir=. \
+  && cd .. && ptest uv run nox -s dev \
+  && prek -a \
+  && prek pyright -a --stage pre-push
 ```
 
 (`ptest` per `feedback_use-ptest-for-local-tests` memory: bare `pytest`/`nox` invocations
@@ -141,7 +144,7 @@ upstream HA source per Phase 3 before accepting it.
 Present a summary: version old to new, which files changed, test/lint results, blog
 findings, review findings. Then:
 
-```
+```yaml
 AskUserQuestion:
   question: "Bump reviewed and clean — commit it?"
   header: "Commit"
