@@ -95,6 +95,11 @@ function TabPanel({ id, children, className }: { id: TabId; children: ReactNode;
  * to `undefined`, which is `Object.is`-equal to the previous `undefined`, so the store never
  * notifies. The record itself is a fresh object per batch, so consecutive own-app completions do
  * each register as a change.
+ *
+ * One case still costs a render: the batch immediately after this app's own completion selects
+ * back to `undefined`, which is *not* `Object.is`-equal to the previous matched record, so one
+ * extra render fires even if that next batch has nothing to do with this app. Bounded to exactly
+ * one render per own completion — steady-state unrelated activity stays undefined-to-undefined.
  */
 function findExecution(
   events: WsExecutionCompletedPayload[] | null,
@@ -149,8 +154,11 @@ export function AppDetailPage({ params }: Props) {
     { placeholderData: keepPreviousData },
   );
 
-  useQueryInvalidator(handlerExecution, (e) => e !== undefined, queryKeys.appListeners.prefix(appKey));
-  useQueryInvalidator(jobExecution, (e) => e !== undefined, queryKeys.appJobs.prefix(appKey));
+  // Sibling call sites filter the raw fleet-wide batch with `events?.some(...)`; findExecution
+  // above already reduced this to a single matched-or-undefined record, so the filter here only
+  // needs to check definedness.
+  useQueryInvalidator(handlerExecution, (exec) => exec !== undefined, queryKeys.appListeners.prefix(appKey));
+  useQueryInvalidator(jobExecution, (exec) => exec !== undefined, queryKeys.appJobs.prefix(appKey));
 
   const displayListeners = listenersData ?? [];
   const displayJobs = jobsData ?? [];

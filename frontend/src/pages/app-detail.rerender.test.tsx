@@ -106,12 +106,12 @@ describe("AppDetailPage store subscriptions", () => {
     expect(counter.renders).toBe(before);
   });
 
-  it("re-renders on its own app's execution completions", async () => {
+  it.each(["handler", "job"] as const)("re-renders on its own app's %s execution completion", async (kind) => {
     await renderSettled();
     const before = counter.renders;
 
     act(() => {
-      useAppStore.getState().setExecutionCompleted([makeExecution("test_app", "handler")]);
+      useAppStore.getState().setExecutionCompleted([makeExecution("test_app", kind)]);
     });
 
     expect(counter.renders).toBeGreaterThan(before);
