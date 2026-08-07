@@ -2,3 +2,15 @@
 name = "unit_of_measurement"
 type = "str | None"
 add = true
+
+[[property_overrides]]
+name = "native_value"
+remove = true
+
+[[property_overrides]]
+name = "native_unit_of_measurement"
+remove = true
+
+[[property_overrides]]
+name = "suggested_display_precision"
+remove = true

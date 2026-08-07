@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Remove three dead SensorAttributes fields via TOML overrides"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#16", "AC#12"]
 ---

@@ -1,9 +1,8 @@
-from decimal import Decimal
 from enum import StrEnum
 from typing import Literal
 
 from pydantic import Field, field_validator
-from whenever import Date, ZonedDateTime
+from whenever import ZonedDateTime
 
 from hassette.utils.date_utils import convert_datetime_str_to_tz
 
@@ -95,11 +94,8 @@ class SensorAttributes(AttributesBase):
     uptime_drift_tolerance: int | None = Field(default=None)
     device_class: SensorDeviceClass | None = Field(default=None)
     last_reset: ZonedDateTime | None = Field(default=None)
-    native_unit_of_measurement: str | None = Field(default=None)
-    native_value: str | int | float | None | Date | ZonedDateTime | Decimal | None = Field(default=None)
     options: list[str] | None = Field(default=None)
     state_class: SensorStateClass | None = Field(default=None)
-    suggested_display_precision: int | None = Field(default=None)
     suggested_unit_of_measurement: str | None = Field(default=None)
     unit_of_measurement: str | None = Field(default=None)
 
