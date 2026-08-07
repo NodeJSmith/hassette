@@ -1,4 +1,4 @@
-"""Pyright probe proving `NumericSensorState.value` narrows to `float | None`.
+"""Pyright probe proving `NumericSensorState.value` narrows to `float`.
 
 `SensorState.value` is `str | None`, so arithmetic on it (even after a `None` guard) is a
 type error — that's the exact friction this feature exists to remove. `NumericSensorState`
