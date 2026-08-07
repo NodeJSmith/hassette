@@ -21,7 +21,7 @@ from hassette.events.hassette import HassetteAppStateEvent, HassetteServiceEvent
 from hassette.test_utils import make_state_dict, wait_for
 from hassette.test_utils.app_harness import AppTestHarness
 from hassette.test_utils.harness import HassetteHarness
-from hassette.test_utils.helpers import create_state_change_event
+from hassette.test_utils.helpers import create_state_change_event, settle
 
 from .conftest import DURATION
 from .helpers import seed, send_state_change
@@ -33,9 +33,6 @@ if TYPE_CHECKING:
 
 ERROR_TIMEOUT = 2.0
 """Seconds to wait for an error handler that fires without a duration timer in front of it."""
-
-SETTLE = 0.05
-"""Seconds to let a stray extra handler call land before asserting it did not happen."""
 
 
 class _ErrorCollector:
@@ -69,12 +66,6 @@ class _ErrorCollector:
         return self.contexts[0]
 
 
-async def _settle() -> None:
-    """Give a stray extra handler call time to land before a negative assertion."""
-    # negative-assertion: no event-driven alternative
-    await asyncio.sleep(SETTLE)
-
-
 class _ErrorPassthroughConfig(AppConfig):
     """Minimal AppConfig for the on_error passthrough delegate tests below."""
 
@@ -101,6 +92,7 @@ async def test_duration_app_level_error_handler(bus_harness: tuple[HassetteHarne
     await seed(harness, "light.kitchen", "on")
 
     await errors.wait(timeout=DURATION + 1.0)
+    await settle()
 
     ctx = errors.single(ValueError)
     assert str(ctx.exception) == "duration handler failed"
@@ -133,7 +125,7 @@ async def test_duration_per_listener_error_handler_wins(
     await seed(harness, "light.kitchen", "on")
 
     await per_listener.wait(timeout=DURATION + 1.0)
-    await _settle()
+    await settle()
 
     per_listener.single(RuntimeError)
     assert not app_level.contexts
@@ -163,6 +155,7 @@ async def test_duration_error_handler_receives_original_event(
     await seed(harness, "light.kitchen", "on")
 
     await errors.wait(timeout=DURATION + 1.0)
+    await settle()
 
     ctx = errors.single(TypeError)
     assert isinstance(ctx.event, RawStateChangeEvent)
@@ -198,6 +191,7 @@ async def test_duration_once_error_handler_and_removal(
     await seed(harness, "light.kitchen", "on")
 
     await errors.wait(timeout=DURATION + 1.0)
+    await settle()
     assert call_count == 1
     errors.single(ValueError)
 
@@ -231,6 +225,7 @@ async def test_immediate_app_level_error_handler(bus_harness: tuple[HassetteHarn
     )
 
     await errors.wait()
+    await settle()
 
     ctx = errors.single(ValueError)
     assert str(ctx.exception) == "immediate handler failed"
@@ -262,7 +257,7 @@ async def test_immediate_per_listener_error_handler_wins(
     )
 
     await per_listener.wait()
-    await _settle()
+    await settle()
 
     per_listener.single(RuntimeError)
     assert not app_level.contexts
@@ -295,6 +290,7 @@ async def test_immediate_once_error_handler_and_removal(
     )
 
     await errors.wait()
+    await settle()
     assert call_count == 1
     errors.single(ValueError)
 
@@ -329,6 +325,7 @@ async def test_immediate_error_handler_receives_synthetic_event(
     )
 
     await errors.wait()
+    await settle()
 
     ctx = errors.single(TypeError)
     assert isinstance(ctx.event, RawStateChangeEvent)
@@ -365,6 +362,7 @@ async def test_immediate_duration_elapsed_exceeds_error_handler(
     )
 
     await errors.wait()
+    await settle()
 
     ctx = errors.single(ValueError)
     assert "bad_handler" in ctx.listener_name
@@ -397,11 +395,12 @@ async def test_immediate_duration_remaining_timer_error_handler(
         name="immediate_duration_remaining_timer_error_handler",
     )
 
-    await _settle()
+    await settle()
     assert not errors.contexts
 
     # Should fire after remaining ~2s
     await errors.wait(timeout=4.0)
+    await settle()
 
     errors.single(RuntimeError)
 
@@ -436,7 +435,7 @@ async def test_immediate_duration_per_listener_error_handler(
     )
 
     await per_listener.wait()
-    await _settle()
+    await settle()
 
     per_listener.single(TypeError)
     assert not app_level.contexts
@@ -464,6 +463,7 @@ async def test_on_homeassistant_start_on_error_passthrough() -> None:
     async with AppTestHarness(HaStartErrorApp, config={}) as harness:
         await harness.simulate_homeassistant_start()
         await errors.wait()
+        await settle()
 
     errors.single(ValueError)
 
@@ -487,6 +487,7 @@ async def test_on_hassette_service_failed_on_error_passthrough() -> None:
     async with AppTestHarness(ServiceFailedErrorApp, config={}) as harness:
         await harness.simulate_hassette_service_failed("SyntheticErrorPassthroughService")
         await errors.wait()
+        await settle()
 
     errors.single(ValueError)
 
@@ -510,6 +511,7 @@ async def test_on_websocket_connected_on_error_passthrough() -> None:
     async with AppTestHarness(WebsocketConnectedErrorApp, config={}) as harness:
         await harness.simulate_websocket_connected()
         await errors.wait()
+        await settle()
 
     errors.single(ValueError)
 
@@ -531,5 +533,6 @@ async def test_on_app_running_on_error_passthrough() -> None:
     async with AppTestHarness(AppRunningErrorApp, config={}) as harness:
         await harness.simulate_app_running()
         await errors.wait()
+        await settle()
 
     errors.single(ValueError)
