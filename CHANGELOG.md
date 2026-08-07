@@ -5,6 +5,49 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.52.0](https://github.com/NodeJSmith/hassette/compare/v0.51.0...v0.52.0) (2026-08-07)
+
+
+### ⚠ BREAKING CHANGES
+
+* **Web API requires authentication by default** — every `/api/*` route (except `GET /api/health/live`, `GET /api/health/ready`, and `POST /api/auth/session`) returns 401 without a valid bearer token, session cookie, or `trusted_proxies` match.
+    #### What changes for operators
+    - On first start after upgrading, hassette generates a token, logs it
+    once, and persists it to `<data_dir>/.web_api_token`. Retrieve it from
+    `docker logs` (or the token file) and paste it into the new login view,
+    or set `HASSETTE__WEB_API__AUTH_TOKEN` explicitly.
+    - CLI commands (`hassette status`, `hassette app`, etc.) now attach the
+    token automatically from the token file or
+    `HASSETTE__WEB_API__AUTH_TOKEN` — no action needed if running the CLI on
+    the same host/volume as the server.
+    - Operators fronting hassette with a forward-auth gateway (Authelia,
+    tinyauth+pocket-id, the HA add-on's ingress) should set
+    `trusted_proxies` to the gateway's address instead of managing a token.
+    - `cors_origins` may no longer contain `"*"` — config load now rejects
+    it, since `allow_credentials=True` is hardcoded.
+    - `GET /api/docs` and `/api/openapi.json` now require a credential like
+    every other `/api/*` route.
+    - Setting `auth_enabled=false` requires `host` to be a loopback address
+    (`127.0.0.1`/`localhost`) — hassette refuses to start otherwise.
+    ([#1521](https://github.com/NodeJSmith/hassette/issues/1521))
+* **CLI no longer forwards local credentials to a remote target** — the CLI no longer sends the local instance's own credentials (`web_api.auth_token` / `HASSETTE__WEB_API__AUTH_TOKEN`, or the `<data_dir>/.web_api_token` file) to a non-loopback target. Previously, pointing the CLI at a remote host via `HASSETTE__WEB_API__HOST=<host>` silently transmitted the local instance's own credential to that host. A script or profile relying on this now either fails with a 401 or, against a target with `trusted_proxies` configured for it, keeps working with no credential sent at all. Configure a remote-target credential via `--token-file`, `cli.token_file`, or `HASSETTE__CLI__AUTH_TOKEN` instead. Separately, `hassette run`'s `--base-url` and `--url` flags are removed — use `--ha-url` (same `-u` short flag). ([#1529](https://github.com/NodeJSmith/hassette/issues/1529))
+
+### Web API
+
+- **Session cookie auth for the dashboard, pre-accept WebSocket checks** — browsers exchange the token once via `POST /api/auth/session` for an `HttpOnly` session cookie, since the native WebSocket API can't set custom headers. The WebSocket handler now runs its credential check before `accept()`, so no application data reaches an unauthenticated peer. ([#1521](https://github.com/NodeJSmith/hassette/issues/1521))
+- **Failed authentication attempts are logged** — rate-limited and coalesced into a single WARN per source once attempts cross a threshold, instead of going unnoticed. ([#1521](https://github.com/NodeJSmith/hassette/issues/1521))
+
+### CLI
+
+- **`--server-url`, `--token-file`, and `--no-verify-ssl` flags** — administer a remote Hassette instance behind a reverse proxy with TLS. A new `[hassette.cli]` config group (`server_url`, `verify_ssl`, `token_file`, `auth_token`) holds connect settings separately from `web_api.*`'s bind settings. Error messages for a 401 or a redirect now name the resolved target and the fix. ([#1529](https://github.com/NodeJSmith/hassette/issues/1529))
+
+### Security Fixes
+
+- **Request bodies are now size-limited before authentication** — an unauthenticated peer could previously drive unbounded memory allocation against `POST /api/auth/session` by sending an oversized body; request bodies are now capped at 64 KiB and rejected with 413 before the route runs. ([#1532](https://github.com/NodeJSmith/hassette/issues/1532))
+- **A wrong or malformed bearer token from a trusted proxy is now rejected** — when a request arrived from a `trusted_proxies` peer, hassette previously never checked the token at all, silently authenticating the request even with a wrong token. A presented `Authorization` header is now always validated; peer trust and the session cookie apply only when no header is sent. ([#1531](https://github.com/NodeJSmith/hassette/issues/1531))
+- **Secrets nested inside lists, tuples, and dicts are now masked** — a `SecretStr` value inside a container field (`list[SecretStr]`, `dict[str, SecretStr]`, a `SecretStr` inside a nested model) was previously returned in plaintext by `GET /api/config` and the per-app config endpoint. ([#1534](https://github.com/NodeJSmith/hassette/issues/1534))
+- **Codegen renders external strings as safe literals** — Home Assistant constants and `services.yaml` descriptions containing quotes or `"""` could previously produce broken or semantically wrong generated Python; codegen output now escapes through dedicated rendering helpers instead of raw string interpolation. ([#1535](https://github.com/NodeJSmith/hassette/issues/1535))
+
 ## [0.51.0](https://github.com/NodeJSmith/hassette/compare/v0.50.0...v0.51.0) (2026-08-01)
 
 
