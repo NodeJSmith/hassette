@@ -2,7 +2,6 @@ import os
 import sys
 from collections.abc import Callable, Sequence
 from contextlib import suppress
-from importlib.metadata import version
 from logging import getLogger
 from pathlib import Path
 from typing import cast, get_args
@@ -13,11 +12,11 @@ from packaging.version import Version
 from hassette import context
 from hassette.exceptions import HassetteNotInitializedError
 from hassette.types.types import LOG_LEVEL_TYPE
+from hassette.utils import get_version
 
 LOG_LEVEL_VALUES = get_args(LOG_LEVEL_TYPE)
 
-PACKAGE_KEY = "hassette"
-VERSION = Version(version(PACKAGE_KEY))
+VERSION = Version(get_version())
 
 LOGGER = getLogger(__name__)
 

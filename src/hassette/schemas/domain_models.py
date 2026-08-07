@@ -22,18 +22,11 @@ models via ``hassette.web.mappers``. Core services must NOT import from
 ``hassette.web``.
 """
 
-import importlib.metadata
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-
-def _get_hassette_version() -> str:
-    """Return the installed hassette package version, or 'unknown' if unavailable."""
-    try:
-        return importlib.metadata.version("hassette")
-    except importlib.metadata.PackageNotFoundError:
-        return "unknown"
+from hassette.utils import get_version
 
 
 class BootIssue(BaseModel):
@@ -91,7 +84,7 @@ class SystemStatus(BaseModel):
     services: list[ServiceInfo] = Field(default_factory=list)
     """Structured info for all tracked services."""
 
-    version: str = Field(default_factory=_get_hassette_version)
+    version: str = Field(default_factory=get_version)
     """Installed hassette package version."""
 
     boot_issues: list[BootIssue] = Field(default_factory=list)

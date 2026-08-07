@@ -1,6 +1,5 @@
 """Hassette CLI — cyclopts App setup and subcommand registration."""
 
-from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Annotated, Literal
 
@@ -16,19 +15,13 @@ from hassette.cli.commands.run import cmd_run
 from hassette.cli.commands.status import cmd_dashboard, cmd_status, cmd_telemetry
 from hassette.cli.context import CLIContext
 from hassette.config.config import HassetteConfig
-
-# Version string
-
-try:
-    _version = version("hassette")
-except PackageNotFoundError:
-    _version = "unknown"
+from hassette.utils import get_version
 
 # Root App
 
 app = App(
     name="hassette",
-    version=_version,
+    version=get_version(),
     version_flags=["--version", "-v"],
     help="Hassette — async-first Home Assistant automation framework.",
 )
