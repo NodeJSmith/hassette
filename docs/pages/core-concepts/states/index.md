@@ -125,7 +125,7 @@ The API reference lists all 55 classes with their full attribute signatures. Dom
 
 ## Sensor Value Shapes
 
-`SensorState.value` is `str | None`, because the `sensor` domain covers every kind of sensor Home Assistant supports — a door lock's battery percentage and a smart meter's next-reset timestamp are both `sensor.*` entities. Home Assistant tells them apart with `device_class`, and that metadata sorts every sensor into one of four value shapes: numeric, enum, timestamp, or date. Four state classes narrow `value` to match:
+`SensorState.value` is `str | None`, because the `sensor` domain covers every kind of sensor Home Assistant supports — a door lock's battery percentage and a smart meter's next-reset timestamp are both `sensor.*` entities. Home Assistant metadata can classify a sensor into one of four value shapes: numeric, enum, timestamp, or date. Sensors without sufficient metadata remain `UNKNOWN`. Four state classes narrow `value` to match:
 
 | Class | `value` type | Matches |
 |---|---|---|
@@ -182,7 +182,7 @@ The classifier that decides membership ports Home Assistant's own numeric-detect
 `.get()` returns `None` for an entity that exists but isn't a shape-view member — `EntityNotInViewError` subclasses `KeyError`, and `Mapping.get()` is implemented by catching `KeyError`. Direct `[]` access raises `EntityNotInViewError` instead, naming the entity, its actual `device_class`, and the shape the accessor expected. Iteration skips non-members silently; a conversion failure — metadata matches the shape but the value fails to parse — is additionally logged at `debug`.
 
 !!! note "`self.states[NumericSensorState]` is unsupported"
-    The four shape classes deliberately don't declare their own `domain` — doing so would register them in place of `SensorState` process-wide. That means generic indexing (`self.states[NumericSensorState]`) raises `NoDomainAnnotationError` rather than working. Use the dedicated accessor (`self.states.numeric_sensor`) instead; the error message names it.
+    The four shape classes deliberately don't declare their own `domain` — doing so would register them in place of `SensorState` process-wide. That means generic indexing (`self.states[NumericSensorState]`) raises `NoDomainAnnotationError` rather than working. The supported path is the dedicated accessor (`self.states.numeric_sensor`); the error message names it.
 
 ## Iterating Over States
 
