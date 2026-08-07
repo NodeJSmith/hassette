@@ -37,7 +37,7 @@ def _shape_predicate(shape: SensorShape) -> Callable[["HassStateDict"], bool]:
     """
 
     def predicate(state: "HassStateDict") -> bool:
-        return classify_sensor_shape(state.get("attributes", {})) == shape
+        return classify_sensor_shape(state.get("attributes") or {}) == shape
 
     return predicate
 
@@ -214,7 +214,7 @@ class DomainStates(Mapping[str, StateT]):
         if self._predicate is None:
             return self._validate_or_return_from_cache(entity_id, state)
 
-        device_class = state.get("attributes", {}).get("device_class")
+        device_class = (state.get("attributes") or {}).get("device_class")
         if not self._predicate(state):
             raise EntityNotInViewError(entity_id, device_class, self._model)
 
@@ -229,7 +229,7 @@ class DomainStates(Mapping[str, StateT]):
 
     def __bool__(self) -> bool:
         """Return True if there are any entities in this domain."""
-        return len(self) > 0
+        return next(iter(self), None) is not None
 
 
 class StateManager(Resource):
