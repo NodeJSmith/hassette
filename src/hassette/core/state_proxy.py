@@ -96,7 +96,7 @@ class StateProxy(Resource):
     """In-memory cache of Home Assistant entity state, kept in sync via the WebSocket connection.
 
     ``StateProxy`` is both a read-through cache (``get_state``, ``get_domain_states``,
-    ``__contains__``, etc.) and the coordinator that keeps that cache synchronized with Home
+    ``yield_domain_states``, etc.) and the coordinator that keeps that cache synchronized with Home
     Assistant across connects, disconnects, and reconnects. Synchronization is
     connection-generation-aware: each WebSocket reconnect gets a new generation from
     ``WebsocketService``, and any state-changed event or synchronization result tagged with a
@@ -314,21 +314,6 @@ class StateProxy(Resource):
         async with self.lock:
             self.states = {}
 
-    def num_domain_states(self, domain: str) -> int:
-        """Return the number of cached states for a specific domain.
-
-        Args:
-            domain: The domain to filter by (e.g., "light").
-
-        Returns:
-            The number of states in the specified domain.
-
-        Raises:
-            ResourceNotReadyError: If the cache freshness is UNAVAILABLE even after retries
-                (see ``get_state``).
-        """
-        return sum(1 for _ in self.yield_domain_states(domain))
-
     @_retry_on_not_ready
     def get_state(self, entity_id: str) -> "HassStateDict | None":
         """Get the current cached state for an entity.
@@ -416,23 +401,6 @@ class StateProxy(Resource):
                     self.logger.warning("State for entity %s has invalid 'entity_id' value", eid)
 
         return iter_states()
-
-    @_retry_on_not_ready
-    def __contains__(self, entity_id: str) -> bool:
-        """Check whether an entity ID exists in the cache.
-
-        Args:
-            entity_id: The entity ID to check (e.g., "light.kitchen").
-
-        Returns:
-            True if the entity exists, False otherwise.
-
-        Raises:
-            ResourceNotReadyError: If the cache freshness is UNAVAILABLE even after retries
-                (see ``get_state``).
-        """
-        self._check_ready()
-        return entity_id in self.states
 
     async def on_state_change(self, event: RawStateChangeEvent) -> None:
         """Apply a state_changed event to the cache.

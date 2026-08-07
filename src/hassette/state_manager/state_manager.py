@@ -1,14 +1,15 @@
 import typing
-from collections.abc import Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from logging import getLogger
 from typing import Generic, NamedTuple
 
 from frozendict import deepfreeze, frozendict
 
 from hassette.conversion import STATE_REGISTRY, StateKey
-from hassette.exceptions import RegistryNotReadyError
+from hassette.exceptions import EntityNotInViewError, RegistryNotReadyError
 from hassette.models import states
 from hassette.models.states import BaseState
+from hassette.models.states.sensor_shapes import SensorShape, classify_sensor_shape
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
 from hassette.types import StateReader, StateT
@@ -24,6 +25,27 @@ LOGGER = getLogger(__name__)
 
 HOME_STATE = "home"
 """State value Home Assistant reports for a person or device_tracker that is home."""
+
+
+def _shape_predicate(shape: SensorShape) -> Callable[["HassStateDict"], bool]:
+    """Build a membership predicate for one of the four narrowed sensor-shape accessors.
+
+    Each predicate re-runs :func:`classify_sensor_shape` per access rather than caching a
+    result, so a runtime ``device_class`` change is picked up on the very next access — see
+    ``design/specs/093-sensor-device-class-subtypes/design.md`` Edge Cases, "device_class
+    changes at runtime."
+    """
+
+    def predicate(state: "HassStateDict") -> bool:
+        return classify_sensor_shape(state.get("attributes") or {}) == shape
+
+    return predicate
+
+
+_NUMERIC_SENSOR_PREDICATE = _shape_predicate(SensorShape.NUMERIC)
+_ENUM_SENSOR_PREDICATE = _shape_predicate(SensorShape.ENUM)
+_TIMESTAMP_SENSOR_PREDICATE = _shape_predicate(SensorShape.TIMESTAMP)
+_DATE_SENSOR_PREDICATE = _shape_predicate(SensorShape.DATE)
 
 
 class CacheValue(Generic[StateT], NamedTuple):
@@ -66,13 +88,21 @@ class DomainStates(Mapping[str, StateT]):
 
     """
 
-    def __init__(self, state_proxy: StateReader, model: type[StateT]) -> None:
+    def __init__(
+        self,
+        state_proxy: StateReader,
+        model: type[StateT],
+        *,
+        domain: str | None = None,
+        predicate: Callable[["HassStateDict"], bool] | None = None,
+    ) -> None:
         if not issubclass(model, BaseState):
             raise TypeError(f"Expected a subclass of BaseState, got {model!r}")
 
         self._state_proxy: StateReader = state_proxy
         self._model = model
-        self._domain = model.get_domain()
+        self._domain = domain if domain is not None else model.get_domain()
+        self._predicate = predicate
         self._cache: dict[str, CacheValue[StateT]] = {}
 
     def _validate_or_return_from_cache(self, entity_id: str, state: "HassStateDict") -> StateT:
@@ -97,6 +127,28 @@ class DomainStates(Mapping[str, StateT]):
         self._cache[entity_id] = CacheValue(last_updated=last_updated, frozen_state=frozen_state, model=validated)
         return validated
 
+    def _validate_if_member(self, entity_id: str, state: "HassStateDict") -> StateT | None:
+        """Return the validated model if entity_id/state is a member of this view, else None.
+
+        Membership is the predicate (if one is set) AND convertibility, checked in that order —
+        the predicate is a cheap first gate, and conversion is amortized by
+        ``_validate_or_return_from_cache``'s per-entity cache. A conversion failure is logged at
+        ``debug``: for a deliberately filtered view a non-match is expected, not exceptional.
+        """
+        if self._predicate is not None and not self._predicate(state):
+            return None
+
+        try:
+            return self._validate_or_return_from_cache(entity_id, state)
+        except Exception as exc:
+            LOGGER.debug(
+                "Error validating state for entity_id '%s' as type %s: %s",
+                entity_id,
+                self._model.__name__,
+                exc,
+            )
+            return None
+
     def to_dict(self) -> dict[str, StateT]:
         """Return a dictionary of entity_id to typed state for this domain.
 
@@ -110,43 +162,46 @@ class DomainStates(Mapping[str, StateT]):
         return dict(self)
 
     def __iter__(self) -> Iterator[str]:
-        """Iterate over entity IDs in this domain, skipping un-convertible entities."""
+        """Iterate over entity IDs in this domain, skipping non-member and un-convertible entities."""
         for entity_id, state in self._state_proxy.yield_domain_states(self._domain):
-            try:
-                self._validate_or_return_from_cache(entity_id, state)
+            if self._validate_if_member(entity_id, state) is not None:
                 yield entity_id
-            except Exception as exc:
-                LOGGER.error(
-                    "Error validating state for entity_id '%s' as type %s: %s",
-                    entity_id,
-                    self._model.__name__,
-                    exc,
-                )
-                continue
 
     def __len__(self) -> int:
-        """Return the number of entities in this domain."""
-        return self._state_proxy.num_domain_states(self._domain)
+        """Return the number of member entities in this domain.
+
+        Computed by iterating and checking membership (predicate AND convertibility) rather than
+        consulting the state proxy's raw domain count, so this always agrees with ``list(self)`` —
+        see ``_validate_if_member``.
+        """
+        return sum(1 for _ in self)
 
     def __contains__(self, entity_id: object) -> bool:
-        """Check if a specific entity ID exists in this domain."""
+        """Check if a specific entity ID is a member of this view (predicate AND convertibility)."""
         if not isinstance(entity_id, str):
             return False
         try:
             entity_id = make_entity_id(entity_id, self._domain)
-            return entity_id in self._state_proxy
         except ValueError:
             return False
 
+        state = self._state_proxy.get_state(entity_id)
+        if state is None:
+            return False
+        return self._validate_if_member(entity_id, state) is not None
+
     def __getitem__(self, entity_id: str) -> StateT:
-        """Get a specific entity state by ID, raising if not found.
+        """Get a specific entity state by ID, raising if not found or not a member of this view.
 
         Args:
             entity_id: The full entity ID (e.g., "light.bedroom") or just the entity name (e.g., "bedroom").
 
         Raises:
-            KeyError: If the entity is not found in this domain.
-            UnableToConvertStateError: If the state dict fails to convert to this domain's state class.
+            KeyError: If the entity is not found in this domain at all.
+            EntityNotInViewError: If a membership predicate is set and the entity exists in the
+                domain but fails the predicate or fails to convert. Also a ``KeyError``.
+            UnableToConvertStateError: If no predicate is set (this view has no shape claim) and
+                the state dict fails to convert to this domain's state class.
 
         Returns:
             The typed state.
@@ -155,7 +210,18 @@ class DomainStates(Mapping[str, StateT]):
         state = self._state_proxy.get_state(entity_id)
         if state is None:
             raise KeyError(f"State for entity_id '{entity_id}' not found in domain '{self._domain}'")
-        return self._validate_or_return_from_cache(entity_id, state)
+
+        if self._predicate is None:
+            return self._validate_or_return_from_cache(entity_id, state)
+
+        device_class = (state.get("attributes") or {}).get("device_class")
+        if not self._predicate(state):
+            raise EntityNotInViewError(entity_id, device_class, self._model)
+
+        try:
+            return self._validate_or_return_from_cache(entity_id, state)
+        except Exception as exc:
+            raise EntityNotInViewError(entity_id, device_class, self._model) from exc
 
     def __repr__(self) -> str:
         """Return a string representation of the DomainStates container."""
@@ -163,7 +229,7 @@ class DomainStates(Mapping[str, StateT]):
 
     def __bool__(self) -> bool:
         """Return True if there are any entities in this domain."""
-        return len(self) > 0
+        return next(iter(self), None) is not None
 
 
 class StateManager(Resource):
@@ -205,13 +271,31 @@ class StateManager(Resource):
         """Access the underlying state proxy (as a StateReader) via the public, wiring-checked accessor."""
         return self.hassette.state_proxy
 
-    def _domain_states_for(self, state_class: type[BaseState]) -> "DomainStates[BaseState]":
-        """Get-or-create a DomainStates instance from the cache, keyed by state class."""
+    def _domain_states_for(
+        self,
+        state_class: type[StateT],
+        *,
+        domain: str | None = None,
+        predicate: Callable[["HassStateDict"], bool] | None = None,
+    ) -> "DomainStates[StateT]":
+        """Get-or-create a DomainStates instance from the cache, keyed by state class.
+
+        ``domain`` and ``predicate`` are only consulted the first time a given ``state_class``
+        is requested — the cached instance is reused on every subsequent call, so a caller must
+        pass the same values for a given class every time (both ``__getattr__`` and the four
+        sensor-shape accessors below do).
+
+        The cache itself is keyed and valued at the erased ``BaseState`` level, so the lookup's
+        static type is widened back to ``DomainStates[BaseState]``; the ``cast`` back to
+        ``DomainStates[StateT]`` restates the invariant every caller already relies on — the
+        cache is keyed by ``state_class``, so a lookup for ``state_class`` always returns a
+        ``DomainStates`` constructed from that exact class.
+        """
         cached = self._domain_states_cache.get(state_class)
         if cached is None:
-            cached = self[state_class]
+            cached = DomainStates(self._state_proxy, state_class, domain=domain, predicate=predicate)
             self._domain_states_cache[state_class] = cached
-        return cached
+        return typing.cast("DomainStates[StateT]", cached)
 
     def __getattr__(self, domain: str) -> "DomainStates[BaseState]":
         """Dynamically access domain states by property name.
@@ -262,6 +346,51 @@ class StateManager(Resource):
             )
 
         return self._domain_states_for(state_class)
+
+    @property
+    def numeric_sensor(self) -> "DomainStates[states.NumericSensorState]":
+        """Sensors whose value is a number — see :class:`hassette.models.states.NumericSensorState`.
+
+        A filtered view over ``self.states.sensor``, not a separate domain: the same entities
+        are reachable from both, with ``value`` typed ``str | None`` there and ``float | None``
+        here. Membership requires both a matching shape and a value that actually converts —
+        see :func:`hassette.models.states.sensor_shapes.classify_sensor_shape`.
+        """
+        return self._domain_states_for(states.NumericSensorState, domain="sensor", predicate=_NUMERIC_SENSOR_PREDICATE)
+
+    @property
+    def enum_sensor(self) -> "DomainStates[states.EnumSensorState]":
+        """Sensors whose value is one of a fixed set of options — see
+        :class:`hassette.models.states.EnumSensorState`.
+
+        A filtered view over ``self.states.sensor``; see :attr:`numeric_sensor` for the
+        view/projection contract shared by all four narrowed sensor accessors.
+        """
+        return self._domain_states_for(states.EnumSensorState, domain="sensor", predicate=_ENUM_SENSOR_PREDICATE)
+
+    @property
+    def timestamp_sensor(self) -> "DomainStates[states.TimestampSensorState]":
+        """Sensors whose value is a timezone-aware point in time — see
+        :class:`hassette.models.states.TimestampSensorState`.
+
+        Includes both ``device_class: timestamp`` and ``device_class: uptime`` sensors; there is
+        no separate uptime accessor. A filtered view over ``self.states.sensor``; see
+        :attr:`numeric_sensor` for the view/projection contract shared by all four narrowed
+        sensor accessors.
+        """
+        return self._domain_states_for(
+            states.TimestampSensorState, domain="sensor", predicate=_TIMESTAMP_SENSOR_PREDICATE
+        )
+
+    @property
+    def date_sensor(self) -> "DomainStates[states.DateSensorState]":
+        """Sensors whose value is a calendar date — see
+        :class:`hassette.models.states.DateSensorState`.
+
+        A filtered view over ``self.states.sensor``; see :attr:`numeric_sensor` for the
+        view/projection contract shared by all four narrowed sensor accessors.
+        """
+        return self._domain_states_for(states.DateSensorState, domain="sensor", predicate=_DATE_SENSOR_PREDICATE)
 
     def __getitem__(self, model: type[StateT]) -> DomainStates[StateT]:
         """Access domain states using the indexing syntax. This is required if you need

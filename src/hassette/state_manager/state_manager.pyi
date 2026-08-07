@@ -13,7 +13,7 @@ As this will ensure proper type annotations of the return type.
 """
 
 import typing
-from collections.abc import Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from typing import Generic, NamedTuple
 
 from frozendict import frozendict
@@ -36,10 +36,19 @@ class DomainStates(Mapping[str, StateT]):
     _state_proxy: StateReader
     _model: type[StateT]
     _domain: str
+    _predicate: Callable[[HassStateDict], bool] | None
     _cache: dict[str, CacheValue[StateT]]
 
     def _validate_or_return_from_cache(self, entity_id: str, state: HassStateDict) -> StateT: ...
-    def __init__(self, state_proxy: StateReader, model: type[StateT]) -> None: ...
+    def _validate_if_member(self, entity_id: str, state: HassStateDict) -> StateT | None: ...
+    def __init__(
+        self,
+        state_proxy: StateReader,
+        model: type[StateT],
+        *,
+        domain: str | None = None,
+        predicate: Callable[[HassStateDict], bool] | None = None,
+    ) -> None: ...
     def __iter__(self) -> Iterator[str]: ...
     def __len__(self) -> int: ...
     def __getitem__(self, entity_id: str) -> StateT: ...
@@ -126,6 +135,16 @@ class StateManager(Resource):
     def select(self) -> DomainStates[states.SelectState]: ...
     @property
     def sensor(self) -> DomainStates[states.SensorState]: ...
+
+    # Narrowed sensor-shape accessors — filtered views over `sensor` (see StateManager docstring).
+    @property
+    def numeric_sensor(self) -> DomainStates[states.NumericSensorState]: ...
+    @property
+    def enum_sensor(self) -> DomainStates[states.EnumSensorState]: ...
+    @property
+    def timestamp_sensor(self) -> DomainStates[states.TimestampSensorState]: ...
+    @property
+    def date_sensor(self) -> DomainStates[states.DateSensorState]: ...
     @property
     def siren(self) -> DomainStates[states.SirenState]: ...
     @property

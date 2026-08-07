@@ -27,14 +27,18 @@ class RegistryValidationIssue:
         registry: Which registry produced the issue — ``"STATE_REGISTRY"`` or
             ``"TYPE_REGISTRY"``.
         severity: ``"error"`` for issues that indicate broken/missing
-            registrations; ``"warning"`` for non-fatal anomalies such as
-            duplicate domain registrations.
+            registrations.
         message: Human-readable description of the issue.
     """
 
     registry: str
     severity: str
     message: str
+
+
+def _issue(registry_name: str, message: str) -> RegistryValidationIssue:
+    """Build an error-severity ``RegistryValidationIssue`` for the given registry."""
+    return RegistryValidationIssue(registry=registry_name, severity="error", message=message)
 
 
 def validate_registries(
@@ -84,18 +88,13 @@ def _validate_state_registry(state_registry: StateRegistry) -> list[RegistryVali
 
     if not entries:
         issues.append(
-            RegistryValidationIssue(
-                registry=registry_name,
-                severity="error",
-                message=(
-                    "STATE_REGISTRY is empty — models package may not be imported. "
-                    "Ensure hassette.models.states is imported before wire_services()."
-                ),
+            _issue(
+                registry_name,
+                "STATE_REGISTRY is empty — models package may not be imported. "
+                "Ensure hassette.models.states is imported before wire_services().",
             )
         )
         return issues
-
-    seen_domains: dict[object, type] = {}
 
     for key, cls in entries.items():
         try:
@@ -105,46 +104,21 @@ def _validate_state_registry(state_registry: StateRegistry) -> list[RegistryVali
 
         if not is_subclass:
             issues.append(
-                RegistryValidationIssue(
-                    registry=registry_name,
-                    severity="error",
-                    message=(
-                        f"Registry entry for key {key!r} is not a BaseState subclass: "
-                        f"{cls!r}. Only BaseState subclasses may be registered."
-                    ),
+                _issue(
+                    registry_name,
+                    f"Registry entry for key {key!r} is not a BaseState subclass: "
+                    f"{cls!r}. Only BaseState subclasses may be registered.",
                 )
             )
 
         if not isinstance(key, StateKey) or key.domain is None:
             issues.append(
-                RegistryValidationIssue(
-                    registry=registry_name,
-                    severity="error",
-                    message=(
-                        f"Registry entry for key {key!r} has a None domain. "
-                        "Every registered state class must have a non-None domain."
-                    ),
+                _issue(
+                    registry_name,
+                    f"Registry entry for key {key!r} has a None domain. "
+                    "Every registered state class must have a non-None domain.",
                 )
             )
-            continue
-
-        domain = key.domain
-
-        if domain in seen_domains:
-            existing_cls = seen_domains[domain]
-            issues.append(
-                RegistryValidationIssue(
-                    registry=registry_name,
-                    severity="warning",
-                    message=(
-                        f"Duplicate domain '{domain}' registered by both "
-                        f"{existing_cls.__name__!r} (wins) and {getattr(cls, '__name__', repr(cls))!r}. "
-                        "The first-registered class takes precedence."
-                    ),
-                )
-            )
-        else:
-            seen_domains[domain] = cls
 
     return issues
 
@@ -158,13 +132,10 @@ def _validate_type_registry(type_registry: TypeRegistry) -> list[RegistryValidat
 
     if not entries:
         issues.append(
-            RegistryValidationIssue(
-                registry=registry_name,
-                severity="error",
-                message=(
-                    "TYPE_REGISTRY is empty — conversion module may not have loaded. "
-                    "Ensure hassette.conversion is imported before wire_services()."
-                ),
+            _issue(
+                registry_name,
+                "TYPE_REGISTRY is empty — conversion module may not have loaded. "
+                "Ensure hassette.conversion is imported before wire_services().",
             )
         )
         return issues
@@ -172,37 +143,28 @@ def _validate_type_registry(type_registry: TypeRegistry) -> list[RegistryValidat
     for (from_type, to_type), entry in entries.items():
         if not callable(entry.func):
             issues.append(
-                RegistryValidationIssue(
-                    registry=registry_name,
-                    severity="error",
-                    message=(
-                        f"TypeConverterEntry for ({from_type!r} → {to_type!r}) has a non-callable "
-                        f"func: {entry.func!r}. Every converter must be callable."
-                    ),
+                _issue(
+                    registry_name,
+                    f"TypeConverterEntry for ({from_type!r} → {to_type!r}) has a non-callable "
+                    f"func: {entry.func!r}. Every converter must be callable.",
                 )
             )
 
         if not isinstance(from_type, type):
             issues.append(
-                RegistryValidationIssue(
-                    registry=registry_name,
-                    severity="error",
-                    message=(
-                        f"TypeConverterEntry has invalid from_type={from_type!r} "
-                        f"(type: {type(from_type).__name__}). from_type must be a Python type."
-                    ),
+                _issue(
+                    registry_name,
+                    f"TypeConverterEntry has invalid from_type={from_type!r} "
+                    f"(type: {type(from_type).__name__}). from_type must be a Python type.",
                 )
             )
 
         if not isinstance(to_type, type):
             issues.append(
-                RegistryValidationIssue(
-                    registry=registry_name,
-                    severity="error",
-                    message=(
-                        f"TypeConverterEntry has invalid to_type={to_type!r} "
-                        f"(type: {type(to_type).__name__}). to_type must be a Python type."
-                    ),
+                _issue(
+                    registry_name,
+                    f"TypeConverterEntry has invalid to_type={to_type!r} "
+                    f"(type: {type(to_type).__name__}). to_type must be a Python type.",
                 )
             )
 
@@ -211,13 +173,10 @@ def _validate_type_registry(type_registry: TypeRegistry) -> list[RegistryValidat
         )
         if not error_types_ok:
             issues.append(
-                RegistryValidationIssue(
-                    registry=registry_name,
-                    severity="error",
-                    message=(
-                        f"TypeConverterEntry for ({from_type!r} → {to_type!r}) has invalid "
-                        f"error_types={entry.error_types!r}. Must be a tuple of BaseException subclasses."
-                    ),
+                _issue(
+                    registry_name,
+                    f"TypeConverterEntry for ({from_type!r} → {to_type!r}) has invalid "
+                    f"error_types={entry.error_types!r}. Must be a tuple of BaseException subclasses.",
                 )
             )
 

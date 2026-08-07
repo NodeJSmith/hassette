@@ -331,13 +331,20 @@ class NoDomainAnnotationError(StateRegistryError):
 
     Generally ignored, this indicates that the class is a base class and not intended to be registered.
 
+    A class may optionally set :attr:`~hassette.models.states.base.BaseState.accessor_hint` to name
+    a dedicated ``StateManager`` accessor that exists for exactly this case — e.g. the four narrowed
+    sensor-shape classes in ``models/states/sensor_shapes.py``, which deliberately do not re-declare
+    ``domain`` and so always hit this error via ``self.states[<class>]``. When set, the hint is
+    appended to the message; every other state class has no hint and keeps the plain message.
     """
 
-    def __init__(self, state_class: type["BaseState[Any]"]) -> None:
-        super().__init__(
-            f"State class {state_class.__name__} does not define a domain annotation or the annotation is empty."
-        )
+    def __init__(self, state_class: type["BaseState[Any]"], accessor_hint: str | None = None) -> None:
+        msg = f"State class {state_class.__name__} does not define a domain annotation or the annotation is empty."
+        if accessor_hint is not None:
+            msg += f" Use self.states.{accessor_hint} instead."
+        super().__init__(msg)
         self.state_class = state_class
+        self.accessor_hint = accessor_hint
 
 
 class DomainNotFoundError(StateRegistryError):
@@ -346,6 +353,28 @@ class DomainNotFoundError(StateRegistryError):
     def __init__(self, domain: str):
         super().__init__(f"No state class found for domain '{domain}'.")
         self.domain = domain
+
+
+class DomainRequiredError(StateRegistryError):
+    """Raised when ``register_state_converter`` (or ``StateRegistry.register``) is called
+    with ``domain=None``.
+
+    A concrete domain is required to register a class in the catalog — ``None`` would
+    silently store an unresolvable ``StateKey(domain=None)`` entry that ``resolve(domain=None)``
+    could return before any caller validates the result. Contrast with
+    :class:`NoDomainAnnotationError`, which fires during *automatic* registration when a
+    class's own ``Literal`` annotation is absent; that path is expected for base classes and
+    is suppressed by ``BaseState.__init_subclass__``. This error covers the *explicit*
+    registration path, where a missing domain is always a caller mistake.
+    """
+
+    def __init__(self, state_class: type["BaseState[Any]"]) -> None:
+        msg = (
+            f"Cannot register {state_class.__name__} with domain=None. Pass an explicit domain, "
+            f"e.g. register_state_converter({state_class.__name__}, domain='my_domain')."
+        )
+        super().__init__(msg)
+        self.state_class = state_class
 
 
 class HassetteNotInitializedError(RuntimeError):
@@ -366,6 +395,76 @@ class UnableToConvertStateError(StateRegistryError):
     def __init__(self, entity_id: str, state_class: type["BaseState"]) -> None:
         super().__init__(f"Unable to convert state for entity_id '{entity_id}' to class {state_class.__name__}.")
         self.entity_id = entity_id
+        self.state_class = state_class
+
+
+class UnableToConvertAnnotatedStateError(StateRegistryError):
+    """Raised when a state dict fails Pydantic validation against a dependency-injection-annotated
+    state class.
+
+    Wraps the underlying ``pydantic.ValidationError`` (chained via ``raise ... from exc``) with a
+    message that names the entity, its actual device class, and the annotated class — legible where
+    a bare Pydantic error is not.
+
+    Distinct from :class:`UnableToConvertStateError`, which is raised by
+    ``StateRegistry.conversion_with_error_handling`` for the ``try_convert_state``/``self.states``
+    path. This one is raised directly by ``convert_state_dict_to_model``, which the dependency
+    injection annotation converter (``hassette.conversion.annotation_converter``) calls without
+    going through that wrapper — so without this error, a DI conversion failure surfaced a raw
+    Pydantic ``ValidationError`` with no entity context.
+    """
+
+    def __init__(self, entity_id: str, device_class: str | None, state_class: type["BaseState"]) -> None:
+        super().__init__(
+            f"Unable to convert state for entity_id '{entity_id}' (device_class: {device_class!r}) "
+            f"to annotated class {state_class.__name__}."
+        )
+        self.entity_id = entity_id
+        self.device_class = device_class
+        self.state_class = state_class
+
+
+class SensorShapeMismatchError(StateRegistryError):
+    """Raised when a dependency-injection-annotated narrowed sensor shape class does not match the
+    entity's actual value shape, even when coercion would otherwise succeed.
+
+    Only triggered for the four narrowed sensor shape classes (``NumericSensorState``,
+    ``EnumSensorState``, ``TimestampSensorState``, ``DateSensorState``) from
+    ``hassette.models.states.sensor_shapes`` — annotating plain ``SensorState`` makes no shape claim
+    and is never checked. An entity whose shape classifies as ``SensorShape.UNKNOWN`` contradicts no
+    claim and does not raise this error.
+    """
+
+    def __init__(self, entity_id: str, device_class: str | None, state_class: type["BaseState"]) -> None:
+        super().__init__(
+            f"Entity '{entity_id}' (device_class: {device_class!r}) does not match the value shape "
+            f"declared by annotated class {state_class.__name__}."
+        )
+        self.entity_id = entity_id
+        self.device_class = device_class
+        self.state_class = state_class
+
+
+class EntityNotInViewError(KeyError, StateRegistryError):
+    """Raised when direct lookup finds an entity that exists in its domain but is not a member of
+    a filtered ``DomainStates`` view — its state either fails the view's membership predicate, or
+    its current value does not convert to the view's model.
+
+    Subclasses both ``KeyError`` and the state-error hierarchy: ``Mapping.get()`` is implemented by
+    catching ``KeyError``, so ``.get()`` returns ``None`` for non-members — consistent with
+    ``__contains__`` returning ``False`` and iteration silently skipping the entity — while ``[]``
+    still fails loudly with a legible message. Only raised by views built with an explicit
+    membership predicate (e.g. the narrowed sensor-shape accessors); a plain ``DomainStates`` with
+    no predicate keeps raising the underlying conversion error directly.
+    """
+
+    def __init__(self, entity_id: str, device_class: str | None, state_class: type["BaseState"]) -> None:
+        super().__init__(
+            f"Entity '{entity_id}' (device_class: {device_class!r}) is not a member of this view; "
+            f"it does not match the shape expected by {state_class.__name__}."
+        )
+        self.entity_id = entity_id
+        self.device_class = device_class
         self.state_class = state_class
 
 

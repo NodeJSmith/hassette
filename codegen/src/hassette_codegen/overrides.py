@@ -16,6 +16,7 @@ class PropertyOverride:
     wire_name: str | None = None
     type: str | None = None
     add: bool = False
+    remove: bool = False
 
 
 @dataclass
@@ -56,6 +57,7 @@ def load_overrides(overrides_dir: Path | None = None) -> dict[str, DomainOverrid
                 wire_name=p.get("wire_name"),
                 type=p.get("type"),
                 add=p.get("add", False),
+                remove=p.get("remove", False),
             )
             for p in data.get("property_overrides", [])
         ]
@@ -93,6 +95,13 @@ def apply_property_overrides(
             result.append(
                 ExtractedProperty(name=ov.wire_name or ov.name, python_type=ov.type or "str | None", has_default=True)
             )
+            continue
+
+        if ov.remove:
+            before = len(result)
+            result = [prop for prop in result if prop.name != ov.name]
+            if len(result) == before:
+                print(f"WARNING: remove override for '{ov.name}' did not match any property", file=sys.stderr)
             continue
 
         for prop in result:

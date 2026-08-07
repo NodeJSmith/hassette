@@ -277,7 +277,12 @@ class TestDomainStatesConversionExceptionType:
         good_state = make_light_state_dict("light.kitchen", "on", brightness=200)
         bad_state = make_bad_state_dict("light.bad")
 
-        proxy.yield_domain_states.return_value = iter([("light.bad", bad_state), ("light.kitchen", good_state)])
+        # A fresh iterator per call, not a shared `return_value` — `__len__` now derives its count
+        # by consulting `yield_domain_states` too (see DomainStates._validate_if_member), and
+        # `list()` calls `len()` for a size hint before it iterates, so a single shared iterator
+        # would be exhausted by the size-hint call before the real iteration ever ran.
+        states = [("light.bad", bad_state), ("light.kitchen", good_state)]
+        proxy.yield_domain_states.side_effect = lambda _domain: iter(states)
 
         ds: DomainStates[LightState] = DomainStates(proxy, LightState)
 
@@ -375,7 +380,6 @@ def make_presence_manager(
         return {"person": PersonState, "device_tracker": DeviceTrackerState}.get(domain)
 
     proxy = MagicMock()
-    proxy.num_domain_states.side_effect = lambda domain: len(data.get(domain, {}))
     proxy.yield_domain_states.side_effect = lambda domain: iter(data.get(domain, {}).items())
     proxy.get_state.side_effect = lambda entity_id: data.get(entity_id.split(".")[0], {}).get(entity_id)
 

@@ -34,9 +34,7 @@ _SCHEDULER_SERVICE_PROTOCOL_MEMBERS = [
 
 _STATE_READER_MEMBERS = [
     "get_state",
-    "num_domain_states",
     "yield_domain_states",
-    "__contains__",
 ]
 
 

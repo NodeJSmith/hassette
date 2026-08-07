@@ -5,15 +5,19 @@ state-class catalog before/after every test, so catalog mutations here do not
 bleed between tests. TypeRegistry is a stable read-only global after import.
 """
 
+import inspect
+from typing import Literal
+
 import pytest
 
 from hassette.conversion import STATE_REGISTRY, TYPE_REGISTRY
-from hassette.conversion.state_registry import StateKey
+from hassette.conversion.state_registry import StateKey, StateRegistry
 from hassette.conversion.type_registry import TypeConverterEntry, TypeRegistry
 from hassette.conversion.validation import RegistryValidationIssue, validate_registries
-from hassette.exceptions import RegistryValidationError
+from hassette.exceptions import DomainRequiredError, RegistryValidationError
+from hassette.models.states import SensorState
 from hassette.models.states.base import BaseState
-from hassette.models.states.catalog import _STATE_CATALOG, restore_catalog
+from hassette.models.states.catalog import _STATE_CATALOG, resolve, restore_catalog
 
 
 class TestRealRegistriesPass:
@@ -75,8 +79,16 @@ class TestStateRegistryValidation:
         assert len(state_errors) >= 1
         assert any("subclass" in i.message.lower() or "basestate" in i.message.lower() for i in state_errors)
 
-    def test_state_registry_duplicate_domain_warning(self) -> None:
-        """Two entries sharing the same non-None domain should produce a warning issue."""
+    def test_state_registry_same_domain_overwrites_without_duplicate_warning(self) -> None:
+        """Registering a second class under the same domain overwrites the first entry.
+
+        With the domain-only StateKey, the domain *is* the entire key, so two
+        registrations for the same domain can never coexist in the catalog dict —
+        the second assignment overwrites the first. This is the intended override
+        mechanism (see design.md Key Decision #7), and it also means the
+        duplicate-domain warning path in validation.py's _validate_state_registry
+        can no longer be triggered: there is only ever one entry per domain.
+        """
 
         class StateA(BaseState):
             domain: "str"
@@ -85,12 +97,16 @@ class TestStateRegistryValidation:
             domain: "str"
 
         _STATE_CATALOG[StateKey(domain="dup_domain")] = StateA
-        _STATE_CATALOG[StateKey(domain="dup_domain", device_class="some_class")] = StateB
+        _STATE_CATALOG[StateKey(domain="dup_domain")] = StateB
+
+        assert _STATE_CATALOG[StateKey(domain="dup_domain")] is StateB
+        assert sum(1 for k in _STATE_CATALOG if k == StateKey(domain="dup_domain")) == 1
+
         issues = validate_registries(STATE_REGISTRY, TYPE_REGISTRY)
         dup_warnings = [
             i for i in issues if i.registry == "STATE_REGISTRY" and i.severity == "warning" and "dup" in i.message
         ]
-        assert len(dup_warnings) >= 1
+        assert dup_warnings == []
 
 
 class TestTypeRegistryValidation:
@@ -136,25 +152,6 @@ class TestStrictMode:
         # The exception message should include issue count or summary
         assert str(exc_info.value)
 
-    def test_strict_mode_does_not_raise_on_warnings_only(self) -> None:
-        """With strict=True, warning-only issues must not raise RegistryValidationError."""
-
-        class StateA(BaseState):
-            domain: "str"
-
-        class StateB(BaseState):
-            domain: "str"
-
-        # Inject duplicate domain to generate a warning-only scenario.
-        # We need to ensure the real registries are non-empty (no error) but have a duplicate warning.
-        _STATE_CATALOG[StateKey(domain="warn_domain")] = StateA
-        _STATE_CATALOG[StateKey(domain="warn_domain", device_class="dc")] = StateB
-
-        # This should not raise — warnings only
-        issues = validate_registries(STATE_REGISTRY, TYPE_REGISTRY, strict=True)
-        warnings = [i for i in issues if i.severity == "warning"]
-        assert len(warnings) >= 1
-
     def test_nonstrict_mode_logs_warnings(self) -> None:
         """In non-strict mode, validation issues are returned but no exception is raised."""
         restore_catalog({})
@@ -178,3 +175,42 @@ class TestIssueDataclass:
         """validate_registries() always returns a list."""
         result = validate_registries(STATE_REGISTRY, TYPE_REGISTRY)
         assert isinstance(result, list)
+
+
+class TestDeviceClassDimensionRemoved:
+    """The dead device_class dimension is gone from the public writers, and the
+    single-key override mechanism it would have complicated still works.
+    """
+
+    def test_register_signature_has_no_device_class_param(self) -> None:
+        """StateRegistry.register no longer accepts a device_class parameter."""
+        params = inspect.signature(StateRegistry.register).parameters
+        assert "device_class" not in params
+        assert set(params) == {"state_class", "domain"}
+
+    def test_register_domain_is_required_with_no_default(self) -> None:
+        """Domain has no default — omitting it is a caller error caught at the call site,
+        not a silent None that would corrupt the catalog.
+        """
+        assert inspect.signature(StateRegistry.register).parameters["domain"].default is inspect.Parameter.empty
+
+        with pytest.raises(TypeError):
+            StateRegistry.register(SensorState)  # pyright: ignore[reportCallIssue]
+
+    def test_register_explicit_none_domain_raises(self) -> None:
+        """Passing domain=None explicitly (not just omitting it) also raises."""
+        with pytest.raises(DomainRequiredError):
+            StateRegistry.register(SensorState, domain=None)  # pyright: ignore[reportArgumentType]
+
+    def test_domain_override_replaces_built_in_class(self) -> None:
+        """A subclass declaring the same Literal domain as a built-in replaces it in the
+        catalog — the documented override pattern (docs/pages/core-concepts/states/
+        conversion.md, "Overriding a Domain Mapping").
+        """
+        assert resolve(domain="sensor") is SensorState
+
+        class CustomSensorState(SensorState):
+            domain: Literal["sensor"]  # pyright: ignore[reportIncompatibleVariableOverride]
+
+        assert resolve(domain="sensor") is CustomSensorState
+        assert STATE_REGISTRY.resolve(domain="sensor") is CustomSensorState

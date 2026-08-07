@@ -53,7 +53,7 @@ def test_custom_class_nested_definition_returns_proper_state_after_register(
         last_updated="2024-01-01T00:00:00Z",
     )
 
-    hassette.hassette.state_registry.register(CustomStateWithRegister)
+    hassette.hassette.state_registry.register(CustomStateWithRegister, domain="custom_with_register")
     return_value = hassette.hassette.state_registry.try_convert_state(state_dict)
 
     assert return_value is not None, "State conversion failed"

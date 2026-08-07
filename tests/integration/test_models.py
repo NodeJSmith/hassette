@@ -3,6 +3,7 @@
 import inspect
 import logging
 import typing
+from collections.abc import Iterator
 from importlib import import_module
 from pathlib import Path
 from typing import Any, cast
@@ -12,6 +13,7 @@ import pytest
 from hassette import STATE_REGISTRY
 from hassette.models import states
 from hassette.models.states import base
+from hassette.models.states import sensor_shapes as sensor_shapes_module
 
 if typing.TYPE_CHECKING:
     from hassette.test_utils.harness import HassetteHarness
@@ -25,9 +27,30 @@ EXCLUDE_CLASSES = [
     base.NumericBaseState,
     base.StringBaseState,
     base.TimeBaseState,
+    # The four narrowed sensor shape classes deliberately never register: none re-declares
+    # `domain`, so registering them would clobber SensorState process-wide. They are
+    # filtered views over the `sensor` domain, not separate domains.
+    sensor_shapes_module.NumericSensorState,
+    sensor_shapes_module.EnumSensorState,
+    sensor_shapes_module.TimestampSensorState,
+    sensor_shapes_module.DateSensorState,
 ]
 
 STATES_PATH = Path(states.__file__).parent
+
+
+def _iter_included_models(all_models: dict[str, type[states.BaseState]]) -> Iterator[type[states.BaseState]]:
+    """Yield the models under test, already cast and filtered.
+
+    ``EXCLUDE_CLASSES`` doesn't work so well with importlib — the classes reimported via
+    ``inspect.getmembers`` don't always compare equal by identity to the ones in the list, so the
+    string check on ``"base.BaseState"`` catches what identity comparison misses.
+    """
+    for model_cls in all_models.values():
+        model_cls = cast("type[states.BaseState]", model_cls)
+        if model_cls in EXCLUDE_CLASSES or "base.BaseState" in str(model_cls):
+            continue
+        yield model_cls
 
 
 @pytest.fixture(scope="module")
@@ -59,13 +82,8 @@ def test_all_domains_registered(
     registered_domains = [x.domain for x in STATE_REGISTRY.registry]
     missing_domains = []
 
-    for model_cls in all_models.values():
-        model_cls = cast("type[states.BaseState]", model_cls)
+    for model_cls in _iter_included_models(all_models):
         if "domain" not in model_cls.model_fields:
-            continue
-
-        # excluded classes doesn't work so well with importlib
-        if model_cls in EXCLUDE_CLASSES or "base.BaseState" in str(model_cls):
             continue
 
         domain = model_cls.get_domain()
@@ -86,18 +104,10 @@ def test_all_domains_registered(
 def test_all_classes_in_registry(all_models: dict[str, type[states.BaseState]]):
     """Test that all state models are included in the state registry."""
     registered_classes = list(STATE_REGISTRY.registry.values())
-    missing_classes = []
 
-    for model_cls in all_models.values():
-        model_cls = cast("type[states.BaseState]", model_cls)
-
-        # excluded classes doesn't work so well with importlib
-        if model_cls in EXCLUDE_CLASSES or "base.BaseState" in str(model_cls):
-            continue
-
-        if model_cls not in registered_classes:
-            missing_classes.append(model_cls.__name__)
-
+    missing_classes = [
+        model_cls.__name__ for model_cls in _iter_included_models(all_models) if model_cls not in registered_classes
+    ]
     missing_classes = sorted(missing_classes)
 
     if missing_classes:
@@ -110,13 +120,7 @@ def test_registry_can_convert_all_domains(
     all_models: dict[str, type[states.BaseState]],
 ):
     """Test that the registry can look up classes for all known domains."""
-    for model_cls in all_models.values():
-        model_cls = cast("type[states.BaseState]", model_cls)
-
-        # excluded classes doesn't work so well with importlib
-        if model_cls in EXCLUDE_CLASSES or "base.BaseState" in str(model_cls):
-            continue
-
+    for model_cls in _iter_included_models(all_models):
         domain = model_cls.get_domain()
         retrieved_class = STATE_REGISTRY.resolve(domain=domain)
 

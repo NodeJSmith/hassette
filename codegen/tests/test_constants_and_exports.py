@@ -11,9 +11,14 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from hassette_codegen.extractors.constants import ExtractedConstantSet, extract_sensor_constants
+from hassette_codegen.extractors.constants import (
+    ExtractedConstantSet,
+    extract_numeric_state_expected_source,
+    extract_sensor_constants,
+)
 from hassette_codegen.generators.constants import generate_sensor_constants
 from hassette_codegen.generators.exports import generate_init_py
+from hassette_codegen.pipeline import _check_predicate_freshness
 
 _HA_CORE = Path(os.environ.get("HA_CORE_PATH", "~/source/core")).expanduser()
 _HAS_HA_CORE = _HA_CORE.exists()
@@ -108,3 +113,79 @@ class TestConstantsEscaping:
         output = generate_sensor_constants([ExtractedConstantSet(name="DEVICE_CLASS", values=values)])
 
         assert self._literals(output) == values
+
+
+class TestNonNumericDeviceClasses:
+    """``NON_NUMERIC_DEVICE_CLASSES`` is generated from HA core as a runtime set, not
+
+    hand-maintained, and does not disturb the existing ``Literal`` rendering for the other sets.
+    """
+
+    @pytest.mark.skipif(not _HAS_HA_CORE, reason="HA core checkout not available")
+    def test_extracted_as_runtime_set_with_correct_members(self) -> None:
+        results = extract_sensor_constants(_HA_CORE)
+        nn = next((r for r in results if r.name == "NON_NUMERIC_DEVICE_CLASSES"), None)
+        assert nn is not None
+        assert nn.kind == "runtime_set"
+        assert set(nn.values) == {"date", "enum", "timestamp", "uptime"}
+
+    def test_renders_as_runtime_frozenset(self) -> None:
+        output = generate_sensor_constants(
+            [ExtractedConstantSet(name="NON_NUMERIC_DEVICE_CLASSES", values=["date", "enum"], kind="runtime_set")]
+        )
+        assert "NON_NUMERIC_DEVICE_CLASSES: frozenset[str] = frozenset(" in output
+        assert "Literal[" not in output
+
+    def test_generated_runtime_set_compiles_with_correct_values(self) -> None:
+        output = generate_sensor_constants(
+            [ExtractedConstantSet(name="NON_NUMERIC_DEVICE_CLASSES", values=["date", "enum"], kind="runtime_set")]
+        )
+        namespace: dict[str, object] = {}
+        exec(compile(output, "<generated>", "exec"), namespace)  # noqa: S102
+        assert namespace["NON_NUMERIC_DEVICE_CLASSES"] == frozenset({"date", "enum"})
+
+    def test_literal_rendering_unaffected_by_runtime_set_support(self) -> None:
+        """Adding runtime-set rendering must not change how ``Literal`` constants render."""
+        output = generate_sensor_constants([ExtractedConstantSet(name="DEVICE_CLASS", values=["temperature"])])
+        assert output == 'from typing import Literal\n\nDEVICE_CLASS = Literal[\n    "temperature",\n]\n'
+
+
+class TestPredicateFreshnessDriftGuard:
+    """A mismatch between the committed snapshot and HA's current
+
+    ``_numeric_state_expected`` source fails the freshness check; a matching snapshot passes.
+    """
+
+    def test_extraction_failure_fails_freshness(self, tmp_path: Path) -> None:
+        # No homeassistant/ tree under tmp_path, so extraction itself returns None — that must
+        # also fail the check rather than being silently skipped.
+        assert _check_predicate_freshness(tmp_path, tmp_path / "snapshot.txt") is False
+
+    @pytest.mark.skipif(not _HAS_HA_CORE, reason="HA core checkout not available")
+    def test_missing_snapshot_file_fails(self, tmp_path: Path) -> None:
+        assert _check_predicate_freshness(_HA_CORE, tmp_path / "does-not-exist.txt") is False
+
+    @pytest.mark.skipif(not _HAS_HA_CORE, reason="HA core checkout not available")
+    def test_matching_snapshot_passes(self, tmp_path: Path) -> None:
+        current = extract_numeric_state_expected_source(_HA_CORE)
+        assert current is not None
+        snapshot = tmp_path / "numeric_state_expected.py.txt"
+        snapshot.write_text(current + "\n", encoding="utf-8")
+
+        assert _check_predicate_freshness(_HA_CORE, snapshot) is True
+
+    @pytest.mark.skipif(not _HAS_HA_CORE, reason="HA core checkout not available")
+    def test_modified_snapshot_fails_then_restored_snapshot_passes(self, tmp_path: Path) -> None:
+        current = extract_numeric_state_expected_source(_HA_CORE)
+        assert current is not None
+        snapshot = tmp_path / "numeric_state_expected.py.txt"
+        snapshot.write_text(current + "\n", encoding="utf-8")
+        assert _check_predicate_freshness(_HA_CORE, snapshot) is True
+
+        # Deliberately modify the snapshot to simulate upstream drift.
+        snapshot.write_text(current.replace("return False", "return True") + "\n", encoding="utf-8")
+        assert _check_predicate_freshness(_HA_CORE, snapshot) is False
+
+        # Restored — passes again.
+        snapshot.write_text(current + "\n", encoding="utf-8")
+        assert _check_predicate_freshness(_HA_CORE, snapshot) is True

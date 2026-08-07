@@ -6,7 +6,7 @@ on the concrete StateProxy or the core package.
 """
 
 import typing
-from collections.abc import Generator, Mapping
+from collections.abc import Mapping
 from uuid import uuid4
 
 import pytest
@@ -14,6 +14,7 @@ import pytest
 from hassette.events import HassStateDict
 from hassette.models.states.base import BaseState
 from hassette.state_manager import DomainStates
+from hassette.test_utils import FakeStateReader
 
 if typing.TYPE_CHECKING:
     from hassette.types import StateReader
@@ -31,31 +32,6 @@ def make_minimal_state_dict(entity_id: str, state_value: str = "on") -> HassStat
         "last_reported": "2024-01-01T00:00:00+00:00",
         "context": {"id": str(uuid4()), "parent_id": None, "user_id": None},
     }
-
-
-class FakeStateReader:
-    """Minimal dict-backed implementation of the StateReader protocol.
-
-    Holds states keyed by entity_id and answers the four members StateReader
-    declares: get_state, num_domain_states, yield_domain_states, __contains__.
-    """
-
-    def __init__(self, states: dict[str, HassStateDict]) -> None:
-        self.states = states
-
-    def get_state(self, entity_id: str) -> HassStateDict | None:
-        return self.states.get(entity_id)
-
-    def num_domain_states(self, domain: str) -> int:
-        return sum(1 for eid in self.states if eid.startswith(f"{domain}."))
-
-    def yield_domain_states(self, domain: str) -> Generator[tuple[str, HassStateDict], typing.Any, None]:
-        for eid, state in self.states.items():
-            if eid.startswith(f"{domain}."):
-                yield eid, state
-
-    def __contains__(self, entity_id: str) -> bool:
-        return entity_id in self.states
 
 
 def _check_fake_is_state_reader(reader: FakeStateReader) -> None:
