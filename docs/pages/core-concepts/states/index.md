@@ -118,10 +118,71 @@ Hassette auto-generates typed state classes for 55 Home Assistant domains from H
 Three common examples:
 
 - **`states.LightState`** has `value: bool | None`, `attributes.brightness: int | None`, `attributes.color_temp_kelvin: int | None`
-- **`states.SensorState`** has `value: str | None`, `attributes.unit_of_measurement: str | None`, `attributes.device_class: str | None`
-- **`states.BinarySensorState`** has `value: bool | None`, `attributes.device_class: str | None`
+- **`states.SensorState`** has `value: str | None`, `attributes.unit_of_measurement: str | None`, `attributes.device_class: SensorDeviceClass | None`
+- **`states.BinarySensorState`** has `value: bool | None`, `attributes.device_class: BinarySensorDeviceClass | None`
 
 The API reference lists all 55 classes with their full attribute signatures. Domains not covered there are handled by [Custom States](custom-states.md).
+
+## Sensor Value Shapes
+
+`SensorState.value` is `str | None`, because the `sensor` domain covers every kind of sensor Home Assistant supports — a door lock's battery percentage and a smart meter's next-reset timestamp are both `sensor.*` entities. Home Assistant tells them apart with `device_class`, and that metadata sorts every sensor into one of four value shapes: numeric, enum, timestamp, or date. Four state classes narrow `value` to match:
+
+| Class | `value` type | Matches |
+|---|---|---|
+| `NumericSensorState` | `float \| None` | `device_class` outside the non-numeric set, or Home Assistant's `state_class`/unit metadata implying a number |
+| `EnumSensorState` | `str \| None` | `device_class: enum` |
+| `TimestampSensorState` | `ZonedDateTime \| None` | `device_class: timestamp` or `device_class: uptime` |
+| `DateSensorState` | `Date \| None` | `device_class: date` |
+
+`uptime` classifies as the timestamp shape — Home Assistant renders both through the same code path, differing only by a drift-normalization step that leaves the value's type unchanged, so there is no separate uptime class.
+
+Two paths reach a narrowed shape. Dependency injection names the class directly — `D` (`hassette.dependencies`) tells Hassette what to extract from the event; `D.StateNew[T]` means "give me the new state, converted to `T`" (see [Dependency Injection](../bus/dependency-injection.md)):
+
+```python
+--8<-- "pages/core-concepts/states/snippets/sensor_shapes.py:annotation"
+```
+
+`new.value` is `float | None` here — arithmetic type-checks with a `None` guard, no cast required. `self.states.numeric_sensor` reaches the same shape by iteration:
+
+```python
+--8<-- "pages/core-concepts/states/snippets/sensor_shapes.py:accessor"
+```
+
+### Views, Not Domains
+
+Every other built-in state class corresponds 1:1 with a Home Assistant domain — `self.states.light` is *the* way to reach `LightState`. The four sensor-shape accessors break that pattern: they are filtered views (projections) over the same underlying `sensor` states, not new domains and not a partition of them. The same entity appears twice — once under `self.states.sensor` as a `SensorState` with `value: str | None`, and again under `self.states.numeric_sensor` as a `NumericSensorState` with `value: float | None` — two typed lenses on one piece of state, not two different entities.
+
+| | Domain accessor (`self.states.light`) | Shape view (`self.states.numeric_sensor`) |
+|---|---|---|
+| Totality | Every entity in the domain | Only entities whose metadata matches the shape |
+| `value` type | The domain's one declared type | Narrowed to the shape (`float`, `str`, `ZonedDateTime`, `Date`) |
+| Membership | Fixed — determined by `entity_id`'s domain prefix | Computed per access from `device_class`, `state_class`, and `unit_of_measurement` |
+| Failure on `[]` | `KeyError` (entity not found) | `KeyError` (not found) **or** `EntityNotInViewError` (entity exists but isn't a shape match — see [Lookup Semantics](#lookup-semantics) below) |
+
+Membership is computed from metadata every time it's checked, not cached across state changes — a shape view is dynamic where a domain accessor is total. If a sensor's `device_class` changes at runtime (edited in the HA UI, for example), the next access reflects the new classification immediately.
+
+### Membership and the Recall Gap
+
+A sensor belongs to a narrowed view only when its metadata matches the shape **and** its current value converts to the shape's type — both conditions, checked identically everywhere the view is read (`len()`, `in`, iteration, and direct lookup all agree). A numeric-looking sensor holding a value that fails to parse as a number is excluded from `numeric_sensor` in every one of those places, not just some.
+
+The classifier that decides membership ports Home Assistant's own numeric-detection rule rather than checking `device_class` against a fixed set — roughly half of real sensors carry no `device_class` at all, and a naive device-class-only rule would drop a large share of genuinely numeric ones. Even so, a sensor with *no* metadata whatsoever — no `device_class`, no `state_class`, no `unit_of_measurement` — gives the classifier nothing to work with and is excluded from all four narrowed views. This is a known, accepted gap, not a bug: **`self.states.sensor` still contains every sensor**, metadata or not, and is the escape hatch whenever a narrowed view comes up empty for an entity that should logically be there.
+
+```python
+--8<-- "pages/core-concepts/states/snippets/sensor_shapes.py:escape-hatch"
+```
+
+### Lookup Semantics
+
+`.get()` and `[]` diverge on a narrowed accessor the same way they do everywhere else in `DomainStates`, with one addition: a non-member entity is a distinct case from a missing one.
+
+```python
+--8<-- "pages/core-concepts/states/snippets/sensor_shapes.py:lookup"
+```
+
+`.get()` returns `None` for an entity that exists but isn't a shape-view member — `EntityNotInViewError` subclasses `KeyError`, and `Mapping.get()` is implemented by catching `KeyError`. Direct `[]` access raises `EntityNotInViewError` instead, naming the entity, its actual `device_class`, and the shape the accessor expected. Iteration skips non-members silently; a conversion failure — metadata matches the shape but the value fails to parse — is additionally logged at `debug`.
+
+!!! note "`self.states[NumericSensorState]` is unsupported"
+    The four shape classes deliberately don't declare their own `domain` — doing so would register them in place of `SensorState` process-wide. That means generic indexing (`self.states[NumericSensorState]`) raises `NoDomainAnnotationError` rather than working. Use the dedicated accessor (`self.states.numeric_sensor`) instead; the error message names it.
 
 ## Iterating Over States
 

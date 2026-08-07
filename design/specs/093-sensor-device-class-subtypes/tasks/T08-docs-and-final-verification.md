@@ -1,7 +1,7 @@
 ---
 task_id: "T08"
 title: "Document the shape views and run final verification"
-status: "planned"
+status: "done"
 depends_on: ["T07"]
 implements: ["AC#13", "AC#14"]
 ---
