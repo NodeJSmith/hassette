@@ -11,6 +11,8 @@ from collections.abc import Hashable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from hassette.exceptions import DomainRequiredError
+
 if TYPE_CHECKING:
     from hassette.models.states.base import BaseState
 
@@ -28,8 +30,15 @@ def register_state_converter(state_class: type["BaseState"], domain: Hashable) -
 
     Args:
         state_class: The state class to register. Must be a subclass of BaseState.
-        domain: The Home Assistant domain (e.g., "light", "sensor").
+        domain: The Home Assistant domain (e.g., "light", "sensor"). Must not be ``None`` —
+            a ``None`` domain would be silently resolvable via ``resolve(domain=None)``.
+
+    Raises:
+        DomainRequiredError: If ``domain`` is ``None``.
     """
+    if domain is None:
+        raise DomainRequiredError(state_class)
+
     key = StateKey(domain=domain)
     _STATE_CATALOG[key] = state_class
 

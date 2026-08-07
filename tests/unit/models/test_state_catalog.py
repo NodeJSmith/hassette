@@ -6,8 +6,11 @@ depth into the catalog — not just direct BaseState children.
 
 from typing import Literal
 
-from hassette.models.states.base import BoolBaseState
-from hassette.models.states.catalog import _STATE_CATALOG, StateKey, resolve
+import pytest
+
+from hassette.exceptions import DomainRequiredError
+from hassette.models.states.base import BaseState, BoolBaseState
+from hassette.models.states.catalog import _STATE_CATALOG, StateKey, register_state_converter, resolve
 from hassette.models.states.sensor import SensorState
 from hassette.models.states.sensor_shapes import (
     DateSensorState,
@@ -41,6 +44,26 @@ class TestInitSubclassDepth:
 
         result = resolve(domain="test_another_grandchild")
         assert result is AnotherGrandchild
+
+
+class TestRegisterRequiresDomain:
+    """register_state_converter is the single choke point both StateRegistry.register() and
+    BaseState.__init_subclass__ funnel through — guarding it here covers every registration path.
+    """
+
+    def test_none_domain_raises_instead_of_corrupting_catalog(self) -> None:
+        """domain=None must raise, not silently store a StateKey(domain=None) entry that
+        resolve(domain=None) could return before callers validate the result.
+        """
+
+        class NoDomainRegistrationState(BaseState):
+            domain: Literal["test_register_requires_domain"]  # pyright: ignore[reportIncompatibleVariableOverride]
+
+        with pytest.raises(DomainRequiredError):
+            register_state_converter(NoDomainRegistrationState, domain=None)  # pyright: ignore[reportArgumentType]
+
+        assert StateKey(domain=None) not in _STATE_CATALOG
+        assert resolve(domain=None) is None
 
 
 class TestSensorShapeClassesDoNotRegister:

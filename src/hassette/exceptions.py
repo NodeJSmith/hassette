@@ -355,6 +355,28 @@ class DomainNotFoundError(StateRegistryError):
         self.domain = domain
 
 
+class DomainRequiredError(StateRegistryError):
+    """Raised when ``register_state_converter`` (or ``StateRegistry.register``) is called
+    with ``domain=None``.
+
+    A concrete domain is required to register a class in the catalog — ``None`` would
+    silently store an unresolvable ``StateKey(domain=None)`` entry that ``resolve(domain=None)``
+    could return before any caller validates the result. Contrast with
+    :class:`NoDomainAnnotationError`, which fires during *automatic* registration when a
+    class's own ``Literal`` annotation is absent; that path is expected for base classes and
+    is suppressed by ``BaseState.__init_subclass__``. This error covers the *explicit*
+    registration path, where a missing domain is always a caller mistake.
+    """
+
+    def __init__(self, state_class: type["BaseState[Any]"]) -> None:
+        msg = (
+            f"Cannot register {state_class.__name__} with domain=None. Pass an explicit domain, "
+            f"e.g. register_state_converter({state_class.__name__}, domain='my_domain')."
+        )
+        super().__init__(msg)
+        self.state_class = state_class
+
+
 class HassetteNotInitializedError(RuntimeError):
     """Exception raised when Hassette is not initialized in the current context."""
 

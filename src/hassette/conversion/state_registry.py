@@ -136,12 +136,17 @@ class StateRegistry:
         raise RuntimeError("Unreachable code reached in try_convert_state")
 
     @classmethod
-    def register(cls, state_class: type["BaseState"], *, domain: Hashable | None = None) -> None:
+    def register(cls, state_class: type["BaseState"], *, domain: Hashable) -> None:
         """Register a state class for a given domain.
 
         Args:
             state_class: The state class to register. Must be a subclass of BaseState.
-            domain: The Home Assistant domain (e.g., "light", "sensor").
+            domain: The Home Assistant domain (e.g., "light", "sensor"). Required — there is
+                no valid default. Passing ``None`` explicitly also raises, since a ``None``
+                domain would corrupt the catalog with an unresolvable entry.
+
+        Raises:
+            DomainRequiredError: If ``domain`` is ``None``.
         """
         register_state_converter(state_class, domain=domain)
 

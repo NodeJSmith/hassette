@@ -14,7 +14,7 @@ from hassette.conversion import STATE_REGISTRY, TYPE_REGISTRY
 from hassette.conversion.state_registry import StateKey, StateRegistry
 from hassette.conversion.type_registry import TypeConverterEntry, TypeRegistry
 from hassette.conversion.validation import RegistryValidationIssue, validate_registries
-from hassette.exceptions import RegistryValidationError
+from hassette.exceptions import DomainRequiredError, RegistryValidationError
 from hassette.models.states import SensorState
 from hassette.models.states.base import BaseState
 from hassette.models.states.catalog import _STATE_CATALOG, resolve, restore_catalog
@@ -187,6 +187,20 @@ class TestDeviceClassDimensionRemoved:
         params = inspect.signature(StateRegistry.register).parameters
         assert "device_class" not in params
         assert set(params) == {"state_class", "domain"}
+
+    def test_register_domain_is_required_with_no_default(self) -> None:
+        """Domain has no default — omitting it is a caller error caught at the call site,
+        not a silent None that would corrupt the catalog.
+        """
+        assert inspect.signature(StateRegistry.register).parameters["domain"].default is inspect.Parameter.empty
+
+        with pytest.raises(TypeError):
+            StateRegistry.register(SensorState)  # pyright: ignore[reportCallIssue]
+
+    def test_register_explicit_none_domain_raises(self) -> None:
+        """Passing domain=None explicitly (not just omitting it) also raises."""
+        with pytest.raises(DomainRequiredError):
+            StateRegistry.register(SensorState, domain=None)  # pyright: ignore[reportArgumentType]
 
     def test_domain_override_replaces_built_in_class(self) -> None:
         """A subclass declaring the same Literal domain as a built-in replaces it in the
