@@ -6,7 +6,7 @@ from typing import NamedTuple
 
 from hassette_codegen.domain_data import ExtractedDomain
 from hassette_codegen.extractors.base_class import determine_base_class
-from hassette_codegen.extractors.constants import extract_sensor_constants
+from hassette_codegen.extractors.constants import extract_numeric_state_expected_source, extract_sensor_constants
 from hassette_codegen.extractors.features import extract_features, extract_strenum
 from hassette_codegen.extractors.properties import extract_properties
 from hassette_codegen.extractors.services import extract_services
@@ -182,6 +182,18 @@ def run_pipeline(
             # retained older copy as an orphan on the next full run.
             generated_files.add(rel_const)
 
+    sensor_init_py = ha_source.path / "homeassistant" / "components" / "sensor" / "__init__.py"
+    if check_mode and sensor_init_py.exists():
+        # Not a generated-file comparison — this guards the *hand-written* port in
+        # sensor_shapes.py against HA changing the logic it was ported from. The fixture test
+        # that pins hassette's own behavior can't see that; this can. Scoped to --check (what CI
+        # runs) so a plain `generate` run is never blocked by unrelated upstream drift, and
+        # scoped to sources that actually have a sensor component so synthetic single-domain
+        # test fixtures elsewhere in this suite are unaffected.
+        numeric_predicate_snapshot = repo_root / "codegen" / "snapshots" / "numeric_state_expected.py.txt"
+        if not _check_predicate_freshness(ha_source.path, numeric_predicate_snapshot):
+            any_drift = True
+
     for pkg_dir in (states_dir, entities_dir):
         init_content = generate_init_py(pkg_dir)
         init_path = pkg_dir / "__init__.py"
@@ -279,6 +291,48 @@ def _may_overwrite(out_path: Path, rel_path: Path, previous_manifest: set[Path],
         return True
 
     print(f"WARNING: Refusing to overwrite {rel_path}: exists and is not generator-owned", file=sys.stderr)
+    return False
+
+
+def _check_predicate_freshness(ha_core_path: Path, snapshot_path: Path) -> bool:
+    """Verify HA's ``_numeric_state_expected`` predicate source matches the committed snapshot.
+
+    The fixture test that pins hassette's ported behavior (``sensor_shapes.py``) proves hassette's
+    logic is stable; it cannot detect Home Assistant changing *their* logic underneath it. This is
+    the guard that can. A mismatch — including the extractor failing to find the function at all,
+    which means upstream renamed or restructured it — means the ported predicate needs
+    re-verification against the new upstream logic before a human updates the snapshot to match.
+    """
+    current_source = extract_numeric_state_expected_source(ha_core_path)
+    if current_source is None:
+        print(
+            "WARNING: Could not extract Home Assistant's `_numeric_state_expected` predicate for "
+            "the freshness check (function not found or source unreadable). The ported predicate "
+            "in src/hassette/models/states/sensor_shapes.py must be re-verified against upstream "
+            "before the snapshot is updated.",
+            file=sys.stderr,
+        )
+        return False
+
+    if not snapshot_path.exists():
+        print(
+            f"WARNING: {snapshot_path} does not exist. Cannot verify `_numeric_state_expected` "
+            "freshness; create it from the current upstream source.",
+            file=sys.stderr,
+        )
+        return False
+
+    committed_source = snapshot_path.read_text(encoding="utf-8")
+    if committed_source.strip() == current_source.strip():
+        return True
+
+    print(
+        f"WARNING: {snapshot_path} is out of date: Home Assistant's `_numeric_state_expected` "
+        "predicate has changed upstream. The ported predicate in "
+        "src/hassette/models/states/sensor_shapes.py must be re-verified against the new upstream "
+        "logic before updating the snapshot to match.",
+        file=sys.stderr,
+    )
     return False
 
 

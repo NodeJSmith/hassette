@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Generate NON_NUMERIC_DEVICE_CLASSES and pin HA's predicate source"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#11", "FR#17", "AC#7", "AC#15"]
 ---

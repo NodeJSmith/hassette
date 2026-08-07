@@ -65,6 +65,15 @@ DEVICE_CLASS = Literal[
     "wind_speed",
 ]
 
+NON_NUMERIC_DEVICE_CLASSES: frozenset[str] = frozenset(
+    {
+        "date",
+        "enum",
+        "timestamp",
+        "uptime",
+    }
+)
+
 STATE_CLASS = Literal[
     "measurement",
     "measurement_angle",

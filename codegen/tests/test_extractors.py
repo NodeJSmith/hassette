@@ -9,6 +9,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from hassette_codegen.extractors.base_class import determine_base_class
+from hassette_codegen.extractors.constants import _extract_enum_ref_set, extract_numeric_state_expected_source
 from hassette_codegen.extractors.features import extract_features
 from hassette_codegen.extractors.properties import extract_properties
 
@@ -93,3 +94,95 @@ class TestBaseClassDetermination:
     def test_climate_is_string(self) -> None:
         result = determine_base_class(_COMPONENTS / "climate" / "__init__.py")
         assert result == "StringBaseState"
+
+
+class TestEnumRefSetExtraction:
+    """``_extract_enum_ref_set`` handles a set of enum *attribute references*
+
+    (``{Color.RED, Color.GREEN}``), not string constants — the shape ``NON_NUMERIC_DEVICE_CLASSES``
+    is written in upstream, which ``_extract_strenum_members`` cannot parse.
+    """
+
+    def test_extracts_set_of_enum_attribute_refs(self, tmp_path: Path) -> None:
+        src = tmp_path / "const.py"
+        src.write_text(
+            "from enum import StrEnum\n\n\n"
+            "class Color(StrEnum):\n"
+            '    RED = "red"\n'
+            '    BLUE = "blue"\n'
+            '    GREEN = "green"\n\n\n'
+            "NON_PRIMARY = {Color.GREEN, Color.RED}\n",
+            encoding="utf-8",
+        )
+        values = _extract_enum_ref_set(src, "NON_PRIMARY", "Color")
+        assert set(values) == {"red", "green"}
+
+    def test_resolves_via_enum_value_not_lowercased_attribute_name(self, tmp_path: Path) -> None:
+        """A member whose value diverges from its lowercased name must still resolve correctly —
+
+        this is the failure mode of a naive ``member.attr.lower()`` shortcut.
+        """
+        src = tmp_path / "const.py"
+        src.write_text(
+            'from enum import StrEnum\n\n\nclass Weird(StrEnum):\n    FOO = "not_foo"\n\n\nTARGET = {Weird.FOO}\n',
+            encoding="utf-8",
+        )
+        values = _extract_enum_ref_set(src, "TARGET", "Weird")
+        assert values == ["not_foo"]
+
+    def test_missing_target_name_returns_empty(self, tmp_path: Path) -> None:
+        src = tmp_path / "const.py"
+        src.write_text("X = 1\n", encoding="utf-8")
+        assert _extract_enum_ref_set(src, "MISSING", "Whatever") == []
+
+    def test_syntax_error_returns_empty(self, tmp_path: Path) -> None:
+        src = tmp_path / "const.py"
+        src.write_text("def broken(:\n", encoding="utf-8")
+        assert _extract_enum_ref_set(src, "X", "Y") == []
+
+    @pytest.mark.skipif(not _HAS_HA_CORE, reason="HA core checkout not available")
+    def test_non_numeric_device_classes_against_real_ha_core(self) -> None:
+        sensor_const = _COMPONENTS / "sensor" / "const.py"
+        values = _extract_enum_ref_set(sensor_const, "NON_NUMERIC_DEVICE_CLASSES", "SensorDeviceClass")
+        # Declaration order in upstream const.py — a cross-check that the extractor resolved the
+        # right enum members rather than, say, every member.
+        assert values == ["date", "enum", "timestamp", "uptime"]
+
+
+class TestNumericStateExpectedSourceExtraction:
+    """``extract_numeric_state_expected_source`` feeds the drift guard in ``pipeline.py``."""
+
+    @pytest.mark.skipif(not _HAS_HA_CORE, reason="HA core checkout not available")
+    def test_extracts_module_level_function(self) -> None:
+        source = extract_numeric_state_expected_source(_HA_CORE)
+        assert source is not None
+        assert source.startswith("def _numeric_state_expected(")
+        assert "NON_NUMERIC_DEVICE_CLASSES" in source
+
+    def test_missing_file_returns_none(self, tmp_path: Path) -> None:
+        assert extract_numeric_state_expected_source(tmp_path) is None
+
+    def test_function_not_present_returns_none(self, tmp_path: Path) -> None:
+        sensor_dir = tmp_path / "homeassistant" / "components" / "sensor"
+        sensor_dir.mkdir(parents=True)
+        (sensor_dir / "__init__.py").write_text("def other_function():\n    pass\n", encoding="utf-8")
+        assert extract_numeric_state_expected_source(tmp_path) is None
+
+    def test_syntax_error_returns_none(self, tmp_path: Path) -> None:
+        sensor_dir = tmp_path / "homeassistant" / "components" / "sensor"
+        sensor_dir.mkdir(parents=True)
+        (sensor_dir / "__init__.py").write_text("def broken(:\n", encoding="utf-8")
+        assert extract_numeric_state_expected_source(tmp_path) is None
+
+    def test_ignores_same_named_nested_method(self, tmp_path: Path) -> None:
+        """Only the module-level function is matched — HA also has a same-named compat *method*
+
+        on the entity class, which must not be picked up instead.
+        """
+        sensor_dir = tmp_path / "homeassistant" / "components" / "sensor"
+        sensor_dir.mkdir(parents=True)
+        (sensor_dir / "__init__.py").write_text(
+            "class SensorEntity:\n    def _numeric_state_expected(self) -> bool:\n        return True\n",
+            encoding="utf-8",
+        )
+        assert extract_numeric_state_expected_source(tmp_path) is None
