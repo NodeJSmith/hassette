@@ -5,6 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.52.0](https://github.com/NodeJSmith/hassette/compare/v0.51.0...v0.52.0) (2026-08-07)
+
+
+### ⚠ BREAKING CHANGES
+
+* The CLI no longer sends the local instance's own credentials (`web_api.auth_token` / `HASSETTE__WEB_API__AUTH_TOKEN`, or the `<data_dir>/.web_api_token` file) to a non-loopback target. Previously, pointing the CLI at a remote host via `HASSETTE__WEB_API__HOST=<host>` silently transmitted the local instance's own credential to that host. A script or profile relying on this now either fails with a 401 or, against a target with `trusted_proxies` configured for it, keeps working with no credential sent at all. Configure a remote-target credential via `--token-file`, `cli.token_file`, or `HASSETTE__CLI__AUTH_TOKEN` instead. Separately, `hassette run`'s `--base-url` and `--url` flags are removed — use `--ha-url` (same `-u` short flag).
+* The web API now requires authentication by default — every `/api/*` route (except `GET /api/health/live`, `GET /api/health/ready`, and `POST /api/auth/session`) returns 401 without a valid bearer token, session cookie, or `trusted_proxies` match.
+    #### What changes for operators
+    - On first start after upgrading, hassette generates a token, logs it
+    once, and persists it to `<data_dir>/.web_api_token`. Retrieve it from
+    `docker logs` (or the token file) and paste it into the new login view,
+    or set `HASSETTE__WEB_API__AUTH_TOKEN` explicitly.
+    - CLI commands (`hassette status`, `hassette app`, etc.) now attach the
+    token automatically from the token file or
+    `HASSETTE__WEB_API__AUTH_TOKEN` — no action needed if running the CLI on
+    the same host/volume as the server.
+    - Operators fronting hassette with a forward-auth gateway (Authelia,
+    tinyauth+pocket-id, the HA add-on's ingress) should set
+    `trusted_proxies` to the gateway's address instead of managing a token.
+    - `cors_origins` may no longer contain `"*"` — config load now rejects
+    it, since `allow_credentials=True` is hardcoded.
+    - `GET /api/docs` and `/api/openapi.json` now require a credential like
+    every other `/api/*` route.
+    - Setting `auth_enabled=false` requires `host` to be a loopback address
+    (`127.0.0.1`/`localhost`) — hassette refuses to start otherwise.
+
+### Features
+
+* add CLI support for targeting a remote API URL ([#1529](https://github.com/NodeJSmith/hassette/issues/1529)) ([8c58ad3](https://github.com/NodeJSmith/hassette/commit/8c58ad3976bd5f9a0bf83b5595cbef38d9d01717)), closes [#1522](https://github.com/NodeJSmith/hassette/issues/1522)
+* automate external contributor attribution and GitHub Release sync ([#1509](https://github.com/NodeJSmith/hassette/issues/1509)) ([90aace9](https://github.com/NodeJSmith/hassette/commit/90aace9e9e23993732fe64e9a4cd6f1987b47690)), closes [#1508](https://github.com/NodeJSmith/hassette/issues/1508)
+* require authentication for the web API by default ([#1521](https://github.com/NodeJSmith/hassette/issues/1521)) ([02ae009](https://github.com/NodeJSmith/hassette/commit/02ae0098f2f8bac3417142bf8a7c325442eb35b0)), closes [#1117](https://github.com/NodeJSmith/hassette/issues/1117)
+
+
+### Bug Fixes
+
+* **codegen:** render Home Assistant strings as literals instead of raw source ([#1535](https://github.com/NodeJSmith/hassette/issues/1535)) ([a023892](https://github.com/NodeJSmith/hassette/commit/a0238927b77254f03df85c145859a393da744018))
+* **web:** bound request bodies and failed-auth accounting on the pre-auth path ([#1532](https://github.com/NodeJSmith/hassette/issues/1532)) ([cdf9400](https://github.com/NodeJSmith/hassette/commit/cdf940052acbcfa065fce147bf84255c888afe87))
+* **web:** mask secrets held inside config lists, tuples, and mappings ([#1534](https://github.com/NodeJSmith/hassette/issues/1534)) ([2bdbf11](https://github.com/NodeJSmith/hassette/commit/2bdbf11e34858103a30c17c8a72a6d20f2af1cea))
+* **web:** validate a presented bearer token even from a trusted peer ([#1531](https://github.com/NodeJSmith/hassette/issues/1531)) ([4a20fb9](https://github.com/NodeJSmith/hassette/commit/4a20fb953ffbd7babb8e5298e3c4f6401699b6c9)), closes [#1530](https://github.com/NodeJSmith/hassette/issues/1530)
+
 ## [0.51.0](https://github.com/NodeJSmith/hassette/compare/v0.50.0...v0.51.0) (2026-08-01)
 
 
