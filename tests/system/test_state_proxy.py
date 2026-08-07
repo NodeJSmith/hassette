@@ -34,7 +34,7 @@ async def test_initial_state_loaded(ha_container: str, tmp_path) -> None:
         state_proxy = hassette.state_proxy
         await wait_for_fresh_state_proxy(state_proxy)
         assert len(state_proxy.states) > 0
-        assert ENTITY in state_proxy
+        assert state_proxy.get_state(ENTITY) is not None
 
 
 async def test_state_change_propagates_to_proxy(ha_container: str, tmp_path) -> None:
