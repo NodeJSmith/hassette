@@ -182,14 +182,17 @@ def run_pipeline(
             # retained older copy as an orphan on the next full run.
             generated_files.add(rel_const)
 
-    sensor_init_py = ha_source.path / "homeassistant" / "components" / "sensor" / "__init__.py"
-    if check_mode and sensor_init_py.exists():
+    sensor_dir = ha_source.path / "homeassistant" / "components" / "sensor"
+    if check_mode and sensor_dir.is_dir():
         # Not a generated-file comparison — this guards the *hand-written* port in
         # sensor_shapes.py against HA changing the logic it was ported from. The fixture test
         # that pins hassette's own behavior can't see that; this can. Scoped to --check (what CI
         # runs) so a plain `generate` run is never blocked by unrelated upstream drift, and
         # scoped to sources that actually have a sensor component so synthetic single-domain
-        # test fixtures elsewhere in this suite are unaffected.
+        # test fixtures elsewhere in this suite are unaffected. Checking the directory rather than
+        # `__init__.py` specifically means a relocated/renamed predicate file still triggers the
+        # freshness check below, which then itself reports the missing predicate as drift instead
+        # of silently skipping the guard.
         numeric_predicate_snapshot = repo_root / "codegen" / "snapshots" / "numeric_state_expected.py.txt"
         if not _check_predicate_freshness(ha_source.path, numeric_predicate_snapshot):
             any_drift = True
@@ -322,7 +325,17 @@ def _check_predicate_freshness(ha_core_path: Path, snapshot_path: Path) -> bool:
         )
         return False
 
-    committed_source = snapshot_path.read_text(encoding="utf-8")
+    try:
+        committed_source = snapshot_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        print(
+            f"WARNING: Could not read {snapshot_path}: {exc}. Cannot verify "
+            "`_numeric_state_expected` freshness; the ported predicate in "
+            "src/hassette/models/states/sensor_shapes.py must be re-verified against upstream.",
+            file=sys.stderr,
+        )
+        return False
+
     if committed_source.strip() == current_source.strip():
         return True
 

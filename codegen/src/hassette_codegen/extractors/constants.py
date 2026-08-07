@@ -55,16 +55,16 @@ def extract_sensor_constants(ha_core_path: Path) -> list[ExtractedConstantSet]:
 
 
 def _parse_module_or_none(filepath: Path) -> ast.Module | None:
-    """Parse a Python source file into an AST module, tolerating a ``SyntaxError``.
+    """Parse a Python source file into an AST module, tolerating an unreadable file or a ``SyntaxError``.
 
     Shared by every extractor below: each reads an upstream Home Assistant source file that may
-    not parse (an unexpected format change, a partial checkout), and each must treat that as "no
-    members found" rather than propagate the exception.
+    be unreadable (permissions, a partial checkout) or fail to parse (an unexpected format
+    change), and each must treat that as "no members found" rather than propagate the exception.
     """
-    source = filepath.read_text(encoding="utf-8")
     try:
+        source = filepath.read_text(encoding="utf-8")
         return ast.parse(source, filename=str(filepath))
-    except SyntaxError:
+    except (OSError, SyntaxError):
         return None
 
 
@@ -162,7 +162,10 @@ def extract_numeric_state_expected_source(ha_core_path: Path) -> str | None:
     if tree is None:
         return None
 
-    source = init_py.read_text(encoding="utf-8")
+    try:
+        source = init_py.read_text(encoding="utf-8")
+    except OSError:
+        return None
 
     for node in tree.body:
         if isinstance(node, ast.FunctionDef) and node.name == _NUMERIC_STATE_EXPECTED_FUNC_NAME:
