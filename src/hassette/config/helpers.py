@@ -7,16 +7,15 @@ from pathlib import Path
 from typing import cast, get_args
 
 import platformdirs
-from packaging.version import Version
 
 from hassette import context
 from hassette.exceptions import HassetteNotInitializedError
 from hassette.types.types import LOG_LEVEL_TYPE
-from hassette.utils import get_version
+from hassette.utils import get_parsed_version
 
 LOG_LEVEL_VALUES = get_args(LOG_LEVEL_TYPE)
 
-VERSION = Version(get_version())
+VERSION = get_parsed_version()
 
 LOGGER = getLogger(__name__)
 
