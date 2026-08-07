@@ -9,12 +9,9 @@ Every end-to-end test generates a second, ordinary domain in the same run. Witho
 a test proving "the file was not overwritten" would also pass if the pipeline never ran at all.
 """
 
-import sys
 from pathlib import Path
 
 import pytest
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from hassette_codegen import pipeline
 from hassette_codegen.ha_source import DiscoveredDomain, HASource

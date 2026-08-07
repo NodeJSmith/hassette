@@ -1,20 +1,17 @@
 """Unit tests for AST extractors — features, properties, and base class."""
 
-import os
-import sys
 from pathlib import Path
 
 import pytest
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from hassette_codegen.extractors.base_class import determine_base_class
 from hassette_codegen.extractors.constants import _extract_enum_ref_set, extract_numeric_state_expected_source
 from hassette_codegen.extractors.features import extract_features
 from hassette_codegen.extractors.properties import extract_properties
 
-_HA_CORE = Path(os.environ.get("HA_CORE_PATH", "~/source/core")).expanduser()
-_HAS_HA_CORE = _HA_CORE.exists()
+from .conftest import HA_CORE as _HA_CORE
+from .conftest import HAS_HA_CORE as _HAS_HA_CORE
+
 _COMPONENTS = _HA_CORE / "homeassistant" / "components"
 
 

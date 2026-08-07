@@ -1,11 +1,8 @@
 """Unit tests for the TOML override system."""
 
-import sys
 from pathlib import Path
 
 import pytest
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from hassette_codegen.extractors.properties import ExtractedProperty
 from hassette_codegen.overrides import (
