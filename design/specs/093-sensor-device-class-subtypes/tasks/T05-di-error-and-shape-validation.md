@@ -1,7 +1,7 @@
 ---
 task_id: "T05"
 title: "Add legible DI conversion errors and shape validation"
-status: "planned"
+status: "done"
 depends_on: ["T04"]
 implements: ["FR#14", "FR#15", "AC#10", "AC#11"]
 ---

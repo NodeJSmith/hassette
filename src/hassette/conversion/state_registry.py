@@ -3,10 +3,14 @@ from collections.abc import Hashable
 from contextlib import suppress
 from logging import getLogger
 
+from pydantic import ValidationError
+
 from hassette.conversion.type_registry import TYPE_REGISTRY
 from hassette.exceptions import (
     InvalidDataForStateConversionError,
     InvalidEntityIdError,
+    SensorShapeMismatchError,
+    UnableToConvertAnnotatedStateError,
     UnableToConvertStateError,
     UnableToConvertValueError,
 )
@@ -20,6 +24,14 @@ from hassette.models.states.catalog import (
 )
 from hassette.models.states.catalog import (
     register_state_converter as register_state_converter,
+)
+from hassette.models.states.sensor_shapes import (
+    DateSensorState,
+    EnumSensorState,
+    NumericSensorState,
+    SensorShape,
+    TimestampSensorState,
+    classify_sensor_shape,
 )
 from hassette.utils.exception_utils import get_short_traceback
 
@@ -35,6 +47,18 @@ CONVERSION_FAIL_TEMPLATE = (
 )
 STATE_REPR_MAX_LENGTH = 200
 TRUNCATION_SUFFIX = "...[truncated]"
+
+NARROWED_SENSOR_SHAPES: dict[type[BaseState], SensorShape] = {
+    NumericSensorState: SensorShape.NUMERIC,
+    EnumSensorState: SensorShape.ENUM,
+    TimestampSensorState: SensorShape.TIMESTAMP,
+    DateSensorState: SensorShape.DATE,
+}
+"""Maps each of the four narrowed sensor shape classes to the shape it declares.
+
+Read by `convert_state_dict_to_model` to decide whether shape validation applies. A plain
+`SensorState` annotation is not a key here, so it makes no shape claim and is never checked.
+"""
 
 
 class StateRegistry:
@@ -213,7 +237,10 @@ def convert_state_dict_to_model(value: typing.Any, model: "type[BaseState]") -> 
 
     Applies the same preprocessing order as the old model validator: domain extraction,
     then unknown/unavailable normalization (setting state to None before coercion touches it),
-    then TYPE_REGISTRY.convert for the model's value_type.
+    then TYPE_REGISTRY.convert for the model's value_type. When `model` is one of the four
+    narrowed sensor shape classes, also validates that the entity's actual value shape matches the
+    shape `model` declares before attempting Pydantic validation, and wraps a validation failure in
+    a framework exception naming the entity.
 
     Args:
         value: The raw state dict from Home Assistant (or an already-validated model instance).
@@ -224,7 +251,9 @@ def convert_state_dict_to_model(value: typing.Any, model: "type[BaseState]") -> 
 
     Raises:
         TypeError: If value is not a dict or model instance.
-        ValidationError: If the state dict doesn't match the model schema.
+        SensorShapeMismatchError: If `model` is a narrowed sensor shape class and the entity's
+            actual value shape disagrees with the shape `model` declares.
+        UnableToConvertAnnotatedStateError: If Pydantic validation against `model` fails.
     """
     if isinstance(value, model):
         return value
@@ -238,6 +267,16 @@ def convert_state_dict_to_model(value: typing.Any, model: "type[BaseState]") -> 
     if entity_id:
         prepared["domain"] = str(entity_id).split(".", 1)[0]
 
+    entity_id_str = str(entity_id) if entity_id else "<unknown>"
+    attributes = prepared.get("attributes") or {}
+    device_class = attributes.get("device_class")
+
+    expected_shape = NARROWED_SENSOR_SHAPES.get(model)
+    if expected_shape is not None:
+        actual_shape = classify_sensor_shape(attributes)
+        if actual_shape is not SensorShape.UNKNOWN and actual_shape is not expected_shape:
+            raise SensorShapeMismatchError(entity_id_str, device_class, model)
+
     if "state" in prepared:
         state = prepared["state"]
         if state == "unknown":
@@ -250,4 +289,7 @@ def convert_state_dict_to_model(value: typing.Any, model: "type[BaseState]") -> 
         with suppress(UnableToConvertValueError):
             prepared["state"] = TYPE_REGISTRY.convert(state, model.value_type)
 
-    return model.model_validate(prepared)
+    try:
+        return model.model_validate(prepared)
+    except ValidationError as exc:
+        raise UnableToConvertAnnotatedStateError(entity_id_str, device_class, model) from exc

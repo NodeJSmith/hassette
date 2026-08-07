@@ -369,6 +369,53 @@ class UnableToConvertStateError(StateRegistryError):
         self.state_class = state_class
 
 
+class UnableToConvertAnnotatedStateError(StateRegistryError):
+    """Raised when a state dict fails Pydantic validation against a dependency-injection-annotated
+    state class.
+
+    Wraps the underlying ``pydantic.ValidationError`` (chained via ``raise ... from exc``) with a
+    message that names the entity, its actual device class, and the annotated class — legible where
+    a bare Pydantic error is not.
+
+    Distinct from :class:`UnableToConvertStateError`, which is raised by
+    ``StateRegistry.conversion_with_error_handling`` for the ``try_convert_state``/``self.states``
+    path. This one is raised directly by ``convert_state_dict_to_model``, which the dependency
+    injection annotation converter (``hassette.conversion.annotation_converter``) calls without
+    going through that wrapper — so without this error, a DI conversion failure surfaced a raw
+    Pydantic ``ValidationError`` with no entity context.
+    """
+
+    def __init__(self, entity_id: str, device_class: str | None, state_class: type["BaseState"]) -> None:
+        super().__init__(
+            f"Unable to convert state for entity_id '{entity_id}' (device_class: {device_class!r}) "
+            f"to annotated class {state_class.__name__}."
+        )
+        self.entity_id = entity_id
+        self.device_class = device_class
+        self.state_class = state_class
+
+
+class SensorShapeMismatchError(StateRegistryError):
+    """Raised when a dependency-injection-annotated narrowed sensor shape class does not match the
+    entity's actual value shape, even when coercion would otherwise succeed.
+
+    Only triggered for the four narrowed sensor shape classes (``NumericSensorState``,
+    ``EnumSensorState``, ``TimestampSensorState``, ``DateSensorState``) from
+    ``hassette.models.states.sensor_shapes`` — annotating plain ``SensorState`` makes no shape claim
+    and is never checked. An entity whose shape classifies as ``SensorShape.UNKNOWN`` contradicts no
+    claim and does not raise this error.
+    """
+
+    def __init__(self, entity_id: str, device_class: str | None, state_class: type["BaseState"]) -> None:
+        super().__init__(
+            f"Entity '{entity_id}' (device_class: {device_class!r}) does not match the value shape "
+            f"declared by annotated class {state_class.__name__}."
+        )
+        self.entity_id = entity_id
+        self.device_class = device_class
+        self.state_class = state_class
+
+
 class ConvertedTypeDoesNotMatchError(StateRegistryError):
     """Raised when a converted state does not match the expected type."""
 
