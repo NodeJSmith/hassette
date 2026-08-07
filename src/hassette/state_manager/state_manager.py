@@ -9,6 +9,7 @@ from hassette.conversion import STATE_REGISTRY, StateKey
 from hassette.exceptions import EntityNotInViewError, RegistryNotReadyError
 from hassette.models import states
 from hassette.models.states import BaseState
+from hassette.models.states.sensor_shapes import SensorShape, classify_sensor_shape
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
 from hassette.types import StateReader, StateT
@@ -24,6 +25,27 @@ LOGGER = getLogger(__name__)
 
 HOME_STATE = "home"
 """State value Home Assistant reports for a person or device_tracker that is home."""
+
+
+def _shape_predicate(shape: SensorShape) -> Callable[["HassStateDict"], bool]:
+    """Build a membership predicate for one of the four narrowed sensor-shape accessors.
+
+    Each predicate re-runs :func:`classify_sensor_shape` per access rather than caching a
+    result, so a runtime ``device_class`` change is picked up on the very next access — see
+    ``design/specs/093-sensor-device-class-subtypes/design.md`` Edge Cases, "device_class
+    changes at runtime."
+    """
+
+    def predicate(state: "HassStateDict") -> bool:
+        return classify_sensor_shape(state.get("attributes", {})) == shape
+
+    return predicate
+
+
+_NUMERIC_SENSOR_PREDICATE = _shape_predicate(SensorShape.NUMERIC)
+_ENUM_SENSOR_PREDICATE = _shape_predicate(SensorShape.ENUM)
+_TIMESTAMP_SENSOR_PREDICATE = _shape_predicate(SensorShape.TIMESTAMP)
+_DATE_SENSOR_PREDICATE = _shape_predicate(SensorShape.DATE)
 
 
 class CacheValue(Generic[StateT], NamedTuple):
@@ -249,13 +271,31 @@ class StateManager(Resource):
         """Access the underlying state proxy (as a StateReader) via the public, wiring-checked accessor."""
         return self.hassette.state_proxy
 
-    def _domain_states_for(self, state_class: type[BaseState]) -> "DomainStates[BaseState]":
-        """Get-or-create a DomainStates instance from the cache, keyed by state class."""
+    def _domain_states_for(
+        self,
+        state_class: type[StateT],
+        *,
+        domain: str | None = None,
+        predicate: Callable[["HassStateDict"], bool] | None = None,
+    ) -> "DomainStates[StateT]":
+        """Get-or-create a DomainStates instance from the cache, keyed by state class.
+
+        ``domain`` and ``predicate`` are only consulted the first time a given ``state_class``
+        is requested — the cached instance is reused on every subsequent call, so a caller must
+        pass the same values for a given class every time (both ``__getattr__`` and the four
+        sensor-shape accessors below do).
+
+        The cache itself is keyed and valued at the erased ``BaseState`` level, so the lookup's
+        static type is widened back to ``DomainStates[BaseState]``; the ``cast`` back to
+        ``DomainStates[StateT]`` restates the invariant every caller already relies on — the
+        cache is keyed by ``state_class``, so a lookup for ``state_class`` always returns a
+        ``DomainStates`` constructed from that exact class.
+        """
         cached = self._domain_states_cache.get(state_class)
         if cached is None:
-            cached = self[state_class]
+            cached = DomainStates(self._state_proxy, state_class, domain=domain, predicate=predicate)
             self._domain_states_cache[state_class] = cached
-        return cached
+        return typing.cast("DomainStates[StateT]", cached)
 
     def __getattr__(self, domain: str) -> "DomainStates[BaseState]":
         """Dynamically access domain states by property name.
@@ -306,6 +346,51 @@ class StateManager(Resource):
             )
 
         return self._domain_states_for(state_class)
+
+    @property
+    def numeric_sensor(self) -> "DomainStates[states.NumericSensorState]":
+        """Sensors whose value is a number — see :class:`hassette.models.states.NumericSensorState`.
+
+        A filtered view over ``self.states.sensor``, not a separate domain: the same entities
+        are reachable from both, with ``value`` typed ``str | None`` there and ``float | None``
+        here. Membership requires both a matching shape and a value that actually converts —
+        see :func:`hassette.models.states.sensor_shapes.classify_sensor_shape`.
+        """
+        return self._domain_states_for(states.NumericSensorState, domain="sensor", predicate=_NUMERIC_SENSOR_PREDICATE)
+
+    @property
+    def enum_sensor(self) -> "DomainStates[states.EnumSensorState]":
+        """Sensors whose value is one of a fixed set of options — see
+        :class:`hassette.models.states.EnumSensorState`.
+
+        A filtered view over ``self.states.sensor``; see :attr:`numeric_sensor` for the
+        view/projection contract shared by all four narrowed sensor accessors.
+        """
+        return self._domain_states_for(states.EnumSensorState, domain="sensor", predicate=_ENUM_SENSOR_PREDICATE)
+
+    @property
+    def timestamp_sensor(self) -> "DomainStates[states.TimestampSensorState]":
+        """Sensors whose value is a timezone-aware point in time — see
+        :class:`hassette.models.states.TimestampSensorState`.
+
+        Includes both ``device_class: timestamp`` and ``device_class: uptime`` sensors; there is
+        no separate uptime accessor. A filtered view over ``self.states.sensor``; see
+        :attr:`numeric_sensor` for the view/projection contract shared by all four narrowed
+        sensor accessors.
+        """
+        return self._domain_states_for(
+            states.TimestampSensorState, domain="sensor", predicate=_TIMESTAMP_SENSOR_PREDICATE
+        )
+
+    @property
+    def date_sensor(self) -> "DomainStates[states.DateSensorState]":
+        """Sensors whose value is a calendar date — see
+        :class:`hassette.models.states.DateSensorState`.
+
+        A filtered view over ``self.states.sensor``; see :attr:`numeric_sensor` for the
+        view/projection contract shared by all four narrowed sensor accessors.
+        """
+        return self._domain_states_for(states.DateSensorState, domain="sensor", predicate=_DATE_SENSOR_PREDICATE)
 
     def __getitem__(self, model: type[StateT]) -> DomainStates[StateT]:
         """Access domain states using the indexing syntax. This is required if you need

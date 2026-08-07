@@ -74,6 +74,15 @@ class BaseState(BaseModel, Generic[StateValueT]):
     value_type: ClassVar[type | tuple[type, ...]] = (str, type(None))
     """The Python type of the state value, e.g. bool for BinarySensorState."""
 
+    accessor_hint: ClassVar[str | None] = None
+    """Optional name of a dedicated ``StateManager`` accessor for this class, e.g.
+    ``"numeric_sensor"``. Read by :meth:`get_domain`'s raise path so
+    :class:`~hassette.exceptions.NoDomainAnnotationError` can point at the intended access path
+    instead of only the generic message. ``None`` for every class except the four narrowed
+    sensor-shape classes in ``models/states/sensor_shapes.py``, which deliberately do not
+    re-declare ``domain`` and so always hit this raise path via ``self.states[<class>]``.
+    """
+
     domain: str
     """The domain of the entity, e.g. 'light', 'sensor', etc."""
 
@@ -200,20 +209,20 @@ class BaseState(BaseModel, Generic[StateValueT]):
         fields = cls.model_fields
         domain_field = fields.get("domain")
         if not domain_field:
-            raise NoDomainAnnotationError(cls)
+            raise NoDomainAnnotationError(cls, accessor_hint=cls.accessor_hint)
 
         annotations = get_annotations(cls)
         annotation = annotations.get("domain")
         if annotation is None:
-            raise NoDomainAnnotationError(cls)
+            raise NoDomainAnnotationError(cls, accessor_hint=cls.accessor_hint)
 
         args = get_args(annotation)
         if not args:
-            raise NoDomainAnnotationError(cls)
+            raise NoDomainAnnotationError(cls, accessor_hint=cls.accessor_hint)
 
         domain = args[0]
         if not isinstance(domain, str):
-            raise NoDomainAnnotationError(cls)
+            raise NoDomainAnnotationError(cls, accessor_hint=cls.accessor_hint)
 
         return domain
 

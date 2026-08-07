@@ -67,7 +67,13 @@ class NumericSensorState(SensorState):
     sensor carrying a `state_class` or `unit_of_measurement`, or a `device_class` outside
     :data:`hassette.const.sensor.NON_NUMERIC_DEVICE_CLASSES`. See
     :func:`classify_sensor_shape` for the exact rule.
+
+    `self.states[NumericSensorState]` is unsupported — this class deliberately does not
+    re-declare `domain` (see module docstring), so generic indexing raises
+    `NoDomainAnnotationError`. Use `self.states.numeric_sensor` instead.
     """
+
+    accessor_hint: ClassVar[str | None] = "numeric_sensor"
 
     value_type: ClassVar[type[Any] | tuple[type[Any], ...]] = (float, type(None))
 
@@ -80,7 +86,13 @@ class EnumSensorState(SensorState):
 
     Applies to sensors with `device_class: enum`. The valid options, when the integration
     reports them, are on `attributes.options` (`SensorAttributes.options`).
+
+    `self.states[EnumSensorState]` is unsupported — this class deliberately does not
+    re-declare `domain` (see module docstring), so generic indexing raises
+    `NoDomainAnnotationError`. Use `self.states.enum_sensor` instead.
     """
+
+    accessor_hint: ClassVar[str | None] = "enum_sensor"
 
     value_type: ClassVar[type[Any] | tuple[type[Any], ...]] = (str, type(None))
 
@@ -95,7 +107,13 @@ class TimestampSensorState(SensorState):
     renders both through the identical branch of its own `state` property
     (`sensor/__init__.py:657-674`) — `uptime` differs only by a drift-normalization step
     that does not change the value's type, so there is no separate uptime class.
+
+    `self.states[TimestampSensorState]` is unsupported — this class deliberately does not
+    re-declare `domain` (see module docstring), so generic indexing raises
+    `NoDomainAnnotationError`. Use `self.states.timestamp_sensor` instead.
     """
+
+    accessor_hint: ClassVar[str | None] = "timestamp_sensor"
 
     value_type: ClassVar[type[Any] | tuple[type[Any], ...]] = (ZonedDateTime, type(None))
 
@@ -107,7 +125,13 @@ class DateSensorState(SensorState):
     """A sensor whose value is a calendar date with no time component.
 
     Applies to sensors with `device_class: date`.
+
+    `self.states[DateSensorState]` is unsupported — this class deliberately does not
+    re-declare `domain` (see module docstring), so generic indexing raises
+    `NoDomainAnnotationError`. Use `self.states.date_sensor` instead.
     """
+
+    accessor_hint: ClassVar[str | None] = "date_sensor"
 
     value_type: ClassVar[type[Any] | tuple[type[Any], ...]] = (Date, type(None))
 

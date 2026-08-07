@@ -331,13 +331,20 @@ class NoDomainAnnotationError(StateRegistryError):
 
     Generally ignored, this indicates that the class is a base class and not intended to be registered.
 
+    A class may optionally set :attr:`~hassette.models.states.base.BaseState.accessor_hint` to name
+    a dedicated ``StateManager`` accessor that exists for exactly this case — e.g. the four narrowed
+    sensor-shape classes in ``models/states/sensor_shapes.py``, which deliberately do not re-declare
+    ``domain`` and so always hit this error via ``self.states[<class>]``. When set, the hint is
+    appended to the message; every other state class has no hint and keeps the plain message.
     """
 
-    def __init__(self, state_class: type["BaseState[Any]"]) -> None:
-        super().__init__(
-            f"State class {state_class.__name__} does not define a domain annotation or the annotation is empty."
-        )
+    def __init__(self, state_class: type["BaseState[Any]"], accessor_hint: str | None = None) -> None:
+        msg = f"State class {state_class.__name__} does not define a domain annotation or the annotation is empty."
+        if accessor_hint is not None:
+            msg += f" Use self.states.{accessor_hint} instead."
+        super().__init__(msg)
         self.state_class = state_class
+        self.accessor_hint = accessor_hint
 
 
 class DomainNotFoundError(StateRegistryError):

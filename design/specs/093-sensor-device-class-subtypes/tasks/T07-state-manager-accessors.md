@@ -1,7 +1,7 @@
 ---
 task_id: "T07"
 title: "Add the four narrowed sensor accessors to StateManager"
-status: "planned"
+status: "done"
 depends_on: ["T06"]
 implements: ["FR#5", "AC#17"]
 ---
