@@ -298,7 +298,7 @@ So the honest grading is:
 | Disconnect signal exists | Yes | Yes |
 | Signal quality / latency | TCP + aiohttp heartbeat (30s, `websocket_service.py:457-459`) | TCP + whatever the client sets |
 | Who writes it | **HA's framework, free** | The integration (~40 lines) |
-| Recovery bound | hassette's own loop, ≤60s | HA config-entry backoff, ≤600s |
+| Retry cadence | early-drop backoff caps at 60s/attempt, up to 300s (`max_recovery_seconds`) before restart budget governs further attempts | config-entry backoff caps at 600s/attempt, retries indefinitely |
 | Failure domains | **One** | **Two** |
 
 **T1's liveness advantage is that it is free and that it collapses two failure domains into one —
@@ -370,7 +370,8 @@ hassette cannot reach HA, entity state has nothing behind it.
 - **Zero user configuration in every topology**, not just the discoverable ones.
 - **One failure domain** (§1, ground 3).
 - **Free liveness plumbing** (§2.2).
-- **Faster recovery bound** (60s vs 600s).
+- **Faster retry cadence** (60s vs 600s per-attempt backoff cap — neither is a total recovery
+  bound; see §2.5's table).
 
 ---
 
@@ -717,7 +718,8 @@ Keep custom `hassette/*` WS commands over hassette's existing HA connection. Sep
 - Zero user configuration in all four topologies — including (c), the one Jessica runs and the one
   where T3 has a documented, unsolved block.
 - One failure domain. Entity availability and framework availability stay the same fact.
-- Faster recovery bound (hassette's ≤60s vs HA's ≤600s).
+- Faster retry cadence (hassette's 60s vs HA's 600s per-attempt backoff cap — neither is a
+  total recovery bound).
 - Liveness plumbing is free and verified working in production integrations.
 - Nothing new lands in the high-churn `web/` layer.
 - The packaging goal is achieved anyway, on its own schedule.
@@ -755,7 +757,8 @@ URL + token + verify-SSL config flow, auto-populated via Supervisor discovery in
   `QueueFull` → **drop** behavior is disqualifying for entity commands.
 - New surface lands in a high-churn directory.
 - Conflates an operator/admin API with a runtime data API behind one credential.
-- Recovery bound grows to 10 minutes after a longer hassette outage.
+- Retry-delay cadence grows to 10 minutes per attempt after a longer hassette outage (HA
+  retries indefinitely at that cadence — not a bounded recovery time).
 - Requires inbound network exposure of hassette from HA — a decision that does not exist today.
 
 **Effort estimate**: Medium design + Medium extra implementation vs Option A. The epic's dominant
@@ -904,9 +907,11 @@ None of those is true today.
 
 ### Suggested next steps
 
-1. **Record the reaffirmation** — a short superseding note or an amendment when ADR-0004 is next
-   touched, correcting ground 3 to "a second failure domain" and narrowing "no capability the
-   chosen design lacks" to acknowledge the admin-token difference. *(Not done here by instruction.)*
+1. **Record the reaffirmation** — correct ground 3 to "a second failure domain" and narrow "no
+   capability the chosen design lacks" to acknowledge the admin-token difference. *(This brief's
+   own scope excluded touching the ADR during drafting; after review, applying the reaffirmation
+   directly to `design/adrs/0004-companion-integration-transport.md` was made a deliberate
+   follow-up decision within this same PR, superseding that drafting-time constraint.)*
 2. **Fix D4 in `design/research/2026-07-07-companion-integration-architecture/research.md`**
    (lines 31, 178-179) — replace the "HA pins its own pydantic" rationale with the verified facts,
    and state the range-not-pin rule. Do this before `prereq-03` starts.

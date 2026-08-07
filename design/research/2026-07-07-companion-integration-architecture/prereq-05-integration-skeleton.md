@@ -8,9 +8,12 @@ exists.
 ## Scope
 
 - Repo scaffold: `custom_components/hassette/` with `manifest.json` (domain `hassette`,
-  `iot_class: local_push`, `requirements: ["hassette-protocol>=1,<2"]` — a **range**, never
-  `==`; an exact pin that misses HA's own constraint is a hard install failure, HA issue
-  #173019), `hacs.json` with minimum-HA pin, README, license.
+  `iot_class: local_push`, `requirements: ["hassette-protocol==…"]` — an **exact pin**, per
+  `prereq-03-protocol-package.md:25`'s release-automation plan (both consumers pin). HA issue
+  #173019's "range, never pin" lesson applies to a *shared, HA-constrained* transitive
+  dependency like pydantic — not to `hassette-protocol`, a zero-dependency package this repo
+  controls directly and HA does not centrally constrain), `hacs.json` with minimum-HA pin,
+  README, license.
 - Single zero-config `config_flow` entry (one entry, no fields; abort on second).
 - WS command registration: `hassette/handshake` (protocol version exchange, hub device
   creation per `instance_id`, takeover semantics for a reconnecting instance id) and
