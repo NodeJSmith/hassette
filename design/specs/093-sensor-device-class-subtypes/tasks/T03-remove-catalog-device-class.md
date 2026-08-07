@@ -24,7 +24,7 @@ public writers. `StateKey` itself stays, as a one-field frozen dataclass.
 - read: `src/hassette/state_manager/state_manager.py`
 - read: `src/hassette/state_manager/state_manager.pyi`
 - modify: `tests/unit/conversion/test_registry_validation.py`
-- modify: `tests/unit/models/test_state_catalog.py`
+- read: `tests/unit/models/test_state_catalog.py`
 - read: `docs/pages/core-concepts/states/conversion.md`
 
 ## Prompt

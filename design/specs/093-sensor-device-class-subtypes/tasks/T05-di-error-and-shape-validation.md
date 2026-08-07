@@ -23,7 +23,7 @@ computes.
 - create: `tests/unit/conversion/test_di_shape_validation.py`
 - read: `src/hassette/models/states/sensor_shapes.py`
 - read: `src/hassette/event_handling/dependencies.py`
-- read: `src/hassette/event_handling/annotation_converter.py`
+- read: `src/hassette/conversion/annotation_converter.py`
 - read: `tests/unit/conversion/test_custom_conversion.py`
 
 ## Prompt
@@ -97,7 +97,8 @@ values. Its permissive fallback-to-string behavior is a known, separately-tracke
 entities have `value is None` and must not trip shape validation.
 
 **The device-class-flip case resolves here.** `D.TypedStateChangeEvent[X]` applies the same class to
-both `old_state` and `new_state` (`annotation_converter.py:180-181`). When an event straddles a
+both `old_state` and `new_state` (`src/hassette/conversion/annotation_converter.py:180-181` — note
+this module is under `conversion/`, not `event_handling/`). When an event straddles a
 runtime device-class change, the mismatched half fails this validation and the handler raises.
 That is the intended behavior — there is no fallback to `SensorState` for one half, because a
 half-narrowed event would be a type lie. No special-casing is needed; just do not add an escape
