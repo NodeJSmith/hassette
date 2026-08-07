@@ -271,6 +271,29 @@ class AppWithBasicConfig:
     app_config_cls = BasicAppConfig
 
 
+class SecretHolder(BaseModel):
+    """Nested sub-model carrying a secret, used as a list element."""
+
+    label: str = "unnamed"
+    token: SecretStr
+
+
+class ContainerSecretConfig(BaseModel):
+    """Stub app config holding secrets inside containers rather than as scalar fields.
+
+    An app author's third-party credentials commonly land in a list or mapping rather than
+    a single field. Each of these maps to a different JSON-schema key.
+    """
+
+    api_keys: list[SecretStr] = []
+    creds: dict[str, SecretStr] = {}
+    holders: list[SecretHolder] = []
+
+
+class AppWithContainerSecrets:
+    app_config_cls = ContainerSecretConfig
+
+
 class TestAppConfigTypeDrivenMasking:
     """Tests for type-driven masking on the app config endpoint.
 
@@ -324,6 +347,82 @@ class TestAppConfigTypeDrivenMasking:
         response = await client.get("/api/apps/my_app/config")
 
         assert "super-secret-value-12345" not in response.text
+
+
+class TestAppConfigContainerMasking:
+    """Secrets held inside containers are masked in the response, not just in ``mask_values``.
+
+    A unit test proves the masking function; these prove the bytes that leave the endpoint.
+    ``config_toml`` is rendered from the already-masked values, so asserting on the full
+    response body covers the JSON and TOML surfaces together.
+    """
+
+    async def test_list_of_secrets_masked_in_response(self, client, mock_hassette) -> None:
+        """api_keys: list[SecretStr] is masked element-wise."""
+        manifest = make_manifest_mock(
+            app_key="my_app",
+            app_config={"api_keys": ["first-plaintext", "second-plaintext"]},
+        )
+        mock_hassette._app_handler.registry.get_manifest.return_value = manifest
+        mock_hassette._app_handler.registry.get.return_value = AppWithContainerSecrets()
+
+        response = await client.get("/api/apps/my_app/config")
+
+        assert response.status_code == 200
+        assert response.json()["app_config"]["api_keys"] == [MASK_SENTINEL, MASK_SENTINEL]
+
+    async def test_dict_of_secrets_masked_in_response(self, client, mock_hassette) -> None:
+        """creds: dict[str, SecretStr] is masked by value, keys preserved."""
+        manifest = make_manifest_mock(
+            app_key="my_app",
+            app_config={"creds": {"prod": "prod-plaintext", "dev": "dev-plaintext"}},
+        )
+        mock_hassette._app_handler.registry.get_manifest.return_value = manifest
+        mock_hassette._app_handler.registry.get.return_value = AppWithContainerSecrets()
+
+        response = await client.get("/api/apps/my_app/config")
+
+        assert response.status_code == 200
+        assert response.json()["app_config"]["creds"] == {"prod": MASK_SENTINEL, "dev": MASK_SENTINEL}
+
+    async def test_secret_in_listed_model_masked_in_response(self, client, mock_hassette) -> None:
+        """A secret on a model nested under a list is masked; its plain sibling is not."""
+        manifest = make_manifest_mock(
+            app_key="my_app",
+            app_config={"holders": [{"label": "broker", "token": "broker-plaintext"}]},
+        )
+        mock_hassette._app_handler.registry.get_manifest.return_value = manifest
+        mock_hassette._app_handler.registry.get.return_value = AppWithContainerSecrets()
+
+        response = await client.get("/api/apps/my_app/config")
+
+        assert response.status_code == 200
+        holder = response.json()["app_config"]["holders"][0]
+        assert holder["token"] == MASK_SENTINEL
+        assert holder["label"] == "broker"
+
+    async def test_container_plaintext_never_appears_in_response_body(self, client, mock_hassette) -> None:
+        """No container-held plaintext survives anywhere in the body, TOML rendering included."""
+        manifest = make_manifest_mock(
+            app_key="my_app",
+            app_config={
+                "api_keys": ["listed-secret-12345"],
+                "creds": {"prod": "mapped-secret-67890"},
+                "holders": [{"label": "broker", "token": "nested-secret-abcde"}],
+            },
+        )
+        mock_hassette._app_handler.registry.get_manifest.return_value = manifest
+        mock_hassette._app_handler.registry.get.return_value = AppWithContainerSecrets()
+
+        response = await client.get("/api/apps/my_app/config")
+
+        assert "listed-secret-12345" not in response.text
+        assert "mapped-secret-67890" not in response.text
+        assert "nested-secret-abcde" not in response.text
+        # The TOML surface is rendered from the same masked values, so it is covered above --
+        # parse it anyway to prove the masked value is what actually reaches the rendering.
+        parsed = tomllib.loads(response.json()["config_toml"])
+        assert parsed["hassette"]["apps"]["my_app"]["config"]["api_keys"] == [MASK_SENTINEL]
 
 
 class TestSchemaDeref:

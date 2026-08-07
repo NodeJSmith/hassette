@@ -11,7 +11,7 @@ from logging import getLogger
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, SecretStr, field_validator, model_validator
 
 from hassette.config.classes import AppManifest, ExcludeExtrasMixin
 from hassette.config.defaults import AUTODETECT_EXCLUDE_DIRS_DEFAULT
@@ -357,6 +357,77 @@ class WebApiConfig(ExcludeExtrasMixin, BaseModel):
     job_history_size: int = Field(default=1000)
     """Maximum number of job execution records to keep."""
 
+    auth_enabled: bool = Field(default=True, json_schema_extra={"ui": {"label": "Auth Enabled"}})
+    """Whether the web API requires a credential before serving any ``/api/*`` route.
+
+    A valid ``Authorization: Bearer <token>`` header, a valid session cookie, or a request whose
+    peer matches ``trusted_proxies`` all satisfy this check. ``GET /api/health/live``,
+    ``GET /api/health/ready``, and ``POST /api/auth/session`` are always reachable regardless of
+    this setting. Defaults to ``True`` so a fresh install is protected with zero configuration.
+
+    Disabling this requires ``host`` to be a loopback address — Hassette refuses to start with
+    ``auth_enabled=False`` on a non-loopback ``host``, since that combination would serve an
+    unauthenticated API to any network peer that can reach the port."""
+
+    auth_token: SecretStr | None = Field(default=None, json_schema_extra={"ui": {"label": "Auth Token"}})
+    """Bearer token / session-cookie credential for the web API.
+
+    Stored as a :class:`~pydantic.SecretStr` so the value is masked in logs, string
+    representations, and the ``GET /api/config`` response. Unwrap with
+    ``auth_token.get_secret_value()`` only at the point of use (comparing the ``Authorization``
+    header, minting a session cookie).
+
+    When ``None`` at startup, ``WebApiService`` resolves one in this order: an existing
+    ``<data_dir>/.web_api_token`` file, or a freshly generated ``secrets.token_urlsafe(32)``
+    value written there. This field carries either an explicit operator-configured value or the
+    value resolved during startup — it is not itself responsible for token generation."""
+
+    trusted_proxies: tuple[str, ...] = Field(default=(), json_schema_extra={"ui": {"label": "Trusted Proxies"}})
+    """Peer addresses that need no credential of their own.
+
+    Each entry is an IP, CIDR, or hostname compared against the raw ASGI ``scope["client"]`` peer
+    address — never ``X-Forwarded-For`` or any other client-suppliable header. Intended for a
+    forward-auth gateway sitting in front of Hassette (a Home Assistant add-on's ingress, or a
+    self-managed reverse proxy with its own login) so that gateway's own authentication can stand
+    in for Hassette's. Hostname entries are resolved via DNS at startup and re-resolved
+    periodically; entry parsing and matching are implemented separately from this field
+    declaration.
+
+    A matching peer skips the bearer-token/session-cookie check only for requests that send no
+    ``Authorization`` header. A request carrying that header is validated against ``auth_token``
+    regardless of its peer, and a wrong or malformed header is rejected rather than falling back to
+    this list — so one host can serve gateway-authenticated browsers and token-authenticated API
+    clients at the same time."""
+
+    session_ttl: int = Field(default=3600, gt=0, json_schema_extra={"ui": {"label": "Session TTL (seconds)"}})
+    """Maximum lifetime, in seconds, of a single session cookie *value* — not of a working session.
+
+    A cookie whose remaining lifetime has fallen below half of this TTL is replaced with a
+    freshly minted cookie on the next request it authenticates (sliding renewal), so an actively
+    used dashboard is never interrupted mid-session. This is the only revocation lever in the
+    design: a leaked cookie stops working within ``session_ttl`` seconds of the moment it was
+    minted, without requiring the operator to rotate ``auth_token`` (which would invalidate every
+    session and script at once)."""
+
+    @field_validator("cors_origins")
+    @classmethod
+    def reject_wildcard_cors_origin(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        """Reject a wildcard CORS origin.
+
+        ``CORSMiddleware`` is registered with ``allow_credentials=True`` as a hardcoded argument
+        (``web/app.py``), not a configurable field. Combined with ``cors_origins=("*",)``, that
+        would let any site make credentialed requests against the web API. This validator closes
+        that misconfiguration at config load rather than leaving Starlette to reject it at
+        request time with a confusing error.
+        """
+        if "*" in value:
+            raise ValueError(
+                'cors_origins may not contain "*" — combined with allow_credentials=True '
+                "(hardcoded in web/app.py), a wildcard origin would allow any site to make "
+                "credentialed requests against the web API."
+            )
+        return value
+
 
 class AppsConfig(ExcludeExtrasMixin, BaseModel):
     """App directory, auto-detection, exclusion, manifest, and raw-app-dict settings.
@@ -528,3 +599,31 @@ class BlockingIODetectionConfig(ExcludeExtrasMixin, BaseModel):
     When True, Tier 2 call-site interception is active even when ``dev_mode`` is False,
     regardless of ``deep_detection_enabled``. Mirrors ``allow_reload_in_prod`` semantics.
     Defaults to False."""
+
+
+class CliConfig(ExcludeExtrasMixin, BaseModel):
+    """CLI client connect target, TLS, and credential settings."""
+
+    # Group label on the model's own config — see WebApiConfig above for why this can't go on
+    # the field reference in HassetteConfig (deref drops `$ref` sibling keys).
+    model_config = ConfigDict(json_schema_extra={"ui": {"group_label": "CLI"}})
+
+    server_url: str | None = Field(default=None, json_schema_extra={"ui": {"label": "Server URL"}})
+    """Full base URL (scheme, host, port, and optional path prefix) of the Hassette instance the
+    CLI connects to. When unset, the CLI derives its target from ``web_api.host``/``web_api.port``."""
+
+    verify_ssl: bool = Field(default=True, json_schema_extra={"ui": {"label": "Verify SSL"}})
+    """Whether to verify TLS certificates when connecting to a ``https://`` server_url. Disable for
+    a self-signed deployment."""
+
+    token_file: Path | None = Field(default=None, json_schema_extra={"ui": {"label": "Token File"}})
+    """Path to a file containing the bearer credential for the target Hassette instance. Applies
+    to any target, unlike the loopback-only ``<data_dir>/.web_api_token`` fallback."""
+
+    auth_token: SecretStr | None = Field(default=None, json_schema_extra={"ui": {"label": "Auth Token"}})
+    """Bearer credential for the target Hassette instance.
+
+    Stored as a :class:`~pydantic.SecretStr` so the value is masked in logs, string
+    representations, and the ``GET /api/config`` response. Unwrap with
+    ``auth_token.get_secret_value()`` only at the point of use. Applies to any target, unlike
+    ``web_api.auth_token`` which is scoped to the local instance only."""

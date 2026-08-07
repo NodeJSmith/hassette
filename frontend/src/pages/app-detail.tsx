@@ -6,6 +6,7 @@ import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 
 import { getAppJobs, getAppListeners } from "../api/endpoints";
+import type { WsExecutionCompletedPayload } from "../api/ws-types";
 import { AppDetailHeader } from "../components/app-detail/app-detail-header";
 import { AppLogsPanel } from "../components/app-detail/app-logs-panel";
 import { CodeTab } from "../components/app-detail/code-tab";
@@ -86,6 +87,28 @@ function TabPanel({ id, children, className }: { id: TabId; children: ReactNode;
   );
 }
 
+/**
+ * Pick this app's first execution completion of `kind` out of the latest WS batch.
+ *
+ * Selecting the matching record rather than the whole `executionCompleted` batch is what keeps
+ * this page off the fleet-wide render path: a batch carrying only other apps' executions selects
+ * to `undefined`, which is `Object.is`-equal to the previous `undefined`, so the store never
+ * notifies. The record itself is a fresh object per batch, so consecutive own-app completions do
+ * each register as a change.
+ *
+ * One case still costs a render: the batch immediately after this app's own completion selects
+ * back to `undefined`, which is *not* `Object.is`-equal to the previous matched record, so one
+ * extra render fires even if that next batch has nothing to do with this app. Bounded to exactly
+ * one render per own completion — steady-state unrelated activity stays undefined-to-undefined.
+ */
+function findExecution(
+  events: WsExecutionCompletedPayload[] | null,
+  appKey: string,
+  kind: "handler" | "job",
+): WsExecutionCompletedPayload | undefined {
+  return events?.find((e) => e.kind === kind && e.app_key === appKey);
+}
+
 function handleTabKeyDown(e: ReactKeyboardEvent) {
   if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
   e.preventDefault();
@@ -99,8 +122,8 @@ function handleTabKeyDown(e: ReactKeyboardEvent) {
 export function AppDetailPage({ params }: Props) {
   const appKey = params.key;
   const activeTab: TabId = params.tab ?? "overview";
-  const appStatus = useAppStore((s) => s.appStatus);
-  const executionCompleted = useAppStore((s) => s.executionCompleted);
+  const handlerExecution = useAppStore((s) => findExecution(s.executionCompleted, appKey, "handler"));
+  const jobExecution = useAppStore((s) => findExecution(s.executionCompleted, appKey, "job"));
   const { data: manifest, isPending: manifestLoading, error: manifestError } = useManifest(appKey);
   const [, navigate] = useLocation();
   const queryParams = useQueryParams();
@@ -131,16 +154,11 @@ export function AppDetailPage({ params }: Props) {
     { placeholderData: keepPreviousData },
   );
 
-  useQueryInvalidator(
-    executionCompleted,
-    (events) => events?.some((e) => e.kind === "handler" && e.app_key === appKey) ?? false,
-    queryKeys.appListeners.prefix(appKey),
-  );
-  useQueryInvalidator(
-    executionCompleted,
-    (events) => events?.some((e) => e.kind === "job" && e.app_key === appKey) ?? false,
-    queryKeys.appJobs.prefix(appKey),
-  );
+  // Sibling call sites filter the raw fleet-wide batch with `events?.some(...)`; findExecution
+  // above already reduced this to a single matched-or-undefined record, so the filter here only
+  // needs to check definedness.
+  useQueryInvalidator(handlerExecution, (exec) => exec !== undefined, queryKeys.appListeners.prefix(appKey));
+  useQueryInvalidator(jobExecution, (exec) => exec !== undefined, queryKeys.appJobs.prefix(appKey));
 
   const displayListeners = listenersData ?? [];
   const displayJobs = jobsData ?? [];
@@ -153,16 +171,15 @@ export function AppDetailPage({ params }: Props) {
   const currentInstance = !showParentOverview
     ? manifest?.instances?.find((i) => i.index === resolvedInstanceIndex)
     : undefined;
-  const wsStatus = appStatus[appStatusKey(appKey, resolvedInstanceIndex)]?.status;
-  const instanceStatus = wsStatus ?? currentInstance?.status ?? manifest?.status ?? "unknown";
-  let liveStatus: string;
-  if (!showParentOverview) {
-    liveStatus = instanceStatus;
-  } else if (manifest) {
-    liveStatus = appLiveStatus(appStatus, manifest);
-  } else {
-    liveStatus = "unknown";
-  }
+  // Resolving the status inside the selector — instead of subscribing to the whole `appStatus`
+  // map — means this page only re-renders when its own app's status actually changes. The
+  // selector must keep returning a primitive for that to hold; a fresh object would compare
+  // unequal on every store write.
+  const liveStatus = useAppStore((s) => {
+    if (showParentOverview) return manifest ? appLiveStatus(s.appStatus, manifest) : "unknown";
+    const wsStatus = s.appStatus[appStatusKey(appKey, resolvedInstanceIndex)]?.status;
+    return wsStatus ?? currentInstance?.status ?? manifest?.status ?? "unknown";
+  });
 
   const hasData = !manifestLoading && listenersData !== undefined && jobsData !== undefined;
   const initialLoading = !hasData && (listenersLoading || jobsLoading || manifestLoading);

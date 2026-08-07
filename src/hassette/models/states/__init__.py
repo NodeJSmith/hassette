@@ -53,6 +53,7 @@ from .date import DateAttributes, DateState
 from .datetime import DateTimeAttributes, DateTimeState
 from .device_tracker import DeviceTrackerAttributes, DeviceTrackerState
 from .event import (
+    ButtonEventType,
     DoorbellEventType,
     EventAttributes,
     EventDeviceClass,
@@ -171,6 +172,7 @@ __all__ = [
     "BoolBaseState",
     "ButtonAttributes",
     "ButtonDeviceClass",
+    "ButtonEventType",
     "ButtonState",
     "CalendarAttributes",
     "CalendarState",

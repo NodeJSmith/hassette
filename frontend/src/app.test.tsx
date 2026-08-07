@@ -6,9 +6,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { components } from "./api/generated-types";
 import { App } from "./app";
+import { useTelemetryHealth } from "./hooks/use-telemetry-health";
+import { useWebSocket } from "./hooks/use-websocket";
 import { createInstance, createListener, createManifest } from "./test/factories";
 import { withManifests as installManifests } from "./test/handlers";
 import { server } from "./test/server";
+import { LOGIN_PATH } from "./utils/app-routes";
 
 type AppManifest = components["schemas"]["AppManifestResponse"];
 type ListenerWithSummary = components["schemas"]["ListenerWithSummary"];
@@ -45,7 +48,8 @@ vi.mock("wouter", async () => {
 // navigate function lets command palette tests assert on where it navigates.
 const wouter = await import("wouter");
 const mockNavigate = vi.fn();
-(wouter.useLocation as ReturnType<typeof vi.fn>).mockReturnValue(["/", mockNavigate]);
+const mockUseLocation = vi.mocked(wouter.useLocation);
+mockUseLocation.mockReturnValue(["/", mockNavigate]);
 
 vi.mock("./pages/apps", () => ({
   AppsPage: () => <div data-testid="apps-page">Apps</div>,
@@ -58,6 +62,9 @@ vi.mock("./pages/config", () => ({
 }));
 vi.mock("./pages/not-found", () => ({
   NotFoundPage: () => <div data-testid="not-found-page">Not Found</div>,
+}));
+vi.mock("./pages/login", () => ({
+  LoginPage: () => <div data-testid="login-page">Login</div>,
 }));
 vi.mock("./pages/app-detail", () => ({
   AppDetailPage: () => <div data-testid="app-detail-page">App Detail</div>,
@@ -454,5 +461,47 @@ describe("App — command palette", () => {
     render(<App />);
     await new Promise((r) => setTimeout(r, 0));
     expect(callCount).toBe(0);
+  });
+});
+
+describe("App — /login route", () => {
+  afterEach(() => {
+    // Restore the module-wide default location used by every other describe block in this file.
+    mockUseLocation.mockReturnValue(["/", mockNavigate]);
+  });
+
+  it("renders LoginPage instead of the normal shell", () => {
+    mockUseLocation.mockReturnValue([LOGIN_PATH, vi.fn()]);
+
+    const { container } = render(<App />);
+
+    expect(screen.getByTestId("login-page")).not.toBeNull();
+    expect(container.querySelector("[data-testid='layout']")).toBeNull();
+    expect(container.querySelector("[data-testid='status-bar']")).toBeNull();
+  });
+
+  it("does not mount WebSocketEffect or TelemetryHealthEffect", () => {
+    mockUseLocation.mockReturnValue([LOGIN_PATH, vi.fn()]);
+    vi.mocked(useWebSocket).mockClear();
+    vi.mocked(useTelemetryHealth).mockClear();
+
+    render(<App />);
+
+    // WebSocketEffect/TelemetryHealthEffect call these hooks; if either component were mounted
+    // on /login it would 401/reject-handshake before the operator has a credential (see the
+    // comment above App()'s early return in app.tsx).
+    expect(useWebSocket).not.toHaveBeenCalled();
+    expect(useTelemetryHealth).not.toHaveBeenCalled();
+  });
+
+  it("mounts WebSocketEffect and TelemetryHealthEffect on other routes", () => {
+    mockUseLocation.mockReturnValue(["/", vi.fn()]);
+    vi.mocked(useWebSocket).mockClear();
+    vi.mocked(useTelemetryHealth).mockClear();
+
+    render(<App />);
+
+    expect(useWebSocket).toHaveBeenCalled();
+    expect(useTelemetryHealth).toHaveBeenCalled();
   });
 });

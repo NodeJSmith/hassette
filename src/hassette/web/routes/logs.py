@@ -1,12 +1,16 @@
 """Log query endpoints."""
 
 import logging
+from logging import getLogger
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query, Response
+from fastapi import APIRouter, HTTPException, Query, Request, Response
 
+from hassette.web.auth import peer_address_or_unknown
 from hassette.web.dependencies import VALID_LOG_LEVEL_NAMES, VALID_SOURCE_TIERS, TelemetryDep, db_degrades_to
 from hassette.web.models import LogEntryResponse, LogLevelRequest, LogLevelResponse
+
+LOGGER = getLogger(__name__)
 
 router = APIRouter(tags=["logs"])
 
@@ -54,6 +58,7 @@ async def get_logs(
 @router.put("/logs/level", response_model=LogLevelResponse)
 async def set_log_level(
     body: LogLevelRequest,
+    request: Request,
 ) -> LogLevelResponse:
     """Change a logger's effective level at runtime without restarting.
 
@@ -70,4 +75,10 @@ async def set_log_level(
     target_logger = logging.getLogger(body.logger)
     target_logger.setLevel(level_upper)
     effective = logging.getLevelName(target_logger.getEffectiveLevel())
+    LOGGER.info(
+        "Changed log level for %s to %s (source=%s)",
+        body.logger,
+        effective,
+        peer_address_or_unknown(request),
+    )
     return LogLevelResponse(logger=body.logger, effective_level=str(effective))

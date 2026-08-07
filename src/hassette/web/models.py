@@ -14,6 +14,14 @@ from hassette.types.enums import (
 )
 from hassette.types.types import LOG_LEVEL_TYPE, CliFormat, SourceTier
 
+MAX_SESSION_TOKEN_LENGTH = 4096
+"""Upper bound on the ``token`` field of :class:`SessionRequest`.
+
+Generated tokens are ``secrets.token_urlsafe(32)`` — 43 characters — but a deployment may supply
+its own, so the cap is set far above any plausible real token rather than tight to the generated
+shape.
+"""
+
 ManifestStatus = Literal["disabled", "blocked", "running", "failed", "stopped"]
 """Status values for app manifests (manifest-scoped, 5 values).
 
@@ -214,6 +222,35 @@ class LogLevelResponse(BaseModel):
 
     logger: str
     effective_level: str
+
+
+class SessionRequest(BaseModel):
+    """Request body for POST /api/auth/session.
+
+    The pinned wire contract for the login exchange (design.md's Middleware and routing
+    section): ``{"token": "<bearer-token>"}``. The backend (this route) and the frontend
+    (``postSession()`` in ``client.ts``) target this exact field name independently.
+    """
+
+    token: str = Field(max_length=MAX_SESSION_TOKEN_LENGTH)
+    """Bearer token to exchange for a session cookie.
+
+    Length-capped so the constraint rides in the OpenAPI schema and Pydantic rejects an absurd
+    value with a 422 before ``check_bearer_token`` compares it. The real ceiling on this route is
+    ``RequestBodySizeLimitMiddleware`` (see ``web/body_limit.py``) — this is the narrower
+    field-level statement of the same intent, not a substitute for it.
+    """
+
+
+class SessionResponse(BaseModel):
+    """Response for POST /api/auth/session on a correct token.
+
+    The session cookie itself travels via the ``Set-Cookie`` response header, minted by
+    ``mint_session_cookie()`` — this body just confirms success for callers that inspect
+    the JSON payload rather than only the status code.
+    """
+
+    status: Literal["ok"] = "ok"
 
 
 class ConnectedPayload(BaseModel):

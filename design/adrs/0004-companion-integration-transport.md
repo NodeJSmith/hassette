@@ -1,7 +1,8 @@
 # ADR-0004: Companion integration transport — custom WS commands over hassette's existing HA connection
 
-**Status:** Accepted (2026-07-07)
+**Status:** Accepted (2026-07-07) · reaffirmed after review (2026-08-07)
 **Relates to:** #45, #46, #594 · `design/research/2026-07-07-companion-integration-architecture/research.md`
+· `design/research/2026-08-07-integration-transport-revisit/research.md`
 
 ## Context
 
@@ -40,6 +41,22 @@ Consequently:
 - **Hassette-hosted API the integration connects to** (#45 option 1): adds network
   reachability config, a pairing secret, and a second reconnect state machine, with no
   capability the chosen design lacks. Rejected.
+
+  > **Re-examined and reaffirmed 2026-08-07** — see
+  > `design/research/2026-08-07-integration-transport-revisit/research.md`. Two of these three
+  > grounds have decayed since this ADR was written: the pairing secret is moot now that the web
+  > API requires auth by default (a `CONF_URL` + `CONF_API_KEY` + `CONF_VERIFY_SSL` flow is
+  > ordinary — `paperless_ngx` is platinum with exactly that), and the reconnect state machine is
+  > ~25-40 lines in practice (`zwave_js`, `music_assistant`). Network reachability still binds
+  > for remote/VPS deployments behind a forward-auth gateway. The decisive point is one this ADR
+  > did not state: hassette's existing web-facing WebSocket server is **not** a reusable command
+  > channel (`src/hassette/web/routes/ws.py` — two client→server message types, no request ids,
+  > no correlation, and `broadcast()` drops on `QueueFull`), so this alternative means building a
+  > new protocol surface, not reusing one. Decision stands.
+  >
+  > One correction to the claim above: this alternative *does* have a capability the chosen
+  > design lacks — it drops the admin-token requirement, since every `hassette/*` command here is
+  > `@require_admin`. Narrow, but real.
 - **MQTT Discovery** (#45 option 2): ruled out by decision — no broker dependency, and no
   callback path for services/webhooks.
 

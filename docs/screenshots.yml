@@ -40,6 +40,14 @@
 #              exist. Note: wait_for is a pre-capture gate; selector is
 #              a post-capture crop. Both may reference the same element.
 #
+#   unauthenticated  Optional bool. When true, this entry is captured with no
+#              session cookie applied -- capture_screenshots.py runs a second
+#              shot-scraper invocation with no --auth flag for every entry
+#              marked this way, since a cookied browser visiting a page like
+#              /login would just redirect straight to the dashboard. Only use
+#              this for pages that must render pre-login (currently just the
+#              login view itself).
+#
 # Adding a new screenshot
 # -----------------------
 # 1. Add an entry below with the URL path, output filename, and any
@@ -141,6 +149,21 @@
   width: 1400
   height: 900
   wait: 2000
+
+# ===========================================================================
+# Login view
+# Captured with no session cookie applied (unauthenticated: true) -- see the
+# manifest format notes above. Cropped to the login card via data-testid so
+# the surrounding page background doesn't dominate the shot.
+# ===========================================================================
+
+- url: "http://localhost:{port}/login"
+  output: docs/_static/web_ui_login.png
+  selector: "[data-testid='login-page']"
+  width: 1400
+  height: 900
+  wait: 2000
+  unauthenticated: true
 
 # ===========================================================================
 # Element-level screenshots

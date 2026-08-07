@@ -378,7 +378,7 @@ export function DiagnosticsPage() {
     error: loadError,
   } = useQuery({
     queryKey: queryKeys.systemStatus(),
-    queryFn: getSystemStatus,
+    queryFn: ({ signal }) => getSystemStatus(signal),
   });
   const effectiveSystemStatus = loadError ? undefined : systemStatus;
 

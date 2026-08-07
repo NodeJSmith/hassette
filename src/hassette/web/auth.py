@@ -1,0 +1,778 @@
+"""Token resolution, trusted-proxy peer matching, and bearer/cookie auth for the web API.
+
+Three independent pieces live here:
+
+- Token resolution for the bearer-token/session-cookie fallback: resolves the credential used
+  by ``AuthDep``/the default-deny middleware (built in later tasks) to validate
+  ``Authorization: Bearer <token>`` headers and mint session cookies.
+- ``trusted_proxies`` peer matching: parses each config entry as an IP, CIDR, or hostname, and
+  exposes :func:`is_trusted_peer` to check a raw ASGI peer address against the resolved set.
+  ``is_trusted_peer`` accepts only an address string — never a headers mapping or request
+  object — so header-spoofed trust is not representable at this layer.
+- Bearer-token/session-cookie auth: :func:`check_bearer_token` (timing-safe comparison),
+  :func:`mint_session_cookie`/:func:`verify_session_cookie` (stateless, HMAC-derived cookie
+  keyed by the resolved token), :func:`should_set_secure_cookie_flag` (reuses
+  :func:`is_trusted_peer` to decide the cookie's ``Secure`` attribute), and
+  :func:`should_renew_session_cookie` (the sliding-renewal decision).
+
+:func:`resolve_auth_outcome` composes those three pieces into the one precedence decision both
+halves of the default-deny gate use — the HTTP middleware and :func:`authorize_ws`. A presented
+``Authorization`` header is authoritative and fails closed on any invalid form; peer trust and the
+session cookie apply only to a caller that presents no header at all.
+
+See ``design/specs/091-web-api-auth/design.md`` (Architecture → Credential model, Architecture →
+Cookie ``Secure`` flag) for the full mechanism this implements.
+"""
+
+import asyncio
+import hashlib
+import hmac
+import ipaddress
+import os
+import secrets
+from contextlib import suppress
+from dataclasses import dataclass
+from logging import getLogger
+from pathlib import Path
+
+from starlette.datastructures import Headers, State
+from starlette.requests import HTTPConnection, Request
+from starlette.websockets import WebSocket
+from whenever import Instant
+
+from hassette.config.models import WebApiConfig
+from hassette.exceptions import AuthTokenWriteError, TrustedProxyConfigError
+
+LOGGER = getLogger(__name__)
+
+TOKEN_FILENAME = ".web_api_token"  # noqa: S105 — a filename, not a hardcoded credential
+"""Name of the persisted token file, relative to ``data_dir``."""
+
+TOKEN_BYTE_LENGTH = 32
+"""Byte length passed to ``secrets.token_urlsafe()`` when generating a fresh token."""
+
+SESSION_COOKIE_NAME = "hassette_session"
+"""Name of the ``HttpOnly`` session cookie minted by ``POST /api/auth/session``."""
+
+SESSION_ID_BYTE_LENGTH = 32
+"""Byte length passed to ``secrets.token_urlsafe()`` for a session cookie's random session id."""
+
+COOKIE_SEGMENT_COUNT = 3
+"""Number of dot-separated segments in a valid session cookie value: ``session_id.issued_at.signature``."""
+
+WS_POLICY_VIOLATION_CLOSE_CODE = 1008
+"""WebSocket close code for a policy violation (RFC 6455 §7.4.1) — used for an unauthorized
+pre-``accept()`` rejection. See :func:`authorize_ws` and design.md's WebSocket auth section for why
+this code is not literally observed by the client on this project's uvicorn backend."""
+
+_BIND_ALL_SUBSTITUTIONS: dict[str, str] = {
+    "0.0.0.0": "127.0.0.1",
+    "::": "::1",
+}
+"""Bind-all addresses that are not dialable as a login URL host, mapped to a loopback equivalent.
+
+Duplicates ``cli/client.py``'s identically-named ``_BIND_ALL_SUBSTITUTIONS`` rather than importing
+it: ``cli/client.py`` already imports :data:`TOKEN_FILENAME` from this module, so importing the
+mapping back here would form an import cycle. Loopback *classification* (as opposed to this
+bind-all substitution) does not take that tradeoff — ``utils/net_utils.py``'s
+``is_loopback_host`` is shared by both the web API service and the CLI rather than duplicated.
+"""
+
+_ENTIRE_ADDRESS_SPACE = (ipaddress.ip_network("0.0.0.0/0"), ipaddress.ip_network("::/0"))
+"""The two CIDRs that match every possible peer address.
+
+Rejected outright at parse time (see :func:`_parse_literal`) — a ``trusted_proxies`` entry is an
+auth *bypass*, not an additive check, so a config value matching the entire address space would
+disable authentication for every peer. This is a narrow, exact-match rejection of these two
+literal networks, not a general "is this CIDR suspiciously broad" heuristic; a ``/8`` or ``/16``
+entry is a legitimate (if unusual) operator choice and is not rejected.
+"""
+
+_DNS_RESOLVE_TIMEOUT_SECONDS = 5
+"""Upper bound on a single ``trusted_proxies`` hostname DNS resolution.
+
+``_resolve_hostname`` is reachable from a recurring ``Scheduler.run_every()`` job
+(:func:`refresh_trusted_proxies`, invoked every 5 minutes from
+``WebApiService._refresh_trusted_proxies``) as well as startup (:func:`resolve_trusted_proxies`).
+Without an explicit deadline, a slow or unreachable resolver would leave the awaiting coroutine
+(and, on the refresh path, that scheduler tick) hanging for however long the OS resolver takes to
+give up — this bounds the wait instead of trusting the OS default.
+"""
+
+
+def _dialable_host(host: str) -> str:
+    """Substitute a bind-all address for a dialable host and bracket IPv6 for use in a URL.
+
+    Used only to build the login URL logged on the generate branch — ``config.host`` itself is
+    left untouched, since it still needs to be the literal bind-all value passed to uvicorn.
+    """
+    substituted = _BIND_ALL_SUBSTITUTIONS.get(host, host)
+    if ":" in substituted:
+        return f"[{substituted}]"
+    return substituted
+
+
+def resolve_auth_token(config: WebApiConfig, data_dir: Path) -> str:
+    """Resolve the web API's bearer-token/session-cookie credential.
+
+    Tries, in order:
+
+    1. ``config.auth_token`` if explicitly configured (non-``None``) and non-blank. A
+       configured value that is empty or whitespace-only is treated identically to "not
+       configured" and falls through to step 2 — accepting it as-is would resolve to a
+       publicly-guessable empty credential (e.g. from ``AUTH_TOKEN=""`` in the
+       environment), which ``check_bearer_token`` would then accept from any caller
+       presenting an empty token.
+    2. An existing ``<data_dir>/.web_api_token`` file. A corrupt or unreadable file
+       (empty, undecodable, or an OS-level read failure) is treated identically to
+       "no file exists" — the failure is logged at ERROR and resolution falls through
+       to step 3 rather than crashing.
+    3. A freshly generated ``secrets.token_urlsafe(32)`` value, persisted atomically
+       (temp file in the same directory + atomic rename, mode ``0600``) to
+       ``<data_dir>/.web_api_token``.
+
+    Whichever branch fires is logged at INFO with a distinct, identifiable message on
+    every startup, not only the generate branch — so an operator who lost a
+    previously-working token file (volume not migrated, ``docker compose down -v``) sees
+    "loaded existing file" vs. "generated a new one" as a distinguishable event, not
+    silence.
+
+    Args:
+        config: The web API config. Its ``host``/``port`` are used to build the
+            ready-to-use login URL logged on the generate branch.
+        data_dir: Directory the token file is read from/written to. Callers pass
+            ``HassetteConfig.data_dir`` — this function does not resolve it itself.
+
+    Returns:
+        The plaintext token, unwrapped from ``SecretStr`` when it came from config.
+
+    Raises:
+        AuthTokenWriteError: The freshly generated token could not be persisted to disk
+            (permissions, read-only filesystem, full disk). Startup fails loudly rather
+            than falling back to an ephemeral in-memory token — see the exception's
+            docstring for why silent fallback is unacceptable here.
+    """
+    if config.auth_token is not None:
+        configured_token = config.auth_token.get_secret_value().strip()
+        if configured_token:
+            LOGGER.info("Using configured web API auth_token")
+            return configured_token
+        LOGGER.error("Configured web API auth_token is blank; generating a new token instead")
+
+    token_path = data_dir / TOKEN_FILENAME
+    existing_token = _read_existing_token(token_path)
+    if existing_token is not None:
+        LOGGER.info("Loaded existing web API auth_token from %s", token_path)
+        return existing_token
+
+    token = secrets.token_urlsafe(TOKEN_BYTE_LENGTH)
+    _write_token_atomic(token_path, token)
+    login_url = f"http://{_dialable_host(config.host)}:{config.port}"
+    LOGGER.info(
+        "Generated new web API auth_token, written to %s. Open %s to log in.",
+        token_path,
+        login_url,
+    )
+    return token
+
+
+def _read_existing_token(token_path: Path) -> str | None:
+    """Read an existing token file, treating a corrupt/unreadable file as "no file".
+
+    Returns ``None`` (never raises) when the file doesn't exist, is empty, contains
+    undecodable bytes, or otherwise fails to read — each of those is logged at ERROR
+    so the fallback to a fresh token is visible, not silent.
+    """
+    if not token_path.exists():
+        return None
+
+    try:
+        content = token_path.read_text(encoding="utf-8").strip()
+    except (OSError, UnicodeDecodeError):
+        LOGGER.exception(
+            "Web API auth token file %s could not be read; generating a new token",
+            token_path,
+        )
+        return None
+
+    if not content:
+        LOGGER.error(
+            "Web API auth token file %s is empty; generating a new token",
+            token_path,
+        )
+        return None
+
+    return content
+
+
+def _write_token_atomic(token_path: Path, token: str) -> None:
+    """Write ``token`` to ``token_path`` atomically, mode ``0600``.
+
+    Writes to a temp file in the same directory as ``token_path`` (not ``/tmp``, which
+    may be a different filesystem and would break the rename's atomicity guarantee),
+    then swaps it into place with ``Path.replace()`` (an atomic rename on POSIX). Any
+    failure along the way (including creating the parent directory) is wrapped in
+    ``AuthTokenWriteError`` naming the exact path and OS error, and any
+    partially-written temp file is cleaned up on a best-effort basis.
+    """
+    tmp_path = token_path.with_name(f"{token_path.name}.tmp-{os.getpid()}")
+    try:
+        token_path.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(token)
+        tmp_path.replace(token_path)
+    except OSError as exc:
+        with suppress(OSError):
+            tmp_path.unlink()
+        raise AuthTokenWriteError(token_path, exc) from exc
+
+
+@dataclass(frozen=True)
+class TrustedProxySet:
+    """Resolved ``trusted_proxies`` state: literal IP/CIDR entries plus current hostname resolutions.
+
+    Immutable — :func:`refresh_trusted_proxies` returns a new instance rather than mutating this
+    one, so a periodic ``Scheduler.run_every()`` refresh can swap in an updated set with a
+    single attribute assignment, no lock required around in-place mutation.
+
+    Attributes:
+        literal_networks: Networks parsed directly from IP/CIDR entries. Never changes after the
+            initial :func:`resolve_trusted_proxies` call — literals don't need re-resolution.
+        hostname_entries: Maps each hostname entry to its currently-resolved networks. Updated by
+            :func:`refresh_trusted_proxies` on each periodic tick.
+    """
+
+    literal_networks: frozenset[ipaddress.IPv4Network | ipaddress.IPv6Network]
+    hostname_entries: dict[str, frozenset[ipaddress.IPv4Network | ipaddress.IPv6Network]]
+
+    def all_networks(self) -> frozenset[ipaddress.IPv4Network | ipaddress.IPv6Network]:
+        """Return every currently-trusted network: literals plus all resolved hostnames."""
+        combined: set[ipaddress.IPv4Network | ipaddress.IPv6Network] = set(self.literal_networks)
+        for networks in self.hostname_entries.values():
+            combined |= networks
+        return frozenset(combined)
+
+
+EMPTY_TRUSTED_PROXY_SET = TrustedProxySet(literal_networks=frozenset(), hostname_entries={})
+"""A :class:`TrustedProxySet` that matches no peer address.
+
+Used as the fallback wherever a resolved trusted-proxy set is read from ``app.state`` but wasn't
+provided (e.g. a test app built via ``create_fastapi_app(hassette)`` with no ``trusted_proxies``
+argument, or ``trusted_proxies=()`` in config) — ``is_trusted_peer`` against this always returns
+``False`` rather than the caller needing a ``None``/``AttributeError`` guard at every call site.
+"""
+
+
+def get_trusted_proxies(state: State) -> TrustedProxySet:
+    """Resolve the trusted-proxy set off ASGI app state, defaulting to :data:`EMPTY_TRUSTED_PROXY_SET`.
+
+    Shared by :class:`~hassette.web.middleware.DefaultDenyMiddleware`, :func:`authorize_ws`, and
+    ``POST /api/auth/session`` (``web/routes/auth.py``) — all three need the same
+    lookup-with-fallback for ``app.state.trusted_proxies``, set by
+    :func:`hassette.web.app.create_fastapi_app`.
+    """
+    return getattr(state, "trusted_proxies", None) or EMPTY_TRUSTED_PROXY_SET
+
+
+def peer_address(connection: HTTPConnection) -> str | None:
+    """Raw ASGI peer address for ``connection``, or ``None`` if the transport reports no client.
+
+    Takes the ``HTTPConnection`` base rather than ``Request`` so the WebSocket handshake
+    (:func:`authorize_ws`) reads its peer through the same function the HTTP paths use —
+    :class:`~hassette.web.middleware.DefaultDenyMiddleware` and ``POST /api/auth/session``
+    (``web/routes/auth.py``) — instead of repeating the null-safe ``client.host`` extraction.
+    """
+    client = connection.client
+    return client.host if client is not None else None
+
+
+def peer_address_or_unknown(request: Request) -> str:
+    """:func:`peer_address`, falling back to the literal ``"unknown"`` when the transport reports no client.
+
+    Shared by every route handler that logs a source IP alongside a mutation action
+    (``web/routes/apps.py``, ``web/routes/logs.py``, ``web/routes/scheduler.py``) and by the
+    default-deny middleware's failed-auth source key (``web/middleware.py``) — all of these want
+    the same null-safe fallback rather than repeating ``peer_address(request) or "unknown"`` at
+    each call site.
+    """
+    return peer_address(request) or "unknown"
+
+
+def _parse_literal(entry: str) -> ipaddress.IPv4Network | ipaddress.IPv6Network | None:
+    """Parse ``entry`` as an IP or CIDR literal via :mod:`ipaddress`.
+
+    Returns:
+        The parsed network, or ``None`` if ``entry`` is not a valid IP/CIDR literal — the caller
+        falls through to hostname resolution in that case.
+
+    Raises:
+        TrustedProxyConfigError: ``entry`` parses but matches the entire IPv4 or IPv6 address
+            space (``0.0.0.0/0``, ``::/0``) — see :data:`_ENTIRE_ADDRESS_SPACE`.
+    """
+    try:
+        network = ipaddress.ip_network(entry, strict=False)
+    except ValueError:
+        return None
+
+    if network in _ENTIRE_ADDRESS_SPACE:
+        raise TrustedProxyConfigError(
+            f"trusted_proxies entry {entry!r} matches the entire address space, which would "
+            "bypass authentication for every peer. Use a narrower CIDR."
+        )
+    return network
+
+
+async def _resolve_hostname(hostname: str) -> frozenset[ipaddress.IPv4Network | ipaddress.IPv6Network]:
+    """Resolve ``hostname`` via the running event loop's resolver, returning each address as a /32 or /128 network.
+
+    Uses ``loop.getaddrinfo`` rather than calling ``socket.getaddrinfo`` directly — the latter is a
+    blocking call, and this function runs on the event loop thread from both call sites: startup
+    (:func:`resolve_trusted_proxies`, from ``WebApiService.on_initialize()``) and the periodic
+    refresh job (:func:`refresh_trusted_proxies`, an ``async def`` scheduler job body). A blocking
+    resolver call there would stall the whole event loop — the web API, the Home Assistant
+    WebSocket, and every other scheduled job — for as long as DNS takes to respond or time out.
+    ``loop.getaddrinfo`` offloads the actual blocking call to a worker thread, and the wait is
+    additionally bounded by :data:`_DNS_RESOLVE_TIMEOUT_SECONDS` so a hung resolver fails fast
+    instead of blocking this coroutine indefinitely.
+
+    Raises:
+        TrustedProxyConfigError: DNS resolution failed, timed out, or resolved to zero addresses.
+    """
+    loop = asyncio.get_running_loop()
+    try:
+        async with asyncio.timeout(_DNS_RESOLVE_TIMEOUT_SECONDS):
+            infos = await loop.getaddrinfo(hostname, None)
+    except (OSError, TimeoutError) as exc:
+        raise TrustedProxyConfigError(
+            f"trusted_proxies entry {hostname!r} is not a valid IP/CIDR literal and could not be "
+            f"resolved as a hostname: {exc}"
+        ) from exc
+
+    networks = {ipaddress.ip_network(info[4][0], strict=False) for info in infos}
+    if not networks:
+        raise TrustedProxyConfigError(f"trusted_proxies entry {hostname!r} resolved to no addresses")
+    return frozenset(networks)
+
+
+async def resolve_trusted_proxies(entries: tuple[str, ...]) -> TrustedProxySet:
+    """Parse and resolve every ``trusted_proxies`` config entry.
+
+    Called once at startup (``WebApiService.on_initialize()``). Each entry is tried as an
+    IP/CIDR literal first (fast, no DNS); entries that aren't valid literals are resolved as
+    hostnames via DNS. Failure at this first resolution — a malformed literal, an
+    entire-address-space CIDR, or an unresolvable hostname — fails loudly rather than silently
+    dropping the bad entry, since a wrong ``trusted_proxies`` entry is a security-relevant
+    misconfiguration (design.md Edge Cases, "A trusted_proxies entry that's wrong or too broad").
+
+    Args:
+        entries: ``WebApiConfig.trusted_proxies`` — IP, CIDR, or hostname strings.
+
+    Returns:
+        The resolved :class:`TrustedProxySet`.
+
+    Raises:
+        TrustedProxyConfigError: Any entry is neither a valid IP/CIDR literal nor a resolvable
+            hostname, or a literal matches the entire address space.
+    """
+    literal_networks: set[ipaddress.IPv4Network | ipaddress.IPv6Network] = set()
+    hostname_entries: dict[str, frozenset[ipaddress.IPv4Network | ipaddress.IPv6Network]] = {}
+    for entry in entries:
+        network = _parse_literal(entry)
+        if network is not None:
+            literal_networks.add(network)
+            continue
+        hostname_entries[entry] = await _resolve_hostname(entry)
+    return TrustedProxySet(literal_networks=frozenset(literal_networks), hostname_entries=hostname_entries)
+
+
+async def refresh_trusted_proxies(current: TrustedProxySet) -> TrustedProxySet:
+    """Re-resolve every hostname entry in ``current``; literal entries are unchanged.
+
+    Called periodically (``Scheduler.run_every()``) so a sibling proxy container recreated
+    mid-run (new IP, same hostname) becomes trusted again on the next tick. A hostname whose
+    refresh attempt fails keeps its last-known-good resolved addresses rather than dropping trust
+    immediately — a transient DNS blip must not lock out the proxy (design.md Edge Cases,
+    "trusted_proxies DNS resolution failure").
+
+    Args:
+        current: The previously-resolved set, as returned by :func:`resolve_trusted_proxies` or
+            a prior call to this function.
+
+    Returns:
+        A new :class:`TrustedProxySet` with refreshed hostname resolutions. Never raises — a
+        failed refresh for one hostname is logged and that hostname's prior networks are carried
+        forward unchanged.
+    """
+    updated: dict[str, frozenset[ipaddress.IPv4Network | ipaddress.IPv6Network]] = {}
+    for hostname, previous_networks in current.hostname_entries.items():
+        try:
+            updated[hostname] = await _resolve_hostname(hostname)
+        except TrustedProxyConfigError:
+            LOGGER.warning(
+                "Could not refresh trusted_proxies hostname %r; keeping last-known-good address(es)",
+                hostname,
+            )
+            updated[hostname] = previous_networks
+    return TrustedProxySet(literal_networks=current.literal_networks, hostname_entries=updated)
+
+
+def is_trusted_peer(client_address: str, trusted: TrustedProxySet) -> bool:
+    """Check whether ``client_address`` matches a trusted-proxy IP, CIDR, or resolved hostname.
+
+    ``client_address`` must be the raw ASGI ``scope["client"]`` peer address — never a value
+    read from ``X-Forwarded-For`` or any other client-suppliable header. This function's
+    signature is itself the load-bearing guarantee here: there is no headers parameter, so header-spoofed
+    trust is not representable at this layer.
+
+    Args:
+        client_address: The direct peer's IP address, as a string.
+        trusted: The current resolved trust set.
+
+    Returns:
+        ``True`` if ``client_address`` falls within any trusted network; ``False`` if it doesn't,
+        or if ``client_address`` itself isn't a parseable IP address.
+    """
+    try:
+        addr = ipaddress.ip_address(client_address)
+    except ValueError:
+        return False
+    return any(addr in network for network in trusted.all_networks())
+
+
+def _current_timestamp() -> int:
+    """Current time as whole unix seconds.
+
+    Extracted to a single call site so tests can patch ``hassette.web.auth._current_timestamp``
+    directly for deterministic TTL/renewal-boundary assertions, instead of sleeping in real time.
+    """
+    return int(Instant.now().timestamp())
+
+
+def extract_bearer_token(headers: Headers) -> str | None:
+    """Parse an ``Authorization: Bearer <token>`` header out of ``headers``.
+
+    Shared by :class:`~hassette.web.middleware.DefaultDenyMiddleware` (via
+    ``request.headers``) and :func:`authorize_ws` (via ``websocket.headers``) — both
+    ``Request.headers`` and ``WebSocket.headers`` are the same Starlette
+    :class:`~starlette.datastructures.Headers` type, so one parser serves both call sites.
+
+    Args:
+        headers: The incoming request's or WebSocket's headers.
+
+    Returns:
+        The token value if the ``Authorization`` header is present and shaped
+        ``"Bearer <token>"`` with a non-empty token; ``None`` if the header is absent, uses a
+        different scheme, or the token portion is empty.
+    """
+    header = headers.get("authorization")
+    if header is None:
+        return None
+    scheme, _, value = header.partition(" ")
+    if scheme.lower() != "bearer" or not value:
+        return None
+    return value
+
+
+def check_bearer_token(presented: str | None, resolved_token: str | None) -> bool:
+    """Timing-safe comparison of a presented bearer token against the resolved credential.
+
+    A ``None`` ``resolved_token`` or ``presented`` value returns ``False`` directly, without
+    reaching :func:`secrets.compare_digest` — that function raises ``TypeError`` on a ``None``
+    argument, which would turn an intended 401 into an unhandled 500.
+    ``WebApiConfig.auth_token`` can resolve to ``None`` even while ``auth_enabled=True`` in some
+    test configurations, so this guard is on a real code path, not defensive padding.
+
+    :func:`secrets.compare_digest` also raises ``TypeError`` when either ``str`` argument contains
+    non-ASCII characters. ASGI servers decode HTTP header bytes via latin-1, so any byte >= 0x80 in
+    a client-supplied ``Authorization`` header produces a non-ASCII ``presented`` value — reachable
+    by any client, not a contrived edge case. That raise is caught here too, for the same reason:
+    malformed input should degrade to "not authenticated," not surface as an unhandled 500.
+
+    Args:
+        presented: The token from the ``Authorization: Bearer <token>`` header, or ``None`` if
+            absent.
+        resolved_token: The web API's resolved credential (see :func:`resolve_auth_token`), or
+            ``None``.
+
+    Returns:
+        ``True`` if both values are present and match; ``False`` otherwise.
+    """
+    if resolved_token is None or presented is None:
+        return False
+    try:
+        return secrets.compare_digest(presented, resolved_token)
+    except TypeError:
+        return False
+
+
+def _sign_session(resolved_token: str, session_id: str, issued_at: int) -> str:
+    """Compute the HMAC-SHA256 hex digest binding ``session_id``/``issued_at`` to ``resolved_token``."""
+    message = f"{session_id}.{issued_at}".encode()
+    return hmac.new(resolved_token.encode(), message, hashlib.sha256).hexdigest()
+
+
+def mint_session_cookie(resolved_token: str) -> str:
+    """Mint a stateless session cookie value for ``resolved_token``.
+
+    The value is HMAC-derived — keyed by ``resolved_token`` itself, so no new secret material is
+    introduced — over a random session id plus the current time as the embedded issuance
+    timestamp. Stateless: there is no server-side session table, so a minted cookie stays valid
+    across ``WebApiService``'s ``RestartType.TRANSIENT`` restarts.
+
+    Args:
+        resolved_token: The web API's resolved bearer-token/session-cookie credential. Every call
+            site mints only after a bearer-token check or a prior cookie verification has already
+            confirmed a non-``None`` token, so this function does not itself guard against
+            ``None`` — a ``None`` here would be a caller bug, not a request outcome to degrade
+            gracefully for.
+
+    Returns:
+        The cookie value, shaped ``"<session_id>.<issued_at>.<hmac_hex>"``. Every component is
+        drawn from a URL-safe/hex alphabet, so the value contains no dots, semicolons, or
+        whitespace beyond the two literal separators — safe to place directly in a ``Set-Cookie``
+        header.
+    """
+    session_id = secrets.token_urlsafe(SESSION_ID_BYTE_LENGTH)
+    issued_at = _current_timestamp()
+    signature = _sign_session(resolved_token, session_id, issued_at)
+    return f"{session_id}.{issued_at}.{signature}"
+
+
+def verify_session_cookie(cookie_value: str | None, resolved_token: str | None, session_ttl: int) -> int | None:
+    """Verify a session cookie minted by :func:`mint_session_cookie`.
+
+    Recomputes the HMAC over the cookie's embedded session id and issuance timestamp and compares
+    it against the presented signature via :func:`secrets.compare_digest` (timing-safe), then
+    separately checks the issuance timestamp against ``session_ttl``. ``session_ttl`` is read at
+    verify time rather than baked into the cookie, so changing ``WebApiConfig.session_ttl`` takes
+    effect for future verifications without needing to re-mint existing cookies.
+
+    A ``None`` ``resolved_token`` or ``cookie_value``, a malformed cookie (wrong shape, a
+    non-integer timestamp, non-ASCII characters in the signature segment), a signature mismatch,
+    or an expired timestamp all return ``None`` — this function never raises for any of those;
+    each is treated identically as "not authenticated". The non-ASCII case matters because ASGI
+    servers decode HTTP header bytes via latin-1, so any byte >= 0x80 in a client-supplied
+    ``Cookie`` header produces a non-ASCII ``signature`` segment, which would otherwise make
+    :func:`secrets.compare_digest` raise ``TypeError`` and turn an intended 401 into an unhandled
+    500.
+
+    Args:
+        cookie_value: The raw cookie value as sent by the client, or ``None`` if no cookie was
+            presented.
+        resolved_token: The web API's resolved credential, or ``None`` (never authenticates).
+        session_ttl: Maximum age, in seconds, of a valid cookie (``WebApiConfig.session_ttl``).
+
+    Returns:
+        The cookie's embedded issuance timestamp (unix seconds) if the cookie is valid and
+        unexpired; ``None`` otherwise.
+    """
+    if resolved_token is None or cookie_value is None:
+        return None
+
+    parts = cookie_value.split(".")
+    if len(parts) != COOKIE_SEGMENT_COUNT:
+        return None
+
+    session_id, issued_at_raw, signature = parts
+    try:
+        issued_at = int(issued_at_raw)
+    except ValueError:
+        return None
+
+    expected_signature = _sign_session(resolved_token, session_id, issued_at)
+    try:
+        signature_valid = secrets.compare_digest(signature, expected_signature)
+    except TypeError:
+        return None
+    if not signature_valid:
+        return None
+
+    if _current_timestamp() - issued_at > session_ttl:
+        return None
+
+    return issued_at
+
+
+def should_set_secure_cookie_flag(
+    client_address: str | None,
+    forwarded_proto: str | None,
+    trusted: TrustedProxySet,
+) -> bool:
+    """Decide whether a minted session cookie should carry the ``Secure`` flag.
+
+    Calls :func:`is_trusted_peer` on the raw peer address first — the identical trusted-peer
+    check the auth-bypass decision already performs, reused here rather than duplicated. Only
+    when that peer is trusted does this function even look at ``forwarded_proto``; an untrusted
+    peer's ``X-Forwarded-Proto`` is never consulted for anything, since it is a
+    client-suppliable header value uvicorn never verifies.
+
+    Args:
+        client_address: The raw ASGI peer address (``scope["client"][0]`` /
+            ``Request.client.host``), or ``None`` if unavailable.
+        forwarded_proto: The request's ``X-Forwarded-Proto`` header value, or ``None`` if absent.
+        trusted: The current resolved trusted-proxy set (see :func:`resolve_trusted_proxies`).
+
+    Returns:
+        ``True`` only when ``client_address`` matches ``trusted`` AND ``forwarded_proto`` is
+        ``"https"`` (case-insensitive); ``False`` in every other case, including an untrusted
+        peer regardless of ``forwarded_proto``'s value.
+    """
+    if client_address is None:
+        return False
+    if not is_trusted_peer(client_address, trusted):
+        return False
+    return forwarded_proto is not None and forwarded_proto.lower() == "https"
+
+
+def should_renew_session_cookie(issued_at: int, session_ttl: int) -> bool:
+    """Decide whether a verified session cookie should be replaced (sliding renewal).
+
+    Takes the issuance timestamp returned by a prior successful :func:`verify_session_cookie`
+    call rather than re-parsing the cookie value. This keeps the decision (this function) and the
+    replacement value (:func:`mint_session_cookie`) separate from each other and from writing the
+    ``Set-Cookie`` header, which is the response-handling middleware's job, not this
+    module's.
+
+    In the real request flow, a cookie already past the full ``session_ttl`` is rejected by
+    :func:`verify_session_cookie` before this function is ever reached — this function's own
+    upper bound is a second, independent guard for callers that hold an ``issued_at`` value
+    without having just re-verified it, not the primary enforcement point for expiry.
+
+    Args:
+        issued_at: The cookie's embedded issuance timestamp (unix seconds), as returned by a
+            successful :func:`verify_session_cookie` call.
+        session_ttl: ``WebApiConfig.session_ttl``, in seconds.
+
+    Returns:
+        ``True`` once the cookie's age has reached or passed half of ``session_ttl`` and has not
+        yet reached the full ``session_ttl``; ``False`` for a fresher cookie or one already past
+        the full TTL (that case belongs to :func:`verify_session_cookie`'s rejection, not to
+        renewal).
+    """
+    age = _current_timestamp() - issued_at
+    return session_ttl / 2 <= age <= session_ttl
+
+
+@dataclass(frozen=True)
+class AuthOutcome:
+    """The result of :func:`resolve_auth_outcome`: whether the caller is in, and how.
+
+    Attributes:
+        authenticated: Whether the request or handshake may proceed.
+        session_issued_at: The issuance timestamp of the session cookie that authenticated this
+            request, or ``None`` when some other mechanism did. Only a cookie-authenticated
+            request is a candidate for sliding renewal, so this is what
+            :class:`~hassette.web.middleware.DefaultDenyMiddleware` keys that decision off.
+    """
+
+    authenticated: bool
+    session_issued_at: int | None = None
+
+
+def resolve_auth_outcome(
+    connection: HTTPConnection,
+    trusted: TrustedProxySet,
+    resolved_token: str | None,
+    session_ttl: int,
+) -> AuthOutcome:
+    """Decide whether ``connection`` is authenticated, and by which mechanism.
+
+    The single precedence decision behind both halves of the default-deny gate:
+    :class:`~hassette.web.middleware.DefaultDenyMiddleware` for HTTP and :func:`authorize_ws` for
+    the WebSocket handshake. ``BaseHTTPMiddleware`` only ever sees ``http``-scope requests and
+    never runs for a WebSocket upgrade, so without one shared function the two would each carry
+    their own copy of this ordering and could drift apart — this is the "same validator used by the
+    HTTP middleware" property design.md's WebSocket auth section requires.
+
+    **A presented credential is authoritative.** When an ``Authorization`` header is present at
+    all, the bearer token decides the outcome on its own: a wrong token, an unrecognized scheme,
+    and an empty value all fail closed, with no fall-through to peer trust or to a session cookie.
+    Failing closed on a *malformed* header, not only a wrong one, is deliberate — a surprising 401
+    to a misconfigured client beats a bypass a trusted peer could exploit, and the caller who sent
+    the bad header is the one who can see the failure.
+
+    **Ambient peer trust covers only callers presenting nothing.** With no ``Authorization``
+    header, :func:`is_trusted_peer` runs first and the session cookie second. This is what lets one
+    host serve both mechanisms at once: a browser behind a forward-auth proxy sends no
+    ``Authorization`` header and is admitted by peer match with no Hassette login, while the CLI
+    presents a bearer token that Hassette validates itself.
+
+    Args:
+        connection: The incoming request or WebSocket. Only its peer address, headers, and cookies
+            are read — never a client-suppliable forwarding header (see :func:`is_trusted_peer`).
+        trusted: The current resolved trusted-proxy set.
+        resolved_token: The web API's resolved credential, or ``None`` (never authenticates
+            anything, but does not change the precedence above).
+        session_ttl: ``WebApiConfig.session_ttl``, in seconds.
+
+    Returns:
+        The :class:`AuthOutcome`. Never raises — every malformed input degrades to "not
+        authenticated" (see :func:`check_bearer_token` and :func:`verify_session_cookie`).
+    """
+    # Header *presence*, not token validity, is what diverts away from the fallbacks below.
+    # `extract_bearer_token` returns None for a missing header and for a malformed one alike, so
+    # swapping this for `extract_bearer_token(...) is not None` would send exactly the malformed
+    # cases back down to peer trust — reintroducing the bypass this ordering exists to close.
+    if "authorization" in connection.headers:
+        presented_token = extract_bearer_token(connection.headers)
+        if check_bearer_token(presented_token, resolved_token):
+            return AuthOutcome(authenticated=True)
+        return AuthOutcome(authenticated=False)
+
+    client_address = peer_address(connection)
+    if client_address is not None and is_trusted_peer(client_address, trusted):
+        return AuthOutcome(authenticated=True)
+
+    cookie_value = connection.cookies.get(SESSION_COOKIE_NAME)
+    issued_at = verify_session_cookie(cookie_value, resolved_token, session_ttl)
+    if issued_at is not None:
+        return AuthOutcome(authenticated=True, session_issued_at=issued_at)
+
+    return AuthOutcome(authenticated=False)
+
+
+def authorize_ws(websocket: WebSocket) -> bool:
+    """Authorization check for the WebSocket handshake.
+
+    The WebSocket half of the default-deny gate. Delegates the precedence decision to
+    :func:`resolve_auth_outcome` — the same function
+    :class:`~hassette.web.middleware.DefaultDenyMiddleware` calls for HTTP requests — and discards
+    the sliding-renewal timestamp, which has no analogue for a handshake.
+
+    Includes the same ``auth_enabled`` bypass (step 0) as the HTTP middleware, for the same
+    reason: ``create_hassette_stub(auth_enabled=False)`` (the default) must keep every existing WS
+    test passing unchanged.
+
+    Reads the resolved credential from ``websocket.app.state.auth_token`` and the resolved
+    trusted-proxy set from ``websocket.app.state.trusted_proxies`` — both set by
+    :func:`hassette.web.app.create_fastapi_app` as siblings to the existing
+    ``websocket.app.state.hassette`` (the same accessor pattern ``web/routes/ws.py`` already uses)
+    — never from ``websocket.app.state.hassette.config.web_api``, which only ever holds the raw,
+    possibly-unresolved operator-configured values.
+
+    Non-browser clients (CLI, scripts) attach ``Authorization: Bearer <token>`` via the
+    ``websockets`` library's ``additional_headers`` parameter at connect time, so the
+    presented-credential precedence :func:`resolve_auth_outcome` documents applies here in full,
+    not only on the HTTP paths.
+
+    Args:
+        websocket: The incoming WebSocket connection, checked before ``accept()`` is called.
+
+    Returns:
+        ``True`` if the connection should be accepted; ``False`` if it should be closed with code
+        :data:`WS_POLICY_VIOLATION_CLOSE_CODE` instead of being accepted.
+    """
+    hassette = websocket.app.state.hassette
+    web_api_config = hassette.config.web_api
+
+    if not web_api_config.auth_enabled:
+        return True
+
+    outcome = resolve_auth_outcome(
+        websocket,
+        get_trusted_proxies(websocket.app.state),
+        getattr(websocket.app.state, "auth_token", None),
+        web_api_config.session_ttl,
+    )
+    return outcome.authenticated

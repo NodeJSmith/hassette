@@ -28,7 +28,7 @@ A companion HACS integration (domain `hassette`) closes all four gaps.
 | D1 | Transport | Custom WS commands on hassette's existing HA connection; subscription push for HA→hassette callbacks (ADR-0004) |
 | D2 | MQTT Discovery | Ruled out — hassette must not require an MQTT broker |
 | D3 | Repo topology | Separate integration repo: **`hass-hassette`** |
-| D4 | Protocol source of truth | Shared PyPI package **`hassette-protocol`** (stdlib-only; no pydantic) |
+| D4 | Protocol source of truth | Shared PyPI package **`hassette-protocol`** (stdlib-only, zero runtime deps — see corrected rationale under "`hassette-protocol` package") |
 | D5 | Config flow | Single zero-config entry; instances self-identify at handshake |
 | D6 | MVP scope (v0.1) | Read-only entities **and** command entities — the callback envelope ships in v0.1 |
 | D7 | Framework services | v0.2 (`reload_app`, `start_app`, `stop_app`, trigger) |
@@ -175,14 +175,27 @@ once as pure functions in `hassette-protocol` and used by both sides.
 
 - **Contents:** message-type constants, protocol version, `TypedDict` payload shapes,
   `StrEnum`s, coercion functions, canonical JSON fixtures per message type.
-- **Constraints:** pure Python, zero runtime dependencies, Python ≥3.11. No pydantic — HA
-  pins its own pydantic and custom integrations must not import a conflicting one.
+- **Constraints:** pure Python, zero runtime dependencies, Python ≥3.11.
+
+  > **Corrected 2026-08-07** (`design/research/2026-08-07-integration-transport-revisit/research.md`).
+  > The original rationale here — "No pydantic — HA pins its own pydantic and custom
+  > integrations must not import a conflicting one" — is factually wrong. HA pins
+  > `pydantic==2.13.4` in `homeassistant/package_constraints.txt` and installs `manifest.json`
+  > requirements *under* that constraint at runtime, but pydantic is not prohibited:
+  > `zwave-js-server-python` requires `pydantic>=2.0.0` and ships inside a first-party core
+  > integration. Zero dependencies remains the right call for a wire-contract package — it
+  > installs cleanly into any consumer and can never conflict — but it should be justified on
+  > that merit, not on a constraint that does not exist. The rule that *does* bind: depend on
+  > **ranges, never exact pins**. An `==` requirement two patch versions off HA's constraint is
+  > a hard install failure (HA issue #173019).
 - **Validation layering:** the integration validates inbound commands with voluptuous
   (mandatory — `@websocket_command` takes voluptuous schemas); hassette validates inbound
   pushes with its own Pydantic models that reference the shared shapes. Both repos run
   contract tests against the package's fixtures, so drift fails CI on whichever side drifted.
-- **Home:** its own repo, so releases version independently and both consumers pin it. The
-  integration lists it in `manifest.json` `requirements`; hassette lists it in `pyproject.toml`.
+- **Home:** its own repo, so releases version independently and both consumers depend on it.
+  The integration lists it in `manifest.json` `requirements`; hassette lists it in
+  `pyproject.toml`. The integration's requirement must be a **range** (`hassette-protocol>=1,<2`),
+  not `==` — see the corrected constraints note above.
 
 ## Hassette-side app API (sketch)
 

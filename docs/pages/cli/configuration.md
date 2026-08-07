@@ -2,36 +2,75 @@
 
 ## Configuration
 
+!!! warning "Upgrading from a previous version"
+    Two behaviors changed with this release, and both fail at runtime rather than at parse time — a script relying on either keeps running, but its behavior changes underneath it:
+
+    - **`HASSETTE__WEB_API__HOST=<non-loopback-host> hassette status`** no longer sends `<data_dir>/.web_api_token`. That recipe pointed the CLI at a remote host while reading the *local* instance's token file. Replace it with `--server-url` plus `--token-file`, `cli.token_file`, or `HASSETTE__CLI__AUTH_TOKEN`.
+    - **`HASSETTE__WEB_API__AUTH_TOKEN`** now applies to loopback targets only. For a remote target, set `HASSETTE__CLI__AUTH_TOKEN` instead.
+
+    A script relying on either now either starts failing with a 401, or — against a target with `auth_enabled = false` or a matching `trusted_proxies` entry — keeps succeeding without ever sending a credential.
+
 ### Discovery Order
 
-The CLI is a client that queries a running Hassette server. It constructs the server address from the same configuration sources Hassette uses at runtime — the `__` double underscore in variable names separates nested config sections, so `HASSETTE__WEB_API__HOST` sets `web_api.host`.
-Priority runs highest to lowest:
+The CLI is a client that queries a running Hassette server. It resolves a target and a credential independently, each through its own precedence chain — the `__` double underscore in variable names separates nested config sections, so `HASSETTE__CLI__SERVER_URL` sets `cli.server_url`.
 
-1. **Global flags**: `--config-file` and `--env-file` override which files are loaded
-2. **Environment variables**: `HASSETTE__WEB_API__HOST` and `HASSETTE__WEB_API__PORT`
-3. **`.env` file**: loaded from the current directory (or the path given to `--env-file`)
-4. **[`hassette.toml`](../core-concepts/configuration/index.md)** (the server's main config file): loaded from the current directory (or the path given to `--config-file`)
-5. **Default**: `http://127.0.0.1:8126`
+Target resolution runs highest precedence first:
 
-Bind-all addresses are rewritten for the client connection: when `web_api.host` resolves to `0.0.0.0` the CLI connects to `127.0.0.1`, and `::` becomes `::1`. The server listens on all interfaces; the CLI talks to it over loopback.
+1. **`--server-url` / `-s`** — a full base URL: scheme, host, port, and an optional path prefix, e.g. `https://hassette.example.com`
+2. **`cli.server_url`** — the same value from `HASSETTE__CLI__SERVER_URL`, a `.env` file, or `[hassette.cli]` in [`hassette.toml`](../core-concepts/configuration/index.md)
+3. **Derived from `web_api.host`/`web_api.port`** — the last resort, used only when neither the flag nor the config value is set
+
+Bind-all addresses are rewritten for the derived path: when `web_api.host` resolves to `0.0.0.0` the CLI connects to `127.0.0.1`, and `::` becomes `::1`. The server listens on all interfaces; the CLI talks to it over loopback.
+
+An explicit `server_url` must include a scheme (`http://` or `https://`). It must not end in `/api` — command paths already start with `/api`, so a URL ending there would double to `/api/api/health`. A trailing slash is stripped automatically, and a path prefix survives through to every request: `--server-url https://hassette.example.com/hassette` reaches `https://hassette.example.com/hassette/api/health`.
 
 !!! tip "Remote instances"
-    To query a remote Hassette instance, set the host in the environment:
+    Point the CLI at a remote Hassette instance with `--server-url`:
 
     ```bash
-    HASSETTE__WEB_API__HOST=192.168.1.100 hassette status
+    hassette --server-url https://hassette.example.com status
     ```
 
-    Or persistently in a `.env` file:
+    Or persistently in `hassette.toml`:
 
-    ```ini
-    HASSETTE__WEB_API__HOST=192.168.1.100
-    HASSETTE__WEB_API__PORT=8126
+    ```toml
+    [hassette.cli]
+    server_url = "https://hassette.example.com"
     ```
+
+    A remote target needs its own authentication: a bearer credential (see [Web API Token](#web-api-token) below), or, when the remote instance trusts the proxy in front of it, a `trusted_proxies` entry that skips the credential check entirely (see [Web UI](../web-ui/index.md#enabling-and-accessing)). `web_api.host`/`web_api.port` (and `HASSETTE__WEB_API__HOST`) answer "where does the server bind?", not "where does the CLI connect?" — they no longer supply a remote target.
 
 ### Token
 
-The access token (`HASSETTE__TOKEN`) is the long-lived HA token that `hassette run` uses to connect to Home Assistant. Query commands (`status`, `app`, `listener`, and the rest) talk to Hassette's own web API instead and need no token.
+The access token (`HASSETTE__TOKEN`) is the long-lived HA token that `hassette run` uses to connect to Home Assistant. Query commands (`status`, `app`, `listener`, and the rest) talk to Hassette's own web API instead, which requires a separate credential of its own — see [Web API Token](#web-api-token) below.
+
+### Web API Token
+
+The server's web API requires authentication for every request (see [Web UI](../web-ui/index.md)). The CLI attaches its credential automatically as `Authorization: Bearer <token>`, resolved from up to five sources. Which sources apply depends on the resolved target:
+
+| Source | Scope | Applies to |
+|---|---|---|
+| `--token-file` | CLI | any target |
+| `cli.token_file` | CLI | any target |
+| `cli.auth_token` / `HASSETTE__CLI__AUTH_TOKEN` | CLI | any target |
+| `web_api.auth_token` / `HASSETTE__WEB_API__AUTH_TOKEN` | server | loopback only |
+| `<data_dir>/.web_api_token` | server | loopback only |
+
+Precedence runs top to bottom: `--token-file` wins over `cli.token_file`, which wins over `cli.auth_token`, and so on.
+
+`web_api.*` settings describe what the local instance accepts, not what a remote one does. `web_api.auth_token` is the value the running server checks incoming requests against; `<data_dir>/.web_api_token` is the file that server wrote for itself on first start. Neither is meaningful for a different instance, so the CLI attaches them only when the resolved target is loopback (`127.0.0.1`, `::1`, or `localhost`). For any other target it skips both and falls back to a `cli.*` source. Against a non-loopback target with no `cli.*` credential configured, the CLI still sends the request rather than failing before the network call — a `trusted_proxies` deployment needs no bearer token at all, and a genuinely missing credential surfaces as a 401 naming the remedy (see [Common Errors](#common-errors)).
+
+No CLI flag accepts a literal token value as a bare argument. `--token-file` takes a path, not a token — passing a secret directly on the command line would leave it visible in shell history and `ps` output for the life of the process. A direct value is available only through config or the environment: `cli.auth_token` or `HASSETTE__CLI__AUTH_TOKEN`.
+
+## Letting CLI Traffic Through a Reverse Proxy
+
+A forward-auth gateway in front of Hassette authenticates browser traffic with its own login — see [Web UI: reverse proxy](../web-ui/index.md#enabling-and-accessing) for that setup. The same gateway usually rejects the CLI's bearer token, since it expects its own login flow instead. That mismatch is what produces the [redirect error](#common-errors) below.
+
+The fix is a second route: one that matches `/api/*` on the same subdomain, skips the gateway's login middleware, and forwards straight to Hassette. Hassette's own bearer token — resolved the same way as any other `cli.*` credential — authenticates those requests once they arrive, so the gateway's login and Hassette's token check never both apply to the same request.
+
+This works for subdomain routing, where `cli.server_url` points at a dedicated hostname (`https://hassette.example.com`) that proxies entirely to Hassette. Path-prefix routing — one hostname serving Hassette under a subpath like `/hassette` — is supported by `server_url` (the path prefix survives through to every request, see [Discovery Order](#discovery-order)), but no worked example ships here: it has not been verified end-to-end against a path-stripping proxy.
+
+Add `trusted_proxies` (see [Web UI](../web-ui/index.md#enabling-and-accessing)) when the gateway's own login should stand in for Hassette's — the same trust relationship the web UI section documents, extended to the `/api/*` route. It composes with a bearer token rather than replacing it: peer trust admits requests that send no `Authorization` header, and any request carrying that header is still validated against Hassette's token.
 
 ## Output Modes
 
@@ -153,7 +192,28 @@ Another process — usually a second Hassette instance — holds the web API por
 Usage error: Instance 'office' not found for app 'my-app'. Available instances: 'default', 'kitchen'
 ```
 
-The instance name must match `hassette app` output exactly. The integer index also works — `--instance 0` selects the first instance.
+The instance name must match an `instances[].instance_name` value from `hassette app --json` exactly — the default `hassette app` table shows a per-app instance count, not the names themselves. The integer index also works and needs no lookup: `--instance 0` selects the first instance.
+
+**Unauthenticated remote request (401):**
+
+```text
+Error 401: Unauthorized (no credential was attached to this remote request. Attach one
+locally via --token-file, cli.token_file, or the HASSETTE__CLI__AUTH_TOKEN environment
+variable — or, if this target sits behind a forward-auth proxy, configure trusted_proxies
+on the remote instance, which requires access to that host and a restart)
+```
+
+The resolved target is non-loopback and no `cli.*` credential was found, so `web_api.auth_token` and `<data_dir>/.web_api_token` were withheld — see [Web API Token](#web-api-token). Fix it locally with `--token-file`, `cli.token_file`, or `HASSETTE__CLI__AUTH_TOKEN`. Fixing it remotely means adding the proxy's address or CIDR — the peer address Hassette actually observes, not the CLI's own host — to `trusted_proxies` on the target instance (see [Letting CLI Traffic Through a Reverse Proxy](#letting-cli-traffic-through-a-reverse-proxy)). Keep that entry narrow: a broad range can let unintended peers on the same network skip the bearer-token check too.
+
+**Redirect response (3xx):**
+
+```text
+Error 302: Found (this response is a redirect — likely a forward-auth login page in front
+of the target, not Hassette itself. See the reverse-proxy section of the CLI configuration
+docs.)
+```
+
+A gateway in front of the target redirected the request instead of passing it through — usually a forward-auth login page. See [Letting CLI Traffic Through a Reverse Proxy](#letting-cli-traffic-through-a-reverse-proxy) above.
 
 ### JSON Error Format
 

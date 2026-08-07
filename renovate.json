@@ -4,7 +4,8 @@
     "Per-repo Renovate config, processed by the self-hosted runner on smithfamily.",
     "docker-compose managerFilePatterns lists both patterns explicitly: the standard compose pattern (covers tests/system/docker-compose.yml) and ha-demo.yml (covers scripts/docker/ha-demo.yml, which is not named compose* and would otherwise be missed).",
     "ignorePaths replaces config:recommended's defaults so tests/ is NOT ignored (the CI compose file lives under tests/), while the docs snippet compose files are excluded.",
-    "chore(deps) commits keep dependency bumps out of the release-please changelog."
+    "chore(deps) commits keep dependency bumps out of the release-please changelog.",
+    "homeassistant/home-assistant is explicitly disabled (see packageRules) -- the .claude/skills/ha-version-bump skill owns bumping the compose-file HA image tags in lockstep with the codegen pin, monthly. Weekly Renovate PRs for this one package went unreviewed in practice."
   ],
   "extends": ["config:recommended"],
   "schedule": ["before 9am on monday"],
@@ -22,17 +23,10 @@
   },
   "packageRules": [
     {
-      "description": "Group both compose files' HA image bumps into one PR",
+      "description": "homeassistant/home-assistant is bumped monthly by the ha-version-bump skill in lockstep with the codegen pin, not by Renovate",
       "matchDatasources": ["docker"],
       "matchPackageNames": ["homeassistant/home-assistant"],
-      "groupName": "home-assistant image"
-    },
-    {
-      "description": "Major HA jumps (year rollover) wait for dashboard approval",
-      "matchDatasources": ["docker"],
-      "matchPackageNames": ["homeassistant/home-assistant"],
-      "matchUpdateTypes": ["major"],
-      "dependencyDashboardApproval": true
+      "enabled": false
     }
   ]
 }

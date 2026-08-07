@@ -63,12 +63,22 @@ def get_api(request: Request) -> "Api":
     return request.app.state.hassette.api
 
 
+def get_resolved_auth_token(request: Request) -> str | None:
+    """Return the resolved web API credential from app state, or ``None`` if unset.
+
+    Mirrors the guarded lookup used by ``DefaultDenyMiddleware`` and ``authorize_ws`` so an
+    app built without an ``auth_token`` argument degrades to ``None`` rather than raising.
+    """
+    return getattr(request.app.state, "auth_token", None)
+
+
 # Shared dependency type aliases — import these instead of re-defining locally.
 HassetteDep = Annotated["Hassette", Depends(get_hassette)]
 RuntimeDep = Annotated["RuntimeQueryService", Depends(get_runtime)]
 TelemetryDep = Annotated["TelemetryQueryService", Depends(get_telemetry)]
 SchedulerDep = Annotated["SchedulerService", Depends(get_scheduler)]
 ApiDep = Annotated["Api", Depends(get_api)]
+AuthDep = Annotated[str | None, Depends(get_resolved_auth_token)]
 
 
 @contextmanager

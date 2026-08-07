@@ -3,17 +3,16 @@
 import asyncio
 import logging
 import shutil
-import socket
 import subprocess
 import threading
-import time
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
-import uvicorn
 
 from hassette.logging_ import LogCaptureHandler, LogEntry
+from hassette.test_utils.uvicorn_server import start_uvicorn_server, stop_uvicorn_server
 from hassette.test_utils.web_mocks import create_hassette_stub, create_mock_runtime_query_service
 from hassette.web.app import create_fastapi_app
 from tests.e2e.mock_fixtures import (
@@ -99,7 +98,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 SPA_INDEX = REPO_ROOT / "src" / "hassette" / "web" / "static" / "spa" / "index.html"
 
 
-def build_mock_hassette(*, is_ready: bool = True):
+def build_mock_hassette(*, is_ready: bool = True, auth_enabled: bool = False) -> MagicMock:
     """Build a fully-wired mock Hassette stub with rich seed telemetry data.
 
     ``is_ready=False`` simulates WebsocketService never having connected to HA
@@ -117,6 +116,7 @@ def build_mock_hassette(*, is_ready: bool = True):
         scheduler_jobs=build_scheduler_jobs(),
         is_ready=is_ready,
         websocket_connected=is_ready,
+        auth_enabled=auth_enabled,
     )
 
     # Wire telemetry seed data.
@@ -140,7 +140,7 @@ def build_mock_hassette(*, is_ready: bool = True):
     wire_app_manifest_lookups(hassette, build_manifests())
 
     # Wire realistic config stub so GET /config returns valid data.
-    wire_config(hassette)
+    wire_config(hassette, auth_enabled=auth_enabled)
 
     hassette.telemetry_query_service = hassette._telemetry_query_service
 
@@ -289,54 +289,11 @@ def fastapi_app_starting(mock_hassette_starting, runtime_query_service_starting,
     return create_fastapi_app(mock_hassette_starting)
 
 
-def get_free_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
-
-
-def start_uvicorn_server(app, *, ws: str = "none") -> tuple[uvicorn.Server, threading.Thread, str]:
-    """Start `app` under uvicorn in a daemon thread; block until it accepts connections.
-
-    Returns (server, thread, base_url). Caller tears down via `stop_uvicorn_server`.
-    """
-    port = get_free_port()
-    # Disable WS protocol to avoid websockets.legacy DeprecationWarning (which
-    # becomes an error under pytest's filterwarnings=["error"] setting).
-    config = uvicorn.Config(app=app, host="127.0.0.1", port=port, log_level="warning", ws=ws)
-    server = uvicorn.Server(config)
-
-    thread = threading.Thread(target=server.run, daemon=True)
-    thread.start()
-
-    # Poll until the server is accepting connections.
-    # socket.create_connection blocks up to 0.5s on success; the short sleep
-    # prevents a tight spin on connection-refused (which returns instantly).
-    deadline = time.monotonic() + 10
-    while time.monotonic() < deadline:
-        try:
-            with socket.create_connection(("127.0.0.1", port), timeout=0.5):
-                break
-        except OSError:
-            time.sleep(0.05)
-    else:
-        raise RuntimeError(f"Live server did not start within 10s on port {port}")
-
-    return server, thread, f"http://127.0.0.1:{port}"
-
-
-def stop_uvicorn_server(server: uvicorn.Server, thread: threading.Thread) -> None:
-    server.should_exit = True
-    thread.join(timeout=5)
-    if thread.is_alive():
-        raise RuntimeError("Live server did not stop within 5s")
-
-
 @pytest.fixture(scope="session")
 def live_server(fastapi_app):
     """Start a real uvicorn server in a daemon thread and yield its base URL."""
-    server, thread, url = start_uvicorn_server(fastapi_app, ws="none")
-    yield url
+    server, thread, port = start_uvicorn_server(fastapi_app, ws="none")
+    yield f"http://127.0.0.1:{port}"
     stop_uvicorn_server(server, thread)
 
 
@@ -348,8 +305,8 @@ def live_server_starting(fastapi_app_starting):
     HA-unreachable scenario cannot bleed state into the happy-path server every other
     e2e test uses.
     """
-    server, thread, url = start_uvicorn_server(fastapi_app_starting, ws="none")
-    yield url
+    server, thread, port = start_uvicorn_server(fastapi_app_starting, ws="none")
+    yield f"http://127.0.0.1:{port}"
     stop_uvicorn_server(server, thread)
 
 
@@ -392,7 +349,7 @@ def set_time_preset_to_1h(request: pytest.FixtureRequest, page, base_url: str) -
     have the preset forced — they receive uptimeSeconds from the real WS
     connected message and test the "since-restart" gate.
     """
-    if "live_server_ws" in request.fixturenames or "live_server_ws_inject" in request.fixturenames:
+    if any(name.startswith("live_server_ws") for name in request.fixturenames):
         return
     seed_time_preset_1h(page, base_url)
 
@@ -431,41 +388,16 @@ def live_server_ws(fastapi_app, runtime_query_service):
     original_lock = runtime_query_service._lock
     runtime_query_service._lock = asyncio.Lock()
 
-    port = get_free_port()
-    config = uvicorn.Config(
-        app=fastapi_app,
-        host="127.0.0.1",
-        port=port,
-        log_level="warning",
-        ws="websockets-sansio",
-        # Short graceful shutdown: browser WebSocket stays open until Playwright
-        # releases it, so we cannot wait forever. Cancel lingering connections
-        # after 1 second and proceed. The daemon thread ensures the process
-        # does not hang if the server does not exit cleanly.
-        timeout_graceful_shutdown=1,
-    )
-    server = uvicorn.Server(config)
-
-    thread = threading.Thread(target=server.run, daemon=True)
-    thread.start()
-
-    deadline = time.monotonic() + 10
-    while time.monotonic() < deadline:
-        try:
-            with socket.create_connection(("127.0.0.1", port), timeout=0.5):
-                break
-        except OSError:
-            time.sleep(0.05)
-    else:
-        raise RuntimeError(f"WS-enabled live server did not start within 10s on port {port}")
+    # Short graceful shutdown: browser WebSocket stays open until Playwright
+    # releases it, so we cannot wait forever. Cancel lingering connections
+    # after 1 second and proceed. The daemon thread ensures the process
+    # does not hang if the server does not exit cleanly.
+    server, thread, port = start_uvicorn_server(fastapi_app, ws="websockets-sansio", timeout_graceful_shutdown=1)
 
     yield f"http://127.0.0.1:{port}"
 
     try:
-        server.should_exit = True
-        thread.join(timeout=5)
-        if thread.is_alive():
-            raise RuntimeError("WS-enabled live server did not stop within 5s")
+        stop_uvicorn_server(server, thread)
     finally:
         runtime_query_service._lock = original_lock
 
@@ -486,45 +418,18 @@ def live_server_ws_inject(fastapi_app, runtime_query_service):
     original_lock = runtime_query_service._lock
     runtime_query_service._lock = asyncio.Lock()
 
-    port = get_free_port()
-    config = uvicorn.Config(
-        app=fastapi_app,
-        host="127.0.0.1",
-        port=port,
-        log_level="warning",
-        ws="websockets-sansio",
-        timeout_graceful_shutdown=1,
-    )
-    server = uvicorn.Server(config)
-
-    # Capture the server's event loop from inside the thread before uvicorn begins
-    # serving. We patch server.startup to grab asyncio.get_running_loop() once the
-    # server is up and signal the main thread via an Event.
+    # Capture the server's event loop via start_uvicorn_server's on_startup hook,
+    # which runs on the server's own event loop just before it begins serving.
     loop_ready = threading.Event()
     _captured: list[asyncio.AbstractEventLoop] = []
 
-    _original_startup = server.startup
-
-    async def _startup_and_capture(sockets=None):
-        await _original_startup(sockets=sockets)
+    def _capture_loop() -> None:
         _captured.append(asyncio.get_running_loop())
         loop_ready.set()
 
-    server.startup = _startup_and_capture
-
-    thread = threading.Thread(target=server.run, daemon=True)
-    thread.start()
-
-    # Wait for the server to accept connections.
-    deadline = time.monotonic() + 10
-    while time.monotonic() < deadline:
-        try:
-            with socket.create_connection(("127.0.0.1", port), timeout=0.5):
-                break
-        except OSError:
-            time.sleep(0.05)
-    else:
-        raise RuntimeError(f"WS-inject server did not start within 10s on port {port}")
+    server, thread, port = start_uvicorn_server(
+        fastapi_app, ws="websockets-sansio", timeout_graceful_shutdown=1, on_startup=_capture_loop
+    )
 
     # Wait for the loop capture to be signalled.
     if not loop_ready.wait(timeout=5):
@@ -539,9 +444,6 @@ def live_server_ws_inject(fastapi_app, runtime_query_service):
     yield SimpleNamespace(url=f"http://127.0.0.1:{port}", broadcast_sync=broadcast_sync)
 
     try:
-        server.should_exit = True
-        thread.join(timeout=5)
-        if thread.is_alive():
-            raise RuntimeError("WS-inject server did not stop within 5s")
+        stop_uvicorn_server(server, thread)
     finally:
         runtime_query_service._lock = original_lock
