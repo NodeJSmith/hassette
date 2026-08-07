@@ -1,5 +1,5 @@
 import typing
-from collections.abc import Hashable
+from collections.abc import Hashable, Mapping
 from contextlib import suppress
 from logging import getLogger
 
@@ -273,11 +273,12 @@ def convert_state_dict_to_model(value: typing.Any, model: "type[BaseState]") -> 
         prepared["domain"] = str(entity_id).split(".", 1)[0]
 
     entity_id_str = str(entity_id) if entity_id else "<unknown>"
-    attributes = prepared.get("attributes") or {}
+    raw_attributes = prepared.get("attributes")
+    attributes = raw_attributes if isinstance(raw_attributes, Mapping) else {}
     device_class = attributes.get("device_class")
 
     expected_shape = NARROWED_SENSOR_SHAPES.get(model)
-    if expected_shape is not None:
+    if expected_shape is not None and isinstance(raw_attributes, Mapping):
         actual_shape = classify_sensor_shape(attributes)
         if actual_shape is not SensorShape.UNKNOWN and actual_shape is not expected_shape:
             raise SensorShapeMismatchError(entity_id_str, device_class, model)

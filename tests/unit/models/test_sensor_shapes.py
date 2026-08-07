@@ -216,6 +216,15 @@ def test_uptime_device_class_classifies_as_timestamp_shape() -> None:
     assert classify_sensor_shape({"device_class": "uptime"}) is SensorShape.TIMESTAMP
 
 
+def test_unhashable_device_class_normalizes_to_unknown_instead_of_raising() -> None:
+    """Malformed upstream data can report `device_class` as an unhashable value (e.g. a
+    list). Membership testing against `_KNOWN_DEVICE_CLASSES` (a frozenset) would raise
+    `TypeError` on an unhashable value — the classifier must normalize it to `None`, same
+    as any other unrecognized device class, before that check ever runs.
+    """
+    assert classify_sensor_shape({"device_class": ["temperature"]}) is SensorShape.UNKNOWN
+
+
 def _run_pyright_narrowing_probe() -> str:
     result = subprocess.run(
         [sys.executable, "-m", "pyright", "--project", str(PYRIGHT_PROBE_DIR), str(PYRIGHT_PROBE_FILE)],

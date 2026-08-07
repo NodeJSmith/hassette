@@ -112,3 +112,21 @@ class TestConversionFailureLegibility:
         assert err.device_class == "enum"
         assert err.state_class is EnumSensorState
         assert isinstance(err.__cause__, ValidationError)
+
+    def test_non_mapping_attributes_wrapped_instead_of_raising_attribute_error(self) -> None:
+        """Malformed upstream data can report `attributes` as something other than a mapping
+        (e.g. a bare string). Shape classification must not blow up on `.get()` before
+        `model_validate()` gets a chance to reject the bad data — the failure should surface
+        as the same framework exception as any other invalid state payload, not a raw
+        `AttributeError` from `"garbage".get(...)`.
+        """
+        state_dict = make_sensor_state_dict(entity_id="sensor.zone_a_temperature", state="23.5")
+        state_dict["attributes"] = "not-a-mapping"
+
+        with pytest.raises(UnableToConvertAnnotatedStateError) as exc_info:
+            convert_state_dict_to_model(state_dict, NumericSensorState)
+
+        err = exc_info.value
+        assert err.entity_id == "sensor.zone_a_temperature"
+        assert err.device_class is None
+        assert isinstance(err.__cause__, ValidationError)

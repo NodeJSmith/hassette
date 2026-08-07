@@ -152,7 +152,10 @@ def classify_sensor_shape(attributes: Mapping[str, Any]) -> SensorShape:
     Before branching, an unrecognized `device_class` string is normalized to `None` — see
     `_KNOWN_DEVICE_CLASSES`. Without this step a custom device class would satisfy the
     numeric branch's `device_class is not None` fallback and misclassify as numeric, which
-    is the exact false positive this classifier exists to prevent.
+    is the exact false positive this classifier exists to prevent. A non-string `device_class`
+    (e.g. malformed upstream data reporting a list) is normalized the same way, before the
+    `_KNOWN_DEVICE_CLASSES` membership check ever runs — membership testing an unhashable
+    value would raise `TypeError` instead of just failing to match.
 
     Args:
         attributes: The raw `attributes` mapping from a Home Assistant state dict.
@@ -163,7 +166,7 @@ def classify_sensor_shape(attributes: Mapping[str, Any]) -> SensorShape:
         consumer.
     """
     device_class = attributes.get("device_class")
-    if device_class not in _KNOWN_DEVICE_CLASSES:
+    if not isinstance(device_class, str) or device_class not in _KNOWN_DEVICE_CLASSES:
         device_class = None
 
     if device_class == "date":
