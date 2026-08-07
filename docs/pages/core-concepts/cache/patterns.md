@@ -36,8 +36,8 @@ External APIs impose rate limits. Storing the response alongside a timestamp let
 
 `get_weather` checks the cache first. The entry holds a tuple of `(timestamp, forecast)`. When the stored timestamp falls within the 30-minute window, the cached value is returned without a network call. A stale or absent entry triggers a fresh fetch and overwrites the cache entry.
 
-!!! note "Why the `# pyright: ignore` comments?"
-    `cache.get()` returns untyped values — the type checker can't know what was stored under a key. The examples suppress the resulting warnings; production code can do the same, or narrow the value with a cast or an `isinstance` check after reading.
+!!! note "Typing cached values"
+    The cache holds any picklable object, so `get()` cannot infer what a key contains — an unannotated read resolves to `None` for the type checker. Annotating the target fixes that, as `entry: WeatherEntry | None` does above. Passing `default=` works too: `await self.cache.get("count", default=0)` reads as `int | None`.
 
 ## Expiring Entries
 

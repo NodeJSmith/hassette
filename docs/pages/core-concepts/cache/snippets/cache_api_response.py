@@ -1,4 +1,8 @@
+from whenever import ZonedDateTime
+
 from hassette import App, AppConfig
+
+WeatherEntry = tuple[ZonedDateTime, dict]
 
 
 class WeatherApp(App[AppConfig]):
@@ -11,7 +15,7 @@ class WeatherApp(App[AppConfig]):
         cache_key = f"weather:{location}"
 
         # Check cache first
-        entry = await self.cache.get(cache_key)
+        entry: WeatherEntry | None = await self.cache.get(cache_key)
         if entry is not None:
             cached_time, forecast = entry
             # Return the cached forecast if less than 30 minutes old
