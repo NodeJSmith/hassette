@@ -112,26 +112,19 @@ class StateRegistry:
         raise RuntimeError("Unreachable code reached in try_convert_state")
 
     @classmethod
-    def register(
-        cls,
-        state_class: type["BaseState"],
-        *,
-        domain: Hashable | None = None,
-        device_class: Hashable | None = None,
-    ) -> None:
-        """Register a state class for a given domain and optional device_class combination.
+    def register(cls, state_class: type["BaseState"], *, domain: Hashable | None = None) -> None:
+        """Register a state class for a given domain.
 
         Args:
             state_class: The state class to register. Must be a subclass of BaseState.
             domain: The Home Assistant domain (e.g., "light", "sensor").
-            device_class: The device class (e.g., "temperature", "motion").
         """
-        register_state_converter(state_class, domain=domain, device_class=device_class)
+        register_state_converter(state_class, domain=domain)
 
     @classmethod
-    def resolve(cls, *, domain: Hashable | None = None, device_class: Hashable | None = None) -> type[BaseState] | None:
-        """Resolve a state class from the registry based on domain and device_class."""
-        return resolve(domain=domain, device_class=device_class)
+    def resolve(cls, *, domain: Hashable | None = None) -> type[BaseState] | None:
+        """Resolve a state class from the registry based on domain."""
+        return resolve(domain=domain)
 
     def coerce_and_construct(
         self, state_class: "type[BaseState]", data: "HassStateDict", entity_id: str

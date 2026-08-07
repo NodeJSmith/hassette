@@ -27,8 +27,7 @@ class RegistryValidationIssue:
         registry: Which registry produced the issue — ``"STATE_REGISTRY"`` or
             ``"TYPE_REGISTRY"``.
         severity: ``"error"`` for issues that indicate broken/missing
-            registrations; ``"warning"`` for non-fatal anomalies such as
-            duplicate domain registrations.
+            registrations.
         message: Human-readable description of the issue.
     """
 
@@ -95,8 +94,6 @@ def _validate_state_registry(state_registry: StateRegistry) -> list[RegistryVali
         )
         return issues
 
-    seen_domains: dict[object, type] = {}
-
     for key, cls in entries.items():
         try:
             is_subclass = isinstance(cls, type) and issubclass(cls, BaseState)
@@ -126,25 +123,6 @@ def _validate_state_registry(state_registry: StateRegistry) -> list[RegistryVali
                     ),
                 )
             )
-            continue
-
-        domain = key.domain
-
-        if domain in seen_domains:
-            existing_cls = seen_domains[domain]
-            issues.append(
-                RegistryValidationIssue(
-                    registry=registry_name,
-                    severity="warning",
-                    message=(
-                        f"Duplicate domain '{domain}' registered by both "
-                        f"{existing_cls.__name__!r} (wins) and {getattr(cls, '__name__', repr(cls))!r}. "
-                        "The first-registered class takes precedence."
-                    ),
-                )
-            )
-        else:
-            seen_domains[domain] = cls
 
     return issues
 

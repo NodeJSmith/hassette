@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Remove the catalog's unused device_class dimension"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#18", "AC#16"]
 ---

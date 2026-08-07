@@ -22,42 +22,28 @@ class StateKey:
     domain: Hashable | None = None
     """The domain of the entity (e.g., 'light', 'sensor')."""
 
-    device_class: Hashable | None = None
-    """Optional device class of the entity (e.g., 'temperature', 'humidity')."""
 
-
-def register_state_converter(
-    state_class: type["BaseState"], domain: Hashable, device_class: Hashable | None = None
-) -> None:
-    """Register a state class for a specific domain and optional device class.
+def register_state_converter(state_class: type["BaseState"], domain: Hashable) -> None:
+    """Register a state class for a specific domain.
 
     Args:
         state_class: The state class to register. Must be a subclass of BaseState.
         domain: The Home Assistant domain (e.g., "light", "sensor").
-        device_class: The device class (e.g., "temperature", "motion").
     """
-    key = StateKey(domain=domain, device_class=device_class)
+    key = StateKey(domain=domain)
     _STATE_CATALOG[key] = state_class
 
 
-def resolve(*, domain: Hashable | None = None, device_class: Hashable | None = None) -> type["BaseState"] | None:
-    """Resolve a state class from the catalog based on domain and device_class.
+def resolve(*, domain: Hashable | None = None) -> type["BaseState"] | None:
+    """Resolve a state class from the catalog based on domain.
 
     Args:
         domain: The Home Assistant domain (e.g., "light", "sensor").
-        device_class: The device class (e.g., "temperature", "motion").
 
     Returns:
         The registered state class, or None if no match is found.
     """
-    candidates = [StateKey(domain=domain, device_class=device_class)]
-    if device_class is not None:
-        candidates.append(StateKey(domain=domain, device_class=None))
-
-    for k in candidates:
-        if k in _STATE_CATALOG:
-            return _STATE_CATALOG[k]
-    return None
+    return _STATE_CATALOG.get(StateKey(domain=domain))
 
 
 def snapshot_catalog() -> "dict[StateKey, type[BaseState]]":
