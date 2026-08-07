@@ -134,6 +134,11 @@ celerybeat.pid
 # Environments
 .env
 .env.*
+# Fixture-only demo/system-test values (HA image tag, demo tokens), not secrets --
+# see scripts/docker/.env for the full explanation. tests/system/.env is a symlink
+# to it, kept in sync automatically.
+!scripts/docker/.env
+!tests/system/.env
 .venv
 env/
 venv/

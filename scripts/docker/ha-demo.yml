@@ -1,15 +1,15 @@
 services:
   homeassistant:
-    image: homeassistant/home-assistant:2026.8
+    image: homeassistant/home-assistant:${HA_VERSION}
     container_name: "hassette-demo-ha"
     ports:
       - "127.0.0.1:${DEMO_HA_PORT:-18123}:8123"
     volumes:
       - "${HA_CONFIG_PATH:-../../tests/fixtures/demo-ha-config}:/config"
     restart: "no"
-    # JWT must match HA_TOKEN in scripts/hassette_demo.py and tests/fixtures/demo-ha-config/.storage/auth
+    # HA_ACCESS_TOKEN (scripts/docker/.env) must match tests/fixtures/demo-ha-config/.storage/auth
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:8123/api/", "-H", "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiIwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMyIsImlhdCI6MTczNTY4OTYwMCwiZXhwIjoyMDUxMDQ5NjAwfQ.q-p85dOe-MMnKQhSNh_LEWnWJGK-GA3xdmqb4LKvkU0"]
+      test: ["CMD", "curl", "-sf", "http://localhost:8123/api/", "-H", "Authorization: Bearer ${HA_ACCESS_TOKEN}"]
       interval: 5s
       timeout: 5s
       retries: 12
@@ -30,10 +30,10 @@ services:
       - "../../.demo-data:/app/.demo-data"
     environment:
       HASSETTE__BASE_URL: "http://homeassistant:8123"
-      # JWT must match HA_TOKEN in scripts/hassette_demo.py and tests/fixtures/demo-ha-config/.storage/auth
-      HASSETTE__TOKEN: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiIwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMyIsImlhdCI6MTczNTY4OTYwMCwiZXhwIjoyMDUxMDQ5NjAwfQ.q-p85dOe-MMnKQhSNh_LEWnWJGK-GA3xdmqb4LKvkU0"
-      # Must match DEMO_AUTH_TOKEN in scripts/capture_screenshots.py
-      HASSETTE__WEB_API__AUTH_TOKEN: "demo-token"
+      # HA_ACCESS_TOKEN (scripts/docker/.env) must match tests/fixtures/demo-ha-config/.storage/auth
+      HASSETTE__TOKEN: "${HA_ACCESS_TOKEN}"
+      # DEMO_AUTH_TOKEN (scripts/docker/.env), also read by capture_screenshots.py and demo-verify
+      HASSETTE__WEB_API__AUTH_TOKEN: "${DEMO_AUTH_TOKEN}"
       HASSETTE__WEB_API__PORT: "8126"
       HASSETTE__APPS__DIRECTORY: "/app/examples"
       HASSETTE__DATA_DIR: "/app/.demo-data"
