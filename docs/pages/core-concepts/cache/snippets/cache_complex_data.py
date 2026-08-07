@@ -1,8 +1,8 @@
-import dataclasses
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+
+from whenever import ZonedDateTime
 
 from hassette import App, AppConfig
-from whenever import ZonedDateTime
 
 
 @dataclass
@@ -26,7 +26,7 @@ class EnergyTrackerApp(App[AppConfig]):
         current_usage = await self.get_current_usage()
 
         # Create a new stats object — do not mutate the existing one
-        self.stats = dataclasses.replace(
+        self.stats = replace(
             self.stats,
             total_kwh=self.stats.total_kwh + current_usage,
             peak_usage=max(self.stats.peak_usage, current_usage),

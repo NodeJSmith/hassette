@@ -1,14 +1,19 @@
-from hassette import App, AppConfig
 from pydantic_settings import SettingsConfigDict
 
+from hassette import App, AppConfig
 
-class DailyConfig(AppConfig):
-    model_config = SettingsConfigDict(env_prefix="daily_")
+# Variations on the recipe's main app — the config below mirrors
+# daily_notification.py so both files describe the same app.
+
+
+class DailyNotificationConfig(AppConfig):
+    model_config = SettingsConfigDict(env_prefix="DAILY_NOTIFICATION_")
+
+    notify_time: str = "08:00"
     notify_service: str = "mobile_app_phone"
-    notify_time: str = "07:30"
 
 
-class DailyNotificationApp(App[DailyConfig]):
+class DailyNotificationApp(App[DailyNotificationConfig]):
     async def on_initialize(self) -> None:
         # --8<-- [start:cron_parse]
         h, m = self.app_config.notify_time.split(":")

@@ -34,7 +34,7 @@ External APIs impose rate limits. Storing the response alongside a timestamp let
 --8<-- "pages/core-concepts/cache/snippets/cache_api_response.py"
 ```
 
-`get_weather` checks the cache first. The entry holds a tuple of `(timestamp, data)`. When the stored timestamp falls within the 30-minute window, the cached value is returned without a network call. A stale or absent entry triggers a fresh fetch and overwrites the cache entry.
+`get_weather` checks the cache first. The entry holds a tuple of `(timestamp, forecast)`. When the stored timestamp falls within the 30-minute window, the cached value is returned without a network call. A stale or absent entry triggers a fresh fetch and overwrites the cache entry.
 
 !!! note "Why the `# pyright: ignore` comments?"
     `cache.get()` returns untyped values — the type checker can't know what was stored under a key. The examples suppress the resulting warnings; production code can do the same, or narrow the value with a cast or an `isinstance` check after reading.
@@ -65,7 +65,7 @@ The cache stores any picklable Python object. Dataclasses with typed fields work
 --8<-- "pages/core-concepts/cache/snippets/cache_complex_data.py"
 ```
 
-`dataclasses.replace()` produces a new `EnergyStats` object rather than modifying the existing one. The cache write only happens after the new object is fully constructed. A runtime error before the write leaves the previous value intact.
+`replace()` from `dataclasses` produces a new `EnergyStats` object rather than modifying the existing one. The cache write only happens after the new object is fully constructed. A runtime error before the write leaves the previous value intact.
 
 ## Load Once, Write on Shutdown
 

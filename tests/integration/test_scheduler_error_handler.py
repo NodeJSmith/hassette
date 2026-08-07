@@ -6,10 +6,38 @@ from typing import TYPE_CHECKING
 import pytest
 
 from hassette.scheduler.error_context import SchedulerErrorContext
+from hassette.test_utils.helpers import settle
 
 if TYPE_CHECKING:
+    from hassette import Hassette
     from hassette.scheduler import Scheduler
     from hassette.test_utils.harness import HassetteHarness
+
+ERROR_TIMEOUT = 2.0
+"""Seconds to wait for an error handler that fires without a duration timer in front of it."""
+
+
+class _SchedulerErrorCollector:
+    """Records the `SchedulerErrorContext` values an `on_error` handler receives."""
+
+    def __init__(self, hassette: "Hassette") -> None:
+        self.hassette = hassette
+        self.contexts: list[SchedulerErrorContext] = []
+        self.ran = asyncio.Event()
+
+    async def record(self, ctx: SchedulerErrorContext) -> None:
+        self.contexts.append(ctx)
+        self.hassette.task_bucket.post_to_loop(self.ran.set)
+
+    async def wait(self, timeout: float = ERROR_TIMEOUT) -> None:
+        """Block until the first error is recorded."""
+        await asyncio.wait_for(self.ran.wait(), timeout=timeout)
+
+    def single(self, exc_type: type[Exception]) -> SchedulerErrorContext:
+        """Assert exactly one error of `exc_type` was recorded, and return its context."""
+        assert len(self.contexts) == 1
+        assert isinstance(self.contexts[0].exception, exc_type)
+        return self.contexts[0]
 
 
 @pytest.fixture
@@ -23,24 +51,19 @@ async def test_app_level_error_handler_called_on_job_failure(hassette_with_sched
     hassette = hassette_with_scheduler
     scheduler = hassette.scheduler
 
-    error_contexts: list[SchedulerErrorContext] = []
-    handler_ran = asyncio.Event()
-
-    async def on_error(ctx: SchedulerErrorContext) -> None:
-        error_contexts.append(ctx)
-        hassette.task_bucket.post_to_loop(handler_ran.set)
+    errors = _SchedulerErrorCollector(hassette)
 
     async def bad_job() -> None:
         raise ValueError("job failed")
 
-    scheduler.on_error(on_error)
+    scheduler.on_error(errors.record)
     await scheduler.run_in(bad_job, delay=0.01, name="app_level_error_handler_called_on_job_fa_run_in")
 
-    await asyncio.wait_for(handler_ran.wait(), timeout=2.0)
+    await errors.wait()
+    await settle()
 
-    assert len(error_contexts) == 1
-    assert isinstance(error_contexts[0].exception, ValueError)
-    assert str(error_contexts[0].exception) == "job failed"
+    ctx = errors.single(ValueError)
+    assert str(ctx.exception) == "job failed"
 
 
 async def test_per_job_error_handler_wins(hassette_with_scheduler: "HassetteHarness") -> None:
@@ -48,31 +71,20 @@ async def test_per_job_error_handler_wins(hassette_with_scheduler: "HassetteHarn
     hassette = hassette_with_scheduler
     scheduler = hassette.scheduler
 
-    app_level_calls: list[SchedulerErrorContext] = []
-    per_job_calls: list[SchedulerErrorContext] = []
-    per_job_ran = asyncio.Event()
-
-    async def app_level_handler(ctx: SchedulerErrorContext) -> None:
-        app_level_calls.append(ctx)
-
-    async def per_job_handler(ctx: SchedulerErrorContext) -> None:
-        per_job_calls.append(ctx)
-        hassette.task_bucket.post_to_loop(per_job_ran.set)
+    app_level = _SchedulerErrorCollector(hassette)
+    per_job = _SchedulerErrorCollector(hassette)
 
     async def bad_job() -> None:
         raise RuntimeError("per-job failure")
 
-    scheduler.on_error(app_level_handler)
-    await scheduler.run_in(bad_job, delay=0.01, on_error=per_job_handler, name="per_job_error_handler_wins_run_in")
+    scheduler.on_error(app_level.record)
+    await scheduler.run_in(bad_job, delay=0.01, on_error=per_job.record, name="per_job_error_handler_wins_run_in")
 
-    await asyncio.wait_for(per_job_ran.wait(), timeout=2.0)
+    await per_job.wait()
+    await settle()
 
-    # negative-assertion: no event-driven alternative
-    await asyncio.sleep(0.05)
-
-    assert len(per_job_calls) == 1, f"Expected 1 per-job call, got {len(per_job_calls)}"
-    assert len(app_level_calls) == 0, "App-level handler should not be called when per-job handler wins"
-    assert isinstance(per_job_calls[0].exception, RuntimeError)
+    per_job.single(RuntimeError)
+    assert not app_level.contexts, "App-level handler should not be called when per-job handler wins"
 
 
 async def test_no_handler_framework_default(hassette_with_scheduler: "HassetteHarness") -> None:
@@ -90,8 +102,7 @@ async def test_no_handler_framework_default(hassette_with_scheduler: "HassetteHa
 
     # Job ran (exception was raised) and harness didn't crash
     await asyncio.wait_for(ran.wait(), timeout=2.0)
-    # negative-assertion: no event-driven alternative
-    await asyncio.sleep(0.05)
+    await settle()
 
 
 async def test_error_context_contains_args_kwargs(hassette_with_scheduler: "HassetteHarness") -> None:
@@ -99,17 +110,12 @@ async def test_error_context_contains_args_kwargs(hassette_with_scheduler: "Hass
     hassette = hassette_with_scheduler
     scheduler = hassette.scheduler
 
-    error_contexts: list[SchedulerErrorContext] = []
-    handler_ran = asyncio.Event()
-
-    async def on_error(ctx: SchedulerErrorContext) -> None:
-        error_contexts.append(ctx)
-        hassette.task_bucket.post_to_loop(handler_ran.set)
+    errors = _SchedulerErrorCollector(hassette)
 
     async def bad_job(sensor_id: str, *, count: int) -> None:  # noqa: ARG001
         raise ValueError(f"failed for {sensor_id}")
 
-    scheduler.on_error(on_error)
+    scheduler.on_error(errors.record)
     await scheduler.run_in(
         bad_job,
         delay=0.01,
@@ -118,10 +124,9 @@ async def test_error_context_contains_args_kwargs(hassette_with_scheduler: "Hass
         name="error_context_contains_args_kwargs_run_in",
     )
 
-    await asyncio.wait_for(handler_ran.wait(), timeout=2.0)
+    await errors.wait()
+    await settle()
 
-    assert len(error_contexts) == 1
-    ctx = error_contexts[0]
+    ctx = errors.single(ValueError)
     assert ctx.args == ("sensor.kitchen",)
     assert ctx.kwargs == {"count": 3}
-    assert isinstance(ctx.exception, ValueError)

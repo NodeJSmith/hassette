@@ -1,6 +1,11 @@
 from hassette import App, AppConfig
 from hassette.scheduler import Job
 
+# Every section below renders as a standalone fragment on management.md, so the
+# "morning" group name stays an inline literal. A module-level constant would
+# show up as an undefined name in the rendered snippet. scheduler_job_groups.py
+# renders as a whole file, so it uses a MORNING_GROUP constant instead.
+
 
 class ManagementPatternApp(App[AppConfig]):
     my_job: Job | None = None

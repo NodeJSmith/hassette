@@ -46,6 +46,9 @@ if TYPE_CHECKING:
 
 STATE_DICT_KEYS = frozenset({"last_changed", "last_updated", "last_reported", "context"})
 
+SETTLE_SECONDS = 0.05
+"""Default settle window: seconds to let a stray extra handler call land before a negative assertion."""
+
 
 def noop() -> None:
     """Sync no-op — default handler for create_listener() and scheduler job tests."""
@@ -53,6 +56,12 @@ def noop() -> None:
 
 async def async_noop() -> None:
     """Async no-op — call it to get a coroutine object (e.g. bucket.spawn(async_noop()))."""
+
+
+async def settle(seconds: float = SETTLE_SECONDS) -> None:
+    """Give a stray extra handler call time to land before a negative assertion."""
+    # negative-assertion: no event-driven alternative
+    await asyncio.sleep(seconds)
 
 
 def create_hass_event(event_type: str, data: dict[str, Any]) -> Any:
