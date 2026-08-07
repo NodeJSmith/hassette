@@ -124,6 +124,7 @@ from .sensor import (
     SensorState,
     SensorStateClass,
 )
+from .sensor_shapes import DateSensorState, EnumSensorState, NumericSensorState, SensorShape, TimestampSensorState
 from .simple import AiTaskState, ConversationState, NotifyState, SttState, TtsState
 from .siren import SirenAttributes, SirenEntityCapabilityAttribute, SirenEntityFeature, SirenState
 from .sun import SunAttributes, SunState
@@ -199,6 +200,7 @@ __all__ = [
     "CoverState",
     "CoverStateValue",
     "DateAttributes",
+    "DateSensorState",
     "DateState",
     "DateTimeAttributes",
     "DateTimeBaseState",
@@ -206,6 +208,7 @@ __all__ = [
     "DeviceTrackerAttributes",
     "DeviceTrackerState",
     "DoorbellEventType",
+    "EnumSensorState",
     "EventAttributes",
     "EventDeviceClass",
     "EventEntityCapabilityAttribute",
@@ -275,6 +278,7 @@ __all__ = [
     "NumberMode",
     "NumberState",
     "NumericBaseState",
+    "NumericSensorState",
     "PersonAttributes",
     "PersonState",
     "RemoteAttributes",
@@ -292,6 +296,7 @@ __all__ = [
     "SensorDeviceClass",
     "SensorEntityCapabilityAttribute",
     "SensorEntityStateAttribute",
+    "SensorShape",
     "SensorState",
     "SensorStateClass",
     "SirenAttributes",
@@ -316,6 +321,7 @@ __all__ = [
     "TimeState",
     "TimerAttributes",
     "TimerState",
+    "TimestampSensorState",
     "TodoAttributes",
     "TodoItemStatus",
     "TodoListEntityFeature",

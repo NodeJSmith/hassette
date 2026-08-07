@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Add the four sensor shape classes and the shape classifier"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#1", "FR#2", "FR#3", "FR#4", "FR#8", "FR#9", "FR#10", "AC#1", "AC#2", "AC#3", "AC#5", "AC#6"]
 ---

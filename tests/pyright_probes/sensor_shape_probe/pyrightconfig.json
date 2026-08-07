@@ -1,0 +1,14 @@
+{
+    "include": ["."],
+    "venvPath": "../../..",
+    "venv": ".venv",
+    "pythonVersion": "3.11",
+    "typeCheckingMode": "basic",
+    "reportMissingImports": "none",
+    "reportMissingModuleSource": "none",
+    "reportUnusedVariable": "none",
+    "reportUnusedImport": "none",
+    "reportUnusedFunction": "none",
+    "reportUnusedExpression": "none",
+    "reportOperatorIssue": "error"
+}

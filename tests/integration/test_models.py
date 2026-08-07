@@ -12,6 +12,7 @@ import pytest
 from hassette import STATE_REGISTRY
 from hassette.models import states
 from hassette.models.states import base
+from hassette.models.states import sensor_shapes as sensor_shapes_module
 
 if typing.TYPE_CHECKING:
     from hassette.test_utils.harness import HassetteHarness
@@ -25,6 +26,13 @@ EXCLUDE_CLASSES = [
     base.NumericBaseState,
     base.StringBaseState,
     base.TimeBaseState,
+    # The four narrowed sensor shape classes deliberately never register: none re-declares
+    # `domain`, so registering them would clobber SensorState process-wide. They are
+    # filtered views over the `sensor` domain, not separate domains.
+    sensor_shapes_module.NumericSensorState,
+    sensor_shapes_module.EnumSensorState,
+    sensor_shapes_module.TimestampSensorState,
+    sensor_shapes_module.DateSensorState,
 ]
 
 STATES_PATH = Path(states.__file__).parent
