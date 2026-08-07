@@ -1,12 +1,14 @@
 services:
   homeassistant:
-    image: homeassistant/home-assistant:2026.8
+    image: homeassistant/home-assistant:${HA_VERSION}
     container_name: hassette-system-ha
     volumes:
       - ${HA_CONFIG_PATH:-../../tests/fixtures/ha-config}:/config
     ports:
       - "18123:8123"
     restart: "no"
+    # HA_ACCESS_TOKEN (.env, symlinked from scripts/docker/.env) must match
+    # tests/fixtures/ha-config/.storage/auth and conftest.py's HA_TOKEN constant.
     healthcheck:
       test:
         [
@@ -15,7 +17,7 @@ services:
           "-sf",
           "http://localhost:8123/api/",
           "-H",
-          "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiIwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMyIsImlhdCI6MTczNTY4OTYwMCwiZXhwIjoyMDUxMDQ5NjAwfQ.q-p85dOe-MMnKQhSNh_LEWnWJGK-GA3xdmqb4LKvkU0",
+          "Authorization: Bearer ${HA_ACCESS_TOKEN}",
         ]
       interval: 5s
       timeout: 5s
