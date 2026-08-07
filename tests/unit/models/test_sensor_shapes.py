@@ -31,6 +31,7 @@ from hassette.test_utils.helpers import make_sensor_state_dict
 WORKTREE_ROOT = Path(__file__).resolve().parents[3]
 PYRIGHT_PROBE_DIR = WORKTREE_ROOT / "tests" / "pyright_probes" / "sensor_shape_probe"
 PYRIGHT_PROBE_FILE = PYRIGHT_PROBE_DIR / "narrowing_probe.py"
+PYRIGHT_PROBE_TIMEOUT_SECONDS = 120
 
 # Attribute combinations pulled from a live 270-sensor Home Assistant instance (the same
 # population design.md's precision/recall figures were measured against — 46% of sensors
@@ -221,7 +222,7 @@ def _run_pyright_narrowing_probe() -> str:
         capture_output=True,
         text=True,
         cwd=str(WORKTREE_ROOT),
-        timeout=120,
+        timeout=PYRIGHT_PROBE_TIMEOUT_SECONDS,
     )
     return result.stdout + result.stderr
 
@@ -237,7 +238,9 @@ def test_pyright_narrows_numeric_sensor_state_value_but_not_sensor_state() -> No
     try:
         output = _run_pyright_narrowing_probe()
     except subprocess.TimeoutExpired:
-        pytest.fail("pyright timed out after 120s — check for a hung pyright process or slow CI")
+        pytest.fail(
+            f"pyright timed out after {PYRIGHT_PROBE_TIMEOUT_SECONDS}s — check for a hung pyright process or slow CI"
+        )
 
     if "No module named" in output:
         pytest.fail(

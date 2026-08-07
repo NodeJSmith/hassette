@@ -36,8 +36,8 @@ def make_minimal_state_dict(entity_id: str, state_value: str = "on") -> HassStat
 class FakeStateReader:
     """Minimal dict-backed implementation of the StateReader protocol.
 
-    Holds states keyed by entity_id and answers the four members StateReader
-    declares: get_state, num_domain_states, yield_domain_states, __contains__.
+    Holds states keyed by entity_id and answers the two members StateReader
+    declares: get_state, yield_domain_states.
     """
 
     def __init__(self, states: dict[str, HassStateDict]) -> None:
@@ -46,16 +46,10 @@ class FakeStateReader:
     def get_state(self, entity_id: str) -> HassStateDict | None:
         return self.states.get(entity_id)
 
-    def num_domain_states(self, domain: str) -> int:
-        return sum(1 for eid in self.states if eid.startswith(f"{domain}."))
-
     def yield_domain_states(self, domain: str) -> Generator[tuple[str, HassStateDict], typing.Any, None]:
         for eid, state in self.states.items():
             if eid.startswith(f"{domain}."):
                 yield eid, state
-
-    def __contains__(self, entity_id: str) -> bool:
-        return entity_id in self.states
 
 
 def _check_fake_is_state_reader(reader: FakeStateReader) -> None:

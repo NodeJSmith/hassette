@@ -270,18 +270,14 @@ class SchedulerServiceProtocol(Protocol):
 class StateReader(Protocol):
     """Read-only protocol for the state-proxy surface consumed by StateManager and DomainStates.
 
-    Describes the four members state-manager consumers call on the state proxy.
+    Describes the two members state-manager consumers call on the state proxy.
     StateProxy satisfies this protocol structurally — no changes to the
     concrete class are required.
     """
 
     def get_state(self, entity_id: str) -> "HassStateDict | None": ...
 
-    def num_domain_states(self, domain: str) -> int: ...
-
     def yield_domain_states(self, domain: str) -> "Generator[tuple[str, HassStateDict], Any, None]": ...
-
-    def __contains__(self, entity_id: str) -> bool: ...
 
 
 class SyncHandler(Protocol):

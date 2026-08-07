@@ -3,6 +3,8 @@
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from hassette_codegen.extractors.properties import ExtractedProperty
@@ -57,7 +59,7 @@ class TestLoadOverrides:
 
 
 class TestValidateOverrides:
-    def test_warns_on_unknown_domain(self, capsys: object) -> None:
+    def test_warns_on_unknown_domain(self, capsys: pytest.CaptureFixture[str]) -> None:
         overrides = {"fake_domain": DomainOverride(domain="fake_domain")}
         validate_overrides(overrides, {"light", "fan"})
 
@@ -100,7 +102,7 @@ class TestApplyPropertyOverridesRemove:
         assert len(properties) == 1
         assert result is not properties
 
-    def test_warns_when_remove_target_missing(self, capsys) -> None:
+    def test_warns_when_remove_target_missing(self, capsys: pytest.CaptureFixture[str]) -> None:
         properties = [ExtractedProperty(name="state_class", python_type="str | None", has_default=True)]
         overrides = [PropertyOverride(name="nonexistent_field", remove=True)]
 

@@ -49,28 +49,23 @@ def extract_sensor_constants(ha_core_path: Path) -> list[ExtractedConstantSet]:
     return results
 
 
-def _extract_strenum_members(filepath: Path, class_name: str) -> list[str]:
-    """Extract string values from a StrEnum class."""
+def _parse_module_or_none(filepath: Path) -> ast.Module | None:
+    """Parse a Python source file into an AST module, tolerating a ``SyntaxError``.
+
+    Shared by every extractor below: each reads an upstream Home Assistant source file that may
+    not parse (an unexpected format change, a partial checkout), and each must treat that as "no
+    members found" rather than propagate the exception.
+    """
     source = filepath.read_text(encoding="utf-8")
     try:
-        tree = ast.parse(source, filename=str(filepath))
+        return ast.parse(source, filename=str(filepath))
     except SyntaxError:
-        return []
+        return None
 
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.ClassDef):
-            continue
-        if node.name != class_name:
-            continue
 
-        members: list[str] = []
-        for item in node.body:
-            if not isinstance(item, ast.Assign):
-                continue
-            if isinstance(item.value, ast.Constant) and isinstance(item.value.value, str):
-                members.append(item.value.value)
-        return members
-    return []
+def _extract_strenum_members(filepath: Path, class_name: str) -> list[str]:
+    """Extract string values from a StrEnum class."""
+    return list(_extract_strenum_name_to_value(filepath, class_name).values())
 
 
 def _extract_enum_ref_set(filepath: Path, target_name: str, enum_class_name: str) -> list[str]:
@@ -83,10 +78,8 @@ def _extract_enum_ref_set(filepath: Path, target_name: str, enum_class_name: str
     from its lowercased name. Tolerates a ``SyntaxError`` by returning empty, matching
     ``_extract_strenum_members``.
     """
-    source = filepath.read_text(encoding="utf-8")
-    try:
-        tree = ast.parse(source, filename=str(filepath))
-    except SyntaxError:
+    tree = _parse_module_or_none(filepath)
+    if tree is None:
         return []
 
     name_to_value = _extract_strenum_name_to_value(filepath, enum_class_name)
@@ -117,13 +110,11 @@ def _extract_enum_ref_set(filepath: Path, target_name: str, enum_class_name: str
 def _extract_strenum_name_to_value(filepath: Path, class_name: str) -> dict[str, str]:
     """Extract a name-to-value mapping for a StrEnum class's string members.
 
-    Mirrors ``_extract_strenum_members`` but keeps the member name, which is what
+    Keeps the member name (unlike ``_extract_strenum_members``, which discards it), which is what
     ``_extract_enum_ref_set`` needs to resolve ``EnumClass.MEMBER`` attribute references.
     """
-    source = filepath.read_text(encoding="utf-8")
-    try:
-        tree = ast.parse(source, filename=str(filepath))
-    except SyntaxError:
+    tree = _parse_module_or_none(filepath)
+    if tree is None:
         return {}
 
     for node in ast.walk(tree):
@@ -162,11 +153,11 @@ def extract_numeric_state_expected_source(ha_core_path: Path) -> str | None:
     if not init_py.exists():
         return None
 
-    source = init_py.read_text(encoding="utf-8")
-    try:
-        tree = ast.parse(source, filename=str(init_py))
-    except SyntaxError:
+    tree = _parse_module_or_none(init_py)
+    if tree is None:
         return None
+
+    source = init_py.read_text(encoding="utf-8")
 
     for node in tree.body:
         if isinstance(node, ast.FunctionDef) and node.name == "_numeric_state_expected":
@@ -176,10 +167,8 @@ def extract_numeric_state_expected_source(ha_core_path: Path) -> str | None:
 
 def _extract_unit_enums(ha_const: Path) -> list[str]:
     """Extract all unit values from UnitOf* enums in homeassistant/const.py."""
-    source = ha_const.read_text(encoding="utf-8")
-    try:
-        tree = ast.parse(source, filename=str(ha_const))
-    except SyntaxError:
+    tree = _parse_module_or_none(ha_const)
+    if tree is None:
         return []
 
     units: list[str] = []

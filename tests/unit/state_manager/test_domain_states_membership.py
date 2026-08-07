@@ -31,16 +31,10 @@ class FixtureStateReader:
     def get_state(self, entity_id: str) -> HassStateDict | None:
         return self._states.get(entity_id)
 
-    def num_domain_states(self, domain: str) -> int:
-        return sum(1 for eid in self._states if eid.startswith(f"{domain}."))
-
     def yield_domain_states(self, domain: str) -> Generator[tuple[str, HassStateDict], Any, None]:
         for eid, state in self._states.items():
             if eid.startswith(f"{domain}."):
                 yield eid, state
-
-    def __contains__(self, entity_id: str) -> bool:
-        return entity_id in self._states
 
 
 def numeric_shape_predicate(state: HassStateDict) -> bool:
@@ -261,6 +255,12 @@ class TestNoErrorLogsOnSkip:
     ) -> None:
         """DomainStates' own skip-path log for a conversion failure is debug, not error."""
         ds = build_numeric_domain_states()
+
+        # A test earlier in suite order may have left propagate=False on the "hassette" logger
+        # via enable_basic_logging() (src/hassette/logging_.py:442); caplog's handler sits on the
+        # root logger, so without this the child logger's records never reach it. Same workaround
+        # as tests/unit/web/test_middleware.py and tests/unit/core/conftest.py.
+        logging.getLogger("hassette").propagate = True
 
         with caplog.at_level(logging.DEBUG, logger="hassette.state_manager.state_manager"):
             list(ds)

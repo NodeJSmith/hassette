@@ -1,7 +1,7 @@
 # Design: Device-class-specific sensor state subtypes
 
 **Date:** 2026-08-06
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Research:** `design/research/2026-08-06-sensor-device-class-subtypes/research.md` (revision 3)
 

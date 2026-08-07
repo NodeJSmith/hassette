@@ -380,7 +380,6 @@ def make_presence_manager(
         return {"person": PersonState, "device_tracker": DeviceTrackerState}.get(domain)
 
     proxy = MagicMock()
-    proxy.num_domain_states.side_effect = lambda domain: len(data.get(domain, {}))
     proxy.yield_domain_states.side_effect = lambda domain: iter(data.get(domain, {}).items())
     proxy.get_state.side_effect = lambda entity_id: data.get(entity_id.split(".")[0], {}).get(entity_id)
 
