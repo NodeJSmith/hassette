@@ -42,6 +42,7 @@ from .fixtures import sync_executor as sync_executor
 from .harness import HassetteHarness as HassetteHarness
 from .harness import preserve_config as preserve_config
 from .harness import wait_for as wait_for
+from .helpers import FakeStateReader as FakeStateReader
 from .helpers import create_app_manifest as create_app_manifest
 from .helpers import (
     create_call_service_event,

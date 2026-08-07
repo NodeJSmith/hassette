@@ -4,6 +4,11 @@ import ast
 from dataclasses import dataclass
 from pathlib import Path
 
+_NUMERIC_STATE_EXPECTED_FUNC_NAME = "_numeric_state_expected"
+"""Name of HA's numeric-branch predicate, matched by ``extract_numeric_state_expected_source``
+below. Named here once so the AST comparison and any other code that needs the exact function
+name share a single source of truth."""
+
 
 @dataclass
 class ExtractedConstantSet:
@@ -160,7 +165,7 @@ def extract_numeric_state_expected_source(ha_core_path: Path) -> str | None:
     source = init_py.read_text(encoding="utf-8")
 
     for node in tree.body:
-        if isinstance(node, ast.FunctionDef) and node.name == "_numeric_state_expected":
+        if isinstance(node, ast.FunctionDef) and node.name == _NUMERIC_STATE_EXPECTED_FUNC_NAME:
             return ast.get_source_segment(source, node)
     return None
 

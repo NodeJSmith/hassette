@@ -9,8 +9,6 @@ instead of running the same predicate+conversion check as ``__iter__``.
 """
 
 import logging
-from collections.abc import Generator
-from typing import Any
 
 import pytest
 
@@ -19,22 +17,7 @@ from hassette.exceptions import EntityNotInViewError
 from hassette.models.states import LightState, SensorState
 from hassette.models.states.sensor_shapes import NumericSensorState, SensorShape, classify_sensor_shape
 from hassette.state_manager import DomainStates
-from hassette.test_utils import make_sensor_state_dict
-
-
-class FixtureStateReader:
-    """Minimal StateReader-shaped fake backed by a dict of pre-built HassStateDicts."""
-
-    def __init__(self, states: dict[str, HassStateDict]) -> None:
-        self._states = states
-
-    def get_state(self, entity_id: str) -> HassStateDict | None:
-        return self._states.get(entity_id)
-
-    def yield_domain_states(self, domain: str) -> Generator[tuple[str, HassStateDict], Any, None]:
-        for eid, state in self._states.items():
-            if eid.startswith(f"{domain}."):
-                yield eid, state
+from hassette.test_utils import FakeStateReader, make_sensor_state_dict
 
 
 def numeric_shape_predicate(state: HassStateDict) -> bool:
@@ -42,7 +25,7 @@ def numeric_shape_predicate(state: HassStateDict) -> bool:
     return classify_sensor_shape(state.get("attributes", {})) == SensorShape.NUMERIC
 
 
-def build_multi_shape_sensor_fixture() -> FixtureStateReader:
+def build_multi_shape_sensor_fixture() -> FakeStateReader:
     """A fixture proxy spanning all four sensor shapes, an unmatched sensor, and a numeric-metadata
     sensor whose value fails conversion — the case a naive implementation gets wrong.
     """
@@ -63,7 +46,7 @@ def build_multi_shape_sensor_fixture() -> FixtureStateReader:
         ),
         "sensor.no_metadata": make_sensor_state_dict("sensor.no_metadata", "some text"),
     }
-    return FixtureStateReader(states)
+    return FakeStateReader(states)
 
 
 def build_numeric_domain_states() -> DomainStates[NumericSensorState]:
@@ -274,7 +257,7 @@ class TestBackwardCompatibleConstruction:
     """Existing 2-positional-arg call sites (`DomainStates(proxy, Model)`) must keep working."""
 
     def test_domain_defaults_to_model_get_domain(self) -> None:
-        reader = FixtureStateReader({})
+        reader = FakeStateReader({})
         ds = DomainStates(reader, LightState)
 
         assert ds._domain == "light"
@@ -286,4 +269,4 @@ class TestBackwardCompatibleConstruction:
         # Every entity in the domain is a candidate member when no predicate is set — the only
         # exclusion left is convertibility. SensorState.value is `str | None`, so every fixture
         # entity (including the "garbage" one, since any string is a valid str value) converts.
-        assert set(ds) == set(build_multi_shape_sensor_fixture()._states)
+        assert set(ds) == set(build_multi_shape_sensor_fixture().states)

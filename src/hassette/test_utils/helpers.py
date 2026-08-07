@@ -37,7 +37,7 @@ from hassette.types.enums import BackpressurePolicy, ExecutionMode, ResourceRole
 from hassette.utils.func_utils import callable_name, callable_short_name
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Generator
 
     from hassette.bus.bus import Bus
     from hassette.events import HassEventEnvelopeDict, HassStateDict
@@ -45,6 +45,25 @@ if TYPE_CHECKING:
     from hassette.types.types import BusErrorHandlerType, HandlerType, Predicate, SourceTier
 
 STATE_DICT_KEYS = frozenset({"last_changed", "last_updated", "last_reported", "context"})
+
+
+class FakeStateReader:
+    """Minimal dict-backed implementation of the StateReader protocol.
+
+    Holds states keyed by entity_id and answers the two members StateReader
+    declares: get_state, yield_domain_states.
+    """
+
+    def __init__(self, states: "dict[str, HassStateDict]") -> None:
+        self.states = states
+
+    def get_state(self, entity_id: str) -> "HassStateDict | None":
+        return self.states.get(entity_id)
+
+    def yield_domain_states(self, domain: str) -> "Generator[tuple[str, HassStateDict], Any, None]":
+        for eid, state in self.states.items():
+            if eid.startswith(f"{domain}."):
+                yield eid, state
 
 
 def noop() -> None:

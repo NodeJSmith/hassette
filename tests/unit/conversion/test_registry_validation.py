@@ -152,14 +152,6 @@ class TestStrictMode:
         # The exception message should include issue count or summary
         assert str(exc_info.value)
 
-    # test_strict_mode_does_not_raise_on_warnings_only removed: it relied on registering two
-    # classes under the same domain via distinct device_class values to force a warning-only
-    # scenario. Now that StateKey carries only a domain, the catalog dict can never hold two
-    # entries for the same domain, so the duplicate-domain warning (the only "warning"-severity
-    # issue validate_registries ever produced) can no longer fire at all. See
-    # test_state_registry_same_domain_overwrites_without_duplicate_warning above for the
-    # replacement coverage of the underlying overwrite behavior.
-
     def test_nonstrict_mode_logs_warnings(self) -> None:
         """In non-strict mode, validation issues are returned but no exception is raised."""
         restore_catalog({})
