@@ -16,7 +16,7 @@ class ImageEntityStateAttribute(StrEnum):
 class ImageAttributes(AttributesBase):
     content_type: str | None = Field(default=None)
     image_last_updated: ZonedDateTime | None = Field(default=None)
-    image_url: str | None | object = Field(default=None)
+    image_url: str | object | None = Field(default=None)
     should_poll: bool | None = Field(default=None)
 
     @field_validator("image_last_updated", mode="before")

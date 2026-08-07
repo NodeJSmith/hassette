@@ -18,6 +18,15 @@ class DoorbellEventType(StrEnum):
     RING = "ring"
 
 
+class ButtonEventType(StrEnum):
+    PRESS_START = "press_start"
+    PRESS_END = "press_end"
+    LONG_PRESS_START = "long_press_start"
+    LONG_PRESS_END = "long_press_end"
+    MULTI_PRESS_ONGOING = "multi_press_ongoing"
+    MULTI_PRESS_END = "multi_press_end"
+
+
 class EventDeviceClass(StrEnum):
     DOORBELL = "doorbell"
     BUTTON = "button"
