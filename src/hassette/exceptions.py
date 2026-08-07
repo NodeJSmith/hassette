@@ -416,6 +416,29 @@ class SensorShapeMismatchError(StateRegistryError):
         self.state_class = state_class
 
 
+class EntityNotInViewError(KeyError, StateRegistryError):
+    """Raised when direct lookup finds an entity that exists in its domain but is not a member of
+    a filtered ``DomainStates`` view — its state either fails the view's membership predicate, or
+    its current value does not convert to the view's model.
+
+    Subclasses both ``KeyError`` and the state-error hierarchy: ``Mapping.get()`` is implemented by
+    catching ``KeyError``, so ``.get()`` returns ``None`` for non-members — consistent with
+    ``__contains__`` returning ``False`` and iteration silently skipping the entity — while ``[]``
+    still fails loudly with a legible message. Only raised by views built with an explicit
+    membership predicate (e.g. the narrowed sensor-shape accessors); a plain ``DomainStates`` with
+    no predicate keeps raising the underlying conversion error directly.
+    """
+
+    def __init__(self, entity_id: str, device_class: str | None, state_class: type["BaseState"]) -> None:
+        super().__init__(
+            f"Entity '{entity_id}' (device_class: {device_class!r}) is not a member of this view; "
+            f"it does not match the shape expected by {state_class.__name__}."
+        )
+        self.entity_id = entity_id
+        self.device_class = device_class
+        self.state_class = state_class
+
+
 class ConvertedTypeDoesNotMatchError(StateRegistryError):
     """Raised when a converted state does not match the expected type."""
 

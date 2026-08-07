@@ -1,12 +1,12 @@
 import typing
-from collections.abc import Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from logging import getLogger
 from typing import Generic, NamedTuple
 
 from frozendict import deepfreeze, frozendict
 
 from hassette.conversion import STATE_REGISTRY, StateKey
-from hassette.exceptions import RegistryNotReadyError
+from hassette.exceptions import EntityNotInViewError, RegistryNotReadyError
 from hassette.models import states
 from hassette.models.states import BaseState
 from hassette.resources.base import Resource
@@ -66,13 +66,21 @@ class DomainStates(Mapping[str, StateT]):
 
     """
 
-    def __init__(self, state_proxy: StateReader, model: type[StateT]) -> None:
+    def __init__(
+        self,
+        state_proxy: StateReader,
+        model: type[StateT],
+        *,
+        domain: str | None = None,
+        predicate: Callable[["HassStateDict"], bool] | None = None,
+    ) -> None:
         if not issubclass(model, BaseState):
             raise TypeError(f"Expected a subclass of BaseState, got {model!r}")
 
         self._state_proxy: StateReader = state_proxy
         self._model = model
-        self._domain = model.get_domain()
+        self._domain = domain if domain is not None else model.get_domain()
+        self._predicate = predicate
         self._cache: dict[str, CacheValue[StateT]] = {}
 
     def _validate_or_return_from_cache(self, entity_id: str, state: "HassStateDict") -> StateT:
@@ -97,6 +105,28 @@ class DomainStates(Mapping[str, StateT]):
         self._cache[entity_id] = CacheValue(last_updated=last_updated, frozen_state=frozen_state, model=validated)
         return validated
 
+    def _validate_if_member(self, entity_id: str, state: "HassStateDict") -> StateT | None:
+        """Return the validated model if entity_id/state is a member of this view, else None.
+
+        Membership is the predicate (if one is set) AND convertibility, checked in that order —
+        the predicate is a cheap first gate, and conversion is amortized by
+        ``_validate_or_return_from_cache``'s per-entity cache. A conversion failure is logged at
+        ``debug``: for a deliberately filtered view a non-match is expected, not exceptional.
+        """
+        if self._predicate is not None and not self._predicate(state):
+            return None
+
+        try:
+            return self._validate_or_return_from_cache(entity_id, state)
+        except Exception as exc:
+            LOGGER.debug(
+                "Error validating state for entity_id '%s' as type %s: %s",
+                entity_id,
+                self._model.__name__,
+                exc,
+            )
+            return None
+
     def to_dict(self) -> dict[str, StateT]:
         """Return a dictionary of entity_id to typed state for this domain.
 
@@ -110,43 +140,46 @@ class DomainStates(Mapping[str, StateT]):
         return dict(self)
 
     def __iter__(self) -> Iterator[str]:
-        """Iterate over entity IDs in this domain, skipping un-convertible entities."""
+        """Iterate over entity IDs in this domain, skipping non-member and un-convertible entities."""
         for entity_id, state in self._state_proxy.yield_domain_states(self._domain):
-            try:
-                self._validate_or_return_from_cache(entity_id, state)
+            if self._validate_if_member(entity_id, state) is not None:
                 yield entity_id
-            except Exception as exc:
-                LOGGER.error(
-                    "Error validating state for entity_id '%s' as type %s: %s",
-                    entity_id,
-                    self._model.__name__,
-                    exc,
-                )
-                continue
 
     def __len__(self) -> int:
-        """Return the number of entities in this domain."""
-        return self._state_proxy.num_domain_states(self._domain)
+        """Return the number of member entities in this domain.
+
+        Computed by iterating and checking membership (predicate AND convertibility) rather than
+        consulting the state proxy's raw domain count, so this always agrees with ``list(self)`` —
+        see ``_validate_if_member``.
+        """
+        return sum(1 for _ in self)
 
     def __contains__(self, entity_id: object) -> bool:
-        """Check if a specific entity ID exists in this domain."""
+        """Check if a specific entity ID is a member of this view (predicate AND convertibility)."""
         if not isinstance(entity_id, str):
             return False
         try:
             entity_id = make_entity_id(entity_id, self._domain)
-            return entity_id in self._state_proxy
         except ValueError:
             return False
 
+        state = self._state_proxy.get_state(entity_id)
+        if state is None:
+            return False
+        return self._validate_if_member(entity_id, state) is not None
+
     def __getitem__(self, entity_id: str) -> StateT:
-        """Get a specific entity state by ID, raising if not found.
+        """Get a specific entity state by ID, raising if not found or not a member of this view.
 
         Args:
             entity_id: The full entity ID (e.g., "light.bedroom") or just the entity name (e.g., "bedroom").
 
         Raises:
-            KeyError: If the entity is not found in this domain.
-            UnableToConvertStateError: If the state dict fails to convert to this domain's state class.
+            KeyError: If the entity is not found in this domain at all.
+            EntityNotInViewError: If a membership predicate is set and the entity exists in the
+                domain but fails the predicate or fails to convert. Also a ``KeyError``.
+            UnableToConvertStateError: If no predicate is set (this view has no shape claim) and
+                the state dict fails to convert to this domain's state class.
 
         Returns:
             The typed state.
@@ -155,7 +188,18 @@ class DomainStates(Mapping[str, StateT]):
         state = self._state_proxy.get_state(entity_id)
         if state is None:
             raise KeyError(f"State for entity_id '{entity_id}' not found in domain '{self._domain}'")
-        return self._validate_or_return_from_cache(entity_id, state)
+
+        if self._predicate is None:
+            return self._validate_or_return_from_cache(entity_id, state)
+
+        device_class = state.get("attributes", {}).get("device_class")
+        if not self._predicate(state):
+            raise EntityNotInViewError(entity_id, device_class, self._model)
+
+        try:
+            return self._validate_or_return_from_cache(entity_id, state)
+        except Exception as exc:
+            raise EntityNotInViewError(entity_id, device_class, self._model) from exc
 
     def __repr__(self) -> str:
         """Return a string representation of the DomainStates container."""

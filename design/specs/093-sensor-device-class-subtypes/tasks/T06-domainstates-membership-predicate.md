@@ -1,7 +1,7 @@
 ---
 task_id: "T06"
 title: "Add membership filtering to DomainStates"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02", "T03", "T04", "T05"]
 implements: ["FR#6", "FR#7", "FR#12", "FR#13", "AC#4", "AC#8", "AC#9"]
 ---
