@@ -1,9 +1,6 @@
 """Unit tests for hassette_codegen.output — shared ruff/validation/drift utilities."""
 
-import sys
 from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from hassette_codegen.output import atomic_write, check_drift, format_via_ruff
 

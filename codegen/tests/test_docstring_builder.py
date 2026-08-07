@@ -6,10 +6,7 @@ These cover the description-threading path directly, independent of a live HA co
 
 import ast
 import json
-import sys
 from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from hassette_codegen.extractors.services import _extract_descriptions, _resolve_key_ref
 from hassette_codegen.generators.entities import LINE_LENGTH, ServiceParam, build_method_docstring

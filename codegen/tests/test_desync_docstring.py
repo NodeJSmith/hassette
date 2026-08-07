@@ -6,12 +6,7 @@ ast_utils.py AND a case here — the drift gate only detects changes to generate
 output, not phrasings the regex misses.
 """
 
-import sys
-from pathlib import Path
-
 import pytest
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from hassette_codegen.sync_facade.ast_utils import desync_docstring
 
