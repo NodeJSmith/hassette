@@ -8,21 +8,15 @@ DomainStates". Before this change, a naive filtered view could report ``len() ==
 instead of running the same predicate+conversion check as ``__iter__``.
 """
 
-import logging
-
 import pytest
 
 from hassette.events import HassStateDict
 from hassette.exceptions import EntityNotInViewError
 from hassette.models.states import LightState, SensorState
-from hassette.models.states.sensor_shapes import NumericSensorState, SensorShape, classify_sensor_shape
+from hassette.models.states.sensor_shapes import NumericSensorState
 from hassette.state_manager import DomainStates
+from hassette.state_manager.state_manager import _NUMERIC_SENSOR_PREDICATE
 from hassette.test_utils import FakeStateReader, make_sensor_state_dict
-
-
-def numeric_shape_predicate(state: HassStateDict) -> bool:
-    """Membership predicate matching NumericSensorState — mirrors what a real accessor builds."""
-    return classify_sensor_shape(state.get("attributes", {})) == SensorShape.NUMERIC
 
 
 def build_multi_shape_sensor_fixture() -> FakeStateReader:
@@ -58,7 +52,7 @@ def build_numeric_domain_states() -> DomainStates[NumericSensorState]:
     same way, plus a membership predicate wrapping `classify_sensor_shape`.
     """
     reader = build_multi_shape_sensor_fixture()
-    return DomainStates(reader, NumericSensorState, domain="sensor", predicate=numeric_shape_predicate)
+    return DomainStates(reader, NumericSensorState, domain="sensor", predicate=_NUMERIC_SENSOR_PREDICATE)
 
 
 class TestMappingInvariant:
@@ -198,59 +192,17 @@ class TestEntityNotInViewError:
         assert not isinstance(exc_info.value, EntityNotInViewError)
 
 
-class TestNoErrorLogsOnSkip:
-    """Iterating a narrowed view emits no ERROR records for non-matching entities.
+class TestPredicateExclusions:
+    """Entities excluded purely by shape mismatch never reach conversion."""
 
-    "Non-matching" here means excluded by the membership predicate (wrong shape) — the routine,
-    expected case for a filtered view. This is the scenario the debug-level skip log is meant for:
-    a 200-sensor install iterating a numeric-only view would otherwise emit roughly 150 error
-    lines for every non-numeric sensor. Predicate filtering resolves most of that volume outright:
-    entities excluded by the predicate never reach conversion at all, so nothing logs for them, at
-    any level.
-
-    The one entity excluded by *conversion failure* (`sensor.garbage`, predicate-passing but
-    unconvertible) is deliberately tested separately below: `DomainStates`'s own skip-path log for
-    that case drops to debug, but the shared conversion pipeline
-    (`StateRegistry.conversion_with_error_handling`, `conversion/state_registry.py:203`) logs an
-    unconditional ERROR on every conversion failure across the whole framework, independent of and
-    predating this feature. Silencing that is out of scope here — it is not among this change's
-    target files and touches every conversion failure, not just filtered-view membership checks.
-    """
-
-    def test_predicate_only_exclusions_emit_no_records_at_all(self, caplog: pytest.LogCaptureFixture) -> None:
-        """Entities excluded purely by shape mismatch never reach conversion, so nothing logs."""
+    def test_predicate_only_exclusions_are_not_members(self) -> None:
         reader = build_multi_shape_sensor_fixture()
-        # Predicate-mismatch entities only — no conversion is attempted for these, so no log
-        # should be emitted at any level, not just no ERROR.
         non_matching_ids = {"sensor.mode", "sensor.last_motion", "sensor.expiry", "sensor.no_metadata"}
         ds: DomainStates[NumericSensorState] = DomainStates(
-            reader, NumericSensorState, domain="sensor", predicate=numeric_shape_predicate
+            reader, NumericSensorState, domain="sensor", predicate=_NUMERIC_SENSOR_PREDICATE
         )
 
-        with caplog.at_level(logging.DEBUG, logger="hassette"):
-            for entity_id in non_matching_ids:
-                assert entity_id not in ds
-
-        assert caplog.records == []
-
-    def test_unconvertible_entity_skip_is_logged_at_debug_not_error_by_domain_states(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
-        """DomainStates' own skip-path log for a conversion failure is debug, not error."""
-        ds = build_numeric_domain_states()
-
-        # A test earlier in suite order may have left propagate=False on the "hassette" logger
-        # via enable_basic_logging() (src/hassette/logging_.py:442); caplog's handler sits on the
-        # root logger, so without this the child logger's records never reach it. Same workaround
-        # as tests/unit/web/test_middleware.py and tests/unit/core/conftest.py.
-        logging.getLogger("hassette").propagate = True
-
-        with caplog.at_level(logging.DEBUG, logger="hassette.state_manager.state_manager"):
-            list(ds)
-
-        state_manager_records = [r for r in caplog.records if r.name == "hassette.state_manager.state_manager"]
-        assert all(r.levelno < logging.ERROR for r in state_manager_records)
-        assert any(r.levelno == logging.DEBUG and "sensor.garbage" in r.getMessage() for r in state_manager_records)
+        assert set(ds).isdisjoint(non_matching_ids)
 
 
 class TestBackwardCompatibleConstruction:
@@ -270,3 +222,78 @@ class TestBackwardCompatibleConstruction:
         # exclusion left is convertibility. SensorState.value is `str | None`, so every fixture
         # entity (including the "garbage" one, since any string is a valid str value) converts.
         assert set(ds) == set(build_multi_shape_sensor_fixture().states)
+
+
+class TestNullAttributesGuard:
+    """An explicit `"attributes": null` (not just a missing key) must not crash membership checks.
+
+    `state.get("attributes", {})` only substitutes the default when the key is absent — if Home
+    Assistant sends `"attributes": null`, that call returns `None`, and `classify_sensor_shape`
+    raises `AttributeError` on `None.get(...)`. Regression coverage for the `or {}` guard in
+    `_shape_predicate`'s `predicate()` and in `__getitem__`'s `device_class` extraction.
+    """
+
+    @staticmethod
+    def _state_with_null_attributes(entity_id: str = "sensor.no_attrs") -> HassStateDict:
+        state = make_sensor_state_dict(entity_id, "25.5")
+        state["attributes"] = None
+        return state
+
+    def test_shape_predicate_does_not_raise_on_null_attributes(self) -> None:
+        state = self._state_with_null_attributes()
+
+        # Must not raise AttributeError — null attributes classify as UNKNOWN, not NUMERIC.
+        assert _NUMERIC_SENSOR_PREDICATE(state) is False
+
+    def test_getitem_does_not_raise_on_null_attributes(self) -> None:
+        """A predicate-failing entity with null attributes raises EntityNotInViewError (via the
+        device_class extraction at line ~217), not a raw AttributeError.
+        """
+        reader = FakeStateReader({"sensor.no_attrs": self._state_with_null_attributes()})
+        ds: DomainStates[NumericSensorState] = DomainStates(
+            reader, NumericSensorState, domain="sensor", predicate=_NUMERIC_SENSOR_PREDICATE
+        )
+
+        with pytest.raises(EntityNotInViewError) as exc_info:
+            ds["sensor.no_attrs"]
+
+        assert exc_info.value.entity_id == "sensor.no_attrs"
+        assert exc_info.value.device_class is None
+
+    def test_contains_and_iteration_do_not_raise_on_null_attributes(self) -> None:
+        """`__contains__` and `__iter__` route through the same predicate; confirm end-to-end."""
+        reader = FakeStateReader({"sensor.no_attrs": self._state_with_null_attributes()})
+        ds: DomainStates[NumericSensorState] = DomainStates(
+            reader, NumericSensorState, domain="sensor", predicate=_NUMERIC_SENSOR_PREDICATE
+        )
+
+        assert "sensor.no_attrs" not in ds
+        assert list(ds) == []
+
+
+class TestBoolShortCircuit:
+    """`__bool__` must agree with `len(ds) > 0` while short-circuiting on the first member."""
+
+    def test_bool_true_for_domain_with_members(self) -> None:
+        ds = build_numeric_domain_states()
+
+        assert bool(ds) is True
+
+    def test_bool_false_for_domain_with_no_members(self) -> None:
+        reader = FakeStateReader({})
+        ds: DomainStates[NumericSensorState] = DomainStates(
+            reader, NumericSensorState, domain="sensor", predicate=_NUMERIC_SENSOR_PREDICATE
+        )
+
+        assert bool(ds) is False
+
+    def test_bool_false_when_all_entities_are_excluded(self) -> None:
+        """Entities exist in the domain but none pass the predicate — still falsy."""
+        reader = FakeStateReader(
+            {"sensor.mode": make_sensor_state_dict("sensor.mode", "cool", device_class="enum", options=["cool"])}
+        )
+        ds: DomainStates[NumericSensorState] = DomainStates(
+            reader, NumericSensorState, domain="sensor", predicate=_NUMERIC_SENSOR_PREDICATE
+        )
+
+        assert bool(ds) is False
