@@ -106,6 +106,41 @@ async def _mint_cookie_at(token: str, seconds_ago: int) -> str:
         return mint_session_cookie(token)
 
 
+async def _request_from_peer(
+    auth_hassette,
+    peer: str,
+    *,
+    trusted_proxies,
+    method: str = "get",
+    path: str = "/api/config",
+    headers: dict[str, str] | None = None,
+    json: dict | None = None,
+    **app_kwargs,
+) -> Response:
+    """Issue one request from `peer` against a fresh app built with `trusted_proxies`.
+
+    Builds `create_fastapi_app(auth_hassette, trusted_proxies=trusted_proxies, **app_kwargs)`,
+    wraps it in an `ASGITransport` whose ASGI `client` is `(peer, 12345)`, opens an `AsyncClient`
+    against it, and issues one `method` request to `path`. Extracted because this exact
+    build-app/wrap-transport/open-client/issue-request sequence repeated near-verbatim across the
+    trusted-proxy, sliding-renewal, and cookie-secure-flag tests, differing only in the peer IP,
+    the `trusted_proxies`/`auth_token` app kwargs, and the request itself.
+
+    `trusted_proxies` takes an already-resolved set (not raw hostnames/IPs) -- resolution differs
+    enough across callers (plain IP/CIDR, mocked-DNS hostname, post-refresh) that it stays in each
+    test body rather than being folded into this helper.
+    """
+    app = create_fastapi_app(auth_hassette, trusted_proxies=trusted_proxies, **app_kwargs)
+    transport = ASGITransport(app=app, client=(peer, 12345))
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        request_kwargs: dict = {}
+        if headers is not None:
+            request_kwargs["headers"] = headers
+        if json is not None:
+            request_kwargs["json"] = json
+        return await getattr(client, method)(path, **request_kwargs)
+
+
 async def _trusted_peer_get_config(auth_hassette, headers: dict[str, str] | None = None) -> Response:
     """`GET /api/config` from a peer inside `trusted_proxies`, against an app with a real token.
 
@@ -114,10 +149,9 @@ async def _trusted_peer_get_config(auth_hassette, headers: dict[str, str] | None
     no-token apps `TestTrustedProxyPeerAuth` builds.
     """
     trusted = await resolve_trusted_proxies((_TRUSTED_PEER_IP,))
-    app = create_fastapi_app(auth_hassette, auth_token=WEB_API_TEST_TOKEN, trusted_proxies=trusted)
-    transport = ASGITransport(app=app, client=(_TRUSTED_PEER_IP, 12345))
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        return await client.get("/api/config", headers=headers)
+    return await _request_from_peer(
+        auth_hassette, _TRUSTED_PEER_IP, trusted_proxies=trusted, headers=headers, auth_token=WEB_API_TEST_TOKEN
+    )
 
 
 class TestDefaultDenyNoCredential:
@@ -267,10 +301,9 @@ class TestSlidingRenewal:
 
     async def test_trusted_proxy_authenticated_request_is_not_renewed(self, auth_hassette) -> None:
         trusted = await resolve_trusted_proxies((_TRUSTED_PEER_IP,))
-        app = create_fastapi_app(auth_hassette, auth_token=WEB_API_TEST_TOKEN, trusted_proxies=trusted)
-        transport = ASGITransport(app=app, client=(_TRUSTED_PEER_IP, 12345))
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            resp = await client.get("/api/config")
+        resp = await _request_from_peer(
+            auth_hassette, _TRUSTED_PEER_IP, trusted_proxies=trusted, auth_token=WEB_API_TEST_TOKEN
+        )
 
         assert resp.status_code == 200
         assert resp.cookies.get(SESSION_COOKIE_NAME) is None
@@ -422,28 +455,19 @@ class TestTrustedProxyPeerAuth:
 
     async def test_ip_entry_peer_returns_200_with_no_credential(self, auth_hassette) -> None:
         trusted = await resolve_trusted_proxies((_TRUSTED_PEER_IP,))
-        app = create_fastapi_app(auth_hassette, trusted_proxies=trusted)
-        transport = ASGITransport(app=app, client=(_TRUSTED_PEER_IP, 12345))
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            resp = await client.get("/api/config")
+        resp = await _request_from_peer(auth_hassette, _TRUSTED_PEER_IP, trusted_proxies=trusted)
 
         assert resp.status_code == 200
 
     async def test_cidr_entry_peer_returns_200_with_no_credential(self, auth_hassette) -> None:
         trusted = await resolve_trusted_proxies(("10.0.0.0/24",))
-        app = create_fastapi_app(auth_hassette, trusted_proxies=trusted)
-        transport = ASGITransport(app=app, client=("10.0.0.42", 12345))
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            resp = await client.get("/api/config")
+        resp = await _request_from_peer(auth_hassette, "10.0.0.42", trusted_proxies=trusted)
 
         assert resp.status_code == 200
 
     async def test_non_matching_peer_still_requires_credential(self, auth_hassette) -> None:
         trusted = await resolve_trusted_proxies((_TRUSTED_PEER_IP,))
-        app = create_fastapi_app(auth_hassette, trusted_proxies=trusted)
-        transport = ASGITransport(app=app, client=(_UNTRUSTED_PEER_IP, 12345))
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            resp = await client.get("/api/config")
+        resp = await _request_from_peer(auth_hassette, _UNTRUSTED_PEER_IP, trusted_proxies=trusted)
 
         assert resp.status_code == 401
 
@@ -512,10 +536,7 @@ class TestTrustedProxyHostnameAuth:
         with patch_loop_getaddrinfo(return_value=[make_addrinfo("172.30.32.2")]):
             trusted = await resolve_trusted_proxies(("proxy.internal",))
 
-        app = create_fastapi_app(auth_hassette, trusted_proxies=trusted)
-        transport = ASGITransport(app=app, client=("172.30.32.2", 12345))
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            resp = await client.get("/api/config")
+        resp = await _request_from_peer(auth_hassette, "172.30.32.2", trusted_proxies=trusted)
 
         assert resp.status_code == 200
 
@@ -528,17 +549,11 @@ class TestTrustedProxyHostnameAuth:
         with patch_loop_getaddrinfo(return_value=[make_addrinfo("172.30.32.9")]):
             refreshed = await refresh_trusted_proxies(trusted)
 
-        app = create_fastapi_app(auth_hassette, trusted_proxies=refreshed)
-
-        new_transport = ASGITransport(app=app, client=("172.30.32.9", 12345))
-        async with AsyncClient(transport=new_transport, base_url="http://test") as client:
-            new_resp = await client.get("/api/config")
+        new_resp = await _request_from_peer(auth_hassette, "172.30.32.9", trusted_proxies=refreshed)
         assert new_resp.status_code == 200
 
         # The pre-refresh address is no longer part of the current resolution.
-        old_transport = ASGITransport(app=app, client=("172.30.32.2", 12345))
-        async with AsyncClient(transport=old_transport, base_url="http://test") as client:
-            old_resp = await client.get("/api/config")
+        old_resp = await _request_from_peer(auth_hassette, "172.30.32.2", trusted_proxies=refreshed)
         assert old_resp.status_code == 401
 
 
@@ -551,12 +566,11 @@ class TestSpoofedForwardedForRejected:
 
     async def test_spoofed_x_forwarded_for_from_untrusted_peer_returns_401(self, auth_hassette) -> None:
         trusted = await resolve_trusted_proxies((_TRUSTED_PEER_IP,))
-        app = create_fastapi_app(auth_hassette, trusted_proxies=trusted)
         # The direct ASGI peer is untrusted -- only the client-suppliable header claims the
         # trusted IP, which `is_trusted_peer` must never consult.
-        transport = ASGITransport(app=app, client=(_UNTRUSTED_PEER_IP, 12345))
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            resp = await client.get("/api/config", headers={"X-Forwarded-For": _TRUSTED_PEER_IP})
+        resp = await _request_from_peer(
+            auth_hassette, _UNTRUSTED_PEER_IP, trusted_proxies=trusted, headers={"X-Forwarded-For": _TRUSTED_PEER_IP}
+        )
 
         assert resp.status_code == 401
 
@@ -590,14 +604,16 @@ class TestCookieSecureFlag:
 
     async def test_trusted_peer_with_https_forwarded_proto_gets_secure_cookie(self, auth_hassette) -> None:
         trusted = await resolve_trusted_proxies((_TRUSTED_PEER_IP,))
-        app = create_fastapi_app(auth_hassette, auth_token=WEB_API_TEST_TOKEN, trusted_proxies=trusted)
-        transport = ASGITransport(app=app, client=(_TRUSTED_PEER_IP, 12345))
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            resp = await client.post(
-                "/api/auth/session",
-                json={"token": WEB_API_TEST_TOKEN},
-                headers={"X-Forwarded-Proto": "https"},
-            )
+        resp = await _request_from_peer(
+            auth_hassette,
+            _TRUSTED_PEER_IP,
+            trusted_proxies=trusted,
+            auth_token=WEB_API_TEST_TOKEN,
+            method="post",
+            path="/api/auth/session",
+            json={"token": WEB_API_TEST_TOKEN},
+            headers={"X-Forwarded-Proto": "https"},
+        )
 
         assert resp.status_code == 200
         set_cookie_header = resp.headers.get("set-cookie")
@@ -606,16 +622,18 @@ class TestCookieSecureFlag:
 
     async def test_non_trusted_peer_with_spoofed_https_header_gets_no_secure_cookie(self, auth_hassette) -> None:
         trusted = await resolve_trusted_proxies((_TRUSTED_PEER_IP,))
-        app = create_fastapi_app(auth_hassette, auth_token=WEB_API_TEST_TOKEN, trusted_proxies=trusted)
         # Direct peer does not match trusted_proxies -- the header is spoofed and must be ignored
         # per `should_set_secure_cookie_flag`'s contract.
-        transport = ASGITransport(app=app, client=(_UNTRUSTED_PEER_IP, 12345))
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            resp = await client.post(
-                "/api/auth/session",
-                json={"token": WEB_API_TEST_TOKEN},
-                headers={"X-Forwarded-Proto": "https"},
-            )
+        resp = await _request_from_peer(
+            auth_hassette,
+            _UNTRUSTED_PEER_IP,
+            trusted_proxies=trusted,
+            auth_token=WEB_API_TEST_TOKEN,
+            method="post",
+            path="/api/auth/session",
+            json={"token": WEB_API_TEST_TOKEN},
+            headers={"X-Forwarded-Proto": "https"},
+        )
 
         assert resp.status_code == 200
         set_cookie_header = resp.headers.get("set-cookie")
