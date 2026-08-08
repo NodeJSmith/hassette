@@ -127,7 +127,7 @@ class TestBootstrapAppsAdmission:
         lifecycle_service.apply_changes = AsyncMock()
         lifecycle_service._record_pre_release_reconciliation(
             original_apps_config={"old_app": original_manifest},
-            curr_apps_config={"app_a": manifest},
+            current_apps_config={"app_a": manifest},
             changed_file_paths=frozenset(),
         )
 
@@ -163,7 +163,7 @@ class TestBootstrapAppsAdmission:
         lifecycle_service.apply_changes = AsyncMock()
         lifecycle_service._record_pre_release_reconciliation(
             original_apps_config={"old_app": MagicMock()},
-            curr_apps_config={"app_a": MagicMock()},
+            current_apps_config={"app_a": MagicMock()},
             changed_file_paths=frozenset(),
         )
 

@@ -753,6 +753,8 @@ class FailingConnection:
         final_error: Exception | None = None,
         mark_fully_connected: bool = False,
     ) -> None:
+        if final_error is not None and fail_after is None:
+            raise ValueError("final_error requires fail_after to be set — there is no call to trigger it on")
         self.websocket_service = websocket_service
         self.fail_after = fail_after
         self.error = error

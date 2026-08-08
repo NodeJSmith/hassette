@@ -383,7 +383,7 @@ class AppLifecycleService(Resource):
         self,
         *,
         original_apps_config: dict[str, "AppManifest"],
-        curr_apps_config: dict[str, "AppManifest"],
+        current_apps_config: dict[str, "AppManifest"],
         changed_file_paths: frozenset[Path] | None,
     ) -> None:
         pending = self._pending_reconciliation
@@ -406,7 +406,7 @@ class AppLifecycleService(Resource):
 
         self._pending_reconciliation = PendingReconciliation(
             original_apps_config=merged_original,
-            current_apps_config=curr_apps_config,
+            current_apps_config=current_apps_config,
             changed_paths=merged_paths,
         )
 
@@ -642,7 +642,7 @@ class AppLifecycleService(Resource):
         async with self._change_event_lock:
             self.logger.debug("Handling app change event for files: %s", changed_file_paths)
 
-            original_apps_config, curr_apps_config = await self.refresh_config()
+            original_apps_config, current_apps_config = await self.refresh_config()
             await self.resolve_only_apps()
 
             if self.bootstrap_coordinator.is_released() and self._pending_reconciliation is not None:
@@ -660,7 +660,7 @@ class AppLifecycleService(Resource):
                         changed_file_paths |= pending_paths
 
             changes = self.change_detector.detect_changes(
-                original_apps_config, curr_apps_config, changed_file_paths, only_apps=self.registry.only_apps
+                original_apps_config, current_apps_config, changed_file_paths, only_apps=self.registry.only_apps
             )
 
             changes = self._fold_unblocked_apps_into_changes(changes)
@@ -673,7 +673,7 @@ class AppLifecycleService(Resource):
                 self.logger.debug("Deferring app reconciliation until bootstrap release opens")
                 self._record_pre_release_reconciliation(
                     original_apps_config=original_apps_config,
-                    curr_apps_config=curr_apps_config,
+                    current_apps_config=current_apps_config,
                     changed_file_paths=changed_file_paths,
                 )
                 return
@@ -700,9 +700,9 @@ class AppLifecycleService(Resource):
 
         self.set_apps_configs(self.hassette.config.apps.manifests)
         await self.persist_manifests()
-        curr_apps_config = {k: deepcopy(v) for k, v in self.registry.manifests.items() if v.enabled}
+        current_apps_config = {k: deepcopy(v) for k, v in self.registry.manifests.items() if v.enabled}
 
-        return original_apps_config, curr_apps_config
+        return original_apps_config, current_apps_config
 
     async def _replay_pre_release_reconciliation_if_needed(self) -> None:
         # Shares _pending_reconciliation state with handle_change_event(), which serializes on
@@ -712,14 +712,14 @@ class AppLifecycleService(Resource):
             if self._pending_reconciliation is None:
                 return
 
-            original_apps_config, curr_apps_config, changed_file_paths = self._take_pre_release_reconciliation()
-            if original_apps_config is None or curr_apps_config is None:
+            original_apps_config, current_apps_config, changed_file_paths = self._take_pre_release_reconciliation()
+            if original_apps_config is None or current_apps_config is None:
                 return
             self.logger.debug("Replaying deferred app reconciliation after bootstrap release opens")
             await self.resolve_only_apps()
 
             changes = self.change_detector.detect_changes(
-                original_apps_config, curr_apps_config, changed_file_paths, only_apps=self.registry.only_apps
+                original_apps_config, current_apps_config, changed_file_paths, only_apps=self.registry.only_apps
             )
 
             changes = self._fold_unblocked_apps_into_changes(changes)
