@@ -48,6 +48,12 @@ CONST = Path("src/hassette/const")
 
 SAFE_SERVICE_YAML = "turn_on:\n  fields: {}\n"
 
+# A non-string top-level key is valid YAML but not a valid service name: extract_services'
+# unqualified `service_name.startswith(".")` check has no int/str guard, so this raises a real
+# AttributeError instead of the yaml.YAMLError the parser already handles. Used to force a
+# genuine extraction failure for the "flaky" domain below, without touching pipeline internals.
+MALFORMED_SERVICE_YAML = "123:\n  fields: {}\n"
+
 # The exact source segment `ast.get_source_segment` will extract for the FunctionDef below —
 # `extract_numeric_state_expected_source` returns this verbatim, and the freshness guard compares
 # it (stripped) against the committed snapshot.
@@ -98,7 +104,11 @@ def scenario(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[HASource,
     ha_source = make_ha_core(
         tmp_path / "core",
         ["base", "badservice", "flaky", "widget"],
-        services={"badservice": UNSAFE_SERVICE_YAML, "widget": SAFE_SERVICE_YAML},
+        services={
+            "badservice": UNSAFE_SERVICE_YAML,
+            "flaky": MALFORMED_SERVICE_YAML,
+            "widget": SAFE_SERVICE_YAML,
+        },
     )
 
     # A manually-discovered domain: an empty component directory (no __init__.py, so ordinary
@@ -124,17 +134,6 @@ def scenario(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[HASource,
         "ghostdomain": DomainOverride(domain="ghostdomain"),
     }
     monkeypatch.setattr(pipeline, "load_overrides", lambda: overrides)
-
-    # Force one domain's extraction to fail, deterministically, without touching real extractor
-    # internals — mirrors the monkeypatch pattern already used in test_pipeline_guards.py.
-    real_extract_domain = pipeline._extract_domain
-
-    def flaky_extract_domain(ha_core_path, domain_info, domain_overrides):
-        if domain_info.name == "flaky":
-            raise ValueError("synthetic extraction failure")
-        return real_extract_domain(ha_core_path, domain_info, domain_overrides)
-
-    monkeypatch.setattr(pipeline, "_extract_domain", flaky_extract_domain)
 
     repo_root = tmp_path / "repo"
     repo_root.mkdir()
@@ -166,7 +165,7 @@ class TestRunPipelineCharacterization:
             "Discovered 4 entity domains (1 manual)",
             "WARNING: Override file for 'ghostdomain' does not match any discovered domain",
             "WARNING: Rejected badservice entity wrapper:",
-            "WARNING: Failed to extract flaky: synthetic extraction failure",
+            "WARNING: Failed to extract flaky: 'int' object has no attribute 'startswith'",
             "Orphaned files (no longer generated): src/hassette/models/states/ghostfile.py",
             "Summary: 3 domains generated, 1 skipped, 2 rejected, 1 orphans",
         )
@@ -206,7 +205,7 @@ class TestRunPipelineCharacterization:
             "Discovered 4 entity domains (1 manual)",
             "WARNING: Override file for 'ghostdomain' does not match any discovered domain",
             "WARNING: Rejected badservice entity wrapper:",
-            "WARNING: Failed to extract flaky: synthetic extraction failure",
+            "WARNING: Failed to extract flaky: 'int' object has no attribute 'startswith'",
             "Summary: 3 domains generated, 1 skipped, 2 rejected",
             "Skipped domains: flaky",
             "Rejected: base (domain name), badservice (entity wrapper)",
