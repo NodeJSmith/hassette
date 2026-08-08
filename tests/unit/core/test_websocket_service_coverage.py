@@ -304,7 +304,7 @@ class TestCleanup:
 class TestRecvTaskDeathDuringObserverNotification:
     """Regression coverage for the P1 bug: a dead recv task must be visible immediately.
 
-    `start_recv_and_subscribe()` awaits `_notify_connected_observers()` before it returns, and
+    `start_recv_and_subscribe()` awaits `connected_observers.notify()` before it returns, and
     `serve()` can't notice the recv task died until it gets the task handle back from
     `start_recv_and_subscribe()` and awaits it. If the recv task dies while a slow observer
     (e.g. StateProxy's initial sync) is still running, `get_connected_generation()` must reflect
@@ -321,7 +321,7 @@ class TestRecvTaskDeathDuringObserverNotification:
             observer_entered.set()
             await observer_may_continue.wait()
 
-        websocket_service.add_connected_observer(slow_observer)
+        websocket_service.connected_observers.add(slow_observer)
 
         fail_trigger = asyncio.Event()
 
@@ -351,7 +351,7 @@ class TestRecvTaskDeathDuringObserverNotification:
         await asyncio.sleep(0)  # let the recv task's done-callback actually run
 
         # The regression assertion: the connection must already look invalid here, even though
-        # _notify_connected_observers() (and therefore start_recv_and_subscribe()) has not returned.
+        # connected_observers.notify() (and therefore start_recv_and_subscribe()) has not returned.
         assert websocket_service.get_connected_generation() is None, (
             "recv task death must invalidate the connection generation immediately, not only "
             "after the slow observer returns"

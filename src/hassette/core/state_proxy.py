@@ -243,8 +243,8 @@ class StateProxy(Resource):
             handler=self.on_state_change,
             name="hassette.state_proxy.on_state_change",
         )
-        self.hassette.websocket_service.add_connected_observer(self._on_websocket_connected)
-        self.hassette.websocket_service.add_disconnected_observer(self._on_websocket_disconnected)
+        self.hassette.websocket_service.connected_observers.add(self._on_websocket_connected)
+        self.hassette.websocket_service.disconnected_observers.add(self._on_websocket_disconnected)
 
     async def _install_poll_job(self) -> None:
         if self.hassette.config.disable_state_proxy_polling:
@@ -285,8 +285,8 @@ class StateProxy(Resource):
         resets synchronization bookkeeping (freshness, maintained generation, the initial-state
         capability latch); clears the state cache; and marks the resource not-ready.
         """
-        self.hassette.websocket_service.remove_connected_observer(self._on_websocket_connected)
-        self.hassette.websocket_service.remove_disconnected_observer(self._on_websocket_disconnected)
+        self.hassette.websocket_service.connected_observers.remove(self._on_websocket_connected)
+        self.hassette.websocket_service.disconnected_observers.remove(self._on_websocket_disconnected)
 
         if self._bootstrap_task is not None:
             self._bootstrap_task.cancel()

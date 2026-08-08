@@ -637,15 +637,15 @@ async def test_pre_readiness_failure_after_prior_disconnect_emits_no_second_publ
 
     mark_websocket_service_connected(websocket_service, reason="test: prior external connection")
     websocket_service.partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
-    websocket_service.early_drop_backoff = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
     websocket_service._emit_readiness_event = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
-    await websocket_service.handle_early_drop(
-        RetryableConnectionClosedError("peer gone"),
-        elapsed=1.0,
-        early_drop_attempts=1,
-        max_early_drops=3,
-    )
+    with patch("hassette.core.websocket_service.early_drop_backoff", AsyncMock()):
+        await websocket_service.handle_early_drop(
+            RetryableConnectionClosedError("peer gone"),
+            elapsed=1.0,
+            early_drop_attempts=1,
+            max_early_drops=3,
+        )
     await websocket_service.handle_genuine_failure()
 
     disconnected_events = capture.by_topic(Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED)
