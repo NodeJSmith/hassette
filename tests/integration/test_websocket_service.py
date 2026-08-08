@@ -176,8 +176,8 @@ async def test_send_and_wait_returns_response(websocket_service: WebsocketServic
     """Resolve send_and_wait when the websocket replies with success."""
 
     async def send_side_effect(**data: object) -> None:
-        message_id = data["id"]
-        response_future = websocket_service._response_futures[message_id]  # pyright: ignore
+        msg_id = data["id"]
+        response_future = websocket_service._response_futures[msg_id]  # pyright: ignore
         response_future.set_result({"ok": True})
 
     websocket_service.send_json = AsyncMock(side_effect=send_side_effect)

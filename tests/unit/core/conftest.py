@@ -343,7 +343,7 @@ class TempService(Service):
             raise
 
 
-def build_watcher_hassette(*, strict_lifecycle: bool = False) -> AsyncMock:
+def make_watcher_hassette(*, strict_lifecycle: bool = False) -> AsyncMock:
     """Minimal Hassette stub for ServiceWatcher unit tests."""
     hassette = make_mock_hassette(
         sealed=False,
