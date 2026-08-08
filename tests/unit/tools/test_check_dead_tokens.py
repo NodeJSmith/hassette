@@ -33,9 +33,9 @@ EXTRACT_BLOCK_CASES: list[tuple[str, str, str, str]] = [
     ),
     (
         "nested_braces_stay_balanced",
-        ":root {\n  --a: var(--b);\n}\n",
+        ":root {\n  @media (min-width: 1px) {\n    --a: 1;\n  }\n}\n",
         ":root",
-        "\n  --a: var(--b);\n",
+        "\n  @media (min-width: 1px) {\n    --a: 1;\n  }\n",
     ),
     (
         "selector_missing_returns_empty",
