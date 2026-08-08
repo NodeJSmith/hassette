@@ -8,6 +8,7 @@ import pytest
 
 from hassette.core.event_stream_service import EventStreamService
 from hassette.test_utils import make_mock_hassette
+from hassette.test_utils.helpers import settle
 
 
 @pytest.fixture
@@ -67,8 +68,7 @@ async def test_custom_buffer_size() -> None:
             send_completed = True
 
         task = asyncio.create_task(try_send())
-        # negative-assertion: no event-driven alternative
-        await asyncio.sleep(0.05)
+        await settle()
         assert not send_completed, "Expected send to block on full buffer"
         task.cancel()
         with pytest.raises(asyncio.CancelledError):

@@ -13,7 +13,7 @@ from whenever import ZonedDateTime
 from hassette.events import RawStateChangeEvent
 from hassette.test_utils import make_state_dict, wait_for
 from hassette.test_utils.harness import HassetteHarness
-from hassette.test_utils.helpers import create_state_change_event
+from hassette.test_utils.helpers import create_state_change_event, settle
 
 if TYPE_CHECKING:
     from hassette import Hassette
@@ -322,8 +322,7 @@ async def test_immediate_duration_starts_timer_for_remaining(
         name="immediate_duration_starts_timer_remaining",
     )
 
-    # negative-assertion: no event-driven alternative
-    await asyncio.sleep(0.05)
+    await settle()
     assert len(received) == 0, "Should not have fired immediately — only 3s elapsed of 5s"
 
     # Should fire after remaining ~2s (plus margin)
@@ -386,8 +385,7 @@ async def test_immediate_duration_negative_elapsed_clamped(
         name="immediate_duration_negative_elapsed_clamped",
     )
 
-    # negative-assertion: no event-driven alternative
-    await asyncio.sleep(0.05)
+    await settle()
     assert len(received) == 0, "Negative elapsed should be clamped to 0, not fire immediately"
 
 
@@ -418,8 +416,7 @@ async def test_immediate_duration_attribute_change_always_zero(
         name="immediate_duration_attr_change_always_zero",
     )
 
-    # negative-assertion: no event-driven alternative
-    await asyncio.sleep(0.05)
+    await settle()
     assert len(received) == 0, (
         "on_attribute_change with immediate+duration should always start from zero, not fire immediately"
     )
