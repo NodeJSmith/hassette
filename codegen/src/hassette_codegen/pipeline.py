@@ -257,6 +257,25 @@ def _generate_domains(
     return _GenerationResult(generated_files, skipped_domains, rejections, any_drift)
 
 
+def _check_or_write(path: Path, content: str, label: str, *, check_mode: bool) -> tuple[bool, bool]:
+    """Run the check-mode/generate split shared by every generated-file write site.
+
+    Returns ``(wrote, drifted)``. In ``--check`` mode this only compares `content` against the
+    file already on disk and never touches it — ``wrote`` is always True (checked files count as
+    "would be generated") and ``drifted`` reflects whether they differed. Outside ``--check`` mode
+    this performs the write — ``drifted`` is always False and ``wrote`` reflects whether
+    ``atomic_write`` succeeded.
+
+    This wraps only the part that is genuinely identical across call sites: which of
+    ``check_drift``/``atomic_write`` to call, and how to fold the result into ``(wrote,
+    drifted)``. Callers that gate the write behind ``_may_overwrite`` or need custom
+    warning/skip behavior on a failed write still do that themselves — those differ per site.
+    """
+    if check_mode:
+        return True, not check_drift(path, content, label)
+    return atomic_write(path, content), False
+
+
 def _generate_files_for_domain(
     domain_info: DiscoveredDomain,
     *,
@@ -282,18 +301,17 @@ def _generate_files_for_domain(
     generated_files: set[Path] = set()
     any_drift = False
 
-    if check_mode:
-        if not check_drift(state_path, state_content, f"{domain_info.name} state model"):
-            any_drift = True
+    if not check_mode and not _may_overwrite(state_path, rel_state, previous_manifest, tracked=manifest_tracked):
+        return _DomainOutcome.skip()
+    wrote, drifted = _check_or_write(
+        state_path, state_content, f"{domain_info.name} state model", check_mode=check_mode
+    )
+    any_drift = any_drift or drifted
+    if wrote:
         generated_files.add(rel_state)
-    else:
-        if not _may_overwrite(state_path, rel_state, previous_manifest, tracked=manifest_tracked):
-            return _DomainOutcome.skip()
-        if atomic_write(state_path, state_content):
-            generated_files.add(rel_state)
-        else:
-            print(f"WARNING: Skipped {rel_state} (validation failed)", file=sys.stderr)
-            return _DomainOutcome.skip()
+    elif not check_mode:
+        print(f"WARNING: Skipped {rel_state} (validation failed)", file=sys.stderr)
+        return _DomainOutcome.skip()
 
     try:
         entity_content = generate_entity_wrapper(extracted)
@@ -311,20 +329,18 @@ def _generate_files_for_domain(
     entity_path = entities_dir / f"{domain_info.name}.py"
     rel_entity = entity_path.relative_to(repo_root)
 
-    if check_mode:
-        if not check_drift(entity_path, entity_content, f"{domain_info.name} entity wrapper"):
-            any_drift = True
-        generated_files.add(rel_entity)
-        return _DomainOutcome.ok(generated_files, any_drift=any_drift)
-
     # Unlike the state model above, the domain is not added to skipped_domains: its state model
     # did generate. The refusal is reported by the warning, matching how an entity wrapper that
     # fails ruff validation is already handled.
-    if not _may_overwrite(entity_path, rel_entity, previous_manifest, tracked=manifest_tracked):
+    if not check_mode and not _may_overwrite(entity_path, rel_entity, previous_manifest, tracked=manifest_tracked):
         return _DomainOutcome.ok(generated_files, any_drift=any_drift)
-    if atomic_write(entity_path, entity_content):
+    wrote, drifted = _check_or_write(
+        entity_path, entity_content, f"{domain_info.name} entity wrapper", check_mode=check_mode
+    )
+    any_drift = any_drift or drifted
+    if wrote:
         generated_files.add(rel_entity)
-    else:
+    elif not check_mode:
         print(f"WARNING: Skipped {rel_entity} (validation failed)", file=sys.stderr)
 
     return _DomainOutcome.ok(generated_files, any_drift=any_drift)
@@ -340,15 +356,12 @@ def _generate_constants(ha_source: HASource, const_dir: Path, repo_root: Path, *
     const_path = const_dir / "sensor.py"
     rel_const = const_path.relative_to(repo_root)
 
-    if check_mode:
-        any_drift = not check_drift(const_path, const_content, "sensor constants")
-        return _WriteOutput(generated_files={rel_const}, any_drift=any_drift)
-
-    # Ownership is only claimed for output this run actually produced. atomic_write reports its
-    # own failure, and leaving the path out of the manifest surfaces the retained older copy as an
-    # orphan on the next full run.
-    if atomic_write(const_path, const_content):
-        return _WriteOutput(generated_files={rel_const})
+    # Ownership is only claimed for output this run actually produced (outside --check).
+    # atomic_write reports its own failure, and leaving the path out of the manifest surfaces the
+    # retained older copy as an orphan on the next full run.
+    wrote, drifted = _check_or_write(const_path, const_content, "sensor constants", check_mode=check_mode)
+    if wrote:
+        return _WriteOutput(generated_files={rel_const}, any_drift=drifted)
     return _WriteOutput()
 
 
@@ -387,11 +400,9 @@ def _generate_package_inits(states_dir: Path, entities_dir: Path, repo_root: Pat
         init_path = pkg_dir / "__init__.py"
         rel_init = init_path.relative_to(repo_root)
 
-        if check_mode:
-            if not check_drift(init_path, init_content, f"{pkg_dir.name} __init__.py"):
-                any_drift = True
-            generated_files.add(rel_init)
-        elif atomic_write(init_path, init_content):
+        wrote, drifted = _check_or_write(init_path, init_content, f"{pkg_dir.name} __init__.py", check_mode=check_mode)
+        any_drift = any_drift or drifted
+        if wrote:
             generated_files.add(rel_init)
 
     return _WriteOutput(generated_files=generated_files, any_drift=any_drift)
