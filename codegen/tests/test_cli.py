@@ -1,10 +1,7 @@
 """Unit tests for the CLI argument parsing and dispatch."""
 
-import sys
 from pathlib import Path
 from unittest.mock import patch
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from hassette_codegen.__main__ import _build_parser, main
 

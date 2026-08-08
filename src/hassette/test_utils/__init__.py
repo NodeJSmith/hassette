@@ -68,6 +68,8 @@ from .helpers import write_test_app_with_decorator as write_test_app_with_decora
 from .mock_hassette import make_mock_hassette as make_mock_hassette
 from .mock_hassette import make_ws_hassette_stub as make_ws_hassette_stub
 from .recording_api import RecordingApi
+from .sql_helpers import insert_execution_row as insert_execution_row
+from .sql_helpers import sqlite_conn as sqlite_conn
 from .test_server import SimpleTestServer as SimpleTestServer
 from .uvicorn_server import get_free_port as get_free_port
 from .uvicorn_server import start_uvicorn_server as start_uvicorn_server
@@ -80,6 +82,7 @@ from .web_mocks import create_hassette_stub as create_hassette_stub
 from .web_mocks import create_mock_runtime_query_service as create_mock_runtime_query_service
 from .web_mocks import create_test_fastapi_app as create_test_fastapi_app
 from .ws_mocks import build_fake_ws as build_fake_ws
+from .ws_mocks import make_task_bucket_spawn_stub as make_task_bucket_spawn_stub
 from .ws_mocks import mark_websocket_service_connected as mark_websocket_service_connected
 
 __all__ = [

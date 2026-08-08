@@ -368,29 +368,25 @@ class TestAppLifecycleServiceIntegration:
         assert "Intentional init failure" in failed[0].error_message
 
     async def test_lifecycle_continues_after_failed_instance(
-        self, hassette_with_app_handler: "HassetteHarness", app_registry: AppRegistry
+        self, app_factory: AppFactory, app_lifecycle: AppLifecycleService, app_registry: AppRegistry
     ):
         """Other instances still initialize after one fails."""
-        # Create a custom setup with one failing and one succeeding app
-        factory = AppFactory(hassette_with_app_handler.hassette, app_registry)
-        lifecycle = AppLifecycleService(hassette_with_app_handler.hassette, parent=None, registry=app_registry)
-
         # Create failing app first
         failing_manifest = make_manifest("failing", "failing_init_app.py", "FailingInitApp")
         app_registry.set_manifests({"failing": failing_manifest})
-        factory.create_instances("failing", failing_manifest)
+        app_factory.create_instances("failing", failing_manifest)
 
         # Create succeeding app
         success_manifest = make_manifest("multi_instance", "multi_instance_app.py", "MultiInstanceApp")
         app_registry.set_manifests({"failing": failing_manifest, "multi_instance": success_manifest})
-        factory.create_instances("multi_instance", success_manifest)
+        app_factory.create_instances("multi_instance", success_manifest)
 
         # Initialize all together
         failing_instances = app_registry.get_apps_by_key("failing")
         success_instances = app_registry.get_apps_by_key("multi_instance")
 
-        await lifecycle.initialize_instances("failing", failing_instances, failing_manifest)
-        await lifecycle.initialize_instances("multi_instance", success_instances, success_manifest)
+        await app_lifecycle.initialize_instances("failing", failing_instances, failing_manifest)
+        await app_lifecycle.initialize_instances("multi_instance", success_instances, success_manifest)
 
         # Failing app should be stopped
         assert failing_instances[0].status == ResourceStatus.STOPPED
@@ -400,8 +396,6 @@ class TestAppLifecycleServiceIntegration:
         # Success app should be running
         success_instance = get_app(app_registry, "multi_instance", 0)
         assert success_instance.status == ResourceStatus.RUNNING
-
-        await lifecycle.shutdown_all()
 
     async def test_lifecycle_shuts_down_real_app(
         self, app_factory: AppFactory, app_lifecycle: AppLifecycleService, app_registry: AppRegistry
@@ -442,36 +436,28 @@ class TestFullIntegrationFlow:
     """Full integration flow tests for Factory → Lifecycle pipeline."""
 
     async def test_full_flow_create_and_initialize(
-        self, hassette_with_app_handler: "HassetteHarness", app_registry: AppRegistry
+        self, app_factory: AppFactory, app_lifecycle: AppLifecycleService, app_registry: AppRegistry
     ):
         """Factory creates, lifecycle initializes, app runs."""
-        factory = AppFactory(hassette_with_app_handler.hassette, app_registry)
-        lifecycle = AppLifecycleService(hassette_with_app_handler.hassette, parent=None, registry=app_registry)
-
         manifest = make_manifest("multi_instance", "multi_instance_app.py", "MultiInstanceApp")
         app_registry.set_manifests({"multi_instance": manifest})
 
         # Create
-        factory.create_instances("multi_instance", manifest)
+        app_factory.create_instances("multi_instance", manifest)
         assert "multi_instance" in app_registry
 
         # Initialize
         instances = app_registry.get_apps_by_key("multi_instance")
-        await lifecycle.initialize_instances("multi_instance", instances, manifest)
+        await app_lifecycle.initialize_instances("multi_instance", instances, manifest)
 
         # Verify running
         app = get_app(app_registry, "multi_instance", 0)
         assert app.status == ResourceStatus.RUNNING
 
-        await lifecycle.shutdown_all()
-
     async def test_full_flow_with_registry_state(
-        self, hassette_with_app_handler: "HassetteHarness", app_registry: AppRegistry
+        self, app_factory: AppFactory, app_lifecycle: AppLifecycleService, app_registry: AppRegistry
     ):
         """Verify registry state at each step."""
-        factory = AppFactory(hassette_with_app_handler.hassette, app_registry)
-        lifecycle = AppLifecycleService(hassette_with_app_handler.hassette, parent=None, registry=app_registry)
-
         manifest = make_manifest("multi_instance", "multi_instance_app.py", "MultiInstanceApp")
         app_registry.set_manifests({"multi_instance": manifest})
 
@@ -479,26 +465,24 @@ class TestFullIntegrationFlow:
         assert app_registry.get("multi_instance", 0) is None
 
         # After creation
-        factory.create_instances("multi_instance", manifest)
+        app_factory.create_instances("multi_instance", manifest)
         app = get_app(app_registry, "multi_instance", 0)
         assert app.status == ResourceStatus.NOT_STARTED
 
         # After initialization
         instances = app_registry.get_apps_by_key("multi_instance")
-        await lifecycle.initialize_instances("multi_instance", instances, manifest)
+        await app_lifecycle.initialize_instances("multi_instance", instances, manifest)
         assert app.status == ResourceStatus.RUNNING
 
-        # After shutdown
-        await lifecycle.shutdown_all()
+        # After shutdown — asserted here (not deferred to fixture teardown), so the
+        # explicit call stays; the fixture's own shutdown_all() afterward is a harmless no-op.
+        await app_lifecycle.shutdown_all()
         assert app_registry.get("multi_instance", 0) is None
 
     async def test_full_flow_multiple_apps(
-        self, hassette_with_app_handler: "HassetteHarness", app_registry: AppRegistry
+        self, app_factory: AppFactory, app_lifecycle: AppLifecycleService, app_registry: AppRegistry
     ):
         """Multiple app types created and initialized together."""
-        factory = AppFactory(hassette_with_app_handler.hassette, app_registry)
-        lifecycle = AppLifecycleService(hassette_with_app_handler.hassette, parent=None, registry=app_registry)
-
         manifest1 = make_manifest(
             "multi1",
             "multi_instance_app.py",
@@ -510,8 +494,8 @@ class TestFullIntegrationFlow:
         app_registry.set_manifests({"multi1": manifest1, "my_app": manifest2})
 
         # Create both
-        factory.create_instances("multi1", manifest1)
-        factory.create_instances("my_app", manifest2)
+        app_factory.create_instances("multi1", manifest1)
+        app_factory.create_instances("my_app", manifest2)
 
         assert "multi1" in app_registry
         assert "my_app" in app_registry
@@ -519,8 +503,8 @@ class TestFullIntegrationFlow:
         # Initialize both
         instances1 = app_registry.get_apps_by_key("multi1")
         instances2 = app_registry.get_apps_by_key("my_app")
-        await lifecycle.initialize_instances("multi1", instances1, manifest1)
-        await lifecycle.initialize_instances("my_app", instances2, manifest2)
+        await app_lifecycle.initialize_instances("multi1", instances1, manifest1)
+        await app_lifecycle.initialize_instances("my_app", instances2, manifest2)
 
         # Both should be running
         multi1_instance = app_registry.get("multi1", 0)
@@ -530,47 +514,35 @@ class TestFullIntegrationFlow:
         assert multi1_instance.status == ResourceStatus.RUNNING
         assert my_app_instance.status == ResourceStatus.RUNNING
 
-        await lifecycle.shutdown_all()
-
     async def test_snapshot_shows_running_apps(
-        self, hassette_with_app_handler: "HassetteHarness", app_registry: AppRegistry
+        self, app_factory: AppFactory, app_lifecycle: AppLifecycleService, app_registry: AppRegistry
     ):
         """Running apps appear in snapshot.running."""
-        factory = AppFactory(hassette_with_app_handler.hassette, app_registry)
-        lifecycle = AppLifecycleService(hassette_with_app_handler.hassette, parent=None, registry=app_registry)
-
         manifest = make_manifest("multi_instance", "multi_instance_app.py", "MultiInstanceApp")
         app_registry.set_manifests({"multi_instance": manifest})
 
-        factory.create_instances("multi_instance", manifest)
+        app_factory.create_instances("multi_instance", manifest)
         instances = app_registry.get_apps_by_key("multi_instance")
-        await lifecycle.initialize_instances("multi_instance", instances, manifest)
+        await app_lifecycle.initialize_instances("multi_instance", instances, manifest)
 
         snapshot = app_registry.get_snapshot()
         assert snapshot.running_count == 1
         assert "multi_instance" in snapshot.running_apps
 
-        await lifecycle.shutdown_all()
-
     async def test_snapshot_shows_failed_apps(
-        self, hassette_with_app_handler: "HassetteHarness", app_registry: AppRegistry
+        self, app_factory: AppFactory, app_lifecycle: AppLifecycleService, app_registry: AppRegistry
     ):
         """Failed apps appear in snapshot.failed."""
-        factory = AppFactory(hassette_with_app_handler.hassette, app_registry)
-        lifecycle = AppLifecycleService(hassette_with_app_handler.hassette, parent=None, registry=app_registry)
-
         manifest = make_manifest("failing", "failing_init_app.py", "FailingInitApp")
         app_registry.set_manifests({"failing": manifest})
 
-        factory.create_instances("failing", manifest)
+        app_factory.create_instances("failing", manifest)
         instances = app_registry.get_apps_by_key("failing")
-        await lifecycle.initialize_instances("failing", instances, manifest)
+        await app_lifecycle.initialize_instances("failing", instances, manifest)
 
         snapshot = app_registry.get_snapshot()
         assert snapshot.failed_count == 1
         assert "failing" in snapshot.failed_apps
-
-        await lifecycle.shutdown_all()
 
 
 class TestAppRestartPreservesChildren:

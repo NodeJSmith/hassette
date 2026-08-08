@@ -21,32 +21,24 @@ from hassette.core.migration_runner import (
     run_migrations,
 )
 from hassette.test_utils.config import LATEST_MIGRATION_VERSION
+from hassette.test_utils.sql_helpers import insert_execution_row, sqlite_conn
 
 
 def _user_version(db_path: Path) -> int:
-    conn = sqlite3.connect(db_path)
-    try:
+    with sqlite_conn(db_path) as conn:
         return conn.execute("PRAGMA user_version").fetchone()[0]
-    finally:
-        conn.close()
 
 
 def tables(db_path: Path) -> set[str]:
-    conn = sqlite3.connect(db_path)
-    try:
+    with sqlite_conn(db_path) as conn:
         cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
         return {row[0] for row in cursor.fetchall()}
-    finally:
-        conn.close()
 
 
 def columns(db_path: Path, table: str) -> set[str]:
-    conn = sqlite3.connect(db_path)
-    try:
+    with sqlite_conn(db_path) as conn:
         cursor = conn.execute(f"PRAGMA table_info({table})")
         return {row[1] for row in cursor.fetchall()}
-    finally:
-        conn.close()
 
 
 def test_collect_migrations_finds_sql_files(tmp_path: Path) -> None:
@@ -111,11 +103,8 @@ def test_set_auto_vacuum_sets_incremental(tmp_path: Path) -> None:
 
     _set_auto_vacuum(db_path)
 
-    conn = sqlite3.connect(db_path)
-    try:
+    with sqlite_conn(db_path) as conn:
         mode = conn.execute("PRAGMA auto_vacuum").fetchone()[0]
-    finally:
-        conn.close()
 
     assert mode == 2
 
@@ -130,11 +119,8 @@ def test_set_auto_vacuum_noop_if_already_incremental(tmp_path: Path) -> None:
     # Should not raise
     _set_auto_vacuum(db_path)
 
-    conn = sqlite3.connect(db_path)
-    try:
+    with sqlite_conn(db_path) as conn:
         mode = conn.execute("PRAGMA auto_vacuum").fetchone()[0]
-    finally:
-        conn.close()
 
     assert mode == 2
 
@@ -248,9 +234,7 @@ def test_kind_check_rejects_invalid_values(tmp_path: Path) -> None:
     db_path = tmp_path / "test.db"
     run_migrations(db_path)
 
-    conn = sqlite3.connect(db_path)
-    conn.execute("PRAGMA foreign_keys = ON")
-    try:
+    with sqlite_conn(db_path, foreign_keys=True) as conn:
         conn.execute("INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (1.0, 1.0, 'running')")
         conn.execute(
             "INSERT INTO listeners (app_key, instance_index, name, handler_method, topic, source_location)"
@@ -259,22 +243,14 @@ def test_kind_check_rejects_invalid_values(tmp_path: Path) -> None:
         conn.commit()
 
         # Valid kind values must succeed
-        conn.execute(
-            "INSERT INTO executions "
-            "(kind, listener_id, session_id, execution_start_ts, duration_ms, status, source_tier) "
-            "VALUES ('handler', 1, 1, 1.0, 5.0, 'success', 'app')"
-        )
+        insert_execution_row(conn, kind="handler", listener_id=1, session_id=1, execution_start_ts=1.0, duration_ms=5.0)
         conn.commit()
 
         # Invalid kind must raise IntegrityError
         with pytest.raises(sqlite3.IntegrityError):
-            conn.execute(
-                "INSERT INTO executions "
-                "(kind, listener_id, session_id, execution_start_ts, duration_ms, status, source_tier) "
-                "VALUES ('invalid_kind', 1, 1, 2.0, 5.0, 'success', 'app')"
+            insert_execution_row(
+                conn, kind="invalid_kind", listener_id=1, session_id=1, execution_start_ts=2.0, duration_ms=5.0
             )
-    finally:
-        conn.close()
 
 
 def test_kind_check_accepts_job(tmp_path: Path) -> None:
@@ -282,9 +258,7 @@ def test_kind_check_accepts_job(tmp_path: Path) -> None:
     db_path = tmp_path / "test.db"
     run_migrations(db_path)
 
-    conn = sqlite3.connect(db_path)
-    conn.execute("PRAGMA foreign_keys = ON")
-    try:
+    with sqlite_conn(db_path, foreign_keys=True) as conn:
         conn.execute("INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (1.0, 1.0, 'running')")
         conn.execute(
             "INSERT INTO scheduled_jobs "
@@ -293,17 +267,11 @@ def test_kind_check_accepts_job(tmp_path: Path) -> None:
         )
         conn.commit()
 
-        conn.execute(
-            "INSERT INTO executions "
-            "(kind, job_id, session_id, execution_start_ts, duration_ms, status, source_tier) "
-            "VALUES ('job', 1, 1, 1.0, 5.0, 'success', 'app')"
-        )
+        insert_execution_row(conn, kind="job", job_id=1, session_id=1, execution_start_ts=1.0, duration_ms=5.0)
         conn.commit()
 
         cursor = conn.execute("SELECT kind FROM executions WHERE id = 1")
         assert cursor.fetchone()[0] == "job"
-    finally:
-        conn.close()
 
 
 def test_fk_mutex_check_rejects_both_null(tmp_path: Path) -> None:
@@ -311,20 +279,20 @@ def test_fk_mutex_check_rejects_both_null(tmp_path: Path) -> None:
     db_path = tmp_path / "test.db"
     run_migrations(db_path)
 
-    conn = sqlite3.connect(db_path)
-    conn.execute("PRAGMA foreign_keys = ON")
-    try:
+    with sqlite_conn(db_path, foreign_keys=True) as conn:
         conn.execute("INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (1.0, 1.0, 'running')")
         conn.commit()
 
         with pytest.raises(sqlite3.IntegrityError):
-            conn.execute(
-                "INSERT INTO executions "
-                "(kind, listener_id, job_id, session_id, execution_start_ts, duration_ms, status, source_tier) "
-                "VALUES ('handler', NULL, NULL, 1, 1.0, 5.0, 'success', 'app')"
+            insert_execution_row(
+                conn,
+                kind="handler",
+                listener_id=None,
+                job_id=None,
+                session_id=1,
+                execution_start_ts=1.0,
+                duration_ms=5.0,
             )
-    finally:
-        conn.close()
 
 
 def test_fk_mutex_check_rejects_both_set(tmp_path: Path) -> None:
@@ -332,9 +300,7 @@ def test_fk_mutex_check_rejects_both_set(tmp_path: Path) -> None:
     db_path = tmp_path / "test.db"
     run_migrations(db_path)
 
-    conn = sqlite3.connect(db_path)
-    conn.execute("PRAGMA foreign_keys = ON")
-    try:
+    with sqlite_conn(db_path, foreign_keys=True) as conn:
         conn.execute("INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (1.0, 1.0, 'running')")
         conn.execute(
             "INSERT INTO listeners (app_key, instance_index, name, handler_method, topic, source_location)"
@@ -348,13 +314,9 @@ def test_fk_mutex_check_rejects_both_set(tmp_path: Path) -> None:
         conn.commit()
 
         with pytest.raises(sqlite3.IntegrityError):
-            conn.execute(
-                "INSERT INTO executions "
-                "(kind, listener_id, job_id, session_id, execution_start_ts, duration_ms, status, source_tier) "
-                "VALUES ('handler', 1, 1, 1, 1.0, 5.0, 'success', 'app')"
+            insert_execution_row(
+                conn, kind="handler", listener_id=1, job_id=1, session_id=1, execution_start_ts=1.0, duration_ms=5.0
             )
-    finally:
-        conn.close()
 
 
 def test_listeners_natural_key_unique_index(tmp_path: Path) -> None:
@@ -362,12 +324,9 @@ def test_listeners_natural_key_unique_index(tmp_path: Path) -> None:
     db_path = tmp_path / "test.db"
     run_migrations(db_path)
 
-    conn = sqlite3.connect(db_path)
-    try:
+    with sqlite_conn(db_path) as conn:
         cursor = conn.execute("SELECT sql FROM sqlite_master WHERE type='index' AND name='idx_listeners_natural'")
         row = cursor.fetchone()
-    finally:
-        conn.close()
 
     assert row is not None, "idx_listeners_natural index not found"
     index_sql = row[0].lower()

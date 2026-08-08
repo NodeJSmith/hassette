@@ -6,7 +6,7 @@ from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.schemas.listener_models import ListenerSummary
 
-from .helpers import BASE_TS, insert_invocation, insert_listener
+from .helpers import BASE_TS, assert_last_error_row_coherence, insert_invocation, insert_listener
 
 
 class TestGetListenerSummary:
@@ -214,55 +214,32 @@ class TestListenerSummaryLastErrorRowCoherence:
         listener_id = await insert_listener(db_svc, handler_method="on_err")
 
         base_ts = BASE_TS
-        # Older error with distinct values
-        await insert_invocation(
-            db_svc,
-            listener_id,
-            session_id,
-            status="error",
-            error_type="OldError",
-            error_message="old message",
-            error_traceback="old traceback",
-            execution_start_ts=base_ts + 1.0,
-        )
-        # Middle error
-        await insert_invocation(
-            db_svc,
-            listener_id,
-            session_id,
-            status="error",
-            error_type="MiddleError",
-            error_message="middle message",
-            error_traceback="middle traceback",
-            execution_start_ts=base_ts + 5.0,
-        )
-        # Most recent error — all three columns should come from this row
-        await insert_invocation(
-            db_svc,
-            listener_id,
-            session_id,
-            status="error",
-            error_type="NewError",
-            error_message="new message",
-            error_traceback="new traceback",
-            execution_start_ts=base_ts + 10.0,
-        )
-        # A success after the errors — should not affect error fields
-        await insert_invocation(
-            db_svc,
-            listener_id,
-            session_id,
-            status="success",
-            execution_start_ts=base_ts + 15.0,
-        )
 
-        rows = await query_service.get_listener_summary("test_app", 0)
-        assert len(rows) == 1
-        row = rows[0]
-        # All three error columns must come from the same (most recent) row
-        assert row.last_error_type == "NewError"
-        assert row.last_error_message == "new message"
-        assert row.last_error_traceback == "new traceback"
+        await assert_last_error_row_coherence(
+            lambda **kw: insert_invocation(db_svc, listener_id, session_id, **kw),
+            lambda: query_service.get_listener_summary("test_app", 0),
+            [
+                {
+                    "error_type": "OldError",
+                    "error_message": "old message",
+                    "error_traceback": "old traceback",
+                    "execution_start_ts": base_ts + 1.0,
+                },
+                {
+                    "error_type": "MiddleError",
+                    "error_message": "middle message",
+                    "error_traceback": "middle traceback",
+                    "execution_start_ts": base_ts + 5.0,
+                },
+                {
+                    "error_type": "NewError",
+                    "error_message": "new message",
+                    "error_traceback": "new traceback",
+                    "execution_start_ts": base_ts + 10.0,
+                },
+            ],
+            trailing_success_ts=base_ts + 15.0,
+        )
 
     async def test_single_error_returned(
         self,
@@ -322,35 +299,24 @@ class TestListenerSummaryLastErrorRowCoherence:
         base_ts = BASE_TS
         since_ts = base_ts + 50.0
 
-        # Error before the window — must be excluded
-        await insert_invocation(
-            db_svc,
-            listener_id,
-            session_id,
-            status="error",
-            error_type="OldError",
-            error_message="before window",
-            error_traceback="old tb",
-            execution_start_ts=base_ts + 1.0,
+        await assert_last_error_row_coherence(
+            lambda **kw: insert_invocation(db_svc, listener_id, session_id, **kw),
+            lambda: query_service.get_listener_summary("test_app", 0, since=since_ts),
+            [
+                {
+                    "error_type": "OldError",
+                    "error_message": "before window",
+                    "error_traceback": "old tb",
+                    "execution_start_ts": base_ts + 1.0,
+                },
+                {
+                    "error_type": "NewError",
+                    "error_message": "inside window",
+                    "error_traceback": "new tb",
+                    "execution_start_ts": base_ts + 100.0,
+                },
+            ],
         )
-        # Error inside the window — must be returned
-        await insert_invocation(
-            db_svc,
-            listener_id,
-            session_id,
-            status="error",
-            error_type="NewError",
-            error_message="inside window",
-            error_traceback="new tb",
-            execution_start_ts=base_ts + 100.0,
-        )
-
-        rows = await query_service.get_listener_summary("test_app", 0, since=since_ts)
-        assert len(rows) == 1
-        row = rows[0]
-        assert row.last_error_type == "NewError"
-        assert row.last_error_message == "inside window"
-        assert row.last_error_traceback == "new tb"
 
     async def test_since_filter_excludes_all_errors_returns_none(
         self,

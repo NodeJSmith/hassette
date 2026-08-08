@@ -17,6 +17,7 @@ from hassette.schemas.listener_models import ListenerSummary
 
 from .helpers import (
     BASE_TS,
+    assert_last_error_row_coherence,
     insert_execution,
     insert_invocation,
     insert_job,
@@ -314,35 +315,24 @@ class TestGetListenerSummaryGlobal:
 
         listener_id = await insert_listener(db_svc, app_key="coh_app", handler_method="on_event")
 
-        await insert_invocation(
-            db_svc,
-            listener_id,
-            session_id,
-            status="error",
-            error_type="OldError",
-            error_message="old message",
-            error_traceback="old traceback",
-            execution_start_ts=BASE_TS + 1.0,
+        await assert_last_error_row_coherence(
+            lambda **kw: insert_invocation(db_svc, listener_id, session_id, **kw),
+            lambda: query_service.get_listener_summary(),
+            [
+                {
+                    "error_type": "OldError",
+                    "error_message": "old message",
+                    "error_traceback": "old traceback",
+                    "execution_start_ts": BASE_TS + 1.0,
+                },
+                {
+                    "error_type": "NewError",
+                    "error_message": "new message",
+                    "error_traceback": "new traceback",
+                    "execution_start_ts": BASE_TS + 10.0,
+                },
+            ],
         )
-        await insert_invocation(
-            db_svc,
-            listener_id,
-            session_id,
-            status="error",
-            error_type="NewError",
-            error_message="new message",
-            error_traceback="new traceback",
-            execution_start_ts=BASE_TS + 10.0,
-        )
-
-        results = await query_service.get_listener_summary()
-        assert len(results) == 1
-        row = results[0]
-
-        # All columns must come from the same (most recent) row
-        assert row.last_error_type == "NewError"
-        assert row.last_error_message == "new message"
-        assert row.last_error_traceback == "new traceback"
 
     async def test_source_tier_app_excludes_framework(
         self,
@@ -427,27 +417,22 @@ class TestGetListenerSummaryGlobal:
         since_ts = BASE_TS + 50.0
 
         listener_id = await insert_listener(db_svc, app_key="my_app", handler_method="on_event")
-        await insert_invocation(
-            db_svc,
-            listener_id,
-            session_id,
-            status="error",
-            error_type="OldError",
-            error_message="before window",
-            execution_start_ts=BASE_TS + 1.0,
-        )
-        await insert_invocation(
-            db_svc,
-            listener_id,
-            session_id,
-            status="error",
-            error_type="NewError",
-            error_message="inside window",
-            execution_start_ts=BASE_TS + 100.0,
-        )
 
-        results = await query_service.get_listener_summary(since=since_ts)
-        assert len(results) == 1
-        row = results[0]
-        assert row.last_error_type == "NewError"
-        assert row.last_error_message == "inside window"
+        await assert_last_error_row_coherence(
+            lambda **kw: insert_invocation(db_svc, listener_id, session_id, **kw),
+            lambda: query_service.get_listener_summary(since=since_ts),
+            [
+                {
+                    "error_type": "OldError",
+                    "error_message": "before window",
+                    "error_traceback": None,
+                    "execution_start_ts": BASE_TS + 1.0,
+                },
+                {
+                    "error_type": "NewError",
+                    "error_message": "inside window",
+                    "error_traceback": None,
+                    "execution_start_ts": BASE_TS + 100.0,
+                },
+            ],
+        )

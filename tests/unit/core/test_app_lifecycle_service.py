@@ -127,7 +127,7 @@ class TestBootstrapAppsAdmission:
         lifecycle_service.apply_changes = AsyncMock()
         lifecycle_service._record_pre_release_reconciliation(
             original_apps_config={"old_app": original_manifest},
-            curr_apps_config={"app_a": manifest},
+            current_apps_config={"app_a": manifest},
             changed_file_paths=frozenset(),
         )
 
@@ -135,7 +135,7 @@ class TestBootstrapAppsAdmission:
 
         lifecycle_service.start_apps.assert_awaited_once_with(admission_mode=AppAdmissionMode.WAIT_FOR_RELEASE)
         lifecycle_service.apply_changes.assert_awaited_once()
-        assert lifecycle_service._pending_pre_release_reconciliation is False
+        assert lifecycle_service._pending_reconciliation is None
 
     async def test_bootstrap_replays_deferred_reconciliation_when_no_manifests(
         self,
@@ -163,7 +163,7 @@ class TestBootstrapAppsAdmission:
         lifecycle_service.apply_changes = AsyncMock()
         lifecycle_service._record_pre_release_reconciliation(
             original_apps_config={"old_app": MagicMock()},
-            curr_apps_config={"app_a": MagicMock()},
+            current_apps_config={"app_a": MagicMock()},
             changed_file_paths=frozenset(),
         )
 
@@ -171,7 +171,7 @@ class TestBootstrapAppsAdmission:
 
         mock_hassette.app_bootstrap_coordinator.wait_released.assert_awaited_once()
         lifecycle_service.apply_changes.assert_awaited_once()
-        assert lifecycle_service._pending_pre_release_reconciliation is False
+        assert lifecycle_service._pending_reconciliation is None
 
 
 class TestAppLifecycleServiceProperties:

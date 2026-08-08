@@ -16,11 +16,26 @@ from .conftest import make_log_record, set_app_status_snapshot, set_websocket_st
 if TYPE_CHECKING:
     from httpx2 import AsyncClient
 
+# Route paths hit by multiple tests below — single source of truth so a route rename only
+# needs to change here.
+HEALTH_PATH = "/api/health"
+HEALTH_READY_PATH = "/api/health/ready"
+APP_START_PATH = "/api/apps/my_app/start"
+APP_STOP_PATH = "/api/apps/my_app/stop"
+APP_RELOAD_PATH = "/api/apps/my_app/reload"
+APP_MANIFEST_PATH = "/api/apps/my_app/manifest"
+APP_MANIFESTS_PATH = "/api/apps/manifests"
+BUS_LISTENERS_PATH = "/api/bus/listeners"
+LOGS_RECENT_PATH = "/api/logs/recent"
+LOGS_LEVEL_PATH = "/api/logs/level"
+CONFIG_PATH = "/api/config"
+OPENAPI_PATH = "/api/openapi.json"
+
 
 class TestHealthEndpoints:
     async def test_health_returns_200_when_ok(self, client: "AsyncClient") -> None:
         """GET /api/health returns 200 with status 'ok' when WebSocket is connected."""
-        response = await client.get("/api/health")
+        response = await client.get(HEALTH_PATH)
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "ok"
@@ -31,7 +46,7 @@ class TestHealthEndpoints:
     async def test_health_returns_200_when_degraded(self, client: "AsyncClient", mock_hassette) -> None:
         """GET /api/health returns 200 with status 'degraded' when WebSocket is not connected."""
         set_websocket_state(mock_hassette, connected=False, ever_connected=True)
-        response = await client.get("/api/health")
+        response = await client.get(HEALTH_PATH)
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "degraded"
@@ -40,7 +55,7 @@ class TestHealthEndpoints:
     async def test_health_returns_200_when_starting(self, client: "AsyncClient", mock_hassette) -> None:
         """GET /api/health returns 200 (not 503) with status 'starting' during startup."""
         set_websocket_state(mock_hassette, connected=False, ever_connected=False)
-        response = await client.get("/api/health")
+        response = await client.get(HEALTH_PATH)
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "starting"
@@ -55,7 +70,7 @@ class TestHealthEndpoints:
 
     async def test_health_ready_returns_200_when_ok(self, client: "AsyncClient") -> None:
         """GET /api/health/ready returns 200 when status is 'ok'."""
-        response = await client.get("/api/health/ready")
+        response = await client.get(HEALTH_READY_PATH)
         assert response.status_code == 200
         data = response.json()
         assert data["ready"] is True
@@ -64,7 +79,7 @@ class TestHealthEndpoints:
     async def test_health_ready_returns_503_when_degraded(self, client: "AsyncClient", mock_hassette) -> None:
         """GET /api/health/ready returns 503 when status is 'degraded'."""
         set_websocket_state(mock_hassette, connected=False, ever_connected=True)
-        response = await client.get("/api/health/ready")
+        response = await client.get(HEALTH_READY_PATH)
         assert response.status_code == 503
         data = response.json()
         assert data["ready"] is False
@@ -73,7 +88,7 @@ class TestHealthEndpoints:
     async def test_health_ready_returns_503_when_starting(self, client: "AsyncClient", mock_hassette) -> None:
         """GET /api/health/ready returns 503 when status is 'starting'."""
         set_websocket_state(mock_hassette, connected=False, ever_connected=False)
-        response = await client.get("/api/health/ready")
+        response = await client.get(HEALTH_READY_PATH)
         assert response.status_code == 503
         data = response.json()
         assert data["ready"] is False
@@ -94,7 +109,7 @@ class TestHealthEndpoints:
         """
         set_websocket_state(mock_hassette, connected=False, ever_connected=False)
         set_app_status_snapshot(mock_hassette, running=[], failed=[])
-        response = await client.get("/api/health")
+        response = await client.get(HEALTH_PATH)
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "starting"
@@ -130,7 +145,7 @@ class TestAppEndpoints:
         assert response.status_code == 404
 
     async def test_start_app(self, client: "AsyncClient") -> None:
-        response = await client.post("/api/apps/my_app/start")
+        response = await client.post(APP_START_PATH)
         assert response.status_code == 202
         data = response.json()
         assert data["action"] == "start"
@@ -140,12 +155,12 @@ class TestAppEndpoints:
     ) -> None:
         mock_hassette.app_handler.start_app = AsyncMock(side_effect=AppBootstrapNotReleasedError("not released"))
 
-        response = await client.post("/api/apps/my_app/start")
+        response = await client.post(APP_START_PATH)
 
         assert response.status_code == 409
 
     async def test_stop_app(self, client: "AsyncClient") -> None:
-        response = await client.post("/api/apps/my_app/stop")
+        response = await client.post(APP_STOP_PATH)
         assert response.status_code == 202
         data = response.json()
         assert data["action"] == "stop"
@@ -156,7 +171,7 @@ class TestAppEndpoints:
         The force_reload=True assertion guards #1005: without it the endpoint reused the
         cached (failed) class, so a fix on disk never took effect.
         """
-        response = await client.post("/api/apps/my_app/reload")
+        response = await client.post(APP_RELOAD_PATH)
         assert response.status_code == 202
         data = response.json()
         assert data["action"] == "reload"
@@ -167,16 +182,16 @@ class TestAppEndpoints:
     ) -> None:
         mock_hassette.app_handler.reload_app = AsyncMock(side_effect=AppBootstrapNotReleasedError("not released"))
 
-        response = await client.post("/api/apps/my_app/reload")
+        response = await client.post(APP_RELOAD_PATH)
 
         assert response.status_code == 409
 
     async def test_app_management_works_without_dev_mode(self, client: "AsyncClient", mock_hassette) -> None:
         mock_hassette.config.dev_mode = False
         mock_hassette.config.allow_reload_in_prod = False
-        assert (await client.post("/api/apps/my_app/start")).status_code == 202
-        assert (await client.post("/api/apps/my_app/stop")).status_code == 202
-        assert (await client.post("/api/apps/my_app/reload")).status_code == 202
+        assert (await client.post(APP_START_PATH)).status_code == 202
+        assert (await client.post(APP_STOP_PATH)).status_code == 202
+        assert (await client.post(APP_RELOAD_PATH)).status_code == 202
 
 
 class TestAppManifestEndpoint:
@@ -187,7 +202,7 @@ class TestAppManifestEndpoint:
         )
         mock_hassette.telemetry_query_service.get_recent_invocations_1h_all_apps.return_value = {"my_app": 5}
 
-        response = await client.get("/api/apps/my_app/manifest")
+        response = await client.get(APP_MANIFEST_PATH)
         assert response.status_code == 200
         data = response.json()
         assert data["app_key"] == "my_app"
@@ -219,7 +234,7 @@ class TestAppManifestEndpoint:
             side_effect=TelemetryUnavailableError("db down")
         )
 
-        response = await client.get("/api/apps/my_app/manifest")
+        response = await client.get(APP_MANIFEST_PATH)
         assert response.status_code == 200
         assert response.json()["recent_invocations_1h"] == 0
 
@@ -229,7 +244,7 @@ class TestAppManifestEndpoint:
             side_effect=TelemetryUnavailableError("db down")
         )
 
-        response = await client.get("/api/apps/my_app/manifest")
+        response = await client.get(APP_MANIFEST_PATH)
         assert response.status_code == 503
 
 
@@ -240,7 +255,7 @@ class TestAppManifestListEndpoint:
             return_value=[make_manifest_db_row(app_key="orphan_app", display_name="Orphan App")]
         )
 
-        response = await client.get("/api/apps/manifests")
+        response = await client.get(APP_MANIFESTS_PATH)
         assert response.status_code == 200
         data = response.json()
         assert data["total"] == 1
@@ -258,7 +273,7 @@ class TestAppManifestListEndpoint:
             side_effect=TelemetryUnavailableError("db down")
         )
 
-        response = await client.get("/api/apps/manifests")
+        response = await client.get(APP_MANIFESTS_PATH)
         assert response.status_code == 503
         assert response.json()["manifests"] == []
 
@@ -273,7 +288,7 @@ class TestSchedulerEndpoints:
 
 class TestConfigEndpoint:
     async def test_get_config(self, client: "AsyncClient") -> None:
-        response = await client.get("/api/config")
+        response = await client.get(CONFIG_PATH)
         assert response.status_code == 200
         data = response.json()
         assert "config_schema" in data
@@ -283,13 +298,13 @@ class TestConfigEndpoint:
 class TestBusEndpoints:
     async def test_get_bus_listeners_empty(self, client: "AsyncClient") -> None:
         # Returns empty when no app_key is provided (TelemetryDep stubs return [])
-        response = await client.get("/api/bus/listeners")
+        response = await client.get(BUS_LISTENERS_PATH)
         assert response.status_code == 200
         assert response.json() == []
 
     async def test_get_bus_listeners_with_app_key_returns_empty_stub(self, client: "AsyncClient") -> None:
         # TelemetryQueryService stubs return [] for all app_key queries
-        response = await client.get("/api/bus/listeners?app_key=my_app")
+        response = await client.get(f"{BUS_LISTENERS_PATH}?app_key=my_app")
         assert response.status_code == 200
         assert response.json() == []
 
@@ -330,7 +345,7 @@ class TestBusEndpoints:
         )
         mock_hassette.telemetry_query_service.get_listener_summary = AsyncMock(return_value=[sample])
 
-        response = await client.get("/api/bus/listeners?app_key=test_app")
+        response = await client.get(f"{BUS_LISTENERS_PATH}?app_key=test_app")
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 1
@@ -373,7 +388,7 @@ class TestLogsEndpoints:
         self, client: "AsyncClient", mock_hassette: MagicMock, sample_records: list[dict]
     ) -> None:
         mock_hassette.telemetry_query_service.get_log_records = AsyncMock(return_value=sample_records)
-        response = await client.get("/api/logs/recent")
+        response = await client.get(LOGS_RECENT_PATH)
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, list)
@@ -392,7 +407,7 @@ class TestLogsEndpoints:
         records[2]["timestamp"] = 2.0
         mock_hassette.telemetry_query_service.get_log_records = AsyncMock(return_value=records)
 
-        response = await client.get("/api/logs/recent")
+        response = await client.get(LOGS_RECENT_PATH)
 
         assert response.status_code == 200
         assert [entry["message"] for entry in response.json()] == [
@@ -407,7 +422,7 @@ class TestLogsEndpoints:
     ) -> None:
         """New fields (execution_id, instance_name, instance_index, source_tier) are in the response."""
         mock_hassette.telemetry_query_service.get_log_records = AsyncMock(return_value=sample_records[:1])
-        response = await client.get("/api/logs/recent")
+        response = await client.get(LOGS_RECENT_PATH)
         assert response.status_code == 200
         entry = response.json()[0]
         assert "execution_id" in entry
@@ -421,7 +436,7 @@ class TestLogsEndpoints:
         mock_hassette.telemetry_query_service.get_log_records = AsyncMock(
             side_effect=TelemetryUnavailableError("db error")
         )
-        response = await client.get("/api/logs/recent")
+        response = await client.get(LOGS_RECENT_PATH)
         assert response.status_code == 503
         assert response.json() == []
 
@@ -429,33 +444,33 @@ class TestLogsEndpoints:
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
         mock_hassette.telemetry_query_service.get_log_records = AsyncMock(return_value=[])
-        response = await client.get("/api/logs/recent?execution_id=abc-123")
+        response = await client.get(f"{LOGS_RECENT_PATH}?execution_id=abc-123")
         assert response.status_code == 200
 
     async def test_get_logs_recent_accepts_source_tier_param(
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
         mock_hassette.telemetry_query_service.get_log_records = AsyncMock(return_value=[])
-        response = await client.get("/api/logs/recent?source_tier=app")
+        response = await client.get(f"{LOGS_RECENT_PATH}?source_tier=app")
         assert response.status_code == 200
 
     async def test_put_log_level_valid(self, client: "AsyncClient") -> None:
-        response = await client.put("/api/logs/level", json={"logger": "hassette.test", "level": "DEBUG"})
+        response = await client.put(LOGS_LEVEL_PATH, json={"logger": "hassette.test", "level": "DEBUG"})
         assert response.status_code == 200
         data = response.json()
         assert data["logger"] == "hassette.test"
         assert data["effective_level"] == "DEBUG"
 
     async def test_put_log_level_invalid_level(self, client: "AsyncClient") -> None:
-        response = await client.put("/api/logs/level", json={"logger": "hassette.test", "level": "VERBOSE"})
+        response = await client.put(LOGS_LEVEL_PATH, json={"logger": "hassette.test", "level": "VERBOSE"})
         assert response.status_code == 422
 
     async def test_put_log_level_changes_take_effect(self, client: "AsyncClient") -> None:
         """Setting DEBUG then INFO changes the effective level each time."""
-        await client.put("/api/logs/level", json={"logger": "hassette.rqs.test.lvl", "level": "DEBUG"})
+        await client.put(LOGS_LEVEL_PATH, json={"logger": "hassette.rqs.test.lvl", "level": "DEBUG"})
         assert logging.getLogger("hassette.rqs.test.lvl").level == logging.DEBUG
 
-        r2 = await client.put("/api/logs/level", json={"logger": "hassette.rqs.test.lvl", "level": "INFO"})
+        r2 = await client.put(LOGS_LEVEL_PATH, json={"logger": "hassette.rqs.test.lvl", "level": "INFO"})
         assert r2.status_code == 200
         assert logging.getLogger("hassette.rqs.test.lvl").level == logging.INFO
 
@@ -463,7 +478,7 @@ class TestLogsEndpoints:
 class TestConfigEndpointExpanded:
     async def test_response_has_nested_groups(self, client: "AsyncClient", mock_hassette) -> None:
         """Response envelope contains standard config groups in config_values, including previously-omitted ones."""
-        response = await client.get("/api/config")
+        response = await client.get(CONFIG_PATH)
         assert response.status_code == 200
         data = response.json()
         config_values = data["config_values"]
@@ -480,7 +495,7 @@ class TestConfigEndpointExpanded:
 
     async def test_token_not_in_response(self, client: "AsyncClient", mock_hassette) -> None:
         """Token is present in config_values as None or masked; plaintext is never returned."""
-        response = await client.get("/api/config")
+        response = await client.get(CONFIG_PATH)
         assert response.status_code == 200
         data = response.json()
         config_values = data["config_values"]
@@ -498,7 +513,7 @@ class TestConfigEndpointExpanded:
         """
         secret = "super-secret-plaintext-xyz"
         mock_hassette.config.model_dump.return_value["token"] = secret
-        response = await client.get("/api/config")
+        response = await client.get(CONFIG_PATH)
         assert response.status_code == 200
         data = response.json()
         assert data["config_values"]["token"] == MASK_SENTINEL
@@ -506,14 +521,14 @@ class TestConfigEndpointExpanded:
 
     async def test_dev_mode_present_at_root(self, client: "AsyncClient", mock_hassette) -> None:
         """dev_mode is present in config_values."""
-        response = await client.get("/api/config")
+        response = await client.get(CONFIG_PATH)
         data = response.json()
         assert "dev_mode" in data["config_values"]
         assert isinstance(data["config_values"]["dev_mode"], bool)
 
     async def test_dir_fields_present_as_strings(self, client: "AsyncClient", mock_hassette) -> None:
         """data_dir and config_dir are present in config_values; apps.directory is under the apps group."""
-        response = await client.get("/api/config")
+        response = await client.get(CONFIG_PATH)
         assert response.status_code == 200
         data = response.json()
         config_values = data["config_values"]
@@ -523,7 +538,7 @@ class TestConfigEndpointExpanded:
 
     async def test_web_api_fields_nested(self, client: "AsyncClient", mock_hassette) -> None:
         """web_api group in config_values contains host and port fields."""
-        response = await client.get("/api/config")
+        response = await client.get(CONFIG_PATH)
         assert response.status_code == 200
         data = response.json()
         web_api = data["config_values"]["web_api"]
@@ -533,14 +548,14 @@ class TestConfigEndpointExpanded:
 
 class TestOpenApiDocs:
     async def test_openapi_json(self, client: "AsyncClient") -> None:
-        response = await client.get("/api/openapi.json")
+        response = await client.get(OPENAPI_PATH)
         assert response.status_code == 200
         data = response.json()
         assert data["info"]["title"] == "Hassette Web API"
 
     async def test_instance_index_has_description_on_telemetry_health(self, client: "AsyncClient") -> None:
         """instance_index parameter on telemetry app health route has a description."""
-        response = await client.get("/api/openapi.json")
+        response = await client.get(OPENAPI_PATH)
         spec = response.json()
         paths = spec.get("paths", {})
         # Find the app health route
@@ -553,12 +568,11 @@ class TestOpenApiDocs:
 
     async def test_instance_index_has_description_on_bus_listeners(self, client: "AsyncClient") -> None:
         """instance_index parameter on bus listeners route has a description."""
-        response = await client.get("/api/openapi.json")
+        response = await client.get(OPENAPI_PATH)
         spec = response.json()
         paths = spec.get("paths", {})
-        bus_path = "/api/bus/listeners"
-        assert bus_path in paths
-        params = paths[bus_path]["get"].get("parameters", [])
+        assert BUS_LISTENERS_PATH in paths
+        params = paths[BUS_LISTENERS_PATH]["get"].get("parameters", [])
         instance_params = [p for p in params if p.get("name") == "instance_index"]
         assert instance_params, "instance_index parameter must be present on bus/listeners route"
         assert instance_params[0].get("description"), "instance_index must have a non-empty description"

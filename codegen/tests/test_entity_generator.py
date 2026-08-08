@@ -3,13 +3,9 @@
 import ast
 import py_compile
 import re
-import sys
 import tempfile
-from pathlib import Path
 
 import pytest
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from hassette_codegen.domain_data import ExtractedDomain
 from hassette_codegen.extractors.features import ExtractedEnum

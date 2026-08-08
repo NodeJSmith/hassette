@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -46,6 +46,34 @@ def build_state_proxy(*, disable_state_proxy_polling: bool = True) -> StateProxy
 def with_websocket_generation(event: RawStateChangeEvent, generation: int) -> RawStateChangeEvent:
     stamp_websocket_generation(event, generation)
     return event
+
+
+def gated_get_states_raw_factory(
+    result: list[dict[str, object]] | None = None,
+    error: Exception | None = None,
+) -> tuple[asyncio.Event, asyncio.Event, Callable[[], Awaitable[list[dict[str, object]]]]]:
+    """Build a gated ``api.get_states_raw`` side effect for ``AsyncMock(side_effect=...)``.
+
+    Collapses the repeated snapshot_entered/release_snapshot gate scaffold duplicated across
+    this file's reconnect/retry tests (issue #1493) into one helper.
+
+    Returns ``(entered, release, side_effect)``: ``entered`` is set the moment the side effect
+    starts running — await it to know the snapshot call has begun. The side effect then blocks
+    on ``release`` (call ``.set()`` to let it proceed) before returning ``result`` (default
+    ``[]``) or raising ``error`` if given. If ``release`` is never set, the call blocks
+    forever — useful for tests that assert on cancellation rather than completion.
+    """
+    entered = asyncio.Event()
+    release = asyncio.Event()
+
+    async def side_effect() -> list[dict[str, object]]:
+        entered.set()
+        await release.wait()
+        if error is not None:
+            raise error
+        return result if result is not None else []
+
+    return entered, release, side_effect
 
 
 @pytest.fixture
@@ -135,13 +163,7 @@ async def test_pre_capability_event_does_not_unlock_partial_cold_cache() -> None
 
 async def test_pre_capability_event_during_failed_initial_sync_keeps_cold_cache_blocked() -> None:
     proxy = build_state_proxy()
-    snapshot_entered = asyncio.Event()
-    release_snapshot = asyncio.Event()
-
-    async def failing_snapshot() -> list[dict[str, object]]:
-        snapshot_entered.set()
-        await release_snapshot.wait()
-        raise RuntimeError("boom")
+    snapshot_entered, release_snapshot, failing_snapshot = gated_get_states_raw_factory(error=RuntimeError("boom"))
 
     proxy.hassette.api.get_states_raw = AsyncMock(side_effect=failing_snapshot)
     await proxy.on_initialize()
@@ -165,8 +187,6 @@ async def test_duplicate_startup_and_connected_signals_coalesce_one_initial_sync
     proxy = build_state_proxy()
     wait_entered = asyncio.Event()
     release_wait = asyncio.Event()
-    snapshot_entered = asyncio.Event()
-    release_snapshot = asyncio.Event()
 
     async def blocked_wait_initial_connection(*, timeout: float | None = None) -> bool:
         assert timeout == TEST_TOTAL_TIMEOUT_SECONDS
@@ -174,10 +194,9 @@ async def test_duplicate_startup_and_connected_signals_coalesce_one_initial_sync
         await release_wait.wait()
         return True
 
-    async def gated_get_states_raw() -> list[dict[str, object]]:
-        snapshot_entered.set()
-        await release_snapshot.wait()
-        return [make_light_state_dict("light.kitchen", "on")]
+    snapshot_entered, release_snapshot, gated_get_states_raw = gated_get_states_raw_factory(
+        result=[make_light_state_dict("light.kitchen", "on")]
+    )
 
     proxy.hassette.websocket_service.wait_initial_connection = AsyncMock(side_effect=blocked_wait_initial_connection)
     proxy.hassette.api.get_states_raw = AsyncMock(side_effect=gated_get_states_raw)
@@ -200,13 +219,7 @@ async def test_duplicate_startup_and_connected_signals_coalesce_one_initial_sync
 
 async def test_duplicate_initial_signal_waiters_do_not_retry_immediately_after_failure() -> None:
     proxy = build_state_proxy()
-    snapshot_entered = asyncio.Event()
-    release_snapshot = asyncio.Event()
-
-    async def failing_snapshot() -> list[dict[str, object]]:
-        snapshot_entered.set()
-        await release_snapshot.wait()
-        raise RuntimeError("boom")
+    snapshot_entered, release_snapshot, failing_snapshot = gated_get_states_raw_factory(error=RuntimeError("boom"))
 
     proxy.hassette.api.get_states_raw = AsyncMock(side_effect=failing_snapshot)
 
@@ -289,13 +302,9 @@ async def test_poll_skips_during_active_sync_and_reconnect_afterward_runs_once(s
 
 async def test_obsolete_generation_sync_cannot_publish_freshness_or_capability() -> None:
     proxy = build_state_proxy()
-    snapshot_entered = asyncio.Event()
-    release_snapshot = asyncio.Event()
-
-    async def gated_get_states_raw() -> list[dict[str, object]]:
-        snapshot_entered.set()
-        await release_snapshot.wait()
-        return [make_light_state_dict("light.kitchen", "on")]
+    snapshot_entered, release_snapshot, gated_get_states_raw = gated_get_states_raw_factory(
+        result=[make_light_state_dict("light.kitchen", "on")]
+    )
 
     proxy.hassette.api.get_states_raw = AsyncMock(side_effect=gated_get_states_raw)
     await proxy.on_initialize()
@@ -317,13 +326,9 @@ async def test_obsolete_generation_failure_cannot_publish_freshness(state_proxy:
     state_proxy.states = {"light.kitchen": make_light_state_dict("light.kitchen", "on")}
     assert state_proxy.cache_freshness == StateCacheFreshness.FRESH
 
-    snapshot_entered = asyncio.Event()
-    release_snapshot = asyncio.Event()
-
-    async def failing_get_states_raw() -> list[dict[str, object]]:
-        snapshot_entered.set()
-        await release_snapshot.wait()
-        raise RuntimeError("obsolete generation failed")
+    snapshot_entered, release_snapshot, failing_get_states_raw = gated_get_states_raw_factory(
+        error=RuntimeError("obsolete generation failed")
+    )
 
     state_proxy.hassette.api.get_states_raw = AsyncMock(side_effect=failing_get_states_raw)
     state_proxy.hassette.websocket_service.get_connected_generation.return_value = 1
@@ -367,16 +372,12 @@ async def test_journaled_updates_and_tombstones_win_over_snapshot(state_proxy: S
     await state_proxy.on_disconnect()
     state_proxy.hassette.websocket_service.get_connected_generation.return_value = 2
 
-    snapshot_entered = asyncio.Event()
-    release_snapshot = asyncio.Event()
-
-    async def gated_get_states_raw() -> list[dict[str, object]]:
-        snapshot_entered.set()
-        await release_snapshot.wait()
-        return [
+    snapshot_entered, release_snapshot, gated_get_states_raw = gated_get_states_raw_factory(
+        result=[
             make_light_state_dict("light.kitchen", "off", last_updated="2024-01-01T00:00:01+00:00"),
             make_light_state_dict("light.garage", "on", last_updated="2024-01-01T00:00:01+00:00"),
         ]
+    )
 
     state_proxy.hassette.api.get_states_raw = AsyncMock(side_effect=gated_get_states_raw)
     reconnect_task = asyncio.create_task(state_proxy.on_reconnect())
@@ -415,13 +416,9 @@ async def test_pre_sync_state_event_does_not_overwrite_reconnect_snapshot(state_
 
     await state_proxy.on_disconnect()
     state_proxy.hassette.websocket_service.get_connected_generation.return_value = 2
-    snapshot_entered = asyncio.Event()
-    release_snapshot = asyncio.Event()
-
-    async def gated_snapshot() -> list[dict[str, object]]:
-        snapshot_entered.set()
-        await release_snapshot.wait()
-        return [make_light_state_dict("light.kitchen", "on", last_updated="2024-01-01T00:00:01+00:00")]
+    snapshot_entered, release_snapshot, gated_snapshot = gated_get_states_raw_factory(
+        result=[make_light_state_dict("light.kitchen", "on", last_updated="2024-01-01T00:00:01+00:00")]
+    )
 
     state_proxy.hassette.api.get_states_raw = AsyncMock(side_effect=gated_snapshot)
     reconnect_task = asyncio.create_task(state_proxy.on_reconnect())
@@ -600,13 +597,7 @@ async def test_duplicate_reconnect_waiters_do_not_retry_immediately_after_failur
     state_proxy.states = {"light.kitchen": make_light_state_dict("light.kitchen", "on")}
     await state_proxy.on_disconnect()
     state_proxy.hassette.websocket_service.get_connected_generation.return_value = 2
-    snapshot_entered = asyncio.Event()
-    release_snapshot = asyncio.Event()
-
-    async def failing_snapshot() -> list[dict[str, object]]:
-        snapshot_entered.set()
-        await release_snapshot.wait()
-        raise RuntimeError("boom")
+    snapshot_entered, release_snapshot, failing_snapshot = gated_get_states_raw_factory(error=RuntimeError("boom"))
 
     state_proxy.hassette.api.get_states_raw = AsyncMock(side_effect=failing_snapshot)
 
@@ -622,13 +613,11 @@ async def test_duplicate_reconnect_waiters_do_not_retry_immediately_after_failur
 
 
 async def test_disconnect_cancels_active_sync_so_reconnect_can_start_fresh(state_proxy: StateProxy) -> None:
-    sync_entered = asyncio.Event()
-    never_release = asyncio.Event()
-
-    async def blocked_snapshot() -> list[dict[str, object]]:
-        sync_entered.set()
-        await never_release.wait()
-        return [make_light_state_dict("light.kitchen", "on")]
+    # The release event is deliberately never set() — the snapshot call blocks forever, so
+    # on_disconnect() must cancel it rather than wait for a result.
+    sync_entered, _never_release, blocked_snapshot = gated_get_states_raw_factory(
+        result=[make_light_state_dict("light.kitchen", "on")]
+    )
 
     state_proxy.hassette.api.get_states_raw = AsyncMock(side_effect=blocked_snapshot)
     state_proxy.hassette.websocket_service.get_connected_generation.return_value = 1

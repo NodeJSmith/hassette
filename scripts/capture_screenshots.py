@@ -47,6 +47,7 @@ from pathlib import Path
 
 import yaml
 from demo_stack import DemoStack
+from dotenv import dotenv_values
 
 ERROR_DATA_TIMEOUT_SECONDS = 90
 ERROR_DATA_POLL_INTERVAL_SECONDS = 2
@@ -55,8 +56,14 @@ SCREENSHOT_CAPTURE_TIMEOUT_SECONDS = 600
 DEFAULT_SESSION_MAX_AGE_SECONDS = 3600  # WebApiConfig.session_ttl's own default, used only if a
 # Set-Cookie response is somehow missing Max-Age
 
-# Must match HASSETTE__WEB_API__AUTH_TOKEN in scripts/docker/ha-demo.yml
-DEMO_AUTH_TOKEN = "demo-token"
+# Single source of truth: scripts/docker/.env, also read by ha-demo.yml (via docker-compose's
+# auto env-file loading) and .mise/tasks/demo-verify (via grep).
+_DEMO_ENV_PATH = Path(__file__).resolve().parent / "docker" / ".env"
+_DEMO_ENV = dotenv_values(_DEMO_ENV_PATH)
+DEMO_AUTH_TOKEN = _DEMO_ENV.get("DEMO_AUTH_TOKEN")
+if not DEMO_AUTH_TOKEN:
+    print(f"ERROR: DEMO_AUTH_TOKEN not found in {_DEMO_ENV_PATH}", file=sys.stderr, flush=True)
+    sys.exit(1)
 
 EXPECTED_COOKIE_COUNT = 1
 """Set-Cookie from POST /api/auth/session mints exactly one cookie (the session cookie)."""
@@ -154,8 +161,7 @@ def _mint_auth_storage_state(hassette_port: int) -> dict[str, object]:
             set_cookie = resp.headers.get("Set-Cookie")
     except (urllib.error.HTTPError, urllib.error.URLError, OSError, TimeoutError) as exc:
         print(
-            f"ERROR: POST /api/auth/session failed ({exc}) -- DEMO_AUTH_TOKEN in "
-            "capture_screenshots.py must match HASSETTE__WEB_API__AUTH_TOKEN in ha-demo.yml",
+            f"ERROR: POST /api/auth/session failed ({exc}) -- check DEMO_AUTH_TOKEN in {_DEMO_ENV_PATH}",
             file=sys.stderr,
             flush=True,
         )

@@ -9,6 +9,7 @@ from hassette.core.execution_record import ExecutionRecord
 from hassette.core.telemetry.repository import TelemetryRepository
 from hassette.test_utils.config import DEFAULT_TEST_APP_KEY
 from hassette.test_utils.factories import make_job_registration, make_listener_registration
+from hassette.test_utils.sql_helpers import insert_execution_row
 
 ONCE_LISTENER_NAME = "test_app.on_event.once"
 
@@ -163,15 +164,21 @@ async def test_reconcile_retires_stale_with_history(
     job_id = await telemetry_repo.register_job(make_job_registration())
 
     # Create history in the unified executions table
-    await telemetry_db.execute(
-        "INSERT INTO executions (kind, listener_id, session_id, execution_start_ts, duration_ms, status)"
-        " VALUES ('handler', ?, ?, ?, ?, ?)",
-        (listener_id, telemetry_session_id, time.time(), 1.0, "success"),
+    await insert_execution_row(
+        telemetry_db,
+        kind="handler",
+        listener_id=listener_id,
+        session_id=telemetry_session_id,
+        execution_start_ts=time.time(),
+        duration_ms=1.0,
     )
-    await telemetry_db.execute(
-        "INSERT INTO executions (kind, job_id, session_id, execution_start_ts, duration_ms, status)"
-        " VALUES ('job', ?, ?, ?, ?, ?)",
-        (job_id, telemetry_session_id, time.time(), 1.0, "success"),
+    await insert_execution_row(
+        telemetry_db,
+        kind="job",
+        job_id=job_id,
+        session_id=telemetry_session_id,
+        execution_start_ts=time.time(),
+        duration_ms=1.0,
     )
     await telemetry_db.commit()
 
@@ -244,10 +251,13 @@ async def test_reconcile_preserves_once_true_with_current_executions(
     once_id = await telemetry_repo.register_listener(once_reg)
 
     # Create an execution in the CURRENT session
-    await telemetry_db.execute(
-        "INSERT INTO executions (kind, listener_id, session_id, execution_start_ts, duration_ms, status)"
-        " VALUES ('handler', ?, ?, ?, ?, ?)",
-        (once_id, telemetry_session_id, time.time(), 1.0, "success"),
+    await insert_execution_row(
+        telemetry_db,
+        kind="handler",
+        listener_id=once_id,
+        session_id=telemetry_session_id,
+        execution_start_ts=time.time(),
+        duration_ms=1.0,
     )
     await telemetry_db.commit()
 
@@ -275,10 +285,13 @@ async def test_reconcile_resets_retired_at_on_reupsert(
     listener_id = await telemetry_repo.register_listener(reg)
 
     # Create history so reconciliation retires rather than deletes
-    await telemetry_db.execute(
-        "INSERT INTO executions (kind, listener_id, session_id, execution_start_ts, duration_ms, status)"
-        " VALUES ('handler', ?, ?, ?, ?, ?)",
-        (listener_id, telemetry_session_id, time.time(), 1.0, "success"),
+    await insert_execution_row(
+        telemetry_db,
+        kind="handler",
+        listener_id=listener_id,
+        session_id=telemetry_session_id,
+        execution_start_ts=time.time(),
+        duration_ms=1.0,
     )
     await telemetry_db.commit()
 
@@ -586,10 +599,13 @@ async def test_reconcile_retires_stale_job_with_history_non_empty_live_set(
     job_id_a = await telemetry_repo.register_job(make_job_registration(job_name="job_a"))
     job_id_b = await telemetry_repo.register_job(make_job_registration(job_name="job_b"))
 
-    await telemetry_db.execute(
-        "INSERT INTO executions (kind, job_id, session_id, execution_start_ts, duration_ms, status)"
-        " VALUES ('job', ?, ?, ?, ?, ?)",
-        (job_id_b, telemetry_session_id, time.time(), 1.0, "success"),
+    await insert_execution_row(
+        telemetry_db,
+        kind="job",
+        job_id=job_id_b,
+        session_id=telemetry_session_id,
+        execution_start_ts=time.time(),
+        duration_ms=1.0,
     )
     await telemetry_db.commit()
 

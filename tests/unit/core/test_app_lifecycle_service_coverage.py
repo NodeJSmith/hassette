@@ -13,7 +13,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, Mock, seal
 
 from hassette.core.app_change_detector import ChangeSet
-from hassette.core.app_lifecycle_service import AppAdmissionMode, AppLifecycleService
+from hassette.core.app_lifecycle_service import AppAdmissionMode, AppLifecycleService, PendingReconciliation
 from hassette.exceptions import InvalidInheritanceError, UndefinedUserConfigError
 from hassette.test_utils import EventCapture, wait_for
 from hassette.types import Topic
@@ -202,13 +202,39 @@ class TestHandleChangeEventBranches:
         await lifecycle_service.handle_change_event(changed_file_paths=frozenset({Path("/tmp/second.py")}))
 
         lifecycle_service.apply_changes.assert_not_called()
-        assert lifecycle_service._pending_pre_release_reconciliation is True
-        assert lifecycle_service._pending_pre_release_original_apps_config is not None
-        assert lifecycle_service._pending_pre_release_current_apps_config is not None
-        assert lifecycle_service._pending_pre_release_changed_paths == frozenset(
-            {Path("/tmp/first.py"), Path("/tmp/second.py")}
-        )
+        pending = lifecycle_service._pending_reconciliation
+        assert pending is not None
+        assert pending.original_apps_config is not None
+        assert pending.current_apps_config is not None
+        assert pending.changed_paths == frozenset({Path("/tmp/first.py"), Path("/tmp/second.py")})
         assert event_capture.by_topic(Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED) == []
+
+    async def test_pre_release_second_change_with_unscoped_paths_degrades_scope_to_unknown(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_hassette: MagicMock,
+    ) -> None:
+        """A second deferred change whose changed_file_paths is None can't be scoped, so the
+        queued paths degrade to None ("assume everything may have changed") instead of being
+        unioned -- the merged baseline still comes from the first (queue-opening) change.
+        """
+        mock_hassette.app_bootstrap_coordinator.is_released.return_value = False
+        lifecycle_service.change_detector.detect_changes = Mock(  # pyright: ignore[reportAttributeAccessIssue]
+            return_value=ChangeSet(
+                orphans=frozenset(), new_apps=frozenset({"my_app"}), reimport_apps=frozenset(), reload_apps=frozenset()
+            )
+        )
+        lifecycle_service.apply_changes = AsyncMock()
+
+        await lifecycle_service.handle_change_event(changed_file_paths=frozenset({Path("/tmp/first.py")}))
+        first_original_snapshot = lifecycle_service._pending_reconciliation.original_apps_config  # pyright: ignore[reportOptionalMemberAccess]
+
+        await lifecycle_service.handle_change_event(changed_file_paths=None)
+
+        pending = lifecycle_service._pending_reconciliation
+        assert pending is not None
+        assert pending.original_apps_config is first_original_snapshot
+        assert pending.changed_paths is None
 
     async def test_stale_pre_release_diff_is_merged_into_post_release_change(
         self,
@@ -233,8 +259,9 @@ class TestHandleChangeEventBranches:
 
         await lifecycle_service.handle_change_event(changed_file_paths=frozenset({Path("/tmp/pre.py")}))
 
-        assert lifecycle_service._pending_pre_release_reconciliation is True
-        pending_original_snapshot = lifecycle_service._pending_pre_release_original_apps_config
+        pending = lifecycle_service._pending_reconciliation
+        assert pending is not None
+        pending_original_snapshot = pending.original_apps_config
         assert pending_original_snapshot is not None
 
         # Release opens; a newer post-release change arrives with its own fresh baseline.
@@ -263,7 +290,7 @@ class TestHandleChangeEventBranches:
         assert captured_calls[0][2] == frozenset({Path("/tmp/pre.py"), Path("/tmp/post.py")})
 
         # The queue is cleared so bootstrap's later replay can't re-apply this stale snapshot.
-        assert lifecycle_service._pending_pre_release_reconciliation is False
+        assert lifecycle_service._pending_reconciliation is None
         lifecycle_service.apply_changes.assert_awaited_once()
 
     async def test_concurrent_invocations_are_serialized_by_the_change_event_lock(
@@ -325,7 +352,7 @@ class TestReplayPreReleaseReconciliationSerialization:
         mock_hassette: MagicMock,
     ) -> None:
         """_replay_pre_release_reconciliation_if_needed() (called from bootstrap_apps()) reads and
-        clears the same _pending_pre_release_* state as handle_change_event(); both must serialize on
+        clears the same _pending_reconciliation state as handle_change_event(); both must serialize on
         _change_event_lock. Without that, a file-watcher event arriving while bootstrap is replaying
         could race the take/clear of that state.
         """
@@ -341,10 +368,11 @@ class TestReplayPreReleaseReconciliationSerialization:
                 first_entered.set()
                 await gate.wait()
 
-        lifecycle_service._pending_pre_release_reconciliation = True
-        lifecycle_service._pending_pre_release_original_apps_config = {}
-        lifecycle_service._pending_pre_release_current_apps_config = {}
-        lifecycle_service._pending_pre_release_changed_paths = None
+        lifecycle_service._pending_reconciliation = PendingReconciliation(
+            original_apps_config={},
+            current_apps_config={},
+            changed_paths=None,
+        )
 
         lifecycle_service.resolve_only_apps = gated_resolve_only_apps  # pyright: ignore[reportAttributeAccessIssue]
         lifecycle_service.refresh_config = AsyncMock(return_value=({}, {}))  # pyright: ignore[reportAttributeAccessIssue]
@@ -355,7 +383,7 @@ class TestReplayPreReleaseReconciliationSerialization:
 
         # The lock-holding take() already ran before the gated await, so the pending state is
         # already cleared even though task1 hasn't finished — proving the take happens inside the lock.
-        assert lifecycle_service._pending_pre_release_reconciliation is False
+        assert lifecycle_service._pending_reconciliation is None
 
         task2 = asyncio.create_task(lifecycle_service.handle_change_event())
         # Deterministically wait until task2 has actually queued on the lock (asyncio.Lock.acquire()
@@ -372,6 +400,19 @@ class TestReplayPreReleaseReconciliationSerialization:
         await asyncio.wait_for(task2, timeout=1.0)
 
         assert call_count == 2
+
+
+class TestTakePreReleaseReconciliation:
+    def test_returns_all_none_when_nothing_is_queued(self, lifecycle_service: AppLifecycleService) -> None:
+        """With no pending reconciliation, take() returns (None, None, None) rather than raising --
+        the caller-side null check this enables is what lets callers treat a fresh queue and an
+        emptied one identically.
+        """
+        assert lifecycle_service._pending_reconciliation is None
+
+        result = lifecycle_service._take_pre_release_reconciliation()
+
+        assert result == (None, None, None)
 
 
 class TestRefreshConfigFailure:

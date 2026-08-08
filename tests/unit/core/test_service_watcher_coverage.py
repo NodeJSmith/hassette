@@ -21,7 +21,7 @@ from hassette.test_utils import make_mock_hassette, make_service_failed_event, m
 from hassette.types import ResourceStatus, Topic
 from hassette.types.enums import ResourceRole, RestartType
 
-from .conftest import DummyService, build_watcher_hassette, make_watcher
+from .conftest import DummyService, make_watcher, make_watcher_hassette
 
 
 class TestConfigLogLevel:
@@ -36,7 +36,7 @@ class TestConfigLogLevel:
 class TestOnInitialize:
     async def test_marks_ready_and_registers_listeners(self) -> None:
         """on_initialize() registers listeners then marks the watcher ready."""
-        hassette = build_watcher_hassette()
+        hassette = make_watcher_hassette()
         watcher = make_watcher(hassette)
 
         watcher.register_internal_event_listeners = AsyncMock()
@@ -52,7 +52,7 @@ class TestOnInitialize:
 class TestRegisterInternalEventListeners:
     async def test_registers_five_listeners_with_correct_status_filters(self) -> None:
         """Registers restart/shutdown/log/running/bus-recovery handlers on the correct statuses."""
-        hassette = build_watcher_hassette()
+        hassette = make_watcher_hassette()
         watcher = make_watcher(hassette)
 
         await watcher.register_internal_event_listeners()
@@ -92,7 +92,7 @@ class TestLogServiceEvent:
 
     async def test_skips_logging_when_status_unchanged(self) -> None:
         """No transition (status == previous_status) logs at debug without a transition message."""
-        hassette = build_watcher_hassette()
+        hassette = make_watcher_hassette()
         watcher = make_watcher(hassette)
         watcher.logger = Mock()
 
@@ -114,7 +114,7 @@ class TestLogServiceEvent:
 
     async def test_logs_transition_when_status_changed(self) -> None:
         """A real transition logs once at debug (the transition message)."""
-        hassette = build_watcher_hassette()
+        hassette = make_watcher_hassette()
         watcher = make_watcher(hassette)
         watcher.logger = Mock()
 
@@ -140,7 +140,7 @@ class TestLogServiceEvent:
 class TestOnBusServiceRunning:
     async def test_ignores_non_bus_service_events(self) -> None:
         """Events for a resource other than BusService do not trigger reconciliation."""
-        hassette = build_watcher_hassette()
+        hassette = make_watcher_hassette()
         watcher = make_watcher(hassette)
         watcher.reconcile_after_bus_recovery = AsyncMock()
 
@@ -153,7 +153,7 @@ class TestOnBusServiceRunning:
 
     async def test_triggers_reconciliation_for_bus_service(self) -> None:
         """A RUNNING event for BusService itself triggers the reconciliation scan."""
-        hassette = build_watcher_hassette()
+        hassette = make_watcher_hassette()
         watcher = make_watcher(hassette)
         watcher.reconcile_after_bus_recovery = AsyncMock()
 
@@ -175,7 +175,7 @@ class TestOnBusServiceRunning:
 class TestOnServiceRunningEarlyReturns:
     async def test_returns_early_when_no_budget_and_not_restarting(self) -> None:
         """A RUNNING event for a service with no budget entry and no in-progress restart is a no-op."""
-        hassette = build_watcher_hassette()
+        hassette = make_watcher_hassette()
         watcher = make_watcher(hassette)
         dummy = DummyService(hassette)
         hassette.children = [dummy]
@@ -191,7 +191,7 @@ class TestOnServiceRunningEarlyReturns:
 
     async def test_returns_early_when_service_not_found(self) -> None:
         """A RUNNING event for a service no longer present in hassette.children is a no-op."""
-        hassette = build_watcher_hassette()
+        hassette = make_watcher_hassette()
         watcher = make_watcher(hassette)
         dummy = DummyService(hassette)
         # Budget exists (so the first guard passes) but the service itself is gone.
@@ -208,7 +208,7 @@ class TestOnServiceRunningEarlyReturns:
 class TestCooldownAndRetry:
     async def test_aborts_without_restart_when_shutdown_requested(self) -> None:
         """cooldown_and_retry does not attempt a restart if shutdown fires during the cooldown sleep."""
-        hassette = build_watcher_hassette()
+        hassette = make_watcher_hassette()
         watcher = make_watcher(hassette)
         dummy = DummyService(hassette)
         hassette.children = [dummy]
@@ -228,7 +228,7 @@ class TestCooldownAndRetry:
 
     async def test_restart_exception_after_cooldown_is_caught(self) -> None:
         """A service.restart() failure after cooldown is logged, not propagated."""
-        hassette = build_watcher_hassette()
+        hassette = make_watcher_hassette()
         watcher = make_watcher(hassette)
         dummy = DummyService(hassette)
         hassette.children = [dummy]
@@ -246,7 +246,7 @@ class TestCooldownAndRetry:
 
     async def test_skips_restart_when_service_gone_after_cooldown(self) -> None:
         """If the service disappears during cooldown, restart is skipped without error."""
-        hassette = build_watcher_hassette()
+        hassette = make_watcher_hassette()
         watcher = make_watcher(hassette)
         hassette.children = []
 
@@ -259,7 +259,7 @@ class TestCooldownAndRetry:
 class TestGetService:
     def test_returns_the_matching_service(self) -> None:
         """get_service resolves a child by class_name/role."""
-        hassette = build_watcher_hassette()
+        hassette = make_watcher_hassette()
         watcher = make_watcher(hassette)
         dummy = DummyService(hassette)
         hassette.children = [dummy]
@@ -268,7 +268,7 @@ class TestGetService:
 
     def test_returns_none_when_no_match(self) -> None:
         """get_service returns None rather than an empty collection when nothing matches."""
-        hassette = build_watcher_hassette()
+        hassette = make_watcher_hassette()
         watcher = make_watcher(hassette)
         hassette.children = [DummyService(hassette)]
 
@@ -276,7 +276,7 @@ class TestGetService:
 
     def test_ignores_non_service_children(self) -> None:
         """A non-Service child sharing the name is not returned."""
-        hassette = build_watcher_hassette()
+        hassette = make_watcher_hassette()
         watcher = make_watcher(hassette)
         not_a_service = MagicMock()
         not_a_service.class_name = "DummyService"
@@ -289,7 +289,7 @@ class TestGetService:
 class TestRestartServiceNoServiceFound:
     async def test_returns_early_without_side_effects(self) -> None:
         """restart_service for a resource_name with no matching child is a no-op."""
-        hassette = build_watcher_hassette()
+        hassette = make_watcher_hassette()
         watcher = make_watcher(hassette)
         hassette.children = []
 
@@ -306,7 +306,7 @@ class TestRestartServiceNoServiceFound:
 class TestShutdownIfCrashed:
     async def test_reason_omits_exception_type_when_none(self) -> None:
         """When exception_type is falsy, the fatal reason has no ': <type>' suffix."""
-        hassette = build_watcher_hassette()
+        hassette = make_watcher_hassette()
         hassette.record_fatal_reason = Mock()
         watcher = make_watcher(hassette)
 
@@ -330,7 +330,7 @@ class TestShutdownIfCrashed:
 
     async def test_reraises_on_unexpected_internal_failure(self) -> None:
         """If record_fatal_reason itself raises, shutdown_if_crashed logs and re-raises."""
-        hassette = build_watcher_hassette()
+        hassette = make_watcher_hassette()
         hassette.record_fatal_reason = Mock(side_effect=RuntimeError("state corrupted"))
         watcher = make_watcher(hassette)
 
@@ -360,7 +360,7 @@ class TestOnServiceRunningBudgetNoneBranch:
         """A RUNNING event while restarting (but with no budget entry yet) clears the flag,
         without fabricating a budget.
         """
-        hassette = build_watcher_hassette()
+        hassette = make_watcher_hassette()
         watcher = make_watcher(hassette)
         dummy = DummyService(hassette)
         mark_ready(dummy, reason="test")
@@ -381,7 +381,7 @@ class TestOnServiceRunningBudgetNoneBranch:
 class TestReconcileAfterBusRecoverySkips:
     async def test_skips_non_service_children(self) -> None:
         """Non-Service children (e.g. plain resources) are ignored by the reconciliation scan."""
-        hassette = build_watcher_hassette()
+        hassette = make_watcher_hassette()
         watcher = make_watcher(hassette)
         watcher.restart_service = AsyncMock()
 
@@ -394,7 +394,7 @@ class TestReconcileAfterBusRecoverySkips:
 
     async def test_skips_services_not_in_failed_state(self) -> None:
         """Services that are not FAILED are left alone."""
-        hassette = build_watcher_hassette()
+        hassette = make_watcher_hassette()
         watcher = make_watcher(hassette)
         watcher.restart_service = AsyncMock()
 
@@ -408,7 +408,7 @@ class TestReconcileAfterBusRecoverySkips:
 
     async def test_skips_failed_services_with_existing_budget(self) -> None:
         """A FAILED service that already has a budget entry was handled normally — skip it."""
-        hassette = build_watcher_hassette()
+        hassette = make_watcher_hassette()
         watcher = make_watcher(hassette)
         watcher.restart_service = AsyncMock()
 

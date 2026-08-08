@@ -40,15 +40,20 @@ Phase 2). Ask whether to continue or wait for a closer look.
 echo "<LATEST from Phase 1, substituted literally>" > codegen/ha-version.txt
 ```
 
-Find every other place an HA image tag is pinned, then check each hit against `$PINNED`
-to see which are actually stale. Don't rely on a fixed list of files — HA image tags are
-minor-version only (`2026.7`, not `2026.7.1`) and new ones get added over time:
+`scripts/docker/ha-demo.yml` and `tests/system/docker-compose.yml` both derive their HA
+image tag from `${HA_VERSION}`, interpolated by docker-compose from `scripts/docker/.env`
+(`tests/system/.env` is a symlink to the same file) — so there is exactly one place left
+to bump, not a fixed or grep-discovered list of compose files:
 
 ```bash
-grep -rn "homeassistant/home-assistant:" . | grep -v node_modules | grep -v /.git/
+grep -n "^HA_VERSION=" scripts/docker/.env
 ```
 
-Update each hit to the new minor version. This skill is the sole owner of these tags —
+Update that one line to the new minor version (HA image tags are minor-version only —
+`2026.7`, not `2026.7.1`). If a future `grep -rn "homeassistant/home-assistant:" .` finds a
+literal (non-`${HA_VERSION}`) tag anywhere outside `design/` (a new compose file added
+without wiring it to `scripts/docker/.env`), treat that as its own bug to fix, not just a
+value to bump. This skill is the sole owner of the `HA_VERSION` value —
 `renovate.json` explicitly disables Renovate for `homeassistant/home-assistant`
 (`packageRules` — `"enabled": false`) precisely so there's no second, weekly bump racing
 this monthly one. If `renovate.json` no longer has that rule, or the rule is present but

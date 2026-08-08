@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from hassette.bus.error_context import BusErrorContext
 from hassette.events.base import Event
 from hassette.test_utils import create_call_service_event, wait_for
+from hassette.test_utils.helpers import settle
 
 if TYPE_CHECKING:
     from hassette.test_utils.harness import HassetteHarness
@@ -70,8 +71,7 @@ async def test_per_listener_error_handler_wins(hassette_with_bus: "HassetteHarne
 
     await asyncio.wait_for(per_listener_ran.wait(), timeout=2.0)
 
-    # negative-assertion: no event-driven alternative
-    await asyncio.sleep(0.05)
+    await settle()
 
     assert len(per_listener_calls) == 1, f"Expected 1 per-listener call, got {len(per_listener_calls)}"
     assert len(app_level_calls) == 0, "App-level handler should not be called when per-listener wins"

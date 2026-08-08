@@ -1,9 +1,6 @@
 """Unit tests for manifest-based file ownership tracking."""
 
-import sys
 from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from hassette_codegen.manifest import detect_orphans, is_owned, load_manifest, save_manifest
 

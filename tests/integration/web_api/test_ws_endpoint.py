@@ -36,6 +36,10 @@ LOOPBACK_PEER_IP = "127.0.0.1"
 """The peer address uvicorn reports for the live-server tests' own client, so a `trusted_proxies`
 entry naming it makes those connections trusted."""
 
+WS_PATH = "/api/ws"
+"""The WebSocket route path, hit by every test in this file — single source of truth so a route
+rename only needs to change here."""
+
 
 @pytest.fixture
 def mock_hassette():
@@ -122,7 +126,7 @@ def sync_via_ping(ws) -> None:
 
 class TestWebSocketConnection:
     def test_connect_receives_connected_message(self, client: "TestClient") -> None:
-        with client.websocket_connect("/api/ws") as ws:
+        with client.websocket_connect(WS_PATH) as ws:
             msg = ws.receive_json()
             assert msg["type"] == "connected"
             assert msg["data"]["entity_count"] == 1
@@ -136,13 +140,13 @@ class TestWebSocketConnection:
         """
         set_websocket_state(mock_hassette, connected=False, ever_connected=False)
         set_app_status_snapshot(mock_hassette, running=[], failed=[])
-        with client.websocket_connect("/api/ws") as ws:
+        with client.websocket_connect(WS_PATH) as ws:
             msg = ws.receive_json()
             assert msg["type"] == "connected"
             assert msg["data"]["app_count"] == 0
 
     def test_ping_pong(self, client: "TestClient") -> None:
-        with client.websocket_connect("/api/ws") as ws:
+        with client.websocket_connect(WS_PATH) as ws:
             ws.receive_json()  # consume connected message
             ws.send_json({"type": "ping"})
             msg = ws.receive_json()
@@ -151,7 +155,7 @@ class TestWebSocketConnection:
     def test_subscribe_logs_enables_log_forwarding(
         self, client: "TestClient", runtime_query_service: RuntimeQueryService
     ) -> None:
-        with client.websocket_connect("/api/ws") as ws:
+        with client.websocket_connect(WS_PATH) as ws:
             ws.receive_json()  # connected
             ws.send_json({"type": "subscribe", "data": {"logs": True}})
             sync_via_ping(ws)
@@ -166,7 +170,7 @@ class TestWebSocketConnection:
     def test_log_messages_blocked_when_not_subscribed(
         self, client: "TestClient", runtime_query_service: RuntimeQueryService
     ) -> None:
-        with client.websocket_connect("/api/ws") as ws:
+        with client.websocket_connect(WS_PATH) as ws:
             ws.receive_json()  # connected
             # Log should be filtered (subscribe_logs is False by default)
             put_to_all_queues(
@@ -184,7 +188,7 @@ class TestWebSocketConnection:
     def test_non_log_messages_pass_through_without_subscription(
         self, client: "TestClient", runtime_query_service: RuntimeQueryService
     ) -> None:
-        with client.websocket_connect("/api/ws") as ws:
+        with client.websocket_connect(WS_PATH) as ws:
             ws.receive_json()  # connected
             put_to_all_queues(
                 runtime_query_service,
@@ -196,7 +200,7 @@ class TestWebSocketConnection:
     def test_subscribe_min_log_level_filters_below_threshold(
         self, client: "TestClient", runtime_query_service: RuntimeQueryService
     ) -> None:
-        with client.websocket_connect("/api/ws") as ws:
+        with client.websocket_connect(WS_PATH) as ws:
             ws.receive_json()  # connected
             ws.send_json({"type": "subscribe", "data": {"logs": True, "min_log_level": "WARNING"}})
             sync_via_ping(ws)
@@ -221,7 +225,7 @@ class TestWebSocketConnection:
     def test_subscribe_error_level_passes(
         self, client: "TestClient", runtime_query_service: RuntimeQueryService
     ) -> None:
-        with client.websocket_connect("/api/ws") as ws:
+        with client.websocket_connect(WS_PATH) as ws:
             ws.receive_json()  # connected
             ws.send_json({"type": "subscribe", "data": {"logs": True, "min_log_level": "ERROR"}})
             sync_via_ping(ws)
@@ -244,7 +248,7 @@ class TestWebSocketConnection:
     def test_subscribe_invalid_log_level_defaults_to_info(
         self, client: "TestClient", runtime_query_service: RuntimeQueryService
     ) -> None:
-        with client.websocket_connect("/api/ws") as ws:
+        with client.websocket_connect(WS_PATH) as ws:
             ws.receive_json()  # connected
             ws.send_json({"type": "subscribe", "data": {"logs": True, "min_log_level": "INVALID"}})
             sync_via_ping(ws)
@@ -265,7 +269,7 @@ class TestWebSocketConnection:
     def test_sentinel_causes_graceful_close(
         self, client: "TestClient", runtime_query_service: RuntimeQueryService
     ) -> None:
-        with client.websocket_connect("/api/ws") as ws:
+        with client.websocket_connect(WS_PATH) as ws:
             ws.receive_json()  # connected
             assert len(runtime_query_service._ws_clients) == 1
             # Send None sentinel to trigger graceful queue shutdown
@@ -278,7 +282,7 @@ class TestWebSocketConnection:
     def test_disconnect_unregisters_client(
         self, client: "TestClient", runtime_query_service: RuntimeQueryService
     ) -> None:
-        with client.websocket_connect("/api/ws") as ws:
+        with client.websocket_connect(WS_PATH) as ws:
             ws.receive_json()  # connected
             assert len(runtime_query_service._ws_clients) == 1
         # After disconnect, client should be unregistered
@@ -287,7 +291,7 @@ class TestWebSocketConnection:
     def test_multiple_subscribe_updates_state(
         self, client: "TestClient", runtime_query_service: RuntimeQueryService
     ) -> None:
-        with client.websocket_connect("/api/ws") as ws:
+        with client.websocket_connect(WS_PATH) as ws:
             ws.receive_json()  # connected
             # First subscribe with ERROR level
             ws.send_json({"type": "subscribe", "data": {"logs": True, "min_log_level": "ERROR"}})
@@ -312,7 +316,7 @@ class TestWebSocketEdgeCases:
         self, client: "TestClient", runtime_query_service: RuntimeQueryService
     ) -> None:
         """Sending an unknown message type is silently ignored; connection stays open."""
-        with client.websocket_connect("/api/ws") as ws:
+        with client.websocket_connect(WS_PATH) as ws:
             ws.receive_json()  # connected
             ws.send_json({"type": "unknown_type", "data": {}})
             # Verify the connection is still alive by sending ping and receiving pong
@@ -324,7 +328,7 @@ class TestWebSocketEdgeCases:
         self, client: "TestClient", runtime_query_service: RuntimeQueryService
     ) -> None:
         """Subscribe with an empty data dict uses defaults: logs=False, min_log_level=INFO."""
-        with client.websocket_connect("/api/ws") as ws:
+        with client.websocket_connect(WS_PATH) as ws:
             ws.receive_json()  # connected
             ws.send_json({"type": "subscribe", "data": {}})
             sync_via_ping(ws)
@@ -345,7 +349,7 @@ class TestWebSocketEdgeCases:
         self, client: "TestClient", runtime_query_service: RuntimeQueryService
     ) -> None:
         """Subscribe message without a 'data' key treats data as empty dict."""
-        with client.websocket_connect("/api/ws") as ws:
+        with client.websocket_connect(WS_PATH) as ws:
             ws.receive_json()  # connected
             # Send subscribe without 'data' key at all
             ws.send_json({"type": "subscribe"})
@@ -443,7 +447,7 @@ class TestWebSocketEdgeCases:
 
     def test_unknown_message_type_without_data_key_ignored(self, client: "TestClient") -> None:
         """Unknown message with no 'data' key is silently ignored; connection survives."""
-        with client.websocket_connect("/api/ws") as ws:
+        with client.websocket_connect(WS_PATH) as ws:
             ws.receive_json()  # connected
             ws.send_json({"type": "whatisthis"})
             # Should still respond to ping
@@ -485,7 +489,7 @@ def serve_ws_app(app: FastAPI) -> Iterator[str]:
     # (see conftest.py's live_server_ws, which needs the same setting for the same reason).
     server, thread, port = start_uvicorn_server(app, ws="websockets-sansio", timeout_graceful_shutdown=1)
     try:
-        yield f"ws://127.0.0.1:{port}/api/ws"
+        yield f"ws://127.0.0.1:{port}{WS_PATH}"
     finally:
         stop_uvicorn_server(server, thread)
 

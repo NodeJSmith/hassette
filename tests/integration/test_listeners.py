@@ -12,7 +12,7 @@ from hassette.exceptions import DependencyResolutionError
 from hassette.models import states
 from hassette.task_bucket import TaskBucket
 from hassette.test_utils import make_full_state_change_event, make_light_state_dict, make_state_dict, wait_for
-from hassette.test_utils.helpers import create_listener
+from hassette.test_utils.helpers import create_listener, settle
 
 
 @dataclass(frozen=True, slots=True)
@@ -213,8 +213,7 @@ class TestRateLimiterCancel:
         limiter.cancel()
         assert limiter._debounce_task is None
 
-        # negative-assertion: no event-driven alternative
-        await asyncio.sleep(0.6)
+        await settle(0.6)
         assert calls == [], "Handler should not fire after cancel"
 
     async def test_cancel_when_no_task(self, bucket: TaskBucket):

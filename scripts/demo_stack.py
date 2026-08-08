@@ -24,6 +24,8 @@ import tempfile
 from pathlib import Path
 from types import FrameType, TracebackType
 
+from dotenv import dotenv_values
+
 COMPOSE_PROJECT_NAME = "hassette-demo"
 COMPOSE_UP_TIMEOUT_SECONDS = 120
 COMPOSE_DOWN_TIMEOUT_SECONDS = 30
@@ -121,6 +123,28 @@ class DemoStack:
             "HOST_UID": str(os.getuid()),
             "HOST_GID": str(os.getgid()),
         }
+        # Pin the fixture credentials even if the invoking shell exports its own
+        # HA_ACCESS_TOKEN/DEMO_AUTH_TOKEN -- Docker Compose's interpolation precedence favors
+        # the process env over the .env file (docs.docker.com/compose/how-tos/environment-
+        # variables/variable-interpolation), so an inherited value would otherwise silently
+        # override the token baked into tests/fixtures/demo-ha-config/.storage/auth, while
+        # capture_screenshots.py and demo-verify (which read scripts/docker/.env directly)
+        # would keep using the fixture value -- a mismatch between what the containers
+        # authenticate with and what the scripts send. Fails loudly (like conftest.py's
+        # HA_TOKEN) rather than silently falling back to an inherited/absent value, which
+        # would just be a quieter instance of the same bug this pinning fixes.
+        # Keep in sync with tests/system/conftest.py's ha_container fixture (same pinning,
+        # scoped to HA_ACCESS_TOKEN only since that compose stack has no hassette service).
+        # Parsed fresh per DemoStack() instantiation rather than cached at module level like
+        # conftest.py's HA_TOKEN -- this class has no import-time hook to do that caching in.
+        fixture_env_path = self._repo_root / "scripts" / "docker" / ".env"
+        fixture_env = dotenv_values(fixture_env_path)
+        for key in ("HA_ACCESS_TOKEN", "DEMO_AUTH_TOKEN"):
+            value = fixture_env.get(key)
+            if not value:
+                self._teardown()
+                raise RuntimeError(f"{key} not found in {fixture_env_path}")
+            env[key] = value
 
         try:
             result = subprocess.run(

@@ -13,6 +13,7 @@ from hassette.core.database_service import DatabaseService
 from hassette.scheduler.error_context import SchedulerErrorContext
 from hassette.test_utils import wait_for
 from hassette.test_utils.factories import make_mock_listener
+from hassette.test_utils.helpers import settle
 
 from .conftest import make_mock_job
 
@@ -157,8 +158,7 @@ async def test_cancelled_error_not_routed_to_handler(executor: CommandExecutor) 
     with pytest.raises(asyncio.CancelledError):
         await executor.execute(cmd)
 
-    # negative-assertion: no event-driven alternative
-    await asyncio.sleep(0.05)
+    await settle()
     assert not handler_called.is_set(), "Error handler must not be called for CancelledError"
 
 

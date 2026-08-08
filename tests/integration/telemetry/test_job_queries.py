@@ -6,7 +6,7 @@ from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.schemas.job_models import JobSummary
 
-from .helpers import BASE_TS, insert_execution, insert_job
+from .helpers import BASE_TS, assert_last_error_row_coherence, insert_execution, insert_job
 
 
 class TestGetJobSummary:
@@ -244,42 +244,26 @@ class TestJobSummaryLastErrorRowCoherence:
         job_id = await insert_job(db_svc, job_name="multi_err_job")
 
         base_ts = BASE_TS
-        await insert_execution(
-            db_svc,
-            job_id,
-            session_id,
-            status="error",
-            error_type="OldError",
-            error_message="old message",
-            error_traceback="old traceback",
-            execution_start_ts=base_ts + 1.0,
-        )
-        await insert_execution(
-            db_svc,
-            job_id,
-            session_id,
-            status="error",
-            error_type="NewError",
-            error_message="new message",
-            error_traceback="new traceback",
-            execution_start_ts=base_ts + 10.0,
-        )
-        # Success after errors — should not affect error fields
-        await insert_execution(
-            db_svc,
-            job_id,
-            session_id,
-            status="success",
-            execution_start_ts=base_ts + 20.0,
-        )
 
-        rows = await query_service.get_job_summary("test_app", 0)
-        assert len(rows) == 1
-        row = rows[0]
-        assert row.last_error_type == "NewError"
-        assert row.last_error_message == "new message"
-        assert row.last_error_traceback == "new traceback"
-        assert row.last_error_ts == pytest.approx(base_ts + 10.0)
+        await assert_last_error_row_coherence(
+            lambda **kw: insert_execution(db_svc, job_id, session_id, **kw),
+            lambda: query_service.get_job_summary("test_app", 0),
+            [
+                {
+                    "error_type": "OldError",
+                    "error_message": "old message",
+                    "error_traceback": "old traceback",
+                    "execution_start_ts": base_ts + 1.0,
+                },
+                {
+                    "error_type": "NewError",
+                    "error_message": "new message",
+                    "error_traceback": "new traceback",
+                    "execution_start_ts": base_ts + 10.0,
+                },
+            ],
+            trailing_success_ts=base_ts + 20.0,
+        )
 
     async def test_single_error_returned(
         self,
@@ -290,23 +274,18 @@ class TestJobSummaryLastErrorRowCoherence:
         db_svc, session_id = db
         job_id = await insert_job(db_svc, job_name="single_err_job")
 
-        await insert_execution(
-            db_svc,
-            job_id,
-            session_id,
-            status="error",
-            error_type="RuntimeError",
-            error_message="runtime boom",
-            error_traceback="tb: boom at line 1",
-            execution_start_ts=BASE_TS + 5.0,
+        await assert_last_error_row_coherence(
+            lambda **kw: insert_execution(db_svc, job_id, session_id, **kw),
+            lambda: query_service.get_job_summary("test_app", 0),
+            [
+                {
+                    "error_type": "RuntimeError",
+                    "error_message": "runtime boom",
+                    "error_traceback": "tb: boom at line 1",
+                    "execution_start_ts": BASE_TS + 5.0,
+                },
+            ],
         )
-
-        rows = await query_service.get_job_summary("test_app", 0)
-        assert len(rows) == 1
-        row = rows[0]
-        assert row.last_error_type == "RuntimeError"
-        assert row.last_error_message == "runtime boom"
-        assert row.last_error_traceback == "tb: boom at line 1"
 
     async def test_no_errors_returns_none(
         self,
@@ -340,33 +319,24 @@ class TestJobSummaryLastErrorRowCoherence:
         base_ts = BASE_TS
         since_ts = base_ts + 50.0
 
-        await insert_execution(
-            db_svc,
-            job_id,
-            session_id,
-            status="error",
-            error_type="OldError",
-            error_message="before window",
-            error_traceback="old tb",
-            execution_start_ts=base_ts + 1.0,
+        await assert_last_error_row_coherence(
+            lambda **kw: insert_execution(db_svc, job_id, session_id, **kw),
+            lambda: query_service.get_job_summary("test_app", 0, since=since_ts),
+            [
+                {
+                    "error_type": "OldError",
+                    "error_message": "before window",
+                    "error_traceback": "old tb",
+                    "execution_start_ts": base_ts + 1.0,
+                },
+                {
+                    "error_type": "NewError",
+                    "error_message": "inside window",
+                    "error_traceback": "new tb",
+                    "execution_start_ts": base_ts + 100.0,
+                },
+            ],
         )
-        await insert_execution(
-            db_svc,
-            job_id,
-            session_id,
-            status="error",
-            error_type="NewError",
-            error_message="inside window",
-            error_traceback="new tb",
-            execution_start_ts=base_ts + 100.0,
-        )
-
-        rows = await query_service.get_job_summary("test_app", 0, since=since_ts)
-        assert len(rows) == 1
-        row = rows[0]
-        assert row.last_error_type == "NewError"
-        assert row.last_error_message == "inside window"
-        assert row.last_error_traceback == "new tb"
 
     async def test_since_filter_excludes_all_errors_returns_none(
         self,

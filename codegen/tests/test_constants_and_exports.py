@@ -1,15 +1,11 @@
 """Unit tests for constants extraction and __init__.py generation."""
 
 import ast
-import os
 import py_compile
-import sys
 import tempfile
 from pathlib import Path
 
 import pytest
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from hassette_codegen.extractors.constants import (
     ExtractedConstantSet,
@@ -20,8 +16,9 @@ from hassette_codegen.generators.constants import generate_sensor_constants
 from hassette_codegen.generators.exports import generate_init_py
 from hassette_codegen.pipeline import _check_predicate_freshness
 
-_HA_CORE = Path(os.environ.get("HA_CORE_PATH", "~/source/core")).expanduser()
-_HAS_HA_CORE = _HA_CORE.exists()
+from .conftest import HA_CORE as _HA_CORE
+from .conftest import HAS_HA_CORE as _HAS_HA_CORE
+
 _STATES_DIR = Path(__file__).resolve().parent.parent.parent / "src" / "hassette" / "models" / "states"
 
 
