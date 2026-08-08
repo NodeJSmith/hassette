@@ -1,7 +1,7 @@
 """Main generation pipeline — wires extractors, generators, and output together."""
 
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import NamedTuple
 
@@ -62,17 +62,19 @@ class Rejection(NamedTuple):
     what: str
 
 
-@dataclass
+@dataclass(frozen=True)
 class _DomainOutcome:
     """What generating one domain produced — folded into the run's overall bookkeeping by the caller.
 
     Built via the named constructors below rather than the raw dataclass constructor: each shape
     populates only the fields that are meaningful for that outcome, and the others fall through to
     their defaults implicitly. The constructor name states which shape a given call site returns
-    without the reader having to check what got left out.
+    without the reader having to check what got left out. Frozen because these are handed off as
+    finished results, not further mutated — the constructors take the caller's own working `set`
+    and freeze it on the way in.
     """
 
-    generated_files: set[Path] = field(default_factory=set)
+    generated_files: frozenset[Path] = frozenset()
     skipped: bool = False
     rejection: Rejection | None = None
     any_drift: bool = False
@@ -85,29 +87,29 @@ class _DomainOutcome:
     @classmethod
     def reject(cls, generated_files: set[Path], rejection: Rejection) -> "_DomainOutcome":
         """The entity wrapper was refused; the state model already in `generated_files` still stands."""
-        return cls(generated_files=generated_files, rejection=rejection)
+        return cls(generated_files=frozenset(generated_files), rejection=rejection)
 
     @classmethod
     def ok(cls, generated_files: set[Path], *, any_drift: bool = False) -> "_DomainOutcome":
         """The domain produced usable output, with or without detected drift."""
-        return cls(generated_files=generated_files, any_drift=any_drift)
+        return cls(generated_files=frozenset(generated_files), any_drift=any_drift)
 
 
-@dataclass
+@dataclass(frozen=True)
 class _GenerationResult:
     """Aggregated bookkeeping from generating every domain in the run."""
 
-    generated_files: set[Path]
-    skipped_domains: list[str]
-    rejections: list[Rejection]
+    generated_files: frozenset[Path]
+    skipped_domains: tuple[str, ...]
+    rejections: tuple[Rejection, ...]
     any_drift: bool
 
 
-@dataclass
+@dataclass(frozen=True)
 class _WriteOutput:
     """What a non-domain generation step (constants, package __init__.py files) produced."""
 
-    generated_files: set[Path] = field(default_factory=set)
+    generated_files: frozenset[Path] = frozenset()
     any_drift: bool = False
 
 
@@ -146,7 +148,7 @@ def run_pipeline(
         previous_manifest=previous_manifest,
         manifest_tracked=manifest_tracked,
     )
-    rejections = rejections + domain_result.rejections
+    rejections = rejections + list(domain_result.rejections)
     generated_files = domain_result.generated_files
     skipped_domains = domain_result.skipped_domains
     any_drift = domain_result.any_drift
@@ -161,6 +163,10 @@ def run_pipeline(
     init_output = _generate_package_inits(states_dir, entities_dir, repo_root, check_mode=check_mode)
     generated_files = generated_files | init_output.generated_files
     any_drift = any_drift or init_output.any_drift
+
+    # From here on, generated_files only feeds the pre-existing manifest APIs, which operate on
+    # plain mutable sets — convert once at this boundary rather than widening their signatures.
+    generated_files = set(generated_files)
 
     if not check_mode:
         _finalize_manifest(
@@ -254,7 +260,7 @@ def _generate_domains(
             rejections.append(outcome.rejection)
         any_drift = any_drift or outcome.any_drift
 
-    return _GenerationResult(generated_files, skipped_domains, rejections, any_drift)
+    return _GenerationResult(frozenset(generated_files), tuple(skipped_domains), tuple(rejections), any_drift)
 
 
 def _check_or_write(path: Path, content: str, label: str, *, check_mode: bool) -> tuple[bool, bool]:
@@ -361,7 +367,7 @@ def _generate_constants(ha_source: HASource, const_dir: Path, repo_root: Path, *
     # retained older copy as an orphan on the next full run.
     wrote, drifted = _check_or_write(const_path, const_content, "sensor constants", check_mode=check_mode)
     if wrote:
-        return _WriteOutput(generated_files={rel_const}, any_drift=drifted)
+        return _WriteOutput(generated_files=frozenset({rel_const}), any_drift=drifted)
     return _WriteOutput()
 
 
@@ -405,7 +411,7 @@ def _generate_package_inits(states_dir: Path, entities_dir: Path, repo_root: Pat
         if wrote:
             generated_files.add(rel_init)
 
-    return _WriteOutput(generated_files=generated_files, any_drift=any_drift)
+    return _WriteOutput(generated_files=frozenset(generated_files), any_drift=any_drift)
 
 
 def _finalize_manifest(
@@ -436,7 +442,7 @@ def _finalize_manifest(
 def _report_summary_and_exit_code(
     *,
     domains: list[DiscoveredDomain],
-    skipped_domains: list[str],
+    skipped_domains: tuple[str, ...],
     rejections: list[Rejection],
     any_drift: bool,
     previous_manifest: set[Path],
