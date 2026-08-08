@@ -398,7 +398,29 @@ class UnableToConvertStateError(StateRegistryError):
         self.state_class = state_class
 
 
-class UnableToConvertAnnotatedStateError(StateRegistryError):
+class EntityShapeError(StateRegistryError):
+    """Base for state-conversion errors carrying ``(entity_id, device_class, state_class)`` context.
+
+    Shared by :class:`UnableToConvertAnnotatedStateError`, :class:`SensorShapeMismatchError`, and
+    :class:`EntityNotInViewError` — same three-parameter shape, same three attribute assignments,
+    differing only in the message template. Subclasses override :meth:`_build_message` and must not
+    override ``__init__``, so the attribute assignments stay in one place. Matches design.md's
+    documented exception convention ("a message plus structured attributes, not a bare string";
+    see ``UnableToConvertStateError``) — that convention constrains the shape of each subclass's
+    public surface, not whether they share an implementation.
+    """
+
+    def __init__(self, entity_id: str, device_class: str | None, state_class: type["BaseState"]) -> None:
+        super().__init__(self._build_message(entity_id, device_class, state_class))
+        self.entity_id = entity_id
+        self.device_class = device_class
+        self.state_class = state_class
+
+    def _build_message(self, entity_id: str, device_class: str | None, state_class: type["BaseState"]) -> str:
+        raise NotImplementedError
+
+
+class UnableToConvertAnnotatedStateError(EntityShapeError):
     """Raised when a state dict fails Pydantic validation against a dependency-injection-annotated
     state class.
 
@@ -414,17 +436,14 @@ class UnableToConvertAnnotatedStateError(StateRegistryError):
     Pydantic ``ValidationError`` with no entity context.
     """
 
-    def __init__(self, entity_id: str, device_class: str | None, state_class: type["BaseState"]) -> None:
-        super().__init__(
+    def _build_message(self, entity_id: str, device_class: str | None, state_class: type["BaseState"]) -> str:
+        return (
             f"Unable to convert state for entity_id '{entity_id}' (device_class: {device_class!r}) "
             f"to annotated class {state_class.__name__}."
         )
-        self.entity_id = entity_id
-        self.device_class = device_class
-        self.state_class = state_class
 
 
-class SensorShapeMismatchError(StateRegistryError):
+class SensorShapeMismatchError(EntityShapeError):
     """Raised when a dependency-injection-annotated narrowed sensor shape class does not match the
     entity's actual value shape, even when coercion would otherwise succeed.
 
@@ -435,17 +454,14 @@ class SensorShapeMismatchError(StateRegistryError):
     claim and does not raise this error.
     """
 
-    def __init__(self, entity_id: str, device_class: str | None, state_class: type["BaseState"]) -> None:
-        super().__init__(
+    def _build_message(self, entity_id: str, device_class: str | None, state_class: type["BaseState"]) -> str:
+        return (
             f"Entity '{entity_id}' (device_class: {device_class!r}) does not match the value shape "
             f"declared by annotated class {state_class.__name__}."
         )
-        self.entity_id = entity_id
-        self.device_class = device_class
-        self.state_class = state_class
 
 
-class EntityNotInViewError(KeyError, StateRegistryError):
+class EntityNotInViewError(KeyError, EntityShapeError):
     """Raised when direct lookup finds an entity that exists in its domain but is not a member of
     a filtered ``DomainStates`` view — its state either fails the view's membership predicate, or
     its current value does not convert to the view's model.
@@ -458,14 +474,11 @@ class EntityNotInViewError(KeyError, StateRegistryError):
     no predicate keeps raising the underlying conversion error directly.
     """
 
-    def __init__(self, entity_id: str, device_class: str | None, state_class: type["BaseState"]) -> None:
-        super().__init__(
+    def _build_message(self, entity_id: str, device_class: str | None, state_class: type["BaseState"]) -> str:
+        return (
             f"Entity '{entity_id}' (device_class: {device_class!r}) is not a member of this view; "
             f"it does not match the shape expected by {state_class.__name__}."
         )
-        self.entity_id = entity_id
-        self.device_class = device_class
-        self.state_class = state_class
 
 
 class ConvertedTypeDoesNotMatchError(StateRegistryError):
