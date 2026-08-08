@@ -126,7 +126,14 @@ def ha_container(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
     config_tmp = tmp_path_factory.mktemp("ha-config")
     shutil.copytree(FIXTURE_DIR, config_tmp, dirs_exist_ok=True, ignore=_ignore)
 
-    env = {**os.environ, "HA_CONFIG_PATH": str(config_tmp)}
+    # Pin HA_ACCESS_TOKEN to the fixture value even if the invoking shell exports its own —
+    # Docker Compose's interpolation precedence favors the process env over the .env file
+    # (docs.docker.com/compose/how-tos/environment-variables/variable-interpolation), so an
+    # inherited HA_ACCESS_TOKEN would otherwise silently override the token baked into
+    # tests/fixtures/ha-config/.storage/auth and break the HA container's healthcheck.
+    # Keep in sync with scripts/demo_stack.py's DemoStack.__enter__ (same pinning, plus
+    # DEMO_AUTH_TOKEN there since that compose stack also runs a hassette service).
+    env = {**os.environ, "HA_CONFIG_PATH": str(config_tmp), "HA_ACCESS_TOKEN": HA_TOKEN}
     subprocess.run(
         ["docker", "compose", "-f", str(COMPOSE_FILE), "up", "-d", "homeassistant"],
         check=True,
