@@ -12,6 +12,7 @@ import pytest
 
 from hassette.core.migration_runner import run_migrations
 from hassette.test_utils.config import TEST_SOURCE_LOCATION
+from hassette.test_utils.sql_helpers import insert_execution_row, sqlite_conn
 
 
 def _pre_migration_db(tmp_path: Path) -> Path:
@@ -19,8 +20,7 @@ def _pre_migration_db(tmp_path: Path) -> Path:
     db_path = tmp_path / "test.db"
     run_migrations(db_path, target=11)
 
-    conn = sqlite3.connect(db_path)
-    try:
+    with sqlite_conn(db_path) as conn:
         conn.execute("INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (1.0, 1.0, 'running')")
         conn.execute(
             "INSERT INTO listeners (app_key, instance_index, name, handler_method, topic, source_location) "
@@ -33,18 +33,9 @@ def _pre_migration_db(tmp_path: Path) -> Path:
             (TEST_SOURCE_LOCATION,),
         )
         conn.commit()
-        conn.execute(
-            "INSERT INTO executions (kind, job_id, session_id, execution_start_ts, duration_ms, status, source_tier) "
-            "VALUES ('job', 1, 1, 1.0, 5.0, 'success', 'app')"
-        )
-        conn.execute(
-            "INSERT INTO executions "
-            "(kind, listener_id, session_id, execution_start_ts, duration_ms, status, source_tier) "
-            "VALUES ('handler', 1, 1, 2.0, 3.0, 'success', 'app')"
-        )
+        insert_execution_row(conn, kind="job", job_id=1, session_id=1, execution_start_ts=1.0, duration_ms=5.0)
+        insert_execution_row(conn, kind="handler", listener_id=1, session_id=1, execution_start_ts=2.0, duration_ms=3.0)
         conn.commit()
-    finally:
-        conn.close()
 
     return db_path
 
@@ -55,41 +46,31 @@ class TestIdPreservationAndForeignKeys:
         db_path = _pre_migration_db(tmp_path)
         run_migrations(db_path)
 
-        conn = sqlite3.connect(db_path)
-        conn.execute("PRAGMA foreign_keys = ON")
-        try:
+        with sqlite_conn(db_path, foreign_keys=True) as conn:
             violations = conn.execute("PRAGMA foreign_key_check").fetchall()
             assert violations == [], f"Unexpected FK violations after migration 012: {violations}"
-        finally:
-            conn.close()
 
     def test_executions_job_id_still_resolves(self, tmp_path: Path) -> None:
         """executions.job_id inserted before the migration still resolves to the same job row."""
         db_path = _pre_migration_db(tmp_path)
         run_migrations(db_path)
 
-        conn = sqlite3.connect(db_path)
-        try:
+        with sqlite_conn(db_path) as conn:
             row = conn.execute(
                 "SELECT sj.job_name FROM executions e JOIN scheduled_jobs sj ON sj.id = e.job_id WHERE e.kind = 'job'"
             ).fetchone()
             assert row == ("my_job",), "executions.job_id no longer resolves to the pre-migration job row"
-        finally:
-            conn.close()
 
     def test_executions_listener_id_still_resolves(self, tmp_path: Path) -> None:
         """executions.listener_id inserted before the migration still resolves after the listeners rename."""
         db_path = _pre_migration_db(tmp_path)
         run_migrations(db_path)
 
-        conn = sqlite3.connect(db_path)
-        try:
+        with sqlite_conn(db_path) as conn:
             row = conn.execute(
                 "SELECT l.name FROM executions e JOIN listeners l ON l.id = e.listener_id WHERE e.kind = 'handler'"
             ).fetchone()
             assert row == ("my_listener",)
-        finally:
-            conn.close()
 
 
 class TestRemovedAtRename:
@@ -97,50 +78,38 @@ class TestRemovedAtRename:
         db_path = _pre_migration_db(tmp_path)
         run_migrations(db_path)
 
-        conn = sqlite3.connect(db_path)
-        try:
+        with sqlite_conn(db_path) as conn:
             cols = {row[1] for row in conn.execute("PRAGMA table_info(scheduled_jobs)")}
             assert "removed_at" in cols
             assert "cancelled_at" not in cols
-        finally:
-            conn.close()
 
     def test_listeners_has_removed_at_not_cancelled_at(self, tmp_path: Path) -> None:
         db_path = _pre_migration_db(tmp_path)
         run_migrations(db_path)
 
-        conn = sqlite3.connect(db_path)
-        try:
+        with sqlite_conn(db_path) as conn:
             cols = {row[1] for row in conn.execute("PRAGMA table_info(listeners)")}
             assert "removed_at" in cols
             assert "cancelled_at" not in cols
-        finally:
-            conn.close()
 
     def test_cancelled_at_timestamp_preserved_as_removed_at(self, tmp_path: Path) -> None:
         """A cancelled_at value written before the migration survives as removed_at."""
         db_path = _pre_migration_db(tmp_path)
 
-        conn = sqlite3.connect(db_path)
-        try:
+        with sqlite_conn(db_path) as conn:
             conn.execute("UPDATE scheduled_jobs SET cancelled_at = 999.5 WHERE job_name = 'my_job'")
             conn.execute("UPDATE listeners SET cancelled_at = 888.5 WHERE name = 'my_listener'")
             conn.commit()
-        finally:
-            conn.close()
 
         run_migrations(db_path)
 
-        conn = sqlite3.connect(db_path)
-        try:
+        with sqlite_conn(db_path) as conn:
             job_removed_at = conn.execute("SELECT removed_at FROM scheduled_jobs WHERE job_name = 'my_job'").fetchone()[
                 0
             ]
             listener_removed_at = conn.execute(
                 "SELECT removed_at FROM listeners WHERE name = 'my_listener'"
             ).fetchone()[0]
-        finally:
-            conn.close()
 
         assert job_removed_at == 999.5
         assert listener_removed_at == 888.5
@@ -151,13 +120,10 @@ class TestLegacyBackfill:
         db_path = _pre_migration_db(tmp_path)
         run_migrations(db_path)
 
-        conn = sqlite3.connect(db_path)
-        try:
+        with sqlite_conn(db_path) as conn:
             row = conn.execute(
                 "SELECT schedule_status, schedule_status_reason FROM scheduled_jobs WHERE job_name = 'my_job'"
             ).fetchone()
-        finally:
-            conn.close()
 
         assert row == ("scheduled", "legacy_unknown")
 
@@ -166,21 +132,15 @@ class TestRemovedRowsExcludedFromActiveViews:
     def test_removed_legacy_row_excluded_from_active_scheduled_jobs(self, tmp_path: Path) -> None:
         db_path = _pre_migration_db(tmp_path)
 
-        conn = sqlite3.connect(db_path)
-        try:
+        with sqlite_conn(db_path) as conn:
             conn.execute("UPDATE scheduled_jobs SET cancelled_at = 500.0 WHERE job_name = 'my_job'")
             conn.commit()
-        finally:
-            conn.close()
 
         run_migrations(db_path)
 
-        conn = sqlite3.connect(db_path)
-        try:
+        with sqlite_conn(db_path) as conn:
             active = conn.execute("SELECT * FROM active_scheduled_jobs").fetchall()
             active_app = conn.execute("SELECT * FROM active_app_scheduled_jobs").fetchall()
-        finally:
-            conn.close()
 
         assert active == []
         assert active_app == []
@@ -188,21 +148,15 @@ class TestRemovedRowsExcludedFromActiveViews:
     def test_removed_listener_excluded_from_active_listeners(self, tmp_path: Path) -> None:
         db_path = _pre_migration_db(tmp_path)
 
-        conn = sqlite3.connect(db_path)
-        try:
+        with sqlite_conn(db_path) as conn:
             conn.execute("UPDATE listeners SET cancelled_at = 500.0 WHERE name = 'my_listener'")
             conn.commit()
-        finally:
-            conn.close()
 
         run_migrations(db_path)
 
-        conn = sqlite3.connect(db_path)
-        try:
+        with sqlite_conn(db_path) as conn:
             active = conn.execute("SELECT * FROM active_listeners").fetchall()
             active_app = conn.execute("SELECT * FROM active_app_listeners").fetchall()
-        finally:
-            conn.close()
 
         assert active == []
         assert active_app == []
@@ -212,12 +166,9 @@ class TestRemovedRowsExcludedFromActiveViews:
         db_path = _pre_migration_db(tmp_path)
         run_migrations(db_path)
 
-        conn = sqlite3.connect(db_path)
-        try:
+        with sqlite_conn(db_path) as conn:
             active_jobs = conn.execute("SELECT job_name FROM active_scheduled_jobs").fetchall()
             active_listeners = conn.execute("SELECT name FROM active_listeners").fetchall()
-        finally:
-            conn.close()
 
         assert active_jobs == [("my_job",)]
         assert active_listeners == [("my_listener",)]
@@ -231,8 +182,7 @@ class TestReRegistrationClearsLegacyUnknown:
         db_path = _pre_migration_db(tmp_path)
         run_migrations(db_path)
 
-        conn = sqlite3.connect(db_path)
-        try:
+        with sqlite_conn(db_path) as conn:
             before = conn.execute(
                 "SELECT schedule_status, schedule_status_reason FROM scheduled_jobs WHERE job_name = 'my_job'"
             ).fetchone()
@@ -261,8 +211,6 @@ class TestReRegistrationClearsLegacyUnknown:
             after = conn.execute(
                 "SELECT schedule_status, schedule_status_reason FROM scheduled_jobs WHERE job_name = 'my_job'"
             ).fetchone()
-        finally:
-            conn.close()
 
         assert after == ("manual", None)
 
@@ -272,42 +220,33 @@ class TestCheckConstraints:
         db_path = _pre_migration_db(tmp_path)
         run_migrations(db_path)
 
-        conn = sqlite3.connect(db_path)
-        try:
-            with pytest.raises(sqlite3.IntegrityError):
-                conn.execute(
-                    "INSERT INTO scheduled_jobs "
-                    "(app_key, instance_index, job_name, handler_method, source_location, schedule_status) "
-                    "VALUES ('my_app', 0, 'bad_status_job', 'do_thing', ?, 'not_a_real_status')",
-                    (TEST_SOURCE_LOCATION,),
-                )
-        finally:
-            conn.close()
+        with sqlite_conn(db_path) as conn, pytest.raises(sqlite3.IntegrityError):
+            conn.execute(
+                "INSERT INTO scheduled_jobs "
+                "(app_key, instance_index, job_name, handler_method, source_location, schedule_status) "
+                "VALUES ('my_app', 0, 'bad_status_job', 'do_thing', ?, 'not_a_real_status')",
+                (TEST_SOURCE_LOCATION,),
+            )
 
     def test_rejects_invalid_schedule_status_reason(self, tmp_path: Path) -> None:
         db_path = _pre_migration_db(tmp_path)
         run_migrations(db_path)
 
-        conn = sqlite3.connect(db_path)
-        try:
-            with pytest.raises(sqlite3.IntegrityError):
-                conn.execute(
-                    "INSERT INTO scheduled_jobs "
-                    "(app_key, instance_index, job_name, handler_method, source_location, "
-                    "schedule_status, schedule_status_reason) "
-                    "VALUES ('my_app', 0, 'bad_reason_job', 'do_thing', ?, 'scheduled', 'not_a_real_reason')",
-                    (TEST_SOURCE_LOCATION,),
-                )
-        finally:
-            conn.close()
+        with sqlite_conn(db_path) as conn, pytest.raises(sqlite3.IntegrityError):
+            conn.execute(
+                "INSERT INTO scheduled_jobs "
+                "(app_key, instance_index, job_name, handler_method, source_location, "
+                "schedule_status, schedule_status_reason) "
+                "VALUES ('my_app', 0, 'bad_reason_job', 'do_thing', ?, 'scheduled', 'not_a_real_reason')",
+                (TEST_SOURCE_LOCATION,),
+            )
 
     def test_null_schedule_status_reason_is_accepted(self, tmp_path: Path) -> None:
         """schedule_status_reason is nullable -- a fresh manual registration has no reason."""
         db_path = _pre_migration_db(tmp_path)
         run_migrations(db_path)
 
-        conn = sqlite3.connect(db_path)
-        try:
+        with sqlite_conn(db_path) as conn:
             conn.execute(
                 "INSERT INTO scheduled_jobs "
                 "(app_key, instance_index, job_name, handler_method, source_location, "
@@ -319,8 +258,6 @@ class TestCheckConstraints:
             row = conn.execute(
                 "SELECT schedule_status_reason FROM scheduled_jobs WHERE job_name = 'clean_job'"
             ).fetchone()
-        finally:
-            conn.close()
 
         assert row == (None,)
 
@@ -329,16 +266,12 @@ class TestCheckConstraints:
         db_path = _pre_migration_db(tmp_path)
         run_migrations(db_path)
 
-        conn = sqlite3.connect(db_path)
-        try:
-            with pytest.raises(sqlite3.IntegrityError):
-                conn.execute(
-                    "INSERT INTO scheduled_jobs (app_key, instance_index, job_name, handler_method, source_location) "
-                    "VALUES ('my_app', 0, 'no_status_job', 'do_thing', ?)",
-                    (TEST_SOURCE_LOCATION,),
-                )
-        finally:
-            conn.close()
+        with sqlite_conn(db_path) as conn, pytest.raises(sqlite3.IntegrityError):
+            conn.execute(
+                "INSERT INTO scheduled_jobs (app_key, instance_index, job_name, handler_method, source_location) "
+                "VALUES ('my_app', 0, 'no_status_job', 'do_thing', ?)",
+                (TEST_SOURCE_LOCATION,),
+            )
 
 
 class TestManualTriggerType:
@@ -346,8 +279,7 @@ class TestManualTriggerType:
         db_path = _pre_migration_db(tmp_path)
         run_migrations(db_path)
 
-        conn = sqlite3.connect(db_path)
-        try:
+        with sqlite_conn(db_path) as conn:
             conn.execute(
                 "INSERT INTO scheduled_jobs "
                 "(app_key, instance_index, job_name, handler_method, source_location, "
@@ -359,8 +291,6 @@ class TestManualTriggerType:
             row = conn.execute(
                 "SELECT trigger_type, schedule_status FROM scheduled_jobs WHERE job_name = 'manual_job'"
             ).fetchone()
-        finally:
-            conn.close()
 
         assert row == ("manual", "manual")
 
@@ -369,8 +299,7 @@ class TestManualTriggerType:
         db_path = _pre_migration_db(tmp_path)
         run_migrations(db_path)
 
-        conn = sqlite3.connect(db_path)
-        try:
+        with sqlite_conn(db_path) as conn:
             for trigger_type in ("interval", "cron", "once", "after", "custom"):
                 conn.execute(
                     "INSERT INTO scheduled_jobs "
@@ -380,5 +309,3 @@ class TestManualTriggerType:
                     (f"job_{trigger_type}", TEST_SOURCE_LOCATION, trigger_type),
                 )
             conn.commit()
-        finally:
-            conn.close()
