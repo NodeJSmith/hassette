@@ -18,7 +18,8 @@ from hassette.test_utils.uvicorn_server import start_uvicorn_server, stop_uvicor
 from hassette.test_utils.web_mocks import create_hassette_stub, create_mock_runtime_query_service
 from hassette.types.enums import ResourceStatus
 from hassette.web.app import create_fastapi_app
-from hassette.web.auth import SESSION_COOKIE_NAME, mint_session_cookie, resolve_trusted_proxies
+from hassette.web.auth.session import SESSION_COOKIE_NAME, mint_session_cookie
+from hassette.web.auth.trusted_proxies import resolve_trusted_proxies
 from hassette.web.routes.ws import _read_client, websocket_endpoint
 
 from .conftest import set_app_status_snapshot, set_websocket_state

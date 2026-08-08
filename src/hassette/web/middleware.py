@@ -4,8 +4,8 @@ A single :class:`DefaultDenyMiddleware` gates every route under the ``/api/`` pr
 the auth decision itself to :func:`~hassette.web.auth.resolve_auth_outcome`, shared with
 :func:`~hassette.web.auth.authorize_ws` so the HTTP and WebSocket halves of the gate cannot drift:
 a presented ``Authorization`` header is validated and fails closed, and trusted-peer match
-(:func:`~hassette.web.auth.is_trusted_peer`) then session cookie
-(:func:`~hassette.web.auth.verify_session_cookie`) apply only when no header was presented.
+(:func:`~hassette.web.auth.trusted_proxies.is_trusted_peer`) then session cookie
+(:func:`~hassette.web.auth.session.verify_session_cookie`) apply only when no header was presented.
 
 Three routes bypass the auth decision entirely: ``GET /api/health/live``,
 ``GET /api/health/ready``, and ``POST /api/auth/session``. Two response-side behaviors apply
@@ -29,16 +29,14 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.types import ASGIApp
 
-from hassette.web.auth import (
+from hassette.web.auth import resolve_auth_outcome
+from hassette.web.auth.session import (
     SESSION_COOKIE_NAME,
-    get_trusted_proxies,
     mint_session_cookie,
-    peer_address,
-    peer_address_or_unknown,
-    resolve_auth_outcome,
     should_renew_session_cookie,
     should_set_secure_cookie_flag,
 )
+from hassette.web.auth.trusted_proxies import get_trusted_proxies, peer_address, peer_address_or_unknown
 
 LOGGER = getLogger(__name__)
 

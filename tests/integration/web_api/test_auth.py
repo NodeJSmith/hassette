@@ -28,13 +28,8 @@ from hassette.test_utils import make_addrinfo, patch_loop_getaddrinfo
 from hassette.test_utils.config import TEST_SESSION_TTL, WEB_API_TEST_TOKEN
 from hassette.test_utils.web_mocks import create_hassette_stub, create_mock_runtime_query_service
 from hassette.web.app import create_fastapi_app
-from hassette.web.auth import (
-    SESSION_COOKIE_NAME,
-    mint_session_cookie,
-    refresh_trusted_proxies,
-    resolve_trusted_proxies,
-    verify_session_cookie,
-)
+from hassette.web.auth.session import SESSION_COOKIE_NAME, mint_session_cookie, verify_session_cookie
+from hassette.web.auth.trusted_proxies import refresh_trusted_proxies, resolve_trusted_proxies
 from hassette.web.middleware import FAILED_AUTH_THRESHOLD
 
 from .conftest import make_log_record
@@ -103,7 +98,7 @@ def stub_spa() -> Generator[Path, None, None]:
 async def _mint_cookie_at(token: str, seconds_ago: int) -> str:
     """Mint a session cookie as if it were minted `seconds_ago` seconds in the past."""
     stale_timestamp = int(time.time()) - seconds_ago
-    with patch("hassette.web.auth._current_timestamp", return_value=stale_timestamp):
+    with patch("hassette.web.auth.session._current_timestamp", return_value=stale_timestamp):
         return mint_session_cookie(token)
 
 

@@ -14,7 +14,7 @@ from hassette.cli.client import HassetteCLIClient
 from hassette.config.config import HassetteConfig
 from hassette.config.models import WebApiConfig
 from hassette.test_utils.web_manifest_helpers import make_manifest_list_response, make_manifest_response
-from hassette.web.auth import TOKEN_FILENAME
+from hassette.web.auth.tokens import TOKEN_FILENAME
 from hassette.web.models import AppInstanceResponse
 from tests.unit.cli.conftest import REMOTE_SERVER_URL, CLIClientFactory, capture_stderr, make_cli_config
 

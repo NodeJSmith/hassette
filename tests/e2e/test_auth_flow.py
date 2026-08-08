@@ -31,7 +31,7 @@ from hassette.test_utils.config import TEST_SESSION_TTL, WEB_API_TEST_TOKEN
 from hassette.test_utils.uvicorn_server import start_uvicorn_server, stop_uvicorn_server
 from hassette.test_utils.web_mocks import create_mock_runtime_query_service
 from hassette.web.app import create_fastapi_app
-from hassette.web.auth import SESSION_COOKIE_NAME, mint_session_cookie
+from hassette.web.auth.session import SESSION_COOKIE_NAME, mint_session_cookie
 from tests.e2e.conftest import build_mock_hassette
 
 pytestmark = pytest.mark.e2e

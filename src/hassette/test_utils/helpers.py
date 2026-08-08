@@ -565,7 +565,7 @@ def patch_loop_getaddrinfo(
 ) -> AbstractContextManager[AsyncMock]:
     """Patch the running event loop's DNS resolver for ``trusted_proxies`` hostname-resolution tests.
 
-    ``hassette.web.auth._resolve_hostname`` resolves hostnames via
+    ``hassette.web.auth.trusted_proxies._resolve_hostname`` resolves hostnames via
     ``asyncio.get_running_loop().getaddrinfo(...)`` (bounded by an explicit timeout) rather than
     calling the blocking ``socket.getaddrinfo`` directly, so tests must patch
     ``asyncio.BaseEventLoop.getaddrinfo`` — the coroutine method looked up on whatever concrete

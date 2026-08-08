@@ -22,7 +22,7 @@ from hassette.exceptions import (
     ServerUrlParseError,
     ServerUrlSchemeRequiredError,
 )
-from hassette.web.auth import TOKEN_FILENAME
+from hassette.web.auth.tokens import TOKEN_FILENAME
 from tests.unit.cli.conftest import REMOTE_SERVER_URL, REMOTE_SERVER_URL_BARE, make_cli_config
 
 # Target resolution precedence
