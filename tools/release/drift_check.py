@@ -15,7 +15,7 @@ tracking issue itself stays in each workflow, since title/body/labels differ per
 
 Usage:
     uv run ./tools/release/drift_check.py --current "$CURRENT" --latest "$LATEST" \
-        --label "pypi-drift" --label-description "..." [--label-color d93f0b]
+        --label "pypi-drift" --label-description "..." [--label-color HEXCOLOR]
 
 Writes to $GITHUB_OUTPUT (or stdout, for local runs): current, latest, drift (true/false), and
 existing-issue (the number of an already-open issue with `label`, or empty). existing-issue is
@@ -28,6 +28,8 @@ import os
 import subprocess
 import sys
 import uuid
+
+DEFAULT_LABEL_COLOR = "d93f0b"
 
 
 def ensure_label(label: str, description: str, color: str) -> None:
@@ -83,7 +85,7 @@ def main(argv: list[str]) -> int:
         "--label", required=True, help="Dedup label — an open issue with this label is treated as 'already tracked'."
     )
     p.add_argument("--label-description", required=True, help="Used when creating the label, if it's missing.")
-    p.add_argument("--label-color", default="d93f0b", help="Used when creating the label, if it's missing.")
+    p.add_argument("--label-color", default=DEFAULT_LABEL_COLOR, help="Used when creating the label, if it's missing.")
     args = p.parse_args(argv)
 
     drift = args.current != args.latest

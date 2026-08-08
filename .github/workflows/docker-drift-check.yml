@@ -37,6 +37,9 @@ jobs:
                   fi
                   GITHUB_VERSION="${GITHUB_TAG#v}"
                   EXPECTED_TAG="${GITHUB_VERSION}-py3.13"
+                  # Plain (not the delimiter-safe form drift_check.py's outputs use below): this
+                  # value comes from this repo's own release tag, not an external registry, so the
+                  # injection risk that motivates the heredoc form there doesn't apply here.
                   echo "version=${GITHUB_VERSION}" >> "$GITHUB_OUTPUT"
 
                   echo "GitHub release: v${GITHUB_VERSION}"

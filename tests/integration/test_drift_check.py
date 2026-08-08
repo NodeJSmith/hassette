@@ -15,6 +15,7 @@ import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = PROJECT_ROOT / "tools" / "release" / "drift_check.py"
+SUBPROCESS_TIMEOUT_SECONDS = 30
 STUB_GH = """#!/usr/bin/env bash
 case "$1 $2" in
     "label create")
@@ -90,7 +91,9 @@ def run_drift_check(bin_dir: Path, *, existing_issue: str = "", **extra_args: st
     for key, value in extra_args.items():
         args += [f"--{key.replace('_', '-')}", value]
 
-    result = subprocess.run(args, cwd=str(PROJECT_ROOT), capture_output=True, text=True, timeout=30, env=env)
+    result = subprocess.run(
+        args, cwd=str(PROJECT_ROOT), capture_output=True, text=True, timeout=SUBPROCESS_TIMEOUT_SECONDS, env=env
+    )
     return DriftCheckResult(
         returncode=result.returncode, stderr=result.stderr, fields=parse_github_output(output_file.read_text())
     )
