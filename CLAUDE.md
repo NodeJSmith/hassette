@@ -338,10 +338,11 @@ Apply when clearly warranted:
 
 - **Priority**: `priority:high` (blockers, data loss), `priority:low` (nice-to-haves)
 - **Descriptors**: `good first issue`
-- **Topic labels** — what conceptual concern is involved? Cross-cuts areas. Answers "what kind of problem is this?" (an issue can have multiple):
+- **Topic labels** — what conceptual concern is involved? Cross-cuts areas. Answers "what kind of problem is this?" (an issue can have multiple — except `topic:architecture`/`topic:code-quality`, which are mutually exclusive; see below):
    - `topic:a11y` — Accessibility: focus, keyboard navigation, screen readers
-   - `topic:architecture` — Module decomposition, coupling reduction, internal structure
+   - `topic:architecture` — Module decomposition, coupling reduction, internal structure. Mutually exclusive with `topic:code-quality` — see `.claude/rules/clean-code-findings.md` for the dividing line
    - `topic:cli` — hassette CLI commands (init, build, migrate)
+   - `topic:code-quality` — Pre-existing mechanical/hygiene findings (naming, duplication, dead code) surfaced by `/mine-clean-code`. Mutually exclusive with `topic:architecture` — see `.claude/rules/clean-code-findings.md`
    - `topic:codegen` — Code/type generation pipelines, typed models from HA, schema export
    - `topic:concurrency` — Semaphores, rate limiting, timeouts, task management
    - `topic:design-system` — Visual tokens, theming, color scales, typography, spacing
@@ -372,6 +373,10 @@ YAML form templates in `.github/ISSUE_TEMPLATE/` enforce structure:
 - `feature_request.yml` — required description and motivation
 - `task.yml` — internal work items with acceptance criteria
 - `config.yml` — disables blank issues, points questions to Discussions
+
+## Pull Requests
+
+**CodeRabbit reviews are manual.** Auto-review is disabled (`.coderabbit.yaml`, `auto_review.enabled: false`) — a review firing on every push to an already-open PR is noisy and out of sync with the actual review cadence. After the full PR workflow is complete (commit, push, PR created and marked ready), comment `@coderabbitai review` on the PR to trigger a review.
 
 ## Design Artifacts
 

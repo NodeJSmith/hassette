@@ -1,5 +1,9 @@
 name: PyPI Drift Check
 
+# Structural sibling of docker-drift-check.yml and ha-version-drift.yml — all three share
+# tools/release/drift_check.py for the compare/dedup logic. Each workflow still fetches its own
+# current/latest values (the sources of truth differ too much to share) and keeps its own issue
+# title/body/labels, since those differ per check too.
 on:
     schedule:
         - cron: "0 12 * * *" # daily at noon UTC
@@ -10,9 +14,16 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 5
         permissions:
+            contents: read
             issues: write
         steps:
+            - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+              with:
+                persist-credentials: false
+                sparse-checkout: tools/release/drift_check.py
+
             - name: Compare GitHub release to PyPI
+              id: drift
               env:
                   GH_TOKEN: ${{ github.token }}
               run: |
@@ -37,23 +48,20 @@ jobs:
                       sys.exit(1)
                   ")
 
-                  echo "GitHub release: v${GITHUB_VERSION}"
-                  echo "PyPI latest:    v${PYPI_VERSION}"
+                  uv run ./tools/release/drift_check.py \
+                      --current "$GITHUB_VERSION" \
+                      --latest "$PYPI_VERSION" \
+                      --label "pypi-drift" \
+                      --label-description "Auto-filed by PyPI drift check workflow"
 
-                  if [ "$GITHUB_VERSION" = "$PYPI_VERSION" ]; then
-                      echo "Versions match — no drift detected"
-                      exit 0
-                  fi
-
-                  # Check if the GitHub release is newer (drift) or older (PyPI ahead somehow)
-                  echo "::error::Version drift detected! GitHub has v${GITHUB_VERSION} but PyPI has v${PYPI_VERSION}"
-
-                  # Check if an issue already exists (label-based dedup, not search-text)
-                  EXISTING=$(gh issue list --repo "$GITHUB_REPOSITORY" --label "pypi-drift" --state open --json number -q '.[0].number' 2>/dev/null || echo "")
-                  if [ -n "$EXISTING" ]; then
-                      echo "Issue #${EXISTING} already open for this drift"
-                      exit 0
-                  fi
+            - name: File tracking issue
+              if: steps.drift.outputs.drift == 'true' && steps.drift.outputs.existing-issue == ''
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  GITHUB_VERSION: ${{ steps.drift.outputs.current }}
+                  PYPI_VERSION: ${{ steps.drift.outputs.latest }}
+              run: |
+                  set -euo pipefail
 
                   gh issue create --repo "$GITHUB_REPOSITORY" \
                       --title "PyPI publish drift: GitHub v${GITHUB_VERSION} vs PyPI v${PYPI_VERSION}" \
@@ -77,3 +85,7 @@ jobs:
                   - GitHub release: [v${GITHUB_VERSION}](https://github.com/${GITHUB_REPOSITORY}/releases/tag/v${GITHUB_VERSION})
                   - PyPI: https://pypi.org/project/hassette/${PYPI_VERSION}/
                   - Detected by: [pypi-drift-check workflow](https://github.com/${GITHUB_REPOSITORY}/actions/workflows/pypi-drift-check.yml)"
+
+            - name: Existing drift issue
+              if: steps.drift.outputs.drift == 'true' && steps.drift.outputs.existing-issue != ''
+              run: echo "Issue #${{ steps.drift.outputs.existing-issue }} already open for this drift"
