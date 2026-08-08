@@ -2,7 +2,7 @@
 prek = "0.4.11"
 python = ["3.14.6"]
 uv = "latest"
-
+java = "21" # PMD CPD (tools/check_duplicate_code.py) is a JVM tool
 
 [env]
 # _.file = '.env'
