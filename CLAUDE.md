@@ -374,6 +374,10 @@ YAML form templates in `.github/ISSUE_TEMPLATE/` enforce structure:
 - `task.yml` — internal work items with acceptance criteria
 - `config.yml` — disables blank issues, points questions to Discussions
 
+## Pull Requests
+
+**CodeRabbit reviews are manual.** Auto-review is disabled (`.coderabbit.yaml`, `auto_review.enabled: false`) — a review firing on every push to an already-open PR is noisy and out of sync with the actual review cadence. After the full PR workflow is complete (commit, push, PR created and marked ready), comment `@coderabbitai review` on the PR to trigger a review.
+
 ## Design Artifacts
 
 Internal design documents live in `design/`, not in `docs/` (which is the readthedocs site).
