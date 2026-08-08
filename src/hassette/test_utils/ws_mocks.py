@@ -8,6 +8,7 @@ separately.
 
 import asyncio
 import time
+import typing
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, cast
 from unittest.mock import AsyncMock, Mock
@@ -86,3 +87,23 @@ def mark_websocket_service_connected(websocket_service: "WebsocketService", *, r
     websocket_service._connection_state = ConnectionState.CONNECTED
     websocket_service._ever_connected = True
     _configure_websocket_external_readiness_primitives(websocket_service)
+
+
+def make_task_bucket_spawn_stub() -> tuple[list[typing.Coroutine], Mock]:
+    """Build a ``task_bucket.spawn`` stub that records coroutines without running them.
+
+    Returns the list that gets populated with each spawned coroutine (callers close()
+    them after the test to suppress ResourceWarning) and the ``Mock`` to assign as
+    ``websocket_service.task_bucket.spawn``.
+    """
+    spawned_coros: list[typing.Coroutine] = []
+
+    def _spawn_side_effect(coro, *, name=None):  # noqa: ARG001
+        spawned_coros.append(coro)
+
+        async def _noop():
+            pass
+
+        return asyncio.create_task(_noop())
+
+    return spawned_coros, Mock(side_effect=_spawn_side_effect)

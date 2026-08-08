@@ -80,6 +80,7 @@ from .web_mocks import create_hassette_stub as create_hassette_stub
 from .web_mocks import create_mock_runtime_query_service as create_mock_runtime_query_service
 from .web_mocks import create_test_fastapi_app as create_test_fastapi_app
 from .ws_mocks import build_fake_ws as build_fake_ws
+from .ws_mocks import make_task_bucket_spawn_stub as make_task_bucket_spawn_stub
 from .ws_mocks import mark_websocket_service_connected as mark_websocket_service_connected
 
 __all__ = [

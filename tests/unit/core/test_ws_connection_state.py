@@ -15,6 +15,11 @@ from hassette.core.websocket_service import WebsocketService
 from hassette.exceptions import InvalidAuthError, InvalidLifecycleTransitionError, RetryableConnectionClosedError
 from hassette.resources.lifecycle import mark_ready
 from hassette.test_utils import make_ws_hassette_stub
+from hassette.test_utils.config import (
+    TEST_EARLY_DROP_BACKOFF_INITIAL_SECONDS,
+    TEST_EARLY_DROP_BACKOFF_MAX_SECONDS,
+    TEST_EARLY_DROP_STABLE_WINDOW_SECONDS,
+)
 from hassette.types.enums import ConnectionState
 
 
@@ -314,10 +319,14 @@ class TestMaxRetriesDisconnects:
 
         websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
         websocket_service.partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
-        websocket_service.hassette.config.websocket.early_drop_max_retries = 1
-        websocket_service.hassette.config.websocket.early_drop_stable_window_seconds = 30.0
-        websocket_service.hassette.config.websocket.early_drop_backoff_initial_seconds = 0.001
-        websocket_service.hassette.config.websocket.early_drop_backoff_max_seconds = 0.01
+        # max_retries=1 is specific to this test (proves DISCONNECTED after budget exhaustion);
+        # the other three values match the shared defaults used across the early-drop test
+        # suite (tests/integration/test_websocket_service.py).
+        ws_config = websocket_service.hassette.config.websocket
+        ws_config.early_drop_max_retries = 1
+        ws_config.early_drop_stable_window_seconds = TEST_EARLY_DROP_STABLE_WINDOW_SECONDS
+        ws_config.early_drop_backoff_initial_seconds = TEST_EARLY_DROP_BACKOFF_INITIAL_SECONDS
+        ws_config.early_drop_backoff_max_seconds = TEST_EARLY_DROP_BACKOFF_MAX_SECONDS
 
         with pytest.raises(RetryableConnectionClosedError):
             await websocket_service.serve()

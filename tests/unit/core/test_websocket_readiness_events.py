@@ -6,7 +6,6 @@ in the serve() reconnect paths.
 
 import asyncio
 import time
-import typing
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -14,7 +13,7 @@ import pytest
 from hassette.core.websocket_service import WebsocketService
 from hassette.exceptions import RetryableConnectionClosedError
 from hassette.resources.lifecycle import mark_ready
-from hassette.test_utils import EventCapture, make_ws_hassette_stub
+from hassette.test_utils import EventCapture, make_task_bucket_spawn_stub, make_ws_hassette_stub
 from hassette.types import Topic
 from hassette.types.enums import ConnectionState
 
@@ -24,26 +23,6 @@ async def websocket_service() -> WebsocketService:
     """Create a WebsocketService with a fully-mocked hassette stub."""
     hassette = make_ws_hassette_stub(sealed=False)
     return WebsocketService(hassette=hassette)
-
-
-def make_task_bucket_spawn_stub() -> tuple[list[typing.Coroutine], Mock]:
-    """Build a ``task_bucket.spawn`` stub that records coroutines without running them.
-
-    Returns the list that gets populated with each spawned coroutine (callers close()
-    them after the test to suppress ResourceWarning) and the ``Mock`` to assign as
-    ``websocket_service.task_bucket.spawn``.
-    """
-    spawned_coros: list[typing.Coroutine] = []
-
-    def _spawn_side_effect(coro, *, name=None):  # noqa: ARG001
-        spawned_coros.append(coro)
-
-        async def _noop():
-            pass
-
-        return asyncio.create_task(_noop())
-
-    return spawned_coros, Mock(side_effect=_spawn_side_effect)
 
 
 class TestWebsocketReadinessEvents:

@@ -22,7 +22,18 @@ from hassette.exceptions import (
     RetryableConnectionClosedError,
 )
 from hassette.resources.base import ResourceStatus
-from hassette.test_utils import EventCapture, build_fake_ws, mark_websocket_service_connected
+from hassette.test_utils import (
+    EventCapture,
+    build_fake_ws,
+    make_task_bucket_spawn_stub,
+    mark_websocket_service_connected,
+)
+from hassette.test_utils.config import (
+    TEST_EARLY_DROP_BACKOFF_INITIAL_SECONDS,
+    TEST_EARLY_DROP_BACKOFF_MAX_SECONDS,
+    TEST_EARLY_DROP_MAX_RETRIES,
+    TEST_EARLY_DROP_STABLE_WINDOW_SECONDS,
+)
 from hassette.types import Topic
 from hassette.types.enums import ConnectionState
 
@@ -564,15 +575,9 @@ async def test_start_recv_and_subscribe_emits_connected_only_after_subscription_
     capture = EventCapture()
     capture.install(websocket_service.hassette)
 
-    fake_task = asyncio.create_task(asyncio.sleep(0))
+    spawned_coros, spawn_stub = make_task_bucket_spawn_stub()
     websocket_service.task_bucket = MagicMock()
-    spawned_coros = []
-
-    def _spawn_side_effect(coro, *, name=None):  # noqa: ARG001
-        spawned_coros.append(coro)
-        return fake_task
-
-    websocket_service.task_bucket.spawn = Mock(side_effect=_spawn_side_effect)
+    websocket_service.task_bucket.spawn = spawn_stub
     websocket_service._emit_readiness_event = AsyncMock()
     websocket_service._connection_state = ConnectionState.CONNECTING
 
@@ -584,7 +589,7 @@ async def test_start_recv_and_subscribe_emits_connected_only_after_subscription_
 
     websocket_service.subscribe_events = AsyncMock(side_effect=fake_subscribe_events)
 
-    await websocket_service.start_recv_and_subscribe()
+    result_task = await websocket_service.start_recv_and_subscribe()
 
     assert websocket_service.is_connected is True
     assert websocket_service.has_ever_connected is True
@@ -593,7 +598,7 @@ async def test_start_recv_and_subscribe_emits_connected_only_after_subscription_
     assert capture.by_topic(Topic.HASSETTE_EVENT_WEBSOCKET_CONNECTED)
     for coro in spawned_coros:
         coro.close()
-    fake_task.cancel()
+    result_task.cancel()
 
 
 async def test_subscription_failure_before_external_readiness_leaves_history_false_and_emits_no_public_signal(
@@ -603,15 +608,9 @@ async def test_subscription_failure_before_external_readiness_leaves_history_fal
     capture = EventCapture()
     capture.install(websocket_service.hassette)
 
-    fake_task = asyncio.create_task(asyncio.sleep(0))
+    spawned_coros, spawn_stub = make_task_bucket_spawn_stub()
     websocket_service.task_bucket = MagicMock()
-    spawned_coros = []
-
-    def _spawn_side_effect(coro, *, name=None):  # noqa: ARG001
-        spawned_coros.append(coro)
-        return fake_task
-
-    websocket_service.task_bucket.spawn = Mock(side_effect=_spawn_side_effect)
+    websocket_service.task_bucket.spawn = spawn_stub
     websocket_service._connection_state = ConnectionState.CONNECTING
     websocket_service.subscribe_events = AsyncMock(side_effect=FailedMessageError("subscribe failed"))
 
@@ -626,7 +625,7 @@ async def test_subscription_failure_before_external_readiness_leaves_history_fal
     assert capture.by_topic(Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED) == []
     for coro in spawned_coros:
         coro.close()
-    fake_task.cancel()
+    websocket_service._recv_task.cancel()
 
 
 async def test_pre_readiness_failure_after_prior_disconnect_emits_no_second_public_disconnect(
@@ -721,6 +720,96 @@ async def test_partial_cleanup_timeout_on_gather(websocket_service: WebsocketSer
         await asyncio.gather(stuck_task, return_exceptions=True)
 
 
+class FailingConnection:
+    """Callable ``make_connection`` stub that fails the recv task N times, then succeeds.
+
+    Collapses the near-identical ``fake_make_connection`` closures duplicated across the
+    early-drop test suite (issue #1493) into one parametrized helper.
+
+    Each call sets ``_connected_at`` to ``time.monotonic() - connected_at_offset`` and marks
+    the service connected before returning a task. The task raises ``error`` for the first
+    ``fail_after`` calls (or forever when ``fail_after`` is ``None``); after that it exits
+    cleanly — unless ``final_error`` is given, in which case call number ``fail_after + 1``
+    raises ``final_error`` synchronously instead of returning a task at all (simulating e.g.
+    an auth failure discovered on the reconnect attempt itself, rather than inside the
+    retryable recv loop).
+
+    Pass ``mark_fully_connected=True`` for tests that assert on the public
+    WEBSOCKET_DISCONNECTED signal — it wires the full external-readiness state via
+    ``mark_websocket_service_connected`` (which flips ``_ever_connected``) instead of only
+    lifecycle ``mark_ready``, matching what the ``has_ever_connected`` guard on that signal
+    requires. Other tests only need lifecycle readiness, so that's the default.
+
+    ``call_count`` is mutated in place so callers can assert on it after ``serve()`` returns.
+    """
+
+    def __init__(
+        self,
+        websocket_service: WebsocketService,
+        *,
+        fail_after: int | None,
+        error: Exception,
+        connected_at_offset: float = 0.0,
+        final_error: Exception | None = None,
+        mark_fully_connected: bool = False,
+    ) -> None:
+        self.websocket_service = websocket_service
+        self.fail_after = fail_after
+        self.error = error
+        self.connected_at_offset = connected_at_offset
+        self.final_error = final_error
+        self.mark_fully_connected = mark_fully_connected
+        self.call_count = 0
+
+    async def __call__(self, _session: object) -> asyncio.Task:
+        self.call_count += 1
+        call_count = self.call_count
+        ws = self.websocket_service
+
+        if self.final_error is not None and self.fail_after is not None and call_count == self.fail_after + 1:
+            raise self.final_error
+
+        ws._connected_at = time.monotonic() - self.connected_at_offset
+        if self.mark_fully_connected:
+            mark_websocket_service_connected(ws, reason="test: simulating successful connection")
+        else:
+            lifecycle_module.mark_ready(ws, reason="test: simulating successful connection")
+
+        if self.fail_after is None or call_count <= self.fail_after:
+            error = self.error
+
+            async def _fail() -> None:
+                raise error
+
+            return asyncio.create_task(_fail())
+
+        async def _clean() -> None:
+            pass
+
+        return asyncio.create_task(_clean())
+
+
+def apply_early_drop_config(
+    monkeypatch: pytest.MonkeyPatch,
+    websocket_service: WebsocketService,
+    *,
+    max_retries: int = TEST_EARLY_DROP_MAX_RETRIES,
+    stable_window_seconds: float = TEST_EARLY_DROP_STABLE_WINDOW_SECONDS,
+    backoff_initial_seconds: float = TEST_EARLY_DROP_BACKOFF_INITIAL_SECONDS,
+    backoff_max_seconds: float = TEST_EARLY_DROP_BACKOFF_MAX_SECONDS,
+) -> None:
+    """Patch the four early-drop config knobs on ``websocket_service.hassette.config.websocket``.
+
+    Defaults match the shared test constants (``hassette.test_utils.config``); pass an override
+    only for the value a given test needs to differ (e.g. proving retry-budget exhaustion).
+    """
+    config = websocket_service.hassette.config.websocket
+    monkeypatch.setattr(config, "early_drop_max_retries", max_retries)
+    monkeypatch.setattr(config, "early_drop_stable_window_seconds", stable_window_seconds)
+    monkeypatch.setattr(config, "early_drop_backoff_initial_seconds", backoff_initial_seconds)
+    monkeypatch.setattr(config, "early_drop_backoff_max_seconds", backoff_max_seconds)
+
+
 async def test_early_drop_retries_and_succeeds(
     monkeypatch: pytest.MonkeyPatch,
     websocket_service: WebsocketService,
@@ -736,30 +825,14 @@ async def test_early_drop_retries_and_succeeds(
 
     # First two make_connection calls succeed but recv task fails immediately.
     # Third call succeeds with clean exit.
-    call_count = 0
     partial_cleanup_count = 0
-    make_connection_count = 0
 
-    async def fake_make_connection(_session):
-        nonlocal call_count, make_connection_count
-        call_count += 1
-        make_connection_count += 1
-        # Simulate _connected_at being set (within stable window) and mark_ready
-        websocket_service._connected_at = time.monotonic()
-        # Real start_recv_and_subscribe sets CONNECTED via set_connection_state, which flips
-        # _ever_connected; mirror that so the has_ever_connected guard lets DISCONNECTED through.
-        mark_websocket_service_connected(websocket_service, reason="test: simulating successful connection")
-        if call_count <= 2:
-
-            async def _fail():
-                raise RetryableConnectionClosedError("peer gone")
-
-            return asyncio.create_task(_fail())
-
-        async def _clean():
-            pass
-
-        return asyncio.create_task(_clean())
+    fake_make_connection = FailingConnection(
+        websocket_service,
+        fail_after=2,
+        error=RetryableConnectionClosedError("peer gone"),
+        mark_fully_connected=True,
+    )
 
     async def fake_partial_cleanup():
         nonlocal partial_cleanup_count
@@ -767,14 +840,13 @@ async def test_early_drop_retries_and_succeeds(
 
     websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
     websocket_service.partial_cleanup = fake_partial_cleanup  # pyright: ignore[reportAttributeAccessIssue]
-    monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_max_retries", 5)
-    monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_stable_window_seconds", 30.0)
-    monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_backoff_initial_seconds", 0.001)
-    monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_backoff_max_seconds", 0.01)
+    apply_early_drop_config(monkeypatch, websocket_service)
 
     await websocket_service.serve()
 
-    assert make_connection_count == 3, f"Expected 3 make_connection calls, got {make_connection_count}"
+    assert fake_make_connection.call_count == 3, (
+        f"Expected 3 make_connection calls, got {fake_make_connection.call_count}"
+    )
     assert partial_cleanup_count == 2, f"Expected 2 partial_cleanup calls, got {partial_cleanup_count}"
 
     # DISCONNECTED should have been sent 2 times (once per early drop)
@@ -789,31 +861,24 @@ async def test_early_drop_exhausts_retry_budget(
     """After exhausting early-drop retry count, exception propagates out of serve()."""
     websocket_service.hassette.send_event = AsyncMock()
 
-    call_count = 0
-
-    async def fake_make_connection(_session):
-        nonlocal call_count
-        call_count += 1
-        websocket_service._connected_at = time.monotonic()
-        lifecycle_module.mark_ready(websocket_service, reason="test: simulating successful connection")
-
-        async def _fail():
-            raise RetryableConnectionClosedError("dropped")
-
-        return asyncio.create_task(_fail())
+    fake_make_connection = FailingConnection(
+        websocket_service,
+        fail_after=None,
+        error=RetryableConnectionClosedError("dropped"),
+    )
 
     websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
     websocket_service.partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
-    monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_max_retries", 2)
-    monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_stable_window_seconds", 30.0)
-    monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_backoff_initial_seconds", 0.001)
-    monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_backoff_max_seconds", 0.01)
+    # max_retries=2 is specific to this test (proves the budget is exhausted).
+    apply_early_drop_config(monkeypatch, websocket_service, max_retries=2)
 
     with pytest.raises(RetryableConnectionClosedError):
         await websocket_service.serve()
 
     # Initial + 2 retries = 3 total attempts, then propagates
-    assert call_count == 3, f"Expected 3 total make_connection calls, got {call_count}"
+    assert fake_make_connection.call_count == 3, (
+        f"Expected 3 total make_connection calls, got {fake_make_connection.call_count}"
+    )
     assert not websocket_service.is_ready()
 
 
@@ -824,34 +889,27 @@ async def test_early_drop_exhausts_recovery_timeout(
     """When recovery_elapsed exceeds max_recovery, failure propagates without further retry."""
     websocket_service.hassette.send_event = AsyncMock()
 
-    call_count = 0
-
-    async def fake_make_connection(_session):
-        nonlocal call_count
-        call_count += 1
-        websocket_service._connected_at = time.monotonic()
-        lifecycle_module.mark_ready(websocket_service, reason="test: simulating successful connection")
-
-        async def _fail():
-            raise RetryableConnectionClosedError("dropped")
-
-        return asyncio.create_task(_fail())
+    fake_make_connection = FailingConnection(
+        websocket_service,
+        fail_after=None,
+        error=RetryableConnectionClosedError("dropped"),
+    )
 
     websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
     websocket_service.partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
-    # Configure very short max recovery (effectively 0)
-    monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_max_retries", 10)
-    monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_stable_window_seconds", 30.0)
+    # max_retries=10 and max_recovery_seconds=0.0 are specific to this test (a huge retry
+    # budget that the recovery timeout — not the retry count — should cut off first).
+    apply_early_drop_config(monkeypatch, websocket_service, max_retries=10)
     monkeypatch.setattr(websocket_service.hassette.config.websocket, "max_recovery_seconds", 0.0)
-    monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_backoff_initial_seconds", 0.001)
-    monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_backoff_max_seconds", 0.01)
 
     with pytest.raises(RetryableConnectionClosedError):
         await websocket_service.serve()
 
     # Should have made only 1 attempt then stopped due to recovery timeout
-    assert call_count == 1, f"Expected 1 make_connection call (recovery timeout), got {call_count}"
+    assert fake_make_connection.call_count == 1, (
+        f"Expected 1 make_connection call (recovery timeout), got {fake_make_connection.call_count}"
+    )
 
 
 async def test_stable_connection_failure_propagates_immediately(
@@ -861,28 +919,28 @@ async def test_stable_connection_failure_propagates_immediately(
     """A drop outside the stable window propagates immediately without retry."""
     websocket_service.hassette.send_event = AsyncMock()
 
-    call_count = 0
-
-    async def fake_make_connection(_session):
-        nonlocal call_count
-        call_count += 1
-        # Set _connected_at to 60 seconds ago — outside any stable window
-        websocket_service._connected_at = time.monotonic() - 60.0
-        lifecycle_module.mark_ready(websocket_service, reason="test: simulating successful connection")
-
-        async def _fail():
-            raise RetryableConnectionClosedError("stable drop")
-
-        return asyncio.create_task(_fail())
+    # connected_at_offset=60.0 puts _connected_at 60 seconds in the past — outside any stable window.
+    fake_make_connection = FailingConnection(
+        websocket_service,
+        fail_after=None,
+        error=RetryableConnectionClosedError("stable drop"),
+        connected_at_offset=60.0,
+    )
 
     websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
-    monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_stable_window_seconds", 30.0)
+    monkeypatch.setattr(
+        websocket_service.hassette.config.websocket,
+        "early_drop_stable_window_seconds",
+        TEST_EARLY_DROP_STABLE_WINDOW_SECONDS,
+    )
 
     with pytest.raises(RetryableConnectionClosedError):
         await websocket_service.serve()
 
     # Only 1 attempt — stable drop doesn't retry
-    assert call_count == 1, f"Expected 1 make_connection call, got {call_count}"
+    assert fake_make_connection.call_count == 1, (
+        f"Expected 1 make_connection call, got {fake_make_connection.call_count}"
+    )
 
 
 async def test_non_retryable_exception_in_stable_window(
@@ -892,26 +950,25 @@ async def test_non_retryable_exception_in_stable_window(
     """RuntimeError within stable window propagates immediately — not an early drop."""
     websocket_service.hassette.send_event = AsyncMock()
 
-    call_count = 0
-
-    async def fake_make_connection(_session):
-        nonlocal call_count
-        call_count += 1
-        websocket_service._connected_at = time.monotonic()
-        lifecycle_module.mark_ready(websocket_service, reason="test: simulating successful connection")
-
-        async def _fail():
-            raise RuntimeError("unexpected internal error")
-
-        return asyncio.create_task(_fail())
+    fake_make_connection = FailingConnection(
+        websocket_service,
+        fail_after=None,
+        error=RuntimeError("unexpected internal error"),
+    )
 
     websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
-    monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_stable_window_seconds", 30.0)
+    monkeypatch.setattr(
+        websocket_service.hassette.config.websocket,
+        "early_drop_stable_window_seconds",
+        TEST_EARLY_DROP_STABLE_WINDOW_SECONDS,
+    )
 
     with pytest.raises(RuntimeError):
         await websocket_service.serve()
 
-    assert call_count == 1, f"Expected 1 make_connection call, got {call_count}"
+    assert fake_make_connection.call_count == 1, (
+        f"Expected 1 make_connection call, got {fake_make_connection.call_count}"
+    )
 
 
 async def test_auth_failure_on_reconnect_logs_distinctive_message(
@@ -921,33 +978,21 @@ async def test_auth_failure_on_reconnect_logs_distinctive_message(
     """InvalidAuthError after at least one early-drop retry propagates and leaves DISCONNECTED."""
     websocket_service.hassette.send_event = AsyncMock()
 
-    call_count = 0
-
-    async def fake_make_connection(_session):
-        nonlocal call_count
-        call_count += 1
-
-        if call_count == 1:
-            websocket_service._connected_at = time.monotonic()
-            lifecycle_module.mark_ready(websocket_service, reason="test: simulating successful connection")
-
-            async def _fail():
-                raise RetryableConnectionClosedError("dropped")
-
-            return asyncio.create_task(_fail())
-        raise InvalidAuthError("token revoked")
+    fake_make_connection = FailingConnection(
+        websocket_service,
+        fail_after=1,
+        error=RetryableConnectionClosedError("dropped"),
+        final_error=InvalidAuthError("token revoked"),
+    )
 
     websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
     websocket_service.partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
-    monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_max_retries", 5)
-    monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_stable_window_seconds", 30.0)
-    monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_backoff_initial_seconds", 0.001)
-    monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_backoff_max_seconds", 0.01)
+    apply_early_drop_config(monkeypatch, websocket_service)
 
     with pytest.raises(InvalidAuthError):
         await websocket_service.serve()
 
-    assert call_count >= 2
+    assert fake_make_connection.call_count >= 2
     assert websocket_service.connection_state == ConnectionState.DISCONNECTED
 
 
@@ -1030,25 +1075,12 @@ async def test_service_status_stays_running_during_early_drop(
     websocket_service.hassette.send_event = AsyncMock()
 
     statuses_during_retry: list[tuple[ResourceStatus, bool]] = []
-    call_count = 0
 
-    async def fake_make_connection(_session):
-        nonlocal call_count
-        call_count += 1
-        websocket_service._connected_at = time.monotonic()
-        lifecycle_module.mark_ready(websocket_service, reason="test: simulating successful connection")
-
-        if call_count == 1:
-
-            async def _fail():
-                raise RetryableConnectionClosedError("dropped")
-
-            return asyncio.create_task(_fail())
-
-        async def _clean():
-            pass
-
-        return asyncio.create_task(_clean())
+    fake_make_connection = FailingConnection(
+        websocket_service,
+        fail_after=1,
+        error=RetryableConnectionClosedError("dropped"),
+    )
 
     original_mark_not_ready = lifecycle_module.mark_not_ready
 
@@ -1058,10 +1090,7 @@ async def test_service_status_stays_running_during_early_drop(
 
     websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
     websocket_service.partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
-    monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_max_retries", 5)
-    monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_stable_window_seconds", 30.0)
-    monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_backoff_initial_seconds", 0.001)
-    monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_backoff_max_seconds", 0.01)
+    apply_early_drop_config(monkeypatch, websocket_service)
 
     # Set service to RUNNING state using ._status bypass — deliberate test fixture setup,
     # not a lifecycle operation. handle_running() requires STARTING → RUNNING which needs
