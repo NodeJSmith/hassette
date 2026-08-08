@@ -11,6 +11,12 @@ concurrency:
 
 # Complements ha-version-staleness in lint.yml (per-PR warning annotation).
 # This workflow files a tracking issue so drift is visible even without PRs.
+#
+# Structural sibling of pypi-drift-check.yml and docker-drift-check.yml — shares
+# tools/release/drift_check.py for the compare/dedup logic. Unlike the other two, this workflow
+# also updates the tracking issue on repeat drift and auto-closes it once the pin catches up
+# (last two steps below) — that behavior is specific to this workflow and isn't part of the
+# shared script (see #1474).
 jobs:
     check-drift:
         runs-on: ubuntu-latest
@@ -22,9 +28,12 @@ jobs:
             - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
               with:
                 persist-credentials: false
-                sparse-checkout: codegen/ha-version.txt
+                sparse-checkout: |
+                    codegen/ha-version.txt
+                    tools/release/drift_check.py
 
             - name: Compare pinned HA version to latest release
+              id: drift
               env:
                   GH_TOKEN: ${{ github.token }}
               run: |
@@ -37,39 +46,20 @@ jobs:
                       exit 0
                   fi
 
-                  echo "Pinned: $PINNED"
-                  echo "Latest: $LATEST"
+                  uv run ./tools/release/drift_check.py \
+                      --current "$PINNED" \
+                      --latest "$LATEST" \
+                      --label "ha-version-drift" \
+                      --label-description "Codegen HA version pin is behind latest release"
 
-                  if [ "$PINNED" = "$LATEST" ]; then
-                      echo "Versions match — no drift"
-
-                      # Close any stale drift issue
-                      EXISTING=$(gh issue list --repo "$GITHUB_REPOSITORY" --label "ha-version-drift" --state open --json number -q '.[0].number' 2>/dev/null || echo "")
-                      if [ -n "$EXISTING" ]; then
-                          gh issue close "$EXISTING" --repo "$GITHUB_REPOSITORY" \
-                              --comment "Pinned version now matches latest HA release ($LATEST). Closing automatically."
-                          echo "Closed stale drift issue #${EXISTING}"
-                      fi
-                      exit 0
-                  fi
-
-                  echo "::warning::Pinned HA version ($PINNED) is behind latest ($LATEST)"
-
-                  # Check for existing open issue (label-based dedup)
-                  EXISTING=$(gh issue list --repo "$GITHUB_REPOSITORY" --label "ha-version-drift" --state open --json number -q '.[0].number' 2>/dev/null || echo "")
-                  if [ -n "$EXISTING" ]; then
-                      gh issue comment "$EXISTING" --repo "$GITHUB_REPOSITORY" \
-                          --body "Still behind: pinned \`$PINNED\`, latest \`$LATEST\` (checked $(date -u +%Y-%m-%d))"
-                      echo "Updated existing issue #${EXISTING}"
-                      exit 0
-                  fi
-
-                  # Ensure the label exists
-                  gh label create "ha-version-drift" \
-                      --repo "$GITHUB_REPOSITORY" \
-                      --description "Codegen HA version pin is behind latest release" \
-                      --color "d93f0b" \
-                      2>/dev/null || true
+            - name: File tracking issue
+              if: steps.drift.outputs.drift == 'true' && steps.drift.outputs.existing-issue == ''
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  PINNED: ${{ steps.drift.outputs.current }}
+                  LATEST: ${{ steps.drift.outputs.latest }}
+              run: |
+                  set -euo pipefail
 
                   gh issue create --repo "$GITHUB_REPOSITORY" \
                       --title "Codegen HA version drift: pinned $PINNED, latest is $LATEST" \
@@ -98,3 +88,34 @@ jobs:
                   - Detected by: [ha-version-drift workflow](https://github.com/$GITHUB_REPOSITORY/actions/workflows/ha-version-drift.yml)
 
                   This issue will be updated daily until the pin is bumped, and closed automatically when versions match."
+
+            - name: Update existing tracking issue
+              if: steps.drift.outputs.drift == 'true' && steps.drift.outputs.existing-issue != ''
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  EXISTING: ${{ steps.drift.outputs.existing-issue }}
+                  PINNED: ${{ steps.drift.outputs.current }}
+                  LATEST: ${{ steps.drift.outputs.latest }}
+              run: |
+                  set -euo pipefail
+
+                  gh issue comment "$EXISTING" --repo "$GITHUB_REPOSITORY" \
+                      --body "Still behind: pinned \`$PINNED\`, latest \`$LATEST\` (checked $(date -u +%Y-%m-%d))"
+                  echo "Updated existing issue #${EXISTING}"
+
+            # Not part of the shared script: pypi/docker have no equivalent "auto-close on
+            # resync" branch, so this stays as a documented per-workflow extension (see #1474).
+            # existing-issue is populated by drift_check.py regardless of drift, so no extra
+            # `gh issue list` lookup is needed here.
+            - name: Close stale tracking issue on resync
+              if: steps.drift.outputs.drift == 'false' && steps.drift.outputs.existing-issue != ''
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  EXISTING: ${{ steps.drift.outputs.existing-issue }}
+                  LATEST: ${{ steps.drift.outputs.latest }}
+              run: |
+                  set -euo pipefail
+
+                  gh issue close "$EXISTING" --repo "$GITHUB_REPOSITORY" \
+                      --comment "Pinned version now matches latest HA release ($LATEST). Closing automatically."
+                  echo "Closed stale drift issue #${EXISTING}"
