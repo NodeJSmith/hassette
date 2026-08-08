@@ -103,7 +103,7 @@ Acceptance criteria:
 
 ## KI-003: The demo auth token `"demo-token"` is hardcoded independently in three files with no single source of truth
 
-Status: filed (#1523)
+Status: resolved (#1523)
 Run: 54
 Source: clean-code
 Reason not fixed now: out-of-scope
@@ -186,7 +186,7 @@ Acceptance criteria:
 
 ## KI-005: Repeated trusted-peer/renewal request-building sequence in `test_auth.py` is not extracted to a helper
 
-Status: filed (#1524)
+Status: resolved (#1524)
 Run: 54
 Source: clean-code
 Reason not fixed now: out-of-scope

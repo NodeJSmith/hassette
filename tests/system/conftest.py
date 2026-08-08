@@ -18,6 +18,7 @@ from pathlib import Path
 
 import httpx2 as httpx
 import pytest
+from dotenv import dotenv_values
 from pydantic_settings import SettingsConfigDict
 from websockets.sync.client import connect
 
@@ -33,7 +34,13 @@ logger = logging.getLogger(__name__)
 COMPOSE_FILE = Path(__file__).parent / "docker-compose.yml"
 FIXTURE_DIR = Path(__file__).parent.parent / "fixtures" / "ha-config"
 HA_URL = "http://localhost:18123"
-HA_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiIwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMyIsImlhdCI6MTczNTY4OTYwMCwiZXhwIjoyMDUxMDQ5NjAwfQ.q-p85dOe-MMnKQhSNh_LEWnWJGK-GA3xdmqb4LKvkU0"  # noqa: E501 — JWT cannot be line-wrapped
+
+# Single source of truth: scripts/docker/.env (tests/system/.env symlinks to it).
+_DEMO_ENV_PATH = Path(__file__).parent / ".env"
+_DEMO_ENV = dotenv_values(_DEMO_ENV_PATH)
+HA_TOKEN = _DEMO_ENV.get("HA_ACCESS_TOKEN")
+if not HA_TOKEN:
+    raise RuntimeError(f"HA_ACCESS_TOKEN not found in {_DEMO_ENV_PATH}")
 HA_CONTAINER_NAME = "hassette-system-ha"
 STARTUP_TIMEOUT = 60  # seconds
 SHUTDOWN_TIMEOUT = 30  # seconds — matches Hassette's total_shutdown_timeout_seconds

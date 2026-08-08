@@ -7,8 +7,9 @@ services:
     ports:
       - "18123:8123"
     restart: "no"
-    # HA_ACCESS_TOKEN (.env, symlinked from scripts/docker/.env) must match
-    # tests/fixtures/ha-config/.storage/auth and conftest.py's HA_TOKEN constant.
+    # HA_ACCESS_TOKEN (.env, symlinked from scripts/docker/.env) must match the
+    # token baked into tests/fixtures/ha-config/.storage/auth. conftest.py's
+    # HA_TOKEN reads the same .env file, so it no longer needs a separate sync note.
     healthcheck:
       test:
         [

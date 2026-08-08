@@ -18,6 +18,7 @@ import logging
 import time
 from collections.abc import Generator
 from pathlib import Path
+from typing import Literal
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -111,7 +112,7 @@ async def _request_from_peer(
     peer: str,
     *,
     trusted_proxies,
-    method: str = "get",
+    method: Literal["get", "post"] = "get",
     path: str = "/api/config",
     headers: dict[str, str] | None = None,
     json: dict | None = None,
