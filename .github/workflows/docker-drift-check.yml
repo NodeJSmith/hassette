@@ -1,8 +1,9 @@
 name: Docker Drift Check
 
-# Structural sibling of pypi-drift-check.yml (same compare/dedup/file-issue shape, applied
-# to GHCR instead of PyPI) and ha-version-drift.yml. Keep drift-check behavior changes
-# (dedup logic, label creation, exit semantics) in sync across all three.
+# Structural sibling of pypi-drift-check.yml and ha-version-drift.yml — all three share
+# tools/release/drift_check.py for the compare/dedup logic. Each workflow still fetches its own
+# current/latest values (the sources of truth differ too much to share) and keeps its own issue
+# title/body/labels, since those differ per check too.
 on:
     schedule:
         - cron: "0 12 * * *" # daily at noon UTC
@@ -16,7 +17,13 @@ jobs:
             issues: write
             packages: read
         steps:
+            - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+              with:
+                persist-credentials: false
+                sparse-checkout: tools/release/drift_check.py
+
             - name: Compare GitHub release to GHCR image tags
+              id: drift
               env:
                   GH_TOKEN: ${{ github.token }}
               run: |
@@ -30,6 +37,10 @@ jobs:
                   fi
                   GITHUB_VERSION="${GITHUB_TAG#v}"
                   EXPECTED_TAG="${GITHUB_VERSION}-py3.13"
+                  # Plain (not the delimiter-safe form drift_check.py's outputs use below): this
+                  # value comes from this repo's own release tag, not an external registry, so the
+                  # injection risk that motivates the heredoc form there doesn't apply here.
+                  echo "version=${GITHUB_VERSION}" >> "$GITHUB_OUTPUT"
 
                   echo "GitHub release: v${GITHUB_VERSION}"
                   echo "Checking GHCR for tag: ${EXPECTED_TAG}"
@@ -46,25 +57,25 @@ jobs:
                   fi
 
                   if echo "$TAGS" | grep -qx "$EXPECTED_TAG"; then
-                      echo "GHCR has ${EXPECTED_TAG} — no drift detected"
-                      exit 0
+                      FOUND_TAG="$EXPECTED_TAG"
+                  else
+                      FOUND_TAG="not-in-registry"
                   fi
 
-                  echo "::error::Docker drift detected! GitHub has v${GITHUB_VERSION} but GHCR has no ${EXPECTED_TAG} image"
+                  uv run ./tools/release/drift_check.py \
+                      --current "$EXPECTED_TAG" \
+                      --latest "$FOUND_TAG" \
+                      --label "docker-drift" \
+                      --label-description "Docker image publish is missing for the latest release"
 
-                  # Check if an issue already exists (label-based dedup, not search-text)
-                  EXISTING=$(gh issue list --repo "$GITHUB_REPOSITORY" --label "docker-drift" --state open --json number -q '.[0].number' 2>/dev/null || echo "")
-                  if [ -n "$EXISTING" ]; then
-                      echo "Issue #${EXISTING} already open for this drift"
-                      exit 0
-                  fi
-
-                  # Ensure the label exists
-                  gh label create "docker-drift" \
-                      --repo "$GITHUB_REPOSITORY" \
-                      --description "Docker image publish is missing for the latest release" \
-                      --color "d93f0b" \
-                      2>/dev/null || true
+            - name: File tracking issue
+              if: steps.drift.outputs.drift == 'true' && steps.drift.outputs.existing-issue == ''
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  GITHUB_VERSION: ${{ steps.drift.outputs.version }}
+                  EXPECTED_TAG: ${{ steps.drift.outputs.current }}
+              run: |
+                  set -euo pipefail
 
                   gh issue create --repo "$GITHUB_REPOSITORY" \
                       --title "Docker publish drift: GitHub v${GITHUB_VERSION} missing from GHCR" \
@@ -88,3 +99,7 @@ jobs:
                   - GitHub release: [v${GITHUB_VERSION}](https://github.com/${GITHUB_REPOSITORY}/releases/tag/v${GITHUB_VERSION})
                   - GHCR: https://github.com/${GITHUB_REPOSITORY}/pkgs/container/hassette
                   - Detected by: [docker-drift-check workflow](https://github.com/${GITHUB_REPOSITORY}/actions/workflows/docker-drift-check.yml)"
+
+            - name: Existing drift issue
+              if: steps.drift.outputs.drift == 'true' && steps.drift.outputs.existing-issue != ''
+              run: echo "Issue #${{ steps.drift.outputs.existing-issue }} already open for this drift"
