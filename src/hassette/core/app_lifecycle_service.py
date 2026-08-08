@@ -3,6 +3,7 @@
 import asyncio
 import typing
 from copy import deepcopy
+from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 from timeit import default_timer as timer
@@ -59,6 +60,21 @@ class AppAdmissionMode(StrEnum):
     REJECT_IF_UNRELEASED = "reject_if_unreleased"
 
 
+@dataclass
+class PendingReconciliation:
+    """A deferred app-config reconciliation, queued while bootstrap release hasn't opened yet.
+
+    Presence of an instance (vs. ``None``) on ``AppLifecycleService._pending_reconciliation``
+    is the "is one queued?" signal — see ``_record_pre_release_reconciliation`` and
+    ``_take_pre_release_reconciliation``, which are the only code that constructs, merges, or
+    clears this record.
+    """
+
+    original_apps_config: dict[str, "AppManifest"]
+    current_apps_config: dict[str, "AppManifest"]
+    changed_paths: frozenset[Path] | None
+
+
 class AppLifecycleService(Resource):
     """Manages app lifecycle orchestration, change detection, and event emission.
 
@@ -95,15 +111,12 @@ class AppLifecycleService(Resource):
         self.registry = registry
         self.factory = AppFactory(hassette, self.registry)
         self.change_detector = AppChangeDetector()
-        self._pending_pre_release_reconciliation = False
-        self._pending_pre_release_original_apps_config: dict[str, AppManifest] | None = None
-        self._pending_pre_release_current_apps_config: dict[str, AppManifest] | None = None
-        self._pending_pre_release_changed_paths: frozenset[Path] | None = None
+        self._pending_reconciliation: PendingReconciliation | None = None
         # Bus dispatch spawns a fresh task per handler invocation rather than awaiting handlers
         # sequentially (see BusService._dispatch), so two file-watcher events arriving close
         # together can produce two concurrently-running handle_change_event() coroutines. Each
-        # does real awaited I/O (refresh_config(), resolve_only_apps()) before touching the
-        # shared _pending_pre_release_* fields, and refresh_config() mutates self.registry.manifests
+        # does real awaited I/O (refresh_config(), resolve_only_apps()) before touching
+        # ``_pending_reconciliation``, and refresh_config() mutates self.registry.manifests
         # in place — so overlapping calls can race on the "what was the world like before this
         # change" snapshot. This lock serializes handle_change_event so only one reconciliation
         # pass runs at a time, matching the "single reconciliation in flight" model the rest of
@@ -373,31 +386,38 @@ class AppLifecycleService(Resource):
         curr_apps_config: dict[str, "AppManifest"],
         changed_file_paths: frozenset[Path] | None,
     ) -> None:
-        had_pending_reconciliation = self._pending_pre_release_reconciliation
-        if not had_pending_reconciliation:
-            self._pending_pre_release_original_apps_config = original_apps_config
-        self._pending_pre_release_reconciliation = True
-        self._pending_pre_release_current_apps_config = curr_apps_config
-        if changed_file_paths is None:
-            self._pending_pre_release_changed_paths = None
-        elif not had_pending_reconciliation:
-            self._pending_pre_release_changed_paths = changed_file_paths
-        elif self._pending_pre_release_changed_paths is None:
-            self._pending_pre_release_changed_paths = None
+        pending = self._pending_reconciliation
+
+        if pending is None:
+            # First deferred change since the queue was last taken: this call's own baseline
+            # and paths become the queue's baseline and paths.
+            merged_original = original_apps_config
+            merged_paths = changed_file_paths
+        elif changed_file_paths is None or pending.changed_paths is None:
+            # Either this call or a previous one couldn't scope its paths, so the merged scope
+            # degrades to "unknown" (None means "assume everything may have changed").
+            merged_original = pending.original_apps_config
+            merged_paths = None
         else:
-            self._pending_pre_release_changed_paths |= changed_file_paths
+            # Keep the original pre-existing baseline (the "before" snapshot from the first
+            # deferred change), union the newly-touched paths onto the ones already queued.
+            merged_original = pending.original_apps_config
+            merged_paths = pending.changed_paths | changed_file_paths
+
+        self._pending_reconciliation = PendingReconciliation(
+            original_apps_config=merged_original,
+            current_apps_config=curr_apps_config,
+            changed_paths=merged_paths,
+        )
 
     def _take_pre_release_reconciliation(
         self,
     ) -> tuple[dict[str, "AppManifest"] | None, dict[str, "AppManifest"] | None, frozenset[Path] | None]:
-        original_apps_config = self._pending_pre_release_original_apps_config
-        curr_apps_config = self._pending_pre_release_current_apps_config
-        changed_file_paths = self._pending_pre_release_changed_paths
-        self._pending_pre_release_reconciliation = False
-        self._pending_pre_release_original_apps_config = None
-        self._pending_pre_release_current_apps_config = None
-        self._pending_pre_release_changed_paths = None
-        return original_apps_config, curr_apps_config, changed_file_paths
+        pending = self._pending_reconciliation
+        self._pending_reconciliation = None
+        if pending is None:
+            return None, None, None
+        return pending.original_apps_config, pending.current_apps_config, pending.changed_paths
 
     async def bootstrap_apps(self, *, admission_mode: AppAdmissionMode) -> None:
         """Initialize all configured and enabled apps, called at AppHandler startup.
@@ -616,7 +636,7 @@ class AppLifecycleService(Resource):
         Called as a Bus event handler with DI-injected ``changed_file_paths``. Serialized by
         ``self._change_event_lock`` — this listener runs in the bus's ``parallel`` execution
         mode (framework tier), so two file-watcher events dispatched close together would
-        otherwise run this method concurrently and race on ``_pending_pre_release_*`` and on
+        otherwise run this method concurrently and race on ``_pending_reconciliation`` and on
         ``refresh_config()``'s in-place mutation of ``self.registry.manifests``.
         """
         async with self._change_event_lock:
@@ -625,7 +645,7 @@ class AppLifecycleService(Resource):
             original_apps_config, curr_apps_config = await self.refresh_config()
             await self.resolve_only_apps()
 
-            if self.bootstrap_coordinator.is_released() and self._pending_pre_release_reconciliation:
+            if self.bootstrap_coordinator.is_released() and self._pending_reconciliation is not None:
                 # A pre-release change is still queued. Fold it into this diff's baseline so the
                 # comparison spans everything since before release, then clear the queue — otherwise
                 # bootstrap's later replay would apply that stale snapshot on top of a config it no
@@ -685,11 +705,11 @@ class AppLifecycleService(Resource):
         return original_apps_config, curr_apps_config
 
     async def _replay_pre_release_reconciliation_if_needed(self) -> None:
-        # Shares _pending_pre_release_* state with handle_change_event(), which serializes on
+        # Shares _pending_reconciliation state with handle_change_event(), which serializes on
         # this same lock — without it, a file-watcher event arriving as bootstrap replays could
         # race the take/clear of that state.
         async with self._change_event_lock:
-            if not self._pending_pre_release_reconciliation:
+            if self._pending_reconciliation is None:
                 return
 
             original_apps_config, curr_apps_config, changed_file_paths = self._take_pre_release_reconciliation()
