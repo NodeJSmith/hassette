@@ -23,6 +23,8 @@ from check_breakpoint_drift import (
     theme_breakpoints_by_value,
 )
 
+from tests.unit.tools.conftest import make_frontend_src
+
 # Each case: (id, js constants, css breakpoints, expected missing values).
 FIND_MISSING_CASES: list[tuple[str, dict[int, str], dict[int, list[Path]], set[int]]] = [
     (
@@ -49,10 +51,8 @@ FIND_MISSING_CASES: list[tuple[str, dict[int, str], dict[int, list[Path]], set[i
 @pytest.fixture
 def frontend_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Point the module's path constants at an isolated tmp_path frontend tree."""
-    src = tmp_path / "frontend" / "src"
-    (src / "hooks").mkdir(parents=True)
-    monkeypatch.setattr(check_breakpoint_drift, "REPO_ROOT", tmp_path)
-    monkeypatch.setattr(check_breakpoint_drift, "FRONTEND_SRC", src)
+    src = make_frontend_src(tmp_path, monkeypatch, check_breakpoint_drift)
+    (src / "hooks").mkdir()
     monkeypatch.setattr(check_breakpoint_drift, "MEDIA_QUERY_TS", src / "hooks" / "use-media-query.ts")
     monkeypatch.setattr(check_breakpoint_drift, "GLOBAL_CSS", src / "global.css")
     return src

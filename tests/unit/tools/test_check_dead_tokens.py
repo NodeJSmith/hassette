@@ -21,6 +21,8 @@ from check_dead_tokens import (
     main,
 )
 
+from tests.unit.tools.conftest import make_frontend_src
+
 # Each case: (id, css_text, selector, expected block body).
 EXTRACT_BLOCK_CASES: list[tuple[str, str, str, str]] = [
     (
@@ -122,10 +124,7 @@ def test_is_referenced(token: str, corpus: str, expected: bool) -> None:
 @pytest.fixture
 def frontend_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Point the module's path constants at an isolated tmp_path frontend tree."""
-    src = tmp_path / "frontend" / "src"
-    src.mkdir(parents=True)
-    monkeypatch.setattr(check_dead_tokens, "REPO_ROOT", tmp_path)
-    monkeypatch.setattr(check_dead_tokens, "FRONTEND_SRC", src)
+    src = make_frontend_src(tmp_path, monkeypatch, check_dead_tokens)
     monkeypatch.setattr(check_dead_tokens, "GLOBAL_CSS", src / "global.css")
     return src
 

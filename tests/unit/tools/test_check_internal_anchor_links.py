@@ -13,6 +13,8 @@ import check_internal_anchor_links
 import pytest
 from check_internal_anchor_links import _check_tag, is_exempt, main, scan_file
 
+from tests.unit.tools.conftest import make_frontend_src
+
 # Each case: (id, opening-tag text, expected reported href or None).
 CHECK_TAG_CASES: list[tuple[str, str, str | None]] = [
     ("internal_literal_href_flagged", '<a href="/settings">', '"/settings"'),
@@ -79,10 +81,7 @@ def test_scan_file_handles_multiline_opening_tag(tmp_path: Path) -> None:
 @pytest.fixture
 def frontend_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Point the module's path constants at an isolated tmp_path frontend tree."""
-    src = tmp_path / "frontend" / "src"
-    src.mkdir(parents=True)
-    monkeypatch.setattr(check_internal_anchor_links, "REPO_ROOT", tmp_path)
-    monkeypatch.setattr(check_internal_anchor_links, "FRONTEND_SRC", src)
+    src = make_frontend_src(tmp_path, monkeypatch, check_internal_anchor_links)
     monkeypatch.setattr(check_internal_anchor_links, "EXEMPTIONS", {})
     return src
 
