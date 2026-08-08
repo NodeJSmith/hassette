@@ -37,6 +37,7 @@ jobs:
                   fi
                   GITHUB_VERSION="${GITHUB_TAG#v}"
                   EXPECTED_TAG="${GITHUB_VERSION}-py3.13"
+                  echo "version=${GITHUB_VERSION}" >> "$GITHUB_OUTPUT"
 
                   echo "GitHub release: v${GITHUB_VERSION}"
                   echo "Checking GHCR for tag: ${EXPECTED_TAG}"
@@ -68,13 +69,10 @@ jobs:
               if: steps.drift.outputs.drift == 'true' && steps.drift.outputs.existing-issue == ''
               env:
                   GH_TOKEN: ${{ github.token }}
+                  GITHUB_VERSION: ${{ steps.drift.outputs.version }}
                   EXPECTED_TAG: ${{ steps.drift.outputs.current }}
               run: |
                   set -euo pipefail
-
-                  # current carries the "-py3.13" suffix (see the compare step above); strip it
-                  # back off for the bare version used in title/body prose.
-                  GITHUB_VERSION="${EXPECTED_TAG%-py3.13}"
 
                   gh issue create --repo "$GITHUB_REPOSITORY" \
                       --title "Docker publish drift: GitHub v${GITHUB_VERSION} missing from GHCR" \

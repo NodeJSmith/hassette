@@ -27,6 +27,7 @@ import argparse
 import os
 import subprocess
 import sys
+import uuid
 
 
 def ensure_label(label: str, description: str, color: str) -> None:
@@ -56,13 +57,22 @@ def find_existing_issue(label: str) -> str:
 
 
 def write_github_output(**fields: str) -> None:
+    """Write step outputs, one per field.
+
+    Values come from external registries (PyPI, GHCR, GitHub releases) — untrusted enough that a
+    plain `key=value` line could be spoofed by an embedded newline. Use GITHUB_OUTPUT's heredoc
+    form with a random delimiter instead, so a value can never terminate its own field early.
+    """
     output_path = os.getenv("GITHUB_OUTPUT")
-    lines = [f"{key}={value}" for key, value in fields.items()]
-    if output_path:
-        with open(output_path, "a", encoding="utf-8") as f:
-            f.write("\n".join(lines) + "\n")
-    else:
-        print("\n".join(lines))
+    if not output_path:
+        for key, value in fields.items():
+            print(f"{key}={value}")
+        return
+
+    with open(output_path, "a", encoding="utf-8") as f:
+        for key, value in fields.items():
+            delimiter = uuid.uuid4().hex
+            f.write(f"{key}<<{delimiter}\n{value}\n{delimiter}\n")
 
 
 def main(argv: list[str]) -> int:
