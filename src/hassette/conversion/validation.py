@@ -15,6 +15,7 @@ from logging import getLogger
 from hassette.conversion.state_registry import StateKey, StateRegistry
 from hassette.conversion.type_registry import TypeRegistry
 from hassette.exceptions import RegistryValidationError
+from hassette.models.states.base import BaseState
 
 LOGGER = getLogger(__name__)
 
@@ -77,10 +78,6 @@ def validate_registries(
 
 def _validate_state_registry(state_registry: StateRegistry) -> list[RegistryValidationIssue]:
     """Run all STATE_REGISTRY checks and return the collected issues."""
-    # Cycle: models.states.base → conversion → validation → models.states.base.
-    # lazy-import: safe here because validate_registries() runs after all modules are loaded
-    from hassette.models.states.base import BaseState
-
     issues: list[RegistryValidationIssue] = []
     registry_name = "STATE_REGISTRY"
 
