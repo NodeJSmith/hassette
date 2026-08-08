@@ -5,6 +5,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.53.0](https://github.com/NodeJSmith/hassette/compare/v0.52.0...v0.53.0) (2026-08-08)
+
+
+### ⚠ BREAKING CHANGES
+
+* `SensorAttributes` no longer declares `native_value`, `native_unit_of_measurement`, or `suggested_display_precision` (they duplicated the base `State.value`/`unit_of_measurement` fields and are removed for the `sensor` domain only). `StateRegistry.register` and `register_state_converter` drop their unused `device_class` keyword parameter, and `StateKey` drops its `device_class` field (kept as a one-field frozen dataclass with `domain` only — its export names and `isinstance` checks are unchanged).
+    #### What changes for callers
+    - Code reading `sensor_state.attributes.native_value`,
+    `.native_unit_of_measurement`, or `.suggested_display_precision` must
+    switch to `sensor_state.value` and
+    `sensor_state.attributes.unit_of_measurement` — those fields already
+    carried the same data.
+    - Code calling `StateRegistry.register(..., device_class=...)`,
+    `StateRegistry.resolve(..., device_class=...)`, or
+    `register_state_converter(..., device_class=...)` must drop the
+    `device_class` keyword — it was never populated or read by any
+    production call site.
+    - Code constructing `StateKey(domain=..., device_class=...)` directly
+    must drop `device_class` — `StateKey` is now `StateKey(domain)` only.
+
+### Features
+
+* add device-class-specific sensor state subtypes ([#1549](https://github.com/NodeJSmith/hassette/issues/1549)) ([e93d877](https://github.com/NodeJSmith/hassette/commit/e93d87778c82f0bb42e60ed1b40647deb2dda14d)), closes [#717](https://github.com/NodeJSmith/hassette/issues/717)
+
+
+### Performance Improvements
+
+* **ui:** scope AppDetailPage store selectors to its own app ([#1528](https://github.com/NodeJSmith/hassette/issues/1528)) ([54affbd](https://github.com/NodeJSmith/hassette/commit/54affbdd5fa2963d8f35abe8abd2ac180f5ecb75)), closes [#1465](https://github.com/NodeJSmith/hassette/issues/1465)
+
+
+### Refactoring
+
+* consolidate duplicate version-lookup implementations into utils ([#1538](https://github.com/NodeJSmith/hassette/issues/1538)) ([0894b9c](https://github.com/NodeJSmith/hassette/commit/0894b9cc3901e80268c80625ff3397e1bbc61c19)), closes [#1482](https://github.com/NodeJSmith/hassette/issues/1482)
+
+
+### Documentation
+
+* replace stale pyright-ignore note in cache patterns ([#1518](https://github.com/NodeJSmith/hassette/issues/1518)) ([840d54f](https://github.com/NodeJSmith/hassette/commit/840d54f0b9f91addd4fe9202ed472f0db29db51b)), closes [#1360](https://github.com/NodeJSmith/hassette/issues/1360)
+
 ## [0.52.0](https://github.com/NodeJSmith/hassette/compare/v0.51.0...v0.52.0) (2026-08-07)
 
 
