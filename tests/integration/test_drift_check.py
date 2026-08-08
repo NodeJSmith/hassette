@@ -22,6 +22,10 @@ case "$1 $2" in
         exit 0
         ;;
     "issue list")
+        if [ -n "${STUB_ISSUE_LIST_FAIL:-}" ]; then
+            echo "stub gh: simulated issue list failure" >&2
+            exit 1
+        fi
         echo "${STUB_EXISTING_ISSUE:-}"
         exit 0
         ;;
@@ -78,13 +82,16 @@ def parse_github_output(text: str) -> dict[str, str]:
     return fields
 
 
-def run_drift_check(bin_dir: Path, *, existing_issue: str = "", **extra_args: str) -> DriftCheckResult:
+def run_drift_check(
+    bin_dir: Path, *, existing_issue: str = "", fail_issue_list: bool = False, **extra_args: str
+) -> DriftCheckResult:
     output_file = bin_dir.parent / "github_output"
     output_file.write_text("")
 
     env = dict(os.environ)
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["STUB_EXISTING_ISSUE"] = existing_issue
+    env["STUB_ISSUE_LIST_FAIL"] = "1" if fail_issue_list else ""
     env["GITHUB_OUTPUT"] = str(output_file)
 
     args = ["uv", "run", str(SCRIPT)]
@@ -156,3 +163,45 @@ def test_no_drift_still_reports_existing_issue_for_resync_close(stub_gh_path: Pa
     assert result.returncode == 0, result.stderr
     assert result.fields["drift"] == "false"
     assert result.fields["existing-issue"] == "7"
+
+
+@pytest.mark.integration
+def test_embedded_newline_cannot_smuggle_a_second_output_field(stub_gh_path: Path) -> None:
+    r"""A value containing a newline must not forge a separate GITHUB_OUTPUT field.
+
+    ``--latest`` is untrusted (it comes from an external registry) — see write_github_output's
+    docstring in drift_check.py. If the script wrote plain ``key=value`` lines instead of the
+    heredoc-with-random-delimiter form, a value like ``"1.2.3\ninjected=true"`` would terminate
+    the ``latest`` field early and inject a bogus ``injected`` field.
+    """
+    result = run_drift_check(
+        stub_gh_path,
+        current="1.2.3",
+        latest="1.2.3\ninjected=true",
+        label="pypi-drift",
+        label_description="desc",
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.fields["latest"] == "1.2.3\ninjected=true"
+    assert "injected" not in result.fields
+
+
+@pytest.mark.integration
+def test_failed_issue_lookup_fails_loud_instead_of_filing_a_duplicate(stub_gh_path: Path) -> None:
+    """A failed `gh issue list` (auth, rate limit, network) must not be swallowed as "no existing
+    issue" — that would let a scheduled run file a duplicate tracking issue instead of surfacing
+    the real failure. See find_existing_issue's docstring in drift_check.py.
+    """
+    result = run_drift_check(
+        stub_gh_path,
+        fail_issue_list=True,
+        current="1.2.3",
+        latest="1.2.4",
+        label="pypi-drift",
+        label_description="desc",
+    )
+
+    assert result.returncode != 0
+    assert "gh issue list failed" in result.stderr
+    assert result.fields == {}

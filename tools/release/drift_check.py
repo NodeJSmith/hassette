@@ -24,6 +24,7 @@ resync (see ha-version-drift.yml) doesn't need its own separate lookup.
 """
 
 import argparse
+import contextlib
 import os
 import subprocess
 import sys
@@ -37,24 +38,52 @@ def ensure_label(label: str, description: str, color: str) -> None:
 
     Best-effort: a failure here (e.g. the label already exists) is ignored, since
     `gh issue create --label` will raise its own clear error if the label is somehow still
-    missing.
+    missing. Bounded by a timeout so a hung `gh` call can't stall the job past its own
+    best-effort intent.
+
+    Args:
+        label: The label name to create.
+        description: The label's description, shown in the GitHub UI.
+        color: The label's hex color, without a leading `#`.
     """
-    subprocess.run(
-        ["gh", "label", "create", label, "--description", description, "--color", color],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        check=False,
-    )
+    with contextlib.suppress(subprocess.TimeoutExpired):
+        subprocess.run(
+            ["gh", "label", "create", label, "--description", description, "--color", color],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+            timeout=30,
+        )
 
 
 def find_existing_issue(label: str) -> str:
-    """Return the number of an open issue carrying `label`, or "" if none exists."""
-    result = subprocess.run(
-        ["gh", "issue", "list", "--label", label, "--state", "open", "--json", "number", "-q", ".[0].number"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    """Return the number of an open issue carrying `label`, or "" if none exists.
+
+    Unlike `ensure_label`, a failed lookup here is not best-effort: it raises. Swallowing a
+    failed `gh issue list` (auth, rate limit, network) would return "" indistinguishably from
+    "no existing issue," letting the caller file a duplicate tracking issue instead of
+    surfacing the real failure.
+
+    Args:
+        label: The label to search open issues for.
+
+    Returns:
+        The issue number as a string, or "" if no open issue carries the label.
+    """
+    try:
+        result = subprocess.run(
+            ["gh", "issue", "list", "--label", label, "--state", "open", "--json", "number", "-q", ".[0].number"],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=30,
+        )
+    except subprocess.CalledProcessError as exc:
+        # check=True gives an uncaught traceback that shows only the command and exit code —
+        # print gh's own stderr first so the operator sees *why* the lookup failed (auth,
+        # rate limit, bad label) instead of having to reproduce it locally.
+        print(f"::error::gh issue list failed: {exc.stderr}", file=sys.stderr)
+        raise
     return result.stdout.strip()
 
 
@@ -64,6 +93,10 @@ def write_github_output(**fields: str) -> None:
     Values come from external registries (PyPI, GHCR, GitHub releases) — untrusted enough that a
     plain `key=value` line could be spoofed by an embedded newline. Use GITHUB_OUTPUT's heredoc
     form with a random delimiter instead, so a value can never terminate its own field early.
+
+    Args:
+        **fields: Output name/value pairs to write. Falls back to printing `key=value` lines to
+            stdout when `$GITHUB_OUTPUT` is unset, for local runs.
     """
     output_path = os.getenv("GITHUB_OUTPUT")
     if not output_path:
@@ -78,6 +111,15 @@ def write_github_output(**fields: str) -> None:
 
 
 def main(argv: list[str]) -> int:
+    """Compare `--current` against `--latest` and report drift plus any existing tracking issue.
+
+    Args:
+        argv: Command-line arguments, excluding the program name.
+
+    Returns:
+        Exit code — always 0; a genuine failure (e.g. the issue lookup failing) raises instead
+        of returning a nonzero code.
+    """
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--current", required=True, help="The resolved current/local value.")
     p.add_argument("--latest", required=True, help="The resolved latest/external value to compare against.")
