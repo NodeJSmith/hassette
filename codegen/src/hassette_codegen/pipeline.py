@@ -64,12 +64,33 @@ class Rejection(NamedTuple):
 
 @dataclass
 class _DomainOutcome:
-    """What generating one domain produced — folded into the run's overall bookkeeping by the caller."""
+    """What generating one domain produced — folded into the run's overall bookkeeping by the caller.
+
+    Built via the named constructors below rather than the raw dataclass constructor: each shape
+    populates only the fields that are meaningful for that outcome, and the others fall through to
+    their defaults implicitly. The constructor name states which shape a given call site returns
+    without the reader having to check what got left out.
+    """
 
     generated_files: set[Path] = field(default_factory=set)
     skipped: bool = False
     rejection: Rejection | None = None
     any_drift: bool = False
+
+    @classmethod
+    def skip(cls) -> "_DomainOutcome":
+        """The domain's extraction or write failed outright — nothing usable was produced."""
+        return cls(skipped=True)
+
+    @classmethod
+    def reject(cls, generated_files: set[Path], rejection: Rejection) -> "_DomainOutcome":
+        """The entity wrapper was refused; the state model already in `generated_files` still stands."""
+        return cls(generated_files=generated_files, rejection=rejection)
+
+    @classmethod
+    def ok(cls, generated_files: set[Path], *, any_drift: bool = False) -> "_DomainOutcome":
+        """The domain produced usable output, with or without detected drift."""
+        return cls(generated_files=generated_files, any_drift=any_drift)
 
 
 @dataclass
@@ -215,7 +236,7 @@ def _generate_domains(
     any_drift = False
 
     for domain_info in domains:
-        outcome = _generate_domain_files(
+        outcome = _generate_files_for_domain(
             domain_info,
             ha_source=ha_source,
             overrides=overrides,
@@ -236,7 +257,7 @@ def _generate_domains(
     return _GenerationResult(generated_files, skipped_domains, rejections, any_drift)
 
 
-def _generate_domain_files(
+def _generate_files_for_domain(
     domain_info: DiscoveredDomain,
     *,
     ha_source: HASource,
@@ -253,7 +274,7 @@ def _generate_domain_files(
         extracted = _extract_domain(ha_source.path, domain_info, overrides)
     except Exception as exc:
         print(f"WARNING: Failed to extract {domain_info.name}: {exc}", file=sys.stderr)
-        return _DomainOutcome(skipped=True)
+        return _DomainOutcome.skip()
 
     state_content = generate_state_model(extracted)
     state_path = states_dir / f"{domain_info.name}.py"
@@ -267,12 +288,12 @@ def _generate_domain_files(
         generated_files.add(rel_state)
     else:
         if not _may_overwrite(state_path, rel_state, previous_manifest, tracked=manifest_tracked):
-            return _DomainOutcome(skipped=True)
+            return _DomainOutcome.skip()
         if atomic_write(state_path, state_content):
             generated_files.add(rel_state)
         else:
             print(f"WARNING: Skipped {rel_state} (validation failed)", file=sys.stderr)
-            return _DomainOutcome(skipped=True)
+            return _DomainOutcome.skip()
 
     try:
         entity_content = generate_entity_wrapper(extracted)
@@ -282,10 +303,10 @@ def _generate_domain_files(
         # still recorded as a rejection: the committed wrapper was never checked against
         # upstream, and --check must not report the tree as current on that basis.
         print(f"WARNING: Rejected {domain_info.name} entity wrapper: {exc}", file=sys.stderr)
-        return _DomainOutcome(generated_files=generated_files, rejection=Rejection(domain_info.name, "entity wrapper"))
+        return _DomainOutcome.reject(generated_files, Rejection(domain_info.name, "entity wrapper"))
 
     if entity_content is None:
-        return _DomainOutcome(generated_files=generated_files, any_drift=any_drift)
+        return _DomainOutcome.ok(generated_files, any_drift=any_drift)
 
     entity_path = entities_dir / f"{domain_info.name}.py"
     rel_entity = entity_path.relative_to(repo_root)
@@ -294,19 +315,19 @@ def _generate_domain_files(
         if not check_drift(entity_path, entity_content, f"{domain_info.name} entity wrapper"):
             any_drift = True
         generated_files.add(rel_entity)
-        return _DomainOutcome(generated_files=generated_files, any_drift=any_drift)
+        return _DomainOutcome.ok(generated_files, any_drift=any_drift)
 
     # Unlike the state model above, the domain is not added to skipped_domains: its state model
     # did generate. The refusal is reported by the warning, matching how an entity wrapper that
     # fails ruff validation is already handled.
     if not _may_overwrite(entity_path, rel_entity, previous_manifest, tracked=manifest_tracked):
-        return _DomainOutcome(generated_files=generated_files, any_drift=any_drift)
+        return _DomainOutcome.ok(generated_files, any_drift=any_drift)
     if atomic_write(entity_path, entity_content):
         generated_files.add(rel_entity)
     else:
         print(f"WARNING: Skipped {rel_entity} (validation failed)", file=sys.stderr)
 
-    return _DomainOutcome(generated_files=generated_files, any_drift=any_drift)
+    return _DomainOutcome.ok(generated_files, any_drift=any_drift)
 
 
 def _generate_constants(ha_source: HASource, const_dir: Path, repo_root: Path, *, check_mode: bool) -> _WriteOutput:
