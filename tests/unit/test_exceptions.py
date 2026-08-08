@@ -1,4 +1,4 @@
-"""Unit tests for :class:`hassette.exceptions.FailedMessageError`.
+"""Unit tests pinning structural contracts in :mod:`hassette.exceptions`.
 
 These tests pin the structured-error-surface contract that the helper CRUD
 work packages rely on. In particular they guard against the most likely
@@ -12,7 +12,13 @@ See ``design/specs/031-helper-crud-api/design.md`` for the full spec.
 
 import pytest
 
-from hassette.exceptions import ConnectionClosedError, FailedMessageError, RetryableConnectionClosedError
+from hassette.exceptions import (
+    ConnectionClosedError,
+    EntityNotInViewError,
+    FailedMessageError,
+    RetryableConnectionClosedError,
+)
+from hassette.models.states.sensor_shapes import NumericSensorState
 
 
 def test_failed_message_error_backward_compat_positional_only() -> None:
@@ -132,3 +138,25 @@ def test_retryable_connection_closed_error_inheritance() -> None:
     e = RetryableConnectionClosedError("connection dropped")
 
     assert isinstance(e, ConnectionClosedError)
+
+
+def test_entity_not_in_view_error_defines_own_init() -> None:
+    """EntityNotInViewError must define ``__init__`` itself rather than inheriting it.
+
+    It subclasses both ``KeyError`` and ``EntityShapeError``. On Python <= 3.13 ``KeyError``
+    carries its own ``__init__`` slot that precedes ``EntityShapeError`` in the MRO, so an
+    inherited ``__init__`` resolves to ``KeyError``'s and leaves ``entity_id``, ``device_class``,
+    and ``state_class`` unset — every read of those attributes then raises ``AttributeError``.
+    Python 3.14 dropped that slot, so the attribute assertions in
+    ``tests/unit/state_manager/test_domain_states_membership.py`` pass on 3.14 whether or not the
+    override exists. This ``__dict__`` check fails on every supported version, so dropping the
+    override cannot slip through a local 3.14-only run.
+    """
+    assert "__init__" in EntityNotInViewError.__dict__, (
+        "EntityNotInViewError must define __init__ itself; inheriting it is version-dependent."
+    )
+
+    err = EntityNotInViewError("sensor.mode", "enum", NumericSensorState)
+    assert err.entity_id == "sensor.mode"
+    assert err.device_class == "enum"
+    assert err.state_class is NumericSensorState

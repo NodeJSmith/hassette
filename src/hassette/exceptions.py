@@ -403,11 +403,14 @@ class EntityShapeError(StateRegistryError):
 
     Shared by :class:`UnableToConvertAnnotatedStateError`, :class:`SensorShapeMismatchError`, and
     :class:`EntityNotInViewError` — same three-parameter shape, same three attribute assignments,
-    differing only in the message template. Subclasses override :meth:`_build_message` and must not
-    override ``__init__``, so the attribute assignments stay in one place. Matches design.md's
-    documented exception convention ("a message plus structured attributes, not a bare string";
-    see ``UnableToConvertStateError``) — that convention constrains the shape of each subclass's
-    public surface, not whether they share an implementation.
+    differing only in the message template. Subclasses override :meth:`_build_message` and should not
+    override ``__init__``, so the attribute assignments stay in one place. The sole exception is
+    :class:`EntityNotInViewError`, which mixes in ``KeyError`` and must re-delegate explicitly — see
+    the comment on its ``__init__`` for why.
+
+    Matches design.md's documented exception convention ("a message plus structured attributes, not
+    a bare string"; see ``UnableToConvertStateError``) — that convention constrains the shape of each
+    subclass's public surface, not whether they share an implementation.
     """
 
     def __init__(self, entity_id: str, device_class: str | None, state_class: type["BaseState"]) -> None:
@@ -473,6 +476,16 @@ class EntityNotInViewError(KeyError, EntityShapeError):
     membership predicate (e.g. the narrowed sensor-shape accessors); a plain ``DomainStates`` with
     no predicate keeps raising the underlying conversion error directly.
     """
+
+    def __init__(self, entity_id: str, device_class: str | None, state_class: type["BaseState"]) -> None:
+        # Must delegate explicitly rather than inherit EntityShapeError.__init__. On Python <= 3.13
+        # KeyError carries its own __init__ slot, and KeyError precedes EntityShapeError in this
+        # class's MRO, so an inherited __init__ resolves to KeyError's — leaving entity_id,
+        # device_class, and state_class unset, so every read of them raises AttributeError. Python
+        # 3.14 drops that slot and resolves to EntityShapeError, which is why the bug only surfaced
+        # on the supported lower bound. super().__init__() would hit KeyError too; name the base
+        # directly. Pinned by test_entity_not_in_view_error_defines_own_init.
+        EntityShapeError.__init__(self, entity_id, device_class, state_class)
 
     def _build_message(self, entity_id: str, device_class: str | None, state_class: type["BaseState"]) -> str:
         return (
