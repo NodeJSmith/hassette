@@ -24,6 +24,7 @@ from tenacity import (
     wait_exponential_jitter,
 )
 
+from hassette.core.retry_policy import MAX_RETRY_ATTEMPTS
 from hassette.events import HassetteSimpleEvent, RawStateChangeEvent, create_event_from_hass
 from hassette.events.metadata import stamp_websocket_generation
 from hassette.exceptions import (
@@ -73,7 +74,11 @@ RETRYABLE = (
 # Excludes ClientConnectorError and CouldNotFindHomeAssistantError — those indicate
 # the server is unreachable, not that it dropped a post-auth connection.
 EARLY_DROP_RETRYABLE = (RetryableConnectionClosedError, ServerDisconnectedError)
-MAX_RETRY_ATTEMPTS = 5
+
+EARLY_DROP_BACKOFF_BASE = 2
+"""Exponential base for early-drop backoff (early_drop_backoff), unrelated to state_proxy.py's
+SYNC_RETRY_BACKOFF_BASE — a different retry mechanism (local cache-read retry vs. reconnect
+backoff) that coincidentally also uses base 2."""
 
 # Number of stack frames to keep when logging an invalid connection-state transition.
 # 3 is enough to show the caller that triggered the transition without dumping the
@@ -557,7 +562,7 @@ class WebsocketService(Service):
         """
         config = self.hassette.config
         backoff = min(
-            config.websocket.early_drop_backoff_initial_seconds * (2 ** (attempt - 1)),
+            config.websocket.early_drop_backoff_initial_seconds * (EARLY_DROP_BACKOFF_BASE ** (attempt - 1)),
             config.websocket.early_drop_backoff_max_seconds,
         ) + random.uniform(0, config.websocket.early_drop_backoff_initial_seconds)
         await asyncio.sleep(backoff)
