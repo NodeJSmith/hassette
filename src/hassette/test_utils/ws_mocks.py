@@ -94,16 +94,14 @@ def make_task_bucket_spawn_stub() -> tuple[list[Coroutine], Mock]:
 
     Returns the list that gets populated with each spawned coroutine (callers close()
     them after the test to suppress ResourceWarning) and the ``Mock`` to assign as
-    ``websocket_service.task_bucket.spawn``.
+    ``websocket_service.task_bucket.spawn``. The stub returns a plain ``Mock`` in place of
+    the real ``asyncio.Task`` -- callers only ``.cancel()`` or ``.add_done_callback()`` it,
+    never await its completion, so no real task needs to be scheduled.
     """
     spawned_coros: list[Coroutine] = []
 
     def _spawn_side_effect(coro, *, name=None):  # noqa: ARG001
         spawned_coros.append(coro)
-
-        async def _noop():
-            pass
-
-        return asyncio.create_task(_noop())
+        return Mock()
 
     return spawned_coros, Mock(side_effect=_spawn_side_effect)
