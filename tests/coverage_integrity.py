@@ -20,10 +20,11 @@ pytest-cov never has this problem because it never waits for atexit: ``DistWorke
 calls ``cov.save()`` during the run. This module does the same for the ``.pth`` setup, then
 checks that every process which started actually got its data to disk.
 
-Loaded with ``-p tests.coverage_integrity`` so it reaches both the xdist controller and every
-worker. Run as ``python -m tests.coverage_integrity`` before ``coverage combine`` to verify the
-result. Both are wired up in the noxfile coverage sessions. Every hook is a no-op when coverage
-was not started this way, so ordinary pytest runs are unaffected.
+Registered in ``tests/conftest.py``'s ``pytest_plugins``, which is how this repo loads plugins
+that have to reach the xdist controller and every worker. Run
+``python -m tests.coverage_integrity`` before ``coverage combine`` to verify the result; the
+noxfile coverage sessions do. Every hook is a no-op when coverage was not started this way, so
+ordinary pytest runs are unaffected.
 
 See issue #1558.
 """
@@ -32,6 +33,7 @@ import argparse
 import os
 import shutil
 import sys
+import time
 from pathlib import Path
 
 import coverage
@@ -40,40 +42,50 @@ import pytest
 RECEIPT_DIR = Path(".coverage-receipts")
 STARTED_SUFFIX = ".started"
 SAVED_SUFFIX = ".saved"
+PARTIAL_SUFFIX = ".partial"
 CONTROLLER_LABEL = "controller"
+
+# Identifies this process's receipts. A bare pid is not enough: system_with_coverage runs two
+# pytest invocations against one receipt directory, and if the OS recycled the first
+# invocation's pid, the second would overwrite its receipts and erase the evidence of a drop.
+RUN_KEY = f"{os.getpid()}-{time.time_ns()}"
 
 
 def active_coverage() -> coverage.Coverage | None:
     """Return the Coverage instance auto-started by the ``.pth`` file, or None.
 
-    ``process_startup()`` annotates itself with the instance it created. coverage.py reaches
-    for it the same way in ``_prevent_sub_process_measurement()``.
+    ``process_startup()`` annotates itself with the instance it created, and coverage.py reads
+    it back the same way in ``_prevent_sub_process_measurement()``. That attribute is private
+    and unversioned, so if this ever returns None during a real coverage run, check whether
+    coverage.py renamed it. The symptom is indistinguishable from the plugin not being loaded:
+    every hook here quietly no-ops.
     """
     return getattr(coverage.process_startup, "coverage", None)
 
 
 def write_receipt(path: Path, contents: str) -> None:
-    """Write a receipt and fsync it.
+    """Write a receipt atomically and fsync it.
 
-    Without the fsync a receipt can still be sitting in the page cache when the process is
-    killed, which would read back as a process that never started.
+    Both halves matter, because the process can be killed at any point. Without the fsync a
+    receipt can still be in the page cache, reading back as a process that never started.
+    Without the rename, a kill between truncation and write leaves an empty receipt, which
+    reads back as a successful save.
     """
-    with path.open("w") as handle:
+    partial = path.with_name(f"{path.name}{PARTIAL_SUFFIX}")
+    with partial.open("w") as handle:
         handle.write(contents)
         handle.flush()
         os.fsync(handle.fileno())
+    partial.replace(path)
 
 
-def read_receipts(receipt_dir: Path, suffix: str) -> dict[int, str]:
-    """Map pid to receipt contents for every receipt of the given kind."""
-    receipts: dict[int, str] = {}
-    for path in receipt_dir.glob(f"*{suffix}"):
-        try:
-            pid = int(path.name.removesuffix(suffix))
-        except ValueError:
-            continue
-        receipts[pid] = path.read_text().strip()
-    return receipts
+def read_receipts(receipt_dir: Path, suffix: str) -> dict[str, str]:
+    """Map run key to receipt contents for every receipt of the given kind."""
+    return {
+        path.name.removesuffix(suffix): path.read_text().strip()
+        for path in receipt_dir.glob(f"*{suffix}")
+        if not path.name.endswith(PARTIAL_SUFFIX)
+    }
 
 
 def find_problems(receipt_dir: Path) -> list[str]:
@@ -84,17 +96,18 @@ def find_problems(receipt_dir: Path) -> list[str]:
     if not started:
         return [
             f"no receipts found in {receipt_dir}/, so no process recorded its coverage data. "
-            "The pytest run probably did not load the plugin (-p tests.coverage_integrity)."
+            "The pytest run probably did not load the tests.coverage_integrity plugin."
         ]
 
     problems: list[str] = []
-    for pid, label in sorted(started.items()):
-        if pid not in saved:
-            problems.append(f"{label} (pid {pid}) started but never saved its coverage data; it was killed mid-run")
-            continue
-        part_file = Path(saved[pid])
-        if not part_file.exists():
-            problems.append(f"{label} (pid {pid}) saved coverage data to {part_file}, but that file is now missing")
+    for run_key, label in sorted(started.items()):
+        recorded = saved.get(run_key)
+        if recorded is None:
+            problems.append(f"{label} started but never saved its coverage data; it was killed mid-run")
+        elif not recorded or not Path(recorded).is_absolute():
+            problems.append(f"{label} left an unusable save receipt ({recorded!r}); its data cannot be confirmed")
+        elif not Path(recorded).exists():
+            problems.append(f"{label} saved coverage data to {recorded}, but that file is now missing")
     return problems
 
 
@@ -103,9 +116,9 @@ def pytest_configure(config: pytest.Config) -> None:
     if active_coverage() is None:
         return
 
-    label = getattr(config, "workerinput", {}).get("workerid", CONTROLLER_LABEL)
+    worker = getattr(config, "workerinput", {}).get("workerid", CONTROLLER_LABEL)
     RECEIPT_DIR.mkdir(parents=True, exist_ok=True)
-    write_receipt(RECEIPT_DIR / f"{os.getpid()}{STARTED_SUFFIX}", label)
+    write_receipt(RECEIPT_DIR / f"{RUN_KEY}{STARTED_SUFFIX}", f"{worker} (pid {os.getpid()})")
 
 
 @pytest.hookimpl(trylast=True)
@@ -123,7 +136,7 @@ def pytest_sessionfinish() -> None:
 
     cov.save()
     RECEIPT_DIR.mkdir(parents=True, exist_ok=True)
-    write_receipt(RECEIPT_DIR / f"{os.getpid()}{SAVED_SUFFIX}", str(cov.get_data().data_filename()))
+    write_receipt(RECEIPT_DIR / f"{RUN_KEY}{SAVED_SUFFIX}", str(cov.get_data().data_filename()))
 
 
 def main(argv: list[str] | None = None) -> int:

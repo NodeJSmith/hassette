@@ -157,9 +157,10 @@ def _reset_coverage_receipts(session: "Session") -> None:
 def _check_coverage_complete(session: "Session") -> None:
     """Fail before combining if any test process lost its coverage data.
 
-    Coverage started via the .pth file below persists only at interpreter shutdown, and xdist
-    kills workers that have not got there yet, so a silently truncated run reports a plausible
-    but wrong number. See tests/coverage_integrity.py and issue #1558.
+    Coverage started by _install_coverage_pth() persists only at interpreter shutdown, and
+    xdist kills workers that have not got there yet, so a silently truncated run reports a
+    plausible but wrong number. The plugin doing the saving is registered in
+    tests/conftest.py. See tests/coverage_integrity.py and issue #1558.
     """
     session.run("uv", "run", "--active", "python", "-m", "tests.coverage_integrity", external=True)
 
@@ -198,11 +199,6 @@ def _run_system_tests(session: "Session", *, marker: str, extra_args: list[str] 
         "--reinstall-package",
         "hassette",
         "pytest",
-        # Saves coverage during the run instead of leaving it to atexit, and records a
-        # receipt the pre-combine check reads. No-ops when coverage isn't running, so the
-        # plain `system` session is unaffected. See tests/coverage_integrity.py.
-        "-p",
-        "tests.coverage_integrity",
         "-m",
         marker,
         "-v",
@@ -246,11 +242,6 @@ def tests_with_coverage(session: "Session"):
         "--reinstall-package",
         "hassette",
         "pytest",
-        # Loaded into the controller and every xdist worker. Saves each process's coverage
-        # during the run rather than at interpreter shutdown, which xdist may never let a
-        # worker reach. See tests/coverage_integrity.py and issue #1558.
-        "-p",
-        "tests.coverage_integrity",
         "-m",
         "not docker and not e2e and not system and not system_destructive",
         "-n",

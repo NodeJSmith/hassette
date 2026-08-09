@@ -115,6 +115,10 @@ def run_killed_session(workspace: Path, *, load_plugin: bool, expect_completion:
     Set ``expect_completion=False`` for workspaces whose conftest kills the process before the
     session can finish.
     """
+    # Production loads the plugin from tests/conftest.py, but this throwaway workspace has its
+    # own conftest, so the only way to toggle the plugin here is an explicit `-p` (with the
+    # repo root seeded into PYTHONPATH below, which pytest does not do for `-p` on its own).
+    # test_plugin_is_registered_for_every_run_by_conftest covers the production path.
     args = [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider"]
     if load_plugin:
         args += ["-p", "tests.coverage_integrity"]
@@ -210,12 +214,12 @@ def test_checker_catches_a_process_killed_before_it_could_save(coverage_workspac
     assert "killed mid-run" in stderr
 
 
-def write_started(receipt_dir: Path, pid: int, label: str) -> None:
-    (receipt_dir / f"{pid}{STARTED_SUFFIX}").write_text(label)
+def write_started(receipt_dir: Path, run_key: str, label: str) -> None:
+    (receipt_dir / f"{run_key}{STARTED_SUFFIX}").write_text(label)
 
 
-def write_saved(receipt_dir: Path, pid: int, part_file: Path) -> None:
-    (receipt_dir / f"{pid}{SAVED_SUFFIX}").write_text(str(part_file))
+def write_saved(receipt_dir: Path, run_key: str, contents: str) -> None:
+    (receipt_dir / f"{run_key}{SAVED_SUFFIX}").write_text(contents)
 
 
 @pytest.fixture
@@ -226,11 +230,11 @@ def receipt_dir(tmp_path: Path) -> Path:
 
 
 def test_find_problems_accepts_a_run_where_every_process_saved(receipt_dir: Path, tmp_path: Path):
-    for pid, label in ((1, "controller"), (2, "gw0")):
-        part_file = tmp_path / f"part-{pid}"
+    for run_key, label in (("1-100", "controller (pid 1)"), ("2-200", "gw0 (pid 2)")):
+        part_file = tmp_path / f"part-{run_key}"
         part_file.write_text("data")
-        write_started(receipt_dir, pid, label)
-        write_saved(receipt_dir, pid, part_file)
+        write_started(receipt_dir, run_key, label)
+        write_saved(receipt_dir, run_key, str(part_file))
 
     assert find_problems(receipt_dir) == []
 
@@ -238,9 +242,9 @@ def test_find_problems_accepts_a_run_where_every_process_saved(receipt_dir: Path
 def test_find_problems_reports_a_process_that_never_saved(receipt_dir: Path, tmp_path: Path):
     part_file = tmp_path / "part-1"
     part_file.write_text("data")
-    write_started(receipt_dir, 1, "controller")
-    write_saved(receipt_dir, 1, part_file)
-    write_started(receipt_dir, 2, "gw0")
+    write_started(receipt_dir, "1-100", "controller (pid 1)")
+    write_saved(receipt_dir, "1-100", str(part_file))
+    write_started(receipt_dir, "2-200", "gw0 (pid 2)")
 
     problems = find_problems(receipt_dir)
 
@@ -250,14 +254,31 @@ def test_find_problems_reports_a_process_that_never_saved(receipt_dir: Path, tmp
 
 
 def test_find_problems_reports_a_part_file_that_vanished(receipt_dir: Path, tmp_path: Path):
-    write_started(receipt_dir, 7, "gw3")
-    write_saved(receipt_dir, 7, tmp_path / "never-created")
+    write_started(receipt_dir, "7-700", "gw3 (pid 7)")
+    write_saved(receipt_dir, "7-700", str(tmp_path / "never-created"))
 
     problems = find_problems(receipt_dir)
 
     assert len(problems) == 1
     assert "gw3 (pid 7)" in problems[0]
     assert "now missing" in problems[0]
+
+
+def test_find_problems_rejects_a_truncated_save_receipt(receipt_dir: Path):
+    """An empty receipt must not read as a successful save.
+
+    A process killed between truncating its receipt and writing to it leaves an empty file.
+    Path("") is PosixPath("."), and the current directory always exists, so an existence check
+    on the recorded path alone would wave this straight through.
+    """
+    write_started(receipt_dir, "9-900", "gw1 (pid 9)")
+    write_saved(receipt_dir, "9-900", "")
+
+    problems = find_problems(receipt_dir)
+
+    assert len(problems) == 1
+    assert "gw1 (pid 9)" in problems[0]
+    assert "unusable save receipt" in problems[0]
 
 
 def test_find_problems_reports_an_unmeasured_run_rather_than_passing_it(tmp_path: Path):
@@ -269,7 +290,23 @@ def test_find_problems_reports_an_unmeasured_run_rather_than_passing_it(tmp_path
 
 
 def test_main_resets_receipts_from_a_previous_run(receipt_dir: Path):
-    write_started(receipt_dir, 1, "controller")
+    write_started(receipt_dir, "1-100", "controller (pid 1)")
 
     assert main(["--receipt-dir", str(receipt_dir), "--reset"]) == 0
     assert not receipt_dir.exists()
+
+
+def test_plugin_is_registered_for_every_run_by_conftest(pytestconfig: pytest.Config):
+    """The nox coverage sessions rely on conftest registration to reach the controller and
+    every xdist worker.
+
+    The subprocess tests above load the plugin with an explicit `-p` and a seeded PYTHONPATH,
+    so they cannot catch a broken registration. An earlier version of this change wired it as
+    `-p tests.coverage_integrity` from the noxfile, which fails to import because pytest
+    resolves `-p` before the repo root reaches sys.path; every subprocess test still passed.
+    This asserts the path production actually uses.
+    """
+    assert pytestconfig.pluginmanager.hasplugin("tests.coverage_integrity"), (
+        "tests/conftest.py must keep tests.coverage_integrity in pytest_plugins, or the nox "
+        "coverage sessions silently stop saving worker coverage data"
+    )
