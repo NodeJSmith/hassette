@@ -53,6 +53,15 @@ duplication" escape hatch — the mechanism for a human to say "yes, I saw this,
 own source — it's a balanced pair, so it's harmless, but adding a second, unbalanced example
 below it would break `main()` on this file. Keep any doc examples of the marker syntax balanced.)
 
+For files where the *entire* file is intentional duplication (e.g. HA helper models whose
+Create/Update/State param classes share fields by API design), a single file-level marker
+excludes every fragment from that file without wrapping individual blocks:
+
+    # dup-ignore-file: <reason>
+
+(`// dup-ignore-file: ...` in frontend files.) Same comment-syntax convention as the range
+markers. Place it once anywhere in the file (usually near the top); the reason is required.
+
 (`// dup-ignore-start: ...` / `// dup-ignore-end` in frontend files — same convention, `#` vs
 `//`.) The marker only counts when it's the line's actual leading comment (whitespace-stripped,
 the line starts with `#`/`//` immediately followed by the marker) — mentioning it in prose, like
@@ -70,10 +79,9 @@ downloads a pinned PMD distribution (~50MB) to a shared cache (`~/.cache/hassett
 or `$XDG_CACHE_HOME/hassette-dev-tools/pmd/`) and verifies it against a pinned sha256; later runs
 and other worktrees reuse the same cached copy.
 
-Not yet wired into `prek.toml`, deliberately: at the current threshold this surfaces ~700
-clusters against the existing codebase, which is exactly the point (an exhaustive backlog for a
-review pass, not an already-clean baseline) but would fail every commit if it were a live gate
-today. Wire in the prek hook once that backlog has been triaged down to `dup-ignore`d or fixed.
+Wired into CI (`.github/workflows/lint.yml`) as a non-blocking step (`continue-on-error: true`)
+so it shows orange but doesn't fail the pipeline. Wire into `prek.toml` as a blocking pre-push
+hook once the backlog (#1559-#1570) has been triaged down to zero.
 """
 
 import ast
@@ -114,6 +122,7 @@ PMD_TIMEOUT_SECONDS = 300
 
 IGNORE_START_RE = re.compile(r"^\s*(?:#|//)\s*dup-ignore-start:\s*(.*)$")
 IGNORE_END_RE = re.compile(r"^\s*(?:#|//)\s*dup-ignore-end\b")
+IGNORE_FILE_RE = re.compile(r"^\s*(?:#|//)\s*dup-ignore-file:\s*(.*)$")
 
 # Generated model directories with no per-file marker to detect programmatically — see
 # CLAUDE.md (typed state models generated from HA core source for 34 entity domains).
@@ -135,6 +144,8 @@ IGNORE_GLOBS = [
     "**/frontend/src/styles/fonts.css",
 ]
 
+_SELF = Path(__file__).resolve()
+
 
 class Fragment(NamedTuple):
     file: Path
@@ -155,7 +166,31 @@ def is_generated_marker_file(path: Path) -> bool:
     return any(GENERATED_MARKER in line for line in head)
 
 
+class IgnoreMarkerError(Exception):
+    """Raised for a malformed dup-ignore marker — must fail loudly, not silently suppress."""
+
+
+@functools.cache
+def is_dup_ignore_file(path: Path) -> bool:
+    """Return True if the file carries a ``dup-ignore-file: <reason>`` marker anywhere."""
+    if path.resolve() == _SELF:
+        return False
+    try:
+        text = path.read_text()
+    except (OSError, UnicodeDecodeError):
+        return False
+    for line in text.splitlines():
+        m = IGNORE_FILE_RE.search(line)
+        if m:
+            if not m.group(1).strip():
+                raise IgnoreMarkerError(f"{path}: dup-ignore-file requires a reason, e.g. 'dup-ignore-file: <reason>'")
+            return True
+    return False
+
+
 def is_excluded_file(path: Path) -> bool:
+    if path.resolve() == _SELF:
+        return True
     return is_codegen_dir(path) or is_generated_marker_file(path)
 
 
@@ -214,12 +249,6 @@ def is_boilerplate(fragment: Fragment) -> bool:
 
 def is_too_short(fragment: Fragment) -> bool:
     return (fragment.end - fragment.start + 1) < MIN_LINES
-
-
-class IgnoreMarkerError(Exception):
-    """Raised for an unbalanced dup-ignore-start/dup-ignore-end pair — a malformed marker must
-    fail the check loudly rather than silently suppress (or fail to suppress) a finding.
-    """
 
 
 @functools.cache
@@ -357,6 +386,7 @@ def build_edges(blocks: list[list[Fragment]]) -> list[tuple[Fragment, Fragment]]
 def is_dropped(fragment: Fragment) -> bool:
     return (
         is_excluded_file(fragment.file)
+        or is_dup_ignore_file(fragment.file)
         or is_boilerplate(fragment)
         or is_ignored_glob(fragment.file)
         or is_too_short(fragment)

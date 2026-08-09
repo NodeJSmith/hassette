@@ -1,3 +1,4 @@
+# dup-ignore-file: mirrors Api method signatures for test harness (tracked: #814, #1348)
 """RecordingApi — test double for hassette.api.Api.
 
 Records write-method calls for test assertions. Delegates read methods to

@@ -458,6 +458,7 @@ class Scheduler(Resource):
 
         return app_key, instance_index, source_tier, instance_name, resolved_mode
 
+    # dup-ignore-start: _build_job, register, schedule, and convenience methods share param signatures by design
     def _build_job(
         self,
         func: "JobCallable",
@@ -1269,6 +1270,8 @@ class Scheduler(Resource):
             kwargs=kwargs,
             where=where,
         )
+
+    # dup-ignore-end
 
 
 def _build_predicate_invoker(predicate: "SchedulerPredicate") -> CallableInvoker:

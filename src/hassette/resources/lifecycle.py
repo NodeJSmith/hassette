@@ -111,6 +111,7 @@ def cancel(resource: _LifecycleHostP) -> None:
     resource.logger.debug("%s no running task to cancel", resource.unique_name)
 
 
+# dup-ignore-start: lifecycle state handlers share cast → guard → transition → emit-event structure by design
 async def handle_stop(resource: _LifecycleHostP) -> None:
     """Transition the resource to STOPPED and emit a status event.
 
@@ -229,3 +230,6 @@ async def handle_crash(resource: _LifecycleHostP, exception: Exception) -> None:
         resource, ResourceStatus.CRASHED, exception, ready=resource.is_ready(), ready_phase=resource._ready_reason
     )
     await resource.hassette.send_event(event)
+
+
+# dup-ignore-end
