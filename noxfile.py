@@ -18,6 +18,19 @@ nox.options.reuse_existing_virtualenvs = True
 
 _SPA_INDEX = Path("src/hassette/web/static/spa/index.html")
 
+# Explicit xdist worker count for every parallel test session, rather than ``-n auto``.
+#
+# ``-n auto`` resolves to the CPU count, which is 4 on CI's ubuntu-latest runners but 12+ on a
+# developer box. Worker count decides how the suite is partitioned, so that gap makes reproducing
+# a CI-only failure locally largely a matter of luck. Pinning the number also stops a many-core
+# box from spawning one heavy worker per core.
+#
+# The trade: ``-n auto`` tracked the runner's core count by itself, and this constant does not.
+# It currently equals what CI resolves to, so it changes nothing today — but if GitHub resizes the
+# ubuntu-latest runner, nothing here fails loudly; the suite just runs under- or over-subscribed
+# until someone updates this line. Re-check against a CI run's ``created: N/N workers`` line.
+XDIST_WORKERS = "4"
+
 
 @nox.session(python=False)
 def frontend(session: "Session"):
@@ -37,11 +50,8 @@ def dev(session: "Session"):
         "pytest",
         "-m",
         "not docker and not e2e and not system and not system_destructive",
-        # Explicit worker count, not -n auto: bounds local parallelism so a many-core box
-        # doesn't spawn one heavy worker per core. The CI matrix sessions keep -n auto,
-        # which is right for their small dedicated runners.
         "-n",
-        "4",
+        XDIST_WORKERS,
         "--dist",
         "loadscope",
         "-v",
@@ -62,7 +72,7 @@ def tests(session: "Session"):
         "-m",
         "not docker and not e2e and not system and not system_destructive",
         "-n",
-        "auto",
+        XDIST_WORKERS,
         "--dist",
         "loadscope",
         "--tb=line",
@@ -253,7 +263,7 @@ def tests_with_coverage(session: "Session"):
         "-m",
         "not docker and not e2e and not system and not system_destructive",
         "-n",
-        "auto",
+        XDIST_WORKERS,
         "--dist",
         "loadscope",
         "--tb=line",
