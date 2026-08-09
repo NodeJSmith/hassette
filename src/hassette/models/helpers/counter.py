@@ -1,3 +1,4 @@
+# dup-ignore-file: HA helper models — Create/Update/State param classes share fields by API design
 """Pydantic models for the ``counter`` helper domain.
 
 Models here represent the stored configuration for ``counter`` helpers, as

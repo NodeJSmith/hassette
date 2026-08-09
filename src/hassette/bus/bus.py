@@ -737,6 +737,7 @@ class Bus(Resource):
             if other:
                 preds.append(P.AllOf.ensure_iterable(other))
 
+    # dup-ignore-start: Shape B delegates — each mirrors _subscribe() delegation
     def on_state_change(
         self,
         entity_id: str,
@@ -1651,6 +1652,8 @@ class Bus(Resource):
             on_error=on_error,
             **opts,
         )
+
+    # dup-ignore-end
 
 
 def _build_preds(

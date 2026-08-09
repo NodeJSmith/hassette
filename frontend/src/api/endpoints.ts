@@ -1,3 +1,4 @@
+// dup-ignore-file: endpoint functions share apiFetch + buildUrl call shape by design
 /** Typed API endpoint functions for all Hassette REST endpoints. */
 
 import { DETAIL_FETCH_LIMIT } from "../utils/constants";

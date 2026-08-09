@@ -1,3 +1,4 @@
+// dup-ignore-file: MSW mock handlers mirror route structure by design
 /**
  * Default MSW request handlers for all Hassette API endpoints, plus shared
  * override helpers for common per-test patterns (e.g. `withManifests`).

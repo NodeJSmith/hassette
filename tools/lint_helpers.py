@@ -111,6 +111,25 @@ def iter_py_files(repo_root: Path, scan_dirs: list[str]) -> list[Path]:
     )
 
 
+def iter_ts_files(base_dir: Path) -> list[Path]:
+    """Return every .ts/.tsx file under base_dir, sorted, excluding generated .d.ts files.
+
+    Only for callers importing this module directly (same directory as a ``tools/check_*.py``
+    script, or under pytest via the ``tools``/``tools/frontend`` ``pythonpath`` entries in
+    ``pyproject.toml``). The existing ``tools/frontend/check_*.py`` scripts are each their own
+    prek entrypoint (``./tools/frontend/check_*.py``, run as a standalone executable — see
+    ``prek.toml``), so their own directory, not this one, lands on ``sys.path`` at runtime; a
+    bare ``from lint_helpers import ...`` there would raise ``ModuleNotFoundError``. They keep
+    their own copy of this pattern until they're restructured to resolve this module too.
+    """
+    return sorted(
+        path
+        for pattern in ("*.ts", "*.tsx")
+        for path in base_dir.rglob(pattern)
+        if not path.name.endswith(".d.ts") and EXCLUDED_PARTS.isdisjoint(path.relative_to(base_dir).parts)
+    )
+
+
 def resolve_paths(argv: list[str], repo_root: Path, scan_dirs: list[str]) -> list[Path]:
     """Resolve CLI file arguments to first-party .py paths, or scan ``scan_dirs`` when none given.
 

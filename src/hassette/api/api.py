@@ -511,6 +511,7 @@ class Api(Resource):
     # that default never makes it the chosen overload for an omitted return_response,
     # because the None overload above matches first. Reordering or dropping the default
     # silently flips the inferred return type — covered by tests/pyright_probes.
+    # dup-ignore-start: @overload signatures necessarily mirror the implementation param list
     @overload
     def call_service(
         self,
@@ -521,6 +522,9 @@ class Api(Resource):
         **data: Any,
     ) -> "Coroutine[Any, Any, None]": ...
 
+    # dup-ignore-end
+
+    # dup-ignore-start: @overload signatures necessarily mirror the implementation param list
     @overload
     def call_service(
         self,
@@ -531,6 +535,9 @@ class Api(Resource):
         **data: Any,
     ) -> "Coroutine[Any, Any, ServiceResponse]": ...
 
+    # dup-ignore-end
+
+    # dup-ignore-start: @overload signatures necessarily mirror the implementation param list
     def call_service(
         self,
         domain: str,
@@ -539,6 +546,7 @@ class Api(Resource):
         return_response: bool | None = False,
         **data: Any,
     ) -> "Coroutine[Any, Any, ServiceResponse | None]":
+        # dup-ignore-end
         """Call a Home Assistant service.
 
         Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn).
@@ -563,6 +571,7 @@ class Api(Resource):
             method_name="call_service",
         )
 
+    # dup-ignore-start: async body mirrors the sync overloads' param list — see call_service above
     async def _call_service(
         self,
         domain: str,
@@ -571,6 +580,7 @@ class Api(Resource):
         return_response: bool | None = False,
         **data: Any,
     ) -> ServiceResponse | None:
+        # dup-ignore-end
         """Async body for call_service."""
         payload = {
             "type": "call_service",

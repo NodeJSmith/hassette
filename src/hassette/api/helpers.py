@@ -1,3 +1,4 @@
+# dup-ignore-file: counter shortcuts (increment/decrement/reset) share call_service shape by design
 """Helper CRUD client for Home Assistant input_* / counter / timer entities.
 
 `HelperClient` exposes 4 generic CRUD methods (`list`, `create`, `update`, `delete`) and 3 counter

@@ -1,3 +1,4 @@
+# dup-ignore-file: delegates Api methods through resource wrapper, shares signatures by design
 import asyncio
 import logging
 import typing
