@@ -2,6 +2,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError, apiFetch, postSession } from "./client";
 
+/** Builds a mock non-ok `fetch` response whose `json()` resolves to `body`. */
+function mockErrorResponse(status: number, statusText: string, body: unknown) {
+  return { ok: false, status, statusText, json: () => Promise.resolve(body) };
+}
+
+/** Builds a mock non-ok `fetch` response whose `json()` rejects, as if the body were not JSON. */
+function mockNonJsonErrorResponse(status: number, statusText: string) {
+  return { ok: false, status, statusText, json: () => Promise.reject(new Error("not json")) };
+}
+
+/** Builds a mock ok `fetch` response whose `json()` resolves to `body`. */
+function mockOkResponse(body: unknown) {
+  return { ok: true, json: () => Promise.resolve(body) };
+}
+
 describe("apiFetch", () => {
   const originalFetch = globalThis.fetch;
 
@@ -14,62 +29,42 @@ describe("apiFetch", () => {
   });
 
   it("extracts detail from JSON error response", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: false,
-      status: 422,
-      statusText: "Unprocessable Entity",
-      json: () => Promise.resolve({ detail: "Invalid app key" }),
-    });
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(mockErrorResponse(422, "Unprocessable Entity", { detail: "Invalid app key" }));
 
-    await expect(apiFetch("/apps/bad")).rejects.toThrow(ApiError);
+    const err = await apiFetch("/apps/bad").catch((e: unknown) => e);
 
-    try {
-      await apiFetch("/apps/bad");
-    } catch (err) {
-      const apiErr = err as ApiError;
-      expect(apiErr.status).toBe(422);
-      expect(apiErr.message).toBe("Invalid app key");
-    }
+    expect(err).toBeInstanceOf(ApiError);
+    const apiErr = err as ApiError;
+    expect(apiErr.status).toBe(422);
+    expect(apiErr.message).toBe("Invalid app key");
   });
 
   it("extracts message field when detail is absent", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: false,
-      status: 500,
-      statusText: "Internal Server Error",
-      json: () => Promise.resolve({ message: "Something broke" }),
-    });
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(mockErrorResponse(500, "Internal Server Error", { message: "Something broke" }));
 
-    try {
-      await apiFetch("/broken");
-    } catch (err) {
-      const apiErr = err as ApiError;
-      expect(apiErr.message).toBe("Something broke");
-    }
+    const err = await apiFetch("/broken").catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).message).toBe("Something broke");
   });
 
   it("falls back to status text when body is not JSON", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: false,
-      status: 502,
-      statusText: "Bad Gateway",
-      json: () => Promise.reject(new Error("not json")),
-    });
+    globalThis.fetch = vi.fn().mockResolvedValue(mockNonJsonErrorResponse(502, "Bad Gateway"));
 
-    try {
-      await apiFetch("/upstream");
-    } catch (err) {
-      const apiErr = err as ApiError;
-      expect(apiErr.status).toBe(502);
-      expect(apiErr.message).toBe("API error: 502 Bad Gateway");
-    }
+    const err = await apiFetch("/upstream").catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ApiError);
+    const apiErr = err as ApiError;
+    expect(apiErr.status).toBe(502);
+    expect(apiErr.message).toBe("API error: 502 Bad Gateway");
   });
 
   it("returns parsed JSON on success", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ data: "hello" }),
-    });
+    globalThis.fetch = vi.fn().mockResolvedValue(mockOkResponse({ data: "hello" }));
 
     const result = await apiFetch<{ data: string }>("/ok");
     expect(result).toEqual({ data: "hello" });
