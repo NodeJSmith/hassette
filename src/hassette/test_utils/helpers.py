@@ -570,8 +570,8 @@ def patch_loop_getaddrinfo(
     calling the blocking ``socket.getaddrinfo`` directly, so tests must patch
     ``asyncio.BaseEventLoop.getaddrinfo`` — the coroutine method looked up on whatever concrete
     loop class is running — with an async replacement, not the synchronous stdlib call. Shared by
-    ``tests/unit/web/test_auth.py``, ``tests/integration/web_api/test_auth.py``, and
-    ``tests/unit/core/test_web_api_service.py``.
+    ``tests/unit/web/test_auth_trusted_proxies.py``, ``tests/integration/web_api/test_auth.py``,
+    and ``tests/unit/core/test_web_api_service.py``.
 
     Pass exactly one of ``return_value`` (a list of :func:`make_addrinfo`-shaped tuples, the
     success case) or ``side_effect`` (an exception instance to raise, e.g.
