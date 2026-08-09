@@ -386,7 +386,15 @@ class TestListenerIntegration:
             throttle=0.1,
         )
 
-        assert listener.invoker.rate_limiter is not None
+        # Controlled clock: start at 1.0 (not 0.0) since _throttle_last_time defaults to
+        # 0.0 and the throttle guard (now - _throttle_last_time < throttle) would otherwise
+        # suppress the very first call.
+        clock_time = [1.0]
+
+        def clock() -> float:
+            return clock_time[0]
+
+        listener.invoker.rate_limiter = RateLimiter(task_bucket=bucket, throttle=0.1, handler_name="test", clock=clock)
         rl = listener.invoker.rate_limiter
 
         events = [mock_event("1"), mock_event("2"), mock_event("3"), mock_event("4")]
@@ -402,8 +410,8 @@ class TestListenerIntegration:
         await rl.call(make_invoke(events[2]))
         assert calls == ["1"], "First call should be executed immediately"
 
-        # timing: advance past throttle window before next call
-        await asyncio.sleep(0.15)
+        # advance the controlled clock past the throttle window before the next call
+        clock_time[0] = 1.2
         await rl.call(make_invoke(events[3]))
         assert calls == ["1", "4"], "Second call should execute after throttle period"
 

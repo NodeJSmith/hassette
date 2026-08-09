@@ -40,6 +40,7 @@ class RateLimiter:
         debounce: float | None = None,
         throttle: float | None = None,
         handler_name: str = "unknown",
+        clock: "Callable[[], float] | None" = None,
     ):
         """Initialize the rate limiter.
 
@@ -48,12 +49,15 @@ class RateLimiter:
             debounce: Debounce delay in seconds.
             throttle: Throttle interval in seconds.
             handler_name: Name of the owning handler, used in log messages for diagnostics.
+            clock: Zero-arg callable returning the current monotonic time, used for throttle
+                timestamps. Defaults to `time.monotonic`. Injectable for deterministic tests.
 
         """
         self.task_bucket = task_bucket
         self.debounce = debounce
         self.throttle = throttle
         self.handler_name = handler_name
+        self._clock = clock or time.monotonic
 
         # Rate limiting state
         self._debounce_task: asyncio.Task | None = None
@@ -135,12 +139,12 @@ class RateLimiter:
         """Throttled version of the handler call.
 
         At most one attempt per window. No lock needed — the check-and-set between
-        ``time.monotonic()`` and ``self._throttle_last_time = now`` is atomic in asyncio's
+        ``self._clock()`` and ``self._throttle_last_time = now`` is atomic in asyncio's
         single-threaded event loop (no await point between them).
         """
         if self.throttle is None:
             raise ValueError("throttle must be set before calling throttled_call")
-        now = time.monotonic()
+        now = self._clock()
         if now - self._throttle_last_time < self.throttle:
             LOGGER.debug("Throttle drop for handler=%s (window=%.1fs)", self.handler_name, self.throttle)
             return
