@@ -31,6 +31,7 @@ def _make_websocket(
     trusted: TrustedProxySet = EMPTY_TRUSTED_PROXY_SET,
     resolved_token: str | None = _WS_TEST_TOKEN,
     session_ttl: int = 3600,
+    auth_enabled: bool = True,
 ) -> MagicMock:
     """Build the minimal WebSocket stand-in ``authorize_ws`` reads.
 
@@ -41,7 +42,7 @@ def _make_websocket(
     ws = MagicMock()
     ws.app.state.trusted_proxies = trusted
     ws.app.state.auth_token = resolved_token
-    ws.app.state.hassette.config.web_api.auth_enabled = True
+    ws.app.state.hassette.config.web_api.auth_enabled = auth_enabled
     ws.app.state.hassette.config.web_api.session_ttl = session_ttl
     ws.headers = Headers(headers or {})
     ws.cookies = cookies or {}
@@ -141,7 +142,10 @@ class TestAuthorizeWsPrecedence:
 
     def test_auth_disabled_accepts_a_wrong_bearer_token(self) -> None:
         """`auth_enabled=False` short-circuits before any of the above, unchanged."""
-        ws = _make_websocket(headers={"authorization": "Bearer wrong-token"}, client_host=_WS_UNTRUSTED_PEER_IP)
-        ws.app.state.hassette.config.web_api.auth_enabled = False
+        ws = _make_websocket(
+            headers={"authorization": "Bearer wrong-token"},
+            client_host=_WS_UNTRUSTED_PEER_IP,
+            auth_enabled=False,
+        )
 
         assert authorize_ws(ws) is True
