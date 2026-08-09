@@ -39,16 +39,16 @@ from pathlib import Path
 import coverage
 import pytest
 
-RECEIPT_DIR = Path(".coverage-receipts")
-STARTED_SUFFIX = ".started"
-SAVED_SUFFIX = ".saved"
-PARTIAL_SUFFIX = ".partial"
-CONTROLLER_LABEL = "controller"
+RECEIPT_DIR: Path = Path(".coverage-receipts")
+STARTED_SUFFIX: str = ".started"
+SAVED_SUFFIX: str = ".saved"
+PARTIAL_SUFFIX: str = ".partial"
+CONTROLLER_LABEL: str = "controller"
 
 # Identifies this process's receipts. A bare pid is not enough: system_with_coverage runs two
 # pytest invocations against one receipt directory, and if the OS recycled the first
 # invocation's pid, the second would overwrite its receipts and erase the evidence of a drop.
-RUN_KEY = f"{os.getpid()}-{time.time_ns()}"
+RUN_KEY: str = f"{os.getpid()}-{time.time_ns()}"
 
 
 def active_coverage() -> coverage.Coverage | None:
@@ -108,6 +108,8 @@ def find_problems(receipt_dir: Path) -> list[str]:
             problems.append(f"{label} left an unusable save receipt ({recorded!r}); its data cannot be confirmed")
         elif not Path(recorded).exists():
             problems.append(f"{label} saved coverage data to {recorded}, but that file is now missing")
+        elif not Path(recorded).is_file():
+            problems.append(f"{label} left an unusable save receipt ({recorded!r}); its data cannot be confirmed")
     return problems
 
 
