@@ -10,8 +10,10 @@ mechanism this implements.
 
 import asyncio
 import ipaddress
+from collections.abc import Mapping
 from dataclasses import dataclass
 from logging import getLogger
+from types import MappingProxyType
 
 from starlette.datastructures import State
 from starlette.requests import HTTPConnection, Request
@@ -58,7 +60,7 @@ class TrustedProxySet:
     """
 
     literal_networks: frozenset[ipaddress.IPv4Network | ipaddress.IPv6Network]
-    hostname_entries: dict[str, frozenset[ipaddress.IPv4Network | ipaddress.IPv6Network]]
+    hostname_entries: Mapping[str, frozenset[ipaddress.IPv4Network | ipaddress.IPv6Network]]
 
     def all_networks(self) -> frozenset[ipaddress.IPv4Network | ipaddress.IPv6Network]:
         """Return every currently-trusted network: literals plus all resolved hostnames."""
@@ -68,7 +70,7 @@ class TrustedProxySet:
         return frozenset(combined)
 
 
-EMPTY_TRUSTED_PROXY_SET = TrustedProxySet(literal_networks=frozenset(), hostname_entries={})
+EMPTY_TRUSTED_PROXY_SET = TrustedProxySet(literal_networks=frozenset(), hostname_entries=MappingProxyType({}))
 """A :class:`TrustedProxySet` that matches no peer address.
 
 Used as the fallback wherever a resolved trusted-proxy set is read from ``app.state`` but wasn't
@@ -197,7 +199,9 @@ async def resolve_trusted_proxies(entries: tuple[str, ...]) -> TrustedProxySet:
             literal_networks.add(network)
             continue
         hostname_entries[entry] = await _resolve_hostname(entry)
-    return TrustedProxySet(literal_networks=frozenset(literal_networks), hostname_entries=hostname_entries)
+    return TrustedProxySet(
+        literal_networks=frozenset(literal_networks), hostname_entries=MappingProxyType(hostname_entries)
+    )
 
 
 async def refresh_trusted_proxies(current: TrustedProxySet) -> TrustedProxySet:
@@ -228,7 +232,7 @@ async def refresh_trusted_proxies(current: TrustedProxySet) -> TrustedProxySet:
                 hostname,
             )
             updated[hostname] = previous_networks
-    return TrustedProxySet(literal_networks=current.literal_networks, hostname_entries=updated)
+    return TrustedProxySet(literal_networks=current.literal_networks, hostname_entries=MappingProxyType(updated))
 
 
 def is_trusted_peer(client_address: str, trusted: TrustedProxySet) -> bool:
