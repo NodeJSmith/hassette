@@ -526,12 +526,25 @@ class TestCredentialAttachment:
         ``HASSETTE__CLI__SERVER_URL`` or ``HASSETTE__WEB_API__HOST`` pointed at a non-loopback
         target would make ``resolve_cli_auth_token()`` skip the server-scoped
         ``web_api.auth_token`` source entirely, failing this test for an unrelated reason.
+
+        Clearing env vars isn't enough on its own — a developer's repo-root ``.env`` or
+        ``hassette.toml`` could set the same problematic keys and survive the clear. This
+        drops the dotenv and TOML sources entirely (keeping ``init_settings``/``env_settings``
+        live) so only the real environment — the thing under test — can populate the config.
         """
         for key in list(os.environ):
             if key.upper().startswith("HASSETTE__"):
                 monkeypatch.delenv(key, raising=False)
         monkeypatch.setenv("HASSETTE__WEB_API__AUTH_TOKEN", "env-token")
-        config = HassetteConfig(token=None, data_dir=tmp_path)
+
+        class EnvOnlyConfig(HassetteConfig):
+            model_config = HassetteConfig.model_config.copy() | {"toml_file": None, "env_file": None}
+
+            @classmethod
+            def settings_customise_sources(cls, _settings_cls, init_settings, env_settings, **kwargs):  # pyright: ignore[reportIncompatibleMethodOverride]
+                return (init_settings, env_settings, kwargs["file_secret_settings"])
+
+        config = EnvOnlyConfig(token=None, data_dir=tmp_path)
         assert config.web_api.auth_token is not None
         assert config.web_api.auth_token.get_secret_value() == "env-token"
 
