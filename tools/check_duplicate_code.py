@@ -68,7 +68,11 @@ the line starts with `#`/`//` immediately followed by the marker) — mentioning
 this paragraph does, or in a regex literal, doesn't accidentally register as a real marker. A
 flagged cluster is suppressed only once *every* occurrence in it is wrapped — annotating some but
 not all still fails, so there's no silent partial exemption. An unbalanced start/end pair is a
-checker error, not a silent no-op.
+checker error, not a silent no-op — and that guarantee holds for every scanned file, not just
+ones PMD happened to flag as duplicated: `main()` parses every marker in every scanned file
+(`validate_markers()`) before clustering even starts, so a malformed marker sitting on code PMD
+never reports as a clone can't sit there silently until unrelated duplication changes the cluster
+and finally exercises it.
 
 Usage:
     python tools/check_duplicate_code.py
@@ -102,7 +106,7 @@ import zipfile
 from pathlib import Path
 from typing import NamedTuple
 
-from lint_helpers import REPO_ROOT, docstring_spans
+from lint_helpers import REPO_ROOT, docstring_spans, iter_py_files, iter_ts_files
 
 PMD_VERSION = "7.26.0"
 PMD_DIST_URL = f"https://github.com/pmd/pmd/releases/download/pmd_releases/{PMD_VERSION}/pmd-dist-{PMD_VERSION}-bin.zip"
@@ -290,6 +294,41 @@ def is_dup_ignored(fragment: Fragment) -> bool:
     return any(start <= fragment.start and fragment.end <= end for start, end in ignore_ranges(fragment.file))
 
 
+def scanned_files() -> list[Path]:
+    """Every file PMD CPD is asked to scan, across both languages.
+
+    Walks PYTHON_SCAN_PATHS/TYPESCRIPT_SCAN_PATHS the same directories passed to `run_pmd_cpd`,
+    via the same first-party-file filtering `iter_py_files`/`iter_ts_files` use elsewhere in this
+    tools/ package — a best-effort mirror of PMD's own `--dir` scan, not a verified-identical one
+    (PMD's file discovery is opaque to this script; the two could in principle diverge on an edge
+    case like a symlink).
+    """
+    ts_files = [path for scan_dir in TYPESCRIPT_SCAN_PATHS for path in iter_ts_files(REPO_ROOT / scan_dir)]
+    return iter_py_files(REPO_ROOT, PYTHON_SCAN_PATHS) + sorted(ts_files)
+
+
+def validate_markers(files: list[Path]) -> None:
+    """Eagerly parse every dup-ignore marker in `files`, raising on the first malformed one.
+
+    `is_dup_ignore_file`/`ignore_ranges` already raise `IgnoreMarkerError` for a malformed marker,
+    but `find_violations` only calls them on fragments PMD found duplicated 3+ times. A malformed
+    marker on code that PMD never flags as a clone — because the block genuinely appears only once
+    or twice, or the fragment predates the marker going stale — would otherwise pass silently.
+    Calling both eagerly here, over every scanned file, closes that gap; both are `functools.cache`d
+    so the later calls during clustering are free.
+
+    Skips exactly the files `is_dropped` treats as out-of-scope before it ever reaches a marker
+    check (`is_ignored_glob`, `is_excluded_file` — self, codegen dirs, generated-marker files) —
+    those files' duplication is never evaluated, so a marker sitting in one, malformed or not, is
+    never load-bearing and shouldn't fail CI on its own.
+    """
+    for path in files:
+        if is_ignored_glob(path) or is_excluded_file(path):
+            continue
+        is_dup_ignore_file(path)
+        ignore_ranges(path)
+
+
 def pmd_cache_root() -> Path:
     base = Path(os.environ["XDG_CACHE_HOME"]) if os.environ.get("XDG_CACHE_HOME") else Path.home() / ".cache"
     return base / "hassette-dev-tools" / "pmd" / PMD_VERSION
@@ -435,11 +474,11 @@ def find_violations(blocks: list[list[Fragment]]) -> list[list[Fragment]]:
 
 
 def main() -> int:
-    pmd_binary = ensure_pmd_binary()
-    blocks = duplication_blocks(run_pmd_cpd(pmd_binary, "python", PYTHON_SCAN_PATHS))
-    blocks += duplication_blocks(run_pmd_cpd(pmd_binary, "typescript", TYPESCRIPT_SCAN_PATHS))
-
     try:
+        validate_markers(scanned_files())
+        pmd_binary = ensure_pmd_binary()
+        blocks = duplication_blocks(run_pmd_cpd(pmd_binary, "python", PYTHON_SCAN_PATHS))
+        blocks += duplication_blocks(run_pmd_cpd(pmd_binary, "typescript", TYPESCRIPT_SCAN_PATHS))
         violations = find_violations(blocks)
     except IgnoreMarkerError as exc:
         print(f"ERROR: malformed dup-ignore marker: {exc}")

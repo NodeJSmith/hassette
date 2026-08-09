@@ -9,7 +9,7 @@ behaviour CI (``prek run --all-files``) and a manual full sweep rely on.
 from pathlib import Path
 
 import pytest
-from lint_helpers import resolve_paths
+from lint_helpers import iter_ts_files, resolve_paths
 
 
 def _make_repo(root: Path) -> None:
@@ -72,3 +72,17 @@ def test_result_is_sorted_and_deduplicated(tmp_path: Path) -> None:
     tests_py = tmp_path / "tests" / "b.py"
     # Pass tests_py before src_py, and src_py twice — output is sorted and carries no duplicate.
     assert resolve_paths([str(tests_py), str(src_py), "src/a.py"], tmp_path, ["src", "tests"]) == [src_py, tests_py]
+
+
+def test_iter_ts_files_finds_ts_and_tsx_excludes_generated_and_vendored(tmp_path: Path) -> None:
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "node_modules").mkdir()
+    ts_file = tmp_path / "src" / "a.ts"
+    tsx_file = tmp_path / "src" / "b.tsx"
+    d_ts_file = tmp_path / "src" / "c.d.ts"
+    vendored = tmp_path / "src" / "node_modules" / "vendored.ts"
+    ts_file.write_text("const x = 1;\n")
+    tsx_file.write_text("const y = 1;\n")
+    d_ts_file.write_text("export type X = string;\n")
+    vendored.write_text("const z = 1;\n")
+    assert iter_ts_files(tmp_path / "src") == [ts_file, tsx_file]
