@@ -517,8 +517,13 @@ class TestCredentialAttachment:
 
         Setting only the env var (no explicit ``web_api`` override) and confirming the
         header is attached proves ``config.web_api.auth_token`` was actually populated by
-        HassetteConfig's normal settings resolution.
+        HassetteConfig's normal settings resolution. This means, unlike its sibling tests, it
+        can't use the hermetic ``make_cli_config`` factory — see "Credential tests: prefer the
+        hermetic factory" in this directory's CLAUDE.md for why the two ``delenv`` calls below
+        are required and why they're the exact two vars.
         """
+        monkeypatch.delenv("HASSETTE__CLI__AUTH_TOKEN", raising=False)
+        monkeypatch.delenv("HASSETTE__CLI__TOKEN_FILE", raising=False)
         monkeypatch.setenv("HASSETTE__WEB_API__AUTH_TOKEN", "env-token")
         config = HassetteConfig(token=None, data_dir=tmp_path)
         assert config.web_api.auth_token is not None
