@@ -10,7 +10,7 @@ from fastapi import APIRouter, HTTPException, Query, Request, Response
 from hassette.exceptions import JobRemovedError
 from hassette.schemas.job_models import JobSummary
 from hassette.types.types import QuerySourceTier
-from hassette.web.auth import peer_address_or_unknown
+from hassette.web.auth.trusted_proxies import peer_address_or_unknown
 from hassette.web.dependencies import SOURCE_TIER_PARAM, SchedulerDep, TelemetryDep, db_degrades_to
 from hassette.web.models import JobTriggerResponse
 from hassette.web.utils import enrich_jobs_with_live_data

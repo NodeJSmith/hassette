@@ -39,7 +39,7 @@ from hassette.scheduler import Scheduler
 from hassette.scheduler.error_context import SchedulerErrorContext
 from hassette.state_manager import StateManager
 from hassette.task_bucket import TaskBucket, make_task_factory
-from hassette.test_utils.config import TEST_TOKEN
+from hassette.test_utils.config import TEST_TOKEN, WAIT_FOR_READY_TIMEOUT_SECONDS
 from hassette.test_utils.reset import reset_app_handler, reset_bus, reset_mock_api, reset_scheduler, reset_state_proxy
 from hassette.test_utils.test_server import SimpleTestServer
 from hassette.test_utils.ws_mocks import configure_ready_websocket_mock
@@ -100,7 +100,10 @@ class Timeouts:
 
     # How long HassetteHarness.start() waits for all children to become ready.
     # 5 s gives enough headroom for slow CI machines without masking real hangs.
-    WAIT_FOR_READY: float = 5.0
+    # Shared with hassette.test_utils.reset via WAIT_FOR_READY_TIMEOUT_SECONDS in
+    # hassette.test_utils.config (that module, not this one, is the single source of truth —
+    # see the comment there for why).
+    WAIT_FOR_READY: float = WAIT_FOR_READY_TIMEOUT_SECONDS
 
     # How long seed_state() waits to acquire the StateProxy write lock.
     # Under test conditions the lock should never be contended for long; 5 s is

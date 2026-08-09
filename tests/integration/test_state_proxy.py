@@ -4,12 +4,19 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
+from hassette.config.config import HassetteConfig
 from hassette.core.state_proxy import StateCacheFreshness, StateProxy, StateSynchronizationStatus
 from hassette.events import RawStateChangeEvent
 from hassette.events.metadata import stamp_websocket_generation
 from hassette.exceptions import ResourceNotReadyError
 from hassette.resources.lifecycle import mark_ready
-from hassette.test_utils import make_full_state_change_event, make_light_state_dict, make_mock_hassette
+from hassette.test_utils import (
+    HassetteHarness,
+    build_harness,
+    make_full_state_change_event,
+    make_light_state_dict,
+    make_mock_hassette,
+)
 from hassette.test_utils.config import TEST_TOTAL_TIMEOUT_SECONDS
 from hassette.test_utils.ws_mocks import configure_ready_websocket_mock
 
@@ -721,3 +728,24 @@ async def test_shutdown_preserves_initial_state_capability_event_identity() -> N
 
     result = await asyncio.wait_for(waiter_task, timeout=SYNC_WAIT_TIMEOUT)
     assert result is True
+
+
+async def test_state_proxy_starts_with_api_mock_websocket_service_spec(
+    test_config: HassetteConfig, unused_tcp_port_factory
+) -> None:
+    """`with_api_mock()` installs `Mock(spec=WebsocketService)`; `subscribe_to_events()` must be
+    able to call `.add()` on `connected_observers`/`disconnected_observers` against that spec'd
+    mock without raising `AttributeError`, same as it does against the unspec'd mock the other
+    harness paths install.
+
+    ``require_initial_state_capability=False`` skips waiting on the background initial sync —
+    ``with_api_mock()`` only mocks the REST layer, not the websocket ``send_and_wait()`` path
+    initial sync depends on, so full sync success is out of scope here. This isolates the
+    assertion to the specific failure mode reported: the synchronous ``subscribe_to_events()``
+    call during resource startup, before sync ever begins.
+    """
+    harness = HassetteHarness(test_config, unused_tcp_port=unused_tcp_port_factory())
+    async with build_harness(
+        harness.with_api_mock().with_state_proxy(require_initial_state_capability=False)
+    ) as started:
+        assert started.state_proxy.state_change_sub is not None

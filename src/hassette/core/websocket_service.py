@@ -1,11 +1,9 @@
 import asyncio
 import json
 import logging
-import random
 import time
 import traceback
 import typing
-from collections.abc import Callable
 from contextlib import AsyncExitStack, suppress
 from itertools import count
 from typing import Any, ClassVar, cast
@@ -24,6 +22,14 @@ from tenacity import (
     wait_exponential_jitter,
 )
 
+from hassette.core.early_drop_policy import (
+    compute_recovery_windows,
+    early_drop_backoff,
+    is_early_drop,
+    log_resilience_budget,
+)
+from hassette.core.observer_list import ObserverList
+from hassette.core.retry_policy import MAX_RETRY_ATTEMPTS
 from hassette.events import HassetteSimpleEvent, RawStateChangeEvent, create_event_from_hass
 from hassette.events.metadata import stamp_websocket_generation
 from hassette.exceptions import (
@@ -43,6 +49,8 @@ from hassette.types.enums import ConnectionState, RestartType
 from hassette.types.types import LOG_LEVEL_TYPE
 
 if typing.TYPE_CHECKING:
+    from collections.abc import Callable
+
     from hassette import Hassette
     from hassette.events.hass.raw import HassEventEnvelopeDict
     from hassette.resources.base import Resource
@@ -69,11 +77,6 @@ RETRYABLE = (
     ClientOSError,
     CouldNotFindHomeAssistantError,
 )
-# Subset of RETRYABLE that qualifies for early-drop retry.
-# Excludes ClientConnectorError and CouldNotFindHomeAssistantError — those indicate
-# the server is unreachable, not that it dropped a post-auth connection.
-EARLY_DROP_RETRYABLE = (RetryableConnectionClosedError, ServerDisconnectedError)
-MAX_RETRY_ATTEMPTS = 5
 
 # Number of stack frames to keep when logging an invalid connection-state transition.
 # 3 is enough to show the caller that triggered the transition without dumping the
@@ -145,8 +148,12 @@ class WebsocketService(Service):
         self._ever_connected: bool = False
         self._generation_seq = count(1)
         self._connected_generation: int | None = None
-        self._connected_observers: list[Callable[[int], typing.Awaitable[None]]] = []
-        self._disconnected_observers: list[Callable[[], typing.Awaitable[None]]] = []
+        self.connected_observers: ObserverList[Callable[[int], typing.Awaitable[None]]] = ObserverList(
+            self.logger, "Connected"
+        )
+        self.disconnected_observers: ObserverList[Callable[[], typing.Awaitable[None]]] = ObserverList(
+            self.logger, "Disconnected"
+        )
 
     async def on_initialize(self) -> None:
         """Mark the service lifecycle-ready unconditionally, independent of HA reachability.
@@ -309,68 +316,10 @@ class WebsocketService(Service):
         await self._notify_disconnected_observers()
         await self.send_connection_lost_event()
 
-    def add_connected_observer(self, observer: Callable[[int], typing.Awaitable[None]]) -> None:
-        if observer not in self._connected_observers:
-            self._connected_observers.append(observer)
-
-    def remove_connected_observer(self, observer: Callable[[int], typing.Awaitable[None]]) -> None:
-        if observer in self._connected_observers:
-            self._connected_observers.remove(observer)
-
-    def add_disconnected_observer(self, observer: Callable[[], typing.Awaitable[None]]) -> None:
-        if observer not in self._disconnected_observers:
-            self._disconnected_observers.append(observer)
-
-    def remove_disconnected_observer(self, observer: Callable[[], typing.Awaitable[None]]) -> None:
-        if observer in self._disconnected_observers:
-            self._disconnected_observers.remove(observer)
-
-    async def _notify_connected_observers(self, generation: int) -> None:
-        for observer in tuple(self._connected_observers):
-            try:
-                await observer(generation)
-            except Exception:
-                self.logger.exception("Connected observer failed")
-
     async def _notify_disconnected_observers(self) -> None:
         if not self._connected_signal_active:
             return
-        for observer in tuple(self._disconnected_observers):
-            try:
-                await observer()
-            except Exception:
-                self.logger.exception("Disconnected observer failed")
-
-    def log_resilience_budget(self) -> None:
-        """Log the early-drop and connection retry budget that bounds recovery time."""
-        config = self.hassette.config
-        max_early_drops = config.websocket.early_drop_max_retries
-        max_recovery = config.websocket.max_recovery_seconds
-        self.logger.info(
-            "WebSocket resilience budget: max ~%.0f minutes to permanent shutdown "
-            "(early-drop: %d retries capped at %ds, connection: %d retries, service: %d restarts)",
-            max_recovery / 60,
-            max_early_drops,
-            int(max_recovery),
-            config.websocket.connect_retry_max_attempts,
-            self.restart_spec.budget_intensity,
-        )
-
-    def compute_recovery_windows(self, recovery_started_at: float | None) -> tuple[float, float]:
-        """Compute (seconds since last connect, seconds since recovery began) for drop classification."""
-        elapsed = (time.monotonic() - self._connected_at) if self._connected_at is not None else float("inf")
-        recovery_elapsed = (time.monotonic() - recovery_started_at) if recovery_started_at is not None else 0.0
-        return elapsed, recovery_elapsed
-
-    def is_early_drop(self, exc: Exception, early_drop_attempts: int, elapsed: float, recovery_elapsed: float) -> bool:
-        """Classify exc as an early drop (retry in place) versus a genuine failure (propagate)."""
-        config = self.hassette.config.websocket
-        return (
-            elapsed < config.early_drop_stable_window_seconds
-            and isinstance(exc, EARLY_DROP_RETRYABLE)
-            and early_drop_attempts < config.early_drop_max_retries
-            and recovery_elapsed < config.max_recovery_seconds
-        )
+        await self.disconnected_observers.notify()
 
     async def handle_early_drop(
         self, exc: Exception, elapsed: float, early_drop_attempts: int, max_early_drops: int
@@ -394,7 +343,7 @@ class WebsocketService(Service):
         mark_not_ready(self, reason="Early drop detected")
         await self._emit_readiness_event()
         await self.partial_cleanup()
-        await self.early_drop_backoff(early_drop_attempts)
+        await early_drop_backoff(self.hassette.config.websocket, early_drop_attempts)
 
     async def handle_genuine_failure(self) -> None:
         """Transition to DISCONNECTED and notify listeners of a non-recoverable serve() failure."""
@@ -407,7 +356,7 @@ class WebsocketService(Service):
 
     async def serve(self) -> None:
         """Connect to the WebSocket and run the receive loop."""
-        self.log_resilience_budget()
+        log_resilience_budget(self.hassette.config.websocket, self.logger, self.restart_spec.budget_intensity)
         max_early_drops = self.hassette.config.websocket.early_drop_max_retries
 
         async with self._connect_lock:
@@ -431,8 +380,10 @@ class WebsocketService(Service):
                         self.set_connection_state(ConnectionState.DISCONNECTED)
                         raise
                     except Exception as exc:
-                        elapsed, recovery_elapsed = self.compute_recovery_windows(recovery_started_at)
-                        if self.is_early_drop(exc, early_drop_attempts, elapsed, recovery_elapsed):
+                        elapsed, recovery_elapsed = compute_recovery_windows(self._connected_at, recovery_started_at)
+                        if is_early_drop(
+                            self.hassette.config.websocket, exc, early_drop_attempts, elapsed, recovery_elapsed
+                        ):
                             if recovery_started_at is None:
                                 recovery_started_at = time.monotonic()
                             early_drop_attempts += 1
@@ -490,7 +441,7 @@ class WebsocketService(Service):
         mark_ready(self, reason="WebSocket connected, authenticated, and subscribed")
         await self._emit_readiness_event()
         self._connected_signal_active = True
-        await self._notify_connected_observers(self._connected_generation)
+        await self.connected_observers.notify(self._connected_generation)
         with suppress(Exception):
             await self.send_connection_established_event()
         return recv_task
@@ -500,7 +451,7 @@ class WebsocketService(Service):
 
         serve() only learns a recv task died once it gets the task handle back from
         start_recv_and_subscribe() and awaits it — but that method can be delayed arbitrarily
-        long by _notify_connected_observers() running a slow observer (e.g. StateProxy's initial
+        long by connected_observers.notify() running a slow observer (e.g. StateProxy's initial
         sync). Attaching this callback directly to the task (asyncio.Task.add_done_callback
         fires synchronously in the event loop the moment the task completes, regardless of who
         is awaiting it) means get_connected_generation()/is_connected reflect the disconnect the
@@ -548,19 +499,6 @@ class WebsocketService(Service):
         self._subscription_ids.clear()
         self._ws = None
         self._recv_task = None
-
-    async def early_drop_backoff(self, attempt: int) -> None:
-        """Compute and sleep for an exponential-jitter backoff after an early drop.
-
-        Args:
-            attempt: The current attempt number (1-based).
-        """
-        config = self.hassette.config
-        backoff = min(
-            config.websocket.early_drop_backoff_initial_seconds * (2 ** (attempt - 1)),
-            config.websocket.early_drop_backoff_max_seconds,
-        ) + random.uniform(0, config.websocket.early_drop_backoff_initial_seconds)
-        await asyncio.sleep(backoff)
 
     async def make_connection(self, session: aiohttp.ClientSession) -> asyncio.Task:
         self._connected_at = None

@@ -9,15 +9,19 @@ separately.
 import asyncio
 import time
 from collections.abc import Coroutine
+from logging import getLogger
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, cast
 from unittest.mock import AsyncMock, Mock
 
 from aiohttp import ClientWebSocketResponse
 
+from hassette.core.observer_list import ObserverList
 from hassette.resources.lifecycle import mark_ready
 from hassette.test_utils.config import TEST_TOTAL_TIMEOUT_SECONDS
 from hassette.types.enums import ConnectionState
+
+LOGGER = getLogger(__name__)
 
 if TYPE_CHECKING:
     from hassette.core.websocket_service import WebsocketService
@@ -64,7 +68,14 @@ def _configure_websocket_external_readiness_primitives(target: Any, *, generatio
 
 
 def configure_ready_websocket_mock(websocket_service: Mock, *, generation: int = 1) -> None:
-    """Configure a websocket-service mock to look externally ready."""
+    """Configure a websocket-service mock to look externally ready.
+
+    Also wires real ``ObserverList`` instances onto ``connected_observers`` and
+    ``disconnected_observers``. Both are instance-only attributes on the real
+    ``WebsocketService`` (assigned in ``__init__``, not declared on the class), so a
+    ``Mock(spec=WebsocketService)`` doesn't expose them and ``StateProxy.subscribe_to_events()``
+    raises ``AttributeError`` calling ``.add()`` on either one without this.
+    """
     websocket_service.ready_event = asyncio.Event()
     websocket_service.ready_event.set()
     _configure_websocket_external_readiness_primitives(websocket_service, generation=generation)
@@ -75,6 +86,8 @@ def configure_ready_websocket_mock(websocket_service: Mock, *, generation: int =
     websocket_service.wait_connected = AsyncMock(return_value=True)
     websocket_service.wait_connected_generation = AsyncMock(return_value=generation)
     websocket_service.wait_initial_connection = AsyncMock(return_value=True)
+    websocket_service.connected_observers = ObserverList(LOGGER, "Connected")
+    websocket_service.disconnected_observers = ObserverList(LOGGER, "Disconnected")
 
 
 def mark_websocket_service_connected(websocket_service: "WebsocketService", *, reason: str) -> None:

@@ -8,12 +8,8 @@ from typing import TYPE_CHECKING
 
 from hassette.core.app_lifecycle_service import AppAdmissionMode
 from hassette.resources.lifecycle import mark_ready
+from hassette.test_utils.config import WAIT_FOR_READY_TIMEOUT_SECONDS
 from hassette.types.enums import ACTIVE_STATUSES, ResourceStatus
-
-# Mirrors Timeouts.WAIT_FOR_READY in hassette.test_utils.harness — the two values must stay in
-# sync, but harness.py imports from this module at load time, so importing Timeouts here would
-# create a circular import (reset.py -> harness.py -> reset.py).
-_WAIT_FOR_READY_TIMEOUT_SECONDS = 5.0
 
 if TYPE_CHECKING:
     from hassette.bus.bus import Bus
@@ -48,7 +44,7 @@ async def reset_state_proxy(proxy: "StateProxy", *, require_initial_state_capabi
     if generation is not None:
         if not require_initial_state_capability:
             return
-        ready = await proxy.wait_initial_state_capability(timeout=_WAIT_FOR_READY_TIMEOUT_SECONDS)
+        ready = await proxy.wait_initial_state_capability(timeout=WAIT_FOR_READY_TIMEOUT_SECONDS)
         if not ready:
             raise TimeoutError("Timed out waiting for StateProxy initial state capability during reset")
 

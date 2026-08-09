@@ -11,7 +11,7 @@ from hassette.app.app_config import AppConfig
 from hassette.config.classes import AppManifest
 from hassette.exceptions import AppBootstrapNotReleasedError, TelemetryUnavailableError
 from hassette.schemas.app_snapshots import AppFullSnapshot, tally_manifest_statuses
-from hassette.web.auth import peer_address_or_unknown
+from hassette.web.auth.trusted_proxies import peer_address_or_unknown
 from hassette.web.config_view import deref_schema, mask_app_config, mask_values, resolve_app_config_cls
 from hassette.web.dependencies import HassetteDep, RuntimeDep, TelemetryDep, db_degrades_to
 from hassette.web.mappers import app_manifest_list_response_from, app_manifest_response_from, app_status_response_from

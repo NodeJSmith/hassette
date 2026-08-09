@@ -27,7 +27,7 @@ from hassette.exceptions import (
     ServerUrlSchemeRequiredError,
 )
 from hassette.utils.net_utils import format_host, is_loopback_host, substitute_host
-from hassette.web.auth import TOKEN_FILENAME
+from hassette.web.auth.tokens import TOKEN_FILENAME
 
 
 @dataclass(frozen=True)

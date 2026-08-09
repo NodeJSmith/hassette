@@ -41,6 +41,12 @@ numbered file to migrations_sql/."""
 # at test teardown. Generous relative to test workloads so it never masks a real hang.
 TEST_SYNC_EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS = 5.0
 
+# Shared by hassette.test_utils.reset and hassette.test_utils.harness (Timeouts.WAIT_FOR_READY)
+# for waiting on StateProxy initial state capability during test setup/reset. Lives here rather
+# than in either of those two modules because harness.py imports reset.py at load time, so a
+# constant defined in either one and imported by the other would form a circular import.
+WAIT_FOR_READY_TIMEOUT_SECONDS: float = 5.0
+
 # Matches the production default (WebSocketConfig.total_timeout_seconds). Tests use this
 # instead of a tight override to avoid the config-driven real-clock timeout race
 # documented in CLAUDE.md.

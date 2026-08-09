@@ -19,6 +19,7 @@ from tenacity import (
 )
 from whenever import Date, PlainDateTime, ZonedDateTime
 
+from hassette.core.retry_policy import MAX_RETRY_ATTEMPTS
 from hassette.exceptions import (
     ConnectionClosedError,
     EntityNotFoundError,
@@ -37,8 +38,6 @@ if typing.TYPE_CHECKING:
     from hassette import Hassette
     from hassette.core.websocket_service import WebsocketService
 
-
-MAX_RETRY_ATTEMPTS = 5
 
 NOT_RETRYABLE = (
     EntityNotFoundError,

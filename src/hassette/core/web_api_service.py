@@ -20,11 +20,11 @@ from hassette.types.enums import RestartType
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.net_utils import is_loopback_host
 from hassette.web.app import create_fastapi_app
-from hassette.web.auth import (
+from hassette.web.auth.tokens import resolve_auth_token
+from hassette.web.auth.trusted_proxies import (
     EMPTY_TRUSTED_PROXY_SET,
     TrustedProxySet,
     refresh_trusted_proxies,
-    resolve_auth_token,
     resolve_trusted_proxies,
 )
 
@@ -125,7 +125,7 @@ class WebApiService(Service):
         """Periodic job body: re-resolve trusted_proxies hostname entries.
 
         Scheduled via ``self.scheduler.run_every()`` in ``on_initialize()``. Delegates entirely
-        to :func:`hassette.web.auth.refresh_trusted_proxies`, which never raises — a hostname
+        to :func:`hassette.web.auth.trusted_proxies.refresh_trusted_proxies`, which never raises — a hostname
         that fails to re-resolve keeps its last-known-good addresses.
 
         ``serve()`` builds the FastAPI app once and hands ``self._trusted_proxies`` to

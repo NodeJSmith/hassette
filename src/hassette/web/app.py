@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import FileResponse
 
-from hassette.web.auth import EMPTY_TRUSTED_PROXY_SET, TrustedProxySet
+from hassette.web.auth.trusted_proxies import EMPTY_TRUSTED_PROXY_SET, TrustedProxySet
 from hassette.web.body_limit import RequestBodySizeLimitMiddleware
 from hassette.web.middleware import DefaultDenyMiddleware
 from hassette.web.routes.apps import router as apps_router

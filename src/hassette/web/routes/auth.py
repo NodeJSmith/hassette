@@ -2,14 +2,13 @@
 
 from fastapi import APIRouter, HTTPException, Request, Response
 
-from hassette.web.auth import (
+from hassette.web.auth.session import (
     SESSION_COOKIE_NAME,
     check_bearer_token,
-    get_trusted_proxies,
     mint_session_cookie,
-    peer_address,
     should_set_secure_cookie_flag,
 )
+from hassette.web.auth.trusted_proxies import get_trusted_proxies, peer_address
 from hassette.web.dependencies import AuthDep, HassetteDep
 from hassette.web.models import SessionRequest, SessionResponse
 
