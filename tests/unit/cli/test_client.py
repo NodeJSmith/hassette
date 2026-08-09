@@ -1,6 +1,7 @@
 """Unit tests for the HassetteCLIClient HTTP client wrapper."""
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -20,7 +21,6 @@ from tests.unit.cli.conftest import REMOTE_SERVER_URL, CLIClientFactory, capture
 
 HEALTH_ENDPOINT = "/api/health"
 CLI_AUTH_TOKEN_ENV = "HASSETTE__CLI__AUTH_TOKEN"
-CLI_TOKEN_FILE_ENV = "HASSETTE__CLI__TOKEN_FILE"
 
 # Helpers
 
@@ -521,11 +521,15 @@ class TestCredentialAttachment:
         header is attached proves ``config.web_api.auth_token`` was actually populated by
         HassetteConfig's normal settings resolution. This means, unlike its sibling tests, it
         can't use the hermetic ``make_cli_config`` factory — see "Credential tests: prefer the
-        hermetic factory" in this directory's CLAUDE.md for why the two ``delenv`` calls below
-        are required and why they're the exact two vars.
+        hermetic factory" in this directory's CLAUDE.md for why every ambient ``HASSETTE__*``
+        var is cleared below, not just the credential-precedence ones: an ambient
+        ``HASSETTE__CLI__SERVER_URL`` or ``HASSETTE__WEB_API__HOST`` pointed at a non-loopback
+        target would make ``resolve_cli_auth_token()`` skip the server-scoped
+        ``web_api.auth_token`` source entirely, failing this test for an unrelated reason.
         """
-        monkeypatch.delenv(CLI_AUTH_TOKEN_ENV, raising=False)
-        monkeypatch.delenv(CLI_TOKEN_FILE_ENV, raising=False)
+        for key in list(os.environ):
+            if key.upper().startswith("HASSETTE__"):
+                monkeypatch.delenv(key, raising=False)
         monkeypatch.setenv("HASSETTE__WEB_API__AUTH_TOKEN", "env-token")
         config = HassetteConfig(token=None, data_dir=tmp_path)
         assert config.web_api.auth_token is not None

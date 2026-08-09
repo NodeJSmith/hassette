@@ -48,11 +48,18 @@ The one deliberate exception is
 `test_env_var_populates_config_and_attaches_bearer_header`, which exists specifically to prove
 pydantic-settings' real env-var source populates `HassetteConfig` (not a hand-rolled
 `os.environ` read), so it must construct a real, non-hermetic config. If you add another test
-that needs the real env path, `monkeypatch.delenv` every `HASSETTE__*` var that outranks the one
-you're setting in `CREDENTIAL_SOURCES` (`src/hassette/cli/target.py`) — not just the specific var
-you happen to have set locally. Tracked as issue #1552 after `HASSETTE__CLI__AUTH_TOKEN` being
-ambient on a dev machine broke this test (and silently aborted `nox -s tests_with_coverage`
-before it wrote `coverage.xml`, since the session runs `coverage xml` after pytest).
+that needs the real env path, clear *every* ambient `HASSETTE__*` var first (loop over
+`os.environ` and `monkeypatch.delenv` each match), then `monkeypatch.setenv` only the var under
+test — don't enumerate individual vars by name. Naming only the credential-precedence vars that
+outrank the one you're setting (`CREDENTIAL_SOURCES` in `src/hassette/cli/target.py`) is not
+enough: an ambient `HASSETTE__CLI__SERVER_URL` or `HASSETTE__WEB_API__HOST` pointed at a
+non-loopback target makes `resolve_cli_auth_token()` skip every server-scoped credential source
+regardless of precedence, which is a different failure mode than precedence and just as easy to
+hit. A blanket clear covers both, and any future `HassetteConfig` field, without relying on
+whoever adds the next real-env test to enumerate the right var names. Tracked as issue #1552
+after `HASSETTE__CLI__AUTH_TOKEN` being ambient on a dev machine broke this test (and silently
+aborted `nox -s tests_with_coverage` before it wrote `coverage.xml`, since the session runs
+`coverage xml` after pytest).
 
 ## Fixtures and helpers
 
