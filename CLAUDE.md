@@ -378,6 +378,12 @@ YAML form templates in `.github/ISSUE_TEMPLATE/` enforce structure:
 
 **CodeRabbit reviews are manual.** Auto-review is disabled (`.coderabbit.yaml`, `auto_review.enabled: false`) — a review firing on every push to an already-open PR is noisy and out of sync with the actual review cadence. After the full PR workflow is complete (commit, push, PR created and marked ready), comment `@coderabbitai review` on the PR to trigger a review.
 
+### Known-failing lint checks (pre-existing baseline, not PR-introduced)
+
+The `file-sizes` and `duplicate-code` jobs in `.github/workflows/lint.yml` fail on `main` today, not just on feature branches — they're tracking a real, already-triaged backlog (see the `Decompose *` issues and #1573 on the issue tracker) rather than flagging something a given PR broke. Both jobs run with `continue-on-error: true`, so their FAILURE status is informational and does not block merge.
+
+When triaging PR CI status (e.g. via `/mine-address-pr-issues`), skip these two checks by default — treat a FAILURE on `file-sizes` or `duplicate-code` as expected baseline noise, not something to investigate, unless the PR's own diff is the thing adding the offending size/duplication (in which case fix it in-PR per `design-completeness.md`/`clean-code-findings.md` norms).
+
 ## Design Artifacts
 
 Internal design documents live in `design/`, not in `docs/` (which is the readthedocs site).

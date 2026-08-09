@@ -1,6 +1,7 @@
 """Unit tests for the HassetteCLIClient HTTP client wrapper."""
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -19,6 +20,7 @@ from hassette.web.models import AppInstanceResponse
 from tests.unit.cli.conftest import REMOTE_SERVER_URL, CLIClientFactory, capture_stderr, make_cli_config
 
 HEALTH_ENDPOINT = "/api/health"
+CLI_AUTH_TOKEN_ENV = "HASSETTE__CLI__AUTH_TOKEN"
 
 # Helpers
 
@@ -517,10 +519,32 @@ class TestCredentialAttachment:
 
         Setting only the env var (no explicit ``web_api`` override) and confirming the
         header is attached proves ``config.web_api.auth_token`` was actually populated by
-        HassetteConfig's normal settings resolution.
+        HassetteConfig's normal settings resolution. This means, unlike its sibling tests, it
+        can't use the hermetic ``make_cli_config`` factory — see "Credential tests: prefer the
+        hermetic factory" in this directory's CLAUDE.md for why every ambient ``HASSETTE__*``
+        var is cleared below, not just the credential-precedence ones: an ambient
+        ``HASSETTE__CLI__SERVER_URL`` or ``HASSETTE__WEB_API__HOST`` pointed at a non-loopback
+        target would make ``resolve_cli_auth_token()`` skip the server-scoped
+        ``web_api.auth_token`` source entirely, failing this test for an unrelated reason.
+
+        Clearing env vars isn't enough on its own — a developer's repo-root ``.env`` or
+        ``hassette.toml`` could set the same problematic keys and survive the clear. This
+        drops the dotenv and TOML sources entirely (keeping ``init_settings``/``env_settings``
+        live) so only the real environment — the thing under test — can populate the config.
         """
+        for key in list(os.environ):
+            if key.upper().startswith("HASSETTE__"):
+                monkeypatch.delenv(key, raising=False)
         monkeypatch.setenv("HASSETTE__WEB_API__AUTH_TOKEN", "env-token")
-        config = HassetteConfig(token=None, data_dir=tmp_path)
+
+        class EnvOnlyConfig(HassetteConfig):
+            model_config = HassetteConfig.model_config.copy() | {"toml_file": None, "env_file": None}
+
+            @classmethod
+            def settings_customise_sources(cls, _settings_cls, init_settings, env_settings, **kwargs):  # pyright: ignore[reportIncompatibleMethodOverride]
+                return (init_settings, env_settings, kwargs["file_secret_settings"])
+
+        config = EnvOnlyConfig(token=None, data_dir=tmp_path)
         assert config.web_api.auth_token is not None
         assert config.web_api.auth_token.get_secret_value() == "env-token"
 
@@ -698,7 +722,7 @@ class TestNonLoopback401Message:
         output = buf.getvalue()
         assert "--token-file" in output
         assert "cli.token_file" in output
-        assert "HASSETTE__CLI__AUTH_TOKEN" in output
+        assert CLI_AUTH_TOKEN_ENV in output
         assert "trusted_proxies" in output
         assert "on the remote instance" in output
         assert "has hassette been started" not in output

@@ -36,6 +36,31 @@ A `--since 7d` bug shipped because every test called `cmd_log(since=<float>)` di
 
 Direct function calls test function logic. `parse_args` tests prove the wiring is correct. Neither substitutes for the other.
 
+## Credential tests: prefer the hermetic factory
+
+Credential-resolution tests (`TestCredentialAttachment` in `test_client.py`, and the resolver
+tests in `test_target.py`) should build their config via `make_cli_config` (which wraps
+`make_test_config`) rather than constructing `HassetteConfig` directly. `make_test_config` reads
+no environment at all — it swaps in an `InitSettingsSource` populated only from its keyword
+overrides — so ambient `HASSETTE__*` vars in a developer's shell can't leak into the test.
+
+The one deliberate exception is
+`test_env_var_populates_config_and_attaches_bearer_header`, which exists specifically to prove
+pydantic-settings' real env-var source populates `HassetteConfig` (not a hand-rolled
+`os.environ` read), so it must construct a real, non-hermetic config. If you add another test
+that needs the real env path, clear *every* ambient `HASSETTE__*` var first (loop over
+`os.environ` and `monkeypatch.delenv` each match), then `monkeypatch.setenv` only the var under
+test — don't enumerate individual vars by name. Naming only the credential-precedence vars that
+outrank the one you're setting (`CREDENTIAL_SOURCES` in `src/hassette/cli/target.py`) is not
+enough: an ambient `HASSETTE__CLI__SERVER_URL` or `HASSETTE__WEB_API__HOST` pointed at a
+non-loopback target makes `resolve_cli_auth_token()` skip every server-scoped credential source
+regardless of precedence, which is a different failure mode than precedence and just as easy to
+hit. A blanket clear covers both, and any future `HassetteConfig` field, without relying on
+whoever adds the next real-env test to enumerate the right var names. Tracked as issue #1552
+after `HASSETTE__CLI__AUTH_TOKEN` being ambient on a dev machine broke this test (and silently
+aborted `nox -s tests_with_coverage` before it wrote `coverage.xml`, since the session runs
+`coverage xml` after pytest).
+
 ## Fixtures and helpers
 
 `conftest.py` provides:
