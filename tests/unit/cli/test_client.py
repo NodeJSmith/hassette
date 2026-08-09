@@ -19,6 +19,8 @@ from hassette.web.models import AppInstanceResponse
 from tests.unit.cli.conftest import REMOTE_SERVER_URL, CLIClientFactory, capture_stderr, make_cli_config
 
 HEALTH_ENDPOINT = "/api/health"
+CLI_AUTH_TOKEN_ENV = "HASSETTE__CLI__AUTH_TOKEN"
+CLI_TOKEN_FILE_ENV = "HASSETTE__CLI__TOKEN_FILE"
 
 # Helpers
 
@@ -522,8 +524,8 @@ class TestCredentialAttachment:
         hermetic factory" in this directory's CLAUDE.md for why the two ``delenv`` calls below
         are required and why they're the exact two vars.
         """
-        monkeypatch.delenv("HASSETTE__CLI__AUTH_TOKEN", raising=False)
-        monkeypatch.delenv("HASSETTE__CLI__TOKEN_FILE", raising=False)
+        monkeypatch.delenv(CLI_AUTH_TOKEN_ENV, raising=False)
+        monkeypatch.delenv(CLI_TOKEN_FILE_ENV, raising=False)
         monkeypatch.setenv("HASSETTE__WEB_API__AUTH_TOKEN", "env-token")
         config = HassetteConfig(token=None, data_dir=tmp_path)
         assert config.web_api.auth_token is not None
@@ -703,7 +705,7 @@ class TestNonLoopback401Message:
         output = buf.getvalue()
         assert "--token-file" in output
         assert "cli.token_file" in output
-        assert "HASSETTE__CLI__AUTH_TOKEN" in output
+        assert CLI_AUTH_TOKEN_ENV in output
         assert "trusted_proxies" in output
         assert "on the remote instance" in output
         assert "has hassette been started" not in output
