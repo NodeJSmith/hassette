@@ -15,10 +15,10 @@ Daily review of auto-generated PRs on `autofix/*` branches. For each open PR: tr
 
 ## Phase 1: Discover
 
-Find open autofix PRs:
+Find open autofix PRs by label (autofix PR creation attaches `source:autofix`):
 
 ```bash
-gh pr list --search "autofix" --state open --json number,title,headRefName --jq '.[] | "\(.number) | \(.title) | \(.headRefName)"'
+gh pr list --label "source:autofix" --state open --json number,title,headRefName --jq '.[] | "\(.number) | \(.title) | \(.headRefName)"'
 ```
 
 Present the list to the user. If no open PRs, report that and stop.
