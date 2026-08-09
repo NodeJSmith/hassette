@@ -150,8 +150,16 @@ def system_with_coverage(session: "Session"):
 
 
 def _reset_coverage_receipts(session: "Session") -> None:
-    """Drop receipts left by an earlier run so the integrity check only judges this one."""
+    """Drop receipts and coverage data left by an earlier run.
+
+    Without this, a run that stopped before ``coverage combine`` leaves its ``COVERAGE_FILE``
+    data files on disk, and the next run's ``combine`` picks up both, silently blending a stale
+    run's data into the new report. ``coverage erase`` reads ``parallel = true`` from
+    ``pyproject.toml`` and removes those suffixed files along with the base file, not just the
+    receipts that back the integrity check.
+    """
     session.run("uv", "run", "--active", "python", "-m", "tests.coverage_integrity", "--reset", external=True)
+    session.run("uv", "run", "--active", "coverage", "erase", external=True)
 
 
 def _check_coverage_complete(session: "Session") -> None:
