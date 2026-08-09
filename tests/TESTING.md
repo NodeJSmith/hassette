@@ -374,6 +374,14 @@ COVERAGE_PROCESS_START=pyproject.toml COVERAGE_FILE=.coverage \
 uv run coverage combine && uv run coverage report
 ```
 
+### Why the coverage sessions check their own data before combining
+
+Starting coverage from a `.pth` file has one consequence worth knowing about. `coverage.process_startup()` sets `_auto_save = True`, which is read only by `Coverage._atexit`, so a process started that way writes its data file only at interpreter shutdown. xdist does not promise a worker gets there: `WorkerManager.teardown_nodes()` calls `group.terminate(EXIT_TIMEOUT)`, and execnet has its own `os._exit(1)` path. Both skip atexit. Measured on this suite, the worker that reported session finish last lost everything it had collected on essentially every parallel run, so the reported number was understated by a module-shaped amount that changed run to run (issue #1558).
+
+`tests/coverage_integrity.py` closes this. Registered in `tests/conftest.py`'s `pytest_plugins`, so it reaches the controller and every worker, it saves each process's coverage at `pytest_sessionfinish` instead of waiting for atexit — the same thing pytest-cov does in `DistWorker.finish()`. Each process also records a receipt, and the nox coverage sessions run `python -m tests.coverage_integrity` before `coverage combine` to confirm every process that started got its data to disk. If one didn't, the session fails with a message saying the data is incomplete rather than publishing a wrong percentage.
+
+Every hook no-ops when coverage was not started this way, so ordinary `pytest` runs are unaffected. If you replicate the manual approach above, add `-p tests.coverage_integrity` (with the repo root on `PYTHONPATH`) to get the same protection.
+
 ### What's excluded from coverage
 
 Codegen and pure-data modules are excluded in both `pyproject.toml` (`[tool.coverage.run] omit`) and `.github/codecov.yml` (`ignore`). See the comments in those files for the full list and rationale.

@@ -44,7 +44,15 @@ assert APPS_TOML_TEMPLATE.exists(), f"Apps TOML template {APPS_TOML_TEMPLATE} do
 
 # this wants package.nested_directories.final_file_name
 # do not include the name of the fixture
-pytest_plugins = ["hassette.test_utils.fixtures", "hassette.test_utils.resource_tracker"]
+pytest_plugins: list[str] = [
+    "hassette.test_utils.fixtures",
+    "hassette.test_utils.resource_tracker",
+    # Saves each process's coverage during the run instead of leaving it to atexit, which xdist
+    # may kill a worker before it reaches. Registered here rather than passed as `-p` from the
+    # noxfile because pytest resolves `-p` before the repo root is on sys.path. No-ops unless
+    # coverage was started by the nox sessions' .pth file. See tests/coverage_integrity.py.
+    "tests.coverage_integrity",
+]
 
 
 @pytest.fixture(autouse=True)

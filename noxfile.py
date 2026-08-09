@@ -139,12 +139,38 @@ def system_with_coverage(session: "Session"):
     session.env["COVERAGE_FILE"] = f".coverage.system.{session.python}"
     _install_coverage_pth(session)
     session.env["COVERAGE_PROCESS_START"] = "pyproject.toml"
+    _reset_coverage_receipts(session)
     _run_system_tests(session, marker="system and not system_destructive")
     _run_system_tests(session, marker="system_destructive")
+    _check_coverage_complete(session)
     session.run("uv", "run", "--active", "coverage", "combine", external=True)
     session.run(
         "uv", "run", "--active", "coverage", "xml", "--fail-under=0", "-o", "coverage.system.xml", external=True
     )
+
+
+def _reset_coverage_receipts(session: "Session") -> None:
+    """Drop receipts and coverage data left by an earlier run.
+
+    Without this, a run that stopped before ``coverage combine`` leaves its ``COVERAGE_FILE``
+    data files on disk, and the next run's ``combine`` picks up both, silently blending a stale
+    run's data into the new report. ``coverage erase`` reads ``parallel = true`` from
+    ``pyproject.toml`` and removes those suffixed files along with the base file, not just the
+    receipts that back the integrity check.
+    """
+    session.run("uv", "run", "--active", "python", "-m", "tests.coverage_integrity", "--reset", external=True)
+    session.run("uv", "run", "--active", "coverage", "erase", external=True)
+
+
+def _check_coverage_complete(session: "Session") -> None:
+    """Fail before combining if any test process lost its coverage data.
+
+    Coverage started by _install_coverage_pth() persists only at interpreter shutdown, and
+    xdist kills workers that have not got there yet, so a silently truncated run reports a
+    plausible but wrong number. The plugin doing the saving is registered in
+    tests/conftest.py. See tests/coverage_integrity.py and issue #1558.
+    """
+    session.run("uv", "run", "--active", "python", "-m", "tests.coverage_integrity", external=True)
 
 
 def _install_coverage_pth(session: "Session") -> None:
@@ -216,6 +242,7 @@ def tests_with_coverage(session: "Session"):
     session.env["COVERAGE_FILE"] = f".coverage.{session.python}"
     _install_coverage_pth(session)
     session.env["COVERAGE_PROCESS_START"] = "pyproject.toml"
+    _reset_coverage_receipts(session)
     session.run(
         "uv",
         "run",
@@ -239,6 +266,7 @@ def tests_with_coverage(session: "Session"):
         "thread",
         external=True,
     )
+    _check_coverage_complete(session)
     session.run("uv", "run", "--active", "coverage", "combine", external=True)
     session.run("uv", "run", "--active", "coverage", "report", "--show-missing", "--skip-covered", external=True)
     session.run("uv", "run", "--active", "coverage", "xml", external=True)
