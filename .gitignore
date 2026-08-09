@@ -46,6 +46,7 @@ frontend/coverage/
 .nox/
 .coverage
 .coverage.*
+.coverage-receipts/
 .cache
 nosetests.xml
 coverage.xml
