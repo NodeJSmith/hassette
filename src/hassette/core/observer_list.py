@@ -23,20 +23,22 @@ class ObserverList(Generic[T]):
     """
 
     def __init__(self, logger: Logger, label: str) -> None:
-        self._observers: list[T] = []
+        self._observers: tuple[T, ...] = ()
         self._logger = logger
         self._label = label
 
     def add(self, observer: T) -> None:
-        if observer not in self._observers:
-            self._observers.append(observer)
+        if observer in self._observers:
+            return
+        self._observers = (*self._observers, observer)
 
     def remove(self, observer: T) -> None:
-        if observer in self._observers:
-            self._observers.remove(observer)
+        if observer not in self._observers:
+            return
+        self._observers = tuple(item for item in self._observers if item != observer)
 
     async def notify(self, *args: typing.Any) -> None:
-        for observer in tuple(self._observers):
+        for observer in self._observers:
             try:
                 await observer(*args)
             except Exception:
