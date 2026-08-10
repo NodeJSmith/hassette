@@ -71,3 +71,42 @@ Acceptance criteria:
 - `create_listener()` accepts an optional `clock` parameter and passes it to the `RateLimiter` it
   constructs.
 - `test_listener_with_throttle` no longer manually reconstructs `RateLimiter`.
+
+## KI-003: Two `once=True` duration tests still confirm "no re-fire" via a fixed sleep
+
+Status: open
+Run: 64
+Source: clean-code
+Reason not fixed now: out-of-scope
+Observed in: clean-code review of commit range be83e02b..HEAD
+Affected files:
+- tests/integration/bus/test_bus_duration.py
+
+Issue:
+This branch converted four negative ("no fire should occur") assertions in
+`test_bus_duration.py` from `asyncio.sleep(DURATION + margin)` to an event-gated wait on
+`DurationTimer.completed` (see `wait_for_timer_completed()`). Two structurally similar
+negative assertions in the same file were left untouched and still rely on a fixed sleep:
+`test_duration_with_once_fires_exactly_once` (`await asyncio.sleep(DURATION + 0.1)` before
+asserting `call_count == 1`) and `test_duration_once_removal_on_exception` (same pattern).
+Both predate this branch — neither line is part of this branch's diff.
+
+Why deferred:
+These two tests are not "cancellation" tests in the same sense as the four that were
+converted — by the point of the sleep, the `once=True` listener has already fired and
+removed itself, so `get_duration_timer()` would return `None` and there is no timer object
+to await a completion event on. Migrating them would need a different signal (e.g. asserting
+`get_duration_timer(...) is None` immediately, or draining `bus.task_bucket`) rather than a
+mechanical swap to the existing helper, and the design doc's AC#2 scoped the conversion to
+exactly the four cancellation tests it lists — these two were never in that list. Widening
+scope to redesign the negative assertion here is a real but separate improvement.
+
+Recommended follow-up:
+Replace the fixed sleep in both tests with a deterministic check — e.g. assert
+`get_duration_timer(harness, "light.kitchen") is None` right after the second trigger (proving
+no new timer was spawned for the removed listener) instead of waiting out the duration to
+observe the absence of a fire.
+
+Acceptance criteria:
+- `test_duration_with_once_fires_exactly_once` and `test_duration_once_removal_on_exception`
+  no longer use `asyncio.sleep(DURATION + margin)` to confirm the handler did not re-fire.

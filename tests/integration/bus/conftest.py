@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from hassette.bus import Bus
 
 DURATION = 0.2  # 200 ms — wide enough for CI scheduling jitter
+TIMER_COMPLETION_TIMEOUT = 2.0  # safety ceiling when awaiting DurationTimer.completed in cancellation tests
 
 
 @pytest.fixture

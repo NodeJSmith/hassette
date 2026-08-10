@@ -19,7 +19,7 @@ from hassette.test_utils.harness import HassetteHarness
 from hassette.test_utils.helpers import create_state_change_event
 from hassette.types import Topic
 
-from .conftest import DURATION
+from .conftest import DURATION, TIMER_COMPLETION_TIMEOUT
 from .helpers import seed, send_state_change
 
 if TYPE_CHECKING:
@@ -35,6 +35,17 @@ def get_duration_timer(harness: HassetteHarness, entity_id: str) -> "DurationTim
         if listener.duration_config and listener.duration_config.timer:
             return listener.duration_config.timer
     return None
+
+
+async def wait_for_timer_completed(timer: "DurationTimer | None", timeout: float = TIMER_COMPLETION_TIMEOUT) -> None:
+    """Assert a timer was found and await its current cycle's completion event.
+
+    Centralizes the "no-fire" wait idiom used by cancellation tests: a timer must
+    exist (the caller looked it up via ``get_duration_timer()``), and its cycle
+    must finish — by firing or by cancellation — within the safety-ceiling timeout.
+    """
+    assert timer is not None
+    await asyncio.wait_for(timer.completed.wait(), timeout=timeout)
 
 
 async def test_duration_fires_after_held(bus_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
@@ -86,9 +97,7 @@ async def test_duration_cancelled_on_state_exit(bus_harness: tuple[HassetteHarne
     await seed(harness, "light.kitchen", "off")
 
     # Wait for the timer's cancellation cycle to complete — no fire should occur
-    timer = get_duration_timer(harness, "light.kitchen")
-    assert timer is not None
-    await asyncio.wait_for(timer.completed.wait(), timeout=2.0)
+    await wait_for_timer_completed(get_duration_timer(harness, "light.kitchen"))
 
     assert received == []
 
@@ -154,9 +163,7 @@ async def test_duration_double_check_before_fire(bus_harness: tuple[HassetteHarn
     await seed(harness, "light.kitchen", "off")
 
     # Wait for timer to fire, re-verify, and complete its cycle
-    timer = get_duration_timer(harness, "light.kitchen")
-    assert timer is not None
-    await asyncio.wait_for(timer.completed.wait(), timeout=2.0)
+    await wait_for_timer_completed(get_duration_timer(harness, "light.kitchen"))
 
     # Handler should NOT have fired because re-check fails
     assert received == []
@@ -256,11 +263,10 @@ async def test_duration_subscription_cancel_stops_timer(bus_harness: tuple[Hasse
     # Cancel before duration elapses
     await asyncio.sleep(DURATION * 0.3)
     timer = get_duration_timer(harness, "light.kitchen")
-    assert timer is not None
     sub.cancel()
 
     # Wait for the timer's cancellation cycle to complete
-    await asyncio.wait_for(timer.completed.wait(), timeout=2.0)
+    await wait_for_timer_completed(timer)
 
     assert received == []
 
@@ -546,7 +552,5 @@ async def test_changed_from_with_duration_cancels_on_revert(
     await send_state_change(harness, "door.front", "open", "closed")
     await seed(harness, "door.front", "closed")
 
-    timer = get_duration_timer(harness, "door.front")
-    assert timer is not None
-    await asyncio.wait_for(timer.completed.wait(), timeout=2.0)
+    await wait_for_timer_completed(get_duration_timer(harness, "door.front"))
     assert len(received) == 0

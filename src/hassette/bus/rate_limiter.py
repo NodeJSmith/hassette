@@ -50,7 +50,7 @@ class RateLimiter:
             throttle: Throttle interval in seconds.
             handler_name: Name of the owning handler, used in log messages for diagnostics.
             clock: Zero-arg callable returning the current monotonic time, used for throttle
-                timestamps. Defaults to `time.monotonic`. Injectable for deterministic tests.
+                timestamps. Defaults to ``time.monotonic``. Injectable for deterministic tests.
 
         """
         self.task_bucket = task_bucket
