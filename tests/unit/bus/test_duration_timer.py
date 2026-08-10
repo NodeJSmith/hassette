@@ -26,9 +26,13 @@ def make_timer(
     entity_id: str = "light.kitchen",
     owner_id: str = "test_owner",
     normalize_cancel_event=None,
+    create_cancel_sub: MagicMock | None = None,
 ) -> tuple[DurationTimer, MagicMock, MagicMock]:
     """Create a DurationTimer with a real task_bucket (using asyncio directly for spawning)
     and mock cancellation subscription.
+
+    Pass `create_cancel_sub` to override the default single-value factory — e.g. a
+    `side_effect` list, for tests that need a fresh cancel_sub on each `start()`.
 
     Returns:
         (timer, task_bucket_mock, cancel_sub_mock)
@@ -43,7 +47,8 @@ def make_timer(
 
     task_bucket_mock.spawn = MagicMock(side_effect=spawn_side_effect)
 
-    create_cancel_sub = MagicMock(return_value=cancel_sub_mock)
+    if create_cancel_sub is None:
+        create_cancel_sub = MagicMock(return_value=cancel_sub_mock)
 
     timer = DurationTimer(
         task_bucket=task_bucket_mock,
@@ -139,24 +144,9 @@ async def test_start_recreates_cancel_subscription() -> None:
     """After cancel() clears the sub, start() creates a fresh cancellation subscription."""
     cancel_sub_1 = MagicMock(name="cancel_sub_1")
     cancel_sub_2 = MagicMock(name="cancel_sub_2")
-
-    task_bucket_mock = MagicMock(name="task_bucket")
-
-    def spawn_side_effect(coro, *, name: str = "") -> asyncio.Task:  # noqa: ARG001
-        return asyncio.create_task(coro)
-
-    task_bucket_mock.spawn = MagicMock(side_effect=spawn_side_effect)
-
     create_cancel_sub = MagicMock(side_effect=[cancel_sub_1, cancel_sub_2])
 
-    timer = DurationTimer(
-        task_bucket=task_bucket_mock,
-        duration=0.5,
-        predicates=None,
-        entity_id="light.kitchen",
-        owner_id="test_owner",
-        create_cancel_sub=create_cancel_sub,
-    )
+    timer, _, _ = make_timer(duration=0.5, create_cancel_sub=create_cancel_sub)
 
     async def on_fire() -> None:
         pass

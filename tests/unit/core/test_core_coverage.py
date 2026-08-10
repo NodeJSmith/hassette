@@ -311,6 +311,8 @@ class TestShutdownChildren:
         h._file_watcher.shutdown = hang
 
         with preserve_config(h.config):
+            # 0.5s still triggers force-termination with 10x+ margin over the hanging
+            # child's 1000s sleep, while giving CI scheduling jitter enough headroom.
             h.config.lifecycle.resource_shutdown_timeout_seconds = 0.5
             result = await h._shutdown_children()
 

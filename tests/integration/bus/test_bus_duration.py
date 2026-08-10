@@ -19,7 +19,7 @@ from hassette.test_utils.harness import HassetteHarness
 from hassette.test_utils.helpers import create_state_change_event
 from hassette.types import Topic
 
-from .conftest import DURATION, TIMER_COMPLETION_TIMEOUT
+from .conftest import DURATION, HALF_HOLD, MOSTLY_ELAPSED, PARTIAL_HOLD, TIMER_COMPLETION_TIMEOUT
 from .helpers import seed, send_state_change
 
 if TYPE_CHECKING:
@@ -122,7 +122,7 @@ async def test_duration_resets_on_re_entry(bus_harness: tuple[HassetteHarness, "
     await seed(harness, "light.kitchen", "on")
 
     # Wait half the duration
-    await asyncio.sleep(DURATION * 0.4)
+    await asyncio.sleep(HALF_HOLD)
 
     # Exit — timer cancelled
     await send_state_change(harness, "light.kitchen", "on", "off")
@@ -157,7 +157,7 @@ async def test_duration_double_check_before_fire(bus_harness: tuple[HassetteHarn
 
     # Wait most of duration, then revert state in StateProxy WITHOUT sending a cancel event
     # (simulates the state changing back without the cancellation subscription firing)
-    await asyncio.sleep(DURATION * 0.8)
+    await asyncio.sleep(MOSTLY_ELAPSED)
 
     # Revert the state in StateProxy directly (bypassing the event system)
     await seed(harness, "light.kitchen", "off")
@@ -274,7 +274,7 @@ async def test_duration_subscription_cancel_stops_timer(bus_harness: tuple[Hasse
     await seed(harness, "light.kitchen", "on")
 
     # Cancel before duration elapses
-    await asyncio.sleep(DURATION * 0.3)
+    await asyncio.sleep(PARTIAL_HOLD)
     timer = get_duration_timer(harness, "light.kitchen")
     sub.cancel()
 
@@ -309,7 +309,7 @@ async def test_duration_not_cancelled_by_attribute_refresh(
     await send_state_change(harness, "light.kitchen", "off", "on")
     await seed(harness, "light.kitchen", "on")
 
-    await asyncio.sleep(DURATION * 0.3)
+    await asyncio.sleep(PARTIAL_HOLD)
 
     # Send attribute-only refresh: state remains "on", only attributes change
     event = create_state_change_event(
@@ -465,7 +465,7 @@ async def test_duration_attribute_change_cancel_only_on_predicate_fail(
     await seed(harness, "light.kitchen", "on")
 
     # Unrelated attribute change (color_temp only) — should NOT cancel timer
-    await asyncio.sleep(DURATION * 0.3)
+    await asyncio.sleep(PARTIAL_HOLD)
     unrelated = create_state_change_event(
         entity_id="light.kitchen",
         old_value="on",

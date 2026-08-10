@@ -10,7 +10,13 @@ from hassette.events import Event
 from hassette.exceptions import DependencyResolutionError
 from hassette.models import states
 from hassette.task_bucket import TaskBucket
-from hassette.test_utils import make_full_state_change_event, make_light_state_dict, make_state_dict, wait_for
+from hassette.test_utils import (
+    make_controlled_clock,
+    make_full_state_change_event,
+    make_light_state_dict,
+    make_state_dict,
+    wait_for,
+)
 from hassette.test_utils.helpers import create_listener, settle
 
 
@@ -247,14 +253,7 @@ class TestThrottleLogic:
 
             return handler
 
-        # Controlled clock: start at 1.0 (not 0.0) since _throttle_last_time defaults to
-        # 0.0 and the throttle guard (now - _throttle_last_time < throttle) would otherwise
-        # suppress the very first call.
-        clock_time = [1.0]
-
-        def clock() -> float:
-            return clock_time[0]
-
+        clock = make_controlled_clock()
         limiter = RateLimiter(bucket, throttle=0.1, clock=clock)
 
         await limiter.call(make_handler("first"))
@@ -265,7 +264,7 @@ class TestThrottleLogic:
         assert calls == ["first"], "Subsequent calls should be ignored"
 
         # advance the controlled clock past the throttle window before the next call
-        clock_time[0] = 1.2
+        clock.advance_to(1.2)
 
         await limiter.call(make_handler("fourth"))
         assert calls == ["first", "fourth"], "Fourth call should execute after throttle period"
@@ -278,14 +277,7 @@ class TestThrottleLogic:
         async def handler():
             calls.append(label)
 
-        # Controlled clock: start at 1.0 (not 0.0) since _throttle_last_time defaults to
-        # 0.0 and the throttle guard (now - _throttle_last_time < throttle) would otherwise
-        # suppress the very first call.
-        clock_time = [1.0]
-
-        def clock() -> float:
-            return clock_time[0]
-
+        clock = make_controlled_clock()
         limiter = RateLimiter(bucket, throttle=0.1, clock=clock)
 
         await limiter.call(handler)
@@ -298,7 +290,7 @@ class TestThrottleLogic:
 
         label = "called after throttle"
         # advance the controlled clock past the throttle window before the next call
-        clock_time[0] = 1.2
+        clock.advance_to(1.2)
         await limiter.call(handler)
         assert calls == ["called", "called after throttle"]
 
@@ -312,21 +304,18 @@ class TestThrottleLogic:
 
             return handler
 
-        clock_time = [1000.0]
-
-        def clock() -> float:
-            return clock_time[0]
+        clock = make_controlled_clock(start=1000.0)
 
         limiter = RateLimiter(bucket, throttle=0.05, clock=clock)
 
         await limiter.call(make_handler("1"))
         assert calls == ["1"]
 
-        clock_time[0] = 1000.03
+        clock.advance_to(1000.03)
         await limiter.call(make_handler("2"))
         assert calls == ["1"]
 
-        clock_time[0] = 1000.06
+        clock.advance_to(1000.06)
         await limiter.call(make_handler("3"))
         assert calls == ["1", "3"]
 
@@ -396,13 +385,7 @@ class TestListenerIntegration:
         def handler(event: MockEvent):
             calls.append(event.data)
 
-        # Controlled clock: start at 1.0 (not 0.0) since _throttle_last_time defaults to
-        # 0.0 and the throttle guard (now - _throttle_last_time < throttle) would otherwise
-        # suppress the very first call.
-        clock_time = [1.0]
-
-        def clock() -> float:
-            return clock_time[0]
+        clock = make_controlled_clock()
 
         listener = create_listener(
             handler,
@@ -430,7 +413,7 @@ class TestListenerIntegration:
         assert calls == ["1"], "First call should be executed immediately"
 
         # advance the controlled clock past the throttle window before the next call
-        clock_time[0] = 1.2
+        clock.advance_to(1.2)
         await rl.call(make_invoke(events[3]))
         assert calls == ["1", "4"], "Second call should execute after throttle period"
 

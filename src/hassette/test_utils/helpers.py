@@ -546,6 +546,29 @@ def make_task_bucket() -> MagicMock:
     return tb
 
 
+class ControlledClock:
+    """Mutable clock for deterministic `RateLimiter` throttle tests.
+
+    Starts at 1.0, not 0.0 — `RateLimiter._throttle_last_time` defaults to 0.0, and the
+    throttle guard (`now - _throttle_last_time < throttle`) would otherwise suppress the
+    very first call. Callable directly as a `RateLimiter(clock=...)` argument.
+    """
+
+    def __init__(self, start: float = 1.0) -> None:
+        self.time = start
+
+    def __call__(self) -> float:
+        return self.time
+
+    def advance_to(self, value: float) -> None:
+        self.time = value
+
+
+def make_controlled_clock(start: float = 1.0) -> ControlledClock:
+    """Create a `ControlledClock` starting at `start` for injecting into `RateLimiter(clock=...)`."""
+    return ControlledClock(start)
+
+
 def make_addrinfo(ip: str) -> tuple[Any, ...]:
     """Build one ``socket.getaddrinfo``-shaped result tuple for ``ip``.
 
