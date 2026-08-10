@@ -42,6 +42,10 @@ class DurationTimer:
             new event.
         entity_id: The entity this timer is tracking.
         owner_id: Owner identifier (same as the main listener's owner_id).
+        completed: Set when the current timer cycle finishes — either by firing,
+            by cancellation, or by being replaced via ``start()``. Cleared at the
+            start of each new cycle. Lets callers (notably tests) await "this
+            timer's lifecycle has ended" instead of sleeping past the duration.
     """
 
     def __init__(
@@ -87,6 +91,7 @@ class DurationTimer:
         self._cancel_sub: Subscription | None = None
         self._cancelled = False
         self._started = False
+        self.completed = asyncio.Event()
 
     @property
     def is_active(self) -> bool:
@@ -119,10 +124,25 @@ class DurationTimer:
         # Cancel any previous cycle via the normal cancellation path so the
         # on_cancel callback fires and bookkeeping stays consistent on restart.
         if self._task and not self._task.done():
-            self.cancel()
+            self.cancel()  # sets the OLD completed event
 
         # Clear the cancelled guard so this new cycle runs normally.
         self._cancelled = False
+
+        # Fresh event for the NEW cycle — must be cleared after the cancel() call
+        # above (which sets the old event), not before, or a caller awaiting the
+        # old event across a restart would see it fire prematurely.
+        self.completed = asyncio.Event()
+
+        # Capture this cycle's Event by reference now, not via a live `self.completed`
+        # lookup inside delayed_fire(). asyncio.Task.cancel() only requests
+        # cancellation — CancelledError is delivered on a later loop iteration — so a
+        # stale, just-cancelled delayed_fire() can still be running its exception
+        # handler after a subsequent start() has already reassigned self.completed to
+        # a new cycle's Event. Without this capture, the stale handler's
+        # `self.completed.set()` would spuriously complete the NEW cycle instead of
+        # the one it actually belongs to.
+        cycle_completed = self.completed
 
         # Re-create the cancellation subscription if it has been consumed or is absent.
         if self._cancel_sub is None:
@@ -134,9 +154,11 @@ class DurationTimer:
             try:
                 await asyncio.sleep(sleep_duration)
             except asyncio.CancelledError:  # noqa: ASYNC103 — expected: start() replaced us or cancel() ran
+                cycle_completed.set()
                 return  # noqa: ASYNC104
             # Guard: if the timer was cancelled while sleeping, do not fire.
             if self._cancelled:
+                cycle_completed.set()
                 return
             # Clear the task reference before firing — is_active returns False from here.
             self._task = None
@@ -145,7 +167,14 @@ class DurationTimer:
             if self._cancel_sub is not None:
                 self._cancel_sub.cancel()
                 self._cancel_sub = None
-            await on_fire()
+            # Guarantee cycle_completed.set() even if on_fire() raises — completed is
+            # documented to mark every completed timer lifecycle, and callers waiting on
+            # it must not hang just because the fire callback failed. The exception still
+            # propagates so task_bucket error handling/telemetry sees it.
+            try:
+                await on_fire()
+            finally:
+                cycle_completed.set()
 
         self._started = True
         self._task = self.task_bucket.spawn(delayed_fire(), name="bus:duration_timer")
@@ -167,10 +196,12 @@ class DurationTimer:
         """
         self._cancelled = True  # idempotency guard — MUST be first
 
-        was_active = self._started and self._task is not None and not self._task.done()
+        task = self._task
+        had_pending_task = task is not None and not task.done()
+        was_active = self._started and had_pending_task
 
-        if self._task and not self._task.done():
-            self._task.cancel()
+        if task is not None and not task.done():
+            task.cancel()
         self._task = None
 
         if self._cancel_sub is not None:
@@ -180,6 +211,17 @@ class DurationTimer:
         if was_active and self._on_cancel is not None:
             self._on_cancel()
         self._started = False
+
+        # Only mark this cycle complete here when we actually interrupted a
+        # pending task. delayed_fire() clears self._task before awaiting
+        # on_fire() (see start()), so a cancel() arriving while on_fire() is
+        # still in flight has nothing left to cancel — had_pending_task is
+        # False. In that case delayed_fire()'s own finally is what sets
+        # completed, once the in-flight fire callback actually exits. Setting
+        # it here too would let a waiter resume while the handler is still
+        # running, contradicting the documented lifecycle-completion semantics.
+        if had_pending_task:
+            self.completed.set()
 
     def evaluate_cancel_event(self, event: "Event[Any]") -> None:
         """Evaluate whether a state-change event should cancel the timer.

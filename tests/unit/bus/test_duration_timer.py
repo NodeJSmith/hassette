@@ -10,10 +10,13 @@ Tests cover:
 - evaluate_cancel_event with matching predicates does NOT cancel the timer
 - evaluate_cancel_event with non-matching predicates cancels the timer
 - cancel() removes the cancellation subscription synchronously (no task_bucket.spawn)
+- completed is set even when on_fire() raises, and the exception still propagates
 """
 
 import asyncio
 from unittest.mock import MagicMock
+
+import pytest
 
 from hassette.bus.duration_timer import DurationTimer
 from hassette.test_utils import wait_for
@@ -26,9 +29,13 @@ def make_timer(
     entity_id: str = "light.kitchen",
     owner_id: str = "test_owner",
     normalize_cancel_event=None,
+    create_cancel_sub: MagicMock | None = None,
 ) -> tuple[DurationTimer, MagicMock, MagicMock]:
     """Create a DurationTimer with a real task_bucket (using asyncio directly for spawning)
     and mock cancellation subscription.
+
+    Pass `create_cancel_sub` to override the default single-value factory — e.g. a
+    `side_effect` list, for tests that need a fresh cancel_sub on each `start()`.
 
     Returns:
         (timer, task_bucket_mock, cancel_sub_mock)
@@ -43,7 +50,8 @@ def make_timer(
 
     task_bucket_mock.spawn = MagicMock(side_effect=spawn_side_effect)
 
-    create_cancel_sub = MagicMock(return_value=cancel_sub_mock)
+    if create_cancel_sub is None:
+        create_cancel_sub = MagicMock(return_value=cancel_sub_mock)
 
     timer = DurationTimer(
         task_bucket=task_bucket_mock,
@@ -139,24 +147,9 @@ async def test_start_recreates_cancel_subscription() -> None:
     """After cancel() clears the sub, start() creates a fresh cancellation subscription."""
     cancel_sub_1 = MagicMock(name="cancel_sub_1")
     cancel_sub_2 = MagicMock(name="cancel_sub_2")
-
-    task_bucket_mock = MagicMock(name="task_bucket")
-
-    def spawn_side_effect(coro, *, name: str = "") -> asyncio.Task:  # noqa: ARG001
-        return asyncio.create_task(coro)
-
-    task_bucket_mock.spawn = MagicMock(side_effect=spawn_side_effect)
-
     create_cancel_sub = MagicMock(side_effect=[cancel_sub_1, cancel_sub_2])
 
-    timer = DurationTimer(
-        task_bucket=task_bucket_mock,
-        duration=0.5,
-        predicates=None,
-        entity_id="light.kitchen",
-        owner_id="test_owner",
-        create_cancel_sub=create_cancel_sub,
-    )
+    timer, _, _ = make_timer(duration=0.5, create_cancel_sub=create_cancel_sub)
 
     async def on_fire() -> None:
         pass
@@ -320,6 +313,109 @@ async def test_cancel_sets_cancelled_flag_first() -> None:
     # _cancelled must have been True when cancel_sub.cancel() was called
     assert len(cancelled_when_sub_cancelled) == 1
     assert cancelled_when_sub_cancelled[0] is True
+
+
+async def test_restart_while_active_does_not_leak_stale_completed_signal() -> None:
+    """A stale, just-cancelled cycle's completed.set() must not fire the NEW cycle's Event.
+
+    Regression test: start() reassigns self.completed to a new asyncio.Event() synchronously
+    before the event loop has a chance to deliver CancelledError to the just-cancelled cycle's
+    delayed_fire() task. Without capturing the target Event by reference at start() time, the
+    stale coroutine's `self.completed.set()` does a live attribute lookup and spuriously
+    completes the new cycle instead of the one it belongs to.
+    """
+    timer, _, _ = make_timer(duration=1.0)
+
+    async def on_fire() -> None:
+        pass
+
+    timer.start(on_fire=on_fire)
+    old_completed = timer.completed
+
+    # Let the first cycle's task actually start running (reach its sleep) before restarting.
+    await asyncio.sleep(0)
+
+    # Restart while the first cycle is still active — internally cancels the old task.
+    timer.start(on_fire=on_fire)
+    new_completed = timer.completed
+    assert new_completed is not old_completed
+
+    # Give the event loop a couple of ticks to deliver CancelledError to the stale task.
+    await asyncio.sleep(0)
+    await asyncio.sleep(0)
+
+    assert old_completed.is_set(), "old cycle's completed event should be set by its own cancellation"
+    assert not new_completed.is_set(), "new cycle's completed event must not be spuriously set by the stale cycle"
+
+    # Cleanup
+    timer.cancel()
+
+
+async def test_completed_set_when_on_fire_raises() -> None:
+    """`completed` must be set even when on_fire() raises, so waiters don't time out.
+
+    Regression test: delayed_fire() used to call cycle_completed.set() only after
+    `await on_fire()` returned normally, so an exception from on_fire() (e.g. a
+    state-reader, predicate, dispatch, or listener-removal failure) skipped the set
+    entirely even though the timer task had finished. The exception must still
+    propagate out of the task.
+    """
+    timer, _, _ = make_timer(duration=0.05)
+
+    async def on_fire() -> None:
+        raise ValueError("boom")
+
+    timer.start(on_fire=on_fire)
+    task = timer._task
+    assert task is not None
+
+    with pytest.raises(ValueError, match="boom"):
+        await task
+
+    assert timer.completed.is_set()
+
+
+async def test_cancel_during_in_flight_fire_does_not_set_completed_early() -> None:
+    """cancel() during an in-flight on_fire() must not set completed before the callback exits.
+
+    Regression test: delayed_fire() clears self._task before awaiting on_fire(), so a
+    cancel() arriving while on_fire() is still running has no pending task left to
+    interrupt. cancel() used to call self.completed.set() unconditionally regardless,
+    letting a waiter resume while the handler was still executing — contradicting the
+    documented "completed marks every completed timer lifecycle" semantics. cancel()
+    must only set completed when it actually interrupted a pending task; delayed_fire()'s
+    own finally owns setting it for the in-flight case, once on_fire() actually exits.
+    """
+    timer, _, _ = make_timer(duration=0.05)
+
+    on_fire_entered = asyncio.Event()
+    release_on_fire = asyncio.Event()
+
+    async def on_fire() -> None:
+        on_fire_entered.set()
+        await release_on_fire.wait()
+
+    timer.start(on_fire=on_fire)
+    task = timer._task
+    assert task is not None
+
+    await asyncio.wait_for(on_fire_entered.wait(), timeout=1.0)
+
+    # on_fire() is now in flight — delayed_fire() has already cleared self._task.
+    assert timer._task is None
+    assert not timer.is_active
+
+    timer.cancel()
+
+    # cancel() had nothing pending to interrupt, so completed must NOT be set yet —
+    # the handler is still running.
+    assert not timer.completed.is_set()
+
+    release_on_fire.set()
+    await asyncio.wait_for(task, timeout=1.0)
+
+    # Only now that on_fire() has exited does delayed_fire()'s finally set completed.
+    assert timer.completed.is_set()
 
 
 def test_listener_create_does_not_build_duration_timer() -> None:

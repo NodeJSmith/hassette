@@ -216,6 +216,7 @@ class HandlerInvoker:
         options: ListenerOptions,
         error_handler: "BusErrorHandlerType | None" = None,
         app_error_handler_resolver: "Callable[[], BusErrorHandlerType | None] | None" = None,
+        clock: "Callable[[], float] | None" = None,
     ) -> "HandlerInvoker":
         """Construct a HandlerInvoker from a handler and options.
 
@@ -228,6 +229,9 @@ class HandlerInvoker:
             options: Behavioral options (once, debounce, throttle).
             error_handler: Optional per-listener error handler.
             app_error_handler_resolver: Closure for app-level error handler resolution.
+            clock: Zero-arg callable returning the current monotonic time, forwarded to the
+                RateLimiter for deterministic throttle timing in tests. Defaults to
+                ``time.monotonic`` when None (see RateLimiter).
         """
         handler_name = callable_name(handler)
         signature = get_typed_signature(handler)
@@ -241,6 +245,7 @@ class HandlerInvoker:
                 debounce=options.debounce,
                 throttle=options.throttle,
                 handler_name=handler_name,
+                clock=clock,
             )
 
         return cls(

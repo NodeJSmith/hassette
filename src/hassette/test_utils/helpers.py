@@ -546,6 +546,30 @@ def make_task_bucket() -> MagicMock:
     return tb
 
 
+class ControlledClock:
+    """Mutable clock for deterministic `RateLimiter` throttle tests.
+
+    Defaults to starting at 1.0, but a zero-origin clock (`start=0.0`) works too —
+    `RateLimiter` tracks "no prior call" with `_throttle_last_time = None`, not `0.0`, so
+    a monotonic clock that legitimately returns `0.0` on its first call still fires.
+    Callable directly as a `RateLimiter(clock=...)` argument.
+    """
+
+    def __init__(self, start: float = 1.0) -> None:
+        self.time = start
+
+    def __call__(self) -> float:
+        return self.time
+
+    def advance_to(self, value: float) -> None:
+        self.time = value
+
+
+def make_controlled_clock(start: float = 1.0) -> ControlledClock:
+    """Create a `ControlledClock` starting at `start` for injecting into `RateLimiter(clock=...)`."""
+    return ControlledClock(start)
+
+
 def make_addrinfo(ip: str) -> tuple[Any, ...]:
     """Build one ``socket.getaddrinfo``-shaped result tuple for ``ip``.
 
@@ -612,11 +636,17 @@ def create_listener(
     source_location: str = "",
     registration_source: str = "",
     logger: Logger | None = None,
+    clock: "Callable[[], float] | None" = None,
 ) -> Listener:
     """Test factory: build a Listener from simple kwargs.
 
     Constructs sub-structs internally and delegates to Listener.create().
     Default handler is a sync no-op (`noop`); default task_bucket is a MagicMock.
+
+    Args:
+        clock: Zero-arg callable returning the current monotonic time, forwarded to the
+            RateLimiter built for debounce/throttle. Defaults to ``time.monotonic`` when
+            None. Use to inject a controlled clock for deterministic throttle tests.
     """
     # duration + debounce/throttle incompatibility is validated by Listener.create() below.
     if duration is not None and not entity_id:
@@ -660,6 +690,7 @@ def create_listener(
         options=options,
         error_handler=error_handler,
         app_error_handler_resolver=app_error_handler_resolver,
+        clock=clock,
     )
 
     duration_config: DurationConfig | None = None

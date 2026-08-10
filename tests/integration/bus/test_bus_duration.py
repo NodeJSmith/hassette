@@ -3,9 +3,11 @@
 Each test builds a fresh harness with bus + state_proxy.  State is seeded into StateProxy
 via harness.seed_state() before listeners are registered.
 
-Duration tests use ``asyncio.sleep(duration + margin)`` to advance the clock — duration
+Positive-fire tests use ``asyncio.sleep(duration + margin)`` to advance the clock — duration
 timers are not tracked by dispatch_pending, so await_dispatch_idle() cannot be used to
-drain them.
+drain them. Cancellation tests instead await ``DurationTimer.completed`` (via the
+``get_duration_timer()`` helper below) so "no fire" assertions are event-gated rather than
+timing-dependent.
 """
 
 import asyncio
@@ -17,12 +19,33 @@ from hassette.test_utils.harness import HassetteHarness
 from hassette.test_utils.helpers import create_state_change_event
 from hassette.types import Topic
 
-from .conftest import DURATION
+from .conftest import DURATION, HALF_HOLD, PARTIAL_HOLD, TIMER_COMPLETION_TIMEOUT
 from .helpers import seed, send_state_change
 
 if TYPE_CHECKING:
     from hassette import Hassette
     from hassette.bus import Bus
+    from hassette.bus.duration_timer import DurationTimer
+
+
+def get_duration_timer(harness: HassetteHarness, entity_id: str) -> "DurationTimer | None":
+    """Get the DurationTimer for the first duration-enabled listener on an entity."""
+    topic = f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}"
+    for listener in harness.bus_service.router.get_topic_listeners(topic):
+        if listener.duration_config and listener.duration_config.timer:
+            return listener.duration_config.timer
+    return None
+
+
+async def wait_for_timer_completed(timer: "DurationTimer | None", timeout: float = TIMER_COMPLETION_TIMEOUT) -> None:
+    """Assert a timer was found and await its current cycle's completion event.
+
+    Centralizes the "no-fire" wait idiom used by cancellation tests: a timer must
+    exist (the caller looked it up via ``get_duration_timer()``), and its cycle
+    must finish — by firing or by cancellation — within the safety-ceiling timeout.
+    """
+    assert timer is not None
+    await asyncio.wait_for(timer.completed.wait(), timeout=timeout)
 
 
 async def test_duration_fires_after_held(bus_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
@@ -73,8 +96,8 @@ async def test_duration_cancelled_on_state_exit(bus_harness: tuple[HassetteHarne
     await send_state_change(harness, "light.kitchen", "on", "off")
     await seed(harness, "light.kitchen", "off")
 
-    # Wait longer than duration — no fire should occur
-    await asyncio.sleep(DURATION + 0.1)
+    # Wait for the timer's cancellation cycle to complete — no fire should occur
+    await wait_for_timer_completed(get_duration_timer(harness, "light.kitchen"))
 
     assert received == []
 
@@ -99,7 +122,7 @@ async def test_duration_resets_on_re_entry(bus_harness: tuple[HassetteHarness, "
     await seed(harness, "light.kitchen", "on")
 
     # Wait half the duration
-    await asyncio.sleep(DURATION * 0.4)
+    await asyncio.sleep(HALF_HOLD)
 
     # Exit — timer cancelled
     await send_state_change(harness, "light.kitchen", "on", "off")
@@ -132,15 +155,15 @@ async def test_duration_double_check_before_fire(bus_harness: tuple[HassetteHarn
     await send_state_change(harness, "light.kitchen", "off", "on")
     await seed(harness, "light.kitchen", "on")
 
-    # Wait most of duration, then revert state in StateProxy WITHOUT sending a cancel event
-    # (simulates the state changing back without the cancellation subscription firing)
-    await asyncio.sleep(DURATION * 0.8)
-
-    # Revert the state in StateProxy directly (bypassing the event system)
+    # Revert the state in StateProxy directly (bypassing the event system) WITHOUT sending a
+    # cancel event — simulates the state changing back without the cancellation subscription
+    # firing. The timer always sleeps the full duration before re-checking state, so it makes
+    # no difference to the outcome whether the revert happens immediately after arming or
+    # partway through — as long as it happens before the full-duration re-check.
     await seed(harness, "light.kitchen", "off")
 
-    # Wait for timer to fire and re-verify
-    await asyncio.sleep(DURATION * 0.4)
+    # Wait for timer to fire, re-verify, and complete its cycle
+    await wait_for_timer_completed(get_duration_timer(harness, "light.kitchen"))
 
     # Handler should NOT have fired because re-check fails
     assert received == []
@@ -148,49 +171,55 @@ async def test_duration_double_check_before_fire(bus_harness: tuple[HassetteHarn
 
 async def test_duration_with_once_fires_exactly_once(bus_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
     """once=True + duration: fires once; subsequent trigger does not fire."""
-    harness, hassette, bus = bus_harness
+    harness, _hassette, bus = bus_harness
 
     call_count = 0
-    fired = asyncio.Event()
 
     async def handler(_event: RawStateChangeEvent) -> None:
         nonlocal call_count
         call_count += 1
-        hassette.task_bucket.post_to_loop(fired.set)
 
     await bus.on_state_change(
         "light.kitchen", changed_to="on", handler=handler, duration=DURATION, once=True, name="duration_once_fires_once"
     )
 
+    # The timer is attached at registration time, so it's safe to capture before
+    # any trigger — the same DurationTimer instance is reused across its lifecycle.
+    timer = get_duration_timer(harness, "light.kitchen")
+
     # First trigger
     await send_state_change(harness, "light.kitchen", "off", "on")
     await seed(harness, "light.kitchen", "on")
-    await asyncio.wait_for(fired.wait(), timeout=DURATION + 0.5)
+
+    # Wait for the fire cycle to complete. DurationTimer only sets `completed`
+    # after `on_fire()` (which includes the once-removal finally block) fully
+    # returns, so this guarantees the listener is already removed by the time
+    # this resolves — no need to sleep past the duration to prove it.
+    await wait_for_timer_completed(timer)
     assert call_count == 1
 
     # Reset
     await send_state_change(harness, "light.kitchen", "on", "off")
     await seed(harness, "light.kitchen", "off")
 
-    # Second trigger — listener should be gone
+    # Second trigger — the once-listener was already removed, so no new timer is
+    # armed and the handler cannot fire again.
     await send_state_change(harness, "light.kitchen", "off", "on")
     await seed(harness, "light.kitchen", "on")
-    await asyncio.sleep(DURATION + 0.1)
 
+    assert get_duration_timer(harness, "light.kitchen") is None
     assert call_count == 1, f"once=True handler fired {call_count} times"
 
 
 async def test_duration_once_removal_on_exception(bus_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
     """Handler raises → listener still removed (once contract upheld even on exception)."""
-    harness, hassette, bus = bus_harness
+    harness, _hassette, bus = bus_harness
 
     call_count = 0
-    fired = asyncio.Event()
 
     async def handler(_event: RawStateChangeEvent) -> None:
         nonlocal call_count
         call_count += 1
-        hassette.task_bucket.post_to_loop(fired.set)
         raise RuntimeError("intentional error in handler")
 
     await bus.on_state_change(
@@ -202,22 +231,29 @@ async def test_duration_once_removal_on_exception(bus_harness: tuple[HassetteHar
         name="duration_once_removal_on_exception",
     )
 
+    # The timer is attached at registration time, so it's safe to capture before
+    # any trigger — the same DurationTimer instance is reused across its lifecycle.
+    timer = get_duration_timer(harness, "light.kitchen")
+
     await send_state_change(harness, "light.kitchen", "off", "on")
     await seed(harness, "light.kitchen", "on")
 
-    await asyncio.wait_for(fired.wait(), timeout=DURATION + 0.5)
+    # Wait for the fire cycle to complete. The handler's exception is swallowed by
+    # the executor (see CommandExecutor error isolation), so the once-removal
+    # finally block still runs and `completed` still fires — this guarantees the
+    # listener is already removed by the time this resolves, exception or not.
+    await wait_for_timer_completed(timer)
     assert call_count == 1
+    assert get_duration_timer(harness, "light.kitchen") is None
 
-    # Give time for cleanup
-    await asyncio.sleep(0.05)
-
-    # Fire again — listener should be gone
+    # Fire again — the once-listener was already removed, so no new timer is
+    # armed and the handler cannot fire again.
     await send_state_change(harness, "light.kitchen", "on", "off")
     await seed(harness, "light.kitchen", "off")
     await send_state_change(harness, "light.kitchen", "off", "on")
     await seed(harness, "light.kitchen", "on")
-    await asyncio.sleep(DURATION + 0.1)
 
+    assert get_duration_timer(harness, "light.kitchen") is None
     assert call_count == 1
 
 
@@ -238,11 +274,12 @@ async def test_duration_subscription_cancel_stops_timer(bus_harness: tuple[Hasse
     await seed(harness, "light.kitchen", "on")
 
     # Cancel before duration elapses
-    await asyncio.sleep(DURATION * 0.3)
+    await asyncio.sleep(PARTIAL_HOLD)
+    timer = get_duration_timer(harness, "light.kitchen")
     sub.cancel()
 
-    # Wait longer than full duration
-    await asyncio.sleep(DURATION + 0.1)
+    # Wait for the timer's cancellation cycle to complete
+    await wait_for_timer_completed(timer)
 
     assert received == []
 
@@ -272,7 +309,7 @@ async def test_duration_not_cancelled_by_attribute_refresh(
     await send_state_change(harness, "light.kitchen", "off", "on")
     await seed(harness, "light.kitchen", "on")
 
-    await asyncio.sleep(DURATION * 0.3)
+    await asyncio.sleep(PARTIAL_HOLD)
 
     # Send attribute-only refresh: state remains "on", only attributes change
     event = create_state_change_event(
@@ -428,7 +465,7 @@ async def test_duration_attribute_change_cancel_only_on_predicate_fail(
     await seed(harness, "light.kitchen", "on")
 
     # Unrelated attribute change (color_temp only) — should NOT cancel timer
-    await asyncio.sleep(DURATION * 0.3)
+    await asyncio.sleep(PARTIAL_HOLD)
     unrelated = create_state_change_event(
         entity_id="light.kitchen",
         old_value="on",
@@ -528,5 +565,5 @@ async def test_changed_from_with_duration_cancels_on_revert(
     await send_state_change(harness, "door.front", "open", "closed")
     await seed(harness, "door.front", "closed")
 
-    await asyncio.sleep(DURATION + 0.05)
+    await wait_for_timer_completed(get_duration_timer(harness, "door.front"))
     assert len(received) == 0

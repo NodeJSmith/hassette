@@ -14,7 +14,10 @@ if TYPE_CHECKING:
     from hassette import Hassette
     from hassette.bus import Bus
 
-DURATION = 0.05  # 50 ms — fast enough for tests
+DURATION = 0.2  # 200 ms — wide enough for CI scheduling jitter
+TIMER_COMPLETION_TIMEOUT = 2.0  # safety ceiling when awaiting DurationTimer.completed in cancellation tests
+PARTIAL_HOLD = DURATION * 0.3  # brief wait before a mid-cycle action (cancel, attribute refresh)
+HALF_HOLD = DURATION * 0.4  # roughly half the duration — simulates a timer partway through its cycle
 
 
 @pytest.fixture

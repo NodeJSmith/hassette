@@ -40,7 +40,8 @@ class RateLimiter:
         debounce: float | None = None,
         throttle: float | None = None,
         handler_name: str = "unknown",
-    ):
+        clock: "Callable[[], float] | None" = None,
+    ) -> None:
         """Initialize the rate limiter.
 
         Args:
@@ -48,16 +49,19 @@ class RateLimiter:
             debounce: Debounce delay in seconds.
             throttle: Throttle interval in seconds.
             handler_name: Name of the owning handler, used in log messages for diagnostics.
+            clock: Zero-arg callable returning the current monotonic time, used for throttle
+                timestamps. Defaults to ``time.monotonic``. Injectable for deterministic tests.
 
         """
         self.task_bucket = task_bucket
         self.debounce = debounce
         self.throttle = throttle
         self.handler_name = handler_name
+        self._clock = clock or time.monotonic
 
         # Rate limiting state
         self._debounce_task: asyncio.Task | None = None
-        self._throttle_last_time = 0.0
+        self._throttle_last_time: float | None = None
         self._cancelled = False
 
     def clear_debounce_ref(self, task: "asyncio.Task[None]") -> None:
@@ -135,13 +139,13 @@ class RateLimiter:
         """Throttled version of the handler call.
 
         At most one attempt per window. No lock needed — the check-and-set between
-        ``time.monotonic()`` and ``self._throttle_last_time = now`` is atomic in asyncio's
+        ``self._clock()`` and ``self._throttle_last_time = now`` is atomic in asyncio's
         single-threaded event loop (no await point between them).
         """
         if self.throttle is None:
             raise ValueError("throttle must be set before calling throttled_call")
-        now = time.monotonic()
-        if now - self._throttle_last_time < self.throttle:
+        now = self._clock()
+        if self._throttle_last_time is not None and now - self._throttle_last_time < self.throttle:
             LOGGER.debug("Throttle drop for handler=%s (window=%.1fs)", self.handler_name, self.throttle)
             return
         self._throttle_last_time = now
