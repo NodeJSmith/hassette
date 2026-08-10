@@ -1,7 +1,7 @@
 # Design: Fix Timing-Fragile Integration Tests
 
 **Date:** 2026-08-09
-**Status:** draft
+**Status:** archived
 **Mode:** sketch
 
 ## Problem
