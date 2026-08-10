@@ -378,14 +378,6 @@ class TestListenerIntegration:
         def handler(event: MockEvent):
             calls.append(event.data)
 
-        listener = create_listener(
-            handler,
-            task_bucket=bucket,
-            owner_id="test",
-            topic="test_topic",
-            throttle=0.1,
-        )
-
         # Controlled clock: start at 1.0 (not 0.0) since _throttle_last_time defaults to
         # 0.0 and the throttle guard (now - _throttle_last_time < throttle) would otherwise
         # suppress the very first call.
@@ -394,7 +386,16 @@ class TestListenerIntegration:
         def clock() -> float:
             return clock_time[0]
 
-        listener.invoker.rate_limiter = RateLimiter(task_bucket=bucket, throttle=0.1, handler_name="test", clock=clock)
+        listener = create_listener(
+            handler,
+            task_bucket=bucket,
+            owner_id="test",
+            topic="test_topic",
+            throttle=0.1,
+            clock=clock,
+        )
+
+        assert listener.invoker.rate_limiter is not None
         rl = listener.invoker.rate_limiter
 
         events = [mock_event("1"), mock_event("2"), mock_event("3"), mock_event("4")]

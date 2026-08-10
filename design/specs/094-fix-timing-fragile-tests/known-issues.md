@@ -40,7 +40,7 @@ Acceptance criteria:
 
 ## KI-002: Throttle-clock test bypasses the create_listener() factory
 
-Status: open
+Status: resolved — fixed during known issues walkthrough
 Run: 64
 Source: T01
 Reason not fixed now: out-of-scope

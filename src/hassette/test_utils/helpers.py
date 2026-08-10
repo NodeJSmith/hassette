@@ -612,11 +612,17 @@ def create_listener(
     source_location: str = "",
     registration_source: str = "",
     logger: Logger | None = None,
+    clock: "Callable[[], float] | None" = None,
 ) -> Listener:
     """Test factory: build a Listener from simple kwargs.
 
     Constructs sub-structs internally and delegates to Listener.create().
     Default handler is a sync no-op (`noop`); default task_bucket is a MagicMock.
+
+    Args:
+        clock: Zero-arg callable returning the current monotonic time, forwarded to the
+            RateLimiter built for debounce/throttle. Defaults to ``time.monotonic`` when
+            None. Use to inject a controlled clock for deterministic throttle tests.
     """
     # duration + debounce/throttle incompatibility is validated by Listener.create() below.
     if duration is not None and not entity_id:
@@ -660,6 +666,7 @@ def create_listener(
         options=options,
         error_handler=error_handler,
         app_error_handler_resolver=app_error_handler_resolver,
+        clock=clock,
     )
 
     duration_config: DurationConfig | None = None
