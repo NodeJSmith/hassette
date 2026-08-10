@@ -41,7 +41,7 @@ class RateLimiter:
         throttle: float | None = None,
         handler_name: str = "unknown",
         clock: "Callable[[], float] | None" = None,
-    ):
+    ) -> None:
         """Initialize the rate limiter.
 
         Args:
@@ -61,7 +61,7 @@ class RateLimiter:
 
         # Rate limiting state
         self._debounce_task: asyncio.Task | None = None
-        self._throttle_last_time = 0.0
+        self._throttle_last_time: float | None = None
         self._cancelled = False
 
     def clear_debounce_ref(self, task: "asyncio.Task[None]") -> None:
@@ -145,7 +145,7 @@ class RateLimiter:
         if self.throttle is None:
             raise ValueError("throttle must be set before calling throttled_call")
         now = self._clock()
-        if now - self._throttle_last_time < self.throttle:
+        if self._throttle_last_time is not None and now - self._throttle_last_time < self.throttle:
             LOGGER.debug("Throttle drop for handler=%s (window=%.1fs)", self.handler_name, self.throttle)
             return
         self._throttle_last_time = now

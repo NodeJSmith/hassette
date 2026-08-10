@@ -269,6 +269,28 @@ class TestThrottleLogic:
         await limiter.call(make_handler("fourth"))
         assert calls == ["first", "fourth"], "Fourth call should execute after throttle period"
 
+    async def test_throttle_allows_first_call_with_zero_origin_clock(self, bucket: TaskBucket):
+        """A clock that legitimately returns 0.0 on its first call must not drop that call.
+
+        Regression test: `_throttle_last_time` used to default to `0.0`, so `now - 0.0 <
+        throttle` was true on the very first call whenever `now` was also `0.0`, silently
+        dropping it. `_throttle_last_time` now starts as `None` and the elapsed-window
+        check is bypassed until a timestamp has actually been recorded.
+        """
+        calls: list[str] = []
+
+        def make_handler(label: str):
+            async def handler():
+                calls.append(label)
+
+            return handler
+
+        clock = make_controlled_clock(start=0.0)
+        limiter = RateLimiter(bucket, throttle=0.1, clock=clock)
+
+        await limiter.call(make_handler("first"))
+        assert calls == ["first"], "First call must execute even when the clock starts at 0.0"
+
     async def test_throttle_with_no_args(self, bucket: TaskBucket):
         """Test throttle with a no-arg handler."""
         calls: list[str] = []

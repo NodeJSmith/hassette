@@ -549,9 +549,10 @@ def make_task_bucket() -> MagicMock:
 class ControlledClock:
     """Mutable clock for deterministic `RateLimiter` throttle tests.
 
-    Starts at 1.0, not 0.0 — `RateLimiter._throttle_last_time` defaults to 0.0, and the
-    throttle guard (`now - _throttle_last_time < throttle`) would otherwise suppress the
-    very first call. Callable directly as a `RateLimiter(clock=...)` argument.
+    Defaults to starting at 1.0, but a zero-origin clock (`start=0.0`) works too —
+    `RateLimiter` tracks "no prior call" with `_throttle_last_time = None`, not `0.0`, so
+    a monotonic clock that legitimately returns `0.0` on its first call still fires.
+    Callable directly as a `RateLimiter(clock=...)` argument.
     """
 
     def __init__(self, start: float = 1.0) -> None:
