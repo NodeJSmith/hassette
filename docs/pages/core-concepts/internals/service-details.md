@@ -76,7 +76,7 @@ Registration is synchronous with the database. `sub.listener.db_id` is a valid i
 
 `RateLimiter.debounced_call()` cancels any pending debounce task before spawning a replacement. Each replacement captures the current event in its closure. Only the most recent event fires after the quiet window elapses. The previous task's closure is discarded entirely.
 
-`RateLimiter.throttled_call()` records `time.monotonic()` on each call and drops the handler if fewer than `throttle` seconds have elapsed since the last invocation. The check-and-set is atomic under asyncio's single-threaded event loop.
+`RateLimiter.throttled_call()` records the current time on each call and drops the handler if fewer than `throttle` seconds have elapsed since the last invocation. The check-and-set is atomic under asyncio's single-threaded event loop. The clock defaults to `time.monotonic` but accepts an injectable `clock` callable, letting tests advance time deterministically instead of sleeping past the throttle window.
 
 ### Listener Behavior Options
 
