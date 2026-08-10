@@ -167,8 +167,14 @@ class DurationTimer:
             if self._cancel_sub is not None:
                 self._cancel_sub.cancel()
                 self._cancel_sub = None
-            await on_fire()
-            cycle_completed.set()
+            # Guarantee cycle_completed.set() even if on_fire() raises — completed is
+            # documented to mark every completed timer lifecycle, and callers waiting on
+            # it must not hang just because the fire callback failed. The exception still
+            # propagates so task_bucket error handling/telemetry sees it.
+            try:
+                await on_fire()
+            finally:
+                cycle_completed.set()
 
         self._started = True
         self._task = self.task_bucket.spawn(delayed_fire(), name="bus:duration_timer")

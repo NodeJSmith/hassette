@@ -10,10 +10,13 @@ Tests cover:
 - evaluate_cancel_event with matching predicates does NOT cancel the timer
 - evaluate_cancel_event with non-matching predicates cancels the timer
 - cancel() removes the cancellation subscription synchronously (no task_bucket.spawn)
+- completed is set even when on_fire() raises, and the exception still propagates
 """
 
 import asyncio
 from unittest.mock import MagicMock
+
+import pytest
 
 from hassette.bus.duration_timer import DurationTimer
 from hassette.test_utils import wait_for
@@ -346,6 +349,30 @@ async def test_restart_while_active_does_not_leak_stale_completed_signal() -> No
 
     # Cleanup
     timer.cancel()
+
+
+async def test_completed_set_when_on_fire_raises() -> None:
+    """`completed` must be set even when on_fire() raises, so waiters don't time out.
+
+    Regression test: delayed_fire() used to call cycle_completed.set() only after
+    `await on_fire()` returned normally, so an exception from on_fire() (e.g. a
+    state-reader, predicate, dispatch, or listener-removal failure) skipped the set
+    entirely even though the timer task had finished. The exception must still
+    propagate out of the task.
+    """
+    timer, _, _ = make_timer(duration=0.05)
+
+    async def on_fire() -> None:
+        raise ValueError("boom")
+
+    timer.start(on_fire=on_fire)
+    task = timer._task
+    assert task is not None
+
+    with pytest.raises(ValueError, match="boom"):
+        await task
+
+    assert timer.completed.is_set()
 
 
 def test_listener_create_does_not_build_duration_timer() -> None:
