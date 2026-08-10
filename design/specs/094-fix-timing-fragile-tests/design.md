@@ -83,4 +83,7 @@ File a new issue for `test_tier1_ignore_suppresses_warning_and_row`. Different r
 - modify: `tests/integration/bus/test_bus_duration.py` — use `completed` event for cancellation assertions; adjust margins
 - modify: `tests/integration/bus/CLAUDE.md` — update documented `DURATION` value from 0.05 to 0.2
 - modify: `tests/integration/test_listeners.py` — rewrite throttle test to use injected clock
+- modify: `tests/unit/bus/test_duration_timer.py` — regression test for a restart-while-active race in `DurationTimer.completed` found during review
+- modify: `docs/pages/core-concepts/internals/service-details.md` — document `RateLimiter`'s injectable `clock` parameter
+- create: `design/specs/094-fix-timing-fragile-tests/known-issues.md` — KI-001/KI-002, deferred out-of-scope test-hygiene findings from T01
 - modify: `tests/unit/core/test_core_coverage.py` — increase shutdown timeout from 0.05 to 0.5

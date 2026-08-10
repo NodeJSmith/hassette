@@ -12,6 +12,7 @@ implements: ["FR#2", "FR#3", "AC#2", "AC#3"]
 - modify: `tests/integration/bus/conftest.py`
 - modify: `tests/integration/bus/test_bus_duration.py`
 - modify: `tests/integration/bus/CLAUDE.md`
+- modify: `tests/unit/bus/test_duration_timer.py` — regression test added during the spec fix loop for a restart-while-active race condition
 
 ## Prompt
 
