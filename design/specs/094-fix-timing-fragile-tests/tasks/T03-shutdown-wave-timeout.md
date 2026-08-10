@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Widen shutdown-wave test timeout"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#4", "AC#4"]
 ---

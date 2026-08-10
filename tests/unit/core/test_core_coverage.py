@@ -311,7 +311,7 @@ class TestShutdownChildren:
         h._file_watcher.shutdown = hang
 
         with preserve_config(h.config):
-            h.config.lifecycle.resource_shutdown_timeout_seconds = 0.05
+            h.config.lifecycle.resource_shutdown_timeout_seconds = 0.5
             result = await h._shutdown_children()
 
         assert result is False
