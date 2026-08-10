@@ -375,6 +375,49 @@ async def test_completed_set_when_on_fire_raises() -> None:
     assert timer.completed.is_set()
 
 
+async def test_cancel_during_in_flight_fire_does_not_set_completed_early() -> None:
+    """cancel() during an in-flight on_fire() must not set completed before the callback exits.
+
+    Regression test: delayed_fire() clears self._task before awaiting on_fire(), so a
+    cancel() arriving while on_fire() is still running has no pending task left to
+    interrupt. cancel() used to call self.completed.set() unconditionally regardless,
+    letting a waiter resume while the handler was still executing — contradicting the
+    documented "completed marks every completed timer lifecycle" semantics. cancel()
+    must only set completed when it actually interrupted a pending task; delayed_fire()'s
+    own finally owns setting it for the in-flight case, once on_fire() actually exits.
+    """
+    timer, _, _ = make_timer(duration=0.05)
+
+    on_fire_entered = asyncio.Event()
+    release_on_fire = asyncio.Event()
+
+    async def on_fire() -> None:
+        on_fire_entered.set()
+        await release_on_fire.wait()
+
+    timer.start(on_fire=on_fire)
+    task = timer._task
+    assert task is not None
+
+    await asyncio.wait_for(on_fire_entered.wait(), timeout=1.0)
+
+    # on_fire() is now in flight — delayed_fire() has already cleared self._task.
+    assert timer._task is None
+    assert not timer.is_active
+
+    timer.cancel()
+
+    # cancel() had nothing pending to interrupt, so completed must NOT be set yet —
+    # the handler is still running.
+    assert not timer.completed.is_set()
+
+    release_on_fire.set()
+    await asyncio.wait_for(task, timeout=1.0)
+
+    # Only now that on_fire() has exited does delayed_fire()'s finally set completed.
+    assert timer.completed.is_set()
+
+
 def test_listener_create_does_not_build_duration_timer() -> None:
     """Listener.create() does not construct DurationTimer — BusService.add_listener() does."""
     listener = create_listener(topic="test.topic", duration=5.0, entity_id="light.kitchen")

@@ -196,10 +196,12 @@ class DurationTimer:
         """
         self._cancelled = True  # idempotency guard — MUST be first
 
-        was_active = self._started and self._task is not None and not self._task.done()
+        task = self._task
+        had_pending_task = task is not None and not task.done()
+        was_active = self._started and had_pending_task
 
-        if self._task and not self._task.done():
-            self._task.cancel()
+        if task is not None and not task.done():
+            task.cancel()
         self._task = None
 
         if self._cancel_sub is not None:
@@ -209,7 +211,17 @@ class DurationTimer:
         if was_active and self._on_cancel is not None:
             self._on_cancel()
         self._started = False
-        self.completed.set()
+
+        # Only mark this cycle complete here when we actually interrupted a
+        # pending task. delayed_fire() clears self._task before awaiting
+        # on_fire() (see start()), so a cancel() arriving while on_fire() is
+        # still in flight has nothing left to cancel — had_pending_task is
+        # False. In that case delayed_fire()'s own finally is what sets
+        # completed, once the in-flight fire callback actually exits. Setting
+        # it here too would let a waiter resume while the handler is still
+        # running, contradicting the documented lifecycle-completion semantics.
+        if had_pending_task:
+            self.completed.set()
 
     def evaluate_cancel_event(self, event: "Event[Any]") -> None:
         """Evaluate whether a state-change event should cancel the timer.
