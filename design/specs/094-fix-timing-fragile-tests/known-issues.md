@@ -4,7 +4,7 @@ Durable issues discovered during orchestration that were intentionally not fixed
 
 ## KI-001: Other RateLimiter throttle tests still use real-time sleep/patch instead of clock injection
 
-Status: open
+Status: resolved — fixed during known issues walkthrough
 Run: 64
 Source: T01
 Reason not fixed now: out-of-scope
