@@ -1,6 +1,7 @@
 /** Base API client for fetching JSON from the Hassette backend. */
 
 const BASE_URL = "/api";
+const JSON_CONTENT_TYPE = "application/json";
 
 export class ApiError extends Error {
   constructor(
@@ -30,7 +31,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     ...init,
     credentials: "same-origin",
     headers: {
-      Accept: "application/json",
+      Accept: JSON_CONTENT_TYPE,
       ...init?.headers,
     },
   });
@@ -46,7 +47,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
 function apiWrite<T>(method: "POST" | "PUT", path: string, body?: unknown): Promise<T> {
   return apiFetch<T>(path, {
     method,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": JSON_CONTENT_TYPE },
     body: body ? JSON.stringify(body) : undefined,
   });
 }
@@ -70,7 +71,7 @@ export async function postSession(token: string): Promise<PostSessionResult> {
     response = await fetch(`${BASE_URL}/auth/session`, {
       method: "POST",
       credentials: "same-origin",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": JSON_CONTENT_TYPE },
       body: JSON.stringify({ token }),
     });
   } catch {
