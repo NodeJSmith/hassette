@@ -19,7 +19,7 @@ from hassette.test_utils.harness import HassetteHarness
 from hassette.test_utils.helpers import create_state_change_event
 from hassette.types import Topic
 
-from .conftest import DURATION, HALF_HOLD, MOSTLY_ELAPSED, PARTIAL_HOLD, TIMER_COMPLETION_TIMEOUT
+from .conftest import DURATION, HALF_HOLD, PARTIAL_HOLD, TIMER_COMPLETION_TIMEOUT
 from .helpers import seed, send_state_change
 
 if TYPE_CHECKING:
@@ -155,11 +155,11 @@ async def test_duration_double_check_before_fire(bus_harness: tuple[HassetteHarn
     await send_state_change(harness, "light.kitchen", "off", "on")
     await seed(harness, "light.kitchen", "on")
 
-    # Wait most of duration, then revert state in StateProxy WITHOUT sending a cancel event
-    # (simulates the state changing back without the cancellation subscription firing)
-    await asyncio.sleep(MOSTLY_ELAPSED)
-
-    # Revert the state in StateProxy directly (bypassing the event system)
+    # Revert the state in StateProxy directly (bypassing the event system) WITHOUT sending a
+    # cancel event — simulates the state changing back without the cancellation subscription
+    # firing. The timer always sleeps the full duration before re-checking state, so it makes
+    # no difference to the outcome whether the revert happens immediately after arming or
+    # partway through — as long as it happens before the full-duration re-check.
     await seed(harness, "light.kitchen", "off")
 
     # Wait for timer to fire, re-verify, and complete its cycle

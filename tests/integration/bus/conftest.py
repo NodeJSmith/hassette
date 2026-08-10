@@ -18,7 +18,6 @@ DURATION = 0.2  # 200 ms — wide enough for CI scheduling jitter
 TIMER_COMPLETION_TIMEOUT = 2.0  # safety ceiling when awaiting DurationTimer.completed in cancellation tests
 PARTIAL_HOLD = DURATION * 0.3  # brief wait before a mid-cycle action (cancel, attribute refresh)
 HALF_HOLD = DURATION * 0.4  # roughly half the duration — simulates a timer partway through its cycle
-MOSTLY_ELAPSED = DURATION * 0.8  # most of duration elapsed, leaving margin before the timer would fire
 
 
 @pytest.fixture
