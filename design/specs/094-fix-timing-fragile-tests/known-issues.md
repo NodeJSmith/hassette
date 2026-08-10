@@ -74,7 +74,7 @@ Acceptance criteria:
 
 ## KI-003: Two `once=True` duration tests still confirm "no re-fire" via a fixed sleep
 
-Status: open
+Status: resolved — fixed during known issues walkthrough
 Run: 64
 Source: clean-code
 Reason not fixed now: out-of-scope

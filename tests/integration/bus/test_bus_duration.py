@@ -171,49 +171,55 @@ async def test_duration_double_check_before_fire(bus_harness: tuple[HassetteHarn
 
 async def test_duration_with_once_fires_exactly_once(bus_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
     """once=True + duration: fires once; subsequent trigger does not fire."""
-    harness, hassette, bus = bus_harness
+    harness, _hassette, bus = bus_harness
 
     call_count = 0
-    fired = asyncio.Event()
 
     async def handler(_event: RawStateChangeEvent) -> None:
         nonlocal call_count
         call_count += 1
-        hassette.task_bucket.post_to_loop(fired.set)
 
     await bus.on_state_change(
         "light.kitchen", changed_to="on", handler=handler, duration=DURATION, once=True, name="duration_once_fires_once"
     )
 
+    # The timer is attached at registration time, so it's safe to capture before
+    # any trigger — the same DurationTimer instance is reused across its lifecycle.
+    timer = get_duration_timer(harness, "light.kitchen")
+
     # First trigger
     await send_state_change(harness, "light.kitchen", "off", "on")
     await seed(harness, "light.kitchen", "on")
-    await asyncio.wait_for(fired.wait(), timeout=DURATION + 0.5)
+
+    # Wait for the fire cycle to complete. DurationTimer only sets `completed`
+    # after `on_fire()` (which includes the once-removal finally block) fully
+    # returns, so this guarantees the listener is already removed by the time
+    # this resolves — no need to sleep past the duration to prove it.
+    await wait_for_timer_completed(timer)
     assert call_count == 1
 
     # Reset
     await send_state_change(harness, "light.kitchen", "on", "off")
     await seed(harness, "light.kitchen", "off")
 
-    # Second trigger — listener should be gone
+    # Second trigger — the once-listener was already removed, so no new timer is
+    # armed and the handler cannot fire again.
     await send_state_change(harness, "light.kitchen", "off", "on")
     await seed(harness, "light.kitchen", "on")
-    await asyncio.sleep(DURATION + 0.1)
 
+    assert get_duration_timer(harness, "light.kitchen") is None
     assert call_count == 1, f"once=True handler fired {call_count} times"
 
 
 async def test_duration_once_removal_on_exception(bus_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
     """Handler raises → listener still removed (once contract upheld even on exception)."""
-    harness, hassette, bus = bus_harness
+    harness, _hassette, bus = bus_harness
 
     call_count = 0
-    fired = asyncio.Event()
 
     async def handler(_event: RawStateChangeEvent) -> None:
         nonlocal call_count
         call_count += 1
-        hassette.task_bucket.post_to_loop(fired.set)
         raise RuntimeError("intentional error in handler")
 
     await bus.on_state_change(
@@ -225,22 +231,29 @@ async def test_duration_once_removal_on_exception(bus_harness: tuple[HassetteHar
         name="duration_once_removal_on_exception",
     )
 
+    # The timer is attached at registration time, so it's safe to capture before
+    # any trigger — the same DurationTimer instance is reused across its lifecycle.
+    timer = get_duration_timer(harness, "light.kitchen")
+
     await send_state_change(harness, "light.kitchen", "off", "on")
     await seed(harness, "light.kitchen", "on")
 
-    await asyncio.wait_for(fired.wait(), timeout=DURATION + 0.5)
+    # Wait for the fire cycle to complete. The handler's exception is swallowed by
+    # the executor (see CommandExecutor error isolation), so the once-removal
+    # finally block still runs and `completed` still fires — this guarantees the
+    # listener is already removed by the time this resolves, exception or not.
+    await wait_for_timer_completed(timer)
     assert call_count == 1
+    assert get_duration_timer(harness, "light.kitchen") is None
 
-    # Give time for cleanup
-    await asyncio.sleep(0.05)
-
-    # Fire again — listener should be gone
+    # Fire again — the once-listener was already removed, so no new timer is
+    # armed and the handler cannot fire again.
     await send_state_change(harness, "light.kitchen", "on", "off")
     await seed(harness, "light.kitchen", "off")
     await send_state_change(harness, "light.kitchen", "off", "on")
     await seed(harness, "light.kitchen", "on")
-    await asyncio.sleep(DURATION + 0.1)
 
+    assert get_duration_timer(harness, "light.kitchen") is None
     assert call_count == 1
 
 
