@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from hassette import Hassette
     from hassette.bus import Bus
 
-DURATION = 0.05  # 50 ms — fast enough for tests
+DURATION = 0.2  # 200 ms — wide enough for CI scheduling jitter
 
 
 @pytest.fixture

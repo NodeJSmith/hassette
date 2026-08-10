@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Add lifecycle completion event to DurationTimer and update duration tests"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#2", "FR#3", "AC#2", "AC#3"]
 ---

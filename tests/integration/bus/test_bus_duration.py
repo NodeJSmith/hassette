@@ -3,9 +3,11 @@
 Each test builds a fresh harness with bus + state_proxy.  State is seeded into StateProxy
 via harness.seed_state() before listeners are registered.
 
-Duration tests use ``asyncio.sleep(duration + margin)`` to advance the clock — duration
+Positive-fire tests use ``asyncio.sleep(duration + margin)`` to advance the clock — duration
 timers are not tracked by dispatch_pending, so await_dispatch_idle() cannot be used to
-drain them.
+drain them. Cancellation tests instead await ``DurationTimer.completed`` (via the
+``get_duration_timer()`` helper below) so "no fire" assertions are event-gated rather than
+timing-dependent.
 """
 
 import asyncio
@@ -23,6 +25,16 @@ from .helpers import seed, send_state_change
 if TYPE_CHECKING:
     from hassette import Hassette
     from hassette.bus import Bus
+    from hassette.bus.duration_timer import DurationTimer
+
+
+def get_duration_timer(harness: HassetteHarness, entity_id: str) -> "DurationTimer | None":
+    """Get the DurationTimer for the first duration-enabled listener on an entity."""
+    topic = f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}"
+    for listener in harness.bus_service.router.get_topic_listeners(topic):
+        if listener.duration_config and listener.duration_config.timer:
+            return listener.duration_config.timer
+    return None
 
 
 async def test_duration_fires_after_held(bus_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
@@ -73,8 +85,10 @@ async def test_duration_cancelled_on_state_exit(bus_harness: tuple[HassetteHarne
     await send_state_change(harness, "light.kitchen", "on", "off")
     await seed(harness, "light.kitchen", "off")
 
-    # Wait longer than duration — no fire should occur
-    await asyncio.sleep(DURATION + 0.1)
+    # Wait for the timer's cancellation cycle to complete — no fire should occur
+    timer = get_duration_timer(harness, "light.kitchen")
+    assert timer is not None
+    await asyncio.wait_for(timer.completed.wait(), timeout=2.0)
 
     assert received == []
 
@@ -139,8 +153,10 @@ async def test_duration_double_check_before_fire(bus_harness: tuple[HassetteHarn
     # Revert the state in StateProxy directly (bypassing the event system)
     await seed(harness, "light.kitchen", "off")
 
-    # Wait for timer to fire and re-verify
-    await asyncio.sleep(DURATION * 0.4)
+    # Wait for timer to fire, re-verify, and complete its cycle
+    timer = get_duration_timer(harness, "light.kitchen")
+    assert timer is not None
+    await asyncio.wait_for(timer.completed.wait(), timeout=2.0)
 
     # Handler should NOT have fired because re-check fails
     assert received == []
@@ -239,10 +255,12 @@ async def test_duration_subscription_cancel_stops_timer(bus_harness: tuple[Hasse
 
     # Cancel before duration elapses
     await asyncio.sleep(DURATION * 0.3)
+    timer = get_duration_timer(harness, "light.kitchen")
+    assert timer is not None
     sub.cancel()
 
-    # Wait longer than full duration
-    await asyncio.sleep(DURATION + 0.1)
+    # Wait for the timer's cancellation cycle to complete
+    await asyncio.wait_for(timer.completed.wait(), timeout=2.0)
 
     assert received == []
 
@@ -528,5 +546,7 @@ async def test_changed_from_with_duration_cancels_on_revert(
     await send_state_change(harness, "door.front", "open", "closed")
     await seed(harness, "door.front", "closed")
 
-    await asyncio.sleep(DURATION + 0.05)
+    timer = get_duration_timer(harness, "door.front")
+    assert timer is not None
+    await asyncio.wait_for(timer.completed.wait(), timeout=2.0)
     assert len(received) == 0

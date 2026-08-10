@@ -322,6 +322,42 @@ async def test_cancel_sets_cancelled_flag_first() -> None:
     assert cancelled_when_sub_cancelled[0] is True
 
 
+async def test_restart_while_active_does_not_leak_stale_completed_signal() -> None:
+    """A stale, just-cancelled cycle's completed.set() must not fire the NEW cycle's Event.
+
+    Regression test: start() reassigns self.completed to a new asyncio.Event() synchronously
+    before the event loop has a chance to deliver CancelledError to the just-cancelled cycle's
+    delayed_fire() task. Without capturing the target Event by reference at start() time, the
+    stale coroutine's `self.completed.set()` does a live attribute lookup and spuriously
+    completes the new cycle instead of the one it belongs to.
+    """
+    timer, _, _ = make_timer(duration=1.0)
+
+    async def on_fire() -> None:
+        pass
+
+    timer.start(on_fire=on_fire)
+    old_completed = timer.completed
+
+    # Let the first cycle's task actually start running (reach its sleep) before restarting.
+    await asyncio.sleep(0)
+
+    # Restart while the first cycle is still active — internally cancels the old task.
+    timer.start(on_fire=on_fire)
+    new_completed = timer.completed
+    assert new_completed is not old_completed
+
+    # Give the event loop a couple of ticks to deliver CancelledError to the stale task.
+    await asyncio.sleep(0)
+    await asyncio.sleep(0)
+
+    assert old_completed.is_set(), "old cycle's completed event should be set by its own cancellation"
+    assert not new_completed.is_set(), "new cycle's completed event must not be spuriously set by the stale cycle"
+
+    # Cleanup
+    timer.cancel()
+
+
 def test_listener_create_does_not_build_duration_timer() -> None:
     """Listener.create() does not construct DurationTimer — BusService.add_listener() does."""
     listener = create_listener(topic="test.topic", duration=5.0, entity_id="light.kitchen")
