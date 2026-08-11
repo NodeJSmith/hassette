@@ -3,7 +3,7 @@
 **Date:** 2026-08-11
 **Status:** draft
 **Scope-mode:** hold
-**Research:** `/tmp/claude-1000/-home-jessica-source-hassette/a1475703-bc90-49fc-a6e3-60bba74e8905/scratchpad/prior-art-config.md` (config precedence/provenance prior art), `form-library-prior-art.md` (JSON Schema form libraries), `cli-config-set-prior-art.md` (CLI write-command ergonomics)
+**Research:** `design/research/2026-08-11-ui-config-overrides/` — `config-precedence-prior-art.md` (where comparable systems store UI-set config and how they resolve conflicts), `form-library-prior-art.md` (JSON Schema form libraries, benchmarked against React 19), `cli-config-set-prior-art.md` (CLI write-command ergonomics)
 
 ## Problem
 
