@@ -1,7 +1,7 @@
 ---
 task_id: "T05"
 title: "Frontend degraded status and remaining test migration"
-status: "planned"
+status: "done"
 depends_on: ["T03", "T04"]
 implements: ["AC#6", "AC#8"]
 ---

@@ -1,6 +1,7 @@
 export type StatusVariant = "success" | "danger" | "warning" | "neutral";
 
-export type AppStatus = "running" | "failed" | "stopped" | "disabled" | "blocked" | "starting" | "shutting_down";
+export type AppStatus =
+  "running" | "failed" | "stopped" | "disabled" | "blocked" | "degraded" | "starting" | "shutting_down";
 
 /** Statuses that represent intentionally non-active apps (not failures). */
 export const INACTIVE_STATUSES: ReadonlySet<string> = new Set<AppStatus>(["stopped", "disabled", "shutting_down"]);
@@ -12,6 +13,7 @@ const APP_STATUS_MAP: ReadonlyMap<string, StatusVariant> = new Map<string, Statu
   ["stopped", "warning"],
   ["disabled", "neutral"],
   ["blocked", "warning"], // Intentional: blocked = needs attention (matches small badge behavior)
+  ["degraded", "warning"],
   ["not_started", "neutral"],
   ["starting", "neutral"],
   ["stopping", "neutral"],
@@ -94,6 +96,7 @@ const STATUS_KIND_MAP: ReadonlyMap<string, StatusKind> = new Map<string, StatusK
   ["crashed", "err"],
   ["exhausted_dead", "err"],
   ["blocked", "warn"],
+  ["degraded", "warn"],
   ["stopping", "warn"],
   ["shutting_down", "warn"],
   ["exhausted_cooling", "warn"],

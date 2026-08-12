@@ -11,14 +11,15 @@ export const STATUS_PRIORITY: Readonly<Record<string, number>> = {
   crashed: 0,
   exhausted_dead: 0,
   blocked: 1,
-  exhausted_cooling: 2,
-  starting: 3,
-  running: 4,
-  stopping: 5,
-  shutting_down: 5,
-  stopped: 6,
-  disabled: 7,
-  not_started: 8,
+  degraded: 2,
+  exhausted_cooling: 3,
+  starting: 4,
+  running: 5,
+  stopping: 6,
+  shutting_down: 6,
+  stopped: 7,
+  disabled: 8,
+  not_started: 9,
 };
 
 const UNKNOWN_PRIORITY = 99;
