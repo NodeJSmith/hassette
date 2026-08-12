@@ -76,7 +76,7 @@ def mock_hassette():
         class_name="MyApp",
         status=ResourceStatus.RUNNING,
     )
-    hassette._app_handler.get_status_snapshot = Mock(return_value=AppStatusSnapshot(running=[instance], failed=[]))
+    hassette._app_handler.get_status_snapshot = Mock(return_value=AppStatusSnapshot(instances=[instance]))
     hassette._app_handler.registry.get_full_snapshot = Mock(return_value=AppFullSnapshot(manifests=[]))
 
     # Mock scheduler service
@@ -122,14 +122,14 @@ class TestPreBootstrapAppState:
     """
 
     def test_get_app_status_snapshot_is_empty_before_bootstrap(self, runtime: RuntimeQueryService) -> None:
-        runtime.hassette.app_handler.get_status_snapshot = Mock(return_value=AppStatusSnapshot(running=[], failed=[]))
+        runtime.hassette.app_handler.get_status_snapshot = Mock(return_value=AppStatusSnapshot(instances=[]))
 
         snapshot = runtime.get_app_status_snapshot()
 
         assert snapshot.total_count == 0
 
     def test_get_system_status_reports_zero_apps_before_bootstrap(self, runtime: RuntimeQueryService) -> None:
-        runtime.hassette.app_handler.get_status_snapshot = Mock(return_value=AppStatusSnapshot(running=[], failed=[]))
+        runtime.hassette.app_handler.get_status_snapshot = Mock(return_value=AppStatusSnapshot(instances=[]))
 
         status = runtime.get_system_status()
 
@@ -314,8 +314,8 @@ class TestAppStatus:
         assert snapshot.total_count == 1
         assert snapshot.running_count == 1
         assert snapshot.failed_count == 0
-        assert len(snapshot.running) == 1
-        assert snapshot.running[0].app_key == "my_app"
+        assert len(snapshot.instances) == 1
+        assert snapshot.instances[0].app_key == "my_app"
 
 
 class TestCompletionPayloadEnrichment:

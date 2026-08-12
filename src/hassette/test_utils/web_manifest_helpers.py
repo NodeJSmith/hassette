@@ -37,7 +37,7 @@ def make_full_snapshot(
         manifests=manifests,
         only_apps=only_apps or [],
         total=len(manifests),
-        **counts,
+        status_counts=counts,
     )
 
 
@@ -135,9 +135,5 @@ def make_manifest_list_response(
     return AppManifestListResponse(
         manifests=manifests,
         total=len(manifests),
-        running=counts["running"],
-        failed=counts["failed"],
-        stopped=counts["stopped"],
-        disabled=counts["disabled"],
-        blocked=counts["blocked"],
+        status_counts=counts,
     )

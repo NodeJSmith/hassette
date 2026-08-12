@@ -18,11 +18,7 @@ type ManifestListResponse = components["schemas"]["AppManifestListResponse"];
 function makeManifestResponse(overrides: Partial<ManifestListResponse> = {}): ManifestListResponse {
   return {
     total: 0,
-    running: 0,
-    failed: 0,
-    stopped: 0,
-    disabled: 0,
-    blocked: 0,
+    status_counts: { running: 0, failed: 0, stopped: 0, disabled: 0, blocked: 0, degraded: 0 },
     manifests: [],
     only_apps: [],
     ...overrides,
@@ -35,7 +31,9 @@ describe("useManifests", () => {
       createManifest({ app_key: "app_a", display_name: "App A" }),
       createManifest({ app_key: "app_b", display_name: "App B" }),
     ];
-    vi.spyOn(endpoints, "getAppManifests").mockResolvedValue(makeManifestResponse({ total: 2, running: 2, manifests }));
+    vi.spyOn(endpoints, "getAppManifests").mockResolvedValue(
+      makeManifestResponse({ total: 2, status_counts: { running: 2 }, manifests }),
+    );
 
     const { result } = renderHookWithProviders(() => useManifests());
 
@@ -72,7 +70,7 @@ describe("useManifests", () => {
       return Promise.resolve(
         makeManifestResponse({
           total: 1,
-          running: 1,
+          status_counts: { running: 1 },
           manifests: [createManifest({ app_key: "shared_app" })],
         }),
       );

@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Unify snapshot and web response models"
-status: "planned"
+status: "done"
 depends_on: ["T02"]
 implements: ["FR#7", "FR#15", "AC#5"]
 ---

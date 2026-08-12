@@ -189,21 +189,15 @@ class AppRegistry:
 
     def get_snapshot(self) -> AppStatusSnapshot:
         """Generate immutable status snapshot for web UI."""
-        running: list[AppInstanceInfo] = []
-        failed: list[AppInstanceInfo] = []
+        instances: list[AppInstanceInfo] = []
 
         for app_key, entries in self._instances.items():
             manifest = self._manifests.get(app_key)
             for index, entry in entries.items():
-                info = self._info_from_entry(app_key, index, entry, manifest)
-                if entry.app is not None:
-                    running.append(info)
-                else:
-                    failed.append(info)
+                instances.append(self._info_from_entry(app_key, index, entry, manifest))
 
         return AppStatusSnapshot(
-            running=running,
-            failed=failed,
+            instances=instances,
             only_apps=sorted(self._only_apps),
         )
 
@@ -215,7 +209,7 @@ class AppRegistry:
             manifests=manifests,
             only_apps=sorted(self._only_apps),
             total=len(manifests),
-            **tally_manifest_statuses(manifests),
+            status_counts=tally_manifest_statuses(manifests),
         )
 
     def build_manifest_info(self, app_key: str, manifest: "AppManifest") -> AppManifestInfo:

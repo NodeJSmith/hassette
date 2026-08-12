@@ -30,7 +30,7 @@ def get_app(registry: AppRegistry, key: str, index: int = 0) -> "App[AppConfig]"
 def get_failed_by_key(registry: AppRegistry, app_key: str) -> list[AppInstanceInfo]:
     """Get failed app instances for a specific app_key."""
     snapshot = registry.get_snapshot()
-    return [info for info in snapshot.failed if info.app_key == app_key]
+    return [info for info in snapshot.instances if info.error is not None and info.app_key == app_key]
 
 
 def clear_class_cache():
@@ -517,7 +517,7 @@ class TestFullIntegrationFlow:
     async def test_snapshot_shows_running_apps(
         self, app_factory: AppFactory, app_lifecycle: AppLifecycleService, app_registry: AppRegistry
     ):
-        """Running apps appear in snapshot.running."""
+        """Running apps appear in snapshot.instances (running_count/running_apps)."""
         manifest = make_manifest("multi_instance", "multi_instance_app.py", "MultiInstanceApp")
         app_registry.set_manifests({"multi_instance": manifest})
 
@@ -532,7 +532,7 @@ class TestFullIntegrationFlow:
     async def test_snapshot_shows_failed_apps(
         self, app_factory: AppFactory, app_lifecycle: AppLifecycleService, app_registry: AppRegistry
     ):
-        """Failed apps appear in snapshot.failed."""
+        """Failed apps appear in snapshot.instances (failed_count/failed_apps)."""
         manifest = make_manifest("failing", "failing_init_app.py", "FailingInitApp")
         app_registry.set_manifests({"failing": manifest})
 

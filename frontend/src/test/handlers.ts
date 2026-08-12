@@ -36,11 +36,14 @@ export function withManifests(manifests: components["schemas"]["AppManifestRespo
     http.get("/api/apps/manifests", () =>
       HttpResponse.json<ManifestListResponse>({
         total: manifests.length,
-        running: manifests.filter((m) => m.status === "running").length,
-        failed: manifests.filter((m) => m.status === "failed").length,
-        stopped: 0,
-        disabled: 0,
-        blocked: 0,
+        status_counts: {
+          running: manifests.filter((m) => m.status === "running").length,
+          failed: manifests.filter((m) => m.status === "failed").length,
+          stopped: 0,
+          disabled: 0,
+          blocked: 0,
+          degraded: 0,
+        },
         manifests,
         only_apps: [],
       }),
@@ -53,11 +56,7 @@ export const handlers = [
   http.get("/api/apps/manifests", () => {
     return HttpResponse.json<ManifestListResponse>({
       total: 0,
-      running: 0,
-      failed: 0,
-      stopped: 0,
-      disabled: 0,
-      blocked: 0,
+      status_counts: { running: 0, failed: 0, stopped: 0, disabled: 0, blocked: 0, degraded: 0 },
       manifests: [],
       only_apps: [],
     });

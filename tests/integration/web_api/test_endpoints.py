@@ -259,7 +259,7 @@ class TestAppManifestListEndpoint:
         assert response.status_code == 200
         data = response.json()
         assert data["total"] == 1
-        assert data["stopped"] == 1
+        assert data["status_counts"]["stopped"] == 1
         app_keys = {m["app_key"] for m in data["manifests"]}
         assert "orphan_app" in app_keys
         orphan = next(m for m in data["manifests"] if m["app_key"] == "orphan_app")

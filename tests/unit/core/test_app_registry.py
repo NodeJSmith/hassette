@@ -14,8 +14,7 @@ class TestAppStatusSnapshot:
     def test_empty_snapshot(self) -> None:
         """Test snapshot with no apps."""
         snapshot = AppStatusSnapshot()
-        assert snapshot.running == []
-        assert snapshot.failed == []
+        assert snapshot.instances == []
         assert snapshot.only_apps == []
         assert snapshot.total_count == 0
         assert snapshot.running_count == 0
@@ -30,7 +29,7 @@ class TestAppStatusSnapshot:
         failed = [
             AppInstanceInfo("app3", 0, "app3.0", "App3", ResourceStatus.FAILED, error=Exception("test")),
         ]
-        snapshot = AppStatusSnapshot(running=running, failed=failed, only_apps=["app1"])
+        snapshot = AppStatusSnapshot(instances=running + failed, only_apps=["app1"])
 
         assert snapshot.running_count == 2
         assert snapshot.failed_count == 1
@@ -135,7 +134,7 @@ class TestAppRegistry:
 
         snapshot = registry.get_snapshot()
         assert "my_app" in snapshot.failed_apps
-        failed = [f for f in snapshot.failed if f.app_key == "my_app"]
+        failed = [f for f in snapshot.instances if f.error is not None and f.app_key == "my_app"]
         assert len(failed) == 2
         assert {f.index for f in failed} == {0, 1}
 
@@ -263,8 +262,7 @@ class TestAppRegistry:
         """Test snapshot with no apps."""
         snapshot = registry.get_snapshot()
 
-        assert snapshot.running == []
-        assert snapshot.failed == []
+        assert snapshot.instances == []
         assert snapshot.only_apps == []
 
     def test_get_snapshot_with_running_apps(self, registry: AppRegistry, mock_app: MagicMock) -> None:
@@ -274,8 +272,9 @@ class TestAppRegistry:
 
         snapshot = registry.get_snapshot()
 
-        assert len(snapshot.running) == 1
-        info = snapshot.running[0]
+        running = [i for i in snapshot.instances if i.error is None]
+        assert len(running) == 1
+        info = running[0]
         assert info.app_key == "my_app"
         assert info.index == 0
         assert info.instance_name == "test_instance"
@@ -290,8 +289,9 @@ class TestAppRegistry:
 
         snapshot = registry.get_snapshot()
 
-        assert len(snapshot.failed) == 1
-        info = snapshot.failed[0]
+        failed = [i for i in snapshot.instances if i.error is not None]
+        assert len(failed) == 1
+        info = failed[0]
         assert info.app_key == "my_app"
         assert info.index == 0
         assert info.status == ResourceStatus.FAILED
@@ -300,8 +300,7 @@ class TestAppRegistry:
 
     def test_get_snapshot_two_running_and_one_failed(self, registry: AppRegistry) -> None:
         """Characterization pin: 2 running instances + 1 failure produce a snapshot with
-        matching `.running`/`.failed` lists and correct per-entry field values. Guards
-        against regressions from the upcoming unified-instance-tracking refactor.
+        a single `.instances` list containing correct per-entry field values.
         """
         app1 = MagicMock()
         app1.app_config.instance_name = "app1.0"
@@ -323,10 +322,12 @@ class TestAppRegistry:
 
         snapshot = registry.get_snapshot()
 
-        assert len(snapshot.running) == 2
-        assert len(snapshot.failed) == 1
+        running = [i for i in snapshot.instances if i.error is None]
+        failed = [i for i in snapshot.instances if i.error is not None]
+        assert len(running) == 2
+        assert len(failed) == 1
 
-        running_by_key = {info.app_key: info for info in snapshot.running}
+        running_by_key = {info.app_key: info for info in running}
         assert running_by_key["app1"].index == 0
         assert running_by_key["app1"].instance_name == "app1.0"
         assert running_by_key["app1"].class_name == "App1"
@@ -335,7 +336,7 @@ class TestAppRegistry:
         assert running_by_key["app2"].app_key == "app2"
         assert running_by_key["app2"].class_name == "App2"
 
-        failed_info = snapshot.failed[0]
+        failed_info = failed[0]
         assert failed_info.app_key == "app3"
         assert failed_info.index == 0
         assert failed_info.status == ResourceStatus.FAILED
@@ -360,7 +361,7 @@ class TestAppRegistry:
 
         snapshot = registry.get_snapshot()
 
-        assert snapshot.running[0].status == ResourceStatus.STARTING
+        assert snapshot.instances[0].status == ResourceStatus.STARTING
 
     def test_clear_all(self, registry: AppRegistry, mock_app: MagicMock) -> None:
         """Test clearing all apps and failures."""
@@ -512,7 +513,7 @@ class TestAppRegistryGetFullSnapshot:
         reg.register_app("my_app", 0, self.make_app_instance("my_app"))
         snap = reg.get_full_snapshot()
         assert snap.total == 1
-        assert snap.running == 1
+        assert snap.status_counts["running"] == 1
         assert snap.manifests[0].status == "running"
         assert snap.manifests[0].instance_count == 1
 
@@ -521,7 +522,7 @@ class TestAppRegistryGetFullSnapshot:
         reg.set_manifests({"my_app": self.make_manifest_obj("my_app")})
         # No instances registered — status is "stopped"
         snap = reg.get_full_snapshot()
-        assert snap.stopped == 1
+        assert snap.status_counts["stopped"] == 1
         assert snap.manifests[0].status == "stopped"
 
     def test_failed_app(self) -> None:
@@ -529,7 +530,7 @@ class TestAppRegistryGetFullSnapshot:
         reg.set_manifests({"my_app": self.make_manifest_obj("my_app")})
         reg.record_failure("my_app", 0, RuntimeError("init error"))
         snap = reg.get_full_snapshot()
-        assert snap.failed == 1
+        assert snap.status_counts["failed"] == 1
         assert snap.manifests[0].status == "failed"
         assert snap.manifests[0].error_message == "init error"
 
@@ -537,7 +538,7 @@ class TestAppRegistryGetFullSnapshot:
         reg = self.make_registry()
         reg.set_manifests({"my_app": self.make_manifest_obj("my_app", enabled=False)})
         snap = reg.get_full_snapshot()
-        assert snap.disabled == 1
+        assert snap.status_counts["disabled"] == 1
         assert snap.manifests[0].status == "disabled"
 
     def test_blocked_app(self) -> None:
@@ -545,7 +546,7 @@ class TestAppRegistryGetFullSnapshot:
         reg.set_manifests({"my_app": self.make_manifest_obj("my_app")})
         reg.block_app("my_app", BlockReason.ONLY_APP)
         snap = reg.get_full_snapshot()
-        assert snap.blocked == 1
+        assert snap.status_counts["blocked"] == 1
         assert snap.manifests[0].status == "blocked"
         assert snap.manifests[0].block_reason == "only_app"
 
@@ -566,11 +567,11 @@ class TestAppRegistryGetFullSnapshot:
 
         snap = reg.get_full_snapshot()
         assert snap.total == 5
-        assert snap.running == 1
-        assert snap.stopped == 1
-        assert snap.failed == 1
-        assert snap.disabled == 1
-        assert snap.blocked == 1
+        assert snap.status_counts["running"] == 1
+        assert snap.status_counts["stopped"] == 1
+        assert snap.status_counts["failed"] == 1
+        assert snap.status_counts["disabled"] == 1
+        assert snap.status_counts["blocked"] == 1
 
         statuses = {m.app_key: m.status for m in snap.manifests}
         assert statuses["running_app"] == "running"
@@ -582,8 +583,7 @@ class TestAppRegistryGetFullSnapshot:
     def test_get_full_snapshot_running_failed_stopped_counts_and_manifest_info(self) -> None:
         """Characterization pin: manifests + running + failed instances produce correct
         running/failed/stopped counts on ``AppFullSnapshot`` and correct per-manifest
-        ``AppManifestInfo`` fields (status, instance_count, error_message). Guards against
-        regressions from the upcoming unified-instance-tracking refactor.
+        ``AppManifestInfo`` fields (status, instance_count, error_message).
         """
         reg = self.make_registry()
         reg.set_manifests(
@@ -600,11 +600,11 @@ class TestAppRegistryGetFullSnapshot:
         snap = reg.get_full_snapshot()
 
         assert snap.total == 3
-        assert snap.running == 1
-        assert snap.failed == 1
-        assert snap.stopped == 1
-        assert snap.disabled == 0
-        assert snap.blocked == 0
+        assert snap.status_counts["running"] == 1
+        assert snap.status_counts["failed"] == 1
+        assert snap.status_counts["stopped"] == 1
+        assert snap.status_counts["disabled"] == 0
+        assert snap.status_counts["blocked"] == 0
 
         by_key = {m.app_key: m for m in snap.manifests}
 
@@ -654,8 +654,8 @@ class TestAppRegistryGetFullSnapshot:
         snap = reg.get_full_snapshot()
         assert snap.manifests[0].status == "stopped"
         assert snap.manifests[0].autostart is False
-        assert snap.stopped == 1
-        assert snap.disabled == 0
+        assert snap.status_counts["stopped"] == 1
+        assert snap.status_counts["disabled"] == 0
 
 
 class TestAppRegistryAutostart:
@@ -842,5 +842,5 @@ class TestBuildManifestInfoStatusDerivation:
 
         snapshot = registry.get_snapshot()
 
-        assert snapshot.failed[0].instance_name == "Unknown.0"
-        assert snapshot.failed[0].class_name == "Unknown"
+        assert snapshot.instances[0].instance_name == "Unknown.0"
+        assert snapshot.instances[0].class_name == "Unknown"

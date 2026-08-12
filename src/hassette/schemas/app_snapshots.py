@@ -32,33 +32,32 @@ class AppInstanceInfo:
 class AppStatusSnapshot:
     """Immutable snapshot of all app states for web UI consumption."""
 
-    running: list[AppInstanceInfo] = field(default_factory=list)
-    failed: list[AppInstanceInfo] = field(default_factory=list)
+    instances: list[AppInstanceInfo] = field(default_factory=list)
     only_apps: list[str] = field(default_factory=list)
 
     @property
     def total_count(self) -> int:
-        return len(self.running) + len(self.failed)
+        return len(self.instances)
 
     @property
     def running_count(self) -> int:
         """Number of running app instances."""
-        return len(self.running)
+        return sum(1 for i in self.instances if i.error is None)
 
     @property
     def failed_count(self) -> int:
         """Number of failed app instances."""
-        return len(self.failed)
+        return sum(1 for i in self.instances if i.error is not None)
 
     @property
     def failed_apps(self) -> set[str]:
         """Set of app keys with failed instances."""
-        return {info.app_key for info in self.failed}
+        return {i.app_key for i in self.instances if i.error is not None}
 
     @property
     def running_apps(self) -> set[str]:
         """Set of app keys with running instances."""
-        return {info.app_key for info in self.running}
+        return {i.app_key for i in self.instances if i.error is None}
 
 
 @dataclass
@@ -92,19 +91,9 @@ class AppFullSnapshot:
     manifests: list[AppManifestInfo] = field(default_factory=list)
     only_apps: list[str] = field(default_factory=list)
     total: int = 0
-    running: int = 0
-    failed: int = 0
-    stopped: int = 0
-    disabled: int = 0
-    blocked: int = 0
-    degraded: int = 0
-    """Count of manifests with at least one running and at least one failed instance.
-
-    ``build_manifest_info()`` does not derive ``"degraded"`` yet — this field stays at 0 until
-    that derivation lands. It exists now so ``tally_manifest_statuses()``'s dict (keyed by every
-    ``ManifestStatus`` value, including ``DEGRADED``) can be unpacked into this dataclass without
-    an unexpected-keyword-argument error.
-    """
+    status_counts: dict[str, int] = field(default_factory=lambda: dict.fromkeys(ManifestStatus, 0))
+    """Manifest counts keyed by ``ManifestStatus`` value (``running``, ``failed``, ``stopped``,
+    ``disabled``, ``blocked``, ``degraded``)."""
 
 
 def tally_manifest_statuses(manifests: Iterable[AppManifestInfo]) -> dict[str, int]:

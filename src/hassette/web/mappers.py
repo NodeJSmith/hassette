@@ -53,12 +53,8 @@ def instance_response_from(info: AppInstanceInfo) -> AppInstanceResponse:
 
 
 def app_status_response_from(snapshot: AppStatusSnapshot) -> AppStatusResponse:
-    """Convert an ``AppStatusSnapshot`` to ``AppStatusResponse``.
-
-    Merges ``snapshot.running`` and ``snapshot.failed`` into a single ``apps``
-    list (running first, then failed).
-    """
-    apps = [instance_response_from(info) for info in snapshot.running + snapshot.failed]
+    """Convert an ``AppStatusSnapshot`` to ``AppStatusResponse``."""
+    apps = [instance_response_from(info) for info in snapshot.instances]
     return AppStatusResponse(
         total=snapshot.total_count,
         running=snapshot.running_count,
@@ -102,11 +98,7 @@ def app_manifest_list_response_from(full: AppFullSnapshot) -> AppManifestListRes
     """Convert an ``AppFullSnapshot`` to ``AppManifestListResponse``."""
     return AppManifestListResponse(
         total=full.total,
-        running=full.running,
-        failed=full.failed,
-        stopped=full.stopped,
-        disabled=full.disabled,
-        blocked=full.blocked,
+        status_counts=full.status_counts,
         manifests=[app_manifest_response_from(manifest) for manifest in full.manifests],
         only_apps=full.only_apps,
     )

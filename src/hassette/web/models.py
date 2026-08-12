@@ -164,11 +164,7 @@ class AppManifestResponse(BaseModel):
 
 class AppManifestListResponse(BaseModel):
     total: int
-    running: int
-    failed: int
-    stopped: int
-    disabled: int
-    blocked: int
+    status_counts: dict[str, int] = Field(default_factory=dict)
     manifests: list[AppManifestResponse]
     only_apps: list[str] = Field(default_factory=list)
 

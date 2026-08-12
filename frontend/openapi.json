@@ -1974,25 +1974,12 @@
             "type": "integer",
             "title": "Total"
           },
-          "running": {
-            "type": "integer",
-            "title": "Running"
-          },
-          "failed": {
-            "type": "integer",
-            "title": "Failed"
-          },
-          "stopped": {
-            "type": "integer",
-            "title": "Stopped"
-          },
-          "disabled": {
-            "type": "integer",
-            "title": "Disabled"
-          },
-          "blocked": {
-            "type": "integer",
-            "title": "Blocked"
+          "status_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Status Counts"
           },
           "manifests": {
             "items": {
@@ -2012,11 +1999,6 @@
         "type": "object",
         "required": [
           "total",
-          "running",
-          "failed",
-          "stopped",
-          "disabled",
-          "blocked",
           "manifests"
         ],
         "title": "AppManifestListResponse"

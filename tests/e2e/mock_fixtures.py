@@ -153,7 +153,7 @@ def build_manifests() -> list[AppManifestInfo]:
 def build_old_snapshot() -> AppStatusSnapshot:
     """Build the legacy AppStatusSnapshot used to seed mock_hassette."""
     return AppStatusSnapshot(
-        running=[
+        instances=[
             AppInstanceInfo(
                 app_key="my_app",
                 index=0,
@@ -170,8 +170,6 @@ def build_old_snapshot() -> AppStatusSnapshot:
                 status=ResourceStatus.RUNNING,
                 owner_id="NoSourceApp.NoSourceApp[0]",
             ),
-        ],
-        failed=[
             AppInstanceInfo(
                 app_key="broken_app",
                 index=0,
@@ -179,6 +177,7 @@ def build_old_snapshot() -> AppStatusSnapshot:
                 class_name="BrokenApp",
                 status=ResourceStatus.FAILED,
                 error_message="Init error: bad config",
+                error=Exception("Init error: bad config"),
             ),
         ],
     )

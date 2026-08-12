@@ -63,11 +63,7 @@ export function createManifest(overrides: Partial<AppManifestResponse> = {}): Ap
 export function createManifestList(overrides: Partial<AppManifestListResponse> = {}): AppManifestListResponse {
   return {
     total: 1,
-    running: 1,
-    failed: 0,
-    stopped: 0,
-    disabled: 0,
-    blocked: 0,
+    status_counts: { running: 1, failed: 0, stopped: 0, disabled: 0, blocked: 0, degraded: 0 },
     manifests: [createManifest()],
     only_apps: [],
     ...overrides,

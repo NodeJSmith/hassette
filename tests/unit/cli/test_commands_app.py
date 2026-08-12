@@ -162,9 +162,7 @@ class TestCmdAppHealth:
             status="running",  # pyright: ignore[reportArgumentType]
         )
         manifest_resp = make_manifest_response(app_key="my-app", instances=[instance_resp])
-        manifest_list = AppManifestListResponse(
-            total=1, running=1, failed=0, stopped=0, disabled=0, blocked=0, manifests=[manifest_resp]
-        )
+        manifest_list = AppManifestListResponse(total=1, status_counts={"running": 1}, manifests=[manifest_resp])
         client = cli_client_factory.build_with_routes(
             [
                 ("GET", "/api/apps/manifests", 200, manifest_list.model_dump()),

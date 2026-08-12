@@ -785,16 +785,10 @@ export interface components {
         AppManifestListResponse: {
             /** Total */
             total: number;
-            /** Running */
-            running: number;
-            /** Failed */
-            failed: number;
-            /** Stopped */
-            stopped: number;
-            /** Disabled */
-            disabled: number;
-            /** Blocked */
-            blocked: number;
+            /** Status Counts */
+            status_counts?: {
+                [key: string]: number;
+            };
             /** Manifests */
             manifests: components["schemas"]["AppManifestResponse"][];
             /** Only Apps */
