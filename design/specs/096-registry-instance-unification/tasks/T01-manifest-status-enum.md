@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Create ManifestStatus StrEnum and characterization tests"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#6", "AC#7"]
 ---

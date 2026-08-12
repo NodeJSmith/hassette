@@ -10,6 +10,7 @@ from hassette.types.enums import (
     DEFAULT_OVERLAP_MODE,
     BackpressurePolicy,
     ExecutionMode,
+    ManifestStatus,
     ResourceStatus,
 )
 from hassette.types.types import LOG_LEVEL_TYPE, CliFormat, SourceTier
@@ -20,12 +21,6 @@ MAX_SESSION_TOKEN_LENGTH = 4096
 Generated tokens are ``secrets.token_urlsafe(32)`` — 43 characters — but a deployment may supply
 its own, so the cap is set far above any plausible real token rather than tight to the generated
 shape.
-"""
-
-ManifestStatus = Literal["disabled", "blocked", "running", "failed", "stopped"]
-"""Status values for app manifests (manifest-scoped, 5 values).
-
-Verified against ``src/hassette/core/app_registry.py`` status derivation logic.
 """
 
 ErrorRateClass = Literal["good", "warn", "bad"]

@@ -9,7 +9,7 @@ from pydantic import ValidationError
 
 from hassette.schemas.execution_models import ActivityFeedEntry, Execution
 from hassette.schemas.log_models import LogRecord
-from hassette.types.enums import ResourceStatus
+from hassette.types.enums import ManifestStatus, ResourceStatus
 from hassette.types.types import ExecutionStatus
 from hassette.web.models import (
     AppHealthResponse,
@@ -88,7 +88,7 @@ class TestExecutionStatus:
 
 
 class TestManifestStatus:
-    def test_rejects_value_outside_five_value_set(self) -> None:
+    def test_rejects_value_outside_six_value_set(self) -> None:
         with pytest.raises(ValidationError):
             AppManifestResponse(
                 app_key="my_app",
@@ -100,8 +100,8 @@ class TestManifestStatus:
                 status="unknown",
             )
 
-    def test_accepts_all_five_values(self) -> None:
-        for value in ("disabled", "blocked", "running", "failed", "stopped"):
+    def test_accepts_all_six_values(self) -> None:
+        for value in ManifestStatus:
             obj = AppManifestResponse(
                 app_key="my_app",
                 class_name="MyApp",
@@ -112,6 +112,18 @@ class TestManifestStatus:
                 status=value,
             )
             assert obj.status == value
+
+    def test_is_str_enum_with_expected_members(self) -> None:
+        assert set(ManifestStatus) == {
+            ManifestStatus.DISABLED,
+            ManifestStatus.BLOCKED,
+            ManifestStatus.DEGRADED,
+            ManifestStatus.RUNNING,
+            ManifestStatus.FAILED,
+            ManifestStatus.STOPPED,
+        }
+        assert ManifestStatus.RUNNING == "running"
+        assert isinstance(ManifestStatus.RUNNING, str)
 
     def test_rejects_on_dashboard_grid_entry(self) -> None:
         with pytest.raises(ValidationError):

@@ -8,9 +8,9 @@ removes the ``web → core`` import cycle.
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 
-from hassette.types.enums import ResourceStatus
+from hassette.types.enums import ManifestStatus, ResourceStatus
 
-MANIFEST_STATUS_KEYS = ("running", "failed", "stopped", "disabled", "blocked")
+MANIFEST_STATUS_KEYS = tuple(ManifestStatus)
 
 
 @dataclass
@@ -71,7 +71,7 @@ class AppManifestInfo:
     filename: str
     enabled: bool
     auto_loaded: bool
-    status: str  # "running", "failed", "stopped", "disabled", "blocked"
+    status: str  # "running", "failed", "stopped", "disabled", "blocked", "degraded"
     # Placed after `status` (not next to `enabled`, where it sits in AppManifest/AppManifestResponse)
     # because dataclass rules forbid a defaulted field before the non-default `status`.
     autostart: bool = True
@@ -97,10 +97,19 @@ class AppFullSnapshot:
     stopped: int = 0
     disabled: int = 0
     blocked: int = 0
+    degraded: int = 0
+    """Count of manifests with at least one running and at least one failed instance.
+
+    ``build_manifest_info()`` does not derive ``"degraded"`` yet — this field stays at 0 until
+    that derivation lands. It exists now so ``tally_manifest_statuses()``'s dict (keyed by every
+    ``ManifestStatus`` value, including ``DEGRADED``) can be unpacked into this dataclass without
+    an unexpected-keyword-argument error.
+    """
 
 
 def tally_manifest_statuses(manifests: Iterable[AppManifestInfo]) -> dict[str, int]:
-    """Count manifests by status (``running``, ``failed``, ``stopped``, ``disabled``, ``blocked``).
+    """Count manifests by status (``running``, ``failed``, ``stopped``, ``disabled``, ``blocked``,
+    ``degraded``).
 
     Unrecognized status values are silently skipped rather than raising a ``KeyError`` — this
     tallies manifests from both the in-memory registry (status always one of the known values)

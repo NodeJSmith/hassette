@@ -8,11 +8,11 @@ from typing import Any
 
 from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo, tally_manifest_statuses
 from hassette.test_utils.config import DEFAULT_TEST_APP_KEY, TEST_ISO_TIMESTAMP
+from hassette.types.enums import ManifestStatus
 from hassette.web.models import (
     AppInstanceResponse,
     AppManifestListResponse,
     AppManifestResponse,
-    ManifestStatus,
 )
 
 
@@ -83,7 +83,7 @@ def make_manifest_response(
     filename: str = "test_app.py",
     enabled: bool = True,
     auto_loaded: bool = False,
-    status: ManifestStatus = "running",
+    status: ManifestStatus = ManifestStatus.RUNNING,
     instance_count: int = 1,
     instances: list[AppInstanceResponse] | None = None,
     in_current_config: bool = True,

@@ -250,6 +250,50 @@ class TestAppRegistry:
         assert info.error is error
         assert info.error_message == "startup failed"
 
+    def test_get_snapshot_two_running_and_one_failed(self, registry: AppRegistry) -> None:
+        """Characterization pin: 2 running instances + 1 failure produce a snapshot with
+        matching `.running`/`.failed` lists and correct per-entry field values. Guards
+        against regressions from the upcoming unified-instance-tracking refactor.
+        """
+        app1 = MagicMock()
+        app1.app_config.instance_name = "app1.0"
+        app1.class_name = "App1"
+        app1.status = ResourceStatus.RUNNING
+        app1.unique_name = "App1.app1.0"
+
+        app2 = MagicMock()
+        app2.app_config.instance_name = "app2.0"
+        app2.class_name = "App2"
+        app2.status = ResourceStatus.RUNNING
+        app2.unique_name = "App2.app2.0"
+
+        registry.register_app("app1", 0, app1)
+        registry.register_app("app2", 0, app2)
+
+        error = ValueError("boom")
+        registry.record_failure("app3", 0, error)
+
+        snapshot = registry.get_snapshot()
+
+        assert len(snapshot.running) == 2
+        assert len(snapshot.failed) == 1
+
+        running_by_key = {info.app_key: info for info in snapshot.running}
+        assert running_by_key["app1"].index == 0
+        assert running_by_key["app1"].instance_name == "app1.0"
+        assert running_by_key["app1"].class_name == "App1"
+        assert running_by_key["app1"].status == ResourceStatus.RUNNING
+        assert running_by_key["app1"].owner_id == "App1.app1.0"
+        assert running_by_key["app2"].app_key == "app2"
+        assert running_by_key["app2"].class_name == "App2"
+
+        failed_info = snapshot.failed[0]
+        assert failed_info.app_key == "app3"
+        assert failed_info.index == 0
+        assert failed_info.status == ResourceStatus.FAILED
+        assert failed_info.error is error
+        assert failed_info.error_message == "boom"
+
     def test_get_snapshot_with_only_apps(self, registry: AppRegistry) -> None:
         """Test snapshot includes only_apps, sorted for stable output."""
         registry.set_only_apps(["special_app", "other_app"])
@@ -486,6 +530,51 @@ class TestAppRegistryGetFullSnapshot:
         assert statuses["disabled_app"] == "disabled"
         assert statuses["blocked_app"] == "blocked"
 
+    def test_get_full_snapshot_running_failed_stopped_counts_and_manifest_info(self) -> None:
+        """Characterization pin: manifests + running + failed instances produce correct
+        running/failed/stopped counts on ``AppFullSnapshot`` and correct per-manifest
+        ``AppManifestInfo`` fields (status, instance_count, error_message). Guards against
+        regressions from the upcoming unified-instance-tracking refactor.
+        """
+        reg = self.make_registry()
+        reg.set_manifests(
+            {
+                "running_app": self.make_manifest_obj("running_app"),
+                "failed_app": self.make_manifest_obj("failed_app"),
+                "stopped_app": self.make_manifest_obj("stopped_app"),
+            }
+        )
+        reg.register_app("running_app", 0, self.make_app_instance("running_app"))
+        error = RuntimeError("startup failed")
+        reg.record_failure("failed_app", 0, error)
+
+        snap = reg.get_full_snapshot()
+
+        assert snap.total == 3
+        assert snap.running == 1
+        assert snap.failed == 1
+        assert snap.stopped == 1
+        assert snap.disabled == 0
+        assert snap.blocked == 0
+
+        by_key = {m.app_key: m for m in snap.manifests}
+
+        running_info = by_key["running_app"]
+        assert running_info.status == "running"
+        assert running_info.instance_count == 1
+        assert running_info.instances[0].status == ResourceStatus.RUNNING
+
+        failed_info = by_key["failed_app"]
+        assert failed_info.status == "failed"
+        assert failed_info.instance_count == 1
+        assert failed_info.error_message == "startup failed"
+        assert failed_info.instances[0].status == ResourceStatus.FAILED
+
+        stopped_info = by_key["stopped_app"]
+        assert stopped_info.status == "stopped"
+        assert stopped_info.instance_count == 0
+        assert stopped_info.instances == []
+
     def test_disabled_takes_priority_over_running(self) -> None:
         """Even if an app has running instances, disabled=False should win."""
         reg = self.make_registry()
@@ -581,3 +670,73 @@ class TestAppRegistryAutostart:
             }
         )
         assert "manual_app" in registry.enabled_manifests
+
+
+class TestBuildManifestInfoStatusDerivation:
+    """Characterization pins for ``build_manifest_info()``'s status derivation.
+
+    Covers the current 5-value priority chain (disabled > blocked > running > failed >
+    stopped) — no ``degraded`` derivation yet. These must keep passing unchanged once a
+    future change swaps in a 6-value chain that adds ``degraded`` between ``blocked`` and
+    ``running``.
+    """
+
+    @pytest.fixture
+    def registry(self) -> AppRegistry:
+        return AppRegistry()
+
+    def make_manifest_obj(  # factory-local: SimpleNamespace input shape for AppRegistry, not AppManifestInfo output
+        self, app_key: str, enabled: bool = True
+    ) -> SimpleNamespace:
+        return SimpleNamespace(
+            app_key=app_key,
+            class_name=f"{app_key.title().replace('_', '')}",
+            display_name=app_key.replace("_", " ").title(),
+            filename=f"{app_key}.py",
+            enabled=enabled,
+            auto_loaded=False,
+            autostart=True,
+        )
+
+    def make_app_instance(self, app_key: str, index: int = 0) -> SimpleNamespace:
+        class_name = app_key.title().replace("_", "")
+        instance_name = f"{app_key}.{index}"
+        return SimpleNamespace(
+            app_config=SimpleNamespace(instance_name=instance_name),
+            class_name=class_name,
+            status=ResourceStatus.RUNNING,
+            unique_name=f"{class_name}.{instance_name}",
+        )
+
+    def test_disabled(self, registry: AppRegistry) -> None:
+        manifest = self.make_manifest_obj("my_app", enabled=False)
+        info = registry.build_manifest_info("my_app", manifest)
+        assert info.status == "disabled"
+
+    def test_blocked(self, registry: AppRegistry) -> None:
+        manifest = self.make_manifest_obj("my_app")
+        registry.block_app("my_app", BlockReason.ONLY_APP)
+        info = registry.build_manifest_info("my_app", manifest)
+        assert info.status == "blocked"
+        assert info.block_reason == "only_app"
+
+    def test_running(self, registry: AppRegistry) -> None:
+        manifest = self.make_manifest_obj("my_app")
+        registry.register_app("my_app", 0, self.make_app_instance("my_app"))
+        info = registry.build_manifest_info("my_app", manifest)
+        assert info.status == "running"
+        assert info.instance_count == 1
+
+    def test_failed(self, registry: AppRegistry) -> None:
+        manifest = self.make_manifest_obj("my_app")
+        registry.record_failure("my_app", 0, ValueError("bad config"))
+        info = registry.build_manifest_info("my_app", manifest)
+        assert info.status == "failed"
+        assert info.error_message == "bad config"
+
+    def test_stopped(self, registry: AppRegistry) -> None:
+        """No instances registered and no failures recorded — status is 'stopped'."""
+        manifest = self.make_manifest_obj("my_app")
+        info = registry.build_manifest_info("my_app", manifest)
+        assert info.status == "stopped"
+        assert info.instance_count == 0

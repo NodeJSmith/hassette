@@ -244,6 +244,28 @@ class ConnectionState(StrEnum):
     """The WebSocket connection is established and active."""
 
 
+class ManifestStatus(StrEnum):
+    """Enumeration for app manifest status values (manifest-scoped, distinct from ``ResourceStatus``)."""
+
+    DISABLED = auto()
+    """The app is disabled in configuration and will not start."""
+
+    BLOCKED = auto()
+    """The app was intentionally prevented from starting (see ``BlockReason``)."""
+
+    DEGRADED = auto()
+    """At least one instance is running and at least one instance has failed."""
+
+    RUNNING = auto()
+    """All tracked instances are running."""
+
+    FAILED = auto()
+    """All tracked instances have failed and none are running."""
+
+    STOPPED = auto()
+    """The app has no tracked instances (not started, or intentionally stopped)."""
+
+
 class ResourceRole(StrEnum):
     """Enumeration for resource roles."""
 

@@ -2053,15 +2053,7 @@
             "default": true
           },
           "status": {
-            "type": "string",
-            "enum": [
-              "disabled",
-              "blocked",
-              "running",
-              "failed",
-              "stopped"
-            ],
-            "title": "Status"
+            "$ref": "#/components/schemas/ManifestStatus"
           },
           "block_reason": {
             "anyOf": [
@@ -2266,15 +2258,7 @@
             "title": "App Key"
           },
           "status": {
-            "type": "string",
-            "enum": [
-              "disabled",
-              "blocked",
-              "running",
-              "failed",
-              "stopped"
-            ],
-            "title": "Status"
+            "$ref": "#/components/schemas/ManifestStatus"
           },
           "display_name": {
             "type": "string",
@@ -3588,6 +3572,19 @@
         ],
         "title": "LogsByExecutionResponse",
         "description": "Response for GET /api/executions/{execution_id}."
+      },
+      "ManifestStatus": {
+        "type": "string",
+        "enum": [
+          "disabled",
+          "blocked",
+          "degraded",
+          "running",
+          "failed",
+          "stopped"
+        ],
+        "title": "ManifestStatus",
+        "description": "Enumeration for app manifest status values (manifest-scoped, distinct from ``ResourceStatus``)."
       },
       "ReadinessResponse": {
         "properties": {
