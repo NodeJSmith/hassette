@@ -487,24 +487,34 @@ class AppLifecycleService(Resource):
                 self.logger.debug("Skipping disabled or unknown app %s", app_key)
                 return
 
-            try:
-                self.logger.debug("Creating instances for app %s", app_key)
-                self.factory.create_instances(app_key, app_manifest, force_reload=force_reload)
-            except (UndefinedUserConfigError, InvalidInheritanceError):
-                self.logger.error(
-                    "Failed to load app '%s' due to bad configuration - check previous logs for details", app_key
-                )
-                return
-            except Exception:
-                self.logger.error("Failed to load app class for '%s':\n%s", app_key, get_short_traceback())
-                return
+            await self._start_app_unlocked(app_key, app_manifest, force_reload)
 
-            instances = self.registry.get_running_apps(app_key)
-            if instances:
-                for inst in instances.values():
-                    event = HassetteAppStateEvent.from_app(app=inst, status=NOT_STARTED)
-                    await self.hassette.send_event(event)
-                await self.initialize_instances(app_key, instances, app_manifest)
+    async def _start_app_unlocked(self, app_key: str, app_manifest: "AppManifest", force_reload: bool) -> None:
+        """Create instances for an app and await their initialization.
+
+        Caller must hold ``self._get_app_key_lock(app_key)``. Extracted from ``start_app`` so
+        ``reload_app`` can acquire the app-key lock once and call both the stop and start bodies
+        without deadlocking on the non-reentrant ``asyncio.Lock`` (calling the public,
+        lock-acquiring `start_app`/`stop_app` from inside an already-held lock would hang).
+        """
+        try:
+            self.logger.debug("Creating instances for app %s", app_key)
+            self.factory.create_instances(app_key, app_manifest, force_reload=force_reload)
+        except (UndefinedUserConfigError, InvalidInheritanceError):
+            self.logger.error(
+                "Failed to load app '%s' due to bad configuration - check previous logs for details", app_key
+            )
+            return
+        except Exception:
+            self.logger.error("Failed to load app class for '%s':\n%s", app_key, get_short_traceback())
+            return
+
+        instances = self.registry.get_running_apps(app_key)
+        if instances:
+            for inst in instances.values():
+                event = HassetteAppStateEvent.from_app(app=inst, status=NOT_STARTED)
+                await self.hassette.send_event(event)
+            await self.initialize_instances(app_key, instances, app_manifest)
 
     async def stop_app(self, app_key: str) -> None:
         """Stop and remove all instances for a given app key.
@@ -512,10 +522,28 @@ class AppLifecycleService(Resource):
         Args:
             app_key: The app key to stop
         """
+        async with self._get_app_key_lock(app_key):
+            await self._stop_app_unlocked(app_key)
+
+    async def _stop_app_unlocked(self, app_key: str) -> None:
+        """Unregister and shut down all instances for a given app key.
+
+        Caller must hold ``self._get_app_key_lock(app_key)``. Extracted from ``stop_app`` so
+        ``reload_app`` can acquire the app-key lock once and call both the stop and start bodies
+        without deadlocking on the non-reentrant ``asyncio.Lock``.
+
+        ``registry.unregister_app`` distinguishes "no entries existed at all" (``None``) from
+        "entries existed but none were running" (``{}`` — e.g. an app with only failed
+        instances). Only the former is actually "not found"; the latter is a normal cleanup of
+        failed-only entries and doesn't warrant a misleading "not found" warning.
+        """
         try:
             instances = self.registry.unregister_app(app_key)
-            if not instances:
+            if instances is None:
                 self.logger.warning("Cannot stop app %s, not found", app_key)
+                return
+            if not instances:
+                self.logger.debug("Cleared failed entries for app %s; no running instances to shut down", app_key)
                 return
 
             await self.shutdown_instances(instances)
@@ -538,8 +566,18 @@ class AppLifecycleService(Resource):
         self.logger.debug("Reloading app %s", app_key)
         await self._admit_start(app_key=app_key, admission_mode=admission_mode)
         try:
-            await self.stop_app(app_key)
-            await self.start_app(app_key, force_reload=force_reload, admission_mode=admission_mode)
+            # Acquire the app-key lock once and call the unlocked stop/start bodies directly —
+            # calling the public stop_app()/start_app() here (each of which also acquires this
+            # lock) would deadlock on the non-reentrant asyncio.Lock.
+            async with self._get_app_key_lock(app_key):
+                await self._stop_app_unlocked(app_key)
+
+                app_manifest = self.registry.get_manifest(app_key)
+                if not app_manifest:
+                    self.logger.debug("Skipping disabled or unknown app %s", app_key)
+                    return
+
+                await self._start_app_unlocked(app_key, app_manifest, force_reload)
         except Exception:
             self.logger.error("Failed to reload app %s:\n%s", app_key, get_short_traceback())
 

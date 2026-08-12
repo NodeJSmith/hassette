@@ -734,6 +734,30 @@ class TestShouldAutoReconcile:
         assert lifecycle_service.should_auto_reconcile("app_a") is expected
 
 
+class TestStopAppLocking:
+    async def test_stop_app_holds_app_key_lock_during_unregister(
+        self,
+        lifecycle_service: AppLifecycleService,
+    ) -> None:
+        """stop_app acquires the per-app-key lock before calling the unlocked body, and
+        releases it afterward — stop_app must hold the lock while it unregisters and shuts
+        down instances.
+        """
+        lock = lifecycle_service._get_app_key_lock("test_app")
+        lock_held_during_call = False
+
+        async def fake_unlocked(_app_key: str) -> None:
+            nonlocal lock_held_during_call
+            lock_held_during_call = lock.locked()
+
+        lifecycle_service._stop_app_unlocked = AsyncMock(side_effect=fake_unlocked)
+
+        await lifecycle_service.stop_app("test_app")
+
+        assert lock_held_during_call is True
+        assert not lock.locked()
+
+
 class TestApplyChangesGating:
     async def test_new_apps_autostart_false_not_started(
         self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock

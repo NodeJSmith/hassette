@@ -27,6 +27,7 @@ from hassette.schemas.domain_models import (
     SystemStatus,
 )
 from hassette.types import Topic
+from hassette.types.enums import ManifestStatus
 from hassette.types.types import LOG_LEVEL_TYPE
 
 if TYPE_CHECKING:
@@ -374,7 +375,7 @@ class RuntimeQueryService(Resource):
             )
 
         for manifest in full_snapshot.manifests:
-            if manifest.status == "blocked" and manifest.block_reason:
+            if manifest.status == ManifestStatus.BLOCKED and manifest.block_reason:
                 issues.append(
                     BootIssue(
                         severity="warn",
@@ -382,7 +383,7 @@ class RuntimeQueryService(Resource):
                         detail=manifest.block_reason,
                     )
                 )
-            elif manifest.status == "failed" and manifest.error_message:
+            elif manifest.status in (ManifestStatus.FAILED, ManifestStatus.DEGRADED) and manifest.error_message:
                 issues.append(
                     BootIssue(
                         severity="err",

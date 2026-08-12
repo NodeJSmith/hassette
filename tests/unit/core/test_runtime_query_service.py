@@ -208,6 +208,27 @@ class TestPreBootstrapAppState:
 
         assert not any(issue.label == "Apps pending on Home Assistant" for issue in issues)
 
+    def test_collect_boot_issues_reports_degraded_apps_with_error_message(
+        self, runtime: RuntimeQueryService, tmp_path: Path
+    ) -> None:
+        """A DEGRADED manifest (one running instance, one failed instance) surfaces as an
+        err-level boot issue, same as a fully-failed app.
+        """
+        registry = AppRegistry()
+        manifest = create_app_manifest("half_broken", tmp_path)
+        registry.set_manifests({manifest.app_key: manifest})
+
+        registry.register_app(manifest.app_key, 0, MagicMock())
+        registry.record_failure(manifest.app_key, 1, RuntimeError("instance 1 blew up"))
+
+        runtime.hassette.app_handler.registry = registry
+
+        issues = runtime.collect_boot_issues()
+
+        [failed_issue] = [issue for issue in issues if issue.label == f"App failed: {manifest.display_name}"]
+        assert failed_issue.severity == "err"
+        assert failed_issue.detail == "instance 1 blew up"
+
 
 class TestConcurrentAppHandlerTeardown:
     """Reads stay safe under concurrent AppHandler teardown.

@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Fix stop_app concurrency and boot issue detection"
-status: "planned"
+status: "done"
 depends_on: ["T02"]
 implements: ["FR#9", "FR#14"]
 ---

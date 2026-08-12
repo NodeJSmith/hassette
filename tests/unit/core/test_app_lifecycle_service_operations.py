@@ -247,6 +247,22 @@ class TestStopApp:
 
         mock_registry.unregister_app.assert_called_once_with("missing_app")
 
+    async def test_no_shutdown_when_only_failed_entries_existed(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+    ) -> None:
+        """unregister_app returning {} (entries existed but none were running, e.g. a
+        failed-only app) is not treated as "not found" and does not call shutdown_instances.
+        """
+        mock_registry.unregister_app = Mock(return_value={})
+        lifecycle_service.shutdown_instances = AsyncMock()
+
+        await lifecycle_service.stop_app("failed_only_app")
+
+        mock_registry.unregister_app.assert_called_once_with("failed_only_app")
+        lifecycle_service.shutdown_instances.assert_not_called()
+
 
 class TestReloadApp:
     async def test_rejects_before_stopping_when_unreleased(
@@ -256,16 +272,16 @@ class TestReloadApp:
     ) -> None:
         """REJECT_IF_UNRELEASED fails immediately and retains no waiting task."""
         mock_hassette.app_bootstrap_coordinator.is_released.return_value = False
-        lifecycle_service.stop_app = AsyncMock()
-        lifecycle_service.start_app = AsyncMock()
+        lifecycle_service._stop_app_unlocked = AsyncMock()
+        lifecycle_service._start_app_unlocked = AsyncMock()
 
         with pytest.raises(AppBootstrapNotReleasedError):
             await lifecycle_service.reload_app("test_app")
 
         mock_hassette.app_bootstrap_coordinator.wait_released.assert_not_awaited()
 
-        lifecycle_service.stop_app.assert_not_called()
-        lifecycle_service.start_app.assert_not_called()
+        lifecycle_service._stop_app_unlocked.assert_not_called()
+        lifecycle_service._start_app_unlocked.assert_not_called()
 
     async def test_stops_then_starts(
         self,
@@ -274,7 +290,7 @@ class TestReloadApp:
         mock_manifest: MagicMock,
         mock_factory: MagicMock,
     ) -> None:
-        """Calls stop_app then start_app."""
+        """Stops the existing instances (via the unlocked body) then starts new ones."""
         mock_registry.unregister_app = Mock(return_value=None)
         mock_registry.get_manifest = Mock(return_value=mock_manifest)
         mock_registry.get_running_apps = Mock(return_value={})
@@ -283,6 +299,34 @@ class TestReloadApp:
 
         mock_registry.unregister_app.assert_called_once_with("test_app")
         mock_factory.create_instances.assert_called_once()
+
+
+class TestReloadAppLocking:
+    async def test_reload_app_acquires_app_key_lock_once(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        mock_manifest: MagicMock,
+        mock_factory: MagicMock,
+    ) -> None:
+        """reload_app acquires the per-app-key lock exactly once for the whole stop+start
+        sequence, rather than each half separately acquiring it. This is a deadlock guard: if
+        reload_app instead called the public, lock-acquiring stop_app()/start_app() from
+        inside its own lock acquisition, the second acquire would hang forever on the
+        non-reentrant asyncio.Lock — asyncio.wait_for below turns that hang into a test
+        failure instead of a stuck test run.
+        """
+        mock_registry.unregister_app = Mock(return_value=None)
+        mock_registry.get_manifest = Mock(return_value=mock_manifest)
+        mock_registry.get_running_apps = Mock(return_value={})
+
+        lock = lifecycle_service._get_app_key_lock("test_app")
+        lock.acquire = AsyncMock(wraps=lock.acquire)
+
+        await asyncio.wait_for(lifecycle_service.reload_app("test_app"), timeout=1)
+
+        assert lock.acquire.call_count == 1
+        assert not lock.locked()
 
 
 class TestReconcileBlockedApps:

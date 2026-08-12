@@ -88,13 +88,17 @@ class TestStopAppFailure:
 
 class TestReloadAppFailure:
     async def test_stop_failure_prevents_start_and_does_not_raise(self, lifecycle_service: AppLifecycleService) -> None:
-        """If stop_app raises, reload_app catches it and never calls start_app."""
-        lifecycle_service.stop_app = AsyncMock(side_effect=RuntimeError("stop blew up"))
-        lifecycle_service.start_app = AsyncMock()
+        """If the unlocked stop body raises, reload_app catches it and never starts the app.
+
+        reload_app calls _stop_app_unlocked/_start_app_unlocked directly (not the public
+        stop_app/start_app) so it can hold the app-key lock across both — see TestReloadAppLocking.
+        """
+        lifecycle_service._stop_app_unlocked = AsyncMock(side_effect=RuntimeError("stop blew up"))
+        lifecycle_service._start_app_unlocked = AsyncMock()
 
         await lifecycle_service.reload_app("test_app")
 
-        lifecycle_service.start_app.assert_not_called()
+        lifecycle_service._start_app_unlocked.assert_not_called()
 
 
 class TestStartAppsErrorAggregation:
