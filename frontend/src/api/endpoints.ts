@@ -2,14 +2,13 @@
 /** Typed API endpoint functions for all Hassette REST endpoints. */
 
 import { DETAIL_FETCH_LIMIT } from "../utils/constants";
-import { apiFetch, apiPost, apiPut } from "./client";
+import { apiFetch, apiPost } from "./client";
 import type { ConfigRecord, SchemaNode } from "./config-view-types";
 import type { components } from "./generated-types";
 
 export type AppManifest = components["schemas"]["AppManifestResponse"];
 export type AppInstance = components["schemas"]["AppInstanceResponse"];
 export type ManifestListResponse = components["schemas"]["AppManifestListResponse"];
-export type AppHealthData = components["schemas"]["AppHealthResponse"];
 export type ListenerData = components["schemas"]["ListenerWithSummary"];
 export type DashboardAppGridEntry = components["schemas"]["DashboardAppGridEntry"];
 export type JobData = components["schemas"]["JobSummary"];
@@ -26,6 +25,12 @@ export type AppSourceData = components["schemas"]["AppSourceResponse"];
 export type ActivityFeedEntryData = components["schemas"]["ActivityFeedEntry"];
 export type ActionResponse = components["schemas"]["ActionResponse"];
 export type JobTriggerResponse = components["schemas"]["JobTriggerResponse"];
+export type SystemConfig = Omit<components["schemas"]["ConfigSchemaResponse"], "config_schema" | "config_values"> & {
+  config_schema: SchemaNode;
+  config_values: ConfigRecord;
+};
+export type SystemStatus = components["schemas"]["SystemStatusResponse"];
+export type BootIssue = components["schemas"]["BootIssueResponse"];
 
 export const WS_PATH = "/api/ws";
 
@@ -52,11 +57,6 @@ export const getAppConfig = (appKey: string, signal?: AbortSignal) =>
 export const getAppSource = (appKey: string, signal?: AbortSignal) =>
   apiFetch<AppSourceData>(`/apps/${encodeURIComponent(appKey)}/source`, { signal });
 
-export const getAppHealth = (appKey: string, instanceIndex = 0, since?: number | null) =>
-  apiFetch<AppHealthData>(
-    buildUrl(`/telemetry/app/${encodeURIComponent(appKey)}/health`, { instance_index: instanceIndex, since }),
-  );
-
 export const getAppListeners = (appKey: string, instanceIndex = 0, since?: number | null, signal?: AbortSignal) =>
   apiFetch<ListenerData[]>(
     buildUrl(`/telemetry/app/${encodeURIComponent(appKey)}/listeners`, { instance_index: instanceIndex, since }),
@@ -71,7 +71,7 @@ export const getAppJobs = (appKey: string, instanceIndex = 0, since?: number | n
 
 export const getAppActivity = (
   appKey: string,
-  instanceIndex?: number | null,
+  instanceIndex = 0,
   limit = DETAIL_FETCH_LIMIT,
   since?: number | null,
   signal?: AbortSignal,
@@ -101,62 +101,35 @@ export const getJobExecutions = (
 export const getExecutionById = (executionId: string, signal?: AbortSignal) =>
   apiFetch<ExecutionData | null>(`/telemetry/execution/${executionId}`, { signal });
 
-export const getExecutions = (
-  params?: {
-    kind?: "handler" | "job" | null;
-    limit?: number | null;
-    since?: number | null;
-  },
-  signal?: AbortSignal,
-) =>
-  apiFetch<ExecutionData[]>(
-    buildUrl("/telemetry/executions", { kind: params?.kind, limit: params?.limit, since: params?.since }),
-    { signal },
-  );
-
 export const getDashboardAppGrid = (since?: number | null, signal?: AbortSignal) =>
   apiFetch<{ apps: DashboardAppGridEntry[] }>(buildUrl("/telemetry/dashboard/app-grid", { since }), { signal });
 
 export const getTelemetryStatus = (signal?: AbortSignal) => apiFetch<TelemetryStatus>("/telemetry/status", { signal });
 
-export type SystemConfig = Omit<components["schemas"]["ConfigSchemaResponse"], "config_schema" | "config_values"> & {
-  config_schema: SchemaNode;
-  config_values: ConfigRecord;
-};
-
 export const getConfig = () => apiFetch<SystemConfig>("/config");
-
-export type LogsByExecutionResponse = components["schemas"]["LogsByExecutionResponse"];
-export type LogLevelResponse = components["schemas"]["LogLevelResponse"];
 
 export const getRecentLogs = (
   params?: {
     level?: string;
-    app_key?: string;
+    appKey?: string;
     limit?: number;
     since?: number | null;
-    execution_id?: string | null;
-    source_tier?: string | null;
+    executionId?: string | null;
+    sourceTier?: string | null;
   },
   signal?: AbortSignal,
 ) =>
   apiFetch<LogEntry[]>(
     buildUrl("/logs/recent", {
       level: params?.level,
-      app_key: params?.app_key,
+      app_key: params?.appKey,
       limit: params?.limit,
       since: params?.since,
-      execution_id: params?.execution_id,
-      source_tier: params?.source_tier,
+      execution_id: params?.executionId,
+      source_tier: params?.sourceTier,
     }),
     { signal },
   );
-
-export const getLogsByExecution = (executionId: string, limit?: number) =>
-  apiFetch<LogsByExecutionResponse>(buildUrl(`/executions/${encodeURIComponent(executionId)}`, { limit }));
-
-export const setLogLevel = (logger: string, level: string) =>
-  apiPut<LogLevelResponse>("/logs/level", { logger, level });
 
 export const getAllListeners = (since?: number | null, signal?: AbortSignal) =>
   apiFetch<ListenerData[]>(buildUrl("/bus/listeners", { since }), { signal });
@@ -165,8 +138,5 @@ export const getAllJobs = (since?: number | null, signal?: AbortSignal) =>
   apiFetch<JobData[]>(buildUrl("/scheduler/jobs", { since }), { signal });
 
 export const triggerJob = (jobId: number) => apiPost<JobTriggerResponse>(`/scheduler/jobs/${jobId}/trigger`);
-
-export type SystemStatus = components["schemas"]["SystemStatusResponse"];
-export type BootIssue = components["schemas"]["BootIssueResponse"];
 
 export const getSystemStatus = (signal?: AbortSignal) => apiFetch<SystemStatus>("/health", { signal });
