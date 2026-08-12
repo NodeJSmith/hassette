@@ -96,19 +96,20 @@ class TestOverlayRuntimeState:
 
         assert results[0].status == "failed"
 
-    def test_status_priority_running_beats_failed(
+    def test_status_priority_degraded_when_running_and_failed_coexist(
         self, registry: AppRegistry, mock_app: MagicMock, tmp_path: Path
     ) -> None:
         manifest = create_app_manifest("runbeatsfail", tmp_path)
         registry.set_manifests({manifest.app_key: manifest})
         registry.register_app(manifest.app_key, 0, mock_app)
-        # A different instance index failed — record_failure only pops the matching index,
-        # so the running instance at index 0 stays registered alongside the failure at index 1.
+        # A different instance index failed — record_failure only replaces the entry at the
+        # matching index, so the running instance at index 0 stays registered alongside the
+        # failure at index 1. A mix of running and failed entries derives "degraded".
         registry.record_failure(manifest.app_key, 1, ValueError("boom"))
 
         results = overlay_runtime_state([make_manifest_db_row(manifest.app_key)], registry)
 
-        assert results[0].status == "running"
+        assert results[0].status == "degraded"
 
     def test_status_priority_blocked_beats_running_and_failed(
         self, registry: AppRegistry, mock_app: MagicMock, tmp_path: Path

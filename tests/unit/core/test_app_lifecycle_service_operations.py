@@ -49,7 +49,7 @@ class TestStartApp:
         mock_hassette: MagicMock,
     ) -> None:
         mock_registry.get_manifest = Mock(return_value=mock_manifest)
-        mock_registry.get_apps_by_key = Mock(return_value={})
+        mock_registry.get_running_apps = Mock(return_value={})
         mock_hassette.app_bootstrap_coordinator.is_released.return_value = False
 
         await lifecycle_service.start_app("test_app", admission_mode=AppAdmissionMode.WAIT_FOR_RELEASE)
@@ -86,7 +86,7 @@ class TestStartApp:
     ) -> None:
         """Calls factory.create_instances with correct app_key."""
         mock_registry.get_manifest = Mock(return_value=mock_manifest)
-        mock_registry.get_apps_by_key = Mock(return_value={})
+        mock_registry.get_running_apps = Mock(return_value={})
 
         await lifecycle_service.start_app("test_app")
 
@@ -104,7 +104,7 @@ class TestStartApp:
         """Emits NOT_STARTED event for each created instance."""
         event_capture.install(mock_hassette)
         mock_registry.get_manifest = Mock(return_value=mock_manifest)
-        mock_registry.get_apps_by_key = Mock(return_value={0: mock_app_instance})
+        mock_registry.get_running_apps = Mock(return_value={0: mock_app_instance})
 
         await lifecycle_service.start_app("test_app")
 
@@ -136,7 +136,7 @@ class TestStartApp:
         mock_hassette.command_executor.reconcile_registrations = AsyncMock(side_effect=_track_reconcile)
 
         mock_registry.get_manifest = Mock(return_value=mock_manifest)
-        mock_registry.get_apps_by_key = Mock(return_value={0: mock_app_instance})
+        mock_registry.get_running_apps = Mock(return_value={0: mock_app_instance})
 
         await lifecycle_service.start_app("test_app")
 
@@ -166,7 +166,7 @@ class TestStartApp:
         # Should not raise
         await lifecycle_service.start_app("test_app")
 
-        mock_registry.get_apps_by_key.assert_not_called()
+        mock_registry.get_running_apps.assert_not_called()
 
 
 class TestStartAppStaleManifestRace:
@@ -195,7 +195,7 @@ class TestStartAppStaleManifestRace:
             return None if manifest_removed else mock_manifest
 
         mock_registry.get_manifest = Mock(side_effect=get_manifest_side_effect)
-        mock_registry.get_apps_by_key = Mock(return_value={})
+        mock_registry.get_running_apps = Mock(return_value={})
 
         async def blocked_wait_released() -> None:
             entered.set()  # signal the moment the admission wait is entered
@@ -277,7 +277,7 @@ class TestReloadApp:
         """Calls stop_app then start_app."""
         mock_registry.unregister_app = Mock(return_value=None)
         mock_registry.get_manifest = Mock(return_value=mock_manifest)
-        mock_registry.get_apps_by_key = Mock(return_value={})
+        mock_registry.get_running_apps = Mock(return_value={})
 
         await lifecycle_service.reload_app("test_app")
 

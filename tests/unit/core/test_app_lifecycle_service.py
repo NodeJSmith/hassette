@@ -633,7 +633,7 @@ class TestStartApps:
         manifest_b = MagicMock()
         mock_registry.autostart_manifests = {"app_a": manifest_a, "app_b": manifest_b}
         mock_registry.get_manifest = Mock(side_effect=lambda k: {"app_a": manifest_a, "app_b": manifest_b}.get(k))
-        mock_registry.get_apps_by_key = Mock(return_value={})
+        mock_registry.get_running_apps = Mock(return_value={})
 
         await lifecycle_service.start_apps()
 
@@ -650,7 +650,7 @@ class TestStartApps:
         # autostart_manifests only contains app_a; active_manifests also has app_b (autostart=false)
         mock_registry.autostart_manifests = {"app_a": manifest_a}
         mock_registry.get_manifest = Mock(side_effect=lambda k: {"app_a": manifest_a}.get(k))
-        mock_registry.get_apps_by_key = Mock(return_value={})
+        mock_registry.get_running_apps = Mock(return_value={})
 
         await lifecycle_service.start_apps()
 

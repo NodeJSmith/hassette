@@ -138,7 +138,7 @@ class TestAppFactoryIntegration:
 
         app_factory.create_instances("multi_instance", manifest)
 
-        assert len(app_registry.get_apps_by_key("multi_instance")) == 2
+        assert len(app_registry.get_running_apps("multi_instance")) == 2
         assert app_registry.get("multi_instance", 0) is not None
         assert app_registry.get("multi_instance", 1) is not None
 
@@ -197,7 +197,7 @@ class TestAppFactoryIntegration:
         app_factory.create_instances("my_app", manifest)
 
         # Should fail validation
-        assert "my_app" not in app_registry or len(app_registry.get_apps_by_key("my_app")) == 0
+        assert "my_app" not in app_registry or len(app_registry.get_running_apps("my_app")) == 0
         failed = get_failed_by_key(app_registry, "my_app")
         assert len(failed) == 1
 
@@ -274,7 +274,7 @@ class TestAppLifecycleServiceIntegration:
         app_registry.set_manifests({"multi_instance": manifest})
 
         app_factory.create_instances("multi_instance", manifest)
-        instances = app_registry.get_apps_by_key("multi_instance")
+        instances = app_registry.get_running_apps("multi_instance")
 
         await app_lifecycle.initialize_instances("multi_instance", instances, manifest)
 
@@ -290,7 +290,7 @@ class TestAppLifecycleServiceIntegration:
         app_registry.set_manifests({"multi_instance": manifest})
 
         app_factory.create_instances("multi_instance", manifest)
-        instances = app_registry.get_apps_by_key("multi_instance")
+        instances = app_registry.get_running_apps("multi_instance")
 
         # Before initialization
         app_instance = get_app(app_registry, "multi_instance", 0)
@@ -317,7 +317,7 @@ class TestAppLifecycleServiceIntegration:
         app_registry.set_manifests({"multi_instance": manifest})
 
         app_factory.create_instances("multi_instance", manifest)
-        instances = app_registry.get_apps_by_key("multi_instance")
+        instances = app_registry.get_running_apps("multi_instance")
 
         await app_lifecycle.initialize_instances("multi_instance", instances, manifest)
 
@@ -337,7 +337,7 @@ class TestAppLifecycleServiceIntegration:
         app_registry.set_manifests({"failing": manifest})
 
         app_factory.create_instances("failing", manifest)
-        instances = app_registry.get_apps_by_key("failing")
+        instances = app_registry.get_running_apps("failing")
 
         # Should not raise
         await app_lifecycle.initialize_instances("failing", instances, manifest)
@@ -357,7 +357,7 @@ class TestAppLifecycleServiceIntegration:
         app_registry.set_manifests({"failing": manifest})
 
         app_factory.create_instances("failing", manifest)
-        instances = app_registry.get_apps_by_key("failing")
+        instances = app_registry.get_running_apps("failing")
 
         await app_lifecycle.initialize_instances("failing", instances, manifest)
 
@@ -382,8 +382,8 @@ class TestAppLifecycleServiceIntegration:
         app_factory.create_instances("multi_instance", success_manifest)
 
         # Initialize all together
-        failing_instances = app_registry.get_apps_by_key("failing")
-        success_instances = app_registry.get_apps_by_key("multi_instance")
+        failing_instances = app_registry.get_running_apps("failing")
+        success_instances = app_registry.get_running_apps("multi_instance")
 
         await app_lifecycle.initialize_instances("failing", failing_instances, failing_manifest)
         await app_lifecycle.initialize_instances("multi_instance", success_instances, success_manifest)
@@ -405,7 +405,7 @@ class TestAppLifecycleServiceIntegration:
         app_registry.set_manifests({"multi_instance": manifest})
 
         app_factory.create_instances("multi_instance", manifest)
-        instances = app_registry.get_apps_by_key("multi_instance")
+        instances = app_registry.get_running_apps("multi_instance")
         await app_lifecycle.initialize_instances("multi_instance", instances, manifest)
 
         app_instance = get_app(app_registry, "multi_instance", 0)
@@ -422,7 +422,7 @@ class TestAppLifecycleServiceIntegration:
         app_registry.set_manifests({"multi_instance": manifest})
 
         app_factory.create_instances("multi_instance", manifest)
-        instances = app_registry.get_apps_by_key("multi_instance")
+        instances = app_registry.get_running_apps("multi_instance")
         await app_lifecycle.initialize_instances("multi_instance", instances, manifest)
 
         assert len(app_registry.all_apps()) > 0
@@ -447,7 +447,7 @@ class TestFullIntegrationFlow:
         assert "multi_instance" in app_registry
 
         # Initialize
-        instances = app_registry.get_apps_by_key("multi_instance")
+        instances = app_registry.get_running_apps("multi_instance")
         await app_lifecycle.initialize_instances("multi_instance", instances, manifest)
 
         # Verify running
@@ -470,7 +470,7 @@ class TestFullIntegrationFlow:
         assert app.status == ResourceStatus.NOT_STARTED
 
         # After initialization
-        instances = app_registry.get_apps_by_key("multi_instance")
+        instances = app_registry.get_running_apps("multi_instance")
         await app_lifecycle.initialize_instances("multi_instance", instances, manifest)
         assert app.status == ResourceStatus.RUNNING
 
@@ -501,8 +501,8 @@ class TestFullIntegrationFlow:
         assert "my_app" in app_registry
 
         # Initialize both
-        instances1 = app_registry.get_apps_by_key("multi1")
-        instances2 = app_registry.get_apps_by_key("my_app")
+        instances1 = app_registry.get_running_apps("multi1")
+        instances2 = app_registry.get_running_apps("my_app")
         await app_lifecycle.initialize_instances("multi1", instances1, manifest1)
         await app_lifecycle.initialize_instances("my_app", instances2, manifest2)
 
@@ -522,7 +522,7 @@ class TestFullIntegrationFlow:
         app_registry.set_manifests({"multi_instance": manifest})
 
         app_factory.create_instances("multi_instance", manifest)
-        instances = app_registry.get_apps_by_key("multi_instance")
+        instances = app_registry.get_running_apps("multi_instance")
         await app_lifecycle.initialize_instances("multi_instance", instances, manifest)
 
         snapshot = app_registry.get_snapshot()
@@ -537,7 +537,7 @@ class TestFullIntegrationFlow:
         app_registry.set_manifests({"failing": manifest})
 
         app_factory.create_instances("failing", manifest)
-        instances = app_registry.get_apps_by_key("failing")
+        instances = app_registry.get_running_apps("failing")
         await app_lifecycle.initialize_instances("failing", instances, manifest)
 
         snapshot = app_registry.get_snapshot()
@@ -556,7 +556,7 @@ class TestAppRestartPreservesChildren:
         app_registry.set_manifests({"multi_instance": manifest})
 
         app_factory.create_instances("multi_instance", manifest)
-        instances = app_registry.get_apps_by_key("multi_instance")
+        instances = app_registry.get_running_apps("multi_instance")
         await app_lifecycle.initialize_instances("multi_instance", instances, manifest)
 
         app_instance = get_app(app_registry, "multi_instance", 0)

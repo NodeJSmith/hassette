@@ -870,7 +870,7 @@ def wire_owner_resolution(hassette) -> None:
     hassette._app_handler.registry.iter_all_instances.return_value = [
         ("my_app", 0, SimpleNamespace(unique_name="MyApp.MyApp[0]")),
     ]
-    hassette._app_handler.registry.get_apps_by_key.return_value = {
+    hassette._app_handler.registry.get_running_apps.return_value = {
         0: SimpleNamespace(unique_name="MyApp.MyApp[0]"),
     }
     hassette._app_handler.registry.get.side_effect = lambda app_key, index=0: (

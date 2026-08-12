@@ -57,6 +57,7 @@ class TestAppRegistry:
         """Create a mock manifest."""
         manifest = MagicMock()
         manifest.class_name = "TestApp"
+        manifest.app_config = {}
         return manifest
 
     def test_register_app(self, registry: AppRegistry, mock_app: MagicMock) -> None:
@@ -74,7 +75,7 @@ class TestAppRegistry:
         registry.register_app("my_app", 0, app1)
         registry.register_app("my_app", 1, app2)
 
-        assert len(registry.get_apps_by_key("my_app")) == 2
+        assert len(registry.get_running_apps("my_app")) == 2
         assert registry.get("my_app", 0) is app1
         assert registry.get("my_app", 1) is app2
 
@@ -138,26 +139,73 @@ class TestAppRegistry:
         assert len(failed) == 2
         assert {f.index for f in failed} == {0, 1}
 
-    def test_clear_failures_single_app(self, registry: AppRegistry) -> None:
-        """Test clearing failures for a single app."""
-        registry.record_failure("app1", 0, Exception("error"))
-        registry.record_failure("app2", 0, Exception("error"))
+    def test_record_failure_replaces_running_entry_at_same_index(
+        self, registry: AppRegistry, mock_app: MagicMock
+    ) -> None:
+        """record_failure at an index with a running entry replaces it."""
+        registry.register_app("my_app", 0, mock_app)
 
-        registry.clear_failures("app1")
+        registry.record_failure("my_app", 0, ValueError("crashed"))
 
-        snapshot = registry.get_snapshot()
+        assert registry.get("my_app", 0) is None
+        assert "my_app" not in registry
 
-        assert "app1" not in snapshot.failed_apps
-        assert "app2" in snapshot.failed_apps
+    def test_record_failure_dedups_same_index(self, registry: AppRegistry) -> None:
+        """Two failures recorded at the same index leave exactly one entry with the last error."""
+        err1 = ValueError("first")
+        err2 = ValueError("second")
 
-    def test_clear_failures_all(self, registry: AppRegistry) -> None:
-        """Test clearing all failures."""
-        registry.record_failure("app1", 0, Exception("error"))
-        registry.record_failure("app2", 0, Exception("error"))
+        registry.record_failure("my_app", 0, err1)
+        registry.record_failure("my_app", 0, err2)
 
-        registry.clear_failures()
+        entries = registry.get_instances("my_app")
 
-        assert registry.get_snapshot().failed_count == 0
+        assert len(entries) == 1
+        assert entries[0].error is err2
+
+    def test_register_app_preserves_failure_at_other_index(self, registry: AppRegistry) -> None:
+        """register_app at index 0 does not clear a failure recorded at a different index."""
+        registry.record_failure("my_app", 2, ValueError("boom"))
+
+        registry.register_app("my_app", 0, MagicMock())
+
+        entries = registry.get_instances("my_app")
+        assert 2 in entries
+        assert entries[2].status == ResourceStatus.FAILED
+        assert entries[2].error_message == "boom"
+
+    def test_get_running_apps_excludes_failed_entries(self, registry: AppRegistry) -> None:
+        """get_running_apps() returns only running entries when failed entries exist for the
+        same app_key.
+        """
+        app0 = MagicMock()
+        registry.register_app("my_app", 0, app0)
+        registry.record_failure("my_app", 1, ValueError("boom"))
+
+        result = registry.get_running_apps("my_app")
+
+        assert result == {0: app0}
+
+    def test_get_instances_returns_running_and_failed(self, registry: AppRegistry) -> None:
+        """get_instances() returns all entries, running and failed."""
+        app0 = MagicMock()
+        error = ValueError("boom")
+        registry.register_app("my_app", 0, app0)
+        registry.record_failure("my_app", 1, error)
+
+        entries = registry.get_instances("my_app")
+
+        assert set(entries) == {0, 1}
+        assert entries[0].app is app0
+        assert entries[0].status == ResourceStatus.RUNNING
+        assert entries[1].app is None
+        assert entries[1].status == ResourceStatus.FAILED
+        assert entries[1].error is error
+
+    def test_clear_failures_and_iter_all_instances_removed(self, registry: AppRegistry) -> None:
+        """clear_failures() and iter_all_instances() no longer exist."""
+        assert not hasattr(registry, "clear_failures")
+        assert not hasattr(registry, "iter_all_instances")
 
     def test_get_existing_app(self, registry: AppRegistry, mock_app: MagicMock) -> None:
         """Test getting an existing app."""
@@ -197,14 +245,14 @@ class TestAppRegistry:
         assert app2 in all_apps
         assert app3 in all_apps
 
-    def test_get_apps_by_key(self, registry: AppRegistry, mock_app: MagicMock) -> None:
-        """Test getting all instances for a key."""
+    def test_get_running_apps(self, registry: AppRegistry, mock_app: MagicMock) -> None:
+        """Test getting all running instances for a key."""
         app1 = MagicMock()
         app2 = MagicMock()
         registry.register_app("my_app", 0, app1)
         registry.register_app("my_app", 1, app2)
 
-        result = registry.get_apps_by_key("my_app")
+        result = registry.get_running_apps("my_app")
 
         assert result == {0: app1, 1: app2}
         # Verify it's a copy
@@ -438,6 +486,7 @@ class TestAppRegistryGetFullSnapshot:
             enabled=enabled,
             auto_loaded=auto_loaded,
             autostart=autostart,
+            app_config={},
         )
 
     def make_app_instance(self, app_key: str, index: int = 0) -> SimpleNamespace:
@@ -675,10 +724,9 @@ class TestAppRegistryAutostart:
 class TestBuildManifestInfoStatusDerivation:
     """Characterization pins for ``build_manifest_info()``'s status derivation.
 
-    Covers the current 5-value priority chain (disabled > blocked > running > failed >
-    stopped) — no ``degraded`` derivation yet. These must keep passing unchanged once a
-    future change swaps in a 6-value chain that adds ``degraded`` between ``blocked`` and
-    ``running``.
+    Covers the 6-value priority chain (disabled > blocked > degraded > running > failed >
+    stopped), including the ``degraded`` value derived when an app_key has at least one
+    running and at least one failed instance.
     """
 
     @pytest.fixture
@@ -686,7 +734,7 @@ class TestBuildManifestInfoStatusDerivation:
         return AppRegistry()
 
     def make_manifest_obj(  # factory-local: SimpleNamespace input shape for AppRegistry, not AppManifestInfo output
-        self, app_key: str, enabled: bool = True
+        self, app_key: str, enabled: bool = True, app_config: dict | list[dict] | None = None
     ) -> SimpleNamespace:
         return SimpleNamespace(
             app_key=app_key,
@@ -696,6 +744,7 @@ class TestBuildManifestInfoStatusDerivation:
             enabled=enabled,
             auto_loaded=False,
             autostart=True,
+            app_config=app_config if app_config is not None else {},
         )
 
     def make_app_instance(self, app_key: str, index: int = 0) -> SimpleNamespace:
@@ -740,3 +789,58 @@ class TestBuildManifestInfoStatusDerivation:
         info = registry.build_manifest_info("my_app", manifest)
         assert info.status == "stopped"
         assert info.instance_count == 0
+
+    def test_degraded_when_running_and_failed_coexist(self, registry: AppRegistry) -> None:
+        """3 instances registered, index 0 fails — status is 'degraded'."""
+        manifest = self.make_manifest_obj("my_app")
+        registry.register_app("my_app", 0, self.make_app_instance("my_app", 0))
+        registry.register_app("my_app", 1, self.make_app_instance("my_app", 1))
+        registry.register_app("my_app", 2, self.make_app_instance("my_app", 2))
+
+        registry.record_failure("my_app", 0, ValueError("bad config"))
+
+        info = registry.build_manifest_info("my_app", manifest)
+
+        assert info.status == "degraded"
+        assert info.instance_count == 3
+
+    def test_all_failed_is_failed_not_degraded(self, registry: AppRegistry) -> None:
+        """All instances failed (none running) — status is 'failed', not 'degraded'."""
+        manifest = self.make_manifest_obj("my_app")
+        registry.record_failure("my_app", 0, ValueError("bad config"))
+        registry.record_failure("my_app", 1, ValueError("also bad"))
+
+        info = registry.build_manifest_info("my_app", manifest)
+
+        assert info.status == "failed"
+
+    def test_failed_instance_name_resolved_from_manifest_config(self, registry: AppRegistry) -> None:
+        """A failed entry's instance_name comes from the manifest's configured app_config,
+        not a synthesized ``ClassName.N`` name.
+        """
+        manifest = self.make_manifest_obj("my_app", app_config=[{"instance_name": "custom_instance"}])
+        registry.record_failure("my_app", 0, ValueError("boom"))
+
+        info = registry.build_manifest_info("my_app", manifest)
+
+        assert info.instances[0].instance_name == "custom_instance"
+
+    def test_failed_instance_name_falls_back_when_no_configured_name(self, registry: AppRegistry) -> None:
+        """When the manifest config has no configured instance_name, fall back to
+        ``ClassName.index`` (matching prior synthesized-name behavior).
+        """
+        manifest = self.make_manifest_obj("my_app")
+        registry.record_failure("my_app", 0, ValueError("boom"))
+
+        info = registry.build_manifest_info("my_app", manifest)
+
+        assert info.instances[0].instance_name == "MyApp.0"
+
+    def test_failed_instance_name_falls_back_when_no_manifest(self, registry: AppRegistry) -> None:
+        """When no manifest is tracked for the app_key, fall back to ``Unknown.index``."""
+        registry.record_failure("orphan_app", 0, ValueError("boom"))
+
+        snapshot = registry.get_snapshot()
+
+        assert snapshot.failed[0].instance_name == "Unknown.0"
+        assert snapshot.failed[0].class_name == "Unknown"

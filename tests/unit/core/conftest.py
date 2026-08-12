@@ -142,12 +142,12 @@ def set_registry_apps(registry: MagicMock, apps: dict[str, dict[int, Any]]) -> N
     """Configure a mock AppRegistry's app-lookup methods from an apps-shaped dict.
 
     Mirrors the real AppRegistry's `__contains__`, `app_keys()`, and
-    `get_apps_by_key()` behavior so lifecycle-service code exercising those
+    `get_running_apps()` behavior so lifecycle-service code exercising those
     methods sees consistent state.
     """
     registry.__contains__ = Mock(side_effect=lambda key: key in apps)
     registry.app_keys = Mock(side_effect=lambda: list(apps.keys()))
-    registry.get_apps_by_key = Mock(side_effect=lambda key: apps.get(key, {}).copy())
+    registry.get_running_apps = Mock(side_effect=lambda key: apps.get(key, {}).copy())
     registry.get = Mock(side_effect=lambda key, index=0: apps.get(key, {}).get(index))
 
 

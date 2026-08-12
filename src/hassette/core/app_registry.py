@@ -3,9 +3,11 @@
 import dataclasses
 from collections import defaultdict
 from collections.abc import Iterable
+from dataclasses import dataclass
 from logging import getLogger
 from typing import TYPE_CHECKING, Any
 
+from hassette.core.app_factory import AppFactory
 from hassette.schemas.app_snapshots import (
     AppFullSnapshot,
     AppInstanceInfo,
@@ -13,13 +15,32 @@ from hassette.schemas.app_snapshots import (
     AppStatusSnapshot,
     tally_manifest_statuses,
 )
-from hassette.types.enums import BlockReason, ResourceStatus
+from hassette.types.enums import BlockReason, ManifestStatus, ResourceStatus
 from hassette.utils.exception_utils import get_traceback_string
 
 if TYPE_CHECKING:
     from hassette import AppConfig
     from hassette.app import App
     from hassette.config.classes import AppManifest
+
+
+@dataclass(frozen=True)
+class InstanceEntry:
+    """A single tracked app instance — either running (``app`` set) or failed (``error`` set).
+
+    No ``index`` field — the dict key ``_instances[app_key][index]`` is the single source of
+    truth. No stored ``instance_name`` — delegated to the ``App`` object via a property.
+    """
+
+    app: "App[AppConfig] | None"
+    status: ResourceStatus
+    error: Exception | None = None
+    error_message: str | None = None
+    error_traceback: str | None = None
+
+    @property
+    def instance_name(self) -> str | None:
+        return self.app.app_config.instance_name if self.app else None
 
 
 class AppRegistry:
@@ -29,60 +50,48 @@ class AppRegistry:
     """
 
     def __init__(self) -> None:
-        self._apps: dict[str, dict[int, App[AppConfig]]] = defaultdict(dict)
-        self._failed_apps: dict[str, list[tuple[int, Exception]]] = defaultdict(list)
+        self._instances: dict[str, dict[int, InstanceEntry]] = defaultdict(dict)
         self._blocked_apps: dict[str, BlockReason] = {}
         self._manifests: dict[str, AppManifest] = {}
         self._only_apps: frozenset[str] = frozenset()
         self.logger = getLogger(f"{__name__}.AppRegistry")
 
     def register_app(self, app_key: str, index: int, app: "App[AppConfig]") -> None:
-        """Register a running app instance."""
-        if app_key in self._failed_apps and index in [idx for idx, _ in self._failed_apps[app_key]]:
-            # Clear any previous failures for this app_key
-            self.logger.debug("Clearing previous failure records for app '%s' index %d", app_key, index)
-            self._failed_apps.pop(app_key)
-
-        self._apps[app_key][index] = app
+        """Register a running app instance, replacing any prior entry at that index."""
+        self._instances[app_key][index] = InstanceEntry(app=app, status=ResourceStatus.RUNNING)
         self.logger.debug("Registered app '%s' index %d", app_key, index)
 
     def unregister_app(self, app_key: str, index: int | None = None) -> dict[int, "App[AppConfig]"] | None:
-        """Remove app instance(s). Returns removed instances."""
+        """Remove app instance(s). Returns removed running instances (failed entries are discarded)."""
         if index is None:
-            return self._apps.pop(app_key, None)
+            entries = self._instances.pop(app_key, None)
+            if entries is None:
+                return None
+            return {idx: entry.app for idx, entry in entries.items() if entry.app is not None}
 
-        removed = None
+        if app_key not in self._instances:
+            return None
 
-        if app_key in self._apps:
-            removed = self._apps[app_key].pop(index, None)
+        entry = self._instances[app_key].pop(index, None)
 
-        if not self._apps.get(app_key):
-            del self._apps[app_key]
+        if not self._instances[app_key]:
+            del self._instances[app_key]
 
-        if removed is not None:
-            return {index: removed}
+        if entry is not None and entry.app is not None:
+            return {index: entry.app}
 
         return None
 
     def record_failure(self, app_key: str, index: int, error: Exception) -> None:
-        """Record a failed app startup/crash."""
-        if app_key in self._apps and index in self._apps[app_key]:
-            # Remove from running apps if present
-            self.logger.debug("Removing running app '%s' index %d due to failure", app_key, index)
-            self._apps[app_key].pop(index)
-            if not self._apps.get(app_key):
-                del self._apps[app_key]
-
+        """Record a failed app startup/crash, replacing any prior entry at that index."""
         self.logger.debug("Recording failure for app '%s' index %d: %s", app_key, index, error)
-
-        self._failed_apps[app_key].append((index, error))
-
-    def clear_failures(self, app_key: str | None = None) -> None:
-        """Clear failure records for an app or all apps."""
-        if app_key:
-            self._failed_apps.pop(app_key, None)
-        else:
-            self._failed_apps.clear()
+        self._instances[app_key][index] = InstanceEntry(
+            app=None,
+            status=ResourceStatus.FAILED,
+            error=error,
+            error_message=str(error),
+            error_traceback=get_traceback_string(error) if error.__traceback__ else None,
+        )
 
     def block_app(self, app_key: str, reason: BlockReason) -> None:
         """Record that an app was intentionally not started."""
@@ -97,9 +106,8 @@ class AppRegistry:
         return matching
 
     def clear_all(self) -> None:
-        """Clear all apps, failures, and blocked apps."""
-        self._apps.clear()
-        self._failed_apps.clear()
+        """Clear all apps and blocked apps."""
+        self._instances.clear()
         self._blocked_apps.clear()
 
     def set_manifests(self, manifests: dict[str, "AppManifest"]) -> None:
@@ -111,15 +119,20 @@ class AppRegistry:
         self._only_apps = frozenset(app_keys)
 
     def __contains__(self, app_key: str) -> bool:
-        return app_key in self._apps
+        return any(entry.app is not None for entry in self._instances.get(app_key, {}).values())
 
     def app_keys(self) -> list[str]:
         """Get all app keys with at least one running instance."""
-        return list(self._apps.keys())
+        return [
+            app_key
+            for app_key, entries in self._instances.items()
+            if any(entry.app is not None for entry in entries.values())
+        ]
 
     def get(self, app_key: str, index: int = 0) -> "App[AppConfig] | None":
-        """Get a specific app instance."""
-        return self._apps.get(app_key, {}).get(index)
+        """Get a specific running app instance."""
+        entry = self._instances.get(app_key, {}).get(index)
+        return entry.app if entry is not None else None
 
     def get_manifest(self, app_key: str) -> "AppManifest | None":
         """Get the manifest for an app key."""
@@ -127,53 +140,66 @@ class AppRegistry:
 
     def all_apps(self) -> list["App[AppConfig]"]:
         """Get all running app instances."""
-        return [inst for group in self._apps.values() for inst in group.values()]
+        return [
+            entry.app for entries in self._instances.values() for entry in entries.values() if entry.app is not None
+        ]
 
-    def get_apps_by_key(self, app_key: str) -> dict[int, "App[AppConfig]"]:
-        """Get all instances for an app key."""
-        return self._apps.get(app_key, {}).copy()
+    def get_running_apps(self, app_key: str) -> dict[int, "App[AppConfig]"]:
+        """Get all running instances for an app key (excludes failed entries)."""
+        return {idx: entry.app for idx, entry in self._instances.get(app_key, {}).items() if entry.app is not None}
 
-    def iter_all_instances(self) -> list[tuple[str, int, "App[AppConfig]"]]:
-        """Yield (app_key, index, app) for every running instance."""
-        return [(app_key, index, app) for app_key, instances in self._apps.items() for index, app in instances.items()]
+    def get_instances(self, app_key: str) -> dict[int, InstanceEntry]:
+        """Get all entries (running and failed) for an app key."""
+        return self._instances.get(app_key, {}).copy()
 
-    def info_from_running(self, app_key: str, index: int, app: "App[AppConfig]") -> AppInstanceInfo:
-        return AppInstanceInfo(
-            app_key=app_key,
-            index=index,
-            instance_name=app.app_config.instance_name,
-            class_name=app.class_name,
-            status=app.status,
-            owner_id=app.unique_name,
-        )
+    def _resolve_failed_instance_name(self, app_key: str, index: int, manifest: "AppManifest | None") -> str:
+        """Resolve the configured ``instance_name`` for a failed entry from manifest config."""
+        if manifest is None:
+            return f"Unknown.{index}"
 
-    def info_from_failure(
-        self, app_key: str, index: int, error: Exception, class_name: str = "Unknown"
+        configs = AppFactory.normalize_configs(manifest.app_config)
+        if index < len(configs):
+            return configs[index].get("instance_name", f"{manifest.class_name}.{index}")
+        return f"{manifest.class_name}.{index}"
+
+    def _info_from_entry(
+        self, app_key: str, index: int, entry: InstanceEntry, manifest: "AppManifest | None" = None
     ) -> AppInstanceInfo:
+        if entry.app is not None:
+            return AppInstanceInfo(
+                app_key=app_key,
+                index=index,
+                instance_name=entry.app.app_config.instance_name,
+                class_name=entry.app.class_name,
+                status=entry.app.status,
+                owner_id=entry.app.unique_name,
+            )
+
+        class_name = manifest.class_name if manifest else "Unknown"
         return AppInstanceInfo(
             app_key=app_key,
             index=index,
-            instance_name=f"{class_name}.{index}",
+            instance_name=self._resolve_failed_instance_name(app_key, index, manifest),
             class_name=class_name,
             status=ResourceStatus.FAILED,
-            error=error,
-            error_message=str(error),
-            error_traceback=get_traceback_string(error) if error.__traceback__ else None,
+            error=entry.error,
+            error_message=entry.error_message,
+            error_traceback=entry.error_traceback,
         )
 
     def get_snapshot(self) -> AppStatusSnapshot:
         """Generate immutable status snapshot for web UI."""
-        running = [
-            self.info_from_running(app_key, index, app)
-            for app_key, instances in self._apps.items()
-            for index, app in instances.items()
-        ]
-        failed = []
-        for app_key, failures in self._failed_apps.items():
+        running: list[AppInstanceInfo] = []
+        failed: list[AppInstanceInfo] = []
+
+        for app_key, entries in self._instances.items():
             manifest = self._manifests.get(app_key)
-            cls_name = manifest.class_name if manifest else "Unknown"
-            for index, error in failures:
-                failed.append(self.info_from_failure(app_key, index, error, cls_name))
+            for index, entry in entries.items():
+                info = self._info_from_entry(app_key, index, entry, manifest)
+                if entry.app is not None:
+                    running.append(info)
+                else:
+                    failed.append(info)
 
         return AppStatusSnapshot(
             running=running,
@@ -193,32 +219,33 @@ class AppRegistry:
         )
 
     def build_manifest_info(self, app_key: str, manifest: "AppManifest") -> AppManifestInfo:
+        entries = self._instances.get(app_key, {})
+        has_running = any(entry.app is not None for entry in entries.values())
+        has_failed = any(entry.status == ResourceStatus.FAILED for entry in entries.values())
+
         if not manifest.enabled:
-            status = "disabled"
+            status = ManifestStatus.DISABLED
         elif app_key in self._blocked_apps:
-            status = "blocked"
-        elif self._apps.get(app_key):
-            status = "running"
-        elif self._failed_apps.get(app_key):
-            status = "failed"
+            status = ManifestStatus.BLOCKED
+        elif has_running and has_failed:
+            status = ManifestStatus.DEGRADED
+        elif has_running:
+            status = ManifestStatus.RUNNING
+        elif has_failed:
+            status = ManifestStatus.FAILED
         else:
-            status = "stopped"
+            status = ManifestStatus.STOPPED
 
         instances: list[AppInstanceInfo] = []
         error_message: str | None = None
         error_traceback: str | None = None
 
-        if app_key in self._apps:
-            for index, app in self._apps[app_key].items():
-                instances.append(self.info_from_running(app_key, index, app))
-
-        if app_key in self._failed_apps:
-            for index, error in self._failed_apps[app_key]:
-                info = self.info_from_failure(app_key, index, error, manifest.class_name)
-                instances.append(info)
-                if error_message is None:
-                    error_message = info.error_message
-                    error_traceback = info.error_traceback
+        for index, entry in entries.items():
+            info = self._info_from_entry(app_key, index, entry, manifest)
+            instances.append(info)
+            if entry.app is None and error_message is None:
+                error_message = info.error_message
+                error_traceback = info.error_traceback
 
         block_reason = self._blocked_apps.get(app_key)
 
@@ -273,8 +300,8 @@ def overlay_runtime_state(db_rows: list[dict[str, Any]], registry: AppRegistry) 
     whether the app is present in ``registry``'s in-memory manifests:
 
     - If present: status/instances are derived from the registry's live state via
-      ``build_manifest_info()`` (priority: disabled > blocked > running > failed > stopped),
-      and ``in_current_config`` is ``True``.
+      ``build_manifest_info()`` (priority: disabled > blocked > degraded > running > failed >
+      stopped), and ``in_current_config`` is ``True``.
     - If absent (a DB-only / removed app): status defaults to ``"stopped"`` with zero
       instances, and ``in_current_config`` is ``False``.
 
@@ -282,10 +309,11 @@ def overlay_runtime_state(db_rows: list[dict[str, Any]], registry: AppRegistry) 
     ``auto_loaded``) always comes from the DB row, never from the in-memory manifest — the DB
     is the source of truth for metadata, the registry is the source of truth for live status.
     ``enabled`` is the exception: it is also the highest-priority input to the registry's
-    status derivation (``disabled > blocked > running > failed > stopped``), so when the app
-    is in-memory it is sourced from the registry alongside ``status`` — otherwise a stale DB
-    row could produce a response where ``status == "disabled"`` but ``enabled == True`` (or
-    vice versa), a state ``build_manifest_info()`` itself could never construct.
+    status derivation (``disabled > blocked > degraded > running > failed > stopped``), so
+    when the app is in-memory it is sourced from the registry alongside ``status`` —
+    otherwise a stale DB row could produce a response where ``status == "disabled"`` but
+    ``enabled == True`` (or vice versa), a state ``build_manifest_info()`` itself could never
+    construct.
 
     Args:
         db_rows: Rows from ``get_all_app_manifests()`` or a single-row list from

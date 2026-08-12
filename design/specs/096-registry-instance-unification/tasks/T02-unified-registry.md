@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Replace dual-dict with unified InstanceEntry registry"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#1", "FR#2", "FR#3", "FR#4", "FR#5", "FR#8", "FR#10", "FR#11", "FR#12", "FR#13", "FR#16", "AC#1", "AC#2", "AC#3", "AC#4", "AC#9", "AC#10"]
 ---

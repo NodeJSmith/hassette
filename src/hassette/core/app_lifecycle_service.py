@@ -347,7 +347,7 @@ class AppLifecycleService(Resource):
         self.logger.debug("Shutting down all apps")
 
         for app_key in self.registry.app_keys():
-            await self.shutdown_instances(self.registry.get_apps_by_key(app_key))
+            await self.shutdown_instances(self.registry.get_running_apps(app_key))
 
         self.registry.clear_all()
 
@@ -499,7 +499,7 @@ class AppLifecycleService(Resource):
                 self.logger.error("Failed to load app class for '%s':\n%s", app_key, get_short_traceback())
                 return
 
-            instances = self.registry.get_apps_by_key(app_key)
+            instances = self.registry.get_running_apps(app_key)
             if instances:
                 for inst in instances.values():
                     event = HassetteAppStateEvent.from_app(app=inst, status=NOT_STARTED)

@@ -55,7 +55,7 @@ class TestStartAppSpecificFactoryErrors:
 
         await lifecycle_service.start_app("test_app")
 
-        mock_registry.get_apps_by_key.assert_not_called()
+        mock_registry.get_running_apps.assert_not_called()
 
     async def test_invalid_inheritance_error_skips_start(
         self,
@@ -70,7 +70,7 @@ class TestStartAppSpecificFactoryErrors:
 
         await lifecycle_service.start_app("test_app")
 
-        mock_registry.get_apps_by_key.assert_not_called()
+        mock_registry.get_running_apps.assert_not_called()
 
 
 class TestStopAppFailure:
