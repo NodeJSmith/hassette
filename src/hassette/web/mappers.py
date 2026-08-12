@@ -7,10 +7,10 @@ call these instead of receiving pre-mapped response objects from
 
 Enum coercion note
 ------------------
-``AppInstanceInfo.status`` is a ``ResourceStatus`` enum (``StrEnum``). Pydantic
-coerces it directly — pass the enum value as-is. ``AppManifestInfo.status`` is a
-``str`` with the 5-value ManifestStatus set; cast to ``ManifestStatus`` for pyright.
-``ServiceInfo.status`` is a ``str`` with ResourceStatus values; cast for pyright.
+``AppInstanceInfo.status`` is a ``ResourceStatus`` enum (``StrEnum``), and
+``AppManifestInfo.status`` is a ``ManifestStatus`` enum (``StrEnum``). Pydantic coerces both
+directly — pass the enum value as-is. ``ServiceInfo.status`` is a ``str`` with ResourceStatus
+values; cast for pyright.
 """
 
 from typing import Any, cast
@@ -29,7 +29,6 @@ from hassette.web.models import (
     ConnectedPayload,
     ListenerKind,
     ListenerWithSummary,
-    ManifestStatus,
     ReadinessResponse,
     ServiceInfoResponse,
     SystemStatusResponse,
@@ -79,7 +78,7 @@ def manifest_response_fields(manifest: AppManifestInfo) -> dict[str, Any]:
         "enabled": manifest.enabled,
         "auto_loaded": manifest.auto_loaded,
         "autostart": manifest.autostart,
-        "status": cast("ManifestStatus", manifest.status),  # AppManifestInfo.status is str
+        "status": manifest.status,
         "block_reason": manifest.block_reason,
         "instance_count": manifest.instance_count,
         "instances": [instance_response_from(inst) for inst in manifest.instances],

@@ -1,7 +1,7 @@
 # Design: Unify AppRegistry Instance Tracking
 
 **Date:** 2026-08-12
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Research:** design/research/2026-08-12-app-registry-unification/research.md
 

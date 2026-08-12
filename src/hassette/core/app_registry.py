@@ -296,8 +296,8 @@ def overlay_runtime_state(db_rows: list[dict[str, Any]], registry: AppRegistry) 
     - If present: status/instances are derived from the registry's live state via
       ``build_manifest_info()`` (priority: disabled > blocked > degraded > running > failed >
       stopped), and ``in_current_config`` is ``True``.
-    - If absent (a DB-only / removed app): status defaults to ``"stopped"`` with zero
-      instances, and ``in_current_config`` is ``False``.
+    - If absent (a DB-only / removed app): status defaults to ``ManifestStatus.STOPPED`` with
+      zero instances, and ``in_current_config`` is ``False``.
 
     Static metadata (``class_name``, ``display_name``, ``filename``, ``autostart``,
     ``auto_loaded``) always comes from the DB row, never from the in-memory manifest — the DB
@@ -343,7 +343,7 @@ def overlay_runtime_state(db_rows: list[dict[str, Any]], registry: AppRegistry) 
         else:
             info = AppManifestInfo(
                 app_key=app_key,
-                status="stopped",
+                status=ManifestStatus.STOPPED,
                 enabled=bool(db_row["enabled"]),
                 in_current_config=False,
                 **static_fields,

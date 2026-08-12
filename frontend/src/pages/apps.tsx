@@ -62,14 +62,11 @@ function buildAppsCells(
   windowSeconds: number | null,
   isMobile: boolean,
 ): StatsStripCell[] {
-  const statusCounts: Record<string, number> = {
-    running: 0,
-    failed: 0,
-    degraded: 0,
-    stopped: 0,
-    disabled: 0,
-    blocked: 0,
-  };
+  // Derived from FILTER_OPTIONS (minus "all") so the counted status set can't drift from the
+  // filter list — a status added to one is automatically counted by the other.
+  const statusCounts: Record<string, number> = Object.fromEntries(
+    FILTER_OPTIONS.filter((f) => f !== "all").map((f) => [f, 0]),
+  );
   let totalHandlers = 0;
   let totalRuns = 0;
   for (const a of apps) {

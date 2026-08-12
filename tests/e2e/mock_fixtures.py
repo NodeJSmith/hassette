@@ -18,7 +18,7 @@ from hassette.schemas.listener_models import HandlerErrorRecord, ListenerGlobalS
 from hassette.schemas.summary_models import AppHealthSummary, GlobalSummary, SessionRecord
 from hassette.test_utils.web_job_helpers import make_job
 from hassette.test_utils.web_manifest_helpers import make_manifest, make_manifest_db_row
-from hassette.types.enums import ResourceStatus
+from hassette.types.enums import ManifestStatus, ResourceStatus
 
 TS_BASE = 1_704_067_200.0
 TS_RECENT = 1_704_067_100.0
@@ -38,7 +38,7 @@ def build_manifests() -> list[AppManifestInfo]:
             class_name="MyApp",
             display_name="My App",
             filename="my_app.py",
-            status="running",
+            status=ManifestStatus.RUNNING,
             instance_count=1,
             instances=[
                 AppInstanceInfo(
@@ -56,7 +56,7 @@ def build_manifests() -> list[AppManifestInfo]:
             class_name="OtherApp",
             display_name="Other App",
             filename="other_app.py",
-            status="stopped",
+            status=ManifestStatus.STOPPED,
             instance_count=0,
         ),
         make_manifest(
@@ -64,7 +64,7 @@ def build_manifests() -> list[AppManifestInfo]:
             class_name="BrokenApp",
             display_name="Broken App",
             filename="broken_app.py",
-            status="failed",
+            status=ManifestStatus.FAILED,
             instance_count=1,
             instances=[
                 AppInstanceInfo(
@@ -92,7 +92,7 @@ def build_manifests() -> list[AppManifestInfo]:
             display_name="Disabled App",
             filename="disabled_app.py",
             enabled=False,
-            status="disabled",
+            status=ManifestStatus.DISABLED,
             instance_count=0,
         ),
         make_manifest(
@@ -100,7 +100,7 @@ def build_manifests() -> list[AppManifestInfo]:
             class_name="NoSourceApp",
             display_name="No Source App",
             filename="nosource_app.py",
-            status="running",
+            status=ManifestStatus.RUNNING,
             instance_count=1,
             instances=[
                 AppInstanceInfo(
@@ -118,7 +118,7 @@ def build_manifests() -> list[AppManifestInfo]:
             class_name="MultiApp",
             display_name="Multi App",
             filename="multi_app.py",
-            status="running",
+            status=ManifestStatus.RUNNING,
             instance_count=3,
             instances=[
                 AppInstanceInfo(

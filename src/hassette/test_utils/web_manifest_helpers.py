@@ -48,7 +48,7 @@ def make_manifest(
     filename: str = "test_app.py",
     enabled: bool = True,
     auto_loaded: bool = False,
-    status: str = "running",
+    status: ManifestStatus = ManifestStatus.RUNNING,
     block_reason: str | None = None,
     instance_count: int = 1,
     instances: list[AppInstanceInfo] | None = None,

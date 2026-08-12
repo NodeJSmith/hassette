@@ -70,7 +70,7 @@ class AppManifestInfo:
     filename: str
     enabled: bool
     auto_loaded: bool
-    status: str  # "running", "failed", "stopped", "disabled", "blocked", "degraded"
+    status: ManifestStatus
     # Placed after `status` (not next to `enabled`, where it sits in AppManifest/AppManifestResponse)
     # because dataclass rules forbid a defaulted field before the non-default `status`.
     autostart: bool = True
@@ -91,7 +91,7 @@ class AppFullSnapshot:
     manifests: list[AppManifestInfo] = field(default_factory=list)
     only_apps: list[str] = field(default_factory=list)
     total: int = 0
-    status_counts: dict[str, int] = field(default_factory=lambda: dict.fromkeys(ManifestStatus, 0))
+    status_counts: dict[str, int] = field(default_factory=lambda: dict.fromkeys(MANIFEST_STATUS_KEYS, 0))
     """Manifest counts keyed by ``ManifestStatus`` value (``running``, ``failed``, ``stopped``,
     ``disabled``, ``blocked``, ``degraded``)."""
 

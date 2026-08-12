@@ -6,7 +6,7 @@ from hassette.schemas.listener_models import ListenerSummary
 from hassette.schemas.live_counts import LiveCounts
 from hassette.test_utils.config import TEST_SOURCE_LOCATION
 from hassette.test_utils.web_manifest_helpers import make_manifest
-from hassette.types.enums import ResourceStatus
+from hassette.types.enums import ManifestStatus, ResourceStatus
 from hassette.web.mappers import (
     app_manifest_list_response_from,
     app_status_response_from,
@@ -151,7 +151,7 @@ def test_app_manifest_list_response_from_builds_nested_instances():
     """Verify nested AppInstanceResponse objects are built correctly."""
     inst0 = make_instance("app_a", 0, ResourceStatus.RUNNING)
     inst1 = make_instance("app_a", 1, ResourceStatus.RUNNING)
-    manifest = make_manifest("app_a", status="running", instances=[inst0, inst1], instance_count=2)
+    manifest = make_manifest("app_a", status=ManifestStatus.RUNNING, instances=[inst0, inst1], instance_count=2)
     full = AppFullSnapshot(
         manifests=[manifest],
         total=1,
@@ -173,7 +173,7 @@ def test_app_manifest_list_response_from_builds_nested_instances():
 def test_app_manifest_list_response_from_coerces_resource_status_enum():
     """AppInstanceInfo.status (ResourceStatus enum) → string in response."""
     inst = make_instance("app_a", 0, ResourceStatus.RUNNING)
-    manifest = make_manifest("app_a", status="running", instances=[inst], instance_count=1)
+    manifest = make_manifest("app_a", status=ManifestStatus.RUNNING, instances=[inst], instance_count=1)
     full = AppFullSnapshot(manifests=[manifest], total=1, status_counts={"running": 1})
 
     result = app_manifest_list_response_from(full)
@@ -182,9 +182,9 @@ def test_app_manifest_list_response_from_coerces_resource_status_enum():
     assert isinstance(result.manifests[0].instances[0].status, str)
 
 
-def test_app_manifest_list_response_from_manifest_status_already_str():
-    """AppManifestInfo.status is already str — verify it passes through without error."""
-    manifest = make_manifest("app_a", status="stopped")
+def test_app_manifest_list_response_from_manifest_status_passes_through():
+    """AppManifestInfo.status (ManifestStatus enum) — verify it passes through without error."""
+    manifest = make_manifest("app_a", status=ManifestStatus.STOPPED)
     full = AppFullSnapshot(manifests=[manifest], total=1, status_counts={"stopped": 1})
 
     result = app_manifest_list_response_from(full)
@@ -195,11 +195,11 @@ def test_app_manifest_list_response_from_manifest_status_already_str():
 def test_app_manifest_list_response_from_preserves_counts():
     """Aggregate counts from AppFullSnapshot pass through."""
     manifests = [
-        make_manifest("app_a", status="running"),
-        make_manifest("app_b", status="failed"),
-        make_manifest("app_c", status="stopped"),
-        make_manifest("app_d", status="disabled"),
-        make_manifest("app_e", status="blocked"),
+        make_manifest("app_a", status=ManifestStatus.RUNNING),
+        make_manifest("app_b", status=ManifestStatus.FAILED),
+        make_manifest("app_c", status=ManifestStatus.STOPPED),
+        make_manifest("app_d", status=ManifestStatus.DISABLED),
+        make_manifest("app_e", status=ManifestStatus.BLOCKED),
     ]
     full = AppFullSnapshot(
         manifests=manifests,
@@ -219,7 +219,7 @@ def test_app_manifest_list_response_from_preserves_counts():
 
 def test_app_manifest_list_response_from_passes_autostart_true():
     """Mapper carries autostart=True from AppManifestInfo to AppManifestResponse."""
-    manifest = make_manifest("app_a", status="stopped", autostart=True)
+    manifest = make_manifest("app_a", status=ManifestStatus.STOPPED, autostart=True)
     full = AppFullSnapshot(manifests=[manifest], total=1, status_counts={"stopped": 1})
 
     result = app_manifest_list_response_from(full)
@@ -229,7 +229,7 @@ def test_app_manifest_list_response_from_passes_autostart_true():
 
 def test_app_manifest_list_response_from_passes_autostart_false():
     """Mapper carries autostart=False from AppManifestInfo to AppManifestResponse."""
-    manifest = make_manifest("app_b", status="stopped", autostart=False)
+    manifest = make_manifest("app_b", status=ManifestStatus.STOPPED, autostart=False)
     full = AppFullSnapshot(manifests=[manifest], total=1, status_counts={"stopped": 1})
 
     result = app_manifest_list_response_from(full)
@@ -239,7 +239,7 @@ def test_app_manifest_list_response_from_passes_autostart_false():
 
 def test_app_manifest_list_response_from_passes_in_current_config_false():
     """Mapper carries in_current_config=False (DB-only/removed app) through to the response."""
-    manifest = make_manifest("app_c", status="stopped", in_current_config=False)
+    manifest = make_manifest("app_c", status=ManifestStatus.STOPPED, in_current_config=False)
     full = AppFullSnapshot(manifests=[manifest], total=1, status_counts={"stopped": 1})
 
     result = app_manifest_list_response_from(full)
@@ -249,7 +249,7 @@ def test_app_manifest_list_response_from_passes_in_current_config_false():
 
 def test_app_manifest_list_response_from_passes_in_current_config_true():
     """Mapper carries in_current_config=True (default, currently-configured app) through."""
-    manifest = make_manifest("app_d", status="running", in_current_config=True)
+    manifest = make_manifest("app_d", status=ManifestStatus.RUNNING, in_current_config=True)
     full = AppFullSnapshot(manifests=[manifest], total=1, status_counts={"running": 1})
 
     result = app_manifest_list_response_from(full)
