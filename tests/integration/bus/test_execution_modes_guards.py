@@ -227,14 +227,14 @@ async def test_backpressure_policy_updated_on_replace_registration(
     assert row[0] == "drop_newest", f"Expected 'drop_newest' after replace, got {row[0]!r}"
 
 
-# Characterization pins for the dispatch-mode bridge extraction: these must pass
-# against the current code and guard the later bus-migration change.
-
-
 async def test_stall_watchdog_emits_warning_for_non_parallel(
     bus_harness: "tuple[HassetteHarness, Hassette, Bus]",
 ) -> None:
     """A single/queued invocation held past the stall threshold emits a stall WARNING.
+
+    Characterization pin for the dispatch-mode bridge extraction: this must pass against the
+    current code and guard the later bus-migration change (shared with
+    ``test_queued_trigger_pending_done_resolved_on_release`` below).
 
     Mirrors ``test_stall_watchdog_emits_warning_for_non_parallel`` in
     ``tests/integration/test_scheduler_mode.py``. Spies on
