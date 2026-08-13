@@ -218,7 +218,12 @@ class TestPreBootstrapAppState:
         manifest = create_app_manifest("half_broken", tmp_path)
         registry.set_manifests({manifest.app_key: manifest})
 
-        registry.register_app(manifest.app_key, 0, MagicMock())
+        running_app = MagicMock()
+        running_app.app_config.instance_name = f"{manifest.class_name}.0"
+        running_app.class_name = manifest.class_name
+        running_app.status = ResourceStatus.RUNNING
+        running_app.unique_name = f"{manifest.class_name}.{manifest.app_key}.0"
+        registry.register_app(manifest.app_key, 0, running_app)
         registry.record_failure(manifest.app_key, 1, RuntimeError("instance 1 blew up"))
 
         runtime.hassette.app_handler.registry = registry
