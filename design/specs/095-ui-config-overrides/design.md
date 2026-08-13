@@ -1,6 +1,7 @@
 # Design: UI-Editable App Config Overrides
 
 **Date:** 2026-08-11
+**Updated:** 2026-08-13 — rebased onto #1605 (`AppRegistry` instance unification), which satisfied this design's hard prerequisite and changed the app-key locking it depends on. See Architecture (Locking) and Dependencies and Assumptions.
 **Status:** draft
 **Scope-mode:** hold
 **Research:** `design/research/2026-08-11-ui-config-overrides/` — `config-precedence-prior-art.md` (where comparable systems store UI-set config and how they resolve conflicts), `form-library-prior-art.md` (JSON Schema form libraries, benchmarked against React 19), `cli-config-set-prior-art.md` (CLI write-command ergonomics)
@@ -150,6 +151,9 @@ That constraint turns out to be false in hassette's case. `data_dir` (default `/
 - **AC#27** A unit test proves reconciliation never deletes a record — a suppressed override is still present in the store afterward and is restored by neither the file changing again nor a reload, only by an explicit unset. (FR#30)
 - **AC#28** An integration test proves a suppressed override is reported as its own provenance state, distinguishable from a field that was never overridden. (FR#31)
 - **AC#29** An integration test proves the write-generation token rejects a stale write with 409, and that a write to one app does not invalidate an outstanding token for a different app. (FR#16)
+- **AC#30** An integration test proves a config write against a running app completes rather than deadlocking on the app-key lock, asserted under `asyncio.wait_for` so a regression surfaces as a timeout instead of a hung suite. (FR#15)
+- **AC#31** The existing `reload_app` unit tests pass unchanged after the `_reload_app_unlocked` extraction, pinning it as pure code motion.
+- **AC#32** A CLI test proves `set` renders a `failed` write result with the app status and the revert command, and a `degraded` result naming which instances came up — not a bare success line. (FR#15)
 
 ## Key Constraints
 
@@ -158,7 +162,8 @@ That constraint turns out to be false in hassette's case. `data_dir` (default `/
 - **Do not derive field provenance by reading `os.environ`.** `.env` values never appear there during config construction. See Architecture.
 - **Do not rely on `Hassette.startup_tasks()`'s `load_dotenv()` side effect.** It does populate `os.environ` before apps are built, which makes an `os.environ`-only predicate appear to work under `hassette run` — but it is gated on `import_dot_env_files`, a user-settable field, and does not apply on any path that builds config without going through `Hassette.start()`.
 - **Do not hot-swap `app_config` on a running instance.** Apps read config in `on_initialize` and turn it into scheduled jobs and listeners; swapping the object afterward would report new values while continuing to fire on the old ones.
-- **Do not determine reload success by checking for recorded failures.** `clear_failures()` has no production call sites and stale entries can survive; check instance presence and status.
+- **Do not determine reload success by counting survivors.** Read each instance's status directly from `AppRegistry.get_instances()`, which returns every tracked slot carrying a `status`. Do not reconstruct the picture by diffing running instances against the manifest's configured instance count.
+- **Do not call `AppLifecycleService.reload_app()` while holding the app-key lock.** `_get_app_key_lock` returns a non-reentrant `asyncio.Lock` with no timeout, and `reload_app` acquires it itself — a handler that holds it and then calls `reload_app` hangs permanently. Use the unlocked body instead. See Architecture (Locking).
 - **Do not build a transactional apply/rollback into `AppFactory.create_instances`.** It is on every app-creation path in the framework, so a trial-apply mode there risks all app startup, not just override writes. Validation before persistence is the safety property that matters; runtime failure is handled by the existing `FAILED` status surface, not by an automatic revert.
 - **`--json` is already a global output flag.** It cannot be repurposed as a CLI input mode.
 
@@ -173,7 +178,13 @@ Accepted costs, each traceable to a decision made during discovery:
 - **A third artifact users must back up.** `data_dir` now carries real configuration alongside `hassette.toml` and the apps directory, and downgrading strands the file on disk. Mitigated in documentation. Accepted when reversibility was assessed.
 - **A runtime-bad override survives restarts until reverted.** An override that validates but breaks the app at runtime stays persisted; the app stays `FAILED` across restarts until the user reverts the field. Mitigated by the write response reporting the failure immediately, the app being visibly `FAILED` rather than silently wrong, and FR#19's per-field revert. Accepted deliberately during adversarial review, in exchange for keeping transactional apply/rollback out of `AppFactory.create_instances` — see Alternatives Considered. This is the same outcome the framework already produces for a bad `hassette.toml` edit.
 
-**Hard prerequisite — the `AppRegistry` instance-state refactor.** This design assumes `AppRegistry` exposes a single per-instance state map in which every instance is present carrying a status, rather than today's two parallel dicts where `record_failure` moves an instance out of `_apps` into `_failed_apps`. That refactor is tracked as **#1597** and must land first. It is independently motivated: `get_snapshot()` (`core/app_registry.py:164-182`) reads `_failed_apps` to build the dashboard and health views, and since `clear_failures()` has zero production call sites, stale entries surviving a repeated class-load failure or a shrunk manifest are rendered as current failures in the UI today. Its blast radius is contained — `_apps` and `_failed_apps` are referenced only inside `app_registry.py`, with 7 external call sites (5 `record_failure`, 2 `get_apps_by_key`).
+**Prerequisite — the `AppRegistry` instance-state refactor — has landed.** This design's status reporting requires `AppRegistry` to expose a single per-instance state map in which every instance is present carrying a status, rather than the two parallel dicts where `record_failure` moved an instance out of `_apps` into `_failed_apps`. That was tracked as **#1597** and shipped in **#1605** (`14f8c4b5`). What this design now builds against:
+
+- `AppRegistry._instances: dict[str, dict[int, InstanceEntry]]` — one entry per instance slot, always present. `InstanceEntry` is a frozen dataclass carrying `app`, `status`, and the error payload when failed.
+- `get_instances(app_key) -> dict[int, InstanceEntry]` — every tracked instance, running and failed, each with its status. This is the read the status report uses.
+- `get_running_apps(app_key)` — the renamed `get_apps_by_key`, running instances only.
+- `ManifestStatus.DEGRADED` — a manifest whose instances are a mix of running and failed, with existing frontend treatment (warning tone, filter option, stop/reload enabled).
+- `clear_failures()` and `iter_all_instances()` are gone; stale failed indices are pruned by `prune_stale_failed_indices(app_key, valid_index_count)`.
 
 Assumptions:
 
@@ -251,25 +262,38 @@ Only the reload step varies by app state:
 - **Stopped** — do not reload. Starting an app the user deliberately stopped would be a surprising side effect of editing a value; the override applies the next time it starts, through the same merge point.
 - **Failed** — reload. Fixing config is how a user recovers a failed app, so this path must be able to start it.
 
-**Why there is no rollback.** An earlier draft applied the override transiently, reloaded, confirmed, and only then persisted — restoring the previous config if the app did not come back. That was rejected during challenge for two reasons. It required a trial-apply mode inside `AppFactory.create_instances`, which is on every app-creation path in the framework, so a defect there would break all app startup rather than just override writes. And it duplicated recovery the framework already provides: a config that breaks an app produces `AppStatus.FAILED`, surfaced through the same status and health views as any other broken app, which is exactly what a bad `hassette.toml` edit does today.
+**Why there is no rollback.** An earlier draft applied the override transiently, reloaded, confirmed, and only then persisted — restoring the previous config if the app did not come back. That was rejected during challenge for two reasons. It required a trial-apply mode inside `AppFactory.create_instances`, which is on every app-creation path in the framework, so a defect there would break all app startup rather than just override writes. And it duplicated recovery the framework already provides: a config that breaks an app produces `ResourceStatus.FAILED` on the instance (surfacing as `ManifestStatus.FAILED` or `DEGRADED` on the manifest), surfaced through the same status and health views as any other broken app, which is exactly what a bad `hassette.toml` edit does today.
 
 The cost is real and accepted: an override that validates but fails at runtime stays persisted and the app stays `FAILED` across restarts until the user reverts the field. The write response says so immediately, the app is visibly broken rather than silently wrong, and FR#19's per-field revert is one action. Building a stronger guarantee for override writes than the framework gives file edits would be inconsistent scope, not extra safety.
 
 **Reporting the resulting status.** After the reload, the response reports each targeted instance's status by reading it from `AppRegistry`. This is a status report, not a gate — nothing is rolled back on a mismatch. It exists so the response and the UI tell the truth about what happened, including the partial case where some instances of a multi-instance app came up and others did not.
 
-**This depends on the `AppRegistry` instance-state refactor (#1597) landing first** (see Dependencies and Assumptions). Against today's registry the report is not expressible: `record_failure` moves an instance out of `_apps` before recording it (`core/app_registry.py:67-78`) and `get_apps_by_key` returns `_apps` only (`:132-134`), so a three-instance app with one failed instance is byte-for-byte indistinguishable from a healthy two-instance app. Once instance state is a single map where every instance is present carrying a status, the report is a direct read with no counting, no manifest cross-reference, and no consultation of the separate failure log.
+The read is `AppRegistry.get_instances(app_key)` — every tracked slot, each carrying its status. No counting, no manifest cross-reference, no consultation of a separate failure log. The partial case is directly expressible because a failed instance stays in the map at `FAILED` rather than being moved out of it.
 
-Do **not** implement this against the current two-dict shape by counting survivors against `len(manifest.app_config)`. That was the interim workaround considered and rejected when the refactor was sequenced ahead of this work; writing it would mean deleting it immediately afterward.
+This was not expressible before **#1605** landed, which is why that refactor was sequenced ahead of this work. The interim workaround — counting survivors against `len(manifest.app_config)` — was considered and rejected then, and is now moot.
 
-The check is meaningful because `initialize_instances` awaits `inst.initialize()` in a plain loop (`core/app_lifecycle_service.py:162-224`) with no `TaskBucket.spawn`, so by the time `reload_app`'s await returns, every instance's outcome is already recorded — determinate, not racing.
+The check is meaningful because `initialize_instances` awaits `inst.initialize()` in a plain loop (`core/app_lifecycle_service.py:163-225`) with no `TaskBucket.spawn`, and records each outcome to the registry inline, so by the time the reload's await returns, every instance's status is already recorded — determinate, not racing.
 
-`reload_app` keeps its current signature and its exception-swallowing behavior. The success signal is derived from registry state by the caller, which keeps the change off the shared lifecycle path used by the file watcher and the existing HTTP routes.
+`reload_app` keeps its public signature and its exception-swallowing behavior. The success signal is derived from registry state by the caller, which keeps the change off the shared lifecycle path used by the file watcher and the existing HTTP routes.
 
-**Locking.** The write handler holds the per-app-key lock (`_get_app_key_lock`) across its entire sequence — version check, merge, persist, reload, and status report — rather than relying on the lock `start_app` takes internally.
+**Locking.** The write handler holds the per-app-key lock (`_get_app_key_lock`) across its entire sequence — version check, merge, persist, reload, and status report — rather than taking it only for the reload.
 
-That distinction is load-bearing and the design must not overstate it: today's lock is acquired inside `start_app` only (`core/app_lifecycle_service.py:479-507`). `stop_app` (`:509-524`) runs unlocked, and so does the outer `reload_app` sequence (`:525-544`). Without widening, two writers could both pass their version check, both reload, and each run its status report outside the lock — writer A observing writer B's freshly-RUNNING instances and reporting success for a config that is no longer the one running. Holding the lock across the whole handler closes that window for this feature's own path.
+Two writers must not interleave here. Without the widened hold, both could pass their version check, both reload, and each run its status report outside the lock — writer A observing writer B's freshly-`RUNNING` instances and reporting success for a config that is no longer the one running. Holding the lock across the whole handler closes that window for this feature's own path.
 
-The broader gap — that `stop_app` and `reload_app` are unserialized for every *other* caller (file watcher, existing REST routes, bootstrap) — is pre-existing and tracked as **#1227**. This design does not depend on that fix; it takes the lock itself.
+**The handler must not call `reload_app()` while holding the lock.** Since **#1605**, `reload_app` acquires `_get_app_key_lock` itself (`core/app_lifecycle_service.py:629`), as do `start_app` (`:480`) and `stop_app` (`:572`). `_get_app_key_lock` returns a plain non-reentrant `asyncio.Lock` with no timeout, so a handler holding it and then awaiting `reload_app` deadlocks permanently — not a slow path, a hung request. #1605 hit the same edge internally and solved it by extracting `_stop_app_unlocked` / `_start_app_unlocked` and having `reload_app` acquire the lock once and call those bodies directly.
+
+This design follows that established pattern rather than working around it: **extract `_reload_app_unlocked(app_key, force_reload)`** carrying exactly the code *inside* `reload_app`'s `async with self._get_app_key_lock(app_key)` block — the `_stop_app_unlocked` call, the manifest lookup and its early return, and the `_start_app_unlocked` call. Nothing else moves. `_admit_start` and the surrounding `try`/`except` stay in the public `reload_app`, which becomes admission check → `try` → lock acquisition → one call to `_reload_app_unlocked`. This is the same split `start_app` already uses (`core/app_lifecycle_service.py:460-491`), where pre-lock work stays in the wrapper because `_admit_start` can block indefinitely before the lock is ever reached.
+
+The config-write path is a method on `AppLifecycleService`, so it reaches admission the same way `reload_app` does rather than needing a private method from outside the class. Its sequence is:
+
+1. `await self._admit_start(app_key=app_key, admission_mode=AppAdmissionMode.REJECT_IF_UNRELEASED)` — **before** acquiring the lock, matching `reload_app`'s ordering. In `REJECT_IF_UNRELEASED` mode this raises `AppBootstrapNotReleasedError` rather than waiting, which is the behavior the `409` needs; `WAIT_FOR_RELEASE` would block a user's request indefinitely and is never used here.
+2. Acquire `_get_app_key_lock(app_key)` and hold it for the rest: version check, merge, persist, reload via `_reload_app_unlocked`, status report.
+
+The route in `web/routes/apps.py` stays thin and maps `AppBootstrapNotReleasedError` through the existing `_raise_bootstrap_not_released` helper (`web/routes/apps.py:68-70`), the same path `start_app` and `reload_app` already use. That is where the `409` in the status-mapping table comes from — the write handler does not reimplement the check.
+
+Rejected alternative: having the handler inline `_stop_app_unlocked` + `_start_app_unlocked` itself. It needs no new lifecycle method, but the handler would then carry a second copy of `reload_app`'s body — including the "manifest missing, skip" branch — which drifts the moment either copy changes. Also rejected: narrowing the lock so it is not held across the reload, which sidesteps the deadlock by giving up the interleaving guarantee the widened hold exists to provide.
+
+The broader gap — that a lifecycle operation for one app key is unserialized against *other* entry points that do not take this lock at all (bootstrap, reconciliation paths) — is pre-existing and tracked as **#1227**. This design does not depend on that fix; it takes the lock itself.
 
 Concurrency: two clients reading the same state and both writing would otherwise last-writer-wins. The config read response carries a version token, and a write carrying a stale one is rejected with 409.
 
@@ -307,7 +331,11 @@ Status mapping:
 | `422` | The merged model failed validation. Carries per-field errors; nothing was persisted |
 | `500` | The override could not be persisted |
 
-There is no body-level discriminator on `422`. It has exactly one meaning — schema validation failed — because a runtime startup failure is no longer an error response at all: the write succeeded, the override is persisted, and the app's resulting state is reported in the success body. The response carries the post-reload app status (`running` | `failed` | `stopped`) plus, when instances are missing, how many were expected versus how many came up. A client renders a `422` as field-level errors and a `failed` status as a "saved, but the app didn't start" notice with a revert affordance.
+There is no body-level discriminator on `422`. It has exactly one meaning — schema validation failed — because a runtime startup failure is no longer an error response at all: the write succeeded, the override is persisted, and the app's resulting state is reported in the success body.
+
+The response carries the post-reload status as a `ManifestStatus`, reusing the framework's existing vocabulary rather than inventing a parallel one. The partial case is `ManifestStatus.DEGRADED`, which **#1605** introduced for exactly this situation — a manifest whose instances are a mix of running and failed — so the response needs no expected-versus-actual instance counts and the UI needs no new status to render. Per-instance detail comes from `get_instances()` and is included alongside it, so a user editing one instance of a multi-instance app can see which slot failed.
+
+A client renders a `422` as field-level errors, a `failed` status as a "saved, but the app didn't start" notice with a revert affordance, and `degraded` through the warning-tone treatment already wired into the apps view.
 
 ### Frontend
 
@@ -341,13 +369,15 @@ Instance targeting reuses the CLI's established convention rather than inventing
 
 Note that `cmd_app_config` does not take `--instance` today — the read command is app-key-only and returns whatever the response carries. FR#28 extends the read to surface per-instance values, so both halves of the CLI can address the same unit.
 
-Variadic positional `FIELD=VALUE`. Values are coerced using `config_schema`, which `AppConfigResponse` (`web/models.py:499-511`) already returns and the CLI currently discards — so a list-typed field accepts a JSON literal without a separate flag.
+Variadic positional `FIELD=VALUE`. Values are coerced using `config_schema`, which `AppConfigResponse` (`web/models.py:490-501`) already returns and the CLI currently discards — so a list-typed field accepts a JSON literal without a separate flag.
 
 Rejected alternative: helm's `--set` / `--set-json` / `--set-string` family. Those flags accreted over years precisely because helm has no schema and must guess types; hassette has the schema on the wire. Also rejected: positional `key value` — no surveyed tool that supports batched writes uses it, and batching matters here because each write costs a restart.
 
 `--unset` on `set` exists so a revert and a set share one restart, which a separate subcommand cannot express. The standalone `unset` subcommand covers the common case.
 
 Terraform uses this same schema-driven model and it is the right one, but shipped with diagnostics opaque enough that users fail repeatedly (hashicorp/terraform#17032). Coercion errors here name the field, the expected schema type, the received value, and the correct syntax.
+
+**The CLI reports the post-write status too.** The write route returns a `ManifestStatus` plus per-instance detail regardless of which surface called it, so `set`/`unset` must render that rather than printing a bare success. A `running` result is an ordinary success line; `failed` prints the app's status and the revert command for the fields just written, so the recovery action is on screen at the moment it is needed rather than requiring a separate `app health` call; `degraded` names which instances came up and which did not, using the per-instance detail. A `stopped` result states that the override was saved and applies on next start, so a user who deliberately stopped the app is not told it failed.
 
 A per-pair JSON escape (`field:=<json>`) is deliberately not in v1. Adding it later does not break existing `field=value` calls — a value containing `:=` after the first `=` parses unambiguously — so the option stays open at no cost.
 
@@ -506,7 +536,7 @@ const exec = (name: ActionName) => {
 - **In-memory overrides only (issue #489's approach).** Simple, no persistence question. Rejected: fails the requirement that changes survive a restart.
 - **Hot-swapping `app_config` with an `on_config_changed` hook.** Avoids the restart entirely. Rejected: apps turn config into scheduled jobs and listeners during `on_initialize`, so a swap would report the new value while continuing to fire on the old schedule — silently wrong for the motivating use case, unless every app author implements the hook.
 - **Splitting persist from apply (Frigate's `Save` vs `Save & Restart`, HA add-ons' save-then-prompt-restart).** Rejected, though less emphatically than an earlier draft of this document claimed. Save and apply stay one action because a user editing a value wants it in effect, and a deferred-apply mode adds a second state ("saved but not live") the UI would have to represent. Note this design *does* persist before the app is proven — the earlier draft did not, and the argument that persisting first is unacceptable no longer applies; see "Why there is no rollback."
-- **Transactional apply with automatic rollback** (apply the override transiently, reload, confirm, restore the previous config and persist nothing if the app does not come back). This was the original design and was rejected during adversarial review. It required a trial-apply mode inside `AppFactory.create_instances` — the single highest-blast-radius path in the framework, on every app-creation path — and it duplicated recovery the framework already provides through `AppStatus.FAILED`. Two defects were also found in the specified version: the transient in-memory state was never stated to be unwound before the restore attempt, and there was no defined outcome for the rollback restart itself failing (`App` extends `Resource`, not `Service`, so no `ServiceWatcher` supervision catches it). The cost of rejecting it is stated in "Why there is no rollback" and accepted in Dependencies and Assumptions.
+- **Transactional apply with automatic rollback** (apply the override transiently, reload, confirm, restore the previous config and persist nothing if the app does not come back). This was the original design and was rejected during adversarial review. It required a trial-apply mode inside `AppFactory.create_instances` — the single highest-blast-radius path in the framework, on every app-creation path — and it duplicated recovery the framework already provides through `ResourceStatus.FAILED`. Two defects were also found in the specified version: the transient in-memory state was never stated to be unwound before the restore attempt, and there was no defined outcome for the rollback restart itself failing (`App` extends `Resource`, not `Service`, so no `ServiceWatcher` supervision catches it). The cost of rejecting it is stated in "Why there is no rollback" and accepted in Dependencies and Assumptions.
 - **Home Assistant helper entities as the tunable surface.** Near-zero framework work, no precedence problem at all, no restart, and the value becomes visible to HA automations and dashboards. Rejected as the answer to *this* problem because it is a different UI and only covers helper-shaped types — but it remains attractive as a separate feature.
 - **Per-field opt-in (`json_schema_extra={"ui": {"tunable": True}}`).** Makes the editable surface a deliberate contract. Rejected: nothing is tunable until authors annotate, which fails the "existing apps just work" goal.
 - **Hand-rolling the editable form.** No new dependency, fits the entry-chunk budget trivially. Rejected: the boring parts are where the bugs live, and the budget objection dissolves once the renderer is lazily loaded.
@@ -532,10 +562,13 @@ No gaps: every layer already has infrastructure. CI runs the system and e2e suit
 - `frontend/src/components/app-detail/config-tab.test.tsx` — the tab gains an editable path; existing read assertions must continue to hold.
 - `tests/unit/test_app_factory.py` and `tests/integration/test_app_factory_lifecycle.py` — `AppFactory` gains a constructor dependency on the override store; both construct it directly and need updating.
 - `src/hassette/test_utils/web_mocks.py` — `create_hassette_stub()`'s `app_action_mocks=True` pre-mocks start/stop/reload; the config-write path needs an analogous hook.
+- `tests/unit/core/test_app_lifecycle_service_operations.py` — the existing `reload_app` coverage is the behavior pin for the `_reload_app_unlocked` extraction. It must pass unchanged afterward; the extraction is code motion, so any assertion that has to be edited to stay green is evidence the motion was not pure.
 
 ### New Test Coverage
 
 Mapped to FRs in Acceptance Criteria above. The behaviors that most need coverage at the layer that can actually catch them: generation-fence suppression (including the A→B→A round trip) and dotenv shadowing at unit level, since both are pure logic with a subtle rule; per-instance status reporting after a partial reload failure at system level, since it depends on real lifecycle timing; the round trip at e2e.
+
+One case needs a test that would not otherwise be written: **the write handler completes while holding the app-key lock.** A regression that reintroduces the `reload_app`-under-lock deadlock does not fail loudly — it hangs, and a suite without a timeout hangs with it. Cover it with an integration test that performs a config write against a running app wrapped in `asyncio.wait_for` with a short timeout, so the failure mode is a timeout error rather than a stalled run.
 
 ### Tests to Remove
 
@@ -557,7 +590,7 @@ No tests to remove. The read renderer's tests are retained as the split's charac
 Shared and cross-cutting first:
 
 - `src/hassette/core/app_factory.py` — **modify**: accept the override store; merge, reconcile, and schema-filter before `model_validate`.
-- `src/hassette/core/app_lifecycle_service.py` — **modify**: construct the override store; add the config-write path (validate → persist → reload → report), holding the per-app-key lock across the whole sequence.
+- `src/hassette/core/app_lifecycle_service.py` — **modify**: extract `_reload_app_unlocked` from `reload_app` (pure code motion, mirroring #1605's `_stop_app_unlocked` / `_start_app_unlocked`); construct the override store; add the config-write path (validate → persist → reload → report), holding the per-app-key lock across the whole sequence and calling `_reload_app_unlocked` rather than `reload_app`.
 - `src/hassette/web/config_view.py` — **modify**: add per-field provenance descriptors alongside the existing masking.
 - `src/hassette/web/models.py` — **modify**: per-field descriptors and a version token on the config response; a request model for writes.
 - `src/hassette/core/config_overrides.py` — **create**: the override store and its on-disk models.
@@ -567,7 +600,7 @@ Shared and cross-cutting first:
 - `src/hassette/web/routes/apps.py` — **modify**: one config write route accepting an instance selector and a combined set/unset body. No separate delete route.
 - `src/hassette/cli/commands/app.py` — **modify**: `set`/`unset` commands with `InstanceArg`; per-instance, provenance-annotated read.
 - `src/hassette/cli/__init__.py` — **modify**: register the new subcommands.
-- `src/hassette/cli/output.py` — **modify**: provenance annotation in rendered output.
+- `src/hassette/cli/output.py` — **modify**: provenance annotation in rendered read output; post-write status rendering for `running` / `failed` / `degraded` / `stopped`.
 - `src/hassette/test_utils/web_mocks.py` — **modify**: stub hook for config writes.
 - `frontend/src/components/shared/config-schema-view.tsx` — **modify**: split out the read path.
 - `frontend/src/components/shared/config-edit-form.tsx` — **create**: the lazily-loaded rjsf renderer.
@@ -583,14 +616,14 @@ Shared and cross-cutting first:
 - An app with no overrides behaves exactly as today — same config, same startup, same reload.
 - `hassette.toml` is never written to.
 - Documented precedence holds: a value from a higher-precedence source is never defeated by an override.
-- `reload_app`'s signature and exception behavior are unchanged; the file watcher and the existing start/stop/reload routes are unaffected.
+- `reload_app`'s public signature, locking, and exception behavior are unchanged by the `_reload_app_unlocked` extraction; the file watcher and the existing start/stop/reload routes are unaffected.
 - The read-only config view keeps working for apps whose class is not loaded, where no schema is available.
 - Secrets are never returned unmasked and never accepted as input.
 - The entry chunk stays within its size budget.
 
 ### Blast Radius
 
-`AppFactory.create_instances` is on every app-creation path, so a defect there affects all app startup, not just apps with overrides — the highest-risk change in the feature. `web/config_view.py` is shared by the global config page and the per-app tab, so descriptor changes touch both. The shared atomic-write extraction touches auth token writing. Everything else is additive.
+`AppFactory.create_instances` is on every app-creation path, so a defect there affects all app startup, not just apps with overrides — the highest-risk change in the feature. The `_reload_app_unlocked` extraction sits on the shared reload path used by the file watcher and the existing REST routes; it is pure code motion with no behavior change, but a mistake in it is not scoped to override writes. `web/config_view.py` is shared by the global config page and the per-app tab, so descriptor changes touch both. The shared atomic-write extraction touches auth token writing. Everything else is additive.
 
 ## Open Questions
 
