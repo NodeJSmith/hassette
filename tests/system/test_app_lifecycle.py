@@ -40,7 +40,7 @@ async def test_trivial_app_initializes(ha_container: str, tmp_path: Path, system
 
     async with startup_context(config) as hassette:
         trivial_key, app_instance = find_app(hassette, "TrivialApp")
-        assert len(hassette.app_handler.registry.get_apps_by_key(trivial_key)) >= 1
+        assert len(hassette.app_handler.registry.get_running_apps(trivial_key)) >= 1
         assert app_instance.status == ResourceStatus.RUNNING
 
 

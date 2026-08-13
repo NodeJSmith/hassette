@@ -76,7 +76,7 @@ def mock_hassette():
         class_name="MyApp",
         status=ResourceStatus.RUNNING,
     )
-    hassette._app_handler.get_status_snapshot = Mock(return_value=AppStatusSnapshot(running=[instance], failed=[]))
+    hassette._app_handler.get_status_snapshot = Mock(return_value=AppStatusSnapshot(instances=[instance]))
     hassette._app_handler.registry.get_full_snapshot = Mock(return_value=AppFullSnapshot(manifests=[]))
 
     # Mock scheduler service
@@ -122,14 +122,14 @@ class TestPreBootstrapAppState:
     """
 
     def test_get_app_status_snapshot_is_empty_before_bootstrap(self, runtime: RuntimeQueryService) -> None:
-        runtime.hassette.app_handler.get_status_snapshot = Mock(return_value=AppStatusSnapshot(running=[], failed=[]))
+        runtime.hassette.app_handler.get_status_snapshot = Mock(return_value=AppStatusSnapshot(instances=[]))
 
         snapshot = runtime.get_app_status_snapshot()
 
         assert snapshot.total_count == 0
 
     def test_get_system_status_reports_zero_apps_before_bootstrap(self, runtime: RuntimeQueryService) -> None:
-        runtime.hassette.app_handler.get_status_snapshot = Mock(return_value=AppStatusSnapshot(running=[], failed=[]))
+        runtime.hassette.app_handler.get_status_snapshot = Mock(return_value=AppStatusSnapshot(instances=[]))
 
         status = runtime.get_system_status()
 
@@ -207,6 +207,32 @@ class TestPreBootstrapAppState:
         issues = runtime.collect_boot_issues()
 
         assert not any(issue.label == "Apps pending on Home Assistant" for issue in issues)
+
+    def test_collect_boot_issues_reports_degraded_apps_with_error_message(
+        self, runtime: RuntimeQueryService, tmp_path: Path
+    ) -> None:
+        """A DEGRADED manifest (one running instance, one failed instance) surfaces as an
+        err-level boot issue, same as a fully-failed app.
+        """
+        registry = AppRegistry()
+        manifest = create_app_manifest("half_broken", tmp_path)
+        registry.set_manifests({manifest.app_key: manifest})
+
+        running_app = MagicMock()
+        running_app.app_config.instance_name = f"{manifest.class_name}.0"
+        running_app.class_name = manifest.class_name
+        running_app.status = ResourceStatus.RUNNING
+        running_app.unique_name = f"{manifest.class_name}.{manifest.app_key}.0"
+        registry.register_app(manifest.app_key, 0, running_app)
+        registry.record_failure(manifest.app_key, 1, RuntimeError("instance 1 blew up"))
+
+        runtime.hassette.app_handler.registry = registry
+
+        issues = runtime.collect_boot_issues()
+
+        [failed_issue] = [issue for issue in issues if issue.label == f"App failed: {manifest.display_name}"]
+        assert failed_issue.severity == "err"
+        assert failed_issue.detail == "instance 1 blew up"
 
 
 class TestConcurrentAppHandlerTeardown:
@@ -314,8 +340,8 @@ class TestAppStatus:
         assert snapshot.total_count == 1
         assert snapshot.running_count == 1
         assert snapshot.failed_count == 0
-        assert len(snapshot.running) == 1
-        assert snapshot.running[0].app_key == "my_app"
+        assert len(snapshot.instances) == 1
+        assert snapshot.instances[0].app_key == "my_app"
 
 
 class TestCompletionPayloadEnrichment:

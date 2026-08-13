@@ -1,14 +1,18 @@
 """Integration tests for core web API endpoints."""
 
 import logging
+from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from hassette.core.app_registry import AppRegistry
 from hassette.exceptions import AppBootstrapNotReleasedError, TelemetryUnavailableError
 from hassette.schemas.listener_models import ListenerSummary
+from hassette.test_utils import create_app_manifest
 from hassette.test_utils.web_manifest_helpers import make_manifest_db_row
+from hassette.types.enums import ResourceStatus
 from hassette.web.config_view import MASK_SENTINEL
 
 from .conftest import make_log_record, set_app_status_snapshot, set_websocket_state
@@ -259,7 +263,7 @@ class TestAppManifestListEndpoint:
         assert response.status_code == 200
         data = response.json()
         assert data["total"] == 1
-        assert data["stopped"] == 1
+        assert data["status_counts"]["stopped"] == 1
         app_keys = {m["app_key"] for m in data["manifests"]}
         assert "orphan_app" in app_keys
         orphan = next(m for m in data["manifests"] if m["app_key"] == "orphan_app")
@@ -276,6 +280,39 @@ class TestAppManifestListEndpoint:
         response = await client.get(APP_MANIFESTS_PATH)
         assert response.status_code == 503
         assert response.json()["manifests"] == []
+
+    async def test_get_manifests_shows_degraded_status_for_mixed_running_and_failed_instances(
+        self, client: "AsyncClient", mock_hassette, tmp_path: Path
+    ) -> None:
+        """Full-chain check for KI-001: a real AppRegistry with one running and one failed
+        instance for the same app_key must surface as ``status: "degraded"`` in the actual
+        HTTP response body from /api/apps/manifests -- not just at the registry or mapper
+        level (see design/specs/096-registry-instance-unification/known-issues.md#KI-001).
+        """
+        registry = AppRegistry()
+        manifest = create_app_manifest("half_broken", tmp_path)
+        registry.set_manifests({manifest.app_key: manifest})
+
+        running_app = MagicMock()
+        running_app.app_config.instance_name = f"{manifest.class_name}.0"
+        running_app.class_name = manifest.class_name
+        running_app.status = ResourceStatus.RUNNING
+        running_app.unique_name = f"{manifest.class_name}.{manifest.app_key}.0"
+        registry.register_app(manifest.app_key, 0, running_app)
+        registry.record_failure(manifest.app_key, 1, RuntimeError("instance 1 blew up"))
+        mock_hassette._app_handler.registry = registry
+
+        mock_hassette.telemetry_query_service.get_all_app_manifests = AsyncMock(
+            return_value=[make_manifest_db_row(app_key=manifest.app_key, display_name="Half Broken")]
+        )
+
+        response = await client.get(APP_MANIFESTS_PATH)
+
+        assert response.status_code == 200
+        data = response.json()
+        entry = next(m for m in data["manifests"] if m["app_key"] == manifest.app_key)
+        assert entry["status"] == "degraded"
+        assert data["status_counts"]["degraded"] == 1
 
 
 class TestSchedulerEndpoints:

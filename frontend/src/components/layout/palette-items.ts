@@ -1,6 +1,9 @@
 import type { AppManifest, ListenerData } from "../../api/endpoints";
 import { reloadApp, stopApp } from "../../api/endpoints";
+import type { AppStatusEntry } from "../../state/store";
+import { appLiveStatus, instanceLiveStatus } from "../../utils/app-data";
 import { appDetailPath, handlerPath, NAV_PAGES } from "../../utils/app-routes";
+import { isReloadableStatus } from "../../utils/status";
 
 const DOCS_URL = "https://hassette.readthedocs.io";
 
@@ -35,7 +38,11 @@ export function buildStaticPageItems(navigate: (path: string) => void): PaletteI
   }));
 }
 
-export function buildActionItems(manifests: AppManifest[], onClose: () => void): PaletteItem[] {
+export function buildActionItems(
+  manifests: AppManifest[],
+  appStatuses: Record<string, AppStatusEntry>,
+  onClose: () => void,
+): PaletteItem[] {
   // Removed apps (in_current_config: false) aren't loaded — stop/reload would 404 or no-op
   // against an app the runtime doesn't know about, so exclude them the same way buildAppItems does.
   const active = manifests.filter((m) => m.in_current_config);
@@ -45,8 +52,12 @@ export function buildActionItems(manifests: AppManifest[], onClose: () => void):
       kind: "action",
       label: "Reload all apps",
       action: () => {
-        const running = active.filter((m) => m.status === "running");
-        void Promise.allSettled(running.map((m) => reloadApp(m.app_key)));
+        // Selection is derived from live per-instance WS status, not the cached manifest's
+        // m.status — app_status_changed updates only the Zustand status map and does not
+        // invalidate useManifests(), so a manifest can go stale (e.g. still "running" after an
+        // instance fails) for as long as no execution event happens to refetch the palette data.
+        const reloadable = active.filter((m) => isReloadableStatus(appLiveStatus(appStatuses, m)));
+        void Promise.allSettled(reloadable.map((m) => reloadApp(m.app_key)));
         onClose();
       },
     },
@@ -55,7 +66,13 @@ export function buildActionItems(manifests: AppManifest[], onClose: () => void):
       kind: "action",
       label: "Stop all failing",
       action: () => {
-        const failing = active.filter((m) => m.status === "failed");
+        // Not isReloadableStatus's stop-side counterpart — this targets apps recovery should
+        // stop (failed/degraded), not "is stop meaningful for this app" (which running is too).
+        // Same live-status derivation as reload-all above, for the same reason.
+        const failing = active.filter((m) => {
+          const live = appLiveStatus(appStatuses, m);
+          return live === "failed" || live === "degraded";
+        });
         void Promise.allSettled(failing.map((m) => stopApp(m.app_key)));
         onClose();
       },
@@ -74,6 +91,7 @@ export function buildActionItems(manifests: AppManifest[], onClose: () => void):
 
 export function buildAppItems(
   manifests: AppManifest[],
+  appStatuses: Record<string, AppStatusEntry>,
   navigate: (path: string) => void,
   onClose: () => void,
 ): PaletteItem[] {
@@ -87,7 +105,8 @@ export function buildAppItems(
       kind: "app",
       label: m.display_name,
       sub: m.app_key,
-      status: m.status,
+      // Live overlay, not m.status directly — same staleness reasoning as buildActionItems above.
+      status: appLiveStatus(appStatuses, m),
       action: () => {
         navigate(appDetailPath(m.app_key));
         onClose();
@@ -100,7 +119,8 @@ export function buildAppItems(
           kind: "instance",
           label: inst.instance_name,
           sub: `${m.app_key} · #${inst.index}`,
-          status: inst.status,
+          // Live overlay for this one instance — same reasoning as the app row above.
+          status: instanceLiveStatus(appStatuses, m.app_key, inst),
           action: () => {
             navigate(appDetailPath(m.app_key, undefined, { instance: inst.index }));
             onClose();

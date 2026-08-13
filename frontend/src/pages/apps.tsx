@@ -28,13 +28,14 @@ import { type StatusKind } from "../utils/status";
 import { PRESET_WINDOW_SECONDS } from "../utils/time-window";
 import { AppTableRow } from "./apps-table-row";
 
-const FILTER_OPTIONS = ["all", "running", "failed", "stopped", "disabled", "blocked"] as const;
+const FILTER_OPTIONS = ["all", "running", "failed", "degraded", "stopped", "disabled", "blocked"] as const;
 type FilterId = (typeof FILTER_OPTIONS)[number];
 
 const FILTER_TONES: Record<FilterId, StatusKind | null> = {
   all: null,
   running: "ok",
   failed: "err",
+  degraded: "warn",
   stopped: "mute",
   disabled: "mute",
   blocked: "warn",
@@ -61,7 +62,11 @@ function buildAppsCells(
   windowSeconds: number | null,
   isMobile: boolean,
 ): StatsStripCell[] {
-  const statusCounts: Record<string, number> = { running: 0, failed: 0, stopped: 0, disabled: 0, blocked: 0 };
+  // Derived from FILTER_OPTIONS (minus "all") so the counted status set can't drift from the
+  // filter list — a status added to one is automatically counted by the other.
+  const statusCounts: Record<string, number> = Object.fromEntries(
+    FILTER_OPTIONS.filter((f) => f !== "all").map((f) => [f, 0]),
+  );
   let totalHandlers = 0;
   let totalRuns = 0;
   for (const a of apps) {
@@ -77,6 +82,7 @@ function buildAppsCells(
     { label: "total", value: apps.length },
     { label: "running", value: statusCounts.running, tone: "ok" },
     { label: "failed", value: statusCounts.failed, tone: statusCounts.failed > 0 ? "err" : undefined },
+    { label: "degraded", value: statusCounts.degraded, tone: statusCounts.degraded > 0 ? "warn" : undefined },
   ];
 
   if (isMobile) {

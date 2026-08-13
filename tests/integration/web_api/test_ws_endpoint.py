@@ -69,6 +69,7 @@ def mock_hassette():
             instance_name="AppC[0]",
             class_name="AppC",
             status=ResourceStatus.FAILED,
+            error=Exception("boom"),
             error_message="boom",
         ),
     ]
@@ -76,7 +77,7 @@ def mock_hassette():
         run_web_ui=False,
         cors_origins=(),
         states={"light.kitchen": {"entity_id": "light.kitchen", "state": "on"}},
-        old_snapshot=AppStatusSnapshot(running=running, failed=failed),
+        old_snapshot=AppStatusSnapshot(instances=running + failed),
     )
 
 

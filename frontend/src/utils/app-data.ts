@@ -76,17 +76,68 @@ export type AppSortState = SortState<AppSortKey>;
 
 /** Resolve the live status for an app row's parent view.
  *  Single-instance: WS status for index 0.
- *  Multi-instance: worst status across all instances (lower priority = worse). */
+ *  Multi-instance: overlays live per-instance WS statuses (falling back to the snapshot's
+ *  per-instance status where no WS update has arrived yet) and derives "degraded" from that
+ *  live view whenever a "running" and a "failed" instance coexist — mirroring `AppRegistry`'s
+ *  own binary model server-side (an instance entry is either running or failed, nothing else),
+ *  though the live WS status of an individual instance can transiently be a finer-grained
+ *  value (e.g. "starting") that this check doesn't treat as "running". This must be computed
+ *  from live data, not read off the cached `row.status`: the dashboard grid query is
+ *  invalidated on execution events, not `app_status_changed`, so a cached `row.status` can be
+ *  stale in either direction (still "running" after an instance fails, or still "degraded"
+ *  after all instances recover) for as long as no execution event happens to refetch it.
+ *
+ *  The index set is also live, not just the statuses: a hot reload that adds an instance
+ *  delivers a WS update for the new index before any execution event refetches the grid, so
+ *  the cached `row.instances` list can be missing an index entirely. Server-side, instance
+ *  indices are always assigned contiguously from 0 (`enumerate(app_configs)` in
+ *  `AppFactory.create_instances`), so a reload only ever extends the range upward — probing
+ *  forward from the highest cached index with direct key lookups finds any new indices without
+ *  scanning the whole (cross-app) `appStatuses` record or prefix-matching app_key by hand.
+ *
+ *  "disabled" and "blocked" are manifest-level configuration states, not derived from instance
+ *  activity — an app that's been disabled has no running instances, but a per-instance WS
+ *  status can still linger from before it was disabled (e.g. a "stopped" event from the
+ *  instance's own teardown). Returning the config state before ever consulting `appStatuses`
+ *  keeps that leftover per-instance status from permanently masking it. */
 export function appLiveStatus(
   appStatuses: Record<string, AppStatusEntry>,
   row: Pick<AppRow, "app_key" | "status"> & { instances?: AppRow["instances"] },
 ): string {
+  if (row.status === "disabled" || row.status === "blocked") return row.status;
   const instances = row.instances ?? [];
-  if (instances.length <= 1) {
-    return appStatuses[appStatusKey(row.app_key, 0)]?.status ?? row.status;
+  const knownIndices = new Set(instances.map((inst) => inst.index));
+  const maxKnownIndex = knownIndices.size > 0 ? Math.max(...knownIndices) : -1;
+  for (let index = maxKnownIndex + 1; appStatuses[appStatusKey(row.app_key, index)]; index++) {
+    knownIndices.add(index);
   }
-  const statuses = instances.map((inst) => appStatuses[appStatusKey(row.app_key, inst.index)]?.status ?? inst.status);
-  return statuses.reduce((worst, live) => (statusPriority(live) < statusPriority(worst) ? live : worst));
+  // Fast path for the common case (0 or 1 known indices) — skips the two-way includes() check
+  // and the per-index instances.find() scan below, both of which only matter once there's more
+  // than one index to reduce over.
+  if (knownIndices.size <= 1) {
+    const index = knownIndices.size === 1 ? [...knownIndices][0] : 0;
+    return appStatuses[appStatusKey(row.app_key, index)]?.status ?? row.status;
+  }
+  const liveStatuses = [...knownIndices].map(
+    (index) =>
+      appStatuses[appStatusKey(row.app_key, index)]?.status ??
+      instances.find((inst) => inst.index === index)?.status ??
+      row.status,
+  );
+  if (liveStatuses.includes("running") && liveStatuses.includes("failed")) return "degraded";
+  return liveStatuses.reduce((worst, live) => (statusPriority(live) < statusPriority(worst) ? live : worst));
+}
+
+/** Resolve the live status for a single instance row: the WS status for that exact index,
+ *  falling back to the cached instance's own status. Unlike `appLiveStatus`, this is a plain
+ *  single-key overlay, not a rollup — no degraded derivation, no forward index-probing, since
+ *  a per-instance row only ever represents the one index it's given, not the whole app. */
+export function instanceLiveStatus(
+  appStatuses: Record<string, AppStatusEntry>,
+  appKey: string,
+  inst: { index: number; status: string },
+): string {
+  return appStatuses[appStatusKey(appKey, inst.index)]?.status ?? inst.status;
 }
 
 export function compareAppRows(

@@ -7,10 +7,10 @@ call these instead of receiving pre-mapped response objects from
 
 Enum coercion note
 ------------------
-``AppInstanceInfo.status`` is a ``ResourceStatus`` enum (``StrEnum``). Pydantic
-coerces it directly — pass the enum value as-is. ``AppManifestInfo.status`` is a
-``str`` with the 5-value ManifestStatus set; cast to ``ManifestStatus`` for pyright.
-``ServiceInfo.status`` is a ``str`` with ResourceStatus values; cast for pyright.
+``AppInstanceInfo.status`` is a ``ResourceStatus`` enum (``StrEnum``), and
+``AppManifestInfo.status`` is a ``ManifestStatus`` enum (``StrEnum``). Pydantic coerces both
+directly — pass the enum value as-is. ``ServiceInfo.status`` is a ``str`` with ResourceStatus
+values; cast for pyright.
 """
 
 from typing import Any, cast
@@ -29,7 +29,6 @@ from hassette.web.models import (
     ConnectedPayload,
     ListenerKind,
     ListenerWithSummary,
-    ManifestStatus,
     ReadinessResponse,
     ServiceInfoResponse,
     SystemStatusResponse,
@@ -53,12 +52,8 @@ def instance_response_from(info: AppInstanceInfo) -> AppInstanceResponse:
 
 
 def app_status_response_from(snapshot: AppStatusSnapshot) -> AppStatusResponse:
-    """Convert an ``AppStatusSnapshot`` to ``AppStatusResponse``.
-
-    Merges ``snapshot.running`` and ``snapshot.failed`` into a single ``apps``
-    list (running first, then failed).
-    """
-    apps = [instance_response_from(info) for info in snapshot.running + snapshot.failed]
+    """Convert an ``AppStatusSnapshot`` to ``AppStatusResponse``."""
+    apps = [instance_response_from(info) for info in snapshot.instances]
     return AppStatusResponse(
         total=snapshot.total_count,
         running=snapshot.running_count,
@@ -83,7 +78,7 @@ def manifest_response_fields(manifest: AppManifestInfo) -> dict[str, Any]:
         "enabled": manifest.enabled,
         "auto_loaded": manifest.auto_loaded,
         "autostart": manifest.autostart,
-        "status": cast("ManifestStatus", manifest.status),  # AppManifestInfo.status is str
+        "status": manifest.status,
         "block_reason": manifest.block_reason,
         "instance_count": manifest.instance_count,
         "instances": [instance_response_from(inst) for inst in manifest.instances],
@@ -102,11 +97,7 @@ def app_manifest_list_response_from(full: AppFullSnapshot) -> AppManifestListRes
     """Convert an ``AppFullSnapshot`` to ``AppManifestListResponse``."""
     return AppManifestListResponse(
         total=full.total,
-        running=full.running,
-        failed=full.failed,
-        stopped=full.stopped,
-        disabled=full.disabled,
-        blocked=full.blocked,
+        status_counts=full.status_counts,
         manifests=[app_manifest_response_from(manifest) for manifest in full.manifests],
         only_apps=full.only_apps,
     )

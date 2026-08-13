@@ -8,9 +8,9 @@ removes the ``web → core`` import cycle.
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 
-from hassette.types.enums import ResourceStatus
+from hassette.types.enums import ManifestStatus, ResourceStatus
 
-MANIFEST_STATUS_KEYS = ("running", "failed", "stopped", "disabled", "blocked")
+MANIFEST_STATUS_KEYS = tuple(ManifestStatus)
 
 
 @dataclass
@@ -32,33 +32,36 @@ class AppInstanceInfo:
 class AppStatusSnapshot:
     """Immutable snapshot of all app states for web UI consumption."""
 
-    running: list[AppInstanceInfo] = field(default_factory=list)
-    failed: list[AppInstanceInfo] = field(default_factory=list)
+    instances: list[AppInstanceInfo] = field(default_factory=list)
     only_apps: list[str] = field(default_factory=list)
 
     @property
     def total_count(self) -> int:
-        return len(self.running) + len(self.failed)
+        return len(self.instances)
+
+    # "running" here means "has no recorded error", not "status == RUNNING" — a live instance's
+    # status can be STARTING/STOPPING/etc. and still count as running; error is None iff an App
+    # object exists for the entry (see AppRegistry.InstanceEntry), which is the real discriminant.
 
     @property
     def running_count(self) -> int:
         """Number of running app instances."""
-        return len(self.running)
+        return sum(1 for i in self.instances if i.error is None)
 
     @property
     def failed_count(self) -> int:
         """Number of failed app instances."""
-        return len(self.failed)
+        return sum(1 for i in self.instances if i.error is not None)
 
     @property
     def failed_apps(self) -> set[str]:
         """Set of app keys with failed instances."""
-        return {info.app_key for info in self.failed}
+        return {i.app_key for i in self.instances if i.error is not None}
 
     @property
     def running_apps(self) -> set[str]:
         """Set of app keys with running instances."""
-        return {info.app_key for info in self.running}
+        return {i.app_key for i in self.instances if i.error is None}
 
 
 @dataclass
@@ -71,7 +74,7 @@ class AppManifestInfo:
     filename: str
     enabled: bool
     auto_loaded: bool
-    status: str  # "running", "failed", "stopped", "disabled", "blocked"
+    status: ManifestStatus
     # Placed after `status` (not next to `enabled`, where it sits in AppManifest/AppManifestResponse)
     # because dataclass rules forbid a defaulted field before the non-default `status`.
     autostart: bool = True
@@ -92,15 +95,14 @@ class AppFullSnapshot:
     manifests: list[AppManifestInfo] = field(default_factory=list)
     only_apps: list[str] = field(default_factory=list)
     total: int = 0
-    running: int = 0
-    failed: int = 0
-    stopped: int = 0
-    disabled: int = 0
-    blocked: int = 0
+    status_counts: dict[str, int] = field(default_factory=lambda: dict.fromkeys(MANIFEST_STATUS_KEYS, 0))
+    """Manifest counts keyed by ``ManifestStatus`` value (``running``, ``failed``, ``stopped``,
+    ``disabled``, ``blocked``, ``degraded``)."""
 
 
 def tally_manifest_statuses(manifests: Iterable[AppManifestInfo]) -> dict[str, int]:
-    """Count manifests by status (``running``, ``failed``, ``stopped``, ``disabled``, ``blocked``).
+    """Count manifests by status (``running``, ``failed``, ``stopped``, ``disabled``, ``blocked``,
+    ``degraded``).
 
     Unrecognized status values are silently skipped rather than raising a ``KeyError`` — this
     tallies manifests from both the in-memory registry (status always one of the known values)

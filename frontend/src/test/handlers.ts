@@ -13,7 +13,7 @@ import { http, HttpResponse } from "msw";
 import type { SetupServer } from "msw/node";
 
 import type { components } from "../api/generated-types";
-import { createSystemConfig } from "./factories";
+import { createManifestList, createSystemConfig } from "./factories";
 
 type SystemStatusResponse = components["schemas"]["SystemStatusResponse"];
 type ManifestListResponse = components["schemas"]["AppManifestListResponse"];
@@ -32,18 +32,20 @@ type JobTriggerResponse = components["schemas"]["JobTriggerResponse"];
 
 /** Installs an MSW handler returning the given manifests for the duration of the test. */
 export function withManifests(manifests: components["schemas"]["AppManifestResponse"][], server: SetupServer) {
+  const statusCounts = manifests.reduce<Record<string, number>>(
+    (counts, manifest) => ({ ...counts, [manifest.status]: (counts[manifest.status] ?? 0) + 1 }),
+    { running: 0, failed: 0, stopped: 0, disabled: 0, blocked: 0, degraded: 0 },
+  );
   server.use(
     http.get("/api/apps/manifests", () =>
-      HttpResponse.json<ManifestListResponse>({
-        total: manifests.length,
-        running: manifests.filter((m) => m.status === "running").length,
-        failed: manifests.filter((m) => m.status === "failed").length,
-        stopped: 0,
-        disabled: 0,
-        blocked: 0,
-        manifests,
-        only_apps: [],
-      }),
+      HttpResponse.json<ManifestListResponse>(
+        createManifestList({
+          total: manifests.length,
+          status_counts: statusCounts,
+          manifests,
+          only_apps: [],
+        }),
+      ),
     ),
   );
 }
@@ -51,16 +53,13 @@ export function withManifests(manifests: components["schemas"]["AppManifestRespo
 export const handlers = [
   // GET /api/apps/manifests
   http.get("/api/apps/manifests", () => {
-    return HttpResponse.json<ManifestListResponse>({
-      total: 0,
-      running: 0,
-      failed: 0,
-      stopped: 0,
-      disabled: 0,
-      blocked: 0,
-      manifests: [],
-      only_apps: [],
-    });
+    return HttpResponse.json<ManifestListResponse>(
+      createManifestList({
+        total: 0,
+        status_counts: { running: 0, failed: 0, stopped: 0, disabled: 0, blocked: 0, degraded: 0 },
+        manifests: [],
+      }),
+    );
   }),
 
   // POST /api/apps/:app_key/start

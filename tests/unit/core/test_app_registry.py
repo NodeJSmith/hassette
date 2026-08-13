@@ -10,12 +10,43 @@ from hassette.schemas.app_snapshots import AppInstanceInfo, AppStatusSnapshot
 from hassette.types.enums import BlockReason, ResourceStatus
 
 
+def make_manifest_obj(  # factory-local: SimpleNamespace input shape for AppRegistry, not AppManifestInfo output
+    app_key: str,
+    enabled: bool = True,
+    auto_loaded: bool = False,
+    autostart: bool = True,
+    app_config: dict | list[dict] | None = None,
+) -> SimpleNamespace:
+    """Build a minimal AppManifest-like object for the registry."""
+    return SimpleNamespace(
+        app_key=app_key,
+        class_name=f"{app_key.title().replace('_', '')}",
+        display_name=app_key.replace("_", " ").title(),
+        filename=f"{app_key}.py",
+        enabled=enabled,
+        auto_loaded=auto_loaded,
+        autostart=autostart,
+        app_config=app_config if app_config is not None else {},
+    )
+
+
+def make_app_instance(app_key: str, index: int = 0) -> SimpleNamespace:
+    """Build a minimal App-like object for the registry."""
+    class_name = app_key.title().replace("_", "")
+    instance_name = f"{app_key}.{index}"
+    return SimpleNamespace(
+        app_config=SimpleNamespace(instance_name=instance_name),
+        class_name=class_name,
+        status=ResourceStatus.RUNNING,
+        unique_name=f"{class_name}.{instance_name}",
+    )
+
+
 class TestAppStatusSnapshot:
     def test_empty_snapshot(self) -> None:
         """Test snapshot with no apps."""
         snapshot = AppStatusSnapshot()
-        assert snapshot.running == []
-        assert snapshot.failed == []
+        assert snapshot.instances == []
         assert snapshot.only_apps == []
         assert snapshot.total_count == 0
         assert snapshot.running_count == 0
@@ -30,7 +61,7 @@ class TestAppStatusSnapshot:
         failed = [
             AppInstanceInfo("app3", 0, "app3.0", "App3", ResourceStatus.FAILED, error=Exception("test")),
         ]
-        snapshot = AppStatusSnapshot(running=running, failed=failed, only_apps=["app1"])
+        snapshot = AppStatusSnapshot(instances=running + failed, only_apps=["app1"])
 
         assert snapshot.running_count == 2
         assert snapshot.failed_count == 1
@@ -57,6 +88,7 @@ class TestAppRegistry:
         """Create a mock manifest."""
         manifest = MagicMock()
         manifest.class_name = "TestApp"
+        manifest.app_config = {}
         return manifest
 
     def test_register_app(self, registry: AppRegistry, mock_app: MagicMock) -> None:
@@ -74,7 +106,7 @@ class TestAppRegistry:
         registry.register_app("my_app", 0, app1)
         registry.register_app("my_app", 1, app2)
 
-        assert len(registry.get_apps_by_key("my_app")) == 2
+        assert len(registry.get_running_apps("my_app")) == 2
         assert registry.get("my_app", 0) is app1
         assert registry.get("my_app", 1) is app2
 
@@ -134,30 +166,171 @@ class TestAppRegistry:
 
         snapshot = registry.get_snapshot()
         assert "my_app" in snapshot.failed_apps
-        failed = [f for f in snapshot.failed if f.app_key == "my_app"]
+        failed = [f for f in snapshot.instances if f.error is not None and f.app_key == "my_app"]
         assert len(failed) == 2
         assert {f.index for f in failed} == {0, 1}
 
-    def test_clear_failures_single_app(self, registry: AppRegistry) -> None:
-        """Test clearing failures for a single app."""
-        registry.record_failure("app1", 0, Exception("error"))
-        registry.record_failure("app2", 0, Exception("error"))
+    def test_record_failure_replaces_running_entry_at_same_index(
+        self, registry: AppRegistry, mock_app: MagicMock
+    ) -> None:
+        """record_failure at an index with a running entry replaces it."""
+        registry.register_app("my_app", 0, mock_app)
 
-        registry.clear_failures("app1")
+        registry.record_failure("my_app", 0, ValueError("crashed"))
 
-        snapshot = registry.get_snapshot()
+        assert registry.get("my_app", 0) is None
+        assert "my_app" not in registry
 
-        assert "app1" not in snapshot.failed_apps
-        assert "app2" in snapshot.failed_apps
+    def test_record_failure_dedups_same_index(self, registry: AppRegistry) -> None:
+        """Two failures recorded at the same index leave exactly one entry with the last error."""
+        err1 = ValueError("first")
+        err2 = ValueError("second")
 
-    def test_clear_failures_all(self, registry: AppRegistry) -> None:
-        """Test clearing all failures."""
-        registry.record_failure("app1", 0, Exception("error"))
-        registry.record_failure("app2", 0, Exception("error"))
+        registry.record_failure("my_app", 0, err1)
+        registry.record_failure("my_app", 0, err2)
 
-        registry.clear_failures()
+        entries = registry.get_instances("my_app")
 
-        assert registry.get_snapshot().failed_count == 0
+        assert len(entries) == 1
+        assert entries[0].error is err2
+
+    def test_register_app_preserves_failure_at_other_index(self, registry: AppRegistry) -> None:
+        """register_app at index 0 does not clear a failure recorded at a different index."""
+        registry.record_failure("my_app", 2, ValueError("boom"))
+
+        registry.register_app("my_app", 0, MagicMock())
+
+        entries = registry.get_instances("my_app")
+        assert 2 in entries
+        assert entries[2].status == ResourceStatus.FAILED
+        assert entries[2].error_message == "boom"
+
+    def test_get_running_apps_excludes_failed_entries(self, registry: AppRegistry) -> None:
+        """get_running_apps() returns only running entries when failed entries exist for the
+        same app_key.
+        """
+        app0 = MagicMock()
+        registry.register_app("my_app", 0, app0)
+        registry.record_failure("my_app", 1, ValueError("boom"))
+
+        result = registry.get_running_apps("my_app")
+
+        assert result == {0: app0}
+
+    def test_get_instances_returns_running_and_failed(self, registry: AppRegistry) -> None:
+        """get_instances() returns all entries, running and failed."""
+        app0 = MagicMock()
+        error = ValueError("boom")
+        registry.register_app("my_app", 0, app0)
+        registry.record_failure("my_app", 1, error)
+
+        entries = registry.get_instances("my_app")
+
+        assert set(entries) == {0, 1}
+        assert entries[0].app is app0
+        assert entries[0].status == ResourceStatus.RUNNING
+        assert entries[1].app is None
+        assert entries[1].status == ResourceStatus.FAILED
+        assert entries[1].error is error
+
+    def test_get_failed_instance_infos_excludes_running_entries(self, registry: AppRegistry) -> None:
+        """get_failed_instance_infos() returns only failed entries, resolved to AppInstanceInfo."""
+        app0 = MagicMock()
+        error = ValueError("bad config")
+        registry.register_app("my_app", 0, app0)
+        registry.record_failure("my_app", 1, error)
+
+        infos = registry.get_failed_instance_infos("my_app")
+
+        assert set(infos) == {1}
+        assert infos[1].app_key == "my_app"
+        assert infos[1].index == 1
+        assert infos[1].status == ResourceStatus.FAILED
+        assert infos[1].error is error
+        assert infos[1].error_message == "bad config"
+
+    def test_get_failed_instance_infos_resolves_instance_name_from_manifest(self, registry: AppRegistry) -> None:
+        """Resolved instance_name/class_name match snapshot generation for the same entry —
+        this is what backs the app_status_changed event emitted for pre-instantiation failures
+        (invalid instance_name, config validation, class load error) that create_instances()
+        records with no App object to build an event from.
+        """
+        manifest = make_manifest_obj("my_app", app_config=[{"instance_name": "configured_name"}])
+        registry.set_manifests({"my_app": manifest})
+        registry.record_failure("my_app", 0, ValueError("boom"))
+
+        infos = registry.get_failed_instance_infos("my_app")
+
+        assert infos[0].instance_name == "configured_name"
+        assert infos[0].class_name == manifest.class_name
+
+    def test_get_failed_instance_infos_empty_for_all_running(self, registry: AppRegistry, mock_app: MagicMock) -> None:
+        """No failed entries — returns an empty dict, not one padded with running entries."""
+        registry.register_app("my_app", 0, mock_app)
+
+        assert registry.get_failed_instance_infos("my_app") == {}
+
+    def test_prune_stale_failed_indices_removes_indices_beyond_valid_count(self, registry: AppRegistry) -> None:
+        """A config shrink (3 instances -> 1) leaves failed entries at the now-removed indices
+        stranded in the registry forever unless something prunes them — create_instances() only
+        ever touches indices within the *current* config, so a stale failed index 1/2 would
+        otherwise misreport the app as degraded/failed even after index 0 starts cleanly. The
+        return value is what the caller needs to emit a status-change event for each removal —
+        see AppLifecycleService._start_app_unlocked.
+        """
+        registry.record_failure("my_app", 0, ValueError("still fails"))
+        registry.record_failure("my_app", 1, ValueError("stale - index removed"))
+        registry.record_failure("my_app", 2, ValueError("stale - index removed"))
+
+        pruned = registry.prune_stale_failed_indices("my_app", valid_index_count=1)
+
+        entries = registry.get_instances("my_app")
+        assert set(entries) == {0}
+        assert set(pruned) == {1, 2}
+        assert pruned[1].app_key == "my_app"
+        assert pruned[1].index == 1
+        assert pruned[1].status == ResourceStatus.FAILED
+
+    def test_prune_stale_failed_indices_preserves_running_entries(self, registry: AppRegistry) -> None:
+        """Only failed entries are pruned — an orphaned running instance needs an actual
+        shutdown, not just a registry removal, which is a different concern.
+        """
+        app0 = MagicMock()
+        registry.register_app("my_app", 0, app0)
+        registry.record_failure("my_app", 1, ValueError("stale"))
+
+        pruned = registry.prune_stale_failed_indices("my_app", valid_index_count=0)
+
+        entries = registry.get_instances("my_app")
+        assert set(entries) == {0}
+        assert entries[0].app is app0
+        assert set(pruned) == {1}
+
+    def test_prune_stale_failed_indices_removes_app_key_when_nothing_remains(self, registry: AppRegistry) -> None:
+        """Pruning the last entry for an app_key removes the app_key mapping itself from the
+        internal dict, not just leaving an empty inner dict behind — matching unregister_app's
+        own cleanup convention. Checked against the internal dict directly: every public accessor
+        (get_instances, __contains__, etc.) already treats "missing key" and "present but empty"
+        identically, so only inspecting the private attribute actually exercises this behavior.
+        """
+        registry.record_failure("my_app", 0, ValueError("stale"))
+
+        pruned = registry.prune_stale_failed_indices("my_app", valid_index_count=0)
+
+        assert "my_app" not in registry._instances
+        assert set(pruned) == {0}
+
+    def test_prune_stale_failed_indices_noop_for_unknown_app(self, registry: AppRegistry) -> None:
+        """No entries for the app_key at all — a no-op, not an error."""
+        pruned = registry.prune_stale_failed_indices("unknown_app", valid_index_count=0)
+
+        assert pruned == {}
+        assert registry.get_instances("unknown_app") == {}
+
+    def test_clear_failures_and_iter_all_instances_removed(self, registry: AppRegistry) -> None:
+        """clear_failures() and iter_all_instances() no longer exist."""
+        assert not hasattr(registry, "clear_failures")
+        assert not hasattr(registry, "iter_all_instances")
 
     def test_get_existing_app(self, registry: AppRegistry, mock_app: MagicMock) -> None:
         """Test getting an existing app."""
@@ -197,14 +370,14 @@ class TestAppRegistry:
         assert app2 in all_apps
         assert app3 in all_apps
 
-    def test_get_apps_by_key(self, registry: AppRegistry, mock_app: MagicMock) -> None:
-        """Test getting all instances for a key."""
+    def test_get_running_apps(self, registry: AppRegistry, mock_app: MagicMock) -> None:
+        """Test getting all running instances for a key."""
         app1 = MagicMock()
         app2 = MagicMock()
         registry.register_app("my_app", 0, app1)
         registry.register_app("my_app", 1, app2)
 
-        result = registry.get_apps_by_key("my_app")
+        result = registry.get_running_apps("my_app")
 
         assert result == {0: app1, 1: app2}
         # Verify it's a copy
@@ -215,8 +388,7 @@ class TestAppRegistry:
         """Test snapshot with no apps."""
         snapshot = registry.get_snapshot()
 
-        assert snapshot.running == []
-        assert snapshot.failed == []
+        assert snapshot.instances == []
         assert snapshot.only_apps == []
 
     def test_get_snapshot_with_running_apps(self, registry: AppRegistry, mock_app: MagicMock) -> None:
@@ -226,8 +398,9 @@ class TestAppRegistry:
 
         snapshot = registry.get_snapshot()
 
-        assert len(snapshot.running) == 1
-        info = snapshot.running[0]
+        running = [i for i in snapshot.instances if i.error is None]
+        assert len(running) == 1
+        info = running[0]
         assert info.app_key == "my_app"
         assert info.index == 0
         assert info.instance_name == "test_instance"
@@ -242,13 +415,59 @@ class TestAppRegistry:
 
         snapshot = registry.get_snapshot()
 
-        assert len(snapshot.failed) == 1
-        info = snapshot.failed[0]
+        failed = [i for i in snapshot.instances if i.error is not None]
+        assert len(failed) == 1
+        info = failed[0]
         assert info.app_key == "my_app"
         assert info.index == 0
         assert info.status == ResourceStatus.FAILED
         assert info.error is error
         assert info.error_message == "startup failed"
+
+    def test_get_snapshot_two_running_and_one_failed(self, registry: AppRegistry) -> None:
+        """Characterization pin: 2 running instances + 1 failure produce a snapshot with
+        a single `.instances` list containing correct per-entry field values.
+        """
+        app1 = MagicMock()
+        app1.app_config.instance_name = "app1.0"
+        app1.class_name = "App1"
+        app1.status = ResourceStatus.RUNNING
+        app1.unique_name = "App1.app1.0"
+
+        app2 = MagicMock()
+        app2.app_config.instance_name = "app2.0"
+        app2.class_name = "App2"
+        app2.status = ResourceStatus.RUNNING
+        app2.unique_name = "App2.app2.0"
+
+        registry.register_app("app1", 0, app1)
+        registry.register_app("app2", 0, app2)
+
+        error = ValueError("boom")
+        registry.record_failure("app3", 0, error)
+
+        snapshot = registry.get_snapshot()
+
+        running = [i for i in snapshot.instances if i.error is None]
+        failed = [i for i in snapshot.instances if i.error is not None]
+        assert len(running) == 2
+        assert len(failed) == 1
+
+        running_by_key = {info.app_key: info for info in running}
+        assert running_by_key["app1"].index == 0
+        assert running_by_key["app1"].instance_name == "app1.0"
+        assert running_by_key["app1"].class_name == "App1"
+        assert running_by_key["app1"].status == ResourceStatus.RUNNING
+        assert running_by_key["app1"].owner_id == "App1.app1.0"
+        assert running_by_key["app2"].app_key == "app2"
+        assert running_by_key["app2"].class_name == "App2"
+
+        failed_info = failed[0]
+        assert failed_info.app_key == "app3"
+        assert failed_info.index == 0
+        assert failed_info.status == ResourceStatus.FAILED
+        assert failed_info.error is error
+        assert failed_info.error_message == "boom"
 
     def test_get_snapshot_with_only_apps(self, registry: AppRegistry) -> None:
         """Test snapshot includes only_apps, sorted for stable output."""
@@ -268,7 +487,7 @@ class TestAppRegistry:
 
         snapshot = registry.get_snapshot()
 
-        assert snapshot.running[0].status == ResourceStatus.STARTING
+        assert snapshot.instances[0].status == ResourceStatus.STARTING
 
     def test_clear_all(self, registry: AppRegistry, mock_app: MagicMock) -> None:
         """Test clearing all apps and failures."""
@@ -382,31 +601,6 @@ class TestAppRegistryGetFullSnapshot:
     def make_registry(self) -> AppRegistry:
         return AppRegistry()
 
-    def make_manifest_obj(
-        self, app_key: str, enabled: bool = True, auto_loaded: bool = False, autostart: bool = True
-    ) -> SimpleNamespace:
-        """Build a minimal AppManifest-like object for the registry."""
-        return SimpleNamespace(
-            app_key=app_key,
-            class_name=f"{app_key.title().replace('_', '')}",
-            display_name=app_key.replace("_", " ").title(),
-            filename=f"{app_key}.py",
-            enabled=enabled,
-            auto_loaded=auto_loaded,
-            autostart=autostart,
-        )
-
-    def make_app_instance(self, app_key: str, index: int = 0) -> SimpleNamespace:
-        """Build a minimal App-like object for the registry."""
-        class_name = app_key.title().replace("_", "")
-        instance_name = f"{app_key}.{index}"
-        return SimpleNamespace(
-            app_config=SimpleNamespace(instance_name=instance_name),
-            class_name=class_name,
-            status=ResourceStatus.RUNNING,
-            unique_name=f"{class_name}.{instance_name}",
-        )
-
     def test_empty_manifests(self) -> None:
         reg = self.make_registry()
         snap = reg.get_full_snapshot()
@@ -415,44 +609,44 @@ class TestAppRegistryGetFullSnapshot:
 
     def test_running_app(self) -> None:
         reg = self.make_registry()
-        reg.set_manifests({"my_app": self.make_manifest_obj("my_app")})
-        reg.register_app("my_app", 0, self.make_app_instance("my_app"))
+        reg.set_manifests({"my_app": make_manifest_obj("my_app")})
+        reg.register_app("my_app", 0, make_app_instance("my_app"))
         snap = reg.get_full_snapshot()
         assert snap.total == 1
-        assert snap.running == 1
+        assert snap.status_counts["running"] == 1
         assert snap.manifests[0].status == "running"
         assert snap.manifests[0].instance_count == 1
 
     def test_stopped_app(self) -> None:
         reg = self.make_registry()
-        reg.set_manifests({"my_app": self.make_manifest_obj("my_app")})
+        reg.set_manifests({"my_app": make_manifest_obj("my_app")})
         # No instances registered — status is "stopped"
         snap = reg.get_full_snapshot()
-        assert snap.stopped == 1
+        assert snap.status_counts["stopped"] == 1
         assert snap.manifests[0].status == "stopped"
 
     def test_failed_app(self) -> None:
         reg = self.make_registry()
-        reg.set_manifests({"my_app": self.make_manifest_obj("my_app")})
+        reg.set_manifests({"my_app": make_manifest_obj("my_app")})
         reg.record_failure("my_app", 0, RuntimeError("init error"))
         snap = reg.get_full_snapshot()
-        assert snap.failed == 1
+        assert snap.status_counts["failed"] == 1
         assert snap.manifests[0].status == "failed"
         assert snap.manifests[0].error_message == "init error"
 
     def test_disabled_app(self) -> None:
         reg = self.make_registry()
-        reg.set_manifests({"my_app": self.make_manifest_obj("my_app", enabled=False)})
+        reg.set_manifests({"my_app": make_manifest_obj("my_app", enabled=False)})
         snap = reg.get_full_snapshot()
-        assert snap.disabled == 1
+        assert snap.status_counts["disabled"] == 1
         assert snap.manifests[0].status == "disabled"
 
     def test_blocked_app(self) -> None:
         reg = self.make_registry()
-        reg.set_manifests({"my_app": self.make_manifest_obj("my_app")})
+        reg.set_manifests({"my_app": make_manifest_obj("my_app")})
         reg.block_app("my_app", BlockReason.ONLY_APP)
         snap = reg.get_full_snapshot()
-        assert snap.blocked == 1
+        assert snap.status_counts["blocked"] == 1
         assert snap.manifests[0].status == "blocked"
         assert snap.manifests[0].block_reason == "only_app"
 
@@ -460,24 +654,24 @@ class TestAppRegistryGetFullSnapshot:
         reg = self.make_registry()
         reg.set_manifests(
             {
-                "running_app": self.make_manifest_obj("running_app"),
-                "stopped_app": self.make_manifest_obj("stopped_app"),
-                "failed_app": self.make_manifest_obj("failed_app"),
-                "disabled_app": self.make_manifest_obj("disabled_app", enabled=False),
-                "blocked_app": self.make_manifest_obj("blocked_app"),
+                "running_app": make_manifest_obj("running_app"),
+                "stopped_app": make_manifest_obj("stopped_app"),
+                "failed_app": make_manifest_obj("failed_app"),
+                "disabled_app": make_manifest_obj("disabled_app", enabled=False),
+                "blocked_app": make_manifest_obj("blocked_app"),
             }
         )
-        reg.register_app("running_app", 0, self.make_app_instance("running_app"))
+        reg.register_app("running_app", 0, make_app_instance("running_app"))
         reg.record_failure("failed_app", 0, ValueError("bad config"))
         reg.block_app("blocked_app", BlockReason.ONLY_APP)
 
         snap = reg.get_full_snapshot()
         assert snap.total == 5
-        assert snap.running == 1
-        assert snap.stopped == 1
-        assert snap.failed == 1
-        assert snap.disabled == 1
-        assert snap.blocked == 1
+        assert snap.status_counts["running"] == 1
+        assert snap.status_counts["stopped"] == 1
+        assert snap.status_counts["failed"] == 1
+        assert snap.status_counts["disabled"] == 1
+        assert snap.status_counts["blocked"] == 1
 
         statuses = {m.app_key: m.status for m in snap.manifests}
         assert statuses["running_app"] == "running"
@@ -486,11 +680,55 @@ class TestAppRegistryGetFullSnapshot:
         assert statuses["disabled_app"] == "disabled"
         assert statuses["blocked_app"] == "blocked"
 
+    def test_get_full_snapshot_running_failed_stopped_counts_and_manifest_info(self) -> None:
+        """Characterization pin: manifests + running + failed instances produce correct
+        running/failed/stopped counts on ``AppFullSnapshot`` and correct per-manifest
+        ``AppManifestInfo`` fields (status, instance_count, error_message).
+        """
+        reg = self.make_registry()
+        reg.set_manifests(
+            {
+                "running_app": make_manifest_obj("running_app"),
+                "failed_app": make_manifest_obj("failed_app"),
+                "stopped_app": make_manifest_obj("stopped_app"),
+            }
+        )
+        reg.register_app("running_app", 0, make_app_instance("running_app"))
+        error = RuntimeError("startup failed")
+        reg.record_failure("failed_app", 0, error)
+
+        snap = reg.get_full_snapshot()
+
+        assert snap.total == 3
+        assert snap.status_counts["running"] == 1
+        assert snap.status_counts["failed"] == 1
+        assert snap.status_counts["stopped"] == 1
+        assert snap.status_counts["disabled"] == 0
+        assert snap.status_counts["blocked"] == 0
+
+        by_key = {m.app_key: m for m in snap.manifests}
+
+        running_info = by_key["running_app"]
+        assert running_info.status == "running"
+        assert running_info.instance_count == 1
+        assert running_info.instances[0].status == ResourceStatus.RUNNING
+
+        failed_info = by_key["failed_app"]
+        assert failed_info.status == "failed"
+        assert failed_info.instance_count == 1
+        assert failed_info.error_message == "startup failed"
+        assert failed_info.instances[0].status == ResourceStatus.FAILED
+
+        stopped_info = by_key["stopped_app"]
+        assert stopped_info.status == "stopped"
+        assert stopped_info.instance_count == 0
+        assert stopped_info.instances == []
+
     def test_disabled_takes_priority_over_running(self) -> None:
         """Even if an app has running instances, disabled=False should win."""
         reg = self.make_registry()
-        reg.set_manifests({"my_app": self.make_manifest_obj("my_app", enabled=False)})
-        reg.register_app("my_app", 0, self.make_app_instance("my_app"))
+        reg.set_manifests({"my_app": make_manifest_obj("my_app", enabled=False)})
+        reg.register_app("my_app", 0, make_app_instance("my_app"))
         snap = reg.get_full_snapshot()
         # Disabled takes priority
         assert snap.manifests[0].status == "disabled"
@@ -500,8 +738,8 @@ class TestAppRegistryGetFullSnapshot:
         reg = self.make_registry()
         reg.set_manifests(
             {
-                "auto_app": self.make_manifest_obj("auto_app", autostart=True),
-                "manual_app": self.make_manifest_obj("manual_app", autostart=False),
+                "auto_app": make_manifest_obj("auto_app", autostart=True),
+                "manual_app": make_manifest_obj("manual_app", autostart=False),
             }
         )
         snap = reg.get_full_snapshot()
@@ -512,12 +750,12 @@ class TestAppRegistryGetFullSnapshot:
     def test_autostart_false_enabled_app_has_status_stopped(self) -> None:
         """An enabled+autostart=false manifest with no instances derives status 'stopped', not 'disabled'."""
         reg = self.make_registry()
-        reg.set_manifests({"manual_app": self.make_manifest_obj("manual_app", enabled=True, autostart=False)})
+        reg.set_manifests({"manual_app": make_manifest_obj("manual_app", enabled=True, autostart=False)})
         snap = reg.get_full_snapshot()
         assert snap.manifests[0].status == "stopped"
         assert snap.manifests[0].autostart is False
-        assert snap.stopped == 1
-        assert snap.disabled == 0
+        assert snap.status_counts["stopped"] == 1
+        assert snap.status_counts["disabled"] == 0
 
 
 class TestAppRegistryAutostart:
@@ -581,3 +819,120 @@ class TestAppRegistryAutostart:
             }
         )
         assert "manual_app" in registry.enabled_manifests
+
+
+class TestBuildManifestInfoStatusDerivation:
+    """Characterization pins for ``build_manifest_info()``'s status derivation.
+
+    Covers the 6-value priority chain (disabled > blocked > degraded > running > failed >
+    stopped), including the ``degraded`` value derived when an app_key has at least one
+    running and at least one failed instance.
+    """
+
+    @pytest.fixture
+    def registry(self) -> AppRegistry:
+        return AppRegistry()
+
+    def test_disabled(self, registry: AppRegistry) -> None:
+        manifest = make_manifest_obj("my_app", enabled=False)
+        info = registry.build_manifest_info("my_app", manifest)
+        assert info.status == "disabled"
+
+    def test_blocked(self, registry: AppRegistry) -> None:
+        manifest = make_manifest_obj("my_app")
+        registry.block_app("my_app", BlockReason.ONLY_APP)
+        info = registry.build_manifest_info("my_app", manifest)
+        assert info.status == "blocked"
+        assert info.block_reason == "only_app"
+
+    def test_running(self, registry: AppRegistry) -> None:
+        manifest = make_manifest_obj("my_app")
+        registry.register_app("my_app", 0, make_app_instance("my_app"))
+        info = registry.build_manifest_info("my_app", manifest)
+        assert info.status == "running"
+        assert info.instance_count == 1
+
+    def test_failed(self, registry: AppRegistry) -> None:
+        manifest = make_manifest_obj("my_app")
+        registry.record_failure("my_app", 0, ValueError("bad config"))
+        info = registry.build_manifest_info("my_app", manifest)
+        assert info.status == "failed"
+        assert info.error_message == "bad config"
+
+    def test_stopped(self, registry: AppRegistry) -> None:
+        """No instances registered and no failures recorded — status is 'stopped'."""
+        manifest = make_manifest_obj("my_app")
+        info = registry.build_manifest_info("my_app", manifest)
+        assert info.status == "stopped"
+        assert info.instance_count == 0
+
+    def test_degraded_when_running_and_failed_coexist(self, registry: AppRegistry) -> None:
+        """3 instances registered, index 0 fails — status is 'degraded'."""
+        manifest = make_manifest_obj("my_app")
+        registry.register_app("my_app", 0, make_app_instance("my_app", 0))
+        registry.register_app("my_app", 1, make_app_instance("my_app", 1))
+        registry.register_app("my_app", 2, make_app_instance("my_app", 2))
+
+        registry.record_failure("my_app", 0, ValueError("bad config"))
+
+        info = registry.build_manifest_info("my_app", manifest)
+
+        assert info.status == "degraded"
+        assert info.instance_count == 3
+
+    def test_all_failed_is_failed_not_degraded(self, registry: AppRegistry) -> None:
+        """All instances failed (none running) — status is 'failed', not 'degraded'."""
+        manifest = make_manifest_obj("my_app")
+        registry.record_failure("my_app", 0, ValueError("bad config"))
+        registry.record_failure("my_app", 1, ValueError("also bad"))
+
+        info = registry.build_manifest_info("my_app", manifest)
+
+        assert info.status == "failed"
+
+    def test_failed_instance_name_resolved_from_manifest_config(self, registry: AppRegistry) -> None:
+        """A failed entry's instance_name comes from the manifest's configured app_config,
+        not a synthesized ``ClassName.N`` name.
+        """
+        manifest = make_manifest_obj("my_app", app_config=[{"instance_name": "custom_instance"}])
+        registry.record_failure("my_app", 0, ValueError("boom"))
+
+        info = registry.build_manifest_info("my_app", manifest)
+
+        assert info.instances[0].instance_name == "custom_instance"
+
+    def test_failed_instance_name_falls_back_when_no_configured_name(self, registry: AppRegistry) -> None:
+        """When the manifest config has no configured instance_name, fall back to
+        ``ClassName.index`` (matching prior synthesized-name behavior).
+        """
+        manifest = make_manifest_obj("my_app")
+        registry.record_failure("my_app", 0, ValueError("boom"))
+
+        info = registry.build_manifest_info("my_app", manifest)
+
+        assert info.instances[0].instance_name == "MyApp.0"
+
+    def test_failed_instance_name_falls_back_when_no_manifest(self, registry: AppRegistry) -> None:
+        """When no manifest is tracked for the app_key, fall back to ``Unknown.index``."""
+        registry.record_failure("orphan_app", 0, ValueError("boom"))
+
+        snapshot = registry.get_snapshot()
+
+        assert snapshot.instances[0].instance_name == "Unknown.0"
+        assert snapshot.instances[0].class_name == "Unknown"
+
+    @pytest.mark.parametrize("configured_name", [None, False, 0, ""])
+    def test_failed_instance_name_falls_back_for_invalid_configured_value(
+        self, registry: AppRegistry, configured_name: object
+    ) -> None:
+        """A non-string (or empty) configured ``instance_name`` -- e.g. an explicit ``null`` in
+        the user's config -- must not flow through as-is. ``AppInstanceInfo.instance_name`` is a
+        required ``str``, and the eventual ``AppInstanceResponse`` Pydantic mapping would raise a
+        validation error on anything else, turning the status endpoint into a 500.
+        """
+        manifest = make_manifest_obj("my_app", app_config=[{"instance_name": configured_name}])
+        registry.record_failure("my_app", 0, ValueError("boom"))
+
+        info = registry.build_manifest_info("my_app", manifest)
+
+        assert info.instances[0].instance_name == "MyApp.0"

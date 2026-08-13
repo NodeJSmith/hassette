@@ -103,7 +103,7 @@ async def get_app_manifests(
         manifests=manifest_infos,
         only_apps=runtime.get_registry_only_apps(),
         total=len(manifest_infos),
-        **tally_manifest_statuses(manifest_infos),
+        status_counts=tally_manifest_statuses(manifest_infos),
     )
     manifest_list = app_manifest_list_response_from(full_snapshot)
 

@@ -42,7 +42,7 @@ def mock_hassette():
                 "last_updated": _SEED_TIMESTAMP,
             },
         },
-        old_snapshot=AppStatusSnapshot(running=[instance], failed=[]),
+        old_snapshot=AppStatusSnapshot(instances=[instance]),
         app_action_mocks=True,
     )
 
@@ -112,7 +112,7 @@ def set_app_status_snapshot(
     zero-app response before AppHandler finishes bootstrapping.
     """
     mock_hassette._app_handler.get_status_snapshot.return_value = AppStatusSnapshot(
-        running=running or [], failed=failed or []
+        instances=(running or []) + (failed or [])
     )
 
 

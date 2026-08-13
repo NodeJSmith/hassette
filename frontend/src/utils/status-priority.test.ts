@@ -19,12 +19,18 @@ describe("STATUS_PRIORITY", () => {
     expect(STATUS_PRIORITY["stopping"]).toBe(STATUS_PRIORITY["shutting_down"]);
   });
 
+  it("ranks degraded as more severe than running but less severe than blocked", () => {
+    expect(STATUS_PRIORITY["degraded"]).toBeLessThan(STATUS_PRIORITY["running"]);
+    expect(STATUS_PRIORITY["blocked"]).toBeLessThan(STATUS_PRIORITY["degraded"]);
+  });
+
   it("covers all known app statuses", () => {
     const expected = [
       "failed",
       "crashed",
       "exhausted_dead",
       "blocked",
+      "degraded",
       "exhausted_cooling",
       "starting",
       "running",
@@ -43,8 +49,8 @@ describe("STATUS_PRIORITY", () => {
 describe("statusPriority", () => {
   it("returns the priority for known statuses", () => {
     expect(statusPriority("failed")).toBe(0);
-    expect(statusPriority("running")).toBe(4);
-    expect(statusPriority("disabled")).toBe(7);
+    expect(statusPriority("running")).toBe(5);
+    expect(statusPriority("disabled")).toBe(8);
   });
 
   it("returns 99 for unknown statuses", () => {
