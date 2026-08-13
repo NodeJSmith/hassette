@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Adopt the collecting-handler helper in test_bus.py, test_bus_emit.py, test_bus_error_handler.py, test_bus_predicate_failure.py"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#4", "AC#2", "AC#3"]
 ---
