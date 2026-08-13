@@ -32,15 +32,16 @@ type JobTriggerResponse = components["schemas"]["JobTriggerResponse"];
 
 /** Installs an MSW handler returning the given manifests for the duration of the test. */
 export function withManifests(manifests: components["schemas"]["AppManifestResponse"][], server: SetupServer) {
+  const statusCounts = manifests.reduce<Record<string, number>>(
+    (counts, manifest) => ({ ...counts, [manifest.status]: (counts[manifest.status] ?? 0) + 1 }),
+    { running: 0, failed: 0, stopped: 0, disabled: 0, blocked: 0, degraded: 0 },
+  );
   server.use(
     http.get("/api/apps/manifests", () =>
       HttpResponse.json<ManifestListResponse>(
         createManifestList({
           total: manifests.length,
-          status_counts: {
-            running: manifests.filter((m) => m.status === "running").length,
-            failed: manifests.filter((m) => m.status === "failed").length,
-          },
+          status_counts: statusCounts,
           manifests,
           only_apps: [],
         }),
