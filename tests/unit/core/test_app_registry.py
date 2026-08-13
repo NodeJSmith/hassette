@@ -10,6 +10,38 @@ from hassette.schemas.app_snapshots import AppInstanceInfo, AppStatusSnapshot
 from hassette.types.enums import BlockReason, ResourceStatus
 
 
+def make_manifest_obj(  # factory-local: SimpleNamespace input shape for AppRegistry, not AppManifestInfo output
+    app_key: str,
+    enabled: bool = True,
+    auto_loaded: bool = False,
+    autostart: bool = True,
+    app_config: dict | list[dict] | None = None,
+) -> SimpleNamespace:
+    """Build a minimal AppManifest-like object for the registry."""
+    return SimpleNamespace(
+        app_key=app_key,
+        class_name=f"{app_key.title().replace('_', '')}",
+        display_name=app_key.replace("_", " ").title(),
+        filename=f"{app_key}.py",
+        enabled=enabled,
+        auto_loaded=auto_loaded,
+        autostart=autostart,
+        app_config=app_config if app_config is not None else {},
+    )
+
+
+def make_app_instance(app_key: str, index: int = 0) -> SimpleNamespace:
+    """Build a minimal App-like object for the registry."""
+    class_name = app_key.title().replace("_", "")
+    instance_name = f"{app_key}.{index}"
+    return SimpleNamespace(
+        app_config=SimpleNamespace(instance_name=instance_name),
+        class_name=class_name,
+        status=ResourceStatus.RUNNING,
+        unique_name=f"{class_name}.{instance_name}",
+    )
+
+
 class TestAppStatusSnapshot:
     def test_empty_snapshot(self) -> None:
         """Test snapshot with no apps."""
@@ -475,32 +507,6 @@ class TestAppRegistryGetFullSnapshot:
     def make_registry(self) -> AppRegistry:
         return AppRegistry()
 
-    def make_manifest_obj(
-        self, app_key: str, enabled: bool = True, auto_loaded: bool = False, autostart: bool = True
-    ) -> SimpleNamespace:
-        """Build a minimal AppManifest-like object for the registry."""
-        return SimpleNamespace(
-            app_key=app_key,
-            class_name=f"{app_key.title().replace('_', '')}",
-            display_name=app_key.replace("_", " ").title(),
-            filename=f"{app_key}.py",
-            enabled=enabled,
-            auto_loaded=auto_loaded,
-            autostart=autostart,
-            app_config={},
-        )
-
-    def make_app_instance(self, app_key: str, index: int = 0) -> SimpleNamespace:
-        """Build a minimal App-like object for the registry."""
-        class_name = app_key.title().replace("_", "")
-        instance_name = f"{app_key}.{index}"
-        return SimpleNamespace(
-            app_config=SimpleNamespace(instance_name=instance_name),
-            class_name=class_name,
-            status=ResourceStatus.RUNNING,
-            unique_name=f"{class_name}.{instance_name}",
-        )
-
     def test_empty_manifests(self) -> None:
         reg = self.make_registry()
         snap = reg.get_full_snapshot()
@@ -509,8 +515,8 @@ class TestAppRegistryGetFullSnapshot:
 
     def test_running_app(self) -> None:
         reg = self.make_registry()
-        reg.set_manifests({"my_app": self.make_manifest_obj("my_app")})
-        reg.register_app("my_app", 0, self.make_app_instance("my_app"))
+        reg.set_manifests({"my_app": make_manifest_obj("my_app")})
+        reg.register_app("my_app", 0, make_app_instance("my_app"))
         snap = reg.get_full_snapshot()
         assert snap.total == 1
         assert snap.status_counts["running"] == 1
@@ -519,7 +525,7 @@ class TestAppRegistryGetFullSnapshot:
 
     def test_stopped_app(self) -> None:
         reg = self.make_registry()
-        reg.set_manifests({"my_app": self.make_manifest_obj("my_app")})
+        reg.set_manifests({"my_app": make_manifest_obj("my_app")})
         # No instances registered — status is "stopped"
         snap = reg.get_full_snapshot()
         assert snap.status_counts["stopped"] == 1
@@ -527,7 +533,7 @@ class TestAppRegistryGetFullSnapshot:
 
     def test_failed_app(self) -> None:
         reg = self.make_registry()
-        reg.set_manifests({"my_app": self.make_manifest_obj("my_app")})
+        reg.set_manifests({"my_app": make_manifest_obj("my_app")})
         reg.record_failure("my_app", 0, RuntimeError("init error"))
         snap = reg.get_full_snapshot()
         assert snap.status_counts["failed"] == 1
@@ -536,14 +542,14 @@ class TestAppRegistryGetFullSnapshot:
 
     def test_disabled_app(self) -> None:
         reg = self.make_registry()
-        reg.set_manifests({"my_app": self.make_manifest_obj("my_app", enabled=False)})
+        reg.set_manifests({"my_app": make_manifest_obj("my_app", enabled=False)})
         snap = reg.get_full_snapshot()
         assert snap.status_counts["disabled"] == 1
         assert snap.manifests[0].status == "disabled"
 
     def test_blocked_app(self) -> None:
         reg = self.make_registry()
-        reg.set_manifests({"my_app": self.make_manifest_obj("my_app")})
+        reg.set_manifests({"my_app": make_manifest_obj("my_app")})
         reg.block_app("my_app", BlockReason.ONLY_APP)
         snap = reg.get_full_snapshot()
         assert snap.status_counts["blocked"] == 1
@@ -554,14 +560,14 @@ class TestAppRegistryGetFullSnapshot:
         reg = self.make_registry()
         reg.set_manifests(
             {
-                "running_app": self.make_manifest_obj("running_app"),
-                "stopped_app": self.make_manifest_obj("stopped_app"),
-                "failed_app": self.make_manifest_obj("failed_app"),
-                "disabled_app": self.make_manifest_obj("disabled_app", enabled=False),
-                "blocked_app": self.make_manifest_obj("blocked_app"),
+                "running_app": make_manifest_obj("running_app"),
+                "stopped_app": make_manifest_obj("stopped_app"),
+                "failed_app": make_manifest_obj("failed_app"),
+                "disabled_app": make_manifest_obj("disabled_app", enabled=False),
+                "blocked_app": make_manifest_obj("blocked_app"),
             }
         )
-        reg.register_app("running_app", 0, self.make_app_instance("running_app"))
+        reg.register_app("running_app", 0, make_app_instance("running_app"))
         reg.record_failure("failed_app", 0, ValueError("bad config"))
         reg.block_app("blocked_app", BlockReason.ONLY_APP)
 
@@ -588,12 +594,12 @@ class TestAppRegistryGetFullSnapshot:
         reg = self.make_registry()
         reg.set_manifests(
             {
-                "running_app": self.make_manifest_obj("running_app"),
-                "failed_app": self.make_manifest_obj("failed_app"),
-                "stopped_app": self.make_manifest_obj("stopped_app"),
+                "running_app": make_manifest_obj("running_app"),
+                "failed_app": make_manifest_obj("failed_app"),
+                "stopped_app": make_manifest_obj("stopped_app"),
             }
         )
-        reg.register_app("running_app", 0, self.make_app_instance("running_app"))
+        reg.register_app("running_app", 0, make_app_instance("running_app"))
         error = RuntimeError("startup failed")
         reg.record_failure("failed_app", 0, error)
 
@@ -627,8 +633,8 @@ class TestAppRegistryGetFullSnapshot:
     def test_disabled_takes_priority_over_running(self) -> None:
         """Even if an app has running instances, disabled=False should win."""
         reg = self.make_registry()
-        reg.set_manifests({"my_app": self.make_manifest_obj("my_app", enabled=False)})
-        reg.register_app("my_app", 0, self.make_app_instance("my_app"))
+        reg.set_manifests({"my_app": make_manifest_obj("my_app", enabled=False)})
+        reg.register_app("my_app", 0, make_app_instance("my_app"))
         snap = reg.get_full_snapshot()
         # Disabled takes priority
         assert snap.manifests[0].status == "disabled"
@@ -638,8 +644,8 @@ class TestAppRegistryGetFullSnapshot:
         reg = self.make_registry()
         reg.set_manifests(
             {
-                "auto_app": self.make_manifest_obj("auto_app", autostart=True),
-                "manual_app": self.make_manifest_obj("manual_app", autostart=False),
+                "auto_app": make_manifest_obj("auto_app", autostart=True),
+                "manual_app": make_manifest_obj("manual_app", autostart=False),
             }
         )
         snap = reg.get_full_snapshot()
@@ -650,7 +656,7 @@ class TestAppRegistryGetFullSnapshot:
     def test_autostart_false_enabled_app_has_status_stopped(self) -> None:
         """An enabled+autostart=false manifest with no instances derives status 'stopped', not 'disabled'."""
         reg = self.make_registry()
-        reg.set_manifests({"manual_app": self.make_manifest_obj("manual_app", enabled=True, autostart=False)})
+        reg.set_manifests({"manual_app": make_manifest_obj("manual_app", enabled=True, autostart=False)})
         snap = reg.get_full_snapshot()
         assert snap.manifests[0].status == "stopped"
         assert snap.manifests[0].autostart is False
@@ -733,51 +739,27 @@ class TestBuildManifestInfoStatusDerivation:
     def registry(self) -> AppRegistry:
         return AppRegistry()
 
-    def make_manifest_obj(  # factory-local: SimpleNamespace input shape for AppRegistry, not AppManifestInfo output
-        self, app_key: str, enabled: bool = True, app_config: dict | list[dict] | None = None
-    ) -> SimpleNamespace:
-        return SimpleNamespace(
-            app_key=app_key,
-            class_name=f"{app_key.title().replace('_', '')}",
-            display_name=app_key.replace("_", " ").title(),
-            filename=f"{app_key}.py",
-            enabled=enabled,
-            auto_loaded=False,
-            autostart=True,
-            app_config=app_config if app_config is not None else {},
-        )
-
-    def make_app_instance(self, app_key: str, index: int = 0) -> SimpleNamespace:
-        class_name = app_key.title().replace("_", "")
-        instance_name = f"{app_key}.{index}"
-        return SimpleNamespace(
-            app_config=SimpleNamespace(instance_name=instance_name),
-            class_name=class_name,
-            status=ResourceStatus.RUNNING,
-            unique_name=f"{class_name}.{instance_name}",
-        )
-
     def test_disabled(self, registry: AppRegistry) -> None:
-        manifest = self.make_manifest_obj("my_app", enabled=False)
+        manifest = make_manifest_obj("my_app", enabled=False)
         info = registry.build_manifest_info("my_app", manifest)
         assert info.status == "disabled"
 
     def test_blocked(self, registry: AppRegistry) -> None:
-        manifest = self.make_manifest_obj("my_app")
+        manifest = make_manifest_obj("my_app")
         registry.block_app("my_app", BlockReason.ONLY_APP)
         info = registry.build_manifest_info("my_app", manifest)
         assert info.status == "blocked"
         assert info.block_reason == "only_app"
 
     def test_running(self, registry: AppRegistry) -> None:
-        manifest = self.make_manifest_obj("my_app")
-        registry.register_app("my_app", 0, self.make_app_instance("my_app"))
+        manifest = make_manifest_obj("my_app")
+        registry.register_app("my_app", 0, make_app_instance("my_app"))
         info = registry.build_manifest_info("my_app", manifest)
         assert info.status == "running"
         assert info.instance_count == 1
 
     def test_failed(self, registry: AppRegistry) -> None:
-        manifest = self.make_manifest_obj("my_app")
+        manifest = make_manifest_obj("my_app")
         registry.record_failure("my_app", 0, ValueError("bad config"))
         info = registry.build_manifest_info("my_app", manifest)
         assert info.status == "failed"
@@ -785,17 +767,17 @@ class TestBuildManifestInfoStatusDerivation:
 
     def test_stopped(self, registry: AppRegistry) -> None:
         """No instances registered and no failures recorded — status is 'stopped'."""
-        manifest = self.make_manifest_obj("my_app")
+        manifest = make_manifest_obj("my_app")
         info = registry.build_manifest_info("my_app", manifest)
         assert info.status == "stopped"
         assert info.instance_count == 0
 
     def test_degraded_when_running_and_failed_coexist(self, registry: AppRegistry) -> None:
         """3 instances registered, index 0 fails — status is 'degraded'."""
-        manifest = self.make_manifest_obj("my_app")
-        registry.register_app("my_app", 0, self.make_app_instance("my_app", 0))
-        registry.register_app("my_app", 1, self.make_app_instance("my_app", 1))
-        registry.register_app("my_app", 2, self.make_app_instance("my_app", 2))
+        manifest = make_manifest_obj("my_app")
+        registry.register_app("my_app", 0, make_app_instance("my_app", 0))
+        registry.register_app("my_app", 1, make_app_instance("my_app", 1))
+        registry.register_app("my_app", 2, make_app_instance("my_app", 2))
 
         registry.record_failure("my_app", 0, ValueError("bad config"))
 
@@ -806,7 +788,7 @@ class TestBuildManifestInfoStatusDerivation:
 
     def test_all_failed_is_failed_not_degraded(self, registry: AppRegistry) -> None:
         """All instances failed (none running) — status is 'failed', not 'degraded'."""
-        manifest = self.make_manifest_obj("my_app")
+        manifest = make_manifest_obj("my_app")
         registry.record_failure("my_app", 0, ValueError("bad config"))
         registry.record_failure("my_app", 1, ValueError("also bad"))
 
@@ -818,7 +800,7 @@ class TestBuildManifestInfoStatusDerivation:
         """A failed entry's instance_name comes from the manifest's configured app_config,
         not a synthesized ``ClassName.N`` name.
         """
-        manifest = self.make_manifest_obj("my_app", app_config=[{"instance_name": "custom_instance"}])
+        manifest = make_manifest_obj("my_app", app_config=[{"instance_name": "custom_instance"}])
         registry.record_failure("my_app", 0, ValueError("boom"))
 
         info = registry.build_manifest_info("my_app", manifest)
@@ -829,7 +811,7 @@ class TestBuildManifestInfoStatusDerivation:
         """When the manifest config has no configured instance_name, fall back to
         ``ClassName.index`` (matching prior synthesized-name behavior).
         """
-        manifest = self.make_manifest_obj("my_app")
+        manifest = make_manifest_obj("my_app")
         registry.record_failure("my_app", 0, ValueError("boom"))
 
         info = registry.build_manifest_info("my_app", manifest)
