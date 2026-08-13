@@ -406,6 +406,67 @@ class TestReplayPreReleaseReconciliationSerialization:
         assert call_count == 2
 
 
+class TestReloadAppFullSerialization:
+    async def test_concurrent_reload_app_calls_serialize_the_whole_stop_and_start_pair(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        mock_manifest: MagicMock,
+    ) -> None:
+        """Two concurrent reload_app("x") calls -- e.g. a UI reload racing a file-watcher
+        reload for the same app_key (issue #1227) -- must run each call's full stop+start
+        sequence as one atomic unit. `test_reload_app_acquires_app_key_lock_once` proves a
+        single reload_app acquires the lock once; this proves a *second*, concurrent
+        reload_app for the same key is genuinely blocked until the first's entire
+        stop+start pair has completed -- not just serialized within start_app's own
+        internals, which is the gap #1227 originally described (the second racer's
+        create_instances() overwriting the registry entry the first racer just created,
+        orphaning a live, already-initialized instance set).
+        """
+        mock_registry.get_manifest = Mock(return_value=mock_manifest)
+
+        gate = asyncio.Event()
+        first_entered = asyncio.Event()
+        call_order: list[str] = []
+
+        async def gated_stop_unlocked(_app_key: str) -> None:
+            call_order.append("stop_start")
+            if call_order.count("stop_start") == 1:
+                first_entered.set()
+                await gate.wait()
+            call_order.append("stop_end")
+
+        async def recording_start_unlocked(_app_key: str, _app_manifest: MagicMock, _force_reload: bool) -> None:
+            call_order.append("start")
+
+        lifecycle_service._admit_start = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+        lifecycle_service._stop_app_unlocked = gated_stop_unlocked  # pyright: ignore[reportAttributeAccessIssue]
+        lifecycle_service._start_app_unlocked = recording_start_unlocked  # pyright: ignore[reportAttributeAccessIssue]
+
+        task1 = asyncio.create_task(lifecycle_service.reload_app("test_app"))
+        await asyncio.wait_for(first_entered.wait(), timeout=1.0)
+
+        task2 = asyncio.create_task(lifecycle_service.reload_app("test_app"))
+        lock = lifecycle_service._get_app_key_lock("test_app")
+        await wait_for(lambda: bool(lock._waiters), desc="task2 queued on the app-key lock")
+
+        # task2 must be blocked acquiring the lock -- it must not have entered its own
+        # stop phase while task1's stop+start pair is still mid-flight.
+        assert lock.locked()
+        assert call_order.count("stop_start") == 1
+        assert not task2.done()
+
+        gate.set()
+        await asyncio.wait_for(task1, timeout=1.0)
+        await asyncio.wait_for(task2, timeout=1.0)
+
+        # Each reload's stop and start run back-to-back, and the second reload's stop
+        # only starts after the first reload's start has finished -- proving the lock
+        # covers the entire pair, not just one half of it.
+        assert call_order == ["stop_start", "stop_end", "start", "stop_start", "stop_end", "start"]
+        assert not lock.locked()
+
+
 class TestTakePreReleaseReconciliation:
     def test_returns_all_none_when_nothing_is_queued(self, lifecycle_service: AppLifecycleService) -> None:
         """With no pending reconciliation, take() returns (None, None, None) rather than raising --
