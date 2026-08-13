@@ -86,17 +86,25 @@ export type AppSortState = SortState<AppSortKey>;
  *  invalidated on execution events, not `app_status_changed`, so a cached `row.status` can be
  *  stale in either direction (still "running" after an instance fails, or still "degraded"
  *  after all instances recover) for as long as no execution event happens to refetch it.
+ *
  *  The index set is also live, not just the statuses: a hot reload that adds an instance
  *  delivers a WS update for the new index before any execution event refetches the grid, so
  *  the cached `row.instances` list can be missing an index entirely. Server-side, instance
  *  indices are always assigned contiguously from 0 (`enumerate(app_configs)` in
  *  `AppFactory.create_instances`), so a reload only ever extends the range upward — probing
  *  forward from the highest cached index with direct key lookups finds any new indices without
- *  scanning the whole (cross-app) `appStatuses` record or prefix-matching app_key by hand. */
+ *  scanning the whole (cross-app) `appStatuses` record or prefix-matching app_key by hand.
+ *
+ *  "disabled" and "blocked" are manifest-level configuration states, not derived from instance
+ *  activity — an app that's been disabled has no running instances, but a per-instance WS
+ *  status can still linger from before it was disabled (e.g. a "stopped" event from the
+ *  instance's own teardown). Returning the config state before ever consulting `appStatuses`
+ *  keeps that leftover per-instance status from permanently masking it. */
 export function appLiveStatus(
   appStatuses: Record<string, AppStatusEntry>,
   row: Pick<AppRow, "app_key" | "status"> & { instances?: AppRow["instances"] },
 ): string {
+  if (row.status === "disabled" || row.status === "blocked") return row.status;
   const instances = row.instances ?? [];
   const knownIndices = new Set(instances.map((inst) => inst.index));
   const maxKnownIndex = knownIndices.size > 0 ? Math.max(...knownIndices) : -1;

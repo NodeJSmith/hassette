@@ -12,6 +12,25 @@ describe("appLiveStatus", () => {
     expect(appLiveStatus(NO_LIVE_STATUSES, row)).toBe("running");
   });
 
+  it("returns disabled as-is instead of letting a leftover per-instance WS status override it", () => {
+    // Disabling an app tears down its instance, which emits a "stopped" WS event for that
+    // index. That event lingers in the live appStatus store after the manifest becomes
+    // disabled — the config state must win, not the stale per-instance status.
+    const row = toAppRow(createAppGridEntry({ app_key: "disabled_app", status: "disabled", instances: [] }));
+    const liveStatuses: Record<string, AppStatusEntry> = {
+      "disabled_app:0": { status: "stopped", index: 0 },
+    };
+    expect(appLiveStatus(liveStatuses, row)).toBe("disabled");
+  });
+
+  it("returns blocked as-is instead of letting a leftover per-instance WS status override it", () => {
+    const row = toAppRow(createAppGridEntry({ app_key: "blocked_app", status: "blocked", instances: [] }));
+    const liveStatuses: Record<string, AppStatusEntry> = {
+      "blocked_app:0": { status: "failed", index: 0 },
+    };
+    expect(appLiveStatus(liveStatuses, row)).toBe("blocked");
+  });
+
   it("derives degraded from a live running+failed mix, not from cached row.status", () => {
     const row = toAppRow(
       createAppGridEntry({

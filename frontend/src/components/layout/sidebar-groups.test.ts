@@ -38,6 +38,25 @@ describe("getGroupKey", () => {
     expect(getGroupKey(manifest, liveStatuses)).toBe("err");
   });
 
+  it("groups a disabled app under DISABLED, not STOPPED, despite a leftover per-instance WS status", () => {
+    // Disabling an app tears down its instance, emitting a "stopped" WS event for that index
+    // that lingers in the live appStatus store after the manifest becomes disabled. The
+    // manifest-level config state must win over that stale per-instance status.
+    const manifest = createManifest({ app_key: "disabled_app", status: "disabled", instance_count: 1 });
+    const liveStatuses: Record<string, AppStatusEntry> = {
+      "disabled_app:0": { status: "stopped", index: 0 },
+    };
+    expect(getGroupKey(manifest, liveStatuses)).toBe("disabled");
+  });
+
+  it("groups a blocked app under BLOCKED despite a leftover per-instance WS status", () => {
+    const manifest = createManifest({ app_key: "blocked_app", status: "blocked", instance_count: 1 });
+    const liveStatuses: Record<string, AppStatusEntry> = {
+      "blocked_app:0": { status: "failed", index: 0 },
+    };
+    expect(getGroupKey(manifest, liveStatuses)).toBe("blocked");
+  });
+
   it("clears a stale cached degraded status once live per-instance statuses fully recover", () => {
     const manifest = createManifest({
       app_key: "recovered_app",
