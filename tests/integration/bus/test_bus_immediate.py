@@ -15,6 +15,8 @@ from hassette.test_utils import make_state_dict, wait_for
 from hassette.test_utils.harness import HassetteHarness
 from hassette.test_utils.helpers import create_state_change_event, settle
 
+from .helpers import make_collector, seed
+
 if TYPE_CHECKING:
     from hassette import Hassette
     from hassette.bus import Bus
@@ -24,17 +26,9 @@ async def test_immediate_fires_when_state_matches(bus_harness: tuple[HassetteHar
     """Entity in target state at registration time → handler fires with synthetic event."""
     harness, hassette, bus = bus_harness
 
-    await harness.seed_state(
-        "light.kitchen",
-        make_state_dict("light.kitchen", "on"),
-    )
+    await seed(harness, "light.kitchen", "on")
 
-    received: list[RawStateChangeEvent] = []
-    fired = asyncio.Event()
-
-    async def handler(event: RawStateChangeEvent) -> None:
-        received.append(event)
-        hassette.task_bucket.post_to_loop(fired.set)
+    handler, received, fired = make_collector(hassette)
 
     await bus.on_state_change(
         "light.kitchen", handler=handler, changed=False, immediate=True, name="immediate_fires_when_state_matches"
@@ -49,17 +43,11 @@ async def test_immediate_no_fire_when_state_does_not_match(
     bus_harness: tuple[HassetteHarness, "Hassette", "Bus"],
 ) -> None:
     """Entity in non-target state → no fire (changed_to predicate rejects it)."""
-    harness, _hassette, bus = bus_harness
+    harness, hassette, bus = bus_harness
 
-    await harness.seed_state(
-        "light.kitchen",
-        make_state_dict("light.kitchen", "off"),
-    )
+    await seed(harness, "light.kitchen", "off")
 
-    received: list[RawStateChangeEvent] = []
-
-    async def handler(event: RawStateChangeEvent) -> None:
-        received.append(event)
+    handler, received, _fired = make_collector(hassette)
 
     await bus.on_state_change(
         "light.kitchen", handler=handler, changed_to="on", immediate=True, name="immediate_no_fire_state_mismatch"
@@ -72,14 +60,11 @@ async def test_immediate_no_fire_when_state_does_not_match(
 
 async def test_immediate_no_fire_entity_not_found(bus_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
     """Entity not in StateProxy → no fire, no error raised."""
-    _harness, _hassette, bus = bus_harness
+    _harness, hassette, bus = bus_harness
 
     # Do NOT seed state — entity does not exist
 
-    received: list[RawStateChangeEvent] = []
-
-    async def handler(event: RawStateChangeEvent) -> None:
-        received.append(event)
+    handler, received, _fired = make_collector(hassette)
 
     await bus.on_state_change(
         "sensor.nonexistent", handler=handler, changed=False, immediate=True, name="immediate_no_fire_entity_not_found"
@@ -94,15 +79,9 @@ async def test_immediate_synthetic_event_structure(bus_harness: tuple[HassetteHa
     """Synthetic event has old_state=None, new_state=current, ZonedDateTime time_fired, unique context.id."""
     harness, hassette, bus = bus_harness
 
-    state_dict = make_state_dict("sensor.temp", "25.5")
-    await harness.seed_state("sensor.temp", state_dict)
+    await seed(harness, "sensor.temp", "25.5")
 
-    received: list[RawStateChangeEvent] = []
-    fired = asyncio.Event()
-
-    async def handler(event: RawStateChangeEvent) -> None:
-        received.append(event)
-        hassette.task_bucket.post_to_loop(fired.set)
+    handler, received, fired = make_collector(hassette)
 
     await bus.on_state_change(
         "sensor.temp", handler=handler, changed=False, immediate=True, name="immediate_synthetic_event_structure"
@@ -127,18 +106,9 @@ async def test_immediate_with_once_consumes_invocation(bus_harness: tuple[Hasset
     """Immediate fires, subsequent live event does NOT fire (once=True consumed by immediate)."""
     harness, hassette, bus = bus_harness
 
-    await harness.seed_state(
-        "switch.outlet",
-        make_state_dict("switch.outlet", "on"),
-    )
+    await seed(harness, "switch.outlet", "on")
 
-    call_count = 0
-    fired = asyncio.Event()
-
-    async def handler(_event: RawStateChangeEvent) -> None:
-        nonlocal call_count
-        call_count += 1
-        hassette.task_bucket.post_to_loop(fired.set)
+    handler, received, fired = make_collector(hassette)
 
     await bus.on_state_change(
         "switch.outlet",
@@ -150,7 +120,7 @@ async def test_immediate_with_once_consumes_invocation(bus_harness: tuple[Hasset
     )
 
     await asyncio.wait_for(fired.wait(), timeout=2.0)
-    assert call_count == 1
+    assert len(received) == 1
 
     # Send a live state change event for the same entity
     live_event = create_state_change_event(entity_id="switch.outlet", old_value="on", new_value="off")
@@ -158,24 +128,16 @@ async def test_immediate_with_once_consumes_invocation(bus_harness: tuple[Hasset
 
     await wait_for(lambda: len(bus.task_bucket) == 0, desc="tasks drain")
 
-    assert call_count == 1, f"once=True handler should fire exactly once, fired {call_count} times"
+    assert len(received) == 1, f"once=True handler should fire exactly once, fired {len(received)} times"
 
 
 async def test_immediate_with_debounce(bus_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
     """Immediate fire passes through the debounce guard (fires after debounce period)."""
     harness, hassette, bus = bus_harness
 
-    await harness.seed_state(
-        "sensor.motion",
-        make_state_dict("sensor.motion", "on"),
-    )
+    await seed(harness, "sensor.motion", "on")
 
-    received: list[RawStateChangeEvent] = []
-    fired = asyncio.Event()
-
-    async def handler(event: RawStateChangeEvent) -> None:
-        received.append(event)
-        hassette.task_bucket.post_to_loop(fired.set)
+    handler, received, fired = make_collector(hassette)
 
     await bus.on_state_change(
         "sensor.motion", handler=handler, changed=False, immediate=True, debounce=0.05, name="immediate_with_debounce"
@@ -203,17 +165,9 @@ async def test_immediate_attribute_change_with_attr_did_change(
     """on_attribute_change + immediate=True fires when entity present; AttrDidChange returns True for old_state=None."""
     harness, hassette, bus = bus_harness
 
-    await harness.seed_state(
-        "light.office",
-        make_state_dict("light.office", "on", attributes={"brightness": 200}),
-    )
+    await seed(harness, "light.office", "on", attributes={"brightness": 200})
 
-    received: list[RawStateChangeEvent] = []
-    fired = asyncio.Event()
-
-    async def handler(event: RawStateChangeEvent) -> None:
-        received.append(event)
-        hassette.task_bucket.post_to_loop(fired.set)
+    handler, received, fired = make_collector(hassette)
 
     await bus.on_attribute_change(
         "light.office", "brightness", handler=handler, immediate=True, name="immediate_attr_change_did_change"
@@ -233,17 +187,9 @@ async def test_immediate_changed_false_fires_for_any_existing_entity(
     harness, hassette, bus = bus_harness
 
     # Seed entity with arbitrary state
-    await harness.seed_state(
-        "binary_sensor.door",
-        make_state_dict("binary_sensor.door", "unavailable"),
-    )
+    await seed(harness, "binary_sensor.door", "unavailable")
 
-    received: list[RawStateChangeEvent] = []
-    fired = asyncio.Event()
-
-    async def handler(event: RawStateChangeEvent) -> None:
-        received.append(event)
-        hassette.task_bucket.post_to_loop(fired.set)
+    handler, received, fired = make_collector(hassette)
 
     # changed=False means no StateDidChange predicate — any state triggers dispatch
     await bus.on_state_change(
@@ -266,17 +212,9 @@ async def test_immediate_duration_fires_when_elapsed_exceeds(
 
     # Seed state with last_changed 10 seconds ago
     past = ZonedDateTime.now_in_system_tz().subtract(seconds=10)
-    await harness.seed_state(
-        "switch.boiler",
-        make_state_dict("switch.boiler", "on", last_changed=past.format_iso()),
-    )
+    await seed(harness, "switch.boiler", "on", last_changed=past.format_iso())
 
-    received: list[RawStateChangeEvent] = []
-    fired = asyncio.Event()
-
-    async def handler(event: RawStateChangeEvent) -> None:
-        received.append(event)
-        hassette.task_bucket.post_to_loop(fired.set)
+    handler, received, fired = make_collector(hassette)
 
     await bus.on_state_change(
         "switch.boiler",
@@ -301,17 +239,9 @@ async def test_immediate_duration_starts_timer_for_remaining(
 
     # Seed state with last_changed 3 seconds ago
     past = ZonedDateTime.now_in_system_tz().subtract(seconds=3)
-    await harness.seed_state(
-        "switch.fan",
-        make_state_dict("switch.fan", "on", last_changed=past.format_iso()),
-    )
+    await seed(harness, "switch.fan", "on", last_changed=past.format_iso())
 
-    received: list[RawStateChangeEvent] = []
-    fired = asyncio.Event()
-
-    async def handler(event: RawStateChangeEvent) -> None:
-        received.append(event)
-        hassette.task_bucket.post_to_loop(fired.set)
+    handler, received, fired = make_collector(hassette)
 
     await bus.on_state_change(
         "switch.fan",
@@ -332,17 +262,15 @@ async def test_immediate_duration_starts_timer_for_remaining(
 
 async def test_immediate_duration_last_changed_none(bus_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
     """last_changed missing from state dict → elapsed=0, full timer starts (does NOT fire immediately)."""
-    harness, _hassette, bus = bus_harness
+    harness, hassette, bus = bus_harness
 
     state = make_state_dict("switch.pump", "on")
-    # Override last_changed to None to simulate missing timestamp
+    # Override last_changed to None to simulate missing timestamp — seed() can't express this,
+    # since passing last_changed=None falls back to make_state_dict's default of "now".
     state["last_changed"] = None  # pyright: ignore[reportArgumentType]
     await harness.seed_state("switch.pump", state)
 
-    received: list[RawStateChangeEvent] = []
-
-    async def handler(event: RawStateChangeEvent) -> None:
-        received.append(event)
+    handler, received, _fired = make_collector(hassette)
 
     await bus.on_state_change(
         "switch.pump",
@@ -362,19 +290,13 @@ async def test_immediate_duration_negative_elapsed_clamped(
     bus_harness: tuple[HassetteHarness, "Hassette", "Bus"],
 ) -> None:
     """Clock skew produces last_changed in the future → elapsed clamped to 0, full timer starts."""
-    harness, _hassette, bus = bus_harness
+    harness, hassette, bus = bus_harness
 
     # Seed state with last_changed 10 seconds in the FUTURE (clock skew)
     future = ZonedDateTime.now_in_system_tz().add(seconds=10)
-    await harness.seed_state(
-        "switch.heater",
-        make_state_dict("switch.heater", "on", last_changed=future.format_iso()),
-    )
+    await seed(harness, "switch.heater", "on", last_changed=future.format_iso())
 
-    received: list[RawStateChangeEvent] = []
-
-    async def handler(event: RawStateChangeEvent) -> None:
-        received.append(event)
+    handler, received, _fired = make_collector(hassette)
 
     await bus.on_state_change(
         "switch.heater",
@@ -393,19 +315,13 @@ async def test_immediate_duration_attribute_change_always_zero(
     bus_harness: tuple[HassetteHarness, "Hassette", "Bus"],
 ) -> None:
     """on_attribute_change + immediate + duration always starts from zero, even if last_changed is old."""
-    harness, _hassette, bus = bus_harness
+    harness, hassette, bus = bus_harness
 
     # Seed state with last_changed 30 seconds ago — would normally fire immediately
     past = ZonedDateTime.now_in_system_tz().subtract(seconds=30)
-    await harness.seed_state(
-        "light.lamp",
-        make_state_dict("light.lamp", "on", attributes={"brightness": 200}, last_changed=past.format_iso()),
-    )
+    await seed(harness, "light.lamp", "on", attributes={"brightness": 200}, last_changed=past.format_iso())
 
-    received: list[RawStateChangeEvent] = []
-
-    async def handler(event: RawStateChangeEvent) -> None:
-        received.append(event)
+    handler, received, _fired = make_collector(hassette)
 
     await bus.on_attribute_change(
         "light.lamp",
@@ -430,18 +346,9 @@ async def test_immediate_duration_once_fires_exactly_once(
 
     # Seed state with last_changed 10s ago (duration=5 → fires immediately)
     past = ZonedDateTime.now_in_system_tz().subtract(seconds=10)
-    await harness.seed_state(
-        "switch.oven",
-        make_state_dict("switch.oven", "on", last_changed=past.format_iso()),
-    )
+    await seed(harness, "switch.oven", "on", last_changed=past.format_iso())
 
-    call_count = 0
-    fired = asyncio.Event()
-
-    async def handler(_event: RawStateChangeEvent) -> None:
-        nonlocal call_count
-        call_count += 1
-        hassette.task_bucket.post_to_loop(fired.set)
+    handler, received, fired = make_collector(hassette)
 
     await bus.on_state_change(
         "switch.oven",
@@ -455,7 +362,7 @@ async def test_immediate_duration_once_fires_exactly_once(
 
     # Should fire immediately (elapsed 10s >= duration 5s)
     await asyncio.wait_for(fired.wait(), timeout=2.0)
-    assert call_count == 1
+    assert len(received) == 1
 
     # Send a live state change — listener should be consumed (once=True)
     live_event = create_state_change_event(entity_id="switch.oven", old_value="on", new_value="off")
@@ -463,4 +370,4 @@ async def test_immediate_duration_once_fires_exactly_once(
 
     await wait_for(lambda: len(bus.task_bucket) == 0, desc="tasks drain")
 
-    assert call_count == 1, f"once=True should fire exactly once, fired {call_count} times"
+    assert len(received) == 1, f"once=True should fire exactly once, fired {len(received)} times"

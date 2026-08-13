@@ -1,9 +1,15 @@
 """Shared helpers for bus integration tests."""
 
 import asyncio
+from collections.abc import Callable, Coroutine
+from typing import TYPE_CHECKING, Any
 
+from hassette.events import RawStateChangeEvent
 from hassette.test_utils.harness import HassetteHarness
 from hassette.test_utils.helpers import create_state_change_event, make_state_dict
+
+if TYPE_CHECKING:
+    from hassette import Hassette
 
 ENTITY = "sensor.overlap"
 """Shared entity id for execution-mode overlap tests (test_execution_modes*.py)."""
@@ -14,12 +20,39 @@ ENTITY = "sensor.overlap"
 EVENT_LOOP_YIELDS = 10
 
 
-async def seed(harness: HassetteHarness, entity_id: str, state_value: str) -> None:
+async def seed(
+    harness: HassetteHarness,
+    entity_id: str,
+    state_value: str,
+    *,
+    attributes: dict[str, Any] | None = None,
+    last_changed: str | None = None,
+) -> None:
     """Seed state into the StateProxy."""
     await harness.seed_state(
         entity_id,
-        make_state_dict(entity_id, state_value),
+        make_state_dict(entity_id, state_value, attributes=attributes, last_changed=last_changed),
     )
+
+
+def make_collector(
+    hassette: "Hassette",
+) -> tuple[Callable[[RawStateChangeEvent], Coroutine[None, None, None]], list[RawStateChangeEvent], asyncio.Event]:
+    """Build a handler that appends received events and signals completion via task_bucket.
+
+    Returns ``(handler, received, fired)``. The handler appends every event it receives to
+    ``received`` and sets ``fired`` (via ``hassette.task_bucket.post_to_loop``) each time it runs.
+    Callers that don't need completion signaling — negative-fire tests gated on another wait
+    condition — can discard ``fired`` with ``_``.
+    """
+    received: list[RawStateChangeEvent] = []
+    fired = asyncio.Event()
+
+    async def handler(event: RawStateChangeEvent) -> None:
+        received.append(event)
+        hassette.task_bucket.post_to_loop(fired.set)
+
+    return handler, received, fired
 
 
 async def send_state_change(

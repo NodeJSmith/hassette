@@ -20,7 +20,7 @@ from hassette.test_utils.helpers import create_state_change_event
 from hassette.types import Topic
 
 from .conftest import DURATION, HALF_HOLD, PARTIAL_HOLD, TIMER_COMPLETION_TIMEOUT
-from .helpers import seed, send_state_change
+from .helpers import make_collector, seed, send_state_change
 
 if TYPE_CHECKING:
     from hassette import Hassette
@@ -52,12 +52,7 @@ async def test_duration_fires_after_held(bus_harness: tuple[HassetteHarness, "Ha
     """State held for duration → handler fires with the original triggering event."""
     harness, hassette, bus = bus_harness
 
-    received: list[RawStateChangeEvent] = []
-    fired = asyncio.Event()
-
-    async def handler(event: RawStateChangeEvent) -> None:
-        received.append(event)
-        hassette.task_bucket.post_to_loop(fired.set)
+    handler, received, fired = make_collector(hassette)
 
     await bus.on_state_change(
         "light.kitchen", changed_to="on", handler=handler, duration=DURATION, name="duration_fires_after_held"
@@ -77,12 +72,9 @@ async def test_duration_fires_after_held(bus_harness: tuple[HassetteHarness, "Ha
 
 async def test_duration_cancelled_on_state_exit(bus_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
     """State changes away before duration elapses → no fire."""
-    harness, _hassette, bus = bus_harness
+    harness, hassette, bus = bus_harness
 
-    received: list[RawStateChangeEvent] = []
-
-    async def handler(event: RawStateChangeEvent) -> None:
-        received.append(event)
+    handler, received, _fired = make_collector(hassette)
 
     await bus.on_state_change(
         "light.kitchen", changed_to="on", handler=handler, duration=DURATION, name="duration_cancelled_on_exit"
@@ -106,12 +98,7 @@ async def test_duration_resets_on_re_entry(bus_harness: tuple[HassetteHarness, "
     """State leaves and returns → timer restarts from zero, fires after second hold."""
     harness, hassette, bus = bus_harness
 
-    received: list[RawStateChangeEvent] = []
-    fired = asyncio.Event()
-
-    async def handler(event: RawStateChangeEvent) -> None:
-        received.append(event)
-        hassette.task_bucket.post_to_loop(fired.set)
+    handler, received, fired = make_collector(hassette)
 
     await bus.on_state_change(
         "light.kitchen", changed_to="on", handler=handler, duration=DURATION, name="duration_resets_on_reentry"
@@ -140,12 +127,9 @@ async def test_duration_resets_on_re_entry(bus_harness: tuple[HassetteHarness, "
 
 async def test_duration_double_check_before_fire(bus_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
     """State reverts between timer start and fire → no fire (state re-verification)."""
-    harness, _hassette, bus = bus_harness
+    harness, hassette, bus = bus_harness
 
-    received: list[RawStateChangeEvent] = []
-
-    async def handler(event: RawStateChangeEvent) -> None:
-        received.append(event)
+    handler, received, _fired = make_collector(hassette)
 
     await bus.on_state_change(
         "light.kitchen", changed_to="on", handler=handler, duration=DURATION, name="duration_double_check"
@@ -259,12 +243,9 @@ async def test_duration_once_removal_on_exception(bus_harness: tuple[HassetteHar
 
 async def test_duration_subscription_cancel_stops_timer(bus_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
     """Cancel subscription while timer pending → no fire, no leak."""
-    harness, _hassette, bus = bus_harness
+    harness, hassette, bus = bus_harness
 
-    received: list[RawStateChangeEvent] = []
-
-    async def handler(event: RawStateChangeEvent) -> None:
-        received.append(event)
+    handler, received, _fired = make_collector(hassette)
 
     sub = await bus.on_state_change(
         "light.kitchen", changed_to="on", handler=handler, duration=DURATION, name="duration_cancel_stops_timer"
@@ -290,12 +271,7 @@ async def test_duration_not_cancelled_by_attribute_refresh(
     """Attribute-only state_changed (same state value) does NOT cancel timer for on_state_change."""
     harness, hassette, bus = bus_harness
 
-    received: list[RawStateChangeEvent] = []
-    fired = asyncio.Event()
-
-    async def handler(event: RawStateChangeEvent) -> None:
-        received.append(event)
-        hassette.task_bucket.post_to_loop(fired.set)
+    handler, received, fired = make_collector(hassette)
 
     await bus.on_state_change(
         "light.kitchen",
@@ -333,18 +309,8 @@ async def test_duration_multiple_listeners_independent(bus_harness: tuple[Hasset
     short = DURATION
     long_duration = DURATION * 3
 
-    received_short: list[RawStateChangeEvent] = []
-    received_long: list[RawStateChangeEvent] = []
-    short_fired = asyncio.Event()
-    long_fired = asyncio.Event()
-
-    async def handler_short(event: RawStateChangeEvent) -> None:
-        received_short.append(event)
-        hassette.task_bucket.post_to_loop(short_fired.set)
-
-    async def handler_long(event: RawStateChangeEvent) -> None:
-        received_long.append(event)
-        hassette.task_bucket.post_to_loop(long_fired.set)
+    handler_short, received_short, short_fired = make_collector(hassette)
+    handler_long, received_long, long_fired = make_collector(hassette)
 
     await bus.on_state_change(
         "light.kitchen", changed_to="on", handler=handler_short, duration=short, name="duration_multiple_short"
@@ -435,12 +401,7 @@ async def test_duration_attribute_change_cancel_only_on_predicate_fail(
     """For on_attribute_change, unrelated attribute changes do not cancel the timer."""
     harness, hassette, bus = bus_harness
 
-    received: list[RawStateChangeEvent] = []
-    fired = asyncio.Event()
-
-    async def handler(event: RawStateChangeEvent) -> None:
-        received.append(event)
-        hassette.task_bucket.post_to_loop(fired.set)
+    handler, received, fired = make_collector(hassette)
 
     # Monitor brightness specifically: timer starts when brightness changes
     await bus.on_attribute_change(
@@ -487,12 +448,7 @@ async def test_duration_handler_receives_original_triggering_event(
     """Handler receives the original triggering event, not a synthetic recheck event."""
     harness, hassette, bus = bus_harness
 
-    received: list[RawStateChangeEvent] = []
-    fired = asyncio.Event()
-
-    async def handler(event: RawStateChangeEvent) -> None:
-        received.append(event)
-        hassette.task_bucket.post_to_loop(fired.set)
+    handler, received, fired = make_collector(hassette)
 
     await bus.on_state_change(
         "light.kitchen", changed_to="on", handler=handler, duration=DURATION, name="duration_original_triggering_event"
@@ -515,12 +471,7 @@ async def test_changed_from_with_duration_fires(bus_harness: tuple[HassetteHarne
     """changed_from + duration: timer fires when entity holds target state (hold-predicate split)."""
     harness, hassette, bus = bus_harness
 
-    received: list[RawStateChangeEvent] = []
-    fired = asyncio.Event()
-
-    async def handler(event: RawStateChangeEvent) -> None:
-        received.append(event)
-        hassette.task_bucket.post_to_loop(fired.set)
+    handler, received, fired = make_collector(hassette)
 
     await bus.on_state_change(
         "door.front",
@@ -542,12 +493,9 @@ async def test_changed_from_with_duration_cancels_on_revert(
     bus_harness: tuple[HassetteHarness, "Hassette", "Bus"],
 ) -> None:
     """changed_from + duration: timer cancelled when entity reverts before duration elapses."""
-    harness, _hassette, bus = bus_harness
+    harness, hassette, bus = bus_harness
 
-    received: list[RawStateChangeEvent] = []
-
-    async def handler(event: RawStateChangeEvent) -> None:
-        received.append(event)
+    handler, received, _fired = make_collector(hassette)
 
     await bus.on_state_change(
         "door.front",
