@@ -170,6 +170,7 @@ def mock_registry() -> MagicMock:
     registry.autostart_manifests = {}
     registry.only_apps = frozenset()
     registry.get_snapshot = Mock()
+    registry.get_failed_instance_infos = Mock(return_value={})
     registry.block_app = Mock()
     registry.unblock_apps = Mock(return_value=set())
     return registry

@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
 from hassette.events.base import Event, HassettePayload
+from hassette.schemas.app_snapshots import AppInstanceInfo
 from hassette.types import ResourceRole, ResourceStatus, Topic
 from hassette.utils import get_traceback_string
 
@@ -141,6 +142,40 @@ class HassetteAppStateEvent(Event[HassettePayload[AppStateChangePayload]]):
             previous_status=previous_status,
             instance_name=app.instance_name,
             class_name=type(app).__name__,
+            exception=exc_str,
+            exception_type=exc_type,
+            exception_traceback=exc_tb,
+        )
+        return cls(
+            topic=Topic.HASSETTE_EVENT_APP_STATE_CHANGED,
+            payload=HassettePayload(data=payload),
+        )
+
+    @classmethod
+    def from_instance_info(
+        cls,
+        info: AppInstanceInfo,
+        previous_status: ResourceStatus | None = None,
+    ) -> "HassetteAppStateEvent":
+        """Build a state-change event from a registry snapshot entry.
+
+        For failure paths where no ``App`` object exists to build the event from — e.g.
+        ``AppFactory.create_instances()`` failing before instantiation (invalid config, class
+        load error) — so those failures still reach the WebSocket clients that key off
+        ``app_status_changed``, the same as every other failure path does via ``from_app``.
+
+        Unlike ``from_app``, ``status`` isn't a separate parameter — a registry entry is already
+        terminal (``FAILED``) by the time it's resolved into an ``AppInstanceInfo``, so there's no
+        app-object-hasn't-caught-up-yet gap to decouple from, and ``info.status`` is authoritative.
+        """
+        exc_str, exc_type, exc_tb = extract_exception_fields(info.error)
+        payload = AppStateChangePayload(
+            app_key=info.app_key,
+            index=info.index,
+            status=info.status,
+            previous_status=previous_status,
+            instance_name=info.instance_name,
+            class_name=info.class_name,
             exception=exc_str,
             exception_type=exc_type,
             exception_traceback=exc_tb,

@@ -509,6 +509,23 @@ class AppLifecycleService(Resource):
             self.logger.error("Failed to load app class for '%s':\n%s", app_key, get_short_traceback())
             return
 
+        # create_instances() records failures (invalid instance_name, config validation, class
+        # load error) straight to the registry without emitting an event — no App object exists
+        # yet to build one from. Without this, those failures never reach app_status_changed
+        # subscribers, so a WS-cached status from before this call (e.g. still "stopped" from a
+        # reload's stop phase, or never-set on a first start) lingers indefinitely instead of
+        # reflecting the failure — for both a plain start_app() and a reload_app().
+        #
+        # This re-syncs *every* currently-failed index for app_key, not just ones create_instances()
+        # touched on this call (it only overwrites the indices it actually processes — e.g. a
+        # class-load failure records index 0 and returns immediately, leaving any pre-existing
+        # failures at other indices as-is). A repeated start_app() on an app with untouched stale
+        # failures will re-broadcast them unchanged. Accepted: the frontend applies this as a plain
+        # state overwrite with no notification side effect (see updateAppStatus in state/store.ts),
+        # so a re-broadcast of an already-known status is a harmless no-op, not user-visible noise.
+        for info in self.registry.get_failed_instance_infos(app_key).values():
+            await self.hassette.send_event(HassetteAppStateEvent.from_instance_info(info))
+
         instances = self.registry.get_running_apps(app_key)
         if instances:
             for inst in instances.values():

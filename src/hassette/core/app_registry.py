@@ -153,6 +153,21 @@ class AppRegistry:
         """Get all entries (running and failed) for an app key."""
         return self._instances.get(app_key, {}).copy()
 
+    def get_failed_instance_infos(self, app_key: str) -> dict[int, AppInstanceInfo]:
+        """Get resolved AppInstanceInfo for failed (non-running) entries for an app key.
+
+        Used to emit a status-change event for failures recorded by ``AppFactory.create_instances()``
+        before an ``App`` object existed to build the event from — reuses the same instance_name/
+        class_name resolution as snapshot generation so the event matches what a subsequent fetch
+        would show.
+        """
+        manifest = self._manifests.get(app_key)
+        return {
+            index: self._info_from_entry(app_key, index, entry, manifest)
+            for index, entry in self._instances.get(app_key, {}).items()
+            if entry.app is None
+        }
+
     def _resolve_failed_instance_name(self, app_key: str, index: int, manifest: "AppManifest | None") -> str:
         """Resolve the configured ``instance_name`` for a failed entry from manifest config."""
         if manifest is None:

@@ -233,6 +233,43 @@ class TestAppRegistry:
         assert entries[1].status == ResourceStatus.FAILED
         assert entries[1].error is error
 
+    def test_get_failed_instance_infos_excludes_running_entries(self, registry: AppRegistry) -> None:
+        """get_failed_instance_infos() returns only failed entries, resolved to AppInstanceInfo."""
+        app0 = MagicMock()
+        error = ValueError("bad config")
+        registry.register_app("my_app", 0, app0)
+        registry.record_failure("my_app", 1, error)
+
+        infos = registry.get_failed_instance_infos("my_app")
+
+        assert set(infos) == {1}
+        assert infos[1].app_key == "my_app"
+        assert infos[1].index == 1
+        assert infos[1].status == ResourceStatus.FAILED
+        assert infos[1].error is error
+        assert infos[1].error_message == "bad config"
+
+    def test_get_failed_instance_infos_resolves_instance_name_from_manifest(self, registry: AppRegistry) -> None:
+        """Resolved instance_name/class_name match snapshot generation for the same entry —
+        this is what backs the app_status_changed event emitted for pre-instantiation failures
+        (invalid instance_name, config validation, class load error) that create_instances()
+        records with no App object to build an event from.
+        """
+        manifest = make_manifest_obj("my_app", app_config=[{"instance_name": "configured_name"}])
+        registry.set_manifests({"my_app": manifest})
+        registry.record_failure("my_app", 0, ValueError("boom"))
+
+        infos = registry.get_failed_instance_infos("my_app")
+
+        assert infos[0].instance_name == "configured_name"
+        assert infos[0].class_name == manifest.class_name
+
+    def test_get_failed_instance_infos_empty_for_all_running(self, registry: AppRegistry, mock_app: MagicMock) -> None:
+        """No failed entries — returns an empty dict, not one padded with running entries."""
+        registry.register_app("my_app", 0, mock_app)
+
+        assert registry.get_failed_instance_infos("my_app") == {}
+
     def test_clear_failures_and_iter_all_instances_removed(self, registry: AppRegistry) -> None:
         """clear_failures() and iter_all_instances() no longer exist."""
         assert not hasattr(registry, "clear_failures")

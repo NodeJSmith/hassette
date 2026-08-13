@@ -8,6 +8,7 @@ import pytest
 from hassette.core.app_change_detector import ChangeSet
 from hassette.core.app_lifecycle_service import AppAdmissionMode, AppLifecycleService
 from hassette.exceptions import AppBootstrapNotReleasedError
+from hassette.schemas.app_snapshots import AppInstanceInfo
 from hassette.test_utils import EventCapture
 from hassette.types import Topic
 from hassette.types.enums import BlockReason, ResourceStatus
@@ -151,6 +152,49 @@ class TestStartApp:
         await lifecycle_service.start_app("disabled_app")
 
         mock_factory.create_instances.assert_not_called()
+
+    async def test_emits_state_event_for_pre_instantiation_failure(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        mock_manifest: MagicMock,
+        mock_hassette: MagicMock,
+        event_capture: EventCapture,
+    ) -> None:
+        """create_instances() records failures that occur before an App object exists (invalid
+        instance_name, config validation, class load error) straight to the registry, with no
+        App to build an app_status_changed event from. Without emitting one here, those failures
+        never reach WS subscribers, and a stale cached status lingers instead of updating to
+        FAILED — see the masked-degraded-status bug this closes.
+        """
+        event_capture.install(mock_hassette)
+        mock_registry.get_manifest = Mock(return_value=mock_manifest)
+        mock_registry.get_running_apps = Mock(return_value={})
+        failure_info = AppInstanceInfo(
+            app_key="test_app",
+            index=0,
+            instance_name="test_app.0",
+            class_name="TestApp",
+            status=ResourceStatus.FAILED,
+            error=ValueError("bad config"),
+            error_message="bad config",
+            error_traceback="Traceback (most recent call last)...",
+        )
+        mock_registry.get_failed_instance_infos = Mock(return_value={0: failure_info})
+
+        await lifecycle_service.start_app("test_app")
+
+        failed_payloads = [
+            payload
+            for payload in event_capture.payloads(Topic.HASSETTE_EVENT_APP_STATE_CHANGED)
+            if payload.status == ResourceStatus.FAILED
+        ]
+        assert len(failed_payloads) == 1
+        payload = failed_payloads[0]
+        assert payload.app_key == "test_app"
+        assert payload.index == 0
+        assert payload.instance_name == "test_app.0"
+        assert payload.exception == "bad config"
 
     async def test_handles_factory_load_error(
         self,
