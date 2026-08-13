@@ -537,12 +537,12 @@ class TestReloadAppLocking:
         mock_registry: MagicMock,
         mock_manifest: MagicMock,
     ) -> None:
-        """Two concurrent reload_app("x") calls -- e.g. a UI reload racing a file-watcher
-        reload for the same app_key (issue #1227) -- must run each call's full stop+start
+        """Two concurrent reload_app("x") calls — e.g. a UI reload racing a file-watcher
+        reload for the same app_key (issue #1227) — must run each call's full stop+start
         sequence as one atomic unit. `test_reload_app_acquires_app_key_lock_once` proves a
         single reload_app acquires the lock once; this proves a *second*, concurrent
         reload_app for the same key is genuinely blocked until the first's entire
-        stop+start pair has completed -- not just serialized within start_app's own
+        stop+start pair has completed — not just serialized within start_app's own
         internals, which is the gap #1227 originally described (the second racer's
         create_instances() overwriting the registry entry the first racer just created,
         orphaning a live, already-initialized instance set).
@@ -569,24 +569,24 @@ class TestReloadAppLocking:
         lifecycle_service._start_app_unlocked = recording_start_unlocked  # pyright: ignore[reportAttributeAccessIssue]
 
         task1 = asyncio.create_task(lifecycle_service.reload_app("test_app"))
-        await asyncio.wait_for(first_entered.wait(), timeout=1.0)
+        await asyncio.wait_for(first_entered.wait(), timeout=1)
 
         task2 = asyncio.create_task(lifecycle_service.reload_app("test_app"))
         lock = lifecycle_service._get_app_key_lock("test_app")
         await wait_for(lambda: bool(lock._waiters), desc="task2 queued on the app-key lock")
 
-        # task2 must be blocked acquiring the lock -- it must not have entered its own
+        # task2 must be blocked acquiring the lock — it must not have entered its own
         # stop phase while task1's stop+start pair is still mid-flight.
         assert lock.locked()
         assert call_order.count("stop_start") == 1
         assert not task2.done()
 
         gate.set()
-        await asyncio.wait_for(task1, timeout=1.0)
-        await asyncio.wait_for(task2, timeout=1.0)
+        await asyncio.wait_for(task1, timeout=1)
+        await asyncio.wait_for(task2, timeout=1)
 
         # Each reload's stop and start run back-to-back, and the second reload's stop
-        # only starts after the first reload's start has finished -- proving the lock
+        # only starts after the first reload's start has finished — proving the lock
         # covers the entire pair, not just one half of it.
         assert call_order == ["stop_start", "stop_end", "start", "stop_start", "stop_end", "start"]
         assert not lock.locked()
