@@ -4,9 +4,9 @@ import type { ListenerData } from "../../api/endpoints";
 import { getListenerExecutions } from "../../api/endpoints";
 import { useQueryInvalidator } from "../../hooks/use-query-invalidator";
 import { useRelativeTime } from "../../hooks/use-relative-time";
+import { useListenerExecution } from "../../hooks/use-scoped-execution";
 import { useScopedQuery } from "../../hooks/use-scoped-query";
 import { queryKeys } from "../../lib/query-keys";
-import { useAppStore } from "../../state/store";
 import { DETAIL_FETCH_LIMIT } from "../../utils/constants";
 import { lastDotSegment, MS_PER_SECOND } from "../../utils/format";
 import { handlerKindLabel } from "../../utils/status";
@@ -80,14 +80,10 @@ export function ListenerDetail({ listener, appKey, instanceQs, onSwitchToCode }:
     (since, signal) => getListenerExecutions(listener.listener_id, DETAIL_FETCH_LIMIT, since, signal),
   );
 
-  const executionCompleted = useAppStore((s) => s.executionCompleted);
+  const execution = useListenerExecution(listener.listener_id);
   const lastInvokedLabel = useRelativeTime(listener.last_invoked_at ?? null);
 
-  useQueryInvalidator(
-    executionCompleted,
-    (events) => events?.some((e) => e.kind === "handler" && e.listener_id === listener.listener_id) ?? false,
-    queryKeys.listenerExecutions(listener.listener_id),
-  );
+  useQueryInvalidator(execution, (exec) => exec !== undefined, queryKeys.listenerExecutions(listener.listener_id));
 
   const kindLabel = handlerKindLabel("listener", listener.listener_kind, null);
   const listenerKind = listenerHealthKind(listener);
