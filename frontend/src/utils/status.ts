@@ -6,6 +6,17 @@ export type AppStatus =
 /** Statuses that represent intentionally non-active apps (not failures). */
 export const INACTIVE_STATUSES: ReadonlySet<string> = new Set<AppStatus>(["stopped", "disabled", "shutting_down"]);
 
+/**
+ * True for statuses that still have live instances worth reloading — a degraded app has some
+ * failed instances but isn't fully down, so reload remains a meaningful recovery action.
+ *
+ * Shared by the per-app ActionButtons reload control and the "Reload all apps" bulk command so
+ * the two selection sets can't silently diverge (they did once, for "degraded").
+ */
+export function isReloadableStatus(status: string): boolean {
+  return status === "running" || status === "degraded";
+}
+
 const APP_STATUS_MAP: ReadonlyMap<string, StatusVariant> = new Map<string, StatusVariant>([
   ["running", "success"],
   ["failed", "danger"],

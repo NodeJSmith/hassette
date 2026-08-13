@@ -1,6 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { executionStatusKind, INACTIVE_STATUSES, readinessVariant, statusToKind, statusToVariant } from "./status";
+import {
+  executionStatusKind,
+  INACTIVE_STATUSES,
+  isReloadableStatus,
+  readinessVariant,
+  statusToKind,
+  statusToVariant,
+} from "./status";
 
 describe("statusToVariant", () => {
   it("maps known app statuses to correct variants", () => {
@@ -32,6 +39,19 @@ describe("statusToVariant", () => {
     expect(statusToVariant("exploding")).toBe("neutral");
     expect(warnSpy).toHaveBeenCalledWith('Unknown status: "exploding"');
     warnSpy.mockRestore();
+  });
+});
+
+describe("isReloadableStatus", () => {
+  it("treats running and degraded as reloadable", () => {
+    expect(isReloadableStatus("running")).toBe(true);
+    expect(isReloadableStatus("degraded")).toBe(true);
+  });
+
+  it("treats other statuses as not reloadable", () => {
+    expect(isReloadableStatus("stopped")).toBe(false);
+    expect(isReloadableStatus("failed")).toBe(false);
+    expect(isReloadableStatus("disabled")).toBe(false);
   });
 });
 

@@ -1,6 +1,7 @@
 import type { AppManifest, ListenerData } from "../../api/endpoints";
 import { reloadApp, stopApp } from "../../api/endpoints";
 import { appDetailPath, handlerPath, NAV_PAGES } from "../../utils/app-routes";
+import { isReloadableStatus } from "../../utils/status";
 
 const DOCS_URL = "https://hassette.readthedocs.io";
 
@@ -45,8 +46,8 @@ export function buildActionItems(manifests: AppManifest[], onClose: () => void):
       kind: "action",
       label: "Reload all apps",
       action: () => {
-        const running = active.filter((m) => m.status === "running");
-        void Promise.allSettled(running.map((m) => reloadApp(m.app_key)));
+        const reloadable = active.filter((m) => isReloadableStatus(m.status));
+        void Promise.allSettled(reloadable.map((m) => reloadApp(m.app_key)));
         onClose();
       },
     },
@@ -55,7 +56,9 @@ export function buildActionItems(manifests: AppManifest[], onClose: () => void):
       kind: "action",
       label: "Stop all failing",
       action: () => {
-        const failing = active.filter((m) => m.status === "failed");
+        // Not isReloadableStatus's stop-side counterpart — this targets apps recovery should
+        // stop (failed/degraded), not "is stop meaningful for this app" (which running is too).
+        const failing = active.filter((m) => m.status === "failed" || m.status === "degraded");
         void Promise.allSettled(failing.map((m) => stopApp(m.app_key)));
         onClose();
       },
