@@ -30,7 +30,9 @@ class InstanceEntry:
     """A single tracked app instance — either running (``app`` set) or failed (``error`` set).
 
     No ``index`` field — the dict key ``_instances[app_key][index]`` is the single source of
-    truth. No stored ``instance_name`` — delegated to the ``App`` object via a property.
+    truth. No stored ``instance_name`` — callers read it off the ``App`` object directly
+    (``entry.app.app_config.instance_name``) or via ``_resolve_failed_instance_name()`` for
+    failed entries, which have no ``App``.
     """
 
     app: "App[AppConfig] | None"
@@ -38,10 +40,6 @@ class InstanceEntry:
     error: Exception | None = None
     error_message: str | None = None
     error_traceback: str | None = None
-
-    @property
-    def instance_name(self) -> str | None:
-        return self.app.app_config.instance_name if self.app else None
 
 
 class AppRegistry:

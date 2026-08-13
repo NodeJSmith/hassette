@@ -39,6 +39,10 @@ class AppStatusSnapshot:
     def total_count(self) -> int:
         return len(self.instances)
 
+    # "running" here means "has no recorded error", not "status == RUNNING" — a live instance's
+    # status can be STARTING/STOPPING/etc. and still count as running; error is None iff an App
+    # object exists for the entry (see AppRegistry.InstanceEntry), which is the real discriminant.
+
     @property
     def running_count(self) -> int:
         """Number of running app instances."""
