@@ -67,8 +67,10 @@ export function ActionButtons({ appKey, status, variant = "icon", confirmStop = 
   };
 
   const canStart = status === "stopped" || status === "failed" || status === "disabled";
-  const canStop = status === "running";
-  const canReload = status === "running";
+  // Degraded means "some instances still running" — stop/reload remain meaningful recovery
+  // actions; start does not (nothing about a degraded app implies a fully-stopped instance).
+  const canStop = status === "running" || status === "degraded";
+  const canReload = status === "running" || status === "degraded";
 
   const handleStop = () => {
     if (confirmStop) {
