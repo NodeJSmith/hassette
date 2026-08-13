@@ -120,6 +120,18 @@ export function appLiveStatus(
   return liveStatuses.reduce((worst, live) => (statusPriority(live) < statusPriority(worst) ? live : worst));
 }
 
+/** Resolve the live status for a single instance row: the WS status for that exact index,
+ *  falling back to the cached instance's own status. Unlike `appLiveStatus`, this is a plain
+ *  single-key overlay, not a rollup — no degraded derivation, no forward index-probing, since
+ *  a per-instance row only ever represents the one index it's given, not the whole app. */
+export function instanceLiveStatus(
+  appStatuses: Record<string, AppStatusEntry>,
+  appKey: string,
+  inst: { index: number; status: string },
+): string {
+  return appStatuses[appStatusKey(appKey, inst.index)]?.status ?? inst.status;
+}
+
 export function compareAppRows(
   a: AppRow,
   b: AppRow,
