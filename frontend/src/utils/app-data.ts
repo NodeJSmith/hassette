@@ -85,17 +85,36 @@ export type AppSortState = SortState<AppSortKey>;
  *  from live data, not read off the cached `row.status`: the dashboard grid query is
  *  invalidated on execution events, not `app_status_changed`, so a cached `row.status` can be
  *  stale in either direction (still "running" after an instance fails, or still "degraded"
- *  after all instances recover) for as long as no execution event happens to refetch it. */
+ *  after all instances recover) for as long as no execution event happens to refetch it.
+ *  The index set is also live, not just the statuses: a hot reload that adds an instance
+ *  delivers a WS update for the new index before any execution event refetches the grid, so
+ *  the cached `row.instances` list can be missing an index entirely. Server-side, instance
+ *  indices are always assigned contiguously from 0 (`enumerate(app_configs)` in
+ *  `AppFactory.create_instances`), so a reload only ever extends the range upward — probing
+ *  forward from the highest cached index with direct key lookups finds any new indices without
+ *  scanning the whole (cross-app) `appStatuses` record or prefix-matching app_key by hand. */
 export function appLiveStatus(
   appStatuses: Record<string, AppStatusEntry>,
   row: Pick<AppRow, "app_key" | "status"> & { instances?: AppRow["instances"] },
 ): string {
   const instances = row.instances ?? [];
-  if (instances.length <= 1) {
-    return appStatuses[appStatusKey(row.app_key, 0)]?.status ?? row.status;
+  const knownIndices = new Set(instances.map((inst) => inst.index));
+  const maxKnownIndex = knownIndices.size > 0 ? Math.max(...knownIndices) : -1;
+  for (let index = maxKnownIndex + 1; appStatuses[appStatusKey(row.app_key, index)]; index++) {
+    knownIndices.add(index);
   }
-  const liveStatuses = instances.map(
-    (inst) => appStatuses[appStatusKey(row.app_key, inst.index)]?.status ?? inst.status,
+  // Fast path for the common case (0 or 1 known indices) — skips the two-way includes() check
+  // and the per-index instances.find() scan below, both of which only matter once there's more
+  // than one index to reduce over.
+  if (knownIndices.size <= 1) {
+    const index = knownIndices.size === 1 ? [...knownIndices][0] : 0;
+    return appStatuses[appStatusKey(row.app_key, index)]?.status ?? row.status;
+  }
+  const liveStatuses = [...knownIndices].map(
+    (index) =>
+      appStatuses[appStatusKey(row.app_key, index)]?.status ??
+      instances.find((inst) => inst.index === index)?.status ??
+      row.status,
   );
   if (liveStatuses.includes("running") && liveStatuses.includes("failed")) return "degraded";
   return liveStatuses.reduce((worst, live) => (statusPriority(live) < statusPriority(worst) ? live : worst));

@@ -68,6 +68,44 @@ describe("appLiveStatus", () => {
     expect(appLiveStatus(liveStatuses, row)).toBe("running");
   });
 
+  it("merges a live index absent from the cached instance snapshot", () => {
+    // A hot reload that expands a healthy single-instance app to two instances delivers a WS
+    // update for the new index before any execution event refetches the grid, so row.instances
+    // still only has index 0. The live index 1 must still be folded into the reduction.
+    const row = toAppRow(
+      createAppGridEntry({
+        app_key: "multi_app",
+        status: "running",
+        instance_count: 1,
+        instances: [createInstance({ app_key: "multi_app", index: 0, status: "running" })],
+      }),
+    );
+    const liveStatuses: Record<string, AppStatusEntry> = {
+      "multi_app:0": { status: "running", index: 0 },
+      "multi_app:1": { status: "failed", index: 1 },
+    };
+    expect(appLiveStatus(liveStatuses, row)).toBe("degraded");
+  });
+
+  it("merges multiple live indices added beyond the cached snapshot in one reload", () => {
+    // A reload can add more than one instance at once; the forward probe must keep walking
+    // past the first new index rather than stopping after finding just one.
+    const row = toAppRow(
+      createAppGridEntry({
+        app_key: "multi_app",
+        status: "running",
+        instance_count: 1,
+        instances: [createInstance({ app_key: "multi_app", index: 0, status: "running" })],
+      }),
+    );
+    const liveStatuses: Record<string, AppStatusEntry> = {
+      "multi_app:0": { status: "running", index: 0 },
+      "multi_app:1": { status: "running", index: 1 },
+      "multi_app:2": { status: "failed", index: 2 },
+    };
+    expect(appLiveStatus(liveStatuses, row)).toBe("degraded");
+  });
+
   it("still reduces per-instance statuses for multi-instance apps that are not degraded", () => {
     const row = toAppRow(
       createAppGridEntry({
