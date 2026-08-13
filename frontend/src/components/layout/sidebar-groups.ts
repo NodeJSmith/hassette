@@ -21,11 +21,16 @@ export const GROUP_DEFS: GroupDef[] = [
   { key: "disabled", label: "DISABLED", tone: "mute", defaultOpen: false },
 ];
 
-const WARN_STATUSES = new Set(["exhausted_cooling", "stopping", "shutting_down"]);
+const WARN_STATUSES = new Set(["exhausted_cooling", "stopping", "shutting_down", "degraded"]);
 
 export function worstStatus(manifest: AppManifest): string {
   const instances = manifest.instances ?? [];
   if (instances.length === 0) return manifest.status;
+  // "degraded" is a manifest-level rollup (mixed running/failed instances), not a per-instance
+  // status any instance can carry, and it deliberately sits above "failed" in STATUS_PRIORITY
+  // (less severe). Left to the reduce below, a degraded manifest's failed instance would always
+  // win and mask the degraded state as fully failed — return it as-is instead.
+  if (manifest.status === "degraded") return "degraded";
   return instances.reduce<string>((worst, inst) => {
     return statusPriority(inst.status) < statusPriority(worst) ? inst.status : worst;
   }, manifest.status);
