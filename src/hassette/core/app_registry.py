@@ -92,6 +92,35 @@ class AppRegistry:
             error_traceback=get_traceback_string(error) if error.__traceback__ else None,
         )
 
+    def prune_stale_failed_indices(self, app_key: str, valid_index_count: int) -> dict[int, AppInstanceInfo]:
+        """Remove failed (non-running) entries at indices no longer present in the current config,
+        returning what was removed (resolved to ``AppInstanceInfo``, same as ``get_failed_instance_infos``).
+
+        Config can shrink (fewer configured instances) without the app going through a full
+        reload — e.g. an ``autostart=false`` app that isn't auto-reconciled on a config change
+        (see ``AppLifecycleService.should_auto_reconcile``) and is later started manually.
+        ``AppFactory.create_instances()`` only ever touches indices within the current config, so
+        without this, a failed entry at a since-removed index lingers in the registry forever,
+        misreporting the app as degraded/failed even after it starts cleanly at its remaining
+        index. Running entries are untouched — an orphaned *running* instance needs an actual
+        shutdown, not just a registry removal, which is out of scope here.
+
+        The return value lets the caller emit a status-change event for each removed entry —
+        callers must not discard entries silently (see ``AppLifecycleService._stop_app_unlocked``
+        for why: the WS status cache never learns otherwise, and stays on FAILED forever).
+        """
+        entries = self._instances.get(app_key)
+        if not entries:
+            return {}
+        manifest = self._manifests.get(app_key)
+        stale_indices = [index for index, entry in entries.items() if entry.app is None and index >= valid_index_count]
+        pruned = {index: self._info_from_entry(app_key, index, entries[index], manifest) for index in stale_indices}
+        for index in stale_indices:
+            del entries[index]
+        if not entries:
+            del self._instances[app_key]
+        return pruned
+
     def block_app(self, app_key: str, reason: BlockReason) -> None:
         """Record that an app was intentionally not started."""
         self._blocked_apps[app_key] = reason

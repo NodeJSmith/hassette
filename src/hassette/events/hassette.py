@@ -155,24 +155,33 @@ class HassetteAppStateEvent(Event[HassettePayload[AppStateChangePayload]]):
     def from_instance_info(
         cls,
         info: AppInstanceInfo,
+        status: ResourceStatus | None = None,
         previous_status: ResourceStatus | None = None,
     ) -> "HassetteAppStateEvent":
         """Build a state-change event from a registry snapshot entry.
 
-        For failure paths where no ``App`` object exists to build the event from — e.g.
+        For paths where no ``App`` object exists to build the event from — e.g.
         ``AppFactory.create_instances()`` failing before instantiation (invalid config, class
-        load error) — so those failures still reach the WebSocket clients that key off
-        ``app_status_changed``, the same as every other failure path does via ``from_app``.
+        load error), or a failed entry being discarded by ``unregister_app()`` on stop — so
+        those transitions still reach the WebSocket clients that key off ``app_status_changed``,
+        the same as every other transition does via ``from_app``.
 
-        Unlike ``from_app``, ``status`` isn't a separate parameter — a registry entry is already
-        terminal (``FAILED``) by the time it's resolved into an ``AppInstanceInfo``, so there's no
-        app-object-hasn't-caught-up-yet gap to decouple from, and ``info.status`` is authoritative.
+        ``status`` defaults to ``info.status`` (the registry's own recorded status, which is
+        authoritative right after a failure is resolved into an ``AppInstanceInfo``). Pass it
+        explicitly when the event being emitted isn't what the entry is recorded as — e.g. a
+        failed entry being emitted as STOPPED because it's being removed from the registry, not
+        because it just failed again. Exception fields are only populated when the resolved
+        status is FAILED — every other status-change event in this file carries no exception
+        data, and a STOPPED event with a populated traceback would misleadingly suggest the stop
+        itself failed rather than that the entry had failed before being removed.
         """
-        exc_str, exc_type, exc_tb = extract_exception_fields(info.error)
+        resolved_status = status if status is not None else info.status
+        include_exception = resolved_status == ResourceStatus.FAILED
+        exc_str, exc_type, exc_tb = extract_exception_fields(info.error) if include_exception else (None, None, None)
         payload = AppStateChangePayload(
             app_key=info.app_key,
             index=info.index,
-            status=info.status,
+            status=resolved_status,
             previous_status=previous_status,
             instance_name=info.instance_name,
             class_name=info.class_name,

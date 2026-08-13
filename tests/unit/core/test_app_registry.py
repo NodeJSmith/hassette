@@ -270,6 +270,63 @@ class TestAppRegistry:
 
         assert registry.get_failed_instance_infos("my_app") == {}
 
+    def test_prune_stale_failed_indices_removes_indices_beyond_valid_count(self, registry: AppRegistry) -> None:
+        """A config shrink (3 instances -> 1) leaves failed entries at the now-removed indices
+        stranded in the registry forever unless something prunes them — create_instances() only
+        ever touches indices within the *current* config, so a stale failed index 1/2 would
+        otherwise misreport the app as degraded/failed even after index 0 starts cleanly. The
+        return value is what the caller needs to emit a status-change event for each removal —
+        see AppLifecycleService._start_app_unlocked.
+        """
+        registry.record_failure("my_app", 0, ValueError("still fails"))
+        registry.record_failure("my_app", 1, ValueError("stale - index removed"))
+        registry.record_failure("my_app", 2, ValueError("stale - index removed"))
+
+        pruned = registry.prune_stale_failed_indices("my_app", valid_index_count=1)
+
+        entries = registry.get_instances("my_app")
+        assert set(entries) == {0}
+        assert set(pruned) == {1, 2}
+        assert pruned[1].app_key == "my_app"
+        assert pruned[1].index == 1
+        assert pruned[1].status == ResourceStatus.FAILED
+
+    def test_prune_stale_failed_indices_preserves_running_entries(self, registry: AppRegistry) -> None:
+        """Only failed entries are pruned — an orphaned running instance needs an actual
+        shutdown, not just a registry removal, which is a different concern.
+        """
+        app0 = MagicMock()
+        registry.register_app("my_app", 0, app0)
+        registry.record_failure("my_app", 1, ValueError("stale"))
+
+        pruned = registry.prune_stale_failed_indices("my_app", valid_index_count=0)
+
+        entries = registry.get_instances("my_app")
+        assert set(entries) == {0}
+        assert entries[0].app is app0
+        assert set(pruned) == {1}
+
+    def test_prune_stale_failed_indices_removes_app_key_when_nothing_remains(self, registry: AppRegistry) -> None:
+        """Pruning the last entry for an app_key removes the app_key mapping itself from the
+        internal dict, not just leaving an empty inner dict behind — matching unregister_app's
+        own cleanup convention. Checked against the internal dict directly: every public accessor
+        (get_instances, __contains__, etc.) already treats "missing key" and "present but empty"
+        identically, so only inspecting the private attribute actually exercises this behavior.
+        """
+        registry.record_failure("my_app", 0, ValueError("stale"))
+
+        pruned = registry.prune_stale_failed_indices("my_app", valid_index_count=0)
+
+        assert "my_app" not in registry._instances
+        assert set(pruned) == {0}
+
+    def test_prune_stale_failed_indices_noop_for_unknown_app(self, registry: AppRegistry) -> None:
+        """No entries for the app_key at all — a no-op, not an error."""
+        pruned = registry.prune_stale_failed_indices("unknown_app", valid_index_count=0)
+
+        assert pruned == {}
+        assert registry.get_instances("unknown_app") == {}
+
     def test_clear_failures_and_iter_all_instances_removed(self, registry: AppRegistry) -> None:
         """clear_failures() and iter_all_instances() no longer exist."""
         assert not hasattr(registry, "clear_failures")

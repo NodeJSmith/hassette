@@ -30,6 +30,7 @@ if typing.TYPE_CHECKING:
     from hassette.core.app_bootstrap_coordinator import AppBootstrapCoordinator
     from hassette.core.app_registry import AppRegistry
     from hassette.core.bus_service import BusService
+    from hassette.schemas.app_snapshots import AppInstanceInfo
 
 try:
     from humanize import precisedelta
@@ -497,6 +498,19 @@ class AppLifecycleService(Resource):
         without deadlocking on the non-reentrant ``asyncio.Lock`` (calling the public,
         lock-acquiring `start_app`/`stop_app` from inside an already-held lock would hang).
         """
+        # A prior, larger config can leave failed entries at indices the *current* config no
+        # longer has — e.g. an autostart=false app that wasn't auto-reconciled on the config
+        # change (see should_auto_reconcile) and is now being started manually. Prune those
+        # before create_instances() runs (not inside it), so pruning applies uniformly whether
+        # or not class-loading itself fails, and so pruned entries can be reported as STOPPED —
+        # unregister_app()-style silent discarding leaves the WS status cache for that index
+        # stuck on FAILED forever (see _stop_app_unlocked for the same problem on the stop side).
+        # A no-op on the reload_app() path: _stop_app_unlocked() already popped every entry for
+        # app_key (running and failed alike) before this runs, so there's nothing left to prune.
+        # This only ever does real work for a standalone start_app() call.
+        valid_index_count = len(self.factory.normalize_configs(app_manifest.app_config))
+        await self._emit_stopped_events(self.registry.prune_stale_failed_indices(app_key, valid_index_count))
+
         try:
             self.logger.debug("Creating instances for app %s", app_key)
             self.factory.create_instances(app_key, app_manifest, force_reload=force_reload)
@@ -516,13 +530,15 @@ class AppLifecycleService(Resource):
         # reload's stop phase, or never-set on a first start) lingers indefinitely instead of
         # reflecting the failure — for both a plain start_app() and a reload_app().
         #
-        # This re-syncs *every* currently-failed index for app_key, not just ones create_instances()
-        # touched on this call (it only overwrites the indices it actually processes — e.g. a
-        # class-load failure records index 0 and returns immediately, leaving any pre-existing
-        # failures at other indices as-is). A repeated start_app() on an app with untouched stale
-        # failures will re-broadcast them unchanged. Accepted: the frontend applies this as a plain
-        # state overwrite with no notification side effect (see updateAppStatus in state/store.ts),
-        # so a re-broadcast of an already-known status is a harmless no-op, not user-visible noise.
+        # This re-syncs *every* currently-failed index still within the current config's range,
+        # not just ones create_instances() touched on this call (it only overwrites the indices
+        # it actually processes — e.g. a class-load failure records index 0 and returns
+        # immediately, leaving any pre-existing failures at other in-range indices as-is). A
+        # repeated start_app() on an app with untouched stale failures will re-broadcast them
+        # unchanged. Accepted: the frontend applies this as a plain state overwrite with no
+        # notification side effect (see updateAppStatus in state/store.ts), so a re-broadcast of
+        # an already-known status is a harmless no-op, not user-visible noise. Indices *outside*
+        # the current config's range don't hit this path at all — those are pruned above instead.
         for info in self.registry.get_failed_instance_infos(app_key).values():
             await self.hassette.send_event(HassetteAppStateEvent.from_instance_info(info))
 
@@ -532,6 +548,20 @@ class AppLifecycleService(Resource):
                 event = HassetteAppStateEvent.from_app(app=inst, status=NOT_STARTED)
                 await self.hassette.send_event(event)
             await self.initialize_instances(app_key, instances, app_manifest)
+
+    async def _emit_stopped_events(self, infos: "dict[int, AppInstanceInfo]") -> None:
+        """Emit a STOPPED event for each given failed-entry snapshot.
+
+        Shared by ``_start_app_unlocked`` (entries pruned for being outside the current config's
+        range) and ``_stop_app_unlocked`` (entries silently discarded by ``unregister_app``) —
+        both remove a failed entry from the registry without an App object to build an event
+        from, and both need the WS status cache to learn the entry is gone rather than staying
+        stuck on FAILED forever.
+        """
+        for info in infos.values():
+            await self.hassette.send_event(
+                HassetteAppStateEvent.from_instance_info(info, status=STOPPED, previous_status=info.status)
+            )
 
     async def stop_app(self, app_key: str) -> None:
         """Stop and remove all instances for a given app key.
@@ -553,12 +583,22 @@ class AppLifecycleService(Resource):
         "entries existed but none were running" (``{}`` — e.g. an app with only failed
         instances). Only the former is actually "not found"; the latter is a normal cleanup of
         failed-only entries and doesn't warrant a misleading "not found" warning.
+
+        ``unregister_app`` discards failed entries silently (it only returns the running ones),
+        so without emitting something for them here, the WS status cache for those indices never
+        learns the app stopped — it just keeps whatever FAILED status it last cached, indefinitely.
+        Snapshotting them before the discard and emitting STOPPED closes that gap the same way
+        ``_start_app_unlocked`` closes the equivalent gap for newly-recorded failures.
         """
         try:
+            failed_infos = self.registry.get_failed_instance_infos(app_key)
             instances = self.registry.unregister_app(app_key)
             if instances is None:
                 self.logger.warning("Cannot stop app %s, not found", app_key)
                 return
+
+            await self._emit_stopped_events(failed_infos)
+
             if not instances:
                 self.logger.debug("Cleared failed entries for app %s; no running instances to shut down", app_key)
                 return
