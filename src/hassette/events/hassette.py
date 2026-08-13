@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
 from hassette.events.base import Event, HassettePayload
+from hassette.schemas.app_snapshots import AppInstanceInfo
 from hassette.types import ResourceRole, ResourceStatus, Topic
 from hassette.utils import get_traceback_string
 
@@ -141,6 +142,49 @@ class HassetteAppStateEvent(Event[HassettePayload[AppStateChangePayload]]):
             previous_status=previous_status,
             instance_name=app.instance_name,
             class_name=type(app).__name__,
+            exception=exc_str,
+            exception_type=exc_type,
+            exception_traceback=exc_tb,
+        )
+        return cls(
+            topic=Topic.HASSETTE_EVENT_APP_STATE_CHANGED,
+            payload=HassettePayload(data=payload),
+        )
+
+    @classmethod
+    def from_instance_info(
+        cls,
+        info: AppInstanceInfo,
+        status: ResourceStatus | None = None,
+        previous_status: ResourceStatus | None = None,
+    ) -> "HassetteAppStateEvent":
+        """Build a state-change event from a registry snapshot entry.
+
+        For paths where no ``App`` object exists to build the event from — e.g.
+        ``AppFactory.create_instances()`` failing before instantiation (invalid config, class
+        load error), or a failed entry being discarded by ``unregister_app()`` on stop — so
+        those transitions still reach the WebSocket clients that key off ``app_status_changed``,
+        the same as every other transition does via ``from_app``.
+
+        ``status`` defaults to ``info.status`` (the registry's own recorded status, which is
+        authoritative right after a failure is resolved into an ``AppInstanceInfo``). Pass it
+        explicitly when the event being emitted isn't what the entry is recorded as — e.g. a
+        failed entry being emitted as STOPPED because it's being removed from the registry, not
+        because it just failed again. Exception fields are only populated when the resolved
+        status is FAILED — every other status-change event in this file carries no exception
+        data, and a STOPPED event with a populated traceback would misleadingly suggest the stop
+        itself failed rather than that the entry had failed before being removed.
+        """
+        resolved_status = status if status is not None else info.status
+        include_exception = resolved_status == ResourceStatus.FAILED
+        exc_str, exc_type, exc_tb = extract_exception_fields(info.error) if include_exception else (None, None, None)
+        payload = AppStateChangePayload(
+            app_key=info.app_key,
+            index=info.index,
+            status=resolved_status,
+            previous_status=previous_status,
+            instance_name=info.instance_name,
+            class_name=info.class_name,
             exception=exc_str,
             exception_type=exc_type,
             exception_traceback=exc_tb,

@@ -16,6 +16,7 @@ from hassette.cli.commands.app import (
     cmd_app_source,
 )
 from hassette.cli.context import CLIContext
+from hassette.cli.output import now_epoch
 from hassette.test_utils.web_manifest_helpers import make_manifest_list_response, make_manifest_response
 from hassette.test_utils.web_response_helpers import (
     make_app_config_response,
@@ -162,9 +163,7 @@ class TestCmdAppHealth:
             status="running",  # pyright: ignore[reportArgumentType]
         )
         manifest_resp = make_manifest_response(app_key="my-app", instances=[instance_resp])
-        manifest_list = AppManifestListResponse(
-            total=1, running=1, failed=0, stopped=0, disabled=0, blocked=0, manifests=[manifest_resp]
-        )
+        manifest_list = AppManifestListResponse(total=1, status_counts={"running": 1}, manifests=[manifest_resp])
         client = cli_client_factory.build_with_routes(
             [
                 ("GET", "/api/apps/manifests", 200, manifest_list.model_dump()),
@@ -307,7 +306,11 @@ class TestCmdAppActivity:
 
     def test_human_mode_renders_table(self, cli_client_factory: CLIClientFactory) -> None:
         """App activity renders a table with handler name and status."""
-        entry = make_activity_feed_entry(handler_name="on_light_change", app_key="my-app")
+        # timestamp is pinned to "now" (not the shared fixed-epoch default) so the "When"
+        # column always renders as "just now" — a fixed-epoch default grows by one digit
+        # every ~10x days elapsed, stealing column width from Handler and truncating it
+        # further than this test expects.
+        entry = make_activity_feed_entry(handler_name="on_light_change", app_key="my-app", timestamp=now_epoch())
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/activity", 200, [entry.model_dump()])]
         )

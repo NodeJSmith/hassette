@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 
 import { reloadApp, startApp, stopApp } from "../../api/endpoints";
 import { useAsyncAction } from "../../hooks/use-async-action";
+import { isReloadableStatus } from "../../utils/status";
 import { IconPlay, IconRefresh, IconSquare } from "./icons";
 
 // `verb` reads as "Failed to <verb>", `outcome` as "App "<key>" <outcome>".
@@ -67,8 +68,10 @@ export function ActionButtons({ appKey, status, variant = "icon", confirmStop = 
   };
 
   const canStart = status === "stopped" || status === "failed" || status === "disabled";
-  const canStop = status === "running";
-  const canReload = status === "running";
+  // Degraded means "some instances still running" — stop/reload remain meaningful recovery
+  // actions; start does not (nothing about a degraded app implies a fully-stopped instance).
+  const canStop = status === "running" || status === "degraded";
+  const canReload = isReloadableStatus(status);
 
   const handleStop = () => {
     if (confirmStop) {

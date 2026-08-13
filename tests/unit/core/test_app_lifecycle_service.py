@@ -633,7 +633,7 @@ class TestStartApps:
         manifest_b = MagicMock()
         mock_registry.autostart_manifests = {"app_a": manifest_a, "app_b": manifest_b}
         mock_registry.get_manifest = Mock(side_effect=lambda k: {"app_a": manifest_a, "app_b": manifest_b}.get(k))
-        mock_registry.get_apps_by_key = Mock(return_value={})
+        mock_registry.get_running_apps = Mock(return_value={})
 
         await lifecycle_service.start_apps()
 
@@ -650,7 +650,7 @@ class TestStartApps:
         # autostart_manifests only contains app_a; active_manifests also has app_b (autostart=false)
         mock_registry.autostart_manifests = {"app_a": manifest_a}
         mock_registry.get_manifest = Mock(side_effect=lambda k: {"app_a": manifest_a}.get(k))
-        mock_registry.get_apps_by_key = Mock(return_value={})
+        mock_registry.get_running_apps = Mock(return_value={})
 
         await lifecycle_service.start_apps()
 
@@ -732,6 +732,30 @@ class TestShouldAutoReconcile:
         set_registry_apps(mock_registry, {"app_a": {0: MagicMock()}} if is_running else {})
 
         assert lifecycle_service.should_auto_reconcile("app_a") is expected
+
+
+class TestStopAppLocking:
+    async def test_stop_app_holds_app_key_lock_during_unregister(
+        self,
+        lifecycle_service: AppLifecycleService,
+    ) -> None:
+        """stop_app acquires the per-app-key lock before calling the unlocked body, and
+        releases it afterward — stop_app must hold the lock while it unregisters and shuts
+        down instances.
+        """
+        lock = lifecycle_service._get_app_key_lock("test_app")
+        lock_held_during_call = False
+
+        async def fake_unlocked(_app_key: str) -> None:
+            nonlocal lock_held_during_call
+            lock_held_during_call = lock.locked()
+
+        lifecycle_service._stop_app_unlocked = AsyncMock(side_effect=fake_unlocked)
+
+        await lifecycle_service.stop_app("test_app")
+
+        assert lock_held_during_call is True
+        assert not lock.locked()
 
 
 class TestApplyChangesGating:

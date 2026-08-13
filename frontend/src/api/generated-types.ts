@@ -785,16 +785,10 @@ export interface components {
         AppManifestListResponse: {
             /** Total */
             total: number;
-            /** Running */
-            running: number;
-            /** Failed */
-            failed: number;
-            /** Stopped */
-            stopped: number;
-            /** Disabled */
-            disabled: number;
-            /** Blocked */
-            blocked: number;
+            /** Status Counts */
+            status_counts?: {
+                [key: string]: number;
+            };
             /** Manifests */
             manifests: components["schemas"]["AppManifestResponse"][];
             /** Only Apps */
@@ -819,11 +813,7 @@ export interface components {
              * @default true
              */
             autostart: boolean;
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "disabled" | "blocked" | "running" | "failed" | "stopped";
+            status: components["schemas"]["ManifestStatus"];
             /** Block Reason */
             block_reason?: string | null;
             /**
@@ -930,11 +920,7 @@ export interface components {
         DashboardAppGridEntry: {
             /** App Key */
             app_key: string;
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "disabled" | "blocked" | "running" | "failed" | "stopped";
+            status: components["schemas"]["ManifestStatus"];
             /** Display Name */
             display_name: string;
             /**
@@ -1484,6 +1470,12 @@ export interface components {
             /** Retention Expired */
             retention_expired: boolean;
         };
+        /**
+         * ManifestStatus
+         * @description Enumeration for app manifest status values (manifest-scoped, distinct from ``ResourceStatus``).
+         * @enum {string}
+         */
+        ManifestStatus: "disabled" | "blocked" | "degraded" | "running" | "failed" | "stopped";
         /**
          * ReadinessResponse
          * @description Response model for GET /api/health/ready.

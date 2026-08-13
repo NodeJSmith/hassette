@@ -338,6 +338,7 @@ function CommandPalette({ open, onClose }: CommandPaletteProps) {
   }, [open]);
 
   const { data: allManifests = [] } = useManifests();
+  const appStatus = useAppStore((s) => s.appStatus);
   // Palette data changes infrequently and is only fetched when open — 5min staleTime
   // avoids refetching on every open while keeping results reasonably fresh.
   const { data: listeners } = useQuery({
@@ -348,8 +349,8 @@ function CommandPalette({ open, onClose }: CommandPaletteProps) {
   });
 
   const pageItems = buildStaticPageItems(navigate);
-  const actionItems = buildActionItems(allManifests, onClose);
-  const appItems = buildAppItems(allManifests, navigate, onClose);
+  const actionItems = buildActionItems(allManifests, appStatus, onClose);
+  const appItems = buildAppItems(allManifests, appStatus, navigate, onClose);
   const handlerItems = buildHandlerItems(listeners ?? [], navigate, onClose);
 
   const allItems: PaletteItem[] = [...pageItems, ...appItems, ...handlerItems, ...actionItems];

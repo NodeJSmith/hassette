@@ -9,7 +9,8 @@ import { cn } from "@/lib/utils";
 import type { components } from "../../api/generated-types";
 import { useManifests } from "../../hooks/use-manifests";
 import { useSidebarHidden } from "../../hooks/use-sidebar-hidden";
-import { useAppStore } from "../../state/store";
+import { type AppStatusEntry, useAppStore } from "../../state/store";
+import { appLiveStatus, instanceLiveStatus } from "../../utils/app-data";
 import { appDetailPath, HOME_PATH, NAV_PAGES } from "../../utils/app-routes";
 import { STATUS_DOT_SIZE } from "../../utils/constants";
 import { SHORTCUT_HINT } from "../../utils/keyboard";
@@ -18,7 +19,7 @@ import { Spinner } from "../shared/spinner";
 import { StatusShape } from "../shared/status-shape";
 import { SystemHealth } from "../shared/system-health";
 import { ThemeToggle } from "../shared/theme-toggle";
-import { GROUP_DEFS, groupAndSortApps, type GroupDef, worstStatus } from "./sidebar-groups";
+import { GROUP_DEFS, groupAndSortApps, type GroupDef } from "./sidebar-groups";
 import { useGroupOpen } from "./use-group-open";
 
 type AppManifest = components["schemas"]["AppManifestResponse"];
@@ -36,12 +37,13 @@ interface AppEntryProps {
   manifest: AppManifest;
   location: string;
   searchString: string;
+  appStatuses: Record<string, AppStatusEntry>;
 }
 
-function AppEntry({ manifest, location, searchString }: AppEntryProps) {
+function AppEntry({ manifest, location, searchString, appStatuses }: AppEntryProps) {
   const [expanded, setExpanded] = useState(false);
   const isMulti = manifest.instance_count > 1;
-  const displayStatus = isMulti ? worstStatus(manifest) : manifest.status;
+  const displayStatus = appLiveStatus(appStatuses, manifest);
   const kind = statusToKind(displayStatus);
   const isBlocked = displayStatus === "blocked";
 
@@ -96,6 +98,10 @@ function AppEntry({ manifest, location, searchString }: AppEntryProps) {
                 const pathMatches = location === appPath || location.startsWith(appPath + "/");
                 const instanceParam = new URLSearchParams(searchString).get("instance");
                 const instActive = pathMatches && instanceParam === String(inst.index);
+                // Live overlay for this one index, same staleness reasoning as displayStatus
+                // above but a single-key lookup, not appLiveStatus's rollup — see
+                // instanceLiveStatus's own doc comment for the distinction.
+                const instStatus = instanceLiveStatus(appStatuses, manifest.app_key, inst);
                 return (
                   <li key={inst.index} className="flex items-center gap-1">
                     <span className="shrink-0 font-mono text-xs text-[var(--ink-4)] select-none">└</span>
@@ -107,7 +113,7 @@ function AppEntry({ manifest, location, searchString }: AppEntryProps) {
                       )}
                       aria-current={instActive ? "page" : undefined}
                     >
-                      <StatusShape kind={statusToKind(inst.status)} size={8} />
+                      <StatusShape kind={statusToKind(instStatus)} size={8} />
                       <span className="truncate">{inst.instance_name}</span>
                     </Link>
                   </li>
@@ -171,6 +177,7 @@ export function Sidebar({ onOpenPalette, mobileDrawer = false }: SidebarProps = 
   const searchString = useSearch();
   const systemVersion = useAppStore((s) => s.systemVersion);
   const setSidebarCollapsed = useAppStore((s) => s.setSidebarCollapsed);
+  const appStatus = useAppStore((s) => s.appStatus);
   // When the sidebar is off screen the status bar owns this chrome instead; rendering it in
   // both places would duplicate the testids and give screen readers two live regions for
   // one connection event.
@@ -192,7 +199,7 @@ export function Sidebar({ onOpenPalette, mobileDrawer = false }: SidebarProps = 
       )
     : liveManifests;
 
-  const { groups, allHealthy } = groupAndSortApps(filtered);
+  const { groups, allHealthy } = groupAndSortApps(filtered, appStatus);
 
   const { isOpen: isGroupOpen, toggle: toggleGroup } = useGroupOpen(allHealthy);
 
@@ -314,7 +321,13 @@ export function Sidebar({ onOpenPalette, mobileDrawer = false }: SidebarProps = 
                 <CollapsiblePrimitive.Content asChild>
                   <ul className="flex list-none flex-col gap-px px-2" aria-label={`${def.label} apps`}>
                     {apps.map((m) => (
-                      <AppEntry key={m.app_key} manifest={m} location={location} searchString={searchString} />
+                      <AppEntry
+                        key={m.app_key}
+                        manifest={m}
+                        location={location}
+                        searchString={searchString}
+                        appStatuses={appStatus}
+                      />
                     ))}
                   </ul>
                 </CollapsiblePrimitive.Content>

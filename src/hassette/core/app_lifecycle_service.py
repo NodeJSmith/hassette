@@ -30,6 +30,7 @@ if typing.TYPE_CHECKING:
     from hassette.core.app_bootstrap_coordinator import AppBootstrapCoordinator
     from hassette.core.app_registry import AppRegistry
     from hassette.core.bus_service import BusService
+    from hassette.schemas.app_snapshots import AppInstanceInfo
 
 try:
     from humanize import precisedelta
@@ -347,7 +348,7 @@ class AppLifecycleService(Resource):
         self.logger.debug("Shutting down all apps")
 
         for app_key in self.registry.app_keys():
-            await self.shutdown_instances(self.registry.get_apps_by_key(app_key))
+            await self.shutdown_instances(self.registry.get_running_apps(app_key))
 
         self.registry.clear_all()
 
@@ -487,24 +488,80 @@ class AppLifecycleService(Resource):
                 self.logger.debug("Skipping disabled or unknown app %s", app_key)
                 return
 
-            try:
-                self.logger.debug("Creating instances for app %s", app_key)
-                self.factory.create_instances(app_key, app_manifest, force_reload=force_reload)
-            except (UndefinedUserConfigError, InvalidInheritanceError):
-                self.logger.error(
-                    "Failed to load app '%s' due to bad configuration - check previous logs for details", app_key
-                )
-                return
-            except Exception:
-                self.logger.error("Failed to load app class for '%s':\n%s", app_key, get_short_traceback())
-                return
+            await self._start_app_unlocked(app_key, app_manifest, force_reload)
 
-            instances = self.registry.get_apps_by_key(app_key)
-            if instances:
-                for inst in instances.values():
-                    event = HassetteAppStateEvent.from_app(app=inst, status=NOT_STARTED)
-                    await self.hassette.send_event(event)
-                await self.initialize_instances(app_key, instances, app_manifest)
+    async def _start_app_unlocked(self, app_key: str, app_manifest: "AppManifest", force_reload: bool) -> None:
+        """Create instances for an app and await their initialization.
+
+        Caller must hold ``self._get_app_key_lock(app_key)``. Extracted from ``start_app`` so
+        ``reload_app`` can acquire the app-key lock once and call both the stop and start bodies
+        without deadlocking on the non-reentrant ``asyncio.Lock`` (calling the public,
+        lock-acquiring `start_app`/`stop_app` from inside an already-held lock would hang).
+        """
+        # A prior, larger config can leave failed entries at indices the *current* config no
+        # longer has — e.g. an autostart=false app that wasn't auto-reconciled on the config
+        # change (see should_auto_reconcile) and is now being started manually. Prune those
+        # before create_instances() runs (not inside it), so pruning applies uniformly whether
+        # or not class-loading itself fails, and so pruned entries can be reported as STOPPED —
+        # unregister_app()-style silent discarding leaves the WS status cache for that index
+        # stuck on FAILED forever (see _stop_app_unlocked for the same problem on the stop side).
+        # A no-op on the reload_app() path: _stop_app_unlocked() already popped every entry for
+        # app_key (running and failed alike) before this runs, so there's nothing left to prune.
+        # This only ever does real work for a standalone start_app() call.
+        valid_index_count = len(self.factory.normalize_configs(app_manifest.app_config))
+        await self._emit_stopped_events(self.registry.prune_stale_failed_indices(app_key, valid_index_count))
+
+        try:
+            self.logger.debug("Creating instances for app %s", app_key)
+            self.factory.create_instances(app_key, app_manifest, force_reload=force_reload)
+        except (UndefinedUserConfigError, InvalidInheritanceError):
+            self.logger.error(
+                "Failed to load app '%s' due to bad configuration - check previous logs for details", app_key
+            )
+            return
+        except Exception:
+            self.logger.error("Failed to load app class for '%s':\n%s", app_key, get_short_traceback())
+            return
+
+        # create_instances() records failures (invalid instance_name, config validation, class
+        # load error) straight to the registry without emitting an event — no App object exists
+        # yet to build one from. Without this, those failures never reach app_status_changed
+        # subscribers, so a WS-cached status from before this call (e.g. still "stopped" from a
+        # reload's stop phase, or never-set on a first start) lingers indefinitely instead of
+        # reflecting the failure — for both a plain start_app() and a reload_app().
+        #
+        # This re-syncs *every* currently-failed index still within the current config's range,
+        # not just ones create_instances() touched on this call (it only overwrites the indices
+        # it actually processes — e.g. a class-load failure records index 0 and returns
+        # immediately, leaving any pre-existing failures at other in-range indices as-is). A
+        # repeated start_app() on an app with untouched stale failures will re-broadcast them
+        # unchanged. Accepted: the frontend applies this as a plain state overwrite with no
+        # notification side effect (see updateAppStatus in state/store.ts), so a re-broadcast of
+        # an already-known status is a harmless no-op, not user-visible noise. Indices *outside*
+        # the current config's range don't hit this path at all — those are pruned above instead.
+        for info in self.registry.get_failed_instance_infos(app_key).values():
+            await self.hassette.send_event(HassetteAppStateEvent.from_instance_info(info))
+
+        instances = self.registry.get_running_apps(app_key)
+        if instances:
+            for inst in instances.values():
+                event = HassetteAppStateEvent.from_app(app=inst, status=NOT_STARTED)
+                await self.hassette.send_event(event)
+            await self.initialize_instances(app_key, instances, app_manifest)
+
+    async def _emit_stopped_events(self, infos: "dict[int, AppInstanceInfo]") -> None:
+        """Emit a STOPPED event for each given failed-entry snapshot.
+
+        Shared by ``_start_app_unlocked`` (entries pruned for being outside the current config's
+        range) and ``_stop_app_unlocked`` (entries silently discarded by ``unregister_app``) —
+        both remove a failed entry from the registry without an App object to build an event
+        from, and both need the WS status cache to learn the entry is gone rather than staying
+        stuck on FAILED forever.
+        """
+        for info in infos.values():
+            await self.hassette.send_event(
+                HassetteAppStateEvent.from_instance_info(info, status=STOPPED, previous_status=info.status)
+            )
 
     async def stop_app(self, app_key: str) -> None:
         """Stop and remove all instances for a given app key.
@@ -512,10 +569,38 @@ class AppLifecycleService(Resource):
         Args:
             app_key: The app key to stop
         """
+        async with self._get_app_key_lock(app_key):
+            await self._stop_app_unlocked(app_key)
+
+    async def _stop_app_unlocked(self, app_key: str) -> None:
+        """Unregister and shut down all instances for a given app key.
+
+        Caller must hold ``self._get_app_key_lock(app_key)``. Extracted from ``stop_app`` so
+        ``reload_app`` can acquire the app-key lock once and call both the stop and start bodies
+        without deadlocking on the non-reentrant ``asyncio.Lock``.
+
+        ``registry.unregister_app`` distinguishes "no entries existed at all" (``None``) from
+        "entries existed but none were running" (``{}`` — e.g. an app with only failed
+        instances). Only the former is actually "not found"; the latter is a normal cleanup of
+        failed-only entries and doesn't warrant a misleading "not found" warning.
+
+        ``unregister_app`` discards failed entries silently (it only returns the running ones),
+        so without emitting something for them here, the WS status cache for those indices never
+        learns the app stopped — it just keeps whatever FAILED status it last cached, indefinitely.
+        Snapshotting them before the discard and emitting STOPPED closes that gap the same way
+        ``_start_app_unlocked`` closes the equivalent gap for newly-recorded failures.
+        """
         try:
+            failed_infos = self.registry.get_failed_instance_infos(app_key)
             instances = self.registry.unregister_app(app_key)
-            if not instances:
+            if instances is None:
                 self.logger.warning("Cannot stop app %s, not found", app_key)
+                return
+
+            await self._emit_stopped_events(failed_infos)
+
+            if not instances:
+                self.logger.debug("Cleared failed entries for app %s; no running instances to shut down", app_key)
                 return
 
             await self.shutdown_instances(instances)
@@ -538,8 +623,18 @@ class AppLifecycleService(Resource):
         self.logger.debug("Reloading app %s", app_key)
         await self._admit_start(app_key=app_key, admission_mode=admission_mode)
         try:
-            await self.stop_app(app_key)
-            await self.start_app(app_key, force_reload=force_reload, admission_mode=admission_mode)
+            # Acquire the app-key lock once and call the unlocked stop/start bodies directly —
+            # calling the public stop_app()/start_app() here (each of which also acquires this
+            # lock) would deadlock on the non-reentrant asyncio.Lock.
+            async with self._get_app_key_lock(app_key):
+                await self._stop_app_unlocked(app_key)
+
+                app_manifest = self.registry.get_manifest(app_key)
+                if not app_manifest:
+                    self.logger.debug("Skipping disabled or unknown app %s", app_key)
+                    return
+
+                await self._start_app_unlocked(app_key, app_manifest, force_reload)
         except Exception:
             self.logger.error("Failed to reload app %s:\n%s", app_key, get_short_traceback())
 

@@ -1,5 +1,6 @@
 import type { components } from "../../api/generated-types";
-import { statusPriority } from "../../utils/status-priority";
+import type { AppStatusEntry } from "../../state/store";
+import { appLiveStatus } from "../../utils/app-data";
 
 type AppManifest = components["schemas"]["AppManifestResponse"];
 
@@ -21,25 +22,17 @@ export const GROUP_DEFS: GroupDef[] = [
   { key: "disabled", label: "DISABLED", tone: "mute", defaultOpen: false },
 ];
 
-const WARN_STATUSES = new Set(["exhausted_cooling", "stopping", "shutting_down"]);
-
-export function worstStatus(manifest: AppManifest): string {
-  const instances = manifest.instances ?? [];
-  if (instances.length === 0) return manifest.status;
-  return instances.reduce<string>((worst, inst) => {
-    return statusPriority(inst.status) < statusPriority(worst) ? inst.status : worst;
-  }, manifest.status);
-}
+const WARN_STATUSES = new Set(["exhausted_cooling", "stopping", "shutting_down", "degraded"]);
 
 export interface GroupedApps {
   groups: Map<GroupKey, AppManifest[]>;
   allHealthy: boolean;
 }
 
-export function groupAndSortApps(manifests: AppManifest[]): GroupedApps {
+export function groupAndSortApps(manifests: AppManifest[], appStatuses: Record<string, AppStatusEntry>): GroupedApps {
   const groups = new Map<GroupKey, AppManifest[]>(GROUP_DEFS.map((g) => [g.key, []]));
   for (const m of manifests) {
-    const key = getGroupKey(m);
+    const key = getGroupKey(m, appStatuses);
     groups.get(key)!.push(m);
   }
   for (const [, apps] of groups) {
@@ -53,8 +46,12 @@ export function groupAndSortApps(manifests: AppManifest[]): GroupedApps {
   return { groups, allHealthy };
 }
 
-export function getGroupKey(manifest: AppManifest): GroupKey {
-  const status = manifest.instance_count > 1 ? worstStatus(manifest) : manifest.status;
+// The sidebar's manifests query isn't invalidated by app_status_changed, so a manifest's own
+// status/instances can be stale in either direction (see appLiveStatus's own doc comment) —
+// deriving the group from the live WS-overlaid status, not manifest.status/instances directly,
+// is what keeps a mid-session failure or recovery reflected here without a refetch.
+export function getGroupKey(manifest: AppManifest, appStatuses: Record<string, AppStatusEntry>): GroupKey {
+  const status = appLiveStatus(appStatuses, manifest);
 
   if (status === "blocked") return "blocked";
   if (status === "disabled") return "disabled";

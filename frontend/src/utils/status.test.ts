@@ -1,6 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { executionStatusKind, INACTIVE_STATUSES, readinessVariant, statusToVariant } from "./status";
+import {
+  executionStatusKind,
+  INACTIVE_STATUSES,
+  isReloadableStatus,
+  readinessVariant,
+  statusToKind,
+  statusToVariant,
+} from "./status";
 
 describe("statusToVariant", () => {
   it("maps known app statuses to correct variants", () => {
@@ -13,6 +20,10 @@ describe("statusToVariant", () => {
     expect(statusToVariant("starting")).toBe("neutral");
     expect(statusToVariant("stopping")).toBe("neutral");
     expect(statusToVariant("shutting_down")).toBe("neutral");
+  });
+
+  it("maps degraded to warning variant", () => {
+    expect(statusToVariant("degraded")).toBe("warning");
   });
 
   it("maps exhausted_dead to danger variant", () => {
@@ -28,6 +39,19 @@ describe("statusToVariant", () => {
     expect(statusToVariant("exploding")).toBe("neutral");
     expect(warnSpy).toHaveBeenCalledWith('Unknown status: "exploding"');
     warnSpy.mockRestore();
+  });
+});
+
+describe("isReloadableStatus", () => {
+  it("treats running and degraded as reloadable", () => {
+    expect(isReloadableStatus("running")).toBe(true);
+    expect(isReloadableStatus("degraded")).toBe(true);
+  });
+
+  it("treats other statuses as not reloadable", () => {
+    expect(isReloadableStatus("stopped")).toBe(false);
+    expect(isReloadableStatus("failed")).toBe(false);
+    expect(isReloadableStatus("disabled")).toBe(false);
   });
 });
 
@@ -49,6 +73,23 @@ describe("executionStatusKind", () => {
     expect(executionStatusKind("exploding")).toBe("err");
     expect(warnSpy).toHaveBeenCalledWith('Unknown execution status: "exploding"');
     warnSpy.mockRestore();
+  });
+});
+
+describe("statusToKind", () => {
+  it("maps degraded to warn kind", () => {
+    expect(statusToKind("degraded")).toBe("warn");
+  });
+
+  it("maps known app statuses to correct kinds", () => {
+    expect(statusToKind("running")).toBe("ok");
+    expect(statusToKind("failed")).toBe("err");
+    expect(statusToKind("blocked")).toBe("warn");
+    expect(statusToKind("stopped")).toBe("mute");
+  });
+
+  it("returns mute for an unknown status", () => {
+    expect(statusToKind("exploding")).toBe("mute");
   });
 });
 

@@ -56,6 +56,13 @@ describe("ActionButtons", () => {
     expect(getByTestId("btn-reload-my_app")).toBeDefined();
   });
 
+  it("shows Stop and Reload (not Start) when status is degraded", () => {
+    const { getByTestId, queryByTestId } = render(<ActionButtons appKey="my_app" status="degraded" />);
+    expect(queryByTestId("btn-start-my_app")).toBeNull();
+    expect(getByTestId("btn-stop-my_app")).toBeDefined();
+    expect(getByTestId("btn-reload-my_app")).toBeDefined();
+  });
+
   it("shows no buttons for unknown statuses like starting", () => {
     const { queryByTestId } = render(<ActionButtons appKey="my_app" status="starting" />);
     expect(queryByTestId("btn-start-my_app")).toBeNull();

@@ -8,6 +8,7 @@ from hassette.utils.app_utils import (
     class_failed_to_load,
     get_class_load_error,
     get_loaded_class,
+    is_valid_instance_name,
     load_app_class_from_manifest,
 )
 from hassette.utils.exception_utils import get_short_traceback
@@ -56,7 +57,7 @@ class AppFactory:
         # Create instances
         for idx, config in enumerate(app_configs):
             instance_name = config.get("instance_name")
-            if not instance_name:
+            if not is_valid_instance_name(instance_name):
                 self.registry.record_failure(
                     app_key, idx, ValueError(f"App {app_key} instance {idx} is missing instance_name")
                 )

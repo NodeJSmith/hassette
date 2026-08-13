@@ -31,6 +31,7 @@ from hassette.schemas.domain_models import (
 )
 from hassette.schemas.live_counts import LiveCounts
 from hassette.schemas.query_constants import DEFAULT_QUERY_LIMIT, DEFAULT_SPARKLINE_BUCKETS
+from hassette.types.enums import ManifestStatus
 
 __all__ = [
     "DEFAULT_QUERY_LIMIT",
@@ -43,6 +44,7 @@ __all__ = [
     "BootIssue",
     "ConnectivityData",
     "LiveCounts",
+    "ManifestStatus",
     "ServiceInfo",
     "ServiceStatusData",
     "StateChangedData",
