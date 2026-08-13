@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Extract file-local helpers in test_duration_hold.py and test_duration_timer.py"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#7", "FR#8", "AC#1", "AC#3"]
 ---

@@ -70,6 +70,32 @@ def make_manager(
     )
 
 
+def make_listener_with_mock_timer(
+    entity_id: str = "light.kitchen",
+    duration: float = 60.0,
+    task_bucket: Any = None,
+) -> tuple[Listener, MagicMock, Any]:
+    """Build a Listener with duration_config set and a MagicMock attached as its timer.
+
+    Creates a task_bucket internally when one isn't passed — pass one in when a test needs
+    to reuse the same bucket for the listener and its owning manager/router.
+
+    Returns (listener, mock_timer, task_bucket).
+    """
+    if task_bucket is None:
+        task_bucket = make_task_bucket()
+    listener = create_listener(
+        topic=f"hass.event.state_changed.{entity_id}",
+        entity_id=entity_id,
+        duration=duration,
+        task_bucket=task_bucket,
+    )
+    assert listener.duration_config is not None
+    mock_timer = MagicMock()
+    listener.duration_config._timer = mock_timer
+    return listener, mock_timer, task_bucket
+
+
 class TestConstruction:
     def test_constructable_with_mock_callbacks(self) -> None:
         """DurationHoldManager is constructable with mock callbacks (no BusService import)."""
@@ -189,17 +215,7 @@ class TestStartDurationTimer:
         remove_listener_mock = make_remove_listener()
         manager.remove_listener = remove_listener_mock
 
-        task_bucket = make_task_bucket()
-        listener = create_listener(
-            topic="hass.event.state_changed.light.kitchen",
-            entity_id="light.kitchen",
-            duration=60.0,
-            task_bucket=task_bucket,
-        )
-        assert listener.duration_config is not None
-        # Attach a mock timer so start() can be called
-        mock_timer = MagicMock()
-        listener.duration_config._timer = mock_timer
+        listener, mock_timer, _ = make_listener_with_mock_timer(duration=60.0)
 
         invoke_fn = AsyncMock()
         manager.start_duration_timer(listener, "light.kitchen", listener.duration_config, invoke_fn)
@@ -210,16 +226,7 @@ class TestStartDurationTimer:
     def test_start_remaining_increments_duration_timers_active(self) -> None:
         """start_remaining_duration_timer increments duration_timers_active."""
         manager = make_manager()
-        task_bucket = make_task_bucket()
-        listener = create_listener(
-            topic="hass.event.state_changed.light.kitchen",
-            entity_id="light.kitchen",
-            duration=60.0,
-            task_bucket=task_bucket,
-        )
-        assert listener.duration_config is not None
-        mock_timer = MagicMock()
-        listener.duration_config._timer = mock_timer
+        listener, mock_timer, _ = make_listener_with_mock_timer(duration=60.0)
 
         invoke_fn = AsyncMock()
         manager.start_remaining_duration_timer(listener, "light.kitchen", listener.duration_config, invoke_fn, 30.0)
@@ -232,16 +239,7 @@ class TestStartDurationTimer:
         state = make_state_dict("light.kitchen", "on")
         manager = make_manager(state=state)
 
-        task_bucket = make_task_bucket()
-        listener = create_listener(
-            topic="hass.event.state_changed.light.kitchen",
-            entity_id="light.kitchen",
-            duration=60.0,
-            task_bucket=task_bucket,
-        )
-        assert listener.duration_config is not None
-        mock_timer = MagicMock()
-        listener.duration_config._timer = mock_timer
+        listener, mock_timer, _ = make_listener_with_mock_timer(duration=60.0)
 
         invoke_fn = AsyncMock()
         manager.start_duration_timer(listener, "light.kitchen", listener.duration_config, invoke_fn)
@@ -256,16 +254,7 @@ class TestStartDurationTimer:
         """on_duration_fire decrements counter even when state_reader returns None (early return)."""
         manager = make_manager(state=None)
 
-        task_bucket = make_task_bucket()
-        listener = create_listener(
-            topic="hass.event.state_changed.light.kitchen",
-            entity_id="light.kitchen",
-            duration=60.0,
-            task_bucket=task_bucket,
-        )
-        assert listener.duration_config is not None
-        mock_timer = MagicMock()
-        listener.duration_config._timer = mock_timer
+        listener, mock_timer, _ = make_listener_with_mock_timer(duration=60.0)
 
         invoke_fn = AsyncMock()
         manager.start_duration_timer(listener, "light.kitchen", listener.duration_config, invoke_fn)
@@ -282,16 +271,7 @@ class TestStartDurationTimer:
         state = make_state_dict("light.kitchen", "on")
         manager = make_manager(state=state)
 
-        task_bucket = make_task_bucket()
-        listener = create_listener(
-            topic="hass.event.state_changed.light.kitchen",
-            entity_id="light.kitchen",
-            duration=60.0,
-            task_bucket=task_bucket,
-        )
-        assert listener.duration_config is not None
-        mock_timer = MagicMock()
-        listener.duration_config._timer = mock_timer
+        listener, mock_timer, _ = make_listener_with_mock_timer(duration=60.0)
 
         invoke_fn = AsyncMock()
         manager.start_remaining_duration_timer(listener, "light.kitchen", listener.duration_config, invoke_fn, 30.0)
@@ -425,21 +405,7 @@ class TestCreateCancelListener:
         router = Router()
         task_bucket = make_task_bucket()
         manager = make_manager(router=router, task_bucket=task_bucket)
-
-        # Build a listener with a duration timer attached
-        listener = create_listener(
-            topic="hass.event.state_changed.light.kitchen",
-            entity_id="light.kitchen",
-            duration=5.0,
-            task_bucket=task_bucket,
-        )
-        assert listener.duration_config is not None
-
-        cancel_sub_mock = MagicMock()
-        cancel_sub_mock.cancel = MagicMock()
-        # We need a real DurationTimer or a mock — use a mock
-        mock_timer = MagicMock()
-        listener.duration_config._timer = mock_timer
+        listener, _, _ = make_listener_with_mock_timer(duration=5.0, task_bucket=task_bucket)
 
         sub = manager.create_cancel_listener(listener)
 
@@ -455,16 +421,7 @@ class TestCreateCancelListener:
         router = Router()
         task_bucket = make_task_bucket()
         manager = make_manager(router=router, task_bucket=task_bucket)
-
-        listener = create_listener(
-            topic="hass.event.state_changed.light.kitchen",
-            entity_id="light.kitchen",
-            duration=5.0,
-            task_bucket=task_bucket,
-        )
-        assert listener.duration_config is not None
-        mock_timer = MagicMock()
-        listener.duration_config._timer = mock_timer
+        listener, _, _ = make_listener_with_mock_timer(duration=5.0, task_bucket=task_bucket)
 
         sub = manager.create_cancel_listener(listener)
 
@@ -483,14 +440,7 @@ class TestCreateCancelListener:
         """
         task_bucket = make_task_bucket()
         manager = make_manager(task_bucket=task_bucket)
-        listener = create_listener(
-            topic="hass.event.state_changed.light.kitchen",
-            entity_id="light.kitchen",
-            duration=5.0,
-            task_bucket=task_bucket,
-        )
-        assert listener.duration_config is not None
-        listener.duration_config._timer = MagicMock()
+        listener, _, _ = make_listener_with_mock_timer(duration=5.0, task_bucket=task_bucket)
 
         sub = manager.create_cancel_listener(listener)
 
