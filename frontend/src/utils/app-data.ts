@@ -76,11 +76,16 @@ export type AppSortState = SortState<AppSortKey>;
 
 /** Resolve the live status for an app row's parent view.
  *  Single-instance: WS status for index 0.
- *  Multi-instance: worst status across all instances (lower priority = worse), unless the
- *  backend has already flagged the manifest as "degraded" — that's a manifest-level rollup
- *  (mixed running/failed instances) derived server-side, not a per-instance `ResourceStatus`,
- *  so it can never be produced by reducing over instance statuses and must be read from
- *  `row.status` directly. */
+ *  Multi-instance: overlays live per-instance WS statuses (falling back to the snapshot's
+ *  per-instance status where no WS update has arrived yet) and derives "degraded" from that
+ *  live view whenever a "running" and a "failed" instance coexist — mirroring `AppRegistry`'s
+ *  own binary model server-side (an instance entry is either running or failed, nothing else),
+ *  though the live WS status of an individual instance can transiently be a finer-grained
+ *  value (e.g. "starting") that this check doesn't treat as "running". This must be computed
+ *  from live data, not read off the cached `row.status`: the dashboard grid query is
+ *  invalidated on execution events, not `app_status_changed`, so a cached `row.status` can be
+ *  stale in either direction (still "running" after an instance fails, or still "degraded"
+ *  after all instances recover) for as long as no execution event happens to refetch it. */
 export function appLiveStatus(
   appStatuses: Record<string, AppStatusEntry>,
   row: Pick<AppRow, "app_key" | "status"> & { instances?: AppRow["instances"] },
@@ -89,9 +94,11 @@ export function appLiveStatus(
   if (instances.length <= 1) {
     return appStatuses[appStatusKey(row.app_key, 0)]?.status ?? row.status;
   }
-  if (row.status === "degraded") return row.status;
-  const statuses = instances.map((inst) => appStatuses[appStatusKey(row.app_key, inst.index)]?.status ?? inst.status);
-  return statuses.reduce((worst, live) => (statusPriority(live) < statusPriority(worst) ? live : worst));
+  const liveStatuses = instances.map(
+    (inst) => appStatuses[appStatusKey(row.app_key, inst.index)]?.status ?? inst.status,
+  );
+  if (liveStatuses.includes("running") && liveStatuses.includes("failed")) return "degraded";
+  return liveStatuses.reduce((worst, live) => (statusPriority(live) < statusPriority(worst) ? live : worst));
 }
 
 export function compareAppRows(
