@@ -19,18 +19,30 @@ async def simple_handler() -> None:
     """A simple async handler with no *args (valid DI signature)."""
 
 
+def make_invoker(
+    options: ListenerOptions | None = None,
+    handler=simple_handler,
+    kwargs: dict | None = None,
+    task_bucket=None,
+    error_handler=None,
+) -> HandlerInvoker:
+    """Build a ``HandlerInvoker`` via ``HandlerInvoker.create()``, filling in sane defaults."""
+    task_bucket = task_bucket if task_bucket is not None else make_task_bucket()
+    options = options if options is not None else ListenerOptions()
+
+    return HandlerInvoker.create(
+        task_bucket=task_bucket,
+        handler=handler,
+        kwargs=kwargs,
+        options=options,
+        error_handler=error_handler,
+    )
+
+
 class TestHandlerInvokerCreate:
     def test_create_minimal(self) -> None:
         """HandlerInvoker.create() with a simple handler produces a functional invoker."""
-        task_bucket = make_task_bucket()
-        options = ListenerOptions()
-
-        invoker = HandlerInvoker.create(
-            task_bucket=task_bucket,
-            handler=simple_handler,
-            kwargs=None,
-            options=options,
-        )
+        invoker = make_invoker()
 
         assert invoker.orig_handler is simple_handler
         assert invoker.kwargs is None
@@ -42,122 +54,56 @@ class TestHandlerInvokerCreate:
 
     def test_create_copies_once_from_options(self) -> None:
         """HandlerInvoker.create() copies once=True from ListenerOptions."""
-        task_bucket = make_task_bucket()
-        options = ListenerOptions(once=True)
-
-        invoker = HandlerInvoker.create(
-            task_bucket=task_bucket,
-            handler=simple_handler,
-            kwargs=None,
-            options=options,
-        )
+        invoker = make_invoker(options=ListenerOptions(once=True))
 
         assert invoker.once is True
 
     def test_create_with_debounce_builds_rate_limiter(self) -> None:
         """HandlerInvoker.create() with debounce builds a RateLimiter."""
-        task_bucket = make_task_bucket()
-        options = ListenerOptions(debounce=1.0)
-
-        invoker = HandlerInvoker.create(
-            task_bucket=task_bucket,
-            handler=simple_handler,
-            kwargs=None,
-            options=options,
-        )
+        invoker = make_invoker(options=ListenerOptions(debounce=1.0))
 
         assert invoker.rate_limiter is not None
 
     def test_create_with_throttle_builds_rate_limiter(self) -> None:
         """HandlerInvoker.create() with throttle builds a RateLimiter."""
-        task_bucket = make_task_bucket()
-        options = ListenerOptions(throttle=2.0)
-
-        invoker = HandlerInvoker.create(
-            task_bucket=task_bucket,
-            handler=simple_handler,
-            kwargs=None,
-            options=options,
-        )
+        invoker = make_invoker(options=ListenerOptions(throttle=2.0))
 
         assert invoker.rate_limiter is not None
 
     def test_create_without_rate_limiting_no_rate_limiter(self) -> None:
         """HandlerInvoker.create() without debounce/throttle leaves rate_limiter None."""
-        task_bucket = make_task_bucket()
-        options = ListenerOptions()
-
-        invoker = HandlerInvoker.create(
-            task_bucket=task_bucket,
-            handler=simple_handler,
-            kwargs=None,
-            options=options,
-        )
+        invoker = make_invoker()
 
         assert invoker.rate_limiter is None
 
     def test_create_with_error_handler(self) -> None:
-        task_bucket = make_task_bucket()
         error_handler = AsyncMock()
-        options = ListenerOptions()
 
-        invoker = HandlerInvoker.create(
-            task_bucket=task_bucket,
-            handler=simple_handler,
-            kwargs=None,
-            options=options,
-            error_handler=error_handler,
-        )
+        invoker = make_invoker(error_handler=error_handler)
 
         assert invoker.error_handler is error_handler
 
     def test_create_with_kwargs(self) -> None:
-        task_bucket = make_task_bucket()
-        options = ListenerOptions()
         kwargs = {"my_key": "my_value"}
 
-        invoker = HandlerInvoker.create(
-            task_bucket=task_bucket,
-            handler=simple_handler,
-            kwargs=kwargs,
-            options=options,
-        )
+        invoker = make_invoker(kwargs=kwargs)
 
         assert invoker.kwargs == kwargs
 
     def test_has_slots(self) -> None:
-        task_bucket = make_task_bucket()
-        options = ListenerOptions()
-        invoker = HandlerInvoker.create(
-            task_bucket=task_bucket,
-            handler=simple_handler,
-            kwargs=None,
-            options=options,
-        )
+        invoker = make_invoker()
         assert hasattr(type(invoker), "__slots__")
 
 
 class TestHandlerInvokerMarkFired:
     def test_mark_fired_sets_flag(self) -> None:
-        task_bucket = make_task_bucket()
-        invoker = HandlerInvoker.create(
-            task_bucket=task_bucket,
-            handler=simple_handler,
-            kwargs=None,
-            options=ListenerOptions(),
-        )
+        invoker = make_invoker()
         assert invoker.fired is False
         invoker.mark_fired()
         assert invoker.fired is True
 
     def test_mark_fired_idempotent(self) -> None:
-        task_bucket = make_task_bucket()
-        invoker = HandlerInvoker.create(
-            task_bucket=task_bucket,
-            handler=simple_handler,
-            kwargs=None,
-            options=ListenerOptions(),
-        )
+        invoker = make_invoker()
         invoker.mark_fired()
         invoker.mark_fired()
         assert invoker.fired is True
@@ -165,13 +111,7 @@ class TestHandlerInvokerMarkFired:
 
 class TestHandlerInvokerSetAppErrorHandlerResolver:
     def test_set_resolver(self) -> None:
-        task_bucket = make_task_bucket()
-        invoker = HandlerInvoker.create(
-            task_bucket=task_bucket,
-            handler=simple_handler,
-            kwargs=None,
-            options=ListenerOptions(),
-        )
+        invoker = make_invoker()
         resolver = MagicMock(return_value=None)
         invoker.set_app_error_handler_resolver(resolver)
         assert invoker.app_error_handler_resolver is resolver
@@ -183,26 +123,14 @@ class TestHandlerInvokerDispatch:
     # is never asked to spawn a real child task. Overlap-mode dispatch is covered by the
     # ExecutionModeGuard unit tests and the bus integration tests.
     async def test_dispatch_calls_invoke_fn(self) -> None:
-        task_bucket = make_task_bucket()
-        invoker = HandlerInvoker.create(
-            task_bucket=task_bucket,
-            handler=simple_handler,
-            kwargs=None,
-            options=ListenerOptions(mode="parallel"),
-        )
+        invoker = make_invoker(options=ListenerOptions(mode="parallel"))
         invoke_fn = AsyncMock()
         await invoker.dispatch(invoke_fn)
         invoke_fn.assert_awaited_once()
 
     async def test_dispatch_once_guard_prevents_double_fire(self) -> None:
         """Once-guard: if once=True and fired=True, dispatch is skipped."""
-        task_bucket = make_task_bucket()
-        invoker = HandlerInvoker.create(
-            task_bucket=task_bucket,
-            handler=simple_handler,
-            kwargs=None,
-            options=ListenerOptions(once=True, mode="parallel"),
-        )
+        invoker = make_invoker(options=ListenerOptions(once=True, mode="parallel"))
         invoke_fn = AsyncMock()
 
         # First dispatch — should fire and mark fired
@@ -216,13 +144,7 @@ class TestHandlerInvokerDispatch:
 
     async def test_dispatch_once_false_allows_multiple(self) -> None:
         """once=False allows multiple dispatches."""
-        task_bucket = make_task_bucket()
-        invoker = HandlerInvoker.create(
-            task_bucket=task_bucket,
-            handler=simple_handler,
-            kwargs=None,
-            options=ListenerOptions(once=False, mode="parallel"),
-        )
+        invoker = make_invoker(options=ListenerOptions(once=False, mode="parallel"))
         invoke_fn = AsyncMock()
         await invoker.dispatch(invoke_fn)
         await invoker.dispatch(invoke_fn)
@@ -230,13 +152,7 @@ class TestHandlerInvokerDispatch:
 
     async def test_dispatch_skipped_when_already_fired(self) -> None:
         """If fired is True before dispatch, dispatch returns immediately."""
-        task_bucket = make_task_bucket()
-        invoker = HandlerInvoker.create(
-            task_bucket=task_bucket,
-            handler=simple_handler,
-            kwargs=None,
-            options=ListenerOptions(once=True),
-        )
+        invoker = make_invoker(options=ListenerOptions(once=True))
         invoker.mark_fired()
         invoke_fn = AsyncMock()
         await invoker.dispatch(invoke_fn)
@@ -251,13 +167,7 @@ class TestHandlerInvokerInvoke:
             nonlocal called
             called = True
 
-        task_bucket = make_task_bucket()
-        invoker = HandlerInvoker.create(
-            task_bucket=task_bucket,
-            handler=handler,
-            kwargs=None,
-            options=ListenerOptions(),
-        )
+        invoker = make_invoker(handler=handler)
 
         mock_event = MagicMock()
         await invoker.invoke(mock_event)
@@ -269,13 +179,7 @@ class TestHandlerInvokerInvoke:
         async def handler(extra: str = "") -> None:
             received["extra"] = extra
 
-        task_bucket = make_task_bucket()
-        invoker = HandlerInvoker.create(
-            task_bucket=task_bucket,
-            handler=handler,
-            kwargs={"extra": "hello"},
-            options=ListenerOptions(),
-        )
+        invoker = make_invoker(handler=handler, kwargs={"extra": "hello"})
 
         mock_event = MagicMock()
         await invoker.invoke(mock_event)
@@ -306,13 +210,7 @@ class TestHandlerInvokerWarnStalled:
 
         monkeypatch.setattr(HandlerInvoker, "warn_stalled", spy_warn_stalled)
 
-        task_bucket = make_task_bucket()
-        invoker = HandlerInvoker.create(
-            task_bucket=task_bucket,
-            handler=simple_handler,
-            kwargs=None,
-            options=ListenerOptions(mode="single"),
-        )
+        invoker = make_invoker(options=ListenerOptions(mode="single"))
 
         async def slow_invoke() -> None:
             await asyncio.sleep(0.2)
@@ -331,13 +229,7 @@ class TestHandlerInvokerWarnStalled:
 
         monkeypatch.setattr(HandlerInvoker, "warn_stalled", spy_warn_stalled)
 
-        task_bucket = make_task_bucket()
-        invoker = HandlerInvoker.create(
-            task_bucket=task_bucket,
-            handler=simple_handler,
-            kwargs=None,
-            options=ListenerOptions(mode="single"),
-        )
+        invoker = make_invoker(options=ListenerOptions(mode="single"))
 
         async def fast_invoke() -> None:
             return

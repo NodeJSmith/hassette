@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Extract file-local helpers in test_invocation.py and test_handler_invoker.py"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#5", "FR#6", "AC#1", "AC#3"]
 ---
