@@ -136,6 +136,25 @@ class TestAppFactoryCreateInstances:
         mock_registry.register_app.assert_called_once_with("test_app", 1, mock_app_class.return_value)
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
+    def test_create_instances_non_string_instance_name(
+        self, mock_load_class, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
+    ):
+        """A non-string but truthy instance_name (e.g. an int) is rejected the same way a
+        missing one is -- is_valid_instance_name() requires a str, not just a truthy value.
+        """
+        mock_manifest.app_config = [{"instance_name": 123}]
+        mock_load_class.return_value = Mock()
+
+        factory.create_instances("test_app", mock_manifest)
+
+        mock_registry.record_failure.assert_called_once()
+        call_args = mock_registry.record_failure.call_args
+        assert call_args[0][0] == "test_app"
+        assert call_args[0][1] == 0
+        assert isinstance(call_args[0][2], ValueError)
+        mock_registry.register_app.assert_not_called()
+
+    @patch("hassette.core.app_factory.load_app_class_from_manifest")
     def test_create_instances_validation_failure(
         self, mock_load_class, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
     ):

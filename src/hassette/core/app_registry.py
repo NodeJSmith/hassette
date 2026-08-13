@@ -16,6 +16,7 @@ from hassette.schemas.app_snapshots import (
     tally_manifest_statuses,
 )
 from hassette.types.enums import BlockReason, ManifestStatus, ResourceStatus
+from hassette.utils.app_utils import is_valid_instance_name
 from hassette.utils.exception_utils import get_traceback_string
 
 if TYPE_CHECKING:
@@ -158,9 +159,19 @@ class AppRegistry:
             return f"Unknown.{index}"
 
         configs = AppFactory.normalize_configs(manifest.app_config)
+        fallback = f"{manifest.class_name}.{index}"
         if index < len(configs):
-            return configs[index].get("instance_name", f"{manifest.class_name}.{index}")
-        return f"{manifest.class_name}.{index}"
+            # AppInstanceInfo.instance_name is a required str -- a config value of `None` or
+            # some other non-string (e.g. `instance_name = false`, or explicit YAML/TOML null)
+            # must not pass through here, or the eventual AppInstanceResponse Pydantic mapping
+            # raises a validation error and turns the status endpoint into a 500 precisely when
+            # it should be reporting the configuration failure. is_valid_instance_name() is the
+            # same check AppFactory.create_instances() uses to decide whether to even attempt
+            # instantiation, so the two can't silently diverge on what counts as valid.
+            configured = configs[index].get("instance_name")
+            if is_valid_instance_name(configured):
+                return configured
+        return fallback
 
     def _info_from_entry(
         self, app_key: str, index: int, entry: InstanceEntry, manifest: "AppManifest | None" = None

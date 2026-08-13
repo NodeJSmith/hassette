@@ -37,6 +37,18 @@ def app_cache_key(module_path: Path, class_name: str) -> tuple[str, str]:
     return (str(module_path), class_name)
 
 
+def is_valid_instance_name(value: object) -> typing.TypeGuard[str]:
+    """Whether a config-sourced ``instance_name`` value is usable.
+
+    A single source of truth for "usable" so the pre-instantiation check in
+    ``AppFactory.create_instances`` and the post-failure display fallback in
+    ``AppRegistry._resolve_failed_instance_name`` can't silently diverge on what counts as
+    valid (e.g. one accepting a non-string truthy value like ``123`` that the other rejects).
+    A ``TypeGuard`` so callers get ``str`` narrowing on the checked value, not just a bool.
+    """
+    return isinstance(value, str) and bool(value)
+
+
 def root_cause(exc: BaseException) -> BaseException:
     """Prefer __cause__ (explicit raise ... from ...), else __context__."""
     err = exc

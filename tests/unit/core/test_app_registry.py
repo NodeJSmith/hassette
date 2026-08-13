@@ -826,3 +826,19 @@ class TestBuildManifestInfoStatusDerivation:
 
         assert snapshot.instances[0].instance_name == "Unknown.0"
         assert snapshot.instances[0].class_name == "Unknown"
+
+    @pytest.mark.parametrize("configured_name", [None, False, 0, ""])
+    def test_failed_instance_name_falls_back_for_invalid_configured_value(
+        self, registry: AppRegistry, configured_name: object
+    ) -> None:
+        """A non-string (or empty) configured ``instance_name`` -- e.g. an explicit ``null`` in
+        the user's config -- must not flow through as-is. ``AppInstanceInfo.instance_name`` is a
+        required ``str``, and the eventual ``AppInstanceResponse`` Pydantic mapping would raise a
+        validation error on anything else, turning the status endpoint into a 500.
+        """
+        manifest = make_manifest_obj("my_app", app_config=[{"instance_name": configured_name}])
+        registry.record_failure("my_app", 0, ValueError("boom"))
+
+        info = registry.build_manifest_info("my_app", manifest)
+
+        assert info.instances[0].instance_name == "MyApp.0"
