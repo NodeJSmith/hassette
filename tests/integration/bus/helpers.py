@@ -5,11 +5,13 @@ from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
 from hassette.events import RawStateChangeEvent
+from hassette.test_utils import wait_for
 from hassette.test_utils.harness import HassetteHarness
 from hassette.test_utils.helpers import create_state_change_event, make_state_dict
 
 if TYPE_CHECKING:
     from hassette import Hassette
+    from hassette.bus import Bus
 
 ENTITY = "sensor.overlap"
 """Shared entity id for execution-mode overlap tests (test_execution_modes*.py)."""
@@ -85,6 +87,26 @@ async def drive_state_change(
     """
     await send_state_change(harness, entity_id, old_value, new_value)
     await seed(harness, entity_id, new_value)
+
+
+async def send_live_event_and_wait_drain(
+    hassette: "Hassette",
+    bus: "Bus",
+    entity_id: str,
+    old_value: str,
+    new_value: str,
+) -> None:
+    """Send a state-change event and wait for ``bus.task_bucket`` to drain.
+
+    Used by ``once=True`` tests that prove a second live event does not re-fire an
+    already-consumed listener — unlike ``drive_state_change``, the assertion that follows only
+    cares whether the handler ran again, so this doesn't sync StateProxy's cache, and it waits on
+    ``bus.task_bucket`` draining rather than ``bus_service.await_dispatch_idle()``, matching what
+    each of these call sites already did before extraction.
+    """
+    event = create_state_change_event(entity_id=entity_id, old_value=old_value, new_value=new_value)
+    await hassette.send_event(event)
+    await wait_for(lambda: len(bus.task_bucket) == 0, desc="tasks drain")
 
 
 async def pump_event_loop() -> None:

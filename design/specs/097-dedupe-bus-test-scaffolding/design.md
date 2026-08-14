@@ -65,6 +65,9 @@ genuinely different shapes. This design targets the clusters the checker actuall
   PMD CPD also matches the surviving per-test result-extraction lines against an analogous pattern
   in those two `tests/unit/core/` files — cross-directory duplication no task in this design was
   ever scoped to address. 19+6+2=27. 50→27 is still a 46% reduction, just short of the ≥50% goal.
+  **Post-T06 (T07):** T07 resolved all 6 `test_duration_hold.py` clusters counted in the 27
+  (extraction for 4, cluster-specific `dup-ignore` for the other 2's underlying finding — see
+  FR#12) — the final count is **21**, a 58% reduction from the original 50.
 - Cut `tests/integration/bus/` cluster count from 47 as far as reachable. The original ≤23
   (≥50% reduction) target is **known unreachable** via this task set: T02's investigation
   (see design.md's Goals section here, and T02's own body) proved the T01
@@ -80,7 +83,13 @@ genuinely different shapes. This design targets the clusters the checker actuall
   not to redesign it). T05 reports the actual final count as an honest measurement, not a
   pass/fail gate against ≤23. **Post-T05 (T06):** the count dropped further to 37 after extracting
   the `drive_state_change` trigger helper and adopting it in `test_bus_duration.py` and
-  `test_bus_error_handler_combos.py` (trigger lines only — see FR#11).
+  `test_bus_error_handler_combos.py` (trigger lines only — see FR#11). **Post-T06 (T07):** T07
+  resolved the remaining residual clusters fully contained in `test_bus_duration.py`,
+  `test_bus_immediate.py`, and `test_bus_error_handler_combos.py` (see FR#12) — the final count is
+  **20**. The clusters that remain reach into files this design never targeted
+  (`test_execution_modes.py`, `test_execution_modes_guards.py`, `conftest.py`,
+  `tests/integration/test_scheduler_error_handler.py`) and are accepted as out-of-scope, consistent
+  with this bullet's existing precedent.
 - Zero test behavior change — every existing test still passes with the same assertions, and the
   same number of tests collect: 697 in `tests/unit/bus/`, 125 in `tests/integration/bus/`
   (measured via `uv run pytest tests/unit/bus/ --collect-only -q` /
@@ -135,22 +144,82 @@ genuinely different shapes. This design targets the clusters the checker actuall
   helper wherever the pair appears unchanged. This does **not** touch
   `test_bus_error_handler_combos.py`'s `_ErrorCollector` abstraction — only the state-transition
   trigger lines each of its tests already shares with `test_bus_duration.py`.
+- **FR#12** *(T07)* Investigated and resolved all 22 clusters PMD CPD flagged whose fragments sit
+  entirely inside `test_bus_duration.py`, `test_bus_immediate.py`,
+  `test_bus_error_handler_combos.py`, and `test_duration_hold.py` — the residual left after
+  FR#1-#11's shared/file-local helpers already collapsed the parts that generalized cleanly. 9 of
+  the 22 clusters (PMD reports overlapping token-match windows over the same underlying
+  duplication, so one extraction often resolves 2 reported clusters at once) were extracted into 6
+  new helpers:
+  - `send_live_event_and_wait_drain` (`tests/integration/bus/helpers.py`) — the "send a live
+    state-change event, then wait for `bus.task_bucket` to drain" pair used by `once=True`
+    consumption tests; adopted at 3 call sites across `test_bus_immediate.py` and
+    `test_bus_error_handler_combos.py`.
+  - `make_error_collector_pair` (`test_bus_error_handler_combos.py`) — the `(app_level,
+    per_listener)` `_ErrorCollector()` pair used by the 3 "per-listener wins" tests.
+  - `arm_duration_timer` / `arm_remaining_duration_timer` (`test_duration_hold.py`) — the
+    manager+listener+mock-timer+`invoke_fn` arrange block shared by `TestStartDurationTimer`'s 5
+    tests, split into two functions (one per which `start_*_duration_timer` variant is driven)
+    rather than one flag-branching helper.
+  - `fire_mock_timer` (`test_duration_hold.py`) — the "invoke the captured `on_fire` callback"
+    2-line tail shared by 3 `TestStartDurationTimer` tests; a residual duplication PMD only
+    surfaced after `arm_duration_timer`/`arm_remaining_duration_timer` landed.
+  - `compute_elapsed_for` (`test_duration_hold.py`) — the `DurationConfig(...)` +
+    `compute_elapsed(state, dc)` pair shared by 3 `TestComputeElapsed` cases whose `state` dict is
+    the only thing that varies.
+  - `hold_matches_with_predicate` (`test_duration_hold.py`) — the
+    manager+listener+event+`hold_matches()` call shared by 3 `TestHoldMatches` cases that set an
+    explicit `hold_predicate`.
+
+  The remaining 13 clusters were resolved with cluster-specific `dup-ignore-start`/`dup-ignore-end`
+  markers rather than extraction, split into two shapes:
+  - **Registration "arrange" and "trigger+wait+assert" residuals** (most of the 13, spread across
+    `test_bus_duration.py`, `test_bus_immediate.py`, and `test_bus_error_handler_combos.py`): each
+    test's `bus.on_state_change`/`bus.on_attribute_change` call differs in entity, `changed_to`/
+    `changed_from`, `duration`, `once`, `on_error`, or `debounce`, and each test's own docstring
+    names the exact behavior its specific combination proves — a shared helper would need as many
+    parameters as the registration call itself, or would collapse the "trigger, wait, assert
+    exactly one fire" tail (the actual point of a positive-fire test) into an opaque call. PMD's
+    token-equivalent tokenizer also matches these fragments across the *closing paren* of the
+    preceding registration call and into the *next* test function's `async def` line (both
+    coincidental token overlap, not real duplication), so several markers had to be widened past
+    their initial boundaries to fully contain what PMD reports — verified iteratively by re-running
+    `check_duplicate_code.py` after each file's changes rather than guessing fragment boundaries by
+    hand.
+  - **`test_duration_hold.py`'s `TestHoldMatches` fallback cases** (1 cluster, 3 occurrences): the
+    3 tests proving `hold_matches` falls back to `listener.matches()` (with duration_config present
+    but no hold_predicate; with a raising listener predicate; with no duration_config at all) each
+    embed a precondition assert (`assert listener.duration_config is not None` vs. `is None`) that
+    is itself part of what the test verifies, and two of the three need the `event` variable
+    afterward to assert the underlying `where=` predicate mock was actually invoked — a
+    result-only helper would swallow both.
+
+  Post-T07 counts (`uv run python tools/check_duplicate_code.py`): `tests/unit/bus/` clusters
+  27 → 21, `tests/integration/bus/` clusters 36 → 20 (T06 reported 37; the 36 pre-T07 baseline
+  reflects the same state re-measured at T07's start — a 1-cluster difference attributable to
+  measurement timing, not drift). All 22 originally-flagged clusters are gone; the remaining
+  clusters in both directories reach into files this design never targeted (`test_accessors.py`,
+  `test_predicates.py`, `test_predicate_details.py`, `tests/integration/test_scheduler_error_handler.py`)
+  and are unaffected by this task, consistent with AC#1/AC#2's existing accounting.
 
 ## Acceptance Criteria
 
 - **AC#1** `uv run python tools/check_duplicate_code.py` — report the actual count of clusters
-  whose fragments include a `tests/unit/bus/` path. Final result: 27, not ≤25 (see Goals for the
-  structural explanation — accepted as satisfied by an honest final measurement rather than a
-  literal ≤25, consistent with AC#2's precedent).
+  whose fragments include a `tests/unit/bus/` path. Final result (post-T07): **21**, which meets
+  the original ≤25 target — T05's interim 27 included 2 clusters this task set was never scoped to
+  touch (see Goals), and T07 resolved the in-scope `test_duration_hold.py` portion of that 27 down
+  to 21 (see FR#12).
 - **AC#2** `uv run python tools/check_duplicate_code.py` — report the actual count of clusters
-  whose fragments include a `tests/integration/bus/` path as of the final task (T05). The original
+  whose fragments include a `tests/integration/bus/` path as of the final task (T07). The original
   ≤23 target is known unreachable via this task set (see Goals) — AC#2 is satisfied by an honest
   final measurement plus a check that the count did not regress above 40 (the count already
-  reached after T01+T02), not by hitting ≤23. T06 (FR#11) further reduces this count by collapsing
-  the 18 fully-containable residual clusters (see Approach); the 9 clusters that reach into files
-  outside this design's scope remain and are accepted as out-of-scope, consistent with the
-  Dependencies and Assumptions section's note that this check is `continue-on-error` in CI and
-  this design does not need to zero out the repo-wide count.
+  reached after T01+T02), not by hitting ≤23. Final result (post-T07): **20**. T06 (FR#11) reduced
+  the count to 37 by collapsing the 18 fully-containable residual clusters it targeted (see
+  Approach); T07 (FR#12) resolved the remaining clusters fully inside this design's four
+  investigation-target files. The clusters that remain reach into files outside this design's scope
+  and are accepted as out-of-scope, consistent with the Dependencies and Assumptions section's note
+  that this check is `continue-on-error` in CI and this design does not need to zero out the
+  repo-wide count.
 - **AC#3** `uv run pytest tests/unit/bus/ --collect-only -q` reports exactly 697 tests collected,
   `uv run pytest tests/integration/bus/ --collect-only -q` reports exactly 125 tests collected
   (both baselines fixed pre-refactor — see Goals), and
