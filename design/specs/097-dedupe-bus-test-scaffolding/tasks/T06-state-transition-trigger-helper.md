@@ -10,9 +10,11 @@ implements: ["FR#11", "AC#2"]
 
 - modify: `tests/integration/bus/helpers.py`
 - modify: `tests/integration/bus/test_bus_duration.py`
-- investigated, not modified: `tests/integration/bus/test_bus_immediate.py` — the `send_state_change`+`seed`
+- not modified for FR#11: `tests/integration/bus/test_bus_immediate.py` — the `send_state_change`+`seed`
   pair this task targets never occurs there; every `seed()` call is a standalone registration-time
-  snapshot (see FR#11's descope note in design.md)
+  snapshot (see FR#11's descope note in design.md). This file does carry unrelated changes in the
+  final diff/commit — a pre-existing, already-reviewed clean-code pass (Step 4 of the orchestration
+  pipeline) that landed in the same commit as T06's own changes, not anything T06 itself touched.
 - modify: `tests/integration/bus/test_bus_error_handler_combos.py`
 - modify: `tests/integration/bus/CLAUDE.md`
 
@@ -53,15 +55,18 @@ that class or its usage (`errors.bound(hassette)`, `errors.wait(...)`, `errors.s
 Only its `send_state_change`+`seed` trigger lines are in scope for this task, the same lines that
 already import `seed, send_state_change` from `.helpers` at the top of the file.
 
-Preserve every test's actual assertions, timeout values, and entity/state arguments exactly — this
-is a pure structural refactor, not a test-behavior change.
+Preserve every test's actual assertions, timeout values, and entity/state arguments exactly at
+every call site this task touches — this task's own changes are a pure structural refactor, not a
+test-behavior change. (The shipped commit also carries unrelated, already-reviewed changes from an
+earlier clean-code pass in the same files — see the Target Files note on `test_bus_immediate.py`.)
 
 ## Verify
 
 - [ ] FR#11: `tests/integration/bus/helpers.py` has a new state-transition-trigger helper function.
-- [ ] FR#11: `test_bus_duration.py`, `test_bus_immediate.py`, and `test_bus_error_handler_combos.py`
-      adopt it at every call site where the exact `send_state_change` + `seed` pair (same entity,
-      same target state) appears unchanged; document in a comment any remaining occurrence the
+- [ ] FR#11: `test_bus_duration.py` and `test_bus_error_handler_combos.py` adopt it at every call
+      site where the exact `send_state_change` + `seed` pair (same entity, same target state)
+      appears unchanged (`test_bus_immediate.py` excluded — see Target Files); document in a
+      comment any remaining occurrence the
       helper genuinely can't cover cleanly.
 - [ ] `test_bus_error_handler_combos.py`'s `_ErrorCollector` class and its usages are byte-for-byte
       unchanged (confirm via `git diff` showing only trigger-line changes in that file).
