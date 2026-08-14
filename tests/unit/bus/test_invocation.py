@@ -54,12 +54,14 @@ async def invoke_and_get_cmd(
 
 class TestTimeoutResolution:
     async def test_timeout_disabled_returns_none(self) -> None:
-        """listener.timeout_disabled=True → effective_timeout=None."""
+        """listener.timeout_disabled=True → effective_timeout=None, config_resolver not called."""
+        config_resolver = MagicMock(return_value=600.0)
         listener = create_listener(topic="test.topic", timeout_disabled=True)
 
-        cmd = await invoke_and_get_cmd(listener=listener)
+        cmd = await invoke_and_get_cmd(listener=listener, config_resolver=config_resolver)
 
         assert cmd.effective_timeout is None
+        config_resolver.assert_not_called()
 
     async def test_per_listener_timeout_used_when_set(self) -> None:
         """listener.timeout=5 → effective_timeout=5.0, config_resolver not called."""

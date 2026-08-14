@@ -111,9 +111,7 @@ def arm_duration_timer(
     Returns ``(manager, mock_timer, invoke_fn)``. ``remove_listener`` lets a caller override
     ``manager.remove_listener`` before the timer starts, for the one test that needs it.
     """
-    manager = make_manager(state=state)
-    if remove_listener is not None:
-        manager.remove_listener = remove_listener
+    manager = make_manager(state=state, remove_listener=remove_listener)
     listener, mock_timer, _task_bucket = make_listener_with_mock_timer(duration=duration)
     invoke_fn = AsyncMock()
     manager.start_duration_timer(listener, "light.kitchen", listener.duration_config, invoke_fn)

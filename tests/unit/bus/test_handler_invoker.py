@@ -7,11 +7,13 @@ factory the integration tests rely on.
 """
 
 import asyncio
+from collections.abc import Mapping
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from hassette import TaskBucket
 from hassette.bus.listeners import HandlerInvoker, ListenerOptions
 from hassette.test_utils.helpers import make_task_bucket
 from hassette.types import BusErrorHandlerType, HandlerType
@@ -24,8 +26,8 @@ async def simple_handler() -> None:
 def make_invoker(
     options: ListenerOptions | None = None,
     handler: HandlerType = simple_handler,
-    kwargs: dict | None = None,
-    task_bucket: Any = None,
+    kwargs: Mapping[str, Any] | None = None,
+    task_bucket: TaskBucket | None = None,
     error_handler: BusErrorHandlerType | None = None,
 ) -> HandlerInvoker:
     """Build a ``HandlerInvoker`` via ``HandlerInvoker.create()``, filling in sane defaults."""
