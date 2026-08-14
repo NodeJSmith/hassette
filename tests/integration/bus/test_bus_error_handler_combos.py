@@ -24,7 +24,7 @@ from hassette.test_utils.harness import HassetteHarness
 from hassette.test_utils.helpers import create_state_change_event, settle
 
 from .conftest import DURATION
-from .helpers import seed, send_state_change
+from .helpers import drive_state_change
 
 if TYPE_CHECKING:
     from hassette import Hassette
@@ -88,8 +88,7 @@ async def test_duration_app_level_error_handler(bus_harness: tuple[HassetteHarne
         name="duration_app_level_error_handler",
     )
 
-    await send_state_change(harness, "light.kitchen", "off", "on")
-    await seed(harness, "light.kitchen", "on")
+    await drive_state_change(harness, "light.kitchen", "off", "on")
 
     await errors.wait(timeout=DURATION + 1.0)
     await settle()
@@ -121,8 +120,7 @@ async def test_duration_per_listener_error_handler_wins(
         name="duration_per_listener_error_handler_wins",
     )
 
-    await send_state_change(harness, "light.kitchen", "off", "on")
-    await seed(harness, "light.kitchen", "on")
+    await drive_state_change(harness, "light.kitchen", "off", "on")
 
     await per_listener.wait(timeout=DURATION + 1.0)
     await settle()
@@ -151,8 +149,7 @@ async def test_duration_error_handler_receives_original_event(
         name="duration_error_handler_receives_original_event",
     )
 
-    await send_state_change(harness, "light.kitchen", "off", "on")
-    await seed(harness, "light.kitchen", "on")
+    await drive_state_change(harness, "light.kitchen", "off", "on")
 
     await errors.wait(timeout=DURATION + 1.0)
     await settle()
@@ -187,8 +184,7 @@ async def test_duration_once_error_handler_and_removal(
         name="duration_once_error_handler_and_removal",
     )
 
-    await send_state_change(harness, "light.kitchen", "off", "on")
-    await seed(harness, "light.kitchen", "on")
+    await drive_state_change(harness, "light.kitchen", "off", "on")
 
     await errors.wait(timeout=DURATION + 1.0)
     await settle()
@@ -198,10 +194,8 @@ async def test_duration_once_error_handler_and_removal(
     await wait_for(lambda: not bus.task_bucket.pending_tasks(), desc="tasks drain")
 
     # Second trigger — listener should be gone (once contract upheld despite exception)
-    await send_state_change(harness, "light.kitchen", "on", "off")
-    await seed(harness, "light.kitchen", "off")
-    await send_state_change(harness, "light.kitchen", "off", "on")
-    await seed(harness, "light.kitchen", "on")
+    await drive_state_change(harness, "light.kitchen", "on", "off")
+    await drive_state_change(harness, "light.kitchen", "off", "on")
     await asyncio.sleep(DURATION + 0.1)
 
     assert call_count == 1, f"once=True handler fired {call_count} times despite error"

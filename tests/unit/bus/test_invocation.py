@@ -10,6 +10,7 @@ Tests cover:
 from unittest.mock import MagicMock
 
 from hassette.bus.invocation import build_tracked_invoke_fn
+from hassette.bus.listeners import Listener
 from hassette.commands import InvokeHandler
 from hassette.test_utils.factories import make_mock_event, make_mock_executor
 from hassette.test_utils.helpers import create_listener
@@ -17,10 +18,10 @@ from hassette.test_utils.helpers import create_listener
 
 async def invoke_and_get_cmd(
     *,
-    listener=None,
+    listener: Listener | None = None,
     config_resolver: MagicMock | None = None,
     executor: MagicMock | None = None,
-    event=None,
+    event: MagicMock | None = None,
     topic: str = "test.topic",
     is_synthetic: bool = False,
 ) -> InvokeHandler:

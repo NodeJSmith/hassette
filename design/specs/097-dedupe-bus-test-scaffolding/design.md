@@ -47,12 +47,14 @@ genuinely different shapes. This design targets the clusters the checker actuall
   original ≤25 target is **not fully met**: the final count is 27. T05's investigation confirmed
   T03/T04's helper adoption is complete (zero remaining un-adopted instances of the patterns those
   tasks targeted, one deliberate sequencing exception in `test_invocation.py` already documented).
-  The 27-vs-25 gap is structural: 19 of 27 clusters sit entirely in 14 files never targeted by this
-  design (`test_once_listener_tracking.py`, `test_router.py`, `test_predicate_details.py`,
+  The 27-vs-25 gap is structural: 19 of 27 clusters are in files this design never targeted for
+  unit-bus dedup (`test_once_listener_tracking.py`, `test_router.py`, `test_predicate_details.py`,
   `test_if_exists.py`, `test_accessors.py`, `test_listeners.py`, `test_execution_mode_guard.py`,
   `test_bus_where.py`, `test_bus_coroutine_conversion.py`, `test_bus_error_handler.py`,
   `test_bus_registration_edge_cases.py`, `test_registration_errors.py`, `test_predicates.py`,
-  `test_bus.py`) — the original investigation's cluster count (50) included a long tail spread
+  `test_bus.py`) — 3 of those 19 also incidentally include `tests/integration/bus/test_bus_duration.py`
+  (a T01-modified file) as a cross-file match on unrelated lines PMD CPD happened to flag, not the
+  pattern T01 fixed. The original investigation's cluster count (50) included a long tail spread
   thin across many small files, not concentrated in the two "dominant contributor" files this
   design targeted. 6 are the `test_duration_hold.py` residual already accepted as out-of-scope
   during T04 (see below). The remaining **2** are a case the mid-run CONTESTED narrative initially
@@ -101,7 +103,12 @@ genuinely different shapes. This design targets the clusters the checker actuall
   instead of calling `harness.seed_state(entity_id, make_state_dict(...))` directly.
 - **FR#4** `test_bus.py`, `test_bus_emit.py`, `test_bus_error_handler.py`, and
   `test_bus_predicate_failure.py` adopt the FR#1 collecting-handler helper wherever applicable,
-  even though these files don't import `helpers.py` today.
+  even though these files don't import `helpers.py` today. **Descoped during implementation:**
+  T02's trial adoption (commit `acc66a73`) found this infeasible — the FR#1 helper is hard-typed
+  to `RawStateChangeEvent`, and the DI layer in `src/hassette/bus/injection.py` actively
+  converts/rejects non-matching event types, so it cannot serve the `bus.on(topic=...)`
+  registrations or `on_error` callback patterns these four files actually use. None of the four
+  files were touched; see the Goals section's second bullet for the fuller accounting.
 - **FR#5** `tests/unit/bus/test_invocation.py`'s repeated
   build-`invoke_fn`-then-invoke-then-extract-`cmd` pattern collapses into one file-local helper.
 - **FR#6** `tests/unit/bus/test_handler_invoker.py`'s repeated
@@ -115,6 +122,17 @@ genuinely different shapes. This design targets the clusters the checker actuall
 - **FR#9** `tests/unit/bus/CLAUDE.md` and `tests/integration/bus/CLAUDE.md` document every new
   shared or file-local helper introduced by this change.
 - **FR#10** No production code (`src/hassette/**`) changes — this is test-file-only.
+- **FR#11** *(added post-T05, after re-running `check_duplicate_code.py` and reviewing the
+  residual clusters individually)* `tests/integration/bus/helpers.py` gains a second shared
+  helper (`drive_state_change`) for the "drive a state transition" pair (`send_state_change(...)`
+  immediately followed by `seed(...)` for the same entity/target state). **Descoped for
+  `test_bus_immediate.py` during implementation:** T06 found that file never pairs the two calls —
+  every `seed()` there is a standalone registration-time snapshot for immediate-fire tests, with no
+  `send_state_change` dispatch alongside it — so the pattern this helper targets simply doesn't
+  occur in that file. `test_bus_duration.py` and `test_bus_error_handler_combos.py` both adopt the
+  helper wherever the pair appears unchanged. This does **not** touch
+  `test_bus_error_handler_combos.py`'s `_ErrorCollector` abstraction — only the state-transition
+  trigger lines each of its tests already shares with `test_bus_duration.py`.
 
 ## Acceptance Criteria
 
@@ -126,7 +144,11 @@ genuinely different shapes. This design targets the clusters the checker actuall
   whose fragments include a `tests/integration/bus/` path as of the final task (T05). The original
   ≤23 target is known unreachable via this task set (see Goals) — AC#2 is satisfied by an honest
   final measurement plus a check that the count did not regress above 40 (the count already
-  reached after T01+T02), not by hitting ≤23.
+  reached after T01+T02), not by hitting ≤23. T06 (FR#11) further reduces this count by collapsing
+  the 18 fully-containable residual clusters (see Approach); the 9 clusters that reach into files
+  outside this design's scope remain and are accepted as out-of-scope, consistent with the
+  Dependencies and Assumptions section's note that this check is `continue-on-error` in CI and
+  this design does not need to zero out the repo-wide count.
 - **AC#3** `uv run pytest tests/unit/bus/ --collect-only -q` reports exactly 697 tests collected,
   `uv run pytest tests/integration/bus/ --collect-only -q` reports exactly 125 tests collected
   (both baselines fixed pre-refactor — see Goals), and
@@ -179,6 +201,21 @@ they build different production classes.
 CLAUDE.md's "Run fixed tests before committing." Re-run `check_duplicate_code.py` after all tasks
 to confirm the AC#1/AC#2 thresholds.
 
+**T06 (FR#11):** After T05, a full pass over `check_duplicate_code.py`'s remaining output classified
+every residual cluster touching this design's files into two groups: 18 that live entirely inside
+files this design already modifies, and 9 that also involve files this design deliberately left
+alone (`test_bus_error_handler_combos.py`'s `_ErrorCollector`, and unit-bus files outside this
+design's scope like `test_accessors.py`/`test_predicates.py`/`test_predicate_details.py` and
+`tests/unit/core/test_bus_service_error_handler.py`/`test_bus_service_timeout.py`). Most of the
+18 share one shape: register a listener (already using FR#1's `make_collector` where applicable),
+then `send_state_change(...)` + `seed(...)` to drive the transition. That trigger pair was never
+targeted by FR#1-#8 — it's the *registration/trigger* side, not the *response-collection* side
+`make_collector` addresses. T06 extracts it into `helpers.py` and adopts it in the two files that
+actually share it — `test_bus_duration.py` and `test_bus_error_handler_combos.py` (its trigger
+lines only — not its `_ErrorCollector`); `test_bus_immediate.py` turned out never to pair the two
+calls (see FR#11's descope note). The remaining 9 clusters that reach into files outside this
+design's scope are left as-is; see AC#1/AC#2 below for how they're accounted for.
+
 ## Dependencies and Assumptions
 
 - `uv run python tools/check_duplicate_code.py` needs Java 21+ on PATH (already confirmed present
@@ -207,3 +244,5 @@ to confirm the AC#1/AC#2 thresholds.
 - `tests/unit/bus/test_duration_hold.py` — modify: extract file-local listener+timer setup helper.
 - `tests/unit/bus/test_duration_timer.py` — modify: extract file-local setup helper if clusters remain after FR#7.
 - `tests/unit/bus/CLAUDE.md` — modify: document new file-local helpers.
+- `tests/integration/bus/test_bus_error_handler_combos.py` — modify (T06/FR#11): adopt the new
+  state-transition-trigger helper at its existing `send_state_change`+`seed` call sites only.

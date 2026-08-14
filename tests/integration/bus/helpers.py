@@ -1,7 +1,7 @@
 """Shared helpers for bus integration tests."""
 
 import asyncio
-from collections.abc import Callable, Coroutine
+from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
 from hassette.events import RawStateChangeEvent
@@ -37,13 +37,13 @@ async def seed(
 
 def make_collector(
     hassette: "Hassette",
-) -> tuple[Callable[[RawStateChangeEvent], Coroutine[None, None, None]], list[RawStateChangeEvent], asyncio.Event]:
+) -> tuple[Callable[[RawStateChangeEvent], Awaitable[None]], list[RawStateChangeEvent], asyncio.Event]:
     """Build a handler that appends received events and signals completion via task_bucket.
 
     Returns ``(handler, received, fired)``. The handler appends every event it receives to
     ``received`` and sets ``fired`` (via ``hassette.task_bucket.post_to_loop``) each time it runs.
     Callers that don't need completion signaling — negative-fire tests gated on another wait
-    condition — can discard ``fired`` with ``_``.
+    condition — can discard ``fired`` with ``_fired``.
     """
     received: list[RawStateChangeEvent] = []
     fired = asyncio.Event()
@@ -65,6 +65,26 @@ async def send_state_change(
     event = create_state_change_event(entity_id=entity_id, old_value=old_value, new_value=new_value)
     await harness.hassette.send_event(event)
     await harness.bus_service.await_dispatch_idle()
+
+
+async def drive_state_change(
+    harness: HassetteHarness,
+    entity_id: str,
+    old_value: str,
+    new_value: str,
+) -> None:
+    """Dispatch a state-change event, then sync StateProxy's cache to match.
+
+    Combines ``send_state_change`` (drives the event through the bus, triggering listener
+    dispatch) with ``seed`` (updates StateProxy's cached snapshot to the same new value) — dispatch
+    and the state cache are updated independently by this harness, so any assertion or re-check
+    logic that reads current state (duration-timer re-verification, ``get_state`` calls) needs
+    both. Only fits the common case where both calls target the same entity/new-value pair; a test
+    that seeds a different value than it dispatched, or needs other work between the two calls,
+    should call ``send_state_change``/``seed`` directly instead.
+    """
+    await send_state_change(harness, entity_id, old_value, new_value)
+    await seed(harness, entity_id, new_value)
 
 
 async def pump_event_loop() -> None:

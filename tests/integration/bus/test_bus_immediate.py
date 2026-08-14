@@ -21,6 +21,8 @@ if TYPE_CHECKING:
     from hassette import Hassette
     from hassette.bus import Bus
 
+IMMEDIATE_FIRE_TIMEOUT = 2.0  # safety ceiling when awaiting an immediate-fire handler invocation
+
 
 async def test_immediate_fires_when_state_matches(bus_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
     """Entity in target state at registration time → handler fires with synthetic event."""
@@ -34,7 +36,7 @@ async def test_immediate_fires_when_state_matches(bus_harness: tuple[HassetteHar
         "light.kitchen", handler=handler, changed=False, immediate=True, name="immediate_fires_when_state_matches"
     )
 
-    await asyncio.wait_for(fired.wait(), timeout=2.0)
+    await asyncio.wait_for(fired.wait(), timeout=IMMEDIATE_FIRE_TIMEOUT)
 
     assert len(received) == 1
 
@@ -87,7 +89,7 @@ async def test_immediate_synthetic_event_structure(bus_harness: tuple[HassetteHa
         "sensor.temp", handler=handler, changed=False, immediate=True, name="immediate_synthetic_event_structure"
     )
 
-    await asyncio.wait_for(fired.wait(), timeout=2.0)
+    await asyncio.wait_for(fired.wait(), timeout=IMMEDIATE_FIRE_TIMEOUT)
 
     assert len(received) == 1
     event = received[0]
@@ -119,7 +121,7 @@ async def test_immediate_with_once_consumes_invocation(bus_harness: tuple[Hasset
         name="immediate_once_consumes_invocation",
     )
 
-    await asyncio.wait_for(fired.wait(), timeout=2.0)
+    await asyncio.wait_for(fired.wait(), timeout=IMMEDIATE_FIRE_TIMEOUT)
     assert len(received) == 1
 
     # Send a live state change event for the same entity
@@ -143,7 +145,7 @@ async def test_immediate_with_debounce(bus_harness: tuple[HassetteHarness, "Hass
         "sensor.motion", handler=handler, changed=False, immediate=True, debounce=0.05, name="immediate_with_debounce"
     )
 
-    await asyncio.wait_for(fired.wait(), timeout=2.0)
+    await asyncio.wait_for(fired.wait(), timeout=IMMEDIATE_FIRE_TIMEOUT)
 
     assert len(received) == 1
 
@@ -173,7 +175,7 @@ async def test_immediate_attribute_change_with_attr_did_change(
         "light.office", "brightness", handler=handler, immediate=True, name="immediate_attr_change_did_change"
     )
 
-    await asyncio.wait_for(fired.wait(), timeout=2.0)
+    await asyncio.wait_for(fired.wait(), timeout=IMMEDIATE_FIRE_TIMEOUT)
 
     assert len(received) == 1
     # Verify old_state is None (synthetic event structure)
@@ -196,7 +198,7 @@ async def test_immediate_changed_false_fires_for_any_existing_entity(
         "binary_sensor.door", handler=handler, changed=False, immediate=True, name="immediate_changed_false_any_entity"
     )
 
-    await asyncio.wait_for(fired.wait(), timeout=2.0)
+    await asyncio.wait_for(fired.wait(), timeout=IMMEDIATE_FIRE_TIMEOUT)
 
     assert len(received) == 1
     # Handler fired with state="unavailable" — no state restriction
@@ -226,7 +228,7 @@ async def test_immediate_duration_fires_when_elapsed_exceeds(
     )
 
     # Elapsed (10s) >= duration (5s) → should fire immediately
-    await asyncio.wait_for(fired.wait(), timeout=2.0)
+    await asyncio.wait_for(fired.wait(), timeout=IMMEDIATE_FIRE_TIMEOUT)
 
     assert len(received) == 1
 
@@ -361,7 +363,7 @@ async def test_immediate_duration_once_fires_exactly_once(
     )
 
     # Should fire immediately (elapsed 10s >= duration 5s)
-    await asyncio.wait_for(fired.wait(), timeout=2.0)
+    await asyncio.wait_for(fired.wait(), timeout=IMMEDIATE_FIRE_TIMEOUT)
     assert len(received) == 1
 
     # Send a live state change — listener should be consumed (once=True)

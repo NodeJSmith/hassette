@@ -405,7 +405,7 @@ class TestCreateCancelListener:
         router = Router()
         task_bucket = make_task_bucket()
         manager = make_manager(router=router, task_bucket=task_bucket)
-        listener, _, _ = make_listener_with_mock_timer(duration=5.0, task_bucket=task_bucket)
+        listener, _mock_timer, _task_bucket = make_listener_with_mock_timer(duration=5.0, task_bucket=task_bucket)
 
         sub = manager.create_cancel_listener(listener)
 
@@ -421,7 +421,7 @@ class TestCreateCancelListener:
         router = Router()
         task_bucket = make_task_bucket()
         manager = make_manager(router=router, task_bucket=task_bucket)
-        listener, _, _ = make_listener_with_mock_timer(duration=5.0, task_bucket=task_bucket)
+        listener, _mock_timer, _task_bucket = make_listener_with_mock_timer(duration=5.0, task_bucket=task_bucket)
 
         sub = manager.create_cancel_listener(listener)
 
@@ -440,7 +440,7 @@ class TestCreateCancelListener:
         """
         task_bucket = make_task_bucket()
         manager = make_manager(task_bucket=task_bucket)
-        listener, _, _ = make_listener_with_mock_timer(duration=5.0, task_bucket=task_bucket)
+        listener, _mock_timer, _task_bucket = make_listener_with_mock_timer(duration=5.0, task_bucket=task_bucket)
 
         sub = manager.create_cancel_listener(listener)
 
