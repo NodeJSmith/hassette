@@ -13,7 +13,16 @@ from whenever import ZonedDateTime
 from hassette.events import RawStateChangeEvent
 from hassette.test_utils import make_state_dict, wait_for
 from hassette.test_utils.harness import HassetteHarness
-from hassette.test_utils.helpers import create_state_change_event, settle
+from hassette.test_utils.helpers import settle
+
+from .conftest import (
+    ASYNC_SAFETY_TIMEOUT,
+    ELAPSED_BOUNDARY_DURATION,
+    ELAPSED_EXCEEDS_OFFSET_SECONDS,
+    ELAPSED_REMAINING_OFFSET_SECONDS,
+    REMAINING_FIRE_TIMEOUT,
+)
+from .helpers import make_collector, seed, send_live_event_and_wait_drain
 
 if TYPE_CHECKING:
     from hassette import Hassette
@@ -24,23 +33,22 @@ async def test_immediate_fires_when_state_matches(bus_harness: tuple[HassetteHar
     """Entity in target state at registration time → handler fires with synthetic event."""
     harness, hassette, bus = bus_harness
 
-    await harness.seed_state(
-        "light.kitchen",
-        make_state_dict("light.kitchen", "on"),
-    )
+    await seed(harness, "light.kitchen", "on")
 
-    received: list[RawStateChangeEvent] = []
-    fired = asyncio.Event()
+    handler, received, fired = make_collector(hassette)
 
-    async def handler(event: RawStateChangeEvent) -> None:
-        received.append(event)
-        hassette.task_bucket.post_to_loop(fired.set)
-
+    # dup-ignore-start: base positive-fire tail for immediate=True — the registration call's closing
+    # paren, then wait_for(fired, ASYNC_SAFETY_TIMEOUT), then assert len(received) == 1. Nearly
+    # every immediate-fire test in this file ends with this exact idiom; kept inline (not routed
+    # through a shared "wait and assert" helper) for consistency with test_bus_duration.py's
+    # equivalent tail, where the fire-count assertion is the actual point of the test and the
+    # codebase has already decided to keep it visible at the call site rather than collapse it
+    # alongside make_collector.
     await bus.on_state_change(
         "light.kitchen", handler=handler, changed=False, immediate=True, name="immediate_fires_when_state_matches"
     )
 
-    await asyncio.wait_for(fired.wait(), timeout=2.0)
+    await asyncio.wait_for(fired.wait(), timeout=ASYNC_SAFETY_TIMEOUT)
 
     assert len(received) == 1
 
@@ -48,18 +56,14 @@ async def test_immediate_fires_when_state_matches(bus_harness: tuple[HassetteHar
 async def test_immediate_no_fire_when_state_does_not_match(
     bus_harness: tuple[HassetteHarness, "Hassette", "Bus"],
 ) -> None:
+    # dup-ignore-end (PMD's reported fragment for the marker above extends into this line — see
+    # tools/check_duplicate_code.py's docstring; the ignore range must cover PMD's actual match)
     """Entity in non-target state → no fire (changed_to predicate rejects it)."""
-    harness, _hassette, bus = bus_harness
+    harness, hassette, bus = bus_harness
 
-    await harness.seed_state(
-        "light.kitchen",
-        make_state_dict("light.kitchen", "off"),
-    )
+    await seed(harness, "light.kitchen", "off")
 
-    received: list[RawStateChangeEvent] = []
-
-    async def handler(event: RawStateChangeEvent) -> None:
-        received.append(event)
+    handler, received, _fired = make_collector(hassette)
 
     await bus.on_state_change(
         "light.kitchen", handler=handler, changed_to="on", immediate=True, name="immediate_no_fire_state_mismatch"
@@ -72,18 +76,22 @@ async def test_immediate_no_fire_when_state_does_not_match(
 
 async def test_immediate_no_fire_entity_not_found(bus_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
     """Entity not in StateProxy → no fire, no error raised."""
-    _harness, _hassette, bus = bus_harness
+    # dup-ignore-start: registration arrange for the "entity missing" case — no seed() call (that's
+    # the point), sensor.nonexistent as the entity, changed=False/immediate=True. This shape also
+    # cross-file-matches test_bus_duration.py's equivalent arrange blocks (same
+    # bus_harness-unpack + make_collector + on_state_change-open structure, differing only in
+    # literals PMD's tokenizer treats as equivalent) — see test_bus_duration.py's dup-ignore notes
+    # for why a shared helper isn't worthwhile across this file's differing entities/predicates.
+    _harness, hassette, bus = bus_harness
 
     # Do NOT seed state — entity does not exist
 
-    received: list[RawStateChangeEvent] = []
-
-    async def handler(event: RawStateChangeEvent) -> None:
-        received.append(event)
+    handler, received, _fired = make_collector(hassette)
 
     await bus.on_state_change(
         "sensor.nonexistent", handler=handler, changed=False, immediate=True, name="immediate_no_fire_entity_not_found"
     )
+    # dup-ignore-end
 
     await wait_for(lambda: len(bus.task_bucket) == 0, desc="tasks drain")
 
@@ -94,23 +102,22 @@ async def test_immediate_synthetic_event_structure(bus_harness: tuple[HassetteHa
     """Synthetic event has old_state=None, new_state=current, ZonedDateTime time_fired, unique context.id."""
     harness, hassette, bus = bus_harness
 
-    state_dict = make_state_dict("sensor.temp", "25.5")
-    await harness.seed_state("sensor.temp", state_dict)
+    await seed(harness, "sensor.temp", "25.5")
 
-    received: list[RawStateChangeEvent] = []
-    fired = asyncio.Event()
+    handler, received, fired = make_collector(hassette)
 
-    async def handler(event: RawStateChangeEvent) -> None:
-        received.append(event)
-        hassette.task_bucket.post_to_loop(fired.set)
-
+    # dup-ignore-start: same registration-close+wait_for(fired, ASYNC_SAFETY_TIMEOUT)+assert tail as
+    # test_immediate_fires_when_state_matches above — this test's actual point is the synthetic
+    # event's structure, asserted in the lines immediately below, so hiding this tail behind a
+    # helper wouldn't reduce anything meaningful about what's being verified here.
     await bus.on_state_change(
         "sensor.temp", handler=handler, changed=False, immediate=True, name="immediate_synthetic_event_structure"
     )
 
-    await asyncio.wait_for(fired.wait(), timeout=2.0)
+    await asyncio.wait_for(fired.wait(), timeout=ASYNC_SAFETY_TIMEOUT)
 
     assert len(received) == 1
+    # dup-ignore-end
     event = received[0]
     data = event.payload.data
 
@@ -127,19 +134,13 @@ async def test_immediate_with_once_consumes_invocation(bus_harness: tuple[Hasset
     """Immediate fires, subsequent live event does NOT fire (once=True consumed by immediate)."""
     harness, hassette, bus = bus_harness
 
-    await harness.seed_state(
-        "switch.outlet",
-        make_state_dict("switch.outlet", "on"),
-    )
+    await seed(harness, "switch.outlet", "on")
 
-    call_count = 0
-    fired = asyncio.Event()
+    handler, received, fired = make_collector(hassette)
 
-    async def handler(_event: RawStateChangeEvent) -> None:
-        nonlocal call_count
-        call_count += 1
-        hassette.task_bucket.post_to_loop(fired.set)
-
+    # dup-ignore-start: same registration-close+wait_for(fired, ASYNC_SAFETY_TIMEOUT)+assert idiom as
+    # the other positive-fire tests in this file, minus the usual blank line between the two waits —
+    # this test's point is the once=True consumption checked by the live-event send below, not this fire.
     await bus.on_state_change(
         "switch.outlet",
         handler=handler,
@@ -149,44 +150,41 @@ async def test_immediate_with_once_consumes_invocation(bus_harness: tuple[Hasset
         name="immediate_once_consumes_invocation",
     )
 
-    await asyncio.wait_for(fired.wait(), timeout=2.0)
-    assert call_count == 1
+    await asyncio.wait_for(fired.wait(), timeout=ASYNC_SAFETY_TIMEOUT)
+    assert len(received) == 1
+    # dup-ignore-end
 
     # Send a live state change event for the same entity
-    live_event = create_state_change_event(entity_id="switch.outlet", old_value="on", new_value="off")
-    await hassette.send_event(live_event)
+    await send_live_event_and_wait_drain(hassette, bus, "switch.outlet", "on", "off")
 
-    await wait_for(lambda: len(bus.task_bucket) == 0, desc="tasks drain")
-
-    assert call_count == 1, f"once=True handler should fire exactly once, fired {call_count} times"
+    assert len(received) == 1, f"once=True handler should fire exactly once, fired {len(received)} times"
 
 
 async def test_immediate_with_debounce(bus_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
     """Immediate fire passes through the debounce guard (fires after debounce period)."""
     harness, hassette, bus = bus_harness
 
-    await harness.seed_state(
-        "sensor.motion",
-        make_state_dict("sensor.motion", "on"),
-    )
+    # dup-ignore-start: sensor.motion arrange + debounce=0.05 kwarg (unique to this test) + the
+    # standard wait_for(fired, ASYNC_SAFETY_TIMEOUT)+assert tail — this is the only test in the
+    # file that exercises the debounce guard, so its registration can't share a helper with the
+    # duration-focused or once-focused arrange blocks elsewhere without adding a debounce parameter
+    # only this one call site would ever pass.
+    await seed(harness, "sensor.motion", "on")
 
-    received: list[RawStateChangeEvent] = []
-    fired = asyncio.Event()
-
-    async def handler(event: RawStateChangeEvent) -> None:
-        received.append(event)
-        hassette.task_bucket.post_to_loop(fired.set)
+    handler, received, fired = make_collector(hassette)
 
     await bus.on_state_change(
         "sensor.motion", handler=handler, changed=False, immediate=True, debounce=0.05, name="immediate_with_debounce"
     )
 
-    await asyncio.wait_for(fired.wait(), timeout=2.0)
+    await asyncio.wait_for(fired.wait(), timeout=ASYNC_SAFETY_TIMEOUT)
 
     assert len(received) == 1
 
 
 async def test_immediate_glob_entity_rejected(bus_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
+    # dup-ignore-end (PMD's reported fragment for the marker above extends into this line — see
+    # tools/check_duplicate_code.py's docstring; the ignore range must cover PMD's actual match)
     """immediate=True with a glob entity_id raises ValueError at registration time."""
     _harness, _hassette, bus = bus_harness
 
@@ -203,25 +201,21 @@ async def test_immediate_attribute_change_with_attr_did_change(
     """on_attribute_change + immediate=True fires when entity present; AttrDidChange returns True for old_state=None."""
     harness, hassette, bus = bus_harness
 
-    await harness.seed_state(
-        "light.office",
-        make_state_dict("light.office", "on", attributes={"brightness": 200}),
-    )
+    await seed(harness, "light.office", "on", attributes={"brightness": 200})
 
-    received: list[RawStateChangeEvent] = []
-    fired = asyncio.Event()
+    handler, received, fired = make_collector(hassette)
 
-    async def handler(event: RawStateChangeEvent) -> None:
-        received.append(event)
-        hassette.task_bucket.post_to_loop(fired.set)
-
+    # dup-ignore-start: same registration-close+wait_for(fired, ASYNC_SAFETY_TIMEOUT)+assert tail as
+    # the on_state_change-based tests above, but for an on_attribute_change registration — kept
+    # inline for the same consistency reason as this file's other occurrences of this idiom.
     await bus.on_attribute_change(
         "light.office", "brightness", handler=handler, immediate=True, name="immediate_attr_change_did_change"
     )
 
-    await asyncio.wait_for(fired.wait(), timeout=2.0)
+    await asyncio.wait_for(fired.wait(), timeout=ASYNC_SAFETY_TIMEOUT)
 
     assert len(received) == 1
+    # dup-ignore-end
     # Verify old_state is None (synthetic event structure)
     assert received[0].payload.data.old_state is None
 
@@ -233,26 +227,21 @@ async def test_immediate_changed_false_fires_for_any_existing_entity(
     harness, hassette, bus = bus_harness
 
     # Seed entity with arbitrary state
-    await harness.seed_state(
-        "binary_sensor.door",
-        make_state_dict("binary_sensor.door", "unavailable"),
-    )
+    await seed(harness, "binary_sensor.door", "unavailable")
 
-    received: list[RawStateChangeEvent] = []
-    fired = asyncio.Event()
+    handler, received, fired = make_collector(hassette)
 
-    async def handler(event: RawStateChangeEvent) -> None:
-        received.append(event)
-        hassette.task_bucket.post_to_loop(fired.set)
-
+    # dup-ignore-start: same registration-close+wait_for(fired, ASYNC_SAFETY_TIMEOUT)+assert tail as
+    # this file's other positive-fire tests — see test_immediate_fires_when_state_matches's note above.
     # changed=False means no StateDidChange predicate — any state triggers dispatch
     await bus.on_state_change(
         "binary_sensor.door", handler=handler, changed=False, immediate=True, name="immediate_changed_false_any_entity"
     )
 
-    await asyncio.wait_for(fired.wait(), timeout=2.0)
+    await asyncio.wait_for(fired.wait(), timeout=ASYNC_SAFETY_TIMEOUT)
 
     assert len(received) == 1
+    # dup-ignore-end
     # Handler fired with state="unavailable" — no state restriction
     assert received[0].payload.data.new_state is not None
     assert received[0].payload.data.new_state["state"] == "unavailable"
@@ -262,33 +251,31 @@ async def test_immediate_duration_fires_when_elapsed_exceeds(
     bus_harness: tuple[HassetteHarness, "Hassette", "Bus"],
 ) -> None:
     """Entity held for 10s, duration=5 → fires immediately (elapsed >= duration)."""
+    # dup-ignore-start: seed()-with-last_changed arrange for the "elapsed exceeds duration" case —
+    # switch.boiler, 10s in the past, duration=5.0. The next occurrence of this shape
+    # (test_immediate_duration_starts_timer_for_remaining, below) uses a different entity and a
+    # 3s-not-10s past offset to land on the opposite side of the elapsed>=duration boundary — that
+    # boundary value is the actual thing each test proves, so collapsing the arrange into one helper
+    # parametrized by "seconds ago" would bury the exact number each test's docstring calls out.
     harness, hassette, bus = bus_harness
 
     # Seed state with last_changed 10 seconds ago
-    past = ZonedDateTime.now_in_system_tz().subtract(seconds=10)
-    await harness.seed_state(
-        "switch.boiler",
-        make_state_dict("switch.boiler", "on", last_changed=past.format_iso()),
-    )
+    past = ZonedDateTime.now_in_system_tz().subtract(seconds=ELAPSED_EXCEEDS_OFFSET_SECONDS)
+    await seed(harness, "switch.boiler", "on", last_changed=past.format_iso())
 
-    received: list[RawStateChangeEvent] = []
-    fired = asyncio.Event()
-
-    async def handler(event: RawStateChangeEvent) -> None:
-        received.append(event)
-        hassette.task_bucket.post_to_loop(fired.set)
+    handler, received, fired = make_collector(hassette)
 
     await bus.on_state_change(
         "switch.boiler",
         handler=handler,
         changed=False,
         immediate=True,
-        duration=5.0,
+        duration=ELAPSED_BOUNDARY_DURATION,
         name="immediate_duration_fires_elapsed_exceeds",
     )
 
     # Elapsed (10s) >= duration (5s) → should fire immediately
-    await asyncio.wait_for(fired.wait(), timeout=2.0)
+    await asyncio.wait_for(fired.wait(), timeout=ASYNC_SAFETY_TIMEOUT)
 
     assert len(received) == 1
 
@@ -296,53 +283,51 @@ async def test_immediate_duration_fires_when_elapsed_exceeds(
 async def test_immediate_duration_starts_timer_for_remaining(
     bus_harness: tuple[HassetteHarness, "Hassette", "Bus"],
 ) -> None:
+    # dup-ignore-end (PMD's reported fragment for the marker above extends into this line — see
+    # tools/check_duplicate_code.py's docstring; the ignore range must cover PMD's actual match)
     """Entity held for 3s, duration=5 → timer fires after remaining 2s (plus margin)."""
+    # dup-ignore-start: seed()-with-last_changed arrange, mirroring
+    # test_immediate_duration_fires_when_elapsed_exceeds above but on the opposite side of the
+    # elapsed>=duration boundary (3s held vs. 5s duration, so the remaining-timer path fires
+    # instead of the immediate path) — see that test's note for why the specific offset stays
+    # inline rather than becoming a helper parameter.
     harness, hassette, bus = bus_harness
 
     # Seed state with last_changed 3 seconds ago
-    past = ZonedDateTime.now_in_system_tz().subtract(seconds=3)
-    await harness.seed_state(
-        "switch.fan",
-        make_state_dict("switch.fan", "on", last_changed=past.format_iso()),
-    )
+    past = ZonedDateTime.now_in_system_tz().subtract(seconds=ELAPSED_REMAINING_OFFSET_SECONDS)
+    await seed(harness, "switch.fan", "on", last_changed=past.format_iso())
 
-    received: list[RawStateChangeEvent] = []
-    fired = asyncio.Event()
-
-    async def handler(event: RawStateChangeEvent) -> None:
-        received.append(event)
-        hassette.task_bucket.post_to_loop(fired.set)
+    handler, received, fired = make_collector(hassette)
 
     await bus.on_state_change(
         "switch.fan",
         handler=handler,
         changed=False,
         immediate=True,
-        duration=5.0,
+        duration=ELAPSED_BOUNDARY_DURATION,
         name="immediate_duration_starts_timer_remaining",
     )
+    # dup-ignore-end
 
     await settle()
     assert len(received) == 0, "Should not have fired immediately — only 3s elapsed of 5s"
 
     # Should fire after remaining ~2s (plus margin)
-    await asyncio.wait_for(fired.wait(), timeout=4.0)
+    await asyncio.wait_for(fired.wait(), timeout=REMAINING_FIRE_TIMEOUT)
     assert len(received) == 1
 
 
 async def test_immediate_duration_last_changed_none(bus_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
     """last_changed missing from state dict → elapsed=0, full timer starts (does NOT fire immediately)."""
-    harness, _hassette, bus = bus_harness
+    harness, hassette, bus = bus_harness
 
     state = make_state_dict("switch.pump", "on")
-    # Override last_changed to None to simulate missing timestamp
+    # Override last_changed to None to simulate missing timestamp — seed() can't express this,
+    # since passing last_changed=None falls back to make_state_dict's default of "now".
     state["last_changed"] = None  # pyright: ignore[reportArgumentType]
     await harness.seed_state("switch.pump", state)
 
-    received: list[RawStateChangeEvent] = []
-
-    async def handler(event: RawStateChangeEvent) -> None:
-        received.append(event)
+    handler, received, _fired = make_collector(hassette)
 
     await bus.on_state_change(
         "switch.pump",
@@ -362,26 +347,20 @@ async def test_immediate_duration_negative_elapsed_clamped(
     bus_harness: tuple[HassetteHarness, "Hassette", "Bus"],
 ) -> None:
     """Clock skew produces last_changed in the future → elapsed clamped to 0, full timer starts."""
-    harness, _hassette, bus = bus_harness
+    harness, hassette, bus = bus_harness
 
     # Seed state with last_changed 10 seconds in the FUTURE (clock skew)
     future = ZonedDateTime.now_in_system_tz().add(seconds=10)
-    await harness.seed_state(
-        "switch.heater",
-        make_state_dict("switch.heater", "on", last_changed=future.format_iso()),
-    )
+    await seed(harness, "switch.heater", "on", last_changed=future.format_iso())
 
-    received: list[RawStateChangeEvent] = []
-
-    async def handler(event: RawStateChangeEvent) -> None:
-        received.append(event)
+    handler, received, _fired = make_collector(hassette)
 
     await bus.on_state_change(
         "switch.heater",
         handler=handler,
         changed=False,
         immediate=True,
-        duration=5.0,
+        duration=ELAPSED_BOUNDARY_DURATION,
         name="immediate_duration_negative_elapsed_clamped",
     )
 
@@ -393,19 +372,13 @@ async def test_immediate_duration_attribute_change_always_zero(
     bus_harness: tuple[HassetteHarness, "Hassette", "Bus"],
 ) -> None:
     """on_attribute_change + immediate + duration always starts from zero, even if last_changed is old."""
-    harness, _hassette, bus = bus_harness
+    harness, hassette, bus = bus_harness
 
     # Seed state with last_changed 30 seconds ago — would normally fire immediately
     past = ZonedDateTime.now_in_system_tz().subtract(seconds=30)
-    await harness.seed_state(
-        "light.lamp",
-        make_state_dict("light.lamp", "on", attributes={"brightness": 200}, last_changed=past.format_iso()),
-    )
+    await seed(harness, "light.lamp", "on", attributes={"brightness": 200}, last_changed=past.format_iso())
 
-    received: list[RawStateChangeEvent] = []
-
-    async def handler(event: RawStateChangeEvent) -> None:
-        received.append(event)
+    handler, received, _fired = make_collector(hassette)
 
     await bus.on_attribute_change(
         "light.lamp",
@@ -426,41 +399,34 @@ async def test_immediate_duration_once_fires_exactly_once(
     bus_harness: tuple[HassetteHarness, "Hassette", "Bus"],
 ) -> None:
     """Immediate + duration + once=True: immediate fire consumes the listener; no subsequent fires."""
+    # dup-ignore-start: seed()-with-last_changed arrange, same 10s-past/duration=5.0 shape as
+    # test_immediate_duration_fires_when_elapsed_exceeds above, plus once=True — the combination
+    # this test exists to prove (immediate fire consumes a once=True listener) is exactly the extra
+    # kwarg that keeps this from sharing a helper with the sibling arrange blocks.
     harness, hassette, bus = bus_harness
 
     # Seed state with last_changed 10s ago (duration=5 → fires immediately)
-    past = ZonedDateTime.now_in_system_tz().subtract(seconds=10)
-    await harness.seed_state(
-        "switch.oven",
-        make_state_dict("switch.oven", "on", last_changed=past.format_iso()),
-    )
+    past = ZonedDateTime.now_in_system_tz().subtract(seconds=ELAPSED_EXCEEDS_OFFSET_SECONDS)
+    await seed(harness, "switch.oven", "on", last_changed=past.format_iso())
 
-    call_count = 0
-    fired = asyncio.Event()
-
-    async def handler(_event: RawStateChangeEvent) -> None:
-        nonlocal call_count
-        call_count += 1
-        hassette.task_bucket.post_to_loop(fired.set)
+    handler, received, fired = make_collector(hassette)
 
     await bus.on_state_change(
         "switch.oven",
         handler=handler,
         changed=False,
         immediate=True,
-        duration=5.0,
+        duration=ELAPSED_BOUNDARY_DURATION,
         once=True,
         name="immediate_duration_once_fires_exactly_once",
     )
 
     # Should fire immediately (elapsed 10s >= duration 5s)
-    await asyncio.wait_for(fired.wait(), timeout=2.0)
-    assert call_count == 1
+    await asyncio.wait_for(fired.wait(), timeout=ASYNC_SAFETY_TIMEOUT)
+    assert len(received) == 1
+    # dup-ignore-end
 
     # Send a live state change — listener should be consumed (once=True)
-    live_event = create_state_change_event(entity_id="switch.oven", old_value="on", new_value="off")
-    await hassette.send_event(live_event)
+    await send_live_event_and_wait_drain(hassette, bus, "switch.oven", "on", "off")
 
-    await wait_for(lambda: len(bus.task_bucket) == 0, desc="tasks drain")
-
-    assert call_count == 1, f"once=True should fire exactly once, fired {call_count} times"
+    assert len(received) == 1, f"once=True should fire exactly once, fired {len(received)} times"

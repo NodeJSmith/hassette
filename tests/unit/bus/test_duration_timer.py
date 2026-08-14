@@ -14,21 +14,27 @@ Tests cover:
 """
 
 import asyncio
+from collections.abc import Awaitable, Callable, Coroutine
+from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock
 
 import pytest
 
 from hassette.bus.duration_timer import DurationTimer
 from hassette.test_utils import wait_for
-from hassette.test_utils.helpers import create_listener, make_task_bucket
+from hassette.test_utils.helpers import async_noop, create_listener, make_task_bucket
+
+if TYPE_CHECKING:
+    from hassette.events.base import Event
+    from hassette.types import Predicate
 
 
 def make_timer(
     duration: float = 0.05,
-    predicates=None,
+    predicates: "Predicate | None" = None,
     entity_id: str = "light.kitchen",
     owner_id: str = "test_owner",
-    normalize_cancel_event=None,
+    normalize_cancel_event: "Callable[[Event[Any]], Event[Any]] | None" = None,
     create_cancel_sub: MagicMock | None = None,
 ) -> tuple[DurationTimer, MagicMock, MagicMock]:
     """Create a DurationTimer with a real task_bucket (using asyncio directly for spawning)
@@ -45,7 +51,7 @@ def make_timer(
     # task_bucket.spawn: use asyncio.create_task so tasks actually run
     task_bucket_mock = MagicMock(name="task_bucket")
 
-    def spawn_side_effect(coro, *, name: str = "") -> asyncio.Task:  # noqa: ARG001
+    def spawn_side_effect(coro: "Coroutine[Any, Any, Any]", *, name: str = "") -> asyncio.Task:  # noqa: ARG001
         return asyncio.create_task(coro)
 
     task_bucket_mock.spawn = MagicMock(side_effect=spawn_side_effect)
@@ -65,6 +71,44 @@ def make_timer(
     return timer, task_bucket_mock, cancel_sub_mock
 
 
+def start_timer(
+    duration: float = 0.5,
+    predicates: "Predicate | None" = None,
+    create_cancel_sub: MagicMock | None = None,
+) -> tuple[DurationTimer, MagicMock, MagicMock]:
+    """Create a DurationTimer via make_timer() and start it with a no-op on_fire callback.
+
+    For tests that only care about lifecycle state (is_active, cancel, cancellation
+    subscriptions) and don't need to observe on_fire actually running.
+
+    Returns (timer, task_bucket_mock, cancel_sub_mock) — same shape as make_timer().
+    """
+    timer, task_bucket_mock, cancel_sub_mock = make_timer(
+        duration=duration, predicates=predicates, create_cancel_sub=create_cancel_sub
+    )
+    timer.start(on_fire=async_noop)
+    return timer, task_bucket_mock, cancel_sub_mock
+
+
+def make_timer_with_fired_event(
+    duration: float = 0.05,
+) -> tuple[DurationTimer, asyncio.Event, Callable[[], Awaitable[None]]]:
+    """Create a DurationTimer plus an unset `fired` Event and its on_fire callback.
+
+    The timer is NOT started — some callers need to assert `is_active` state before
+    calling `timer.start(on_fire=on_fire)` themselves.
+
+    Returns (timer, fired, on_fire).
+    """
+    timer, _, _ = make_timer(duration=duration)
+    fired = asyncio.Event()
+
+    async def on_fire() -> None:
+        fired.set()
+
+    return timer, fired, on_fire
+
+
 def make_event() -> MagicMock:  # factory-local: plain MagicMock, no spec=Event
     """Make a mock event."""
     return MagicMock(name="event")
@@ -72,11 +116,7 @@ def make_event() -> MagicMock:  # factory-local: plain MagicMock, no spec=Event
 
 async def test_start_spawns_task_and_fires_after_delay() -> None:
     """start() with a short delay fires the on_fire callback after the delay elapses."""
-    timer, _, _ = make_timer(duration=0.05)
-    fired = asyncio.Event()
-
-    async def on_fire() -> None:
-        fired.set()
+    timer, fired, on_fire = make_timer_with_fired_event(duration=0.05)
 
     timer.start(on_fire=on_fire)
 
@@ -90,11 +130,7 @@ async def test_start_spawns_task_and_fires_after_delay() -> None:
 
 async def test_cancel_prevents_fire() -> None:
     """cancel() called before the delay elapses prevents on_fire from running."""
-    timer, _, _cancel_sub = make_timer(duration=0.5)
-    fired = asyncio.Event()
-
-    async def on_fire() -> None:
-        fired.set()
+    timer, fired, on_fire = make_timer_with_fired_event(duration=0.5)
 
     timer.start(on_fire=on_fire)
     assert timer.is_active
@@ -109,12 +145,7 @@ async def test_cancel_prevents_fire() -> None:
 
 async def test_cancel_is_idempotent() -> None:
     """Calling cancel() twice does not raise an exception."""
-    timer, _, _ = make_timer(duration=0.5)
-
-    async def on_fire() -> None:
-        pass
-
-    timer.start(on_fire=on_fire)
+    timer, _, _ = start_timer(duration=0.5)
 
     # Should not raise
     timer.cancel()
@@ -149,13 +180,8 @@ async def test_start_recreates_cancel_subscription() -> None:
     cancel_sub_2 = MagicMock(name="cancel_sub_2")
     create_cancel_sub = MagicMock(side_effect=[cancel_sub_1, cancel_sub_2])
 
-    timer, _, _ = make_timer(duration=0.5, create_cancel_sub=create_cancel_sub)
-
-    async def on_fire() -> None:
-        pass
-
     # First start — should create cancel_sub_1
-    timer.start(on_fire=on_fire)
+    timer, _, _ = start_timer(duration=0.5, create_cancel_sub=create_cancel_sub)
     assert timer._cancel_sub is cancel_sub_1
 
     # Cancel the timer — clears _cancel_sub
@@ -166,7 +192,7 @@ async def test_start_recreates_cancel_subscription() -> None:
     timer._cancelled = False
 
     # Second start — _cancel_sub is None so should create cancel_sub_2
-    timer.start(on_fire=on_fire)
+    timer.start(on_fire=async_noop)
     assert timer._cancel_sub is cancel_sub_2
 
     assert create_cancel_sub.call_count == 2
@@ -174,11 +200,7 @@ async def test_start_recreates_cancel_subscription() -> None:
 
 async def test_is_active_reflects_pending_task() -> None:
     """is_active returns True after start(), False after cancel() or after firing."""
-    timer, _, _ = make_timer(duration=0.05)
-    fired = asyncio.Event()
-
-    async def on_fire() -> None:
-        fired.set()
+    timer, fired, on_fire = make_timer_with_fired_event(duration=0.05)
 
     # Before start: not active
     assert not timer.is_active
@@ -195,12 +217,7 @@ async def test_is_active_reflects_pending_task() -> None:
 
 async def test_is_active_false_after_cancel() -> None:
     """is_active returns False after cancel()."""
-    timer, _, _ = make_timer(duration=0.5)
-
-    async def on_fire() -> None:
-        pass
-
-    timer.start(on_fire=on_fire)
+    timer, _, _ = start_timer(duration=0.5)
     assert timer.is_active
 
     timer.cancel()
@@ -210,12 +227,7 @@ async def test_is_active_false_after_cancel() -> None:
 async def test_evaluate_cancel_event_matching_does_not_cancel() -> None:
     """Event that still matches predicates does not cancel the timer."""
     predicate = MagicMock(return_value=True)  # always matches
-    timer, _, _ = make_timer(duration=0.5, predicates=predicate)
-
-    async def on_fire() -> None:
-        pass
-
-    timer.start(on_fire=on_fire)
+    timer, _, _ = start_timer(duration=0.5, predicates=predicate)
     assert timer.is_active
 
     # Trigger the cancellation handler with a matching event
@@ -232,12 +244,7 @@ async def test_evaluate_cancel_event_matching_does_not_cancel() -> None:
 async def test_evaluate_cancel_event_non_matching_cancels() -> None:
     """Event that fails predicates cancels the timer."""
     predicate = MagicMock(return_value=False)  # never matches
-    timer, _, _cancel_sub = make_timer(duration=0.5, predicates=predicate)
-
-    async def on_fire() -> None:
-        pass
-
-    timer.start(on_fire=on_fire)
+    timer, _, _cancel_sub = start_timer(duration=0.5, predicates=predicate)
     assert timer.is_active
 
     # Trigger the cancellation handler with a non-matching event
@@ -250,12 +257,7 @@ async def test_evaluate_cancel_event_non_matching_cancels() -> None:
 
 async def test_evaluate_cancel_event_none_predicate_does_not_cancel() -> None:
     """When predicates is None, cancellation events are ignored (no predicate = always match)."""
-    timer, _, _ = make_timer(duration=0.5, predicates=None)
-
-    async def on_fire() -> None:
-        pass
-
-    timer.start(on_fire=on_fire)
+    timer, _, _ = start_timer(duration=0.5, predicates=None)
     assert timer.is_active
 
     # evaluate_cancel_event with None predicates should not cancel
@@ -270,12 +272,7 @@ async def test_evaluate_cancel_event_none_predicate_does_not_cancel() -> None:
 
 async def test_cancel_removes_cancellation_listener_synchronously() -> None:
     """cancel() calls cancel_sub.cancel() directly, not via task_bucket.spawn()."""
-    timer, task_bucket_mock, cancel_sub = make_timer(duration=0.5)
-
-    async def on_fire() -> None:
-        pass
-
-    timer.start(on_fire=on_fire)
+    timer, task_bucket_mock, cancel_sub = start_timer(duration=0.5)
 
     # Reset spawn call count after start()
     task_bucket_mock.spawn.reset_mock()
@@ -293,17 +290,12 @@ async def test_cancel_sets_cancelled_flag_first() -> None:
     """The _cancelled flag is set as the FIRST operation in cancel() (idempotency guard)."""
     # We verify by checking that _cancelled is True before any other cleanup runs.
     # Since cancel() is sync, we inspect state after the call.
-    timer, _, cancel_sub = make_timer(duration=0.5)
-
-    async def on_fire() -> None:
-        pass
-
-    timer.start(on_fire=on_fire)
+    timer, _, cancel_sub = start_timer(duration=0.5)
 
     # Patch cancel_sub.cancel to capture state at call time
     cancelled_when_sub_cancelled: list[bool] = []
 
-    def record_state():
+    def record_state() -> None:
         cancelled_when_sub_cancelled.append(timer._cancelled)
 
     cancel_sub.cancel = MagicMock(side_effect=record_state)

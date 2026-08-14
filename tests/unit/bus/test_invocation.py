@@ -9,72 +9,77 @@ Tests cover:
 
 from unittest.mock import MagicMock
 
+from hassette.bus.error_context import BusErrorContext
 from hassette.bus.invocation import build_tracked_invoke_fn
+from hassette.bus.listeners import Listener
 from hassette.commands import InvokeHandler
 from hassette.test_utils.factories import make_mock_event, make_mock_executor
 from hassette.test_utils.helpers import create_listener
 
 
+async def invoke_and_get_cmd(
+    *,
+    listener: Listener | None = None,
+    config_resolver: MagicMock | None = None,
+    executor: MagicMock | None = None,
+    event: MagicMock | None = None,
+    topic: str = "test.topic",
+    is_synthetic: bool = False,
+) -> InvokeHandler:
+    """Build and fire an invoke_fn via ``build_tracked_invoke_fn``, returning the resulting command.
+
+    Fills in sane defaults for any argument not overridden. Callers that need to inspect
+    ``executor``/``config_resolver`` afterward (e.g. ``config_resolver.assert_not_called()``)
+    should pass their own mock in and keep the reference.
+    """
+    executor = executor if executor is not None else make_mock_executor()
+    config_resolver = config_resolver if config_resolver is not None else MagicMock(return_value=10.0)
+    listener = listener if listener is not None else create_listener(topic=topic)
+    event = event if event is not None else make_mock_event()
+
+    invoke_fn = build_tracked_invoke_fn(
+        listener=listener,
+        event=event,
+        topic=topic,
+        executor=executor,
+        config_resolver=config_resolver,
+        is_synthetic=is_synthetic,
+    )
+    await invoke_fn()
+
+    cmd = executor.execute.call_args[0][0]
+    assert isinstance(cmd, InvokeHandler)
+    return cmd
+
+
 class TestTimeoutResolution:
     async def test_timeout_disabled_returns_none(self) -> None:
-        """listener.timeout_disabled=True → effective_timeout=None."""
-        executor = make_mock_executor()
+        """listener.timeout_disabled=True → effective_timeout=None, config_resolver not called."""
         config_resolver = MagicMock(return_value=600.0)
         listener = create_listener(topic="test.topic", timeout_disabled=True)
-        event = make_mock_event()
 
-        invoke_fn = build_tracked_invoke_fn(
-            listener=listener,
-            event=event,
-            topic="test.topic",
-            executor=executor,
-            config_resolver=config_resolver,
-        )
-        await invoke_fn()
+        cmd = await invoke_and_get_cmd(listener=listener, config_resolver=config_resolver)
 
-        cmd = executor.execute.call_args[0][0]
-        assert isinstance(cmd, InvokeHandler)
         assert cmd.effective_timeout is None
+        config_resolver.assert_not_called()
 
     async def test_per_listener_timeout_used_when_set(self) -> None:
         """listener.timeout=5 → effective_timeout=5.0, config_resolver not called."""
-        executor = make_mock_executor()
         config_resolver = MagicMock(return_value=600.0)
         listener = create_listener(topic="test.topic", timeout=5.0)
-        event = make_mock_event()
 
-        invoke_fn = build_tracked_invoke_fn(
-            listener=listener,
-            event=event,
-            topic="test.topic",
-            executor=executor,
-            config_resolver=config_resolver,
-        )
-        await invoke_fn()
+        cmd = await invoke_and_get_cmd(listener=listener, config_resolver=config_resolver)
 
-        cmd = executor.execute.call_args[0][0]
-        assert isinstance(cmd, InvokeHandler)
         assert cmd.effective_timeout == 5.0
         config_resolver.assert_not_called()
 
     async def test_config_default_used_when_no_listener_timeout(self) -> None:
         """listener.timeout=None → effective_timeout from config_resolver()."""
-        executor = make_mock_executor()
         config_resolver = MagicMock(return_value=30.0)
         listener = create_listener(topic="test.topic")  # no timeout set
-        event = make_mock_event()
 
-        invoke_fn = build_tracked_invoke_fn(
-            listener=listener,
-            event=event,
-            topic="test.topic",
-            executor=executor,
-            config_resolver=config_resolver,
-        )
-        await invoke_fn()
+        cmd = await invoke_and_get_cmd(listener=listener, config_resolver=config_resolver)
 
-        cmd = executor.execute.call_args[0][0]
-        assert isinstance(cmd, InvokeHandler)
         assert cmd.effective_timeout == 30.0
         config_resolver.assert_called_once()
 
@@ -106,23 +111,12 @@ class TestTimeoutResolution:
 class TestInvokeHandlerConstruction:
     async def test_invoke_handler_fields_are_correct(self) -> None:
         """InvokeHandler is constructed with correct listener, event, topic, source_tier."""
-        executor = make_mock_executor()
-        config_resolver = MagicMock(return_value=10.0)
         listener = create_listener(topic="test.topic", source_tier="app")
         event = make_mock_event()
         topic = "test.topic"
 
-        invoke_fn = build_tracked_invoke_fn(
-            listener=listener,
-            event=event,
-            topic=topic,
-            executor=executor,
-            config_resolver=config_resolver,
-        )
-        await invoke_fn()
+        cmd = await invoke_and_get_cmd(listener=listener, event=event, topic=topic)
 
-        cmd = executor.execute.call_args[0][0]
-        assert isinstance(cmd, InvokeHandler)
         assert cmd.listener is listener
         assert cmd.event is event
         assert cmd.topic == topic
@@ -158,130 +152,55 @@ class TestInvokeHandlerConstruction:
     async def test_executor_execute_called_with_command(self) -> None:
         """executor.execute is called exactly once with the InvokeHandler command."""
         executor = make_mock_executor()
-        config_resolver = MagicMock(return_value=10.0)
-        listener = create_listener(topic="test.topic")
-        event = make_mock_event()
 
-        invoke_fn = build_tracked_invoke_fn(
-            listener=listener,
-            event=event,
-            topic="test.topic",
-            executor=executor,
-            config_resolver=config_resolver,
-        )
-        await invoke_fn()
+        await invoke_and_get_cmd(executor=executor)
 
         executor.execute.assert_called_once()
-        cmd = executor.execute.call_args[0][0]
-        assert isinstance(cmd, InvokeHandler)
 
 
 class TestIsSyntheticFlag:
     async def test_is_synthetic_defaults_to_false(self) -> None:
         """is_synthetic defaults to False when not specified."""
-        executor = make_mock_executor()
-        config_resolver = MagicMock(return_value=10.0)
-        listener = create_listener(topic="test.topic")
-        event = make_mock_event()
+        cmd = await invoke_and_get_cmd()
 
-        invoke_fn = build_tracked_invoke_fn(
-            listener=listener,
-            event=event,
-            topic="test.topic",
-            executor=executor,
-            config_resolver=config_resolver,
-        )
-        await invoke_fn()
-
-        cmd = executor.execute.call_args[0][0]
         assert cmd.is_synthetic is False
 
     async def test_is_synthetic_true_propagates_to_command(self) -> None:
         """is_synthetic=True is forwarded to InvokeHandler.is_synthetic."""
-        executor = make_mock_executor()
-        config_resolver = MagicMock(return_value=10.0)
-        listener = create_listener(topic="test.topic")
-        event = make_mock_event()
+        cmd = await invoke_and_get_cmd(is_synthetic=True)
 
-        invoke_fn = build_tracked_invoke_fn(
-            listener=listener,
-            event=event,
-            topic="test.topic",
-            executor=executor,
-            config_resolver=config_resolver,
-            is_synthetic=True,
-        )
-        await invoke_fn()
-
-        cmd = executor.execute.call_args[0][0]
         assert cmd.is_synthetic is True
 
 
 class TestErrorHandlerResolution:
     async def test_error_handler_from_resolver_propagates(self) -> None:
         """When listener's app_error_handler_resolver returns a handler, it is set on InvokeHandler."""
-        executor = make_mock_executor()
-        config_resolver = MagicMock(return_value=10.0)
         listener = create_listener(topic="test.topic")
-        event = make_mock_event()
 
-        async def app_handler(ctx) -> None:
+        async def app_handler(ctx: BusErrorContext) -> None:
             pass
 
         listener.invoker.set_app_error_handler_resolver(lambda: app_handler)
 
-        invoke_fn = build_tracked_invoke_fn(
-            listener=listener,
-            event=event,
-            topic="test.topic",
-            executor=executor,
-            config_resolver=config_resolver,
-        )
-        await invoke_fn()
+        cmd = await invoke_and_get_cmd(listener=listener)
 
-        cmd = executor.execute.call_args[0][0]
-        assert isinstance(cmd, InvokeHandler)
         assert cmd.app_level_error_handler is app_handler
 
     async def test_no_error_handler_when_resolver_is_none(self) -> None:
         """When listener has no resolver, app_level_error_handler is None."""
-        executor = make_mock_executor()
-        config_resolver = MagicMock(return_value=10.0)
         listener = create_listener(topic="test.topic")
-        event = make_mock_event()
 
         # No resolver set → app_error_handler_resolver is None by default
-        invoke_fn = build_tracked_invoke_fn(
-            listener=listener,
-            event=event,
-            topic="test.topic",
-            executor=executor,
-            config_resolver=config_resolver,
-        )
-        await invoke_fn()
+        cmd = await invoke_and_get_cmd(listener=listener)
 
-        cmd = executor.execute.call_args[0][0]
-        assert isinstance(cmd, InvokeHandler)
         assert cmd.app_level_error_handler is None
 
     async def test_no_error_handler_when_resolver_returns_none(self) -> None:
         """When resolver returns None, app_level_error_handler is None."""
-        executor = make_mock_executor()
-        config_resolver = MagicMock(return_value=10.0)
         listener = create_listener(topic="test.topic")
-        event = make_mock_event()
 
         listener.invoker.set_app_error_handler_resolver(lambda: None)
 
-        invoke_fn = build_tracked_invoke_fn(
-            listener=listener,
-            event=event,
-            topic="test.topic",
-            executor=executor,
-            config_resolver=config_resolver,
-        )
-        await invoke_fn()
+        cmd = await invoke_and_get_cmd(listener=listener)
 
-        cmd = executor.execute.call_args[0][0]
-        assert isinstance(cmd, InvokeHandler)
         assert cmd.app_level_error_handler is None

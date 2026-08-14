@@ -70,6 +70,109 @@ def make_manager(
     )
 
 
+def make_listener_with_mock_timer(
+    entity_id: str = "light.kitchen",
+    duration: float = 60.0,
+    task_bucket: Any = None,
+) -> tuple[Listener, MagicMock, Any]:
+    """Build a Listener with duration_config set and a MagicMock attached as its timer.
+
+    Creates a task_bucket internally when one isn't passed — pass one in when a test needs
+    to reuse the same bucket for the listener and its owning manager/router.
+
+    Returns (listener, mock_timer, task_bucket).
+    """
+    if task_bucket is None:
+        task_bucket = make_task_bucket()
+    listener = create_listener(
+        topic=f"hass.event.state_changed.{entity_id}",
+        entity_id=entity_id,
+        duration=duration,
+        task_bucket=task_bucket,
+    )
+    assert listener.duration_config is not None
+    mock_timer = MagicMock()
+    listener.duration_config._timer = mock_timer
+    return listener, mock_timer, task_bucket
+
+
+def arm_duration_timer(
+    *,
+    state: dict[str, Any] | None = None,
+    duration: float = 60.0,
+    remove_listener: Callable[[Listener], None] | None = None,
+) -> tuple[DurationHoldManager, MagicMock, AsyncMock]:
+    """Build a manager + light.kitchen duration listener and call start_duration_timer.
+
+    Collapses TestStartDurationTimer's shared arrange block: every test in that class builds a
+    manager (optionally state-seeded), a listener+mock-timer pair, and an AsyncMock invoke_fn
+    before calling start_duration_timer and then asserting on duration_timers_active or
+    triggering the mocked timer's on_fire callback via ``mock_timer.start.call_args[0][0]``.
+    Returns ``(manager, mock_timer, invoke_fn)``. ``remove_listener`` lets a caller override
+    ``manager.remove_listener`` before the timer starts, for the one test that needs it.
+    """
+    manager = make_manager(state=state, remove_listener=remove_listener)
+    listener, mock_timer, _task_bucket = make_listener_with_mock_timer(duration=duration)
+    invoke_fn = AsyncMock()
+    manager.start_duration_timer(listener, "light.kitchen", listener.duration_config, invoke_fn)
+    return manager, mock_timer, invoke_fn
+
+
+def arm_remaining_duration_timer(
+    *, state: dict[str, Any] | None = None, duration: float = 60.0, remaining: float = 30.0
+) -> tuple[DurationHoldManager, MagicMock, AsyncMock]:
+    """Same as ``arm_duration_timer`` but drives ``start_remaining_duration_timer`` with `remaining`."""
+    manager = make_manager(state=state)
+    listener, mock_timer, _task_bucket = make_listener_with_mock_timer(duration=duration)
+    invoke_fn = AsyncMock()
+    manager.start_remaining_duration_timer(listener, "light.kitchen", listener.duration_config, invoke_fn, remaining)
+    return manager, mock_timer, invoke_fn
+
+
+async def fire_mock_timer(mock_timer: MagicMock) -> None:
+    """Invoke the on_fire callback captured by mock_timer.start (``mock_timer.start.call_args[0][0]``).
+
+    Used after arm_duration_timer/arm_remaining_duration_timer to trigger the timer's fire path;
+    the caller asserts on duration_timers_active (and/or invoke_fn) afterward.
+    """
+    on_fire = mock_timer.start.call_args[0][0]
+    await on_fire()
+
+
+def hold_matches_with_predicate(
+    hold_predicate: Callable[[object], bool], *, duration: float = 5.0
+) -> tuple[bool, MagicMock]:
+    """Build a light.kitchen duration listener with `hold_predicate` set, call hold_matches with a
+    fresh mock event, and return ``(result, event)``.
+
+    Collapses the shared arrange block for TestHoldMatches's hold_predicate-set cases — the
+    predicate itself (and whether it raises) is the only thing each of those tests varies. The
+    event is returned, not just the result, because one caller needs to assert the predicate was
+    invoked with that exact event object.
+    """
+    manager = make_manager()
+    listener = create_listener(
+        topic="hass.event.state_changed.light.kitchen",
+        entity_id="light.kitchen",
+        duration=duration,
+        hold_predicate=hold_predicate,
+    )
+    event = MagicMock()
+    result = manager.hold_matches(listener, event)
+    return result, event
+
+
+def compute_elapsed_for(state: dict[str, Any], *, duration: float = 60.0) -> float:
+    """Build the standard light.kitchen DurationConfig and call compute_elapsed.
+
+    Collapses the ``dc = DurationConfig(...)`` + ``compute_elapsed(state, dc)`` pair shared by
+    several TestComputeElapsed cases — those tests all target the same entity_id and duration;
+    only the `state` dict (built to control ``last_changed`` precisely) varies per test.
+    """
+    dc = DurationConfig(entity_id="light.kitchen", duration=duration)
+    return compute_elapsed(state, dc)
+
+
 class TestConstruction:
     def test_constructable_with_mock_callbacks(self) -> None:
         """DurationHoldManager is constructable with mock callbacks (no BusService import)."""
@@ -185,44 +288,14 @@ class TestDecrementTimersActive:
 class TestStartDurationTimer:
     def test_increments_duration_timers_active(self) -> None:
         """start_duration_timer increments duration_timers_active before timer fires."""
-        manager = make_manager()
-        remove_listener_mock = make_remove_listener()
-        manager.remove_listener = remove_listener_mock
-
-        task_bucket = make_task_bucket()
-        listener = create_listener(
-            topic="hass.event.state_changed.light.kitchen",
-            entity_id="light.kitchen",
-            duration=60.0,
-            task_bucket=task_bucket,
-        )
-        assert listener.duration_config is not None
-        # Attach a mock timer so start() can be called
-        mock_timer = MagicMock()
-        listener.duration_config._timer = mock_timer
-
-        invoke_fn = AsyncMock()
-        manager.start_duration_timer(listener, "light.kitchen", listener.duration_config, invoke_fn)
+        manager, mock_timer, _invoke_fn = arm_duration_timer(remove_listener=make_remove_listener())
 
         assert manager.duration_timers_active == 1
         mock_timer.start.assert_called_once()
 
     def test_start_remaining_increments_duration_timers_active(self) -> None:
         """start_remaining_duration_timer increments duration_timers_active."""
-        manager = make_manager()
-        task_bucket = make_task_bucket()
-        listener = create_listener(
-            topic="hass.event.state_changed.light.kitchen",
-            entity_id="light.kitchen",
-            duration=60.0,
-            task_bucket=task_bucket,
-        )
-        assert listener.duration_config is not None
-        mock_timer = MagicMock()
-        listener.duration_config._timer = mock_timer
-
-        invoke_fn = AsyncMock()
-        manager.start_remaining_duration_timer(listener, "light.kitchen", listener.duration_config, invoke_fn, 30.0)
+        manager, mock_timer, _invoke_fn = arm_remaining_duration_timer()
 
         assert manager.duration_timers_active == 1
         mock_timer.start.assert_called_once_with(mock_timer.start.call_args[0][0], override_duration=30.0)
@@ -230,49 +303,19 @@ class TestStartDurationTimer:
     async def test_duration_fire_decrements_timers_active(self) -> None:
         """on_duration_fire closure decrements duration_timers_active in finally block."""
         state = make_state_dict("light.kitchen", "on")
-        manager = make_manager(state=state)
-
-        task_bucket = make_task_bucket()
-        listener = create_listener(
-            topic="hass.event.state_changed.light.kitchen",
-            entity_id="light.kitchen",
-            duration=60.0,
-            task_bucket=task_bucket,
-        )
-        assert listener.duration_config is not None
-        mock_timer = MagicMock()
-        listener.duration_config._timer = mock_timer
-
-        invoke_fn = AsyncMock()
-        manager.start_duration_timer(listener, "light.kitchen", listener.duration_config, invoke_fn)
+        manager, mock_timer, _invoke_fn = arm_duration_timer(state=state)
         assert manager.duration_timers_active == 1
 
-        on_fire = mock_timer.start.call_args[0][0]
-        await on_fire()
+        await fire_mock_timer(mock_timer)
 
         assert manager.duration_timers_active == 0
 
     async def test_duration_fire_decrements_on_early_return(self) -> None:
         """on_duration_fire decrements counter even when state_reader returns None (early return)."""
-        manager = make_manager(state=None)
-
-        task_bucket = make_task_bucket()
-        listener = create_listener(
-            topic="hass.event.state_changed.light.kitchen",
-            entity_id="light.kitchen",
-            duration=60.0,
-            task_bucket=task_bucket,
-        )
-        assert listener.duration_config is not None
-        mock_timer = MagicMock()
-        listener.duration_config._timer = mock_timer
-
-        invoke_fn = AsyncMock()
-        manager.start_duration_timer(listener, "light.kitchen", listener.duration_config, invoke_fn)
+        manager, mock_timer, invoke_fn = arm_duration_timer(state=None)
         assert manager.duration_timers_active == 1
 
-        on_fire = mock_timer.start.call_args[0][0]
-        await on_fire()
+        await fire_mock_timer(mock_timer)
 
         assert manager.duration_timers_active == 0
         invoke_fn.assert_not_called()
@@ -280,25 +323,10 @@ class TestStartDurationTimer:
     async def test_remaining_fire_decrements_timers_active(self) -> None:
         """on_duration_fire in start_remaining_duration_timer decrements counter."""
         state = make_state_dict("light.kitchen", "on")
-        manager = make_manager(state=state)
-
-        task_bucket = make_task_bucket()
-        listener = create_listener(
-            topic="hass.event.state_changed.light.kitchen",
-            entity_id="light.kitchen",
-            duration=60.0,
-            task_bucket=task_bucket,
-        )
-        assert listener.duration_config is not None
-        mock_timer = MagicMock()
-        listener.duration_config._timer = mock_timer
-
-        invoke_fn = AsyncMock()
-        manager.start_remaining_duration_timer(listener, "light.kitchen", listener.duration_config, invoke_fn, 30.0)
+        manager, mock_timer, _invoke_fn = arm_remaining_duration_timer(state=state)
         assert manager.duration_timers_active == 1
 
-        on_fire = mock_timer.start.call_args[0][0]
-        await on_fire()
+        await fire_mock_timer(mock_timer)
 
         assert manager.duration_timers_active == 0
 
@@ -319,6 +347,12 @@ class TestHoldMatches:
             where=always_false,
         )
         # No hold_predicate — falls back to listener.matches()
+        # dup-ignore-start: hold_matches fallback tests share an "assert duration_config
+        # precondition, build a mock event, call hold_matches, assert result" shape, but each
+        # proves a different fallback trigger — this one confirms fallback when duration_config
+        # is present but hold_predicate is unset — and needs `event` afterward to assert the
+        # underlying where= predicate mock was actually invoked, which a result-only helper
+        # would swallow. See also the two other occurrences of this shape below in this class.
         assert listener.duration_config is not None
         assert listener.duration_config.hold_predicate is None
 
@@ -328,56 +362,32 @@ class TestHoldMatches:
         # listener.matches() called always_false, which returned False
         assert result is False
         always_false.assert_called_once_with(event)
+        # dup-ignore-end
 
     def test_uses_hold_predicate_when_set(self) -> None:
         """hold_matches calls hold_predicate directly when it is set."""
-        manager = make_manager()
         hold_pred = MagicMock(return_value=False)
-        listener = create_listener(
-            topic="hass.event.state_changed.light.kitchen",
-            entity_id="light.kitchen",
-            duration=5.0,
-            hold_predicate=hold_pred,
-        )
-        event = MagicMock()
 
-        result = manager.hold_matches(listener, event)
+        result, event = hold_matches_with_predicate(hold_pred)
 
         assert result is False
         hold_pred.assert_called_once_with(event)
 
     def test_hold_matches_returns_true_when_hold_predicate_returns_true(self) -> None:
         """hold_matches returns True when hold_predicate returns True."""
-        manager = make_manager()
         hold_pred = MagicMock(return_value=True)
-        listener = create_listener(
-            topic="hass.event.state_changed.light.kitchen",
-            entity_id="light.kitchen",
-            duration=5.0,
-            hold_predicate=hold_pred,
-        )
-        event = MagicMock()
 
-        result = manager.hold_matches(listener, event)
+        result, _event = hold_matches_with_predicate(hold_pred)
 
         assert result is True
 
     def test_raising_hold_predicate_returns_false(self) -> None:
         """hold_matches catches a raising hold_predicate and returns False."""
-        manager = make_manager()
 
         def bad_pred(_ev: object) -> bool:
             raise ValueError("hold boom")
 
-        listener = create_listener(
-            topic="hass.event.state_changed.light.kitchen",
-            entity_id="light.kitchen",
-            duration=5.0,
-            hold_predicate=bad_pred,
-        )
-        event = MagicMock()
-
-        result = manager.hold_matches(listener, event)
+        result, _event = hold_matches_with_predicate(bad_pred)
         assert result is False
 
     def test_raising_listener_predicate_in_hold_matches_returns_false(self) -> None:
@@ -393,12 +403,19 @@ class TestHoldMatches:
             duration=5.0,
             where=bad_pred,
         )
+        # dup-ignore-start: same "assert precondition, build event, call hold_matches, assert
+        # result" shape as the other two occurrences in this class — this one proves fallback to
+        # listener.matches() still happens when duration_config is present but hold_predicate
+        # isn't set, and the *listener*-level predicate raises. Forcing this into a shared helper
+        # with the "no hold_predicate" and "no duration_config" cases would need a branch per
+        # precondition, hiding the specific invariant each test checks.
         assert listener.duration_config is not None
         assert listener.duration_config.hold_predicate is None
 
         event = MagicMock()
         result = manager.hold_matches(listener, event)
         assert result is False
+        # dup-ignore-end
 
     def test_falls_back_when_no_duration_config(self) -> None:
         """hold_matches falls back to listener.matches when duration_config is None.
@@ -409,6 +426,10 @@ class TestHoldMatches:
         manager = make_manager()
         always_true = MagicMock(return_value=True)
         listener = create_listener(topic="test.topic", where=always_true)
+        # dup-ignore-start: same "assert precondition, build event, call hold_matches, assert
+        # result" shape as the other two occurrences in this class — this one is the only case
+        # where duration_config is entirely absent (no entity_id passed), and needs `event`
+        # afterward to assert the where= predicate mock was invoked, same as the first occurrence.
         # No duration_config (no entity_id passed)
         assert listener.duration_config is None
 
@@ -417,6 +438,7 @@ class TestHoldMatches:
 
         assert result is True
         always_true.assert_called_once_with(event)
+        # dup-ignore-end
 
 
 class TestCreateCancelListener:
@@ -425,21 +447,7 @@ class TestCreateCancelListener:
         router = Router()
         task_bucket = make_task_bucket()
         manager = make_manager(router=router, task_bucket=task_bucket)
-
-        # Build a listener with a duration timer attached
-        listener = create_listener(
-            topic="hass.event.state_changed.light.kitchen",
-            entity_id="light.kitchen",
-            duration=5.0,
-            task_bucket=task_bucket,
-        )
-        assert listener.duration_config is not None
-
-        cancel_sub_mock = MagicMock()
-        cancel_sub_mock.cancel = MagicMock()
-        # We need a real DurationTimer or a mock — use a mock
-        mock_timer = MagicMock()
-        listener.duration_config._timer = mock_timer
+        listener, _mock_timer, _task_bucket = make_listener_with_mock_timer(duration=5.0, task_bucket=task_bucket)
 
         sub = manager.create_cancel_listener(listener)
 
@@ -455,16 +463,7 @@ class TestCreateCancelListener:
         router = Router()
         task_bucket = make_task_bucket()
         manager = make_manager(router=router, task_bucket=task_bucket)
-
-        listener = create_listener(
-            topic="hass.event.state_changed.light.kitchen",
-            entity_id="light.kitchen",
-            duration=5.0,
-            task_bucket=task_bucket,
-        )
-        assert listener.duration_config is not None
-        mock_timer = MagicMock()
-        listener.duration_config._timer = mock_timer
+        listener, _mock_timer, _task_bucket = make_listener_with_mock_timer(duration=5.0, task_bucket=task_bucket)
 
         sub = manager.create_cancel_listener(listener)
 
@@ -483,14 +482,7 @@ class TestCreateCancelListener:
         """
         task_bucket = make_task_bucket()
         manager = make_manager(task_bucket=task_bucket)
-        listener = create_listener(
-            topic="hass.event.state_changed.light.kitchen",
-            entity_id="light.kitchen",
-            duration=5.0,
-            task_bucket=task_bucket,
-        )
-        assert listener.duration_config is not None
-        listener.duration_config._timer = MagicMock()
+        listener, _mock_timer, _task_bucket = make_listener_with_mock_timer(duration=5.0, task_bucket=task_bucket)
 
         sub = manager.create_cancel_listener(listener)
 
@@ -512,8 +504,7 @@ class TestComputeElapsed:
             "state": "on",
             # no last_changed key
         }
-        dc = DurationConfig(entity_id="light.kitchen", duration=60.0)
-        result = compute_elapsed(state, dc)
+        result = compute_elapsed_for(state)
         assert result == 0.0
 
     def test_non_string_last_changed_returns_zero(self) -> None:
@@ -543,8 +534,7 @@ class TestComputeElapsed:
             "state": "on",
             "last_changed": old_time.format_iso(),
         }
-        dc = DurationConfig(entity_id="light.kitchen", duration=60.0)
-        result = compute_elapsed(state, dc)
+        result = compute_elapsed_for(state)
         # Should be clamped to the duration value (60.0)
         assert result == 60.0
 
@@ -557,7 +547,6 @@ class TestComputeElapsed:
             "state": "on",
             "last_changed": recent_time.format_iso(),
         }
-        dc = DurationConfig(entity_id="light.kitchen", duration=60.0)
-        result = compute_elapsed(state, dc)
+        result = compute_elapsed_for(state)
         # Should be approximately 5 seconds (within 1s tolerance for test timing)
         assert 4.0 <= result <= 10.0

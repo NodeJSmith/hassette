@@ -1,9 +1,17 @@
 """Shared helpers for bus integration tests."""
 
 import asyncio
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING, Any
 
+from hassette.events import RawStateChangeEvent
+from hassette.test_utils import wait_for
 from hassette.test_utils.harness import HassetteHarness
 from hassette.test_utils.helpers import create_state_change_event, make_state_dict
+
+if TYPE_CHECKING:
+    from hassette import Hassette
+    from hassette.bus import Bus
 
 ENTITY = "sensor.overlap"
 """Shared entity id for execution-mode overlap tests (test_execution_modes*.py)."""
@@ -14,12 +22,39 @@ ENTITY = "sensor.overlap"
 EVENT_LOOP_YIELDS = 10
 
 
-async def seed(harness: HassetteHarness, entity_id: str, state_value: str) -> None:
+async def seed(
+    harness: HassetteHarness,
+    entity_id: str,
+    state_value: str,
+    *,
+    attributes: dict[str, Any] | None = None,
+    last_changed: str | None = None,
+) -> None:
     """Seed state into the StateProxy."""
     await harness.seed_state(
         entity_id,
-        make_state_dict(entity_id, state_value),
+        make_state_dict(entity_id, state_value, attributes=attributes, last_changed=last_changed),
     )
+
+
+def make_collector(
+    hassette: "Hassette",
+) -> tuple[Callable[[RawStateChangeEvent], Awaitable[None]], list[RawStateChangeEvent], asyncio.Event]:
+    """Build a handler that appends received events and signals completion via task_bucket.
+
+    Returns ``(handler, received, fired)``. The handler appends every event it receives to
+    ``received`` and sets ``fired`` (via ``hassette.task_bucket.post_to_loop``) each time it runs.
+    Callers that don't need completion signaling — negative-fire tests gated on another wait
+    condition — can discard ``fired`` with ``_fired``.
+    """
+    received: list[RawStateChangeEvent] = []
+    fired = asyncio.Event()
+
+    async def handler(event: RawStateChangeEvent) -> None:
+        received.append(event)
+        hassette.task_bucket.post_to_loop(fired.set)
+
+    return handler, received, fired
 
 
 async def send_state_change(
@@ -32,6 +67,46 @@ async def send_state_change(
     event = create_state_change_event(entity_id=entity_id, old_value=old_value, new_value=new_value)
     await harness.hassette.send_event(event)
     await harness.bus_service.await_dispatch_idle()
+
+
+async def drive_state_change(
+    harness: HassetteHarness,
+    entity_id: str,
+    old_value: str,
+    new_value: str,
+) -> None:
+    """Dispatch a state-change event, then sync StateProxy's cache to match.
+
+    Combines ``send_state_change`` (drives the event through the bus, triggering listener
+    dispatch) with ``seed`` (updates StateProxy's cached snapshot to the same new value) — dispatch
+    and the state cache are updated independently by this harness, so any assertion or re-check
+    logic that reads current state (duration-timer re-verification, ``get_state`` calls) needs
+    both. Only fits the common case where both calls target the same entity/new-value pair; a test
+    that seeds a different value than it dispatched, or needs other work between the two calls,
+    should call ``send_state_change``/``seed`` directly instead.
+    """
+    await send_state_change(harness, entity_id, old_value, new_value)
+    await seed(harness, entity_id, new_value)
+
+
+async def send_live_event_and_wait_drain(
+    hassette: "Hassette",
+    bus: "Bus",
+    entity_id: str,
+    old_value: str,
+    new_value: str,
+) -> None:
+    """Send a state-change event and wait for ``bus.task_bucket`` to drain.
+
+    Used by ``once=True`` tests that prove a second live event does not re-fire an
+    already-consumed listener — unlike ``drive_state_change``, the assertion that follows only
+    cares whether the handler ran again, so this doesn't sync StateProxy's cache, and it waits on
+    ``bus.task_bucket`` draining rather than ``bus_service.await_dispatch_idle()``, matching what
+    each of these call sites already did before extraction.
+    """
+    event = create_state_change_event(entity_id=entity_id, old_value=old_value, new_value=new_value)
+    await hassette.send_event(event)
+    await wait_for(lambda: len(bus.task_bucket) == 0, desc="tasks drain")
 
 
 async def pump_event_loop() -> None:
