@@ -443,6 +443,11 @@ async def test_immediate_duration_per_listener_error_handler(
 # not just that the parameter exists on the delegate's signature.
 
 
+# dup-ignore-start: KI-002 (design/specs/097-dedupe-bus-test-scaffolding/known-issues.md) — decided
+# to keep these 4 passthrough tests as separate functions rather than parametrize. Each varies on 3
+# independent axes at once (bus registration method, handler signature, simulate() call arity), so a
+# clean parametrize would need a per-case handler-builder function anyway — trading this file's direct
+# "this exact primary call reaches this exact handler" readability for a marginal duplication win.
 async def test_on_homeassistant_start_on_error_passthrough() -> None:
     """on_error passed to on_homeassistant_start fires via the on_call_service primary."""
     errors = _ErrorCollector()
@@ -533,3 +538,6 @@ async def test_on_app_running_on_error_passthrough() -> None:
         await settle()
 
     errors.single(ValueError)
+
+
+# dup-ignore-end

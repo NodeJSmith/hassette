@@ -43,7 +43,7 @@ Acceptance criteria:
 
 ## KI-002: Four on_error passthrough tests in test_bus_error_handler_combos.py are near-identical and a parametrize candidate
 
-Status: open
+Status: resolved — decision recorded, not fixed via parametrize
 Run: 87
 Source: clean-code
 Reason not fixed now: needs-decision
@@ -81,3 +81,12 @@ Acceptance criteria:
 - A decision is recorded (parametrize, or explicitly keep as four functions) and, if parametrize is
   chosen, all four cases still exercise the same delegate/simulate/handler/event combinations with
   equivalent assertions.
+
+Resolution:
+Decided to keep as four separate functions — the three-axis variation (registration method, handler
+signature, `simulate()` arity) means a clean parametrize would need a per-case handler-builder
+function anyway, trading this file's direct "this exact primary call reaches this exact handler"
+readability for a marginal duplication win. The duplication is now explicitly marked as intentional
+via `# dup-ignore-start: KI-002` / `# dup-ignore-end` wrapping all four functions in
+`test_bus_error_handler_combos.py` (confirmed via `tools/check_duplicate_code.py`: the 4-fragment
+cluster no longer appears in its output).
