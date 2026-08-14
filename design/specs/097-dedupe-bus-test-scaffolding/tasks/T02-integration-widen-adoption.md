@@ -48,3 +48,16 @@ assertions and timeout values exactly — this is a pure structural refactor.
 - [ ] AC#3: `uv run pytest tests/integration/bus/ -n 4` passes with zero failures, and
       `uv run pytest tests/integration/bus/ --collect-only -q` reports exactly 125 tests collected
       (the fixed pre-refactor baseline recorded in `design.md`'s Goals section).
+
+## Resolution
+
+Investigated and found infeasible — none of the four target files were adopted (confirmed via
+`grep -l make_collector tests/integration/bus/*.py`: only `test_bus_duration.py`,
+`test_bus_immediate.py`, and `helpers.py` itself). The T01 collecting-handler helper is hard-typed
+to `RawStateChangeEvent`, and the DI layer in `src/hassette/bus/injection.py` actively
+converts/rejects non-matching event types — trial adoption against these four files' `bus.on(topic=...)`
+and `on_error` patterns failed at runtime, then was reverted. FR#4 and AC#2 in `design.md` were
+both revised to record this outcome rather than claim the original target was met; see `design.md`'s
+Goals section (the "Cut `tests/integration/bus/` cluster count..." bullet) and FR#4's descope note
+for the full explanation. This task's `status: done` reflects the investigation completing with an
+honest negative result, not the four files being modified.

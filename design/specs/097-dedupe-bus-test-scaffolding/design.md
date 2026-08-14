@@ -67,18 +67,20 @@ genuinely different shapes. This design targets the clusters the checker actuall
   ever scoped to address. 19+6+2=27. 50→27 is still a 46% reduction, just short of the ≥50% goal.
 - Cut `tests/integration/bus/` cluster count from 47 as far as reachable. The original ≤23
   (≥50% reduction) target is **known unreachable** via this task set: T02's investigation
-  (evidence in `tasks/T02-integration-widen-adoption.md`'s CONTESTED resolution) proved the T01
+  (see design.md's Goals section here, and T02's own body) proved the T01
   collecting-handler helper is architecturally scoped to `on_state_change`/`on_attribute_change`
   (its handler is hard-typed `RawStateChangeEvent`, and the DI layer in
   `src/hassette/bus/injection.py` actively converts/rejects non-matching event types) and cannot
   serve `bus.on(topic=...)` registrations with other payload types or `on_error` callback
   patterns — confirmed via trial-adoption that failed at runtime, then reverted. After T01+T02 the
   count is 40, not ≤23, with nothing further reducible inside T01/T02's scope. The remaining
-  clusters live in files never targeted by this design (`test_execution_modes.py`,
+  clusters (as of T05) live in files never targeted by this design (`test_execution_modes.py`,
   `test_execution_modes_guards.py`, `conftest.py`) or in `test_bus_error_handler_combos.py`
-  (deliberately left alone per the Approach section's guidance not to redesign its existing
-  `_ErrorCollector` abstraction). T05 reports the actual final count as an honest measurement,
-  not a pass/fail gate against ≤23.
+  (its `_ErrorCollector` abstraction deliberately left alone per the Approach section's guidance
+  not to redesign it). T05 reports the actual final count as an honest measurement, not a
+  pass/fail gate against ≤23. **Post-T05 (T06):** the count dropped further to 37 after extracting
+  the `drive_state_change` trigger helper and adopting it in `test_bus_duration.py` and
+  `test_bus_error_handler_combos.py` (trigger lines only — see FR#11).
 - Zero test behavior change — every existing test still passes with the same assertions, and the
   same number of tests collect: 697 in `tests/unit/bus/`, 125 in `tests/integration/bus/`
   (measured via `uv run pytest tests/unit/bus/ --collect-only -q` /
