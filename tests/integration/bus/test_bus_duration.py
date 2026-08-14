@@ -20,12 +20,12 @@ from hassette.test_utils.helpers import create_state_change_event
 from hassette.types import Topic
 
 from .conftest import (
+    ASYNC_SAFETY_TIMEOUT,
     CANCEL_SETTLE_DELAY,
     DURATION,
-    HALF_HOLD,
+    NEAR_HALF_HOLD,
     PARTIAL_HOLD,
     REGISTRATION_SETTLE_DELAY,
-    TIMER_COMPLETION_TIMEOUT,
 )
 from .helpers import drive_state_change, make_collector, seed
 
@@ -33,6 +33,8 @@ if TYPE_CHECKING:
     from hassette import Hassette
     from hassette.bus import Bus
     from hassette.bus.duration_timer import DurationTimer
+
+POSITIVE_FIRE_TIMEOUT = DURATION + 0.5  # standard wait margin for a duration timer expected to fire
 
 
 def get_duration_timer(harness: HassetteHarness, entity_id: str) -> "DurationTimer | None":
@@ -44,7 +46,7 @@ def get_duration_timer(harness: HassetteHarness, entity_id: str) -> "DurationTim
     return None
 
 
-async def wait_for_timer_completed(timer: "DurationTimer | None", timeout: float = TIMER_COMPLETION_TIMEOUT) -> None:
+async def wait_for_timer_completed(timer: "DurationTimer | None", timeout: float = ASYNC_SAFETY_TIMEOUT) -> None:
     """Assert a timer was found and await its current cycle's completion event.
 
     Centralizes the "no-fire" wait idiom used by cancellation tests: a timer must
@@ -77,7 +79,7 @@ async def test_duration_fires_after_held(bus_harness: tuple[HassetteHarness, "Ha
     # StateProxy must be synced too — the timer's re-check reads it
     await drive_state_change(harness, "light.kitchen", "off", "on")
 
-    await asyncio.wait_for(fired.wait(), timeout=DURATION + 0.5)
+    await asyncio.wait_for(fired.wait(), timeout=POSITIVE_FIRE_TIMEOUT)
 
     assert len(received) == 1
     # dup-ignore-end
@@ -134,7 +136,7 @@ async def test_duration_resets_on_re_entry(bus_harness: tuple[HassetteHarness, "
     await drive_state_change(harness, "light.kitchen", "off", "on")
 
     # Wait half the duration
-    await asyncio.sleep(HALF_HOLD)
+    await asyncio.sleep(NEAR_HALF_HOLD)
 
     # dup-ignore-start: this test's whole point is the exit/re-enter pair below, which resets the
     # duration timer and forces it to complete a *second* hold before firing — structurally similar
@@ -148,7 +150,7 @@ async def test_duration_resets_on_re_entry(bus_harness: tuple[HassetteHarness, "
     await drive_state_change(harness, "light.kitchen", "off", "on")
 
     # Wait for full duration from second entry
-    await asyncio.wait_for(fired.wait(), timeout=DURATION + 0.5)
+    await asyncio.wait_for(fired.wait(), timeout=POSITIVE_FIRE_TIMEOUT)
 
     assert len(received) == 1
 
@@ -332,7 +334,7 @@ async def test_duration_not_cancelled_by_attribute_refresh(
     await harness.bus_service.await_dispatch_idle()
 
     # Timer should NOT have been cancelled — handler fires after full duration
-    await asyncio.wait_for(fired.wait(), timeout=DURATION + 0.5)
+    await asyncio.wait_for(fired.wait(), timeout=POSITIVE_FIRE_TIMEOUT)
     assert len(received) == 1
 
 
@@ -483,7 +485,7 @@ async def test_duration_attribute_change_cancel_only_on_predicate_fail(
     await harness.bus_service.await_dispatch_idle()
 
     # Timer should still fire
-    await asyncio.wait_for(fired.wait(), timeout=DURATION + 0.5)
+    await asyncio.wait_for(fired.wait(), timeout=POSITIVE_FIRE_TIMEOUT)
     assert len(received) == 1
 
 
@@ -508,7 +510,7 @@ async def test_duration_handler_receives_original_triggering_event(
 
     await drive_state_change(harness, "light.kitchen", "off", "on")
 
-    await asyncio.wait_for(fired.wait(), timeout=DURATION + 0.5)
+    await asyncio.wait_for(fired.wait(), timeout=POSITIVE_FIRE_TIMEOUT)
 
     assert len(received) == 1
     # dup-ignore-end
@@ -544,7 +546,7 @@ async def test_changed_from_with_duration_fires(bus_harness: tuple[HassetteHarne
     # file, where the assertion is the point of the test and stays visible at the call site.
     await drive_state_change(harness, "door.front", "closed", "open")
 
-    await asyncio.wait_for(fired.wait(), timeout=DURATION + 0.5)
+    await asyncio.wait_for(fired.wait(), timeout=POSITIVE_FIRE_TIMEOUT)
     assert len(received) == 1
 
 

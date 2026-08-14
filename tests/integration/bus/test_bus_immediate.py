@@ -15,13 +15,18 @@ from hassette.test_utils import make_state_dict, wait_for
 from hassette.test_utils.harness import HassetteHarness
 from hassette.test_utils.helpers import settle
 
+from .conftest import (
+    ASYNC_SAFETY_TIMEOUT,
+    ELAPSED_BOUNDARY_DURATION,
+    ELAPSED_EXCEEDS_OFFSET_SECONDS,
+    ELAPSED_REMAINING_OFFSET_SECONDS,
+    REMAINING_FIRE_TIMEOUT,
+)
 from .helpers import make_collector, seed, send_live_event_and_wait_drain
 
 if TYPE_CHECKING:
     from hassette import Hassette
     from hassette.bus import Bus
-
-IMMEDIATE_FIRE_TIMEOUT = 2.0  # safety ceiling when awaiting an immediate-fire handler invocation
 
 
 async def test_immediate_fires_when_state_matches(bus_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
@@ -33,7 +38,7 @@ async def test_immediate_fires_when_state_matches(bus_harness: tuple[HassetteHar
     handler, received, fired = make_collector(hassette)
 
     # dup-ignore-start: base positive-fire tail for immediate=True — the registration call's closing
-    # paren, then wait_for(fired, IMMEDIATE_FIRE_TIMEOUT), then assert len(received) == 1. Nearly
+    # paren, then wait_for(fired, ASYNC_SAFETY_TIMEOUT), then assert len(received) == 1. Nearly
     # every immediate-fire test in this file ends with this exact idiom; kept inline (not routed
     # through a shared "wait and assert" helper) for consistency with test_bus_duration.py's
     # equivalent tail, where the fire-count assertion is the actual point of the test and the
@@ -43,7 +48,7 @@ async def test_immediate_fires_when_state_matches(bus_harness: tuple[HassetteHar
         "light.kitchen", handler=handler, changed=False, immediate=True, name="immediate_fires_when_state_matches"
     )
 
-    await asyncio.wait_for(fired.wait(), timeout=IMMEDIATE_FIRE_TIMEOUT)
+    await asyncio.wait_for(fired.wait(), timeout=ASYNC_SAFETY_TIMEOUT)
 
     assert len(received) == 1
 
@@ -101,7 +106,7 @@ async def test_immediate_synthetic_event_structure(bus_harness: tuple[HassetteHa
 
     handler, received, fired = make_collector(hassette)
 
-    # dup-ignore-start: same registration-close+wait_for(fired, IMMEDIATE_FIRE_TIMEOUT)+assert tail as
+    # dup-ignore-start: same registration-close+wait_for(fired, ASYNC_SAFETY_TIMEOUT)+assert tail as
     # test_immediate_fires_when_state_matches above — this test's actual point is the synthetic
     # event's structure, asserted in the lines immediately below, so hiding this tail behind a
     # helper wouldn't reduce anything meaningful about what's being verified here.
@@ -109,7 +114,7 @@ async def test_immediate_synthetic_event_structure(bus_harness: tuple[HassetteHa
         "sensor.temp", handler=handler, changed=False, immediate=True, name="immediate_synthetic_event_structure"
     )
 
-    await asyncio.wait_for(fired.wait(), timeout=IMMEDIATE_FIRE_TIMEOUT)
+    await asyncio.wait_for(fired.wait(), timeout=ASYNC_SAFETY_TIMEOUT)
 
     assert len(received) == 1
     # dup-ignore-end
@@ -133,7 +138,7 @@ async def test_immediate_with_once_consumes_invocation(bus_harness: tuple[Hasset
 
     handler, received, fired = make_collector(hassette)
 
-    # dup-ignore-start: same registration-close+wait_for(fired, IMMEDIATE_FIRE_TIMEOUT)+assert idiom as
+    # dup-ignore-start: same registration-close+wait_for(fired, ASYNC_SAFETY_TIMEOUT)+assert idiom as
     # the other positive-fire tests in this file, minus the usual blank line between the two waits —
     # this test's point is the once=True consumption checked by the live-event send below, not this fire.
     await bus.on_state_change(
@@ -145,7 +150,7 @@ async def test_immediate_with_once_consumes_invocation(bus_harness: tuple[Hasset
         name="immediate_once_consumes_invocation",
     )
 
-    await asyncio.wait_for(fired.wait(), timeout=IMMEDIATE_FIRE_TIMEOUT)
+    await asyncio.wait_for(fired.wait(), timeout=ASYNC_SAFETY_TIMEOUT)
     assert len(received) == 1
     # dup-ignore-end
 
@@ -160,7 +165,7 @@ async def test_immediate_with_debounce(bus_harness: tuple[HassetteHarness, "Hass
     harness, hassette, bus = bus_harness
 
     # dup-ignore-start: sensor.motion arrange + debounce=0.05 kwarg (unique to this test) + the
-    # standard wait_for(fired, IMMEDIATE_FIRE_TIMEOUT)+assert tail — this is the only test in the
+    # standard wait_for(fired, ASYNC_SAFETY_TIMEOUT)+assert tail — this is the only test in the
     # file that exercises the debounce guard, so its registration can't share a helper with the
     # duration-focused or once-focused arrange blocks elsewhere without adding a debounce parameter
     # only this one call site would ever pass.
@@ -172,7 +177,7 @@ async def test_immediate_with_debounce(bus_harness: tuple[HassetteHarness, "Hass
         "sensor.motion", handler=handler, changed=False, immediate=True, debounce=0.05, name="immediate_with_debounce"
     )
 
-    await asyncio.wait_for(fired.wait(), timeout=IMMEDIATE_FIRE_TIMEOUT)
+    await asyncio.wait_for(fired.wait(), timeout=ASYNC_SAFETY_TIMEOUT)
 
     assert len(received) == 1
 
@@ -200,14 +205,14 @@ async def test_immediate_attribute_change_with_attr_did_change(
 
     handler, received, fired = make_collector(hassette)
 
-    # dup-ignore-start: same registration-close+wait_for(fired, IMMEDIATE_FIRE_TIMEOUT)+assert tail as
+    # dup-ignore-start: same registration-close+wait_for(fired, ASYNC_SAFETY_TIMEOUT)+assert tail as
     # the on_state_change-based tests above, but for an on_attribute_change registration — kept
     # inline for the same consistency reason as this file's other occurrences of this idiom.
     await bus.on_attribute_change(
         "light.office", "brightness", handler=handler, immediate=True, name="immediate_attr_change_did_change"
     )
 
-    await asyncio.wait_for(fired.wait(), timeout=IMMEDIATE_FIRE_TIMEOUT)
+    await asyncio.wait_for(fired.wait(), timeout=ASYNC_SAFETY_TIMEOUT)
 
     assert len(received) == 1
     # dup-ignore-end
@@ -226,14 +231,14 @@ async def test_immediate_changed_false_fires_for_any_existing_entity(
 
     handler, received, fired = make_collector(hassette)
 
-    # dup-ignore-start: same registration-close+wait_for(fired, IMMEDIATE_FIRE_TIMEOUT)+assert tail as
+    # dup-ignore-start: same registration-close+wait_for(fired, ASYNC_SAFETY_TIMEOUT)+assert tail as
     # this file's other positive-fire tests — see test_immediate_fires_when_state_matches's note above.
     # changed=False means no StateDidChange predicate — any state triggers dispatch
     await bus.on_state_change(
         "binary_sensor.door", handler=handler, changed=False, immediate=True, name="immediate_changed_false_any_entity"
     )
 
-    await asyncio.wait_for(fired.wait(), timeout=IMMEDIATE_FIRE_TIMEOUT)
+    await asyncio.wait_for(fired.wait(), timeout=ASYNC_SAFETY_TIMEOUT)
 
     assert len(received) == 1
     # dup-ignore-end
@@ -255,7 +260,7 @@ async def test_immediate_duration_fires_when_elapsed_exceeds(
     harness, hassette, bus = bus_harness
 
     # Seed state with last_changed 10 seconds ago
-    past = ZonedDateTime.now_in_system_tz().subtract(seconds=10)
+    past = ZonedDateTime.now_in_system_tz().subtract(seconds=ELAPSED_EXCEEDS_OFFSET_SECONDS)
     await seed(harness, "switch.boiler", "on", last_changed=past.format_iso())
 
     handler, received, fired = make_collector(hassette)
@@ -265,12 +270,12 @@ async def test_immediate_duration_fires_when_elapsed_exceeds(
         handler=handler,
         changed=False,
         immediate=True,
-        duration=5.0,
+        duration=ELAPSED_BOUNDARY_DURATION,
         name="immediate_duration_fires_elapsed_exceeds",
     )
 
     # Elapsed (10s) >= duration (5s) → should fire immediately
-    await asyncio.wait_for(fired.wait(), timeout=IMMEDIATE_FIRE_TIMEOUT)
+    await asyncio.wait_for(fired.wait(), timeout=ASYNC_SAFETY_TIMEOUT)
 
     assert len(received) == 1
 
@@ -289,7 +294,7 @@ async def test_immediate_duration_starts_timer_for_remaining(
     harness, hassette, bus = bus_harness
 
     # Seed state with last_changed 3 seconds ago
-    past = ZonedDateTime.now_in_system_tz().subtract(seconds=3)
+    past = ZonedDateTime.now_in_system_tz().subtract(seconds=ELAPSED_REMAINING_OFFSET_SECONDS)
     await seed(harness, "switch.fan", "on", last_changed=past.format_iso())
 
     handler, received, fired = make_collector(hassette)
@@ -299,7 +304,7 @@ async def test_immediate_duration_starts_timer_for_remaining(
         handler=handler,
         changed=False,
         immediate=True,
-        duration=5.0,
+        duration=ELAPSED_BOUNDARY_DURATION,
         name="immediate_duration_starts_timer_remaining",
     )
     # dup-ignore-end
@@ -308,7 +313,7 @@ async def test_immediate_duration_starts_timer_for_remaining(
     assert len(received) == 0, "Should not have fired immediately — only 3s elapsed of 5s"
 
     # Should fire after remaining ~2s (plus margin)
-    await asyncio.wait_for(fired.wait(), timeout=4.0)
+    await asyncio.wait_for(fired.wait(), timeout=REMAINING_FIRE_TIMEOUT)
     assert len(received) == 1
 
 
@@ -355,7 +360,7 @@ async def test_immediate_duration_negative_elapsed_clamped(
         handler=handler,
         changed=False,
         immediate=True,
-        duration=5.0,
+        duration=ELAPSED_BOUNDARY_DURATION,
         name="immediate_duration_negative_elapsed_clamped",
     )
 
@@ -401,7 +406,7 @@ async def test_immediate_duration_once_fires_exactly_once(
     harness, hassette, bus = bus_harness
 
     # Seed state with last_changed 10s ago (duration=5 → fires immediately)
-    past = ZonedDateTime.now_in_system_tz().subtract(seconds=10)
+    past = ZonedDateTime.now_in_system_tz().subtract(seconds=ELAPSED_EXCEEDS_OFFSET_SECONDS)
     await seed(harness, "switch.oven", "on", last_changed=past.format_iso())
 
     handler, received, fired = make_collector(hassette)
@@ -411,13 +416,13 @@ async def test_immediate_duration_once_fires_exactly_once(
         handler=handler,
         changed=False,
         immediate=True,
-        duration=5.0,
+        duration=ELAPSED_BOUNDARY_DURATION,
         once=True,
         name="immediate_duration_once_fires_exactly_once",
     )
 
     # Should fire immediately (elapsed 10s >= duration 5s)
-    await asyncio.wait_for(fired.wait(), timeout=IMMEDIATE_FIRE_TIMEOUT)
+    await asyncio.wait_for(fired.wait(), timeout=ASYNC_SAFETY_TIMEOUT)
     assert len(received) == 1
     # dup-ignore-end
 
