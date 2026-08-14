@@ -34,6 +34,9 @@ if TYPE_CHECKING:
 ERROR_TIMEOUT = 2.0
 """Seconds to wait for an error handler that fires without a duration timer in front of it."""
 
+DURATION_ERROR_TIMEOUT = DURATION + 1.0
+"""Seconds to wait for an error handler behind a duration timer (duration + safety margin)."""
+
 
 class _ErrorCollector:
     """Records the `BusErrorContext` values an `on_error` handler receives.
@@ -45,7 +48,7 @@ class _ErrorCollector:
 
     def __init__(self) -> None:
         self.contexts: list[BusErrorContext] = []
-        self.ran = asyncio.Event()
+        self.ran: asyncio.Event = asyncio.Event()
 
     async def record(self, hassette: "Hassette", ctx: BusErrorContext) -> None:
         self.contexts.append(ctx)
@@ -90,7 +93,7 @@ async def test_duration_app_level_error_handler(bus_harness: tuple[HassetteHarne
 
     await drive_state_change(harness, "light.kitchen", "off", "on")
 
-    await errors.wait(timeout=DURATION + 1.0)
+    await errors.wait(timeout=DURATION_ERROR_TIMEOUT)
     await settle()
 
     ctx = errors.single(ValueError)
@@ -122,7 +125,7 @@ async def test_duration_per_listener_error_handler_wins(
 
     await drive_state_change(harness, "light.kitchen", "off", "on")
 
-    await per_listener.wait(timeout=DURATION + 1.0)
+    await per_listener.wait(timeout=DURATION_ERROR_TIMEOUT)
     await settle()
 
     per_listener.single(RuntimeError)
@@ -151,7 +154,7 @@ async def test_duration_error_handler_receives_original_event(
 
     await drive_state_change(harness, "light.kitchen", "off", "on")
 
-    await errors.wait(timeout=DURATION + 1.0)
+    await errors.wait(timeout=DURATION_ERROR_TIMEOUT)
     await settle()
 
     ctx = errors.single(TypeError)
@@ -186,7 +189,7 @@ async def test_duration_once_error_handler_and_removal(
 
     await drive_state_change(harness, "light.kitchen", "off", "on")
 
-    await errors.wait(timeout=DURATION + 1.0)
+    await errors.wait(timeout=DURATION_ERROR_TIMEOUT)
     await settle()
     assert call_count == 1
     errors.single(ValueError)

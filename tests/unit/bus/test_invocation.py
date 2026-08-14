@@ -9,6 +9,7 @@ Tests cover:
 
 from unittest.mock import MagicMock
 
+from hassette.bus.error_context import BusErrorContext
 from hassette.bus.invocation import build_tracked_invoke_fn
 from hassette.bus.listeners import Listener
 from hassette.commands import InvokeHandler
@@ -174,7 +175,7 @@ class TestErrorHandlerResolution:
         """When listener's app_error_handler_resolver returns a handler, it is set on InvokeHandler."""
         listener = create_listener(topic="test.topic")
 
-        async def app_handler(ctx) -> None:
+        async def app_handler(ctx: BusErrorContext) -> None:
             pass
 
         listener.invoker.set_app_error_handler_resolver(lambda: app_handler)

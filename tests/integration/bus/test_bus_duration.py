@@ -19,16 +19,20 @@ from hassette.test_utils.harness import HassetteHarness
 from hassette.test_utils.helpers import create_state_change_event
 from hassette.types import Topic
 
-from .conftest import DURATION, HALF_HOLD, PARTIAL_HOLD, TIMER_COMPLETION_TIMEOUT
+from .conftest import (
+    CANCEL_SETTLE_DELAY,
+    DURATION,
+    HALF_HOLD,
+    PARTIAL_HOLD,
+    REGISTRATION_SETTLE_DELAY,
+    TIMER_COMPLETION_TIMEOUT,
+)
 from .helpers import drive_state_change, make_collector, seed
 
 if TYPE_CHECKING:
     from hassette import Hassette
     from hassette.bus import Bus
     from hassette.bus.duration_timer import DurationTimer
-
-REGISTRATION_SETTLE_DELAY = 0.05  # let listener registration complete before inspecting router state
-CANCEL_SETTLE_DELAY = 0.02  # let cancellation-listener add/remove settle before inspecting router state
 
 
 def get_duration_timer(harness: HassetteHarness, entity_id: str) -> "DurationTimer | None":

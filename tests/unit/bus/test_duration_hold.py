@@ -215,7 +215,7 @@ class TestStartDurationTimer:
         remove_listener_mock = make_remove_listener()
         manager.remove_listener = remove_listener_mock
 
-        listener, mock_timer, _ = make_listener_with_mock_timer(duration=60.0)
+        listener, mock_timer, _task_bucket = make_listener_with_mock_timer(duration=60.0)
 
         invoke_fn = AsyncMock()
         manager.start_duration_timer(listener, "light.kitchen", listener.duration_config, invoke_fn)
@@ -226,7 +226,7 @@ class TestStartDurationTimer:
     def test_start_remaining_increments_duration_timers_active(self) -> None:
         """start_remaining_duration_timer increments duration_timers_active."""
         manager = make_manager()
-        listener, mock_timer, _ = make_listener_with_mock_timer(duration=60.0)
+        listener, mock_timer, _task_bucket = make_listener_with_mock_timer(duration=60.0)
 
         invoke_fn = AsyncMock()
         manager.start_remaining_duration_timer(listener, "light.kitchen", listener.duration_config, invoke_fn, 30.0)
@@ -239,7 +239,7 @@ class TestStartDurationTimer:
         state = make_state_dict("light.kitchen", "on")
         manager = make_manager(state=state)
 
-        listener, mock_timer, _ = make_listener_with_mock_timer(duration=60.0)
+        listener, mock_timer, _task_bucket = make_listener_with_mock_timer(duration=60.0)
 
         invoke_fn = AsyncMock()
         manager.start_duration_timer(listener, "light.kitchen", listener.duration_config, invoke_fn)
@@ -254,7 +254,7 @@ class TestStartDurationTimer:
         """on_duration_fire decrements counter even when state_reader returns None (early return)."""
         manager = make_manager(state=None)
 
-        listener, mock_timer, _ = make_listener_with_mock_timer(duration=60.0)
+        listener, mock_timer, _task_bucket = make_listener_with_mock_timer(duration=60.0)
 
         invoke_fn = AsyncMock()
         manager.start_duration_timer(listener, "light.kitchen", listener.duration_config, invoke_fn)
@@ -271,7 +271,7 @@ class TestStartDurationTimer:
         state = make_state_dict("light.kitchen", "on")
         manager = make_manager(state=state)
 
-        listener, mock_timer, _ = make_listener_with_mock_timer(duration=60.0)
+        listener, mock_timer, _task_bucket = make_listener_with_mock_timer(duration=60.0)
 
         invoke_fn = AsyncMock()
         manager.start_remaining_duration_timer(listener, "light.kitchen", listener.duration_config, invoke_fn, 30.0)

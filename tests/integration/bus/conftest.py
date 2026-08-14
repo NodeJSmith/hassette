@@ -18,6 +18,8 @@ DURATION = 0.2  # 200 ms — wide enough for CI scheduling jitter
 TIMER_COMPLETION_TIMEOUT = 2.0  # safety ceiling when awaiting DurationTimer.completed in cancellation tests
 PARTIAL_HOLD = DURATION * 0.3  # brief wait before a mid-cycle action (cancel, attribute refresh)
 HALF_HOLD = DURATION * 0.4  # roughly half the duration — simulates a timer partway through its cycle
+REGISTRATION_SETTLE_DELAY = 0.05  # let listener registration complete before inspecting router state
+CANCEL_SETTLE_DELAY = 0.02  # let cancellation-listener add/remove settle before inspecting router state
 
 
 @pytest.fixture

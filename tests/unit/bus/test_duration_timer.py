@@ -14,7 +14,8 @@ Tests cover:
 """
 
 import asyncio
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Coroutine
+from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -23,13 +24,17 @@ from hassette.bus.duration_timer import DurationTimer
 from hassette.test_utils import wait_for
 from hassette.test_utils.helpers import async_noop, create_listener, make_task_bucket
 
+if TYPE_CHECKING:
+    from hassette.events.base import Event
+    from hassette.types import Predicate
+
 
 def make_timer(
     duration: float = 0.05,
-    predicates=None,
+    predicates: "Predicate | None" = None,
     entity_id: str = "light.kitchen",
     owner_id: str = "test_owner",
-    normalize_cancel_event=None,
+    normalize_cancel_event: "Callable[[Event[Any]], Event[Any]] | None" = None,
     create_cancel_sub: MagicMock | None = None,
 ) -> tuple[DurationTimer, MagicMock, MagicMock]:
     """Create a DurationTimer with a real task_bucket (using asyncio directly for spawning)
@@ -46,7 +51,7 @@ def make_timer(
     # task_bucket.spawn: use asyncio.create_task so tasks actually run
     task_bucket_mock = MagicMock(name="task_bucket")
 
-    def spawn_side_effect(coro, *, name: str = "") -> asyncio.Task:  # noqa: ARG001
+    def spawn_side_effect(coro: "Coroutine[Any, Any, Any]", *, name: str = "") -> asyncio.Task:  # noqa: ARG001
         return asyncio.create_task(coro)
 
     task_bucket_mock.spawn = MagicMock(side_effect=spawn_side_effect)
@@ -68,7 +73,7 @@ def make_timer(
 
 def start_timer(
     duration: float = 0.5,
-    predicates=None,
+    predicates: "Predicate | None" = None,
     create_cancel_sub: MagicMock | None = None,
 ) -> tuple[DurationTimer, MagicMock, MagicMock]:
     """Create a DurationTimer via make_timer() and start it with a no-op on_fire callback.
@@ -290,7 +295,7 @@ async def test_cancel_sets_cancelled_flag_first() -> None:
     # Patch cancel_sub.cancel to capture state at call time
     cancelled_when_sub_cancelled: list[bool] = []
 
-    def record_state():
+    def record_state() -> None:
         cancelled_when_sub_cancelled.append(timer._cancelled)
 
     cancel_sub.cancel = MagicMock(side_effect=record_state)

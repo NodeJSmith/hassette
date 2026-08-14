@@ -66,8 +66,7 @@ earlier clean-code pass in the same files — see the Target Files note on `test
 - [ ] FR#11: `test_bus_duration.py` and `test_bus_error_handler_combos.py` adopt it at every call
       site where the exact `send_state_change` + `seed` pair (same entity, same target state)
       appears unchanged (`test_bus_immediate.py` excluded — see Target Files); document in a
-      comment any remaining occurrence the
-      helper genuinely can't cover cleanly.
+      comment any remaining occurrence the helper genuinely can't cover cleanly.
 - [ ] `test_bus_error_handler_combos.py`'s `_ErrorCollector` class and its usages are byte-for-byte
       unchanged (confirm via `git diff` showing only trigger-line changes in that file).
 - [ ] `tests/integration/bus/CLAUDE.md` documents the new helper (FR#9's documentation convention
