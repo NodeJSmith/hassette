@@ -1,7 +1,7 @@
 # Design: Deduplicate bus test scaffolding
 
 **Date:** 2026-08-13
-**Status:** approved
+**Status:** archived
 **Mode:** sketch
 
 ## Problem
