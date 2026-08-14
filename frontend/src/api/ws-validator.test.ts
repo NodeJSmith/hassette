@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import { validateWsMessage, WsValidationError } from "./ws-validator";
 
+const FIXTURE_TIMESTAMP = 1700000000;
+
 describe("validateWsMessage", () => {
   it("validates a connected message", () => {
     const msg = {
       type: "connected",
       data: { uptime_seconds: 123.4, entity_count: 50, app_count: 3, version: "0.25.0" },
-      timestamp: 1700000000,
+      timestamp: FIXTURE_TIMESTAMP,
     };
     expect(validateWsMessage(msg)).toEqual(msg);
   });
@@ -26,7 +28,7 @@ describe("validateWsMessage", () => {
           error_type: null,
         },
       ],
-      timestamp: 1700000000,
+      timestamp: FIXTURE_TIMESTAMP,
     };
     expect(validateWsMessage(msg)).toEqual(msg);
   });
@@ -36,7 +38,7 @@ describe("validateWsMessage", () => {
       type: "log",
       data: {
         seq: 1,
-        timestamp: 1700000000,
+        timestamp: FIXTURE_TIMESTAMP,
         level: "INFO",
         logger_name: "hassette.test",
         func_name: null,
@@ -49,7 +51,7 @@ describe("validateWsMessage", () => {
         instance_index: null,
         source_tier: null,
       },
-      timestamp: 1700000000,
+      timestamp: FIXTURE_TIMESTAMP,
     };
     expect(validateWsMessage(msg)).toEqual(msg);
   });
@@ -66,7 +68,7 @@ describe("validateWsMessage", () => {
     const msg = {
       type: "unknown_type",
       data: {},
-      timestamp: 1700000000,
+      timestamp: FIXTURE_TIMESTAMP,
     };
     expect(() => validateWsMessage(msg)).toThrow(WsValidationError);
   });
