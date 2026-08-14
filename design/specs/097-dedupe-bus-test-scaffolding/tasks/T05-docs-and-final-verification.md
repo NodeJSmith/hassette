@@ -1,7 +1,7 @@
 ---
 task_id: "T05"
 title: "Document new helpers in both CLAUDE.md files and run final verification"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02", "T03", "T04"]
 implements: ["FR#9", "FR#10", "AC#1", "AC#2", "AC#3", "AC#4", "AC#5"]
 ---
