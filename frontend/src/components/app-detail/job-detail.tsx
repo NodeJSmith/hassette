@@ -9,7 +9,7 @@ import { getJobExecutions, triggerJob } from "../../api/endpoints";
 import { useAsyncAction } from "../../hooks/use-async-action";
 import { useQueryInvalidator } from "../../hooks/use-query-invalidator";
 import { useRelativeTime } from "../../hooks/use-relative-time";
-import { useJobExecution } from "../../hooks/use-scoped-execution";
+import { isExecutionDefined, useJobExecution } from "../../hooks/use-scoped-execution";
 import { useScopedQuery } from "../../hooks/use-scoped-query";
 import { queryKeys } from "../../lib/query-keys";
 import { DETAIL_FETCH_LIMIT } from "../../utils/constants";
@@ -195,7 +195,7 @@ export function JobDetail({ job, appKey, instanceQs, onSwitchToCode }: Props) {
   const nextRunLabel = useRelativeTime(job.next_run ?? null);
   const fireAtLabel = useRelativeTime(job.fire_at ?? null);
 
-  useQueryInvalidator(execution, (exec) => exec !== undefined, queryKeys.jobExecutions(job.job_id));
+  useQueryInvalidator(execution, isExecutionDefined, queryKeys.jobExecutions(job.job_id));
 
   const kindLabel = handlerKindLabel("job", null, job.trigger_type);
   const jobKind = jobHealthKind(job);

@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import type { components } from "../../api/generated-types";
 import type { WsExecutionCompletedPayload } from "../../api/ws-types";
 import { useAppStore } from "../../state/store";
+import { createExecutionCompletedPayload } from "../../test/factories";
 import { renderWithAppState } from "../../test/render-helpers";
 import { server } from "../../test/server";
 import { RecentActivitySection } from "./recent-activity-section";
@@ -13,7 +14,7 @@ import { RecentActivitySection } from "./recent-activity-section";
 type ActivityFeedEntry = components["schemas"]["ActivityFeedEntry"];
 
 function makeExecution(appKey: string, kind: "handler" | "job"): WsExecutionCompletedPayload {
-  return { kind, app_key: appKey, instance_index: 0, status: "success", duration_ms: 5 };
+  return createExecutionCompletedPayload({ kind, app_key: appKey });
 }
 
 /**

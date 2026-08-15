@@ -4,7 +4,7 @@ import type { ListenerData } from "../../api/endpoints";
 import { getListenerExecutions } from "../../api/endpoints";
 import { useQueryInvalidator } from "../../hooks/use-query-invalidator";
 import { useRelativeTime } from "../../hooks/use-relative-time";
-import { useListenerExecution } from "../../hooks/use-scoped-execution";
+import { isExecutionDefined, useListenerExecution } from "../../hooks/use-scoped-execution";
 import { useScopedQuery } from "../../hooks/use-scoped-query";
 import { queryKeys } from "../../lib/query-keys";
 import { DETAIL_FETCH_LIMIT } from "../../utils/constants";
@@ -83,7 +83,7 @@ export function ListenerDetail({ listener, appKey, instanceQs, onSwitchToCode }:
   const execution = useListenerExecution(listener.listener_id);
   const lastInvokedLabel = useRelativeTime(listener.last_invoked_at ?? null);
 
-  useQueryInvalidator(execution, (exec) => exec !== undefined, queryKeys.listenerExecutions(listener.listener_id));
+  useQueryInvalidator(execution, isExecutionDefined, queryKeys.listenerExecutions(listener.listener_id));
 
   const kindLabel = handlerKindLabel("listener", listener.listener_kind, null);
   const listenerKind = listenerHealthKind(listener);

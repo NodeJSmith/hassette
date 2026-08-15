@@ -3,21 +3,15 @@ import { describe, expect, it } from "vitest";
 
 import type { WsExecutionCompletedPayload } from "../api/ws-types";
 import { useAppStore } from "../state/store";
+import { createExecutionCompletedPayload } from "../test/factories";
 import { useAppExecution, useJobExecution, useListenerExecution } from "./use-scoped-execution";
 
 function handlerCompletion(appKey: string, listenerId: number): WsExecutionCompletedPayload {
-  return {
-    kind: "handler",
-    app_key: appKey,
-    instance_index: 0,
-    status: "success",
-    duration_ms: 5,
-    listener_id: listenerId,
-  };
+  return createExecutionCompletedPayload({ kind: "handler", app_key: appKey, listener_id: listenerId, job_id: null });
 }
 
 function jobCompletion(appKey: string, jobId: number): WsExecutionCompletedPayload {
-  return { kind: "job", app_key: appKey, instance_index: 0, status: "success", duration_ms: 5, job_id: jobId };
+  return createExecutionCompletedPayload({ kind: "job", app_key: appKey, job_id: jobId });
 }
 
 /** Renders `hook` while counting how many times it re-ran — the seam for the scoping assertions. */

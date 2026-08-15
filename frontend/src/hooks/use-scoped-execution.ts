@@ -15,7 +15,7 @@ import { useAppStore } from "../state/store";
  * fires even if that next batch is unrelated. Bounded to exactly one render per matching
  * completion — steady-state unrelated activity stays undefined-to-undefined.
  *
- * Callers pair the result with `useQueryInvalidator(execution, (e) => e !== undefined, key)`: the
+ * Callers pair the result with `useQueryInvalidator(execution, isExecutionDefined, key)`: the
  * scoping already happened in the selector, so the filter only checks definedness.
  */
 function useScopedExecution(
@@ -24,7 +24,12 @@ function useScopedExecution(
   return useAppStore((s) => s.executionCompleted?.find(match));
 }
 
-/** This app's first completion in the latest batch, optionally narrowed to one handler kind. */
+/** Shared `useQueryInvalidator` filter for the scoped-execution hooks below — see their docstrings. */
+export function isExecutionDefined(execution: WsExecutionCompletedPayload | undefined): boolean {
+  return execution !== undefined;
+}
+
+/** This app's first completion in the latest batch, optionally narrowed to one completion kind. */
 export function useAppExecution(appKey: string, kind?: "handler" | "job"): WsExecutionCompletedPayload | undefined {
   return useScopedExecution((e) => e.app_key === appKey && (kind === undefined || e.kind === kind));
 }

@@ -19,7 +19,7 @@ import { useDocumentTitle } from "../hooks/use-document-title";
 import { useManifest } from "../hooks/use-manifest";
 import { useQueryInvalidator } from "../hooks/use-query-invalidator";
 import { useQueryParams } from "../hooks/use-query-params";
-import { useAppExecution } from "../hooks/use-scoped-execution";
+import { isExecutionDefined, useAppExecution } from "../hooks/use-scoped-execution";
 import { useScopedQuery } from "../hooks/use-scoped-query";
 import { queryKeys } from "../lib/query-keys";
 import { appStatusKey, useAppStore } from "../state/store";
@@ -132,8 +132,8 @@ export function AppDetailPage({ params }: Props) {
     { placeholderData: keepPreviousData },
   );
 
-  useQueryInvalidator(handlerExecution, (exec) => exec !== undefined, queryKeys.appListeners.prefix(appKey));
-  useQueryInvalidator(jobExecution, (exec) => exec !== undefined, queryKeys.appJobs.prefix(appKey));
+  useQueryInvalidator(handlerExecution, isExecutionDefined, queryKeys.appListeners.prefix(appKey));
+  useQueryInvalidator(jobExecution, isExecutionDefined, queryKeys.appJobs.prefix(appKey));
 
   const displayListeners = listenersData ?? [];
   const displayJobs = jobsData ?? [];
