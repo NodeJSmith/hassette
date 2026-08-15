@@ -77,6 +77,15 @@ async def async_noop() -> None:
     """Async no-op — call it to get a coroutine object (e.g. bucket.spawn(async_noop()))."""
 
 
+async def block_until_cancelled(_self: Any) -> None:
+    """Service.serve() body: blocks until the task is cancelled.
+
+    Assign as ``serve = block_until_cancelled`` on a test Service subclass — the function
+    is bound as an instance method via the normal descriptor protocol.
+    """
+    await asyncio.Event().wait()
+
+
 async def settle(seconds: float = SETTLE_SECONDS) -> None:
     """Give a stray extra handler call time to land before a negative assertion."""
     # negative-assertion: no event-driven alternative

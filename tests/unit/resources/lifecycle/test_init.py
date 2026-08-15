@@ -32,7 +32,7 @@ from hassette.test_utils import make_mock_hassette
 from hassette.types.enums import ResourceStatus
 from tests.unit.resources.conftest import wait_for_running
 
-from .conftest import SimpleParent
+from .conftest import SimpleParent, make_parent_with_child
 
 # Shared list to record init order across multiple children
 _init_order: list[str] = []
@@ -84,11 +84,7 @@ class ServiceInitTrackingChild(Resource):
 
 async def test_init_propagates_to_children_in_insertion_order():
     """Parent with 3 children: init propagates in insertion order."""
-    _init_order.clear()
-    hassette = make_mock_hassette(sealed=False)
-    parent = SimpleParent(hassette)
-
-    child_a = parent.add_child(InitTrackingChild)
+    parent, child_a = make_parent_with_child(_init_order, InitTrackingChild)
     child_b = parent.add_child(InitTrackingChild)
     child_c = parent.add_child(InitTrackingChild)
 
@@ -106,11 +102,7 @@ async def test_init_propagates_to_children_in_insertion_order():
 
 async def test_init_skips_running_children():
     """Pre-initialized (RUNNING) children are not re-initialized."""
-    _init_order.clear()
-    hassette = make_mock_hassette(sealed=False)
-    parent = SimpleParent(hassette)
-
-    child_a = parent.add_child(InitTrackingChild)
+    parent, child_a = make_parent_with_child(_init_order, InitTrackingChild)
     child_b = parent.add_child(InitTrackingChild)
 
     # Pre-initialize child_a so it reaches RUNNING
@@ -128,11 +120,7 @@ async def test_init_skips_running_children():
 
 async def test_init_skips_starting_children():
     """Children in STARTING status are skipped during propagation."""
-    _init_order.clear()
-    hassette = make_mock_hassette(sealed=False)
-    parent = SimpleParent(hassette)
-
-    child = parent.add_child(InitTrackingChild)
+    parent, child = make_parent_with_child(_init_order, InitTrackingChild)
 
     # Force child into STARTING status
     await handle_starting(child)
@@ -147,11 +135,7 @@ async def test_init_skips_starting_children():
 
 async def test_init_reinitializes_stopped_children():
     """Stopped children are re-initialized when parent initializes."""
-    _init_order.clear()
-    hassette = make_mock_hassette(sealed=False)
-    parent = SimpleParent(hassette)
-
-    child = parent.add_child(InitTrackingChild)
+    parent, child = make_parent_with_child(_init_order, InitTrackingChild)
 
     # Initialize then shut down to reach STOPPED
     await child.initialize()
@@ -167,11 +151,7 @@ async def test_init_reinitializes_stopped_children():
 
 async def test_init_reinitializes_failed_children():
     """Failed children are re-initialized when parent initializes."""
-    _init_order.clear()
-    hassette = make_mock_hassette(sealed=False)
-    parent = SimpleParent(hassette)
-
-    child = parent.add_child(InitTrackingChild)
+    parent, child = make_parent_with_child(_init_order, InitTrackingChild)
 
     # Force child into FAILED status
     await handle_failed(child, RuntimeError("test failure"))
