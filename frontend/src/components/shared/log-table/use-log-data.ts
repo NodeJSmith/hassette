@@ -57,8 +57,7 @@ export function useLogData({ appKey, executionId }: UseLogDataParams): UseLogDat
 
   const { data, isPending, isError, error } = useScopedQuery(
     queryKeys.recentLogs(appKey, executionId),
-    (since, signal) =>
-      getRecentLogs({ app_key: appKey, limit: REST_FETCH_LIMIT, execution_id: executionId, since }, signal),
+    (since, signal) => getRecentLogs({ appKey, limit: REST_FETCH_LIMIT, executionId, since }, signal),
   );
 
   useEffect(() => {

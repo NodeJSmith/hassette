@@ -19,7 +19,6 @@ type AppManifestListResponse = components["schemas"]["AppManifestListResponse"];
 type DashboardAppGridEntry = components["schemas"]["DashboardAppGridEntry"];
 type ListenerWithSummary = components["schemas"]["ListenerWithSummary"];
 type JobSummary = components["schemas"]["JobSummary"];
-type AppHealthResponse = components["schemas"]["AppHealthResponse"];
 type LogEntryResponse = components["schemas"]["LogEntryResponse"];
 type TelemetryStatusResponse = components["schemas"]["TelemetryStatusResponse"];
 type AppInstanceResponse = components["schemas"]["AppInstanceResponse"];
@@ -218,18 +217,6 @@ export function createJob(overrides: Partial<JobSummary> = {}): JobSummary {
     dropped_count: 0,
     ...overrides,
   } satisfies JobSummary;
-}
-
-export function createHealthData(overrides: Partial<AppHealthResponse> = {}): AppHealthResponse {
-  return {
-    error_rate: 0,
-    error_rate_class: "good",
-    handler_avg_duration: 0,
-    job_avg_duration: 0,
-    last_activity_ts: null,
-    health_status: "good",
-    ...overrides,
-  } satisfies AppHealthResponse;
 }
 
 export function createLogEntry(overrides: Partial<LogEntryResponse> = {}): LogEntryResponse {

@@ -18,14 +18,12 @@ import { createManifestList, createSystemConfig } from "./factories";
 type SystemStatusResponse = components["schemas"]["SystemStatusResponse"];
 type ManifestListResponse = components["schemas"]["AppManifestListResponse"];
 type ConfigSchemaResponse = components["schemas"]["ConfigSchemaResponse"];
-type AppHealthResponse = components["schemas"]["AppHealthResponse"];
 type ListenerWithSummary = components["schemas"]["ListenerWithSummary"];
 type JobSummary = components["schemas"]["JobSummary"];
 type Execution = components["schemas"]["Execution"];
 type DashboardAppGridResponse = components["schemas"]["DashboardAppGridResponse"];
 type TelemetryStatusResponse = components["schemas"]["TelemetryStatusResponse"];
 type LogEntryResponse = components["schemas"]["LogEntryResponse"];
-type LogsByExecutionResponse = components["schemas"]["LogsByExecutionResponse"];
 type ActionResponse = components["schemas"]["ActionResponse"];
 type ActivityFeedEntry = components["schemas"]["ActivityFeedEntry"];
 type JobTriggerResponse = components["schemas"]["JobTriggerResponse"];
@@ -86,18 +84,6 @@ export const handlers = [
       status: "accepted",
       app_key: String(params["app_key"]),
       action: "reload",
-    });
-  }),
-
-  // GET /api/telemetry/app/:app_key/health
-  http.get("/api/telemetry/app/:app_key/health", () => {
-    return HttpResponse.json<AppHealthResponse>({
-      error_rate: 0,
-      error_rate_class: "good",
-      handler_avg_duration: 0,
-      job_avg_duration: 0,
-      last_activity_ts: null,
-      health_status: "good",
     });
   }),
 
@@ -162,15 +148,6 @@ export const handlers = [
   // GET /api/logs/recent
   http.get("/api/logs/recent", () => {
     return HttpResponse.json<LogEntryResponse[]>([]);
-  }),
-
-  // GET /api/executions/:execution_id
-  http.get("/api/executions/:execution_id", () => {
-    return HttpResponse.json<LogsByExecutionResponse>({
-      records: [],
-      truncated: false,
-      retention_expired: false,
-    });
   }),
 
   // GET /api/apps/:app_key/source

@@ -44,16 +44,13 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   return response.json() as Promise<T>;
 }
 
-function apiWrite<T>(method: "POST" | "PUT", path: string, body?: unknown): Promise<T> {
+export function apiPost<T>(path: string, body?: unknown): Promise<T> {
   return apiFetch<T>(path, {
-    method,
+    method: "POST",
     headers: { "Content-Type": JSON_CONTENT_TYPE },
     body: body ? JSON.stringify(body) : undefined,
   });
 }
-
-export const apiPost = <T>(path: string, body?: unknown) => apiWrite<T>("POST", path, body);
-export const apiPut = <T>(path: string, body?: unknown) => apiWrite<T>("PUT", path, body);
 
 export type PostSessionResult = { ok: true } | { ok: false; message: string };
 
