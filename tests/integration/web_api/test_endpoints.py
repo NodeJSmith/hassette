@@ -8,21 +8,27 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from hassette.core.app_registry import AppRegistry
-from hassette.exceptions import AppBootstrapNotReleasedError, TelemetryUnavailableError
-from hassette.schemas.listener_models import ListenerSummary
+from hassette.exceptions import AppBootstrapNotReleasedError
 from hassette.test_utils import create_app_manifest
 from hassette.test_utils.web_manifest_helpers import make_manifest_db_row
+from hassette.test_utils.web_telemetry_helpers import make_listener_summary
 from hassette.types.enums import ResourceStatus
 from hassette.web.config_view import MASK_SENTINEL
 
-from .conftest import make_log_record, set_app_status_snapshot, set_websocket_state
+from .conftest import (
+    HEALTH_PATH,
+    get_json,
+    make_log_record,
+    set_app_status_snapshot,
+    set_websocket_state,
+    telemetry_error,
+)
 
 if TYPE_CHECKING:
     from httpx2 import AsyncClient
 
 # Route paths hit by multiple tests below — single source of truth so a route rename only
 # needs to change here.
-HEALTH_PATH = "/api/health"
 HEALTH_READY_PATH = "/api/health/ready"
 APP_START_PATH = "/api/apps/my_app/start"
 APP_STOP_PATH = "/api/apps/my_app/stop"
@@ -39,9 +45,7 @@ OPENAPI_PATH = "/api/openapi.json"
 class TestHealthEndpoints:
     async def test_health_returns_200_when_ok(self, client: "AsyncClient") -> None:
         """GET /api/health returns 200 with status 'ok' when WebSocket is connected."""
-        response = await client.get(HEALTH_PATH)
-        assert response.status_code == 200
-        data = response.json()
+        data = await get_json(client, HEALTH_PATH)
         assert data["status"] == "ok"
         assert data["websocket_connected"] is True
         assert "entity_count" in data
@@ -50,51 +54,39 @@ class TestHealthEndpoints:
     async def test_health_returns_200_when_degraded(self, client: "AsyncClient", mock_hassette) -> None:
         """GET /api/health returns 200 with status 'degraded' when WebSocket is not connected."""
         set_websocket_state(mock_hassette, connected=False, ever_connected=True)
-        response = await client.get(HEALTH_PATH)
-        assert response.status_code == 200
-        data = response.json()
+        data = await get_json(client, HEALTH_PATH)
         assert data["status"] == "degraded"
         assert data["websocket_connected"] is False
 
     async def test_health_returns_200_when_starting(self, client: "AsyncClient", mock_hassette) -> None:
         """GET /api/health returns 200 (not 503) with status 'starting' during startup."""
         set_websocket_state(mock_hassette, connected=False, ever_connected=False)
-        response = await client.get(HEALTH_PATH)
-        assert response.status_code == 200
-        data = response.json()
+        data = await get_json(client, HEALTH_PATH)
         assert data["status"] == "starting"
 
     async def test_health_live_returns_200_regardless_of_ws_state(self, client: "AsyncClient", mock_hassette) -> None:
         """GET /api/health/live returns 200 even when WS is disconnected and never connected."""
         set_websocket_state(mock_hassette, connected=False, ever_connected=False)
-        response = await client.get("/api/health/live")
-        assert response.status_code == 200
-        data = response.json()
+        data = await get_json(client, "/api/health/live")
         assert data["status"] == "live"
 
     async def test_health_ready_returns_200_when_ok(self, client: "AsyncClient") -> None:
         """GET /api/health/ready returns 200 when status is 'ok'."""
-        response = await client.get(HEALTH_READY_PATH)
-        assert response.status_code == 200
-        data = response.json()
+        data = await get_json(client, HEALTH_READY_PATH)
         assert data["ready"] is True
         assert data["status"] == "ok"
 
     async def test_health_ready_returns_503_when_degraded(self, client: "AsyncClient", mock_hassette) -> None:
         """GET /api/health/ready returns 503 when status is 'degraded'."""
         set_websocket_state(mock_hassette, connected=False, ever_connected=True)
-        response = await client.get(HEALTH_READY_PATH)
-        assert response.status_code == 503
-        data = response.json()
+        data = await get_json(client, HEALTH_READY_PATH, expect_status=503)
         assert data["ready"] is False
         assert data["status"] == "degraded"
 
     async def test_health_ready_returns_503_when_starting(self, client: "AsyncClient", mock_hassette) -> None:
         """GET /api/health/ready returns 503 when status is 'starting'."""
         set_websocket_state(mock_hassette, connected=False, ever_connected=False)
-        response = await client.get(HEALTH_READY_PATH)
-        assert response.status_code == 503
-        data = response.json()
+        data = await get_json(client, HEALTH_READY_PATH, expect_status=503)
         assert data["ready"] is False
         assert data["status"] == "starting"
 
@@ -113,9 +105,7 @@ class TestHealthEndpoints:
         """
         set_websocket_state(mock_hassette, connected=False, ever_connected=False)
         set_app_status_snapshot(mock_hassette, running=[], failed=[])
-        response = await client.get(HEALTH_PATH)
-        assert response.status_code == 200
-        data = response.json()
+        data = await get_json(client, HEALTH_PATH)
         assert data["status"] == "starting"
         assert data["app_count"] == 0
 
@@ -234,9 +224,7 @@ class TestAppManifestEndpoint:
         mock_hassette.telemetry_query_service.get_app_manifest = AsyncMock(
             return_value=make_manifest_db_row(app_key="my_app")
         )
-        mock_hassette.telemetry_query_service.get_recent_invocations_1h_all_apps = AsyncMock(
-            side_effect=TelemetryUnavailableError("db down")
-        )
+        mock_hassette.telemetry_query_service.get_recent_invocations_1h_all_apps = telemetry_error(message="db down")
 
         response = await client.get(APP_MANIFEST_PATH)
         assert response.status_code == 200
@@ -244,9 +232,7 @@ class TestAppManifestEndpoint:
 
     async def test_get_manifest_returns_503_when_db_unavailable(self, client: "AsyncClient", mock_hassette) -> None:
         """A DB failure on the spine query itself returns 503, not 404."""
-        mock_hassette.telemetry_query_service.get_app_manifest = AsyncMock(
-            side_effect=TelemetryUnavailableError("db down")
-        )
+        mock_hassette.telemetry_query_service.get_app_manifest = telemetry_error(message="db down")
 
         response = await client.get(APP_MANIFEST_PATH)
         assert response.status_code == 503
@@ -273,9 +259,7 @@ class TestAppManifestListEndpoint:
 
     async def test_get_manifests_returns_503_on_spine_failure(self, client: "AsyncClient", mock_hassette) -> None:
         """A storage error on the DB spine query yields 503."""
-        mock_hassette.telemetry_query_service.get_all_app_manifests = AsyncMock(
-            side_effect=TelemetryUnavailableError("db down")
-        )
+        mock_hassette.telemetry_query_service.get_all_app_manifests = telemetry_error(message="db down")
 
         response = await client.get(APP_MANIFESTS_PATH)
         assert response.status_code == 503
@@ -353,25 +337,12 @@ class TestBusEndpoints:
         self, mock_hassette: MagicMock, client: "AsyncClient"
     ) -> None:
         """Endpoint returns ListenerWithSummary schema with once as int and handler_summary populated."""
-        sample = ListenerSummary(
-            listener_id=1,
-            app_key="test_app",
-            instance_index=0,
-            handler_method="on_light_change",
-            topic="state_changed.light.kitchen",
-            debounce=None,
-            throttle=None,
+        sample = make_listener_summary(
             once=1,
-            priority=0,
-            predicate_description=None,
-            human_description=None,
             source_location="test_app.py:10",
-            registration_source=None,
             total_invocations=5,
             successful=4,
             failed=1,
-            di_failures=0,
-            cancelled=0,
             total_duration_ms=100.0,
             avg_duration_ms=20.0,
             min_duration_ms=10.0,
@@ -470,9 +441,7 @@ class TestLogsEndpoints:
     async def test_get_logs_recent_returns_503_on_db_error(
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
-        mock_hassette.telemetry_query_service.get_log_records = AsyncMock(
-            side_effect=TelemetryUnavailableError("db error")
-        )
+        mock_hassette.telemetry_query_service.get_log_records = telemetry_error(message="db error")
         response = await client.get(LOGS_RECENT_PATH)
         assert response.status_code == 503
         assert response.json() == []
