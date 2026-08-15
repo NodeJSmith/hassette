@@ -39,8 +39,16 @@ from hassette.resources.lifecycle import (
 from hassette.resources.mixins import LifecycleMixin
 from hassette.test_utils import make_mock_hassette
 from hassette.types.enums import ResourceStatus
-from tests.unit.resources.conftest import ConcreteResource, wait_for_running
-from tests.unit.resources.lifecycle.conftest import SimpleService
+from tests.unit.resources.conftest import ConcreteResource
+from tests.unit.resources.lifecycle.conftest import make_running_simple_service
+
+
+def make_strict_running_resource(strict_lifecycle: bool = True) -> ConcreteResource:
+    """Build a `ConcreteResource` with `_status` set directly to RUNNING, bypassing the setter."""
+    hassette = make_mock_hassette(strict_lifecycle=strict_lifecycle, sealed=False)
+    resource = ConcreteResource(hassette)
+    resource._status = ResourceStatus.RUNNING
+    return resource
 
 
 async def test_valid_transition_sequence():
@@ -91,11 +99,7 @@ async def test_invalid_transition_warns_nonstrict():
 
 async def test_force_terminal_bypasses_validation():
     """In strict mode, _force_terminal() on a RUNNING resource succeeds with STOPPED and no error."""
-    hassette = make_mock_hassette(strict_lifecycle=True, sealed=False)
-    resource = ConcreteResource(hassette)
-
-    # Manually set to RUNNING bypassing the setter so we can test _force_terminal
-    resource._status = ResourceStatus.RUNNING
+    resource = make_strict_running_resource()
 
     # _force_terminal() must NOT raise even in strict mode
     resource._force_terminal()
@@ -175,10 +179,7 @@ async def test_hasattr_guard_no_hassette():
 
 async def test_same_state_no_transition():
     """handle_running() when already RUNNING returns early — idempotency preserved, previous_status unchanged."""
-    hassette = make_mock_hassette(strict_lifecycle=True, sealed=False)
-    resource = ConcreteResource(hassette)
-
-    resource._status = ResourceStatus.RUNNING
+    resource = make_strict_running_resource()
     resource._previous_status = ResourceStatus.STARTING
 
     await handle_running(resource)
@@ -255,11 +256,7 @@ async def test_service_shutdown_sets_stopping_before_hooks():
     handle_stop → STOPPING→STOPPED). The observable STOPPING point is before_shutdown,
     which fires before the serve task is cancelled.
     """
-    hassette = make_mock_hassette(sealed=False)
-    svc = SimpleService(hassette)
-
-    await svc.initialize()
-    await wait_for_running(svc)
+    svc = await make_running_simple_service()
 
     status_in_hook: list[ResourceStatus] = []
 
@@ -308,9 +305,7 @@ async def test_shutdown_stopping_then_stopped_sequence():
 
 async def test_running_to_stopped_direct_is_valid():
     """RUNNING → STOPPED is valid for natural service completion (_serve_wrapper normal return)."""
-    hassette = make_mock_hassette(strict_lifecycle=True, sealed=False)
-    resource = ConcreteResource(hassette)
-    resource._status = ResourceStatus.RUNNING
+    resource = make_strict_running_resource()
 
     resource.status = ResourceStatus.STOPPED
     assert resource.status == ResourceStatus.STOPPED

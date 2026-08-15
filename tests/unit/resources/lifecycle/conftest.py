@@ -1,11 +1,13 @@
 """Shared helpers for lifecycle propagation tests."""
 
 import asyncio
+from unittest.mock import AsyncMock
 
 from hassette.resources.base import Resource
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
-from tests.unit.resources.conftest import ConcreteResource
+from hassette.test_utils import make_mock_hassette
+from tests.unit.resources.conftest import ConcreteResource, wait_for_running
 
 __all__ = [
     "ConcreteResource",
@@ -15,6 +17,9 @@ __all__ = [
     "ShutdownCounter",
     "SimpleParent",
     "SimpleService",
+    "make_initialized_shutdown_counter",
+    "make_parent_with_child",
+    "make_running_simple_service",
 ]
 
 
@@ -66,3 +71,35 @@ class SimpleService(Service):
 
     async def serve(self) -> None:
         await asyncio.Event().wait()  # block forever
+
+
+def make_parent_with_child(
+    order_list: list, child_cls: type[Resource], hassette: AsyncMock | None = None
+) -> tuple[SimpleParent, Resource]:
+    """Clear `order_list`, build a `SimpleParent`, and attach one `child_cls` child.
+
+    Callers needing more than one child add the rest with `parent.add_child(...)` after.
+    The mock hassette is reachable as `parent.hassette` if needed.
+    """
+    order_list.clear()
+    hassette = hassette or make_mock_hassette(sealed=False)
+    parent = SimpleParent(hassette)
+    child = parent.add_child(child_cls)
+    return parent, child
+
+
+async def make_running_simple_service(hassette: AsyncMock | None = None) -> SimpleService:
+    """Build a `SimpleService`, initialize it, and wait for it to reach RUNNING."""
+    hassette = hassette or make_mock_hassette(sealed=False)
+    svc = SimpleService(hassette)
+    await svc.initialize()
+    await wait_for_running(svc)
+    return svc
+
+
+async def make_initialized_shutdown_counter(hassette: AsyncMock | None = None) -> ShutdownCounter:
+    """Build a `ShutdownCounter` and initialize it."""
+    hassette = hassette or make_mock_hassette(sealed=False)
+    resource = ShutdownCounter(hassette)
+    await resource.initialize()
+    return resource

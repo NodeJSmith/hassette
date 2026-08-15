@@ -24,9 +24,8 @@ from hassette.scheduler.scheduler import Scheduler
 from hassette.test_utils import make_mock_hassette
 from hassette.test_utils.factories import make_scheduled_job
 from hassette.types.enums import ResourceStatus
-from tests.unit.resources.conftest import wait_for_running
 
-from .conftest import HangingChild, ShutdownCounter, SimpleParent, SimpleService
+from .conftest import HangingChild, ShutdownCounter, SimpleParent, make_running_simple_service
 
 
 async def test_scheduler_on_shutdown_dequeues_all_jobs():
@@ -150,11 +149,7 @@ async def test_force_terminal_skips_completed_children():
 
 async def test_service_force_terminal_cancels_serve_task():
     """Service._force_terminal() cancels the _serve_task before calling super()."""
-    hassette = make_mock_hassette(sealed=False)
-    svc = SimpleService(hassette)
-
-    await svc.initialize()
-    await wait_for_running(svc)
+    svc = await make_running_simple_service()
 
     assert svc._serve_task is not None
     assert not svc._serve_task.done()
