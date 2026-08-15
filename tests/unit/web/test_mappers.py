@@ -4,8 +4,8 @@ from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, App
 from hassette.schemas.domain_models import SystemStatus
 from hassette.schemas.listener_models import ListenerSummary
 from hassette.schemas.live_counts import LiveCounts
-from hassette.test_utils.config import TEST_SOURCE_LOCATION
 from hassette.test_utils.web_manifest_helpers import make_manifest
+from hassette.test_utils.web_telemetry_helpers import make_listener_summary
 from hassette.types.enums import ManifestStatus, ResourceStatus
 from hassette.web.mappers import (
     app_manifest_list_response_from,
@@ -341,41 +341,6 @@ def test_connected_payload_from_no_session_id():
     result = connected_payload_from(domain)
 
     assert not hasattr(result, "session_id")
-
-
-def make_listener_summary(**overrides) -> ListenerSummary:
-    defaults = {
-        "listener_id": 1,
-        "app_key": "test_app",
-        "instance_index": 0,
-        "handler_method": "on_event",
-        "topic": "hass.event.state_changed",
-        "debounce": None,
-        "throttle": None,
-        "once": 0,
-        "priority": 0,
-        "predicate_description": None,
-        "human_description": None,
-        "source_location": TEST_SOURCE_LOCATION,
-        "registration_source": None,
-        "source_tier": "app",
-        "total_invocations": 0,
-        "successful": 0,
-        "failed": 0,
-        "di_failures": 0,
-        "cancelled": 0,
-        "timed_out": 0,
-        "total_duration_ms": 0.0,
-        "avg_duration_ms": 0.0,
-        "min_duration_ms": None,
-        "max_duration_ms": None,
-        "last_invoked_at": None,
-        "last_error_type": None,
-        "last_error_message": None,
-        "last_error_traceback": None,
-    }
-    defaults.update(overrides)
-    return ListenerSummary(**defaults)
 
 
 def test_to_listener_with_summary_passes_through_last_error_traceback():

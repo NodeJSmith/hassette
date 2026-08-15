@@ -9,13 +9,13 @@ import pytest
 
 from hassette.core.app_registry import AppRegistry
 from hassette.exceptions import AppBootstrapNotReleasedError, TelemetryUnavailableError
-from hassette.schemas.listener_models import ListenerSummary
 from hassette.test_utils import create_app_manifest
 from hassette.test_utils.web_manifest_helpers import make_manifest_db_row
+from hassette.test_utils.web_telemetry_helpers import make_listener_summary
 from hassette.types.enums import ResourceStatus
 from hassette.web.config_view import MASK_SENTINEL
 
-from .conftest import make_log_record, set_app_status_snapshot, set_websocket_state
+from .conftest import get_json, make_log_record, set_app_status_snapshot, set_websocket_state
 
 if TYPE_CHECKING:
     from httpx2 import AsyncClient
@@ -39,9 +39,7 @@ OPENAPI_PATH = "/api/openapi.json"
 class TestHealthEndpoints:
     async def test_health_returns_200_when_ok(self, client: "AsyncClient") -> None:
         """GET /api/health returns 200 with status 'ok' when WebSocket is connected."""
-        response = await client.get(HEALTH_PATH)
-        assert response.status_code == 200
-        data = response.json()
+        data = await get_json(client, HEALTH_PATH)
         assert data["status"] == "ok"
         assert data["websocket_connected"] is True
         assert "entity_count" in data
@@ -50,51 +48,39 @@ class TestHealthEndpoints:
     async def test_health_returns_200_when_degraded(self, client: "AsyncClient", mock_hassette) -> None:
         """GET /api/health returns 200 with status 'degraded' when WebSocket is not connected."""
         set_websocket_state(mock_hassette, connected=False, ever_connected=True)
-        response = await client.get(HEALTH_PATH)
-        assert response.status_code == 200
-        data = response.json()
+        data = await get_json(client, HEALTH_PATH)
         assert data["status"] == "degraded"
         assert data["websocket_connected"] is False
 
     async def test_health_returns_200_when_starting(self, client: "AsyncClient", mock_hassette) -> None:
         """GET /api/health returns 200 (not 503) with status 'starting' during startup."""
         set_websocket_state(mock_hassette, connected=False, ever_connected=False)
-        response = await client.get(HEALTH_PATH)
-        assert response.status_code == 200
-        data = response.json()
+        data = await get_json(client, HEALTH_PATH)
         assert data["status"] == "starting"
 
     async def test_health_live_returns_200_regardless_of_ws_state(self, client: "AsyncClient", mock_hassette) -> None:
         """GET /api/health/live returns 200 even when WS is disconnected and never connected."""
         set_websocket_state(mock_hassette, connected=False, ever_connected=False)
-        response = await client.get("/api/health/live")
-        assert response.status_code == 200
-        data = response.json()
+        data = await get_json(client, "/api/health/live")
         assert data["status"] == "live"
 
     async def test_health_ready_returns_200_when_ok(self, client: "AsyncClient") -> None:
         """GET /api/health/ready returns 200 when status is 'ok'."""
-        response = await client.get(HEALTH_READY_PATH)
-        assert response.status_code == 200
-        data = response.json()
+        data = await get_json(client, HEALTH_READY_PATH)
         assert data["ready"] is True
         assert data["status"] == "ok"
 
     async def test_health_ready_returns_503_when_degraded(self, client: "AsyncClient", mock_hassette) -> None:
         """GET /api/health/ready returns 503 when status is 'degraded'."""
         set_websocket_state(mock_hassette, connected=False, ever_connected=True)
-        response = await client.get(HEALTH_READY_PATH)
-        assert response.status_code == 503
-        data = response.json()
+        data = await get_json(client, HEALTH_READY_PATH, expect_status=503)
         assert data["ready"] is False
         assert data["status"] == "degraded"
 
     async def test_health_ready_returns_503_when_starting(self, client: "AsyncClient", mock_hassette) -> None:
         """GET /api/health/ready returns 503 when status is 'starting'."""
         set_websocket_state(mock_hassette, connected=False, ever_connected=False)
-        response = await client.get(HEALTH_READY_PATH)
-        assert response.status_code == 503
-        data = response.json()
+        data = await get_json(client, HEALTH_READY_PATH, expect_status=503)
         assert data["ready"] is False
         assert data["status"] == "starting"
 
@@ -113,9 +99,7 @@ class TestHealthEndpoints:
         """
         set_websocket_state(mock_hassette, connected=False, ever_connected=False)
         set_app_status_snapshot(mock_hassette, running=[], failed=[])
-        response = await client.get(HEALTH_PATH)
-        assert response.status_code == 200
-        data = response.json()
+        data = await get_json(client, HEALTH_PATH)
         assert data["status"] == "starting"
         assert data["app_count"] == 0
 
@@ -353,25 +337,12 @@ class TestBusEndpoints:
         self, mock_hassette: MagicMock, client: "AsyncClient"
     ) -> None:
         """Endpoint returns ListenerWithSummary schema with once as int and handler_summary populated."""
-        sample = ListenerSummary(
-            listener_id=1,
-            app_key="test_app",
-            instance_index=0,
-            handler_method="on_light_change",
-            topic="state_changed.light.kitchen",
-            debounce=None,
-            throttle=None,
+        sample = make_listener_summary(
             once=1,
-            priority=0,
-            predicate_description=None,
-            human_description=None,
             source_location="test_app.py:10",
-            registration_source=None,
             total_invocations=5,
             successful=4,
             failed=1,
-            di_failures=0,
-            cancelled=0,
             total_duration_ms=100.0,
             avg_duration_ms=20.0,
             min_duration_ms=10.0,

@@ -3,8 +3,10 @@
 from typing import Literal
 
 from hassette.schemas.execution_models import ActivityFeedEntry, Execution
-from hassette.test_utils.config import DEFAULT_TEST_APP_KEY, TEST_EPOCH_B
-from hassette.types.types import ExecutionStatus
+from hassette.schemas.listener_models import ListenerSummary
+from hassette.test_utils.config import DEFAULT_TEST_APP_KEY, TEST_EPOCH_B, TEST_SOURCE_LOCATION
+from hassette.types.enums import DEFAULT_BACKPRESSURE_POLICY, DEFAULT_OVERLAP_MODE, BackpressurePolicy, ExecutionMode
+from hassette.types.types import ExecutionStatus, SourceTier
 from hassette.web.models import ListenerWithSummary, LogEntryResponse, LogsByExecutionResponse
 
 
@@ -30,6 +32,85 @@ def make_activity_feed_entry(
         duration_ms=duration_ms,
         error_type=error_type,
         kind=kind,  # pyright: ignore[reportArgumentType]
+    )
+
+
+def make_listener_summary(
+    listener_id: int = 1,
+    app_key: str = DEFAULT_TEST_APP_KEY,
+    instance_index: int = 0,
+    handler_method: str = "on_light_change",
+    topic: str = "state_changed.light.kitchen",
+    debounce: float | None = None,
+    throttle: float | None = None,
+    once: int = 0,
+    priority: int = 0,
+    predicate_description: str | None = None,
+    human_description: str | None = None,
+    source_location: str = TEST_SOURCE_LOCATION,
+    registration_source: str | None = None,
+    source_tier: SourceTier = "app",
+    immediate: int = 0,
+    duration: float | None = None,
+    entity_id: str | None = None,
+    mode: ExecutionMode = DEFAULT_OVERLAP_MODE,
+    backpressure: BackpressurePolicy = DEFAULT_BACKPRESSURE_POLICY,
+    total_invocations: int = 0,
+    successful: int = 0,
+    failed: int = 0,
+    di_failures: int = 0,
+    cancelled: int = 0,
+    timed_out: int = 0,
+    thread_leaked: int = 0,
+    total_duration_ms: float = 0.0,
+    avg_duration_ms: float = 0.0,
+    min_duration_ms: float | None = None,
+    max_duration_ms: float | None = None,
+    last_invoked_at: float | None = None,
+    last_error_type: str | None = None,
+    last_error_message: str | None = None,
+    last_error_traceback: str | None = None,
+) -> ListenerSummary:
+    """Build a ListenerSummary with sensible defaults.
+
+    ``ListenerSummary`` is what ``get_listener_summary()`` returns — the DB-side model routes
+    consume. For the response-side model the routes emit, see ``make_listener_with_summary``.
+    """
+    return ListenerSummary(
+        listener_id=listener_id,
+        app_key=app_key,
+        instance_index=instance_index,
+        handler_method=handler_method,
+        topic=topic,
+        debounce=debounce,
+        throttle=throttle,
+        once=once,
+        priority=priority,
+        predicate_description=predicate_description,
+        human_description=human_description,
+        source_location=source_location,
+        registration_source=registration_source,
+        source_tier=source_tier,
+        immediate=immediate,
+        duration=duration,
+        entity_id=entity_id,
+        mode=mode,
+        backpressure=backpressure,
+        total_invocations=total_invocations,
+        successful=successful,
+        failed=failed,
+        di_failures=di_failures,
+        cancelled=cancelled,
+        timed_out=timed_out,
+        thread_leaked=thread_leaked,
+        total_duration_ms=total_duration_ms,
+        avg_duration_ms=avg_duration_ms,
+        min_duration_ms=min_duration_ms,
+        max_duration_ms=max_duration_ms,
+        last_invoked_at=last_invoked_at,
+        last_error_type=last_error_type,
+        last_error_message=last_error_message,
+        last_error_traceback=last_error_traceback,
     )
 
 

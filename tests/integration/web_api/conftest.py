@@ -1,29 +1,28 @@
 """Shared fixtures and helpers for web API integration tests."""
 
-from unittest.mock import MagicMock
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from httpx2 import ASGITransport, AsyncClient
 
+from hassette.exceptions import TelemetryUnavailableError
 from hassette.schemas.app_snapshots import AppInstanceInfo, AppStatusSnapshot
 from hassette.test_utils.config import TEST_SESSION_TTL, WEB_API_TEST_TOKEN
+from hassette.test_utils.web_manifest_helpers import make_app_instance_info
 from hassette.test_utils.web_mocks import create_hassette_stub, create_mock_runtime_query_service
-from hassette.types.enums import ResourceStatus
 from hassette.web.app import create_fastapi_app
 
 _SEED_TIMESTAMP = "2024-01-01T00:00:00"
+
+DB_LOCKED_MSG = "database is locked"
+"""The stand-in storage failure every DB-degradation test in this package raises."""
 
 
 @pytest.fixture
 def mock_hassette():
     """Create a mock Hassette instance for the FastAPI app."""
-    instance = AppInstanceInfo(
-        app_key="my_app",
-        index=0,
-        instance_name="MyApp[0]",
-        class_name="MyApp",
-        status=ResourceStatus.RUNNING,
-    )
+    instance = make_app_instance_info(app_key="my_app")
     return create_hassette_stub(
         run_web_ui=False,
         states={
@@ -92,6 +91,30 @@ async def auth_client(auth_app):
     transport = ASGITransport(app=auth_app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
+
+
+async def get_json(client: AsyncClient, url: str, *, expect_status: int = 200) -> Any:
+    """GET `url`, assert the response status, and return the decoded JSON body.
+
+    Collapses the `response = await client.get(...)` / `assert response.status_code == ...` /
+    `data = response.json()` triple that nearly every endpoint test in this package repeats.
+    Tests needing the `Response` itself (headers, `.text`, cookies) still call `client.get`
+    directly. The response body is included in the assertion message so a status mismatch shows
+    the server's own error detail rather than just two integers.
+    """
+    response = await client.get(url)
+    assert response.status_code == expect_status, response.text
+    return response.json()
+
+
+def telemetry_error(message: str = DB_LOCKED_MSG) -> AsyncMock:
+    """A query-service stand-in that raises `TelemetryUnavailableError`.
+
+    Assign it onto the method under test, e.g.
+    `mock_hassette.telemetry_query_service.get_job_summary = telemetry_error()` — keeping the
+    method name at the call site so the arrange step stays greppable.
+    """
+    return AsyncMock(side_effect=TelemetryUnavailableError(message))
 
 
 def set_websocket_state(mock_hassette: MagicMock, *, connected: bool, ever_connected: bool) -> None:

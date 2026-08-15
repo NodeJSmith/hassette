@@ -5,114 +5,88 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from hassette.exceptions import TelemetryUnavailableError
-
-DB_LOCKED_MSG = "database is locked"
+from .conftest import get_json, telemetry_error
 
 if TYPE_CHECKING:
     from httpx2 import AsyncClient
+
+TELEMETRY_STATUS_PATH = "/api/telemetry/status"
+APP_HEALTH_PATH = "/api/telemetry/app/my_app/health"
+APP_GRID_PATH = "/api/telemetry/dashboard/app-grid"
+
+# Each entry is a storage failure a route must degrade rather than 500 on. The message differs
+# only to document which underlying error the service wrapped before raising.
+WRAPPED_STORAGE_ERRORS = [
+    pytest.param("database is locked", id="sqlite-error"),
+    pytest.param("disk I/O error", id="oserror"),
+    pytest.param("Connection is closed", id="closed-connection"),
+]
 
 
 class TestDbErrorGuards:
     """Verify TelemetryUnavailableError degradation guards on telemetry endpoints."""
 
+    @pytest.mark.parametrize(
+        ("service_method", "path"),
+        [
+            ("get_listener_summary", "/api/telemetry/app/my_app/listeners"),
+            ("get_job_summary", "/api/telemetry/app/my_app/jobs"),
+            ("get_app_recent_activity", "/api/telemetry/app/my_app/activity"),
+            ("get_executions", "/api/telemetry/listener/1/executions"),
+            ("get_executions", "/api/telemetry/job/1/executions"),
+        ],
+    )
+    async def test_collection_endpoint_db_error_returns_503_with_empty_list(
+        self, client: "AsyncClient", mock_hassette: MagicMock, service_method: str, path: str
+    ) -> None:
+        """TelemetryUnavailableError on a list-returning endpoint yields 503 with an empty list."""
+        setattr(mock_hassette.telemetry_query_service, service_method, telemetry_error())
+
+        assert await get_json(client, path, expect_status=503) == []
+
     async def test_app_health_db_error_returns_503(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         """TelemetryUnavailableError on app_health returns 503 with zero-value response."""
-        mock_hassette.telemetry_query_service.get_app_health_aggregates = AsyncMock(
-            side_effect=TelemetryUnavailableError(DB_LOCKED_MSG)
-        )
-        response = await client.get("/api/telemetry/app/my_app/health")
-        assert response.status_code == 503
-        data = response.json()
+        mock_hassette.telemetry_query_service.get_app_health_aggregates = telemetry_error()
+
+        data = await get_json(client, APP_HEALTH_PATH, expect_status=503)
+
         assert data["error_rate"] == 0.0
         assert data["health_status"] == "excellent"
-
-    async def test_app_listeners_db_error_returns_503(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
-        """TelemetryUnavailableError on app_listeners returns 503 with empty list."""
-        mock_hassette.telemetry_query_service.get_listener_summary = AsyncMock(
-            side_effect=TelemetryUnavailableError(DB_LOCKED_MSG)
-        )
-        response = await client.get("/api/telemetry/app/my_app/listeners")
-        assert response.status_code == 503
-        data = response.json()
-        assert data == []
-
-    async def test_app_jobs_db_error_returns_503(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
-        """TelemetryUnavailableError on app_jobs returns 503 with empty list."""
-        mock_hassette.telemetry_query_service.get_job_summary = AsyncMock(
-            side_effect=TelemetryUnavailableError(DB_LOCKED_MSG)
-        )
-        response = await client.get("/api/telemetry/app/my_app/jobs")
-        assert response.status_code == 503
-        data = response.json()
-        assert data == []
-
-    async def test_app_activity_db_error_returns_503(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
-        """TelemetryUnavailableError on app_activity returns 503 with empty list."""
-        mock_hassette.telemetry_query_service.get_app_recent_activity = AsyncMock(
-            side_effect=TelemetryUnavailableError(DB_LOCKED_MSG)
-        )
-        response = await client.get("/api/telemetry/app/my_app/activity")
-        assert response.status_code == 503
-        data = response.json()
-        assert data == []
-
-    async def test_listener_executions_db_error_returns_503(
-        self, client: "AsyncClient", mock_hassette: MagicMock
-    ) -> None:
-        """TelemetryUnavailableError on listener executions returns 503 with empty list."""
-        mock_hassette.telemetry_query_service.get_executions = AsyncMock(
-            side_effect=TelemetryUnavailableError(DB_LOCKED_MSG)
-        )
-        response = await client.get("/api/telemetry/listener/1/executions")
-        assert response.status_code == 503
-        data = response.json()
-        assert data == []
-
-    async def test_job_executions_db_error_returns_503(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
-        """TelemetryUnavailableError on job executions returns 503 with empty list."""
-        mock_hassette.telemetry_query_service.get_executions = AsyncMock(
-            side_effect=TelemetryUnavailableError(DB_LOCKED_MSG)
-        )
-        response = await client.get("/api/telemetry/job/1/executions")
-        assert response.status_code == 503
-        data = response.json()
-        assert data == []
 
 
 class TestStatusDropCounters:
     """Verify /telemetry/status returns dropped_overflow and dropped_exhausted."""
 
-    async def test_status_includes_drop_counters_zero(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
-        """Healthy status includes drop counters defaulting to zero."""
-        mock_hassette.get_drop_counters.return_value = (0, 0, 0)
-        response = await client.get("/api/telemetry/status")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["dropped_overflow"] == 0
-        assert data["dropped_exhausted"] == 0
-        assert data["dropped_shutdown"] == 0
+    @pytest.mark.parametrize(
+        ("counters", "expected"),
+        [
+            ((0, 0, 0), (0, 0, 0)),
+            ((7, 3, 1), (7, 3, 1)),
+        ],
+        ids=["all-zero", "non-zero"],
+    )
+    async def test_drop_counters_surface_in_status(
+        self,
+        client: "AsyncClient",
+        mock_hassette: MagicMock,
+        counters: tuple[int, int, int],
+        expected: tuple[int, int, int],
+    ) -> None:
+        """Counters from Hassette.get_drop_counters() appear verbatim in the response."""
+        mock_hassette.get_drop_counters.return_value = counters
 
-    async def test_status_includes_nonzero_drop_counters(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
-        """Non-zero drop counters from Hassette.get_drop_counters() appear in the response."""
-        mock_hassette.get_drop_counters.return_value = (7, 3, 1)
-        response = await client.get("/api/telemetry/status")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["dropped_overflow"] == 7
-        assert data["dropped_exhausted"] == 3
-        assert data["dropped_shutdown"] == 1
+        data = await get_json(client, TELEMETRY_STATUS_PATH)
+
+        assert (data["dropped_overflow"], data["dropped_exhausted"], data["dropped_shutdown"]) == expected
 
     async def test_status_degraded_has_zero_drop_counters(
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
         """When DB is degraded, dropped counters default to 0 (safe fallback)."""
-        mock_hassette.telemetry_query_service.check_health = AsyncMock(
-            side_effect=TelemetryUnavailableError(DB_LOCKED_MSG)
-        )
-        response = await client.get("/api/telemetry/status")
-        assert response.status_code == 503
-        data = response.json()
+        mock_hassette.telemetry_query_service.check_health = telemetry_error()
+
+        data = await get_json(client, TELEMETRY_STATUS_PATH, expect_status=503)
+
         assert data["degraded"] is True
         assert data["dropped_overflow"] == 0
         assert data["dropped_exhausted"] == 0
@@ -121,158 +95,94 @@ class TestStatusDropCounters:
 class TestHassetteAppKey:
     """Verify __hassette__ app_key returns framework data (OpenAPI doc coverage)."""
 
-    async def test_hassette_app_key_accepted_on_health(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
-        """GET /telemetry/app/__hassette__/health is accepted (200)."""
-        response = await client.get("/api/telemetry/app/__hassette__/health")
-        assert response.status_code == 200
-        call_kwargs = mock_hassette.telemetry_query_service.get_app_health_aggregates.call_args.kwargs
-        assert call_kwargs["app_key"] == "__hassette__"
-
-    async def test_hassette_app_key_accepted_on_listeners(
-        self, client: "AsyncClient", mock_hassette: MagicMock
+    @pytest.mark.parametrize(
+        ("path", "service_method"),
+        [
+            ("/api/telemetry/app/__hassette__/health", "get_app_health_aggregates"),
+            ("/api/telemetry/app/__hassette__/listeners", "get_listener_summary"),
+        ],
+    )
+    async def test_hassette_app_key_accepted(
+        self, client: "AsyncClient", mock_hassette: MagicMock, path: str, service_method: str
     ) -> None:
-        """GET /telemetry/app/__hassette__/listeners is accepted (200)."""
-        response = await client.get("/api/telemetry/app/__hassette__/listeners")
-        assert response.status_code == 200
-        call_kwargs = mock_hassette.telemetry_query_service.get_listener_summary.call_args.kwargs
+        """The reserved framework app_key is accepted (200) and forwarded to the service."""
+        await get_json(client, path)
+
+        call_kwargs = getattr(mock_hassette.telemetry_query_service, service_method).call_args.kwargs
         assert call_kwargs["app_key"] == "__hassette__"
 
 
 class TestTelemetryStatusDropCounterFallback:
     """AttributeError/RuntimeError fallback for get_drop_counters."""
 
-    async def test_attribute_error_on_get_drop_counters_returns_zeros(
-        self, client: "AsyncClient", mock_hassette: MagicMock
+    @pytest.mark.parametrize(
+        "error",
+        [AttributeError("no such attribute"), RuntimeError("not yet initialised")],
+        ids=["attribute-error", "runtime-error"],
+    )
+    async def test_get_drop_counters_failure_returns_zeros(
+        self, client: "AsyncClient", mock_hassette: MagicMock, error: Exception
     ) -> None:
-        """AttributeError from get_drop_counters falls back to zero counters."""
-        mock_hassette.get_drop_counters.side_effect = AttributeError("no such attribute")
-        response = await client.get("/api/telemetry/status")
-        assert response.status_code == 200
-        data = response.json()
+        """A get_drop_counters failure falls back to zero counters without degrading the route."""
+        mock_hassette.get_drop_counters.side_effect = error
+
+        data = await get_json(client, TELEMETRY_STATUS_PATH)
+
         assert data["degraded"] is False
         assert data["dropped_overflow"] == 0
         assert data["dropped_exhausted"] == 0
         assert data["dropped_shutdown"] == 0
 
-    async def test_runtime_error_on_get_drop_counters_returns_zeros(
-        self, client: "AsyncClient", mock_hassette: MagicMock
-    ) -> None:
-        """RuntimeError from get_drop_counters falls back to zero counters."""
-        mock_hassette.get_drop_counters.side_effect = RuntimeError("not yet initialised")
-        response = await client.get("/api/telemetry/status")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["degraded"] is False
-        assert data["dropped_overflow"] == 0
-        assert data["dropped_exhausted"] == 0
-
 
 class TestAppHealthDbErrorFallback:
-    """TelemetryUnavailableError degradation guard on the app_health endpoint."""
+    """TelemetryUnavailableError degradation guard on the app_health endpoint.
 
+    The message varies across cases to document which underlying storage error the service
+    wrapped (sqlite3.Error, OSError, a closed-connection ValueError); the guard must degrade
+    identically for all of them.
+    """
+
+    @pytest.mark.parametrize("message", WRAPPED_STORAGE_ERRORS)
     async def test_telemetry_unavailable_returns_503_with_zeroed_health(
-        self, client: "AsyncClient", mock_hassette: MagicMock
+        self, client: "AsyncClient", mock_hassette: MagicMock, message: str
     ) -> None:
         """TelemetryUnavailableError on get_app_health_aggregates returns 503 with zero-value health."""
-        mock_hassette.telemetry_query_service.get_app_health_aggregates = AsyncMock(
-            side_effect=TelemetryUnavailableError("disk I/O error")
-        )
-        response = await client.get("/api/telemetry/app/my_app/health")
-        assert response.status_code == 503
-        data = response.json()
+        mock_hassette.telemetry_query_service.get_app_health_aggregates = telemetry_error(message)
+
+        data = await get_json(client, APP_HEALTH_PATH, expect_status=503)
+
         assert data["error_rate"] == 0.0
         assert data["health_status"] == "excellent"
         assert data["handler_avg_duration"] == 0.0
         assert data["job_avg_duration"] == 0.0
         assert data["last_activity_ts"] is None
 
-    async def test_valueerror_returns_503_with_zeroed_health(
-        self, client: "AsyncClient", mock_hassette: MagicMock
-    ) -> None:
-        """TelemetryUnavailableError (wrapping closed-connection ValueError) returns 503."""
-        mock_hassette.telemetry_query_service.get_app_health_aggregates = AsyncMock(
-            side_effect=TelemetryUnavailableError("Connection is closed")
-        )
-        response = await client.get("/api/telemetry/app/my_app/health")
-        assert response.status_code == 503
-        data = response.json()
-        assert data["error_rate"] == 0.0
-
-    async def test_sqlite_error_triggers_503(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
-        """TelemetryUnavailableError (wrapping sqlite3.Error) on get_app_health_aggregates returns 503."""
-        mock_hassette.telemetry_query_service.get_app_health_aggregates = AsyncMock(
-            side_effect=TelemetryUnavailableError(DB_LOCKED_MSG)
-        )
-        response = await client.get("/api/telemetry/app/my_app/health")
-        assert response.status_code == 503
-        data = response.json()
-        assert data["error_rate"] == 0.0
-
 
 class TestDashboardAppGridDbErrorFallback:
-    """TelemetryUnavailableError degradation guard on dashboard_app_grid (category-C, silent-200)."""
+    """TelemetryUnavailableError degradation guard on dashboard_app_grid (category-C, silent-200).
 
-    async def test_telemetry_unavailable_returns_200_with_empty_summaries(
-        self, client: "AsyncClient", mock_hassette: MagicMock
+    The enrichment query failing must leave the response at 200 with zeroed per-app entries --
+    the DB spine query succeeds independently, so every manifest entry still appears.
+    """
+
+    @pytest.mark.parametrize("message", WRAPPED_STORAGE_ERRORS)
+    async def test_telemetry_unavailable_returns_200_with_zeroed_entries(
+        self, client: "AsyncClient", mock_hassette: MagicMock, message: str
     ) -> None:
-        """TelemetryUnavailableError on get_all_app_summaries falls back to empty summaries dict.
+        """get_all_app_summaries raising falls back to an empty summaries dict, not a 500."""
+        mock_hassette.telemetry_query_service.get_all_app_summaries = telemetry_error(message)
 
-        The endpoint still returns 200 with manifests having zero health data.
-        """
-        mock_hassette.telemetry_query_service.get_all_app_summaries = AsyncMock(
-            side_effect=TelemetryUnavailableError(DB_LOCKED_MSG)
-        )
-        response = await client.get("/api/telemetry/dashboard/app-grid")
-        assert response.status_code == 200
-        data = response.json()
+        data = await get_json(client, APP_GRID_PATH)
+
         assert "apps" in data
-        # Each manifest entry should still appear, but with zeroed health data
         for entry in data["apps"]:
             assert entry["total_invocations"] == 0
             assert entry["total_errors"] == 0
-            assert entry["error_rate"] == 0.0
-
-    async def test_oserror_returns_200_with_zeroed_entries(
-        self, client: "AsyncClient", mock_hassette: MagicMock
-    ) -> None:
-        """TelemetryUnavailableError (wrapping OSError) falls back to zeroed per-app entries."""
-        mock_hassette.telemetry_query_service.get_all_app_summaries = AsyncMock(
-            side_effect=TelemetryUnavailableError("disk I/O error")
-        )
-        response = await client.get("/api/telemetry/dashboard/app-grid")
-        assert response.status_code == 200
-        data = response.json()
-        assert "apps" in data
-        for entry in data["apps"]:
             assert entry["handler_count"] == 0
             assert entry["job_count"] == 0
-
-    async def test_valueerror_returns_200_with_zeroed_entries(
-        self, client: "AsyncClient", mock_hassette: MagicMock
-    ) -> None:
-        """TelemetryUnavailableError (wrapping closed-connection ValueError) falls back to zeroed entries."""
-        mock_hassette.telemetry_query_service.get_all_app_summaries = AsyncMock(
-            side_effect=TelemetryUnavailableError("Connection is closed")
-        )
-        response = await client.get("/api/telemetry/dashboard/app-grid")
-        assert response.status_code == 200
-        data = response.json()
-        assert "apps" in data
-
-    async def test_app_grid_db_error_uses_error_rate_from_empty_summary(
-        self, client: "AsyncClient", mock_hassette: MagicMock
-    ) -> None:
-        """When summaries dict is empty after DB error, error_rate_from_summary returns 0.0."""
-        mock_hassette.telemetry_query_service.get_all_app_summaries = AsyncMock(
-            side_effect=TelemetryUnavailableError(DB_LOCKED_MSG)
-        )
-        response = await client.get("/api/telemetry/dashboard/app-grid")
-        assert response.status_code == 200
-        data = response.json()
-        for entry in data["apps"]:
-            # total_invocations=0 and total_executions=0 → error_rate=0.0
+            # total_invocations=0 and total_executions=0 -> error_rate=0.0, and a zero-invocation
+            # app is classified "excellent" (not "unknown").
             assert entry["error_rate"] == 0.0
-            # zero-invocation apps return "excellent" (not "unknown")
             assert entry["health_status"] == "excellent"
 
 
@@ -301,32 +211,22 @@ class TestAppKeyValidation:
         response = await client.post(f"/api/apps/{app_key}/{action}")
         assert response.status_code == 400
 
-    async def test_nonexistent_app_key_start_returns_404(self, client: "AsyncClient", mock_hassette) -> None:
+    @pytest.mark.parametrize("action", ["start", "stop", "reload"])
+    async def test_nonexistent_app_key_returns_404(
+        self, client: "AsyncClient", mock_hassette: MagicMock, action: str
+    ) -> None:
         """Non-existent app_key returns 404 when registry has no manifest."""
         mock_hassette._app_handler.registry.get_manifest.return_value = None
-        response = await client.post("/api/apps/unknown_app/start")
+        response = await client.post(f"/api/apps/unknown_app/{action}")
         assert response.status_code == 404
 
-    async def test_nonexistent_app_key_stop_returns_404(self, client: "AsyncClient", mock_hassette) -> None:
-        """Non-existent app_key returns 404 when registry has no manifest."""
-        mock_hassette._app_handler.registry.get_manifest.return_value = None
-        response = await client.post("/api/apps/unknown_app/stop")
-        assert response.status_code == 404
-
-    async def test_nonexistent_app_key_reload_returns_404(self, client: "AsyncClient", mock_hassette) -> None:
-        """Non-existent app_key returns 404 when registry has no manifest."""
-        mock_hassette._app_handler.registry.get_manifest.return_value = None
-        response = await client.post("/api/apps/unknown_app/reload")
-        assert response.status_code == 404
-
-    async def test_valid_app_key_with_dots_and_underscores_accepted(self, client: "AsyncClient") -> None:
-        """app_key with dots and underscores is valid per the regex."""
-        response = await client.post("/api/apps/my_app.v2/start")
-        assert response.status_code == 202
-
-    async def test_valid_app_key_128_chars_accepted(self, client: "AsyncClient") -> None:
-        """app_key exactly 128 chars (1 letter + 127 more) is accepted."""
-        app_key = "a" + "b" * 127
+    @pytest.mark.parametrize(
+        "app_key",
+        ["my_app.v2", "a" + "b" * 127],
+        ids=["dots-and-underscores", "exactly-128-chars"],
+    )
+    async def test_valid_app_key_accepted(self, client: "AsyncClient", app_key: str) -> None:
+        """app_key forms the regex permits are accepted (1 letter + up to 127 more)."""
         response = await client.post(f"/api/apps/{app_key}/start")
         assert response.status_code == 202
 
@@ -334,42 +234,32 @@ class TestAppKeyValidation:
 class TestLimitParameterValidation:
     """Verify out-of-range limit parameters return 422 across all relevant endpoints."""
 
-    async def test_logs_limit_zero_returns_422(self, client: "AsyncClient") -> None:
-        response = await client.get("/api/logs/recent?limit=0")
+    @pytest.mark.parametrize(
+        ("path", "limit"),
+        [
+            ("/api/logs/recent", 0),
+            ("/api/logs/recent", 2001),
+            ("/api/telemetry/listener/1/executions", 0),
+            ("/api/telemetry/listener/1/executions", 501),
+            ("/api/telemetry/job/1/executions", 0),
+            ("/api/telemetry/job/1/executions", 501),
+        ],
+    )
+    async def test_out_of_range_limit_returns_422(self, client: "AsyncClient", path: str, limit: int) -> None:
+        response = await client.get(f"{path}?limit={limit}")
         assert response.status_code == 422
 
-    async def test_logs_limit_over_max_returns_422(self, client: "AsyncClient") -> None:
-        response = await client.get("/api/logs/recent?limit=2001")
-        assert response.status_code == 422
-
-    async def test_logs_limit_at_max_accepted(self, client: "AsyncClient") -> None:
-        response = await client.get("/api/logs/recent?limit=2000")
-        assert response.status_code == 200
-
-    async def test_listener_executions_limit_zero_returns_422(self, client: "AsyncClient") -> None:
-        response = await client.get("/api/telemetry/listener/1/executions?limit=0")
-        assert response.status_code == 422
-
-    async def test_listener_executions_limit_over_max_returns_422(self, client: "AsyncClient") -> None:
-        response = await client.get("/api/telemetry/listener/1/executions?limit=501")
-        assert response.status_code == 422
-
-    async def test_listener_executions_limit_at_max_accepted(
-        self, client: "AsyncClient", mock_hassette: MagicMock
+    @pytest.mark.parametrize(
+        ("path", "limit"),
+        [
+            ("/api/logs/recent", 2000),
+            ("/api/telemetry/listener/1/executions", 500),
+            ("/api/telemetry/job/1/executions", 500),
+        ],
+    )
+    async def test_limit_at_max_accepted(
+        self, client: "AsyncClient", mock_hassette: MagicMock, path: str, limit: int
     ) -> None:
         mock_hassette.telemetry_query_service.get_executions = AsyncMock(return_value=[])
-        response = await client.get("/api/telemetry/listener/1/executions?limit=500")
-        assert response.status_code == 200
-
-    async def test_job_executions_limit_zero_returns_422(self, client: "AsyncClient") -> None:
-        response = await client.get("/api/telemetry/job/1/executions?limit=0")
-        assert response.status_code == 422
-
-    async def test_job_executions_limit_over_max_returns_422(self, client: "AsyncClient") -> None:
-        response = await client.get("/api/telemetry/job/1/executions?limit=501")
-        assert response.status_code == 422
-
-    async def test_job_executions_limit_at_max_accepted(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
-        mock_hassette.telemetry_query_service.get_executions = AsyncMock(return_value=[])
-        response = await client.get("/api/telemetry/job/1/executions?limit=500")
+        response = await client.get(f"{path}?limit={limit}")
         assert response.status_code == 200
