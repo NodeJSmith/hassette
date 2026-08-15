@@ -32,7 +32,7 @@ from hassette.event_handling.predicates import (
     _summarize_predicate,
     compare_value,
 )
-from hassette.test_utils import create_state_change_event
+from hassette.test_utils import create_attr_change_event, create_state_change_event
 
 if typing.TYPE_CHECKING:
     from hassette.events import Event
@@ -128,13 +128,7 @@ def test_did_change_false_when_values_equal() -> None:
 def test_did_change_with_attr_source() -> None:
     """DidChange works with any (old, new) tuple source, e.g. get_attr_old_new."""
     predicate = DidChange(source=get_attr_old_new("brightness"))
-    event = create_state_change_event(
-        entity_id="light.office",
-        old_value="on",
-        new_value="on",
-        old_attrs={"brightness": 100},
-        new_attrs={"brightness": 200},
-    )
+    event = create_attr_change_event(100, 200)
 
     assert predicate(event) is True
 
@@ -201,13 +195,7 @@ def test_state_comparison_warns_and_instantiates_when_passed_a_class(caplog: pyt
 def test_attr_comparison_calls_condition_with_old_and_new_attr() -> None:
     """AttrComparison passes (old_attr, new_attr) to the comparison condition."""
     predicate = AttrComparison(attr_name="brightness", condition=Increased())
-    event = create_state_change_event(
-        entity_id="light.office",
-        old_value="on",
-        new_value="on",
-        old_attrs={"brightness": 100},
-        new_attrs={"brightness": 200},
-    )
+    event = create_attr_change_event(100, 200)
 
     assert predicate(event) is True
 
@@ -215,13 +203,7 @@ def test_attr_comparison_calls_condition_with_old_and_new_attr() -> None:
 def test_attr_comparison_false_when_condition_fails() -> None:
     """AttrComparison returns False when the new attribute value fails the comparison."""
     predicate = AttrComparison(attr_name="brightness", condition=Decreased())
-    event = create_state_change_event(
-        entity_id="light.office",
-        old_value="on",
-        new_value="on",
-        old_attrs={"brightness": 100},
-        new_attrs={"brightness": 200},
-    )
+    event = create_attr_change_event(100, 200)
 
     assert predicate(event) is False
 
