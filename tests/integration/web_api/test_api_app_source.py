@@ -2,6 +2,7 @@
 
 import tempfile
 from pathlib import Path
+from unittest.mock import MagicMock
 
 from httpx2 import AsyncClient, Response
 
@@ -19,7 +20,7 @@ class MyApp(App[AppConfig]):
 APP_SOURCE_PATH = "/api/apps/my_app/source"
 
 
-async def get_app_source(client: AsyncClient, mock_hassette, *, app_dir: Path, full_path: Path) -> Response:
+async def get_app_source(client: AsyncClient, mock_hassette: MagicMock, *, app_dir: Path, full_path: Path) -> Response:
     """Point the registry at a manifest for `full_path` under `app_dir`, then GET the source route.
 
     What varies between these tests is the on-disk layout (file present, file missing, file

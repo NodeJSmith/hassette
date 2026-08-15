@@ -4,6 +4,7 @@ import asyncio
 import json
 from collections.abc import AsyncIterator, Iterator
 from contextlib import contextmanager
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -26,7 +27,7 @@ from hassette.web.routes.ws import _read_client, websocket_endpoint
 from .conftest import set_app_status_snapshot, set_websocket_state
 
 try:
-    from starlette.testclient import TestClient
+    from starlette.testclient import TestClient, WebSocketTestSession
 
     HAS_STARLETTE_TC = True
 except ImportError:
@@ -113,12 +114,12 @@ def sync_via_ping(ws) -> None:
     assert msg["type"] == "pong"
 
 
-def put_message(data_sync: RuntimeQueryService, message_type: str, **data) -> None:
+def put_message(data_sync: RuntimeQueryService, message_type: str, **data: Any) -> None:
     """Enqueue one ``{"type": ..., "data": {...}}`` frame for every connected WS client."""
     put_to_all_queues(data_sync, {"type": message_type, "data": data})
 
 
-def expect_message(ws, message_type: str) -> dict:
+def expect_message(ws: "WebSocketTestSession", message_type: str) -> dict[str, Any]:
     """Receive the next frame, assert its type, and return its ``data`` payload.
 
     ``receive_json()`` blocks until a frame arrives, so asserting on the *next* frame is also
@@ -130,7 +131,7 @@ def expect_message(ws, message_type: str) -> dict:
 
 
 @contextmanager
-def subscribed_ws(client: "TestClient", **subscribe_data) -> Iterator:
+def subscribed_ws(client: "TestClient", **subscribe_data: Any) -> Iterator["WebSocketTestSession"]:
     """Open a WS connection, consume the ``connected`` frame, and apply one ``subscribe``.
 
     Every subscription test repeats connect / discard-connected / subscribe / ping-sync before it
