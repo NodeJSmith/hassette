@@ -24,6 +24,7 @@ from hassette.core.service_watcher import ServiceWatcher
 from hassette.core.telemetry.repository import TelemetryRepository
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
+from hassette.test_utils.helpers import block_until_cancelled
 from hassette.test_utils.mock_hassette import make_mock_hassette
 from hassette.types.enums import BlockingIOBehavior, ResourceStatus, RestartType
 
@@ -326,11 +327,7 @@ class DummyService(Service):
 
     restart_spec: RestartSpec = RestartSpec(restart_type=RestartType.TRANSIENT)
 
-    async def serve(self) -> None:
-        try:
-            await asyncio.Event().wait()
-        except asyncio.CancelledError:
-            raise
+    serve = block_until_cancelled  # bound as instance method via the descriptor protocol
 
 
 class TempService(Service):
@@ -338,11 +335,7 @@ class TempService(Service):
 
     restart_spec: RestartSpec = RestartSpec(restart_type=RestartType.TEMPORARY)
 
-    async def serve(self) -> None:
-        try:
-            await asyncio.Event().wait()
-        except asyncio.CancelledError:
-            raise
+    serve = block_until_cancelled  # bound as instance method via the descriptor protocol
 
 
 def make_watcher_hassette(*, strict_lifecycle: bool = False) -> AsyncMock:

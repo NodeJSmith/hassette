@@ -77,6 +77,15 @@ async def async_noop() -> None:
     """Async no-op — call it to get a coroutine object (e.g. bucket.spawn(async_noop()))."""
 
 
+async def block_until_cancelled(_self: Any) -> None:
+    """Service.serve() body: blocks until the task is cancelled.
+
+    Assign as ``serve = block_until_cancelled`` on a test Service subclass — the function
+    is bound as an instance method via the normal descriptor protocol.
+    """
+    await asyncio.Event().wait()
+
+
 async def settle(seconds: float = SETTLE_SECONDS) -> None:
     """Give a stray extra handler call time to land before a negative assertion."""
     # negative-assertion: no event-driven alternative
@@ -128,6 +137,32 @@ def create_state_change_event(
     )
     assert isinstance(event, RawStateChangeEvent)
     return event
+
+
+def create_attr_change_event(
+    old_attr_value: Any,
+    new_attr_value: Any,
+    *,
+    attr_name: str = "brightness",
+    entity_id: str = "light.office",
+    old_value: str = "on",
+    new_value: str = "on",
+) -> RawStateChangeEvent:
+    """Create a state-change event where a single attribute changes and the state itself doesn't.
+
+    Collapses the dominant shape used across attribute-predicate tests (AttrFrom/AttrTo/
+    AttrDidChange/AttrComparison/DidChange-with-attr-source): the entity's state stays "on",
+    and only one attribute (brightness by default) moves from ``old_attr_value`` to
+    ``new_attr_value``. Override ``entity_id``/``old_value``/``new_value`` for the handful of
+    cases that vary the base state as well.
+    """
+    return create_state_change_event(
+        entity_id=entity_id,
+        old_value=old_value,
+        new_value=new_value,
+        old_attrs={attr_name: old_attr_value},
+        new_attrs={attr_name: new_attr_value},
+    )
 
 
 def create_call_service_event(

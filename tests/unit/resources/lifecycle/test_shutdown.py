@@ -24,16 +24,16 @@ from .conftest import (
     ShutdownCounter,
     SimpleParent,
     SimpleService,
+    make_initialized_shutdown_counter,
+    make_parent_with_child,
     shutdown_order,
 )
 
 
 async def test_shutdown_completed_prevents_double_shutdown():
     """Calling shutdown() twice only runs on_shutdown once."""
-    hassette = make_mock_hassette(sealed=False)
-    resource = ShutdownCounter(hassette)
+    resource = await make_initialized_shutdown_counter()
 
-    await resource.initialize()
     await resource.shutdown()
     await resource.shutdown()  # second call should be a no-op
 
@@ -42,10 +42,8 @@ async def test_shutdown_completed_prevents_double_shutdown():
 
 async def test_shutdown_completed_reset_by_initialize():
     """After shutdown then initialize, shutdown() works again."""
-    hassette = make_mock_hassette(sealed=False)
-    resource = ShutdownCounter(hassette)
+    resource = await make_initialized_shutdown_counter()
 
-    await resource.initialize()
     await resource.shutdown()
     assert resource.shutdown_count == 1
 
@@ -56,10 +54,8 @@ async def test_shutdown_completed_reset_by_initialize():
 
 async def test_shutdown_event_cleared_by_initialize():
     """initialize() clears shutdown_event so it is not set."""
-    hassette = make_mock_hassette(sealed=False)
-    resource = ShutdownCounter(hassette)
+    resource = await make_initialized_shutdown_counter()
 
-    await resource.initialize()
     await resource.shutdown()
     assert resource.shutdown_event.is_set(), "shutdown_event should be set after shutdown"
 
@@ -69,10 +65,8 @@ async def test_shutdown_event_cleared_by_initialize():
 
 async def test_start_resets_shutdown_completed():
     """start() resets shutdown_completed so the init task is spawned."""
-    hassette = make_mock_hassette(sealed=False)
-    resource = ShutdownCounter(hassette)
+    resource = await make_initialized_shutdown_counter()
 
-    await resource.initialize()
     await resource.shutdown()
     assert resource.shutdown_completed is True
 
@@ -101,11 +95,7 @@ async def test_ordered_children_for_shutdown_returns_reversed():
 
 async def test_shutdown_propagates_to_children_in_reverse_order():
     """Parent with 3 children: shutdown propagates in reverse insertion order."""
-    shutdown_order.clear()
-    hassette = make_mock_hassette(sealed=False)
-    parent = SimpleParent(hassette)
-
-    child_a = parent.add_child(OrderTrackingChild)
+    parent, child_a = make_parent_with_child(shutdown_order, OrderTrackingChild)
     child_b = parent.add_child(OrderTrackingChild)
     child_c = parent.add_child(OrderTrackingChild)
 
@@ -126,11 +116,7 @@ async def test_shutdown_propagates_to_children_in_reverse_order():
 
 async def test_shutdown_propagation_error_tolerance():
     """Middle child raises during shutdown; other children still shut down."""
-    shutdown_order.clear()
-    hassette = make_mock_hassette(sealed=False)
-    parent = SimpleParent(hassette)
-
-    child_a = parent.add_child(OrderTrackingChild)
+    parent, child_a = make_parent_with_child(shutdown_order, OrderTrackingChild)
     child_b = parent.add_child(ErrorChild)  # will raise
     child_c = parent.add_child(OrderTrackingChild)
 

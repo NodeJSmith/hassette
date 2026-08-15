@@ -8,6 +8,7 @@
 ## Shared helpers
 
 - `from hassette.test_utils.factories import make_mock_parent` — owning-App stand-in, used to set `bus.parent`
+- `from hassette.test_utils import create_attr_change_event` — builds a state-change event where a single attribute moves and the state itself doesn't (`entity_id="light.office"`, state `"on"` → `"on"` by default, `attr_name="brightness"` by default). Collapses the repeated `create_state_change_event(entity_id=..., old_attrs={"brightness": X}, new_attrs={"brightness": Y})` shape used across `test_accessors.py`, `test_predicates.py`, and `test_predicate_details.py`'s attribute-predicate tests. Override `entity_id`/`old_value`/`new_value`/`attr_name` for the few cases that vary the base state or attribute.
 - `mock_add_listener(bus)` (local contextmanager) — swaps `bus.bus_service.add_listener` for an `AsyncMock`, restores on exit
 
 ## Key conventions

@@ -12,8 +12,9 @@ from hassette.resources.base import FinalMeta
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.test_utils import make_mock_hassette, wait_for
+from hassette.test_utils.helpers import block_until_cancelled
 from tests.unit.resources.conftest import wait_for_running
-from tests.unit.resources.lifecycle.conftest import SimpleService
+from tests.unit.resources.lifecycle.conftest import make_running_simple_service
 
 
 class ServiceWithCustomHooks(Service):
@@ -23,11 +24,7 @@ class ServiceWithCustomHooks(Service):
     init_called: bool = False
     shutdown_called: bool = False
 
-    async def serve(self) -> None:
-        try:
-            await asyncio.Event().wait()
-        except asyncio.CancelledError:
-            raise
+    serve = block_until_cancelled  # bound as instance method via the descriptor protocol
 
     async def on_initialize(self) -> None:
         # Deliberately does NOT call super() — the old bug
@@ -167,11 +164,7 @@ def test_finalmeta_blocks_service_subclass_from_overriding_shutdown():
 
 async def test_simple_service_completes_full_lifecycle():
     """A simple service can initialize and shut down cleanly."""
-    hassette = make_mock_hassette(sealed=False)
-    svc = SimpleService(hassette)
-
-    await svc.initialize()
-    await wait_for_running(svc)
+    svc = await make_running_simple_service()
 
     assert svc._serve_task is not None
     assert not svc._serve_task.done()

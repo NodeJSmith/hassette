@@ -9,20 +9,14 @@ from types import SimpleNamespace
 
 from hassette.const import MISSING_VALUE
 from hassette.event_handling import accessors as A
-from hassette.test_utils import create_call_service_event, create_state_change_event
+from hassette.test_utils import create_attr_change_event, create_call_service_event, create_state_change_event
 from hassette.test_utils.helpers import create_component_loaded_event, create_hass_event
 
 
 # get_state_object_* accessors
 def test_get_state_object_old_and_new_return_full_dicts() -> None:
     """get_state_object_old/new return the full state dict, not just the value."""
-    event = create_state_change_event(
-        entity_id="light.kitchen",
-        old_value="off",
-        new_value="on",
-        old_attrs={"brightness": 100},
-        new_attrs={"brightness": 200},
-    )
+    event = create_attr_change_event(100, 200, entity_id="light.kitchen", old_value="off", new_value="on")
 
     old_obj = A.get_state_object_old(event)
     new_obj = A.get_state_object_new(event)
@@ -119,13 +113,7 @@ def test_get_attrs_new_when_new_state_is_none() -> None:
 
 def test_get_attrs_old_new_returns_tuple_of_dicts() -> None:
     """get_attrs_old_new returns (old_attrs_dict, new_attrs_dict) for the requested keys."""
-    event = create_state_change_event(
-        entity_id="light.office",
-        old_value="on",
-        new_value="on",
-        old_attrs={"brightness": 100},
-        new_attrs={"brightness": 200},
-    )
+    event = create_attr_change_event(100, 200)
 
     accessor = A.get_attrs_old_new(["brightness"])
     old_attrs, new_attrs = accessor(event)
@@ -313,13 +301,7 @@ def test_get_all_changes_excludes_default_noisy_fields() -> None:
 
 def test_get_all_changes_respects_custom_exclude() -> None:
     """get_all_changes with a narrower exclude list surfaces fields the default would hide."""
-    event = create_state_change_event(
-        entity_id="light.office",
-        old_value="off",
-        new_value="on",
-        old_attrs={"brightness": 100},
-        new_attrs={"brightness": 200},
-    )
+    event = create_attr_change_event(100, 200, old_value="off", new_value="on")
 
     # Exclude nothing this time, but only inspect the attributes key for a clean assertion
     changes = A.get_all_changes(exclude=())(event)

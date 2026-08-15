@@ -3,6 +3,8 @@
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock
 
+from httpx2 import Response
+
 from hassette.exceptions import JobRemovedError
 from hassette.scheduler.classes import Job
 from hassette.scheduler.triggers import Every
@@ -27,14 +29,26 @@ def make_registered_job(  # factory-local: wraps make_real_job for submission-ro
     return make_real_job(name=name, trigger=trigger, db_id=db_id)
 
 
+async def post_trigger(
+    client: "AsyncClient", mock_hassette: MagicMock, *, job: Job, submit_error: Exception | None = None, job_id: int = 1
+) -> Response:
+    """Wire the scheduler to hand back `job` from trigger_job(), then POST the trigger route.
+
+    `submit_error` makes `submit_job()` raise instead of accepting the submission, modelling a
+    handle that went stale between lookup and submission.
+    """
+    mock_hassette.scheduler_service.trigger_job = AsyncMock(return_value=job)
+    mock_hassette.scheduler_service.submit_job = MagicMock(return_value=None, side_effect=submit_error)
+
+    return await client.post(TRIGGER_URL.format(job_id=job_id))
+
+
 class TestTriggerJobEndpoint:
     async def test_returns_202_for_live_job(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         """POST returns 202 and submits through submit_job() for a live registered job."""
         job = make_registered_job(trigger=RECURRING_TRIGGER)
-        mock_hassette.scheduler_service.trigger_job = AsyncMock(return_value=job)
-        mock_hassette.scheduler_service.submit_job = MagicMock(return_value=None)
 
-        response = await client.post(TRIGGER_URL.format(job_id=1))
+        response = await post_trigger(client, mock_hassette, job=job)
 
         assert response.status_code == 202
         data = response.json()
@@ -57,20 +71,14 @@ class TestTriggerJobEndpoint:
     async def test_returns_409_for_removed_live_handle(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         """POST returns 409 when submit_job() raises JobRemovedError for a stale handle."""
         job = make_registered_job(trigger=RECURRING_TRIGGER)
-        mock_hassette.scheduler_service.trigger_job = AsyncMock(return_value=job)
-        mock_hassette.scheduler_service.submit_job = MagicMock(side_effect=JobRemovedError(job.name, job.db_id))
 
-        response = await client.post(TRIGGER_URL.format(job_id=1))
+        response = await post_trigger(client, mock_hassette, job=job, submit_error=JobRemovedError(job.name, job.db_id))
 
         assert response.status_code == 409
 
     async def test_does_not_dequeue_pending_one_shot(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         """Manual submission never dequeues or otherwise touches the automatic schedule."""
-        job = make_registered_job(trigger=None)
-        mock_hassette.scheduler_service.trigger_job = AsyncMock(return_value=job)
-        mock_hassette.scheduler_service.submit_job = MagicMock(return_value=None)
-
-        response = await client.post(TRIGGER_URL.format(job_id=1))
+        response = await post_trigger(client, mock_hassette, job=make_registered_job(trigger=None))
 
         assert response.status_code == 202
         mock_hassette.scheduler_service.dequeue_job.assert_not_called()
@@ -82,10 +90,8 @@ class TestTriggerJobEndpoint:
         job = make_registered_job(trigger=RECURRING_TRIGGER)
         job.guard = MagicMock()  # pyright: ignore[reportAttributeAccessIssue]
         job.guard.is_running.return_value = True
-        mock_hassette.scheduler_service.trigger_job = AsyncMock(return_value=job)
-        mock_hassette.scheduler_service.submit_job = MagicMock(return_value=None)
 
-        response = await client.post(TRIGGER_URL.format(job_id=1))
+        response = await post_trigger(client, mock_hassette, job=job)
 
         assert response.status_code == 202
         mock_hassette.scheduler_service.submit_job.assert_called_once_with(job)

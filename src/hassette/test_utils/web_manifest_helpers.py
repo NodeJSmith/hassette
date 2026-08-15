@@ -8,7 +8,7 @@ from typing import Any
 
 from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo, tally_manifest_statuses
 from hassette.test_utils.config import DEFAULT_TEST_APP_KEY, TEST_ISO_TIMESTAMP
-from hassette.types.enums import ManifestStatus
+from hassette.types.enums import ManifestStatus, ResourceStatus
 from hassette.web.models import (
     AppInstanceResponse,
     AppManifestListResponse,
@@ -24,6 +24,35 @@ def _tally_statuses(manifests: Sequence[AppManifestInfo | AppManifestResponse]) 
     ``Iterable[AppManifestInfo]`` type hint.
     """
     return tally_manifest_statuses(manifests)  # pyright: ignore[reportArgumentType]
+
+
+def make_app_instance_info(
+    app_key: str = DEFAULT_TEST_APP_KEY,
+    index: int = 0,
+    instance_name: str | None = None,
+    class_name: str = "MyApp",
+    status: ResourceStatus = ResourceStatus.RUNNING,
+    error: Exception | None = None,
+    error_message: str | None = None,
+    error_traceback: str | None = None,
+    owner_id: str | None = None,
+) -> AppInstanceInfo:
+    """Build an AppInstanceInfo with sensible defaults.
+
+    ``instance_name`` defaults to ``"{class_name}[{index}]"`` — the shape ``AppRegistry`` itself
+    produces — so callers only pass it when a test asserts on a different one.
+    """
+    return AppInstanceInfo(
+        app_key=app_key,
+        index=index,
+        instance_name=instance_name if instance_name is not None else f"{class_name}[{index}]",
+        class_name=class_name,
+        status=status,
+        error=error,
+        error_message=error_message,
+        error_traceback=error_traceback,
+        owner_id=owner_id,
+    )
 
 
 def make_full_snapshot(

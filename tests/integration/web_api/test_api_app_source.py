@@ -2,6 +2,9 @@
 
 import tempfile
 from pathlib import Path
+from unittest.mock import MagicMock
+
+from httpx2 import AsyncClient, Response
 
 from tests.integration.conftest import make_manifest_mock
 
@@ -14,6 +17,24 @@ class MyApp(App[AppConfig]):
         pass
 """
 
+APP_SOURCE_PATH = "/api/apps/my_app/source"
+
+
+async def get_app_source(client: AsyncClient, mock_hassette: MagicMock, *, app_dir: Path, full_path: Path) -> Response:
+    """Point the registry at a manifest for `full_path` under `app_dir`, then GET the source route.
+
+    What varies between these tests is the on-disk layout (file present, file missing, file
+    outside `app_dir`), so each test builds its own temp tree and hands the two resolved paths
+    here rather than describing the layout through helper flags.
+    """
+    mock_hassette._app_handler.registry.get_manifest.return_value = make_manifest_mock(
+        app_key="my_app",
+        filename=full_path.name,
+        app_dir=app_dir,
+        full_path=full_path,
+    )
+    return await client.get(APP_SOURCE_PATH)
+
 
 class TestAppSourceEndpoint:
     """Tests for GET /api/apps/{app_key}/source."""
@@ -25,15 +46,7 @@ class TestAppSourceEndpoint:
             src_file = app_dir / "my_app.py"
             src_file.write_text(SAMPLE_SOURCE)
 
-            manifest = make_manifest_mock(
-                app_key="my_app",
-                filename="my_app.py",
-                app_dir=app_dir,
-                full_path=src_file,
-            )
-            mock_hassette._app_handler.registry.get_manifest.return_value = manifest
-
-            response = await client.get("/api/apps/my_app/source")
+            response = await get_app_source(client, mock_hassette, app_dir=app_dir, full_path=src_file)
 
         assert response.status_code == 200
         data = response.json()
@@ -54,18 +67,9 @@ class TestAppSourceEndpoint:
         """Returns 404 when the source file doesn't exist on disk."""
         with tempfile.TemporaryDirectory() as tmpdir:
             app_dir = Path(tmpdir)
-            # File deliberately not created
-            src_file = app_dir / "missing_app.py"
+            missing_file = app_dir / "missing_app.py"  # deliberately not created
 
-            manifest = make_manifest_mock(
-                app_key="my_app",
-                filename="missing_app.py",
-                app_dir=app_dir,
-                full_path=src_file,
-            )
-            mock_hassette._app_handler.registry.get_manifest.return_value = manifest
-
-            response = await client.get("/api/apps/my_app/source")
+            response = await get_app_source(client, mock_hassette, app_dir=app_dir, full_path=missing_file)
 
         assert response.status_code == 404
 
@@ -78,15 +82,7 @@ class TestAppSourceEndpoint:
             outside_file = Path(tmpdir) / "secret.py"
             outside_file.write_text("SECRET = 'password'")
 
-            manifest = make_manifest_mock(
-                app_key="my_app",
-                filename="secret.py",
-                app_dir=app_dir,
-                full_path=outside_file,
-            )
-            mock_hassette._app_handler.registry.get_manifest.return_value = manifest
-
-            response = await client.get("/api/apps/my_app/source")
+            response = await get_app_source(client, mock_hassette, app_dir=app_dir, full_path=outside_file)
 
         assert response.status_code == 403
 

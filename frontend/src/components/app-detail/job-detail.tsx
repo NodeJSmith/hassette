@@ -9,9 +9,9 @@ import { getJobExecutions, triggerJob } from "../../api/endpoints";
 import { useAsyncAction } from "../../hooks/use-async-action";
 import { useQueryInvalidator } from "../../hooks/use-query-invalidator";
 import { useRelativeTime } from "../../hooks/use-relative-time";
+import { isExecutionDefined, useJobExecution } from "../../hooks/use-scoped-execution";
 import { useScopedQuery } from "../../hooks/use-scoped-query";
 import { queryKeys } from "../../lib/query-keys";
-import { useAppStore } from "../../state/store";
 import { DETAIL_FETCH_LIMIT } from "../../utils/constants";
 import { formatTriggerDetail } from "../../utils/format";
 import { scheduleStatusDisplay } from "../../utils/schedule-status";
@@ -64,18 +64,17 @@ interface RunNowFeedback {
 }
 
 function useRunNowFeedback(jobId: number): RunNowFeedback {
-  const executionCompleted = useAppStore((s) => s.executionCompleted);
+  const execution = useJobExecution(jobId);
   const watchingRef = useRef(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!watchingRef.current) return;
-    const matched = executionCompleted?.some((e) => e.kind === "job" && e.job_id === jobId);
-    if (!matched) return;
+    if (execution === undefined) return;
     watchingRef.current = false;
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     toast.success("Execution recorded");
-  }, [executionCompleted, jobId]);
+  }, [execution]);
 
   useEffect(
     () => () => {
@@ -191,16 +190,12 @@ export function JobDetail({ job, appKey, instanceQs, onSwitchToCode }: Props) {
     (since, signal) => getJobExecutions(job.job_id, DETAIL_FETCH_LIMIT, since, signal),
   );
 
-  const executionCompleted = useAppStore((s) => s.executionCompleted);
+  const execution = useJobExecution(job.job_id);
   const lastExecutedLabel = useRelativeTime(job.last_executed_at);
   const nextRunLabel = useRelativeTime(job.next_run ?? null);
   const fireAtLabel = useRelativeTime(job.fire_at ?? null);
 
-  useQueryInvalidator(
-    executionCompleted,
-    (events) => events?.some((e) => e.kind === "job" && e.job_id === job.job_id) ?? false,
-    queryKeys.jobExecutions(job.job_id),
-  );
+  useQueryInvalidator(execution, isExecutionDefined, queryKeys.jobExecutions(job.job_id));
 
   const kindLabel = handlerKindLabel("job", null, job.trigger_type);
   const jobKind = jobHealthKind(job);

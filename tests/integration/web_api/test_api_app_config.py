@@ -4,10 +4,57 @@ import json
 import tomllib
 from typing import Any
 
+from httpx2 import AsyncClient, Response
 from pydantic import BaseModel, SecretStr
 
 from hassette.web.config_view import MASK_SENTINEL
 from tests.integration.conftest import make_manifest_mock
+
+GLOBAL_CONFIG_PATH = "/api/config"
+
+
+async def get_app_config(
+    client: AsyncClient, mock_hassette, *, app_cls: type | None = None, app_key: str = "my_app", **manifest_kwargs
+) -> Response:
+    """Wire a manifest plus the loaded app class the registry would return, then GET the endpoint.
+
+    `app_cls=None` models a disabled app: no live instance, so no schema is available and masking
+    falls back to its safe floor. Returns the raw `Response` rather than parsed JSON because
+    several tests assert against the whole body text, proving a plaintext secret never reaches the
+    wire in *any* surface (JSON or the rendered TOML).
+    """
+    mock_hassette._app_handler.registry.get_manifest.return_value = make_manifest_mock(
+        app_key=app_key, **manifest_kwargs
+    )
+    mock_hassette._app_handler.registry.get.return_value = app_cls() if app_cls is not None else None
+
+    response = await client.get(f"/api/apps/{app_key}/config")
+
+    assert response.status_code == 200, response.text
+    return response
+
+
+def config_toml_section(response: Response, app_key: str = "my_app") -> Any:
+    """Parse `config_toml` out of an app-config response and return that app's `config` section."""
+    return tomllib.loads(response.json()["config_toml"])["hassette"]["apps"][app_key]["config"]
+
+
+def manifest_entry(app_config: Any, app_key: str = "my_app") -> dict:
+    """One entry shaped like the `apps.manifests` mapping inside dumped global config values."""
+    return {app_key: {"app_key": app_key, "app_config": app_config}}
+
+
+async def get_global_config(
+    client: AsyncClient, mock_hassette, *, manifests: dict, app_cls: type | None = None
+) -> Response:
+    """Seed `apps.manifests` in the dumped config values, then GET the global config endpoint."""
+    mock_hassette.config.model_dump.return_value["apps"]["manifests"] = manifests
+    mock_hassette._app_handler.registry.get.return_value = app_cls() if app_cls is not None else None
+
+    response = await client.get(GLOBAL_CONFIG_PATH)
+
+    assert response.status_code == 200, response.text
+    return response
 
 
 class TestAppConfigEndpoint:
@@ -15,19 +62,16 @@ class TestAppConfigEndpoint:
 
     async def test_known_app_returns_config(self, client, mock_hassette) -> None:
         """Returns 200 with AppConfigResponse for a known app key."""
-        manifest = make_manifest_mock(
-            app_key="my_app",
+        response = await get_app_config(
+            client,
+            mock_hassette,
+            app_cls=AppWithBasicConfig,
             filename="my_app.py",
             class_name="MyApp",
             enabled=True,
             app_config={"instance_name": "MyApp.0", "brightness": 100},
         )
-        mock_hassette._app_handler.registry.get_manifest.return_value = manifest
-        mock_hassette._app_handler.registry.get.return_value = AppWithBasicConfig()
 
-        response = await client.get("/api/apps/my_app/config")
-
-        assert response.status_code == 200
         data = response.json()
         assert data["app_key"] == "my_app"
         assert data["filename"] == "my_app.py"
@@ -38,8 +82,7 @@ class TestAppConfigEndpoint:
         assert data["app_config"]["instance_name"] == "MyApp.0"
         # config_toml is a valid TOML string wrapping the masked config.
         assert "config_toml" in data
-        parsed = tomllib.loads(data["config_toml"])
-        assert parsed["hassette"]["apps"]["my_app"]["config"]["brightness"] == 100
+        assert config_toml_section(response)["brightness"] == 100
 
     async def test_unknown_app_returns_404(self, client, mock_hassette) -> None:
         """Returns 404 when app_key is not in the registry."""
@@ -55,25 +98,17 @@ class TestAppConfigEndpoint:
             {"instance_name": "MyApp.0", "zone": "kitchen"},
             {"instance_name": "MyApp.1", "zone": "bedroom"},
         ]
-        manifest = make_manifest_mock(
-            app_key="my_app",
-            class_name="MyApp",
-            app_config=list_config,
+        response = await get_app_config(
+            client, mock_hassette, app_cls=AppWithBasicConfig, class_name="MyApp", app_config=list_config
         )
-        mock_hassette._app_handler.registry.get_manifest.return_value = manifest
-        mock_hassette._app_handler.registry.get.return_value = AppWithBasicConfig()
 
-        response = await client.get("/api/apps/my_app/config")
-
-        assert response.status_code == 200
         data = response.json()
         assert isinstance(data["app_config"], list)
         assert len(data["app_config"]) == 2
         assert data["app_config"][0]["zone"] == "kitchen"
         assert data["app_config"][1]["zone"] == "bedroom"
         # Multi-instance config roundtrips through TOML as a list under the app key.
-        parsed = tomllib.loads(data["config_toml"])
-        instances = parsed["hassette"]["apps"]["my_app"]["config"]
+        instances = config_toml_section(response)
         assert isinstance(instances, list)
         assert len(instances) == 2
         assert instances[0]["zone"] == "kitchen"
@@ -84,35 +119,25 @@ class TestAppConfigEndpoint:
             {"instance_name": "MyApp.0", "zone": "kitchen", "host": "192.168.1.1", "port": 8080, "enabled": True},
             {"instance_name": "MyApp.1", "zone": "bedroom", "host": "192.168.1.2", "port": 8081, "enabled": False},
         ]
-        manifest = make_manifest_mock(
-            app_key="my_app",
-            class_name="MyApp",
-            app_config=list_config,
+        response = await get_app_config(
+            client, mock_hassette, app_cls=AppWithBasicConfig, class_name="MyApp", app_config=list_config
         )
-        mock_hassette._app_handler.registry.get_manifest.return_value = manifest
-        mock_hassette._app_handler.registry.get.return_value = AppWithBasicConfig()
 
-        response = await client.get("/api/apps/my_app/config")
-
-        toml_str = response.json()["config_toml"]
-        assert "[[hassette.apps.my_app.config]]" in toml_str
+        assert "[[hassette.apps.my_app.config]]" in response.json()["config_toml"]
 
     async def test_disabled_app_secrets_masked_without_schema(self, client, mock_hassette) -> None:
         """A disabled app has no running instance and no loaded class, so no schema is
         available — every string value is masked as a safe floor so a secret never leaks.
         """
-        manifest = make_manifest_mock(
+        # app_cls=None: no live instance for a disabled app — the path the old code left unmasked.
+        response = await get_app_config(
+            client,
+            mock_hassette,
             app_key="disabled_app",
             enabled=False,
             app_config={"password": "hunter2", "retries": 3},
         )
-        mock_hassette._app_handler.registry.get_manifest.return_value = manifest
-        # No live instance for a disabled app — this is the path the old code left unmasked.
-        mock_hassette._app_handler.registry.get.return_value = None
 
-        response = await client.get("/api/apps/disabled_app/config")
-
-        assert response.status_code == 200
         data = response.json()
         assert data["enabled"] is False
         # The plaintext secret never reaches the wire — string values are masked.
@@ -133,14 +158,11 @@ class TestAppConfigEndpoint:
 
     async def test_framework_fields_returned(self, client, mock_hassette) -> None:
         """Response includes framework_fields listing base AppConfig + manifest fields."""
-        manifest = make_manifest_mock(app_key="my_app", app_config={"brightness": 100})
-        mock_hassette._app_handler.registry.get_manifest.return_value = manifest
-        mock_hassette._app_handler.registry.get.return_value = AppWithBasicConfig()
+        response = await get_app_config(
+            client, mock_hassette, app_cls=AppWithBasicConfig, app_config={"brightness": 100}
+        )
 
-        response = await client.get("/api/apps/my_app/config")
-
-        data = response.json()
-        framework_fields = data["framework_fields"]
+        framework_fields = response.json()["framework_fields"]
         assert "instance_name" in framework_fields
         assert "log_level" in framework_fields
         assert "app_key" in framework_fields
@@ -150,62 +172,46 @@ class TestAppConfigEndpoint:
 
     async def test_none_values_omitted_from_toml(self, client, mock_hassette) -> None:
         """None-valued config fields are stripped from TOML — TOML has no null type."""
-        manifest = make_manifest_mock(
-            app_key="my_app",
+        response = await get_app_config(
+            client,
+            mock_hassette,
+            app_cls=AppWithBasicConfig,
             app_config={"host": "localhost", "token": None, "port": 8080},
         )
-        mock_hassette._app_handler.registry.get_manifest.return_value = manifest
-        mock_hassette._app_handler.registry.get.return_value = AppWithBasicConfig()
 
-        response = await client.get("/api/apps/my_app/config")
-
-        assert response.status_code == 200
-        data = response.json()
-        parsed = tomllib.loads(data["config_toml"])
-        cfg = parsed["hassette"]["apps"]["my_app"]["config"]
+        cfg = config_toml_section(response)
         assert cfg["host"] == "localhost"
         assert cfg["port"] == 8080
         assert "token" not in cfg
 
     async def test_none_values_in_lists_omitted_from_toml(self, client, mock_hassette) -> None:
         """None entries inside arrays are filtered out — TOML has no null type."""
-        manifest = make_manifest_mock(
-            app_key="my_app",
+        response = await get_app_config(
+            client,
+            mock_hassette,
+            app_cls=AppWithBasicConfig,
             app_config={"tags": ["a", None, "b"], "nested": [{"x": 1}, None]},
         )
-        mock_hassette._app_handler.registry.get_manifest.return_value = manifest
-        mock_hassette._app_handler.registry.get.return_value = AppWithBasicConfig()
 
-        response = await client.get("/api/apps/my_app/config")
-
-        assert response.status_code == 200
-        data = response.json()
-        parsed = tomllib.loads(data["config_toml"])
-        cfg = parsed["hassette"]["apps"]["my_app"]["config"]
+        cfg = config_toml_section(response)
         assert cfg["tags"] == ["a", "b"]
         assert cfg["nested"] == [{"x": 1}]
 
     async def test_autostart_returned(self, client, mock_hassette) -> None:
         """Response includes autostart from the manifest."""
-        manifest = make_manifest_mock(app_key="my_app", autostart=False, app_config={"brightness": 100})
-        mock_hassette._app_handler.registry.get_manifest.return_value = manifest
-        mock_hassette._app_handler.registry.get.return_value = AppWithBasicConfig()
+        response = await get_app_config(
+            client, mock_hassette, app_cls=AppWithBasicConfig, autostart=False, app_config={"brightness": 100}
+        )
 
-        response = await client.get("/api/apps/my_app/config")
-
-        data = response.json()
-        assert data["autostart"] is False
+        assert response.json()["autostart"] is False
 
     async def test_manifest_fields_in_schema(self, client, mock_hassette) -> None:
         """Config schema includes enabled and autostart property definitions."""
-        manifest = make_manifest_mock(app_key="my_app", app_config={"brightness": 100})
-        mock_hassette._app_handler.registry.get_manifest.return_value = manifest
-        mock_hassette._app_handler.registry.get.return_value = AppWithBasicConfig()
+        response = await get_app_config(
+            client, mock_hassette, app_cls=AppWithBasicConfig, app_config={"brightness": 100}
+        )
 
-        response = await client.get("/api/apps/my_app/config")
-
-        schema = response.json()["config_schema"]
-        props = schema["properties"]
+        props = response.json()["config_schema"]["properties"]
         assert "enabled" in props
         assert props["enabled"]["type"] == "boolean"
         assert "autostart" in props
@@ -307,44 +313,25 @@ class TestAppConfigTypeDrivenMasking:
 
         The old regex would mask this; the new schema-driven path must not.
         """
-        manifest = make_manifest_mock(
-            app_key="my_app",
-            app_config={"api_key": "my-real-value"},
+        response = await get_app_config(
+            client, mock_hassette, app_cls=AppWithUnmaskedKey, app_config={"api_key": "my-real-value"}
         )
-        mock_hassette._app_handler.registry.get_manifest.return_value = manifest
-        mock_hassette._app_handler.registry.get.return_value = AppWithUnmaskedKey()
 
-        response = await client.get("/api/apps/my_app/config")
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["app_config"]["api_key"] == "my-real-value"
+        assert response.json()["app_config"]["api_key"] == "my-real-value"
 
     async def test_secret_str_field_renders_masked(self, client, mock_hassette) -> None:
         """api_key: SecretStr IS masked — the schema marks it as a secret."""
-        manifest = make_manifest_mock(
-            app_key="my_app",
-            app_config={"api_key": "plaintext-secret"},
+        response = await get_app_config(
+            client, mock_hassette, app_cls=AppWithMaskedKey, app_config={"api_key": "plaintext-secret"}
         )
-        mock_hassette._app_handler.registry.get_manifest.return_value = manifest
-        mock_hassette._app_handler.registry.get.return_value = AppWithMaskedKey()
 
-        response = await client.get("/api/apps/my_app/config")
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["app_config"]["api_key"] == MASK_SENTINEL
+        assert response.json()["app_config"]["api_key"] == MASK_SENTINEL
 
     async def test_plaintext_never_appears_for_secret_str_field(self, client, mock_hassette) -> None:
         """Plaintext of a SecretStr field must not appear anywhere in the response body."""
-        manifest = make_manifest_mock(
-            app_key="my_app",
-            app_config={"api_key": "super-secret-value-12345"},
+        response = await get_app_config(
+            client, mock_hassette, app_cls=AppWithMaskedKey, app_config={"api_key": "super-secret-value-12345"}
         )
-        mock_hassette._app_handler.registry.get_manifest.return_value = manifest
-        mock_hassette._app_handler.registry.get.return_value = AppWithMaskedKey()
-
-        response = await client.get("/api/apps/my_app/config")
 
         assert "super-secret-value-12345" not in response.text
 
@@ -359,70 +346,58 @@ class TestAppConfigContainerMasking:
 
     async def test_list_of_secrets_masked_in_response(self, client, mock_hassette) -> None:
         """api_keys: list[SecretStr] is masked element-wise."""
-        manifest = make_manifest_mock(
-            app_key="my_app",
+        response = await get_app_config(
+            client,
+            mock_hassette,
+            app_cls=AppWithContainerSecrets,
             app_config={"api_keys": ["first-plaintext", "second-plaintext"]},
         )
-        mock_hassette._app_handler.registry.get_manifest.return_value = manifest
-        mock_hassette._app_handler.registry.get.return_value = AppWithContainerSecrets()
 
-        response = await client.get("/api/apps/my_app/config")
-
-        assert response.status_code == 200
         assert response.json()["app_config"]["api_keys"] == [MASK_SENTINEL, MASK_SENTINEL]
 
     async def test_dict_of_secrets_masked_in_response(self, client, mock_hassette) -> None:
         """creds: dict[str, SecretStr] is masked by value, keys preserved."""
-        manifest = make_manifest_mock(
-            app_key="my_app",
+        response = await get_app_config(
+            client,
+            mock_hassette,
+            app_cls=AppWithContainerSecrets,
             app_config={"creds": {"prod": "prod-plaintext", "dev": "dev-plaintext"}},
         )
-        mock_hassette._app_handler.registry.get_manifest.return_value = manifest
-        mock_hassette._app_handler.registry.get.return_value = AppWithContainerSecrets()
 
-        response = await client.get("/api/apps/my_app/config")
-
-        assert response.status_code == 200
         assert response.json()["app_config"]["creds"] == {"prod": MASK_SENTINEL, "dev": MASK_SENTINEL}
 
     async def test_secret_in_listed_model_masked_in_response(self, client, mock_hassette) -> None:
         """A secret on a model nested under a list is masked; its plain sibling is not."""
-        manifest = make_manifest_mock(
-            app_key="my_app",
+        response = await get_app_config(
+            client,
+            mock_hassette,
+            app_cls=AppWithContainerSecrets,
             app_config={"holders": [{"label": "broker", "token": "broker-plaintext"}]},
         )
-        mock_hassette._app_handler.registry.get_manifest.return_value = manifest
-        mock_hassette._app_handler.registry.get.return_value = AppWithContainerSecrets()
 
-        response = await client.get("/api/apps/my_app/config")
-
-        assert response.status_code == 200
         holder = response.json()["app_config"]["holders"][0]
         assert holder["token"] == MASK_SENTINEL
         assert holder["label"] == "broker"
 
     async def test_container_plaintext_never_appears_in_response_body(self, client, mock_hassette) -> None:
         """No container-held plaintext survives anywhere in the body, TOML rendering included."""
-        manifest = make_manifest_mock(
-            app_key="my_app",
+        response = await get_app_config(
+            client,
+            mock_hassette,
+            app_cls=AppWithContainerSecrets,
             app_config={
                 "api_keys": ["listed-secret-12345"],
                 "creds": {"prod": "mapped-secret-67890"},
                 "holders": [{"label": "broker", "token": "nested-secret-abcde"}],
             },
         )
-        mock_hassette._app_handler.registry.get_manifest.return_value = manifest
-        mock_hassette._app_handler.registry.get.return_value = AppWithContainerSecrets()
-
-        response = await client.get("/api/apps/my_app/config")
 
         assert "listed-secret-12345" not in response.text
         assert "mapped-secret-67890" not in response.text
         assert "nested-secret-abcde" not in response.text
         # The TOML surface is rendered from the same masked values, so it is covered above --
         # parse it anyway to prove the masked value is what actually reaches the rendering.
-        parsed = tomllib.loads(response.json()["config_toml"])
-        assert parsed["hassette"]["apps"]["my_app"]["config"]["api_keys"] == [MASK_SENTINEL]
+        assert config_toml_section(response)["api_keys"] == [MASK_SENTINEL]
 
 
 class TestSchemaDeref:
@@ -435,16 +410,13 @@ class TestSchemaDeref:
 
     async def test_app_config_schema_has_no_ref(self, client, mock_hassette) -> None:
         """App config endpoint: config_schema is fully inlined (no $ref after deref)."""
-        manifest = make_manifest_mock(
-            app_key="my_app",
+        response = await get_app_config(
+            client,
+            mock_hassette,
+            app_cls=AppWithNested,
             app_config={"connection": {"host": "myhost", "port": 9090}, "name": "test"},
         )
-        mock_hassette._app_handler.registry.get_manifest.return_value = manifest
-        mock_hassette._app_handler.registry.get.return_value = AppWithNested()
 
-        response = await client.get("/api/apps/my_app/config")
-
-        assert response.status_code == 200
         data = response.json()
         # config_schema must be fully inlined — the nested group schema is under connection.properties
         assert data["config_schema"] is not None
@@ -454,14 +426,7 @@ class TestSchemaDeref:
 
     async def test_app_config_response_uses_app_config_field_not_config_values(self, client, mock_hassette) -> None:
         """App endpoint keeps app_config (not config_values) for the values field."""
-        manifest = make_manifest_mock(
-            app_key="my_app",
-            app_config={"name": "test"},
-        )
-        mock_hassette._app_handler.registry.get_manifest.return_value = manifest
-        mock_hassette._app_handler.registry.get.return_value = AppWithNested()
-
-        response = await client.get("/api/apps/my_app/config")
+        response = await get_app_config(client, mock_hassette, app_cls=AppWithNested, app_config={"name": "test"})
 
         data = response.json()
         assert "app_config" in data
@@ -481,17 +446,14 @@ class TestSchemaDeref:
 
     async def test_app_config_nested_group_inlined_in_schema(self, client, mock_hassette) -> None:
         """After deref, nested group properties are inlined directly under the property node."""
-        manifest = make_manifest_mock(
-            app_key="my_app",
+        response = await get_app_config(
+            client,
+            mock_hassette,
+            app_cls=AppWithNested,
             app_config={"connection": {"host": "h", "port": 1}, "name": "n"},
         )
-        mock_hassette._app_handler.registry.get_manifest.return_value = manifest
-        mock_hassette._app_handler.registry.get.return_value = AppWithNested()
 
-        response = await client.get("/api/apps/my_app/config")
-
-        data = response.json()
-        schema = data["config_schema"]
+        schema = response.json()["config_schema"]
         assert schema is not None
         conn_prop = schema.get("properties", {}).get("connection", {})
         assert "properties" in conn_prop, f"connection schema not inlined: {conn_prop}"
@@ -503,46 +465,36 @@ class TestGlobalConfigManifestMasking:
 
     async def test_secret_str_field_renders_masked_in_manifest(self, client, mock_hassette) -> None:
         """A SecretStr field in a manifest's app_config is replaced by the mask sentinel."""
-        mock_hassette.config.model_dump.return_value["apps"]["manifests"] = {
-            "my_app": {
-                "app_key": "my_app",
-                "app_config": {"api_key": "plaintext-secret"},
-            },
-        }
-        mock_hassette._app_handler.registry.get.return_value = AppWithMaskedKey()
-
-        response = await client.get("/api/config")
+        response = await get_global_config(
+            client,
+            mock_hassette,
+            manifests=manifest_entry({"api_key": "plaintext-secret"}),
+            app_cls=AppWithMaskedKey,
+        )
 
         manifests = response.json()["config_values"]["apps"]["manifests"]
         assert manifests["my_app"]["app_config"]["api_key"] == MASK_SENTINEL
 
     async def test_plain_str_field_renders_unmasked_in_manifest(self, client, mock_hassette) -> None:
         """A plain str field is NOT masked — masking is schema-driven, not name-driven."""
-        mock_hassette.config.model_dump.return_value["apps"]["manifests"] = {
-            "my_app": {
-                "app_key": "my_app",
-                "app_config": {"api_key": "my-real-value"},
-            },
-        }
-        mock_hassette._app_handler.registry.get.return_value = AppWithUnmaskedKey()
-
-        response = await client.get("/api/config")
+        response = await get_global_config(
+            client,
+            mock_hassette,
+            manifests=manifest_entry({"api_key": "my-real-value"}),
+            app_cls=AppWithUnmaskedKey,
+        )
 
         manifests = response.json()["config_values"]["apps"]["manifests"]
         assert manifests["my_app"]["app_config"]["api_key"] == "my-real-value"
 
     async def test_safe_floor_when_no_schema(self, client, mock_hassette) -> None:
         """When no app class is available, every string value is masked as a safe floor."""
-        mock_hassette.config.model_dump.return_value["apps"]["manifests"] = {
-            "disabled_app": {
-                "app_key": "disabled_app",
-                "app_config": {"password": "hunter2", "retries": 3},
-            },
-        }
-        mock_hassette._app_handler.registry.get.return_value = None
         mock_hassette.config.apps.manifests = {}
-
-        response = await client.get("/api/config")
+        response = await get_global_config(
+            client,
+            mock_hassette,
+            manifests=manifest_entry({"password": "hunter2", "retries": 3}, app_key="disabled_app"),
+        )
 
         app_config = response.json()["config_values"]["apps"]["manifests"]["disabled_app"]["app_config"]
         assert app_config["password"] == MASK_SENTINEL
@@ -550,32 +502,28 @@ class TestGlobalConfigManifestMasking:
 
     async def test_plaintext_never_appears_in_response_body(self, client, mock_hassette) -> None:
         """Plaintext of a SecretStr field must not appear anywhere in the response body."""
-        mock_hassette.config.model_dump.return_value["apps"]["manifests"] = {
-            "my_app": {
-                "app_key": "my_app",
-                "app_config": {"api_key": "super-secret-value-12345"},
-            },
-        }
-        mock_hassette._app_handler.registry.get.return_value = AppWithMaskedKey()
-
-        response = await client.get("/api/config")
+        response = await get_global_config(
+            client,
+            mock_hassette,
+            manifests=manifest_entry({"api_key": "super-secret-value-12345"}),
+            app_cls=AppWithMaskedKey,
+        )
 
         assert "super-secret-value-12345" not in response.text
 
     async def test_multi_instance_manifest_masked(self, client, mock_hassette) -> None:
         """Each instance in a multi-instance manifest has its secrets masked."""
-        mock_hassette.config.model_dump.return_value["apps"]["manifests"] = {
-            "my_app": {
-                "app_key": "my_app",
-                "app_config": [
+        response = await get_global_config(
+            client,
+            mock_hassette,
+            manifests=manifest_entry(
+                [
                     {"instance_name": "MyApp.0", "api_key": "secret-0"},
                     {"instance_name": "MyApp.1", "api_key": "secret-1"},
-                ],
-            },
-        }
-        mock_hassette._app_handler.registry.get.return_value = AppWithMaskedKey()
-
-        response = await client.get("/api/config")
+                ]
+            ),
+            app_cls=AppWithMaskedKey,
+        )
 
         app_config = response.json()["config_values"]["apps"]["manifests"]["my_app"]["app_config"]
         assert isinstance(app_config, list)
