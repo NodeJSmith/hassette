@@ -39,6 +39,14 @@ class _SchedulerErrorCollector:
         assert isinstance(self.contexts[0].exception, exc_type)
         return self.contexts[0]
 
+    async def wait_and_assert_single(
+        self, exc_type: type[Exception], timeout: float = ERROR_TIMEOUT
+    ) -> SchedulerErrorContext:
+        """Wait for the error, let the loop settle, then assert and return its context."""
+        await self.wait(timeout)
+        await settle()
+        return self.single(exc_type)
+
 
 @pytest.fixture
 def scheduler(hassette_with_scheduler: "HassetteHarness") -> "Scheduler":
@@ -59,10 +67,7 @@ async def test_app_level_error_handler_called_on_job_failure(hassette_with_sched
     scheduler.on_error(errors.record)
     await scheduler.run_in(bad_job, delay=0.01, name="app_level_error_handler_called_on_job_fa_run_in")
 
-    await errors.wait()
-    await settle()
-
-    ctx = errors.single(ValueError)
+    ctx = await errors.wait_and_assert_single(ValueError)
     assert str(ctx.exception) == "job failed"
 
 
@@ -80,10 +85,7 @@ async def test_per_job_error_handler_wins(hassette_with_scheduler: "HassetteHarn
     scheduler.on_error(app_level.record)
     await scheduler.run_in(bad_job, delay=0.01, on_error=per_job.record, name="per_job_error_handler_wins_run_in")
 
-    await per_job.wait()
-    await settle()
-
-    per_job.single(RuntimeError)
+    await per_job.wait_and_assert_single(RuntimeError)
     assert not app_level.contexts, "App-level handler should not be called when per-job handler wins"
 
 
@@ -124,9 +126,6 @@ async def test_error_context_contains_args_kwargs(hassette_with_scheduler: "Hass
         name="error_context_contains_args_kwargs_run_in",
     )
 
-    await errors.wait()
-    await settle()
-
-    ctx = errors.single(ValueError)
+    ctx = await errors.wait_and_assert_single(ValueError)
     assert ctx.args == ("sensor.kitchen",)
     assert ctx.kwargs == {"count": 3}

@@ -38,7 +38,7 @@ from hassette.event_handling.predicates import (
     ValueIs,
     summarize_top_level,
 )
-from hassette.test_utils import create_call_service_event, create_state_change_event
+from hassette.test_utils import create_attr_change_event, create_call_service_event, create_state_change_event
 
 
 # ValueIs tests
@@ -101,13 +101,7 @@ def test_state_to_predicate() -> None:
 
 def test_attr_from_predicate() -> None:
     """Test AttrFrom predicate for old attribute values."""
-    event = create_state_change_event(
-        entity_id="light.office",
-        old_value="on",
-        new_value="on",
-        old_attrs={"brightness": 100},
-        new_attrs={"brightness": 200},
-    )
+    event = create_attr_change_event(100, 200)
 
     assert P.AttrFrom("brightness", 100)(event) is True
     assert P.AttrFrom("brightness", 200)(event) is False
@@ -115,13 +109,7 @@ def test_attr_from_predicate() -> None:
 
 def test_attr_to_predicate() -> None:
     """Test AttrTo predicate for new attribute values."""
-    event = create_state_change_event(
-        entity_id="light.office",
-        old_value="on",
-        new_value="on",
-        old_attrs={"brightness": 100},
-        new_attrs={"brightness": 200},
-    )
+    event = create_attr_change_event(100, 200)
 
     assert P.AttrTo("brightness", 200)(event) is True
     assert P.AttrTo("brightness", 100)(event) is False
@@ -129,13 +117,7 @@ def test_attr_to_predicate() -> None:
 
 def test_attr_from_to_predicates_apply_conditions() -> None:
     """Test that AttrFrom and AttrTo predicates correctly match old and new attribute values."""
-    event = create_state_change_event(
-        entity_id="light.office",
-        old_value="on",
-        new_value="on",
-        old_attrs={"brightness": 100},
-        new_attrs={"brightness": 150},
-    )
+    event = create_attr_change_event(100, 150)
 
     attr_from = P.AttrFrom("brightness", 100)
     attr_to = P.AttrTo("brightness", 150)
@@ -162,26 +144,14 @@ def test_state_did_change_false_when_unchanged() -> None:
 def test_attr_did_change_detects_attribute_modifications() -> None:
     """Test that AttrDidChange predicate detects when specified attributes change."""
     predicate = P.AttrDidChange("brightness")
-    event = create_state_change_event(
-        entity_id="light.office",
-        old_value="on",
-        new_value="on",
-        old_attrs={"brightness": 100},
-        new_attrs={"brightness": 150},
-    )
+    event = create_attr_change_event(100, 150)
     assert predicate(event) is True
 
 
 def test_attr_did_change_false_when_unchanged() -> None:
     """Test that AttrDidChange returns False when specified attribute is unchanged."""
     predicate = P.AttrDidChange("brightness")
-    event = create_state_change_event(
-        entity_id="light.office",
-        old_value="on",
-        new_value="on",
-        old_attrs={"brightness": 100},
-        new_attrs={"brightness": 100},
-    )
+    event = create_attr_change_event(100, 100)
     assert predicate(event) is False
 
 
