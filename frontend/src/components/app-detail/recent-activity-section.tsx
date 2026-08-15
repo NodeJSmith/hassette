@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import type { ActivityFeedEntryData } from "../../api/endpoints";
 import { getAppActivity } from "../../api/endpoints";
 import { useQueryInvalidator } from "../../hooks/use-query-invalidator";
+import { isExecutionDefined, useAppExecution } from "../../hooks/use-scoped-execution";
 import { useScopedQuery } from "../../hooks/use-scoped-query";
 import { queryKeys } from "../../lib/query-keys";
 import { useAppStore } from "../../state/store";
@@ -124,16 +125,12 @@ export function RecentActivitySection({
     getAppActivity(appKey, resolvedInstanceIndex, ACTIVITY_FETCH_LIMIT, since, signal),
   );
 
-  const executionCompleted = useAppStore((s) => s.executionCompleted);
+  const execution = useAppExecution(appKey);
   // Selecting tick (unused otherwise) subscribes this component to re-render on every tick,
   // which recomputes the relative-time labels rendered by ActivityGroupRow below.
   useAppStore((s) => s.tick);
 
-  useQueryInvalidator(
-    executionCompleted,
-    (events) => events?.some((e: { app_key: string }) => e.app_key === appKey) ?? false,
-    queryKeys.appActivity.prefix(appKey),
-  );
+  useQueryInvalidator(execution, isExecutionDefined, queryKeys.appActivity.prefix(appKey));
 
   const groups = useMemo(() => summarizeActivityByHandler(activity ?? []).slice(0, ACTIVITY_ROW_LIMIT), [activity]);
 
