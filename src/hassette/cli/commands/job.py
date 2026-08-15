@@ -53,8 +53,7 @@ def _next_run_display(job: JobSummary) -> str:
     return _SCHEDULE_STATUS_TEXT.get(job.schedule_status, "")
 
 
-# constant-after-def: JOB_LIST_COLUMNS' next_run column wires _next_run_display, defined
-# immediately above, as its row_formatter.
+# JOB_LIST_COLUMNS' next_run column wires _next_run_display, defined immediately above, as its row_formatter
 JOB_LIST_COLUMNS: list[Column] = [
     Column("job_id", "ID", max_width=6),
     Column("app_key", "App", max_width=18),

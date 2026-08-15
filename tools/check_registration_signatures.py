@@ -8,7 +8,9 @@ and the runtime guard depend on ``name`` staying keyword-only with no default; a
 edit that reintroduces a default or drops the ``*`` would silently reopen the positional-
 arg and optional-name regressions those checks were built to close.
 
-Detection is AST-based, mirroring ``check_lazy_imports.py``. For every public method (not
+Detection is AST-based, following the same visitor pattern as the other ``check_*.py`` scripts
+in this directory (see ``check_module_boundaries.py`` for another example). For every public
+method (not
 ``_``-prefixed) defined directly on a class in the scanned files, a parameter literally
 named ``name`` is checked for two invariants:
 

@@ -1012,6 +1012,7 @@ test = [
 dev = [
     { name = "bcrypt" },
     { name = "hassette-codegen" },
+    { name = "house-lint" },
     { name = "pyright" },
     { name = "shot-scraper" },
     { name = "slotscheck" },
@@ -1084,6 +1085,7 @@ provides-extras = ["test"]
 dev = [
     { name = "bcrypt", specifier = ">=4.0" },
     { name = "hassette-codegen", editable = "codegen" },
+    { name = "house-lint", specifier = ">=0.1.1" },
     { name = "pyright", specifier = ">=1.1.408" },
     { name = "shot-scraper", specifier = ">=1.5" },
     { name = "slotscheck", specifier = ">=0.19.1" },
@@ -1135,6 +1137,19 @@ requires-dist = [
 dev = [
     { name = "pytest" },
     { name = "ruff" },
+]
+
+[[package]]
+name = "house-lint"
+version = "0.1.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cyclopts" },
+    { name = "pathspec" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/4b/62/172e10cc1288b7ff3ff565098fb909b76459f367a742bb7698f8caff34c3/house_lint-0.1.1.tar.gz", hash = "sha256:6a1cb104497f3a17d3e3500184376bd8bba9873496162164809ae0dd072b6817", size = 26186, upload-time = "2026-08-11T21:55:19.705Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/0f/df/228881ab92f2b6b0c16878fb08565dc6296280e36b5d4c79ac4830d27c34/house_lint-0.1.1-py3-none-any.whl", hash = "sha256:00b12fa5a5dc0d517667ef43fc986a168f76381f0396f28042ea46ebae21e4fc", size = 35283, upload-time = "2026-08-11T21:55:18.339Z" },
 ]
 
 [[package]]

@@ -17,9 +17,12 @@ from pathlib import Path
 #: each recomputing ``Path(__file__).resolve().parent.parent`` on its own.
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-#: Directories scanned by the general-purpose checkers (lazy imports, spec tokens, LLM cruft),
-#: relative to the repo root. ``check_module_boundaries`` scans ``src/hassette`` only and keeps
-#: its own scan dirs since that scope is narrower than this default.
+#: Fallback scan roots, relative to the repo root, for checkers that don't set their own
+#: ``SCAN_DIRS``. Most house-style checks (lazy imports, spec tokens, LLM cruft) moved to the
+#: house-lint package and no longer call this; remaining callers set their own narrower
+#: ``SCAN_DIRS`` instead (``check_test_factories.py`` scans ``tests`` only,
+#: ``check_module_boundaries.py`` scans ``src/hassette`` only), so this constant currently has
+#: no live full-repo-scan caller.
 DEFAULT_SCAN_DIRS: list[str] = ["src", "tests", "scripts", "tools", "codegen", "docs", "examples"]
 
 #: Directory components that are never first-party source: virtualenvs (notably the nested
@@ -45,8 +48,7 @@ def run_check(
     violation list, and ``ok`` as ``OK: <ok>`` when nothing is found. ``footer`` is
     optional guidance printed after the list. Returns 1 when any violation is found,
     0 otherwise. Checkers that report a single kind of (line, message) violation share
-    this; ``check_spec_tokens`` reports two kinds (content and filename) and keeps its
-    own runner.
+    this.
     """
     violations: list[tuple[Path, int, str]] = []
     for path in paths:

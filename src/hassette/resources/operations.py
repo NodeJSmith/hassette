@@ -73,7 +73,9 @@ def register_task_bucket_factory(factory: "Callable[[Hassette, Resource], TaskBu
     Called once by hassette.task_bucket at module import time so that Resource.__init__
     never needs to import TaskBucket directly.
     """
-    from hassette.resources.base import Resource  # lazy-import: break circular import — base.py imports this module
+    from hassette.resources.base import (
+        Resource,  # house-lint: ignore[HSL002] - break circular import, base.py imports this module
+    )
 
     Resource._default_task_bucket_factory = factory
 

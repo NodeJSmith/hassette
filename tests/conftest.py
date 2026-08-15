@@ -218,7 +218,7 @@ def test_config_with_apps(apps_config_file: Path) -> HassetteConfig:
 
 @pytest.fixture
 def my_app_class() -> type:
-    # lazy-import: data.apps resolves via pytest's rootdir sys.path insertion, not at conftest module load
+    # house-lint: ignore-next[HSL002] - data.apps resolves via pytest's rootdir sys.path insertion, not at module load
     from data.apps.my_app import MyApp
 
     return MyApp

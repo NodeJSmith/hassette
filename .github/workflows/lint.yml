@@ -317,7 +317,13 @@ jobs:
             - run: uv sync
 
             - name: Check file sizes
-              run: uv run python tools/check_file_size.py
+              # Deliberately NOT `--select HSL102`: narrowing selection disables every other
+              # rule, and house-lint's always-on HSL900 then flags every `# house-lint:
+              # ignore[HSL002]`-style pragma elsewhere in the repo as an "unused suppression
+              # for disabled rule" — noise unrelated to file size. Running the full configured
+              # rule set keeps those pragmas valid; today that set has zero real findings
+              # outside HSL102, so this job's output is still file-size-only in practice.
+              run: uv run house-lint check
 
     # PMD CPD scans both Python and TypeScript — trigger on either.
     duplicate-code:
