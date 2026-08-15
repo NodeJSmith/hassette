@@ -21,7 +21,7 @@ from httpx2 import ASGITransport, AsyncClient
 from hassette.test_utils.web_manifest_helpers import make_manifest_db_row
 from hassette.web.app import create_fastapi_app
 
-from .conftest import get_json, telemetry_error
+from .conftest import APP_GRID_PATH, TELEMETRY_STATUS_PATH, get_json, telemetry_error
 
 
 class TestTranslationSurfaces503:
@@ -45,7 +45,7 @@ class TestTranslationSurfaces503:
         """A TelemetryUnavailableError from check_health still yields 503 on /api/telemetry/status."""
         mock_hassette.telemetry_query_service.check_health = telemetry_error("db down")
 
-        data = await get_json(client, "/api/telemetry/status", expect_status=503)
+        data = await get_json(client, TELEMETRY_STATUS_PATH, expect_status=503)
 
         assert data["degraded"] is True
 
@@ -100,7 +100,7 @@ class TestDashboardAppGridDegrades:
         )
 
         # Must be 200 (partial), not 500 (unhandled) — category-C site contract
-        data = await get_json(client, "/api/telemetry/dashboard/app-grid")
+        data = await get_json(client, APP_GRID_PATH)
 
         assert "apps" in data
         assert len(data["apps"]) == 1
@@ -113,7 +113,7 @@ class TestDashboardSpine503:
     @pytest.mark.parametrize(
         ("service_method", "path", "empty_collection_key"),
         [
-            ("get_all_app_manifests", "/api/telemetry/dashboard/app-grid", "apps"),
+            ("get_all_app_manifests", APP_GRID_PATH, "apps"),
             ("get_all_app_manifests", "/api/apps/manifests", "manifests"),
             # Per-app manifest degrades to 503 rather than the 404 a missing row would give.
             ("get_app_manifest", "/api/apps/my_app/manifest", None),

@@ -18,6 +18,13 @@ _SEED_TIMESTAMP = "2024-01-01T00:00:00"
 DB_LOCKED_MSG = "database is locked"
 """The stand-in storage failure every DB-degradation test in this package raises."""
 
+# Route paths hit by tests in more than one file — single source of truth so a route rename
+# only needs to change here.
+HEALTH_PATH = "/api/health"
+APP_HEALTH_PATH = "/api/telemetry/app/my_app/health"
+APP_GRID_PATH = "/api/telemetry/dashboard/app-grid"
+TELEMETRY_STATUS_PATH = "/api/telemetry/status"
+
 
 @pytest.fixture
 def mock_hassette():

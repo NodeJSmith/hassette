@@ -10,17 +10,14 @@ from hassette.schemas.live_counts import LiveCounts
 from hassette.test_utils.web_manifest_helpers import make_manifest_db_row
 from hassette.test_utils.web_telemetry_helpers import make_execution, make_listener_summary
 
-from .conftest import get_json, telemetry_error
+from .conftest import APP_GRID_PATH, APP_HEALTH_PATH, TELEMETRY_STATUS_PATH, get_json, telemetry_error
 
 MOCK_TS = 1_234_567_890.0
 
 if TYPE_CHECKING:
     from httpx2 import AsyncClient
 
-APP_HEALTH_PATH = "/api/telemetry/app/my_app/health"
 APP_LISTENERS_PATH = "/api/telemetry/app/my_app/listeners"
-APP_GRID_PATH = "/api/telemetry/dashboard/app-grid"
-TELEMETRY_STATUS_PATH = "/api/telemetry/status"
 
 # The listener shape every test in TestTelemetryListeners starts from; each overrides only the
 # fields it asserts on.

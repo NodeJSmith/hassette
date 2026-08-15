@@ -7,9 +7,7 @@ from httpx2 import AsyncClient
 
 from hassette.schemas.domain_models import BootIssue, SystemStatus
 
-from .conftest import get_json
-
-HEALTH_PATH = "/api/health"
+from .conftest import HEALTH_PATH, get_json
 
 
 async def get_health_with_status(client: AsyncClient, mock_hassette, **status_fields) -> Any:

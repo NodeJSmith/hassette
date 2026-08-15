@@ -5,14 +5,10 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from .conftest import get_json, telemetry_error
+from .conftest import APP_GRID_PATH, APP_HEALTH_PATH, TELEMETRY_STATUS_PATH, get_json, telemetry_error
 
 if TYPE_CHECKING:
     from httpx2 import AsyncClient
-
-TELEMETRY_STATUS_PATH = "/api/telemetry/status"
-APP_HEALTH_PATH = "/api/telemetry/app/my_app/health"
-APP_GRID_PATH = "/api/telemetry/dashboard/app-grid"
 
 # Each entry is a storage failure a route must degrade rather than 500 on. The message differs
 # only to document which underlying error the service wrapped before raising.

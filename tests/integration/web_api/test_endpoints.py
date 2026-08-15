@@ -8,21 +8,27 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from hassette.core.app_registry import AppRegistry
-from hassette.exceptions import AppBootstrapNotReleasedError, TelemetryUnavailableError
+from hassette.exceptions import AppBootstrapNotReleasedError
 from hassette.test_utils import create_app_manifest
 from hassette.test_utils.web_manifest_helpers import make_manifest_db_row
 from hassette.test_utils.web_telemetry_helpers import make_listener_summary
 from hassette.types.enums import ResourceStatus
 from hassette.web.config_view import MASK_SENTINEL
 
-from .conftest import get_json, make_log_record, set_app_status_snapshot, set_websocket_state
+from .conftest import (
+    HEALTH_PATH,
+    get_json,
+    make_log_record,
+    set_app_status_snapshot,
+    set_websocket_state,
+    telemetry_error,
+)
 
 if TYPE_CHECKING:
     from httpx2 import AsyncClient
 
 # Route paths hit by multiple tests below — single source of truth so a route rename only
 # needs to change here.
-HEALTH_PATH = "/api/health"
 HEALTH_READY_PATH = "/api/health/ready"
 APP_START_PATH = "/api/apps/my_app/start"
 APP_STOP_PATH = "/api/apps/my_app/stop"
@@ -218,9 +224,7 @@ class TestAppManifestEndpoint:
         mock_hassette.telemetry_query_service.get_app_manifest = AsyncMock(
             return_value=make_manifest_db_row(app_key="my_app")
         )
-        mock_hassette.telemetry_query_service.get_recent_invocations_1h_all_apps = AsyncMock(
-            side_effect=TelemetryUnavailableError("db down")
-        )
+        mock_hassette.telemetry_query_service.get_recent_invocations_1h_all_apps = telemetry_error(message="db down")
 
         response = await client.get(APP_MANIFEST_PATH)
         assert response.status_code == 200
@@ -228,9 +232,7 @@ class TestAppManifestEndpoint:
 
     async def test_get_manifest_returns_503_when_db_unavailable(self, client: "AsyncClient", mock_hassette) -> None:
         """A DB failure on the spine query itself returns 503, not 404."""
-        mock_hassette.telemetry_query_service.get_app_manifest = AsyncMock(
-            side_effect=TelemetryUnavailableError("db down")
-        )
+        mock_hassette.telemetry_query_service.get_app_manifest = telemetry_error(message="db down")
 
         response = await client.get(APP_MANIFEST_PATH)
         assert response.status_code == 503
@@ -257,9 +259,7 @@ class TestAppManifestListEndpoint:
 
     async def test_get_manifests_returns_503_on_spine_failure(self, client: "AsyncClient", mock_hassette) -> None:
         """A storage error on the DB spine query yields 503."""
-        mock_hassette.telemetry_query_service.get_all_app_manifests = AsyncMock(
-            side_effect=TelemetryUnavailableError("db down")
-        )
+        mock_hassette.telemetry_query_service.get_all_app_manifests = telemetry_error(message="db down")
 
         response = await client.get(APP_MANIFESTS_PATH)
         assert response.status_code == 503
@@ -441,9 +441,7 @@ class TestLogsEndpoints:
     async def test_get_logs_recent_returns_503_on_db_error(
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
-        mock_hassette.telemetry_query_service.get_log_records = AsyncMock(
-            side_effect=TelemetryUnavailableError("db error")
-        )
+        mock_hassette.telemetry_query_service.get_log_records = telemetry_error(message="db error")
         response = await client.get(LOGS_RECENT_PATH)
         assert response.status_code == 503
         assert response.json() == []
