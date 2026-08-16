@@ -80,6 +80,7 @@ Changelog = "https://github.com/nodejsmith/hassette/blob/main/CHANGELOG.md"
 dev = [
     "bcrypt>=4.0",
     "hassette-codegen",
+    "house-lint>=0.1.1",
     "pyright>=1.1.408",
     "shot-scraper>=1.5",
     "slotscheck>=0.19.1",
@@ -201,3 +202,69 @@ directory = "htmlcov"
 
 [tool.coverage.xml]
 output = "coverage.xml"
+
+# house-lint is a generalized extraction of this repo's former tools/check_lazy_imports.py,
+# check_llm_cruft.py, check_type_checking_position.py, check_constants_position.py,
+# check_spec_tokens.py, and check_exception_names.py (same author, verified rule-for-rule
+# equivalent before the swap). check_file_size.py's rule (HSL102) is configured here too but
+# selected only in the separate, non-blocking `file-sizes` CI job — see the comment on the
+# house-lint prek hook in prek.toml for why it's excluded from the blocking hook.
+#
+# HSL001 AI-writing tells (divider comments, filler phrases) in comments/docstrings
+# HSL002 imports inside function/method bodies ("lazy imports")
+# HSL003 a top-level TYPE_CHECKING guard followed by a later top-level import
+# HSL004 UPPER_CASE module constants defined after the first class/function
+# HSL101 leaked spec-artifact tokens (AC#/FR#/NFR#/WP#/T##) in comments, docstrings, filenames
+# HSL102 files over max_lines (tracked separately in CI, see above)
+# HSL103 except-handler bindings that aren't named 'exc' or '*_exc'
+[tool.house-lint]
+include = ["src", "tests", "scripts", "tools", "codegen", "docs", "examples"]
+select = ["HSL001", "HSL002", "HSL003", "HSL004", "HSL101", "HSL102", "HSL103"]
+
+[tool.house-lint.rules.HSL102]
+max_lines = 800
+
+[tool.house-lint.rules.HSL103]
+# '*_exc' is a suffix wildcard: matches any name ending in "_exc" (retry_exc, inner_exc, ...).
+allowed = ["exc", "*_exc"]
+
+# HSL101 has no default vocabulary — each family below is one token shape. AC/FR/NFR/WP and T
+# each need two families: one for comments/docstrings (case-sensitive, since lowercase prose
+# words like "tofu" or "frame" must not match) and one for filenames only (case-insensitive,
+# since a leaked-token filename like `wp3_notes.py` should still be caught even though file
+# names are conventionally lowercase). house-lint's `case_sensitive` flag applies to every
+# scope in a family, so this split is required — a single family can't be case-sensitive for
+# content and case-insensitive for filenames at once.
+
+[[tool.house-lint.rules.HSL101.tokens]]
+prefixes = ["AC", "FR", "NFR", "WP"]
+hash = "optional"
+min_digits = 1
+suffix = "optional-lower-alpha"
+scopes = ["comments", "docstrings"]
+case_sensitive = true
+
+[[tool.house-lint.rules.HSL101.tokens]]
+prefixes = ["AC", "FR", "NFR", "WP"]
+hash = "optional"
+min_digits = 1
+suffix = "optional-lower-alpha"
+scopes = ["filenames"]
+case_sensitive = false
+
+# T needs min_digits = 2: a single digit would match ordinary TypeVar names like T1/T2 in
+# prose/docstrings, which AC/FR/NFR/WP's multi-letter prefixes never collide with.
+[[tool.house-lint.rules.HSL101.tokens]]
+prefixes = ["T"]
+min_digits = 2
+scopes = ["comments", "docstrings"]
+case_sensitive = true
+# Excludes clock-time literals like "T00:00:00" (T + digits + ':' + digit) from matching —
+# without this, ISO timestamp strings in docstrings/comments read as leaked task tokens.
+not_followed_by_time = true
+
+[[tool.house-lint.rules.HSL101.tokens]]
+prefixes = ["T"]
+min_digits = 2
+scopes = ["filenames"]
+case_sensitive = false

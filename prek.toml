@@ -56,6 +56,15 @@ hooks = [
     { id = "pyright", stages = ["pre-push"], exclude = '^(docs|scripts)/.*\.(py|rst)$' },
 ]
 
+[[repos]]
+repo = "https://github.com/NodeJSmith/house-lint"
+rev = "v0.1.1"
+hooks = [
+    # HSL102 (file-size) is excluded here — it has a known backlog tracked as a
+    # non-blocking CI job (`file-sizes` in lint.yml), not a pre-commit/pre-push gate.
+    { id = "house-lint", args = ["--ignore", "HSL102"], files = '^(src|tests|scripts|tools|codegen|docs|examples)/.*\.py$', stages = ["pre-commit", "pre-push"] },
+]
+
 # ---------------------------------------------------------------------------
 # Local hooks — security
 # ---------------------------------------------------------------------------
@@ -251,54 +260,6 @@ language = "system"
 entry = "./tools/check_registration_signatures.py"
 files = '^src/hassette/(bus/bus|scheduler/scheduler)\.py$'
 pass_filenames = false
-stages = ["pre-commit", "pre-push"]
-
-[[repos.hooks]]
-id = "check-lazy-imports"
-name = "Ban lazy imports (use '# lazy-import:' to defend circular-import cases)"
-language = "system"
-entry = "./tools/check_lazy_imports.py"
-files = '^(src|tests|scripts|tools|codegen|docs|examples)/.*\.py$'
-stages = ["pre-commit", "pre-push"]
-
-[[repos.hooks]]
-id = "check-exception-names"
-name = "Enforce 'exc' naming in except handlers"
-language = "system"
-entry = "./tools/check_exception_names.py"
-files = '^(src|tests|scripts|tools|codegen|docs|examples)/.*\.py$'
-stages = ["pre-commit", "pre-push"]
-
-[[repos.hooks]]
-id = "check-type-checking-position"
-name = "Ensure TYPE_CHECKING blocks sit after all regular imports"
-language = "system"
-entry = "./tools/check_type_checking_position.py"
-files = '^(src|tests|scripts|tools|codegen|docs|examples)/.*\.py$'
-stages = ["pre-commit", "pre-push"]
-
-[[repos.hooks]]
-id = "check-constants-position"
-name = "Flag UPPER_CASE constants defined after first class/function"
-language = "system"
-entry = "./tools/check_constants_position.py"
-files = '^(src|tests|scripts|tools|codegen|docs|examples)/.*\.py$'
-stages = ["pre-commit", "pre-push"]
-
-[[repos.hooks]]
-id = "check-spec-tokens"
-name = "Ban leaked spec-artifact tokens (AC#/FR#/T##/WP#)"
-language = "system"
-entry = "./tools/check_spec_tokens.py"
-files = '^(src|tests|scripts|tools|codegen|docs|examples)/.*\.py$'
-stages = ["pre-commit", "pre-push"]
-
-[[repos.hooks]]
-id = "check-llm-cruft"
-name = "Ban AI-writing tells (section dividers, filler phrases)"
-language = "system"
-entry = "./tools/check_llm_cruft.py"
-files = '^(src|tests|scripts|tools|codegen|docs|examples)/.*\.py$'
 stages = ["pre-commit", "pre-push"]
 
 [[repos.hooks]]

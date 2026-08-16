@@ -62,7 +62,7 @@ async def _running_hassette_without_ha(
     connection state stays DISCONNECTED and ``has_ever_connected`` stays False for the
     lifetime of the test.
     """
-    # lazy-import: a module-level import makes pytest try to collect TestConfig as a test class
+    # house-lint: ignore-next[HSL002] - a module-level import makes pytest try to collect TestConfig as a test class
     from tests.conftest import TEST_APPS_PATH, TestConfig
 
     config = TestConfig(
@@ -168,7 +168,7 @@ class TestInitialStateSyncBeforeApps:
         self, tmp_path: Path, unused_tcp_port_factory: Callable[[], int]
     ) -> None:
         """Apps that read startup state must not initialize against the optional-HA empty cold cache."""
-        # lazy-import: a module-level import makes pytest try to collect TestConfig as a test class
+        # house-lint: ignore-next[HSL002] - a module-level import makes pytest try to collect TestConfig as a test class
         from tests.conftest import TestConfig
 
         app_dir = tmp_path / "apps"
