@@ -15,6 +15,8 @@ import asyncio
 import contextlib
 import sqlite3
 import time
+from collections.abc import Callable, Coroutine
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiosqlite
@@ -27,7 +29,7 @@ from hassette.core.telemetry.repository import TelemetryRepository
 from hassette.test_utils.factories import make_execution_record
 from hassette.types.types import SourceTier
 
-from .test_command_executor import make_result_mock
+from .test_command_executor import make_result
 
 
 # Convenience aliases for readability in tests. Delegate to the shared factory but pin
@@ -117,7 +119,7 @@ def init_executor(queue_max: int = 10) -> CommandExecutor:
     return executor
 
 
-async def direct_submit(coro):
+async def direct_submit(coro: Coroutine[Any, Any, Any]) -> Any:
     """Run a queued database_service.submit() coroutine inline, bypassing the real submit
     queue — the persist_batch() tests below all need this same bypass, differing only in what
     they mock persist_execution_batch to do.
@@ -125,14 +127,14 @@ async def direct_submit(coro):
     return await coro
 
 
-def raising_persist(exc: BaseException):
+def raising_persist(exc: BaseException) -> Callable[[list[ExecutionRecord]], Coroutine[Any, Any, None]]:
     """Build an async persist_execution_batch stand-in that always raises ``exc``.
 
     Several persist_batch() error-classification tests below differ only in which exception
     type/message they simulate.
     """
 
-    async def _persist(_recs):
+    async def _persist(_recs: list[ExecutionRecord]) -> None:
         raise exc
 
     return _persist
@@ -149,7 +151,7 @@ def wire_raising_persist(executor: CommandExecutor, exc: BaseException) -> None:
     executor.hassette.database_service.submit = direct_submit  # pyright: ignore[reportAttributeAccessIssue]
 
 
-async def run_serve_until(executor: CommandExecutor, stopper_coro) -> None:
+async def run_serve_until(executor: CommandExecutor, stopper_coro: Coroutine[Any, Any, Any]) -> None:
     """Run executor.serve() alongside a background task that eventually sets shutdown_event,
     then cancel and drain the stopper task cleanly. Shared by the serve() loop tests below,
     which differ only in what the stopper task waits for before signaling shutdown.
@@ -366,7 +368,7 @@ def test_build_record_reads_source_tier():
     executor = init_executor()
 
     cmd = make_real_invoke_handler_cmd(listener_id=5, source_tier="framework")
-    result = make_result_mock()
+    result = make_result()
 
     record = CommandExecutor.build_record(executor, cmd, result, time.time(), "test-exec-id")  # pyright: ignore[reportArgumentType]
 
@@ -381,9 +383,7 @@ def test_build_record_reads_is_di_failure():
     executor = init_executor()
 
     cmd = make_real_invoke_handler_cmd(listener_id=5, source_tier="app")
-    result = make_result_mock(
-        status="error", error_type="DependencyError", error_message="dep failed", is_di_failure=True
-    )
+    result = make_result(status="error", error_type="DependencyError", error_message="dep failed", is_di_failure=True)
 
     record = CommandExecutor.build_record(executor, cmd, result, time.time(), "test-exec-id")  # pyright: ignore[reportArgumentType]
 
@@ -397,7 +397,7 @@ def test_build_record_reads_thread_leaked():
 
     cmd = make_real_invoke_handler_cmd(listener_id=1, source_tier="app")
 
-    result = make_result_mock(status="timed_out", thread_leaked=True)
+    result = make_result(status="timed_out", thread_leaked=True)
 
     record = CommandExecutor.build_record(executor, cmd, result, time.time(), "exec-id")  # pyright: ignore[reportArgumentType]
     assert record.thread_leaked is True

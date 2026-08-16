@@ -3,12 +3,13 @@
 from unittest.mock import AsyncMock
 
 from hassette.commands import ExecuteJob
+from hassette.core.scheduler_service import SchedulerService
 from hassette.test_utils.factories import make_scheduled_job
 
 from .conftest import make_scheduler_service
 
 
-def get_executed_cmd(svc) -> ExecuteJob:
+def get_executed_cmd(svc: SchedulerService) -> ExecuteJob:
     """Return the ExecuteJob command dispatched via ``svc._executor.execute``.
 
     Shared across the scheduler_service test files (timeout, error_handler, trigger) that all

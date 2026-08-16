@@ -103,7 +103,7 @@ class TestCommandExecutorSourceTierBranching:
         assert "RuntimeError" in result.error_traceback
 
 
-def make_result_mock(
+def make_result(
     *,
     status: str = "success",
     error_type: str | None = None,
@@ -111,22 +111,22 @@ def make_result_mock(
     error_traceback: str | None = None,
     is_di_failure: bool = False,
     thread_leaked: bool = False,
-) -> MagicMock:
-    """Build a minimal ExecutionResult-like mock for build_record() tests.
+) -> ExecutionResult:
+    """Build a minimal ExecutionResult for build_record() tests.
 
     Defaults describe a successful execution. Shared with test_command_executor_pipeline.py's
-    build_record tests via an in-group import — both files build the same mock shape, differing
+    build_record tests via an in-group import — both files build the same result shape, differing
     only in which fields are overridden.
     """
-    result = MagicMock()
-    result.duration_ms = 1.0
-    result.status = status
-    result.error_type = error_type
-    result.error_message = error_message
-    result.error_traceback = error_traceback
-    result.is_di_failure = is_di_failure
-    result.thread_leaked = thread_leaked
-    return result
+    return ExecutionResult(
+        duration_ms=1.0,
+        status=status,
+        error_type=error_type,
+        error_message=error_message,
+        error_traceback=error_traceback,
+        is_di_failure=is_di_failure,
+        thread_leaked=thread_leaked,
+    )
 
 
 class TestBuildRecordTriggerMode:
@@ -143,7 +143,7 @@ class TestBuildRecordTriggerMode:
         cmd.job.app_key = "test_app"
         cmd.job.instance_index = 0
 
-        record = CommandExecutor.build_record(executor, cmd, make_result_mock(), time.time(), "exec-id")
+        record = CommandExecutor.build_record(executor, cmd, make_result(), time.time(), "exec-id")
 
         assert isinstance(record, ExecutionRecord)
         assert record.kind == "job"

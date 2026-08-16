@@ -17,6 +17,7 @@ Tests cover:
 
 import asyncio
 import inspect
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -27,7 +28,7 @@ import hassette.core.scheduler_service as hassette_svc_module
 import hassette.utils.date_utils as date_utils
 from hassette.core.scheduler_service import HeapQueue, SchedulerService, _ScheduledJobQueue
 from hassette.scheduler.classes import Job, ScheduleStatus, ScheduleStatusReason
-from hassette.scheduler.triggers import WAITING, Every
+from hassette.scheduler.triggers import WAITING, Every, _WaitingSentinel
 from hassette.test_utils.factories import make_scheduled_job
 
 from .conftest import make_scheduler_service
@@ -47,7 +48,13 @@ def make_interval_trigger(*, next_returns=None, next_raises=None):
     return trig
 
 
-async def dispatch_with_trigger(svc, *, next_returns=None, next_raises=None, **job_kwargs) -> tuple[MagicMock, Job]:
+async def dispatch_with_trigger(
+    svc: SchedulerService,
+    *,
+    next_returns: ZonedDateTime | _WaitingSentinel | None = None,
+    next_raises: BaseException | None = None,
+    **job_kwargs: Any,
+) -> tuple[MagicMock, Job]:
     """Build an interval trigger + job on `svc`, mock run_job_with_guard, and dispatch it.
 
     Shared setup for dispatch_and_log() tests that only differ in what the trigger's
