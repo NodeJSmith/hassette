@@ -108,37 +108,27 @@ def test_is_dispatch_idle_is_authoritative_over_pending_count(bus_service: BusSe
     assert bus_service.dispatch_pending_count == 1
 
 
-def test_on_dispatch_done_warns_on_underflow(bus_service: BusService) -> None:
-    """on_dispatch_done clamps to 0 and sets idle when counter is already zero."""
-    bus_service._dispatch_pending = 0
+@pytest.mark.parametrize(
+    ("initial_pending", "expected_pending", "expected_idle_set"),
+    [
+        pytest.param(0, 0, True, id="underflow_clamps_to_zero"),
+        pytest.param(3, 2, False, id="normal_decrement"),
+        pytest.param(1, 0, True, id="sets_idle_at_zero"),
+    ],
+)
+def test_on_dispatch_done(
+    bus_service: BusService, initial_pending: int, expected_pending: int, expected_idle_set: bool
+) -> None:
+    """on_dispatch_done decrements the pending counter and sets idle only when it reaches 0.
+
+    Covers the underflow-clamp case (counter already 0), a normal decrement (counter stays
+    positive), and the transition-to-idle case (counter reaches exactly 0).
+    """
+    bus_service._dispatch_pending = initial_pending
     bus_service._dispatch_idle_event.clear()
 
     task = MagicMock(spec=asyncio.Task)
     bus_service.on_dispatch_done(task)
 
-    assert bus_service._dispatch_pending == 0
-    assert bus_service._dispatch_idle_event.is_set()
-
-
-def test_on_dispatch_done_normal_decrement(bus_service: BusService) -> None:
-    """on_dispatch_done decrements normally when counter is positive."""
-    bus_service._dispatch_pending = 3
-    bus_service._dispatch_idle_event.clear()
-
-    task = MagicMock(spec=asyncio.Task)
-    bus_service.on_dispatch_done(task)
-
-    assert bus_service._dispatch_pending == 2
-    assert not bus_service._dispatch_idle_event.is_set()
-
-
-def test_on_dispatch_done_sets_idle_at_zero(bus_service: BusService) -> None:
-    """on_dispatch_done sets idle event when counter reaches zero."""
-    bus_service._dispatch_pending = 1
-    bus_service._dispatch_idle_event.clear()
-
-    task = MagicMock(spec=asyncio.Task)
-    bus_service.on_dispatch_done(task)
-
-    assert bus_service._dispatch_pending == 0
-    assert bus_service._dispatch_idle_event.is_set()
+    assert bus_service._dispatch_pending == expected_pending
+    assert bus_service._dispatch_idle_event.is_set() is expected_idle_set

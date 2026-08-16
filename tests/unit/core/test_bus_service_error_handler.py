@@ -15,6 +15,9 @@ class TestDispatchCarriesAppLevelHandler:
         async def app_handler(ctx) -> None:
             pass
 
+        # dup-ignore-start: BusService-level dispatch test mirrors tests/unit/bus/test_invocation.py's
+        # Bus-layer coverage of build_tracked_invoke_fn's app_level_error_handler resolution — same
+        # behavior verified at two integration points (Bus vs BusService) by design, not copy-paste.
         listener = create_listener(topic="test.topic", app_error_handler_resolver=lambda: app_handler)
 
         invoke_fn = build_tracked_invoke_fn(listener, event, "test.topic", executor, lambda: 600.0)
@@ -23,12 +26,16 @@ class TestDispatchCarriesAppLevelHandler:
         cmd = executor.execute.call_args[0][0]
         assert isinstance(cmd, InvokeHandler)
         assert cmd.app_level_error_handler is app_handler
+        # dup-ignore-end
 
     async def test_dispatch_no_handler_when_none_set(self) -> None:
         """When the listener has no resolver, app_level_error_handler is None."""
         executor = make_mock_executor()
         event = make_mock_event()
 
+        # dup-ignore-start: BusService-level dispatch test mirrors tests/unit/bus/test_invocation.py's
+        # Bus-layer coverage of build_tracked_invoke_fn's app_level_error_handler resolution — same
+        # behavior verified at two integration points (Bus vs BusService) by design, not copy-paste.
         listener = create_listener(topic="test.topic")
 
         invoke_fn = build_tracked_invoke_fn(listener, event, "test.topic", executor, lambda: 600.0)
@@ -37,12 +44,16 @@ class TestDispatchCarriesAppLevelHandler:
         cmd = executor.execute.call_args[0][0]
         assert isinstance(cmd, InvokeHandler)
         assert cmd.app_level_error_handler is None
+        # dup-ignore-end
 
     async def test_dispatch_no_handler_when_resolver_returns_none(self) -> None:
         """When resolver returns None (Bus._error_handler not set), field is None."""
         executor = make_mock_executor()
         event = make_mock_event()
 
+        # dup-ignore-start: BusService-level dispatch test mirrors tests/unit/bus/test_invocation.py's
+        # Bus-layer coverage of build_tracked_invoke_fn's app_level_error_handler resolution — same
+        # behavior verified at two integration points (Bus vs BusService) by design, not copy-paste.
         listener = create_listener(topic="test.topic", app_error_handler_resolver=lambda: None)
 
         invoke_fn = build_tracked_invoke_fn(listener, event, "test.topic", executor, lambda: 600.0)
@@ -51,6 +62,7 @@ class TestDispatchCarriesAppLevelHandler:
         cmd = executor.execute.call_args[0][0]
         assert isinstance(cmd, InvokeHandler)
         assert cmd.app_level_error_handler is None
+        # dup-ignore-end
 
     async def test_dispatch_resolves_handler_at_dispatch_time(self) -> None:
         """Resolver is called at dispatch time: updates to Bus._error_handler are reflected."""

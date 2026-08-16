@@ -15,6 +15,9 @@ class TestDispatchResolvesEffectiveTimeout:
         """listener.timeout=5 -> effective_timeout=5."""
         executor = make_mock_executor()
         config_timeout = 600.0
+        # dup-ignore-start: BusService-level dispatch test mirrors tests/unit/bus/test_invocation.py's
+        # Bus-layer coverage of build_tracked_invoke_fn's timeout resolution — same behavior verified
+        # at two integration points (Bus vs BusService) by design, not copy-paste.
         listener = create_listener(topic="test.topic", timeout=5.0)
         event = make_mock_event()
 
@@ -24,11 +27,15 @@ class TestDispatchResolvesEffectiveTimeout:
         cmd = executor.execute.call_args[0][0]
         assert isinstance(cmd, InvokeHandler)
         assert cmd.effective_timeout == 5.0
+        # dup-ignore-end
 
     async def test_dispatch_resolves_effective_timeout_from_config(self) -> None:
         """listener.timeout=None -> uses config default."""
         executor = make_mock_executor()
         config_timeout = 600.0
+        # dup-ignore-start: BusService-level dispatch test mirrors tests/unit/bus/test_invocation.py's
+        # Bus-layer coverage of build_tracked_invoke_fn's timeout resolution — same behavior verified
+        # at two integration points (Bus vs BusService) by design, not copy-paste.
         listener = create_listener(topic="test.topic")
         event = make_mock_event()
 
@@ -38,11 +45,15 @@ class TestDispatchResolvesEffectiveTimeout:
         cmd = executor.execute.call_args[0][0]
         assert isinstance(cmd, InvokeHandler)
         assert cmd.effective_timeout == 600.0
+        # dup-ignore-end
 
     async def test_dispatch_resolves_timeout_disabled(self) -> None:
         """listener.timeout_disabled=True -> effective_timeout=None."""
         executor = make_mock_executor()
         config_timeout = 600.0
+        # dup-ignore-start: BusService-level dispatch test mirrors tests/unit/bus/test_invocation.py's
+        # Bus-layer coverage of build_tracked_invoke_fn's timeout resolution — same behavior verified
+        # at two integration points (Bus vs BusService) by design, not copy-paste.
         listener = create_listener(topic="test.topic", timeout_disabled=True)
         event = make_mock_event()
 
@@ -52,6 +63,7 @@ class TestDispatchResolvesEffectiveTimeout:
         cmd = executor.execute.call_args[0][0]
         assert isinstance(cmd, InvokeHandler)
         assert cmd.effective_timeout is None
+        # dup-ignore-end
 
     async def test_once_listener_removed_after_dispatch(self) -> None:
         """once=True handler is removed from the bus after dispatch regardless of execution outcome."""
