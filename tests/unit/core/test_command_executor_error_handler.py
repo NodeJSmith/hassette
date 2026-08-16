@@ -21,6 +21,12 @@ async def drain_tasks(executor: CommandExecutor) -> None:
         tasks.clear()
 
 
+# dup-ignore-start: mirrors TestSchedulerErrorHandlerInvocation below — same test shapes
+# (recorder-list + async error_handler boilerplate, per-registration-vs-app-level precedence,
+# failure/timeout counting) for the Bus command path (InvokeHandler/BusErrorContext) vs the
+# Scheduler command path (ExecuteJob/SchedulerErrorContext); forcing one parametrized test
+# across the two command types would trade a currently-obvious 1:1 mapping for indirection
+# with no second consumer.
 class TestBusErrorHandlerInvocation:
     async def test_error_handler_invoked_on_exception(self) -> None:
         """When handler raises, error handler is called with a BusErrorContext."""
@@ -291,6 +297,13 @@ class TestBusErrorHandlerInvocation:
         assert executor.get_error_handler_failures() == 1
 
 
+# dup-ignore-end
+
+
+# dup-ignore-start: mirrors TestBusErrorHandlerInvocation above — same test shapes for the
+# Scheduler command path (ExecuteJob/SchedulerErrorContext) vs the Bus command path
+# (InvokeHandler/BusErrorContext); kept as a parallel test class rather than parametrized
+# across command types, matching the rationale on the Bus class above.
 class TestSchedulerErrorHandlerInvocation:
     async def test_error_handler_invoked_on_exception(self) -> None:
         """When job raises, error handler is called with a SchedulerErrorContext."""
@@ -433,3 +446,6 @@ class TestSchedulerErrorHandlerInvocation:
         await drain_tasks(executor)
 
         assert executor._error_handler_failures == 1
+
+
+# dup-ignore-end

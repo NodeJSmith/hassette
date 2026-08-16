@@ -26,21 +26,29 @@ def make_cmd_execute_job(source_tier: str, trigger_mode: str | None = None) -> M
     return cmd
 
 
+async def run_execute(source_tier: str, exc: BaseException) -> ExecutionResult:
+    """Run CommandExecutor._execute() against a handler that raises ``exc``, for the
+    source_tier branching tests below — every occurrence shared the same executor/cmd/
+    log_error/execution_id setup, differing only in source_tier and the raised exception.
+    """
+    executor = make_executor()
+    cmd = make_invoke_handler_cmd(source_tier=source_tier)
+
+    async def fn() -> None:
+        raise exc
+
+    def log_error(result: ExecutionResult) -> None:
+        pass
+
+    return await executor._execute(fn, cmd, log_error, "test-execution-id")
+
+
 class TestCommandExecutorSourceTierBranching:
     """Verify match/case on source_tier controls traceback suppression."""
 
     async def test_app_tier_suppresses_known_error_traceback(self) -> None:
         """App-tier execution: DependencyError produces error_traceback=None."""
-        executor = make_executor()
-        cmd = make_invoke_handler_cmd(source_tier="app")
-
-        async def fn() -> None:
-            raise DependencyError("missing dep")
-
-        def log_error(result: ExecutionResult) -> None:
-            pass
-
-        result = await executor._execute(fn, cmd, log_error, "test-execution-id")
+        result = await run_execute("app", DependencyError("missing dep"))
 
         assert result.status == "error"
         assert result.error_type == "DependencyError"
@@ -49,32 +57,14 @@ class TestCommandExecutorSourceTierBranching:
 
     async def test_app_tier_suppresses_hassette_error_traceback(self) -> None:
         """App-tier execution: HassetteError produces error_traceback=None."""
-        executor = make_executor()
-        cmd = make_invoke_handler_cmd(source_tier="app")
-
-        async def fn() -> None:
-            raise HassetteError("framework error")
-
-        def log_error(result: ExecutionResult) -> None:
-            pass
-
-        result = await executor._execute(fn, cmd, log_error, "test-execution-id")
+        result = await run_execute("app", HassetteError("framework error"))
 
         assert result.status == "error"
         assert result.error_traceback is None
 
     async def test_framework_tier_preserves_known_error_traceback(self) -> None:
         """Framework-tier execution: DependencyError preserves traceback."""
-        executor = make_executor()
-        cmd = make_invoke_handler_cmd(source_tier="framework")
-
-        async def fn() -> None:
-            raise DependencyError("framework dep error")
-
-        def log_error(result: ExecutionResult) -> None:
-            pass
-
-        result = await executor._execute(fn, cmd, log_error, "test-execution-id")
+        result = await run_execute("framework", DependencyError("framework dep error"))
 
         assert result.status == "error"
         assert result.error_type == "DependencyError"
@@ -84,16 +74,7 @@ class TestCommandExecutorSourceTierBranching:
 
     async def test_framework_tier_preserves_hassette_error_traceback(self) -> None:
         """Framework-tier execution: HassetteError preserves traceback."""
-        executor = make_executor()
-        cmd = make_invoke_handler_cmd(source_tier="framework")
-
-        async def fn() -> None:
-            raise HassetteError("internal framework error")
-
-        def log_error(result: ExecutionResult) -> None:
-            pass
-
-        result = await executor._execute(fn, cmd, log_error, "test-execution-id")
+        result = await run_execute("framework", HassetteError("internal framework error"))
 
         assert result.status == "error"
         assert result.error_traceback is not None
@@ -114,16 +95,7 @@ class TestCommandExecutorSourceTierBranching:
 
     async def test_app_tier_unknown_exception_preserves_traceback(self) -> None:
         """App-tier unknown exceptions (not DependencyError/HassetteError) still get tracebacks."""
-        executor = make_executor()
-        cmd = make_invoke_handler_cmd(source_tier="app")
-
-        async def fn() -> None:
-            raise RuntimeError("unexpected app error")
-
-        def log_error(result: ExecutionResult) -> None:
-            pass
-
-        result = await executor._execute(fn, cmd, log_error, "test-execution-id")
+        result = await run_execute("app", RuntimeError("unexpected app error"))
 
         assert result.status == "error"
         assert result.error_type == "RuntimeError"
@@ -131,16 +103,29 @@ class TestCommandExecutorSourceTierBranching:
         assert "RuntimeError" in result.error_traceback
 
 
-def make_success_result() -> MagicMock:
-    """Build a minimal successful ExecutionResult-like mock for build_record() tests."""
+def make_result_mock(
+    *,
+    status: str = "success",
+    error_type: str | None = None,
+    error_message: str | None = None,
+    error_traceback: str | None = None,
+    is_di_failure: bool = False,
+    thread_leaked: bool = False,
+) -> MagicMock:
+    """Build a minimal ExecutionResult-like mock for build_record() tests.
+
+    Defaults describe a successful execution. Shared with test_command_executor_pipeline.py's
+    build_record tests via an in-group import — both files build the same mock shape, differing
+    only in which fields are overridden.
+    """
     result = MagicMock()
     result.duration_ms = 1.0
-    result.status = "success"
-    result.error_type = None
-    result.error_message = None
-    result.error_traceback = None
-    result.is_di_failure = False
-    result.thread_leaked = False
+    result.status = status
+    result.error_type = error_type
+    result.error_message = error_message
+    result.error_traceback = error_traceback
+    result.is_di_failure = is_di_failure
+    result.thread_leaked = thread_leaked
     return result
 
 
@@ -158,7 +143,7 @@ class TestBuildRecordTriggerMode:
         cmd.job.app_key = "test_app"
         cmd.job.instance_index = 0
 
-        record = CommandExecutor.build_record(executor, cmd, make_success_result(), time.time(), "exec-id")
+        record = CommandExecutor.build_record(executor, cmd, make_result_mock(), time.time(), "exec-id")
 
         assert isinstance(record, ExecutionRecord)
         assert record.kind == "job"
