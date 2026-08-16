@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Deduplicate service_watcher test files flagged by tools/check_duplicate_code.py"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#1", "FR#2", "FR#3", "AC#1", "AC#2", "AC#3", "AC#4"]
 ---

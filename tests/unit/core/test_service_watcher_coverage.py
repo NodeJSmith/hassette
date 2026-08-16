@@ -18,6 +18,7 @@ from hassette.events.hassette import ServiceStatusPayload
 from hassette.resources.lifecycle import mark_ready
 from hassette.resources.restart import RestartSpec
 from hassette.test_utils import make_mock_hassette, make_service_failed_event, make_service_running_event, wait_for
+from hassette.test_utils.helpers import make_crashed_event
 from hassette.types import ResourceStatus, Topic
 from hassette.types.enums import ResourceRole, RestartType
 
@@ -310,18 +311,9 @@ class TestShutdownIfCrashed:
         hassette.record_fatal_reason = Mock()
         watcher = make_watcher(hassette)
 
-        payload = ServiceStatusPayload(
-            resource_name="SomeService",
-            role=ResourceRole.SERVICE,
-            status=ResourceStatus.CRASHED,
-            previous_status=ResourceStatus.FAILED,
-            exception=None,
-            exception_type=None,
-            exception_traceback=None,
-            ready=False,
-            ready_phase=None,
+        event = make_crashed_event(
+            resource_name="SomeService", exception=None, exception_type=None, exception_traceback=None
         )
-        event = HassetteServiceEvent(topic=Topic.HASSETTE_EVENT_SERVICE_STATUS, payload=HassettePayload(data=payload))
 
         with patch("hassette.core.service_watcher.request_shutdown"):
             await watcher.shutdown_if_crashed(event)
@@ -334,18 +326,9 @@ class TestShutdownIfCrashed:
         hassette.record_fatal_reason = Mock(side_effect=RuntimeError("state corrupted"))
         watcher = make_watcher(hassette)
 
-        payload = ServiceStatusPayload(
-            resource_name="SomeService",
-            role=ResourceRole.SERVICE,
-            status=ResourceStatus.CRASHED,
-            previous_status=ResourceStatus.FAILED,
-            exception="boom",
-            exception_type="RuntimeError",
-            exception_traceback=None,
-            ready=False,
-            ready_phase=None,
+        event = make_crashed_event(
+            resource_name="SomeService", exception="boom", exception_type="RuntimeError", exception_traceback=None
         )
-        event = HassetteServiceEvent(topic=Topic.HASSETTE_EVENT_SERVICE_STATUS, payload=HassettePayload(data=payload))
 
         with patch("hassette.core.service_watcher.request_shutdown") as mock_request_shutdown:
             with pytest.raises(RuntimeError, match="state corrupted"):
