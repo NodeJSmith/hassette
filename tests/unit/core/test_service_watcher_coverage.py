@@ -151,12 +151,9 @@ class TestOnBusServiceRunning:
         watcher = make_watcher(hassette)
         watcher.reconcile_after_bus_recovery = AsyncMock()
 
-        event = HassetteServiceEvent.from_service_status(
+        event = make_running_event(
             resource_name=BusService.__name__,
-            role=ResourceRole.SERVICE,
-            status=ResourceStatus.RUNNING,
             previous_status=ResourceStatus.STARTING,
-            ready=True,
         )
 
         await watcher.on_bus_service_running(event)
