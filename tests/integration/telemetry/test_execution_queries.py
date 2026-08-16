@@ -7,19 +7,14 @@ import time
 
 import pytest
 
-from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.schemas.execution_models import Execution
 
-from .helpers import insert_execution, insert_invocation, insert_job, insert_listener
+from .helpers import DbFixture, insert_execution, insert_invocation, insert_job, insert_listener
 
 
 class TestGetExecutionsForListener:
-    async def test_get_executions_handler_ordered(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
+    async def test_get_executions_handler_ordered(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
         """5 invocations at different timestamps — most recent first, limit respected."""
         db_svc, session_id = db
         listener_id = await insert_listener(db_svc)
@@ -38,11 +33,7 @@ class TestGetExecutionsForListener:
 
 
 class TestGetExecutionsForJob:
-    async def test_get_executions_job_ordered(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
+    async def test_get_executions_job_ordered(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
         """3 executions — ordered DESC, respects limit."""
         db_svc, session_id = db
         job_id = await insert_job(db_svc)
@@ -59,11 +50,7 @@ class TestGetExecutionsForJob:
 
 
 class TestGetSlowHandlers:
-    async def test_get_slow_handlers(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
+    async def test_get_slow_handlers(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
         """Mix of fast + slow invocations — only above threshold returned, ordered by duration."""
         db_svc, session_id = db
         listener_id = await insert_listener(db_svc)

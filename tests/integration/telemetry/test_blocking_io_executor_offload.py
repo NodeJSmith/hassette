@@ -49,6 +49,8 @@ from hassette.exceptions import HassetteBlockingIOWarning
 from hassette.test_utils.config import make_test_config
 from hassette.types.enums import BlockingIOBehavior
 
+from .helpers import DbFixture, open_db_with_session, running_command_executor
+
 
 async def _fetch_blocking_events(db_svc: DatabaseService) -> list[dict]:
     """Return all rows from blocking_events as plain dicts."""
@@ -121,32 +123,18 @@ def loop_thread_id() -> int:
 
 
 @pytest.fixture
-async def executor(
-    db_hassette: MagicMock,
-    db: tuple[DatabaseService, int],
-) -> AsyncIterator[CommandExecutor]:
+async def executor(db_hassette: MagicMock, db: DbFixture) -> AsyncIterator[CommandExecutor]:
     """CommandExecutor wired to the real DB via the telemetry conftest's ``db`` fixture."""
     _db_service, _session_id = db
-    exc = CommandExecutor(db_hassette, parent=None)
-    await exc.on_initialize()
-    try:
+    async with running_command_executor(db_hassette) as exc:
         yield exc
-    finally:
-        await exc.on_shutdown()
 
 
 @pytest.fixture
 async def ignore_db(premigrated_db_path: Path) -> AsyncIterator[tuple[DatabaseService, "MagicMock", int]]:
     """DatabaseService + unsealed hassette mock + session_id for ignore-behavior tests."""
     mock_hassette = _make_ignore_hassette(premigrated_db_path)
-    db_service = DatabaseService(mock_hassette, parent=None)
-    await db_service.on_initialize()
-    cursor = await db_service.db.execute(
-        "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'running')",
-        (time.time(), time.time()),
-    )
-    session_id = cursor.lastrowid
-    await db_service.db.commit()
+    db_service, session_id = await open_db_with_session(mock_hassette)
     mock_hassette.session_id = session_id
     mock_hassette.try_session_id.return_value = session_id
     mock_hassette.database_service = db_service
@@ -157,17 +145,11 @@ async def ignore_db(premigrated_db_path: Path) -> AsyncIterator[tuple[DatabaseSe
 
 
 @pytest.fixture
-async def ignore_executor(
-    ignore_db: tuple[DatabaseService, "MagicMock", int],
-) -> AsyncIterator[CommandExecutor]:
+async def ignore_executor(ignore_db: tuple[DatabaseService, "MagicMock", int]) -> AsyncIterator[CommandExecutor]:
     """CommandExecutor wired to the ignore_db hassette and session."""
     _db_service, mock_hassette, _session_id = ignore_db
-    exc = CommandExecutor(mock_hassette, parent=None)
-    await exc.on_initialize()
-    try:
+    async with running_command_executor(mock_hassette) as exc:
         yield exc
-    finally:
-        await exc.on_shutdown()
 
 
 class TestExecutorOffloadProducesNoBlocking:
@@ -179,10 +161,7 @@ class TestExecutorOffloadProducesNoBlocking:
     """
 
     async def test_tier2_does_not_flag_worker_thread_sleep(
-        self,
-        executor: CommandExecutor,
-        db: tuple[DatabaseService, int],
-        loop_thread_id: int,
+        self, executor: CommandExecutor, db: DbFixture, loop_thread_id: int
     ) -> None:
         """time.sleep on a WORKER thread produces zero warnings and zero DB rows.
 
@@ -242,10 +221,7 @@ class TestExecutorOffloadProducesNoBlocking:
         )
 
     async def test_tier1_watchdog_does_not_flag_worker_thread_sleep(
-        self,
-        executor: CommandExecutor,
-        db: tuple[DatabaseService, int],
-        loop_thread_id: int,
+        self, executor: CommandExecutor, db: DbFixture, loop_thread_id: int
     ) -> None:
         """Worker-thread sleep keeps the loop responsive — Tier 1 never fires.
 
@@ -350,10 +326,7 @@ class TestIgnoreBehaviorSuppressesRowAndWarning:
     """
 
     async def test_tier2_ignore_suppresses_warning_and_row(
-        self,
-        ignore_executor: CommandExecutor,
-        ignore_db: tuple[DatabaseService, "MagicMock", int],
-        loop_thread_id: int,
+        self, ignore_executor: CommandExecutor, ignore_db: tuple[DatabaseService, "MagicMock", int], loop_thread_id: int
     ) -> None:
         """Tier 2 with ignore behavior: time.sleep on loop thread → no warning, no row.
 
@@ -406,10 +379,7 @@ class TestIgnoreBehaviorSuppressesRowAndWarning:
         assert len(rows) == 0, f"ignore behavior must suppress blocking_events row, got {len(rows)}: {rows}"
 
     async def test_tier1_ignore_suppresses_warning_and_row(
-        self,
-        ignore_executor: CommandExecutor,
-        ignore_db: tuple[DatabaseService, "MagicMock", int],
-        loop_thread_id: int,
+        self, ignore_executor: CommandExecutor, ignore_db: tuple[DatabaseService, "MagicMock", int], loop_thread_id: int
     ) -> None:
         """Tier 1 with ignore behavior: loop stall → no warning, no row.
 

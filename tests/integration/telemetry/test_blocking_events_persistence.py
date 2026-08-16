@@ -21,24 +21,19 @@ from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
 from hassette.core.loop_watchdog import WatchdogEvent
 
+from .helpers import DbFixture, running_command_executor
+
 
 @pytest.fixture
-async def executor(
-    db_hassette: MagicMock,
-    db: tuple[DatabaseService, int],
-) -> AsyncIterator[CommandExecutor]:
+async def executor(db_hassette: MagicMock, db: DbFixture) -> AsyncIterator[CommandExecutor]:
     """CommandExecutor wired with the telemetry conftest's real DB and session.
 
     Uses parent=None to match how the telemetry conftest wires DatabaseService,
     avoiding the sealed-mock unique_name issue.
     """
     _db_service, _session_id = db
-    exc = CommandExecutor(db_hassette, parent=None)
-    await exc.on_initialize()
-    try:
+    async with running_command_executor(db_hassette) as exc:
         yield exc
-    finally:
-        await exc.on_shutdown()
 
 
 def _make_watchdog_event(*, app_key: str | None = "my_app", stall_ms: float = 250.0) -> WatchdogEvent:
@@ -91,20 +86,22 @@ async def _fetch_blocking_events(db_svc: DatabaseService) -> list[dict]:
     return [dict(row) for row in rows]
 
 
+async def _record_and_fetch(
+    executor: CommandExecutor, db_svc: DatabaseService, event: WatchdogEvent | MonkeypatchEvent
+) -> list[dict]:
+    """Record one blocking event, wait for its DB write to drain, and return all persisted rows."""
+    executor.record_blocking_event(event)
+    await _drain_tasks(db_svc)
+    return await _fetch_blocking_events(db_svc)
+
+
 class TestTier1Persistence:
-    async def test_watchdog_event_inserts_one_row(
-        self,
-        executor: CommandExecutor,
-        db: tuple[DatabaseService, int],
-    ) -> None:
+    async def test_watchdog_event_inserts_one_row(self, executor: CommandExecutor, db: DbFixture) -> None:
         """One WatchdogEvent → exactly one blocking_events row."""
         db_svc, session_id = db
         event = _make_watchdog_event(stall_ms=300.0)
 
-        executor.record_blocking_event(event)
-        await _drain_tasks(db_svc)
-
-        rows = await _fetch_blocking_events(db_svc)
+        rows = await _record_and_fetch(executor, db_svc, event)
         assert len(rows) == 1
 
         row = rows[0]
@@ -117,11 +114,7 @@ class TestTier1Persistence:
         assert row["execution_id"] == "exec-uuid-watchdog"
         assert row["reason"] == "attributed"
 
-    async def test_watchdog_stack_stored_in_source_location(
-        self,
-        executor: CommandExecutor,
-        db: tuple[DatabaseService, int],
-    ) -> None:
+    async def test_watchdog_stack_stored_in_source_location(self, executor: CommandExecutor, db: DbFixture) -> None:
         """Tier 1 stack text is stored in source_location column."""
         db_svc, _ = db
         stack = '  File "my_app.py", line 42, in on_event (my_app)'
@@ -137,18 +130,11 @@ class TestTier1Persistence:
             reason="attributed",
         )
 
-        executor.record_blocking_event(event)
-        await _drain_tasks(db_svc)
-
-        rows = await _fetch_blocking_events(db_svc)
+        rows = await _record_and_fetch(executor, db_svc, event)
         assert len(rows) == 1
         assert rows[0]["source_location"] == stack
 
-    async def test_watchdog_no_stack_source_location_is_null(
-        self,
-        executor: CommandExecutor,
-        db: tuple[DatabaseService, int],
-    ) -> None:
+    async def test_watchdog_no_stack_source_location_is_null(self, executor: CommandExecutor, db: DbFixture) -> None:
         """Tier 1 with no stack → source_location is NULL."""
         db_svc, _ = db
         event = WatchdogEvent(
@@ -163,27 +149,17 @@ class TestTier1Persistence:
             reason="attributed",
         )
 
-        executor.record_blocking_event(event)
-        await _drain_tasks(db_svc)
-
-        rows = await _fetch_blocking_events(db_svc)
+        rows = await _record_and_fetch(executor, db_svc, event)
         assert rows[0]["source_location"] is None
 
 
 class TestTier2Persistence:
-    async def test_monkeypatch_event_inserts_one_row(
-        self,
-        executor: CommandExecutor,
-        db: tuple[DatabaseService, int],
-    ) -> None:
+    async def test_monkeypatch_event_inserts_one_row(self, executor: CommandExecutor, db: DbFixture) -> None:
         """One MonkeypatchEvent → exactly one blocking_events row."""
         db_svc, session_id = db
         event = _make_monkeypatch_event()
 
-        executor.record_blocking_event(event)
-        await _drain_tasks(db_svc)
-
-        rows = await _fetch_blocking_events(db_svc)
+        rows = await _record_and_fetch(executor, db_svc, event)
         assert len(rows) == 1
 
         row = rows[0]
@@ -197,11 +173,7 @@ class TestTier2Persistence:
         assert row["execution_id"] == "exec-uuid-monkeypatch"
         assert row["reason"] == "attributed"
 
-    async def test_two_events_two_rows(
-        self,
-        executor: CommandExecutor,
-        db: tuple[DatabaseService, int],
-    ) -> None:
+    async def test_two_events_two_rows(self, executor: CommandExecutor, db: DbFixture) -> None:
         """Two separate events produce two separate rows."""
         db_svc, _ = db
 
@@ -217,18 +189,13 @@ class TestTier2Persistence:
 
 class TestUnresolvedOwnerPersistence:
     async def test_watchdog_unresolved_owner_recorded_as_framework(
-        self,
-        executor: CommandExecutor,
-        db: tuple[DatabaseService, int],
+        self, executor: CommandExecutor, db: DbFixture
     ) -> None:
         """WatchdogEvent with app_key=None → row with source_tier='framework', NOT dropped."""
         db_svc, _ = db
         event = _make_watchdog_event(app_key=None)
 
-        executor.record_blocking_event(event)
-        await _drain_tasks(db_svc)
-
-        rows = await _fetch_blocking_events(db_svc)
+        rows = await _record_and_fetch(executor, db_svc, event)
         assert len(rows) == 1, "Unresolved owner must NOT be dropped"
 
         row = rows[0]
@@ -240,18 +207,13 @@ class TestUnresolvedOwnerPersistence:
         assert row["reason"] == "framework"
 
     async def test_monkeypatch_unresolved_owner_recorded_as_framework(
-        self,
-        executor: CommandExecutor,
-        db: tuple[DatabaseService, int],
+        self, executor: CommandExecutor, db: DbFixture
     ) -> None:
         """MonkeypatchEvent with app_key=None → row with source_tier='framework', NOT dropped."""
         db_svc, _ = db
         event = _make_monkeypatch_event(app_key=None)
 
-        executor.record_blocking_event(event)
-        await _drain_tasks(db_svc)
-
-        rows = await _fetch_blocking_events(db_svc)
+        rows = await _record_and_fetch(executor, db_svc, event)
         assert len(rows) == 1, "Unresolved owner must NOT be dropped"
 
         row = rows[0]
@@ -263,9 +225,7 @@ class TestUnresolvedOwnerPersistence:
         assert row["reason"] == "framework"
 
     async def test_both_unresolved_events_are_framework_attributed(
-        self,
-        executor: CommandExecutor,
-        db: tuple[DatabaseService, int],
+        self, executor: CommandExecutor, db: DbFixture
     ) -> None:
         """Both tier flavors with app_key=None produce framework-attributed rows."""
         db_svc, _ = db

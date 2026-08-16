@@ -9,7 +9,7 @@ import time
 from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry.query_service import TelemetryQueryService
 
-from .helpers import insert_listener
+from .helpers import DbFixture, insert_listener
 
 SEQ_COUNTER = 0
 
@@ -38,9 +38,7 @@ async def insert_log_record(
 
 
 class TestGetLogRecordsFilters:
-    async def test_filter_by_execution_id(
-        self, db: tuple[DatabaseService, int], query_service: TelemetryQueryService
-    ) -> None:
+    async def test_filter_by_execution_id(self, db: DbFixture, query_service: TelemetryQueryService) -> None:
         db_svc, _ = db
         await insert_log_record(db_svc, execution_id="exec-aaa", message="match")
         await insert_log_record(db_svc, execution_id="exec-bbb", message="other")
@@ -52,9 +50,7 @@ class TestGetLogRecordsFilters:
         assert results[0]["message"] == "match"
         assert results[0]["execution_id"] == "exec-aaa"
 
-    async def test_filter_by_source_tier(
-        self, db: tuple[DatabaseService, int], query_service: TelemetryQueryService
-    ) -> None:
+    async def test_filter_by_source_tier(self, db: DbFixture, query_service: TelemetryQueryService) -> None:
         db_svc, _ = db
         await insert_log_record(db_svc, source_tier="framework", message="fw")
         await insert_log_record(db_svc, source_tier="app", message="app")
@@ -65,7 +61,7 @@ class TestGetLogRecordsFilters:
         assert results[0]["message"] == "fw"
         assert results[0]["source_tier"] == "framework"
 
-    async def test_filter_by_level(self, db: tuple[DatabaseService, int], query_service: TelemetryQueryService) -> None:
+    async def test_filter_by_level(self, db: DbFixture, query_service: TelemetryQueryService) -> None:
         db_svc, _ = db
         await insert_log_record(db_svc, level="ERROR", message="err")
         await insert_log_record(db_svc, level="INFO", message="info")
@@ -77,7 +73,7 @@ class TestGetLogRecordsFilters:
         assert results[0]["message"] == "err"
         assert results[0]["level"] == "ERROR"
 
-    async def test_filter_by_since(self, db: tuple[DatabaseService, int], query_service: TelemetryQueryService) -> None:
+    async def test_filter_by_since(self, db: DbFixture, query_service: TelemetryQueryService) -> None:
         db_svc, _ = db
         old_ts = 1_000_000.0
         new_ts = 2_000_000.0
@@ -89,9 +85,7 @@ class TestGetLogRecordsFilters:
         assert len(results) == 1
         assert results[0]["message"] == "new"
 
-    async def test_filter_by_app_key(
-        self, db: tuple[DatabaseService, int], query_service: TelemetryQueryService
-    ) -> None:
+    async def test_filter_by_app_key(self, db: DbFixture, query_service: TelemetryQueryService) -> None:
         db_svc, _ = db
         await insert_log_record(db_svc, app_key="app_a", message="a")
         await insert_log_record(db_svc, app_key="app_b", message="b")
@@ -101,9 +95,7 @@ class TestGetLogRecordsFilters:
         assert len(results) == 1
         assert results[0]["message"] == "a"
 
-    async def test_combined_filters(
-        self, db: tuple[DatabaseService, int], query_service: TelemetryQueryService
-    ) -> None:
+    async def test_combined_filters(self, db: DbFixture, query_service: TelemetryQueryService) -> None:
         db_svc, _ = db
         await insert_log_record(db_svc, app_key="my_app", level="ERROR", execution_id="exec-1", message="target")
         await insert_log_record(db_svc, app_key="my_app", level="INFO", execution_id="exec-1", message="wrong level")
@@ -115,7 +107,7 @@ class TestGetLogRecordsFilters:
         assert results[0]["message"] == "target"
 
     async def test_joins_execution_kind_from_executions_table(
-        self, db: tuple[DatabaseService, int], query_service: TelemetryQueryService
+        self, db: DbFixture, query_service: TelemetryQueryService
     ) -> None:
         """Log records JOIN executions to get execution_kind, listener_id, job_id."""
         db_svc, session_id = db
@@ -137,9 +129,7 @@ class TestGetLogRecordsFilters:
         assert results[0]["execution_kind"] == "handler"
         assert results[0]["listener_id"] == listener_id
 
-    async def test_no_filters_returns_all(
-        self, db: tuple[DatabaseService, int], query_service: TelemetryQueryService
-    ) -> None:
+    async def test_no_filters_returns_all(self, db: DbFixture, query_service: TelemetryQueryService) -> None:
         db_svc, _ = db
         await insert_log_record(db_svc, message="one")
         await insert_log_record(db_svc, message="two")

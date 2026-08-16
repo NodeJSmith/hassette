@@ -4,23 +4,20 @@ Verifies that 'timed_out' is counted as a separate bucket in summaries
 and treated as a failure subtype in error-rate calculations.
 """
 
-from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry.query_service import TelemetryQueryService
 
 from .helpers import (
+    DbFixture,
     insert_execution,
     insert_invocation,
     insert_job,
     insert_listener,
+    only_row,
 )
 
 
 class TestListenerSummaryTimedOut:
-    async def test_listener_summary_counts_timed_out(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
+    async def test_listener_summary_counts_timed_out(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
         """Verify timed_out is a separate bucket in ListenerSummary."""
         db_svc, session_id = db
         listener_id = await insert_listener(db_svc)
@@ -29,9 +26,7 @@ class TestListenerSummaryTimedOut:
         await insert_invocation(db_svc, listener_id, session_id, status="timed_out")
         await insert_invocation(db_svc, listener_id, session_id, status="timed_out")
 
-        summaries = await query_service.get_listener_summary("test_app", 0)
-        assert len(summaries) == 1
-        s = summaries[0]
+        s = await only_row(query_service.get_listener_summary("test_app", 0))
         assert s.total_invocations == 4
         assert s.successful == 1
         assert s.failed == 1
@@ -41,9 +36,7 @@ class TestListenerSummaryTimedOut:
 
 class TestListenerSummaryThreadLeaked:
     async def test_listener_summary_counts_thread_leaked(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
+        self, query_service: TelemetryQueryService, db: DbFixture
     ) -> None:
         """thread_leaked aggregates leaked-worker invocations onto the listener summary (#1049 parity)."""
         db_svc, session_id = db
@@ -60,9 +53,7 @@ class TestListenerSummaryThreadLeaked:
         assert summaries[0].thread_leaked == 2
 
     async def test_all_listeners_summary_counts_thread_leaked(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
+        self, query_service: TelemetryQueryService, db: DbFixture
     ) -> None:
         """thread_leaked also aggregates in the no-app-filter (global) listener summary (#1049 parity)."""
         db_svc, session_id = db
@@ -79,11 +70,7 @@ class TestListenerSummaryThreadLeaked:
 
 
 class TestJobSummaryTimedOut:
-    async def test_job_summary_counts_timed_out(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
+    async def test_job_summary_counts_timed_out(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
         """Verify timed_out is a separate bucket in JobSummary."""
         db_svc, session_id = db
         job_id = await insert_job(db_svc)
@@ -92,9 +79,7 @@ class TestJobSummaryTimedOut:
         await insert_execution(db_svc, job_id, session_id, status="error")
         await insert_execution(db_svc, job_id, session_id, status="timed_out")
 
-        summaries = await query_service.get_job_summary("test_app", 0)
-        assert len(summaries) == 1
-        s = summaries[0]
+        s = await only_row(query_service.get_job_summary("test_app", 0))
         assert s.total_executions == 4
         assert s.successful == 2
         assert s.failed == 1
@@ -102,11 +87,7 @@ class TestJobSummaryTimedOut:
 
 
 class TestJobSummaryThreadLeaked:
-    async def test_job_summary_counts_thread_leaked(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
+    async def test_job_summary_counts_thread_leaked(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
         """thread_leaked_count aggregates leaked-worker executions onto the job summary (#1049)."""
         db_svc, session_id = db
         job_id = await insert_job(db_svc)
@@ -122,9 +103,7 @@ class TestJobSummaryThreadLeaked:
         assert summaries[0].thread_leaked == 2
 
     async def test_all_jobs_summary_counts_thread_leaked(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
+        self, query_service: TelemetryQueryService, db: DbFixture
     ) -> None:
         """thread_leaked also aggregates in the no-app-filter (global) job summary (#1049)."""
         db_svc, session_id = db

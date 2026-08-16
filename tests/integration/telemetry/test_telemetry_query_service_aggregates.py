@@ -10,24 +10,24 @@ import time
 import pytest
 
 from hassette.const.misc import SECONDS_PER_DAY
-from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.schemas.summary_models import AppHealthSummary
 
 from .helpers import (
     BASE_TS,
+    DbFixture,
     insert_execution,
     insert_invocation,
     insert_job,
     insert_listener,
+    insert_tiered_listeners,
+    only_row,
 )
 
 
 class TestGetAllAppSummaries:
     async def test_get_all_app_summaries_returns_dict(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
+        self, query_service: TelemetryQueryService, db: DbFixture
     ) -> None:
         """Two apps with listeners and jobs — returns dict[str, AppHealthSummary]."""
         db_svc, session_id = db
@@ -71,19 +71,13 @@ class TestGetAllAppSummaries:
         assert b.total_executions == 0
         assert b.total_job_errors == 0
 
-    async def test_get_all_app_summaries_empty_db(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
+    async def test_get_all_app_summaries_empty_db(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
         """No listeners or jobs — returns empty dict."""
         result = await query_service.get_all_app_summaries()
         assert result == {}
 
     async def test_get_all_app_summaries_since_scoped(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
+        self, query_service: TelemetryQueryService, db: DbFixture
     ) -> None:
         """Since filter restricts invocation/execution counts to records after the threshold."""
         db_svc, session_id = db
@@ -111,9 +105,7 @@ class TestGetAllAppSummaries:
         assert x.total_job_errors == 0
 
     async def test_get_all_app_summaries_multi_instance_activity_aggregation(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
+        self, query_service: TelemetryQueryService, db: DbFixture
     ) -> None:
         """Multi-instance app: activity sums across all instances; handler_count is distinct identities across all."""
         db_svc, session_id = db
@@ -149,9 +141,7 @@ class TestGetAllAppSummaries:
         assert m.avg_duration_ms == pytest.approx(35.0)
 
     async def test_get_all_app_summaries_asymmetric_instances_handler_count(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
+        self, query_service: TelemetryQueryService, db: DbFixture
     ) -> None:
         """Asymmetric instances: handler_count is the union of distinct identities, not instance 0's set.
 
@@ -172,9 +162,7 @@ class TestGetAllAppSummaries:
         assert result["app_z"].handler_count == 3
 
     async def test_get_all_app_summaries_multi_instance_job_aggregation(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
+        self, query_service: TelemetryQueryService, db: DbFixture
     ) -> None:
         """Multi-instance app: job activity sums across all instances; job_count is distinct job names across all."""
         db_svc, session_id = db
@@ -206,9 +194,7 @@ class TestGetAllAppSummaries:
         assert j.total_job_errors == 2
 
     async def test_get_all_app_summaries_single_instance_equivalence(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
+        self, query_service: TelemetryQueryService, db: DbFixture
     ) -> None:
         """Single-instance app produces equivalent results to current behavior."""
         db_svc, session_id = db
@@ -234,9 +220,7 @@ class TestGetAllAppSummaries:
         assert s.avg_duration_ms == pytest.approx(20.0, abs=0.001)
 
     async def test_get_all_app_summaries_multi_instance_since_scoped(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
+        self, query_service: TelemetryQueryService, db: DbFixture
     ) -> None:
         """Multi-instance data with since filter: only records after threshold count."""
         db_svc, session_id = db
@@ -293,9 +277,7 @@ class TestGetAllAppSummaries:
 
 class TestCrossSessionAndRetiredRows:
     async def test_all_time_aggregates_across_sessions(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
+        self, query_service: TelemetryQueryService, db: DbFixture
     ) -> None:
         """All-time query (no session_id) spans multiple sessions.
 
@@ -325,18 +307,12 @@ class TestCrossSessionAndRetiredRows:
         await insert_invocation(db_svc, listener_id, session_2, status="success")
 
         # All-time query must aggregate across both sessions
-        summary = await query_service.get_listener_summary("test_app", 0)
-        assert len(summary) == 1
-        row = summary[0]
+        row = await only_row(query_service.get_listener_summary("test_app", 0))
         assert row.total_invocations == 5
         assert row.successful == 4
         assert row.failed == 1
 
-    async def test_listener_summary_includes_retired(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
+    async def test_listener_summary_includes_retired(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
         """get_listener_summary queries base tables and includes retired rows.
 
         A retired listener with invocation history must still appear in the summary.
@@ -355,18 +331,13 @@ class TestCrossSessionAndRetiredRows:
         )
         await db_svc.db.commit()
 
-        rows = await query_service.get_listener_summary("test_app", 0)
-        assert len(rows) == 1
-        row = rows[0]
+        row = await only_row(query_service.get_listener_summary("test_app", 0))
         assert row.handler_method == "on_retired"
         assert row.total_invocations == 2
         assert row.successful == 1
         assert row.failed == 1
 
-    async def test_retention_cleanup_deletes_old_retired_rows(
-        self,
-        db: tuple[DatabaseService, int],
-    ) -> None:
+    async def test_retention_cleanup_deletes_old_retired_rows(self, db: DbFixture) -> None:
         """_do_run_retention_cleanup deletes retired registration rows older than retention_days.
 
         Insert a listener and a scheduled_job with old retired_at timestamps and
@@ -437,9 +408,7 @@ class TestCrossSessionAndRetiredRows:
 
 class TestGetAllAppSummariesSourceTier:
     async def test_get_all_app_summaries_excludes_hassette(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
+        self, query_service: TelemetryQueryService, db: DbFixture
     ) -> None:
         """Framework actors (__hassette__) are excluded from get_all_app_summaries."""
         db_svc, session_id = db
@@ -464,11 +433,10 @@ class TestGetAllAppSummariesSourceTier:
         assert "my_app" in result
 
     async def test_get_all_app_summaries_activity_filtered_by_app_tier(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
+        self, query_service: TelemetryQueryService, db: DbFixture
     ) -> None:
         """Framework invocations don't inflate app-tier counts in get_all_app_summaries."""
+        # dup-ignore-start: tier-scoping cases share this setup and differ only in the timestamps/statuses each probes
         db_svc, session_id = db
 
         # App-tier listener for "my_app"
@@ -488,6 +456,7 @@ class TestGetAllAppSummariesSourceTier:
         await insert_invocation(
             db_svc, fw_listener, session_id, status="error", execution_start_ts=base_ts + 3.0, source_tier="framework"
         )
+        # dup-ignore-end
 
         result = await query_service.get_all_app_summaries()
         assert "my_app" in result
@@ -498,11 +467,7 @@ class TestGetAllAppSummariesSourceTier:
 
 
 class TestDiFailureFlag:
-    async def test_di_failure_flag_query(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
+    async def test_di_failure_flag_query(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
         """is_di_failure=1 records are counted as di_failures in get_listener_summary."""
         db_svc, session_id = db
         listener_id = await insert_listener(db_svc, handler_method="on_di")
@@ -518,17 +483,11 @@ class TestDiFailureFlag:
             db_svc, listener_id, session_id, status="error", error_type="ValueError", is_di_failure=0
         )
 
-        rows = await query_service.get_listener_summary("test_app", 0)
-        assert len(rows) == 1
-        row = rows[0]
+        row = await only_row(query_service.get_listener_summary("test_app", 0))
         assert row.di_failures == 2
         assert row.failed == 3
 
-    async def test_di_failure_flag_not_string_match(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
+    async def test_di_failure_flag_not_string_match(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
         """Records with error_type LIKE 'Dependency%' but is_di_failure=0 are NOT counted."""
         db_svc, session_id = db
         listener_id = await insert_listener(db_svc, handler_method="on_test")
@@ -542,19 +501,13 @@ class TestDiFailureFlag:
             db_svc, listener_id, session_id, status="error", error_type="DependencyInjectionError", is_di_failure=1
         )
 
-        rows = await query_service.get_listener_summary("test_app", 0)
-        assert len(rows) == 1
-        row = rows[0]
+        row = await only_row(query_service.get_listener_summary("test_app", 0))
         # Only the one with is_di_failure=1 should count
         assert row.di_failures == 1
 
 
 class TestGetSlowHandlersLeftJoin:
-    async def test_get_slow_handlers_left_join(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
+    async def test_get_slow_handlers_left_join(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
         """Delete a listener; its slow invocations still appear with null app_key."""
         db_svc, session_id = db
         listener_id = await insert_listener(db_svc, handler_method="on_slow")
@@ -574,14 +527,11 @@ class TestGetSlowHandlersLeftJoin:
         assert rows[0].duration_ms == pytest.approx(500.0)
 
     async def test_get_slow_handlers_source_tier_filter(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
+        self, query_service: TelemetryQueryService, db: DbFixture
     ) -> None:
         """source_tier='app' (default) excludes framework slow handlers."""
         db_svc, session_id = db
-        app_listener = await insert_listener(db_svc, handler_method="on_app", source_tier="app")
-        fw_listener = await insert_listener(db_svc, handler_method="on_fw", source_tier="framework")
+        app_listener, fw_listener = await insert_tiered_listeners(db_svc)
 
         await insert_invocation(db_svc, app_listener, session_id, duration_ms=500.0, source_tier="app")
         await insert_invocation(db_svc, fw_listener, session_id, duration_ms=1000.0, source_tier="framework")
