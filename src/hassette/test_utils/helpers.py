@@ -505,9 +505,9 @@ def make_service_running_event(service: "Service") -> HassetteServiceEvent:
 
 def make_crashed_event(
     resource_name: str = "TestService",
-    exception_type: str = "RuntimeError",
-    exception: str = "something broke",
-    exception_traceback: str = "Traceback ...",
+    exception_type: str | None = "RuntimeError",
+    exception: str | None = "something broke",
+    exception_traceback: str | None = "Traceback ...",
 ) -> HassetteServiceEvent:
     """Build a CRASHED HassetteServiceEvent for testing."""
     return HassetteServiceEvent(

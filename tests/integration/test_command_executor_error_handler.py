@@ -40,12 +40,20 @@ async def test_error_handler_runs_after_framework_log(executor: CommandExecutor)
     listener.invoke.side_effect = ValueError("handler error")
     listener.invoker.invoke.side_effect = ValueError("handler error")
 
+    # dup-ignore-start: recorder-list + async error_handler boilerplate mirrors
+    # tests/unit/core/test_command_executor_error_handler.py's TestBusErrorHandlerInvocation
+    # (annotated there as a whole for its own Bus/Scheduler mirror). This is the
+    # integration-tier variant — a real CommandExecutor + real DB via the `executor` fixture
+    # above, instead of the unit tier's fully-mocked executor — so it stays a separate,
+    # deliberately parallel setup rather than sharing a cross-tier helper.
     handler_called = asyncio.Event()
     received_ctx: list[BusErrorContext] = []
 
     async def error_handler(ctx: BusErrorContext) -> None:
         received_ctx.append(ctx)
         handler_called.set()
+
+    # dup-ignore-end
 
     cmd = InvokeHandler(
         listener=listener,
@@ -172,12 +180,16 @@ async def test_timeout_error_routed_to_handler(executor: CommandExecutor) -> Non
     listener.invoke = slow_handler
     listener.invoker.invoke = slow_handler
 
+    # dup-ignore-start: recorder-list + async error_handler boilerplate — see the matching
+    # comment in test_error_handler_runs_after_framework_log above.
     handler_called = asyncio.Event()
     received_ctx: list[BusErrorContext] = []
 
     async def error_handler(ctx: BusErrorContext) -> None:
         received_ctx.append(ctx)
         handler_called.set()
+
+    # dup-ignore-end
 
     cmd = InvokeHandler(
         listener=listener,

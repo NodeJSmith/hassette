@@ -640,6 +640,11 @@ class TestServiceStatusMapping:
         assert data["ready_phase"] == "Connected and authenticated"
 
     async def test_on_service_status_defaults_ready_false(self, runtime: RuntimeQueryService) -> None:
+        # dup-ignore-start: structurally mirrors service_watcher_coverage.py's make_running_event
+        # helper (both build a HassetteServiceEvent via from_service_status), but this test
+        # exercises RuntimeQueryService's web-layer broadcast mapping, a different component and
+        # test tier from ServiceWatcher's log_service_event — see design.md's cross-scope
+        # treatment rationale for tests/unit/core/ clusters that reach outside the scoped group.
         broadcast_calls: list[dict] = []
         runtime.broadcast = AsyncMock(side_effect=lambda msg: broadcast_calls.append(msg))
 
@@ -648,6 +653,7 @@ class TestServiceStatusMapping:
             role=ResourceRole.SERVICE,
             status=ResourceStatus.STARTING,
         )
+        # dup-ignore-end
         await runtime.on_service_status(event)
 
         assert len(broadcast_calls) == 1

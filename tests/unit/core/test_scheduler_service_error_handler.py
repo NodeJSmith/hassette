@@ -3,9 +3,9 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import hassette.utils.date_utils as date_utils
-from hassette.commands import ExecuteJob
 
 from .conftest import make_scheduler_service
+from .test_scheduler_service_timeout import get_executed_cmd
 
 
 def make_job(  # factory-local: returns MagicMock, not ScheduledJob
@@ -43,8 +43,7 @@ class TestSchedulerServiceCarriesAppLevelHandler:
         job.app_error_handler_resolver = lambda: app_handler
         await svc.run_job(job)
 
-        cmd = svc._executor.execute.call_args[0][0]
-        assert isinstance(cmd, ExecuteJob)
+        cmd = get_executed_cmd(svc)
         assert cmd.app_level_error_handler is app_handler
 
     async def test_dispatch_no_handler_when_resolver_returns_none(self) -> None:
@@ -55,8 +54,7 @@ class TestSchedulerServiceCarriesAppLevelHandler:
         job.app_error_handler_resolver = lambda: None
         await svc.run_job(job)
 
-        cmd = svc._executor.execute.call_args[0][0]
-        assert isinstance(cmd, ExecuteJob)
+        cmd = get_executed_cmd(svc)
         assert cmd.app_level_error_handler is None
 
     async def test_dispatch_no_handler_when_no_resolver(self) -> None:
@@ -67,6 +65,5 @@ class TestSchedulerServiceCarriesAppLevelHandler:
         job.app_error_handler_resolver = None
         await svc.run_job(job)
 
-        cmd = svc._executor.execute.call_args[0][0]
-        assert isinstance(cmd, ExecuteJob)
+        cmd = get_executed_cmd(svc)
         assert cmd.app_level_error_handler is None

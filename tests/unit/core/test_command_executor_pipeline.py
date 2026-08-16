@@ -15,6 +15,8 @@ import asyncio
 import contextlib
 import sqlite3
 import time
+from collections.abc import Callable, Coroutine
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiosqlite
@@ -25,6 +27,9 @@ from hassette.core.command_executor import CommandExecutor, RetryableBatch
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.telemetry.repository import TelemetryRepository
 from hassette.test_utils.factories import make_execution_record
+from hassette.types.types import SourceTier
+
+from .test_command_executor import make_result
 
 
 # Convenience aliases for readability in tests. Delegate to the shared factory but pin
@@ -67,6 +72,23 @@ def make_job_record(
     )
 
 
+# Real InvokeHandler, unlike the shared make_invoke_handler_cmd() in test_utils/factories.py
+# which returns a MagicMock — build_record tests here assert on the constructed object's own
+# fields directly.
+def make_real_invoke_handler_cmd(*, listener_id: int = 5, source_tier: SourceTier = "app") -> InvokeHandler:
+    listener = MagicMock()
+    listener.invoker.invoke = AsyncMock()
+    event = MagicMock()
+    return InvokeHandler(
+        listener=listener,
+        event=event,
+        topic="test/topic",
+        listener_id=listener_id,
+        source_tier=source_tier,
+        effective_timeout=None,
+    )
+
+
 def init_executor(queue_max: int = 10) -> CommandExecutor:
     """Create and minimally init a CommandExecutor for pipeline tests."""
     executor = CommandExecutor.__new__(CommandExecutor)
@@ -94,6 +116,57 @@ def init_executor(queue_max: int = 10) -> CommandExecutor:
     # on this bypassed instance.
     executor.ready_event = asyncio.Event()
     executor._ready_reason = None
+    return executor
+
+
+async def direct_submit(coro: Coroutine[Any, Any, Any]) -> Any:
+    """Run a queued database_service.submit() coroutine inline, bypassing the real submit
+    queue — the persist_batch() tests below all need this same bypass, differing only in what
+    they mock persist_execution_batch to do.
+    """
+    return await coro
+
+
+def raising_persist(exc: BaseException) -> Callable[[list[ExecutionRecord]], Coroutine[Any, Any, None]]:
+    """Build an async persist_execution_batch stand-in that always raises ``exc``.
+
+    Several persist_batch() error-classification tests below differ only in which exception
+    type/message they simulate.
+    """
+
+    async def _persist(_recs: list[ExecutionRecord]) -> None:
+        raise exc
+
+    return _persist
+
+
+def wire_raising_persist(executor: CommandExecutor, exc: BaseException) -> None:
+    """Wire ``executor`` to raise ``exc`` from persist_execution_batch and bypass the submit queue.
+
+    Consolidates the `persist_execution_batch = raising_persist(exc)` +
+    `database_service.submit = direct_submit` pairing repeated across the persist_batch()
+    error-classification and backoff-delay tests below.
+    """
+    executor.repository.persist_execution_batch = raising_persist(exc)  # pyright: ignore[reportAttributeAccessIssue]
+    executor.hassette.database_service.submit = direct_submit  # pyright: ignore[reportAttributeAccessIssue]
+
+
+async def run_serve_until(executor: CommandExecutor, stopper_coro: Coroutine[Any, Any, Any]) -> None:
+    """Run executor.serve() alongside a background task that eventually sets shutdown_event,
+    then cancel and drain the stopper task cleanly. Shared by the serve() loop tests below,
+    which differ only in what the stopper task waits for before signaling shutdown.
+    """
+    stopper = asyncio.create_task(stopper_coro)
+    await executor.serve()
+    stopper.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await stopper
+
+
+def make_executor_with_send_event(queue_max: int = 10) -> CommandExecutor:
+    """CommandExecutor with hassette.send_event mocked, for emit_completion_events tests."""
+    executor = init_executor(queue_max=queue_max)
+    executor.hassette.send_event = AsyncMock()
     return executor
 
 
@@ -197,9 +270,6 @@ async def test_id_none_records_persist():
 
     executor.repository.persist_execution_batch = fake_persist_batch  # pyright: ignore[reportAttributeAccessIssue]
 
-    async def direct_submit(coro):
-        return await coro
-
     executor.hassette.database_service.submit = direct_submit  # pyright: ignore[reportAttributeAccessIssue]
 
     await CommandExecutor.persist_batch(executor, records)  # pyright: ignore[reportArgumentType]
@@ -216,15 +286,7 @@ async def test_operational_error_triggers_retry():
     inv = make_invocation(listener_id=5, session_id=1)
     records = [inv]
 
-    async def fail_persist(_recs):
-        raise sqlite3.OperationalError("disk I/O error")
-
-    executor.repository.persist_execution_batch = fail_persist  # pyright: ignore[reportAttributeAccessIssue]
-
-    async def direct_submit(coro):
-        return await coro
-
-    executor.hassette.database_service.submit = direct_submit  # pyright: ignore[reportAttributeAccessIssue]
+    wire_raising_persist(executor, sqlite3.OperationalError("disk I/O error"))
 
     await CommandExecutor.persist_batch(executor, records)  # pyright: ignore[reportArgumentType]
 
@@ -243,15 +305,7 @@ async def test_max_retries_drops_batch():
     inv = make_invocation(listener_id=5, session_id=1)
     exhausted_batch = RetryableBatch(records=[inv], retry_count=3)
 
-    async def fail_persist(_recs):
-        raise sqlite3.OperationalError("disk I/O error")
-
-    executor.repository.persist_execution_batch = fail_persist  # pyright: ignore[reportAttributeAccessIssue]
-
-    async def direct_submit(coro):
-        return await coro
-
-    executor.hassette.database_service.submit = direct_submit  # pyright: ignore[reportAttributeAccessIssue]
+    wire_raising_persist(executor, sqlite3.OperationalError("disk I/O error"))
 
     # Pass retry_count=3 to indicate exhausted batch
     await CommandExecutor.persist_batch(  # pyright: ignore[reportArgumentType]
@@ -270,15 +324,7 @@ async def test_data_error_drops_immediately():
 
     inv = make_invocation(listener_id=5, session_id=1)
 
-    async def fail_persist(_recs):
-        raise sqlite3.DataError("column mismatch")
-
-    executor.repository.persist_execution_batch = fail_persist  # pyright: ignore[reportAttributeAccessIssue]
-
-    async def direct_submit(coro):
-        return await coro
-
-    executor.hassette.database_service.submit = direct_submit  # pyright: ignore[reportAttributeAccessIssue]
+    wire_raising_persist(executor, sqlite3.DataError("column mismatch"))
 
     await CommandExecutor.persist_batch(executor, [inv])  # pyright: ignore[reportArgumentType]
 
@@ -309,9 +355,6 @@ async def test_integrity_error_row_by_row_fallback():
     executor.repository.persist_execution_batch = fake_persist_batch  # pyright: ignore[reportAttributeAccessIssue]
     executor.repository.persist_execution_batch_with_fk_fallback = fake_fk_fallback  # pyright: ignore[reportAttributeAccessIssue]
 
-    async def direct_submit(coro):
-        return await coro
-
     executor.hassette.database_service.submit = direct_submit  # pyright: ignore[reportAttributeAccessIssue]
 
     await CommandExecutor.persist_batch(executor, records)  # pyright: ignore[reportArgumentType]
@@ -324,26 +367,8 @@ def test_build_record_reads_source_tier():
     """build_record sets source_tier from cmd.source_tier and returns ExecutionRecord."""
     executor = init_executor()
 
-    listener = MagicMock()
-    listener.invoker.invoke = AsyncMock()
-    event = MagicMock()
-
-    cmd = InvokeHandler(
-        listener=listener,
-        event=event,
-        topic="test/topic",
-        listener_id=5,
-        source_tier="framework",
-        effective_timeout=None,
-    )
-    result = MagicMock()
-    result.duration_ms = 1.0
-    result.status = "success"
-    result.error_type = None
-    result.error_message = None
-    result.error_traceback = None
-    result.is_di_failure = False
-    result.thread_leaked = False
+    cmd = make_real_invoke_handler_cmd(listener_id=5, source_tier="framework")
+    result = make_result()
 
     record = CommandExecutor.build_record(executor, cmd, result, time.time(), "test-exec-id")  # pyright: ignore[reportArgumentType]
 
@@ -357,26 +382,8 @@ def test_build_record_reads_is_di_failure():
     """build_record sets is_di_failure from result.is_di_failure."""
     executor = init_executor()
 
-    listener = MagicMock()
-    listener.invoker.invoke = AsyncMock()
-    event = MagicMock()
-
-    cmd = InvokeHandler(
-        listener=listener,
-        event=event,
-        topic="test/topic",
-        listener_id=5,
-        source_tier="app",
-        effective_timeout=None,
-    )
-    result = MagicMock()
-    result.duration_ms = 1.0
-    result.status = "error"
-    result.error_type = "DependencyError"
-    result.error_message = "dep failed"
-    result.error_traceback = None
-    result.is_di_failure = True
-    result.thread_leaked = False
+    cmd = make_real_invoke_handler_cmd(listener_id=5, source_tier="app")
+    result = make_result(status="error", error_type="DependencyError", error_message="dep failed", is_di_failure=True)
 
     record = CommandExecutor.build_record(executor, cmd, result, time.time(), "test-exec-id")  # pyright: ignore[reportArgumentType]
 
@@ -388,27 +395,9 @@ def test_build_record_reads_thread_leaked():
     """build_record copies thread_leaked from result to ExecutionRecord."""
     executor = init_executor()
 
-    listener = MagicMock()
-    listener.invoker.invoke = AsyncMock()
-    event = MagicMock()
+    cmd = make_real_invoke_handler_cmd(listener_id=1, source_tier="app")
 
-    cmd = InvokeHandler(
-        listener=listener,
-        event=event,
-        topic="test/topic",
-        listener_id=1,
-        source_tier="app",
-        effective_timeout=None,
-    )
-
-    result = MagicMock()
-    result.duration_ms = 1.0
-    result.status = "timed_out"
-    result.error_type = None
-    result.error_message = None
-    result.error_traceback = None
-    result.is_di_failure = False
-    result.thread_leaked = True
+    result = make_result(status="timed_out", thread_leaked=True)
 
     record = CommandExecutor.build_record(executor, cmd, result, time.time(), "exec-id")  # pyright: ignore[reportArgumentType]
     assert record.thread_leaked is True
@@ -587,15 +576,7 @@ async def test_retryable_batch_not_before_set_to_backoff_delay():
 
     inv = make_invocation(listener_id=5, session_id=1)
 
-    async def fail_persist(_recs):
-        raise sqlite3.OperationalError("disk I/O error")
-
-    executor.repository.persist_execution_batch = fail_persist  # pyright: ignore[reportAttributeAccessIssue]
-
-    async def direct_submit(coro):
-        return await coro
-
-    executor.hassette.database_service.submit = direct_submit  # pyright: ignore[reportAttributeAccessIssue]
+    wire_raising_persist(executor, sqlite3.OperationalError("disk I/O error"))
 
     before = time.monotonic()
     # retry_count=0 → backoff should be 1s (retry_count + 1 = 1)
@@ -617,15 +598,7 @@ async def test_retryable_batch_backoff_increases_with_retry_count():
         executor = init_executor()
         inv = make_invocation(listener_id=5, session_id=1)
 
-        async def fail_persist(_recs):
-            raise sqlite3.OperationalError("disk I/O error")
-
-        executor.repository.persist_execution_batch = fail_persist  # pyright: ignore[reportAttributeAccessIssue]
-
-        async def direct_submit(coro):
-            return await coro
-
-        executor.hassette.database_service.submit = direct_submit  # pyright: ignore[reportAttributeAccessIssue]
+        wire_raising_persist(executor, sqlite3.OperationalError("disk I/O error"))
 
         before = time.monotonic()
         await CommandExecutor.persist_batch(executor, [inv], retry_count=initial_retry)  # pyright: ignore[reportArgumentType]
@@ -639,6 +612,10 @@ async def test_retryable_batch_backoff_increases_with_retry_count():
 
 async def test_serve_loops_without_blocking_when_queue_empty():
     """serve() does not block indefinitely when the queue is empty — the timer causes it to loop."""
+    # dup-ignore-start: executor + recorder-stub setup (drain_calls list + fake_drain callback)
+    # repeated across the serve() loop tests below. test_serve_timer_drains_items_added_during_drain
+    # needs bespoke re-enqueue logic inside its callback, so a shared factory would still need
+    # an escape hatch for that one case — not worth the indirection to save these lines twice.
     executor = init_executor()
 
     # Queue stays empty; the timer should fire and allow the loop to continue (and eventually shut down)
@@ -646,6 +623,8 @@ async def test_serve_loops_without_blocking_when_queue_empty():
 
     async def fake_drain(first_item=None):
         drain_calls.append("timer" if first_item is None else "item")
+
+    # dup-ignore-end
 
     shutdown_event = asyncio.Event()
     executor.shutdown_event = shutdown_event  # pyright: ignore[reportAttributeAccessIssue]
@@ -661,11 +640,7 @@ async def test_serve_loops_without_blocking_when_queue_empty():
         await asyncio.sleep(0.15)
         shutdown_event.set()
 
-    stopper = asyncio.create_task(stop_after_two_cycles())
-    await executor.serve()
-    stopper.cancel()
-    with contextlib.suppress(asyncio.CancelledError):
-        await stopper
+    await run_serve_until(executor, stop_after_two_cycles())
 
     # No drains expected (queue was empty), but serve() must have returned in time
     assert not drain_calls
@@ -675,6 +650,10 @@ async def test_serve_timer_drains_items_added_during_drain():
     """Items put back into the queue during drain_and_persist (e.g. deferred retries) are
     picked up on the next loop iteration, not lost.
     """
+    # dup-ignore-start: executor + recorder-stub setup — see the matching comment in
+    # test_serve_loops_without_blocking_when_queue_empty above. This occurrence needs its own
+    # bespoke re-enqueue branch inside fake_drain, which is exactly why a shared factory isn't
+    # worth it across all three serve() loop tests.
     executor = init_executor()
 
     # First item to seed the initial drain
@@ -690,6 +669,8 @@ async def test_serve_timer_drains_items_added_during_drain():
             # Simulate a deferred retry being re-enqueued during the first drain
             executor._write_queue.put_nowait(inv2)
 
+    # dup-ignore-end
+
     shutdown_event = asyncio.Event()
     executor.shutdown_event = shutdown_event  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -704,11 +685,7 @@ async def test_serve_timer_drains_items_added_during_drain():
                 break
         shutdown_event.set()
 
-    stopper = asyncio.create_task(stop_after_two_drains())
-    await executor.serve()
-    stopper.cancel()
-    with contextlib.suppress(asyncio.CancelledError):
-        await stopper
+    await run_serve_until(executor, stop_after_two_drains())
 
     # Both drains should have been item-triggered (the re-enqueued item is picked up by queue.get)
     assert len(drain_calls) >= 2
@@ -717,12 +694,16 @@ async def test_serve_timer_drains_items_added_during_drain():
 
 async def test_serve_item_flush_drains_queue_on_arrival():
     """serve() drains via first_item path when a queue item arrives before timeout."""
+    # dup-ignore-start: executor + recorder-stub setup — see the matching comment in
+    # test_serve_loops_without_blocking_when_queue_empty above.
     executor = init_executor()
 
     drain_calls: list[str] = []
 
     async def fake_drain(first_item=None):
         drain_calls.append("timer" if first_item is None else "item")
+
+    # dup-ignore-end
 
     shutdown_event = asyncio.Event()
     executor.shutdown_event = shutdown_event  # pyright: ignore[reportAttributeAccessIssue]
@@ -741,11 +722,7 @@ async def test_serve_item_flush_drains_queue_on_arrival():
                 break
         shutdown_event.set()
 
-    stopper = asyncio.create_task(enqueue_then_stop())
-    await executor.serve()
-    stopper.cancel()
-    with contextlib.suppress(asyncio.CancelledError):
-        await stopper
+    await run_serve_until(executor, enqueue_then_stop())
 
     assert "item" in drain_calls
 
@@ -786,8 +763,7 @@ def test_record_blocking_event_swallows_uninitialized_db() -> None:
 
 async def test_emit_completion_events_no_warning_for_owned_records() -> None:
     """Normal app-tier records with a populated app_key never trigger the empty-app_key warning."""
-    executor = init_executor()
-    executor.hassette.send_event = AsyncMock()
+    executor = make_executor_with_send_event()
 
     owned = make_execution_record(app_key="my_app", source_tier="app")
     await CommandExecutor.emit_completion_events(executor, [owned])
@@ -800,8 +776,7 @@ async def test_emit_completion_events_no_warning_for_framework_tier_empty_app_ke
     """Framework-tier records legitimately carry an empty app_key — not the starvation window
     this warning guards against, so it must not fire.
     """
-    executor = init_executor()
-    executor.hassette.send_event = AsyncMock()
+    executor = make_executor_with_send_event()
 
     framework_record = make_execution_record(app_key="", source_tier="framework")
     await CommandExecutor.emit_completion_events(executor, [framework_record])
@@ -813,8 +788,7 @@ async def test_emit_completion_events_warns_on_empty_app_key() -> None:
     """An app-tier record with empty app_key (registration meta-miss, e.g. an app reload
     racing the completion event) logs a WARNING.
     """
-    executor = init_executor()
-    executor.hassette.send_event = AsyncMock()
+    executor = make_executor_with_send_event()
 
     unowned = make_execution_record(app_key="", source_tier="app")
     with patch("hassette.core.command_executor.time.monotonic", return_value=1.0):
@@ -825,8 +799,7 @@ async def test_emit_completion_events_warns_on_empty_app_key() -> None:
 
 async def test_emit_completion_events_unowned_warning_rate_limited() -> None:
     """Repeated empty-app_key batches within the suppression window log only once."""
-    executor = init_executor()
-    executor.hassette.send_event = AsyncMock()
+    executor = make_executor_with_send_event()
     unowned = make_execution_record(app_key="", source_tier="app")
 
     with patch("hassette.core.command_executor.time.monotonic", side_effect=[100.0, 101.0, 102.0]):
@@ -839,8 +812,7 @@ async def test_emit_completion_events_unowned_warning_rate_limited() -> None:
 
 async def test_emit_completion_events_unowned_warning_fires_after_rate_limit_window() -> None:
     """A second empty-app_key batch after the suppression window elapses logs again."""
-    executor = init_executor()
-    executor.hassette.send_event = AsyncMock()
+    executor = make_executor_with_send_event()
     unowned = make_execution_record(app_key="", source_tier="app")
 
     with patch("hassette.core.command_executor.time.monotonic", side_effect=[100.0, 129.999, 130.0]):

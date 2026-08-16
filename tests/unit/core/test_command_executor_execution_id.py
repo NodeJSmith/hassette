@@ -2,6 +2,7 @@
 
 import asyncio
 import uuid
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -10,7 +11,7 @@ import uuid_utils
 
 from hassette.context import CURRENT_EXECUTION_ID
 from hassette.core.command_executor import CommandExecutor
-from hassette.core.execution_record import SYNTHETIC_ORIGIN
+from hassette.core.execution_record import SYNTHETIC_ORIGIN, ExecutionRecord
 from hassette.test_utils.factories import make_hass_event, make_hassette_event, make_invoke_handler_cmd
 
 from .conftest import make_execute_job_cmd, make_executor, make_mock_cmd_listener
@@ -185,61 +186,61 @@ class TestExecutionIdContextVar:
         assert captured[0] != captured[1]
 
 
+async def execute_handler_and_get_record(executor: CommandExecutor, event: Any, **cmd_kwargs: Any) -> ExecutionRecord:
+    """Run execute_handler() against a command wrapping ``event`` and return the persisted record.
+
+    Every TestHandlerRecordTriggerFields test below shared this arrange/act shape, differing
+    only in the event they built and the field they asserted on.
+    """
+    cmd = make_invoke_handler_cmd(event=event, **cmd_kwargs)
+    await executor.execute_handler(cmd)
+    return executor._write_queue.get_nowait()
+
+
 class TestHandlerRecordTriggerFields:
     async def test_handler_record_has_trigger_context_id(self) -> None:
         """trigger_context_id on the enqueued record matches the HassPayload's event_id."""
         executor = make_executor()
         event = make_hass_event()
-        listener = make_mock_cmd_listener()
-        cmd = make_invoke_handler_cmd(listener=listener, event=event)
 
-        await executor.execute_handler(cmd)
+        record = await execute_handler_and_get_record(executor, event)
 
-        record = executor._write_queue.get_nowait()
         assert record.trigger_context_id == event.payload.event_id
 
     async def test_handler_record_has_trigger_origin_local(self) -> None:
         """trigger_origin is 'LOCAL' when event has origin='LOCAL'."""
         executor = make_executor()
         event = make_hass_event(origin="LOCAL")
-        cmd = make_invoke_handler_cmd(event=event)
 
-        await executor.execute_handler(cmd)
+        record = await execute_handler_and_get_record(executor, event)
 
-        record = executor._write_queue.get_nowait()
         assert record.trigger_origin == "LOCAL"
 
     async def test_handler_record_has_trigger_origin_remote(self) -> None:
         """trigger_origin is 'REMOTE' when event has origin='REMOTE'."""
         executor = make_executor()
         event = make_hass_event(origin="REMOTE")
-        cmd = make_invoke_handler_cmd(event=event)
 
-        await executor.execute_handler(cmd)
+        record = await execute_handler_and_get_record(executor, event)
 
-        record = executor._write_queue.get_nowait()
         assert record.trigger_origin == "REMOTE"
 
     async def test_handler_record_has_trigger_origin_hassette(self) -> None:
         """trigger_origin is 'HASSETTE' when event uses HassettePayload."""
         executor = make_executor()
         event = make_hassette_event()
-        cmd = make_invoke_handler_cmd(event=event)
 
-        await executor.execute_handler(cmd)
+        record = await execute_handler_and_get_record(executor, event)
 
-        record = executor._write_queue.get_nowait()
         assert record.trigger_origin == "HASSETTE"
 
     async def test_handler_record_has_trigger_context_id_hassette(self) -> None:
         """trigger_context_id for HassettePayload-based event is the payload's event_id."""
         executor = make_executor()
         event = make_hassette_event()
-        cmd = make_invoke_handler_cmd(event=event)
 
-        await executor.execute_handler(cmd)
+        record = await execute_handler_and_get_record(executor, event)
 
-        record = executor._write_queue.get_nowait()
         assert record.trigger_context_id == event.payload.event_id
         assert is_valid_uuid4(record.trigger_context_id)
 
@@ -247,24 +248,18 @@ class TestHandlerRecordTriggerFields:
         """Synthetic events (immediate=True) should have trigger_context_id=None."""
         executor = make_executor()
         event = make_hass_event()
-        cmd = make_invoke_handler_cmd(event=event)
-        cmd.is_synthetic = True
 
-        await executor.execute_handler(cmd)
+        record = await execute_handler_and_get_record(executor, event, is_synthetic=True)
 
-        record = executor._write_queue.get_nowait()
         assert record.trigger_context_id is None
 
     async def test_synthetic_event_uses_hassette_synthetic_origin(self) -> None:
         """Synthetic events should have trigger_origin='HASSETTE_SYNTHETIC'."""
         executor = make_executor()
         event = make_hass_event(origin="LOCAL")
-        cmd = make_invoke_handler_cmd(event=event)
-        cmd.is_synthetic = True
 
-        await executor.execute_handler(cmd)
+        record = await execute_handler_and_get_record(executor, event, is_synthetic=True)
 
-        record = executor._write_queue.get_nowait()
         assert record.trigger_origin == SYNTHETIC_ORIGIN
 
 
@@ -401,12 +396,18 @@ class TestErrorHandlerExecutionIdInheritance:
 
         listener = make_mock_cmd_listener(side_effect=capture_main)
         listener.invoker.error_handler = error_handler
+        # dup-ignore-start: shares the execute_handler()/drain_tasks()/assert arrange-act
+        # boilerplate with TestBusErrorHandlerInvocation in test_command_executor_error_handler.py
+        # (that class is annotated as a whole for its Bus/Scheduler mirror); this is a single,
+        # isolated occurrence here testing execution_id inheritance specifically, not worth a
+        # cross-file helper for one call site.
         cmd = make_invoke_handler_cmd(listener=listener)
 
         await executor.execute_handler(cmd)
         await drain_tasks(executor)
 
         assert len(main_id) == 1
+        # dup-ignore-end
         assert len(handler_id) == 1
         assert main_id[0] is not None
         assert main_id[0] == handler_id[0]

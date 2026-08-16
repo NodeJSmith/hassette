@@ -37,6 +37,10 @@ async def invoke_and_get_cmd(
     listener = listener if listener is not None else create_listener(topic=topic)
     event = event if event is not None else make_mock_event()
 
+    # dup-ignore-start: Bus-layer helper's fire-and-extract-cmd tail mirrors the BusService-level
+    # dispatch tests in tests/unit/core/test_bus_service_error_handler.py and
+    # test_bus_service_timeout.py — same build_tracked_invoke_fn behavior verified at two
+    # integration points (Bus vs BusService) by design, not copy-paste.
     invoke_fn = build_tracked_invoke_fn(
         listener=listener,
         event=event,
@@ -49,6 +53,7 @@ async def invoke_and_get_cmd(
 
     cmd = executor.execute.call_args[0][0]
     assert isinstance(cmd, InvokeHandler)
+    # dup-ignore-end
     return cmd
 
 
@@ -143,11 +148,16 @@ class TestInvokeHandlerConstruction:
         # Set db_id after building the invoke_fn (simulates async registration completing)
         listener.db_id = 42
 
+        # dup-ignore-start: Bus-layer fire-and-extract-cmd tail mirrors the BusService-level
+        # dispatch tests in tests/unit/core/test_bus_service_error_handler.py and
+        # test_bus_service_timeout.py — same build_tracked_invoke_fn behavior verified at two
+        # integration points (Bus vs BusService) by design, not copy-paste.
         await invoke_fn()
 
         cmd = executor.execute.call_args[0][0]
         assert isinstance(cmd, InvokeHandler)
         assert cmd.listener_id == 42
+        # dup-ignore-end
 
     async def test_executor_execute_called_with_command(self) -> None:
         """executor.execute is called exactly once with the InvokeHandler command."""
