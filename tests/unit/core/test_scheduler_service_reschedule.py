@@ -153,15 +153,12 @@ class TestRescheduleRecurring:
         """dispatch_and_log does not reference job.repeat — the field does not exist."""
         svc = make_scheduler_service()
         future_time = date_utils.now().add(seconds=60)
-        trig = make_interval_trigger(next_returns=future_time)
-        job = make_scheduled_job(trigger=trig)
-        svc.run_job_with_guard = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+
+        # dispatch must succeed without referencing job.repeat
+        _trig, job = await dispatch_with_trigger(svc, next_returns=future_time)
 
         # Confirm that Job has no 'repeat' attribute
         assert not hasattr(job, "repeat"), "Job must not have a 'repeat' attribute"
-
-        # dispatch must succeed without referencing it
-        await svc.dispatch_and_log(job)
 
 
 class TestJitter:
@@ -191,11 +188,8 @@ class TestJitter:
         """No jitter: sort_index[0] == job.next_run.timestamp_nanos()."""
         svc = make_scheduler_service()
         future_time = date_utils.now().add(seconds=60)
-        trig = make_interval_trigger(next_returns=future_time)
-        job = make_scheduled_job(trigger=trig, jitter=None)
-        svc.run_job_with_guard = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
-        await svc.dispatch_and_log(job)
+        _trig, job = await dispatch_with_trigger(svc, next_returns=future_time, jitter=None)
 
         assert job.sort_index[0] == job.next_run.timestamp_nanos()
 
@@ -203,11 +197,8 @@ class TestJitter:
         """No jitter: fire_at == next_run after dispatch."""
         svc = make_scheduler_service()
         future_time = date_utils.now().add(seconds=60)
-        trig = make_interval_trigger(next_returns=future_time)
-        job = make_scheduled_job(trigger=trig, jitter=None)
-        svc.run_job_with_guard = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
-        await svc.dispatch_and_log(job)
+        _trig, job = await dispatch_with_trigger(svc, next_returns=future_time, jitter=None)
 
         assert job.fire_at == job.next_run
 
@@ -267,14 +258,11 @@ class TestRemovalCallbacks:
         explicit removal (Job.remove()/Scheduler.remove_job()/owner cleanup).
         """
         svc = make_scheduler_service()
-        trig = make_interval_trigger(next_returns=None)
-        job = make_scheduled_job(trigger=trig, owner_id="owner_a")
-        svc.run_job_with_guard = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
         callback = MagicMock()
         svc.register_removal_callback("owner_a", callback)
 
-        await svc.dispatch_and_log(job)
+        _trig, job = await dispatch_with_trigger(svc, next_returns=None, owner_id="owner_a")
 
         callback.assert_not_called()
         assert job.schedule_status is ScheduleStatus.COMPLETED
@@ -282,14 +270,11 @@ class TestRemovalCallbacks:
     async def test_removal_callback_not_called_on_trigger_error(self) -> None:
         """Completion via trigger error is not removal — no callback fires."""
         svc = make_scheduler_service()
-        trig = make_interval_trigger(next_raises=RuntimeError("oops"))
-        job = make_scheduled_job(trigger=trig, owner_id="owner_b")
-        svc.run_job_with_guard = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
         callback = MagicMock()
         svc.register_removal_callback("owner_b", callback)
 
-        await svc.dispatch_and_log(job)
+        _trig, job = await dispatch_with_trigger(svc, next_raises=RuntimeError("oops"), owner_id="owner_b")
 
         callback.assert_not_called()
         assert job.schedule_status is ScheduleStatus.COMPLETED
@@ -299,14 +284,11 @@ class TestRemovalCallbacks:
         """Callback NOT called when job is successfully rescheduled."""
         svc = make_scheduler_service()
         future_time = date_utils.now().add(seconds=60)
-        trig = make_interval_trigger(next_returns=future_time)
-        job = make_scheduled_job(trigger=trig, owner_id="owner_c")
-        svc.run_job_with_guard = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
         callback = MagicMock()
         svc.register_removal_callback("owner_c", callback)
 
-        await svc.dispatch_and_log(job)
+        await dispatch_with_trigger(svc, next_returns=future_time, owner_id="owner_c")
 
         callback.assert_not_called()
 

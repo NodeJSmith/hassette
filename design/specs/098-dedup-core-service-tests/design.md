@@ -1,7 +1,7 @@
 # Design: Deduplicate tests/unit/core service tests
 
 **Date:** 2026-08-16
-**Status:** approved
+**Status:** archived
 **Mode:** sketch
 
 ## Problem

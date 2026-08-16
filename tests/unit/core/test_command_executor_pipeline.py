@@ -25,6 +25,7 @@ from hassette.core.command_executor import CommandExecutor, RetryableBatch
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.telemetry.repository import TelemetryRepository
 from hassette.test_utils.factories import make_execution_record
+from hassette.types.types import SourceTier
 
 from .test_command_executor import make_result_mock
 
@@ -66,6 +67,23 @@ def make_job_record(
         execution_start_ts=time.time(),
         duration_ms=1.0,
         execution_id=None,
+    )
+
+
+# Real InvokeHandler, unlike the shared make_invoke_handler_cmd() in test_utils/factories.py
+# which returns a MagicMock — build_record tests here assert on the constructed object's own
+# fields directly.
+def make_real_invoke_handler_cmd(*, listener_id: int = 5, source_tier: SourceTier = "app") -> InvokeHandler:
+    listener = MagicMock()
+    listener.invoker.invoke = AsyncMock()
+    event = MagicMock()
+    return InvokeHandler(
+        listener=listener,
+        event=event,
+        topic="test/topic",
+        listener_id=listener_id,
+        source_tier=source_tier,
+        effective_timeout=None,
     )
 
 
@@ -347,24 +365,7 @@ def test_build_record_reads_source_tier():
     """build_record sets source_tier from cmd.source_tier and returns ExecutionRecord."""
     executor = init_executor()
 
-    # dup-ignore-start: InvokeHandler test-double construction (listener/event mocks + cmd
-    # assembly) mirrors the same setup in tests/unit/test_source_tier_models.py — that file
-    # exercises source_tier propagation through the data model itself, a different concern
-    # from this file's write-pipeline/build_record tests; sharing a helper across that
-    # boundary isn't worth it for a few-line save.
-    listener = MagicMock()
-    listener.invoker.invoke = AsyncMock()
-    event = MagicMock()
-
-    cmd = InvokeHandler(
-        listener=listener,
-        event=event,
-        topic="test/topic",
-        listener_id=5,
-        source_tier="framework",
-        effective_timeout=None,
-    )
-    # dup-ignore-end
+    cmd = make_real_invoke_handler_cmd(listener_id=5, source_tier="framework")
     result = make_result_mock()
 
     record = CommandExecutor.build_record(executor, cmd, result, time.time(), "test-exec-id")  # pyright: ignore[reportArgumentType]
@@ -379,21 +380,7 @@ def test_build_record_reads_is_di_failure():
     """build_record sets is_di_failure from result.is_di_failure."""
     executor = init_executor()
 
-    # dup-ignore-start: InvokeHandler test-double construction — see the matching comment in
-    # test_build_record_reads_source_tier above.
-    listener = MagicMock()
-    listener.invoker.invoke = AsyncMock()
-    event = MagicMock()
-
-    cmd = InvokeHandler(
-        listener=listener,
-        event=event,
-        topic="test/topic",
-        listener_id=5,
-        source_tier="app",
-        effective_timeout=None,
-    )
-    # dup-ignore-end
+    cmd = make_real_invoke_handler_cmd(listener_id=5, source_tier="app")
     result = make_result_mock(
         status="error", error_type="DependencyError", error_message="dep failed", is_di_failure=True
     )
@@ -408,21 +395,7 @@ def test_build_record_reads_thread_leaked():
     """build_record copies thread_leaked from result to ExecutionRecord."""
     executor = init_executor()
 
-    # dup-ignore-start: InvokeHandler test-double construction — see the matching comment in
-    # test_build_record_reads_source_tier above.
-    listener = MagicMock()
-    listener.invoker.invoke = AsyncMock()
-    event = MagicMock()
-
-    cmd = InvokeHandler(
-        listener=listener,
-        event=event,
-        topic="test/topic",
-        listener_id=1,
-        source_tier="app",
-        effective_timeout=None,
-    )
-    # dup-ignore-end
+    cmd = make_real_invoke_handler_cmd(listener_id=1, source_tier="app")
 
     result = make_result_mock(status="timed_out", thread_leaked=True)
 

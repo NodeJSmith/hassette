@@ -13,8 +13,6 @@ import pytest
 
 from hassette.core.bus_service import BusService
 from hassette.events import HassetteServiceEvent
-from hassette.events.base import HassettePayload
-from hassette.events.hassette import ServiceStatusPayload
 from hassette.resources.lifecycle import mark_ready
 from hassette.resources.restart import RestartSpec
 from hassette.test_utils import make_mock_hassette, make_service_failed_event, make_service_running_event, wait_for
@@ -84,6 +82,17 @@ class TestRegisterInternalEventListeners:
         assert registered_by_name["hassette.service_watcher.on_bus_service_running"].get("where") is not None
 
 
+def make_running_event(previous_status: ResourceStatus, resource_name: str = "SomeService") -> HassetteServiceEvent:
+    """Build a RUNNING HassetteServiceEvent with a given previous_status, for log_service_event tests."""
+    return HassetteServiceEvent.from_service_status(
+        resource_name=resource_name,
+        role=ResourceRole.SERVICE,
+        status=ResourceStatus.RUNNING,
+        previous_status=previous_status,
+        ready=True,
+    )
+
+
 class TestLogServiceEvent:
     """log_service_event has no side effect beyond logging — assert the collaborator call
     itself (mocked logger), matching the existing codebase convention (e.g.
@@ -97,15 +106,7 @@ class TestLogServiceEvent:
         watcher = make_watcher(hassette)
         watcher.logger = Mock()
 
-        payload = ServiceStatusPayload(
-            resource_name="SomeService",
-            role=ResourceRole.SERVICE,
-            status=ResourceStatus.RUNNING,
-            previous_status=ResourceStatus.RUNNING,
-            ready=True,
-            ready_phase=None,
-        )
-        event = HassetteServiceEvent(topic=Topic.HASSETTE_EVENT_SERVICE_STATUS, payload=HassettePayload(data=payload))
+        event = make_running_event(previous_status=ResourceStatus.RUNNING)
 
         await watcher.log_service_event(event)
 
@@ -119,15 +120,7 @@ class TestLogServiceEvent:
         watcher = make_watcher(hassette)
         watcher.logger = Mock()
 
-        payload = ServiceStatusPayload(
-            resource_name="SomeService",
-            role=ResourceRole.SERVICE,
-            status=ResourceStatus.RUNNING,
-            previous_status=ResourceStatus.STARTING,
-            ready=True,
-            ready_phase=None,
-        )
-        event = HassetteServiceEvent(topic=Topic.HASSETTE_EVENT_SERVICE_STATUS, payload=HassettePayload(data=payload))
+        event = make_running_event(previous_status=ResourceStatus.STARTING)
 
         await watcher.log_service_event(event)
 
@@ -158,15 +151,13 @@ class TestOnBusServiceRunning:
         watcher = make_watcher(hassette)
         watcher.reconcile_after_bus_recovery = AsyncMock()
 
-        payload = ServiceStatusPayload(
+        event = HassetteServiceEvent.from_service_status(
             resource_name=BusService.__name__,
             role=ResourceRole.SERVICE,
             status=ResourceStatus.RUNNING,
             previous_status=ResourceStatus.STARTING,
             ready=True,
-            ready_phase=None,
         )
-        event = HassetteServiceEvent(topic=Topic.HASSETTE_EVENT_SERVICE_STATUS, payload=HassettePayload(data=payload))
 
         await watcher.on_bus_service_running(event)
 

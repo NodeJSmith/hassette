@@ -11,7 +11,7 @@ import uuid_utils
 
 from hassette.context import CURRENT_EXECUTION_ID
 from hassette.core.command_executor import CommandExecutor
-from hassette.core.execution_record import SYNTHETIC_ORIGIN
+from hassette.core.execution_record import SYNTHETIC_ORIGIN, ExecutionRecord
 from hassette.test_utils.factories import make_hass_event, make_hassette_event, make_invoke_handler_cmd
 
 from .conftest import make_execute_job_cmd, make_executor, make_mock_cmd_listener
@@ -186,7 +186,7 @@ class TestExecutionIdContextVar:
         assert captured[0] != captured[1]
 
 
-async def execute_handler_and_get_record(executor: CommandExecutor, event: Any, **cmd_kwargs: Any) -> Any:
+async def execute_handler_and_get_record(executor: CommandExecutor, event: Any, **cmd_kwargs: Any) -> ExecutionRecord:
     """Run execute_handler() against a command wrapping ``event`` and return the persisted record.
 
     Every TestHandlerRecordTriggerFields test below shared this arrange/act shape, differing
