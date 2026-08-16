@@ -47,6 +47,23 @@ def make_interval_trigger(*, next_returns=None, next_raises=None):
     return trig
 
 
+async def dispatch_with_trigger(svc, *, next_returns=None, next_raises=None, **job_kwargs) -> tuple[MagicMock, Job]:
+    """Build an interval trigger + job on `svc`, mock run_job_with_guard, and dispatch it.
+
+    Shared setup for dispatch_and_log() tests that only differ in what the trigger's
+    next_run_time() returns/raises and (sometimes) the job's db_id. Returns (trigger_mock, job)
+    so callers can assert on next_run_time()/run_job_with_guard call counts or resulting job
+    state, whichever the test needs.
+    """
+    trig = make_interval_trigger(next_returns=next_returns, next_raises=next_raises)
+    job = make_scheduled_job(trigger=trig, **job_kwargs)
+    svc.run_job_with_guard = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+
+    await svc.dispatch_and_log(job)
+
+    return trig, job
+
+
 class TestRescheduleNoneRemovesJob:
     async def test_reschedule_none_completes_job(self) -> None:
         """next_run_time() returning None completes the job and is not re-enqueued. Heap
@@ -76,11 +93,7 @@ class TestRescheduleNoneRemovesJob:
     async def test_reschedule_exhausted_job_via_none_trigger(self) -> None:
         """Exhausted job (trigger returns None) completes and stays live."""
         svc = make_scheduler_service()
-        trig = make_interval_trigger(next_returns=None)
-        job = make_scheduled_job(trigger=trig)
-        svc.run_job_with_guard = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
-
-        await svc.dispatch_and_log(job)
+        trig, job = await dispatch_with_trigger(svc, next_returns=None)
 
         assert job.schedule_status is ScheduleStatus.COMPLETED
         trig.next_run_time.assert_called_once()
@@ -94,11 +107,7 @@ class TestRescheduleExceptionRemovesJob:
         with job_id/callable/trigger context, and still runs the current due fire.
         """
         svc = make_scheduler_service()
-        trig = make_interval_trigger(next_raises=RuntimeError("bad trigger"))
-        job = make_scheduled_job(trigger=trig)
-        svc.run_job_with_guard = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
-
-        await svc.dispatch_and_log(job)
+        _trig, job = await dispatch_with_trigger(svc, next_raises=RuntimeError("bad trigger"))
 
         svc._job_queue.remove_job.assert_called_once_with(job)
         assert job.schedule_status is ScheduleStatus.COMPLETED
@@ -116,12 +125,9 @@ class TestRescheduleExceptionRemovesJob:
     async def test_reschedule_exception_does_not_propagate(self) -> None:
         """Exceptions from next_run_time() do NOT propagate — scheduler must not crash."""
         svc = make_scheduler_service()
-        trig = make_interval_trigger(next_raises=ValueError("trigger broken"))
-        job = make_scheduled_job(trigger=trig)
-        svc.run_job_with_guard = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
         # Should not raise
-        await svc.dispatch_and_log(job)
+        await dispatch_with_trigger(svc, next_raises=ValueError("trigger broken"))
 
 
 class TestRescheduleRecurring:
@@ -493,11 +499,7 @@ class TestNonFutureGuard:
         svc = make_scheduler_service()
         # Trigger returns a time 5s in the past
         past_time = date_utils.now().add(seconds=-5)
-        trig = make_interval_trigger(next_returns=past_time)
-        job = make_scheduled_job(trigger=trig)
-        svc.run_job_with_guard = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
-
-        await svc.dispatch_and_log(job)
+        _trig, job = await dispatch_with_trigger(svc, next_returns=past_time)
 
         # Job should be re-enqueued (not removed — trigger didn't return None)
         svc._job_queue.remove_job.assert_not_called()
@@ -635,41 +637,25 @@ class TestPersistScheduleStatus:
     async def test_dispatch_scheduled_branch_persists_status(self) -> None:
         svc = make_scheduler_service()
         future_time = date_utils.now().add(seconds=60)
-        trig = make_interval_trigger(next_returns=future_time)
-        job = make_scheduled_job(trigger=trig, db_id=42)
-        svc.run_job_with_guard = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
-
-        await svc.dispatch_and_log(job)
+        await dispatch_with_trigger(svc, next_returns=future_time, db_id=42)
 
         svc._executor.mark_job_status.assert_awaited_once_with(42, "scheduled", None)
 
     async def test_dispatch_completed_branch_persists_status(self) -> None:
         svc = make_scheduler_service()
-        trig = make_interval_trigger(next_returns=None)
-        job = make_scheduled_job(trigger=trig, db_id=42)
-        svc.run_job_with_guard = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
-
-        await svc.dispatch_and_log(job)
+        await dispatch_with_trigger(svc, next_returns=None, db_id=42)
 
         svc._executor.mark_job_status.assert_awaited_once_with(42, "completed", None)
 
     async def test_dispatch_trigger_error_branch_persists_status(self) -> None:
         svc = make_scheduler_service()
-        trig = make_interval_trigger(next_raises=RuntimeError("bad trigger"))
-        job = make_scheduled_job(trigger=trig, db_id=42)
-        svc.run_job_with_guard = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
-
-        await svc.dispatch_and_log(job)
+        await dispatch_with_trigger(svc, next_raises=RuntimeError("bad trigger"), db_id=42)
 
         svc._executor.mark_job_status.assert_awaited_once_with(42, "completed", "trigger_error")
 
     async def test_dispatch_waiting_branch_persists_status(self) -> None:
         svc = make_scheduler_service()
-        trig = make_interval_trigger(next_returns=WAITING)
-        job = make_scheduled_job(trigger=trig, db_id=42)
-        svc.run_job_with_guard = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
-
-        await svc.dispatch_and_log(job)
+        _trig, job = await dispatch_with_trigger(svc, next_returns=WAITING, db_id=42)
 
         svc._executor.mark_job_status.assert_awaited_once_with(42, "waiting", None)
         assert job.schedule_status is ScheduleStatus.WAITING

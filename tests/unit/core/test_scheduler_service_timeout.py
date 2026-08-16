@@ -8,6 +8,19 @@ from hassette.test_utils.factories import make_scheduled_job
 from .conftest import make_scheduler_service
 
 
+def get_executed_cmd(svc) -> ExecuteJob:
+    """Return the ExecuteJob command dispatched via ``svc._executor.execute``.
+
+    Shared across the scheduler_service test files (timeout, error_handler, trigger) that all
+    assert on the same "run_job dispatched an ExecuteJob" shape. Kept local to this file rather
+    than promoted to conftest.py, which is shared write-target scope across unrelated test
+    groups (see design/specs/098-dedup-core-service-tests/design.md).
+    """
+    cmd = svc._executor.execute.call_args[0][0]
+    assert isinstance(cmd, ExecuteJob)
+    return cmd
+
+
 class TestRunJobResolvesEffectiveTimeout:
     async def test_run_job_resolves_effective_timeout_from_job(self) -> None:
         """job.timeout=5 takes precedence over config default."""
@@ -16,8 +29,7 @@ class TestRunJobResolvesEffectiveTimeout:
 
         await svc.run_job(job)
 
-        cmd = svc._executor.execute.call_args[0][0]
-        assert isinstance(cmd, ExecuteJob)
+        cmd = get_executed_cmd(svc)
         assert cmd.effective_timeout == 5.0
 
     async def test_run_job_resolves_effective_timeout_from_config(self) -> None:
@@ -27,8 +39,7 @@ class TestRunJobResolvesEffectiveTimeout:
 
         await svc.run_job(job)
 
-        cmd = svc._executor.execute.call_args[0][0]
-        assert isinstance(cmd, ExecuteJob)
+        cmd = get_executed_cmd(svc)
         assert cmd.effective_timeout == 600.0
 
     async def test_run_job_resolves_timeout_disabled(self) -> None:
@@ -38,8 +49,7 @@ class TestRunJobResolvesEffectiveTimeout:
 
         await svc.run_job(job)
 
-        cmd = svc._executor.execute.call_args[0][0]
-        assert isinstance(cmd, ExecuteJob)
+        cmd = get_executed_cmd(svc)
         assert cmd.effective_timeout is None
 
     async def test_run_job_does_not_raise_on_timeout(self) -> None:
@@ -54,6 +64,5 @@ class TestRunJobResolvesEffectiveTimeout:
         svc._executor.execute = AsyncMock()
         await svc.run_job(job)  # must not raise
 
-        cmd = svc._executor.execute.call_args[0][0]
-        assert isinstance(cmd, ExecuteJob)
+        cmd = get_executed_cmd(svc)
         assert cmd.effective_timeout == 0.001
