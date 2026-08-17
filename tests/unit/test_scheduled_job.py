@@ -89,20 +89,4 @@ class TestFireAt:
         assert job.fire_at == job.next_run
 
 
-class TestMarkRegistered:
-    def test_mark_registered_sets_db_id(self) -> None:
-        """mark_registered() sets db_id to the given value."""
-        job = make_scheduled_job()
-        assert job.db_id is None
-        job.mark_registered(42)
-        assert job.db_id == 42
-
-    def test_mark_registered_keeps_original_on_double_call(self) -> None:
-        """mark_registered() is first-call-wins: a second call does not overwrite the id."""
-        job = make_scheduled_job()
-        job.mark_registered(42)
-        assert job.db_id == 42
-
-        # Second call is a no-op — the original id is kept (mirrors Listener.mark_registered)
-        job.mark_registered(99)
-        assert job.db_id == 42
+# mark_registered() coverage lives in tests/unit/scheduler/test_scheduled_job_mark_registered.py.

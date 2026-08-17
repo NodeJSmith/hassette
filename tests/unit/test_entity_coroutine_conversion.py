@@ -32,9 +32,12 @@ _ENTITIES_DIR = _REPO_ROOT / "src" / "hassette" / "models" / "entities"
 _MANIFEST = _REPO_ROOT / ".generated-manifest"
 
 
+# dup-ignore-start: documented per-file opt-in pattern (see drain_forgotten_await_handles docstring
+# in tests/unit/conftest.py) — every warning-heavy test module repeats this one-line wrapper by design.
 @pytest.fixture(autouse=True)
 def _drain(drain_forgotten_await_handles: None) -> None:
     """Drain dropped handles after each test (shared fixture in tests/unit/conftest.py)."""
+    # dup-ignore-end
 
 
 if TYPE_CHECKING:

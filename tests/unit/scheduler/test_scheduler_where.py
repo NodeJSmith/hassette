@@ -12,12 +12,11 @@ import pytest
 
 from hassette.exceptions import DependencyInjectionError
 from hassette.scheduler.classes import Job
-from hassette.scheduler.scheduler import _build_predicate_invoker, _normalize_where
+from hassette.scheduler.scheduler import Scheduler, _build_predicate_invoker, _normalize_where
 from hassette.scheduler.triggers import Every
-from hassette.test_utils.config import TEST_SOURCE_LOCATION
 from hassette.test_utils.helpers import noop
 
-from .conftest import PATCH_TARGET, make_scheduler
+from .conftest import make_scheduler
 
 
 def is_home() -> bool:
@@ -28,59 +27,60 @@ def is_dark() -> bool:
     return True
 
 
+def _pred_zero_arg() -> bool:
+    return True
+
+
+def _pred_annotated_job(_job: Job) -> bool:
+    return True
+
+
+def _pred_optional_job(_job: Job | None = None) -> bool:
+    return True
+
+
+def _pred_job_with_extra_optional(_job: Job, _threshold: float = 0.5) -> bool:
+    return True
+
+
+def _pred_unannotated_one_arg(_x) -> bool:
+    return True
+
+
+def _pred_wrong_annotation(_x: int) -> bool:
+    return True
+
+
+def _pred_multiple_positional(_a: int, _b: str) -> bool:
+    return True
+
+
 class TestBuildPredicateInvoker:
     """Unit tests for `_build_predicate_invoker()` — DI-based Job detection."""
 
-    def test_zero_arg_predicate_empty_plan(self) -> None:
-        def pred() -> bool:
-            return True
-
+    @pytest.mark.parametrize(
+        ("pred", "expected_param_count"),
+        [
+            pytest.param(_pred_zero_arg, 0, id="zero_arg"),
+            pytest.param(_pred_annotated_job, 1, id="annotated_job"),
+            pytest.param(_pred_optional_job, 1, id="optional_job"),
+            pytest.param(_pred_job_with_extra_optional, 1, id="job_with_extra_optional"),
+            pytest.param(_pred_unannotated_one_arg, 0, id="unannotated_one_arg"),
+            pytest.param(_pred_wrong_annotation, 0, id="wrong_annotation"),
+            pytest.param(_pred_multiple_positional, 0, id="multiple_positional"),
+        ],
+    )
+    def test_param_count_for_predicate_signature(self, pred, expected_param_count: int) -> None:
         invoker = _build_predicate_invoker(pred)
-        assert len(invoker.params) == 0
+        assert len(invoker.params) == expected_param_count
 
-    def test_annotated_scheduled_job_has_plan(self) -> None:
-        def pred(_job: Job) -> bool:
-            return True
-
-        invoker = _build_predicate_invoker(pred)
-        assert len(invoker.params) == 1
+    def test_annotated_scheduled_job_param_has_source_type(self) -> None:
+        invoker = _build_predicate_invoker(_pred_annotated_job)
         assert invoker.params[0].source_type is Job
 
-    def test_optional_scheduled_job_annotation_has_plan(self) -> None:
-        def pred(_job: Job | None = None) -> bool:
-            return True
-
-        invoker = _build_predicate_invoker(pred)
-        assert len(invoker.params) == 1
-
-    def test_scheduled_job_with_extra_optional_has_plan(self) -> None:
-        def pred(_job: Job, _threshold: float = 0.5) -> bool:
-            return True
-
-        invoker = _build_predicate_invoker(pred)
-        assert len(invoker.params) == 1
+    def test_scheduled_job_with_extra_optional_param_name(self) -> None:
+        invoker = _build_predicate_invoker(_pred_job_with_extra_optional)
         assert invoker.params[0].name == "_job"
-
-    def test_unannotated_one_arg_empty_plan(self) -> None:
-        def pred(_x) -> bool:
-            return True
-
-        invoker = _build_predicate_invoker(pred)
-        assert len(invoker.params) == 0
-
-    def test_wrong_annotation_empty_plan(self) -> None:
-        def pred(_x: int) -> bool:
-            return True
-
-        invoker = _build_predicate_invoker(pred)
-        assert len(invoker.params) == 0
-
-    def test_multiple_positional_no_scheduled_job_empty_plan(self) -> None:
-        def pred(_a: int, _b: str) -> bool:
-            return True
-
-        invoker = _build_predicate_invoker(pred)
-        assert len(invoker.params) == 0
 
     def test_async_predicate_raises_type_error(self) -> None:
         async def pred() -> bool:
@@ -260,100 +260,89 @@ class TestNormalizeWhere:
 class TestScheduleAcceptsWhere:
     """`Scheduler.schedule()` accepts where= and stores the normalized predicate on the job."""
 
-    async def test_schedule_stores_zero_arg_predicate(self) -> None:
-        with patch(PATCH_TARGET, return_value=(TEST_SOURCE_LOCATION, "schedule(...)")):
-            scheduler = make_scheduler()
+    async def test_schedule_stores_zero_arg_predicate(self, patched_scheduler: Scheduler) -> None:
+        def pred() -> bool:
+            return True
 
-            def pred() -> bool:
-                return True
+        job = await patched_scheduler.schedule(
+            noop, Every(hours=1), where=pred, name="schedule_stores_zero_arg_predicate_schedule"
+        )
 
-            job = await scheduler.schedule(
-                noop, Every(hours=1), where=pred, name="schedule_stores_zero_arg_predicate_schedule"
+        assert job.predicate is pred
+        assert job.predicate_invoker is not None
+        assert len(job.predicate_invoker.params) == 0
+
+    async def test_schedule_stores_annotated_predicate_with_invoker(self, patched_scheduler: Scheduler) -> None:
+        def pred(_job: Job) -> bool:
+            return True
+
+        job = await patched_scheduler.schedule(
+            noop, Every(hours=1), where=pred, name="schedule_stores_annotated_predicate_with_schedule"
+        )
+
+        assert job.predicate is pred
+        assert job.predicate_invoker is not None
+        assert len(job.predicate_invoker.params) == 1
+
+    async def test_schedule_defaults_predicate_to_none(self, patched_scheduler: Scheduler) -> None:
+        job = await patched_scheduler.schedule(
+            noop, Every(hours=1), name="schedule_defaults_predicate_to_none_schedule"
+        )
+
+        assert job.predicate is None
+        assert job.predicate_invoker is None
+
+    async def test_schedule_raises_for_async_predicate(self, patched_scheduler: Scheduler) -> None:
+        async def pred() -> bool:
+            return True
+
+        with pytest.raises(TypeError, match="synchronous"):
+            await patched_scheduler.schedule(
+                noop, Every(hours=1), where=pred, name="schedule_raises_for_async_predicate_schedule"
             )
-
-            assert job.predicate is pred
-            assert job.predicate_invoker is not None
-            assert len(job.predicate_invoker.params) == 0
-
-    async def test_schedule_stores_annotated_predicate_with_invoker(self) -> None:
-        with patch(PATCH_TARGET, return_value=(TEST_SOURCE_LOCATION, "schedule(...)")):
-            scheduler = make_scheduler()
-
-            def pred(_job: Job) -> bool:
-                return True
-
-            job = await scheduler.schedule(
-                noop, Every(hours=1), where=pred, name="schedule_stores_annotated_predicate_with_schedule"
-            )
-
-            assert job.predicate is pred
-            assert job.predicate_invoker is not None
-            assert len(job.predicate_invoker.params) == 1
-
-    async def test_schedule_defaults_predicate_to_none(self) -> None:
-        with patch(PATCH_TARGET, return_value=(TEST_SOURCE_LOCATION, "schedule(...)")):
-            scheduler = make_scheduler()
-
-            job = await scheduler.schedule(noop, Every(hours=1), name="schedule_defaults_predicate_to_none_schedule")
-
-            assert job.predicate is None
-            assert job.predicate_invoker is None
-
-    async def test_schedule_raises_for_async_predicate(self) -> None:
-        with patch(PATCH_TARGET, return_value=(TEST_SOURCE_LOCATION, "schedule(...)")):
-            scheduler = make_scheduler()
-
-            async def pred() -> bool:
-                return True
-
-            with pytest.raises(TypeError, match="synchronous"):
-                await scheduler.schedule(
-                    noop, Every(hours=1), where=pred, name="schedule_raises_for_async_predicate_schedule"
-                )
 
 
 class TestConvenienceMethodsForwardWhereToJob:
     """All seven convenience methods accept where= and it ends up on the registered job."""
 
-    async def test_all_seven_convenience_methods_store_where_on_job(self) -> None:
-        with patch(PATCH_TARGET, return_value=(TEST_SOURCE_LOCATION, "schedule(...)")):
-            scheduler = make_scheduler()
+    async def test_all_seven_convenience_methods_store_where_on_job(self, patched_scheduler: Scheduler) -> None:
+        def pred() -> bool:
+            return True
 
-            def pred() -> bool:
-                return True
+        job_run_in = await patched_scheduler.run_in(
+            noop, delay=60, where=pred, name="all_seven_conv_methods_where_run_in"
+        )
+        assert job_run_in.predicate is pred
 
-            job_run_in = await scheduler.run_in(noop, delay=60, where=pred, name="all_seven_conv_methods_where_run_in")
-            assert job_run_in.predicate is pred
+        job_run_once = await patched_scheduler.run_once(
+            noop, at="23:59", where=pred, name="all_seven_conv_methods_where_run_once"
+        )
+        assert job_run_once.predicate is pred
 
-            job_run_once = await scheduler.run_once(
-                noop, at="23:59", where=pred, name="all_seven_conv_methods_where_run_once"
-            )
-            assert job_run_once.predicate is pred
+        job_run_every = await patched_scheduler.run_every(
+            noop, seconds=30, where=pred, name="all_seven_conv_methods_where_run_every"
+        )
+        assert job_run_every.predicate is pred
 
-            job_run_every = await scheduler.run_every(
-                noop, seconds=30, where=pred, name="all_seven_conv_methods_where_run_every"
-            )
-            assert job_run_every.predicate is pred
+        job_run_minutely = await patched_scheduler.run_minutely(
+            noop, where=pred, name="all_seven_conv_methods_where_run_minutely"
+        )
+        assert job_run_minutely.predicate is pred
 
-            job_run_minutely = await scheduler.run_minutely(
-                noop, where=pred, name="all_seven_conv_methods_where_run_minutely"
-            )
-            assert job_run_minutely.predicate is pred
+        job_run_hourly = await patched_scheduler.run_hourly(
+            noop, where=pred, name="all_seven_conv_methods_where_run_hourly"
+        )
+        assert job_run_hourly.predicate is pred
 
-            job_run_hourly = await scheduler.run_hourly(
-                noop, where=pred, name="all_seven_conv_methods_where_run_hourly"
-            )
-            assert job_run_hourly.predicate is pred
+        job_run_daily = await patched_scheduler.run_daily(
+            noop, at="00:00", where=pred, name="all_seven_conv_methods_where_run_daily"
+        )
+        assert job_run_daily.predicate is pred
 
-            job_run_daily = await scheduler.run_daily(
-                noop, at="00:00", where=pred, name="all_seven_conv_methods_where_run_daily"
-            )
-            assert job_run_daily.predicate is pred
-
-            job_run_cron = await scheduler.run_cron(
-                noop, "0 * * * *", where=pred, name="all_seven_conv_methods_where_run_cron"
-            )
-            assert job_run_cron.predicate is pred
+        job_run_cron = await patched_scheduler.run_cron(
+            noop, "0 * * * *", where=pred, name="all_seven_conv_methods_where_run_cron"
+        )
+        assert job_run_cron.predicate is pred
 
 
 class TestConvenienceMethodsForwardWhereKwarg:
