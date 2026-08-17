@@ -8,42 +8,37 @@ from hassette.commands import ExecuteJob, InvokeHandler
 from hassette.utils.execution import ExecutionResult, track_execution
 
 
+def invoke_handler_kwargs(**overrides: object) -> dict:
+    """Shared base kwargs for constructing an InvokeHandler in the tests below — only
+    `effective_timeout` (or its absence) varies per test.
+    """
+    kwargs: dict = {
+        "listener": MagicMock(),
+        "event": MagicMock(),
+        "topic": "test",
+        "listener_id": 1,
+        "source_tier": "app",
+    }
+    kwargs.update(overrides)
+    return kwargs
+
+
 class TestEffectiveTimeoutField:
     """effective_timeout is required on InvokeHandler and ExecuteJob (no default)."""
 
     def test_invoke_handler_requires_effective_timeout(self) -> None:
         """Omitting effective_timeout raises TypeError."""
         with pytest.raises(TypeError):
-            InvokeHandler(  # pyright: ignore[reportCallIssue]
-                listener=MagicMock(),
-                event=MagicMock(),
-                topic="test",
-                listener_id=1,
-                source_tier="app",
-            )
+            InvokeHandler(**invoke_handler_kwargs())  # pyright: ignore[reportCallIssue]
 
     def test_invoke_handler_accepts_effective_timeout_none(self) -> None:
         """effective_timeout=None is valid (no timeout)."""
-        cmd = InvokeHandler(
-            listener=MagicMock(),
-            event=MagicMock(),
-            topic="test",
-            listener_id=1,
-            source_tier="app",
-            effective_timeout=None,
-        )
+        cmd = InvokeHandler(**invoke_handler_kwargs(effective_timeout=None))
         assert cmd.effective_timeout is None
 
     def test_invoke_handler_accepts_effective_timeout_float(self) -> None:
         """effective_timeout=5.0 is valid."""
-        cmd = InvokeHandler(
-            listener=MagicMock(),
-            event=MagicMock(),
-            topic="test",
-            listener_id=1,
-            source_tier="app",
-            effective_timeout=5.0,
-        )
+        cmd = InvokeHandler(**invoke_handler_kwargs(effective_timeout=5.0))
         assert cmd.effective_timeout == 5.0
 
     def test_execute_job_requires_effective_timeout(self) -> None:
