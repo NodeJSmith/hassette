@@ -55,6 +55,39 @@ def _pred_multiple_positional(_a: int, _b: str) -> bool:
     return True
 
 
+# All 7 convenience methods accept where= and it ends up on the registered job.
+_WHERE_CONVENIENCE_CALLS = [
+    pytest.param(
+        lambda s: s.run_in(noop, delay=60, where=_pred_zero_arg, name="all_seven_conv_methods_where_run_in"),
+        id="run_in",
+    ),
+    pytest.param(
+        lambda s: s.run_once(noop, at="23:59", where=_pred_zero_arg, name="all_seven_conv_methods_where_run_once"),
+        id="run_once",
+    ),
+    pytest.param(
+        lambda s: s.run_every(noop, seconds=30, where=_pred_zero_arg, name="all_seven_conv_methods_where_run_every"),
+        id="run_every",
+    ),
+    pytest.param(
+        lambda s: s.run_minutely(noop, where=_pred_zero_arg, name="all_seven_conv_methods_where_run_minutely"),
+        id="run_minutely",
+    ),
+    pytest.param(
+        lambda s: s.run_hourly(noop, where=_pred_zero_arg, name="all_seven_conv_methods_where_run_hourly"),
+        id="run_hourly",
+    ),
+    pytest.param(
+        lambda s: s.run_daily(noop, at="00:00", where=_pred_zero_arg, name="all_seven_conv_methods_where_run_daily"),
+        id="run_daily",
+    ),
+    pytest.param(
+        lambda s: s.run_cron(noop, "0 * * * *", where=_pred_zero_arg, name="all_seven_conv_methods_where_run_cron"),
+        id="run_cron",
+    ),
+]
+
+
 class TestBuildPredicateInvoker:
     """Unit tests for `_build_predicate_invoker()` — DI-based Job detection."""
 
@@ -305,44 +338,10 @@ class TestScheduleAcceptsWhere:
 class TestConvenienceMethodsForwardWhereToJob:
     """All seven convenience methods accept where= and it ends up on the registered job."""
 
-    async def test_all_seven_convenience_methods_store_where_on_job(self, patched_scheduler: Scheduler) -> None:
-        def pred() -> bool:
-            return True
-
-        job_run_in = await patched_scheduler.run_in(
-            noop, delay=60, where=pred, name="all_seven_conv_methods_where_run_in"
-        )
-        assert job_run_in.predicate is pred
-
-        job_run_once = await patched_scheduler.run_once(
-            noop, at="23:59", where=pred, name="all_seven_conv_methods_where_run_once"
-        )
-        assert job_run_once.predicate is pred
-
-        job_run_every = await patched_scheduler.run_every(
-            noop, seconds=30, where=pred, name="all_seven_conv_methods_where_run_every"
-        )
-        assert job_run_every.predicate is pred
-
-        job_run_minutely = await patched_scheduler.run_minutely(
-            noop, where=pred, name="all_seven_conv_methods_where_run_minutely"
-        )
-        assert job_run_minutely.predicate is pred
-
-        job_run_hourly = await patched_scheduler.run_hourly(
-            noop, where=pred, name="all_seven_conv_methods_where_run_hourly"
-        )
-        assert job_run_hourly.predicate is pred
-
-        job_run_daily = await patched_scheduler.run_daily(
-            noop, at="00:00", where=pred, name="all_seven_conv_methods_where_run_daily"
-        )
-        assert job_run_daily.predicate is pred
-
-        job_run_cron = await patched_scheduler.run_cron(
-            noop, "0 * * * *", where=pred, name="all_seven_conv_methods_where_run_cron"
-        )
-        assert job_run_cron.predicate is pred
+    @pytest.mark.parametrize("call", _WHERE_CONVENIENCE_CALLS)
+    async def test_convenience_method_stores_where_on_job(self, patched_scheduler: Scheduler, call) -> None:
+        job = await call(patched_scheduler)
+        assert job.predicate is _pred_zero_arg
 
 
 class TestConvenienceMethodsForwardWhereKwarg:

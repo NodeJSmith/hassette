@@ -17,7 +17,7 @@ from tests.unit.conftest import make_api
 
 
 @pytest.fixture(autouse=True)
-def drain(drain_forgotten_await_handles: None) -> None:
+def _drain(drain_forgotten_await_handles: None) -> None:
     """Drain dropped handles after each test (shared fixture in tests/unit/conftest.py)."""
 
 

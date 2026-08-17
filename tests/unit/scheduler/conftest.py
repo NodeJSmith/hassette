@@ -9,8 +9,8 @@ from whenever import ZonedDateTime
 from hassette.scheduler.scheduler import Scheduler
 from hassette.test_utils.config import TEST_SOURCE_LOCATION
 from hassette.test_utils.factories import make_scheduler as make_scheduler
+from tests.unit.conftest import TZ as TZ
 
-TZ = "America/Chicago"
 PATCH_TARGET = "hassette.scheduler.scheduler.capture_registration_source"
 
 

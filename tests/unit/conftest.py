@@ -44,6 +44,10 @@ if TYPE_CHECKING:
 
 TEST_TOKEN = "test-token"
 
+#: Shared timezone for tests that build fixed ZonedDateTime instances — America/Chicago
+#: covers DST transitions in a way UTC doesn't, so most scheduler/trigger tests use it.
+TZ = "America/Chicago"
+
 
 def make_sync_executor_config(
     max_workers: int = 4,

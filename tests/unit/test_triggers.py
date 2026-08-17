@@ -8,10 +8,10 @@ from whenever import ZonedDateTime
 import hassette.scheduler.classes as classes_module
 from hassette.scheduler import After, Cron, Daily, Every, Once, TriggerProtocol
 
+from .conftest import TZ as TZ
+
 if TYPE_CHECKING:
     from hassette.test_utils.harness import HassetteHarness
-
-TZ = "America/Chicago"
 
 
 def zdt(year: int, month: int, day: int, hour: int = 0, minute: int = 0, second: int = 0) -> ZonedDateTime:
