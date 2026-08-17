@@ -16,7 +16,6 @@ from hassette.core.execution_record import ExecutionRecord
 from hassette.schemas.execution_models import Execution
 from hassette.test_utils.config import TEST_EPOCH_B
 from hassette.test_utils.factories import make_execution_record
-from hassette.test_utils.web_telemetry_helpers import make_execution
 from hassette.types.types import ExecutionStatus
 
 
@@ -39,12 +38,14 @@ def build_execution(
     args_json: str = "[]",
     kwargs_json: str = "{}",
 ) -> Execution:
-    """Build an Execution via the shared make_execution() factory, layering the extra
-    per-execution columns (trigger metadata, retry/attempt counters, JSON payloads) that
-    make_execution()'s signature doesn't expose on top via model_copy — Execution carries more
-    fields than the shared web-layer factory covers.
+    """Build an Execution through its real constructor.
+
+    Every field is passed straight to Execution(...) rather than layered on via
+    model_copy(update=...), so Pydantic actually validates each value — model_copy bypasses
+    validation entirely and would let tests pass even if a field were removed, renamed, or
+    started rejecting the supplied value.
     """
-    base = make_execution(
+    return Execution(
         kind=kind,
         execution_start_ts=execution_start_ts,
         duration_ms=duration_ms,
@@ -54,17 +55,13 @@ def build_execution(
         execution_id=execution_id,
         listener_id=listener_id,
         job_id=job_id,
-    )
-    return base.model_copy(
-        update={
-            "trigger_context_id": trigger_context_id,
-            "trigger_origin": trigger_origin,
-            "trigger_mode": trigger_mode,
-            "retry_count": retry_count,
-            "attempt_number": attempt_number,
-            "args_json": args_json,
-            "kwargs_json": kwargs_json,
-        }
+        trigger_context_id=trigger_context_id,
+        trigger_origin=trigger_origin,
+        trigger_mode=trigger_mode,
+        retry_count=retry_count,
+        attempt_number=attempt_number,
+        args_json=args_json,
+        kwargs_json=kwargs_json,
     )
 
 
