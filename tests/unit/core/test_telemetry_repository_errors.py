@@ -57,8 +57,8 @@ async def test_persist_execution_batch_with_fk_fallback_success_path(
     telemetry_db: aiosqlite.Connection,
     telemetry_session_id: int,
 ) -> None:
-    # dup-ignore-end
     """persist_execution_batch_with_fk_fallback() inserts records when no FK violations occur."""
+    # dup-ignore-end
     listener_id = await telemetry_repo.register_listener(make_listener_registration())
     job_id = await telemetry_repo.register_job(make_job_registration())
 
@@ -104,12 +104,12 @@ async def test_persist_execution_batch_with_fk_fallback_drops_on_listener_fk_vio
     telemetry_db: aiosqlite.Connection,
     telemetry_session_id: int,
 ) -> None:
-    # dup-ignore-end
     """persist_execution_batch_with_fk_fallback() drops handler record with bad listener_id.
 
     The null-FK retry also fails because the CHECK constraint requires exactly one
     of listener_id or job_id to be non-null.
     """
+    # dup-ignore-end
     now = time.time()
     bad_listener_id = 99999
     record = ExecutionRecord(
@@ -140,12 +140,12 @@ async def test_persist_execution_batch_with_fk_fallback_drops_on_job_fk_violatio
     telemetry_db: aiosqlite.Connection,
     telemetry_session_id: int,
 ) -> None:
-    # dup-ignore-end
     """persist_execution_batch_with_fk_fallback() drops job record with bad job_id.
 
     The null-FK retry also fails because the CHECK constraint requires exactly one
     of listener_id or job_id to be non-null.
     """
+    # dup-ignore-end
     now = time.time()
     bad_job_id = 99999
     record = ExecutionRecord(
@@ -176,8 +176,8 @@ async def test_persist_execution_batch_with_fk_fallback_drops_row_on_second_fail
     telemetry_db: aiosqlite.Connection,
     telemetry_session_id: int,
 ) -> None:
-    # dup-ignore-end
     """persist_execution_batch_with_fk_fallback() counts dropped when null-FK retry also fails."""
+    # dup-ignore-end
     now = time.time()
     record = ExecutionRecord(
         kind="handler",
@@ -217,8 +217,8 @@ async def test_persist_execution_batch_with_fk_fallback_drops_job_row_on_second_
     telemetry_db: aiosqlite.Connection,
     telemetry_session_id: int,
 ) -> None:
-    # dup-ignore-end
     """persist_execution_batch_with_fk_fallback() counts dropped for job rows when null-FK retry fails."""
+    # dup-ignore-end
     now = time.time()
     record = ExecutionRecord(
         kind="job",
@@ -266,8 +266,8 @@ async def test_persist_execution_batch_with_fk_fallback_rollback_on_exception(
     telemetry_db: aiosqlite.Connection,
     telemetry_session_id: int,
 ) -> None:
-    # dup-ignore-end
     """persist_execution_batch_with_fk_fallback() rolls back on unexpected errors."""
+    # dup-ignore-end
     now = time.time()
     record = ExecutionRecord(
         kind="handler",
@@ -302,8 +302,8 @@ async def test_persist_execution_batch_rollback_on_exception(
     telemetry_db: aiosqlite.Connection,
     telemetry_session_id: int,
 ) -> None:
-    # dup-ignore-end
     """persist_execution_batch() rolls back and re-raises on unexpected error."""
+    # dup-ignore-end
     listener_id = await telemetry_repo.register_listener(make_listener_registration())
     now = time.time()
     record = make_execution_record(listener_id=listener_id, session_id=telemetry_session_id, execution_start_ts=now)

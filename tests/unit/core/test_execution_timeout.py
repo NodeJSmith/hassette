@@ -8,7 +8,7 @@ from hassette.commands import ExecuteJob, InvokeHandler
 from hassette.utils.execution import ExecutionResult, track_execution
 
 
-def invoke_handler_kwargs(**overrides: object) -> dict[str, object]:
+def make_invoke_handler_kwargs(**overrides: object) -> dict[str, object]:
     """Shared base kwargs for constructing an InvokeHandler in the tests below — only
     `effective_timeout` (or its absence) varies per test.
     """
@@ -29,16 +29,16 @@ class TestEffectiveTimeoutField:
     def test_invoke_handler_requires_effective_timeout(self) -> None:
         """Omitting effective_timeout raises TypeError."""
         with pytest.raises(TypeError):
-            InvokeHandler(**invoke_handler_kwargs())  # pyright: ignore[reportCallIssue]
+            InvokeHandler(**make_invoke_handler_kwargs())  # pyright: ignore[reportCallIssue]
 
     def test_invoke_handler_accepts_effective_timeout_none(self) -> None:
         """effective_timeout=None is valid (no timeout)."""
-        cmd = InvokeHandler(**invoke_handler_kwargs(effective_timeout=None))
+        cmd = InvokeHandler(**make_invoke_handler_kwargs(effective_timeout=None))
         assert cmd.effective_timeout is None
 
     def test_invoke_handler_accepts_effective_timeout_float(self) -> None:
         """effective_timeout=5.0 is valid."""
-        cmd = InvokeHandler(**invoke_handler_kwargs(effective_timeout=5.0))
+        cmd = InvokeHandler(**make_invoke_handler_kwargs(effective_timeout=5.0))
         assert cmd.effective_timeout == 5.0
 
     def test_execute_job_requires_effective_timeout(self) -> None:

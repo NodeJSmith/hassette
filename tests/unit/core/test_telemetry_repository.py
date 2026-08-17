@@ -188,8 +188,8 @@ async def test_reconcile_retires_stale_with_history(
     telemetry_db: aiosqlite.Connection,
     telemetry_session_id: int,
 ) -> None:
-    # dup-ignore-end
     """reconcile_registrations() sets retired_at on stale rows that have execution history."""
+    # dup-ignore-end
     listener_id = await telemetry_repo.register_listener(make_listener_registration())
     job_id = await telemetry_repo.register_job(make_job_registration())
 
@@ -268,8 +268,8 @@ async def test_reconcile_preserves_once_true_with_current_executions(
     telemetry_db: aiosqlite.Connection,
     telemetry_session_id: int,
 ) -> None:
-    # dup-ignore-end
     """reconcile_registrations() preserves once=True rows that have current-session executions."""
+    # dup-ignore-end
     once_reg = make_listener_registration(once=True, name=ONCE_LISTENER_NAME)
     once_id = await telemetry_repo.register_listener(once_reg)
 
@@ -300,8 +300,8 @@ async def test_reconcile_resets_retired_at_on_reupsert(
     telemetry_db: aiosqlite.Connection,
     telemetry_session_id: int,
 ) -> None:
-    # dup-ignore-end
     """After a row is retired, re-upserting it (same natural key) resets retired_at to NULL."""
+    # dup-ignore-end
     reg = make_listener_registration()
     listener_id = await telemetry_repo.register_listener(reg)
 
@@ -414,8 +414,8 @@ async def test_persist_execution_batch_inserts_handler_records(
     telemetry_db: aiosqlite.Connection,
     telemetry_session_id: int,
 ) -> None:
-    # dup-ignore-end
     """persist_execution_batch() inserts handler ExecutionRecords into the executions table."""
+    # dup-ignore-end
     listener_id = await telemetry_repo.register_listener(make_listener_registration())
 
     now = time.time()
@@ -458,8 +458,8 @@ async def test_persist_execution_batch_inserts_job_records(
     telemetry_db: aiosqlite.Connection,
     telemetry_session_id: int,
 ) -> None:
-    # dup-ignore-end
     """persist_execution_batch() inserts job ExecutionRecords into the executions table."""
+    # dup-ignore-end
     job_id = await telemetry_repo.register_job(make_job_registration())
 
     now = time.time()
@@ -514,8 +514,8 @@ async def test_persist_execution_batch_unified(
     telemetry_db: aiosqlite.Connection,
     telemetry_session_id: int,
 ) -> None:
-    # dup-ignore-end
     """persist_execution_batch() inserts ExecutionRecord rows into executions with correct kind."""
+    # dup-ignore-end
     listener_id = await telemetry_repo.register_listener(make_listener_registration())
     job_id = await telemetry_repo.register_job(make_job_registration())
 
@@ -620,8 +620,8 @@ async def test_reconcile_retires_stale_job_with_history_non_empty_live_set(
     telemetry_db: aiosqlite.Connection,
     telemetry_session_id: int,
 ) -> None:
-    # dup-ignore-end
     """reconcile_registrations() retires stale jobs with history when live_job_ids is non-empty."""
+    # dup-ignore-end
     job_id_a = await telemetry_repo.register_job(make_job_registration(job_name="job_a"))
     job_id_b = await telemetry_repo.register_job(make_job_registration(job_name="job_b"))
 

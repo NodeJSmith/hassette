@@ -60,7 +60,7 @@ def ensure_uninstall() -> Iterator[None]:
     assert builtins.open is _REAL_OPEN, "builtins.open leaked between tests"
 
 
-def install_on_loop_thread(hassette: MagicMock, executor: object) -> bool:
+def install_on_loop_thread(hassette: MagicMock, executor: MagicMock) -> bool:
     """install() using the current thread as the loop thread.
 
     Every test in this file runs install() and the blocking call under test on the same (test)

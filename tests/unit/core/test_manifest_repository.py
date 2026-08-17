@@ -91,8 +91,8 @@ async def test_upsert_app_manifest_creates_new_row(
     telemetry_db: aiosqlite.Connection,
     tmp_path: Path,
 ) -> None:
-    # dup-ignore-end
     """upsert_app_manifest() inserts a new row and returns a valid positive integer ID."""
+    # dup-ignore-end
     manifest = create_app_manifest("new", tmp_path)
 
     manifest_id = await telemetry_repo.upsert_app_manifest(manifest)
@@ -121,8 +121,8 @@ async def test_upsert_app_manifest_updates_existing_row_preserves_id(
     telemetry_db: aiosqlite.Connection,
     tmp_path: Path,
 ) -> None:
-    # dup-ignore-end
     """Re-upserting the same app_key updates the row in place and preserves the row ID."""
+    # dup-ignore-end
     manifest = create_app_manifest("update", tmp_path)
     first_id = await telemetry_repo.upsert_app_manifest(manifest)
 
@@ -153,12 +153,12 @@ async def test_upsert_app_manifest_refreshes_updated_at_on_conflict(
     telemetry_db: aiosqlite.Connection,
     tmp_path: Path,
 ) -> None:
-    # dup-ignore-end
     """updated_at is refreshed on conflict, not frozen at the first insert's value.
 
     Column DEFAULT expressions only fire on INSERT, not on DO UPDATE SET -- this guards
     against the DO UPDATE SET clause silently omitting the explicit updated_at refresh.
     """
+    # dup-ignore-end
     manifest = create_app_manifest("touch", tmp_path)
     manifest_id = await telemetry_repo.upsert_app_manifest(manifest)
 
@@ -192,8 +192,8 @@ async def test_get_all_app_manifests_returns_all_rows(
     telemetry_db: aiosqlite.Connection,
     tmp_path: Path,
 ) -> None:
-    # dup-ignore-end
     """get_all_app_manifests() returns every persisted manifest row as a dict."""
+    # dup-ignore-end
     manifest_a = create_app_manifest("a", tmp_path)
     manifest_b = create_app_manifest("b", tmp_path)
     await telemetry_repo.upsert_app_manifest(manifest_a)
@@ -216,8 +216,8 @@ async def test_get_app_manifest_returns_single_row_or_none(
     telemetry_db: aiosqlite.Connection,
     tmp_path: Path,
 ) -> None:
-    # dup-ignore-end
     """get_app_manifest() returns the matching row for a known app_key, None otherwise."""
+    # dup-ignore-end
     manifest = create_app_manifest("solo", tmp_path)
     await telemetry_repo.upsert_app_manifest(manifest)
 
