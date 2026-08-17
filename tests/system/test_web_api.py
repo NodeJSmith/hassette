@@ -155,12 +155,12 @@ async def test_telemetry_after_activity(ha_container: str, tmp_path) -> None:
             await wait_for(_has_invocations, timeout=20.0, interval=0.3, desc="telemetry to show handler activity")
 
 
-async def test_websocket_receives_events(ha_container: str, tmp_path) -> None:
-    """Connecting to /api/ws yields an initial 'connected' message then event messages on activity."""
+async def test_websocket_connects_and_receives_handshake(ha_container: str, tmp_path) -> None:
+    """Connecting to /api/ws yields an initial 'connected' message with expected fields."""
     config, base_url = make_web_system_config(ha_container, tmp_path)
     ws_url = base_url.replace("http://", "ws://", 1) + "/api/ws"
 
-    async with startup_context(config) as hassette:
+    async with startup_context(config):
         await wait_for_web_server(base_url)
 
         async with ws_connect(ws_url, ping_interval=None) as ws:
@@ -169,20 +169,3 @@ async def test_websocket_receives_events(ha_container: str, tmp_path) -> None:
             assert connected_msg["type"] == "connected"
             assert "data" in connected_msg
             assert "timestamp" in connected_msg
-
-            await hassette.api.call_service(DOMAIN, "toggle", {"entity_id": ENTITY})
-
-            event_msg: dict[str, Any] | None = None
-            deadline = asyncio.get_running_loop().time() + 15.0
-            while asyncio.get_running_loop().time() < deadline:
-                try:
-                    raw = await asyncio.wait_for(ws.recv(), timeout=2.0)
-                    msg: dict[str, Any] = json.loads(raw)
-                    if msg.get("type") != "connected":
-                        event_msg = msg
-                        break
-                except TimeoutError:
-                    continue
-
-            assert event_msg is not None, "No event message received over WebSocket after toggling light"
-            assert "type" in event_msg

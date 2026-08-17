@@ -186,9 +186,9 @@ class TestWebSocketConnection:
             # Log should be filtered (subscribe_logs is False by default)
             put_message(runtime_query_service, "log", level="INFO", message="should not arrive")
             # Non-log message to verify the connection is alive
-            put_message(runtime_query_service, "state_changed", entity_id="light.kitchen")
+            put_message(runtime_query_service, "app_status_changed", app_key="my_app")
 
-            expect_message(ws, "state_changed")
+            expect_message(ws, "app_status_changed")
 
     def test_non_log_messages_pass_through_without_subscription(
         self, client: "TestClient", runtime_query_service: RuntimeQueryService
@@ -282,9 +282,9 @@ class TestWebSocketEdgeCases:
             # Log messages should NOT pass through (logs=False by default)
             put_message(runtime_query_service, "log", level="INFO", message="should not arrive")
             # Non-log message confirms connection is alive and log was filtered
-            put_message(runtime_query_service, "state_changed", entity_id="light.kitchen")
+            put_message(runtime_query_service, "app_status_changed", app_key="my_app")
 
-            expect_message(ws, "state_changed")
+            expect_message(ws, "app_status_changed")
 
     def test_subscribe_with_missing_data_key_uses_defaults(
         self, client: "TestClient", runtime_query_service: RuntimeQueryService
