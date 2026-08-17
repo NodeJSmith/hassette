@@ -1,7 +1,7 @@
 ---
 task_id: "T05"
 title: "Deduplicate unified execution tests"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#1", "FR#3", "AC#1", "AC#2", "AC#3", "AC#4"]
 ---
