@@ -5,11 +5,12 @@ import inspect
 import aiosqlite
 import pytest
 
-from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry.repository import TelemetryRepository
 
+from .helpers import DbFixture
 
-async def test_on_conflict_target_matches_index(db: tuple[DatabaseService, int]) -> None:
+
+async def test_on_conflict_target_matches_index(db: DbFixture) -> None:
     """idx_listeners_natural columns exactly match the ON CONFLICT target in register_listener().
 
     Queries sqlite_master for idx_listeners_natural and asserts:
@@ -41,7 +42,7 @@ async def test_on_conflict_target_matches_index(db: tuple[DatabaseService, int])
     )
 
 
-async def test_unique_index_enforced(db: tuple[DatabaseService, int]) -> None:
+async def test_unique_index_enforced(db: DbFixture) -> None:
     """Two listeners with the same natural key (app_key, instance_index, name, topic) raise IntegrityError."""
     db_service, _ = db
     conn = db_service.db
@@ -58,7 +59,7 @@ async def test_unique_index_enforced(db: tuple[DatabaseService, int]) -> None:
         await conn.execute(sql)
 
 
-async def test_active_views_exist(db: tuple[DatabaseService, int]) -> None:
+async def test_active_views_exist(db: DbFixture) -> None:
     """active_listeners and active_scheduled_jobs views are queryable on the canonical schema."""
     db_service, _ = db
     conn = db_service.db

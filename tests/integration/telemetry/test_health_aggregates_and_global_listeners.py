@@ -11,13 +11,14 @@ Covers:
 
 import pytest
 
-from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry.query_service import AppHealthAggregates, TelemetryQueryService
 from hassette.schemas.listener_models import ListenerSummary
 
 from .helpers import (
     BASE_TS,
+    DbFixture,
     assert_last_error_row_coherence,
+    error_row,
     insert_execution,
     insert_invocation,
     insert_job,
@@ -27,9 +28,7 @@ from .helpers import (
 
 class TestGetAppHealthAggregates:
     async def test_returns_correct_totals_matching_per_item_sums(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
+        self, query_service: TelemetryQueryService, db: DbFixture
     ) -> None:
         """Totals from get_app_health_aggregates() match sum of per-listener/per-job detail queries."""
         db_svc, session_id = db
@@ -69,9 +68,7 @@ class TestGetAppHealthAggregates:
         assert agg.last_activity_ts is not None
 
     async def test_excludes_cancelled_listener_invocations(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
+        self, query_service: TelemetryQueryService, db: DbFixture
     ) -> None:
         """A cancelled listener's invocations are excluded from handler aggregates."""
         db_svc, session_id = db
@@ -90,9 +87,7 @@ class TestGetAppHealthAggregates:
         assert agg.handler_errors == 0
 
     async def test_zero_invocations_returns_zero_values(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
+        self, query_service: TelemetryQueryService, db: DbFixture
     ) -> None:
         """App with no invocations or executions returns all-zero aggregates, None last_activity_ts."""
         result = await query_service.get_app_health_aggregates(app_key="no_such_app", instance_index=0)
@@ -108,11 +103,7 @@ class TestGetAppHealthAggregates:
         assert result.job_avg_duration_ms == 0.0
         assert result.last_activity_ts is None
 
-    async def test_listeners_only_no_jobs(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
+    async def test_listeners_only_no_jobs(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
         """App with handlers but no jobs returns correct handler totals, zero job totals."""
         db_svc, session_id = db
 
@@ -130,11 +121,7 @@ class TestGetAppHealthAggregates:
         assert agg.job_errors == 0
         assert agg.job_avg_duration_ms == 0.0
 
-    async def test_jobs_only_no_listeners(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
+    async def test_jobs_only_no_listeners(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
         """App with jobs but no listeners returns correct job totals, zero handler totals."""
         db_svc, session_id = db
 
@@ -153,9 +140,7 @@ class TestGetAppHealthAggregates:
         assert agg.job_avg_duration_ms == pytest.approx(65.0)
 
     async def test_since_filters_handler_and_job_counts(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
+        self, query_service: TelemetryQueryService, db: DbFixture
     ) -> None:
         """Since parameter restricts both handler invocations and job executions by timestamp."""
         db_svc, session_id = db
@@ -194,9 +179,7 @@ class TestGetAppHealthAggregates:
         assert agg.job_avg_duration_ms == pytest.approx(60.0)
 
     async def test_last_activity_ts_is_most_recent_across_both_tables(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
+        self, query_service: TelemetryQueryService, db: DbFixture
     ) -> None:
         """last_activity_ts is the max of handler and job timestamps."""
         db_svc, session_id = db
@@ -216,11 +199,7 @@ class TestGetAppHealthAggregates:
         # Max of the two timestamps
         assert agg.last_activity_ts == pytest.approx(BASE_TS + 99.0)
 
-    async def test_instance_index_scoping(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
+    async def test_instance_index_scoping(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
         """Only records for the specified instance_index are counted."""
         db_svc, session_id = db
 
@@ -248,9 +227,7 @@ class TestGetAppHealthAggregates:
 
 class TestGetListenerSummaryGlobal:
     async def test_returns_all_listeners_across_apps_and_instances(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
+        self, query_service: TelemetryQueryService, db: DbFixture
     ) -> None:
         """All listeners from multiple apps and instances are returned in a single call."""
         db_svc, session_id = db
@@ -278,9 +255,7 @@ class TestGetListenerSummaryGlobal:
         assert app_keys == {"app_alpha", "app_beta"}
 
     async def test_matches_per_instance_get_listener_summary_combined(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
+        self, query_service: TelemetryQueryService, db: DbFixture
     ) -> None:
         """Results match the union of per-instance get_listener_summary() calls."""
         db_svc, session_id = db
@@ -305,11 +280,7 @@ class TestGetListenerSummaryGlobal:
             assert r.failed == expected.failed
             assert r.avg_duration_ms == pytest.approx(expected.avg_duration_ms)
 
-    async def test_last_error_row_coherence(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
+    async def test_last_error_row_coherence(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
         """Multiple errors — all last_error_* columns come from the same (most recent) error row."""
         db_svc, session_id = db
 
@@ -319,25 +290,13 @@ class TestGetListenerSummaryGlobal:
             lambda **kw: insert_invocation(db_svc, listener_id, session_id, **kw),
             lambda: query_service.get_listener_summary(),
             [
-                {
-                    "error_type": "OldError",
-                    "error_message": "old message",
-                    "error_traceback": "old traceback",
-                    "execution_start_ts": BASE_TS + 1.0,
-                },
-                {
-                    "error_type": "NewError",
-                    "error_message": "new message",
-                    "error_traceback": "new traceback",
-                    "execution_start_ts": BASE_TS + 10.0,
-                },
+                error_row("OldError", "old message", "old traceback", BASE_TS + 1.0),
+                error_row("NewError", "new message", "new traceback", BASE_TS + 10.0),
             ],
         )
 
     async def test_source_tier_app_excludes_framework(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
+        self, query_service: TelemetryQueryService, db: DbFixture
     ) -> None:
         """source_tier='app' excludes framework-tier listeners."""
         db_svc, _ = db
@@ -353,9 +312,7 @@ class TestGetListenerSummaryGlobal:
         assert results[0].source_tier == "app"
 
     async def test_source_tier_all_includes_both_tiers(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
+        self, query_service: TelemetryQueryService, db: DbFixture
     ) -> None:
         """source_tier='all' returns both app and framework tier listeners."""
         db_svc, _ = db
@@ -372,9 +329,7 @@ class TestGetListenerSummaryGlobal:
         assert tiers == {"app", "framework"}
 
     async def test_since_filter_restricts_invocation_counts(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
+        self, query_service: TelemetryQueryService, db: DbFixture
     ) -> None:
         """Since parameter filters invocations — listeners still appear but with lower counts."""
         db_svc, session_id = db
@@ -398,20 +353,12 @@ class TestGetListenerSummaryGlobal:
         assert row.total_invocations == 1
         assert row.failed == 0
 
-    async def test_no_listeners_returns_empty_list(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
+    async def test_no_listeners_returns_empty_list(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
         """Empty database returns empty list."""
         results = await query_service.get_listener_summary()
         assert results == []
 
-    async def test_since_filter_scopes_error_cte(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
+    async def test_since_filter_scopes_error_cte(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
         """Error before the since window is excluded from last_error_* fields."""
         db_svc, session_id = db
         since_ts = BASE_TS + 50.0
@@ -422,17 +369,7 @@ class TestGetListenerSummaryGlobal:
             lambda **kw: insert_invocation(db_svc, listener_id, session_id, **kw),
             lambda: query_service.get_listener_summary(since=since_ts),
             [
-                {
-                    "error_type": "OldError",
-                    "error_message": "before window",
-                    "error_traceback": None,
-                    "execution_start_ts": BASE_TS + 1.0,
-                },
-                {
-                    "error_type": "NewError",
-                    "error_message": "inside window",
-                    "error_traceback": None,
-                    "execution_start_ts": BASE_TS + 100.0,
-                },
+                error_row("OldError", "before window", None, BASE_TS + 1.0),
+                error_row("NewError", "inside window", None, BASE_TS + 100.0),
             ],
         )

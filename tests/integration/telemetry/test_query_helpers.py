@@ -1,10 +1,9 @@
 """Integration tests for telemetry query helper functions and source_tier scoping behavior."""
 
-from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry.helpers import source_tier_clause
 from hassette.core.telemetry.query_service import TelemetryQueryService
 
-from .helpers import insert_execution, insert_invocation, insert_job, insert_listener
+from .helpers import DbFixture, insert_execution, insert_invocation, insert_job, insert_listener
 
 
 class TestSourceTierClause:
@@ -41,9 +40,7 @@ class TestSourceTierClause:
 
 class TestGetAllAppSummariesFrameworkTier:
     async def test_get_all_app_summaries_framework_tier(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
+        self, query_service: TelemetryQueryService, db: DbFixture
     ) -> None:
         """source_tier='framework' selects active_framework_listeners and active_framework_scheduled_jobs."""
         db_svc, session_id = db
@@ -77,9 +74,7 @@ class TestGetAllAppSummariesFrameworkTier:
         assert "my_app" not in result
 
     async def test_get_all_app_summaries_framework_tier_non_hassette_app_key(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
+        self, query_service: TelemetryQueryService, db: DbFixture
     ) -> None:
         """source_tier='framework' shows framework-tier records for non-__hassette__ app_key."""
         db_svc, session_id = db

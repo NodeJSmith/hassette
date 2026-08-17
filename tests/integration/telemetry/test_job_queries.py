@@ -2,19 +2,24 @@
 
 import pytest
 
-from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.schemas.job_models import JobSummary
 
-from .helpers import BASE_TS, assert_last_error_row_coherence, insert_execution, insert_job
+from .helpers import (
+    BASE_TS,
+    SINCE_WINDOW_ERROR_ROWS,
+    DbFixture,
+    assert_last_error_row_coherence,
+    assert_no_last_error,
+    error_row,
+    insert_execution,
+    insert_job,
+    only_row,
+)
 
 
 class TestGetJobSummary:
-    async def test_get_job_summary_aggregates(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
+    async def test_get_job_summary_aggregates(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
         """2 jobs, mixed results — correct aggregate totals."""
         db_svc, session_id = db
 
@@ -45,9 +50,7 @@ class TestGetJobSummary:
         assert row2.failed == 0
 
     async def test_get_job_summary_error_fields_populated_when_error_exists(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
+        self, query_service: TelemetryQueryService, db: DbFixture
     ) -> None:
         """A job with at least one error execution returns last_error_message, last_error_type, last_error_ts."""
         db_svc, session_id = db
@@ -78,17 +81,13 @@ class TestGetJobSummary:
             execution_start_ts=base_ts + 10.0,
         )
 
-        rows = await query_service.get_job_summary("test_app", 0)
-        assert len(rows) == 1
-        row = rows[0]
+        row = await only_row(query_service.get_job_summary("test_app", 0))
         assert row.last_error_type == "ValueError"
         assert row.last_error_message == "something went wrong"
         assert row.last_error_ts == pytest.approx(base_ts + 10.0)
 
     async def test_get_job_summary_error_fields_none_when_only_successes(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
+        self, query_service: TelemetryQueryService, db: DbFixture
     ) -> None:
         """A job with only successful executions has None for all error fields."""
         db_svc, session_id = db
@@ -97,36 +96,24 @@ class TestGetJobSummary:
         await insert_execution(db_svc, job_id, session_id, status="success", duration_ms=10.0)
         await insert_execution(db_svc, job_id, session_id, status="success", duration_ms=20.0)
 
-        rows = await query_service.get_job_summary("test_app", 0)
-        assert len(rows) == 1
-        row = rows[0]
-        assert row.last_error_type is None
-        assert row.last_error_message is None
-        assert row.last_error_ts is None
+        row = await only_row(query_service.get_job_summary("test_app", 0))
+        assert_no_last_error(row)
 
     async def test_get_job_summary_error_fields_none_when_no_executions(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
+        self, query_service: TelemetryQueryService, db: DbFixture
     ) -> None:
         """A job with no executions has None for all error fields AND duration fields."""
         db_svc, _session_id = db
 
         await insert_job(db_svc, job_name="idle_job")
 
-        rows = await query_service.get_job_summary("test_app", 0)
-        assert len(rows) == 1
-        row = rows[0]
-        assert row.last_error_type is None
-        assert row.last_error_message is None
-        assert row.last_error_ts is None
+        row = await only_row(query_service.get_job_summary("test_app", 0))
+        assert_no_last_error(row)
         assert row.min_duration_ms is None
         assert row.max_duration_ms is None
 
     async def test_get_job_summary_min_max_duration_correct(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
+        self, query_service: TelemetryQueryService, db: DbFixture
     ) -> None:
         """A job with multiple executions at different durations returns correct min and max."""
         db_svc, session_id = db
@@ -136,17 +123,13 @@ class TestGetJobSummary:
         await insert_execution(db_svc, job_id, session_id, status="success", duration_ms=200.0)
         await insert_execution(db_svc, job_id, session_id, status="error", duration_ms=10.0)
 
-        rows = await query_service.get_job_summary("test_app", 0)
-        assert len(rows) == 1
-        row = rows[0]
+        row = await only_row(query_service.get_job_summary("test_app", 0))
         assert row.min_duration_ms == pytest.approx(10.0)
         assert row.max_duration_ms == pytest.approx(200.0)
         assert row.avg_duration_ms == pytest.approx((50.0 + 200.0 + 10.0) / 3)
 
     async def test_get_job_summary_last_error_picks_up_timed_out(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
+        self, query_service: TelemetryQueryService, db: DbFixture
     ) -> None:
         """A timed-out execution is surfaced as the last error."""
         db_svc, session_id = db
@@ -164,16 +147,13 @@ class TestGetJobSummary:
             execution_start_ts=base_ts + 5.0,
         )
 
-        rows = await query_service.get_job_summary("test_app", 0)
-        row = rows[0]
+        row = await only_row(query_service.get_job_summary("test_app", 0))
         assert row.last_error_type == "TimeoutError"
         assert row.last_error_message == "exceeded limit"
         assert row.last_error_ts == pytest.approx(base_ts + 5.0)
 
     async def test_get_job_summary_last_error_none_when_error_predates_since(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
+        self, query_service: TelemetryQueryService, db: DbFixture
     ) -> None:
         """Error outside the since window returns None for error fields."""
         db_svc, session_id = db
@@ -191,18 +171,12 @@ class TestGetJobSummary:
             execution_start_ts=base_ts + 1.0,
         )
 
-        rows = await query_service.get_job_summary("test_app", 0, since=base_ts + 50.0)
-        row = rows[0]
-        assert row.last_error_type is None
-        assert row.last_error_ts is None
+        row = await only_row(query_service.get_job_summary("test_app", 0, since=base_ts + 50.0))
+        assert_no_last_error(row)
 
 
 class TestGetJobSummarySinceScoped:
-    async def test_get_job_summary_since_scoped(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
+    async def test_get_job_summary_since_scoped(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
         """Since filter restricts job execution counts to records after the threshold."""
         db_svc, session_id = db
 
@@ -223,9 +197,7 @@ class TestGetJobSummarySinceScoped:
             db_svc, j1, session_id, status="success", duration_ms=30.0, execution_start_ts=base_ts + 1.0
         )
 
-        rows = await query_service.get_job_summary("test_app", 0, since=since_ts)
-        assert len(rows) == 1
-        row = rows[0]
+        row = await only_row(query_service.get_job_summary("test_app", 0, since=since_ts))
         assert row.total_executions == 2
         assert row.successful == 1
         assert row.failed == 1
@@ -235,9 +207,7 @@ class TestJobSummaryLastErrorRowCoherence:
     """Verify that last_error_* fields all come from the same job_executions row."""
 
     async def test_multiple_errors_returns_most_recent(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
+        self, query_service: TelemetryQueryService, db: DbFixture
     ) -> None:
         """Multiple errors at different timestamps — all error columns from the most recent row."""
         db_svc, session_id = db
@@ -249,27 +219,13 @@ class TestJobSummaryLastErrorRowCoherence:
             lambda **kw: insert_execution(db_svc, job_id, session_id, **kw),
             lambda: query_service.get_job_summary("test_app", 0),
             [
-                {
-                    "error_type": "OldError",
-                    "error_message": "old message",
-                    "error_traceback": "old traceback",
-                    "execution_start_ts": base_ts + 1.0,
-                },
-                {
-                    "error_type": "NewError",
-                    "error_message": "new message",
-                    "error_traceback": "new traceback",
-                    "execution_start_ts": base_ts + 10.0,
-                },
+                error_row("OldError", "old message", "old traceback", base_ts + 1.0),
+                error_row("NewError", "new message", "new traceback", base_ts + 10.0),
             ],
             trailing_success_ts=base_ts + 20.0,
         )
 
-    async def test_single_error_returned(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
+    async def test_single_error_returned(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
         """Single error execution — all error columns are populated from that row."""
         db_svc, session_id = db
         job_id = await insert_job(db_svc, job_name="single_err_job")
@@ -278,20 +234,11 @@ class TestJobSummaryLastErrorRowCoherence:
             lambda **kw: insert_execution(db_svc, job_id, session_id, **kw),
             lambda: query_service.get_job_summary("test_app", 0),
             [
-                {
-                    "error_type": "RuntimeError",
-                    "error_message": "runtime boom",
-                    "error_traceback": "tb: boom at line 1",
-                    "execution_start_ts": BASE_TS + 5.0,
-                },
+                error_row("RuntimeError", "runtime boom", "tb: boom at line 1", BASE_TS + 5.0),
             ],
         )
 
-    async def test_no_errors_returns_none(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
+    async def test_no_errors_returns_none(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
         """No errors — all last_error_* fields are None."""
         db_svc, session_id = db
         job_id = await insert_job(db_svc, job_name="clean_job")
@@ -299,19 +246,10 @@ class TestJobSummaryLastErrorRowCoherence:
         await insert_execution(db_svc, job_id, session_id, status="success")
         await insert_execution(db_svc, job_id, session_id, status="success")
 
-        rows = await query_service.get_job_summary("test_app", 0)
-        assert len(rows) == 1
-        row = rows[0]
-        assert row.last_error_type is None
-        assert row.last_error_message is None
-        assert row.last_error_traceback is None
-        assert row.last_error_ts is None
+        row = await only_row(query_service.get_job_summary("test_app", 0))
+        assert_no_last_error(row)
 
-    async def test_since_filter_scopes_error_cte(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
+    async def test_since_filter_scopes_error_cte(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
         """Error before the since window is excluded; error inside the window is returned."""
         db_svc, session_id = db
         job_id = await insert_job(db_svc, job_name="windowed_job")
@@ -322,26 +260,11 @@ class TestJobSummaryLastErrorRowCoherence:
         await assert_last_error_row_coherence(
             lambda **kw: insert_execution(db_svc, job_id, session_id, **kw),
             lambda: query_service.get_job_summary("test_app", 0, since=since_ts),
-            [
-                {
-                    "error_type": "OldError",
-                    "error_message": "before window",
-                    "error_traceback": "old tb",
-                    "execution_start_ts": base_ts + 1.0,
-                },
-                {
-                    "error_type": "NewError",
-                    "error_message": "inside window",
-                    "error_traceback": "new tb",
-                    "execution_start_ts": base_ts + 100.0,
-                },
-            ],
+            SINCE_WINDOW_ERROR_ROWS,
         )
 
     async def test_since_filter_excludes_all_errors_returns_none(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
+        self, query_service: TelemetryQueryService, db: DbFixture
     ) -> None:
         """All errors before since window — last_error_* fields are None."""
         db_svc, session_id = db
@@ -361,10 +284,5 @@ class TestJobSummaryLastErrorRowCoherence:
             execution_start_ts=base_ts + 1.0,
         )
 
-        rows = await query_service.get_job_summary("test_app", 0, since=since_ts)
-        assert len(rows) == 1
-        row = rows[0]
-        assert row.last_error_type is None
-        assert row.last_error_message is None
-        assert row.last_error_traceback is None
-        assert row.last_error_ts is None
+        row = await only_row(query_service.get_job_summary("test_app", 0, since=since_ts))
+        assert_no_last_error(row)

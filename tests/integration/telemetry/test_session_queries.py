@@ -12,21 +12,16 @@ from unittest.mock import MagicMock
 import aiosqlite
 import pytest
 
-from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.exceptions import TelemetryUnavailableError
 from hassette.schemas.summary_models import SessionRecord
 from hassette.test_utils.mock_hassette import make_mock_hassette
 
-from .helpers import BASE_TS
+from .helpers import BASE_TS, DbFixture, open_db_with_session
 
 
 class TestGetSessionList:
-    async def test_get_session_list(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
+    async def test_get_session_list(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
         """3 sessions with different statuses — ordered by started_at DESC, correct duration."""
         db_svc, session_id = db
 
@@ -74,20 +69,12 @@ class TestGetSessionList:
 
 
 class TestCheckHealth:
-    async def test_check_health_succeeds_on_live_db(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
+    async def test_check_health_succeeds_on_live_db(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
         """check_health() completes without raising when the database is live."""
         # Should not raise
         await query_service.check_health()
 
-    async def test_check_health_raises_on_closed_db(
-        self,
-        query_service: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
+    async def test_check_health_raises_on_closed_db(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
         """check_health() raises TelemetryUnavailableError when the read_db connection is closed."""
         db_svc, _session_id = db
         # Close the read connection to simulate a failed connection
@@ -113,15 +100,8 @@ class TestReadTimeout:
         )
 
     @pytest.fixture
-    async def short_timeout_db(self, short_timeout_hassette: MagicMock) -> AsyncIterator[tuple[DatabaseService, int]]:
-        db_service = DatabaseService(short_timeout_hassette, parent=None)
-        await db_service.on_initialize()
-        cursor = await db_service.db.execute(
-            "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'running')",
-            (time.time(), time.time()),
-        )
-        session_id = cursor.lastrowid
-        await db_service.db.commit()
+    async def short_timeout_db(self, short_timeout_hassette: MagicMock) -> AsyncIterator[DbFixture]:
+        db_service, session_id = await open_db_with_session(short_timeout_hassette)
         short_timeout_hassette.session_id = session_id
         short_timeout_hassette.try_session_id.return_value = session_id
         short_timeout_hassette.database_service = db_service
@@ -130,9 +110,7 @@ class TestReadTimeout:
 
     @pytest.fixture
     def short_timeout_query_service(
-        self,
-        short_timeout_hassette: MagicMock,
-        short_timeout_db: tuple[DatabaseService, int],
+        self, short_timeout_hassette: MagicMock, short_timeout_db: DbFixture
     ) -> TelemetryQueryService:
         service = TelemetryQueryService.__new__(TelemetryQueryService)
         service.hassette = short_timeout_hassette
@@ -141,9 +119,7 @@ class TestReadTimeout:
         return service
 
     async def test_execute_raises_timeout_error(
-        self,
-        short_timeout_query_service: TelemetryQueryService,
-        short_timeout_db: tuple[DatabaseService, int],
+        self, short_timeout_query_service: TelemetryQueryService, short_timeout_db: DbFixture
     ) -> None:
         """execute() raises TelemetryUnavailableError when a query exceeds read_timeout_seconds."""
         db_svc, _ = short_timeout_db
@@ -156,9 +132,7 @@ class TestReadTimeout:
                 await cursor.fetchone()
 
     async def test_normal_query_succeeds_within_timeout(
-        self,
-        short_timeout_query_service: TelemetryQueryService,
-        short_timeout_db: tuple[DatabaseService, int],
+        self, short_timeout_query_service: TelemetryQueryService, short_timeout_db: DbFixture
     ) -> None:
         """A fast query completes within even a short timeout."""
         await short_timeout_query_service.check_health()

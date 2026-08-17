@@ -7,19 +7,20 @@ import time
 
 import pytest
 
-from hassette.core.database_service import DatabaseService
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.core.telemetry.repository import TelemetryRepository, execution_insert_params
 
 from .helpers import (
+    DbFixture,
     insert_job,
     insert_listener,
+    only_row,
 )
 
 
 @pytest.fixture
-def repo(db: tuple[DatabaseService, int]) -> TelemetryRepository:
+def repo(db: DbFixture) -> TelemetryRepository:
     db_service, _ = db
     return TelemetryRepository(db_service)
 
@@ -46,12 +47,7 @@ def make_inv_record(
     )
 
 
-def make_job_record(
-    job_id: int | None,
-    session_id: int,
-    *,
-    execution_id: str | None = None,
-) -> ExecutionRecord:
+def make_job_record(job_id: int | None, session_id: int, *, execution_id: str | None = None) -> ExecutionRecord:
     return ExecutionRecord(
         kind="job",
         job_id=job_id,
@@ -66,7 +62,7 @@ def make_job_record(
 
 class TestHandlerInvocationExecutionId:
     async def test_persist_and_query_handler_invocation_with_execution_id(
-        self, db: tuple[DatabaseService, int], repo: TelemetryRepository, query_service: TelemetryQueryService
+        self, db: DbFixture, repo: TelemetryRepository, query_service: TelemetryQueryService
     ) -> None:
         """Persist a handler ExecutionRecord with all three new fields and query them back."""
         db_svc, session_id = db
@@ -81,15 +77,13 @@ class TestHandlerInvocationExecutionId:
 
         await repo.persist_execution_batch([record])
 
-        results = await query_service.get_executions(listener_id=listener_id, kind="handler", limit=10)
-        assert len(results) == 1
-        inv = results[0]
+        inv = await only_row(query_service.get_executions(listener_id=listener_id, kind="handler", limit=10))
         assert inv.execution_id == "abc-123"
         assert inv.trigger_context_id == "ctx-456"
         assert inv.trigger_origin == "LOCAL"
 
     async def test_null_execution_id_persists_and_queries(
-        self, db: tuple[DatabaseService, int], repo: TelemetryRepository, query_service: TelemetryQueryService
+        self, db: DbFixture, repo: TelemetryRepository, query_service: TelemetryQueryService
     ) -> None:
         """Persist a record with execution_id=None and confirm it comes back as None (not empty string)."""
         db_svc, session_id = db
@@ -103,7 +97,7 @@ class TestHandlerInvocationExecutionId:
         assert results[0].execution_id is None
 
     async def test_fk_fallback_drops_handler_row_on_stale_listener_fk(
-        self, db: tuple[DatabaseService, int], repo: TelemetryRepository
+        self, db: DbFixture, repo: TelemetryRepository
     ) -> None:
         """A stale listener_id FK drops the execution row — orphan null-FK rows are impossible.
 
@@ -131,20 +125,12 @@ class TestHandlerInvocationExecutionId:
         assert count_row is not None
         assert count_row[0] == 0  # no orphan row written
 
-    async def test_shared_params_match_persist_batch_columns(self, db: tuple[DatabaseService, int]) -> None:
+    async def test_shared_params_match_persist_batch_columns(self, db: DbFixture) -> None:
         """execution_insert_params() keys must match the executions table columns used in persist_batch()."""
         db_svc, session_id = db
         listener_id = await insert_listener(db_svc)
-        record = ExecutionRecord(
-            kind="handler",
-            listener_id=listener_id,
-            session_id=session_id,
-            execution_start_ts=time.time(),
-            duration_ms=10.0,
-            status="success",
-            execution_id="abc-test",
-            trigger_context_id="ctx-test",
-            trigger_origin="LOCAL",
+        record = make_inv_record(
+            listener_id, session_id, execution_id="abc-test", trigger_context_id="ctx-test", trigger_origin="LOCAL"
         )
         params = execution_insert_params(record)
 
@@ -177,7 +163,7 @@ class TestHandlerInvocationExecutionId:
 
 class TestJobExecutionExecutionId:
     async def test_persist_and_query_job_execution_with_execution_id(
-        self, db: tuple[DatabaseService, int], repo: TelemetryRepository, query_service: TelemetryQueryService
+        self, db: DbFixture, repo: TelemetryRepository, query_service: TelemetryQueryService
     ) -> None:
         """Persist a job ExecutionRecord with execution_id and query it back."""
         db_svc, session_id = db
@@ -186,25 +172,15 @@ class TestJobExecutionExecutionId:
 
         await repo.persist_execution_batch([record])
 
-        results = await query_service.get_executions(job_id=job_id, kind="job", limit=10)
-        assert len(results) == 1
-        je = results[0]
+        je = await only_row(query_service.get_executions(job_id=job_id, kind="job", limit=10))
         assert je.execution_id == "def-789"
         assert je.trigger_context_id is None, "Job executions must have trigger_context_id=None"
 
-    async def test_job_shared_params_match_persist_batch_columns(self, db: tuple[DatabaseService, int]) -> None:
+    async def test_job_shared_params_match_persist_batch_columns(self, db: DbFixture) -> None:
         """execution_insert_params() keys for kind=job must match the executions table columns."""
         db_svc, session_id = db
         job_id = await insert_job(db_svc)
-        record = ExecutionRecord(
-            kind="job",
-            job_id=job_id,
-            session_id=session_id,
-            execution_start_ts=time.time(),
-            duration_ms=20.0,
-            status="success",
-            execution_id="def-test",
-        )
+        record = make_job_record(job_id, session_id, execution_id="def-test")
         params = execution_insert_params(record)
 
         assert "kind" in params
@@ -236,7 +212,7 @@ class TestGetExecutionById:
     """Coverage for TelemetryQueryService.get_execution_by_id (execution_queries.py)."""
 
     async def test_returns_execution_when_found(
-        self, db: tuple[DatabaseService, int], repo: TelemetryRepository, query_service: TelemetryQueryService
+        self, db: DbFixture, repo: TelemetryRepository, query_service: TelemetryQueryService
     ) -> None:
         db_svc, session_id = db
         listener_id = await insert_listener(db_svc)
@@ -258,14 +234,12 @@ class TestGetExecutionById:
         assert result.kind == "handler"
         assert result.listener_id == listener_id
 
-    async def test_returns_none_when_not_found(
-        self, db: tuple[DatabaseService, int], query_service: TelemetryQueryService
-    ) -> None:
+    async def test_returns_none_when_not_found(self, db: DbFixture, query_service: TelemetryQueryService) -> None:
         result = await query_service.get_execution_by_id("nonexistent-id-xyz")
         assert result is None
 
     async def test_returns_job_execution(
-        self, db: tuple[DatabaseService, int], repo: TelemetryRepository, query_service: TelemetryQueryService
+        self, db: DbFixture, repo: TelemetryRepository, query_service: TelemetryQueryService
     ) -> None:
         db_svc, session_id = db
         job_id = await insert_job(db_svc)
