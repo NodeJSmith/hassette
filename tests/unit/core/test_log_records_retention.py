@@ -4,6 +4,7 @@ import asyncio
 import logging
 import time
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock
 
 import aiosqlite
@@ -15,6 +16,29 @@ from hassette.logging_ import LogPersistenceHandler
 from hassette.test_utils.mock_hassette import make_mock_hassette
 
 from .conftest import TELEMETRY_TEST_DDL as DDL
+
+
+def make_log_record_row(seq: int, timestamp: float, message: str) -> dict[str, Any]:
+    """Build a log_records row dict with fixed metadata fields; only seq/timestamp/message vary.
+
+    ``lineno`` mirrors ``seq`` — every call site in this file already uses the same value for
+    both.
+    """
+    return {
+        "seq": seq,
+        "timestamp": timestamp,
+        "level": "INFO",
+        "logger_name": "x",
+        "func_name": "f",
+        "lineno": seq,
+        "message": message,
+        "exc_info": None,
+        "app_key": "a",
+        "instance_name": "a_0",
+        "instance_index": 0,
+        "execution_id": None,
+        "source_tier": "app",
+    }
 
 
 @pytest.fixture
@@ -62,36 +86,8 @@ class TestRetentionCleanup:
 
         await db_service_writer._insert_log_records(  # pyright: ignore[reportPrivateUsage]
             [
-                {
-                    "seq": 1,
-                    "timestamp": old_ts,
-                    "level": "INFO",
-                    "logger_name": "x",
-                    "func_name": "f",
-                    "lineno": 1,
-                    "message": "old",
-                    "exc_info": None,
-                    "app_key": "a",
-                    "instance_name": "a_0",
-                    "instance_index": 0,
-                    "execution_id": None,
-                    "source_tier": "app",
-                },
-                {
-                    "seq": 2,
-                    "timestamp": recent_ts,
-                    "level": "INFO",
-                    "logger_name": "x",
-                    "func_name": "f",
-                    "lineno": 2,
-                    "message": "recent",
-                    "exc_info": None,
-                    "app_key": "a",
-                    "instance_name": "a_0",
-                    "instance_index": 0,
-                    "execution_id": None,
-                    "source_tier": "app",
-                },
+                make_log_record_row(1, old_ts, "old"),
+                make_log_record_row(2, recent_ts, "recent"),
             ],
         )
 
@@ -112,21 +108,7 @@ class TestRetentionCleanup:
         # 0.5, 1.5, 2.5 days → within 3 days (kept); 3.5, 4.5 days → older than 3 days (deleted)
         ages_days = [0.5, 1.5, 2.5, 3.5, 4.5]
         records = [
-            {
-                "seq": i + 1,
-                "timestamp": now - (age * SECONDS_PER_DAY),
-                "level": "INFO",
-                "logger_name": "x",
-                "func_name": "f",
-                "lineno": i + 1,
-                "message": f"age {age} days",
-                "exc_info": None,
-                "app_key": "a",
-                "instance_name": "a_0",
-                "instance_index": 0,
-                "execution_id": None,
-                "source_tier": "app",
-            }
+            make_log_record_row(i + 1, now - (age * SECONDS_PER_DAY), f"age {age} days")
             for i, age in enumerate(ages_days)
         ]
         await db_service_writer._insert_log_records(records)  # pyright: ignore[reportPrivateUsage]
@@ -149,23 +131,7 @@ class TestRetentionCleanup:
         # A record 5 days old is within db_retention_days but outside log_retention_days
         now = time.time()
         await db_service_writer._insert_log_records(  # pyright: ignore[reportPrivateUsage]
-            [
-                {
-                    "seq": 1,
-                    "timestamp": now - (5 * SECONDS_PER_DAY),
-                    "level": "INFO",
-                    "logger_name": "x",
-                    "func_name": "f",
-                    "lineno": 1,
-                    "message": "5 days old",
-                    "exc_info": None,
-                    "app_key": "a",
-                    "instance_name": "a_0",
-                    "instance_index": 0,
-                    "execution_id": None,
-                    "source_tier": "app",
-                }
-            ],
+            [make_log_record_row(1, now - (5 * SECONDS_PER_DAY), "5 days old")],
         )
 
         service = DatabaseService(mock_hassette_for_db, parent=None)
@@ -184,24 +150,7 @@ class TestSizeFailsafePrePass:
     ) -> None:
         """Seed log_records and executions."""
         now = time.time()
-        logs = [
-            {
-                "seq": i,
-                "timestamp": now - (i * 10),
-                "level": "INFO",
-                "logger_name": "x",
-                "func_name": "f",
-                "lineno": i,
-                "message": f"log {i}",
-                "exc_info": None,
-                "app_key": "a",
-                "instance_name": "a_0",
-                "instance_index": 0,
-                "execution_id": None,
-                "source_tier": "app",
-            }
-            for i in range(1, log_count + 1)
-        ]
+        logs = [make_log_record_row(i, now - (i * 10), f"log {i}") for i in range(1, log_count + 1)]
         await db_service_writer._insert_log_records(logs)  # pyright: ignore[reportPrivateUsage]
 
         for i in range(exec_count):

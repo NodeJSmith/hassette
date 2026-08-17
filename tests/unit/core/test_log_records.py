@@ -82,6 +82,14 @@ class TestMigration001LogRecords:
         """log_records has all required columns."""
         cursor = migrated_db.execute("PRAGMA table_info(log_records)")
         cols = {row[1] for row in cursor.fetchall()}
+        # dup-ignore-start: mirrors LOG_RECORD_COLUMNS in src/hassette/core/database_service.py
+        # (the production source of truth) and the EXPECTED_TABLES["log_records"] literal in
+        # tests/integration/database/test_database_service_migrations.py — three independent
+        # checks (production tuple, unit-tier PRAGMA assertion, integration-tier PRAGMA
+        # assertion) that must each verify the schema on their own terms; a test asserting
+        # against production output that coincidentally shares shape with an unrelated file is
+        # not real duplication, and merging across the unit/integration test-tier boundary would
+        # couple otherwise-independent test suites.
         expected = {
             "id",
             "seq",
@@ -98,6 +106,7 @@ class TestMigration001LogRecords:
             "execution_id",
             "source_tier",
         }
+        # dup-ignore-end
         assert expected == cols
 
     def test_migration_creates_time_index(self, migrated_db: sqlite3.Connection) -> None:
@@ -120,6 +129,11 @@ class TestMigration001LogRecords:
 
     def test_migration_version_is_at_head(self, tmp_path: Path) -> None:
         """After full migration, PRAGMA user_version is at head."""
+        # dup-ignore-start: the "connect, read PRAGMA user_version, close" pattern below also
+        # appears in tests/integration/database/test_database_service_migrations.py (twice) — a
+        # different test tier verifying the same schema invariant against its own migration entry
+        # points (run_migrations() there vs. run_migrations_to_head() here). Merging across the
+        # unit/integration boundary would couple otherwise-independent test suites.
         db_path = str(tmp_path / "test.db")
         run_migrations_to_head(db_path)
 
@@ -128,6 +142,7 @@ class TestMigration001LogRecords:
             version = conn.execute("PRAGMA user_version").fetchone()[0]
         finally:
             conn.close()
+        # dup-ignore-end
 
         assert version == LATEST_MIGRATION_VERSION
 

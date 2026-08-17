@@ -16,17 +16,33 @@ from hassette.test_utils.sql_helpers import sqlite_conn
 class TestScheduledJobsSchema:
     def test_migration_creates_trigger_columns(self, tmp_path: Path) -> None:
         """001.sql includes trigger_label and trigger_detail columns in scheduled_jobs."""
+        # dup-ignore-start: the "db_path = tmp_path / 'test.db'; run_migrations(db_path); with
+        # sqlite_conn(db_path) as conn:" setup below is mechanical boilerplate, but its duplicate
+        # occurrences pair with tests/unit/core/test_migration_runner.py and
+        # tests/unit/test_schema_migration.py — different test directories. Extraction would need
+        # a shared helper module spanning tests/unit/core/ and tests/unit/, out of scope for this
+        # cluster (see design/specs/099-dedupe-tests-unit-core/design.md, "Extract vs. annotate"
+        # worked example).
         db_path = tmp_path / "test.db"
         run_migrations(db_path)
 
         with sqlite_conn(db_path) as conn:
             cursor = conn.execute("PRAGMA table_info(scheduled_jobs)")
+            # dup-ignore-end
             columns = {row[1] for row in cursor.fetchall()}
             assert "trigger_label" in columns, "trigger_label column missing from scheduled_jobs"
             assert "trigger_detail" in columns, "trigger_detail column missing from scheduled_jobs"
 
     def test_insert_with_known_trigger_type_succeeds(self, tmp_path: Path) -> None:
         """INSERT with a known trigger_type value must succeed."""
+        # dup-ignore-start: the "db_path = tmp_path / 'test.db'; run_migrations(db_path); with
+        # sqlite_conn(db_path) as conn:" setup below is mechanical boilerplate shared between
+        # tests/unit/test_migration_002.py (trigger_type/trigger_label CHECK-constraint coverage)
+        # and tests/unit/test_schema_migration.py (broader schema/migration behavior) — two
+        # independently scoped test modules. Extraction would require a shared fixture spanning
+        # both modules for a 3-line setup, out of scope for this cluster (see
+        # design/specs/099-dedupe-tests-unit-core/design.md, "Extract vs. annotate" worked
+        # example).
         db_path = tmp_path / "test.db"
         run_migrations(db_path)
 
@@ -44,6 +60,7 @@ class TestScheduledJobsSchema:
                 )
                 """
             )
+            # dup-ignore-end
             conn.commit()
 
             cursor = conn.execute("SELECT trigger_label, trigger_detail FROM scheduled_jobs WHERE job_name = 'my_job'")
@@ -74,6 +91,8 @@ class TestScheduledJobsSchema:
 
     def test_trigger_label_defaults_to_empty_string(self, tmp_path: Path) -> None:
         """trigger_label defaults to empty string when not supplied explicitly."""
+        # dup-ignore-start: same cross-module boilerplate rationale as
+        # test_insert_with_known_trigger_type_succeeds() above.
         db_path = tmp_path / "test.db"
         run_migrations(db_path)
 
@@ -89,6 +108,7 @@ class TestScheduledJobsSchema:
                 )
                 """
             )
+            # dup-ignore-end
             conn.commit()
 
             cursor = conn.execute("SELECT trigger_label FROM scheduled_jobs WHERE job_name = 'default_job'")

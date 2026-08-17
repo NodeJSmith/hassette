@@ -44,6 +44,10 @@ def test_manifest_insert_params_produces_correct_dict(tmp_path: Path) -> None:
 
     params = manifest_insert_params(manifest)
 
+    # dup-ignore-start: asserts against manifest_insert_params()'s literal output (DB-params layer,
+    # coerces bool -> int for SQLite). Shares field names with mappers.py's manifest_response_fields()
+    # (API-response layer) by coincidence — same source model, different consumer/field subset;
+    # extracting a shared dict-builder here would wrongly couple the DB layer to the response layer.
     assert params == {
         "app_key": manifest.app_key,
         "class_name": manifest.class_name,
@@ -53,6 +57,7 @@ def test_manifest_insert_params_produces_correct_dict(tmp_path: Path) -> None:
         "autostart": 0,
         "auto_loaded": 1,
     }
+    # dup-ignore-end
     assert isinstance(params["enabled"], int)
     assert not isinstance(params["enabled"], bool)
 
@@ -76,11 +81,17 @@ async def test_manifest_insert_params_schema_parity(
     assert set(params) == expected_keys
 
 
+# dup-ignore-start: pytest test function signature — each test independently declares the
+# telemetry_repo/telemetry_db/tmp_path fixtures it needs; Python has no way to share a function
+# signature between separate test functions, and bundling these three fixtures into one object
+# would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster (see
+# design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
 async def test_upsert_app_manifest_creates_new_row(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
     tmp_path: Path,
 ) -> None:
+    # dup-ignore-end
     """upsert_app_manifest() inserts a new row and returns a valid positive integer ID."""
     manifest = create_app_manifest("new", tmp_path)
 
@@ -100,11 +111,17 @@ async def test_upsert_app_manifest_creates_new_row(
     assert row["filename"] == manifest.filename
 
 
+# dup-ignore-start: pytest test function signature — each test independently declares the
+# telemetry_repo/telemetry_db/tmp_path fixtures it needs; Python has no way to share a function
+# signature between separate test functions, and bundling these three fixtures into one object
+# would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster (see
+# design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
 async def test_upsert_app_manifest_updates_existing_row_preserves_id(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
     tmp_path: Path,
 ) -> None:
+    # dup-ignore-end
     """Re-upserting the same app_key updates the row in place and preserves the row ID."""
     manifest = create_app_manifest("update", tmp_path)
     first_id = await telemetry_repo.upsert_app_manifest(manifest)
@@ -126,11 +143,17 @@ async def test_upsert_app_manifest_updates_existing_row_preserves_id(
     assert row["count"] == 1, "Upsert should produce a single row, not two inserts"
 
 
+# dup-ignore-start: pytest test function signature — each test independently declares the
+# telemetry_repo/telemetry_db/tmp_path fixtures it needs; Python has no way to share a function
+# signature between separate test functions, and bundling these three fixtures into one object
+# would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster (see
+# design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
 async def test_upsert_app_manifest_refreshes_updated_at_on_conflict(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
     tmp_path: Path,
 ) -> None:
+    # dup-ignore-end
     """updated_at is refreshed on conflict, not frozen at the first insert's value.
 
     Column DEFAULT expressions only fire on INSERT, not on DO UPDATE SET -- this guards
@@ -159,11 +182,17 @@ async def test_upsert_app_manifest_refreshes_updated_at_on_conflict(
     )
 
 
+# dup-ignore-start: pytest test function signature — each test independently declares the
+# telemetry_repo/telemetry_db/tmp_path fixtures it needs; Python has no way to share a function
+# signature between separate test functions, and bundling these three fixtures into one object
+# would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster (see
+# design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
 async def test_get_all_app_manifests_returns_all_rows(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
     tmp_path: Path,
 ) -> None:
+    # dup-ignore-end
     """get_all_app_manifests() returns every persisted manifest row as a dict."""
     manifest_a = create_app_manifest("a", tmp_path)
     manifest_b = create_app_manifest("b", tmp_path)
@@ -177,11 +206,17 @@ async def test_get_all_app_manifests_returns_all_rows(
     assert app_keys == {manifest_a.app_key, manifest_b.app_key}
 
 
+# dup-ignore-start: pytest test function signature — each test independently declares the
+# telemetry_repo/telemetry_db/tmp_path fixtures it needs; Python has no way to share a function
+# signature between separate test functions, and bundling these three fixtures into one object
+# would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster (see
+# design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
 async def test_get_app_manifest_returns_single_row_or_none(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
     tmp_path: Path,
 ) -> None:
+    # dup-ignore-end
     """get_app_manifest() returns the matching row for a known app_key, None otherwise."""
     manifest = create_app_manifest("solo", tmp_path)
     await telemetry_repo.upsert_app_manifest(manifest)

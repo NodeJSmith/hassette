@@ -23,6 +23,19 @@ from hassette.types.enums import BlockReason, ResourceRole, ResourceStatus
 WS_QUEUE_MAX = 256
 
 
+async def assert_flushed_single_message(
+    runtime: RuntimeQueryService, broadcast_calls: list[dict], expected_entries: int = 2
+) -> dict:
+    """Flush pending completions and assert exactly one batched execution_completed message."""
+    await runtime.flush_completions()
+
+    assert len(broadcast_calls) == 1
+    msg = broadcast_calls[0]
+    assert msg["type"] == "execution_completed"
+    assert len(msg["data"]) == expected_entries
+    return msg
+
+
 @pytest.fixture
 def mock_hassette():
     """Create a mock Hassette instance with required attributes."""
@@ -69,6 +82,13 @@ def mock_hassette():
     hassette._websocket_service.is_ready = Mock(return_value=True)
 
     # Mock app handler — sync methods need explicit Mock (parent is AsyncMock)
+    # dup-ignore-start: same AppInstanceInfo("my_app", index=0, ...) literal shape used by
+    # tests/e2e/mock_fixtures.py and tests/unit/test_model_types.py — different test tiers/
+    # directories (e2e fixtures, top-level unit tests) building unrelated fixture data;
+    # src/hassette/test_utils/web_manifest_helpers.py's make_app_instance_info() factory already
+    # covers this shape, but adopting it across all three call sites is out of scope for this
+    # cluster, which is marker-only per this task's file classification (see
+    # design/specs/099-dedupe-tests-unit-core/design.md, Group B row).
     instance = AppInstanceInfo(
         app_key="my_app",
         index=0,
@@ -76,6 +96,7 @@ def mock_hassette():
         class_name="MyApp",
         status=ResourceStatus.RUNNING,
     )
+    # dup-ignore-end
     hassette._app_handler.get_status_snapshot = Mock(return_value=AppStatusSnapshot(instances=[instance]))
     hassette._app_handler.registry.get_full_snapshot = Mock(return_value=AppFullSnapshot(manifests=[]))
 
@@ -414,12 +435,7 @@ class TestCompletionBatching:
         assert len(broadcast_calls) == 0
 
         # Manually flush (simulates asyncio.sleep(0) yielding)
-        await runtime.flush_completions()
-
-        assert len(broadcast_calls) == 1
-        msg = broadcast_calls[0]
-        assert msg["type"] == "execution_completed"
-        assert len(msg["data"]) == 2
+        msg = await assert_flushed_single_message(runtime, broadcast_calls)
         assert msg["data"][0]["kind"] == "handler"
         assert msg["data"][0]["listener_id"] == 1
         assert msg["data"][0]["app_key"] == "my_app"
@@ -447,12 +463,7 @@ class TestCompletionBatching:
         await runtime.on_execution_completed(ev2)
 
         assert len(broadcast_calls) == 0
-        await runtime.flush_completions()
-
-        assert len(broadcast_calls) == 1
-        msg = broadcast_calls[0]
-        assert msg["type"] == "execution_completed"
-        assert len(msg["data"]) == 2
+        msg = await assert_flushed_single_message(runtime, broadcast_calls)
         assert msg["data"][0]["kind"] == "job"
         assert msg["data"][1]["kind"] == "job"
 
@@ -493,13 +504,9 @@ class TestCompletionBatching:
 
         await runtime.on_execution_completed(handler_ev)
         await runtime.on_execution_completed(job_ev)
-        await runtime.flush_completions()
 
         # Single message containing both handler and job entries
-        assert len(broadcast_calls) == 1
-        msg = broadcast_calls[0]
-        assert msg["type"] == "execution_completed"
-        assert len(msg["data"]) == 2
+        msg = await assert_flushed_single_message(runtime, broadcast_calls)
         kinds = {item["kind"] for item in msg["data"]}
         assert kinds == {"handler", "job"}
 

@@ -3,6 +3,8 @@
 import inspect
 import sqlite3
 import time
+from collections.abc import Awaitable, Callable
+from typing import Any
 from unittest.mock import patch
 
 import aiosqlite
@@ -11,7 +13,16 @@ import pytest
 import hassette.core.telemetry.repository as telemetry_repository_module
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.telemetry.repository import TelemetryRepository
-from hassette.test_utils.factories import make_job_registration, make_listener_registration
+from hassette.test_utils.factories import make_execution_record, make_job_registration, make_listener_registration
+
+
+async def forward_execute(
+    original_execute: Callable[..., Awaitable[Any]], sql: str, params: tuple[Any, ...] | None
+) -> Any:
+    """Forward to the real ``execute()``, preserving positional-vs-omitted ``params`` semantics."""
+    if params is not None:
+        return await original_execute(sql, params)
+    return await original_execute(sql)
 
 
 async def test_reconcile_rollback_on_exception(
@@ -27,9 +38,7 @@ async def test_reconcile_rollback_on_exception(
         call_count += 1
         if call_count > 1:
             raise RuntimeError("simulated DB error")
-        if params is not None:
-            return await original_execute(sql, params)
-        return await original_execute(sql)
+        return await forward_execute(original_execute, sql, params)
 
     with (
         patch.object(telemetry_db, "execute", side_effect=failing_execute),
@@ -38,23 +47,24 @@ async def test_reconcile_rollback_on_exception(
         await telemetry_repo.reconcile_registrations("test_app", [], [])
 
 
+# dup-ignore-start: pytest test function signature — each test independently declares the
+# telemetry_repo/telemetry_db/telemetry_session_id fixtures it needs; Python has no way to share a
+# function signature between separate test functions, and bundling these three fixtures into one
+# object would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster
+# (see design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
 async def test_persist_execution_batch_with_fk_fallback_success_path(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
     telemetry_session_id: int,
 ) -> None:
+    # dup-ignore-end
     """persist_execution_batch_with_fk_fallback() inserts records when no FK violations occur."""
     listener_id = await telemetry_repo.register_listener(make_listener_registration())
     job_id = await telemetry_repo.register_job(make_job_registration())
 
     now = time.time()
-    handler_rec = ExecutionRecord(
-        kind="handler",
-        listener_id=listener_id,
-        session_id=telemetry_session_id,
-        execution_start_ts=now,
-        duration_ms=5.0,
-        status="success",
+    handler_rec = make_execution_record(
+        listener_id=listener_id, session_id=telemetry_session_id, execution_start_ts=now
     )
     job_rec = ExecutionRecord(
         kind="job",
@@ -84,11 +94,17 @@ async def test_persist_execution_batch_with_fk_fallback_success_path(
     assert row[1] == "job"
 
 
+# dup-ignore-start: pytest test function signature — each test independently declares the
+# telemetry_repo/telemetry_db/telemetry_session_id fixtures it needs; Python has no way to share a
+# function signature between separate test functions, and bundling these three fixtures into one
+# object would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster
+# (see design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
 async def test_persist_execution_batch_with_fk_fallback_drops_on_listener_fk_violation(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
     telemetry_session_id: int,
 ) -> None:
+    # dup-ignore-end
     """persist_execution_batch_with_fk_fallback() drops handler record with bad listener_id.
 
     The null-FK retry also fails because the CHECK constraint requires exactly one
@@ -114,11 +130,17 @@ async def test_persist_execution_batch_with_fk_fallback_drops_on_listener_fk_vio
     assert row[0] == 0, "Row should be dropped — null FK violates CHECK constraint"
 
 
+# dup-ignore-start: pytest test function signature — each test independently declares the
+# telemetry_repo/telemetry_db/telemetry_session_id fixtures it needs; Python has no way to share a
+# function signature between separate test functions, and bundling these three fixtures into one
+# object would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster
+# (see design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
 async def test_persist_execution_batch_with_fk_fallback_drops_on_job_fk_violation(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
     telemetry_session_id: int,
 ) -> None:
+    # dup-ignore-end
     """persist_execution_batch_with_fk_fallback() drops job record with bad job_id.
 
     The null-FK retry also fails because the CHECK constraint requires exactly one
@@ -144,11 +166,17 @@ async def test_persist_execution_batch_with_fk_fallback_drops_on_job_fk_violatio
     assert row[0] == 0, "Row should be dropped — null FK violates CHECK constraint"
 
 
+# dup-ignore-start: pytest test function signature — each test independently declares the
+# telemetry_repo/telemetry_db/telemetry_session_id fixtures it needs; Python has no way to share a
+# function signature between separate test functions, and bundling these three fixtures into one
+# object would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster
+# (see design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
 async def test_persist_execution_batch_with_fk_fallback_drops_row_on_second_failure(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
     telemetry_session_id: int,
 ) -> None:
+    # dup-ignore-end
     """persist_execution_batch_with_fk_fallback() counts dropped when null-FK retry also fails."""
     now = time.time()
     record = ExecutionRecord(
@@ -171,9 +199,7 @@ async def test_persist_execution_batch_with_fk_fallback_drops_row_on_second_fail
                 raise sqlite3.IntegrityError("FOREIGN KEY constraint failed")
             if call_count == 2:
                 raise sqlite3.IntegrityError("NOT NULL constraint failed on null-FK retry")
-        if params is not None:
-            return await original_execute(sql, params)
-        return await original_execute(sql)
+        return await forward_execute(original_execute, sql, params)
 
     with patch.object(telemetry_db, "execute", side_effect=patched_execute):
         dropped = await telemetry_repo.persist_execution_batch_with_fk_fallback([record])
@@ -181,11 +207,17 @@ async def test_persist_execution_batch_with_fk_fallback_drops_row_on_second_fail
     assert dropped == 1, "Row that fails even with null FK should be counted as dropped"
 
 
+# dup-ignore-start: pytest test function signature — each test independently declares the
+# telemetry_repo/telemetry_db/telemetry_session_id fixtures it needs; Python has no way to share a
+# function signature between separate test functions, and bundling these three fixtures into one
+# object would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster
+# (see design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
 async def test_persist_execution_batch_with_fk_fallback_drops_job_row_on_second_failure(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
     telemetry_session_id: int,
 ) -> None:
+    # dup-ignore-end
     """persist_execution_batch_with_fk_fallback() counts dropped for job rows when null-FK retry fails."""
     now = time.time()
     record = ExecutionRecord(
@@ -208,9 +240,7 @@ async def test_persist_execution_batch_with_fk_fallback_drops_job_row_on_second_
                 raise sqlite3.IntegrityError("FOREIGN KEY constraint failed")
             if call_count == 2:
                 raise sqlite3.IntegrityError("NOT NULL constraint failed on null-FK retry")
-        if params is not None:
-            return await original_execute(sql, params)
-        return await original_execute(sql)
+        return await forward_execute(original_execute, sql, params)
 
     with patch.object(telemetry_db, "execute", side_effect=patched_execute):
         dropped = await telemetry_repo.persist_execution_batch_with_fk_fallback([record])
@@ -226,11 +256,17 @@ async def test_persist_execution_batch_with_fk_fallback_empty_list(
     assert dropped == 0
 
 
+# dup-ignore-start: pytest test function signature — each test independently declares the
+# telemetry_repo/telemetry_db/telemetry_session_id fixtures it needs; Python has no way to share a
+# function signature between separate test functions, and bundling these three fixtures into one
+# object would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster
+# (see design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
 async def test_persist_execution_batch_with_fk_fallback_rollback_on_exception(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
     telemetry_session_id: int,
 ) -> None:
+    # dup-ignore-end
     """persist_execution_batch_with_fk_fallback() rolls back on unexpected errors."""
     now = time.time()
     record = ExecutionRecord(
@@ -247,9 +283,7 @@ async def test_persist_execution_batch_with_fk_fallback_rollback_on_exception(
     async def patched_execute(sql, params=None):
         if "BEGIN" in sql:
             raise RuntimeError("simulated connection failure")
-        if params is not None:
-            return await original_execute(sql, params)
-        return await original_execute(sql)
+        return await forward_execute(original_execute, sql, params)
 
     with (
         patch.object(telemetry_db, "execute", side_effect=patched_execute),
@@ -258,22 +292,21 @@ async def test_persist_execution_batch_with_fk_fallback_rollback_on_exception(
         await telemetry_repo.persist_execution_batch_with_fk_fallback([record])
 
 
+# dup-ignore-start: pytest test function signature — each test independently declares the
+# telemetry_repo/telemetry_db/telemetry_session_id fixtures it needs; Python has no way to share a
+# function signature between separate test functions, and bundling these three fixtures into one
+# object would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster
+# (see design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
 async def test_persist_execution_batch_rollback_on_exception(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
     telemetry_session_id: int,
 ) -> None:
+    # dup-ignore-end
     """persist_execution_batch() rolls back and re-raises on unexpected error."""
     listener_id = await telemetry_repo.register_listener(make_listener_registration())
     now = time.time()
-    record = ExecutionRecord(
-        kind="handler",
-        listener_id=listener_id,
-        session_id=telemetry_session_id,
-        execution_start_ts=now,
-        duration_ms=5.0,
-        status="success",
-    )
+    record = make_execution_record(listener_id=listener_id, session_id=telemetry_session_id, execution_start_ts=now)
 
     async def failing_executemany(_sql, _params):
         raise RuntimeError("simulated executemany failure")

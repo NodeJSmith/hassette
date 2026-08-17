@@ -50,6 +50,12 @@ _MAX_CONSECUTIVE_HEARTBEAT_FAILURES = 3
 _BUSY_TIMEOUT_MS = 5000
 """SQLite busy_timeout (ms) applied to both read and write connections."""
 
+# dup-ignore-start: production source of truth for the log_records column set, asserted against
+# verbatim by tests/unit/core/test_log_records.py and mirrored independently in
+# tests/integration/database/test_database_service_migrations.py's EXPECTED_TABLES literal (a
+# different test tier). A test asserting against this production tuple's contents is not real
+# duplication with the tuple itself, and merging the two test-tier literals would couple
+# otherwise-independent test suites.
 LOG_RECORD_COLUMNS = (
     "seq",
     "timestamp",
@@ -65,6 +71,7 @@ LOG_RECORD_COLUMNS = (
     "execution_id",
     "source_tier",
 )
+# dup-ignore-end
 """log_records table columns (excluding the autoincrement id). Public so `scripts/seed_db.py`
 can import the single source of truth instead of hand-keeping a duplicate tuple."""
 

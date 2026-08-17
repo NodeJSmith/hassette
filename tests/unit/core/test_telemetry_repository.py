@@ -1,6 +1,7 @@
 """Unit tests for TelemetryRepository — registration, reconciliation, upsert, and execution batch."""
 
 import time
+from typing import Any
 
 import aiosqlite
 import pytest
@@ -8,10 +9,35 @@ import pytest
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.telemetry.repository import TelemetryRepository
 from hassette.test_utils.config import DEFAULT_TEST_APP_KEY
-from hassette.test_utils.factories import make_job_registration, make_listener_registration
+from hassette.test_utils.factories import (
+    make_execution_record,
+    make_job_registration,
+    make_listener_registration,
+)
 from hassette.test_utils.sql_helpers import insert_execution_row
 
 ONCE_LISTENER_NAME = "test_app.on_event.once"
+
+
+async def assert_listener_count(db: aiosqlite.Connection, listener_id: int, expected: int, message: str) -> None:
+    """Assert the number of listener rows with the given id matches expected."""
+    cursor = await db.execute("SELECT COUNT(*) AS count FROM listeners WHERE id = ?", (listener_id,))
+    row = await cursor.fetchone()
+    assert row["count"] == expected, message
+
+
+async def fetch_listener_field(db: aiosqlite.Connection, listener_id: int, field: str) -> Any:
+    """Return a single column value from the listeners row with the given id."""
+    cursor = await db.execute(f"SELECT {field} FROM listeners WHERE id = ?", (listener_id,))
+    row = await cursor.fetchone()
+    assert row is not None
+    return row[field]
+
+
+async def insert_committed_execution(db: aiosqlite.Connection, session_id: int, **kwargs: Any) -> None:
+    """Insert an execution row (1ms duration, current timestamp) and commit it."""
+    await insert_execution_row(db, session_id=session_id, execution_start_ts=time.time(), duration_ms=1.0, **kwargs)
+    await db.commit()
 
 
 async def test_register_listener_inserts_and_returns_id(
@@ -145,49 +171,36 @@ async def test_reconcile_deletes_stale_without_history(
 
     await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [])
 
-    cursor = await telemetry_db.execute("SELECT COUNT(*) AS count FROM listeners WHERE id = ?", (listener_id,))
-    row = await cursor.fetchone()
-    assert row["count"] == 0, "Stale listener without history should be deleted"
+    await assert_listener_count(telemetry_db, listener_id, 0, "Stale listener without history should be deleted")
 
     cursor = await telemetry_db.execute("SELECT COUNT(*) AS count FROM scheduled_jobs WHERE id = ?", (job_id,))
     row = await cursor.fetchone()
     assert row["count"] == 0, "Stale job without history should be deleted"
 
 
+# dup-ignore-start: pytest test function signature — each test independently declares the
+# telemetry_repo/telemetry_db/telemetry_session_id fixtures it needs; Python has no way to share a
+# function signature between separate test functions, and bundling these three fixtures into one
+# object would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster
+# (see design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
 async def test_reconcile_retires_stale_with_history(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
     telemetry_session_id: int,
 ) -> None:
+    # dup-ignore-end
     """reconcile_registrations() sets retired_at on stale rows that have execution history."""
     listener_id = await telemetry_repo.register_listener(make_listener_registration())
     job_id = await telemetry_repo.register_job(make_job_registration())
 
     # Create history in the unified executions table
-    await insert_execution_row(
-        telemetry_db,
-        kind="handler",
-        listener_id=listener_id,
-        session_id=telemetry_session_id,
-        execution_start_ts=time.time(),
-        duration_ms=1.0,
-    )
-    await insert_execution_row(
-        telemetry_db,
-        kind="job",
-        job_id=job_id,
-        session_id=telemetry_session_id,
-        execution_start_ts=time.time(),
-        duration_ms=1.0,
-    )
-    await telemetry_db.commit()
+    await insert_committed_execution(telemetry_db, telemetry_session_id, kind="handler", listener_id=listener_id)
+    await insert_committed_execution(telemetry_db, telemetry_session_id, kind="job", job_id=job_id)
 
     await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [])
 
-    cursor = await telemetry_db.execute("SELECT retired_at FROM listeners WHERE id = ?", (listener_id,))
-    row = await cursor.fetchone()
-    assert row is not None
-    assert row["retired_at"] is not None, "Stale listener with history should have retired_at set"
+    retired_at = await fetch_listener_field(telemetry_db, listener_id, "retired_at")
+    assert retired_at is not None, "Stale listener with history should have retired_at set"
 
     cursor = await telemetry_db.execute("SELECT retired_at FROM scheduled_jobs WHERE id = ?", (job_id,))
     row = await cursor.fetchone()
@@ -225,6 +238,11 @@ async def test_reconcile_deletes_once_true_previous_session(
     once_reg = make_listener_registration(once=True, name=ONCE_LISTENER_NAME)
     once_id = await telemetry_repo.register_listener(once_reg)
 
+    # dup-ignore-start: mirrors the telemetry_session_id fixture's session-insert SQL — this test
+    # deliberately creates a SECOND session (distinct from the fixture-provided one) to simulate
+    # reconciliation running against a newer session; promoting a shared helper into
+    # tests/unit/core/conftest.py for this one cross-file cluster is out of scope (see
+    # design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
     now = time.time()
     cursor = await telemetry_db.execute(
         "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'running')",
@@ -233,39 +251,36 @@ async def test_reconcile_deletes_once_true_previous_session(
     await telemetry_db.commit()
     new_session_id = cursor.lastrowid
     assert new_session_id is not None
+    # dup-ignore-end
 
     await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [], session_id=new_session_id)
 
-    cursor = await telemetry_db.execute("SELECT COUNT(*) AS count FROM listeners WHERE id = ?", (once_id,))
-    row = await cursor.fetchone()
-    assert row["count"] == 0, "once=True listener from previous session should be deleted"
+    await assert_listener_count(telemetry_db, once_id, 0, "once=True listener from previous session should be deleted")
 
 
+# dup-ignore-start: pytest test function signature — each test independently declares the
+# telemetry_repo/telemetry_db/telemetry_session_id fixtures it needs; Python has no way to share a
+# function signature between separate test functions, and bundling these three fixtures into one
+# object would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster
+# (see design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
 async def test_reconcile_preserves_once_true_with_current_executions(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
     telemetry_session_id: int,
 ) -> None:
+    # dup-ignore-end
     """reconcile_registrations() preserves once=True rows that have current-session executions."""
     once_reg = make_listener_registration(once=True, name=ONCE_LISTENER_NAME)
     once_id = await telemetry_repo.register_listener(once_reg)
 
     # Create an execution in the CURRENT session
-    await insert_execution_row(
-        telemetry_db,
-        kind="handler",
-        listener_id=once_id,
-        session_id=telemetry_session_id,
-        execution_start_ts=time.time(),
-        duration_ms=1.0,
-    )
-    await telemetry_db.commit()
+    await insert_committed_execution(telemetry_db, telemetry_session_id, kind="handler", listener_id=once_id)
 
     await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [], session_id=telemetry_session_id)
 
-    cursor = await telemetry_db.execute("SELECT COUNT(*) AS count FROM listeners WHERE id = ?", (once_id,))
-    row = await cursor.fetchone()
-    assert row["count"] == 1, "once=True listener with current-session executions should be preserved"
+    await assert_listener_count(
+        telemetry_db, once_id, 1, "once=True listener with current-session executions should be preserved"
+    )
 
 
 async def test_reconcile_empty_ids_no_crash(
@@ -275,32 +290,28 @@ async def test_reconcile_empty_ids_no_crash(
     await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [])
 
 
+# dup-ignore-start: pytest test function signature — each test independently declares the
+# telemetry_repo/telemetry_db/telemetry_session_id fixtures it needs; Python has no way to share a
+# function signature between separate test functions, and bundling these three fixtures into one
+# object would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster
+# (see design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
 async def test_reconcile_resets_retired_at_on_reupsert(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
     telemetry_session_id: int,
 ) -> None:
+    # dup-ignore-end
     """After a row is retired, re-upserting it (same natural key) resets retired_at to NULL."""
     reg = make_listener_registration()
     listener_id = await telemetry_repo.register_listener(reg)
 
     # Create history so reconciliation retires rather than deletes
-    await insert_execution_row(
-        telemetry_db,
-        kind="handler",
-        listener_id=listener_id,
-        session_id=telemetry_session_id,
-        execution_start_ts=time.time(),
-        duration_ms=1.0,
-    )
-    await telemetry_db.commit()
+    await insert_committed_execution(telemetry_db, telemetry_session_id, kind="handler", listener_id=listener_id)
 
     await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [])
 
-    cursor = await telemetry_db.execute("SELECT retired_at FROM listeners WHERE id = ?", (listener_id,))
-    row = await cursor.fetchone()
-    assert row is not None
-    assert row["retired_at"] is not None, "Row should be retired after reconciliation"
+    retired_at = await fetch_listener_field(telemetry_db, listener_id, "retired_at")
+    assert retired_at is not None, "Row should be retired after reconciliation"
 
     new_id = await telemetry_repo.register_listener(reg)
     assert new_id == listener_id, "Re-upsert should return the same ID"
@@ -393,24 +404,23 @@ async def test_upsert_with_name_overrides_key(
     assert id_a != id_b
 
 
+# dup-ignore-start: pytest test function signature — each test independently declares the
+# telemetry_repo/telemetry_db/telemetry_session_id fixtures it needs; Python has no way to share a
+# function signature between separate test functions, and bundling these three fixtures into one
+# object would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster
+# (see design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
 async def test_persist_execution_batch_inserts_handler_records(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
     telemetry_session_id: int,
 ) -> None:
+    # dup-ignore-end
     """persist_execution_batch() inserts handler ExecutionRecords into the executions table."""
     listener_id = await telemetry_repo.register_listener(make_listener_registration())
 
     now = time.time()
     records = [
-        ExecutionRecord(
-            kind="handler",
-            listener_id=listener_id,
-            session_id=telemetry_session_id,
-            execution_start_ts=now,
-            duration_ms=5.0,
-            status="success",
-        ),
+        make_execution_record(listener_id=listener_id, session_id=telemetry_session_id, execution_start_ts=now),
         ExecutionRecord(
             kind="handler",
             listener_id=listener_id,
@@ -438,11 +448,17 @@ async def test_persist_execution_batch_inserts_handler_records(
     assert rows[1]["kind"] == "handler"
 
 
+# dup-ignore-start: pytest test function signature — each test independently declares the
+# telemetry_repo/telemetry_db/telemetry_session_id fixtures it needs; Python has no way to share a
+# function signature between separate test functions, and bundling these three fixtures into one
+# object would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster
+# (see design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
 async def test_persist_execution_batch_inserts_job_records(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
     telemetry_session_id: int,
 ) -> None:
+    # dup-ignore-end
     """persist_execution_batch() inserts job ExecutionRecords into the executions table."""
     job_id = await telemetry_repo.register_job(make_job_registration())
 
@@ -460,6 +476,10 @@ async def test_persist_execution_batch_inserts_job_records(
 
     await telemetry_repo.persist_execution_batch(records)
 
+    # dup-ignore-start: shares the "fetch one row, assert count then fields" shape with
+    # tests/integration/test_command_executor.py's post-drain assertions — different test tier
+    # (unit vs. integration) exercising unrelated code paths (TelemetryRepository.persist_execution_batch
+    # here vs. CommandExecutor.drain_and_persist there); not extractable across that boundary.
     cursor = await telemetry_db.execute(
         "SELECT status, job_id, kind FROM executions WHERE job_id = ?",
         (job_id,),
@@ -469,6 +489,7 @@ async def test_persist_execution_batch_inserts_job_records(
     assert rows[0]["status"] == "success"
     assert rows[0]["job_id"] == job_id
     assert rows[0]["kind"] == "job"
+    # dup-ignore-end
 
 
 async def test_persist_execution_batch_handles_empty_list(
@@ -483,25 +504,24 @@ async def test_persist_execution_batch_handles_empty_list(
     assert row["count"] == 0
 
 
+# dup-ignore-start: pytest test function signature — each test independently declares the
+# telemetry_repo/telemetry_db/telemetry_session_id fixtures it needs; Python has no way to share a
+# function signature between separate test functions, and bundling these three fixtures into one
+# object would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster
+# (see design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
 async def test_persist_execution_batch_unified(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
     telemetry_session_id: int,
 ) -> None:
+    # dup-ignore-end
     """persist_execution_batch() inserts ExecutionRecord rows into executions with correct kind."""
     listener_id = await telemetry_repo.register_listener(make_listener_registration())
     job_id = await telemetry_repo.register_job(make_job_registration())
 
     now = time.time()
     records = [
-        ExecutionRecord(
-            kind="handler",
-            listener_id=listener_id,
-            session_id=telemetry_session_id,
-            execution_start_ts=now,
-            duration_ms=5.0,
-            status="success",
-        ),
+        make_execution_record(listener_id=listener_id, session_id=telemetry_session_id, execution_start_ts=now),
         ExecutionRecord(
             kind="job",
             job_id=job_id,
@@ -590,11 +610,17 @@ async def test_reconcile_deletes_stale_job_not_in_live_set(
     assert row["count"] == 0, "Stale job without history should be deleted (non-empty live_job_ids branch)"
 
 
+# dup-ignore-start: pytest test function signature — each test independently declares the
+# telemetry_repo/telemetry_db/telemetry_session_id fixtures it needs; Python has no way to share a
+# function signature between separate test functions, and bundling these three fixtures into one
+# object would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster
+# (see design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
 async def test_reconcile_retires_stale_job_with_history_non_empty_live_set(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
     telemetry_session_id: int,
 ) -> None:
+    # dup-ignore-end
     """reconcile_registrations() retires stale jobs with history when live_job_ids is non-empty."""
     job_id_a = await telemetry_repo.register_job(make_job_registration(job_name="job_a"))
     job_id_b = await telemetry_repo.register_job(make_job_registration(job_name="job_b"))
@@ -635,6 +661,11 @@ async def test_reconcile_once_true_delete_non_empty_live_listener_ids(
     once_reg = make_listener_registration(once=True, name=ONCE_LISTENER_NAME)
     once_id = await telemetry_repo.register_listener(once_reg)
 
+    # dup-ignore-start: mirrors the telemetry_session_id fixture's session-insert SQL — this test
+    # deliberately creates a SECOND session (distinct from the fixture-provided one) to simulate
+    # reconciliation running against a newer session; promoting a shared helper into
+    # tests/unit/core/conftest.py for this one cross-file cluster is out of scope (see
+    # design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
     now = time.time()
     cursor = await telemetry_db.execute(
         "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'running')",
@@ -643,18 +674,18 @@ async def test_reconcile_once_true_delete_non_empty_live_listener_ids(
     await telemetry_db.commit()
     new_session_id = cursor.lastrowid
     assert new_session_id is not None
+    # dup-ignore-end
 
     await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [live_id], [], session_id=new_session_id)
 
-    cursor = await telemetry_db.execute("SELECT COUNT(*) AS count FROM listeners WHERE id = ?", (once_id,))
-    row = await cursor.fetchone()
-    assert row["count"] == 0, (
-        "once=True listener from previous session should be deleted (non-empty live_listener_ids branch)"
+    await assert_listener_count(
+        telemetry_db,
+        once_id,
+        0,
+        "once=True listener from previous session should be deleted (non-empty live_listener_ids branch)",
     )
 
-    cursor = await telemetry_db.execute("SELECT COUNT(*) AS count FROM listeners WHERE id = ?", (live_id,))
-    row = await cursor.fetchone()
-    assert row["count"] == 1, "Live listener should be preserved"
+    await assert_listener_count(telemetry_db, live_id, 1, "Live listener should be preserved")
 
 
 async def test_mark_listener_cancelled_sets_removed_at(
@@ -665,20 +696,16 @@ async def test_mark_listener_cancelled_sets_removed_at(
     reg = make_listener_registration()
     listener_id = await telemetry_repo.register_listener(reg)
 
-    cursor = await telemetry_db.execute("SELECT removed_at FROM listeners WHERE id = ?", (listener_id,))
-    row = await cursor.fetchone()
-    assert row is not None
-    assert row["removed_at"] is None, "removed_at should be NULL before removal"
+    removed_at = await fetch_listener_field(telemetry_db, listener_id, "removed_at")
+    assert removed_at is None, "removed_at should be NULL before removal"
 
     before_ts = time.time()
     await telemetry_repo.mark_listener_cancelled(listener_id)
     after_ts = time.time()
 
-    cursor = await telemetry_db.execute("SELECT removed_at FROM listeners WHERE id = ?", (listener_id,))
-    row = await cursor.fetchone()
-    assert row is not None
-    assert row["removed_at"] is not None, "removed_at should be set after mark_listener_cancelled()"
-    assert before_ts <= row["removed_at"] <= after_ts
+    removed_at = await fetch_listener_field(telemetry_db, listener_id, "removed_at")
+    assert removed_at is not None, "removed_at should be set after mark_listener_cancelled()"
+    assert before_ts <= removed_at <= after_ts
 
 
 async def test_register_listener_clears_removed_at_on_reregistration(
@@ -691,10 +718,8 @@ async def test_register_listener_clears_removed_at_on_reregistration(
 
     await telemetry_repo.mark_listener_cancelled(listener_id)
 
-    cursor = await telemetry_db.execute("SELECT removed_at FROM listeners WHERE id = ?", (listener_id,))
-    row = await cursor.fetchone()
-    assert row is not None
-    assert row["removed_at"] is not None, "removed_at should be set after mark_listener_cancelled()"
+    removed_at = await fetch_listener_field(telemetry_db, listener_id, "removed_at")
+    assert removed_at is not None, "removed_at should be set after mark_listener_cancelled()"
 
     new_id = await telemetry_repo.register_listener(reg)
     assert new_id == listener_id, "Re-registration must preserve the row id"

@@ -97,6 +97,12 @@ EXPECTED_TABLES = {
     },
     "log_records": {
         "id",
+        # dup-ignore-start: mirrors LOG_RECORD_COLUMNS in src/hassette/core/database_service.py
+        # (the production source of truth) and the "expected" literal in
+        # tests/unit/core/test_log_records.py's test_migration_creates_log_records_columns — a
+        # test asserting against production output that coincidentally shares shape with an
+        # unrelated file is not real duplication, and merging across the unit/integration
+        # test-tier boundary would couple otherwise-independent test suites.
         "seq",
         "timestamp",
         "level",
@@ -110,6 +116,7 @@ EXPECTED_TABLES = {
         "instance_index",
         "execution_id",
         "source_tier",
+        # dup-ignore-end
     },
     "blocking_events": {
         "id",
@@ -194,6 +201,11 @@ def test_migration_schema_matches_expected_columns(tmp_path: Path) -> None:
 def test_user_version_set_after_migration(tmp_path: Path) -> None:
     """PRAGMA user_version is set to LATEST_MIGRATION_VERSION after all migrations run."""
     db_path = tmp_path / "test.db"
+    # dup-ignore-start: the "connect, read PRAGMA user_version, close" pattern below also
+    # appears in tests/unit/core/test_log_records.py's test_migration_version_is_at_head — a
+    # different test tier verifying the same schema invariant against its own migration entry
+    # point (run_migrations_to_head() there vs. run_migrations() here). Merging across the
+    # unit/integration boundary would couple otherwise-independent test suites.
     run_migrations(db_path)
 
     conn = sqlite3.connect(db_path)
@@ -201,6 +213,7 @@ def test_user_version_set_after_migration(tmp_path: Path) -> None:
         version = conn.execute("PRAGMA user_version").fetchone()[0]
     finally:
         conn.close()
+    # dup-ignore-end
 
     assert version == LATEST_MIGRATION_VERSION
 
@@ -240,6 +253,12 @@ def test_handle_schema_version_then_migrate_preserves_data(tmp_path: Path) -> No
     svc.logger = MagicMock()
     asyncio.run(svc.handle_schema_version(db_path))
 
+    # dup-ignore-start: the "run_migrations, connect, read PRAGMA user_version" pattern below also
+    # appears in this file's test_user_version_set_after_migration() and in
+    # tests/unit/core/test_log_records.py — this occurrence additionally exercises the
+    # post-upgrade-preserves-data path (asserting the connection stays open for the
+    # session_count/listener checks below), which the other two don't. Merging across those
+    # differing setups (and the unit/integration test-tier boundary) would couple unrelated tests.
     run_migrations(db_path)
 
     conn = sqlite3.connect(db_path)
@@ -248,6 +267,7 @@ def test_handle_schema_version_then_migrate_preserves_data(tmp_path: Path) -> No
         assert version == LATEST_MIGRATION_VERSION, (
             f"Expected schema version {LATEST_MIGRATION_VERSION} after upgrade, got {version}"
         )
+        # dup-ignore-end
 
         session_count = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
         assert session_count == 1, "Session row lost during upgrade"
