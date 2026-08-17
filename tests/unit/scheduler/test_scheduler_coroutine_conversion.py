@@ -27,13 +27,36 @@ from tests.unit.test_forgotten_await_completeness import CANONICAL_PROTECTED
 
 from .conftest import make_scheduler
 
+# Shared across test_await_returns_scheduled_job and test_forgotten_await_warns (all methods),
+# and test_returns_registration_handle (first three — add_job/schedule/run_in).
+_SCHEDULING_METHOD_CALLS = [
+    pytest.param(
+        lambda s: s.add_job(Job(owner_id="o", next_run=now(), job=noop, name="t")),
+        id="add_job",
+    ),
+    pytest.param(lambda s: s.schedule(noop, Every(hours=1), name="t"), id="schedule"),
+    pytest.param(lambda s: s.run_in(noop, 30, name="t"), id="run_in"),
+    pytest.param(lambda s: s.run_every(noop, minutes=5, name="t"), id="run_every"),
+    pytest.param(lambda s: s.run_daily(noop, at="08:00", name="t"), id="run_daily"),
+    pytest.param(lambda s: s.run_cron(noop, "0 9 * * 1-5", name="t"), id="run_cron"),
+    pytest.param(lambda s: s.run_once(noop, at="23:59", name="t"), id="run_once"),
+    pytest.param(lambda s: s.run_minutely(noop, minutes=5, name="t"), id="run_minutely"),
+    pytest.param(lambda s: s.run_hourly(noop, hours=2, name="t"), id="run_hourly"),
+]
+
 # Derived from the canonical single source of truth — see test_forgotten_await_completeness.py.
+# dup-ignore-start: the _drain fixture two statements below is a documented per-file opt-in
+# pattern (see drain_forgotten_await_handles docstring in tests/unit/conftest.py) — every
+# warning-heavy test module repeats this one-line wrapper by design. This marker also covers the
+# _PUBLIC_SCHEDULING_METHODS assignment immediately below, which is unrelated — PMD's clone match
+# for the fixture happens to extend back to include it, so it has to sit inside the ignored range.
 _PUBLIC_SCHEDULING_METHODS = sorted(CANONICAL_PROTECTED[Scheduler])
 
 
 @pytest.fixture(autouse=True)
 def _drain(drain_forgotten_await_handles: None) -> None:
     """Drain dropped handles after each test (shared fixture in tests/unit/conftest.py)."""
+    # dup-ignore-end
 
 
 # Public scheduling methods must be plain def, not async def
@@ -55,23 +78,7 @@ def test_scheduling_method_is_plain_def(method_name: str) -> None:
 # Awaiting returns Job with db_id; no warnings emitted
 
 
-@pytest.mark.parametrize(
-    "call",
-    [
-        pytest.param(
-            lambda s: s.add_job(Job(owner_id="o", next_run=now(), job=noop, name="t")),
-            id="add_job",
-        ),
-        pytest.param(lambda s: s.schedule(noop, Every(hours=1), name="t"), id="schedule"),
-        pytest.param(lambda s: s.run_in(noop, 30, name="t"), id="run_in"),
-        pytest.param(lambda s: s.run_every(noop, minutes=5, name="t"), id="run_every"),
-        pytest.param(lambda s: s.run_daily(noop, at="08:00", name="t"), id="run_daily"),
-        pytest.param(lambda s: s.run_cron(noop, "0 9 * * 1-5", name="t"), id="run_cron"),
-        pytest.param(lambda s: s.run_once(noop, at="23:59", name="t"), id="run_once"),
-        pytest.param(lambda s: s.run_minutely(noop, minutes=5, name="t"), id="run_minutely"),
-        pytest.param(lambda s: s.run_hourly(noop, hours=2, name="t"), id="run_hourly"),
-    ],
-)
+@pytest.mark.parametrize("call", _SCHEDULING_METHOD_CALLS)
 async def test_await_returns_scheduled_job(call) -> None:
     """Awaiting any scheduling method returns a Job with db_id set, no warning."""
     scheduler = make_scheduler()
@@ -108,17 +115,11 @@ def test_add_job_existing_name_no_valueerror_at_call_time() -> None:
 # Returned handle is a RegistrationHandle / collections.abc.Coroutine
 
 
-@pytest.mark.parametrize(
-    "call",
-    [
-        pytest.param(
-            lambda s: s.add_job(Job(owner_id="o", next_run=now(), job=noop, name="t")),
-            id="add_job",
-        ),
-        pytest.param(lambda s: s.schedule(noop, Every(hours=1), name="t"), id="schedule"),
-        pytest.param(lambda s: s.run_in(noop, 30, name="t"), id="run_in"),
-    ],
-)
+# dup-ignore-start: the "returns a RegistrationHandle before awaiting, must be closed" invariant is
+# intentionally mirrored across the Bus/Scheduler/Api coroutine-conversion test suites — each class
+# was converted the same way and needs the same coverage. Not extractable across unrelated classes.
+# [:3] relies on list order — first three entries of _SCHEDULING_METHOD_CALLS are add_job/schedule/run_in.
+@pytest.mark.parametrize("call", _SCHEDULING_METHOD_CALLS[:3])
 def test_returns_registration_handle(call) -> None:
     """Scheduling methods return a RegistrationHandle before awaiting."""
     scheduler = make_scheduler()
@@ -130,23 +131,8 @@ def test_returns_registration_handle(call) -> None:
 # Dropping un-awaited handle emits HassetteForgottenAwaitWarning
 
 
-@pytest.mark.parametrize(
-    "call",
-    [
-        pytest.param(
-            lambda s: s.add_job(Job(owner_id="o", next_run=now(), job=noop, name="t")),
-            id="add_job",
-        ),
-        pytest.param(lambda s: s.schedule(noop, Every(hours=1), name="t"), id="schedule"),
-        pytest.param(lambda s: s.run_in(noop, 30, name="t"), id="run_in"),
-        pytest.param(lambda s: s.run_every(noop, minutes=5, name="t"), id="run_every"),
-        pytest.param(lambda s: s.run_daily(noop, at="08:00", name="t"), id="run_daily"),
-        pytest.param(lambda s: s.run_cron(noop, "0 9 * * 1-5", name="t"), id="run_cron"),
-        pytest.param(lambda s: s.run_once(noop, at="23:59", name="t"), id="run_once"),
-        pytest.param(lambda s: s.run_minutely(noop, minutes=5, name="t"), id="run_minutely"),
-        pytest.param(lambda s: s.run_hourly(noop, hours=2, name="t"), id="run_hourly"),
-    ],
-)
+@pytest.mark.parametrize("call", _SCHEDULING_METHOD_CALLS)
+# dup-ignore-end
 def test_forgotten_await_warns(call) -> None:
     """Dropping un-awaited handle emits HassetteForgottenAwaitWarning."""
     scheduler = make_scheduler()

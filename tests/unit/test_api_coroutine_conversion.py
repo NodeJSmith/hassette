@@ -36,7 +36,7 @@ _API_METHODS = [
 
 
 @pytest.fixture(autouse=True)
-def drain(drain_forgotten_await_handles: None) -> None:
+def _drain(drain_forgotten_await_handles: None) -> None:
     """Drain dropped handles after each test (shared fixture in tests/unit/conftest.py)."""
 
 
@@ -113,6 +113,9 @@ async def test_await_set_state_returns_dict() -> None:
 # Returned handle is a RegistrationHandle before awaiting
 
 
+# dup-ignore-start: the "returns a RegistrationHandle before awaiting, must be closed" invariant is
+# intentionally mirrored across the Bus/Scheduler/Api coroutine-conversion test suites — each class
+# was converted the same way and needs the same coverage. Not extractable across unrelated classes.
 @pytest.mark.parametrize("call", _API_METHODS)
 def test_returns_registration_handle(call) -> None:
     """Api methods return a RegistrationHandle before awaiting."""
@@ -126,6 +129,7 @@ def test_returns_registration_handle(call) -> None:
 
 
 @pytest.mark.parametrize("call", _API_METHODS)
+# dup-ignore-end
 def test_forgotten_await_warns(call) -> None:
     """Dropping un-awaited Api handle emits HassetteForgottenAwaitWarning."""
     api = make_api()

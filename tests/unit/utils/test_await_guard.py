@@ -33,9 +33,12 @@ from hassette.utils.await_guard import RegistrationHandle, guard_await
 from hassette.utils.source_capture import capture_registration_source, is_internal_frame
 
 
+# dup-ignore-start: documented per-file opt-in pattern (see drain_forgotten_await_handles docstring
+# in tests/unit/conftest.py) — every warning-heavy test module repeats this one-line wrapper by design.
 @pytest.fixture(autouse=True)
 def _drain(drain_forgotten_await_handles: None) -> None:
     """Drain dropped handles after each test (shared fixture in tests/unit/conftest.py)."""
+    # dup-ignore-end
 
 
 # Helpers
@@ -356,30 +359,24 @@ def test_source_capture_is_internal_frame_module_name():
     assert is_internal_frame(types.SimpleNamespace(f_globals={"__name__": ""})) is False
 
 
-def test_source_capture_skips_hassette_frames(monkeypatch):
-    """capture_registration_source walks past hassette.* frames to the first user frame."""
-    # Inject a fake stack: first frame is our own (skipped by [1:]),
-    # next two are hassette internals, last is user code.
-    fake_frames = [
-        # Our own frame (skipped by [1:])
+def _fake_stack_frames():
+    """A 4-frame fake stack: own frame, two hassette internals, then user code."""
+    return [
         types.SimpleNamespace(
             filename="<self>",
             lineno=0,
             frame=types.SimpleNamespace(f_globals={"__name__": "hassette.utils.source_capture"}),
         ),
-        # hassette internal
         types.SimpleNamespace(
             filename="/site-packages/hassette/bus/bus.py",
             lineno=350,
             frame=types.SimpleNamespace(f_globals={"__name__": "hassette.bus.bus"}),
         ),
-        # hassette internal
         types.SimpleNamespace(
             filename="/site-packages/hassette/utils/await_guard.py",
             lineno=10,
             frame=types.SimpleNamespace(f_globals={"__name__": "hassette.utils.await_guard"}),
         ),
-        # user code (non-hassette)
         types.SimpleNamespace(
             filename="/home/user/apps/my_automation.py",
             lineno=77,
@@ -387,7 +384,10 @@ def test_source_capture_skips_hassette_frames(monkeypatch):
         ),
     ]
 
-    monkeypatch.setattr(inspect, "stack", lambda *_args, **_kw: fake_frames)
+
+def test_source_capture_skips_hassette_frames(monkeypatch):
+    """capture_registration_source walks past hassette.* frames to the first user frame."""
+    monkeypatch.setattr(inspect, "stack", lambda *_args, **_kw: _fake_stack_frames())
 
     source_location, _ = capture_registration_source()
     # Must resolve to the user frame, not a hassette internal
@@ -415,32 +415,6 @@ def test_source_capture_has_limit_parameter(monkeypatch):
     assert call_args, "inspect.stack was not called"
     _, kwargs = call_args[0]
     assert kwargs.get("context") == 0, f"Expected context=0, got {kwargs}"
-
-
-def _fake_stack_frames():
-    """A 4-frame fake stack: own frame, two hassette internals, then user code."""
-    return [
-        types.SimpleNamespace(
-            filename="<self>",
-            lineno=0,
-            frame=types.SimpleNamespace(f_globals={"__name__": "hassette.utils.source_capture"}),
-        ),
-        types.SimpleNamespace(
-            filename="/site-packages/hassette/bus/bus.py",
-            lineno=350,
-            frame=types.SimpleNamespace(f_globals={"__name__": "hassette.bus.bus"}),
-        ),
-        types.SimpleNamespace(
-            filename="/site-packages/hassette/utils/await_guard.py",
-            lineno=10,
-            frame=types.SimpleNamespace(f_globals={"__name__": "hassette.utils.await_guard"}),
-        ),
-        types.SimpleNamespace(
-            filename="/home/user/apps/my_automation.py",
-            lineno=77,
-            frame=types.SimpleNamespace(f_globals={"__name__": "my_automation"}),
-        ),
-    ]
 
 
 def test_source_capture_limit_applied_after_skip(monkeypatch):

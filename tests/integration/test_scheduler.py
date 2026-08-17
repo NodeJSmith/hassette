@@ -223,30 +223,7 @@ def test_scheduled_job_defaults_empty_app_key() -> None:
     assert job.instance_index == 0
 
 
-def test_scheduled_job_mark_registered_sets_db_id() -> None:
-    """mark_registered() sets db_id on first call."""
-    job = Job(
-        owner_id="test",
-        next_run=ZonedDateTime.from_system_tz(2030, 1, 1, 0, 0, 0),
-        job=lambda: None,
-    )
-    assert job.db_id is None
-
-    job.mark_registered(42)
-    assert job.db_id == 42
-
-
-def test_scheduled_job_mark_registered_keeps_original_on_double_call() -> None:
-    """mark_registered() keeps the original db_id when called a second time."""
-    job = Job(
-        owner_id="test",
-        next_run=ZonedDateTime.from_system_tz(2030, 1, 1, 0, 0, 0),
-        job=lambda: None,
-    )
-    job.mark_registered(42)
-    job.mark_registered(99)
-
-    assert job.db_id == 42
+# mark_registered() coverage lives in tests/unit/scheduler/test_scheduled_job_mark_registered.py.
 
 
 class _ExhaustionConfig(AppConfig):

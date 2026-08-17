@@ -8,10 +8,10 @@ from whenever import ZonedDateTime
 import hassette.scheduler.classes as classes_module
 from hassette.scheduler import After, Cron, Daily, Every, Once, TriggerProtocol
 
+from .conftest import TZ as TZ
+
 if TYPE_CHECKING:
     from hassette.test_utils.harness import HassetteHarness
-
-TZ = "America/Chicago"
 
 
 def zdt(year: int, month: int, day: int, hour: int = 0, minute: int = 0, second: int = 0) -> ZonedDateTime:
@@ -58,13 +58,17 @@ def test_after_trigger_id() -> None:
     assert After(seconds=30).trigger_id() == "after:30"
 
 
+def _once_first_run_time(fake_now: ZonedDateTime, monkeypatch: pytest.MonkeyPatch) -> ZonedDateTime:
+    """Build a Once(at='07:00') trigger and compute its first_run_time against a mocked now()."""
+    monkeypatch.setattr("hassette.utils.date_utils.now", lambda: fake_now)
+    trigger = Once(at="07:00")
+    return trigger.first_run_time(fake_now)
+
+
 def test_once_today(monkeypatch: pytest.MonkeyPatch) -> None:
     """Once(at='07:00') when current time is 06:00 fires today at 07:00."""
     fake_now = zdt(2025, 8, 18, 6, 0, 0)
-    monkeypatch.setattr("hassette.utils.date_utils.now", lambda: fake_now)
-
-    trigger = Once(at="07:00")
-    fire_time = trigger.first_run_time(fake_now)
+    fire_time = _once_first_run_time(fake_now, monkeypatch)
 
     expected = zdt(2025, 8, 18, 7, 0, 0)
     assert fire_time == expected, f"Got {fire_time.format_iso()}"
@@ -73,10 +77,7 @@ def test_once_today(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_once_tomorrow_default(monkeypatch: pytest.MonkeyPatch) -> None:
     """Once(at='07:00') when current time is 08:00 fires tomorrow at 07:00."""
     fake_now = zdt(2025, 8, 18, 8, 0, 0)
-    monkeypatch.setattr("hassette.utils.date_utils.now", lambda: fake_now)
-
-    trigger = Once(at="07:00")
-    fire_time = trigger.first_run_time(fake_now)
+    fire_time = _once_first_run_time(fake_now, monkeypatch)
 
     expected = zdt(2025, 8, 19, 7, 0, 0)
     assert fire_time == expected, f"Got {fire_time.format_iso()}"

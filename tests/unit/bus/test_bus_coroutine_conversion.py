@@ -26,12 +26,19 @@ from tests.unit.test_forgotten_await_completeness import CANONICAL_PROTECTED
 from .conftest import mock_add_listener
 
 # Derived from the canonical single source of truth — see test_forgotten_await_completeness.py.
+# dup-ignore-start: the _drain fixture two statements below is a documented per-file opt-in
+# pattern (see drain_forgotten_await_handles docstring in tests/unit/conftest.py) — every
+# warning-heavy test module repeats this one-line wrapper by design. This marker also covers the
+# _PUBLIC_REGISTRATION_METHODS assignment immediately below, which is unrelated — PMD's clone
+# match for the fixture happens to extend back to include it, so it has to sit inside the ignored
+# range.
 _PUBLIC_REGISTRATION_METHODS = sorted(CANONICAL_PROTECTED[Bus])
 
 
 @pytest.fixture(autouse=True)
 def _drain(drain_forgotten_await_handles: None) -> None:
     """Drain dropped handles after each test (shared fixture in tests/unit/conftest.py)."""
+    # dup-ignore-end
 
 
 async def handler(event: object) -> None:
@@ -87,6 +94,9 @@ async def test_await_returns_subscription(bus: "Bus", call) -> None:
 # returned handle IS a RegistrationHandle / collections.abc.Coroutine
 
 
+# dup-ignore-start: the "returns a RegistrationHandle before awaiting, must be closed" invariant is
+# intentionally mirrored across the Bus/Scheduler/Api coroutine-conversion test suites — each class
+# was converted the same way and needs the same coverage. Not extractable across unrelated classes.
 async def test_on_returns_registration_handle(bus: "Bus") -> None:
     """Bus.on() returns a RegistrationHandle before it is awaited."""
     with mock_add_listener(bus):
@@ -112,6 +122,7 @@ async def test_on_returns_registration_handle(bus: "Bus") -> None:
         ),
     ],
 )
+# dup-ignore-end
 def test_forgotten_await_warns(bus: "Bus", call) -> None:
     """Dropping un-awaited handle emits HassetteForgottenAwaitWarning."""
     with mock_add_listener(bus), pytest.warns(HassetteForgottenAwaitWarning):

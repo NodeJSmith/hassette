@@ -188,6 +188,15 @@ _API_METHOD_CALLS: dict[str, object] = {
 }
 
 
+# dup-ignore-start: the _drain fixture below is a documented per-file opt-in pattern (see
+# drain_forgotten_await_handles docstring in tests/unit/conftest.py) — every warning-heavy test
+# module repeats this one-line wrapper by design.
+@pytest.fixture(autouse=True)
+def _drain(drain_forgotten_await_handles: None) -> None:
+    """Drain dropped handles after each test (shared fixture in tests/unit/conftest.py)."""
+    # dup-ignore-end
+
+
 def _is_detected(cls: type, name: str) -> bool:
     """Return True if ``name`` on ``cls`` satisfies the completeness detection criterion.
 
@@ -511,11 +520,3 @@ def test_scheduler_add_job_warns_on_forgotten_await() -> None:
         _ = sched.add_job(job)
         del _
         gc.collect()
-
-
-# Suppress stray HassetteForgottenAwaitWarning from gc.collect() at teardown
-
-
-@pytest.fixture(autouse=True)
-def _drain(drain_forgotten_await_handles: None) -> None:
-    """Drain dropped handles after each test (shared fixture in tests/unit/conftest.py)."""
