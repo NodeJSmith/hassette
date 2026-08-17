@@ -8,11 +8,11 @@ from hassette.commands import ExecuteJob, InvokeHandler
 from hassette.utils.execution import ExecutionResult, track_execution
 
 
-def invoke_handler_kwargs(**overrides: object) -> dict:
+def invoke_handler_kwargs(**overrides: object) -> dict[str, object]:
     """Shared base kwargs for constructing an InvokeHandler in the tests below — only
     `effective_timeout` (or its absence) varies per test.
     """
-    kwargs: dict = {
+    kwargs: dict[str, object] = {
         "listener": MagicMock(),
         "event": MagicMock(),
         "topic": "test",

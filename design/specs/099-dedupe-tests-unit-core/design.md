@@ -1,7 +1,7 @@
 # Design: Deduplicate tests/unit/core infra and remaining tests
 
 **Date:** 2026-08-17
-**Status:** draft
+**Status:** archived
 **Mode:** sketch
 
 ## Problem
