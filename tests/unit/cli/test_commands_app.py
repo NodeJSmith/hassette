@@ -1,10 +1,10 @@
 """Unit tests for hassette app, app health, app activity, app config, and app source commands."""
 
-import json
-from unittest.mock import patch
+from typing import Any
 
 import pytest
 
+from hassette.cli.client import HassetteCLIClient
 from hassette.cli.commands.app import (
     APP_ACTIVITY_COLUMNS,
     APP_HEALTH_COLUMNS,
@@ -15,7 +15,6 @@ from hassette.cli.commands.app import (
     cmd_app_health,
     cmd_app_source,
 )
-from hassette.cli.context import CLIContext
 from hassette.cli.output import now_epoch
 from hassette.test_utils.web_manifest_helpers import make_manifest_list_response, make_manifest_response
 from hassette.test_utils.web_response_helpers import (
@@ -28,13 +27,11 @@ from hassette.web.models import AppInstanceResponse, AppManifestListResponse
 from tests.unit.cli.conftest import (
     SINCE_EPOCH,
     CLIClientFactory,
-    GetSpy,
-    capture_json_stdout,
-    capture_stderr,
-    capture_stdout,
+    CommandRunner,
 )
 
-MAKE_CLIENT_PATH = "hassette.cli.commands.app.make_client"
+runner = CommandRunner("hassette.cli.commands.app.make_client")
+ACTIVITY_ENDPOINT = "/api/telemetry/app/my-app/activity"
 
 # cmd_app (bare — list all apps)
 
@@ -45,14 +42,7 @@ class TestCmdApp:
         manifest = make_manifest_response()
         data = make_manifest_list_response([manifest])
         client = cli_client_factory.build_with_routes([("GET", "/api/apps/manifests", 200, data.model_dump())])
-        spy = GetSpy(client)
-
-        with (
-            patch.object(client, "get", side_effect=spy),
-            capture_stdout(),
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_app()
+        spy = runner.spy(client, cmd_app)
 
         assert "/api/apps/manifests" in spy.paths
 
@@ -61,12 +51,7 @@ class TestCmdApp:
         manifest = make_manifest_response(app_key="my_app", status="running", display_name="My App")
         data = make_manifest_list_response([manifest])
         client = cli_client_factory.build_with_routes([("GET", "/api/apps/manifests", 200, data.model_dump())])
-        with (
-            capture_stdout() as buf,
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_app()
-        output = buf.getvalue()
+        output = runner.stdout(client, cmd_app)
         assert "my_app" in output
         assert "running" in output
 
@@ -76,13 +61,7 @@ class TestCmdApp:
         data = make_manifest_list_response([manifest])
         client = cli_client_factory.build_with_routes([("GET", "/api/apps/manifests", 200, data.model_dump())])
 
-        with (
-            patch(MAKE_CLIENT_PATH, return_value=client),
-            capture_json_stdout() as captured,
-        ):
-            cmd_app(ctx=CLIContext(json_mode=True))
-
-        parsed = json.loads("".join(captured))
+        parsed = runner.json_output(client, cmd_app)
         assert isinstance(parsed, list)
         assert parsed[0]["app_key"] == "my_app"
 
@@ -90,13 +69,7 @@ class TestCmdApp:
         """App renders a no-results message when manifests list is empty."""
         data = make_manifest_list_response([])
         client = cli_client_factory.build_with_routes([("GET", "/api/apps/manifests", 200, data.model_dump())])
-        with (
-            capture_stdout(),
-            capture_stderr() as err_buf,
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_app()
-        assert "No results" in err_buf.getvalue()
+        assert "No results" in runner.stderr(client, cmd_app)
 
     def test_app_list_columns_defined(self) -> None:
         """APP_LIST_COLUMNS includes the key per-app fields."""
@@ -122,14 +95,7 @@ class TestCmdAppHealth:
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/health", 200, health.model_dump())]
         )
-        spy = GetSpy(client)
-
-        with (
-            patch.object(client, "get", side_effect=spy),
-            capture_stdout(),
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_app_health("my-app")
+        spy = runner.spy(client, cmd_app_health, "my-app")
 
         assert any("/api/telemetry/app/my-app/health" in p for p in spy.paths)
 
@@ -139,18 +105,9 @@ class TestCmdAppHealth:
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/health", 200, health.model_dump())]
         )
-        spy = GetSpy(client)
+        spy = runner.spy(client, cmd_app_health, "my-app", instance="1")
 
-        with (
-            patch.object(client, "get", side_effect=spy),
-            capture_stdout(),
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_app_health("my-app", instance="1")
-
-        health_call = next(r for r in spy.calls if "health" in r["path"])
-        assert health_call["params"] is not None
-        assert health_call["params"]["instance_index"] == 1
+        assert spy.params_for("health")["instance_index"] == 1
 
     def test_instance_name_resolution(self, cli_client_factory: CLIClientFactory) -> None:
         """App health --instance office resolves the name to an index."""
@@ -170,18 +127,9 @@ class TestCmdAppHealth:
                 ("GET", "/api/telemetry/app/my-app/health", 200, health.model_dump()),
             ]
         )
-        spy = GetSpy(client)
+        spy = runner.spy(client, cmd_app_health, "my-app", instance="office")
 
-        with (
-            patch.object(client, "get", side_effect=spy),
-            capture_stdout(),
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_app_health("my-app", instance="office")
-
-        health_call = next(r for r in spy.calls if "health" in r["path"])
-        assert health_call["params"] is not None
-        assert health_call["params"]["instance_index"] == 2
+        assert spy.params_for("health")["instance_index"] == 2
 
     def test_human_mode_renders_panel(self, cli_client_factory: CLIClientFactory) -> None:
         """App health renders a key-value detail panel."""
@@ -189,12 +137,7 @@ class TestCmdAppHealth:
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/health", 200, health.model_dump())]
         )
-        with (
-            capture_stdout() as buf,
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_app_health("my-app")
-        output = buf.getvalue()
+        output = runner.stdout(client, cmd_app_health, "my-app")
         assert "health_status" in output
         assert "excellent" in output
 
@@ -205,13 +148,7 @@ class TestCmdAppHealth:
             [("GET", "/api/telemetry/app/my-app/health", 200, health.model_dump())]
         )
 
-        with (
-            patch(MAKE_CLIENT_PATH, return_value=client),
-            capture_json_stdout() as captured,
-        ):
-            cmd_app_health("my-app", ctx=CLIContext(json_mode=True))
-
-        parsed = json.loads("".join(captured))
+        parsed = runner.json_output(client, cmd_app_health, "my-app")
         assert parsed["error_rate"] == pytest.approx(0.1)
         assert "health_status" in parsed
 
@@ -227,82 +164,41 @@ class TestCmdAppHealth:
 
 
 class TestCmdAppActivity:
-    def test_calls_correct_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
+    @pytest.fixture
+    def activity_client(self, cli_client_factory: CLIClientFactory) -> HassetteCLIClient:
+        """A client serving one default activity entry from my-app's activity feed."""
+        entry = make_activity_feed_entry()
+        return cli_client_factory.build_with_routes([("GET", ACTIVITY_ENDPOINT, 200, [entry.model_dump()])])
+
+    def test_calls_correct_endpoint(self, activity_client: HassetteCLIClient) -> None:
         """App activity fetches from GET /api/telemetry/app/{key}/activity."""
-        entry = make_activity_feed_entry()
-        client = cli_client_factory.build_with_routes(
-            [("GET", "/api/telemetry/app/my-app/activity", 200, [entry.model_dump()])]
-        )
-        spy = GetSpy(client)
+        spy = runner.spy(activity_client, cmd_app_activity, "my-app")
 
-        with (
-            patch.object(client, "get", side_effect=spy),
-            capture_stdout(),
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_app_activity("my-app")
+        assert any(ACTIVITY_ENDPOINT in p for p in spy.paths)
 
-        assert any("/api/telemetry/app/my-app/activity" in p for p in spy.paths)
-
-    def test_no_instance_omits_instance_index(self, cli_client_factory: CLIClientFactory) -> None:
+    def test_no_instance_omits_instance_index(self, activity_client: HassetteCLIClient) -> None:
         """App activity with no --instance does NOT pass instance_index param."""
-        entry = make_activity_feed_entry()
-        client = cli_client_factory.build_with_routes(
-            [("GET", "/api/telemetry/app/my-app/activity", 200, [entry.model_dump()])]
-        )
-        spy = GetSpy(client)
+        spy = runner.spy(activity_client, cmd_app_activity, "my-app")
 
-        with (
-            patch.object(client, "get", side_effect=spy),
-            capture_stdout(),
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_app_activity("my-app")
-
+        # Not spy.params_for() — that asserts params were sent at all, and "no params" is one
+        # of the passing outcomes here: the API returns all instances when instance_index is absent.
         activity_call = next(r for r in spy.calls if "activity" in r["path"])
-        # instance_index must not be present — API returns all instances when absent
-        params = activity_call["params"] or {}
-        assert "instance_index" not in params
+        assert "instance_index" not in (activity_call["params"] or {})
 
-    def test_since_and_limit_passed_as_params(self, cli_client_factory: CLIClientFactory) -> None:
+    def test_since_and_limit_passed_as_params(self, activity_client: HassetteCLIClient) -> None:
         """App activity --since and --limit are forwarded as query params."""
-        entry = make_activity_feed_entry()
-        client = cli_client_factory.build_with_routes(
-            [("GET", "/api/telemetry/app/my-app/activity", 200, [entry.model_dump()])]
-        )
-        spy = GetSpy(client)
-
         since_epoch = SINCE_EPOCH
-        with (
-            patch.object(client, "get", side_effect=spy),
-            capture_stdout(),
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_app_activity("my-app", since=since_epoch, limit=10)
+        spy = runner.spy(activity_client, cmd_app_activity, "my-app", since=since_epoch, limit=10)
 
-        activity_call = next(r for r in spy.calls if "activity" in r["path"])
-        assert activity_call["params"] is not None
-        assert activity_call["params"]["since"] == since_epoch
-        assert activity_call["params"]["limit"] == 10
+        params = spy.params_for("activity")
+        assert params["since"] == since_epoch
+        assert params["limit"] == 10
 
-    def test_instance_integer_passes_index_param(self, cli_client_factory: CLIClientFactory) -> None:
+    def test_instance_integer_passes_index_param(self, activity_client: HassetteCLIClient) -> None:
         """App activity --instance 2 passes instance_index=2."""
-        entry = make_activity_feed_entry()
-        client = cli_client_factory.build_with_routes(
-            [("GET", "/api/telemetry/app/my-app/activity", 200, [entry.model_dump()])]
-        )
-        spy = GetSpy(client)
+        spy = runner.spy(activity_client, cmd_app_activity, "my-app", instance="2")
 
-        with (
-            patch.object(client, "get", side_effect=spy),
-            capture_stdout(),
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_app_activity("my-app", instance="2")
-
-        activity_call = next(r for r in spy.calls if "activity" in r["path"])
-        assert activity_call["params"] is not None
-        assert activity_call["params"]["instance_index"] == 2
+        assert spy.params_for("activity")["instance_index"] == 2
 
     def test_human_mode_renders_table(self, cli_client_factory: CLIClientFactory) -> None:
         """App activity renders a table with handler name and status."""
@@ -311,32 +207,17 @@ class TestCmdAppActivity:
         # every ~10x days elapsed, stealing column width from Handler and truncating it
         # further than this test expects.
         entry = make_activity_feed_entry(handler_name="on_light_change", app_key="my-app", timestamp=now_epoch())
-        client = cli_client_factory.build_with_routes(
-            [("GET", "/api/telemetry/app/my-app/activity", 200, [entry.model_dump()])]
-        )
-        with (
-            capture_stdout() as buf,
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_app_activity("my-app")
-        output = buf.getvalue()
+        client = cli_client_factory.build_with_routes([("GET", ACTIVITY_ENDPOINT, 200, [entry.model_dump()])])
+        output = runner.stdout(client, cmd_app_activity, "my-app")
         # Rich may truncate the handler name in a narrow console — match the prefix
         assert "on_light_c" in output
 
     def test_json_mode_outputs_list(self, cli_client_factory: CLIClientFactory) -> None:
         """App activity --json outputs entries as a JSON array."""
         entry = make_activity_feed_entry(row_id="h-42")
-        client = cli_client_factory.build_with_routes(
-            [("GET", "/api/telemetry/app/my-app/activity", 200, [entry.model_dump()])]
-        )
+        client = cli_client_factory.build_with_routes([("GET", ACTIVITY_ENDPOINT, 200, [entry.model_dump()])])
 
-        with (
-            patch(MAKE_CLIENT_PATH, return_value=client),
-            capture_json_stdout() as captured,
-        ):
-            cmd_app_activity("my-app", ctx=CLIContext(json_mode=True))
-
-        parsed = json.loads("".join(captured))
+        parsed = runner.json_output(client, cmd_app_activity, "my-app")
         assert isinstance(parsed, list)
         assert parsed[0]["row_id"] == "h-42"
 
@@ -361,14 +242,7 @@ class TestCmdAppConfig:
         """App config fetches from GET /api/apps/{key}/config."""
         cfg = make_app_config_response(app_key="my-app")
         client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/config", 200, cfg.model_dump())])
-        spy = GetSpy(client)
-
-        with (
-            patch.object(client, "get", side_effect=spy),
-            capture_stdout(),
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_app_config("my-app")
+        spy = runner.spy(client, cmd_app_config, "my-app")
 
         assert any("/api/apps/my-app/config" in p for p in spy.paths)
 
@@ -376,12 +250,7 @@ class TestCmdAppConfig:
         """App config renders a detail panel with app_key and class_name."""
         cfg = make_app_config_response(app_key="my-app", class_name="MyApp")
         client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/config", 200, cfg.model_dump())])
-        with (
-            capture_stdout() as buf,
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_app_config("my-app")
-        output = buf.getvalue()
+        output = runner.stdout(client, cmd_app_config, "my-app")
         assert "my-app" in output
         assert "MyApp" in output
 
@@ -390,13 +259,7 @@ class TestCmdAppConfig:
         cfg = make_app_config_response(app_key="my-app", enabled=True)
         client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/config", 200, cfg.model_dump())])
 
-        with (
-            patch(MAKE_CLIENT_PATH, return_value=client),
-            capture_json_stdout() as captured,
-        ):
-            cmd_app_config("my-app", ctx=CLIContext(json_mode=True))
-
-        parsed = json.loads("".join(captured))
+        parsed = runner.json_output(client, cmd_app_config, "my-app")
         assert parsed["app_key"] == "my-app"
         assert parsed["enabled"] is True
 
@@ -408,73 +271,34 @@ class TestCmdAppConfig:
             config_schema={"properties": {"setting_name": {"SCHEMA_BLOB_MARKER": True}}},
         )
         client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/config", 200, cfg.model_dump())])
-        with (
-            capture_stdout() as buf,
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_app_config("my-app")
-        output = buf.getvalue()
+        output = runner.stdout(client, cmd_app_config, "my-app")
         assert "visible_value" in output
         assert "SCHEMA_BLOB_MARKER" not in output
 
-    def test_json_mode_omits_schema_blob(self, cli_client_factory: CLIClientFactory) -> None:
-        """App config --json emits values and metadata, not the config_schema envelope."""
+    @pytest.mark.parametrize(
+        "app_config",
+        [
+            pytest.param({"setting_name": "visible_value"}, id="single-instance-dict"),
+            pytest.param([{"setting_name": "first"}, {"setting_name": "second"}], id="multi-instance-list"),
+            pytest.param([], id="empty-multi-instance-list"),
+        ],
+    )
+    def test_json_mode_emits_app_config_verbatim_without_schema_blob(
+        self, cli_client_factory: CLIClientFactory, app_config: dict[str, Any] | list[dict[str, Any]]
+    ) -> None:
+        """App config --json round-trips app_config as-is and never dumps the config_schema envelope.
+
+        The empty-list case is the interesting one: it must stay ``[]`` rather than falling back
+        to the default dict when a multi-instance app has no instances.
+        """
         cfg = make_app_config_response(
             app_key="my-app",
-            app_config={"setting_name": "visible_value"},
+            app_config=app_config,
             config_schema={"properties": {"setting_name": {"SCHEMA_BLOB_MARKER": True}}},
         )
         client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/config", 200, cfg.model_dump())])
-        with (
-            patch(MAKE_CLIENT_PATH, return_value=client),
-            capture_json_stdout() as captured,
-        ):
-            cmd_app_config("my-app", ctx=CLIContext(json_mode=True))
-
-        parsed = json.loads("".join(captured))
-        assert parsed["app_config"] == {"setting_name": "visible_value"}
-        assert "config_schema" not in parsed
-
-    def test_json_mode_handles_multi_instance_app_config(self, cli_client_factory: CLIClientFactory) -> None:
-        """App config --json renders a list-shaped (multi-instance) app_config without the schema blob."""
-        cfg = make_app_config_response(
-            app_key="my-app",
-            app_config=[
-                {"setting_name": "first"},
-                {"setting_name": "second"},
-            ],
-            config_schema={"properties": {"setting_name": {"SCHEMA_BLOB_MARKER": True}}},
-        )
-        client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/config", 200, cfg.model_dump())])
-        with (
-            patch(MAKE_CLIENT_PATH, return_value=client),
-            capture_json_stdout() as captured,
-        ):
-            cmd_app_config("my-app", ctx=CLIContext(json_mode=True))
-
-        parsed = json.loads("".join(captured))
-        assert parsed["app_config"] == [
-            {"setting_name": "first"},
-            {"setting_name": "second"},
-        ]
-        assert "config_schema" not in parsed
-
-    def test_json_mode_preserves_empty_multi_instance_app_config(self, cli_client_factory: CLIClientFactory) -> None:
-        """App config --json keeps an empty list as [], not the default dict, when there are no instances."""
-        cfg = make_app_config_response(
-            app_key="my-app",
-            app_config=[],
-            config_schema={"properties": {"setting_name": {"SCHEMA_BLOB_MARKER": True}}},
-        )
-        client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/config", 200, cfg.model_dump())])
-        with (
-            patch(MAKE_CLIENT_PATH, return_value=client),
-            capture_json_stdout() as captured,
-        ):
-            cmd_app_config("my-app", ctx=CLIContext(json_mode=True))
-
-        parsed = json.loads("".join(captured))
-        assert parsed["app_config"] == []
+        parsed = runner.json_output(client, cmd_app_config, "my-app")
+        assert parsed["app_config"] == app_config
         assert "config_schema" not in parsed
 
 
@@ -486,14 +310,7 @@ class TestCmdAppSource:
         """App source fetches from GET /api/apps/{key}/source."""
         src = make_app_source_response(app_key="my-app")
         client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/source", 200, src.model_dump())])
-        spy = GetSpy(client)
-
-        with (
-            patch.object(client, "get", side_effect=spy),
-            capture_stdout(),
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_app_source("my-app")
+        spy = runner.spy(client, cmd_app_source, "my-app")
 
         assert any("/api/apps/my-app/source" in p for p in spy.paths)
 
@@ -501,12 +318,7 @@ class TestCmdAppSource:
         """App source renders a detail panel showing filename and content."""
         src = make_app_source_response(app_key="my-app", filename="my_app.py", content="class MyApp: pass\n")
         client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/source", 200, src.model_dump())])
-        with (
-            capture_stdout() as buf,
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_app_source("my-app")
-        output = buf.getvalue()
+        output = runner.stdout(client, cmd_app_source, "my-app")
         assert "my_app.py" in output
 
     def test_json_mode_outputs_valid_json(self, cli_client_factory: CLIClientFactory) -> None:
@@ -514,13 +326,7 @@ class TestCmdAppSource:
         src = make_app_source_response(app_key="my-app", content="class MyApp: pass\n", line_count=1)
         client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/source", 200, src.model_dump())])
 
-        with (
-            patch(MAKE_CLIENT_PATH, return_value=client),
-            capture_json_stdout() as captured,
-        ):
-            cmd_app_source("my-app", ctx=CLIContext(json_mode=True))
-
-        parsed = json.loads("".join(captured))
+        parsed = runner.json_output(client, cmd_app_source, "my-app")
         assert parsed["app_key"] == "my-app"
         assert "content" in parsed
         assert parsed["line_count"] == 1

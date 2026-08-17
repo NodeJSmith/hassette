@@ -1,142 +1,78 @@
 """Unit tests for hassette log and execution commands."""
 
-import json
-from unittest.mock import patch
-
 import pytest
 
+from hassette.cli.client import HassetteCLIClient
 from hassette.cli.commands.log import (
     EXECUTION_LOG_COLUMNS,
     LOG_COLUMNS,
     cmd_execution,
     cmd_log,
 )
-from hassette.cli.context import CLIContext
 from hassette.test_utils.web_telemetry_helpers import make_log_entry_response, make_logs_by_execution_response
-from tests.unit.cli.conftest import (
-    SINCE_EPOCH,
-    CLIClientFactory,
-    GetSpy,
-    capture_json_stdout,
-    capture_stderr,
-    capture_stdout,
-)
+from tests.unit.cli.conftest import SINCE_EPOCH, CLIClientFactory, CommandRunner
 
-MAKE_CLIENT_PATH = "hassette.cli.commands.log.make_client"
+runner = CommandRunner("hassette.cli.commands.log.make_client")
 
 # cmd_log — recent log entries
 
 
 class TestCmdLog:
-    def test_calls_logs_recent_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
-        """Log (no flags) fetches from GET /api/logs/recent."""
+    @pytest.fixture
+    def logs_client(self, cli_client_factory: CLIClientFactory) -> HassetteCLIClient:
+        """A client serving one default log entry from /api/logs/recent."""
         entry = make_log_entry_response()
-        client = cli_client_factory.build_with_routes([("GET", "/api/logs/recent", 200, [entry.model_dump()])])
-        spy = GetSpy(client)
+        return cli_client_factory.build_with_routes([("GET", "/api/logs/recent", 200, [entry.model_dump()])])
 
-        with (
-            patch.object(client, "get", side_effect=spy),
-            capture_stdout(),
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_log()
+    def test_calls_logs_recent_endpoint(self, logs_client: HassetteCLIClient) -> None:
+        """Log (no flags) fetches from GET /api/logs/recent."""
+        spy = runner.spy(logs_client, cmd_log)
 
         assert "/api/logs/recent" in spy.paths
 
-    def test_app_flag_passes_app_key_as_query_param(self, cli_client_factory: CLIClientFactory) -> None:
+    def test_app_flag_passes_app_key_as_query_param(self, logs_client: HassetteCLIClient) -> None:
         """Log --app my-app passes app_key=my-app as a query param (not routing)."""
-        entry = make_log_entry_response(app_key="my-app")
-        client = cli_client_factory.build_with_routes([("GET", "/api/logs/recent", 200, [entry.model_dump()])])
-        spy = GetSpy(client)
+        spy = runner.spy(logs_client, cmd_log, app="my-app")
 
-        with (
-            patch.object(client, "get", side_effect=spy),
-            capture_stdout(),
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_log(app="my-app")
+        assert spy.params_for("logs/recent")["app_key"] == "my-app"
 
-        logs_call = next(r for r in spy.calls if "logs/recent" in r["path"])
-        assert logs_call["params"] is not None
-        assert logs_call["params"]["app_key"] == "my-app"
-
-    def test_app_flag_does_not_route_to_per_app_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
+    def test_app_flag_does_not_route_to_per_app_endpoint(self, logs_client: HassetteCLIClient) -> None:
         """Log --app my-app still uses /api/logs/recent, not a per-app endpoint."""
-        entry = make_log_entry_response(app_key="my-app")
-        client = cli_client_factory.build_with_routes([("GET", "/api/logs/recent", 200, [entry.model_dump()])])
-        spy = GetSpy(client)
-
-        with (
-            patch.object(client, "get", side_effect=spy),
-            capture_stdout(),
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_log(app="my-app")
+        spy = runner.spy(logs_client, cmd_log, app="my-app")
 
         assert all("/api/logs/recent" in p for p in spy.paths)
         assert not any("telemetry/app" in p for p in spy.paths)
 
-    def test_since_and_limit_passed_as_params(self, cli_client_factory: CLIClientFactory) -> None:
+    def test_since_and_limit_passed_as_params(self, logs_client: HassetteCLIClient) -> None:
         """Log --since 1h --limit 20 passes since (epoch float) and limit=20."""
-        entry = make_log_entry_response()
-        client = cli_client_factory.build_with_routes([("GET", "/api/logs/recent", 200, [entry.model_dump()])])
-        spy = GetSpy(client)
-
         since_epoch = SINCE_EPOCH
-        with (
-            patch.object(client, "get", side_effect=spy),
-            capture_stdout(),
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_log(since=since_epoch, limit=20)
+        spy = runner.spy(logs_client, cmd_log, since=since_epoch, limit=20)
 
-        logs_call = next(r for r in spy.calls if "logs/recent" in r["path"])
-        assert logs_call["params"] is not None
-        assert logs_call["params"]["since"] == since_epoch
-        assert logs_call["params"]["limit"] == 20
+        params = spy.params_for("logs/recent")
+        assert params["since"] == since_epoch
+        assert params["limit"] == 20
 
-    def test_source_tier_passed_as_param(self, cli_client_factory: CLIClientFactory) -> None:
+    def test_source_tier_passed_as_param(self, logs_client: HassetteCLIClient) -> None:
         """Log --source-tier framework passes source_tier=framework as a query param."""
-        entry = make_log_entry_response()
-        client = cli_client_factory.build_with_routes([("GET", "/api/logs/recent", 200, [entry.model_dump()])])
-        spy = GetSpy(client)
+        spy = runner.spy(logs_client, cmd_log, source_tier="framework")
 
-        with (
-            patch.object(client, "get", side_effect=spy),
-            capture_stdout(),
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_log(source_tier="framework")
-
-        logs_call = next(r for r in spy.calls if "logs/recent" in r["path"])
-        assert logs_call["params"] is not None
-        assert logs_call["params"]["source_tier"] == "framework"
+        assert spy.params_for("logs/recent")["source_tier"] == "framework"
 
     def test_instance_flag_exits_with_usage_error(self, cli_client_factory: CLIClientFactory) -> None:
         """Log --instance 0 exits non-zero with a usage error (not supported on log)."""
         client = cli_client_factory.build_with_routes([])
 
-        with (
-            capture_stderr() as err_buf,
-            patch(MAKE_CLIENT_PATH, return_value=client),
-            pytest.raises(SystemExit) as exc_info,
-        ):
-            cmd_log(instance="0")
+        code, stderr = runner.usage_error(client, cmd_log, instance="0")
 
-        assert exc_info.value.code != 0
-        assert "instance" in err_buf.getvalue().lower()
+        assert code != 0
+        assert "instance" in stderr.lower()
 
     def test_human_mode_renders_table(self, cli_client_factory: CLIClientFactory) -> None:
         """Log renders a table with timestamp, level, and message."""
         entry = make_log_entry_response(level="INFO", message="System started", app_key="my_app")
         client = cli_client_factory.build_with_routes([("GET", "/api/logs/recent", 200, [entry.model_dump()])])
-        with (
-            capture_stdout() as buf,
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_log()
+        output = runner.stdout(client, cmd_log)
 
-        output = buf.getvalue()
         assert "INFO" in output or "Level" in output
         assert "my_app" in output or "App" in output
 
@@ -145,13 +81,7 @@ class TestCmdLog:
         entry = make_log_entry_response(message="Hello world", level="WARNING")
         client = cli_client_factory.build_with_routes([("GET", "/api/logs/recent", 200, [entry.model_dump()])])
 
-        with (
-            patch(MAKE_CLIENT_PATH, return_value=client),
-            capture_json_stdout() as captured,
-        ):
-            cmd_log(ctx=CLIContext(json_mode=True))
-
-        parsed = json.loads("".join(captured))
+        parsed = runner.json_output(client, cmd_log)
         assert isinstance(parsed, list)
         assert parsed[0]["message"] == "Hello world"
         assert parsed[0]["level"] == "WARNING"
@@ -159,14 +89,7 @@ class TestCmdLog:
     def test_empty_result_shows_no_results(self, cli_client_factory: CLIClientFactory) -> None:
         """Log renders a no-results message when no entries are returned."""
         client = cli_client_factory.build_with_routes([("GET", "/api/logs/recent", 200, [])])
-        with (
-            capture_stdout(),
-            capture_stderr() as err_buf,
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_log()
-
-        assert "No results" in err_buf.getvalue()
+        assert "No results" in runner.stderr(client, cmd_log)
 
     def test_log_columns_defined(self) -> None:
         """LOG_COLUMNS includes key log fields."""
@@ -192,14 +115,7 @@ class TestCmdExecution:
         client = cli_client_factory.build_with_routes(
             [("GET", f"/api/executions/{execution_id}", 200, response_obj.model_dump())]
         )
-        spy = GetSpy(client)
-
-        with (
-            patch.object(client, "get", side_effect=spy),
-            capture_stdout(),
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_execution(uuid="abc-123-def")
+        spy = runner.spy(client, cmd_execution, uuid="abc-123-def")
 
         assert f"/api/executions/{execution_id}" in spy.paths
 
@@ -209,18 +125,9 @@ class TestCmdExecution:
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/executions/abc-123", 200, response_obj.model_dump())]
         )
-        spy = GetSpy(client)
+        spy = runner.spy(client, cmd_execution, uuid="abc-123", limit=50)
 
-        with (
-            patch.object(client, "get", side_effect=spy),
-            capture_stdout(),
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_execution(uuid="abc-123", limit=50)
-
-        exec_call = next(r for r in spy.calls if "executions" in r["path"])
-        assert exec_call["params"] is not None
-        assert exec_call["params"]["limit"] == 50
+        assert spy.params_for("executions")["limit"] == 50
 
     def test_extracts_records_from_wrapper(self, cli_client_factory: CLIClientFactory) -> None:
         """Execution renders the records list from the LogsByExecutionResponse wrapper."""
@@ -229,13 +136,8 @@ class TestCmdExecution:
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/executions/exec-1", 200, response_obj.model_dump())]
         )
-        with (
-            capture_stdout() as buf,
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_execution(uuid="exec-1")
+        output = runner.stdout(client, cmd_execution, uuid="exec-1")
 
-        output = buf.getvalue()
         # Table output should show log entry data
         assert "DEBUG" in output or "Level" in output
 
@@ -246,13 +148,8 @@ class TestCmdExecution:
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/executions/exec-2", 200, response_obj.model_dump())]
         )
-        with (
-            capture_stdout() as buf,
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_execution(uuid="exec-2")
+        output = runner.stdout(client, cmd_execution, uuid="exec-2")
 
-        output = buf.getvalue()
         assert "ERROR" in output or "Level" in output
 
     def test_json_mode_outputs_records_list(self, cli_client_factory: CLIClientFactory) -> None:
@@ -263,13 +160,7 @@ class TestCmdExecution:
             [("GET", "/api/executions/exec-3", 200, response_obj.model_dump())]
         )
 
-        with (
-            patch(MAKE_CLIENT_PATH, return_value=client),
-            capture_json_stdout() as captured,
-        ):
-            cmd_execution(uuid="exec-3", ctx=CLIContext(json_mode=True))
-
-        parsed = json.loads("".join(captured))
+        parsed = runner.json_output(client, cmd_execution, uuid="exec-3")
         assert isinstance(parsed, list)
         assert parsed[0]["message"] == "Executed ok"
 
@@ -279,14 +170,7 @@ class TestCmdExecution:
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/executions/exec-4", 200, response_obj.model_dump())]
         )
-        with (
-            capture_stdout(),
-            capture_stderr() as err_buf,
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_execution(uuid="exec-4")
-
-        assert "No results" in err_buf.getvalue()
+        assert "No results" in runner.stderr(client, cmd_execution, uuid="exec-4")
 
     def test_execution_columns_defined(self) -> None:
         """EXECUTION_LOG_COLUMNS includes key log entry fields."""

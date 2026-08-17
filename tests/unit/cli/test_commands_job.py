@@ -1,10 +1,8 @@
 """Unit tests for hassette job and job <id> commands."""
 
-import json
-from unittest.mock import patch
-
 import pytest
 
+from hassette.cli.client import HassetteCLIClient
 from hassette.cli.commands.job import (
     _SCHEDULE_STATUS_TEXT,
     JOB_EXECUTION_COLUMNS,
@@ -12,19 +10,11 @@ from hassette.cli.commands.job import (
     _next_run_display,
     cmd_job,
 )
-from hassette.cli.context import CLIContext
 from hassette.test_utils.web_job_helpers import make_job_summary
 from hassette.test_utils.web_telemetry_helpers import make_execution
-from tests.unit.cli.conftest import (
-    SINCE_EPOCH,
-    CLIClientFactory,
-    GetSpy,
-    capture_json_stdout,
-    capture_stderr,
-    capture_stdout,
-)
+from tests.unit.cli.conftest import SINCE_EPOCH, CLIClientFactory, CommandRunner
 
-MAKE_CLIENT_PATH = "hassette.cli.commands.job.make_client"
+runner = CommandRunner("hassette.cli.commands.job.make_client")
 JOBS_ENDPOINT = "/api/scheduler/jobs"
 MY_APP_JOBS_ENDPOINT = "/api/telemetry/app/my-app/jobs"
 JOB_5_EXECUTIONS_ENDPOINT = "/api/telemetry/job/5/executions"
@@ -38,14 +28,7 @@ class TestCmdJob:
         """Job (no --app) fetches from GET /api/scheduler/jobs."""
         job = make_job_summary()
         client = cli_client_factory.build_with_routes([("GET", JOBS_ENDPOINT, 200, [job.model_dump()])])
-        spy = GetSpy(client)
-
-        with (
-            patch.object(client, "get", side_effect=spy),
-            capture_stdout(),
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_job()
+        spy = runner.spy(client, cmd_job)
 
         assert JOBS_ENDPOINT in spy.paths
 
@@ -53,14 +36,7 @@ class TestCmdJob:
         """Job --app my-app fetches from /api/telemetry/app/my-app/jobs."""
         job = make_job_summary(app_key="my-app")
         client = cli_client_factory.build_with_routes([("GET", MY_APP_JOBS_ENDPOINT, 200, [job.model_dump()])])
-        spy = GetSpy(client)
-
-        with (
-            patch.object(client, "get", side_effect=spy),
-            capture_stdout(),
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_job(app="my-app")
+        spy = runner.spy(client, cmd_job, app="my-app")
 
         assert any(MY_APP_JOBS_ENDPOINT in p for p in spy.paths)
 
@@ -68,60 +44,32 @@ class TestCmdJob:
         """Job --app my-app --instance 0 passes instance_index=0 as a query param."""
         job = make_job_summary(app_key="my-app", instance_index=0)
         client = cli_client_factory.build_with_routes([("GET", MY_APP_JOBS_ENDPOINT, 200, [job.model_dump()])])
-        spy = GetSpy(client)
+        spy = runner.spy(client, cmd_job, app="my-app", instance="0")
 
-        with (
-            patch.object(client, "get", side_effect=spy),
-            capture_stdout(),
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_job(app="my-app", instance="0")
-
-        jobs_call = next(r for r in spy.calls if "jobs" in r["path"])
-        assert jobs_call["params"] is not None
-        assert jobs_call["params"]["instance_index"] == 0
+        assert spy.params_for("jobs")["instance_index"] == 0
 
     def test_instance_without_app_exits_with_usage_error(self, cli_client_factory: CLIClientFactory) -> None:
         """Job --instance 0 (without --app) exits non-zero with usage error."""
         client = cli_client_factory.build_with_routes([])
 
-        with (
-            capture_stderr(),
-            patch(MAKE_CLIENT_PATH, return_value=client),
-            pytest.raises(SystemExit) as exc_info,
-        ):
-            cmd_job(instance="0")
+        code, _stderr = runner.usage_error(client, cmd_job, instance="0")
 
-        assert exc_info.value.code != 0
+        assert code != 0
 
     def test_source_tier_passed_as_param(self, cli_client_factory: CLIClientFactory) -> None:
         """Job --source-tier app passes source_tier=app as a query param."""
         job = make_job_summary()
         client = cli_client_factory.build_with_routes([("GET", JOBS_ENDPOINT, 200, [job.model_dump()])])
-        spy = GetSpy(client)
+        spy = runner.spy(client, cmd_job, source_tier="app")
 
-        with (
-            patch.object(client, "get", side_effect=spy),
-            capture_stdout(),
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_job(source_tier="app")
-
-        jobs_call = next(r for r in spy.calls if "jobs" in r["path"])
-        assert jobs_call["params"] is not None
-        assert jobs_call["params"]["source_tier"] == "app"
+        assert spy.params_for("jobs")["source_tier"] == "app"
 
     def test_human_mode_renders_table(self, cli_client_factory: CLIClientFactory) -> None:
         """Job renders a table with job_id, app_key, and mode columns."""
         job = make_job_summary(job_id=99, handler_method="check_lights")
         client = cli_client_factory.build_with_routes([("GET", JOBS_ENDPOINT, 200, [job.model_dump()])])
-        with (
-            capture_stdout() as buf,
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_job()
+        output = runner.stdout(client, cmd_job)
 
-        output = buf.getvalue()
         assert "99" in output
         assert "test" in output
         assert "Mode" in output
@@ -131,27 +79,14 @@ class TestCmdJob:
         job = make_job_summary(job_id=3)
         client = cli_client_factory.build_with_routes([("GET", JOBS_ENDPOINT, 200, [job.model_dump()])])
 
-        with (
-            patch(MAKE_CLIENT_PATH, return_value=client),
-            capture_json_stdout() as captured,
-        ):
-            cmd_job(ctx=CLIContext(json_mode=True))
-
-        parsed = json.loads("".join(captured))
+        parsed = runner.json_output(client, cmd_job)
         assert isinstance(parsed, list)
         assert parsed[0]["job_id"] == 3
 
     def test_empty_result_shows_no_results(self, cli_client_factory: CLIClientFactory) -> None:
         """Job renders a no-results message when no jobs are returned."""
         client = cli_client_factory.build_with_routes([("GET", JOBS_ENDPOINT, 200, [])])
-        with (
-            capture_stdout(),
-            capture_stderr() as err_buf,
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_job()
-
-        assert "No results" in err_buf.getvalue()
+        assert "No results" in runner.stderr(client, cmd_job)
 
     @pytest.mark.parametrize(
         ("schedule_status", "schedule_status_reason", "expected_text"),
@@ -211,61 +146,34 @@ class TestCmdJob:
 
 
 class TestCmdJobDetail:
-    def test_calls_executions_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
-        """Job <id> fetches from GET /api/telemetry/job/{id}/executions."""
-        execution = make_execution(kind="job", job_id=1)
-        client = cli_client_factory.build_with_routes(
-            [("GET", JOB_5_EXECUTIONS_ENDPOINT, 200, [execution.model_dump()])]
-        )
-        spy = GetSpy(client)
+    @pytest.fixture
+    def job_5_client(self, cli_client_factory: CLIClientFactory) -> HassetteCLIClient:
+        """A client serving one execution from job 5's endpoint, the id the query-param tests use.
 
-        with (
-            patch.object(client, "get", side_effect=spy),
-            capture_stdout(),
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_job(job_id=5)
+        The execution body's own ``job_id`` is incidental — these tests assert on the request
+        the CLI made, never on the payload it got back.
+        """
+        execution = make_execution(kind="job", job_id=1)
+        return cli_client_factory.build_with_routes([("GET", JOB_5_EXECUTIONS_ENDPOINT, 200, [execution.model_dump()])])
+
+    def test_calls_executions_endpoint(self, job_5_client: HassetteCLIClient) -> None:
+        """Job <id> fetches from GET /api/telemetry/job/{id}/executions."""
+        spy = runner.spy(job_5_client, cmd_job, job_id=5)
 
         assert JOB_5_EXECUTIONS_ENDPOINT in spy.paths
 
-    def test_limit_passed_as_param(self, cli_client_factory: CLIClientFactory) -> None:
+    def test_limit_passed_as_param(self, job_5_client: HassetteCLIClient) -> None:
         """Job <id> --limit 5 passes limit=5 as a query param."""
-        execution = make_execution(kind="job", job_id=1)
-        client = cli_client_factory.build_with_routes(
-            [("GET", JOB_5_EXECUTIONS_ENDPOINT, 200, [execution.model_dump()])]
-        )
-        spy = GetSpy(client)
+        spy = runner.spy(job_5_client, cmd_job, job_id=5, limit=5)
 
-        with (
-            patch.object(client, "get", side_effect=spy),
-            capture_stdout(),
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_job(job_id=5, limit=5)
+        assert spy.params_for("executions")["limit"] == 5
 
-        executions_call = next(r for r in spy.calls if "executions" in r["path"])
-        assert executions_call["params"] is not None
-        assert executions_call["params"]["limit"] == 5
-
-    def test_since_passed_as_param(self, cli_client_factory: CLIClientFactory) -> None:
+    def test_since_passed_as_param(self, job_5_client: HassetteCLIClient) -> None:
         """Job <id> --since passes since as a query param."""
-        execution = make_execution(kind="job", job_id=1)
-        client = cli_client_factory.build_with_routes(
-            [("GET", JOB_5_EXECUTIONS_ENDPOINT, 200, [execution.model_dump()])]
-        )
-        spy = GetSpy(client)
-
         since_epoch = SINCE_EPOCH
-        with (
-            patch.object(client, "get", side_effect=spy),
-            capture_stdout(),
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_job(job_id=5, since=since_epoch)
+        spy = runner.spy(job_5_client, cmd_job, job_id=5, since=since_epoch)
 
-        executions_call = next(r for r in spy.calls if "executions" in r["path"])
-        assert executions_call["params"] is not None
-        assert executions_call["params"]["since"] == since_epoch
+        assert spy.params_for("executions")["since"] == since_epoch
 
     def test_human_mode_renders_table(self, cli_client_factory: CLIClientFactory) -> None:
         """Job <id> renders a table with status and duration."""
@@ -273,13 +181,8 @@ class TestCmdJobDetail:
         client = cli_client_factory.build_with_routes(
             [("GET", JOB_1_EXECUTIONS_ENDPOINT, 200, [execution.model_dump()])]
         )
-        with (
-            capture_stdout() as buf,
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_job(job_id=1)
+        output = runner.stdout(client, cmd_job, job_id=1)
 
-        output = buf.getvalue()
         assert "success" in output.lower() or "Status" in output
 
     def test_json_mode_outputs_list(self, cli_client_factory: CLIClientFactory) -> None:
@@ -289,13 +192,7 @@ class TestCmdJobDetail:
             [("GET", JOB_1_EXECUTIONS_ENDPOINT, 200, [execution.model_dump()])]
         )
 
-        with (
-            patch(MAKE_CLIENT_PATH, return_value=client),
-            capture_json_stdout() as captured,
-        ):
-            cmd_job(job_id=1, ctx=CLIContext(json_mode=True))
-
-        parsed = json.loads("".join(captured))
+        parsed = runner.json_output(client, cmd_job, job_id=1)
         assert isinstance(parsed, list)
         assert parsed[0]["duration_ms"] == pytest.approx(15.0)
 

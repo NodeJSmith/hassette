@@ -24,7 +24,7 @@ from hassette.cli.output import (
     render_table,
 )
 from hassette.types.types import CliFormat
-from tests.unit.cli.conftest import capture_human
+from tests.unit.cli.conftest import capture_human, parse_json_stdout
 
 # Simple test models
 
@@ -262,8 +262,7 @@ class TestRenderTableJsonMode:
         items = [SimpleItem(name="a", count=1), SimpleItem(name="b", count=2)]
         columns = [Column("name", "Name"), Column("count", "Count")]
         render_table(items, columns, json_mode=True)
-        captured = capsys.readouterr()
-        parsed = json.loads(captured.out)
+        parsed = parse_json_stdout(capsys)
         assert isinstance(parsed, list)
         assert len(parsed) == 2
 
@@ -271,8 +270,7 @@ class TestRenderTableJsonMode:
         items = [SimpleItem(name="alpha", count=10, active=True, note="hi")]
         columns = [Column("name", "Name")]
         render_table(items, columns, json_mode=True)
-        captured = capsys.readouterr()
-        parsed = json.loads(captured.out)
+        parsed = parse_json_stdout(capsys)
         # JSON uses the full model dump, not just column fields
         assert parsed[0]["name"] == "alpha"
         assert parsed[0]["count"] == 10
@@ -281,8 +279,7 @@ class TestRenderTableJsonMode:
     def test_empty_list_json_outputs_empty_array(self, capsys: pytest.CaptureFixture[str]) -> None:
         columns = [Column("name", "Name")]
         render_table([], columns, json_mode=True)
-        captured = capsys.readouterr()
-        parsed = json.loads(captured.out)
+        parsed = parse_json_stdout(capsys)
         assert parsed == []
 
     def test_json_mode_nothing_on_stderr(self, capsys: pytest.CaptureFixture[str]) -> None:
@@ -396,8 +393,7 @@ class TestRenderTableCliFormatFallback:
         items = [AnnotatedTableItem(name="job1", avg_duration_ms=450.0, next_run=None)]
         columns = [Column("avg_duration_ms", "Avg"), Column("next_run", "Next Run")]
         render_table(items, columns, json_mode=True)
-        captured = capsys.readouterr()
-        parsed = json.loads(captured.out)
+        parsed = parse_json_stdout(capsys)
         assert parsed[0]["avg_duration_ms"] == 450.0
         assert parsed[0]["next_run"] is None
 
@@ -448,8 +444,7 @@ class TestRenderDetailJsonMode:
     def test_valid_json_on_stdout(self, capsys: pytest.CaptureFixture[str]) -> None:
         item = SimpleItem(name="test", count=7, active=True)
         render_detail(item, json_mode=True)
-        captured = capsys.readouterr()
-        parsed = json.loads(captured.out)
+        parsed = parse_json_stdout(capsys)
         assert parsed["name"] == "test"
         assert parsed["count"] == 7
 
@@ -462,8 +457,7 @@ class TestRenderDetailJsonMode:
     def test_json_contains_all_fields(self, capsys: pytest.CaptureFixture[str]) -> None:
         item = SimpleItem(name="alpha", count=10, active=False, note="hi")
         render_detail(item, json_mode=True)
-        captured = capsys.readouterr()
-        parsed = json.loads(captured.out)
+        parsed = parse_json_stdout(capsys)
         assert parsed["name"] == "alpha"
         assert parsed["count"] == 10
         assert parsed["active"] is False

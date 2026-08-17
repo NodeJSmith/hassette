@@ -27,9 +27,16 @@ class TestBareHassetteShowsHelp:
 
 @patch("hassette.cli.commands.run.run_server", new_callable=AsyncMock)
 class TestCmdRun:
-    def test_port_in_use_exits_with_code_1(self, mock_run_server: AsyncMock) -> None:
-        exc = OSError(errno.EADDRINUSE, "Address already in use")
-        mock_run_server.side_effect = exc
+    @pytest.mark.parametrize(
+        "failure",
+        [
+            pytest.param(OSError(errno.EADDRINUSE, "Address already in use"), id="port-in-use"),
+            pytest.param(AppPrecheckFailedError("bad app"), id="precheck-failure"),
+            pytest.param(FatalError("token missing"), id="fatal-error"),
+        ],
+    )
+    def test_startup_failure_exits_with_code_1(self, mock_run_server: AsyncMock, failure: Exception) -> None:
+        mock_run_server.side_effect = failure
         with pytest.raises(SystemExit) as exc_info:
             cmd_run()
         assert exc_info.value.code == 1
@@ -39,18 +46,6 @@ class TestCmdRun:
         mock_run_server.side_effect = exc
         with pytest.raises(OSError, match="Permission denied"):
             cmd_run()
-
-    def test_precheck_failure_exits_with_code_1(self, mock_run_server: AsyncMock) -> None:
-        mock_run_server.side_effect = AppPrecheckFailedError("bad app")
-        with pytest.raises(SystemExit) as exc_info:
-            cmd_run()
-        assert exc_info.value.code == 1
-
-    def test_fatal_error_exits_with_code_1(self, mock_run_server: AsyncMock) -> None:
-        mock_run_server.side_effect = FatalError("token missing")
-        with pytest.raises(SystemExit) as exc_info:
-            cmd_run()
-        assert exc_info.value.code == 1
 
     def test_keyboard_interrupt_does_not_raise(self, mock_run_server: AsyncMock) -> None:
         mock_run_server.side_effect = KeyboardInterrupt

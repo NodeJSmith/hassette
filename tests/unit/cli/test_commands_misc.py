@@ -1,14 +1,10 @@
 """Unit tests for hassette config command."""
 
-import json
-from unittest.mock import patch
-
 from hassette.cli.commands.misc import cmd_config
-from hassette.cli.context import CLIContext
 from hassette.test_utils.web_response_helpers import make_config_schema_response
-from tests.unit.cli.conftest import CLIClientFactory, GetSpy, capture_json_stdout, capture_stdout
+from tests.unit.cli.conftest import CLIClientFactory, CommandRunner
 
-MAKE_CLIENT_PATH = "hassette.cli.commands.misc.make_client"
+runner = CommandRunner("hassette.cli.commands.misc.make_client")
 
 # cmd_config
 
@@ -18,14 +14,7 @@ class TestCmdConfig:
         """Config command fetches from GET /api/config."""
         config_data = make_config_schema_response()
         client = cli_client_factory.build_with_routes([("GET", "/api/config", 200, config_data.model_dump())])
-        spy = GetSpy(client)
-
-        with (
-            patch.object(client, "get", side_effect=spy),
-            capture_stdout(),
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_config()
+        spy = runner.spy(client, cmd_config)
 
         assert "/api/config" in spy.paths
 
@@ -33,12 +22,7 @@ class TestCmdConfig:
         """Config command produces a key-value panel showing config_values fields."""
         config_data = make_config_schema_response()
         client = cli_client_factory.build_with_routes([("GET", "/api/config", 200, config_data.model_dump())])
-        with (
-            capture_stdout() as buf,
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_config()
-        output = buf.getvalue()
+        output = runner.stdout(client, cmd_config)
         assert "dev_mode" in output
         assert "base_url" in output
 
@@ -47,13 +31,7 @@ class TestCmdConfig:
         config_data = make_config_schema_response()
         client = cli_client_factory.build_with_routes([("GET", "/api/config", 200, config_data.model_dump())])
 
-        with (
-            patch(MAKE_CLIENT_PATH, return_value=client),
-            capture_json_stdout() as captured,
-        ):
-            cmd_config(ctx=CLIContext(json_mode=True))
-
-        parsed = json.loads("".join(captured))
+        parsed = runner.json_output(client, cmd_config)
         assert "web_api" in parsed
         assert parsed["web_api"]["port"] == 8126
 
@@ -62,13 +40,7 @@ class TestCmdConfig:
         config_data = make_config_schema_response()
         client = cli_client_factory.build_with_routes([("GET", "/api/config", 200, config_data.model_dump())])
 
-        with (
-            patch(MAKE_CLIENT_PATH, return_value=client),
-            capture_json_stdout() as captured,
-        ):
-            cmd_config(ctx=CLIContext(json_mode=True))
-
-        parsed = json.loads("".join(captured))
+        parsed = runner.json_output(client, cmd_config)
         # Rendered dict is config_values, not the outer envelope
         assert "config_schema" not in parsed
         assert "config_values" not in parsed

@@ -1,27 +1,18 @@
 """Unit tests for hassette listener and listener <id> commands."""
 
-import json
-from unittest.mock import patch
-
 import pytest
 
+from hassette.cli.client import HassetteCLIClient
 from hassette.cli.commands.listener import (
     LISTENER_INVOCATION_COLUMNS,
     LISTENER_LIST_COLUMNS,
     cmd_listener,
 )
-from hassette.cli.context import CLIContext
 from hassette.test_utils.web_telemetry_helpers import make_execution, make_listener_with_summary
-from tests.unit.cli.conftest import (
-    SINCE_EPOCH,
-    CLIClientFactory,
-    GetSpy,
-    capture_json_stdout,
-    capture_stderr,
-    capture_stdout,
-)
+from tests.unit.cli.conftest import SINCE_EPOCH, CLIClientFactory, CommandRunner
 
-MAKE_CLIENT_PATH = "hassette.cli.commands.listener.make_client"
+runner = CommandRunner("hassette.cli.commands.listener.make_client")
+LISTENER_42_EXECUTIONS_ENDPOINT = "/api/telemetry/listener/42/executions"
 
 # cmd_listener (bare — list all listeners)
 
@@ -31,14 +22,7 @@ class TestCmdListener:
         """Listener (no --app) fetches from GET /api/bus/listeners."""
         listener = make_listener_with_summary()
         client = cli_client_factory.build_with_routes([("GET", "/api/bus/listeners", 200, [listener.model_dump()])])
-        spy = GetSpy(client)
-
-        with (
-            patch.object(client, "get", side_effect=spy),
-            capture_stdout(),
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_listener()
+        spy = runner.spy(client, cmd_listener)
 
         assert "/api/bus/listeners" in spy.paths
 
@@ -48,14 +32,7 @@ class TestCmdListener:
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/listeners", 200, [listener.model_dump()])]
         )
-        spy = GetSpy(client)
-
-        with (
-            patch.object(client, "get", side_effect=spy),
-            capture_stdout(),
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_listener(app="my-app")
+        spy = runner.spy(client, cmd_listener, app="my-app")
 
         assert any("/api/telemetry/app/my-app/listeners" in p for p in spy.paths)
 
@@ -65,60 +42,32 @@ class TestCmdListener:
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/listeners", 200, [listener.model_dump()])]
         )
-        spy = GetSpy(client)
+        spy = runner.spy(client, cmd_listener, app="my-app", instance="0")
 
-        with (
-            patch.object(client, "get", side_effect=spy),
-            capture_stdout(),
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_listener(app="my-app", instance="0")
-
-        listeners_call = next(r for r in spy.calls if "listeners" in r["path"])
-        assert listeners_call["params"] is not None
-        assert listeners_call["params"]["instance_index"] == 0
+        assert spy.params_for("listeners")["instance_index"] == 0
 
     def test_instance_without_app_exits_with_usage_error(self, cli_client_factory: CLIClientFactory) -> None:
         """Listener --instance 0 (without --app) exits non-zero with usage error."""
         client = cli_client_factory.build_with_routes([])
 
-        with (
-            capture_stderr(),
-            patch(MAKE_CLIENT_PATH, return_value=client),
-            pytest.raises(SystemExit) as exc_info,
-        ):
-            cmd_listener(instance="0")
+        code, _stderr = runner.usage_error(client, cmd_listener, instance="0")
 
-        assert exc_info.value.code != 0
+        assert code != 0
 
     def test_source_tier_passed_as_param(self, cli_client_factory: CLIClientFactory) -> None:
         """Listener --source-tier app passes source_tier=app as a query param."""
         listener = make_listener_with_summary()
         client = cli_client_factory.build_with_routes([("GET", "/api/bus/listeners", 200, [listener.model_dump()])])
-        spy = GetSpy(client)
+        spy = runner.spy(client, cmd_listener, source_tier="app")
 
-        with (
-            patch.object(client, "get", side_effect=spy),
-            capture_stdout(),
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_listener(source_tier="app")
-
-        listeners_call = next(r for r in spy.calls if "listeners" in r["path"])
-        assert listeners_call["params"] is not None
-        assert listeners_call["params"]["source_tier"] == "app"
+        assert spy.params_for("listeners")["source_tier"] == "app"
 
     def test_human_mode_renders_table(self, cli_client_factory: CLIClientFactory) -> None:
         """Listener renders a table with listener_id and target."""
         listener = make_listener_with_summary(listener_id=42, target="light.kitchen")
         client = cli_client_factory.build_with_routes([("GET", "/api/bus/listeners", 200, [listener.model_dump()])])
-        with (
-            capture_stdout() as buf,
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_listener()
+        output = runner.stdout(client, cmd_listener)
 
-        output = buf.getvalue()
         assert "42" in output
         assert "light" in output
         assert "test_" in output
@@ -128,27 +77,14 @@ class TestCmdListener:
         listener = make_listener_with_summary(listener_id=7)
         client = cli_client_factory.build_with_routes([("GET", "/api/bus/listeners", 200, [listener.model_dump()])])
 
-        with (
-            patch(MAKE_CLIENT_PATH, return_value=client),
-            capture_json_stdout() as captured,
-        ):
-            cmd_listener(ctx=CLIContext(json_mode=True))
-
-        parsed = json.loads("".join(captured))
+        parsed = runner.json_output(client, cmd_listener)
         assert isinstance(parsed, list)
         assert parsed[0]["listener_id"] == 7
 
     def test_empty_result_shows_no_results(self, cli_client_factory: CLIClientFactory) -> None:
         """Listener renders a no-results message when no listeners are returned."""
         client = cli_client_factory.build_with_routes([("GET", "/api/bus/listeners", 200, [])])
-        with (
-            capture_stdout(),
-            capture_stderr() as err_buf,
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_listener()
-
-        assert "No results" in err_buf.getvalue()
+        assert "No results" in runner.stderr(client, cmd_listener)
 
     def test_listener_list_columns_defined(self) -> None:
         """LISTENER_LIST_COLUMNS includes key listener fields."""
@@ -165,61 +101,32 @@ class TestCmdListener:
 
 
 class TestCmdListenerDetail:
-    def test_calls_invocations_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
+    @pytest.fixture
+    def listener_42_client(self, cli_client_factory: CLIClientFactory) -> HassetteCLIClient:
+        """A client serving one invocation for listener 42, the id the query-param tests use."""
+        invocation = make_execution(kind="handler", listener_id=42)
+        return cli_client_factory.build_with_routes(
+            [("GET", LISTENER_42_EXECUTIONS_ENDPOINT, 200, [invocation.model_dump()])]
+        )
+
+    def test_calls_invocations_endpoint(self, listener_42_client: HassetteCLIClient) -> None:
         """Listener <id> fetches from GET /api/telemetry/listener/{id}/executions."""
-        invocation = make_execution(kind="handler", listener_id=42)
-        client = cli_client_factory.build_with_routes(
-            [("GET", "/api/telemetry/listener/42/executions", 200, [invocation.model_dump()])]
-        )
-        spy = GetSpy(client)
+        spy = runner.spy(listener_42_client, cmd_listener, listener_id=42)
 
-        with (
-            patch.object(client, "get", side_effect=spy),
-            capture_stdout(),
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_listener(listener_id=42)
+        assert LISTENER_42_EXECUTIONS_ENDPOINT in spy.paths
 
-        assert "/api/telemetry/listener/42/executions" in spy.paths
-
-    def test_limit_passed_as_param(self, cli_client_factory: CLIClientFactory) -> None:
+    def test_limit_passed_as_param(self, listener_42_client: HassetteCLIClient) -> None:
         """Listener <id> --limit 5 passes limit=5 as a query param."""
-        invocation = make_execution(kind="handler", listener_id=42)
-        client = cli_client_factory.build_with_routes(
-            [("GET", "/api/telemetry/listener/42/executions", 200, [invocation.model_dump()])]
-        )
-        spy = GetSpy(client)
+        spy = runner.spy(listener_42_client, cmd_listener, listener_id=42, limit=5)
 
-        with (
-            patch.object(client, "get", side_effect=spy),
-            capture_stdout(),
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_listener(listener_id=42, limit=5)
+        assert spy.params_for("executions")["limit"] == 5
 
-        executions_call = next(r for r in spy.calls if "executions" in r["path"])
-        assert executions_call["params"] is not None
-        assert executions_call["params"]["limit"] == 5
-
-    def test_since_passed_as_param(self, cli_client_factory: CLIClientFactory) -> None:
+    def test_since_passed_as_param(self, listener_42_client: HassetteCLIClient) -> None:
         """Listener <id> --since passes since as a query param."""
-        invocation = make_execution(kind="handler", listener_id=42)
-        client = cli_client_factory.build_with_routes(
-            [("GET", "/api/telemetry/listener/42/executions", 200, [invocation.model_dump()])]
-        )
-        spy = GetSpy(client)
-
         since_epoch = SINCE_EPOCH
-        with (
-            patch.object(client, "get", side_effect=spy),
-            capture_stdout(),
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_listener(listener_id=42, since=since_epoch)
+        spy = runner.spy(listener_42_client, cmd_listener, listener_id=42, since=since_epoch)
 
-        executions_call = next(r for r in spy.calls if "executions" in r["path"])
-        assert executions_call["params"] is not None
-        assert executions_call["params"]["since"] == since_epoch
+        assert spy.params_for("executions")["since"] == since_epoch
 
     def test_human_mode_renders_table(self, cli_client_factory: CLIClientFactory) -> None:
         """Listener <id> renders a table with status and duration."""
@@ -227,13 +134,8 @@ class TestCmdListenerDetail:
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/listener/1/executions", 200, [invocation.model_dump()])]
         )
-        with (
-            capture_stdout() as buf,
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_listener(listener_id=1)
+        output = runner.stdout(client, cmd_listener, listener_id=1)
 
-        output = buf.getvalue()
         assert "success" in output.lower() or "Status" in output
 
     def test_json_mode_outputs_list(self, cli_client_factory: CLIClientFactory) -> None:
@@ -243,13 +145,7 @@ class TestCmdListenerDetail:
             [("GET", "/api/telemetry/listener/1/executions", 200, [invocation.model_dump()])]
         )
 
-        with (
-            patch(MAKE_CLIENT_PATH, return_value=client),
-            capture_json_stdout() as captured,
-        ):
-            cmd_listener(listener_id=1, ctx=CLIContext(json_mode=True))
-
-        parsed = json.loads("".join(captured))
+        parsed = runner.json_output(client, cmd_listener, listener_id=1)
         assert isinstance(parsed, list)
         assert parsed[0]["duration_ms"] == pytest.approx(20.0)
 
