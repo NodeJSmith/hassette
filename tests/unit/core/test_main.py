@@ -2,6 +2,9 @@
 
 import asyncio
 import signal
+from collections.abc import Iterator
+from contextlib import contextmanager
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -11,24 +14,44 @@ from hassette.resources.lifecycle import request_shutdown
 from hassette.server import main
 
 
-async def test_main_registers_sigterm_handler() -> None:
-    """main() installs a SIGTERM handler that calls request_shutdown(core, ...)."""
+def make_mock_core_and_config(
+    *,
+    token: str = "valid-token",  # noqa: S107 — test placeholder, not a real credential
+) -> tuple[MagicMock, MagicMock]:
+    """Build a mock Hassette core (run_forever mocked) and a mock config with the given token."""
     mock_core = MagicMock()
     mock_core.run_forever = AsyncMock()
+
     mock_config = MagicMock()
-    mock_config.token = "valid-token"
+    mock_config.token = token
+
+    return mock_core, mock_config
+
+
+@contextmanager
+def patch_hassette_and_signal_handler(mock_core: MagicMock, *, side_effect: Any = None) -> Iterator[MagicMock]:
+    """Patch hassette.server.Hassette (returning mock_core) and the running loop's
+    add_signal_handler for main() tests. Yields the patched Hassette class mock.
+    """
+    loop = asyncio.get_running_loop()
+
+    with (
+        patch("hassette.server.Hassette", return_value=mock_core) as mock_hassette_cls,
+        patch.object(loop, "add_signal_handler", side_effect=side_effect),
+    ):
+        yield mock_hassette_cls
+
+
+async def test_main_registers_sigterm_handler() -> None:
+    """main() installs a SIGTERM handler that calls request_shutdown(core, ...)."""
+    mock_core, mock_config = make_mock_core_and_config()
 
     registered_handlers: dict[int, tuple] = {}
 
     def fake_add_signal_handler(sig: int, callback, *args) -> None:
         registered_handlers[sig] = (callback, args)
 
-    loop = asyncio.get_running_loop()
-
-    with (
-        patch("hassette.server.Hassette", return_value=mock_core),
-        patch.object(loop, "add_signal_handler", side_effect=fake_add_signal_handler),
-    ):
+    with patch_hassette_and_signal_handler(mock_core, side_effect=fake_add_signal_handler):
         await main(mock_config)
 
     assert signal.SIGTERM in registered_handlers, "SIGTERM handler was not registered"
@@ -39,25 +62,16 @@ async def test_main_registers_sigterm_handler() -> None:
 
 async def test_sigterm_handler_triggers_shutdown_event() -> None:
     """Invoking the SIGTERM handler sets the shutdown event on the Hassette instance."""
-    mock_core = MagicMock()
+    mock_core, mock_config = make_mock_core_and_config()
     mock_core.shutdown_event = asyncio.Event()
     mock_core.ready_event = asyncio.Event()
-    mock_core.run_forever = AsyncMock()
-
-    mock_config = MagicMock()
-    mock_config.token = "valid-token"
 
     registered_handlers: dict[int, tuple] = {}
 
     def fake_add_signal_handler(sig: int, callback, *args) -> None:
         registered_handlers[sig] = (callback, args)
 
-    loop = asyncio.get_running_loop()
-
-    with (
-        patch("hassette.server.Hassette", return_value=mock_core),
-        patch.object(loop, "add_signal_handler", side_effect=fake_add_signal_handler),
-    ):
+    with patch_hassette_and_signal_handler(mock_core, side_effect=fake_add_signal_handler):
         await main(mock_config)
 
     assert signal.SIGTERM in registered_handlers, "SIGTERM handler was not registered"
@@ -70,18 +84,9 @@ async def test_sigterm_handler_triggers_shutdown_event() -> None:
 
 async def test_main_continues_when_signal_handler_unsupported() -> None:
     """main() continues to run_forever when add_signal_handler raises NotImplementedError."""
-    mock_core = MagicMock()
-    mock_core.run_forever = AsyncMock()
+    mock_core, mock_config = make_mock_core_and_config()
 
-    mock_config = MagicMock()
-    mock_config.token = "valid-token"
-
-    loop = asyncio.get_running_loop()
-
-    with (
-        patch("hassette.server.Hassette", return_value=mock_core),
-        patch.object(loop, "add_signal_handler", side_effect=NotImplementedError),
-    ):
+    with patch_hassette_and_signal_handler(mock_core, side_effect=NotImplementedError):
         await main(mock_config)
 
     mock_core.run_forever.assert_awaited_once()
@@ -100,18 +105,9 @@ async def test_main_raises_fatal_error_when_token_is_none() -> None:
 
 async def test_main_proceeds_when_token_is_set() -> None:
     """main() proceeds to create Hassette when token is not None."""
-    mock_core = MagicMock()
-    mock_core.run_forever = AsyncMock()
+    mock_core, mock_config = make_mock_core_and_config()
 
-    mock_config = MagicMock()
-    mock_config.token = "valid-token"
-
-    loop = asyncio.get_running_loop()
-
-    with (
-        patch("hassette.server.Hassette", return_value=mock_core),
-        patch.object(loop, "add_signal_handler"),
-    ):
+    with patch_hassette_and_signal_handler(mock_core):
         await main(mock_config)
 
     mock_core.run_forever.assert_awaited_once()
@@ -119,18 +115,9 @@ async def test_main_proceeds_when_token_is_set() -> None:
 
 async def test_main_passes_config_to_hassette() -> None:
     """main() passes the provided HassetteConfig to Hassette."""
-    mock_core = MagicMock()
-    mock_core.run_forever = AsyncMock()
+    mock_core, mock_config = make_mock_core_and_config()
 
-    mock_config = MagicMock()
-    mock_config.token = "valid-token"
-
-    loop = asyncio.get_running_loop()
-
-    with (
-        patch("hassette.server.Hassette", return_value=mock_core) as mock_hassette_cls,
-        patch.object(loop, "add_signal_handler"),
-    ):
+    with patch_hassette_and_signal_handler(mock_core) as mock_hassette_cls:
         await main(mock_config)
 
     mock_hassette_cls.assert_called_once_with(config=mock_config)
