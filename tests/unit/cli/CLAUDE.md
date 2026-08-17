@@ -70,7 +70,8 @@ aborted `nox -s tests_with_coverage` before it wrote `coverage.xml`, since the s
 - `MockTransportBuilder` — route table for mock HTTP responses
 - `GetSpy` — wraps `client.get` to record paths and params; `spy.params_for(fragment)` returns the
   query params of the first recorded GET whose path contains `fragment`
-- `capture_stdout()` / `capture_stderr()` / `capture_json_stdout()` — Rich console capture
+- `capture_stdout()` / `capture_stderr()` — Rich console capture
+- `capture_json_stdout()` — raw `sys.stdout.write` capture for JSON-mode commands
 - `capture_human(func, *args)` — returns `(stdout, stderr)` strings
 - `parse_json_stdout(capsys)` — parses what a json-mode `render_*` wrote to the real stdout
 - `SINCE_EPOCH` — pre-computed epoch float for direct-call tests

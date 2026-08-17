@@ -101,7 +101,7 @@ class GetSpy:
         assert call is not None, f"no GET path contained {path_fragment!r}; requested paths: {self.paths}"
         params = call["params"]
         assert params is not None, f"GET {call['path']} was issued without query params"
-        return params
+        return dict(params)
 
 
 @contextmanager
