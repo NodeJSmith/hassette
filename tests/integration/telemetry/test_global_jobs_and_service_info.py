@@ -329,8 +329,7 @@ class TestGlobalJobsEndpointLegacyUnknown:
         live_job.mark_registered(77)
         mock_hassette_scheduler.scheduler_service.get_all_jobs = AsyncMock(return_value=[live_job])
 
-        data = await get_jobs(scheduler_client)
-        row = data[0]
+        row = await get_only_job(scheduler_client)
 
         assert row["schedule_status"] == "scheduled"
         assert row["schedule_status_reason"] is None
