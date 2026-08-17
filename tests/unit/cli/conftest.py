@@ -1,11 +1,11 @@
 """Shared CLI test fixtures for CLI client and command tests."""
 
 import json
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from io import StringIO
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict, Unpack
 from unittest.mock import patch
 
 import httpx2 as httpx
@@ -14,6 +14,7 @@ from rich.console import Console
 
 import hassette.cli.output as output_module
 from hassette.cli.client import HassetteCLIClient
+from hassette.cli.context import CLIContext
 from hassette.config.config import HassetteConfig
 from hassette.test_utils import make_test_config
 
@@ -89,6 +90,19 @@ class GetSpy:
         self.calls.append({"path": path, "params": params})
         return self._original(path, model, params=params, **kwargs)
 
+    def params_for(self, path_fragment: str) -> dict[str, Any]:
+        """Return the query params of the first recorded GET whose path contains ``path_fragment``.
+
+        Both failure modes name what went wrong: no request matched the fragment (with the paths
+        that were actually requested), or the matching request carried no params at all — rather
+        than a bare ``StopIteration`` or a ``TypeError`` on ``None``.
+        """
+        call = next((r for r in self.calls if path_fragment in r["path"]), None)
+        assert call is not None, f"no GET path contained {path_fragment!r}; requested paths: {self.paths}"
+        params = call["params"]
+        assert params is not None, f"GET {call['path']} was issued without query params"
+        return dict(params)
+
 
 @contextmanager
 def capture_json_stdout() -> Generator[list[str], None, None]:
@@ -96,6 +110,15 @@ def capture_json_stdout() -> Generator[list[str], None, None]:
     captured: list[str] = []
     with patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)):
         yield captured
+
+
+def parse_json_stdout(capsys: pytest.CaptureFixture[str]) -> Any:
+    """Parse the JSON document a json-mode render wrote to the real stdout.
+
+    For the ``render_*`` functions, which write JSON through ``sys.stdout`` rather than the Rich
+    consoles ``capture_stdout()`` patches.
+    """
+    return json.loads(capsys.readouterr().out)
 
 
 @contextmanager
@@ -133,6 +156,84 @@ def capture_stderr():
     mock_console = Console(file=buf, stderr=True, highlight=False, force_terminal=False)
     with patch.object(output_module, "stderr_console", mock_console):
         yield buf
+
+
+class CommandRunner:
+    """Invokes a CLI command function with its module's ``make_client`` patched to a test client.
+
+    Every ``test_commands_*.py`` module builds a mock-backed client, patches the ``make_client``
+    its command module imported, runs the command, and reads back one thing: the GET calls it
+    made, its human stdout or stderr, the exit it took, or its ``--json`` document. This bundles
+    that boilerplate into one call per test. Instantiate once per module — the patch target is
+    per-module, since each command module imports ``make_client`` into its own namespace::
+
+        runner = CommandRunner("hassette.cli.commands.log.make_client")
+
+        spy = runner.spy(client, cmd_log, app="my-app")
+        output = runner.stdout(client, cmd_log)
+        parsed = runner.json_output(client, cmd_log)
+        assert "No results" in runner.stderr(client, cmd_log)
+        code, stderr = runner.usage_error(client, cmd_log, instance="0")
+    """
+
+    def __init__(self, make_client_path: str) -> None:
+        self.make_client_path = make_client_path
+
+    def spy(self, client: HassetteCLIClient, func: Callable[..., None], *args: Any, **kwargs: Any) -> GetSpy:
+        """Run ``func`` and return the ``GetSpy`` recording its GET paths and params."""
+        spy = GetSpy(client)
+        with (
+            patch.object(client, "get", side_effect=spy),
+            capture_stdout(),
+            patch(self.make_client_path, return_value=client),
+        ):
+            func(*args, **kwargs)
+        return spy
+
+    def stdout(self, client: HassetteCLIClient, func: Callable[..., None], *args: Any, **kwargs: Any) -> str:
+        """Run ``func`` and return what it rendered to the human stdout console."""
+        with capture_stdout() as buf, patch(self.make_client_path, return_value=client):
+            func(*args, **kwargs)
+        return buf.getvalue()
+
+    def stderr(self, client: HassetteCLIClient, func: Callable[..., None], *args: Any, **kwargs: Any) -> str:
+        """Run ``func`` and return its stderr, with stdout captured so tables don't leak out."""
+        with (
+            capture_stdout(),
+            capture_stderr() as err_buf,
+            patch(self.make_client_path, return_value=client),
+        ):
+            func(*args, **kwargs)
+        return err_buf.getvalue()
+
+    def usage_error(
+        self, client: HassetteCLIClient, func: Callable[..., None], *args: Any, **kwargs: Any
+    ) -> tuple[Any, str]:
+        """Run ``func`` expecting it to exit; return the exit code and the stderr it printed.
+
+        Captures stdout for the same reason ``stderr()`` does — whatever the command managed to
+        render before exiting shouldn't leak into the test run's own output.
+        """
+        with (
+            capture_stdout(),
+            capture_stderr() as err_buf,
+            patch(self.make_client_path, return_value=client),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            func(*args, **kwargs)
+        return exc_info.value.code, err_buf.getvalue()
+
+    def json_output(self, client: HassetteCLIClient, func: Callable[..., None], *args: Any, **kwargs: Any) -> Any:
+        """Run ``func`` in JSON mode and return its parsed stdout document.
+
+        The json-mode ``ctx`` is supplied here, so call sites pass only the command's own args.
+        """
+        with (
+            patch(self.make_client_path, return_value=client),
+            capture_json_stdout() as captured,
+        ):
+            func(*args, ctx=CLIContext(json_mode=True), **kwargs)
+        return json.loads("".join(captured))
 
 
 class MockTransportBuilder:
@@ -180,6 +281,21 @@ class MockTransportBuilder:
         return httpx.MockTransport(handler)
 
 
+class ClientFlags(TypedDict, total=False):
+    """The keyword-only resolver inputs ``HassetteCLIClient.__init__`` accepts.
+
+    Mirrors what ``make_client(ctx)`` unpacks from ``CLIContext`` in real usage — pass these
+    through any ``CLIClientFactory`` builder to test flag-sourced targets, credentials, or TLS
+    settings without hand-building a ``CLIContext``. Declared once here so the builders below
+    forward the list as ``**flags`` instead of each restating it.
+    """
+
+    debug_mode: bool
+    server_url_flag: str | None
+    token_file_flag: Path | None
+    verify_ssl_flag: bool | None
+
+
 class CLIClientFactory:
     """Creates HassetteCLIClient instances with mock transports for testing."""
 
@@ -190,67 +306,35 @@ class CLIClientFactory:
         self,
         transport: httpx.BaseTransport,
         json_mode: bool = False,
-        *,
-        debug_mode: bool = False,
-        server_url_flag: str | None = None,
-        token_file_flag: Path | None = None,
-        verify_ssl_flag: bool | None = None,
+        **flags: Unpack[ClientFlags],
     ) -> HassetteCLIClient:
-        """Build a HassetteCLIClient backed by ``transport``.
-
-        The keyword-only ``*_flag`` arguments mirror ``HassetteCLIClient.__init__``'s resolver
-        inputs (what ``make_client(ctx)`` unpacks from ``CLIContext`` in real usage) — pass them
-        to test flag-sourced targets/credentials/TLS settings without hand-building a
-        ``CLIContext``.
-        """
-        return HassetteCLIClient(
-            self.config,
-            json_mode=json_mode,
-            debug_mode=debug_mode,
-            transport=transport,
-            server_url_flag=server_url_flag,
-            token_file_flag=token_file_flag,
-            verify_ssl_flag=verify_ssl_flag,
-        )
+        """Build a HassetteCLIClient backed by ``transport``."""
+        return HassetteCLIClient(self.config, json_mode=json_mode, transport=transport, **flags)
 
     def build_with_routes(
         self,
         routes: list[tuple[str, str, int, Any]],
         json_mode: bool = False,
-        *,
-        debug_mode: bool = False,
-        server_url_flag: str | None = None,
-        token_file_flag: Path | None = None,
-        verify_ssl_flag: bool | None = None,
+        **flags: Unpack[ClientFlags],
     ) -> HassetteCLIClient:
         """Build a client pre-wired with route responses.
 
         Args:
             routes: List of ``(method, path_fragment, status, body)`` tuples.
             json_mode: Whether the client operates in JSON mode.
+            flags: Resolver inputs forwarded to the client — see ``ClientFlags``.
         """
         builder = MockTransportBuilder()
         for method, path_fragment, status, body in routes:
             builder.add(method, path_fragment, status, body)
-        transport = builder.build()
-        return self.build(
-            transport,
-            json_mode=json_mode,
-            debug_mode=debug_mode,
-            server_url_flag=server_url_flag,
-            token_file_flag=token_file_flag,
-            verify_ssl_flag=verify_ssl_flag,
-        )
+        return self.build(builder.build(), json_mode=json_mode, **flags)
 
     def build_capturing_headers(
         self,
         status_code: int = 200,
         body: Any = None,
         json_mode: bool = False,
-        *,
-        server_url_flag: str | None = None,
-        token_file_flag: Path | None = None,
-        verify_ssl_flag: bool | None = None,
+        **flags: Unpack[ClientFlags],
     ) -> tuple[HassetteCLIClient, list[httpx.Headers]]:
         """Build a client whose mock transport returns a fixed response for every GET request.
 
@@ -260,14 +344,7 @@ class CLIClientFactory:
         """
         builder = MockTransportBuilder()
         builder.add("GET", "", status_code, body if body is not None else {})
-        transport = builder.build()
-        client = self.build(
-            transport,
-            json_mode=json_mode,
-            server_url_flag=server_url_flag,
-            token_file_flag=token_file_flag,
-            verify_ssl_flag=verify_ssl_flag,
-        )
+        client = self.build(builder.build(), json_mode=json_mode, **flags)
         return client, builder.captured_headers
 
 

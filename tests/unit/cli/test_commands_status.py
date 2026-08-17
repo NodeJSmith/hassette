@@ -1,23 +1,19 @@
 """Unit tests for hassette status, telemetry, and dashboard commands."""
 
-import json
-from unittest.mock import patch
-
 from hassette.cli.commands.status import (
     DASHBOARD_COLUMNS,
     cmd_dashboard,
     cmd_status,
     cmd_telemetry,
 )
-from hassette.cli.context import CLIContext
 from hassette.test_utils.web_response_helpers import (
     make_dashboard_app_grid_response,
     make_system_status_response,
     make_telemetry_status_response,
 )
-from tests.unit.cli.conftest import CLIClientFactory, GetSpy, capture_json_stdout, capture_stdout
+from tests.unit.cli.conftest import CLIClientFactory, CommandRunner
 
-MAKE_CLIENT_PATH = "hassette.cli.commands.status.make_client"
+runner = CommandRunner("hassette.cli.commands.status.make_client")
 
 # cmd_status
 
@@ -27,14 +23,7 @@ class TestCmdStatus:
         """Status command fetches from GET /api/health."""
         status_data = make_system_status_response()
         client = cli_client_factory.build_with_routes([("GET", "/api/health", 200, status_data.model_dump())])
-        spy = GetSpy(client)
-
-        with (
-            patch.object(client, "get", side_effect=spy),
-            capture_stdout(),
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_status()
+        spy = runner.spy(client, cmd_status)
 
         assert "/api/health" in spy.paths
 
@@ -42,12 +31,7 @@ class TestCmdStatus:
         """Status command produces a key-value panel in human mode."""
         status_data = make_system_status_response(status="ok", version="0.2.0", uptime_seconds=90.0)
         client = cli_client_factory.build_with_routes([("GET", "/api/health", 200, status_data.model_dump())])
-        with (
-            capture_stdout() as buf,
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_status()
-        output = buf.getvalue()
+        output = runner.stdout(client, cmd_status)
         assert "ok" in output
         assert "0.2.0" in output
 
@@ -56,13 +40,7 @@ class TestCmdStatus:
         status_data = make_system_status_response()
         client = cli_client_factory.build_with_routes([("GET", "/api/health", 200, status_data.model_dump())])
 
-        with (
-            patch(MAKE_CLIENT_PATH, return_value=client),
-            capture_json_stdout() as captured,
-        ):
-            cmd_status(ctx=CLIContext(json_mode=True))
-
-        parsed = json.loads("".join(captured))
+        parsed = runner.json_output(client, cmd_status)
         assert parsed["status"] == "ok"
         assert "websocket_connected" in parsed
 
@@ -70,36 +48,21 @@ class TestCmdStatus:
         """uptime_seconds renders as human-readable via CliFormat annotation."""
         status_data = make_system_status_response(uptime_seconds=3661.0)
         client = cli_client_factory.build_with_routes([("GET", "/api/health", 200, status_data.model_dump())])
-        with (
-            capture_stdout() as buf,
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_status()
-        output = buf.getvalue()
+        output = runner.stdout(client, cmd_status)
         assert "1h 1m 1s" in output
 
     def test_status_degraded_prints_status_not_error(self, cli_client_factory: CLIClientFactory) -> None:
         """Status command prints status body (not an error) when instance is 'degraded' (200)."""
         status_data = make_system_status_response(status="degraded", websocket_connected=False)
         client = cli_client_factory.build_with_routes([("GET", "/api/health", 200, status_data.model_dump())])
-        with (
-            capture_stdout() as buf,
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_status()
-        output = buf.getvalue()
+        output = runner.stdout(client, cmd_status)
         assert "degraded" in output
 
     def test_status_starting_prints_status_not_error(self, cli_client_factory: CLIClientFactory) -> None:
         """Status command prints status body (not an error) when instance is 'starting' (200)."""
         status_data = make_system_status_response(status="starting", websocket_connected=False)
         client = cli_client_factory.build_with_routes([("GET", "/api/health", 200, status_data.model_dump())])
-        with (
-            capture_stdout() as buf,
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_status()
-        output = buf.getvalue()
+        output = runner.stdout(client, cmd_status)
         assert "starting" in output
 
 
@@ -111,14 +74,7 @@ class TestCmdTelemetry:
         """Telemetry command fetches from GET /api/telemetry/status."""
         tel_data = make_telemetry_status_response()
         client = cli_client_factory.build_with_routes([("GET", "/api/telemetry/status", 200, tel_data.model_dump())])
-        spy = GetSpy(client)
-
-        with (
-            patch.object(client, "get", side_effect=spy),
-            capture_stdout(),
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_telemetry()
+        spy = runner.spy(client, cmd_telemetry)
 
         assert "/api/telemetry/status" in spy.paths
 
@@ -126,12 +82,7 @@ class TestCmdTelemetry:
         """Telemetry command produces a key-value panel showing degraded field."""
         tel_data = make_telemetry_status_response(degraded=False)
         client = cli_client_factory.build_with_routes([("GET", "/api/telemetry/status", 200, tel_data.model_dump())])
-        with (
-            capture_stdout() as buf,
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_telemetry()
-        output = buf.getvalue()
+        output = runner.stdout(client, cmd_telemetry)
         assert "degraded" in output
 
     def test_json_mode_outputs_valid_json(self, cli_client_factory: CLIClientFactory) -> None:
@@ -139,38 +90,22 @@ class TestCmdTelemetry:
         tel_data = make_telemetry_status_response(dropped_overflow=5)
         client = cli_client_factory.build_with_routes([("GET", "/api/telemetry/status", 200, tel_data.model_dump())])
 
-        with (
-            patch(MAKE_CLIENT_PATH, return_value=client),
-            capture_json_stdout() as captured,
-        ):
-            cmd_telemetry(ctx=CLIContext(json_mode=True))
-
-        parsed = json.loads("".join(captured))
+        parsed = runner.json_output(client, cmd_telemetry)
         assert parsed["dropped_overflow"] == 5
 
     def test_503_renders_degraded_status_human_mode(self, cli_client_factory: CLIClientFactory) -> None:
         """A 503 (degraded DB) prints the status body, not an error, and does not exit."""
         tel_data = make_telemetry_status_response(degraded=True)
         client = cli_client_factory.build_with_routes([("GET", "/api/telemetry/status", 503, tel_data.model_dump())])
-        with (
-            capture_stdout() as buf,
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_telemetry()
-        assert "degraded" in buf.getvalue()
+        output = runner.stdout(client, cmd_telemetry)
+        assert "degraded" in output
 
     def test_503_outputs_status_json_mode_exit_zero(self, cli_client_factory: CLIClientFactory) -> None:
         """A 503 in json mode emits the deserialized status (no error doc) and exits 0."""
         tel_data = make_telemetry_status_response(degraded=True)
         client = cli_client_factory.build_with_routes([("GET", "/api/telemetry/status", 503, tel_data.model_dump())])
 
-        with (
-            patch(MAKE_CLIENT_PATH, return_value=client),
-            capture_json_stdout() as captured,
-        ):
-            cmd_telemetry(ctx=CLIContext(json_mode=True))
-
-        parsed = json.loads("".join(captured))
+        parsed = runner.json_output(client, cmd_telemetry)
         assert parsed["degraded"] is True
         assert "error" not in parsed
 
@@ -185,14 +120,7 @@ class TestCmdDashboard:
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/dashboard/app-grid", 200, grid.model_dump())]
         )
-        spy = GetSpy(client)
-
-        with (
-            patch.object(client, "get", side_effect=spy),
-            capture_stdout(),
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_dashboard()
+        spy = runner.spy(client, cmd_dashboard)
 
         assert any("/api/telemetry/dashboard/app-grid" in p for p in spy.paths)
 
@@ -202,12 +130,7 @@ class TestCmdDashboard:
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/dashboard/app-grid", 200, grid.model_dump())]
         )
-        with (
-            capture_stdout() as buf,
-            patch(MAKE_CLIENT_PATH, return_value=client),
-        ):
-            cmd_dashboard()
-        output = buf.getvalue()
+        output = runner.stdout(client, cmd_dashboard)
         # Table headers must always be visible
         assert "App" in output
         assert "Health" in output
@@ -221,13 +144,7 @@ class TestCmdDashboard:
             [("GET", "/api/telemetry/dashboard/app-grid", 200, grid.model_dump())]
         )
 
-        with (
-            patch(MAKE_CLIENT_PATH, return_value=client),
-            capture_json_stdout() as captured,
-        ):
-            cmd_dashboard(ctx=CLIContext(json_mode=True))
-
-        parsed = json.loads("".join(captured))
+        parsed = runner.json_output(client, cmd_dashboard)
         assert isinstance(parsed, list)
         assert parsed[0]["app_key"] == "test_app"
 

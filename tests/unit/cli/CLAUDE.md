@@ -64,12 +64,35 @@ aborted `nox -s tests_with_coverage` before it wrote `coverage.xml`, since the s
 ## Fixtures and helpers
 
 `conftest.py` provides:
-- `CLIClientFactory` — builds `HassetteCLIClient` instances backed by `MockTransport`
+- `CommandRunner` — runs a command function with its module's `make_client` patched (see below)
+- `CLIClientFactory` — builds `HassetteCLIClient` instances backed by `MockTransport`; the
+  keyword-only resolver flags it forwards are declared once as the `ClientFlags` TypedDict
 - `MockTransportBuilder` — route table for mock HTTP responses
-- `GetSpy` — wraps `client.get` to record paths and params
-- `capture_stdout()` / `capture_stderr()` / `capture_json_stdout()` — Rich console capture
+- `GetSpy` — wraps `client.get` to record paths and params; `spy.params_for(fragment)` returns the
+  query params of the first recorded GET whose path contains `fragment`
+- `capture_stdout()` / `capture_stderr()` — Rich console capture
+- `capture_json_stdout()` — raw `sys.stdout.write` capture for JSON-mode commands
 - `capture_human(func, *args)` — returns `(stdout, stderr)` strings
+- `parse_json_stdout(capsys)` — parses what a json-mode `render_*` wrote to the real stdout
 - `SINCE_EPOCH` — pre-computed epoch float for direct-call tests
+
+### CommandRunner
+
+Every `test_commands_*.py` module owns one instance, because the `make_client` patch target is
+per-module — each command module imports `make_client` into its own namespace:
+
+```python
+runner = CommandRunner("hassette.cli.commands.log.make_client")
+
+spy = runner.spy(client, cmd_log, app="my-app")          # GET paths and params
+output = runner.stdout(client, cmd_log)                  # human table/panel output
+parsed = runner.json_output(client, cmd_log)             # --json document (ctx is injected)
+assert "No results" in runner.stderr(client, cmd_log)    # stderr, stdout suppressed
+code, stderr = runner.usage_error(client, cmd_log, instance="0")  # expects SystemExit
+```
+
+Reach for these instead of hand-rolling the `patch(...)` / `capture_*()` context-manager stack —
+`tools/check_duplicate_code.py` flags that boilerplate once it appears in three tests.
 
 ## File layout
 

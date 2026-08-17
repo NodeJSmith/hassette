@@ -70,15 +70,69 @@ def _make_manifest_list(instances: list[AppInstanceResponse], app_key: str = "my
     return make_manifest_list_response(manifests=[manifest])
 
 
-def url_capturing_transport() -> tuple[httpx.MockTransport, list[str]]:
-    """Build a MockTransport that records every request URL and returns an empty JSON array."""
+def url_capturing_client() -> tuple[HassetteCLIClient, list[str]]:
+    """Build a default-target client plus the list its request URLs are recorded into."""
     captured_urls: list[str] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
         captured_urls.append(str(request.url))
         return httpx.Response(200, content=b"[]", headers={"content-type": "application/json"})
 
-    return httpx.MockTransport(handler), captured_urls
+    transport = httpx.MockTransport(handler)
+    return HassetteCLIClient(_make_host_port_config(), json_mode=False, transport=transport), captured_urls
+
+
+def route_listeners(client: HassetteCLIClient, **kwargs: Any) -> Any:
+    """Route a listener request through ``get_with_app_routing``.
+
+    The global/per-app path pair is the same in every routing test — only ``app_key`` and
+    ``instance`` are ever varied, so those stay at the call site.
+    """
+    return client.get_with_app_routing(
+        global_path="/api/bus/listeners",
+        per_app_path_template="/api/telemetry/app/{app_key}/listeners",
+        model=list,
+        **kwargs,
+    )
+
+
+def get_expecting_exit(client: HassetteCLIClient, path: str = HEALTH_ENDPOINT) -> tuple[Any, str]:
+    """GET ``path`` expecting a SystemExit; return the exit code and the human-mode stderr."""
+    with capture_stderr() as buf, pytest.raises(SystemExit) as exc_info:
+        client.get(path, SimpleModel)
+    return exc_info.value.code, buf.getvalue()
+
+
+def get_json_error(
+    client: HassetteCLIClient,
+    capsys: pytest.CaptureFixture[str],
+    path: str = HEALTH_ENDPOINT,
+    *,
+    expect_code: int | None = None,
+) -> Any:
+    """GET ``path`` on a json-mode client expecting a SystemExit; return the parsed error doc.
+
+    Pass ``expect_code`` to also assert the exit status the client exited with.
+    """
+    with pytest.raises(SystemExit) as exc_info:
+        client.get(path, SimpleModel)
+    if expect_code is not None:
+        assert exc_info.value.code == expect_code
+    return json.loads(capsys.readouterr().out)
+
+
+def stderr_for_successful_get(config: HassetteConfig, **client_kwargs: Any) -> str:
+    """Return what a client built from ``config`` writes to stderr on a successful GET.
+
+    The target echo and the TLS-verification warning are both success-path stderr output, so
+    the response body itself never matters — only which config/flags produced the client.
+    """
+    client = HassetteCLIClient(
+        config, json_mode=False, transport=make_transport(200, {"value": "hello"}), **client_kwargs
+    )
+    with capture_stderr() as buf:
+        client.get(HEALTH_ENDPOINT, SimpleModel)
+    return buf.getvalue()
 
 
 # Base URL construction & address substitution
@@ -194,9 +248,8 @@ class TestHttpErrorsHumanMode:
         config = _make_host_port_config()
         transport = make_transport(404, {"detail": "Not found"})
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
-        with capture_stderr() as buf, pytest.raises(SystemExit):
-            client.get("/api/missing", SimpleModel)
-        assert len(buf.getvalue()) > 0
+        _code, stderr = get_expecting_exit(client, "/api/missing")
+        assert len(stderr) > 0
 
     def test_500_exits_with_code_1(self) -> None:
         config = _make_host_port_config()
@@ -211,7 +264,7 @@ class TestHttpErrorsHumanMode:
         transport = make_transport(503, {"detail": "Service unavailable"})
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
         with pytest.raises(SystemExit):
-            client.get("/api/health", SimpleModel)
+            client.get(HEALTH_ENDPOINT, SimpleModel)
         captured = capsys.readouterr()
         assert captured.out == ""
 
@@ -224,11 +277,7 @@ class TestHttpErrorsJsonMode:
         config = _make_host_port_config()
         transport = make_transport(404, {"detail": "Not found"})
         client = HassetteCLIClient(config, json_mode=True, transport=transport)
-        with pytest.raises(SystemExit) as exc_info:
-            client.get("/api/missing", SimpleModel)
-        assert exc_info.value.code == 1
-        captured = capsys.readouterr()
-        parsed = json.loads(captured.out)
+        parsed = get_json_error(client, capsys, "/api/missing", expect_code=1)
         assert parsed["error"] is True
         assert parsed["status"] == 404
         assert "detail" in parsed
@@ -237,11 +286,8 @@ class TestHttpErrorsJsonMode:
         config = _make_host_port_config()
         transport = make_transport(500, {"detail": "boom"})
         client = HassetteCLIClient(config, json_mode=True, transport=transport)
-        with pytest.raises(SystemExit):
-            client.get("/api/crash", SimpleModel)
-        captured = capsys.readouterr()
         # In json mode, error goes to stdout only
-        parsed = json.loads(captured.out)
+        parsed = get_json_error(client, capsys, "/api/crash")
         assert parsed["error"] is True
 
 
@@ -254,34 +300,29 @@ class TestNetworkErrors:
         transport = make_transport(raise_exc=httpx.ConnectError)
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
         with pytest.raises(SystemExit) as exc_info:
-            client.get("/api/health", SimpleModel)
+            client.get(HEALTH_ENDPOINT, SimpleModel)
         assert exc_info.value.code == 2
 
     def test_connection_refused_mentions_address_stderr(self) -> None:
         config = _make_host_port_config("127.0.0.1", 8126)
         transport = make_transport(raise_exc=httpx.ConnectError)
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
-        with capture_stderr() as buf, pytest.raises(SystemExit):
-            client.get("/api/health", SimpleModel)
-        output = buf.getvalue()
-        assert "127.0.0.1" in output or "8126" in output
+        _code, stderr = get_expecting_exit(client)
+        assert "127.0.0.1" in stderr or "8126" in stderr
 
     def test_timeout_exits_code_2(self) -> None:
         config = _make_host_port_config()
         transport = make_transport(raise_exc=httpx.TimeoutException)
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
         with pytest.raises(SystemExit) as exc_info:
-            client.get("/api/health", SimpleModel)
+            client.get(HEALTH_ENDPOINT, SimpleModel)
         assert exc_info.value.code == 2
 
     def test_timeout_json_mode_null_status(self, capsys: pytest.CaptureFixture[str]) -> None:
         config = _make_host_port_config()
         transport = make_transport(raise_exc=httpx.TimeoutException)
         client = HassetteCLIClient(config, json_mode=True, transport=transport)
-        with pytest.raises(SystemExit):
-            client.get("/api/health", SimpleModel)
-        captured = capsys.readouterr()
-        parsed = json.loads(captured.out)
+        parsed = get_json_error(client, capsys)
         assert parsed["error"] is True
         assert parsed["status"] is None
         assert "detail" in parsed
@@ -290,10 +331,7 @@ class TestNetworkErrors:
         config = _make_host_port_config()
         transport = make_transport(raise_exc=httpx.ConnectError)
         client = HassetteCLIClient(config, json_mode=True, transport=transport)
-        with pytest.raises(SystemExit):
-            client.get("/api/health", SimpleModel)
-        captured = capsys.readouterr()
-        parsed = json.loads(captured.out)
+        parsed = get_json_error(client, capsys)
         assert parsed["error"] is True
         assert parsed["status"] is None
 
@@ -303,29 +341,13 @@ class TestNetworkErrors:
 
 class TestAppKeyRouting:
     def test_no_app_uses_global_listener_url(self) -> None:
-        config = _make_host_port_config()
-        transport, captured_urls = url_capturing_transport()
-
-        client = HassetteCLIClient(config, json_mode=False, transport=transport)
-        client.get_with_app_routing(
-            global_path="/api/bus/listeners",
-            per_app_path_template="/api/telemetry/app/{app_key}/listeners",
-            model=list,
-            app_key=None,
-        )
+        client, captured_urls = url_capturing_client()
+        route_listeners(client, app_key=None)
         assert any("/api/bus/listeners" in u for u in captured_urls)
 
     def test_app_key_uses_per_app_listener_url(self) -> None:
-        config = _make_host_port_config()
-        transport, captured_urls = url_capturing_transport()
-
-        client = HassetteCLIClient(config, json_mode=False, transport=transport)
-        client.get_with_app_routing(
-            global_path="/api/bus/listeners",
-            per_app_path_template="/api/telemetry/app/{app_key}/listeners",
-            model=list,
-            app_key="my_app",
-        )
+        client, captured_urls = url_capturing_client()
+        route_listeners(client, app_key="my_app")
         assert any("/api/telemetry/app/my_app/listeners" in u for u in captured_urls)
 
 
@@ -334,17 +356,8 @@ class TestAppKeyRouting:
 
 class TestInstanceRouting:
     def test_integer_instance_passes_index_as_query_param(self) -> None:
-        config = _make_host_port_config()
-        transport, captured_urls = url_capturing_transport()
-
-        client = HassetteCLIClient(config, json_mode=False, transport=transport)
-        client.get_with_app_routing(
-            global_path="/api/bus/listeners",
-            per_app_path_template="/api/telemetry/app/{app_key}/listeners",
-            model=list,
-            app_key="my_app",
-            instance="1",
-        )
+        client, captured_urls = url_capturing_client()
+        route_listeners(client, app_key="my_app", instance="1")
         assert any("instance_index=1" in u for u in captured_urls)
 
     def test_name_instance_resolves_to_index(self) -> None:
@@ -379,13 +392,7 @@ class TestInstanceRouting:
             return original_handler(request)
 
         client = HassetteCLIClient(config, json_mode=False, transport=httpx.MockTransport(tracking_handler))
-        client.get_with_app_routing(
-            global_path="/api/bus/listeners",
-            per_app_path_template="/api/telemetry/app/{app_key}/listeners",
-            model=list,
-            app_key="my_app",
-            instance="office",
-        )
+        route_listeners(client, app_key="my_app", instance="office")
         assert any("instance_index=1" in u for u in captured_urls)
 
     def test_unknown_instance_name_exits_nonzero(self) -> None:
@@ -408,23 +415,11 @@ class TestInstanceRouting:
 
         client = HassetteCLIClient(config, json_mode=False, transport=httpx.MockTransport(handler))
         with pytest.raises(SystemExit) as exc_info:
-            client.get_with_app_routing(
-                global_path="/api/bus/listeners",
-                per_app_path_template="/api/telemetry/app/{app_key}/listeners",
-                model=list,
-                app_key="my_app",
-                instance="nonexistent",
-            )
+            route_listeners(client, app_key="my_app", instance="nonexistent")
         assert exc_info.value.code != 0
         client2 = HassetteCLIClient(config, json_mode=False, transport=httpx.MockTransport(handler))
         with capture_stderr() as buf, pytest.raises(SystemExit):
-            client2.get_with_app_routing(
-                global_path="/api/bus/listeners",
-                per_app_path_template="/api/telemetry/app/{app_key}/listeners",
-                model=list,
-                app_key="my_app",
-                instance="nonexistent",
-            )
+            route_listeners(client2, app_key="my_app", instance="nonexistent")
         assert "default" in buf.getvalue()
 
     def test_instance_without_app_exits_nonzero(self) -> None:
@@ -432,13 +427,7 @@ class TestInstanceRouting:
         transport = make_transport(200, [])
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
         with capture_stderr() as buf, pytest.raises(SystemExit) as exc_info:
-            client.get_with_app_routing(
-                global_path="/api/bus/listeners",
-                per_app_path_template="/api/telemetry/app/{app_key}/listeners",
-                model=list,
-                app_key=None,
-                instance="office",
-            )
+            route_listeners(client, app_key=None, instance="office")
         assert exc_info.value.code != 0
         assert "--app" in buf.getvalue()
 
@@ -451,21 +440,16 @@ class TestDebugMode:
         config = _make_host_port_config()
         transport = make_transport(500, {"detail": "Internal server error"})
         client = HassetteCLIClient(config, json_mode=False, debug_mode=True, transport=transport)
-        with capture_stderr() as buf, pytest.raises(SystemExit):
-            client.get("/api/crash", SimpleModel)
-        output = buf.getvalue()
-        assert "GET" in output
-        assert "/api/crash" in output
-        assert "Internal server error" in output
+        _code, stderr = get_expecting_exit(client, "/api/crash")
+        assert "GET" in stderr
+        assert "/api/crash" in stderr
+        assert "Internal server error" in stderr
 
     def test_debug_json_mode_includes_debug_key(self, capsys: pytest.CaptureFixture[str]) -> None:
         config = _make_host_port_config()
         transport = make_transport(500, {"detail": "boom"})
         client = HassetteCLIClient(config, json_mode=True, debug_mode=True, transport=transport)
-        with pytest.raises(SystemExit):
-            client.get("/api/crash", SimpleModel)
-        captured = capsys.readouterr()
-        parsed = json.loads(captured.out)
+        parsed = get_json_error(client, capsys, "/api/crash")
         assert parsed["error"] is True
         assert "debug" in parsed
         assert parsed["debug"]["method"] == "GET"
@@ -476,19 +460,14 @@ class TestDebugMode:
         config = _make_host_port_config()
         transport = make_transport(500, {"detail": "Internal server error"})
         client = HassetteCLIClient(config, json_mode=False, debug_mode=False, transport=transport)
-        with capture_stderr() as buf, pytest.raises(SystemExit):
-            client.get("/api/crash", SimpleModel)
-        output = buf.getvalue()
-        assert "URL:" not in output
+        _code, stderr = get_expecting_exit(client, "/api/crash")
+        assert "URL:" not in stderr
 
     def test_no_debug_json_mode_omits_debug_key(self, capsys: pytest.CaptureFixture[str]) -> None:
         config = _make_host_port_config()
         transport = make_transport(500, {"detail": "boom"})
         client = HassetteCLIClient(config, json_mode=True, debug_mode=False, transport=transport)
-        with pytest.raises(SystemExit):
-            client.get("/api/crash", SimpleModel)
-        captured = capsys.readouterr()
-        parsed = json.loads(captured.out)
+        parsed = get_json_error(client, capsys, "/api/crash")
         assert "debug" not in parsed
 
 
@@ -597,21 +576,17 @@ class TestCredentialAttachment:
         factory = CLIClientFactory(make_cli_config(data_dir=tmp_path))
         transport = make_transport(401, {"detail": "Unauthorized"})
         client = factory.build(transport)
-        with capture_stderr() as buf, pytest.raises(SystemExit) as exc_info:
-            client.get(HEALTH_ENDPOINT, SimpleModel)
-        assert exc_info.value.code == 1
-        output = buf.getvalue()
-        assert "has hassette been started" in output
+        code, stderr = get_expecting_exit(client)
+        assert code == 1
+        assert "has hassette been started" in stderr
 
     def test_resolved_token_401_omits_missing_token_hint(self, tmp_path: Path) -> None:
         """A wrong-but-present token gets the plain server error, not the missing-token hint."""
         factory = CLIClientFactory(make_cli_config(data_dir=tmp_path, web_api_auth_token="wrong-token"))
         transport = make_transport(401, {"detail": "Invalid token"})
         client = factory.build(transport)
-        with capture_stderr() as buf, pytest.raises(SystemExit):
-            client.get(HEALTH_ENDPOINT, SimpleModel)
-        output = buf.getvalue()
-        assert "has hassette been started" not in output
+        _code, stderr = get_expecting_exit(client)
+        assert "has hassette been started" not in stderr
 
     def test_empty_string_config_token_sends_no_authorization_header(self, tmp_path: Path) -> None:
         """An empty-string config token (e.g. an unset env var interpolated by docker-compose
@@ -644,10 +619,8 @@ class TestCredentialAttachment:
         factory = CLIClientFactory(make_cli_config(data_dir=tmp_path, web_api_auth_token=""))
         transport = make_transport(401, {"detail": "Unauthorized"})
         client = factory.build(transport)
-        with capture_stderr() as buf, pytest.raises(SystemExit):
-            client.get(HEALTH_ENDPOINT, SimpleModel)
-        output = buf.getvalue()
-        assert "has hassette been started" in output
+        _code, stderr = get_expecting_exit(client)
+        assert "has hassette been started" in stderr
 
 
 # No literal --token CLI argument for the web API credential
@@ -716,16 +689,14 @@ class TestNonLoopback401Message:
         config = make_cli_config(data_dir=tmp_path, cli_server_url=REMOTE_SERVER_URL)
         transport = make_transport(401, {"detail": "Unauthorized"})
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
-        with capture_stderr() as buf, pytest.raises(SystemExit) as exc_info:
-            client.get(HEALTH_ENDPOINT, SimpleModel)
-        assert exc_info.value.code == 1
-        output = buf.getvalue()
-        assert "--token-file" in output
-        assert "cli.token_file" in output
-        assert CLI_AUTH_TOKEN_ENV in output
-        assert "trusted_proxies" in output
-        assert "on the remote instance" in output
-        assert "has hassette been started" not in output
+        code, stderr = get_expecting_exit(client)
+        assert code == 1
+        assert "--token-file" in stderr
+        assert "cli.token_file" in stderr
+        assert CLI_AUTH_TOKEN_ENV in stderr
+        assert "trusted_proxies" in stderr
+        assert "on the remote instance" in stderr
+        assert "has hassette been started" not in stderr
 
     def test_401_with_resolved_credential_omits_the_new_hint(self, tmp_path: Path) -> None:
         """A wrong-but-present credential for a remote target gets the plain server error,
@@ -734,10 +705,8 @@ class TestNonLoopback401Message:
         config = make_cli_config(data_dir=tmp_path, cli_server_url=REMOTE_SERVER_URL, cli_auth_token="wrong-token")
         transport = make_transport(401, {"detail": "Invalid token"})
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
-        with capture_stderr() as buf, pytest.raises(SystemExit):
-            client.get(HEALTH_ENDPOINT, SimpleModel)
-        output = buf.getvalue()
-        assert "trusted_proxies" not in output
+        _code, stderr = get_expecting_exit(client)
+        assert "trusted_proxies" not in stderr
 
 
 # 3xx redirect responses: likely forward-auth login page
@@ -748,22 +717,17 @@ class TestRedirectResponse:
         config = _make_host_port_config()
         transport = make_transport(302, {"detail": "Found"})
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
-        with capture_stderr() as buf, pytest.raises(SystemExit) as exc_info:
-            client.get(HEALTH_ENDPOINT, SimpleModel)
-        assert exc_info.value.code == 1
-        output = buf.getvalue()
-        assert "redirect" in output.lower()
-        assert "forward-auth" in output.lower()
-        assert "cli configuration docs" in output.lower()
+        code, stderr = get_expecting_exit(client)
+        assert code == 1
+        assert "redirect" in stderr.lower()
+        assert "forward-auth" in stderr.lower()
+        assert "cli configuration docs" in stderr.lower()
 
     def test_302_json_mode_mentions_redirect(self, capsys: pytest.CaptureFixture[str]) -> None:
         config = _make_host_port_config()
         transport = make_transport(302, {"detail": "Found"})
         client = HassetteCLIClient(config, json_mode=True, transport=transport)
-        with pytest.raises(SystemExit):
-            client.get(HEALTH_ENDPOINT, SimpleModel)
-        captured = capsys.readouterr()
-        parsed = json.loads(captured.out)
+        parsed = get_json_error(client, capsys)
         assert "redirect" in parsed["detail"].lower()
 
 
@@ -775,17 +739,15 @@ class TestFullBaseUrlInErrorMessages:
         config = make_cli_config(data_dir=tmp_path, cli_server_url=REMOTE_SERVER_URL)
         transport = make_transport(raise_exc=httpx.ConnectError)
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
-        with capture_stderr() as buf, pytest.raises(SystemExit):
-            client.get(HEALTH_ENDPOINT, SimpleModel)
-        assert REMOTE_SERVER_URL in buf.getvalue()
+        _code, stderr = get_expecting_exit(client)
+        assert REMOTE_SERVER_URL in stderr
 
     def test_http_error_reports_full_base_url(self, tmp_path: Path) -> None:
         config = make_cli_config(data_dir=tmp_path, cli_server_url=REMOTE_SERVER_URL)
         transport = make_transport(500, {"detail": "boom"})
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
-        with capture_stderr() as buf, pytest.raises(SystemExit):
-            client.get(HEALTH_ENDPOINT, SimpleModel)
-        assert REMOTE_SERVER_URL in buf.getvalue()
+        _code, stderr = get_expecting_exit(client)
+        assert REMOTE_SERVER_URL in stderr
 
 
 # Target echo: once per invocation on the success path, and unconditionally on HTTP errors
@@ -794,27 +756,20 @@ class TestFullBaseUrlInErrorMessages:
 class TestTargetEcho:
     def test_non_loopback_success_shows_target(self, tmp_path: Path) -> None:
         config = make_cli_config(data_dir=tmp_path, cli_server_url=REMOTE_SERVER_URL)
-        transport = make_transport(200, {"value": "hello"})
-        client = HassetteCLIClient(config, json_mode=False, transport=transport)
-        with capture_stderr() as buf:
-            client.get(HEALTH_ENDPOINT, SimpleModel)
-        assert REMOTE_SERVER_URL in buf.getvalue()
+        stderr = stderr_for_successful_get(config)
+        assert REMOTE_SERVER_URL in stderr
 
     def test_loopback_success_omits_target(self) -> None:
         config = _make_host_port_config()
-        transport = make_transport(200, {"value": "hello"})
-        client = HassetteCLIClient(config, json_mode=False, transport=transport)
-        with capture_stderr() as buf:
-            client.get(HEALTH_ENDPOINT, SimpleModel)
-        assert buf.getvalue() == ""
+        stderr = stderr_for_successful_get(config)
+        assert stderr == ""
 
     def test_401_non_loopback_shows_target_without_debug(self, tmp_path: Path) -> None:
         config = make_cli_config(data_dir=tmp_path, cli_server_url=REMOTE_SERVER_URL)
         transport = make_transport(401, {"detail": "Unauthorized"})
         client = HassetteCLIClient(config, json_mode=False, debug_mode=False, transport=transport)
-        with capture_stderr() as buf, pytest.raises(SystemExit):
-            client.get(HEALTH_ENDPOINT, SimpleModel)
-        assert REMOTE_SERVER_URL in buf.getvalue()
+        _code, stderr = get_expecting_exit(client)
+        assert REMOTE_SERVER_URL in stderr
 
     def test_401_non_loopback_json_mode_includes_target(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
@@ -822,18 +777,14 @@ class TestTargetEcho:
         config = make_cli_config(data_dir=tmp_path, cli_server_url=REMOTE_SERVER_URL)
         transport = make_transport(401, {"detail": "Unauthorized"})
         client = HassetteCLIClient(config, json_mode=True, debug_mode=False, transport=transport)
-        with pytest.raises(SystemExit):
-            client.get(HEALTH_ENDPOINT, SimpleModel)
-        parsed = json.loads(capsys.readouterr().out)
+        parsed = get_json_error(client, capsys)
         assert parsed["target"] == REMOTE_SERVER_URL
 
     def test_loopback_401_json_mode_omits_target(self, capsys: pytest.CaptureFixture[str]) -> None:
         config = _make_host_port_config()
         transport = make_transport(401, {"detail": "Unauthorized"})
         client = HassetteCLIClient(config, json_mode=True, transport=transport)
-        with pytest.raises(SystemExit):
-            client.get(HEALTH_ENDPOINT, SimpleModel)
-        parsed = json.loads(capsys.readouterr().out)
+        parsed = get_json_error(client, capsys)
         assert "target" not in parsed
 
 
@@ -843,32 +794,21 @@ class TestTargetEcho:
 class TestVerifySslWarning:
     def test_config_sourced_insecure_warns(self, tmp_path: Path) -> None:
         config = make_cli_config(data_dir=tmp_path, cli_server_url=REMOTE_SERVER_URL, cli_verify_ssl=False)
-        transport = make_transport(200, {"value": "hello"})
-        client = HassetteCLIClient(config, json_mode=False, transport=transport)
-        with capture_stderr() as buf:
-            client.get(HEALTH_ENDPOINT, SimpleModel)
-        assert "TLS verification is disabled" in buf.getvalue()
+        stderr = stderr_for_successful_get(config)
+        assert "TLS verification is disabled" in stderr
 
     def test_flag_sourced_insecure_does_not_warn(self, tmp_path: Path) -> None:
         config = make_cli_config(data_dir=tmp_path, cli_server_url=REMOTE_SERVER_URL, cli_verify_ssl=False)
-        transport = make_transport(200, {"value": "hello"})
-        client = HassetteCLIClient(
-            config, json_mode=False, transport=transport, verify_ssl_flag=False, server_url_flag=None
-        )
-        with capture_stderr() as buf:
-            client.get(HEALTH_ENDPOINT, SimpleModel)
-        assert "TLS verification is disabled" not in buf.getvalue()
+        stderr = stderr_for_successful_get(config, verify_ssl_flag=False, server_url_flag=None)
+        assert "TLS verification is disabled" not in stderr
 
     def test_loopback_insecure_config_still_warns(self, tmp_path: Path) -> None:
         """The warning is about a config-vs-flag distinction, not a loopback gate — it applies
         regardless of whether the resulting target happens to be loopback.
         """
         config = make_cli_config(data_dir=tmp_path, cli_verify_ssl=False)
-        transport = make_transport(200, {"value": "hello"})
-        client = HassetteCLIClient(config, json_mode=False, transport=transport)
-        with capture_stderr() as buf:
-            client.get(HEALTH_ENDPOINT, SimpleModel)
-        assert "TLS verification is disabled" in buf.getvalue()
+        stderr = stderr_for_successful_get(config)
+        assert "TLS verification is disabled" in stderr
 
     def test_config_sourced_insecure_warns_json_mode_error_path(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
@@ -876,9 +816,7 @@ class TestVerifySslWarning:
         config = make_cli_config(data_dir=tmp_path, cli_server_url=REMOTE_SERVER_URL, cli_verify_ssl=False)
         transport = make_transport(500, {"detail": "boom"})
         client = HassetteCLIClient(config, json_mode=True, transport=transport)
-        with pytest.raises(SystemExit):
-            client.get(HEALTH_ENDPOINT, SimpleModel)
-        parsed = json.loads(capsys.readouterr().out)
+        parsed = get_json_error(client, capsys)
         assert parsed["tls_verified"] is False
 
     def test_flag_sourced_insecure_omits_tls_verified_json_mode_error_path(
@@ -889,9 +827,7 @@ class TestVerifySslWarning:
         client = HassetteCLIClient(
             config, json_mode=True, transport=transport, verify_ssl_flag=False, server_url_flag=None
         )
-        with pytest.raises(SystemExit):
-            client.get(HEALTH_ENDPOINT, SimpleModel)
-        parsed = json.loads(capsys.readouterr().out)
+        parsed = get_json_error(client, capsys)
         assert "tls_verified" not in parsed
 
     def test_config_sourced_insecure_warns_on_network_error_path(self, tmp_path: Path) -> None:
@@ -902,9 +838,8 @@ class TestVerifySslWarning:
         config = make_cli_config(data_dir=tmp_path, cli_server_url=REMOTE_SERVER_URL, cli_verify_ssl=False)
         transport = make_transport(raise_exc=httpx.ConnectError)
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
-        with capture_stderr() as buf, pytest.raises(SystemExit):
-            client.get(HEALTH_ENDPOINT, SimpleModel)
-        assert "TLS verification is disabled" in buf.getvalue()
+        _code, stderr = get_expecting_exit(client)
+        assert "TLS verification is disabled" in stderr
 
     def test_flag_sourced_insecure_does_not_warn_on_network_error_path(self, tmp_path: Path) -> None:
         config = make_cli_config(data_dir=tmp_path, cli_server_url=REMOTE_SERVER_URL, cli_verify_ssl=False)
@@ -912,6 +847,5 @@ class TestVerifySslWarning:
         client = HassetteCLIClient(
             config, json_mode=False, transport=transport, verify_ssl_flag=False, server_url_flag=None
         )
-        with capture_stderr() as buf, pytest.raises(SystemExit):
-            client.get(HEALTH_ENDPOINT, SimpleModel)
-        assert "TLS verification is disabled" not in buf.getvalue()
+        _code, stderr = get_expecting_exit(client)
+        assert "TLS verification is disabled" not in stderr

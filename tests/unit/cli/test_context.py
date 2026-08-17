@@ -7,9 +7,18 @@ from unittest.mock import patch
 import pytest
 from cyclopts import App, Parameter
 
-from hassette.cli.client import make_client
+from hassette.cli.client import HassetteCLIClient, make_client
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContext, CLIContextParam
-from tests.unit.cli.conftest import CLIClientFactory
+from hassette.config.config import HassetteConfig
+from tests.unit.cli.conftest import REMOTE_SERVER_URL, CLIClientFactory
+
+
+def make_client_from_context(ctx: CLIContext, config: HassetteConfig) -> HassetteCLIClient:
+    """Run ``make_client(ctx)`` against ``config`` instead of a real on-disk configuration."""
+    with patch("hassette.cli.client.HassetteConfig") as mock_config_cls:
+        mock_config_cls.return_value = config
+        mock_config_cls.model_config = {}
+        return make_client(ctx)
 
 
 class TestCLIContextDefaults:
@@ -31,19 +40,11 @@ class TestCLIContextFrozen:
 
 class TestMakeClientReceivesContext:
     def test_make_client_receives_json_mode(self, cli_client_factory: CLIClientFactory) -> None:
-        ctx = CLIContext(json_mode=True)
-        with patch("hassette.cli.client.HassetteConfig") as mock_config_cls:
-            mock_config_cls.return_value = cli_client_factory.config
-            mock_config_cls.model_config = {}
-            client = make_client(ctx)
+        client = make_client_from_context(CLIContext(json_mode=True), cli_client_factory.config)
         assert client.json_mode is True
 
     def test_make_client_receives_debug_mode(self, cli_client_factory: CLIClientFactory) -> None:
-        ctx = CLIContext(debug_mode=True)
-        with patch("hassette.cli.client.HassetteConfig") as mock_config_cls:
-            mock_config_cls.return_value = cli_client_factory.config
-            mock_config_cls.model_config = {}
-            client = make_client(ctx)
+        client = make_client_from_context(CLIContext(debug_mode=True), cli_client_factory.config)
         assert client.debug_mode is True
 
     def test_make_client_no_args_raises_type_error(self) -> None:
@@ -51,12 +52,9 @@ class TestMakeClientReceivesContext:
             make_client()  # pyright: ignore[reportCallIssue]
 
     def test_make_client_forwards_server_url_flag(self, cli_client_factory: CLIClientFactory) -> None:
-        ctx = CLIContext(server_url="https://example.com/hassette")
-        with patch("hassette.cli.client.HassetteConfig") as mock_config_cls:
-            mock_config_cls.return_value = cli_client_factory.config
-            mock_config_cls.model_config = {}
-            client = make_client(ctx)
-        assert client.base_url == "https://example.com/hassette"
+        ctx = CLIContext(server_url=REMOTE_SERVER_URL)
+        client = make_client_from_context(ctx, cli_client_factory.config)
+        assert client.base_url == REMOTE_SERVER_URL
         assert client.is_loopback is False
 
 

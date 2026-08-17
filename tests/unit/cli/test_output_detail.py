@@ -19,7 +19,7 @@ from hassette.cli.output import (
     render_detail_dict,
 )
 from hassette.types.types import CliFormat
-from tests.unit.cli.conftest import capture_human
+from tests.unit.cli.conftest import capture_human, parse_json_stdout
 
 
 class SimpleItem(BaseModel):
@@ -219,8 +219,7 @@ class TestRenderDetailCliFormat:
             last_seen=None,
         )
         render_detail(item, json_mode=True)
-        captured = capsys.readouterr()
-        parsed = json.loads(captured.out)
+        parsed = parse_json_stdout(capsys)
         assert parsed["uptime_seconds"] == 9005.0
         assert parsed["avg_duration"] == 450.0
 
