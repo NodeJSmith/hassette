@@ -231,6 +231,12 @@ def test_new_columns_exist_after_001(tmp_path: Path) -> None:
 
 def test_kind_check_rejects_invalid_values(tmp_path: Path) -> None:
     """Kind CHECK constraint rejects values other than 'handler' and 'job'."""
+    # dup-ignore-start: the "insert a session + listener row to satisfy FK constraints before
+    # testing a CHECK constraint" setup below is mechanical boilerplate, but its duplicate
+    # occurrences all pair with tests/unit/test_schema_migration.py — a different test directory.
+    # Extraction would need a shared helper module spanning tests/unit/core/ and tests/unit/,
+    # which is out of scope for this cluster (see
+    # design/specs/099-dedupe-tests-unit-core/design.md, "Extract vs. annotate" worked example).
     db_path = tmp_path / "test.db"
     run_migrations(db_path)
 
@@ -251,10 +257,17 @@ def test_kind_check_rejects_invalid_values(tmp_path: Path) -> None:
             insert_execution_row(
                 conn, kind="invalid_kind", listener_id=1, session_id=1, execution_start_ts=2.0, duration_ms=5.0
             )
+    # dup-ignore-end
 
 
 def test_kind_check_accepts_job(tmp_path: Path) -> None:
     """kind='job' is accepted when job_id is set (and listener_id is NULL)."""
+    # dup-ignore-start: the "insert a session + scheduled_jobs row to satisfy FK constraints"
+    # setup below is mechanical boilerplate, but its duplicate occurrences all pair with
+    # tests/unit/test_schema_migration.py — a different test directory. Extraction would need a
+    # shared helper module spanning tests/unit/core/ and tests/unit/, out of scope for this
+    # cluster (see design/specs/099-dedupe-tests-unit-core/design.md, "Extract vs. annotate"
+    # worked example).
     db_path = tmp_path / "test.db"
     run_migrations(db_path)
 
@@ -272,10 +285,17 @@ def test_kind_check_accepts_job(tmp_path: Path) -> None:
 
         cursor = conn.execute("SELECT kind FROM executions WHERE id = 1")
         assert cursor.fetchone()[0] == "job"
+    # dup-ignore-end
 
 
 def test_fk_mutex_check_rejects_both_null(tmp_path: Path) -> None:
     """CHECK constraint rejects rows with both listener_id and job_id NULL."""
+    # dup-ignore-start: the "insert a session row to satisfy FK constraints before testing a
+    # CHECK constraint" setup below is mechanical boilerplate, but its duplicate occurrences all
+    # pair with tests/unit/test_schema_migration.py — a different test directory. Extraction
+    # would need a shared helper module spanning tests/unit/core/ and tests/unit/, out of scope
+    # for this cluster (see design/specs/099-dedupe-tests-unit-core/design.md, "Extract vs.
+    # annotate" worked example).
     db_path = tmp_path / "test.db"
     run_migrations(db_path)
 
@@ -293,10 +313,17 @@ def test_fk_mutex_check_rejects_both_null(tmp_path: Path) -> None:
                 execution_start_ts=1.0,
                 duration_ms=5.0,
             )
+    # dup-ignore-end
 
 
 def test_fk_mutex_check_rejects_both_set(tmp_path: Path) -> None:
     """CHECK constraint rejects rows with both listener_id and job_id set."""
+    # dup-ignore-start: the "insert a session + listener + scheduled_jobs row to satisfy FK
+    # constraints before testing a CHECK constraint" setup below is mechanical boilerplate, but
+    # its duplicate occurrences all pair with tests/unit/test_schema_migration.py — a different
+    # test directory. Extraction would need a shared helper module spanning tests/unit/core/ and
+    # tests/unit/, out of scope for this cluster (see
+    # design/specs/099-dedupe-tests-unit-core/design.md, "Extract vs. annotate" worked example).
     db_path = tmp_path / "test.db"
     run_migrations(db_path)
 
@@ -317,16 +344,24 @@ def test_fk_mutex_check_rejects_both_set(tmp_path: Path) -> None:
             insert_execution_row(
                 conn, kind="handler", listener_id=1, job_id=1, session_id=1, execution_start_ts=1.0, duration_ms=5.0
             )
+    # dup-ignore-end
 
 
 def test_listeners_natural_key_unique_index(tmp_path: Path) -> None:
     """idx_listeners_natural is on (app_key, instance_index, name, topic) with no WHERE filter."""
+    # dup-ignore-start: the "db_path = tmp_path / 'test.db'; run_migrations(db_path); with
+    # sqlite_conn(db_path) as conn:" setup below is mechanical boilerplate, but its duplicate
+    # occurrences pair with tests/unit/test_schema_migration.py and tests/unit/test_migration_002.py
+    # — different test directories. Extraction would need a shared helper module spanning
+    # tests/unit/core/ and tests/unit/, out of scope for this cluster (see
+    # design/specs/099-dedupe-tests-unit-core/design.md, "Extract vs. annotate" worked example).
     db_path = tmp_path / "test.db"
     run_migrations(db_path)
 
     with sqlite_conn(db_path) as conn:
         cursor = conn.execute("SELECT sql FROM sqlite_master WHERE type='index' AND name='idx_listeners_natural'")
         row = cursor.fetchone()
+    # dup-ignore-end
 
     assert row is not None, "idx_listeners_natural index not found"
     index_sql = row[0].lower()

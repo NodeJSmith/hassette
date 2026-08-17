@@ -538,6 +538,12 @@ async def telemetry_repo(telemetry_db: aiosqlite.Connection) -> TelemetryReposit
 @pytest.fixture
 async def telemetry_session_id(telemetry_db: aiosqlite.Connection) -> int:
     """Insert a session row and return its ID (needed for FK constraints)."""
+    # dup-ignore-start: two tests in test_telemetry_repository.py (the once=True/previous-session
+    # reconciliation tests) deliberately insert a SECOND session row with this same SQL, distinct
+    # from the one this fixture provides, to simulate reconciliation running against a newer
+    # session. Promoting a shared helper out of this fixture for that one cross-file cluster is
+    # out of scope (see design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py
+    # helpers per task).
     now = time.time()
     cursor = await telemetry_db.execute(
         "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'running')",
@@ -545,4 +551,5 @@ async def telemetry_session_id(telemetry_db: aiosqlite.Connection) -> int:
     )
     await telemetry_db.commit()
     assert cursor.lastrowid is not None
+    # dup-ignore-end
     return cursor.lastrowid

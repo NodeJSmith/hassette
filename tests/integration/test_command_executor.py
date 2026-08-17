@@ -78,6 +78,11 @@ async def test_restart_cancellation_persists_cancelled_row(
     executor._write_queue.put_nowait(record)
     await executor.drain_and_persist()
 
+    # dup-ignore-start: shares the "fetch one row, assert count then fields" shape with
+    # tests/unit/core/test_telemetry_repository.py's persist_execution_batch() assertions —
+    # different test tier (integration vs. unit) exercising unrelated code paths
+    # (CommandExecutor.drain_and_persist here vs. TelemetryRepository.persist_execution_batch
+    # there); not extractable across that boundary.
     cursor = await db_service.db.execute(
         "SELECT status FROM executions WHERE listener_id = ?",
         (listener_id,),
@@ -85,6 +90,7 @@ async def test_restart_cancellation_persists_cancelled_row(
     rows = await cursor.fetchall()
     assert len(rows) == 1
     assert rows[0][0] == "cancelled"
+    # dup-ignore-end
 
 
 async def test_dependency_error_swallowed(executor: CommandExecutor) -> None:
@@ -306,6 +312,11 @@ async def test_serve_drains_queue_to_db(executor: CommandExecutor, initialized_d
     await executor.drain_and_persist()
 
     # Verify it landed in DB
+    # dup-ignore-start: shares the "fetch one row, assert count then fields" shape with
+    # tests/unit/core/test_telemetry_repository.py's persist_execution_batch() assertions —
+    # different test tier (integration vs. unit) exercising unrelated code paths
+    # (CommandExecutor.drain_and_persist here vs. TelemetryRepository.persist_execution_batch
+    # there); not extractable across that boundary.
     cursor = await db_service.db.execute(
         "SELECT status, listener_id, session_id FROM executions WHERE listener_id = ?",
         (listener_id,),
@@ -315,6 +326,7 @@ async def test_serve_drains_queue_to_db(executor: CommandExecutor, initialized_d
     assert rows[0][0] == "success"
     assert rows[0][1] == listener_id
     assert rows[0][2] == session_id
+    # dup-ignore-end
 
 
 async def test_flush_queue_on_shutdown(executor: CommandExecutor, initialized_db: tuple[DatabaseService, int]) -> None:
@@ -445,6 +457,11 @@ async def test_persist_batch_drops_presession_records(
     type(executor.hassette).session_id = PropertyMock(return_value=session_id)
     executor.hassette.try_session_id = MagicMock(return_value=session_id)
 
+    # dup-ignore-start: shares the "fetch one row, assert count then fields" shape with
+    # tests/unit/core/test_telemetry_repository.py's persist_execution_batch() assertions —
+    # different test tier (integration vs. unit) exercising unrelated code paths
+    # (CommandExecutor.drain_and_persist here vs. TelemetryRepository.persist_execution_batch
+    # there); not extractable across that boundary.
     cursor = await db_service.db.execute(
         "SELECT session_id FROM executions WHERE listener_id = ?",
         (listener_id,),
@@ -453,6 +470,7 @@ async def test_persist_batch_drops_presession_records(
     # valid record has session_id set — it is persisted; pre_session has None — dropped
     assert len(rows) == 1
     assert rows[0][0] == session_id
+    # dup-ignore-end
 
 
 async def test_register_listener_blocks_until_database_ready(
@@ -581,6 +599,11 @@ async def test_fk_preserved_across_restart(
     )
 
     # Verify the execution still references the same listener
+    # dup-ignore-start: shares the "fetch one row, assert count then fields" shape with
+    # tests/unit/core/test_telemetry_repository.py's persist_execution_batch() assertions —
+    # different test tier (integration vs. unit) exercising unrelated code paths
+    # (CommandExecutor.drain_and_persist here vs. TelemetryRepository.persist_execution_batch
+    # there); not extractable across that boundary.
     cursor = await db_service.db.execute(
         "SELECT listener_id FROM executions WHERE listener_id = ?",
         (listener_id,),
@@ -588,6 +611,7 @@ async def test_fk_preserved_across_restart(
     rows = await cursor.fetchall()
     assert len(rows) == 1
     assert rows[0][0] == listener_id
+    # dup-ignore-end
 
 
 async def test_reconciliation_ordering(

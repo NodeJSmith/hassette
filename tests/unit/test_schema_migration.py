@@ -26,12 +26,19 @@ class TestSourceTierType:
 class TestFreshMigration:
     def test_fresh_migration_creates_all_tables(self, tmp_path: Path) -> None:
         """Running the migration creates all required tables."""
+        # dup-ignore-start: the "db_path = tmp_path / 'test.db'; run_migrations(db_path); with
+        # sqlite_conn(db_path) as conn:" setup below is mechanical boilerplate, but its duplicate
+        # occurrences pair with tests/unit/core/test_migration_runner.py (a different test
+        # directory) and tests/unit/test_migration_002.py. Extraction would need a shared helper
+        # module spanning tests/unit/core/ and tests/unit/, out of scope for this cluster (see
+        # design/specs/099-dedupe-tests-unit-core/design.md, "Extract vs. annotate" worked example).
         db_path = tmp_path / "test.db"
         run_migrations(db_path)
 
         with sqlite_conn(db_path) as conn:
             cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
             tables = {row[0] for row in cursor.fetchall()}
+        # dup-ignore-end
 
         expected = {"sessions", "listeners", "scheduled_jobs", "executions", "log_records"}
         assert expected.issubset(tables)
@@ -49,6 +56,12 @@ class TestFreshMigration:
 
     def test_executions_has_kind_column(self, tmp_path: Path) -> None:
         """Executions table has kind column."""
+        # dup-ignore-start: the "db_path = tmp_path / 'test.db'; run_migrations(db_path); with
+        # sqlite_conn(db_path) as conn:" setup below is mechanical boilerplate, but its duplicate
+        # occurrences pair with tests/unit/core/test_migration_runner.py (a different test
+        # directory) and tests/unit/test_migration_002.py. Extraction would need a shared helper
+        # module spanning tests/unit/core/ and tests/unit/, out of scope for this cluster (see
+        # design/specs/099-dedupe-tests-unit-core/design.md, "Extract vs. annotate" worked example).
         db_path = tmp_path / "test.db"
         run_migrations(db_path)
 
@@ -56,9 +69,12 @@ class TestFreshMigration:
             cursor = conn.execute("PRAGMA table_info(executions)")
             cols = {row[1] for row in cursor.fetchall()}
             assert "kind" in cols
+        # dup-ignore-end
 
     def test_executions_has_is_di_failure(self, tmp_path: Path) -> None:
         """Executions table has is_di_failure column."""
+        # dup-ignore-start: same cross-directory boilerplate rationale as
+        # test_executions_has_kind_column() above.
         db_path = tmp_path / "test.db"
         run_migrations(db_path)
 
@@ -66,9 +82,16 @@ class TestFreshMigration:
             cursor = conn.execute("PRAGMA table_info(executions)")
             cols = {row[1] for row in cursor.fetchall()}
             assert "is_di_failure" in cols
+        # dup-ignore-end
 
     def test_check_constraints_reject_invalid_status(self, tmp_path: Path) -> None:
         """Executions with invalid status raises IntegrityError."""
+        # dup-ignore-start: the "insert a session + listener row to satisfy FK constraints before
+        # testing a CHECK constraint" setup below is mechanical boilerplate, but its duplicate
+        # occurrences pair with tests/unit/core/test_migration_runner.py — a different test
+        # directory. Extraction would need a shared helper module spanning tests/unit/core/ and
+        # tests/unit/, out of scope for this cluster (see
+        # design/specs/099-dedupe-tests-unit-core/design.md, "Extract vs. annotate" worked example).
         db_path = tmp_path / "test.db"
         run_migrations(db_path)
 
@@ -89,9 +112,16 @@ class TestFreshMigration:
                     duration_ms=10.0,
                     status="invalid",
                 )
+            # dup-ignore-end
 
     def test_check_constraints_accept_skipped_status(self, tmp_path: Path) -> None:
         """Executions with status='skipped' is accepted by the CHECK constraint (added in 009.sql)."""
+        # dup-ignore-start: the "insert a session + scheduled_jobs row to satisfy FK constraints"
+        # setup below is mechanical boilerplate, but its duplicate occurrences pair with
+        # tests/unit/core/test_migration_runner.py — a different test directory. Extraction would
+        # need a shared helper module spanning tests/unit/core/ and tests/unit/, out of scope for
+        # this cluster (see design/specs/099-dedupe-tests-unit-core/design.md, "Extract vs.
+        # annotate" worked example).
         db_path = tmp_path / "test.db"
         run_migrations(db_path)
 
@@ -103,6 +133,7 @@ class TestFreshMigration:
                 " VALUES ('app', 0, 'my_job', 'do_thing', 'app.py:1', 'scheduled')"
             )
             conn.commit()
+            # dup-ignore-end
             insert_execution_row(
                 conn, kind="job", job_id=1, session_id=1, execution_start_ts=1.0, duration_ms=0.0, status="skipped"
             )
@@ -112,6 +143,12 @@ class TestFreshMigration:
 
     def test_check_constraints_reject_negative_duration(self, tmp_path: Path) -> None:
         """Executions with negative duration_ms raises IntegrityError."""
+        # dup-ignore-start: the "insert a session + listener row to satisfy FK constraints before
+        # testing a CHECK constraint" setup below is mechanical boilerplate, but its duplicate
+        # occurrences pair with tests/unit/core/test_migration_runner.py — a different test
+        # directory. Extraction would need a shared helper module spanning tests/unit/core/ and
+        # tests/unit/, out of scope for this cluster (see
+        # design/specs/099-dedupe-tests-unit-core/design.md, "Extract vs. annotate" worked example).
         db_path = tmp_path / "test.db"
         run_migrations(db_path)
 
@@ -126,9 +163,16 @@ class TestFreshMigration:
                 insert_execution_row(
                     conn, kind="handler", listener_id=1, session_id=1, execution_start_ts=1.0, duration_ms=-1.0
                 )
+        # dup-ignore-end
 
     def test_nullable_listener_id_allows_null(self, tmp_path: Path) -> None:
         """Executions must allow NULL listener_id when job_id is set."""
+        # dup-ignore-start: the "insert a session + scheduled_jobs row to satisfy FK constraints"
+        # setup below is mechanical boilerplate, but its duplicate occurrences pair with
+        # tests/unit/core/test_migration_runner.py — a different test directory. Extraction would
+        # need a shared helper module spanning tests/unit/core/ and tests/unit/, out of scope for
+        # this cluster (see design/specs/099-dedupe-tests-unit-core/design.md, "Extract vs.
+        # annotate" worked example).
         db_path = tmp_path / "test.db"
         run_migrations(db_path)
 
@@ -140,6 +184,7 @@ class TestFreshMigration:
                 " VALUES ('app', 0, 'my_job', 'on_x', 'app.py:1', 'app', 'scheduled')"
             )
             conn.commit()
+            # dup-ignore-end
             insert_execution_row(conn, kind="job", job_id=1, session_id=1, execution_start_ts=1.0, duration_ms=10.0)
             conn.commit()
             cursor = conn.execute("SELECT listener_id FROM executions WHERE id = 1")
@@ -148,11 +193,20 @@ class TestFreshMigration:
 
     def test_sessions_drop_counters_default_to_zero(self, tmp_path: Path) -> None:
         """Sessions table defaults drop counters to 0."""
+        # dup-ignore-start: the "db_path = tmp_path / 'test.db'; run_migrations(db_path); with
+        # sqlite_conn(db_path) as conn:" setup below is mechanical boilerplate shared between
+        # tests/unit/test_schema_migration.py (broader schema/migration behavior) and
+        # tests/unit/test_migration_002.py (trigger_type/trigger_label CHECK-constraint coverage)
+        # — two independently scoped test modules. Extraction would require a shared fixture
+        # spanning both modules for a 3-line setup, out of scope for this cluster (see
+        # design/specs/099-dedupe-tests-unit-core/design.md, "Extract vs. annotate" worked
+        # example).
         db_path = tmp_path / "test.db"
         run_migrations(db_path)
 
         with sqlite_conn(db_path) as conn:
             conn.execute("INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (1.0, 1.0, 'running')")
+            # dup-ignore-end
             conn.commit()
             cursor = conn.execute(
                 "SELECT dropped_overflow, dropped_exhausted, dropped_shutdown FROM sessions WHERE id = 1"
@@ -162,6 +216,12 @@ class TestFreshMigration:
 
     def test_sessions_has_no_dropped_no_session_column(self, tmp_path: Path) -> None:
         """Sessions table does NOT have dropped_no_session (removed in new schema)."""
+        # dup-ignore-start: the "db_path = tmp_path / 'test.db'; run_migrations(db_path); with
+        # sqlite_conn(db_path) as conn:" setup below is mechanical boilerplate, but its duplicate
+        # occurrences pair with tests/unit/core/test_migration_runner.py — a different test
+        # directory. Extraction would need a shared helper module spanning tests/unit/core/ and
+        # tests/unit/, out of scope for this cluster (see
+        # design/specs/099-dedupe-tests-unit-core/design.md, "Extract vs. annotate" worked example).
         db_path = tmp_path / "test.db"
         run_migrations(db_path)
 
@@ -169,9 +229,12 @@ class TestFreshMigration:
             cursor = conn.execute("PRAGMA table_info(sessions)")
             cols = {row[1] for row in cursor.fetchall()}
             assert "dropped_no_session" not in cols
+        # dup-ignore-end
 
     def test_views_filter_by_tier(self, tmp_path: Path) -> None:
         """Views active_app_listeners and active_framework_listeners filter by source_tier."""
+        # dup-ignore-start: same cross-module boilerplate rationale as
+        # test_sessions_drop_counters_default_to_zero() above.
         db_path = tmp_path / "test.db"
         run_migrations(db_path)
 
@@ -181,6 +244,7 @@ class TestFreshMigration:
                 "(app_key, instance_index, name, handler_method, topic, source_location, source_tier) "
                 "VALUES ('my_app', 0, 'app_listener', 'on_state', 'state_changed', 'app.py:10', 'app')"
             )
+            # dup-ignore-end
             conn.execute(
                 "INSERT INTO listeners "
                 "(app_key, instance_index, name, handler_method, topic, source_location, source_tier) "
@@ -212,6 +276,12 @@ class TestFreshMigration:
 
     def test_listeners_has_mode_column_default_single(self, tmp_path: Path) -> None:
         """003.sql adds a mode column to listeners defaulting to 'single'."""
+        # dup-ignore-start: the "db_path = tmp_path / 'test.db'; run_migrations(db_path); with
+        # sqlite_conn(db_path) as conn:" setup below is mechanical boilerplate, but its duplicate
+        # occurrences pair with tests/unit/core/test_migration_runner.py — a different test
+        # directory. Extraction would need a shared helper module spanning tests/unit/core/ and
+        # tests/unit/, out of scope for this cluster (see
+        # design/specs/099-dedupe-tests-unit-core/design.md, "Extract vs. annotate" worked example).
         db_path = tmp_path / "test.db"
         run_migrations(db_path)
 
@@ -219,6 +289,7 @@ class TestFreshMigration:
             cursor = conn.execute("PRAGMA table_info(listeners)")
             cols = {row[1] for row in cursor.fetchall()}
             assert "mode" in cols
+            # dup-ignore-end
 
             conn.execute(
                 "INSERT INTO listeners (app_key, instance_index, name, handler_method, topic, source_location)"
@@ -230,6 +301,8 @@ class TestFreshMigration:
 
     def test_listeners_has_backpressure_column_default_block(self, tmp_path: Path) -> None:
         """008.sql adds a backpressure column to listeners defaulting to 'block'."""
+        # dup-ignore-start: same cross-directory boilerplate rationale as
+        # test_listeners_has_mode_column_default_single() above.
         db_path = tmp_path / "test.db"
         run_migrations(db_path)
 
@@ -237,6 +310,7 @@ class TestFreshMigration:
             cursor = conn.execute("PRAGMA table_info(listeners)")
             cols = {row[1] for row in cursor.fetchall()}
             assert "backpressure" in cols
+            # dup-ignore-end
 
             conn.execute(
                 "INSERT INTO listeners (app_key, instance_index, name, handler_method, topic, source_location)"
@@ -266,6 +340,8 @@ class TestFreshMigration:
 
     def test_scheduled_jobs_has_mode_column_default_single(self, tmp_path: Path) -> None:
         """006.sql adds a mode column to scheduled_jobs defaulting to 'single'."""
+        # dup-ignore-start: same cross-directory boilerplate rationale as
+        # test_listeners_has_mode_column_default_single() above.
         db_path = tmp_path / "test.db"
         run_migrations(db_path)
 
@@ -273,6 +349,7 @@ class TestFreshMigration:
             cursor = conn.execute("PRAGMA table_info(scheduled_jobs)")
             cols = {row[1] for row in cursor.fetchall()}
             assert "mode" in cols
+            # dup-ignore-end
 
             conn.execute(
                 "INSERT INTO scheduled_jobs"

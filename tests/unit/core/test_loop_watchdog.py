@@ -12,11 +12,13 @@ synchronous freeze does not starve the session-scoped loop and trip neighbouring
 """
 
 import asyncio
+import contextlib
 import inspect
 import re
 import threading
 import time
 import warnings
+from collections.abc import AsyncIterator
 from typing import cast
 from unittest.mock import MagicMock
 
@@ -51,6 +53,76 @@ def make_watchdog(
     )
 
 
+def make_idle_watchdog(**marker_kwargs: object) -> LoopWatchdog:
+    """Build a watchdog whose executor has no execution bound (current_execution=None).
+
+    Used by lifecycle tests (start/stop/restart) that only care that the daemon thread starts
+    and stops cleanly, not about stall attribution.
+    """
+    loop = asyncio.get_running_loop()
+    executor = make_marker_executor(**marker_kwargs)
+    executor.current_execution = None
+    return make_watchdog(loop, executor)
+
+
+async def freeze_loop_and_recover(
+    executor: MagicMock,
+    *,
+    block_seconds: float = _BLOCK,
+    clear_marker_before_recovery: bool = False,
+) -> None:
+    """Freeze the loop thread for `block_seconds` so the watchdog detects a stall, then let it
+    recover.
+
+    Every stall-detection test in this file shares this synchronous-freeze-then-async-recover
+    shape; only the surrounding warnings-capture context, the watchdog under test, and these two
+    parameters vary per test. When `clear_marker_before_recovery` is True, the executor's
+    current_execution marker is cleared before the recovery sleep — the "handler" is done, so a
+    CPU-starvation tick lag during recovery (common under heavy CI parallelism) finds no live
+    execution and opens no second episode, keeping single-warning assertions true under load.
+    """
+    time.sleep(block_seconds)  # noqa: ASYNC251 — intentional loop freeze; this is what we detect
+    if clear_marker_before_recovery:
+        executor.current_execution = None
+    await asyncio.sleep(_INTERVAL * 2)
+
+
+@contextlib.asynccontextmanager
+async def running_watchdog(watchdog: LoopWatchdog) -> AsyncIterator[LoopWatchdog]:
+    """start() `watchdog` on entry, guarantee stop() on exit — even if the body raises."""
+    watchdog.start()
+    try:
+        yield watchdog
+    finally:
+        watchdog.stop()
+
+
+async def run_stall_episode(
+    loop: asyncio.AbstractEventLoop,
+    executor: MagicMock,
+    *,
+    hassette: MagicMock | None = None,
+    block_seconds: float = _BLOCK,
+    clear_marker_before_recovery: bool = False,
+) -> None:
+    """Build a watchdog, start it, freeze the loop thread, let it recover, then stop.
+
+    The full build/start/detect/recover/stop lifecycle most stall-detection tests in this file
+    need. A test that must inspect watchdog state between recovery and stop (e.g. confirming the
+    daemon thread survived an escalated warning), or that builds LoopWatchdog directly (e.g. to
+    pass on_stall), calls freeze_loop_and_recover directly instead so it can keep its own
+    watchdog reference and try/finally around the inspection.
+    """
+    watchdog = make_watchdog(loop, executor, hassette=hassette)
+    watchdog.start()
+    try:
+        await freeze_loop_and_recover(
+            executor, block_seconds=block_seconds, clear_marker_before_recovery=clear_marker_before_recovery
+        )
+    finally:
+        watchdog.stop()
+
+
 def test_watchdog_does_not_call_set_debug() -> None:
     """LoopWatchdog must never call loop.set_debug(True)."""
     src = inspect.getsource(loop_watchdog_module)
@@ -60,28 +132,17 @@ def test_watchdog_does_not_call_set_debug() -> None:
 @pytest.mark.asyncio(loop_scope="function")
 async def test_double_start_is_noop() -> None:
     """Starting the watchdog twice is a no-op — second call must not spawn another thread."""
-    loop = asyncio.get_running_loop()
-    executor = make_marker_executor(stamp_task_id=True)
-    executor.current_execution = None  # no execution running
-
-    watchdog = make_watchdog(loop, executor)
-    try:
-        watchdog.start()
+    watchdog = make_idle_watchdog(stamp_task_id=True)
+    async with running_watchdog(watchdog):
         thread_after_first = watchdog._daemon_thread
         watchdog.start()  # second call — must be a no-op
         assert watchdog._daemon_thread is thread_after_first, "double start spawned a second thread"
-    finally:
-        watchdog.stop()
 
 
 @pytest.mark.asyncio(loop_scope="function")
 async def test_stop_cleans_up_thread_and_handle() -> None:
     """After stop(), no daemon thread is alive and the tick handle is cancelled."""
-    loop = asyncio.get_running_loop()
-    executor = make_marker_executor(stamp_task_id=True)
-    executor.current_execution = None
-
-    watchdog = make_watchdog(loop, executor)
+    watchdog = make_idle_watchdog(stamp_task_id=True)
     watchdog.start()
     thread = watchdog._daemon_thread
     assert thread is not None
@@ -106,11 +167,7 @@ async def test_stop_before_start_is_noop() -> None:
 @pytest.mark.asyncio(loop_scope="function")
 async def test_restart_after_stop_works() -> None:
     """After stop(), a second start() re-installs cleanly."""
-    loop = asyncio.get_running_loop()
-    executor = make_marker_executor(stamp_task_id=True)
-    executor.current_execution = None
-
-    watchdog = make_watchdog(loop, executor)
+    watchdog = make_idle_watchdog(stamp_task_id=True)
     watchdog.start()
     watchdog.stop()
 
@@ -136,21 +193,9 @@ async def test_blocking_sleep_emits_exactly_one_warning() -> None:
     # filterwarnings("error") is the global default in this test suite, so
     # pytest.warns must temporarily downgrade back to warning to catch it.
     with pytest.warns(HassetteBlockingIOWarning) as record:
-        watchdog = make_watchdog(loop, executor)
-        watchdog.start()
-        try:
-            # Freeze the loop thread — this is the very thing under test.
-            time.sleep(_BLOCK)  # noqa: ASYNC251 — intentional loop freeze; this is what we detect
-            # The "handler" is done: clear its marker (as unbind_execution_context does in
-            # production) before yielding. The daemon already captured this marker during the
-            # freeze, so episode 1 still emits — but a CPU-starvation tick lag during recovery
-            # (common under heavy CI parallelism) now finds no live execution and opens no second
-            # episode, so the one-warning assertion stays true under load.
-            executor.current_execution = None
-            # Let the watchdog detect and the loop recover.
-            await asyncio.sleep(_INTERVAL * 2)
-        finally:
-            watchdog.stop()
+        # The "handler" is done: clear its marker (as unbind_execution_context does in
+        # production) before yielding — see freeze_loop_and_recover's docstring for why.
+        await run_stall_episode(loop, executor, clear_marker_before_recovery=True)
 
     # Exactly one warning, naming the right app.
     assert len(record) == 1, f"expected 1 warning, got {len(record)}: {[str(w.message) for w in record]}"
@@ -170,13 +215,7 @@ async def test_blocking_sleep_warning_reports_full_duration() -> None:
     executor = make_marker_executor(app_key="my_app", stamp_task_id=True)
 
     with pytest.warns(HassetteBlockingIOWarning) as record:
-        watchdog = make_watchdog(loop, executor)
-        watchdog.start()
-        try:
-            time.sleep(_BLOCK)  # noqa: ASYNC251
-            await asyncio.sleep(_INTERVAL * 2)
-        finally:
-            watchdog.stop()
+        await run_stall_episode(loop, executor)
 
     msg = str(record[0].message)
     match = re.search(r"stall: (\d+)ms", msg)
@@ -208,12 +247,9 @@ async def test_async_sleep_produces_no_warning() -> None:
     with warnings.catch_warnings():
         warnings.simplefilter("error", HassetteBlockingIOWarning)
         watchdog = make_watchdog(loop, executor)
-        watchdog.start()
-        try:
+        async with running_watchdog(watchdog):
             # This must not raise — the loop is free throughout.
             await asyncio.sleep(_BLOCK + _INTERVAL)
-        finally:
-            watchdog.stop()
     # If we reach here without an exception, zero warnings were emitted. ✓
 
 
@@ -225,13 +261,7 @@ async def test_default_config_emits_warning_not_exception() -> None:
 
     # Temporarily suppress the global "error" filter so we can catch the plain warning.
     with pytest.warns(HassetteBlockingIOWarning):
-        watchdog = make_watchdog(loop, executor)
-        watchdog.start()
-        try:
-            time.sleep(_BLOCK)  # noqa: ASYNC251
-            await asyncio.sleep(_INTERVAL * 2)
-        finally:
-            watchdog.stop()
+        await run_stall_episode(loop, executor)
     # Reaching here means: a warning was emitted but no exception was raised ✓
 
 
@@ -249,13 +279,7 @@ async def test_error_behavior_emits_via_warnings_not_unconditional_raise() -> No
     hassette = make_blocking_io_hassette(behavior=BlockingIOBehavior.ERROR)
 
     with pytest.warns(HassetteBlockingIOWarning):
-        watchdog = make_watchdog(loop, executor, hassette=hassette)
-        watchdog.start()
-        try:
-            time.sleep(_BLOCK)  # noqa: ASYNC251
-            await asyncio.sleep(_INTERVAL * 2)
-        finally:
-            watchdog.stop()
+        await run_stall_episode(loop, executor, hassette=hassette)
 
 
 @pytest.mark.asyncio(loop_scope="function")
@@ -282,11 +306,9 @@ async def test_on_stall_fires_before_warning_and_survives_escalation() -> None:
         )
         watchdog.start()
         try:
-            time.sleep(_BLOCK)  # noqa: ASYNC251
             # Handler done — clear the marker so a CPU-starvation tick lag during recovery opens
             # no second episode (which would call on_stall twice and fail assert_called_once).
-            executor.current_execution = None
-            await asyncio.sleep(_INTERVAL * 2)
+            await freeze_loop_and_recover(executor, clear_marker_before_recovery=True)
             # The daemon must still be alive after the escalated warning (not killed).
             assert watchdog._daemon_thread is not None
             assert watchdog._daemon_thread.is_alive()
@@ -310,13 +332,7 @@ async def test_ignore_behavior_suppresses_warning() -> None:
 
     with warnings.catch_warnings():
         warnings.simplefilter("error", HassetteBlockingIOWarning)
-        watchdog = make_watchdog(loop, executor, hassette=hassette)
-        watchdog.start()
-        try:
-            time.sleep(_BLOCK)  # noqa: ASYNC251
-            await asyncio.sleep(_INTERVAL * 2)
-        finally:
-            watchdog.stop()
+        await run_stall_episode(loop, executor, hassette=hassette)
     # No exception raised → IGNORE suppressed the warning ✓
 
 
@@ -327,17 +343,8 @@ async def test_deduplication_one_warning_per_stall_episode() -> None:
     executor = make_marker_executor(app_key="dedup_app", stamp_task_id=True)
 
     with pytest.warns(HassetteBlockingIOWarning) as record:
-        watchdog = make_watchdog(loop, executor)
-        watchdog.start()
-        try:
-            # Sleep long enough that the daemon polls several times (> 3 check intervals).
-            time.sleep(_BLOCK * 2)  # noqa: ASYNC251
-            # Handler done — clear the marker before yielding so a CPU-starvation tick lag during
-            # recovery opens no second episode (the daemon captured it during the freeze).
-            executor.current_execution = None
-            await asyncio.sleep(_INTERVAL * 2)
-        finally:
-            watchdog.stop()
+        # Sleep long enough that the daemon polls several times (> 3 check intervals).
+        await run_stall_episode(loop, executor, block_seconds=_BLOCK * 2, clear_marker_before_recovery=True)
 
     assert len(record) == 1, f"expected 1 warning for one stall, got {len(record)}"
 
@@ -424,9 +431,7 @@ async def test_displaced_block_not_attributed_to_innocent_app() -> None:
         )
         watchdog.start()
         try:
-            time.sleep(_BLOCK)  # noqa: ASYNC251 — intentional loop freeze; this is what we detect
-            executor.current_execution = None
-            await asyncio.sleep(_INTERVAL * 2)
+            await freeze_loop_and_recover(executor, clear_marker_before_recovery=True)
         finally:
             watchdog.stop()
 
@@ -456,9 +461,7 @@ async def test_attributed_block_records_reason_attributed() -> None:
         )
         watchdog.start()
         try:
-            time.sleep(_BLOCK)  # noqa: ASYNC251 — intentional loop freeze; this is what we detect
-            executor.current_execution = None
-            await asyncio.sleep(_INTERVAL * 2)
+            await freeze_loop_and_recover(executor, clear_marker_before_recovery=True)
         finally:
             watchdog.stop()
 

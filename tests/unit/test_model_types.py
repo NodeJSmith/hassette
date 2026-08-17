@@ -266,6 +266,15 @@ class TestDashboardAppGridEntryManifestFields:
         assert obj.error_traceback is None
 
     def test_manifest_metadata_fields_round_trip(self) -> None:
+        # dup-ignore-start: same ("my_app", index=0, "MyApp[0]", "MyApp", RUNNING) literal shape
+        # used by tests/unit/core/test_runtime_query_service.py and tests/e2e/mock_fixtures.py —
+        # different test tiers/directories building unrelated fixture/response data;
+        # src/hassette/test_utils/web_manifest_helpers.py's make_app_instance_info() factory
+        # builds the schemas.app_snapshots.AppInstanceInfo used elsewhere, not this Pydantic
+        # response model (web.models.AppInstanceResponse), so it doesn't directly apply here;
+        # adopting a shared builder across all these call sites is out of scope for this cluster,
+        # which is marker-only per this task's file classification (see
+        # design/specs/099-dedupe-tests-unit-core/design.md, Group B row).
         instance = AppInstanceResponse(
             app_key="my_app",
             index=0,
@@ -273,6 +282,7 @@ class TestDashboardAppGridEntryManifestFields:
             class_name="MyApp",
             status=ResourceStatus.RUNNING,
         )
+        # dup-ignore-end
         obj = DashboardAppGridEntry(
             app_key="my_app",
             status="running",
@@ -312,6 +322,9 @@ class TestDashboardAppGridEntryManifestFields:
 class TestResourceStatus:
     def test_accepts_all_nine_resource_status_values(self) -> None:
         for value in ResourceStatus:
+            # dup-ignore-start: same ("my_app", index=0, "MyApp[0]", "MyApp", <status>) literal
+            # shape as test_manifest_metadata_fields_round_trip() above — see that dup-ignore
+            # comment for the full cross-file/cross-tier rationale.
             obj = AppInstanceResponse(
                 app_key="my_app",
                 index=0,
@@ -319,10 +332,14 @@ class TestResourceStatus:
                 class_name="MyApp",
                 status=value,
             )
+            # dup-ignore-end
             assert obj.status == value
 
     def test_rejects_value_not_in_resource_status(self) -> None:
         with pytest.raises(ValidationError):
+            # dup-ignore-start: same ("my_app", index=0, "MyApp[0]", "MyApp", <status>) literal
+            # shape as test_manifest_metadata_fields_round_trip() above — see that dup-ignore
+            # comment for the full cross-file/cross-tier rationale.
             AppInstanceResponse(
                 app_key="my_app",
                 index=0,
@@ -330,6 +347,7 @@ class TestResourceStatus:
                 class_name="MyApp",
                 status="active",
             )
+            # dup-ignore-end
 
     def test_rejects_value_not_in_resource_status_on_service_info(self) -> None:
         with pytest.raises(ValidationError):
@@ -346,6 +364,9 @@ class TestResourceStatus:
             ResourceStatus.STOPPING,
             ResourceStatus.EXHAUSTED_COOLING,
         ):
+            # dup-ignore-start: same ("my_app", index=0, "MyApp[0]", "MyApp", <status>) literal
+            # shape as test_manifest_metadata_fields_round_trip() above — see that dup-ignore
+            # comment for the full cross-file/cross-tier rationale.
             obj = AppInstanceResponse(
                 app_key="my_app",
                 index=0,
@@ -353,6 +374,7 @@ class TestResourceStatus:
                 class_name="MyApp",
                 status=value,
             )
+            # dup-ignore-end
             assert obj.status == value
 
 

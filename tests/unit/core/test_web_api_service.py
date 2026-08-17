@@ -2,6 +2,8 @@
 
 import asyncio
 import ipaddress
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -39,31 +41,35 @@ def web_api_service(unused_tcp_port_factory, tmp_path) -> WebApiService:
     return _make_web_api_service(unused_tcp_port_factory, tmp_path)
 
 
+@contextmanager
+def patch_uvicorn_serve() -> Iterator[tuple[MagicMock, MagicMock]]:
+    """Patch hassette.core.web_api_service.uvicorn so serve() runs against a fake Server
+    instance, without binding a real socket. Yields (mock_uvicorn, mock_server).
+    """
+    with patch("hassette.core.web_api_service.uvicorn") as mock_uvicorn:
+        mock_server = MagicMock()
+        mock_server.serve = AsyncMock()
+        mock_uvicorn.Server.return_value = mock_server
+        yield mock_uvicorn, mock_server
+
+
 class TestUvicornConfig:
     async def test_uses_websockets_sansio_protocol(self, web_api_service: WebApiService) -> None:
-        with patch("hassette.core.web_api_service.uvicorn") as mock_uvicorn:
-            mock_server = MagicMock()
-            mock_server.serve = AsyncMock()
-            mock_uvicorn.Server.return_value = mock_server
-
+        with patch_uvicorn_serve() as (mock_uvicorn, _mock_server):
             await web_api_service.serve()
 
-            config_call = mock_uvicorn.Config.call_args
-            assert config_call.kwargs["ws"] == "websockets-sansio"
+        config_call = mock_uvicorn.Config.call_args
+        assert config_call.kwargs["ws"] == "websockets-sansio"
 
     async def test_disables_uvicorn_proxy_headers(self, web_api_service: WebApiService) -> None:
         """proxy_headers=False so uvicorn's own ProxyHeadersMiddleware never rewrites
         scope["client"] before trusted_proxies' peer check sees the real peer.
         """
-        with patch("hassette.core.web_api_service.uvicorn") as mock_uvicorn:
-            mock_server = MagicMock()
-            mock_server.serve = AsyncMock()
-            mock_uvicorn.Server.return_value = mock_server
-
+        with patch_uvicorn_serve() as (mock_uvicorn, _mock_server):
             await web_api_service.serve()
 
-            config_call = mock_uvicorn.Config.call_args
-            assert config_call.kwargs["proxy_headers"] is False
+        config_call = mock_uvicorn.Config.call_args
+        assert config_call.kwargs["proxy_headers"] is False
 
     async def test_serve_passes_resolved_credentials_to_app_factory(self, unused_tcp_port_factory, tmp_path) -> None:
         service = _make_web_api_service(unused_tcp_port_factory, tmp_path, host="127.0.0.1")
@@ -72,12 +78,8 @@ class TestUvicornConfig:
 
         with (
             patch("hassette.core.web_api_service.create_fastapi_app") as mock_create_app,
-            patch("hassette.core.web_api_service.uvicorn") as mock_uvicorn,
+            patch_uvicorn_serve(),
         ):
-            mock_server = MagicMock()
-            mock_server.serve = AsyncMock()
-            mock_uvicorn.Server.return_value = mock_server
-
             await service.serve()
 
         mock_create_app.assert_called_once_with(
@@ -89,16 +91,24 @@ class TestUvicornConfig:
 
 class TestShutdownSocketCleanup:
     async def test_cancellation_calls_server_shutdown(self, web_api_service: WebApiService) -> None:
-        with patch("hassette.core.web_api_service.uvicorn") as mock_uvicorn:
-            mock_server = MagicMock()
+        with patch_uvicorn_serve() as (_mock_uvicorn, mock_server):
             mock_server.serve = AsyncMock(side_effect=asyncio.CancelledError)
             mock_server.shutdown = AsyncMock()
-            mock_uvicorn.Server.return_value = mock_server
 
             with pytest.raises(asyncio.CancelledError):
                 await web_api_service.serve()
 
             mock_server.shutdown.assert_awaited_once()
+
+
+async def collect_warning_messages(service: WebApiService) -> list[str]:
+    """Run on_initialize() with service.logger patched and return the text of every
+    warning-level log call.
+    """
+    with patch.object(service, "logger") as mock_logger:
+        await service.on_initialize()
+
+    return [call.args[0] for call in mock_logger.warning.call_args_list]
 
 
 class TestStartupGuards:
@@ -127,10 +137,8 @@ class TestStartupGuards:
     async def test_warns_when_non_loopback_and_no_trusted_proxies(self, unused_tcp_port_factory, tmp_path) -> None:
         service = _make_web_api_service(unused_tcp_port_factory, tmp_path, host="0.0.0.0", trusted_proxies=())
 
-        with patch.object(service, "logger") as mock_logger:
-            await service.on_initialize()
+        warning_messages = await collect_warning_messages(service)
 
-        warning_messages = [call.args[0] for call in mock_logger.warning.call_args_list]
         assert any("TLS" in msg for msg in warning_messages)
 
     async def test_no_warning_when_trusted_proxies_configured(self, unused_tcp_port_factory, tmp_path) -> None:
@@ -138,19 +146,15 @@ class TestStartupGuards:
             unused_tcp_port_factory, tmp_path, host="0.0.0.0", trusted_proxies=("10.0.0.5",)
         )
 
-        with patch.object(service, "logger") as mock_logger:
-            await service.on_initialize()
+        warning_messages = await collect_warning_messages(service)
 
-        warning_messages = [call.args[0] for call in mock_logger.warning.call_args_list]
         assert not any("TLS" in msg for msg in warning_messages)
 
     async def test_no_warning_when_host_is_loopback(self, unused_tcp_port_factory, tmp_path) -> None:
         service = _make_web_api_service(unused_tcp_port_factory, tmp_path, host="localhost", trusted_proxies=())
 
-        with patch.object(service, "logger") as mock_logger:
-            await service.on_initialize()
+        warning_messages = await collect_warning_messages(service)
 
-        warning_messages = [call.args[0] for call in mock_logger.warning.call_args_list]
         assert not any("TLS" in msg for msg in warning_messages)
 
 
@@ -285,10 +289,7 @@ class TestLiveAppTrustedProxyRefresh:
             await service.on_initialize()
 
         # Simulate serve() building the live FastAPI app, without actually binding a socket.
-        with patch("hassette.core.web_api_service.uvicorn") as mock_uvicorn:
-            mock_server = MagicMock()
-            mock_server.serve = AsyncMock()
-            mock_uvicorn.Server.return_value = mock_server
+        with patch_uvicorn_serve():
             await service.serve()
 
         assert service._app is not None

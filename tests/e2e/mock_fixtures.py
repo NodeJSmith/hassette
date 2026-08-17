@@ -41,6 +41,13 @@ def build_manifests() -> list[AppManifestInfo]:
             status=ManifestStatus.RUNNING,
             instance_count=1,
             instances=[
+                # dup-ignore-start: same AppInstanceInfo("my_app", index=0, ...) literal shape used
+                # by tests/unit/core/test_runtime_query_service.py and tests/unit/test_model_types.py
+                # — different test tiers/directories building unrelated fixture data;
+                # src/hassette/test_utils/web_manifest_helpers.py's make_app_instance_info() factory
+                # already covers this shape, but adopting it across all three call sites is out of
+                # scope for this cluster, which is marker-only per this task's file classification
+                # (see design/specs/099-dedupe-tests-unit-core/design.md, Group B row).
                 AppInstanceInfo(
                     app_key="my_app",
                     index=0,
@@ -49,6 +56,7 @@ def build_manifests() -> list[AppManifestInfo]:
                     status=ResourceStatus.RUNNING,
                     owner_id="MyApp.MyApp[0]",
                 )
+                # dup-ignore-end
             ],
         ),
         make_manifest(
@@ -154,6 +162,13 @@ def build_old_snapshot() -> AppStatusSnapshot:
     """Build the legacy AppStatusSnapshot used to seed mock_hassette."""
     return AppStatusSnapshot(
         instances=[
+            # dup-ignore-start: same AppInstanceInfo("my_app", index=0, ...) literal shape used by
+            # tests/unit/core/test_runtime_query_service.py and tests/unit/test_model_types.py —
+            # different test tiers/directories building unrelated fixture data;
+            # src/hassette/test_utils/web_manifest_helpers.py's make_app_instance_info() factory
+            # already covers this shape, but adopting it across all three call sites is out of
+            # scope for this cluster, which is marker-only per this task's file classification
+            # (see design/specs/099-dedupe-tests-unit-core/design.md, Group B row).
             AppInstanceInfo(
                 app_key="my_app",
                 index=0,
@@ -162,6 +177,7 @@ def build_old_snapshot() -> AppStatusSnapshot:
                 status=ResourceStatus.RUNNING,
                 owner_id="MyApp.MyApp[0]",
             ),
+            # dup-ignore-end
             AppInstanceInfo(
                 app_key="nosource_app",
                 index=0,

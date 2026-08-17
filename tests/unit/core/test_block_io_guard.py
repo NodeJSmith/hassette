@@ -68,68 +68,50 @@ def test_default_blocking_io_behavior_is_warn() -> None:
     assert DEFAULT_BLOCKING_IO_BEHAVIOR is BlockingIOBehavior.WARN
 
 
-def test_resolve_default_when_both_none() -> None:
-    """With no per-app and no global config set, resolve returns WARN."""
-    cfg = types.SimpleNamespace(blocking_io=types.SimpleNamespace(behavior=None))
+def make_resolve_owner(
+    global_behavior: BlockingIOBehavior | str | None,
+    per_app_behavior: BlockingIOBehavior | None = None,
+) -> object:
+    """Build a MockOwner wired to a global `blocking_io.behavior` and an optional per-app
+    override — the shared setup every resolve_blocking_io_behavior precedence test needs.
+    """
+    cfg = types.SimpleNamespace(blocking_io=types.SimpleNamespace(behavior=global_behavior))
     mock_hassette = types.SimpleNamespace(config=cfg)
 
     class MockOwner:
-        app_config = types.SimpleNamespace(blocking_io_behavior=None)
+        app_config = types.SimpleNamespace(blocking_io_behavior=per_app_behavior)
         hassette = mock_hassette
 
-    result = resolve_blocking_io_behavior(MockOwner())
+    return MockOwner()
+
+
+def test_resolve_default_when_both_none() -> None:
+    """With no per-app and no global config set, resolve returns WARN."""
+    result = resolve_blocking_io_behavior(make_resolve_owner(None))
     assert result is BlockingIOBehavior.WARN
 
 
 def test_resolve_per_app_wins_over_global() -> None:
     """Per-app blocking_io_behavior overrides global config."""
-    cfg = types.SimpleNamespace(blocking_io=types.SimpleNamespace(behavior=BlockingIOBehavior.WARN))
-    mock_hassette = types.SimpleNamespace(config=cfg)
-
-    class MockOwner:
-        app_config = types.SimpleNamespace(blocking_io_behavior=BlockingIOBehavior.IGNORE)
-        hassette = mock_hassette
-
-    result = resolve_blocking_io_behavior(MockOwner())
+    result = resolve_blocking_io_behavior(make_resolve_owner(BlockingIOBehavior.WARN, BlockingIOBehavior.IGNORE))
     assert result is BlockingIOBehavior.IGNORE  # per-app wins
 
 
 def test_resolve_global_wins_when_per_app_none() -> None:
     """Global blocking_io.behavior is used when per-app is None."""
-    cfg = types.SimpleNamespace(blocking_io=types.SimpleNamespace(behavior=BlockingIOBehavior.ERROR))
-    mock_hassette = types.SimpleNamespace(config=cfg)
-
-    class MockOwner:
-        app_config = types.SimpleNamespace(blocking_io_behavior=None)
-        hassette = mock_hassette
-
-    result = resolve_blocking_io_behavior(MockOwner())
+    result = resolve_blocking_io_behavior(make_resolve_owner(BlockingIOBehavior.ERROR))
     assert result is BlockingIOBehavior.ERROR  # global wins when per-app is None
 
 
 def test_resolve_per_app_ignore_suppresses_global_error() -> None:
     """Per-app IGNORE overrides a global ERROR setting."""
-    cfg = types.SimpleNamespace(blocking_io=types.SimpleNamespace(behavior=BlockingIOBehavior.ERROR))
-    mock_hassette = types.SimpleNamespace(config=cfg)
-
-    class MockOwner:
-        app_config = types.SimpleNamespace(blocking_io_behavior=BlockingIOBehavior.IGNORE)
-        hassette = mock_hassette
-
-    result = resolve_blocking_io_behavior(MockOwner())
+    result = resolve_blocking_io_behavior(make_resolve_owner(BlockingIOBehavior.ERROR, BlockingIOBehavior.IGNORE))
     assert result is BlockingIOBehavior.IGNORE
 
 
 def test_resolve_string_values_coerce() -> None:
     """String enum values coerce correctly during resolution."""
-    cfg = types.SimpleNamespace(blocking_io=types.SimpleNamespace(behavior="error"))
-    mock_hassette = types.SimpleNamespace(config=cfg)
-
-    class MockOwner:
-        app_config = types.SimpleNamespace(blocking_io_behavior=None)
-        hassette = mock_hassette
-
-    result = resolve_blocking_io_behavior(MockOwner())
+    result = resolve_blocking_io_behavior(make_resolve_owner("error"))
     assert result is BlockingIOBehavior.ERROR
 
 

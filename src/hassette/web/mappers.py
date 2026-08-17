@@ -70,6 +70,11 @@ def manifest_response_fields(manifest: AppManifestInfo) -> dict[str, Any]:
     Both response models mirror this exact field set from the manifest snapshot. Extracted so
     the two call sites (here and ``dashboard_app_grid``) can't drift apart as the fields evolve.
     """
+    # dup-ignore-start: API-response layer output. Shares field names with
+    # hassette.core.telemetry.repository.manifest_insert_params() (DB-params layer, asserted
+    # against verbatim by tests/unit/core/test_manifest_repository.py) by coincidence — same
+    # source model, different consumer/field subset; coupling the two layers to satisfy the
+    # checker would be the wrong direction.
     return {
         "app_key": manifest.app_key,
         "class_name": manifest.class_name,
@@ -86,6 +91,7 @@ def manifest_response_fields(manifest: AppManifestInfo) -> dict[str, Any]:
         "error_traceback": manifest.error_traceback,
         "in_current_config": manifest.in_current_config,
     }
+    # dup-ignore-end
 
 
 def app_manifest_response_from(manifest: AppManifestInfo) -> AppManifestResponse:
