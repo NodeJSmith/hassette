@@ -70,6 +70,18 @@ def make_logging_service(
     return svc
 
 
+async def make_initialized_logging_service(**kw) -> LoggingService:
+    """Build a LoggingService via make_logging_service() and run on_initialize().
+
+    Kwargs pass straight through to make_logging_service() (stream_handler, hassette) —
+    with no hassette given, one is created with a mocked database_service, matching that
+    factory's own default.
+    """
+    svc = make_logging_service(**kw)
+    await svc.on_initialize()
+    return svc
+
+
 class TestLogPersistenceHandlerConstructor:
     """LogPersistenceHandler accepts db_service and loop via constructor; no set_database()."""
 
@@ -148,11 +160,7 @@ class TestLoggingServiceOnInitialize:
 
     async def test_on_initialize_calls_mark_ready(self) -> None:
         """mark_ready() is called after pipeline starts — unconditionally."""
-        hassette = make_mock_hassette(sealed=False)
-        hassette.database_service = make_db_service()
-        svc = make_logging_service(hassette=hassette)
-
-        await svc.on_initialize()
+        svc = await make_initialized_logging_service()
 
         try:
             assert svc.is_ready()
@@ -162,11 +170,7 @@ class TestLoggingServiceOnInitialize:
 
     async def test_on_initialize_all_three_handlers_attached_to_listener(self) -> None:
         """Stream, capture, and persistence handlers are all in the QueueListener."""
-        hassette = make_mock_hassette(sealed=False)
-        hassette.database_service = make_db_service()
-        svc = make_logging_service(hassette=hassette)
-
-        await svc.on_initialize()
+        svc = await make_initialized_logging_service()
 
         try:
             assert svc._queue_listener is not None
@@ -211,11 +215,7 @@ class TestLoggingServiceOnInitialize:
         # Put stream handler on logger to simulate Phase 1
         hassette_logger.addHandler(stream_handler)
 
-        hassette = make_mock_hassette(sealed=False)
-        hassette.database_service = make_db_service()
-        svc = make_logging_service(stream_handler=stream_handler, hassette=hassette)
-
-        await svc.on_initialize()
+        svc = await make_initialized_logging_service(stream_handler=stream_handler)
 
         try:
             handler_types = [type(h) for h in hassette_logger.handlers]
@@ -235,11 +235,7 @@ class TestLoggingServiceOnInitialize:
         stale_queue_handler = logging.handlers.QueueHandler(stale_q)
         hassette_logger.addHandler(stale_queue_handler)
 
-        hassette = make_mock_hassette(sealed=False)
-        hassette.database_service = make_db_service()
-        svc = make_logging_service(hassette=hassette)
-
-        await svc.on_initialize()
+        svc = await make_initialized_logging_service()
 
         try:
             assert stale_queue_handler not in hassette_logger.handlers, (
@@ -263,11 +259,7 @@ class TestLoggingServiceOnShutdown:
         stream_handler = logging.StreamHandler()
         hassette_logger.addHandler(stream_handler)
 
-        hassette = make_mock_hassette(sealed=False)
-        hassette.database_service = make_db_service()
-        svc = make_logging_service(stream_handler=stream_handler, hassette=hassette)
-
-        await svc.on_initialize()
+        svc = await make_initialized_logging_service(stream_handler=stream_handler)
         # Record the pipeline objects that were installed — on_shutdown() clears both refs
         queue_handler = svc._queue_handler
         queue_listener = svc._queue_listener
@@ -290,11 +282,7 @@ class TestLoggingServiceOnShutdown:
 
     async def test_on_shutdown_sets_capture_handler_shutting_down(self) -> None:
         """capture_handler.shutting_down is set to True during shutdown."""
-        hassette = make_mock_hassette(sealed=False)
-        hassette.database_service = make_db_service()
-        svc = make_logging_service(hassette=hassette)
-
-        await svc.on_initialize()
+        svc = await make_initialized_logging_service()
         assert not svc.capture_handler.shutting_down
 
         await svc.on_shutdown()
@@ -304,11 +292,7 @@ class TestLoggingServiceOnShutdown:
 
     async def test_on_shutdown_flushes_persistence_handler(self) -> None:
         """flush_if_pending() is called on persistence_handler during shutdown."""
-        hassette = make_mock_hassette(sealed=False)
-        hassette.database_service = make_db_service()
-        svc = make_logging_service(hassette=hassette)
-
-        await svc.on_initialize()
+        svc = await make_initialized_logging_service()
 
         assert svc.persistence_handler is not None
         svc.persistence_handler.flush_if_pending = Mock()
@@ -330,11 +314,7 @@ class TestPersistenceActive:
         assert svc.persistence_active is False
 
     async def test_true_after_initialize(self) -> None:
-        hassette = make_mock_hassette(sealed=False)
-        hassette.database_service = make_db_service()
-        svc = make_logging_service(hassette=hassette)
-
-        await svc.on_initialize()
+        svc = await make_initialized_logging_service()
 
         try:
             assert svc.persistence_active is True
@@ -364,11 +344,7 @@ class TestPersistenceActive:
             remove_queue_handlers()
 
     async def test_false_after_shutdown(self) -> None:
-        hassette = make_mock_hassette(sealed=False)
-        hassette.database_service = make_db_service()
-        svc = make_logging_service(hassette=hassette)
-
-        await svc.on_initialize()
+        svc = await make_initialized_logging_service()
         await svc.on_shutdown()
 
         assert svc.persistence_active is False
@@ -399,11 +375,7 @@ class TestDropCounters:
                 svc._queue_listener.stop()
 
     async def test_db_write_queue_drops_reads_from_persistence_handler(self) -> None:
-        hassette = make_mock_hassette(sealed=False)
-        hassette.database_service = make_db_service()
-        svc = make_logging_service(hassette=hassette)
-
-        await svc.on_initialize()
+        svc = await make_initialized_logging_service()
 
         try:
             assert svc.persistence_handler is not None
@@ -419,11 +391,7 @@ class TestDropCounters:
 
     async def test_db_write_queue_drops_survives_shutdown(self) -> None:
         """The final count stays readable after the pipeline is torn down."""
-        hassette = make_mock_hassette(sealed=False)
-        hassette.database_service = make_db_service()
-        svc = make_logging_service(hassette=hassette)
-
-        await svc.on_initialize()
+        svc = await make_initialized_logging_service()
 
         assert svc.persistence_handler is not None
         with svc.persistence_handler._dropped_lock:
@@ -437,11 +405,7 @@ class TestDropCounters:
 
     async def test_log_queue_drops_survives_shutdown(self) -> None:
         """The final log queue count stays readable after the pipeline is torn down."""
-        hassette = make_mock_hassette(sealed=False)
-        hassette.database_service = make_db_service()
-        svc = make_logging_service(hassette=hassette)
-
-        await svc.on_initialize()
+        svc = await make_initialized_logging_service()
 
         assert svc._queue_handler is not None
         with svc._queue_handler._dropped_lock:
