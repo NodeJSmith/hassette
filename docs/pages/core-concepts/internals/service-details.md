@@ -372,7 +372,7 @@ When `config.web_api.run` is `False`, `serve()` blocks on `shutdown_event.wait()
 
 ### RuntimeQueryService
 
-`RuntimeQueryService` subscribes to bus events on initialization and broadcasts WebSocket-push-worthy events as they arrive. State changes, app status changes, service status changes, connectivity events, and batched execution completions are serialized by `build_and_broadcast()` or `broadcast()` and fanned out to all registered WebSocket clients. It also wires the logging capture handler to the same broadcast path so live log records can stream to the UI.
+`RuntimeQueryService` subscribes to bus events on initialization and broadcasts WebSocket-push-worthy events as they arrive. App status changes, service status changes, connectivity events, and batched execution completions are serialized by `build_and_broadcast()` or `broadcast()` and fanned out to all registered WebSocket clients. It also wires the logging capture handler to the same broadcast path so live log records can stream to the UI.
 
 Each connected client gets its own `asyncio.Queue` of bounded size (`_WS_CLIENT_QUEUE_MAX`). A slow client that exhausts its queue causes its frames to be dropped with a rate-limited log line. Clients register via `register_ws_client()` and deregister via `unregister_ws_client()`.
 
