@@ -21,7 +21,7 @@ from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
 from hassette.core.loop_watchdog import WatchdogEvent
 
-from .helpers import DbFixture, running_command_executor
+from .helpers import DbFixture, drain_db_writes, fetch_blocking_events, running_command_executor
 
 
 @pytest.fixture
@@ -64,35 +64,13 @@ def _make_monkeypatch_event(*, app_key: str | None = "my_app") -> MonkeypatchEve
     )
 
 
-async def _drain_tasks(db_svc: DatabaseService) -> None:
-    """Block until every enqueued record_blocking_event DB write has been processed.
-
-    record_blocking_event() calls database_service.enqueue(), which places the INSERT coroutine
-    on the DB write queue for the single-writer worker. The worker drains the queue in FIFO order,
-    so submitting a sentinel coroutine and awaiting it guarantees that every write enqueued before
-    it has finished — deterministic where a fixed sleep would race the worker on slow CI.
-    """
-
-    async def _sentinel() -> None:
-        return None
-
-    await db_svc.submit(_sentinel())
-
-
-async def _fetch_blocking_events(db_svc: DatabaseService) -> list[dict]:
-    """Fetch all rows from blocking_events as plain dicts."""
-    cursor = await db_svc.db.execute("SELECT * FROM blocking_events ORDER BY id")
-    rows = await cursor.fetchall()
-    return [dict(row) for row in rows]
-
-
 async def _record_and_fetch(
     executor: CommandExecutor, db_svc: DatabaseService, event: WatchdogEvent | MonkeypatchEvent
 ) -> list[dict]:
     """Record one blocking event, wait for its DB write to drain, and return all persisted rows."""
     executor.record_blocking_event(event)
-    await _drain_tasks(db_svc)
-    return await _fetch_blocking_events(db_svc)
+    await drain_db_writes(db_svc)
+    return await fetch_blocking_events(db_svc)
 
 
 class TestTier1Persistence:
@@ -179,9 +157,9 @@ class TestTier2Persistence:
 
         executor.record_blocking_event(_make_watchdog_event(stall_ms=100.0))
         executor.record_blocking_event(_make_monkeypatch_event())
-        await _drain_tasks(db_svc)
+        await drain_db_writes(db_svc)
 
-        rows = await _fetch_blocking_events(db_svc)
+        rows = await fetch_blocking_events(db_svc)
         assert len(rows) == 2
         tiers = {r["tier"] for r in rows}
         assert tiers == {"watchdog", "monkeypatch"}
@@ -232,9 +210,9 @@ class TestUnresolvedOwnerPersistence:
 
         executor.record_blocking_event(_make_watchdog_event(app_key=None))
         executor.record_blocking_event(_make_monkeypatch_event(app_key=None))
-        await _drain_tasks(db_svc)
+        await drain_db_writes(db_svc)
 
-        rows = await _fetch_blocking_events(db_svc)
+        rows = await fetch_blocking_events(db_svc)
         assert len(rows) == 2
         assert all(r["source_tier"] == "framework" for r in rows)
         assert all(r["app_key"] is None for r in rows)

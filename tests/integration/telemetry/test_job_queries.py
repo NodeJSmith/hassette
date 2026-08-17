@@ -147,8 +147,7 @@ class TestGetJobSummary:
             execution_start_ts=base_ts + 5.0,
         )
 
-        rows = await query_service.get_job_summary("test_app", 0)
-        row = rows[0]
+        row = await only_row(query_service.get_job_summary("test_app", 0))
         assert row.last_error_type == "TimeoutError"
         assert row.last_error_message == "exceeded limit"
         assert row.last_error_ts == pytest.approx(base_ts + 5.0)
@@ -172,8 +171,7 @@ class TestGetJobSummary:
             execution_start_ts=base_ts + 1.0,
         )
 
-        rows = await query_service.get_job_summary("test_app", 0, since=base_ts + 50.0)
-        row = rows[0]
+        row = await only_row(query_service.get_job_summary("test_app", 0, since=base_ts + 50.0))
         assert_no_last_error(row)
 
 

@@ -30,7 +30,7 @@ async def commit_returning_id(db_svc: DatabaseService, cursor: aiosqlite.Cursor)
     return cursor.lastrowid
 
 
-async def open_db_with_session(hassette: Any) -> tuple[DatabaseService, int]:
+async def open_db_with_session(hassette: Any) -> DbFixture:
     """Initialize a ``DatabaseService`` against ``hassette`` and seed one running session row.
 
     Returns:
@@ -254,9 +254,7 @@ async def assert_last_error_row_coherence(
     if trailing_success_ts is not None:
         await insert_row(status="success", execution_start_ts=trailing_success_ts)
 
-    results = await query_fn()
-    assert len(results) == 1
-    row = results[0]
+    row = await only_row(query_fn())
     newest = error_rows[-1]
     assert row.last_error_type == newest["error_type"]
     assert row.last_error_message == newest["error_message"]
@@ -305,6 +303,28 @@ async def insert_execution(
         ),
     )
     return await commit_returning_id(db_svc, cursor)
+
+
+async def fetch_blocking_events(db_svc: DatabaseService) -> list[dict[str, Any]]:
+    """Return all rows from blocking_events as plain dicts."""
+    cursor = await db_svc.db.execute("SELECT * FROM blocking_events ORDER BY id")
+    rows = await cursor.fetchall()
+    return [dict(row) for row in rows]
+
+
+async def drain_db_writes(db_svc: DatabaseService) -> None:
+    """Block until every previously enqueued DB write has been processed.
+
+    Writes go through database_service.enqueue()/submit(), which places the coroutine on the DB
+    write queue for the single-writer worker. The worker drains the queue in FIFO order, so
+    submitting a sentinel coroutine and awaiting it guarantees every write enqueued before it has
+    finished — deterministic where a fixed sleep would race the worker on slow CI.
+    """
+
+    async def _sentinel() -> None:
+        return None
+
+    await db_svc.submit(_sentinel())
 
 
 async def recent_activity(

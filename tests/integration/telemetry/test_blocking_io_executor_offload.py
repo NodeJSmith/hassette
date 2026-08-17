@@ -49,28 +49,7 @@ from hassette.exceptions import HassetteBlockingIOWarning
 from hassette.test_utils.config import make_test_config
 from hassette.types.enums import BlockingIOBehavior
 
-from .helpers import DbFixture, open_db_with_session, running_command_executor
-
-
-async def _fetch_blocking_events(db_svc: DatabaseService) -> list[dict]:
-    """Return all rows from blocking_events as plain dicts."""
-    cursor = await db_svc.db.execute("SELECT * FROM blocking_events ORDER BY id")
-    rows = await cursor.fetchall()
-    return [dict(row) for row in rows]
-
-
-async def _drain(db_svc: DatabaseService) -> None:
-    """Block until every enqueued record_blocking_event DB write has been processed.
-
-    The single-writer DB worker drains its queue in FIFO order, so submitting a sentinel coroutine
-    and awaiting it guarantees that all writes enqueued before it have finished — deterministic
-    where a fixed sleep would race the worker on slow CI.
-    """
-
-    async def _sentinel() -> None:
-        return None
-
-    await db_svc.submit(_sentinel())
+from .helpers import DbFixture, drain_db_writes, fetch_blocking_events, open_db_with_session, running_command_executor
 
 
 def _make_ignore_hassette(premigrated_db_path: Path) -> MagicMock:
@@ -204,7 +183,7 @@ class TestExecutorOffloadProducesNoBlocking:
                 )
 
                 # Drain so any (unexpected) record_blocking_event tasks would have persisted.
-                await _drain(db_svc)
+                await drain_db_writes(db_svc)
         finally:
             uninstall()
             mock_hassette.config.blocking_io.deep_detection_enabled = None
@@ -215,7 +194,7 @@ class TestExecutorOffloadProducesNoBlocking:
             f"got: {[str(w.message) for w in blocking_warnings]}"
         )
 
-        rows = await _fetch_blocking_events(db_svc)
+        rows = await fetch_blocking_events(db_svc)
         assert len(rows) == 0, (
             f"Expected zero blocking_events rows for executor-offloaded sync handler, got {len(rows)}: {rows}"
         )
@@ -293,7 +272,7 @@ class TestExecutorOffloadProducesNoBlocking:
 
                         # Give the watchdog multiple poll cycles to notice if it wrongly flags.
                         await asyncio.sleep(0.3)
-                        await _drain(db_svc)
+                        await drain_db_writes(db_svc)
                     finally:
                         executor.unbind_execution_context(token)
             finally:
@@ -309,7 +288,7 @@ class TestExecutorOffloadProducesNoBlocking:
         )
         assert stall_events == [], f"Tier 1 on_stall must not fire for a worker-thread sleep, got: {stall_events}"
 
-        rows = await _fetch_blocking_events(db_svc)
+        rows = await fetch_blocking_events(db_svc)
         assert len(rows) == 0, f"Expected zero blocking_events rows for worker-thread sleep, got {len(rows)}: {rows}"
 
 
@@ -361,7 +340,7 @@ class TestIgnoreBehaviorSuppressesRowAndWarning:
                     # Call time.sleep on the LOOP thread — Tier 2 fires unless behavior is IGNORE.
                     time.sleep(0.01)  # noqa: ASYNC251
 
-                    await _drain(db_svc)
+                    await drain_db_writes(db_svc)
             finally:
                 uninstall()
                 ignore_executor.unbind_execution_context(token)
@@ -375,7 +354,7 @@ class TestIgnoreBehaviorSuppressesRowAndWarning:
             f"got: {[str(w.message) for w in blocking_warnings]}"
         )
 
-        rows = await _fetch_blocking_events(db_svc)
+        rows = await fetch_blocking_events(db_svc)
         assert len(rows) == 0, f"ignore behavior must suppress blocking_events row, got {len(rows)}: {rows}"
 
     async def test_tier1_ignore_suppresses_warning_and_row(
@@ -436,7 +415,7 @@ class TestIgnoreBehaviorSuppressesRowAndWarning:
 
                     # Let the watchdog recover and process the (suppressed) episode.
                     await asyncio.sleep(0.4)
-                    await _drain(db_svc)
+                    await drain_db_writes(db_svc)
             finally:
                 watchdog.stop()
 
@@ -450,5 +429,5 @@ class TestIgnoreBehaviorSuppressesRowAndWarning:
         # IGNORE short-circuits in _emit BEFORE on_stall, so persistence never fires.
         assert stall_events == [], f"IGNORE must short-circuit before on_stall, got: {stall_events}"
 
-        rows = await _fetch_blocking_events(db_svc)
+        rows = await fetch_blocking_events(db_svc)
         assert len(rows) == 0, f"Tier 1 with ignore behavior must produce no DB rows, got {len(rows)}: {rows}"

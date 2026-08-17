@@ -243,6 +243,10 @@ class TestGlobalJobsEndpointMultipleApps:
 
 
 class TestGlobalJobsEndpointEnrichesWithLiveData:
+    # dup-ignore-start: parallel "register a live job, wire get_all_jobs, fetch the one row, assert its
+    # fields" test shape shared with the sibling test in this class and with
+    # TestGlobalJobsEndpointLegacyUnknown — each varies only the live-job shape and the fields it
+    # asserts on.
     async def test_enriches_with_live_heap_data(self, scheduler_client, mock_hassette_scheduler) -> None:
         """Global jobs endpoint enriches DB rows with live next_run, fire_at, jitter."""
         db_summary = make_job_summary(job_id=42, app_key="my_app", next_run=None)
@@ -262,6 +266,8 @@ class TestGlobalJobsEndpointEnrichesWithLiveData:
         assert row["fire_at"] is not None
         assert row["schedule_status"] == "scheduled"
 
+    # dup-ignore-end
+
     @pytest.mark.parametrize(
         ("status", "reason"),
         [
@@ -271,6 +277,10 @@ class TestGlobalJobsEndpointEnrichesWithLiveData:
             (ScheduleStatus.MANUAL, None),
         ],
     )
+    # dup-ignore-start: parallel "register a live job, wire get_all_jobs, fetch the one row, assert its
+    # fields" test shape shared with the sibling test in this class and with
+    # TestGlobalJobsEndpointLegacyUnknown — each varies only the live-job shape and the fields it
+    # asserts on.
     async def test_enriches_non_scheduled_statuses_with_null_timing(
         self, scheduler_client, mock_hassette_scheduler, status: ScheduleStatus, reason: ScheduleStatusReason | None
     ) -> None:
@@ -289,6 +299,8 @@ class TestGlobalJobsEndpointEnrichesWithLiveData:
         assert row["fire_at"] is None
         assert row["schedule_status"] == status.value
         assert row["schedule_status_reason"] == (reason.value if reason is not None else None)
+
+    # dup-ignore-end
 
 
 class TestGlobalJobsEndpointLegacyUnknown:
@@ -311,6 +323,9 @@ class TestGlobalJobsEndpointLegacyUnknown:
         assert row["schedule_status_reason"] == "legacy_unknown"
         assert row["next_run"] is None
 
+    # dup-ignore-start: parallel "register a live job, wire get_all_jobs, fetch the one row, assert its
+    # fields" test shape shared with the sibling tests in TestGlobalJobsEndpointEnrichesWithLiveData —
+    # each varies only the live-job shape and the fields it asserts on.
     async def test_live_reregistration_clears_legacy_placeholder(
         self, scheduler_client, mock_hassette_scheduler
     ) -> None:
@@ -334,6 +349,8 @@ class TestGlobalJobsEndpointLegacyUnknown:
         assert row["schedule_status"] == "scheduled"
         assert row["schedule_status_reason"] is None
         assert row["next_run"] is not None
+
+    # dup-ignore-end
 
 
 class TestGlobalJobsEndpointDegradedOnHeapFailure:

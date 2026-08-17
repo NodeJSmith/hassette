@@ -19,6 +19,7 @@ Everything else lives in this directory's `helpers.py`. Check it before writing 
 - `only_row(query)` — await a query and return its one row, asserting there is exactly one.
 - `recent_activity(query_service, ...)` — `get_app_recent_activity()` with defaults for the four arguments a given test usually doesn't vary.
 - `error_row(...)` / `SINCE_WINDOW_ERROR_ROWS` / `assert_last_error_row_coherence(...)` / `assert_no_last_error(row)` — building and asserting `last_error_*` data.
+- `fetch_blocking_events(db_svc)` / `drain_db_writes(db_svc)` — read all `blocking_events` rows, and block until the DB write queue has drained a just-recorded event, for the blocking-IO detection tests.
 
 ## Key conventions
 

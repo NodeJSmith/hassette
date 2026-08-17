@@ -12,13 +12,12 @@ from unittest.mock import MagicMock
 import aiosqlite
 import pytest
 
-from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.exceptions import TelemetryUnavailableError
 from hassette.schemas.summary_models import SessionRecord
 from hassette.test_utils.mock_hassette import make_mock_hassette
 
-from .helpers import BASE_TS, DbFixture
+from .helpers import BASE_TS, DbFixture, open_db_with_session
 
 
 class TestGetSessionList:
@@ -102,14 +101,7 @@ class TestReadTimeout:
 
     @pytest.fixture
     async def short_timeout_db(self, short_timeout_hassette: MagicMock) -> AsyncIterator[DbFixture]:
-        db_service = DatabaseService(short_timeout_hassette, parent=None)
-        await db_service.on_initialize()
-        cursor = await db_service.db.execute(
-            "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'running')",
-            (time.time(), time.time()),
-        )
-        session_id = cursor.lastrowid
-        await db_service.db.commit()
+        db_service, session_id = await open_db_with_session(short_timeout_hassette)
         short_timeout_hassette.session_id = session_id
         short_timeout_hassette.try_session_id.return_value = session_id
         short_timeout_hassette.database_service = db_service
