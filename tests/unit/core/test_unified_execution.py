@@ -12,6 +12,7 @@ from typing import Literal
 import pytest
 from pydantic import ValidationError
 
+from hassette.core.execution_record import ExecutionRecord
 from hassette.schemas.execution_models import Execution
 from hassette.test_utils.config import TEST_EPOCH_B
 from hassette.test_utils.factories import make_execution_record
@@ -64,6 +65,35 @@ def build_execution(
             "args_json": args_json,
             "kwargs_json": kwargs_json,
         }
+    )
+
+
+def build_execution_minimal(*, kind: Literal["handler", "job"] = "handler") -> Execution:
+    """Construct an Execution from only its required fields, leaving every new column
+    (trigger_mode, retry_count, attempt_number, args_json, kwargs_json) at its real model
+    default. Unlike build_execution()'s model_copy(), this doesn't overwrite those defaults,
+    so it's the right constructor for tests that assert the default itself.
+    """
+    return Execution(
+        kind=kind,
+        execution_start_ts=TEST_EPOCH_B,
+        duration_ms=5.0,
+        status=ExecutionStatus.SUCCESS,
+        error_type=None,
+        error_message=None,
+    )
+
+
+def build_execution_record_minimal(*, kind: Literal["handler", "job"] = "handler") -> ExecutionRecord:
+    """Construct an ExecutionRecord from only its required fields, leaving every new column
+    at its real dataclass default — see build_execution_minimal() for why this matters.
+    """
+    return ExecutionRecord(
+        kind=kind,
+        session_id=1,
+        execution_start_ts=TEST_EPOCH_B,
+        duration_ms=5.0,
+        status="success",
     )
 
 
@@ -128,23 +158,23 @@ class TestExecutionModelNewColumns:
     """New columns on Execution exist with correct defaults."""
 
     def test_trigger_mode_defaults_none(self) -> None:
-        model = build_execution(duration_ms=5.0)
+        model = build_execution_minimal()
         assert model.trigger_mode is None
 
     def test_retry_count_defaults_zero(self) -> None:
-        model = build_execution(kind="job", duration_ms=5.0)
+        model = build_execution_minimal(kind="job")
         assert model.retry_count == 0
 
     def test_attempt_number_defaults_one(self) -> None:
-        model = build_execution(duration_ms=5.0)
+        model = build_execution_minimal()
         assert model.attempt_number == 1
 
     def test_args_json_defaults_empty_list(self) -> None:
-        model = build_execution(kind="job", duration_ms=5.0)
+        model = build_execution_minimal(kind="job")
         assert model.args_json == "[]"
 
     def test_kwargs_json_defaults_empty_dict(self) -> None:
-        model = build_execution(duration_ms=5.0)
+        model = build_execution_minimal()
         assert model.kwargs_json == "{}"
 
     def test_new_columns_can_be_set(self) -> None:
@@ -203,23 +233,23 @@ class TestExecutionRecordNewColumns:
     """New columns on ExecutionRecord exist with correct defaults."""
 
     def test_trigger_mode_defaults_none(self) -> None:
-        record = make_execution_record(execution_start_ts=TEST_EPOCH_B, duration_ms=5.0)
+        record = build_execution_record_minimal()
         assert record.trigger_mode is None
 
     def test_retry_count_defaults_zero(self) -> None:
-        record = make_execution_record(kind="job", execution_start_ts=TEST_EPOCH_B, duration_ms=5.0, listener_id=None)
+        record = build_execution_record_minimal(kind="job")
         assert record.retry_count == 0
 
     def test_attempt_number_defaults_one(self) -> None:
-        record = make_execution_record(execution_start_ts=TEST_EPOCH_B, duration_ms=5.0)
+        record = build_execution_record_minimal()
         assert record.attempt_number == 1
 
     def test_args_json_defaults_empty_list(self) -> None:
-        record = make_execution_record(kind="job", execution_start_ts=TEST_EPOCH_B, duration_ms=5.0, listener_id=None)
+        record = build_execution_record_minimal(kind="job")
         assert record.args_json == "[]"
 
     def test_kwargs_json_defaults_empty_dict(self) -> None:
-        record = make_execution_record(execution_start_ts=TEST_EPOCH_B, duration_ms=5.0)
+        record = build_execution_record_minimal()
         assert record.kwargs_json == "{}"
 
     def test_new_columns_can_be_set(self) -> None:
