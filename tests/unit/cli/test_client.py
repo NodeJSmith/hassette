@@ -264,7 +264,7 @@ class TestHttpErrorsHumanMode:
         transport = make_transport(503, {"detail": "Service unavailable"})
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
         with pytest.raises(SystemExit):
-            client.get("/api/health", SimpleModel)
+            client.get(HEALTH_ENDPOINT, SimpleModel)
         captured = capsys.readouterr()
         assert captured.out == ""
 
@@ -300,7 +300,7 @@ class TestNetworkErrors:
         transport = make_transport(raise_exc=httpx.ConnectError)
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
         with pytest.raises(SystemExit) as exc_info:
-            client.get("/api/health", SimpleModel)
+            client.get(HEALTH_ENDPOINT, SimpleModel)
         assert exc_info.value.code == 2
 
     def test_connection_refused_mentions_address_stderr(self) -> None:
@@ -315,7 +315,7 @@ class TestNetworkErrors:
         transport = make_transport(raise_exc=httpx.TimeoutException)
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
         with pytest.raises(SystemExit) as exc_info:
-            client.get("/api/health", SimpleModel)
+            client.get(HEALTH_ENDPOINT, SimpleModel)
         assert exc_info.value.code == 2
 
     def test_timeout_json_mode_null_status(self, capsys: pytest.CaptureFixture[str]) -> None:

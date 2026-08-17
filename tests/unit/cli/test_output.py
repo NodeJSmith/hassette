@@ -301,9 +301,8 @@ class TestRenderTableJsonMode:
         items = [SimpleItem(name="x", count=99)]
         columns = [Column("name", "Name"), Column("count", "Count")]
         render_table(items, columns, json_mode=True)
-        captured = capsys.readouterr()
         # Must be valid JSON — no ANSI codes, no Rich markup
-        parsed = json.loads(captured.out)
+        parsed = parse_json_stdout(capsys)
         assert parsed[0]["name"] == "x"
 
 
@@ -553,17 +552,15 @@ class TestStdoutCleanliness:
         items = [SimpleItem(name="x", count=1), SimpleItem(name="y", count=2)]
         columns = [Column("name", "Name")]
         render_table(items, columns, json_mode=True)
-        captured = capsys.readouterr()
-        # Strip trailing newline and parse — must succeed without error
-        parsed = json.loads(captured.out.strip())
+        # Must succeed without error
+        parsed = parse_json_stdout(capsys)
         assert isinstance(parsed, list)
 
     def test_json_detail_stdout_is_valid_json_only(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Stdout in JSON mode for detail must be exactly one valid JSON document."""
         item = SimpleItem(name="hello", count=3)
         render_detail(item, json_mode=True)
-        captured = capsys.readouterr()
-        parsed = json.loads(captured.out.strip())
+        parsed = parse_json_stdout(capsys)
         assert isinstance(parsed, dict)
 
     def test_human_table_nothing_on_stderr_for_non_empty(self) -> None:

@@ -10,7 +10,7 @@ from cyclopts import App, Parameter
 from hassette.cli.client import HassetteCLIClient, make_client
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContext, CLIContextParam
 from hassette.config.config import HassetteConfig
-from tests.unit.cli.conftest import CLIClientFactory
+from tests.unit.cli.conftest import REMOTE_SERVER_URL, CLIClientFactory
 
 
 def make_client_from_context(ctx: CLIContext, config: HassetteConfig) -> HassetteCLIClient:
@@ -52,9 +52,9 @@ class TestMakeClientReceivesContext:
             make_client()  # pyright: ignore[reportCallIssue]
 
     def test_make_client_forwards_server_url_flag(self, cli_client_factory: CLIClientFactory) -> None:
-        ctx = CLIContext(server_url="https://example.com/hassette")
+        ctx = CLIContext(server_url=REMOTE_SERVER_URL)
         client = make_client_from_context(ctx, cli_client_factory.config)
-        assert client.base_url == "https://example.com/hassette"
+        assert client.base_url == REMOTE_SERVER_URL
         assert client.is_loopback is False
 
 
