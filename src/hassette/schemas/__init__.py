@@ -26,7 +26,6 @@ from hassette.schemas.domain_models import (
     ConnectivityData,
     ServiceInfo,
     ServiceStatusData,
-    StateChangedData,
     SystemStatus,
 )
 from hassette.schemas.live_counts import LiveCounts
@@ -47,6 +46,5 @@ __all__ = [
     "ManifestStatus",
     "ServiceInfo",
     "ServiceStatusData",
-    "StateChangedData",
     "SystemStatus",
 ]

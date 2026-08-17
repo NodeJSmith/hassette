@@ -639,69 +639,6 @@
       ],
       "title": "ServiceStatusWsMessage",
       "type": "object"
-    },
-    "StateChangedData": {
-      "description": "Payload for a Home Assistant ``state_changed`` event broadcast over WebSocket.",
-      "properties": {
-        "entity_id": {
-          "title": "Entity Id",
-          "type": "string"
-        },
-        "new_state": {
-          "anyOf": [
-            {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "New State"
-        },
-        "old_state": {
-          "anyOf": [
-            {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Old State"
-        }
-      },
-      "required": [
-        "entity_id"
-      ],
-      "title": "StateChangedData",
-      "type": "object"
-    },
-    "StateChangedWsMessage": {
-      "properties": {
-        "type": {
-          "const": "state_changed",
-          "title": "Type",
-          "type": "string"
-        },
-        "data": {
-          "$ref": "#/$defs/StateChangedData"
-        },
-        "timestamp": {
-          "title": "Timestamp",
-          "type": "number"
-        }
-      },
-      "required": [
-        "type",
-        "data",
-        "timestamp"
-      ],
-      "title": "StateChangedWsMessage",
-      "type": "object"
     }
   },
   "discriminator": {
@@ -711,8 +648,7 @@
       "connectivity": "#/$defs/ConnectivityWsMessage",
       "execution_completed": "#/$defs/ExecutionCompletedWsMessage",
       "log": "#/$defs/LogWsMessage",
-      "service_status": "#/$defs/ServiceStatusWsMessage",
-      "state_changed": "#/$defs/StateChangedWsMessage"
+      "service_status": "#/$defs/ServiceStatusWsMessage"
     },
     "propertyName": "type"
   },
@@ -728,9 +664,6 @@
     },
     {
       "$ref": "#/$defs/ConnectivityWsMessage"
-    },
-    {
-      "$ref": "#/$defs/StateChangedWsMessage"
     },
     {
       "$ref": "#/$defs/ServiceStatusWsMessage"

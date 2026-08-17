@@ -149,7 +149,6 @@ export function useWebSocket(): void {
             break;
 
           case "connectivity":
-          case "state_changed":
             // Intentionally ignored — not consumed by the frontend UI.
             break;
 

@@ -53,7 +53,6 @@ class TestSchemaFreshness:
             "LogWsMessage",
             "ConnectedWsMessage",
             "ConnectivityWsMessage",
-            "StateChangedWsMessage",
             "ServiceStatusWsMessage",
             "ExecutionCompletedWsMessage",
         ],

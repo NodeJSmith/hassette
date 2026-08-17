@@ -8,7 +8,6 @@ from pydantic import TypeAdapter
 from hassette.events.hassette import AppStateChangePayload, ServiceStatusPayload
 from hassette.schemas.domain_models import AppStatusChangedData as AppStatusChangedPayload
 from hassette.schemas.domain_models import ServiceStatusData as WsServiceStatusPayload
-from hassette.schemas.domain_models import StateChangedData as StateChangedPayload
 from hassette.types.enums import ResourceRole, ResourceStatus
 from hassette.web.models import (
     AppStatusChangedWsMessage,
@@ -18,7 +17,6 @@ from hassette.web.models import (
     ExecutionCompletedWsMessage,
     LogWsMessage,
     ServiceStatusWsMessage,
-    StateChangedWsMessage,
     WsServerMessage,
 )
 
@@ -73,21 +71,6 @@ class TestServiceStatusPayloadMatchesDataclass:
         assert payload.resource_name == "telemetry"
         assert payload.ready is True
         assert payload.ready_phase == "connected"
-
-
-class TestStateChangedNormalizedEnvelope:
-    """Verify state_changed uses the { type, data, timestamp } envelope."""
-
-    def test_state_changed_has_data_wrapper(self) -> None:
-        msg = StateChangedWsMessage(
-            type="state_changed",
-            data=StateChangedPayload(entity_id="light.kitchen", new_state={"state": "on"}, old_state={"state": "off"}),
-            timestamp=1234567890.0,
-        )
-        dumped = msg.model_dump()
-        assert "data" in dumped
-        assert dumped["data"]["entity_id"] == "light.kitchen"
-        assert "entity_id" not in dumped  # not at top level
 
 
 class TestConnectedPayloadIncludesUptimeSeconds:
@@ -151,16 +134,6 @@ class TestWsServerMessageDiscriminates:
         msg = self.adapter.validate_python(raw)
         assert isinstance(msg, ConnectivityWsMessage)
         assert msg.data.connected is True
-
-    def test_state_changed(self) -> None:
-        raw = {
-            "type": "state_changed",
-            "data": {"entity_id": "light.kitchen", "new_state": {"state": "on"}, "old_state": {"state": "off"}},
-            "timestamp": 1234567890.0,
-        }
-        msg = self.adapter.validate_python(raw)
-        assert isinstance(msg, StateChangedWsMessage)
-        assert msg.data.entity_id == "light.kitchen"
 
     def test_service_status(self) -> None:
         raw = {

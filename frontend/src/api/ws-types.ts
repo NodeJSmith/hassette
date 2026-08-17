@@ -8,7 +8,6 @@ export type WsServerMessage =
   | LogWsMessage
   | ConnectedWsMessage
   | ConnectivityWsMessage
-  | StateChangedWsMessage
   | ServiceStatusWsMessage
   | ExecutionCompletedWsMessage;
 
@@ -77,23 +76,6 @@ export interface ConnectivityWsMessage {
  */
 export interface ConnectivityData {
   connected: boolean;
-}
-export interface StateChangedWsMessage {
-  type: "state_changed";
-  data: StateChangedData;
-  timestamp: number;
-}
-/**
- * Payload for a Home Assistant ``state_changed`` event broadcast over WebSocket.
- */
-export interface StateChangedData {
-  entity_id: string;
-  new_state?: {
-    [k: string]: unknown;
-  } | null;
-  old_state?: {
-    [k: string]: unknown;
-  } | null;
 }
 export interface ServiceStatusWsMessage {
   type: "service_status";

@@ -4,7 +4,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from hassette.schemas.domain_models import AppStatusChangedData, ConnectivityData, ServiceStatusData, StateChangedData
+from hassette.schemas.domain_models import AppStatusChangedData, ConnectivityData, ServiceStatusData
 from hassette.types.enums import (
     DEFAULT_BACKPRESSURE_POLICY,
     DEFAULT_OVERLAP_MODE,
@@ -275,12 +275,6 @@ class ConnectivityWsMessage(BaseModel):
     timestamp: float
 
 
-class StateChangedWsMessage(BaseModel):
-    type: Literal["state_changed"]
-    data: StateChangedData
-    timestamp: float
-
-
 class ServiceStatusWsMessage(BaseModel):
     type: Literal["service_status"]
     data: ServiceStatusData
@@ -317,7 +311,6 @@ WsServerMessage = Annotated[
     | LogWsMessage
     | ConnectedWsMessage
     | ConnectivityWsMessage
-    | StateChangedWsMessage
     | ServiceStatusWsMessage
     | ExecutionCompletedWsMessage,
     Field(discriminator="type"),

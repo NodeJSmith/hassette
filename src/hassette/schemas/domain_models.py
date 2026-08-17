@@ -22,7 +22,7 @@ models via ``hassette.web.mappers``. Core services must NOT import from
 ``hassette.web``.
 """
 
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -102,14 +102,6 @@ class SystemStatus(BaseModel):
     False means log persistence is unavailable, so ``db_write_queue_drops`` of 0 reflects a
     dead pipeline rather than a healthy one.
     """
-
-
-class StateChangedData(BaseModel):
-    """Payload for a Home Assistant ``state_changed`` event broadcast over WebSocket."""
-
-    entity_id: str
-    new_state: dict[str, Any] | None = None
-    old_state: dict[str, Any] | None = None
 
 
 class AppStatusChangedData(BaseModel):

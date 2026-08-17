@@ -13,7 +13,7 @@ from hassette.core.app_registry import overlay_runtime_state
 from hassette.core.bus_service import BusService
 from hassette.core.logging_service import LoggingService
 from hassette.core.state_proxy import StateProxy
-from hassette.events import Event, RawStateChangeEvent
+from hassette.events import Event
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
 from hassette.schemas.app_snapshots import AppManifestInfo, AppStatusSnapshot
@@ -23,7 +23,6 @@ from hassette.schemas.domain_models import (
     ConnectivityData,
     ServiceInfo,
     ServiceStatusData,
-    StateChangedData,
     SystemStatus,
 )
 from hassette.types import Topic
@@ -96,13 +95,6 @@ class RuntimeQueryService(Resource):
 
         # Subscribe to bus events
         self._subscriptions.append(
-            await self.bus.on(
-                topic=Topic.HASS_EVENT_STATE_CHANGED,
-                handler=self.on_state_change,
-                name="hassette.rqs.on_state_change",
-            )
-        )
-        self._subscriptions.append(
             await self.bus.on_app_state_changed(
                 handler=self.on_app_state_changed, name="hassette.rqs.on_app_state_changed"
             )
@@ -160,14 +152,6 @@ class RuntimeQueryService(Resource):
     async def build_and_broadcast(self, event_type: str, payload: BaseModel) -> None:
         entry: dict[str, Any] = {"type": event_type, "data": payload.model_dump(), "timestamp": time.time()}
         await self.broadcast(entry)
-
-    async def on_state_change(self, event: RawStateChangeEvent) -> None:
-        payload = StateChangedData(
-            entity_id=event.payload.data.entity_id,
-            new_state=dict(event.payload.data.new_state) if event.payload.data.new_state else None,
-            old_state=dict(event.payload.data.old_state) if event.payload.data.old_state else None,
-        )
-        await self.build_and_broadcast("state_changed", payload)
 
     async def on_app_state_changed(self, event: Event) -> None:
         data = event.payload.data
