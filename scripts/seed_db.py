@@ -453,9 +453,9 @@ def _seed_log_records(
     start_seq: int,
     count: int,
     app_key: str,
-    instance_name: str,
-    instance_index: int,
+    class_name: str,
     base_offset: float,
+    instance_index: int = 0,
     interval_seconds: float = 60.0,
     level: LOG_LEVEL_TYPE = "INFO",
     message_prefix: str = "log entry",
@@ -463,8 +463,13 @@ def _seed_log_records(
 ) -> int:
     """Insert ``count`` log records at ``interval_seconds`` spacing. Returns the next unused
     seq value so callers can thread a running counter across multiple calls within a scenario.
+
+    ``instance_name`` is derived from ``class_name``/``instance_index`` (the convention every
+    scenario call site follows) rather than accepted directly, since every caller was building
+    it the same way.
     """
     logger_name = logger_name or f"hassette.apps.{app_key}"
+    instance_name = make_instance_name(class_name, instance_index)
     for i in range(count):
         seq = start_seq + i
         ctx.add_log_record(
@@ -505,26 +510,22 @@ def _seed_simple_app(
     session_id = ctx.add_session(
         started_at=ts(base_offset), last_heartbeat_at=ts(base_offset + HEARTBEAT_OFFSET_SECONDS)
     )
-    listener_id = ctx.add_listener(
-        make_listener_registration(
-            app_key=app_key,
-            instance_index=0,
-            handler_method=f"{class_name}.on_state_change",
-            topic=STATE_CHANGED_TOPIC,
-            name=f"{app_key}_state_listener",
-            source_location=f"{app_key}.py:12",
-        )
+    listener_id = _seed_listener(
+        ctx,
+        app_key=app_key,
+        handler_method=f"{class_name}.on_state_change",
+        topic=STATE_CHANGED_TOPIC,
+        name=f"{app_key}_state_listener",
+        source_location=f"{app_key}.py:12",
     )
-    job_id = ctx.add_job(
-        make_job_registration(
-            app_key=app_key,
-            instance_index=0,
-            job_name=f"{app_key}_periodic_check",
-            handler_method=f"{class_name}.periodic_check",
-            trigger_type="interval",
-            trigger_label="every 15 minutes",
-            source_location=f"{app_key}.py:30",
-        )
+    job_id = _seed_job(
+        ctx,
+        app_key=app_key,
+        job_name=f"{app_key}_periodic_check",
+        handler_method=f"{class_name}.periodic_check",
+        trigger_type="interval",
+        trigger_label="every 15 minutes",
+        source_location=f"{app_key}.py:30",
     )
 
     n_listener_execs = max(1, exec_count * 2 // 3)
@@ -559,6 +560,76 @@ def _seed_simple_app(
     return session_id, listener_id, job_id
 
 
+def _seed_listener(
+    ctx: SeedContext,
+    *,
+    app_key: str,
+    instance_index: int = 0,
+    retired_at: float | None = None,
+    removed_at: float | None = None,
+    **kwargs: Any,
+) -> int:
+    """Insert a listener via ``make_listener_registration``, forwarding scenario-specific fields.
+
+    Every scenario call site shares the ``app_key``/``instance_index`` shape; only
+    ``handler_method``/``topic``/``name``/``source_location`` (and occasionally
+    ``predicate_description``/``human_description``) vary per listener.
+    """
+    return ctx.add_listener(
+        make_listener_registration(app_key=app_key, instance_index=instance_index, **kwargs),
+        retired_at=retired_at,
+        removed_at=removed_at,
+    )
+
+
+def _seed_job(
+    ctx: SeedContext,
+    *,
+    app_key: str,
+    instance_index: int = 0,
+    retired_at: float | None = None,
+    removed_at: float | None = None,
+    **kwargs: Any,
+) -> int:
+    """Insert a scheduled job via ``make_job_registration``, forwarding scenario-specific fields."""
+    return ctx.add_job(
+        make_job_registration(app_key=app_key, instance_index=instance_index, **kwargs),
+        retired_at=retired_at,
+        removed_at=removed_at,
+    )
+
+
+def _seed_app_blocking_event(
+    ctx: SeedContext,
+    *,
+    session_id: int | None,
+    app_key: str,
+    class_name: str,
+    detected_ts: float,
+    stall_duration_ms: float,
+    instance_index: int = 0,
+    tier: str = WATCHDOG_TIER,
+    reason: str = REASON_ATTRIBUTED,
+) -> None:
+    """Insert a blocking event attributed to one running app instance.
+
+    This is the shape every non-framework blocking event in these scenarios shares --
+    the framework-tier events (``session_id``/``app_key``/``instance_name`` all ``None``)
+    are seeded directly via ``ctx.add_blocking_event`` instead.
+    """
+    ctx.add_blocking_event(
+        tier=tier,
+        reason=reason,
+        session_id=session_id,
+        app_key=app_key,
+        instance_name=make_instance_name(class_name, instance_index),
+        instance_index=instance_index,
+        detected_ts=detected_ts,
+        source_tier="app",
+        stall_duration_ms=stall_duration_ms,
+    )
+
+
 def scenario_healthy(ctx: SeedContext) -> None:
     """5 fictional apps with normal activity and excellent/good health — no failures beyond
     an occasional handled error, comfortably above the 95% "good" success-rate threshold.
@@ -587,24 +658,20 @@ def scenario_healthy(ctx: SeedContext) -> None:
             n_errors=n_errors,
         )
         # Second listener per app, for the "2-3 listeners" spread called for in the design doc.
-        ctx.add_listener(
-            make_listener_registration(
-                app_key=app_key,
-                instance_index=0,
-                handler_method=f"{class_name}.on_call_service",
-                topic="hass.event.call_service",
-                name=f"{app_key}_service_listener",
-                source_location=f"{app_key}.py:24",
-            )
+        _seed_listener(
+            ctx,
+            app_key=app_key,
+            handler_method=f"{class_name}.on_call_service",
+            topic="hass.event.call_service",
+            name=f"{app_key}_service_listener",
+            source_location=f"{app_key}.py:24",
         )
-        instance_name = make_instance_name(class_name, 0)
         seq = _seed_log_records(
             ctx,
             start_seq=seq,
             count=3,
             app_key=app_key,
-            instance_name=instance_name,
-            instance_index=0,
+            class_name=class_name,
             base_offset=base,
             message_prefix=f"{class_name} processed update",
         )
@@ -638,6 +705,9 @@ def scenario_degraded(ctx: SeedContext) -> None:
     ):
         base = i * APP_TIME_SPACING_SECONDS
         ctx.add_app_manifest(app_key=app_key, class_name=class_name)
+        # dup-ignore-start: scenario boilerplate -- identical shape to other scenarios' calls
+        # into these shared seed helpers, differing only in the literal app_key/class_name/
+        # offset arguments that PMD's clone detector treats as equivalent.
         _seed_simple_app(
             ctx,
             scenario="degraded",
@@ -652,10 +722,10 @@ def scenario_degraded(ctx: SeedContext) -> None:
             start_seq=seq,
             count=2,
             app_key=app_key,
-            instance_name=make_instance_name(class_name, 0),
-            instance_index=0,
+            class_name=class_name,
             base_offset=base,
         )
+        # dup-ignore-end
 
     # leaky_faucet_monitor and hallway_thermostat are seeded individually (not in a loop) so
     # hallway_thermostat's session_id is captured directly, for the blocking event below.
@@ -675,8 +745,7 @@ def scenario_degraded(ctx: SeedContext) -> None:
         start_seq=seq,
         count=2,
         app_key="leaky_faucet_monitor",
-        instance_name=make_instance_name("LeakyFaucetMonitor", 0),
-        instance_index=0,
+        class_name="LeakyFaucetMonitor",
         base_offset=base,
         level="ERROR",
         message_prefix="Repeated connection failures",
@@ -698,8 +767,7 @@ def scenario_degraded(ctx: SeedContext) -> None:
         start_seq=seq,
         count=2,
         app_key="hallway_thermostat",
-        instance_name=make_instance_name("HallwayThermostat", 0),
-        instance_index=0,
+        class_name="HallwayThermostat",
         base_offset=hallway_base,
         level="ERROR",
         message_prefix="Repeated connection failures",
@@ -720,26 +788,22 @@ def scenario_degraded(ctx: SeedContext) -> None:
     running_session_id = ctx.add_session(
         started_at=ts(base + 60.0), last_heartbeat_at=ts(base + HEARTBEAT_OFFSET_SECONDS)
     )
-    listener_id = ctx.add_listener(
-        make_listener_registration(
-            app_key=app_key,
-            instance_index=0,
-            handler_method=f"{class_name}.on_temperature_change",
-            topic=STATE_CHANGED_TOPIC,
-            name=f"{app_key}_temp_listener",
-            source_location=f"{app_key}.py:20",
-        )
+    listener_id = _seed_listener(
+        ctx,
+        app_key=app_key,
+        handler_method=f"{class_name}.on_temperature_change",
+        topic=STATE_CHANGED_TOPIC,
+        name=f"{app_key}_temp_listener",
+        source_location=f"{app_key}.py:20",
     )
-    job_id = ctx.add_job(
-        make_job_registration(
-            app_key=app_key,
-            instance_index=0,
-            job_name=f"{app_key}_recalibrate",
-            handler_method=f"{class_name}.recalibrate",
-            trigger_type="interval",
-            trigger_label="every 30 minutes",
-            source_location=f"{app_key}.py:30",
-        )
+    job_id = _seed_job(
+        ctx,
+        app_key=app_key,
+        job_name=f"{app_key}_recalibrate",
+        handler_method=f"{class_name}.recalibrate",
+        trigger_type="interval",
+        trigger_label="every 30 minutes",
+        source_location=f"{app_key}.py:30",
     )
     # DI failure during the failed boot attempt — the dependency never came up in time.
     ctx.add_execution(
@@ -768,6 +832,9 @@ def scenario_degraded(ctx: SeedContext) -> None:
         start_index=1,
         base_offset=base + 120.0,
     )
+    # dup-ignore-start: scenario boilerplate -- identical shape to other scenarios' calls
+    # into these shared seed helpers, differing only in the literal app_key/class_name/
+    # offset arguments that PMD's clone detector treats as equivalent.
     _seed_executions(
         ctx,
         scenario="degraded",
@@ -784,22 +851,19 @@ def scenario_degraded(ctx: SeedContext) -> None:
         start_seq=seq,
         count=1,
         app_key=app_key,
-        instance_name=make_instance_name(class_name, 0),
-        instance_index=0,
+        class_name=class_name,
         base_offset=base + 1.0,
         level="ERROR",
         message_prefix="Failed to connect to Home Assistant on boot",
     )
+    # dup-ignore-end
 
-    ctx.add_blocking_event(
-        tier=WATCHDOG_TIER,
-        reason=REASON_ATTRIBUTED,
+    _seed_app_blocking_event(
+        ctx,
         session_id=hallway_session_id,
         app_key="hallway_thermostat",
-        instance_name=make_instance_name("HallwayThermostat", 0),
-        instance_index=0,
+        class_name="HallwayThermostat",
         detected_ts=ts(hallway_base + 500.0),
-        source_tier="app",
         stall_duration_ms=1800.0,
     )
 
@@ -854,26 +918,22 @@ def scenario_error(ctx: SeedContext) -> None:
                 ),
             )
 
-        listener_id = ctx.add_listener(
-            make_listener_registration(
-                app_key=app_key,
-                instance_index=0,
-                handler_method=f"{class_name}.on_state_change",
-                topic=STATE_CHANGED_TOPIC,
-                name=f"{app_key}_state_listener",
-                source_location=f"{app_key}.py:10",
-            )
+        listener_id = _seed_listener(
+            ctx,
+            app_key=app_key,
+            handler_method=f"{class_name}.on_state_change",
+            topic=STATE_CHANGED_TOPIC,
+            name=f"{app_key}_state_listener",
+            source_location=f"{app_key}.py:10",
         )
-        job_id = ctx.add_job(
-            make_job_registration(
-                app_key=app_key,
-                instance_index=0,
-                job_name=f"{app_key}_health_check",
-                handler_method=f"{class_name}.health_check",
-                trigger_type="interval",
-                trigger_label="every 5 minutes",
-                source_location=f"{app_key}.py:25",
-            )
+        job_id = _seed_job(
+            ctx,
+            app_key=app_key,
+            job_name=f"{app_key}_health_check",
+            handler_method=f"{class_name}.health_check",
+            trigger_type="interval",
+            trigger_label="every 5 minutes",
+            source_location=f"{app_key}.py:25",
         )
 
         # 20 executions total (15 handler + 5 job), 17 errors (85%) -- deep in "critical".
@@ -908,8 +968,7 @@ def scenario_error(ctx: SeedContext) -> None:
             start_seq=seq,
             count=3,
             app_key=app_key,
-            instance_name=make_instance_name(class_name, 0),
-            instance_index=0,
+            class_name=class_name,
             base_offset=base,
             level="ERROR",
             message_prefix=f"{class_name} handler error",
@@ -927,17 +986,18 @@ def scenario_error(ctx: SeedContext) -> None:
         )
         seq += 1
 
-        ctx.add_blocking_event(
-            tier=WATCHDOG_TIER,
-            reason=REASON_ATTRIBUTED,
+        # dup-ignore-start: scenario boilerplate -- identical shape to other scenarios' calls
+        # into this shared seed helper, differing only in the literal app_key/class_name/
+        # offset arguments that PMD's clone detector treats as equivalent.
+        _seed_app_blocking_event(
+            ctx,
             session_id=session_id,
             app_key=app_key,
-            instance_name=make_instance_name(class_name, 0),
-            instance_index=0,
+            class_name=class_name,
             detected_ts=ts(base + 50.0),
-            source_tier="app",
             stall_duration_ms=3000.0,
         )
+        # dup-ignore-end
 
 
 def scenario_large_volume(ctx: SeedContext) -> None:
@@ -992,21 +1052,17 @@ def scenario_large_volume(ctx: SeedContext) -> None:
             start_seq=seq,
             count=20,
             app_key=app_key,
-            instance_name=make_instance_name(class_name, 0),
-            instance_index=0,
+            class_name=class_name,
             base_offset=base,
             interval_seconds=45.0,
         )
 
-    ctx.add_blocking_event(
-        tier=WATCHDOG_TIER,
-        reason=REASON_ATTRIBUTED,
+    _seed_app_blocking_event(
+        ctx,
         session_id=session_ids_by_app["hvac_zone_g"],
         app_key="hvac_zone_g",
-        instance_name=make_instance_name("HvacZoneG", 0),
-        instance_index=0,
+        class_name="HvacZoneG",
         detected_ts=ts(6 * APP_TIME_SPACING_SECONDS + 500.0),
-        source_tier="app",
         stall_duration_ms=1500.0,
     )
 
@@ -1030,15 +1086,16 @@ def scenario_lifecycle(ctx: SeedContext) -> None:
         base_offset=base,
         exec_count=10,
     )
-    ctx.add_listener(
-        make_listener_registration(
-            app_key=app_key,
-            instance_index=0,
-            handler_method=f"{class_name}.on_legacy_trigger",
-            topic="hass.event.legacy_trigger",
-            name=f"{app_key}_legacy_listener",
-            source_location=f"{app_key}.py:50",
-        ),
+    # dup-ignore-start: scenario boilerplate -- identical shape to other scenarios' calls
+    # into these shared seed helpers, differing only in the literal app_key/class_name/
+    # offset arguments that PMD's clone detector treats as equivalent.
+    _seed_listener(
+        ctx,
+        app_key=app_key,
+        handler_method=f"{class_name}.on_legacy_trigger",
+        topic="hass.event.legacy_trigger",
+        name=f"{app_key}_legacy_listener",
+        source_location=f"{app_key}.py:50",
         retired_at=ts(base + 7200.0),
     )
     seq = _seed_log_records(
@@ -1046,10 +1103,10 @@ def scenario_lifecycle(ctx: SeedContext) -> None:
         start_seq=seq,
         count=2,
         app_key=app_key,
-        instance_name=make_instance_name(class_name, 0),
-        instance_index=0,
+        class_name=class_name,
         base_offset=base,
     )
+    # dup-ignore-end
 
     # -- alarm_system: active listener, a cancelled-only job, crashed session then a restart --
     app_key, class_name = "alarm_system", "AlarmSystem"
@@ -1067,28 +1124,27 @@ def scenario_lifecycle(ctx: SeedContext) -> None:
     running_session_id = ctx.add_session(
         started_at=ts(base + 90.0), last_heartbeat_at=ts(base + HEARTBEAT_OFFSET_SECONDS)
     )
-    listener_id = ctx.add_listener(
-        make_listener_registration(
-            app_key=app_key,
-            instance_index=0,
-            handler_method=f"{class_name}.on_motion",
-            topic=STATE_CHANGED_TOPIC,
-            name=f"{app_key}_motion_listener",
-            source_location=f"{app_key}.py:15",
-        )
+    listener_id = _seed_listener(
+        ctx,
+        app_key=app_key,
+        handler_method=f"{class_name}.on_motion",
+        topic=STATE_CHANGED_TOPIC,
+        name=f"{app_key}_motion_listener",
+        source_location=f"{app_key}.py:15",
     )
-    ctx.add_job(
-        make_job_registration(
-            app_key=app_key,
-            instance_index=0,
-            job_name=f"{app_key}_nightly_test",
-            handler_method=f"{class_name}.nightly_test",
-            trigger_type="cron",
-            trigger_label="nightly at 02:00",
-            source_location=f"{app_key}.py:40",
-        ),
+    _seed_job(
+        ctx,
+        app_key=app_key,
+        job_name=f"{app_key}_nightly_test",
+        handler_method=f"{class_name}.nightly_test",
+        trigger_type="cron",
+        trigger_label="nightly at 02:00",
+        source_location=f"{app_key}.py:40",
         removed_at=ts(base + 200.0),
     )
+    # dup-ignore-start: scenario boilerplate -- identical shape to other scenarios' calls
+    # into these shared seed helpers, differing only in the literal app_key/class_name/
+    # offset arguments that PMD's clone detector treats as equivalent.
     _seed_executions(
         ctx,
         scenario="lifecycle",
@@ -1103,49 +1159,45 @@ def scenario_lifecycle(ctx: SeedContext) -> None:
         start_seq=seq,
         count=2,
         app_key=app_key,
-        instance_name=make_instance_name(class_name, 0),
-        instance_index=0,
+        class_name=class_name,
         base_offset=base,
         level="ERROR",
         message_prefix="Recovered after crash",
     )
+    # dup-ignore-end
 
     # -- camera_array: multi-instance app; instance 1 has a retired+cancelled listener --
     app_key, class_name = "camera_array", "CameraArray"
     base = 2 * APP_TIME_SPACING_SECONDS
     ctx.add_app_manifest(app_key=app_key, class_name=class_name)
     session_id_0 = _add_running_session(ctx, base)
-    listener_id_0 = ctx.add_listener(
-        make_listener_registration(
-            app_key=app_key,
-            instance_index=0,
-            handler_method=f"{class_name}.on_motion",
-            topic=STATE_CHANGED_TOPIC,
-            name=f"{app_key}_motion_listener",
-            source_location=f"{app_key}.py:18",
-        )
+    listener_id_0 = _seed_listener(
+        ctx,
+        app_key=app_key,
+        handler_method=f"{class_name}.on_motion",
+        topic=STATE_CHANGED_TOPIC,
+        name=f"{app_key}_motion_listener",
+        source_location=f"{app_key}.py:18",
     )
     session_id_1 = _add_running_session(ctx, base)
-    listener_id_1 = ctx.add_listener(
-        make_listener_registration(
-            app_key=app_key,
-            instance_index=1,
-            handler_method=f"{class_name}.on_motion",
-            topic=STATE_CHANGED_TOPIC,
-            name=f"{app_key}_motion_listener",
-            source_location=f"{app_key}.py:18",
-        )
+    listener_id_1 = _seed_listener(
+        ctx,
+        app_key=app_key,
+        instance_index=1,
+        handler_method=f"{class_name}.on_motion",
+        topic=STATE_CHANGED_TOPIC,
+        name=f"{app_key}_motion_listener",
+        source_location=f"{app_key}.py:18",
     )
     # removed during runtime, then retired on the next startup reconciliation -- both set.
-    ctx.add_listener(
-        make_listener_registration(
-            app_key=app_key,
-            instance_index=1,
-            handler_method=f"{class_name}.on_old_event",
-            topic="hass.event.old_topic",
-            name=f"{app_key}_old_listener",
-            source_location=f"{app_key}.py:60",
-        ),
+    _seed_listener(
+        ctx,
+        app_key=app_key,
+        instance_index=1,
+        handler_method=f"{class_name}.on_old_event",
+        topic="hass.event.old_topic",
+        name=f"{app_key}_old_listener",
+        source_location=f"{app_key}.py:60",
         removed_at=ts(base + 1800.0),
         retired_at=ts(base + 3600.0),
     )
@@ -1160,6 +1212,9 @@ def scenario_lifecycle(ctx: SeedContext) -> None:
     )
     # start_index=6 avoids an execution_id collision with instance 0's executions above --
     # both instances share the same app_key by design (that's the point of "multi-instance").
+    # dup-ignore-start: scenario boilerplate -- identical shape to other scenarios' calls
+    # into these shared seed helpers, differing only in the literal app_key/class_name/
+    # offset arguments that PMD's clone detector treats as equivalent.
     _seed_executions(
         ctx,
         scenario="lifecycle",
@@ -1175,8 +1230,7 @@ def scenario_lifecycle(ctx: SeedContext) -> None:
         start_seq=seq,
         count=2,
         app_key=app_key,
-        instance_name=make_instance_name(class_name, 0),
-        instance_index=0,
+        class_name=class_name,
         base_offset=base,
     )
     seq = _seed_log_records(
@@ -1184,15 +1238,19 @@ def scenario_lifecycle(ctx: SeedContext) -> None:
         start_seq=seq,
         count=2,
         app_key=app_key,
-        instance_name=make_instance_name(class_name, 1),
+        class_name=class_name,
         instance_index=1,
         base_offset=base + 400.0,
     )
+    # dup-ignore-end
 
     # -- mail_notifier: normal app, carries the scenario's one blocking event --
     app_key, class_name = "mail_notifier", "MailNotifier"
     base = 3 * APP_TIME_SPACING_SECONDS
     ctx.add_app_manifest(app_key=app_key, class_name=class_name)
+    # dup-ignore-start: scenario boilerplate -- identical shape to other scenarios' calls
+    # into these shared seed helpers, differing only in the literal app_key/class_name/
+    # offset arguments that PMD's clone detector treats as equivalent.
     session_id, _listener_id, _job_id = _seed_simple_app(
         ctx,
         scenario="lifecycle",
@@ -1206,21 +1264,18 @@ def scenario_lifecycle(ctx: SeedContext) -> None:
         start_seq=seq,
         count=2,
         app_key=app_key,
-        instance_name=make_instance_name(class_name, 0),
-        instance_index=0,
+        class_name=class_name,
         base_offset=base,
     )
-    ctx.add_blocking_event(
-        tier=WATCHDOG_TIER,
-        reason=REASON_ATTRIBUTED,
+    _seed_app_blocking_event(
+        ctx,
         session_id=session_id,
         app_key=app_key,
-        instance_name=make_instance_name(class_name, 0),
-        instance_index=0,
+        class_name=class_name,
         detected_ts=ts(base + 500.0),
-        source_tier="app",
         stall_duration_ms=900.0,
     )
+    # dup-ignore-end
 
 
 def scenario_adversarial(ctx: SeedContext) -> None:
@@ -1243,21 +1298,22 @@ def scenario_adversarial(ctx: SeedContext) -> None:
         "hass.event.state_changed.binary_sensor.upstairs_hallway_motion_sensor_near_"
         "the_guest_bedroom_door[state == 'on' and attributes.battery_level > 20 and not context.user_id]"
     )
-    listener_id = ctx.add_listener(
-        make_listener_registration(
-            app_key=app_key,
-            instance_index=0,
-            handler_method=long_handler,
-            topic=long_topic,
-            name=f"{app_key}_verbose_listener",
-            predicate_description=(
-                "lambda e: e.payload.data.new_state.state == 'on' and "
-                "e.payload.data.new_state.attributes.get('battery_level', 0) > 20"
-            ),
-            human_description="battery above 20% and state is on, nested three predicates deep",
-            source_location=f"{app_key}.py:200",
-        )
+    listener_id = _seed_listener(
+        ctx,
+        app_key=app_key,
+        handler_method=long_handler,
+        topic=long_topic,
+        name=f"{app_key}_verbose_listener",
+        predicate_description=(
+            "lambda e: e.payload.data.new_state.state == 'on' and "
+            "e.payload.data.new_state.attributes.get('battery_level', 0) > 20"
+        ),
+        human_description="battery above 20% and state is on, nested three predicates deep",
+        source_location=f"{app_key}.py:200",
     )
+    # dup-ignore-start: scenario boilerplate -- identical shape to other scenarios' calls
+    # into these shared seed helpers, differing only in the literal app_key/class_name/
+    # offset arguments that PMD's clone detector treats as equivalent.
     _seed_executions(
         ctx,
         scenario="adversarial",
@@ -1276,10 +1332,10 @@ def scenario_adversarial(ctx: SeedContext) -> None:
         start_seq=seq,
         count=2,
         app_key=app_key,
-        instance_name=make_instance_name(class_name, 0),
-        instance_index=0,
+        class_name=class_name,
         base_offset=base,
     )
+    # dup-ignore-end
 
     # -- many_listeners_app: 120 listeners on one app --
     app_key, class_name = "many_listeners_app", "ManyListenersApp"
@@ -1288,18 +1344,19 @@ def scenario_adversarial(ctx: SeedContext) -> None:
     session_id = _add_running_session(ctx, base)
     n_listeners = 120
     listener_ids = [
-        ctx.add_listener(
-            make_listener_registration(
-                app_key=app_key,
-                instance_index=0,
-                handler_method=f"{class_name}.on_sensor_{i:03d}",
-                topic=f"hass.event.state_changed.sensor.sensor_{i:03d}",
-                name=f"{app_key}_listener_{i:03d}",
-                source_location=f"{app_key}.py:{10 + i}",
-            )
+        _seed_listener(
+            ctx,
+            app_key=app_key,
+            handler_method=f"{class_name}.on_sensor_{i:03d}",
+            topic=f"hass.event.state_changed.sensor.sensor_{i:03d}",
+            name=f"{app_key}_listener_{i:03d}",
+            source_location=f"{app_key}.py:{10 + i}",
         )
         for i in range(n_listeners)
     ]
+    # dup-ignore-start: scenario boilerplate -- identical shape to other scenarios' calls
+    # into these shared seed helpers, differing only in the literal app_key/class_name/
+    # offset arguments that PMD's clone detector treats as equivalent.
     _seed_executions(
         ctx,
         scenario="adversarial",
@@ -1314,10 +1371,10 @@ def scenario_adversarial(ctx: SeedContext) -> None:
         start_seq=seq,
         count=2,
         app_key=app_key,
-        instance_name=make_instance_name(class_name, 0),
-        instance_index=0,
+        class_name=class_name,
         base_offset=base,
     )
+    # dup-ignore-end
 
     # -- Unicode app key, listener name, and job name (Japanese + emoji) --
     app_key, class_name = "モーションセンサー_\U0001f3e0", "MotionSensor"
@@ -1325,26 +1382,22 @@ def scenario_adversarial(ctx: SeedContext) -> None:
     # filename override: app_key is Unicode/emoji, not a valid filename on most filesystems.
     ctx.add_app_manifest(app_key=app_key, class_name=class_name, filename=f"{class_name}.py")
     session_id = _add_running_session(ctx, base)
-    listener_id = ctx.add_listener(
-        make_listener_registration(
-            app_key=app_key,
-            instance_index=0,
-            handler_method=f"{class_name}.on_motion_detected",
-            topic=STATE_CHANGED_TOPIC,
-            name="動作検知リスナー_\U0001f6b6",
-            source_location=f"{class_name}.py:5",
-        )
+    listener_id = _seed_listener(
+        ctx,
+        app_key=app_key,
+        handler_method=f"{class_name}.on_motion_detected",
+        topic=STATE_CHANGED_TOPIC,
+        name="動作検知リスナー_\U0001f6b6",
+        source_location=f"{class_name}.py:5",
     )
-    job_id = ctx.add_job(
-        make_job_registration(
-            app_key=app_key,
-            instance_index=0,
-            job_name="毎日の点検_☀️",
-            handler_method=f"{class_name}.daily_check",
-            trigger_type="cron",
-            trigger_label="毎日午前6時",
-            source_location=f"{class_name}.py:20",
-        )
+    job_id = _seed_job(
+        ctx,
+        app_key=app_key,
+        job_name="毎日の点検_☀️",
+        handler_method=f"{class_name}.daily_check",
+        trigger_type="cron",
+        trigger_label="毎日午前6時",
+        source_location=f"{class_name}.py:20",
     )
     _seed_executions(
         ctx,
@@ -1355,6 +1408,9 @@ def scenario_adversarial(ctx: SeedContext) -> None:
         count=5,
         base_offset=base,
     )
+    # dup-ignore-start: scenario boilerplate -- identical shape to other scenarios' calls
+    # into these shared seed helpers, differing only in the literal app_key/class_name/
+    # offset arguments that PMD's clone detector treats as equivalent.
     _seed_executions(
         ctx,
         scenario="adversarial",
@@ -1371,24 +1427,25 @@ def scenario_adversarial(ctx: SeedContext) -> None:
         start_seq=seq,
         count=2,
         app_key=app_key,
-        instance_name=make_instance_name(class_name, 0),
-        instance_index=0,
+        class_name=class_name,
         base_offset=base,
         message_prefix="動作を検知しました",
     )
+    # dup-ignore-end
 
     # -- Blocking events: both tiers -- one attributed to the Unicode app, one unresolved --
-    ctx.add_blocking_event(
-        tier=WATCHDOG_TIER,
-        reason=REASON_ATTRIBUTED,
+    # dup-ignore-start: scenario boilerplate -- identical shape to other scenarios' calls
+    # into this shared seed helper, differing only in the literal app_key/class_name/
+    # offset arguments that PMD's clone detector treats as equivalent.
+    _seed_app_blocking_event(
+        ctx,
         session_id=session_id,
         app_key=app_key,
-        instance_name=make_instance_name(class_name, 0),
-        instance_index=0,
+        class_name=class_name,
         detected_ts=ts(base + 500.0),
-        source_tier="app",
         stall_duration_ms=2500.0,
     )
+    # dup-ignore-end
     ctx.add_blocking_event(
         tier=MONKEYPATCH_TIER,
         reason=REASON_FRAMEWORK,
