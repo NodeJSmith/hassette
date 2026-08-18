@@ -394,7 +394,7 @@ All E2E test assertions that depend on seed data values **must** use computed co
 
 ### Rule
 
-Any assertion that verifies a value that comes from seed data (telemetry counts, invocation totals, error counts, source locations) must reference a constant from `tests/e2e/mock_fixtures.py` rather than embedding the number or string directly in the test.
+Any assertion that verifies a value that comes from seed data (telemetry counts, invocation totals, error counts, source locations) must reference a constant from `tests/e2e/mock_fixtures/` rather than embedding the number or string directly in the test.
 
 **Wrong** (breaks silently when seed data changes):
 ```python
@@ -408,7 +408,7 @@ expect(counts).to_contain_text(f"{LISTENER_MY_APP_1_TOTAL_INVOCATIONS} inv")
 
 ### Constant naming
 
-Module-level constants in `mock_fixtures.py` use tier-qualified names:
+Module-level constants in `mock_fixtures/__init__.py` use tier-qualified names:
 
 | Prefix | Source |
 |---|---|
@@ -432,7 +432,7 @@ Static UI text assertions (page titles, column headers, labels like "Error Rate"
 
 ### Acid test
 
-Before merging changes that touch seed data: change a value in `mock_fixtures.py` (e.g., `total_invocations` from 10 to 15), run `uv run nox -s e2e`, confirm all tests pass, then revert.
+Before merging changes that touch seed data: change a value in `mock_fixtures/telemetry.py` (e.g., `total_invocations` from 10 to 15), run `uv run nox -s e2e`, confirm all tests pass, then revert.
 
 ---
 

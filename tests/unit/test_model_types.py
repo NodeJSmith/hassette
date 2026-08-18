@@ -267,7 +267,7 @@ class TestDashboardAppGridEntryManifestFields:
 
     def test_manifest_metadata_fields_round_trip(self) -> None:
         # dup-ignore-start: same ("my_app", index=0, "MyApp[0]", "MyApp", RUNNING) literal shape
-        # used by tests/unit/core/test_runtime_query_service.py and tests/e2e/mock_fixtures.py —
+        # used by tests/unit/core/test_runtime_query_service.py and tests/e2e/mock_fixtures/manifests.py —
         # different test tiers/directories building unrelated fixture/response data;
         # src/hassette/test_utils/web_manifest_helpers.py's make_app_instance_info() factory
         # builds the schemas.app_snapshots.AppInstanceInfo used elsewhere, not this Pydantic
