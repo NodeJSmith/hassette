@@ -126,12 +126,13 @@ class TestQueueHandlerPipeline:
         child.info("pipeline test")
         logging_pipeline.listener.stop()
 
-        assert "pipeline test" in logging_pipeline.stream.getvalue()
+        try:
+            assert "pipeline test" in logging_pipeline.stream.getvalue()
 
-        entries = list(logging_pipeline.capture.buffer)
-        assert any(e.message == "pipeline test" for e in entries)
-
-        logging_pipeline.listener.start()
+            entries = list(logging_pipeline.capture.buffer)
+            assert any(e.message == "pipeline test" for e in entries)
+        finally:
+            logging_pipeline.listener.start()
 
     def test_shutdown_flushes_all_pending_records(self, logging_pipeline: LoggingPipelineFixture) -> None:
         """After stopping the listener, all enqueued records appear in handler output."""
@@ -141,11 +142,12 @@ class TestQueueHandlerPipeline:
             child.info("record_%d", i)
         logging_pipeline.listener.stop()
 
-        output = logging_pipeline.stream.getvalue()
-        for i in range(20):
-            assert f"record_{i}" in output, f"record_{i} missing from output after listener stop"
-
-        logging_pipeline.listener.start()
+        try:
+            output = logging_pipeline.stream.getvalue()
+            for i in range(20):
+                assert f"record_{i}" in output, f"record_{i} missing from output after listener stop"
+        finally:
+            logging_pipeline.listener.start()
 
 
 class TestHassetteQueueHandlerDrops:
