@@ -7,7 +7,8 @@ Complements `test_autodetect_apps.py` (TestAutoDetectAppsCurrDir, TestAutoDetect
 
 import logging
 from pathlib import Path
-from unittest.mock import patch
+from typing import Any
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -25,16 +26,16 @@ class TestValidateApps:
         *,
         autodetect: bool = False,
         directory: Path | None = None,
-        apps: dict | None = None,
+        apps: dict[str, Any] | None = None,
     ) -> HassetteConfig:
-        apps_cfg: dict = {"autodetect": autodetect}
+        apps_cfg: dict[str, Any] = {"autodetect": autodetect}
         if directory is not None:
             apps_cfg["directory"] = directory
         if apps is not None:
             apps_cfg["apps"] = apps
         return make_test_config(data_dir=tmp_path, apps=apps_cfg)
 
-    def test_validate_apps_sets_app_dir(self, tmp_path: Path):
+    def test_validate_apps_sets_app_dir(self, tmp_path: Path) -> None:
         """Test that validate_apps sets app_dir for apps that don't have it."""
         app_dir = tmp_path / "test_apps"
         app_dir.mkdir(parents=True, exist_ok=True)
@@ -55,7 +56,7 @@ class TestValidateApps:
             f"Expected app_key to be 'my_app', got {results['my_app'].app_key}"
         )
 
-    def test_validate_apps_preserves_existing_app_dir(self, tmp_path: Path):
+    def test_validate_apps_preserves_existing_app_dir(self, tmp_path: Path) -> None:
         """Test that validate_apps preserves existing app_dir values."""
         app_dir = tmp_path / "test_apps"
         app_dir.mkdir(parents=True, exist_ok=True)
@@ -75,7 +76,7 @@ class TestValidateApps:
             f"Expected app_dir to be {custom_dir}, got {results['my_app'].app_dir}"
         )
 
-    def test_validate_apps_removes_invalid_apps(self, tmp_path: Path):
+    def test_validate_apps_removes_invalid_apps(self, tmp_path: Path) -> None:
         """Test that validate_apps removes apps missing required keys."""
         app_dir = tmp_path / "test_apps"
         app_dir.mkdir(parents=True, exist_ok=True)
@@ -120,7 +121,7 @@ class TestValidateApps:
         )
 
     @patch("hassette.config.config.autodetect_apps")
-    def test_validate_apps_calls_autodetect(self, mock_autodetect, tmp_path: Path):
+    def test_validate_apps_calls_autodetect(self, mock_autodetect: MagicMock, tmp_path: Path) -> None:
         """Test that validate_apps calls autodetect_app_manifests when autodetect=True."""
         app_dir = tmp_path / "test_apps"
         app_dir.mkdir(parents=True, exist_ok=True)
@@ -167,7 +168,7 @@ class TestValidateApps:
         assert expected_path in known_paths, f"Expected known_paths to include {expected_path}, got {known_paths}"
 
     @patch("hassette.config.config.autodetect_apps")
-    def test_validate_apps_skips_conflicting_autodetected(self, mock_autodetect, tmp_path: Path):
+    def test_validate_apps_skips_conflicting_autodetected(self, mock_autodetect: MagicMock, tmp_path: Path) -> None:
         """Test that validate_apps skips auto-detected apps that conflict with manual ones."""
         app_dir = tmp_path / "test_apps"
         app_dir.mkdir(parents=True, exist_ok=True)
@@ -214,7 +215,7 @@ class TestValidateApps:
         mock_autodetect.assert_called_once()
         # The important thing is that the result only contains the manual app
 
-    def test_validate_apps_skips_autodetect_when_disabled(self, tmp_path: Path):
+    def test_validate_apps_skips_autodetect_when_disabled(self, tmp_path: Path) -> None:
         """Test that validate_apps skips auto-detection when autodetect=False."""
         app_dir = tmp_path / "test_apps"
         app_dir.mkdir(parents=True, exist_ok=True)

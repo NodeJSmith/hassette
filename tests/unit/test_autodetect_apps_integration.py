@@ -5,6 +5,7 @@ Complements `test_autodetect_apps.py` (TestAutoDetectAppsCurrDir, TestAutoDetect
 `test_validate_apps.py` (TestValidateApps).
 """
 
+from collections.abc import Iterator
 from pathlib import Path
 from textwrap import dedent
 
@@ -19,11 +20,11 @@ class TestAutoDetectIntegration:
     """Integration tests for auto-detect functionality with HassetteConfig."""
 
     @pytest.fixture(autouse=True)
-    def setup(self, test_config: HassetteConfig):
+    def setup(self, test_config: HassetteConfig) -> Iterator[None]:
         with context.use_hassette_config(test_config):
             yield
 
-    def test_hassette_config_autodetect_enabled_by_default(self, tmp_path: Path):
+    def test_hassette_config_autodetect_enabled_by_default(self, tmp_path: Path) -> None:
         """Test that autodetect_apps is enabled by default in HassetteConfig."""
         # Create a temporary app directory with an app
         app_dir = tmp_path / "apps"
@@ -50,7 +51,7 @@ class TestAutoDetectIntegration:
         assert manifest.class_name == "TestApp", f"Expected class_name to be 'TestApp', got {manifest.class_name}"
         assert manifest.enabled is True, f"Expected enabled to be True, got {manifest.enabled}"
 
-    def test_hassette_config_autodetect_can_be_disabled(self, tmp_path: Path):
+    def test_hassette_config_autodetect_can_be_disabled(self, tmp_path: Path) -> None:
         """Test that autodetect_apps can be disabled in HassetteConfig."""
         # Create a temporary app directory with an app
         app_dir = tmp_path / "apps"
@@ -76,7 +77,7 @@ class TestAutoDetectIntegration:
         assert len(config.apps.apps) == 0, f"Expected 0 apps, got {len(config.apps.apps)}"
 
     @pytest.mark.parametrize("ext", [".py", ""])
-    def test_defined_filename_without_extension_is_handled(self, tmp_path: Path, ext: str):
+    def test_defined_filename_without_extension_is_handled(self, tmp_path: Path, ext: str) -> None:
         """If we define something in hassette.toml but forget the .py extension, we shouldn't load it twice.
 
         We handle the missing .py in the AppManifest, but we need to make sure that the auto-detect
@@ -128,7 +129,7 @@ class TestAutoDetectIntegration:
             f"Expected custom config to be 'value', got {manifest.app_config[0]['custom']}"
         )
 
-    def test_hassette_config_manual_apps_take_precedence(self, tmp_path: Path):
+    def test_hassette_config_manual_apps_take_precedence(self, tmp_path: Path) -> None:
         """Test that manually configured apps take precedence over auto-detected ones."""
         # Create a temporary app directory with an app
         app_dir = tmp_path / "apps"
@@ -174,7 +175,7 @@ class TestAutoDetectIntegration:
             f"Expected custom config to be 'value', got {manifest.app_config[0]['custom']}"
         )
 
-    def test_hassette_config_combines_manual_and_autodetected(self, tmp_path: Path):
+    def test_hassette_config_combines_manual_and_autodetected(self, tmp_path: Path) -> None:
         """Test that HassetteConfig combines manual and auto-detected apps correctly."""
         # Create a temporary app directory with multiple apps
         app_dir = tmp_path / "apps"

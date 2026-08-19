@@ -9,6 +9,8 @@ import asyncio
 import logging
 import queue
 import time
+from collections.abc import Coroutine
+from typing import Any
 from unittest.mock import MagicMock
 
 from hassette.logging_ import HassetteQueueListener, LogPersistenceHandler
@@ -19,7 +21,7 @@ def _make_dropping_db_service() -> MagicMock:
     db_service = MagicMock()
     db_service._insert_log_records = MagicMock(return_value=MagicMock())
 
-    def drop_enqueue(coro):
+    def drop_enqueue(coro: Coroutine[Any, Any, Any]) -> bool:
         coro.close()
         return False
 
@@ -151,12 +153,12 @@ class TestLogPersistenceDropCountWithDB:
     """LogPersistenceHandler counts drops caused by DB queue-full backpressure."""
 
     @staticmethod
-    def enqueue_returning_false(coro):
+    def enqueue_returning_false(coro: Coroutine[Any, Any, Any]) -> bool:
         coro.close()
         return False
 
     @staticmethod
-    def enqueue_raising_runtime_error(coro):
+    def enqueue_raising_runtime_error(coro: Coroutine[Any, Any, Any]) -> bool:
         coro.close()
         raise RuntimeError("DB shut down")
 
