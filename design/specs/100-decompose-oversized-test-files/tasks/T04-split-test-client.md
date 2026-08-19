@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Extract credential/auth test classes from tests/unit/cli/test_client.py"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#4", "AC#4"]
 ---
