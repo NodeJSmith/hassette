@@ -1,7 +1,7 @@
 ---
 task_id: "T05"
 title: "Extract instance-lifecycle test classes from tests/unit/core/test_app_lifecycle_service.py"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#5", "AC#5"]
 ---
