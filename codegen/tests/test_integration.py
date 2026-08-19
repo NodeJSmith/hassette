@@ -1,7 +1,5 @@
 """Integration tests — full pipeline against real HA core domains."""
 
-import py_compile
-import tempfile
 import time
 
 import pytest
@@ -20,6 +18,7 @@ from hassette_codegen.overrides import get_override, load_overrides
 
 from .conftest import HA_CORE as _HA_CORE
 from .conftest import HAS_HA_CORE as _HAS_HA_CORE
+from .conftest import assert_compiles, generate_wrapper_or_fail
 
 _COMPONENTS = _HA_CORE / "homeassistant" / "components"
 
@@ -59,30 +58,17 @@ class TestFanFullPipeline:
         assert "supports_direction" in output
 
     def test_entity_wrapper_structure(self) -> None:
-        domain = _extract_full_domain("fan")
-        output = generate_entity_wrapper(domain)
-        assert output is not None
+        output = generate_wrapper_or_fail(_extract_full_domain("fan"))
         assert "class FanEntity(BaseEntity[FanState, str]):" in output
         assert "def turn_on(" in output
         assert "def turn_off(" in output
         assert "-> Coroutine[Any, Any, None]:" in output
 
     def test_state_model_compiles(self) -> None:
-        domain = _extract_full_domain("fan")
-        output = generate_state_model(domain)
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-            f.write(output)
-            f.flush()
-            py_compile.compile(f.name, doraise=True)
+        assert_compiles(generate_state_model(_extract_full_domain("fan")))
 
     def test_entity_wrapper_compiles(self) -> None:
-        domain = _extract_full_domain("fan")
-        output = generate_entity_wrapper(domain)
-        assert output is not None
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-            f.write(output)
-            f.flush()
-            py_compile.compile(f.name, doraise=True)
+        assert_compiles(generate_wrapper_or_fail(_extract_full_domain("fan")))
 
 
 @pytest.mark.skipif(not _HAS_HA_CORE, reason="HA core checkout not available")
@@ -94,18 +80,14 @@ class TestLightFullPipeline:
         assert "IntFlag" in output
 
     def test_entity_has_advanced_fields(self) -> None:
-        domain = _extract_full_domain("light")
-        output = generate_entity_wrapper(domain)
-        assert output is not None
+        output = generate_wrapper_or_fail(_extract_full_domain("light"))
         assert "def turn_on(" in output
         assert "-> Coroutine[Any, Any, None]:" in output
         field_count = output.count("None,") + output.count("None)")
         assert field_count >= 5
 
     def test_color_override_applied(self) -> None:
-        domain = _extract_full_domain("light")
-        output = generate_entity_wrapper(domain)
-        assert output is not None
+        output = generate_wrapper_or_fail(_extract_full_domain("light"))
         assert "Color" in output
 
 
@@ -147,11 +129,7 @@ class TestAllDomainsCompile:
                     services=extract_services(domain_info.path) if domain_info.has_services_yaml else [],
                     override=get_override(overrides, domain_info.name),
                 )
-                output = generate_state_model(extracted)
-                with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-                    f.write(output)
-                    f.flush()
-                    py_compile.compile(f.name, doraise=True)
+                assert_compiles(generate_state_model(extracted))
             except Exception as exc:
                 failures.append(f"{domain_info.name}: {exc}")
 
