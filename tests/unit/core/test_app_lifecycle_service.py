@@ -1,4 +1,9 @@
-"""Unit tests for AppLifecycleService."""
+"""Unit tests for AppLifecycleService.
+
+Complements test_app_lifecycle_service_coverage.py, test_app_lifecycle_service_instances.py
+(initialize/cleanup/shutdown instance operations split out of this file), and
+test_app_lifecycle_service_operations.py.
+"""
 
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, Mock, patch

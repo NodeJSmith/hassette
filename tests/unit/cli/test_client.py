@@ -1,4 +1,7 @@
-"""Unit tests for the HassetteCLIClient HTTP client wrapper."""
+"""Unit tests for the HassetteCLIClient HTTP client wrapper.
+
+Complements test_client_credentials.py, which covers credential/auth tests split out of this file.
+"""
 
 import json
 from pathlib import Path
