@@ -19,11 +19,13 @@ from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.core.bus_service import BusService, compute_elapsed, make_synthetic_state_event
 from hassette.core.command_executor import CommandExecutor, ExecutionMarker
 from hassette.core.event_filter import EventFilter
+from hassette.core.execution_record import ExecutionRecord
 from hassette.core.scheduler_service import SchedulerService
 from hassette.core.service_watcher import ServiceWatcher
 from hassette.core.telemetry.repository import TelemetryRepository
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
+from hassette.test_utils.factories import make_execution_record
 from hassette.test_utils.helpers import block_until_cancelled
 from hassette.test_utils.mock_hassette import make_mock_hassette
 from hassette.types.enums import BlockingIOBehavior, ResourceStatus, RestartType
@@ -276,6 +278,66 @@ def make_executor(*, error_handler_timeout: float = 5.0) -> CommandExecutor:
     executor.task_bucket = task_bucket
     executor._spawned_tasks = spawned_tasks
     return executor
+
+
+def init_executor(queue_max: int = 10) -> CommandExecutor:
+    """Create and minimally init a CommandExecutor for write-pipeline tests.
+
+    Unlike ``make_executor`` above (error-handler invocation tests), this variant sets up the
+    fields the write-pipeline needs directly: a bounded ``_write_queue``, capacity-warning
+    config, and a real ``ready_event`` so the module-level ``mark_ready()`` (called by
+    ``serve()``) can operate on this bypassed instance. Shared by
+    ``test_command_executor_pipeline_queue.py``, ``test_command_executor_pipeline_persist.py``,
+    and ``test_command_executor_pipeline_serve.py``.
+    """
+    executor = CommandExecutor.__new__(CommandExecutor)
+    executor._write_queue = asyncio.Queue(maxsize=queue_max)
+    executor._dropped_overflow = 0
+    executor._dropped_exhausted = 0
+    executor._dropped_shutdown = 0
+    executor._error_handler_failures = 0
+    executor._last_capacity_warn_ts = None
+    executor._last_unowned_warn_ts = None
+    executor._timeout_warn_timestamps = {}
+    executor.repository = MagicMock()
+    executor.repository.persist_batch = MagicMock()
+    executor.hassette = MagicMock()
+    executor.hassette.session_id = 42
+    executor.hassette.try_session_id.return_value = 42
+    executor.hassette.config.database.telemetry_write_queue_max = queue_max
+    executor.hassette.config.lifecycle.command_executor_capacity_warn_threshold = 0.75
+    executor.hassette.config.lifecycle.command_executor_capacity_warn_rate_limit_seconds = 30.0
+    executor.hassette.database_service = MagicMock()
+    executor.hassette.database_service.submit = AsyncMock(return_value=None)
+    executor.logger = MagicMock()
+    executor._unique_name = "CommandExecutor.test"
+    executor.ready_event = asyncio.Event()
+    executor._ready_reason = None
+    return executor
+
+
+# Convenience alias for readability in the write-pipeline tests. Delegates to the shared
+# factory but pins execution_start_ts/execution_id to this file's original values (wall-clock
+# timestamp, unset execution_id) — no test here asserts on either, so this is not a
+# load-bearing override, just a faithful behavior-preserving migration off the old local
+# duplicate. Shared by the same three pipeline files as ``init_executor`` above.
+def make_invocation(
+    listener_id: int | None = 1,
+    session_id: int = 1,
+    source_tier: str = "app",
+    is_di_failure: bool = False,
+) -> ExecutionRecord:
+    return make_execution_record(
+        kind="handler",
+        listener_id=listener_id,
+        job_id=None,
+        session_id=session_id,
+        source_tier=source_tier,  # pyright: ignore[reportArgumentType]
+        is_di_failure=is_di_failure,
+        execution_start_ts=time.time(),
+        duration_ms=1.0,
+        execution_id=None,
+    )
 
 
 def make_mock_cmd_listener(

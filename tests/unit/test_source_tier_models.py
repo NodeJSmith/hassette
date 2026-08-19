@@ -40,7 +40,7 @@ class TestInvokeHandlerSourceTier:
     def test_invoke_handler_carries_source_tier(self) -> None:
         """InvokeHandler(source_tier='framework', ...) is accessible."""
         # dup-ignore-start: InvokeHandler test-double construction mirrors the same setup in
-        # tests/unit/core/test_command_executor_pipeline.py's build_record tests — this file
+        # tests/unit/core/test_command_executor_pipeline_persist.py's build_record tests — this file
         # exercises source_tier propagation through the data model itself, a different concern
         # from that file's write-pipeline resilience tests; sharing a helper across that
         # boundary isn't worth it for a few-line save.

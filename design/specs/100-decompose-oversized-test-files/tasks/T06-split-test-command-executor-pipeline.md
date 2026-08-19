@@ -1,7 +1,7 @@
 ---
 task_id: "T06"
 title: "Split tests/unit/core/test_command_executor_pipeline.py by theme"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#6", "AC#6"]
 ---
