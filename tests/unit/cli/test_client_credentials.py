@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, patch
 
 import httpx2 as httpx
 import pytest
+from pydantic_settings import BaseSettings, PydanticBaseSettingsSource
 
 import hassette.cli as cli_pkg
 from hassette.cli.client import HassetteCLIClient
@@ -79,8 +80,15 @@ class TestCredentialAttachment:
             model_config = HassetteConfig.model_config.copy() | {"toml_file": None, "env_file": None}
 
             @classmethod
-            def settings_customise_sources(cls, _settings_cls, init_settings, env_settings, **kwargs):  # pyright: ignore[reportIncompatibleMethodOverride]
-                return (init_settings, env_settings, kwargs["file_secret_settings"])
+            def settings_customise_sources(
+                cls,
+                _settings_cls: type[BaseSettings],
+                init_settings: PydanticBaseSettingsSource,
+                env_settings: PydanticBaseSettingsSource,
+                dotenv_settings: PydanticBaseSettingsSource,  # noqa: ARG003 — pydantic-settings binds by keyword
+                file_secret_settings: PydanticBaseSettingsSource,
+            ) -> tuple[PydanticBaseSettingsSource, ...]:
+                return (init_settings, env_settings, file_secret_settings)
 
         config = EnvOnlyConfig(token=None, data_dir=tmp_path)
         assert config.web_api.auth_token is not None
