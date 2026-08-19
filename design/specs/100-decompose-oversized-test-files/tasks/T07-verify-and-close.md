@@ -1,7 +1,7 @@
 ---
 task_id: "T07"
 title: "Verify no production code changed and lint is clean across all six splits"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02", "T03", "T04", "T05", "T06"]
 implements: ["AC#7"]
 ---
