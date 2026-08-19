@@ -15,23 +15,13 @@ run = "uv sync"
 run = "mkdocs serve --livereload"
 depends = ["install"]
 
-[tasks."npm:install"]
-description = "Install Node.js dependencies"
-run = "npm ci"
-
-[tasks."lint:js"]
-description = "Lint JS files with ESLint"
-run = "npx eslint src/hassette/web/static/js/"
-depends = ["npm:install"]
-
-[tasks."typecheck:js"]
-description = "Type-check JS files with TypeScript"
-run = "npx tsc --noEmit -p src/hassette/web/static/js/jsconfig.json"
-depends = ["npm:install"]
-
 [tasks."worktree:setup"]
-description = "Set up a new worktree (Python venv + frontend node_modules)"
+description = "Set up a new worktree (Python venv, plus frontend node_modules if frontend/ exists)"
 run = """
 uv sync
-cd frontend && npm install
+# frontend/ is absent on branches predating the React migration (see PR #343) -
+# skip node_modules setup there instead of failing the whole task.
+if [ -d frontend ]; then
+  cd frontend && npm install
+fi
 """
