@@ -22,7 +22,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from httpx2 import ASGITransport, AsyncClient, Response
 
-import hassette.web.app as web_app
+import hassette.web.app as web_app  # module alias so `stub_spa` can monkeypatch `_SPA_DIR`
 from hassette.test_utils import make_addrinfo, patch_loop_getaddrinfo
 from hassette.test_utils.config import TEST_SESSION_TTL, WEB_API_TEST_TOKEN
 from hassette.test_utils.web_mocks import create_hassette_stub, create_mock_runtime_query_service
