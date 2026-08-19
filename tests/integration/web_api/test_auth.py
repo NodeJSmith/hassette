@@ -13,10 +13,8 @@ route is counted, not just the middleware's own reject branch) -- the login hand
 `DefaultDenyMiddleware`'s default-deny but still issues its own 401 for an invalid token.
 """
 
-import contextlib
 import logging
 import time
-from collections.abc import Generator
 from pathlib import Path
 from typing import Literal
 from unittest.mock import AsyncMock, patch
@@ -24,6 +22,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from httpx2 import ASGITransport, AsyncClient, Response
 
+import hassette.web.app as web_app  # module alias so `stub_spa` can monkeypatch `_SPA_DIR`
 from hassette.test_utils import make_addrinfo, patch_loop_getaddrinfo
 from hassette.test_utils.config import TEST_SESSION_TTL, WEB_API_TEST_TOKEN
 from hassette.test_utils.web_mocks import create_hassette_stub, create_mock_runtime_query_service
@@ -34,8 +33,6 @@ from hassette.web.middleware import FAILED_AUTH_THRESHOLD
 
 from .conftest import make_log_record
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[3]
-_SPA_DIR = _PROJECT_ROOT / "src" / "hassette" / "web" / "static" / "spa"
 _STUB_SPA_FILES = ("index.html", "assets/index-abc123.js")
 _TRUSTED_PEER_IP = "203.0.113.5"
 """Peer address the trusted-proxy tests list in `trusted_proxies` (RFC 5737 doc range)."""
@@ -56,43 +53,29 @@ def _propagate_hassette_logger() -> None:
 
 
 @pytest.fixture
-def stub_spa() -> Generator[Path, None, None]:
-    """Create minimal stub SPA files at the real, on-disk `_SPA_DIR` path `web/app.py` reads.
+def stub_spa(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Create minimal stub SPA files in a private tmp directory and point `_SPA_DIR` at it.
 
     `create_fastapi_app()` only mounts `/assets` and registers the SPA catch-all when
     `_SPA_DIR.exists()` is True at call time -- this dev checkout has no built frontend, so
     without this fixture `GET /` and `GET /assets/*` would 404 (no route at all) rather than
-    exercising the actual SPA-serving code path. Mirrors `tests/integration/test_packaging.py`'s
-    `stub_spa` fixture.
+    exercising the actual SPA-serving code path.
 
-    Never clobbers or deletes a real, already-built frontend: any file or directory that already
-    exists on disk is left untouched (not written, not removed in teardown) -- only paths this
-    fixture itself creates are cleaned up.
+    Uses `tmp_path` (unique per test, and therefore per pytest-xdist worker) and monkeypatches
+    `hassette.web.app._SPA_DIR` rather than writing to the real, shared `src/hassette/web/
+    static/spa/` directory `web/app.py` normally reads -- writing to that shared path raced
+    against `tests/integration/test_packaging.py`'s own `stub_spa` fixture under parallel test
+    runs (#1629). `_SPA_DIR` is read fresh from the module on every `create_fastapi_app()` call,
+    so patching it here is sufficient without touching production code.
     """
-    created_spa_dir = not _SPA_DIR.exists()
-    _SPA_DIR.mkdir(parents=True, exist_ok=True)
-    assets_dir = _SPA_DIR / "assets"
-    created_assets_dir = not assets_dir.exists()
-    assets_dir.mkdir(exist_ok=True)
+    spa_dir = tmp_path / "spa"
+    (spa_dir / "assets").mkdir(parents=True)
+    for relative in _STUB_SPA_FILES:
+        f = spa_dir / relative
+        f.write_text("<!-- stub -->" if relative.endswith(".html") else "/* stub */")
 
-    created: list[Path] = []
-    try:
-        for relative in _STUB_SPA_FILES:
-            f = _SPA_DIR / relative
-            if f.exists():
-                continue  # a real built frontend is present; do not clobber it
-            f.write_text("<!-- stub -->" if relative.endswith(".html") else "/* stub */")
-            created.append(f)
-        yield _SPA_DIR
-    finally:
-        for f in created:
-            f.unlink(missing_ok=True)
-        if created_assets_dir:
-            with contextlib.suppress(OSError):
-                assets_dir.rmdir()
-        if created_spa_dir:
-            with contextlib.suppress(OSError):
-                _SPA_DIR.rmdir()
+    monkeypatch.setattr(web_app, "_SPA_DIR", spa_dir)
+    return spa_dir
 
 
 async def _mint_cookie_at(token: str, seconds_ago: int) -> str:
