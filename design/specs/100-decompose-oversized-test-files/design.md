@@ -1,7 +1,7 @@
 # Design: Decompose Six Oversized Test Files
 
 **Date:** 2026-08-19
-**Status:** draft
+**Status:** archived
 **Mode:** sketch
 
 ## Problem
