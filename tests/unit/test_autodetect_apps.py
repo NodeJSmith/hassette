@@ -1,4 +1,8 @@
-"""Tests for auto-detect apps functionality."""
+"""Tests for auto-detect apps functionality.
+
+Complements test_validate_apps.py (TestValidateApps) and test_autodetect_apps_integration.py
+(TestAutoDetectIntegration), which were split out of this file.
+"""
 
 from pathlib import Path
 from textwrap import dedent
