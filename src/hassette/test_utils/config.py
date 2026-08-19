@@ -52,7 +52,7 @@ WAIT_FOR_READY_TIMEOUT_SECONDS: float = 5.0
 # documented in CLAUDE.md.
 TEST_TOTAL_TIMEOUT_SECONDS = 30
 
-# Early-drop retry tuning shared by tests/integration/test_websocket_service.py and
+# Early-drop retry tuning shared by tests/integration/websocket/test_reconnect.py and
 # tests/unit/core/test_ws_connection_state.py. Small backoff values keep the retry loop fast
 # and deterministic in CI. Tests that need a different value for the specific behavior under
 # test (e.g. proving retry-budget exhaustion) pass a literal instead of reusing these.

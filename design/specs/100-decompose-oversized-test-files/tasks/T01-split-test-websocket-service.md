@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Split tests/integration/test_websocket_service.py into a websocket/ subpackage"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#1", "AC#1"]
 ---

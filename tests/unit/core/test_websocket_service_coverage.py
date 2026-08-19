@@ -1,7 +1,7 @@
 """Coverage-focused unit tests for WebsocketService.
 
 Targets branches not already exercised by test_ws_connection_state.py,
-test_websocket_readiness_events.py, and tests/integration/test_websocket_service.py:
+test_websocket_readiness_events.py, and tests/integration/websocket/:
 cleanup() teardown branches, make_connection()'s tenacity retry wrapper,
 subscribe_events() payload construction, connect_ws()'s non-refused error path,
 raw_recv()'s binary/unexpected-type branches, respond_if_necessary()'s guard
