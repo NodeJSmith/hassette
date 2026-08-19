@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Split tests/unit/test_autodetect_apps.py along its four existing class boundaries"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#3", "AC#3"]
 ---
