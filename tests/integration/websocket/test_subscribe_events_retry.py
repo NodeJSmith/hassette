@@ -4,12 +4,13 @@ Complements test_connection.py (connection/auth), test_dispatch.py (send/dispatc
 and test_reconnect.py (disconnect/reconnect-retry).
 """
 
+from collections.abc import Awaitable, Callable
 from unittest.mock import AsyncMock
 
 from hassette.core.websocket_service import WebsocketService
 
 
-def _make_subscribe_side_effect(ws: WebsocketService, *, succeed_on_call: int = 2):
+def _make_subscribe_side_effect(ws: WebsocketService, *, succeed_on_call: int = 2) -> Callable[..., Awaitable[None]]:
     """Build a send side effect that times out subscribe_events until the Nth call."""
     call_count = 0
 

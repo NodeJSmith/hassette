@@ -27,7 +27,7 @@ async def test_send_json_injects_message_id_when_absent(websocket_service: Webso
     mark_websocket_service_connected(websocket_service, reason="test connected")
 
     await websocket_service.send_json(type="ping")
-    payload = fake_ws.send_json.await_args.args[0]  # pyright: ignore
+    payload = fake_ws.send_json.await_args.args[0]
     assert payload["type"] == "ping", "Expected original payload to be forwarded"
     assert payload["id"] == 1, "Expected send_json to add a message id when absent"
 
@@ -39,7 +39,7 @@ async def test_send_json_preserves_message_id_when_present(websocket_service: We
     mark_websocket_service_connected(websocket_service, reason="test connected")
 
     await websocket_service.send_json(type="pong", id=41)
-    second_payload = fake_ws.send_json.await_args_list[0].args[0]  # pyright: ignore
+    second_payload = fake_ws.send_json.await_args_list[0].args[0]
     assert second_payload["id"] == 41, "Expected explicit message id to be preserved"
 
 
@@ -54,7 +54,7 @@ async def test_private_send_allows_setup_send_before_external_readiness(
 
     await websocket_service._send_json_when_socket_live(type="subscribe_events")
 
-    payload = fake_ws.send_json.await_args.args[0]  # pyright: ignore
+    payload = fake_ws.send_json.await_args.args[0]
     assert payload["type"] == "subscribe_events"
     assert payload["id"] == 1
 
@@ -108,7 +108,7 @@ async def test_api_ws_send_and_wait_checks_external_readiness() -> None:
 async def test_send_json_propagates_reset_error(websocket_service: WebsocketService) -> None:
     """Surface ClientConnectionResetError when the websocket resets."""
     fake_ws = build_fake_ws()
-    fake_ws.send_json.side_effect = ClientConnectionResetError("boom")  # pyright: ignore
+    fake_ws.send_json.side_effect = ClientConnectionResetError("boom")
 
     websocket_service._ws = fake_ws
     mark_websocket_service_connected(websocket_service, reason="test connected")
@@ -120,7 +120,7 @@ async def test_send_json_propagates_reset_error(websocket_service: WebsocketServ
 async def test_send_json_wraps_generic_exceptions(websocket_service: WebsocketService) -> None:
     """Wrap unexpected errors in FailedMessageError."""
     fake_ws = build_fake_ws()
-    fake_ws.send_json.side_effect = RuntimeError("unexpected")  # pyright: ignore
+    fake_ws.send_json.side_effect = RuntimeError("unexpected")
 
     websocket_service._ws = fake_ws
     mark_websocket_service_connected(websocket_service, reason="test connected")
@@ -134,7 +134,7 @@ async def test_send_and_wait_returns_response(websocket_service: WebsocketServic
 
     async def send_side_effect(**data: object) -> None:
         msg_id = data["id"]
-        response_future = websocket_service._response_futures[msg_id]  # pyright: ignore
+        response_future = websocket_service._response_futures[msg_id]
         response_future.set_result({"ok": True})
 
     websocket_service.send_json = AsyncMock(side_effect=send_side_effect)

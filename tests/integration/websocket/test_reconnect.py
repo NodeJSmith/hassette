@@ -26,7 +26,7 @@ from hassette.types import Topic
 from hassette.types.enums import ConnectionState
 
 
-def make_failing_recv_task(error: Exception) -> asyncio.Task:
+def make_failing_recv_task(error: Exception) -> asyncio.Task[None]:
     """Create a task that raises the given error, simulating a failed recv loop."""
 
     async def _fail():
@@ -304,7 +304,7 @@ async def test_early_drop_retries_and_succeeds(
         mark_fully_connected=True,
     )
 
-    async def fake_partial_cleanup():
+    async def fake_partial_cleanup() -> None:
         nonlocal partial_cleanup_count
         partial_cleanup_count += 1
 
@@ -527,7 +527,7 @@ async def test_service_status_stays_running_during_early_drop(
 
     original_mark_not_ready = lifecycle_module.mark_not_ready
 
-    def capturing_mark_not_ready(resource, reason: str | None = None) -> None:
+    def capturing_mark_not_ready(resource: WebsocketService, reason: str | None = None) -> None:
         original_mark_not_ready(resource, reason=reason)
         statuses_during_retry.append((websocket_service.status, websocket_service.is_ready()))
 

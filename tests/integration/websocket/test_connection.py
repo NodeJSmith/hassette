@@ -6,7 +6,9 @@ and start_recv_and_subscribe(). Complements test_dispatch.py (send/dispatch), te
 """
 
 import asyncio
+from collections.abc import Coroutine
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
@@ -63,7 +65,7 @@ async def test_authenticate_happy_path(websocket_service: WebsocketService) -> N
 
     await websocket_service.authenticate()
 
-    sent_payload = fake_ws.send_json.await_args.args[0]  # pyright: ignore
+    sent_payload = fake_ws.send_json.await_args.args[0]
     assert sent_payload == {
         "type": "auth",
         "access_token": websocket_service.hassette.config.token.get_secret_value(),
@@ -165,9 +167,9 @@ async def test_start_recv_and_subscribe_marks_ready(websocket_service: Websocket
     websocket_service.task_bucket = MagicMock()
 
     # Capture and discard the coroutine argument to avoid "coroutine never awaited" warning
-    spawned_coros = []
+    spawned_coros: list[Coroutine[Any, Any, Any]] = []
 
-    def _spawn_side_effect(coro, *, name=None):  # noqa: ARG001
+    def _spawn_side_effect(coro: Coroutine[Any, Any, Any], *, name: str | None = None) -> asyncio.Task[None]:  # noqa: ARG001
         spawned_coros.append(coro)
         return fake_task
 
