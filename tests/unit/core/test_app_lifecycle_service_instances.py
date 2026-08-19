@@ -11,6 +11,7 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock, Mock, call, patch
 
 from hassette.core.app_lifecycle_service import AppLifecycleService
+from hassette.scheduler.classes import Job
 from hassette.scheduler.scheduler import Scheduler
 from hassette.test_utils import EventCapture, make_mock_hassette
 from hassette.test_utils.factories import make_mock_parent
@@ -31,7 +32,7 @@ class TestInitializeInstances:
         with patch("hassette.core.app_lifecycle_service.mark_ready") as mock_mark_ready:
             await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
 
-        mock_app_instance.initialize.assert_called_once()
+        mock_app_instance.initialize.assert_awaited_once()
         mock_mark_ready.assert_called_once_with(mock_app_instance, reason="initialized")
 
     async def test_multiple_instances(self, lifecycle_service: AppLifecycleService, mock_manifest: MagicMock) -> None:
@@ -43,8 +44,8 @@ class TestInitializeInstances:
         with patch("hassette.core.app_lifecycle_service.mark_ready") as mock_mark_ready:
             await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
 
-        app1.initialize.assert_called_once()
-        app2.initialize.assert_called_once()
+        app1.initialize.assert_awaited_once()
+        app2.initialize.assert_awaited_once()
         assert mock_mark_ready.call_args_list == [
             call(app1, reason="initialized"),
             call(app2, reason="initialized"),
@@ -101,8 +102,8 @@ class TestInitializeInstances:
         with patch("hassette.core.app_lifecycle_service.mark_ready") as mock_mark_ready:
             await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
 
-        app1.initialize.assert_called_once()
-        app2.initialize.assert_called_once()
+        app1.initialize.assert_awaited_once()
+        app2.initialize.assert_awaited_once()
         mock_mark_ready.assert_called_once_with(app2, reason="initialized")
 
     async def test_emits_running_event_on_success(
@@ -212,7 +213,7 @@ class TestCleanupFailedInstance:
 
         mock_app_instance.bus.remove_all_listeners = Mock(side_effect=lambda: call_order.append("cleanup_listeners"))
 
-        async def track_jobs():
+        async def track_jobs() -> None:
             call_order.append("cleanup_jobs")
             return await asyncio.sleep(0)
 
@@ -275,7 +276,7 @@ class TestCleanupFailedInstance:
         """
         hassette = make_mock_hassette(sealed=False)
 
-        async def _add_job(job):
+        async def _add_job(job: Job) -> None:
             job.mark_registered(1)
 
         hassette.scheduler_service.add_job = AsyncMock(side_effect=_add_job)
@@ -306,7 +307,7 @@ class TestShutdownInstance:
         """Calls inst.shutdown()."""
         await lifecycle_service.shutdown_instance(mock_app_instance)
 
-        mock_app_instance.shutdown.assert_called_once()
+        mock_app_instance.shutdown.assert_awaited_once()
 
     async def test_catches_exceptions(
         self,
@@ -363,8 +364,8 @@ class TestShutdownInstances:
 
         await lifecycle_service.shutdown_instances(instances)
 
-        app1.shutdown.assert_called_once()
-        app2.shutdown.assert_called_once()
+        app1.shutdown.assert_awaited_once()
+        app2.shutdown.assert_awaited_once()
 
     async def test_emits_stopping_event(
         self,
@@ -399,8 +400,8 @@ class TestShutdownAll:
 
         await lifecycle_service.shutdown_all()
 
-        app1.shutdown.assert_called_once()
-        app2.shutdown.assert_called_once()
+        app1.shutdown.assert_awaited_once()
+        app2.shutdown.assert_awaited_once()
 
     async def test_clears_registry(self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock) -> None:
         """Calls registry.clear_all() after shutdown."""
