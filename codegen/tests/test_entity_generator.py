@@ -1,9 +1,7 @@
 """Unit tests for the entity wrapper generator."""
 
 import ast
-import py_compile
 import re
-import tempfile
 
 import pytest
 
@@ -14,8 +12,61 @@ from hassette_codegen.generators.entities import generate_entity_wrapper
 from hassette_codegen.overrides import DomainOverride
 from hassette_codegen.rendering import UnsafeGeneratedValueError
 
+from .conftest import assert_compiles, generate_wrapper_or_fail
+
+
+# dup-ignore-start: fan domain factories share the ExtractedDomain(name="fan") preamble by design
+def _fan_single_service_domain() -> ExtractedDomain:
+    return ExtractedDomain(
+        name="fan",
+        base_class="BoolBaseState",
+        services=[
+            ExtractedService(
+                name="turn_on",
+                method_name="turn_on",
+                fields=[ServiceField(name="pct", selector_type="number", selector_data={})],
+            ),
+        ],
+    )
+
+
+def _fan_turn_off_domain() -> ExtractedDomain:
+    return ExtractedDomain(
+        name="fan",
+        base_class="BoolBaseState",
+        services=[
+            ExtractedService(name="turn_off", method_name="turn_off", fields=[]),
+        ],
+    )
+
+
+# dup-ignore-end
+
+
+def _cover_domain() -> ExtractedDomain:
+    return ExtractedDomain(
+        name="cover",
+        base_class="StringBaseState",
+        services=[
+            ExtractedService(name="open_cover", method_name="open_cover", fields=[]),
+            ExtractedService(
+                name="set_cover_position",
+                method_name="set_cover_position",
+                fields=[
+                    ServiceField(
+                        name="position",
+                        selector_type="number",
+                        selector_data={"min": 0, "max": 100},
+                        required=True,
+                    ),
+                ],
+            ),
+        ],
+    )
+
 
 class TestEntityWrapperGenerator:
+    # dup-ignore-start: multi-service fan domain with unique field combos, not extractable to a shared factory
     def test_fan_entity(self) -> None:
         domain = ExtractedDomain(
             name="fan",
@@ -44,8 +95,7 @@ class TestEntityWrapperGenerator:
                 ),
             ],
         )
-        output = generate_entity_wrapper(domain)
-        assert output is not None
+        output = generate_wrapper_or_fail(domain)
         assert "class FanEntity(BaseEntity[FanState, str]):" in output
         assert "def turn_on(" in output
         assert "def turn_off(" in output
@@ -59,20 +109,10 @@ class TestEntityWrapperGenerator:
         assert "from collections.abc import Coroutine" in output
         assert "from typing import Any" in output
 
+    # dup-ignore-end
+
     def test_all_params_keyword_only(self) -> None:
-        domain = ExtractedDomain(
-            name="fan",
-            base_class="BoolBaseState",
-            services=[
-                ExtractedService(
-                    name="turn_on",
-                    method_name="turn_on",
-                    fields=[ServiceField(name="pct", selector_type="number", selector_data={})],
-                ),
-            ],
-        )
-        output = generate_entity_wrapper(domain)
-        assert output is not None
+        output = generate_wrapper_or_fail(_fan_single_service_domain())
         assert "self,\n        *," in output
 
     def test_no_services_returns_none(self) -> None:
@@ -97,11 +137,13 @@ class TestEntityWrapperGenerator:
                 service_param_renames={"media_content_type": "media_type"},
             ),
         )
-        output = generate_entity_wrapper(domain)
-        assert output is not None
+        output = generate_wrapper_or_fail(domain)
         assert "media_type" in output
         assert "media_content_type" not in output.split("call_service")[0]
 
+    # dup-ignore-start: selector-field tests each build domains with deliberately varied options
+    # to test alias dedup, collision, and list-wrapping — the ServiceField/ExtractedService
+    # constructor syntax repeats but the specific option values and selector types are the inputs
     def test_same_param_name_different_literals_get_distinct_aliases(self) -> None:
         # Two services share the param name "mode" but expose different Literal sets.
         # Keying the alias cache by param name alone would emit two `Mode = ...` lines,
@@ -136,18 +178,14 @@ class TestEntityWrapperGenerator:
                 ),
             ],
         )
-        output = generate_entity_wrapper(domain)
-        assert output is not None
+        output = generate_wrapper_or_fail(domain)
         # Each Literal set gets its own alias, defined exactly once.
         assert output.count('ClimateMode = Literal["heat", "cool"]') == 1
         assert output.count('ClimateMode2 = Literal["low", "high"]') == 1
         # Both aliases are referenced — the first uses the bare name, the second the suffixed one.
         assert re.search(r"mode: ClimateMode\b", output)  # \b stops this matching "ClimateMode2"
         assert "mode: ClimateMode2" in output
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-            f.write(output)
-            f.flush()
-            py_compile.compile(f.name, doraise=True)
+        assert_compiles(output)
 
     def test_shared_literal_reuses_single_alias(self) -> None:
         # The same Literal shape under the same param name should still collapse to one alias.
@@ -181,8 +219,7 @@ class TestEntityWrapperGenerator:
                 ),
             ],
         )
-        output = generate_entity_wrapper(domain)
-        assert output is not None
+        output = generate_wrapper_or_fail(domain)
         assert output.count('ClimateMode = Literal["heat", "cool"]') == 1
         assert "ClimateMode2" not in output
 
@@ -206,8 +243,7 @@ class TestEntityWrapperGenerator:
                 ),
             ],
         )
-        output = generate_entity_wrapper(domain)
-        assert output is not None
+        output = generate_wrapper_or_fail(domain)
         assert "group_members: list[str]" in output
 
     def test_multiple_select_aliases_inner_literal(self) -> None:
@@ -241,32 +277,17 @@ class TestEntityWrapperGenerator:
                 ),
             ],
         )
-        output = generate_entity_wrapper(domain)
-        assert output is not None
+        output = generate_wrapper_or_fail(domain)
         # One alias definition, shared by the bare and the list-wrapped usage.
         assert output.count('TodoStatus = Literal["needs_action", "completed"]') == 1
         assert "status: list[TodoStatus] | None" in output
         assert "status: TodoStatus | None" in output
         assert "list[Literal[" not in output  # inner literal is aliased, not inlined
 
+    # dup-ignore-end
+
     def test_output_compiles(self) -> None:
-        domain = ExtractedDomain(
-            name="fan",
-            base_class="BoolBaseState",
-            services=[
-                ExtractedService(
-                    name="turn_on",
-                    method_name="turn_on",
-                    fields=[ServiceField(name="pct", selector_type="number", selector_data={})],
-                ),
-            ],
-        )
-        output = generate_entity_wrapper(domain)
-        assert output is not None
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-            f.write(output)
-            f.flush()
-            py_compile.compile(f.name, doraise=True)
+        assert_compiles(generate_wrapper_or_fail(_fan_single_service_domain()))
 
     def test_facade_class_emitted(self) -> None:
         domain = ExtractedDomain(
@@ -281,47 +302,18 @@ class TestEntityWrapperGenerator:
                 ExtractedService(name="turn_off", method_name="turn_off", fields=[]),
             ],
         )
-        output = generate_entity_wrapper(domain)
-        assert output is not None
+        output = generate_wrapper_or_fail(domain)
         assert "class FanEntitySyncFacade(BaseEntitySyncFacade[FanState, str]):" in output
 
     def test_sync_property_override_emitted(self) -> None:
-        domain = ExtractedDomain(
-            name="fan",
-            base_class="BoolBaseState",
-            services=[
-                ExtractedService(name="turn_off", method_name="turn_off", fields=[]),
-            ],
-        )
-        output = generate_entity_wrapper(domain)
-        assert output is not None
+        output = generate_wrapper_or_fail(_fan_turn_off_domain())
         assert 'def sync(self) -> "FanEntitySyncFacade":' in output
         # Caching is delegated to the base helper; no per-file construction or cast.
         assert "self._get_or_create_sync(FanEntitySyncFacade)" in output
         assert "cast(" not in output
 
     def test_facade_methods_match_async_signatures(self) -> None:
-        domain = ExtractedDomain(
-            name="cover",
-            base_class="StringBaseState",
-            services=[
-                ExtractedService(name="open_cover", method_name="open_cover", fields=[]),
-                ExtractedService(
-                    name="set_cover_position",
-                    method_name="set_cover_position",
-                    fields=[
-                        ServiceField(
-                            name="position",
-                            selector_type="number",
-                            selector_data={"min": 0, "max": 100},
-                            required=True,
-                        ),
-                    ],
-                ),
-            ],
-        )
-        output = generate_entity_wrapper(domain)
-        assert output is not None
+        output = generate_wrapper_or_fail(_cover_domain())
         # Facade class present
         assert "class CoverEntitySyncFacade(BaseEntitySyncFacade[CoverState, str]):" in output
         # No-param service emits a void method with just self
@@ -336,27 +328,7 @@ class TestEntityWrapperGenerator:
         assert 'target={"entity_id": self.entity.entity_id}' in output
 
     def test_facade_methods_are_void(self) -> None:
-        domain = ExtractedDomain(
-            name="cover",
-            base_class="StringBaseState",
-            services=[
-                ExtractedService(name="open_cover", method_name="open_cover", fields=[]),
-                ExtractedService(
-                    name="set_cover_position",
-                    method_name="set_cover_position",
-                    fields=[
-                        ServiceField(
-                            name="position",
-                            selector_type="number",
-                            selector_data={"min": 0, "max": 100},
-                            required=True,
-                        ),
-                    ],
-                ),
-            ],
-        )
-        output = generate_entity_wrapper(domain)
-        assert output is not None
+        output = generate_wrapper_or_fail(_cover_domain())
         # Split on the facade class to inspect only the facade portion
         facade_portion = output.split("class CoverEntitySyncFacade", 1)[1]
         # Facade methods are synchronous and void: explicit `-> None`, no `return` of the
@@ -371,46 +343,14 @@ class TestEntityWrapperGenerator:
         assert "Must be awaited" not in facade_portion
 
     def test_facade_imports_base_facade_not_cast(self) -> None:
-        domain = ExtractedDomain(
-            name="fan",
-            base_class="BoolBaseState",
-            services=[
-                ExtractedService(name="turn_off", method_name="turn_off", fields=[]),
-            ],
-        )
-        output = generate_entity_wrapper(domain)
-        assert output is not None
+        output = generate_wrapper_or_fail(_fan_turn_off_domain())
         # The base caching helper removed the per-file cast, so `cast` is no longer imported.
         assert "from typing import Any\n" in output
         assert "cast" not in output
         assert "BaseEntitySyncFacade" in output.split("class FanEntity")[0]
 
     def test_output_compiles_with_facade(self) -> None:
-        domain = ExtractedDomain(
-            name="cover",
-            base_class="StringBaseState",
-            services=[
-                ExtractedService(name="open_cover", method_name="open_cover", fields=[]),
-                ExtractedService(
-                    name="set_cover_position",
-                    method_name="set_cover_position",
-                    fields=[
-                        ServiceField(
-                            name="position",
-                            selector_type="number",
-                            selector_data={"min": 0, "max": 100},
-                            required=True,
-                        ),
-                    ],
-                ),
-            ],
-        )
-        output = generate_entity_wrapper(domain)
-        assert output is not None
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-            f.write(output)
-            f.flush()
-            py_compile.compile(f.name, doraise=True)
+        assert_compiles(generate_wrapper_or_fail(_cover_domain()))
 
     def test_facade_param_lists_match_async_entity_methods(self) -> None:
         """Each facade method's parameter names mirror the async entity method's.
@@ -418,27 +358,7 @@ class TestEntityWrapperGenerator:
         String-presence checks would miss a template change that emits a parameter
         subset on the facade; this parses the AST and compares names directly.
         """
-        domain = ExtractedDomain(
-            name="cover",
-            base_class="StringBaseState",
-            services=[
-                ExtractedService(name="open_cover", method_name="open_cover", fields=[]),
-                ExtractedService(
-                    name="set_cover_position",
-                    method_name="set_cover_position",
-                    fields=[
-                        ServiceField(
-                            name="position",
-                            selector_type="number",
-                            selector_data={"min": 0, "max": 100},
-                            required=True,
-                        ),
-                    ],
-                ),
-            ],
-        )
-        output = generate_entity_wrapper(domain)
-        assert output is not None
+        output = generate_wrapper_or_fail(_cover_domain())
         tree = ast.parse(output)
 
         def method_params(class_name: str, method_name: str) -> list[str]:
@@ -476,28 +396,44 @@ def _domain(
     )
 
 
+def _hvac_mode_service(*, required: bool = True) -> list[ExtractedService]:
+    return [
+        ExtractedService(
+            name="set_hvac_mode",
+            method_name="set_hvac_mode",
+            fields=[
+                ServiceField(name="hvac_mode", selector_type="text", selector_data={}, required=required),
+            ],
+        ),
+    ]
+
+
+def _hvac_mode_domain(
+    *,
+    members: list[tuple[str, str]] | None = None,
+    required: bool = True,
+    override: DomainOverride | None = None,
+) -> ExtractedDomain:
+    if members is None:
+        members = [("OFF", "off"), ("HEAT", "heat")]
+    return _domain(
+        "climate",
+        strenums=[_enum("HVACMode", *members)],
+        services=_hvac_mode_service(required=required),
+        override=override,
+    )
+
+
 class TestStrEnumMatching:
     """StrEnum cross-referencing for service params (issue #718)."""
 
     def test_name_based_match_str_to_strenum(self) -> None:
-        domain = _domain(
-            "climate",
-            strenums=[_enum("HVACMode", ("OFF", "off"), ("HEAT", "heat"), ("COOL", "cool"))],
-            services=[
-                ExtractedService(
-                    name="set_hvac_mode",
-                    method_name="set_hvac_mode",
-                    fields=[
-                        ServiceField(name="hvac_mode", selector_type="text", selector_data={}, required=True),
-                    ],
-                ),
-            ],
-        )
-        output = generate_entity_wrapper(domain)
-        assert output is not None
+        domain = _hvac_mode_domain(members=[("OFF", "off"), ("HEAT", "heat"), ("COOL", "cool")])
+        output = generate_wrapper_or_fail(domain)
         assert "hvac_mode: HVACMode" in output
         assert "import ClimateAttributes, HVACMode" in output
 
+    # dup-ignore-start: select-field service construction shares structure with other selector tests
     def test_value_based_match_literal_to_strenum(self) -> None:
         domain = _domain(
             "media_player",
@@ -517,13 +453,15 @@ class TestStrEnumMatching:
                 ),
             ],
         )
-        output = generate_entity_wrapper(domain)
-        assert output is not None
+        output = generate_wrapper_or_fail(domain)
         assert "repeat: RepeatMode" in output
         assert "RepeatMode" in output.split("class")[0]
         # Literal alias should NOT be generated — StrEnum supersedes it
         assert "MediaPlayerRepeat = Literal" not in output
 
+    # dup-ignore-end
+
+    # dup-ignore-start: status select field shares structure with test_multiple_select_aliases_inner_literal above
     def test_value_based_match_list_literal_to_strenum(self) -> None:
         domain = _domain(
             "todo",
@@ -542,10 +480,11 @@ class TestStrEnumMatching:
                 ),
             ],
         )
-        output = generate_entity_wrapper(domain)
-        assert output is not None
+        output = generate_wrapper_or_fail(domain)
         assert "status: list[TodoItemStatus] | None" in output
         assert "TodoStatus = Literal" not in output
+
+    # dup-ignore-end
 
     def test_metadata_enums_excluded_from_matching(self) -> None:
         domain = _domain(
@@ -561,50 +500,20 @@ class TestStrEnumMatching:
                 ),
             ],
         )
-        output = generate_entity_wrapper(domain)
-        assert output is not None
+        output = generate_wrapper_or_fail(domain)
         # Should remain str because ClimateEntityStateAttribute ends with "Attribute"
         assert "fan_mode: str" in output
 
     def test_param_type_override_wins_over_enum_match(self) -> None:
-        domain = _domain(
-            "climate",
-            strenums=[_enum("HVACMode", ("OFF", "off"), ("HEAT", "heat"))],
-            services=[
-                ExtractedService(
-                    name="set_hvac_mode",
-                    method_name="set_hvac_mode",
-                    fields=[
-                        ServiceField(name="hvac_mode", selector_type="text", selector_data={}, required=True),
-                    ],
-                ),
-            ],
-            override=DomainOverride(
-                domain="climate",
-                param_type_overrides={"hvac_mode": "str"},
-            ),
+        domain = _hvac_mode_domain(
+            override=DomainOverride(domain="climate", param_type_overrides={"hvac_mode": "str"}),
         )
-        output = generate_entity_wrapper(domain)
-        assert output is not None
+        output = generate_wrapper_or_fail(domain)
         assert "hvac_mode: str" in output
         assert "HVACMode" not in output
 
     def test_optional_enum_param_gets_none_union(self) -> None:
-        domain = _domain(
-            "climate",
-            strenums=[_enum("HVACMode", ("OFF", "off"), ("HEAT", "heat"))],
-            services=[
-                ExtractedService(
-                    name="set_hvac_mode",
-                    method_name="set_hvac_mode",
-                    fields=[
-                        ServiceField(name="hvac_mode", selector_type="text", selector_data={}, required=False),
-                    ],
-                ),
-            ],
-        )
-        output = generate_entity_wrapper(domain)
-        assert output is not None
+        output = generate_wrapper_or_fail(_hvac_mode_domain(required=False))
         assert "hvac_mode: HVACMode | None" in output
 
     def test_enum_match_with_renamed_param(self) -> None:
@@ -625,11 +534,11 @@ class TestStrEnumMatching:
                 service_param_renames={"media_content_type": "media_type"},
             ),
         )
-        output = generate_entity_wrapper(domain)
-        assert output is not None
+        output = generate_wrapper_or_fail(domain)
         # Renamed param "media_type" should match StrEnum "MediaType"
         assert "media_type: MediaType | None" in output
 
+    # dup-ignore-start: select-field service construction shares structure with other selector tests
     def test_collision_renamed_enum_uses_value_suffix(self) -> None:
         """StrEnums renamed by the state generator (name collides with Pydantic class) use the renamed name."""
         domain = _domain(
@@ -650,32 +559,15 @@ class TestStrEnumMatching:
                 ),
             ],
         )
-        output = generate_entity_wrapper(domain)
-        assert output is not None
+        output = generate_wrapper_or_fail(domain)
         # The state generator renames SceneState → SceneStateValue to avoid collision
         assert "SceneStateValue" in output
         assert "import SceneAttributes, SceneStateValue" in output
 
+    # dup-ignore-end
+
     def test_output_compiles_with_enum_imports(self) -> None:
-        domain = _domain(
-            "climate",
-            strenums=[_enum("HVACMode", ("OFF", "off"), ("HEAT", "heat"))],
-            services=[
-                ExtractedService(
-                    name="set_hvac_mode",
-                    method_name="set_hvac_mode",
-                    fields=[
-                        ServiceField(name="hvac_mode", selector_type="text", selector_data={}, required=True),
-                    ],
-                ),
-            ],
-        )
-        output = generate_entity_wrapper(domain)
-        assert output is not None
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-            f.write(output)
-            f.flush()
-            py_compile.compile(f.name, doraise=True)
+        assert_compiles(generate_wrapper_or_fail(_hvac_mode_domain()))
 
 
 class TestEntityWrapperEscaping:
@@ -685,6 +577,7 @@ class TestEntityWrapperEscaping:
     params), so every assertion here checks all occurrences rather than the first.
     """
 
+    # dup-ignore-start: fan domain factory with hostile-input overrides, shares preamble with module factories
     @staticmethod
     def _domain(
         service_name: str = "turn_on", method_name: str = "turn_on", field_name: str = "percentage"
@@ -702,10 +595,11 @@ class TestEntityWrapperEscaping:
             ],
         )
 
+    # dup-ignore-end
+
     def test_quote_in_service_name_stays_one_literal_at_every_site(self) -> None:
         hostile = 'turn_on", target={"entity_id": "light.evil'
-        output = generate_entity_wrapper(self._domain(service_name=hostile))
-        assert output is not None
+        output = generate_wrapper_or_fail(self._domain(service_name=hostile))
 
         module = ast.parse(output)
         rendered = [
@@ -734,9 +628,8 @@ class TestEntityWrapperEscaping:
         # An override that maps a bad name to a good one must be honoured, not rejected first.
         domain = self._domain(field_name="for")
         domain.override = DomainOverride(domain="fan", service_param_renames={"for": "for_"})
-        output = generate_entity_wrapper(domain)
+        output = generate_wrapper_or_fail(domain)
 
-        assert output is not None
         assert "for_:" in output
 
     def test_whitespace_only_descriptions_do_not_swallow_sibling_methods(self) -> None:
@@ -751,8 +644,7 @@ class TestEntityWrapperEscaping:
                 ExtractedService(name="third", method_name="third", fields=[], description="Turn on."),
             ],
         )
-        output = generate_entity_wrapper(domain)
-        assert output is not None
+        output = generate_wrapper_or_fail(domain)
 
         module = ast.parse(output)
         facade = next(n for n in module.body if isinstance(n, ast.ClassDef) and n.name.endswith("SyncFacade"))

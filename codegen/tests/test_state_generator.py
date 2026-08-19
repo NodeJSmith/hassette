@@ -1,14 +1,26 @@
 """Unit tests for the state model generator."""
 
 import ast
-import py_compile
-import tempfile
 
 from hassette_codegen.domain_data import ExtractedDomain
 from hassette_codegen.extractors.features import ExtractedEnum
 from hassette_codegen.extractors.properties import ExtractedProperty
 from hassette_codegen.generators.states import _normalize_enum_prefixes, generate_state_model
 from hassette_codegen.overrides import DomainOverride
+
+from .conftest import assert_compiles
+
+
+def _datetime_domain() -> ExtractedDomain:
+    return ExtractedDomain(
+        name="script",
+        base_class="BoolBaseState",
+        properties=[
+            ExtractedProperty(name="last_triggered", python_type="ZonedDateTime | None", has_default=True),
+            ExtractedProperty(name="mode", python_type="str | None", has_default=True),
+        ],
+        features=[],
+    )
 
 
 class TestStateModelGenerator:
@@ -65,11 +77,7 @@ class TestStateModelGenerator:
                 ExtractedEnum(name="FanEntityFeature", members=[("SET_SPEED", 1)]),
             ],
         )
-        output = generate_state_model(domain)
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-            f.write(output)
-            f.flush()
-            py_compile.compile(f.name, doraise=True)
+        assert_compiles(generate_state_model(domain))
 
     def test_fields_all_use_field_default_none(self) -> None:
         domain = ExtractedDomain(
@@ -84,32 +92,10 @@ class TestStateModelGenerator:
         assert "Field(default=None)" in output
 
     def test_output_with_datetime_field_compiles(self) -> None:
-        domain = ExtractedDomain(
-            name="script",
-            base_class="BoolBaseState",
-            properties=[
-                ExtractedProperty(name="last_triggered", python_type="ZonedDateTime | None", has_default=True),
-                ExtractedProperty(name="mode", python_type="str | None", has_default=True),
-            ],
-            features=[],
-        )
-        output = generate_state_model(domain)
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-            f.write(output)
-            f.flush()
-            py_compile.compile(f.name, doraise=True)
+        assert_compiles(generate_state_model(_datetime_domain()))
 
     def test_datetime_fields_get_validator(self) -> None:
-        domain = ExtractedDomain(
-            name="script",
-            base_class="BoolBaseState",
-            properties=[
-                ExtractedProperty(name="last_triggered", python_type="ZonedDateTime | None", has_default=True),
-                ExtractedProperty(name="mode", python_type="str | None", has_default=True),
-            ],
-            features=[],
-        )
-        output = generate_state_model(domain)
+        output = generate_state_model(_datetime_domain())
         assert "field_validator" in output
         assert '"last_triggered"' in output
         assert "convert_datetime_str_to_tz" in output
