@@ -83,7 +83,7 @@ def mock_hassette():
 
     # Mock app handler — sync methods need explicit Mock (parent is AsyncMock)
     # dup-ignore-start: same AppInstanceInfo("my_app", index=0, ...) literal shape used by
-    # tests/e2e/mock_fixtures.py and tests/unit/test_model_types.py — different test tiers/
+    # tests/e2e/mock_fixtures/manifests.py and tests/unit/test_model_types.py — different test tiers/
     # directories (e2e fixtures, top-level unit tests) building unrelated fixture data;
     # src/hassette/test_utils/web_manifest_helpers.py's make_app_instance_info() factory already
     # covers this shape, but adopting it across all three call sites is out of scope for this
