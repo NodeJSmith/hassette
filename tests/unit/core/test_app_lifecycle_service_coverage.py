@@ -1,7 +1,8 @@
 """Unit tests filling coverage gaps in AppLifecycleService.
 
-Complements test_app_lifecycle_service.py (init/properties/initialize/shutdown/bootstrap/
-apply-changes gating) and test_app_lifecycle_service_operations.py (start/stop/reload/
+Complements test_app_lifecycle_service.py (init/properties/bootstrap-admission/apply-changes
+gating), test_app_lifecycle_service_instances.py (initialize/cleanup/shutdown instance
+operations), and test_app_lifecycle_service_operations.py (start/stop/reload/
 resolve_only_apps/refresh_config/reconcile). This file targets the remaining branches:
 specific factory exceptions, stop/reload failure paths, start_apps error aggregation,
 handle_change_event's unblock-and-no-op branches, resolve_only_apps's error/prod/multi-only

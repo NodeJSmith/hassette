@@ -127,7 +127,7 @@ class TestWebsocketReadinessEvents:
         Runs the real start_recv_and_subscribe() with sub-methods stubbed to isolate
         the mark_ready() → _emit_readiness_event() call that subtask 3 adds.
 
-        Companion: test_websocket_service.py::test_start_recv_and_subscribe_marks_ready asserts
+        Companion: tests/integration/websocket/test_connection.py::test_start_recv_and_subscribe_marks_ready asserts
         the structural side (recv task spawned, _connected_at set) of the same method.
         """
         event_capture.install(websocket_service.hassette)

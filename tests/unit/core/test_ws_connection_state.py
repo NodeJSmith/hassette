@@ -321,7 +321,7 @@ class TestMaxRetriesDisconnects:
         websocket_service.partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
         # max_retries=1 is specific to this test (proves DISCONNECTED after budget exhaustion);
         # the other three values match the shared defaults used across the early-drop test
-        # suite (tests/integration/test_websocket_service.py).
+        # suite (tests/integration/websocket/test_reconnect.py).
         ws_config = websocket_service.hassette.config.websocket
         ws_config.early_drop_max_retries = 1
         ws_config.early_drop_stable_window_seconds = TEST_EARLY_DROP_STABLE_WINDOW_SECONDS

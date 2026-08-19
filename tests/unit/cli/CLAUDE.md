@@ -38,7 +38,7 @@ Direct function calls test function logic. `parse_args` tests prove the wiring i
 
 ## Credential tests: prefer the hermetic factory
 
-Credential-resolution tests (`TestCredentialAttachment` in `test_client.py`, and the resolver
+Credential-resolution tests (`TestCredentialAttachment` in `test_client_credentials.py`, and the resolver
 tests in `test_target.py`) should build their config via `make_cli_config` (which wraps
 `make_test_config`) rather than constructing `HassetteConfig` directly. `make_test_config` reads
 no environment at all — it swaps in an `InitSettingsSource` populated only from its keyword
@@ -102,6 +102,7 @@ Reach for these instead of hand-rolling the `patch(...)` / `capture_*()` context
 | `test_commands_*.py` | Command function logic: endpoint routing, param forwarding, output |
 | `test_since_converter.py` | `convert_since()` unit tests: relative durations, ISO formats, invalid inputs |
 | `test_client.py` | `HassetteCLIClient` HTTP handling, error formatting |
+| `test_client_credentials.py` | Credential/auth tests for `HassetteCLIClient`: bearer-token attachment, TLS verification, non-loopback 401 messaging (split out of `test_client.py`) |
 | `test_context.py` | `CLIContext` and launcher meta-command pattern |
 | `test_output.py` | Table rendering, formatters, JSON mode |
 | `test_output_detail.py` | Detail/panel rendering |

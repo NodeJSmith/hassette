@@ -114,7 +114,7 @@ def make_result(
 ) -> ExecutionResult:
     """Build a minimal ExecutionResult for build_record() tests.
 
-    Defaults describe a successful execution. Shared with test_command_executor_pipeline.py's
+    Defaults describe a successful execution. Shared with test_command_executor_pipeline_persist.py's
     build_record tests via an in-group import — both files build the same result shape, differing
     only in which fields are overridden.
     """
