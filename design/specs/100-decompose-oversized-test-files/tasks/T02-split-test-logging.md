@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Split tests/unit/test_logging.py by subsystem"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#2", "AC#2"]
 ---
