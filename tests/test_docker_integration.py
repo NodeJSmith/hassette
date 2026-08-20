@@ -44,14 +44,9 @@ def run_hassette_container(
     return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
 
 
-def run_requirements_container(
-    apps_dir: Path, *, extra_env: dict[str, str] | None = None
-) -> tuple[subprocess.CompletedProcess[str], str]:
+def run_requirements_container(apps_dir: Path) -> tuple[subprocess.CompletedProcess[str], str]:
     """Run the container with INSTALL_DEPS=1 and a read-only apps mount, returning (result, combined output)."""
-    env = {"HASSETTE__INSTALL_DEPS": "1"}
-    if extra_env:
-        env.update(extra_env)
-    result = run_hassette_container(volumes=[f"{apps_dir}:/apps:ro"], env=env)
+    result = run_hassette_container(volumes=[f"{apps_dir}:/apps:ro"], env={"HASSETTE__INSTALL_DEPS": "1"})
     return result, result.stderr + result.stdout
 
 
