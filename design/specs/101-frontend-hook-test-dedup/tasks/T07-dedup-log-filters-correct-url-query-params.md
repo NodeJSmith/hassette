@@ -1,7 +1,7 @@
 ---
 task_id: "T07"
 title: "Deduplicate setup boilerplate in use-log-filters.test.ts, use-correct-url.test.ts, and use-query-params.test.ts"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#2", "FR#3", "AC#2", "AC#3", "AC#4"]
 ---
