@@ -1,7 +1,7 @@
 import { act } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { renderInvalidatorHook, useFakeTimersForEachTest } from "../test/query-test-utils";
+import { advanceTime, renderInvalidatorHook, useFakeTimersForEachTest } from "../test/query-test-utils";
 import { useQueryInvalidator, WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS } from "./use-query-invalidator";
 
 // Fires a rerender carrying the given value — the "a matching (or non-matching) event arrived"
@@ -9,14 +9,6 @@ import { useQueryInvalidator, WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS } fr
 function triggerEvent(rerender: (props: { value: string | null }) => void, value: string | null) {
   act(() => {
     rerender({ value });
-  });
-}
-
-// Advances the active fake-timer clock by `ms` — the debounce/max-wait clock tick every test
-// below simulates at least once.
-function advanceTime(ms: number) {
-  act(() => {
-    vi.advanceTimersByTime(ms);
   });
 }
 

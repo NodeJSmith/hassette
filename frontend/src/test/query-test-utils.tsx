@@ -8,7 +8,7 @@
  */
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, vi } from "vitest";
 
@@ -100,5 +100,15 @@ export function useFakeTimersForEachTest(): void {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+}
+
+/** Advances the active fake-timer clock by `ms` inside `act()` — the clock-tick action every
+ * debounce/backoff/poll-interval test simulates at least once. Generic Vitest lifecycle helper
+ * with no TanStack Query dependency, so it's usable from any hook test file, not just Query-based
+ * ones. */
+export function advanceTime(ms: number) {
+  act(() => {
+    vi.advanceTimersByTime(ms);
   });
 }

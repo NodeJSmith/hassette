@@ -1,8 +1,9 @@
-import { act, renderHook } from "@testing-library/react";
+// dup-ignore-start: shared 5-line import prologue also present in use-relative-time.test.ts, use-scoped-query.test.ts, and use-websocket.test.ts (T09/T05/T02); import statements can't be extracted into a shared helper
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useAppStore } from "../state/store";
 import { createWouterMock } from "../test/mock-wouter";
+// dup-ignore-end
 
 let mockLocation = "/";
 const mockSetLocation = vi.fn();
@@ -18,7 +19,15 @@ vi.mock("../api/endpoints", () => ({
 }));
 
 import { getTelemetryStatus } from "../api/endpoints";
-import { BASE_INTERVAL_MS, useTelemetryHealth } from "./use-telemetry-health";
+import { advanceTime, useFakeTimersForEachTest } from "../test/query-test-utils";
+import {
+  expectFirstPollDegraded,
+  expectFirstPollNotDegraded,
+  expectPollNotDegraded,
+  renderAndWaitForFirstPoll,
+  waitForPollCount,
+} from "../test/telemetry-health-test-utils";
+import { BASE_INTERVAL_MS } from "./use-telemetry-health";
 
 const mockedGetTelemetryStatus = vi.mocked(getTelemetryStatus);
 
@@ -31,123 +40,77 @@ const HEALTHY_TELEMETRY_STATUS = {
 };
 
 describe("useTelemetryHealth", () => {
+  useFakeTimersForEachTest();
+
   beforeEach(() => {
-    vi.useFakeTimers();
     mockLocation = "/";
     mockedGetTelemetryStatus.mockReset();
     mockedGetTelemetryStatus.mockResolvedValue(HEALTHY_TELEMETRY_STATUS);
   });
 
   afterEach(() => {
-    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
   it("polls on mount and sets degraded false on success", async () => {
-    renderHook(() => useTelemetryHealth());
-
     // Initial poll fires on mount
-    await vi.waitFor(() => {
-      expect(mockedGetTelemetryStatus).toHaveBeenCalledTimes(1);
-    });
-    expect(useAppStore.getState().telemetryDegraded).toBe(false);
+    await expectFirstPollNotDegraded(mockedGetTelemetryStatus);
   });
 
   it("polls again after 30s interval", async () => {
-    renderHook(() => useTelemetryHealth());
-
-    await vi.waitFor(() => {
-      expect(mockedGetTelemetryStatus).toHaveBeenCalledTimes(1);
-    });
+    await renderAndWaitForFirstPoll(mockedGetTelemetryStatus);
 
     // Advance 30s to trigger next poll
-    act(() => {
-      vi.advanceTimersByTime(BASE_INTERVAL_MS);
-    });
+    advanceTime(BASE_INTERVAL_MS);
 
-    await vi.waitFor(() => {
-      expect(mockedGetTelemetryStatus).toHaveBeenCalledTimes(2);
-    });
+    await waitForPollCount(mockedGetTelemetryStatus, 2);
   });
 
   it("does not set degraded on generic network error", async () => {
     mockedGetTelemetryStatus.mockRejectedValue(new Error("Network error"));
 
-    renderHook(() => useTelemetryHealth());
-
-    await vi.waitFor(() => {
-      expect(mockedGetTelemetryStatus).toHaveBeenCalledTimes(1);
-    });
     // Network errors keep degraded false — only HTTP 503 means DB is degraded
-    expect(useAppStore.getState().telemetryDegraded).toBe(false);
+    await expectFirstPollNotDegraded(mockedGetTelemetryStatus);
   });
 
   it("sets degraded true on HTTP 503 (ApiError)", async () => {
     const { ApiError } = await import("../api/client");
     mockedGetTelemetryStatus.mockRejectedValue(new ApiError(503, "Service Unavailable"));
 
-    renderHook(() => useTelemetryHealth());
-
-    await vi.waitFor(() => {
-      expect(useAppStore.getState().telemetryDegraded).toBe(true);
-    });
+    await expectFirstPollDegraded();
   });
 
   it("sets degraded true when endpoint reports degradation", async () => {
     mockedGetTelemetryStatus.mockResolvedValue({ ...HEALTHY_TELEMETRY_STATUS, degraded: true });
 
-    renderHook(() => useTelemetryHealth());
-
-    await vi.waitFor(() => {
-      expect(useAppStore.getState().telemetryDegraded).toBe(true);
-    });
+    await expectFirstPollDegraded();
   });
 
   it("backs off on consecutive failures (30s -> 60s -> 120s cap)", async () => {
     mockedGetTelemetryStatus.mockRejectedValue(new Error("fail"));
 
-    renderHook(() => useTelemetryHealth());
-
     // Initial poll (fires immediately)
-    await vi.waitFor(() => {
-      expect(mockedGetTelemetryStatus).toHaveBeenCalledTimes(1);
-    });
+    await renderAndWaitForFirstPoll(mockedGetTelemetryStatus);
 
     // After first failure, interval doubles to 60s
     // Advancing 30s should NOT trigger another poll (old interval cleared)
-    act(() => {
-      vi.advanceTimersByTime(BASE_INTERVAL_MS);
-    });
-    // Give any pending promises a chance to resolve
-    await vi.waitFor(() => {
-      // Should still be 1 since the interval is now 60s, not 30s
-      expect(mockedGetTelemetryStatus).toHaveBeenCalledTimes(1);
-    });
+    advanceTime(BASE_INTERVAL_MS);
+    // Should still be 1 since the interval is now 60s, not 30s
+    await waitForPollCount(mockedGetTelemetryStatus, 1);
 
     // Advancing another 30s (total 60s from first failure) triggers second poll
-    act(() => {
-      vi.advanceTimersByTime(BASE_INTERVAL_MS);
-    });
-    await vi.waitFor(() => {
-      expect(mockedGetTelemetryStatus).toHaveBeenCalledTimes(2);
-    });
+    advanceTime(BASE_INTERVAL_MS);
+    await waitForPollCount(mockedGetTelemetryStatus, 2);
 
     // After second failure, interval doubles to 120s
     // Advancing 60s should NOT trigger poll
-    act(() => {
-      vi.advanceTimersByTime(60_000);
-    });
-    await vi.waitFor(() => {
-      expect(mockedGetTelemetryStatus).toHaveBeenCalledTimes(2);
-    });
+    advanceTime(60_000);
+    // Should still be 2 since the interval is now 120s, not 60s
+    await waitForPollCount(mockedGetTelemetryStatus, 2);
 
     // Advancing another 60s (total 120s from second failure) triggers third poll
-    act(() => {
-      vi.advanceTimersByTime(60_000);
-    });
-    await vi.waitFor(() => {
-      expect(mockedGetTelemetryStatus).toHaveBeenCalledTimes(3);
-    });
+    advanceTime(60_000);
+    await waitForPollCount(mockedGetTelemetryStatus, 3);
   });
 
   it("resets backoff to 30s on success after failures", async () => {
@@ -157,90 +120,52 @@ describe("useTelemetryHealth", () => {
       .mockResolvedValueOnce(HEALTHY_TELEMETRY_STATUS)
       .mockResolvedValue(HEALTHY_TELEMETRY_STATUS);
 
-    renderHook(() => useTelemetryHealth());
-
     // Initial poll fails (network error — degraded stays false)
-    await vi.waitFor(() => {
-      expect(mockedGetTelemetryStatus).toHaveBeenCalledTimes(1);
-    });
-    expect(useAppStore.getState().telemetryDegraded).toBe(false);
+    await expectFirstPollNotDegraded(mockedGetTelemetryStatus);
 
     // After failure, backoff is 60s — advance to trigger second poll
-    act(() => {
-      vi.advanceTimersByTime(60_000);
-    });
-    await vi.waitFor(() => {
-      expect(mockedGetTelemetryStatus).toHaveBeenCalledTimes(2);
-    });
-    expect(useAppStore.getState().telemetryDegraded).toBe(false);
+    advanceTime(60_000);
+    await expectPollNotDegraded(mockedGetTelemetryStatus, 2);
 
     // After success, interval resets to 30s — advance 30s for third poll
-    act(() => {
-      vi.advanceTimersByTime(BASE_INTERVAL_MS);
-    });
-    await vi.waitFor(() => {
-      expect(mockedGetTelemetryStatus).toHaveBeenCalledTimes(3);
-    });
+    advanceTime(BASE_INTERVAL_MS);
+    await waitForPollCount(mockedGetTelemetryStatus, 3);
   });
 
   it("resets backoff and polls immediately on navigation", async () => {
     // Fail initially to trigger backoff
     mockedGetTelemetryStatus.mockRejectedValueOnce(new Error("fail")).mockResolvedValue(HEALTHY_TELEMETRY_STATUS);
 
-    const { rerender } = renderHook(() => useTelemetryHealth());
-
     // Initial poll fails (network error — degraded stays false), backoff kicks in
-    await vi.waitFor(() => {
-      expect(mockedGetTelemetryStatus).toHaveBeenCalledTimes(1);
-    });
-    expect(useAppStore.getState().telemetryDegraded).toBe(false);
+    const { rerender } = await expectFirstPollNotDegraded(mockedGetTelemetryStatus);
 
     // Simulate navigation by changing mock location and re-rendering
     mockLocation = "/apps";
     rerender();
 
     // Navigation should trigger immediate poll and reset backoff
-    await vi.waitFor(() => {
-      expect(mockedGetTelemetryStatus).toHaveBeenCalledTimes(2);
-    });
-    expect(useAppStore.getState().telemetryDegraded).toBe(false);
+    await expectPollNotDegraded(mockedGetTelemetryStatus, 2);
 
     // After navigation reset, interval should be back to 30s (not 60s)
-    act(() => {
-      vi.advanceTimersByTime(BASE_INTERVAL_MS);
-    });
-    await vi.waitFor(() => {
-      expect(mockedGetTelemetryStatus).toHaveBeenCalledTimes(3);
-    });
+    advanceTime(BASE_INTERVAL_MS);
+    await waitForPollCount(mockedGetTelemetryStatus, 3);
   });
 
   it("does not set degraded on AbortError (navigation cancellation)", async () => {
     mockedGetTelemetryStatus.mockRejectedValue(new DOMException("The operation was aborted", "AbortError"));
 
-    renderHook(() => useTelemetryHealth());
-
-    // Wait for the initial poll to complete
-    await vi.waitFor(() => {
-      expect(mockedGetTelemetryStatus).toHaveBeenCalledTimes(1);
-    });
-
-    // AbortError should NOT set degraded — it's a navigation cancellation, not a failure
-    expect(useAppStore.getState().telemetryDegraded).toBe(false);
+    // Wait for the initial poll to complete, and confirm AbortError did NOT set degraded —
+    // it's a navigation cancellation, not a failure
+    await expectFirstPollNotDegraded(mockedGetTelemetryStatus);
   });
 
   it("clears interval on unmount", async () => {
-    const { unmount } = renderHook(() => useTelemetryHealth());
-
-    await vi.waitFor(() => {
-      expect(mockedGetTelemetryStatus).toHaveBeenCalledTimes(1);
-    });
+    const { unmount } = await renderAndWaitForFirstPoll(mockedGetTelemetryStatus);
 
     unmount();
 
     // Advance time — should NOT trigger another poll
-    act(() => {
-      vi.advanceTimersByTime(60_000);
-    });
+    advanceTime(60_000);
     expect(mockedGetTelemetryStatus).toHaveBeenCalledTimes(1);
   });
 
@@ -253,11 +178,7 @@ describe("useTelemetryHealth", () => {
       error_handler_failures: 7,
     });
 
-    renderHook(() => useTelemetryHealth());
-
-    await vi.waitFor(() => {
-      expect(mockedGetTelemetryStatus).toHaveBeenCalledTimes(1);
-    });
+    await renderAndWaitForFirstPoll(mockedGetTelemetryStatus);
     expect(useAppStore.getState().droppedOverflow).toBe(5);
     expect(useAppStore.getState().droppedExhausted).toBe(3);
     expect(useAppStore.getState().droppedShutdown).toBe(1);
