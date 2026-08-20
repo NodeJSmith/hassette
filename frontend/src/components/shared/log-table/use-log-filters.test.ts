@@ -3,14 +3,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { LogEntry } from "@/api/endpoints";
 import { createLogEntry } from "@/test/factories";
-import { createWouterMock } from "@/test/mock-wouter";
+import { createWouterMock, mockWouterNavigate } from "@/test/mock-wouter";
 
 import { DEFAULT_SORT, RENDER_CAP, SEARCH_DEBOUNCE_MS } from "./constants";
 import type { FilterState, LevelFilter } from "./types";
 import { filterLogEntries, useLogFilters } from "./use-log-filters";
 
+// dup-ignore-start: vi.mock("wouter", ...) must be written literally in every consumer file for
+// Vitest's hoisting transform to detect it (see mock-wouter.ts's createWouterMock docstring) —
+// also present in use-correct-url.test.ts and use-query-params.test.ts (T07)
 let mockSearch = "";
-const mockNavigate = vi.fn();
+const mockNavigate = mockWouterNavigate();
 
 vi.mock("wouter", () =>
   createWouterMock({
@@ -18,9 +21,19 @@ vi.mock("wouter", () =>
     useLocation: () => ["/logs", mockNavigate],
   }),
 );
+// dup-ignore-end
 
 function entry(overrides: Partial<LogEntry> = {}) {
   return createLogEntry({ app_key: "my_app", source_tier: "app", message: "hello world", ...overrides });
+}
+
+/** One app-tier entry and one framework-tier entry — the fixture the "tier filtering" tests
+ * reuse to exercise app/framework visibility across tier settings. */
+function appAndFrameworkEntries(): LogEntry[] {
+  return [
+    entry({ source_tier: "app", message: "from app" }),
+    entry({ source_tier: "framework", message: "from framework" }),
+  ];
 }
 
 interface RenderLocalProps {
@@ -48,6 +61,11 @@ function renderUrl(entries: LogEntry[] = [], rest: LogEntry[] = [], appKey?: str
     { initialProps: { entries, rest, appKey, executionId } },
   );
   return { hook };
+}
+
+/** Extracts the current visible entries' messages from a `renderLocal`/`renderUrl` result. */
+function messagesOf(hook: ReturnType<typeof renderLocal>["hook"] | ReturnType<typeof renderUrl>["hook"]): string[] {
+  return hook.result.current.visibleEntries.map((e) => e.message);
 }
 
 function filterState(overrides: Partial<FilterState> = {}): FilterState {
@@ -135,7 +153,7 @@ describe("level filtering", () => {
       entry({ level: "WARNING", message: "warn" }),
     ];
     const { hook } = renderLocal(entries);
-    const messages = hook.result.current.visibleEntries.map((e) => e.message);
+    const messages = messagesOf(hook);
     expect(messages).not.toContain("debug");
     expect(messages).toContain("info");
     expect(messages).toContain("warn");
@@ -145,7 +163,7 @@ describe("level filtering", () => {
     const entries = [entry({ level: "DEBUG", message: "debug" }), entry({ level: "INFO", message: "info" })];
     const { hook } = renderLocal(entries);
     act(() => hook.result.current.setLevel("" as LevelFilter));
-    const messages = hook.result.current.visibleEntries.map((e) => e.message);
+    const messages = messagesOf(hook);
     expect(messages).toContain("debug");
     expect(messages).toContain("info");
   });
@@ -160,7 +178,7 @@ describe("level filtering", () => {
     ];
     const { hook } = renderLocal(entries);
     act(() => hook.result.current.setLevel("WARNING"));
-    const messages = hook.result.current.visibleEntries.map((e) => e.message);
+    const messages = messagesOf(hook);
     expect(messages).not.toContain("debug");
     expect(messages).not.toContain("info");
     expect(messages).toContain("warn");
@@ -172,43 +190,39 @@ describe("level filtering", () => {
     const entries = [entry({ level: "ERROR", message: "error" }), entry({ level: "CRITICAL", message: "crit" })];
     const { hook } = renderLocal(entries);
     act(() => hook.result.current.setLevel("CRITICAL"));
-    const messages = hook.result.current.visibleEntries.map((e) => e.message);
+    const messages = messagesOf(hook);
     expect(messages).toEqual(["crit"]);
   });
 });
 
 describe("tier filtering", () => {
+  // dup-ignore-start: each test below documents a distinct tier-filtering scenario (default tier,
+  // explicit tier switch, execution-scope override) via its own comment; the renderLocal/entries
+  // setup and paired toContain assertions read as duplicates once CPD normalizes literals, but
+  // collapsing them further would replace that per-scenario explanatory context with an opaque
+  // helper — see appAndFrameworkEntries()/messagesOf() above for the setup that was extractable
   it('defaults to "app" tier (no appKey) and excludes framework entries', () => {
-    const entries = [
-      entry({ source_tier: "app", message: "from app" }),
-      entry({ source_tier: "framework", message: "from framework" }),
-    ];
+    const entries = appAndFrameworkEntries();
     const { hook } = renderLocal(entries);
-    const messages = hook.result.current.visibleEntries.map((e) => e.message);
+    const messages = messagesOf(hook);
     expect(messages).toContain("from app");
     expect(messages).not.toContain("from framework");
   });
 
   it('"all" tier shows both app and framework entries', () => {
-    const entries = [
-      entry({ source_tier: "app", message: "from app" }),
-      entry({ source_tier: "framework", message: "from framework" }),
-    ];
+    const entries = appAndFrameworkEntries();
     const { hook } = renderLocal(entries);
     act(() => hook.result.current.setTier("all"));
-    const messages = hook.result.current.visibleEntries.map((e) => e.message);
+    const messages = messagesOf(hook);
     expect(messages).toContain("from app");
     expect(messages).toContain("from framework");
   });
 
   it('"framework" tier shows only framework entries', () => {
-    const entries = [
-      entry({ source_tier: "app", message: "from app" }),
-      entry({ source_tier: "framework", message: "from framework" }),
-    ];
+    const entries = appAndFrameworkEntries();
     const { hook } = renderLocal(entries);
     act(() => hook.result.current.setTier("framework"));
-    const messages = hook.result.current.visibleEntries.map((e) => e.message);
+    const messages = messagesOf(hook);
     expect(messages).not.toContain("from app");
     expect(messages).toContain("from framework");
   });
@@ -216,12 +230,9 @@ describe("tier filtering", () => {
   it("defaults to showing framework entries when executionId is provided", () => {
     // An execution_id scopes rows to one execution; its logs can be framework-tier
     // (e.g. CommandExecutor timeout warnings) even when the execution itself is app-tier.
-    const entries = [
-      entry({ source_tier: "app", message: "from app" }),
-      entry({ source_tier: "framework", message: "from framework" }),
-    ];
+    const entries = appAndFrameworkEntries();
     const { hook } = renderLocal(entries, [], undefined, "exec-1");
-    const messages = hook.result.current.visibleEntries.map((e) => e.message);
+    const messages = messagesOf(hook);
     expect(messages).toContain("from app");
     expect(messages).toContain("from framework");
   });
@@ -230,7 +241,7 @@ describe("tier filtering", () => {
     const entries = [entry({ source_tier: "framework", message: "from framework" })];
     const { hook } = renderLocal(entries, [], "my_app");
     // "all" tier means framework entries pass through
-    const messages = hook.result.current.visibleEntries.map((e) => e.message);
+    const messages = messagesOf(hook);
     expect(messages).toContain("from framework");
   });
 
@@ -238,18 +249,15 @@ describe("tier filtering", () => {
     // Regression: on the global /logs page, useLocalState flips true once execution_id
     // is added to the URL in-place (same mounted hook). defaultTier recomputes "app"->"all",
     // but a stale localTier="app" would keep hiding framework rows — the exact bug this PR fixes.
-    const entries = [
-      entry({ source_tier: "app", message: "from app" }),
-      entry({ source_tier: "framework", message: "from framework" }),
-    ];
+    const entries = appAndFrameworkEntries();
     const { hook } = renderLocal(entries, [], undefined, null);
     // No execution scope yet: tier defaults to "app", framework hidden.
-    expect(hook.result.current.visibleEntries.map((e) => e.message)).not.toContain("from framework");
+    expect(messagesOf(hook)).not.toContain("from framework");
 
     // Execution scope applied to the same mounted hook.
     act(() => hook.rerender({ entries, rest: [], appKey: undefined, executionId: "exec-1" }));
 
-    const messages = hook.result.current.visibleEntries.map((e) => e.message);
+    const messages = messagesOf(hook);
     expect(messages).toContain("from app");
     expect(messages).toContain("from framework");
   });
@@ -258,18 +266,15 @@ describe("tier filtering", () => {
     // The re-sync must fire only when defaultTier actually flips (scope gained/lost), not on
     // every prop change. Navigating between two executions keeps defaultTier "all", so a user's
     // explicit "framework" choice must survive.
-    const entries = [
-      entry({ source_tier: "app", message: "from app" }),
-      entry({ source_tier: "framework", message: "from framework" }),
-    ];
+    const entries = appAndFrameworkEntries();
     const { hook } = renderLocal(entries, [], undefined, "exec-1");
     act(() => hook.result.current.setTier("framework"));
-    expect(hook.result.current.visibleEntries.map((e) => e.message)).toEqual(["from framework"]);
+    expect(messagesOf(hook)).toEqual(["from framework"]);
 
     // Same scope kind (still execution-scoped), different id — defaultTier stays "all".
     act(() => hook.rerender({ entries, rest: [], appKey: undefined, executionId: "exec-2" }));
 
-    expect(hook.result.current.visibleEntries.map((e) => e.message)).toEqual(["from framework"]);
+    expect(messagesOf(hook)).toEqual(["from framework"]);
   });
 
   it("clears app filter when tier is changed away from app", () => {
@@ -279,13 +284,14 @@ describe("tier filtering", () => {
     ];
     const { hook } = renderLocal(entries);
     act(() => hook.result.current.setApp("alpha"));
-    expect(hook.result.current.visibleEntries.map((e) => e.message)).toEqual(["alpha"]);
+    expect(messagesOf(hook)).toEqual(["alpha"]);
     // Changing to "all" should reset app filter
     act(() => hook.result.current.setTier("all"));
-    const messages = hook.result.current.visibleEntries.map((e) => e.message);
+    const messages = messagesOf(hook);
     expect(messages).toContain("alpha");
     expect(messages).toContain("beta");
   });
+  // dup-ignore-end
 });
 
 describe("app filtering", () => {
@@ -299,7 +305,7 @@ describe("app filtering", () => {
       hook.result.current.setTier("all");
       hook.result.current.setApp("alpha");
     });
-    const messages = hook.result.current.visibleEntries.map((e) => e.message);
+    const messages = messagesOf(hook);
     expect(messages).toEqual(["alpha msg"]);
   });
 });
@@ -313,7 +319,7 @@ describe("search filtering", () => {
     const { hook } = renderLocal(entries);
     act(() => hook.result.current.setSearch("hello"));
     await waitForSearchDebounce();
-    const messages = hook.result.current.visibleEntries.map((e) => e.message);
+    const messages = messagesOf(hook);
     expect(messages).toContain("Hello World");
     expect(messages).not.toContain("unrelated");
   });
@@ -326,7 +332,7 @@ describe("search filtering", () => {
     const { hook } = renderLocal(entries);
     act(() => hook.result.current.setSearch("MY_APP"));
     await waitForSearchDebounce();
-    const messages = hook.result.current.visibleEntries.map((e) => e.message);
+    const messages = messagesOf(hook);
     expect(messages).toContain("msg");
     expect(messages).not.toContain("other");
   });
@@ -340,7 +346,7 @@ describe("func filtering", () => {
     ];
     const { hook } = renderLocal(entries);
     act(() => hook.result.current.setFunc("ON_STATE"));
-    const messages = hook.result.current.visibleEntries.map((e) => e.message);
+    const messages = messagesOf(hook);
     expect(messages).toContain("a");
     expect(messages).not.toContain("b");
   });
@@ -354,7 +360,7 @@ describe("sort", () => {
       entry({ timestamp: 1000, message: "old" }),
     ];
     const { hook } = renderLocal(entries);
-    const messages = hook.result.current.visibleEntries.map((e) => e.message);
+    const messages = messagesOf(hook);
     expect(messages).toEqual(["new", "mid", "old"]);
   });
 
@@ -362,7 +368,7 @@ describe("sort", () => {
     const entries = [entry({ timestamp: 3000, message: "new" }), entry({ timestamp: 1000, message: "old" })];
     const { hook } = renderLocal(entries);
     act(() => hook.result.current.setSort({ key: "timestamp", dir: "asc" }));
-    const messages = hook.result.current.visibleEntries.map((e) => e.message);
+    const messages = messagesOf(hook);
     expect(messages).toEqual(["old", "new"]);
   });
 
@@ -416,7 +422,7 @@ describe("livePaused", () => {
       hook.result.current.setSort({ key: "level", dir: "desc" });
     });
 
-    const messages = hook.result.current.visibleEntries.map((e) => e.message);
+    const messages = messagesOf(hook);
     expect(messages).toContain("rest");
     expect(messages).not.toContain("live");
   });
@@ -426,7 +432,7 @@ describe("livePaused", () => {
     const rest = [entry({ message: "rest" })];
     const { hook } = renderLocal(live, rest);
 
-    const messages = hook.result.current.visibleEntries.map((e) => e.message);
+    const messages = messagesOf(hook);
     expect(messages).toContain("live");
     expect(messages).not.toContain("rest");
   });
@@ -438,11 +444,11 @@ describe("livePaused", () => {
 
     // Pause by sorting by level
     act(() => hook.result.current.setSort({ key: "level", dir: "desc" }));
-    expect(hook.result.current.visibleEntries.map((e) => e.message)).toContain("rest");
+    expect(messagesOf(hook)).toContain("rest");
 
     // Unpause by resetting sort
     act(() => hook.result.current.resetSort());
-    const messages = hook.result.current.visibleEntries.map((e) => e.message);
+    const messages = messagesOf(hook);
     expect(messages).toContain("live");
     expect(messages).not.toContain("rest");
   });
@@ -483,7 +489,7 @@ describe("URL state mode", () => {
     mockSearch = "level=WARNING";
     const entries = [entry({ level: "DEBUG", message: "debug" }), entry({ level: "WARNING", message: "warn" })];
     const { hook } = renderUrl(entries);
-    const messages = hook.result.current.visibleEntries.map((e) => e.message);
+    const messages = messagesOf(hook);
     expect(messages).not.toContain("debug");
     expect(messages).toContain("warn");
   });
