@@ -1,7 +1,7 @@
 ---
 task_id: "T05"
 title: "Deduplicate setup boilerplate in use-scoped-query.test.ts"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#2", "FR#3", "FR#4", "AC#2", "AC#3", "AC#4"]
 ---
