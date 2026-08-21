@@ -4,13 +4,8 @@ import { act } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useAppStore } from "../state/store";
-import { useFakeTimersForEachTest } from "../test/query-test-utils";
-import {
-  expectFetchSince,
-  renderAndWaitForFirstFetch,
-  renderScopedQuery,
-  waitForFetchCount,
-} from "../test/scoped-query-test-utils";
+import { useFakeTimersForEachTest, waitForCallCount } from "../test/query-test-utils";
+import { expectFetchSince, renderAndWaitForFirstFetch, renderScopedQuery } from "../test/scoped-query-test-utils";
 // dup-ignore-end
 
 const BASE_TIME_S = 1_700_000_000;
@@ -54,7 +49,7 @@ describe("useScopedQuery", () => {
       useAppStore.setState({ uptimeSeconds: 120 });
     });
 
-    await waitForFetchCount(fetcher, 1);
+    await waitForCallCount(fetcher, 1);
   });
 
   it("computes since = now - uptimeSeconds for since-restart preset", async () => {
@@ -67,7 +62,7 @@ describe("useScopedQuery", () => {
       useAppStore.setState({ uptimeSeconds: 300 });
     });
 
-    await waitForFetchCount(fetcher, 1);
+    await waitForCallCount(fetcher, 1);
 
     expect(fetcher).toHaveBeenCalledWith(expectedSince, expect.any(AbortSignal));
   });
@@ -118,7 +113,7 @@ describe("useScopedQuery", () => {
       useAppStore.setState({ timePreset: "24h" });
     });
 
-    await waitForFetchCount(fetcher, 2);
+    await waitForCallCount(fetcher, 2);
 
     // Second call should use 24h window; use toBeCloseTo for floating-point tolerance
     const lastCallArg = fetcher.mock.calls[1][0] as number;
@@ -136,7 +131,7 @@ describe("useScopedQuery", () => {
       useAppStore.setState({ uptimeSeconds: 5 });
     });
 
-    await waitForFetchCount(fetcher, 2);
+    await waitForCallCount(fetcher, 2);
 
     // since = now - 5; use toBeCloseTo for floating-point tolerance
     const lastCallArg = fetcher.mock.calls[1][0] as number;
@@ -176,7 +171,7 @@ describe("useScopedQuery", () => {
       hookOptions: { waitForUptime: false },
     });
 
-    await waitForFetchCount(fetcher, 1);
+    await waitForCallCount(fetcher, 1);
 
     expect(fetcher).toHaveBeenCalledWith(0, expect.any(AbortSignal));
 
@@ -198,7 +193,7 @@ describe("useScopedQuery", () => {
       useAppStore.setState({ uptimeSeconds: 300 });
     });
 
-    await waitForFetchCount(fetcher, 2);
+    await waitForCallCount(fetcher, 2);
 
     const lastCallArg = fetcher.mock.calls[1][0];
     expect(lastCallArg).toBeCloseTo(BASE_TIME_S - 300, 0);

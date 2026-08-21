@@ -10,7 +10,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { afterEach, beforeEach, vi } from "vitest";
+import type { Mock } from "vitest";
+import { afterEach, beforeEach, expect, vi } from "vitest";
 
 import type { AppStore } from "../state/store";
 import { useAppStore } from "../state/store";
@@ -110,5 +111,14 @@ export function useFakeTimersForEachTest(): void {
 export function advanceTime(ms: number) {
   act(() => {
     vi.advanceTimersByTime(ms);
+  });
+}
+
+/** Waits for `mockFn` to have been called exactly `times` times — the "next call landed" signal
+ * most polling/refetch tests wait on at least once. Generic Vitest assertion helper with no
+ * TanStack Query dependency, so it's usable from any hook test file, not just Query-based ones. */
+export async function waitForCallCount(mockFn: Mock, times: number): Promise<void> {
+  await vi.waitFor(() => {
+    expect(mockFn).toHaveBeenCalledTimes(times);
   });
 }

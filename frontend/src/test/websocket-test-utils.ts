@@ -6,7 +6,9 @@
  * `renderWebSocketHook()` renders the hook behind a fresh QueryClientProvider and returns the
  * most recently constructed MockWebSocket instance alongside the render result and its
  * QueryClient. `simulateConnected()` fires the transport-level open followed by the app-level
- * "connected" message that most tests need before exercising post-connect behavior.
+ * "connected" message that most tests need before exercising post-connect behavior;
+ * `renderConnectedWebSocketHook()` and `reconnectWebSocket()` below wrap it for the common case,
+ * while tests that need a spy installed before the connect event fires call it directly.
  */
 
 import { act } from "@testing-library/react";
@@ -64,7 +66,10 @@ export function renderWebSocketHook() {
 
 /**
  * Fires the transport-level open followed by the app-level "connected" message — the sequence
- * most `useWebSocket` tests need before exercising post-connect behavior.
+ * most `useWebSocket` tests need before exercising post-connect behavior. Used internally by
+ * `renderConnectedWebSocketHook` and `reconnectWebSocket` below; exported separately for tests
+ * that need to install a spy between render and connect (e.g. to observe the connect event
+ * itself, not just its aftermath).
  */
 export function simulateConnected(
   ws: MockWebSocket,

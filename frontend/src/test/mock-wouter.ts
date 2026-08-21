@@ -1,5 +1,4 @@
 import { createElement, type ReactNode } from "react";
-import { vi } from "vitest";
 
 // Some callers only need the current path and omit the navigate function, so the tuple only
 // pins the first element.
@@ -52,16 +51,4 @@ export function createWouterMock(overrides: CreateWouterMockOptions = {}) {
     ...(overrides.useLocation ? { useLocation: overrides.useLocation } : {}),
     ...(overrides.useSearch ? { useSearch: overrides.useSearch } : {}),
   };
-}
-
-/**
- * Returns a fresh `vi.fn()` spy for the `navigate` function every `createWouterMock` consumer
- * plugs into its `useLocation` override.
- *
- * This only dedupes the `const mockNavigate = vi.fn();` declaration — the `vi.mock("wouter", ...)`
- * call itself must still be written literally in each test file (see `createWouterMock`'s
- * docstring above for why hoisting rules block moving that call here too).
- */
-export function mockWouterNavigate() {
-  return vi.fn();
 }

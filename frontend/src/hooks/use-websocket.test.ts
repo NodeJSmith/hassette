@@ -13,6 +13,7 @@ import {
   renderAndCloseBeforeOpen,
   renderConnectedWebSocketHook,
   renderWebSocketHook,
+  simulateConnected,
 } from "../test/websocket-test-utils";
 import { LOGIN_PATH } from "../utils/app-routes";
 
@@ -485,10 +486,10 @@ describe("useWebSocket", () => {
   it("calls queryClient.invalidateQueries() on reconnect", () => {
     vi.useFakeTimers();
     const { queryClient, ws: ws1 } = renderConnectedWebSocketHook({ uptime_seconds: 100 });
+    // Spy installed after first connect — this test only observes the reconnect event; the
+    // "not called on first connect" invariant has its own dedicated test below, with the spy
+    // installed before render so it's actually live for the event it checks.
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
-
-    // First connect — should NOT call invalidateQueries
-    expect(invalidateSpy).not.toHaveBeenCalled();
 
     reconnectWebSocket(ws1);
 
@@ -498,8 +499,12 @@ describe("useWebSocket", () => {
   });
 
   it("does not call queryClient.invalidateQueries() on first connect", () => {
-    const { queryClient } = renderConnectedWebSocketHook({ uptime_seconds: 100 });
+    // Render and spy BEFORE connecting (not renderConnectedWebSocketHook, which would connect
+    // before the spy exists) — the spy must be live for the very event it's checking.
+    const { queryClient, ws } = renderWebSocketHook();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    simulateConnected(ws, { uptime_seconds: 100 });
 
     expect(invalidateSpy).not.toHaveBeenCalled();
   });

@@ -19,13 +19,12 @@ vi.mock("../api/endpoints", () => ({
 }));
 
 import { getTelemetryStatus } from "../api/endpoints";
-import { advanceTime, useFakeTimersForEachTest } from "../test/query-test-utils";
+import { advanceTime, useFakeTimersForEachTest, waitForCallCount } from "../test/query-test-utils";
 import {
   expectFirstPollDegraded,
   expectFirstPollNotDegraded,
   expectPollNotDegraded,
   renderAndWaitForFirstPoll,
-  waitForPollCount,
 } from "../test/telemetry-health-test-utils";
 import { BASE_INTERVAL_MS } from "./use-telemetry-health";
 
@@ -63,7 +62,7 @@ describe("useTelemetryHealth", () => {
     // Advance 30s to trigger next poll
     advanceTime(BASE_INTERVAL_MS);
 
-    await waitForPollCount(mockedGetTelemetryStatus, 2);
+    await waitForCallCount(mockedGetTelemetryStatus, 2);
   });
 
   it("does not set degraded on generic network error", async () => {
@@ -96,21 +95,21 @@ describe("useTelemetryHealth", () => {
     // Advancing 30s should NOT trigger another poll (old interval cleared)
     advanceTime(BASE_INTERVAL_MS);
     // Should still be 1 since the interval is now 60s, not 30s
-    await waitForPollCount(mockedGetTelemetryStatus, 1);
+    await waitForCallCount(mockedGetTelemetryStatus, 1);
 
     // Advancing another 30s (total 60s from first failure) triggers second poll
     advanceTime(BASE_INTERVAL_MS);
-    await waitForPollCount(mockedGetTelemetryStatus, 2);
+    await waitForCallCount(mockedGetTelemetryStatus, 2);
 
     // After second failure, interval doubles to 120s
     // Advancing 60s should NOT trigger poll
     advanceTime(60_000);
     // Should still be 2 since the interval is now 120s, not 60s
-    await waitForPollCount(mockedGetTelemetryStatus, 2);
+    await waitForCallCount(mockedGetTelemetryStatus, 2);
 
     // Advancing another 60s (total 120s from second failure) triggers third poll
     advanceTime(60_000);
-    await waitForPollCount(mockedGetTelemetryStatus, 3);
+    await waitForCallCount(mockedGetTelemetryStatus, 3);
   });
 
   it("resets backoff to 30s on success after failures", async () => {
@@ -129,7 +128,7 @@ describe("useTelemetryHealth", () => {
 
     // After success, interval resets to 30s — advance 30s for third poll
     advanceTime(BASE_INTERVAL_MS);
-    await waitForPollCount(mockedGetTelemetryStatus, 3);
+    await waitForCallCount(mockedGetTelemetryStatus, 3);
   });
 
   it("resets backoff and polls immediately on navigation", async () => {
@@ -148,7 +147,7 @@ describe("useTelemetryHealth", () => {
 
     // After navigation reset, interval should be back to 30s (not 60s)
     advanceTime(BASE_INTERVAL_MS);
-    await waitForPollCount(mockedGetTelemetryStatus, 3);
+    await waitForCallCount(mockedGetTelemetryStatus, 3);
   });
 
   it("does not set degraded on AbortError (navigation cancellation)", async () => {

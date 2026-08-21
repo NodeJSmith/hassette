@@ -7,7 +7,9 @@
  * `renderInvalidatorHook`). Helpers that need to observe or wait on poll calls take the caller's
  * `vi.mocked(getTelemetryStatus)` as a parameter — the mock itself stays owned by the test file's
  * own `vi.mock("../api/endpoints", ...)` call, since that call (and the `mockReset()`/
- * `mockResolvedValue()` configuration per test) must live where the mock is declared.
+ * `mockResolvedValue()` configuration per test) must live where the mock is declared. Waiting on
+ * poll count itself is `query-test-utils.tsx`'s generic `waitForCallCount()` — import it directly
+ * rather than re-declaring it here.
  */
 
 import { renderHook } from "@testing-library/react";
@@ -17,6 +19,7 @@ import { expect, vi } from "vitest";
 import type { getTelemetryStatus } from "../api/endpoints";
 import { useTelemetryHealth } from "../hooks/use-telemetry-health";
 import { useAppStore } from "../state/store";
+import { waitForCallCount } from "./query-test-utils";
 
 type MockedGetTelemetryStatus = MockedFunction<typeof getTelemetryStatus>;
 
@@ -28,23 +31,13 @@ function renderTelemetryHealthHook() {
 }
 
 /**
- * Waits for the mocked `getTelemetryStatus` to have been called `count` times — the "next poll
- * landed" signal most tests wait on at least once.
- */
-export async function waitForPollCount(mockedGetTelemetryStatus: MockedGetTelemetryStatus, count: number) {
-  await vi.waitFor(() => {
-    expect(mockedGetTelemetryStatus).toHaveBeenCalledTimes(count);
-  });
-}
-
-/**
  * Renders the hook and waits for the initial mount-time poll to complete — the shared opening
  * most tests perform (after configuring their own mock behavior) before diverging into backoff
  * timelines, navigation, or unmount assertions.
  */
 export async function renderAndWaitForFirstPoll(mockedGetTelemetryStatus: MockedGetTelemetryStatus) {
   const result = renderTelemetryHealthHook();
-  await waitForPollCount(mockedGetTelemetryStatus, 1);
+  await waitForCallCount(mockedGetTelemetryStatus, 1);
   return result;
 }
 
@@ -61,7 +54,7 @@ export async function expectFirstPollNotDegraded(mockedGetTelemetryStatus: Mocke
 /** Waits for the `count`th poll and asserts the app store's degraded flag is still false — the
  * shared "backoff/reset advanced the clock but degraded didn't flip" assertion. */
 export async function expectPollNotDegraded(mockedGetTelemetryStatus: MockedGetTelemetryStatus, count: number) {
-  await waitForPollCount(mockedGetTelemetryStatus, count);
+  await waitForCallCount(mockedGetTelemetryStatus, count);
   expect(useAppStore.getState().telemetryDegraded).toBe(false);
 }
 

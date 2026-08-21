@@ -1,7 +1,7 @@
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createWouterMock, mockWouterNavigate } from "../test/mock-wouter";
+import { createWouterMock } from "../test/mock-wouter";
 import { renderAndSet } from "../test/query-params-test-utils";
 import { useQueryParams } from "./use-query-params";
 
@@ -9,7 +9,7 @@ import { useQueryParams } from "./use-query-params";
 // Vitest's hoisting transform to detect it (see mock-wouter.ts's createWouterMock docstring) —
 // also present in use-log-filters.test.ts and use-correct-url.test.ts (T07)
 let mockSearch = "";
-const mockNavigate = mockWouterNavigate();
+const mockNavigate = vi.fn();
 
 vi.mock("wouter", () =>
   createWouterMock({

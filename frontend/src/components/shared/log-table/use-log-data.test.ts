@@ -2,8 +2,8 @@ import { act } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { WsLogPayload } from "@/api/ws-types";
 import { type TimePreset, useAppStore } from "@/state/store";
+import { createLogEntry } from "@/test/factories";
 import { renderLoaded, renderLoadedLogData, renderLoadedWithRestEntry } from "@/test/log-data-test-utils";
 import { renderHookWithProviders } from "@/test/query-test-utils";
 import { server } from "@/test/server";
@@ -23,19 +23,6 @@ function seedState(preset: TimePreset = "1h"): void {
     timePreset: preset,
     uptimeSeconds: preset === "since-restart" ? 100 : null,
   });
-}
-
-function makeLogEntry(overrides: Partial<WsLogPayload> = {}): WsLogPayload {
-  return {
-    seq: 1,
-    timestamp: 1000,
-    level: "INFO",
-    logger_name: "test",
-    func_name: "test_fn",
-    lineno: 1,
-    message: "test message",
-    ...overrides,
-  };
 }
 
 async function waitForLoaded(result: { current: { loading: boolean } }): Promise<void> {
@@ -91,8 +78,8 @@ describe("useLogData", () => {
     it("populates restEntries with the fetched entries", async () => {
       seedState();
       const entries = [
-        makeLogEntry({ seq: 1, timestamp: 1000, message: "first" }),
-        makeLogEntry({ seq: 2, timestamp: 2000, message: "second" }),
+        createLogEntry({ seq: 1, timestamp: 1000, message: "first" }),
+        createLogEntry({ seq: 2, timestamp: 2000, message: "second" }),
       ];
 
       const result = await renderLoadedLogData(entries);
@@ -104,7 +91,7 @@ describe("useLogData", () => {
 
     it("includes REST entries in allEntries", async () => {
       seedState();
-      const entries = [makeLogEntry({ seq: 1, timestamp: 1000, message: "rest-entry" })];
+      const entries = [createLogEntry({ seq: 1, timestamp: 1000, message: "rest-entry" })];
 
       const result = await renderLoadedLogData(entries);
 
@@ -115,10 +102,10 @@ describe("useLogData", () => {
   describe("WS merge", () => {
     it("prepends WS entries above the REST watermark to keep timestamp-desc order", async () => {
       seedState();
-      const result = await renderLoadedWithRestEntry(makeLogEntry({ seq: 1, timestamp: 1000, message: "rest" }));
+      const result = await renderLoadedWithRestEntry(createLogEntry({ seq: 1, timestamp: 1000, message: "rest" }));
 
       act(() => {
-        useAppStore.getState().pushLog(makeLogEntry({ seq: 2, timestamp: 2000, message: "ws-new" }));
+        useAppStore.getState().pushLog(createLogEntry({ seq: 2, timestamp: 2000, message: "ws-new" }));
       });
 
       await vi.waitFor(() => {
@@ -130,11 +117,11 @@ describe("useLogData", () => {
 
     it("orders multiple WS entries newest first before REST entries", async () => {
       seedState();
-      const result = await renderLoadedWithRestEntry(makeLogEntry({ seq: 1, timestamp: 1000, message: "rest" }));
+      const result = await renderLoadedWithRestEntry(createLogEntry({ seq: 1, timestamp: 1000, message: "rest" }));
 
       act(() => {
-        useAppStore.getState().pushLog(makeLogEntry({ seq: 2, timestamp: 2000, message: "ws-older" }));
-        useAppStore.getState().pushLog(makeLogEntry({ seq: 3, timestamp: 3000, message: "ws-newer" }));
+        useAppStore.getState().pushLog(createLogEntry({ seq: 2, timestamp: 2000, message: "ws-older" }));
+        useAppStore.getState().pushLog(createLogEntry({ seq: 3, timestamp: 3000, message: "ws-newer" }));
       });
 
       await vi.waitFor(() => {
@@ -145,14 +132,14 @@ describe("useLogData", () => {
     // dup-ignore-start: parallel WS-merge filter test case — render+push+assert shape token-matches the sibling filter-scenario tests below that push and check a different message set, not duplicated setup
     it("excludes WS entries whose rowKey matches a REST entry (deduplication)", async () => {
       seedState();
-      const result = await renderLoadedWithRestEntry(makeLogEntry({ seq: 1, timestamp: 5000, message: "rest" }));
+      const result = await renderLoadedWithRestEntry(createLogEntry({ seq: 1, timestamp: 5000, message: "rest" }));
 
       act(() => {
         // Same seq+timestamp as REST entry → same rowKey → excluded
-        useAppStore.getState().pushLog(makeLogEntry({ seq: 1, timestamp: 5000, message: "exact-dup" }));
+        useAppStore.getState().pushLog(createLogEntry({ seq: 1, timestamp: 5000, message: "exact-dup" }));
         // Different seq → different rowKey → included
-        useAppStore.getState().pushLog(makeLogEntry({ seq: 2, timestamp: 5000, message: "same-ts-diff-seq" }));
-        useAppStore.getState().pushLog(makeLogEntry({ seq: 3, timestamp: 6000, message: "newer" }));
+        useAppStore.getState().pushLog(createLogEntry({ seq: 2, timestamp: 5000, message: "same-ts-diff-seq" }));
+        useAppStore.getState().pushLog(createLogEntry({ seq: 3, timestamp: 6000, message: "newer" }));
       });
 
       await vi.waitFor(() => {
@@ -171,9 +158,9 @@ describe("useLogData", () => {
       const result = await renderLoadedLogData();
 
       act(() => {
-        useAppStore.getState().pushLog(makeLogEntry({ seq: 10, timestamp: 9000, message: "first" }));
-        useAppStore.getState().pushLog(makeLogEntry({ seq: 11, timestamp: 9000, message: "second" }));
-        useAppStore.getState().pushLog(makeLogEntry({ seq: 12, timestamp: 9000, message: "third" }));
+        useAppStore.getState().pushLog(createLogEntry({ seq: 10, timestamp: 9000, message: "first" }));
+        useAppStore.getState().pushLog(createLogEntry({ seq: 11, timestamp: 9000, message: "second" }));
+        useAppStore.getState().pushLog(createLogEntry({ seq: 12, timestamp: 9000, message: "third" }));
       });
 
       await vi.waitFor(() => {
@@ -193,10 +180,10 @@ describe("useLogData", () => {
       const result = await renderLoadedLogData([], { appKey: "my_app" });
 
       act(() => {
-        useAppStore.getState().pushLog(makeLogEntry({ seq: 1, timestamp: 9000, app_key: "my_app", message: "mine" }));
+        useAppStore.getState().pushLog(createLogEntry({ seq: 1, timestamp: 9000, app_key: "my_app", message: "mine" }));
         useAppStore
           .getState()
-          .pushLog(makeLogEntry({ seq: 2, timestamp: 9001, app_key: "other_app", message: "not-mine" }));
+          .pushLog(createLogEntry({ seq: 2, timestamp: 9001, app_key: "other_app", message: "not-mine" }));
       });
 
       await vi.waitFor(() => {
@@ -216,10 +203,10 @@ describe("useLogData", () => {
       act(() => {
         useAppStore
           .getState()
-          .pushLog(makeLogEntry({ seq: 1, timestamp: 9000, execution_id: "exec-1", message: "this-exec" }));
+          .pushLog(createLogEntry({ seq: 1, timestamp: 9000, execution_id: "exec-1", message: "this-exec" }));
         useAppStore
           .getState()
-          .pushLog(makeLogEntry({ seq: 2, timestamp: 9001, execution_id: "exec-2", message: "other-exec" }));
+          .pushLog(createLogEntry({ seq: 2, timestamp: 9001, execution_id: "exec-2", message: "other-exec" }));
       });
 
       await vi.waitFor(() => {
@@ -237,8 +224,8 @@ describe("useLogData", () => {
       const result = await renderLoadedLogData();
 
       act(() => {
-        useAppStore.getState().pushLog(makeLogEntry({ seq: 1, timestamp: 1000, app_key: "app-a", message: "a" }));
-        useAppStore.getState().pushLog(makeLogEntry({ seq: 2, timestamp: 2000, app_key: "app-b", message: "b" }));
+        useAppStore.getState().pushLog(createLogEntry({ seq: 1, timestamp: 1000, app_key: "app-a", message: "a" }));
+        useAppStore.getState().pushLog(createLogEntry({ seq: 2, timestamp: 2000, app_key: "app-b", message: "b" }));
       });
 
       await vi.waitFor(() => {
@@ -257,7 +244,7 @@ describe("useLogData", () => {
       vi.useFakeTimers();
       try {
         act(() => {
-          useAppStore.getState().pushLog(makeLogEntry({ seq: 1, timestamp: 1000, message: "throttled" }));
+          useAppStore.getState().pushLog(createLogEntry({ seq: 1, timestamp: 1000, message: "throttled" }));
         });
 
         expect(result.current.allEntries.map((e) => e.message)).not.toContain("throttled");
