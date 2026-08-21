@@ -2,6 +2,8 @@
 import { act, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "../api/client";
+import { getSystemStatus, type SystemStatus } from "../api/endpoints";
 import { useAppStore } from "../state/store";
 import { createLogEntry } from "../test/factories";
 // dup-ignore-end
@@ -26,10 +28,10 @@ vi.mock("../api/endpoints", async () => {
   return { ...actual, getSystemStatus: vi.fn() };
 });
 
-import { ApiError } from "../api/client";
-import { getSystemStatus, type SystemStatus } from "../api/endpoints";
-
 const mockedGetSystemStatus = vi.mocked(getSystemStatus);
+
+// Mirrors use-websocket.ts's internal (unexported) HANDSHAKE_TIMEOUT_MS.
+const HANDSHAKE_TIMEOUT_MS = 10_000;
 
 const HEALTHY_SYSTEM_STATUS: SystemStatus = {
   status: "ok",
@@ -239,7 +241,7 @@ describe("useWebSocket", () => {
 
     // Advance past handshake timeout (10s)
     act(() => {
-      vi.advanceTimersByTime(10_000);
+      vi.advanceTimersByTime(HANDSHAKE_TIMEOUT_MS);
     });
 
     // Socket should have been closed by the timeout, triggering onclose
@@ -254,7 +256,7 @@ describe("useWebSocket", () => {
 
     // Advancing past timeout should NOT close the socket
     act(() => {
-      vi.advanceTimersByTime(10_000);
+      vi.advanceTimersByTime(HANDSHAKE_TIMEOUT_MS);
     });
     expect(useAppStore.getState().connection).toBe("connected");
   });
@@ -262,9 +264,9 @@ describe("useWebSocket", () => {
   it("sends log subscribe on connect", () => {
     const { ws } = renderConnectedWebSocketHook();
 
-    const subscribeMsgs = ws.sent.map((s) => JSON.parse(s));
-    expect(subscribeMsgs).toHaveLength(1);
-    expect(subscribeMsgs[0]).toEqual({
+    const subscribeMessages = ws.sent.map((s) => JSON.parse(s));
+    expect(subscribeMessages).toHaveLength(1);
+    expect(subscribeMessages[0]).toEqual({
       type: "subscribe",
       data: { logs: true, min_log_level: "INFO" },
     });
@@ -278,9 +280,9 @@ describe("useWebSocket", () => {
     const ws2 = reconnectWebSocket(ws1);
 
     // Second socket should also have sent subscribe
-    const subscribeMsgs = ws2.sent.map((s) => JSON.parse(s));
-    expect(subscribeMsgs).toHaveLength(1);
-    expect(subscribeMsgs[0]).toEqual({
+    const subscribeMessages = ws2.sent.map((s) => JSON.parse(s));
+    expect(subscribeMessages).toHaveLength(1);
+    expect(subscribeMessages[0]).toEqual({
       type: "subscribe",
       data: { logs: true, min_log_level: "INFO" },
     });
@@ -295,9 +297,9 @@ describe("useWebSocket", () => {
     // Call the targeted callback
     useAppStore.getState().sendLogLevel("WARNING");
 
-    const msgs = ws.sent.map((s) => JSON.parse(s));
-    expect(msgs).toHaveLength(1);
-    expect(msgs[0]).toEqual({
+    const messages = ws.sent.map((s) => JSON.parse(s));
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toEqual({
       type: "subscribe",
       data: { logs: true, min_log_level: "WARNING" },
     });

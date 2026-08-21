@@ -1,9 +1,18 @@
 // dup-ignore-start: shared 5-line import prologue also present in use-scoped-query.test.ts and use-websocket.test.ts (T05/T02); import statements can't be extracted into a shared helper
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { getTelemetryStatus } from "../api/endpoints";
 import { useAppStore } from "../state/store";
 import { createWouterMock } from "../test/mock-wouter";
 // dup-ignore-end
+import { advanceTime, useFakeTimersForEachTest, waitForCallCount } from "../test/query-test-utils";
+import {
+  expectFirstPollDegraded,
+  expectFirstPollNotDegraded,
+  expectPollNotDegraded,
+  renderAndWaitForFirstPoll,
+} from "../test/telemetry-health-test-utils";
+import { BASE_INTERVAL_MS } from "./use-telemetry-health";
 
 let mockLocation = "/";
 const mockSetLocation = vi.fn();
@@ -17,16 +26,6 @@ vi.mock("wouter", () =>
 vi.mock("../api/endpoints", () => ({
   getTelemetryStatus: vi.fn(),
 }));
-
-import { getTelemetryStatus } from "../api/endpoints";
-import { advanceTime, useFakeTimersForEachTest, waitForCallCount } from "../test/query-test-utils";
-import {
-  expectFirstPollDegraded,
-  expectFirstPollNotDegraded,
-  expectPollNotDegraded,
-  renderAndWaitForFirstPoll,
-} from "../test/telemetry-health-test-utils";
-import { BASE_INTERVAL_MS } from "./use-telemetry-health";
 
 const mockedGetTelemetryStatus = vi.mocked(getTelemetryStatus);
 
@@ -103,12 +102,12 @@ describe("useTelemetryHealth", () => {
 
     // After second failure, interval doubles to 120s
     // Advancing 60s should NOT trigger poll
-    advanceTime(60_000);
+    advanceTime(BASE_INTERVAL_MS * 2);
     // Should still be 2 since the interval is now 120s, not 60s
     await waitForCallCount(mockedGetTelemetryStatus, 2);
 
     // Advancing another 60s (total 120s from second failure) triggers third poll
-    advanceTime(60_000);
+    advanceTime(BASE_INTERVAL_MS * 2);
     await waitForCallCount(mockedGetTelemetryStatus, 3);
   });
 
@@ -123,7 +122,7 @@ describe("useTelemetryHealth", () => {
     await expectFirstPollNotDegraded(mockedGetTelemetryStatus);
 
     // After failure, backoff is 60s — advance to trigger second poll
-    advanceTime(60_000);
+    advanceTime(BASE_INTERVAL_MS * 2);
     await expectPollNotDegraded(mockedGetTelemetryStatus, 2);
 
     // After success, interval resets to 30s — advance 30s for third poll
@@ -164,7 +163,7 @@ describe("useTelemetryHealth", () => {
     unmount();
 
     // Advance time — should NOT trigger another poll
-    advanceTime(60_000);
+    advanceTime(BASE_INTERVAL_MS * 2);
     expect(mockedGetTelemetryStatus).toHaveBeenCalledTimes(1);
   });
 

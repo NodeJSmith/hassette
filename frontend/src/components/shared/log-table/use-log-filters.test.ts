@@ -46,8 +46,8 @@ interface RenderLocalProps {
 /** Render useLogFilters with local state (no URL). Uses initialProps for rerender support. */
 function renderLocal(entries: LogEntry[] = [], rest: LogEntry[] = [], appKey?: string, executionId?: string | null) {
   const hook = renderHook(
-    ({ entries: allEntries, rest: restEntries, appKey: ak, executionId: eid }: RenderLocalProps) =>
-      useLogFilters({ allEntries, restEntries, useLocalState: true, appKey: ak, executionId: eid }),
+    ({ entries: allEntries, rest: restEntries, appKey, executionId }: RenderLocalProps) =>
+      useLogFilters({ allEntries, restEntries, useLocalState: true, appKey, executionId }),
     { initialProps: { entries, rest, appKey, executionId } },
   );
   return { hook };
@@ -56,8 +56,8 @@ function renderLocal(entries: LogEntry[] = [], rest: LogEntry[] = [], appKey?: s
 /** Render useLogFilters in URL mode (reads/writes mockSearch). */
 function renderUrl(entries: LogEntry[] = [], rest: LogEntry[] = [], appKey?: string, executionId?: string | null) {
   const hook = renderHook(
-    ({ entries: allEntries, rest: restEntries, appKey: ak, executionId: eid }: RenderLocalProps) =>
-      useLogFilters({ allEntries, restEntries, useLocalState: false, appKey: ak, executionId: eid }),
+    ({ entries: allEntries, rest: restEntries, appKey, executionId }: RenderLocalProps) =>
+      useLogFilters({ allEntries, restEntries, useLocalState: false, appKey, executionId }),
     { initialProps: { entries, rest, appKey, executionId } },
   );
   return { hook };

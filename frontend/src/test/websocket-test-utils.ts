@@ -22,12 +22,13 @@ import { createTestQueryClient, renderHookWithProviders } from "./query-test-uti
 export class MockWebSocket {
   static instances: MockWebSocket[] = [];
   static OPEN = 1;
+  static CLOSED = 3;
 
   onopen: (() => void) | null = null;
   onmessage: ((e: { data: string }) => void) | null = null;
   onclose: (() => void) | null = null;
   onerror: (() => void) | null = null;
-  readyState = 1; // OPEN
+  readyState = MockWebSocket.OPEN;
   sent: string[] = [];
 
   constructor() {
@@ -39,12 +40,12 @@ export class MockWebSocket {
   }
 
   close() {
-    this.readyState = 3; // CLOSED
+    this.readyState = MockWebSocket.CLOSED;
     this.onclose?.();
   }
 
   simulateOpen() {
-    this.readyState = 1; // OPEN
+    this.readyState = MockWebSocket.OPEN;
     this.onopen?.();
   }
 
@@ -134,7 +135,7 @@ export function reconnectWebSocket(
     ws.onclose?.();
   });
   act(() => {
-    vi.advanceTimersByTime(2000);
+    vi.advanceTimersByTime(2_000);
   });
   const reconnected = MockWebSocket.instances[MockWebSocket.instances.length - 1];
   simulateConnected(reconnected, { uptime_seconds: 200, ...overrides });

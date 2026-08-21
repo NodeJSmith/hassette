@@ -11,6 +11,8 @@ import { server } from "@/test/server";
 import { LIVE_LOG_UPDATE_INTERVAL_MS, REST_FETCH_LIMIT } from "./constants";
 import { useLogData } from "./use-log-data";
 
+const LOGS_ENDPOINT = "/api/logs/recent";
+
 vi.mock("sonner", () => ({
   toast: { error: vi.fn() },
 }));
@@ -40,7 +42,7 @@ describe("useLogData", () => {
     it("is true initially before REST resolves", () => {
       seedState();
       // Override with a never-resolving handler to freeze the fetch in-flight.
-      server.use(http.get("/api/logs/recent", () => new Promise(() => {})));
+      server.use(http.get(LOGS_ENDPOINT, () => new Promise(() => {})));
 
       const { result } = renderHookWithProviders(() => useLogData({}));
 
@@ -60,7 +62,7 @@ describe("useLogData", () => {
       let capturedUrl: string | undefined;
 
       server.use(
-        http.get("/api/logs/recent", ({ request }) => {
+        http.get(LOGS_ENDPOINT, ({ request }) => {
           capturedUrl = request.url;
           return HttpResponse.json([]);
         }),
@@ -270,7 +272,7 @@ describe("useLogData", () => {
       let capturedUrl: string | undefined;
 
       server.use(
-        http.get("/api/logs/recent", ({ request }) => {
+        http.get(LOGS_ENDPOINT, ({ request }) => {
           capturedUrl = request.url;
           return HttpResponse.json([]);
         }),
@@ -293,7 +295,7 @@ describe("useLogData", () => {
       let fetchCount = 0;
 
       server.use(
-        http.get("/api/logs/recent", () => {
+        http.get(LOGS_ENDPOINT, () => {
           fetchCount++;
           return HttpResponse.json([]);
         }),
@@ -314,7 +316,7 @@ describe("useLogData", () => {
     it("gates fetching until uptimeSeconds is available for since-restart", async () => {
       // Default: since-restart with null uptime → should not fetch
 
-      server.use(http.get("/api/logs/recent", () => HttpResponse.json([])));
+      server.use(http.get(LOGS_ENDPOINT, () => HttpResponse.json([])));
 
       const { result } = renderHookWithProviders(() => useLogData({}));
 
@@ -334,7 +336,7 @@ describe("useLogData", () => {
     it("shows a toast error and sets loading to false when the REST fetch rejects", async () => {
       seedState();
 
-      server.use(http.get("/api/logs/recent", () => HttpResponse.error()));
+      server.use(http.get(LOGS_ENDPOINT, () => HttpResponse.error()));
 
       const result = await renderLoaded();
 
