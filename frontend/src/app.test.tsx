@@ -505,3 +505,25 @@ describe("App — /login route", () => {
     expect(useTelemetryHealth).toHaveBeenCalled();
   });
 });
+
+describe("App — FailedAppsAlert", () => {
+  it("includes a degraded app in the failure banner", async () => {
+    withManifests([createManifest({ app_key: "degraded_app", display_name: "Degraded App", status: "degraded" })]);
+    render(<App />);
+    const banner = await screen.findByTestId("alert-banner");
+    expect(banner.textContent).toContain("degraded_app");
+  });
+
+  it("includes a failed app in the failure banner", async () => {
+    withManifests([createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" })]);
+    render(<App />);
+    const banner = await screen.findByTestId("alert-banner");
+    expect(banner.textContent).toContain("failed_app");
+  });
+
+  it("does not include a running app in the failure banner", () => {
+    withManifests([createManifest({ app_key: "running_app", display_name: "Running App", status: "running" })]);
+    render(<App />);
+    expect(screen.queryByTestId("alert-banner")).toBeNull();
+  });
+});

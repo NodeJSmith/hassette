@@ -46,6 +46,11 @@ function StatusBadge({ status, threadLeaked }: { status: string; threadLeaked: b
           cancelled
         </Badge>
       )}
+      {status === "skipped" && (
+        <Badge variant="neutral" size="sm">
+          skipped
+        </Badge>
+      )}
       {threadLeaked && (
         <Badge variant="warning" size="sm">
           thread leaked

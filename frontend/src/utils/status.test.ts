@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   executionStatusKind,
   INACTIVE_STATUSES,
+  isFailureStatus,
   isReloadableStatus,
   readinessVariant,
   statusToKind,
@@ -39,6 +40,25 @@ describe("statusToVariant", () => {
     expect(statusToVariant("exploding")).toBe("neutral");
     expect(warnSpy).toHaveBeenCalledWith('Unknown status: "exploding"');
     warnSpy.mockRestore();
+  });
+});
+
+describe("isFailureStatus", () => {
+  it("treats failed, degraded, and crashed as failures", () => {
+    expect(isFailureStatus("failed")).toBe(true);
+    expect(isFailureStatus("degraded")).toBe(true);
+    expect(isFailureStatus("crashed")).toBe(true);
+  });
+
+  it("treats non-failure statuses as not failures", () => {
+    expect(isFailureStatus("running")).toBe(false);
+    expect(isFailureStatus("stopped")).toBe(false);
+    expect(isFailureStatus("disabled")).toBe(false);
+    expect(isFailureStatus("blocked")).toBe(false);
+  });
+
+  it("returns false for an unrecognized status", () => {
+    expect(isFailureStatus("exploding")).toBe(false);
   });
 });
 

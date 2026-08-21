@@ -45,8 +45,9 @@ import { LoginPage } from "./pages/login";
 import { LogsPage } from "./pages/logs";
 import { NotFoundPage } from "./pages/not-found";
 import { RELATIVE_TIME_TICK_MS, useAppStore } from "./state/store";
+import { appLiveStatus } from "./utils/app-data";
 import { HOME_PATH, LOGIN_PATH } from "./utils/app-routes";
-import { statusToKind } from "./utils/status";
+import { isFailureStatus, statusToKind } from "./utils/status";
 
 const PALETTE_STALE_TIME_MS = 300_000;
 const SKIP_LINK_CLASS =
@@ -424,8 +425,9 @@ function CommandPalette({ open, onClose }: CommandPaletteProps) {
 /** Renders the alert banner when apps have failed. */
 function FailedAppsAlert() {
   const { data: manifests = [] } = useManifests();
+  const appStatuses = useAppStore((s) => s.appStatus);
   const failedApps = manifests
-    .filter((m) => m.status === "failed")
+    .filter((m) => isFailureStatus(appLiveStatus(appStatuses, m)))
     .map((m) => ({
       app_key: m.app_key,
       error_message: m.error_message ?? null,

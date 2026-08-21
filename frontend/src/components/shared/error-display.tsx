@@ -15,7 +15,7 @@ interface ResultDisplay {
   message: string;
 }
 
-function resolveResultDisplay(
+export function resolveResultDisplay(
   status: string,
   durationMs: number,
   errorType?: string | null,
@@ -39,6 +39,10 @@ function resolveResultDisplay(
 
   if (status === "error" && errorMessage) {
     return { label: "result", toneClass: "text-destructive", message: `${errorType ?? "Error"}: ${errorMessage}` };
+  }
+
+  if (status === "skipped") {
+    return { label: "result", toneClass: "text-muted-foreground", message: "skipped" };
   }
 
   return { label: "result", message: `completed in ${formatDuration(durationMs)}` };

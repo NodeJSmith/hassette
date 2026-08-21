@@ -1,7 +1,53 @@
+import type { components } from "../api/generated-types";
+
 export type StatusVariant = "success" | "danger" | "warning" | "neutral";
 
 export type AppStatus =
   "running" | "failed" | "stopped" | "disabled" | "blocked" | "degraded" | "starting" | "shutting_down";
+
+type ManifestStatus = components["schemas"]["ManifestStatus"];
+type ResourceStatus = components["schemas"]["ResourceStatus"];
+
+/**
+ * True for statuses that represent an app-level failure and should surface in the
+ * `FailedAppsAlert` failure banner. Typed as a `Record` over the full
+ * `ManifestStatus | ResourceStatus` union (rather than an ad hoc `===`/`||` chain) so a future
+ * status variant that should trigger the alert is a compile-time error if omitted here.
+ */
+export const IS_FAILURE_STATUS = {
+  disabled: false,
+  blocked: false,
+  degraded: true,
+  running: false,
+  failed: true,
+  stopped: false,
+  not_started: false,
+  starting: false,
+  stopping: false,
+  crashed: true,
+  exhausted_dead: false,
+  exhausted_cooling: false,
+} satisfies Record<ManifestStatus | ResourceStatus, boolean>;
+
+/** Narrows `status` to a known `IS_FAILURE_STATUS` key via a runtime `in` check — no `as` cast. */
+function isKnownFailureStatusKey(status: string): status is keyof typeof IS_FAILURE_STATUS {
+  return status in IS_FAILURE_STATUS;
+}
+
+/**
+ * True when `status` (the live status from `appLiveStatus()`/`instanceLiveStatus()`) represents
+ * an app-level failure. See `IS_FAILURE_STATUS` for the underlying map.
+ *
+ * Takes `string` rather than `ManifestStatus | ResourceStatus` because `appLiveStatus()` still
+ * returns `string` pending the retyping pass in a follow-up task — the `in`-based guard above
+ * validates the value against `IS_FAILURE_STATUS`'s keys at runtime instead of relying on the
+ * caller's static type.
+ */
+export function isFailureStatus(status: string): boolean {
+  if (isKnownFailureStatusKey(status)) return IS_FAILURE_STATUS[status];
+  console.warn(`Unknown status: "${status}"`);
+  return false;
+}
 
 /** Statuses that represent intentionally non-active apps (not failures). */
 export const INACTIVE_STATUSES: ReadonlySet<string> = new Set<AppStatus>(["stopped", "disabled", "shutting_down"]);
