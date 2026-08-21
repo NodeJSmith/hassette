@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "file issues for deferred WS and observability gaps"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#7"]
 ---
