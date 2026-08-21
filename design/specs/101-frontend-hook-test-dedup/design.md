@@ -1,7 +1,7 @@
 # Design: Deduplicate Frontend Hook Test Setup
 
 **Date:** 2026-08-20
-**Status:** draft
+**Status:** archived
 **Mode:** sketch
 
 ## Problem
