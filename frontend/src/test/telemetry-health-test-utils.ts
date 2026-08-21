@@ -21,8 +21,9 @@ import { useAppStore } from "../state/store";
 type MockedGetTelemetryStatus = MockedFunction<typeof getTelemetryStatus>;
 
 /** Renders `useTelemetryHealth` directly, returning the `renderHook` result so tests needing
- * `rerender`/`unmount` can destructure it. */
-export function renderTelemetryHealthHook() {
+ * `rerender`/`unmount` can destructure it. Not imported directly by any test file; used only by
+ * `renderAndWaitForFirstPoll` and `expectFirstPollDegraded` below. */
+function renderTelemetryHealthHook() {
   return renderHook(() => useTelemetryHealth());
 }
 

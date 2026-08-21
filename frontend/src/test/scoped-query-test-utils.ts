@@ -5,9 +5,8 @@
  * key, fetcher, and store/hook options — the render shape every `useScopedQuery` test starts
  * from. `renderAndWaitForFirstFetch()` additionally waits for the first fetch to land, which most
  * refetch-behavior tests need before mutating the store and asserting on a subsequent fetch.
- * `waitForFetchCalled()` / `waitForFetchCount()` wait on the fetcher mock directly, and
- * `expectFetchSince()` combines a "called" wait with the `since` argument assertion every
- * fixed-window-preset test makes.
+ * `waitForFetchCount()` waits on the fetcher mock directly, and `expectFetchSince()` combines an
+ * internal "called" wait with the `since` argument assertion every fixed-window-preset test makes.
  */
 
 import type { Mock } from "vitest";
@@ -40,8 +39,9 @@ export function renderScopedQuery<T>(
 }
 
 /** Waits for the fetcher to have been called at least once — the "fetch has fired" check every
- * fixed-window-preset test makes before asserting the exact `since` argument. */
-export async function waitForFetchCalled(fetcher: ScopedFetcherMock<unknown>) {
+ * fixed-window-preset test makes before asserting the exact `since` argument. Not imported
+ * directly by any test file; used only by `expectFetchSince` below. */
+async function waitForFetchCalled(fetcher: ScopedFetcherMock<unknown>) {
   await vi.waitFor(() => {
     expect(fetcher).toHaveBeenCalled();
   });
