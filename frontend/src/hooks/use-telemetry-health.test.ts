@@ -1,4 +1,4 @@
-// dup-ignore-start: shared 5-line import prologue also present in use-relative-time.test.ts, use-scoped-query.test.ts, and use-websocket.test.ts (T09/T05/T02); import statements can't be extracted into a shared helper
+// dup-ignore-start: shared 5-line import prologue also present in use-scoped-query.test.ts and use-websocket.test.ts (T05/T02); import statements can't be extracted into a shared helper
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useAppStore } from "../state/store";

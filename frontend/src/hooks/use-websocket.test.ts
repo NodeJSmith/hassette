@@ -1,4 +1,4 @@
-// dup-ignore-start: shared 5-line import prologue also present in use-scoped-query.test.ts and use-telemetry-health.test.ts (T02/T04/T05); import statements can't be extracted into a shared helper
+// dup-ignore-start: shared 5-line import prologue also present in use-scoped-query.test.ts and use-telemetry-health.test.ts (T04/T05); import statements can't be extracted into a shared helper
 import { act, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 

@@ -1,7 +1,7 @@
 ---
 task_id: "T10"
 title: "Final verification: confirm all 17 target files are clear of flagged duplication"
-status: "planned"
+status: "done"
 depends_on: ["T02", "T03", "T04", "T05", "T06", "T07", "T08", "T09"]
 implements: ["AC#1", "AC#2", "AC#3", "AC#4"]
 ---

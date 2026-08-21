@@ -1,6 +1,5 @@
-// dup-ignore-start: shared import prologue also present in use-relative-time.test.ts,
-// use-telemetry-health.test.ts, and use-websocket.test.ts (T09/T04/T02); import statements can't
-// be extracted into a shared helper
+// dup-ignore-start: shared import prologue also present in use-telemetry-health.test.ts and
+// use-websocket.test.ts (T04/T02); import statements can't be extracted into a shared helper
 import { act } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
