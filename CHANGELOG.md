@@ -5,6 +5,58 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.53.0](https://github.com/NodeJSmith/hassette/compare/v0.52.0...v0.53.0) (2026-08-21)
+
+
+### ⚠ BREAKING CHANGES
+
+* `SensorAttributes` no longer declares `native_value`, `native_unit_of_measurement`, or `suggested_display_precision` (they duplicated the base `State.value`/`unit_of_measurement` fields and are removed for the `sensor` domain only). `StateRegistry.register` and `register_state_converter` drop their unused `device_class` keyword parameter, and `StateKey` drops its `device_class` field (kept as a one-field frozen dataclass with `domain` only — its export names and `isinstance` checks are unchanged).
+    #### What changes for callers
+    - Code reading `sensor_state.attributes.native_value`,
+    `.native_unit_of_measurement`, or `.suggested_display_precision` must
+    switch to `sensor_state.value` and
+    `sensor_state.attributes.unit_of_measurement` — those fields already
+    carried the same data.
+    - Code calling `StateRegistry.register(..., device_class=...)`,
+    `StateRegistry.resolve(..., device_class=...)`, or
+    `register_state_converter(..., device_class=...)` must drop the
+    `device_class` keyword — it was never populated or read by any
+    production call site.
+    - Code constructing `StateKey(domain=..., device_class=...)` directly
+    must drop `device_class` — `StateKey` is now `StateKey(domain)` only.
+
+### Features
+
+* add device-class-specific sensor state subtypes ([#1549](https://github.com/NodeJSmith/hassette/issues/1549)) ([e93d877](https://github.com/NodeJSmith/hassette/commit/e93d87778c82f0bb42e60ed1b40647deb2dda14d)), closes [#717](https://github.com/NodeJSmith/hassette/issues/717)
+
+
+### Bug Fixes
+
+* clean up unused exports, naming inconsistencies, and orphaned mocks in frontend API ([#1599](https://github.com/NodeJSmith/hassette/issues/1599)) ([4520f34](https://github.com/NodeJSmith/hassette/commit/4520f34ce88234a436f8b5242fc76fae22408e36)), closes [#1519](https://github.com/NodeJSmith/hassette/issues/1519)
+* eliminate timing-fragile integration tests ([#1592](https://github.com/NodeJSmith/hassette/issues/1592)) ([21f65d9](https://github.com/NodeJSmith/hassette/commit/21f65d9fa7a5bf0bc44480020ede2ca3ca20e9ea)), closes [#1571](https://github.com/NodeJSmith/hassette/issues/1571)
+* eliminate xdist race in test_auth.py stub_spa fixture ([#1651](https://github.com/NodeJSmith/hassette/issues/1651)) ([2df8114](https://github.com/NodeJSmith/hassette/commit/2df811491ce3228da5bac40512d6864acd516ba9)), closes [#1629](https://github.com/NodeJSmith/hassette/issues/1629)
+* harden apiFetch error-path tests against silent passes ([#1587](https://github.com/NodeJSmith/hassette/issues/1587)) ([494b011](https://github.com/NodeJSmith/hassette/commit/494b011081828ebee497b92489dc49dd123c1aa4)), closes [#1511](https://github.com/NodeJSmith/hassette/issues/1511)
+* **tooling:** remove stale mise tasks and guard worktree:setup ([#1649](https://github.com/NodeJSmith/hassette/issues/1649)) ([04af1ad](https://github.com/NodeJSmith/hassette/commit/04af1ad9f628ee8c4f963b6bc505c5588a02c646)), closes [#1645](https://github.com/NodeJSmith/hassette/issues/1645) [#1648](https://github.com/NodeJSmith/hassette/issues/1648)
+
+
+### Performance Improvements
+
+* remove state_changed WebSocket broadcast to browser clients ([#1639](https://github.com/NodeJSmith/hassette/issues/1639)) ([0878132](https://github.com/NodeJSmith/hassette/commit/08781328897adabde1f1f53277f356d4538c7e7e))
+* **ui:** scope AppDetailPage store selectors to its own app ([#1528](https://github.com/NodeJSmith/hassette/issues/1528)) ([54affbd](https://github.com/NodeJSmith/hassette/commit/54affbdd5fa2963d8f35abe8abd2ac180f5ecb75)), closes [#1465](https://github.com/NodeJSmith/hassette/issues/1465)
+* **ui:** scope execution-completion subscriptions in app-detail children ([#1607](https://github.com/NodeJSmith/hassette/issues/1607)) ([3a84864](https://github.com/NodeJSmith/hassette/commit/3a8486494805d915fed7a04d5bbc4db8158359db)), closes [#1542](https://github.com/NodeJSmith/hassette/issues/1542)
+
+
+### Refactoring
+
+* consolidate duplicate version-lookup implementations into utils ([#1538](https://github.com/NodeJSmith/hassette/issues/1538)) ([0894b9c](https://github.com/NodeJSmith/hassette/commit/0894b9cc3901e80268c80625ff3397e1bbc61c19)), closes [#1482](https://github.com/NodeJSmith/hassette/issues/1482)
+* dedup frontend hook test boilerplate ([#1663](https://github.com/NodeJSmith/hassette/issues/1663)) ([112f3ff](https://github.com/NodeJSmith/hassette/commit/112f3ff27f9801cce84cdd40e154b1480f1a186e)), closes [#1560](https://github.com/NodeJSmith/hassette/issues/1560)
+* unify AppRegistry instance state into a single status-carrying map ([#1605](https://github.com/NodeJSmith/hassette/issues/1605)) ([14f8c4b](https://github.com/NodeJSmith/hassette/commit/14f8c4b5c79c4eea485aca3fbda3172a3e3abeb5)), closes [#1597](https://github.com/NodeJSmith/hassette/issues/1597)
+
+
+### Documentation
+
+* replace stale pyright-ignore note in cache patterns ([#1518](https://github.com/NodeJSmith/hassette/issues/1518)) ([840d54f](https://github.com/NodeJSmith/hassette/commit/840d54f0b9f91addd4fe9202ed472f0db29db51b)), closes [#1360](https://github.com/NodeJSmith/hassette/issues/1360)
+
 ## [0.52.0](https://github.com/NodeJSmith/hassette/compare/v0.51.0...v0.52.0) (2026-08-07)
 
 
