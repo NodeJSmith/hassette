@@ -1,7 +1,7 @@
 ---
 task_id: "T09"
 title: "Resolve use-relative-time.test.ts's mixed-cluster duplication"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T03", "T05"]
 implements: ["FR#2", "FR#3", "FR#4", "AC#2", "AC#3", "AC#4"]
 ---

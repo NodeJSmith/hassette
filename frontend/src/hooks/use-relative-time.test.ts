@@ -1,17 +1,12 @@
 import { act, renderHook } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { useAppStore } from "../state/store";
+import { useFakeTimersForEachTest } from "../test/query-test-utils";
 import { useRelativeTime } from "./use-relative-time";
 
 describe("useRelativeTime", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-  });
+  useFakeTimersForEachTest();
 
   it("returns an empty string for null timestamp", () => {
     const { result } = renderHook(() => useRelativeTime(null));
