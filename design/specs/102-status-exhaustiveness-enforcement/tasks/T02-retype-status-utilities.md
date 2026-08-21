@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "retype status utilities from string to literal unions"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#4", "FR#5", "FR#6"]
 ---

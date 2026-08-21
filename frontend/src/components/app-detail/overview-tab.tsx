@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 
 import type { JobData, ListenerData } from "../../api/endpoints";
+import type { components } from "../../api/generated-types";
 import { useAppStore } from "../../state/store";
 import { INACTIVE_STATUSES } from "../../utils/status";
 import { EmptyState } from "../shared/empty-state";
@@ -17,20 +18,29 @@ import { OVERVIEW_SECTION_CLASS } from "./overview-section";
 import { isFailing } from "./overview-tab-helpers";
 import { RecentActivitySection } from "./recent-activity-section";
 
+type ManifestStatus = components["schemas"]["ManifestStatus"];
+type ResourceStatus = components["schemas"]["ResourceStatus"];
+
 interface Props {
   listeners: ListenerData[];
   jobs: JobData[];
   appKey: string;
   instanceQs: string;
   resolvedInstanceIndex: number;
-  appStatus?: string;
+  appStatus?: ManifestStatus | ResourceStatus | "unknown";
 }
 
 const SEARCH_INPUT_CLASS =
   "min-w-[var(--size-search-min)] rounded-md border border-[var(--border-strong)] bg-input px-2 py-1.5 font-sans text-[length:var(--text-mono-sm)] text-foreground outline-none placeholder:text-foreground-faint focus-visible:border-primary focus-visible:shadow-[0_0_0_2px_var(--primary-soft)] max-mobile:w-full max-mobile:min-w-0";
 const SECTION_LABEL_CLASS = "mb-2 font-sans text-[length:var(--text-h3)] font-semibold text-foreground";
 
-function RecentLogsSection({ appKey, appStatus }: { appKey: string; appStatus?: string }) {
+function RecentLogsSection({
+  appKey,
+  appStatus,
+}: {
+  appKey: string;
+  appStatus?: ManifestStatus | ResourceStatus | "unknown";
+}) {
   const isInactive = appStatus !== undefined && INACTIVE_STATUSES.has(appStatus);
   const [search, setSearch] = useState("");
   const log = useLogTable({ context: "app", appKey, useLocalState: true, search });

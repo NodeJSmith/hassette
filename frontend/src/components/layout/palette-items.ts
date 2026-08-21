@@ -1,9 +1,13 @@
 import type { AppManifest, ListenerData } from "../../api/endpoints";
 import { reloadApp, stopApp } from "../../api/endpoints";
+import type { components } from "../../api/generated-types";
 import type { AppStatusEntry } from "../../state/store";
 import { appLiveStatus, instanceLiveStatus } from "../../utils/app-data";
 import { appDetailPath, handlerPath, NAV_PAGES } from "../../utils/app-routes";
 import { isFailureStatus, isReloadableStatus } from "../../utils/status";
+
+type ManifestStatus = components["schemas"]["ManifestStatus"];
+type ResourceStatus = components["schemas"]["ResourceStatus"];
 
 const DOCS_URL = "https://hassette.readthedocs.io";
 
@@ -24,7 +28,7 @@ export interface PaletteItem {
   kind: PaletteItemKind;
   label: string;
   sub?: string;
-  status?: string;
+  status?: ManifestStatus | ResourceStatus;
   action: () => void;
 }
 

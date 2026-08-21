@@ -27,9 +27,10 @@ const SEVERITY_ORDER: Record<string, number> = { err: 0, warn: 1, info: 2 };
 const UNKNOWN_SEVERITY_SORT_ORDER = 99;
 
 type ServiceInfoResponse = components["schemas"]["ServiceInfoResponse"];
+type ResourceStatus = components["schemas"]["ResourceStatus"];
 interface MergedService {
   resource_name: string;
-  status: string;
+  status: ResourceStatus;
   role: string;
   ready_phase: string | null;
   retry_at: number | null;

@@ -21,7 +21,7 @@ const { ExecutionTable } = await import("../shared/execution-table");
 const RECORD: ExecutionRecord = {
   execution_start_ts: 1_700_000_000,
   duration_ms: 12,
-  status: "ok",
+  status: "success",
   error_type: null,
   error_message: null,
   thread_leaked: false,

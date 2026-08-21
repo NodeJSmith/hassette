@@ -1,5 +1,6 @@
 import { create } from "zustand";
 
+import type { components } from "../api/generated-types";
 import type {
   ConnectedPayload as WsConnectedPayload,
   WsExecutionCompletedPayload,
@@ -26,10 +27,12 @@ function isBoolean(v: unknown): v is boolean {
   return typeof v === "boolean";
 }
 
+type ResourceStatus = components["schemas"]["ResourceStatus"];
+
 export interface AppStatusEntry {
-  status: string;
+  status: ResourceStatus;
   index: number;
-  previous_status?: string | null;
+  previous_status?: ResourceStatus | null;
   instance_name?: string | null;
   class_name?: string | null;
   exception?: string | null;
@@ -42,8 +45,8 @@ export function appStatusKey(appKey: string, index: number): string {
 export interface ServiceStatusEntry {
   resource_name: string;
   role: string;
-  status: string;
-  previous_status?: string | null;
+  status: ResourceStatus;
+  previous_status?: ResourceStatus | null;
   exception?: string | null;
   retry_at: number | null;
   /** Whether the service has called mark_ready(). False during startup phases. */

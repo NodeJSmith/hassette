@@ -2,11 +2,9 @@ import type { components } from "../api/generated-types";
 
 export type StatusVariant = "success" | "danger" | "warning" | "neutral";
 
-export type AppStatus =
-  "running" | "failed" | "stopped" | "disabled" | "blocked" | "degraded" | "starting" | "shutting_down";
-
 type ManifestStatus = components["schemas"]["ManifestStatus"];
 type ResourceStatus = components["schemas"]["ResourceStatus"];
+type ExecutionStatus = components["schemas"]["ExecutionStatus"];
 
 /**
  * True for statuses that represent an app-level failure and should surface in the
@@ -38,19 +36,24 @@ function isKnownFailureStatusKey(status: string): status is keyof typeof IS_FAIL
  * True when `status` (the live status from `appLiveStatus()`/`instanceLiveStatus()`) represents
  * an app-level failure. See `IS_FAILURE_STATUS` for the underlying map.
  *
- * Takes `string` rather than `ManifestStatus | ResourceStatus` because `appLiveStatus()` still
- * returns `string` pending the retyping pass in a follow-up task — the `in`-based guard above
- * validates the value against `IS_FAILURE_STATUS`'s keys at runtime instead of relying on the
- * caller's static type.
+ * Takes `string` rather than `ManifestStatus | ResourceStatus` even though `appLiveStatus()` is
+ * now narrowed (see `app-data.ts`) — kept wide so existing callers passing an arbitrary status
+ * string (e.g. tests exercising the unrecognized-status fallback) keep compiling. The `in`-based
+ * guard above validates the value against `IS_FAILURE_STATUS`'s keys at runtime.
  */
 export function isFailureStatus(status: string): boolean {
-  if (isKnownFailureStatusKey(status)) return IS_FAILURE_STATUS[status];
-  console.warn(`Unknown status: "${status}"`);
-  return false;
+  return isKnownFailureStatusKey(status) && IS_FAILURE_STATUS[status];
 }
 
-/** Statuses that represent intentionally non-active apps (not failures). */
-export const INACTIVE_STATUSES: ReadonlySet<string> = new Set<AppStatus>(["stopped", "disabled", "shutting_down"]);
+/** Statuses that represent intentionally non-active apps (not failures).
+ * `"shutting_down"` is a legacy frontend-only value, not present in either backend enum.
+ * Typed against `ManifestStatus | ResourceStatus | "shutting_down" | "unknown"` (wider than just
+ * the 3 contained values) so callers passing `appLiveStatus()`'s full return union — which can
+ * legitimately hold any `ResourceStatus` value, or the app-detail page's "unknown" placeholder —
+ * can query membership without a cast. */
+export const INACTIVE_STATUSES: ReadonlySet<ManifestStatus | ResourceStatus | "shutting_down" | "unknown"> = new Set<
+  ManifestStatus | ResourceStatus | "shutting_down" | "unknown"
+>(["stopped", "disabled", "shutting_down"]);
 
 /**
  * True for statuses that still have live instances worth reloading — a degraded app has some
@@ -59,44 +62,77 @@ export const INACTIVE_STATUSES: ReadonlySet<string> = new Set<AppStatus>(["stopp
  * Shared by the per-app ActionButtons reload control and the "Reload all apps" bulk command so
  * the two selection sets can't silently diverge (they did once, for "degraded").
  */
-export function isReloadableStatus(status: string): boolean {
+export function isReloadableStatus(status: ManifestStatus | ResourceStatus): boolean {
   return status === "running" || status === "degraded";
 }
 
-const APP_STATUS_MAP: ReadonlyMap<string, StatusVariant> = new Map<string, StatusVariant>([
-  ["running", "success"],
-  ["failed", "danger"],
-  ["crashed", "danger"],
-  ["stopped", "warning"],
-  ["disabled", "neutral"],
-  ["blocked", "warning"], // Intentional: blocked = needs attention (matches small badge behavior)
-  ["degraded", "warning"],
-  ["not_started", "neutral"],
-  ["starting", "neutral"],
-  ["stopping", "neutral"],
-  ["shutting_down", "neutral"],
-  // Service exhaustion statuses
-  ["exhausted_dead", "danger"], // Permanent failure — budget exhausted, no further restarts
-  ["exhausted_cooling", "warning"], // Long cooldown in progress — will retry after cooldown period
-  ["success", "success"],
-  ["failure", "danger"],
-  ["unknown", "neutral"],
-]);
+/**
+ * `StatusMapKey` covers both `ResourceStatus` and `ManifestStatus` values plus service-health
+ * values (`"success"`, `"failure"`, `"unknown"`) and the legacy frontend-only `"shutting_down"`
+ * value (not present in either backend enum).
+ */
+type StatusMapKey = ResourceStatus | ManifestStatus | "success" | "failure" | "unknown" | "shutting_down";
 
-/** Map a status string to a StatusVariant. Unknown values return "neutral" with a console.warn. */
-export function statusToVariant(status: string): StatusVariant {
-  const variant = APP_STATUS_MAP.get(status);
-  if (variant !== undefined) return variant;
+const APP_STATUS_MAP: Record<StatusMapKey, StatusVariant> = {
+  running: "success",
+  failed: "danger",
+  crashed: "danger",
+  stopped: "warning",
+  disabled: "neutral",
+  blocked: "warning", // Intentional: blocked = needs attention (matches small badge behavior)
+  degraded: "warning",
+  not_started: "neutral",
+  starting: "neutral",
+  stopping: "neutral",
+  shutting_down: "neutral",
+  // Service exhaustion statuses
+  exhausted_dead: "danger", // Permanent failure — budget exhausted, no further restarts
+  exhausted_cooling: "warning", // Long cooldown in progress — will retry after cooldown period
+  success: "success",
+  failure: "danger",
+  unknown: "neutral",
+} satisfies Record<StatusMapKey, StatusVariant>;
+
+/** Narrows `status` to a known `APP_STATUS_MAP` key via a runtime `in` check — no `as` cast. */
+function isKnownStatusMapKey(status: string): status is StatusMapKey {
+  return status in APP_STATUS_MAP;
+}
+
+/**
+ * Map a status to a StatusVariant. `status` is typed as the exhaustive `StatusMapKey` union, but
+ * real callers (e.g. `apps-table-row.tsx`, `app-detail-header.tsx`) pass REST-sourced values from
+ * `appLiveStatus()`/`instanceLiveStatus()` that aren't runtime-validated against the schema (only
+ * WS messages go through the AJV validator) — this guard defends against a live value outside the
+ * compile-time union, matching `statusPriority()`'s identical REST-unvalidated-input rationale.
+ */
+export function statusToVariant(status: StatusMapKey): StatusVariant {
+  if (isKnownStatusMapKey(status)) return APP_STATUS_MAP[status];
   console.warn(`Unknown status: "${status}"`);
   return "neutral";
 }
 
-export function executionStatusKind(status: string): StatusKind {
-  if (status === "success") return "ok";
-  if (status === "timed_out") return "warn";
-  if (status === "cancelled") return "cancel";
-  if (status === "error") return "err";
-  if (status === "skipped") return "mute";
+const EXECUTION_STATUS_KIND: Record<ExecutionStatus, StatusKind> = {
+  success: "ok",
+  timed_out: "warn",
+  cancelled: "cancel",
+  error: "err",
+  skipped: "mute",
+} satisfies Record<ExecutionStatus, StatusKind>;
+
+/** Narrows `status` to a known `EXECUTION_STATUS_KIND` key via a runtime `in` check — no `as` cast. */
+function isKnownExecutionStatusKey(status: string): status is ExecutionStatus {
+  return status in EXECUTION_STATUS_KIND;
+}
+
+/**
+ * Map an execution status to a StatusKind. `status` is typed as the exhaustive `ExecutionStatus`
+ * union, but real callers (`execution-table.tsx`, `recent-activity-section.tsx`) receive records
+ * fetched via `getListenerExecutions()`/`getJobExecutions()` — REST endpoints that, unlike WS
+ * `execution_completed` events, are not runtime-validated against the schema — so this guard
+ * defends against a live value outside the compile-time union.
+ */
+export function executionStatusKind(status: ExecutionStatus): StatusKind {
+  if (isKnownExecutionStatusKey(status)) return EXECUTION_STATUS_KIND[status];
   console.warn(`Unknown execution status: "${status}"`);
   return "err";
 }
@@ -146,24 +182,42 @@ export function levelToKind(level: string): StatusKind {
   return LOG_LEVEL_KIND_MAP.get(level) ?? "mute";
 }
 
-const STATUS_KIND_MAP: ReadonlyMap<string, StatusKind> = new Map<string, StatusKind>([
-  ["running", "ok"],
-  ["starting", "ok"],
-  ["failed", "err"],
-  ["crashed", "err"],
-  ["exhausted_dead", "err"],
-  ["blocked", "warn"],
-  ["degraded", "warn"],
-  ["stopping", "warn"],
-  ["shutting_down", "warn"],
-  ["exhausted_cooling", "warn"],
-  ["stopped", "mute"],
-  ["disabled", "mute"],
-  ["not_started", "mute"],
-]);
+// "unknown" is a defensive placeholder used by the app-detail page while a status hasn't loaded
+// yet (see `AppDetailPage`'s `liveStatus` selector) — not a backend enum value.
+type StatusKindMapKey = ResourceStatus | ManifestStatus | "shutting_down" | "unknown";
 
-export function statusToKind(status: string): StatusKind {
-  return STATUS_KIND_MAP.get(status) ?? "mute";
+const STATUS_KIND_MAP: Record<StatusKindMapKey, StatusKind> = {
+  running: "ok",
+  starting: "ok",
+  failed: "err",
+  crashed: "err",
+  exhausted_dead: "err",
+  blocked: "warn",
+  degraded: "warn",
+  stopping: "warn",
+  shutting_down: "warn",
+  exhausted_cooling: "warn",
+  stopped: "mute",
+  disabled: "mute",
+  not_started: "mute",
+  unknown: "mute",
+} satisfies Record<StatusKindMapKey, StatusKind>;
+
+/** Narrows `status` to a known `STATUS_KIND_MAP` key via a runtime `in` check — no `as` cast. */
+function isKnownStatusKindMapKey(status: string): status is StatusKindMapKey {
+  return status in STATUS_KIND_MAP;
+}
+
+/**
+ * Map a status to a StatusKind. `status` is typed as the exhaustive `StatusKindMapKey` union, but
+ * real callers (e.g. `apps-table-row.tsx`, `app-detail-header.tsx`, `diagnostics.tsx`) pass the
+ * same REST-sourced, unvalidated values documented on `statusToVariant` — this guard defends
+ * against a live value outside the compile-time union. Falls back to "mute" (matching this map's
+ * existing "unknown" entry) with no console.warn, matching this function's pre-existing behavior.
+ */
+export function statusToKind(status: StatusKindMapKey): StatusKind {
+  if (isKnownStatusKindMapKey(status)) return STATUS_KIND_MAP[status];
+  return "mute";
 }
 
 /** Derive a display chip label from handler/job metadata.
@@ -187,7 +241,7 @@ export function handlerKindLabel(
  * (amber "Starting"). All other status+ready combinations delegate to
  * statusToVariant.
  */
-export function readinessVariant(status: string, ready: boolean): StatusVariant {
+export function readinessVariant(status: ResourceStatus, ready: boolean): StatusVariant {
   if (status === "running" && !ready) return "warning";
   return statusToVariant(status);
 }
