@@ -1,6 +1,9 @@
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+// dup-ignore-start: vi.mock("wouter", ...) must be written literally in every consumer file for
+// Vitest's hoisting transform to detect it (see mock-wouter.ts's createWouterMock docstring) —
+// also present in use-log-filters.test.ts and use-query-params.test.ts (T07)
 import { createWouterMock } from "../test/mock-wouter";
 import { useCorrectUrl } from "./use-correct-url";
 
@@ -11,6 +14,7 @@ vi.mock("wouter", () =>
     useLocation: () => ["/apps/foo/handlers/listener/999", mockNavigate],
   }),
 );
+// dup-ignore-end
 
 beforeEach(() => {
   mockNavigate.mockReset();

@@ -2,13 +2,16 @@ import { act } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { WsLogPayload } from "@/api/ws-types";
 import { type TimePreset, useAppStore } from "@/state/store";
+import { createLogEntry } from "@/test/factories";
+import { renderLoaded, renderLoadedLogData, renderLoadedWithRestEntry } from "@/test/log-data-test-utils";
 import { renderHookWithProviders } from "@/test/query-test-utils";
 import { server } from "@/test/server";
 
 import { LIVE_LOG_UPDATE_INTERVAL_MS, REST_FETCH_LIMIT } from "./constants";
 import { useLogData } from "./use-log-data";
+
+const LOGS_ENDPOINT = "/api/logs/recent";
 
 vi.mock("sonner", () => ({
   toast: { error: vi.fn() },
@@ -22,25 +25,6 @@ function seedState(preset: TimePreset = "1h"): void {
     timePreset: preset,
     uptimeSeconds: preset === "since-restart" ? 100 : null,
   });
-}
-
-function makeLogEntry(overrides: Partial<WsLogPayload> = {}): WsLogPayload {
-  return {
-    seq: 1,
-    timestamp: 1000,
-    level: "INFO",
-    logger_name: "test",
-    func_name: "test_fn",
-    lineno: 1,
-    message: "test message",
-    exc_info: null,
-    app_key: null,
-    execution_id: null,
-    instance_name: null,
-    instance_index: null,
-    source_tier: null,
-    ...overrides,
-  };
 }
 
 async function waitForLoaded(result: { current: { loading: boolean } }): Promise<void> {
@@ -58,7 +42,7 @@ describe("useLogData", () => {
     it("is true initially before REST resolves", () => {
       seedState();
       // Override with a never-resolving handler to freeze the fetch in-flight.
-      server.use(http.get("/api/logs/recent", () => new Promise(() => {})));
+      server.use(http.get(LOGS_ENDPOINT, () => new Promise(() => {})));
 
       const { result } = renderHookWithProviders(() => useLogData({}));
 
@@ -68,9 +52,7 @@ describe("useLogData", () => {
     it("becomes false after REST resolves", async () => {
       seedState();
 
-      const { result } = renderHookWithProviders(() => useLogData({}));
-
-      await waitForLoaded(result);
+      await renderLoaded();
     });
   });
 
@@ -80,17 +62,13 @@ describe("useLogData", () => {
       let capturedUrl: string | undefined;
 
       server.use(
-        http.get("/api/logs/recent", ({ request }) => {
+        http.get(LOGS_ENDPOINT, ({ request }) => {
           capturedUrl = request.url;
           return HttpResponse.json([]);
         }),
       );
 
-      const { result } = renderHookWithProviders(() => useLogData({ appKey: "my_app", executionId: "exec-42" }));
-
-      await vi.waitFor(() => {
-        expect(result.current.loading).toBe(false);
-      });
+      await renderLoaded({ appKey: "my_app", executionId: "exec-42" });
 
       expect(capturedUrl).toBeDefined();
       const url = new URL(capturedUrl!);
@@ -102,17 +80,11 @@ describe("useLogData", () => {
     it("populates restEntries with the fetched entries", async () => {
       seedState();
       const entries = [
-        makeLogEntry({ seq: 1, timestamp: 1000, message: "first" }),
-        makeLogEntry({ seq: 2, timestamp: 2000, message: "second" }),
+        createLogEntry({ seq: 1, timestamp: 1000, message: "first" }),
+        createLogEntry({ seq: 2, timestamp: 2000, message: "second" }),
       ];
 
-      server.use(http.get("/api/logs/recent", () => HttpResponse.json(entries)));
-
-      const { result } = renderHookWithProviders(() => useLogData({}));
-
-      await vi.waitFor(() => {
-        expect(result.current.loading).toBe(false);
-      });
+      const result = await renderLoadedLogData(entries);
 
       expect(result.current.restEntries).toHaveLength(2);
       expect(result.current.restEntries[0].message).toBe("first");
@@ -121,15 +93,9 @@ describe("useLogData", () => {
 
     it("includes REST entries in allEntries", async () => {
       seedState();
-      const entries = [makeLogEntry({ seq: 1, timestamp: 1000, message: "rest-entry" })];
+      const entries = [createLogEntry({ seq: 1, timestamp: 1000, message: "rest-entry" })];
 
-      server.use(http.get("/api/logs/recent", () => HttpResponse.json(entries)));
-
-      const { result } = renderHookWithProviders(() => useLogData({}));
-
-      await vi.waitFor(() => {
-        expect(result.current.loading).toBe(false);
-      });
+      const result = await renderLoadedLogData(entries);
 
       expect(result.current.allEntries.some((e) => e.message === "rest-entry")).toBe(true);
     });
@@ -138,18 +104,10 @@ describe("useLogData", () => {
   describe("WS merge", () => {
     it("prepends WS entries above the REST watermark to keep timestamp-desc order", async () => {
       seedState();
-      const restEntry = makeLogEntry({ seq: 1, timestamp: 1000, message: "rest" });
-
-      server.use(http.get("/api/logs/recent", () => HttpResponse.json([restEntry])));
-
-      const { result } = renderHookWithProviders(() => useLogData({}));
-
-      await vi.waitFor(() => {
-        expect(result.current.loading).toBe(false);
-      });
+      const result = await renderLoadedWithRestEntry(createLogEntry({ seq: 1, timestamp: 1000, message: "rest" }));
 
       act(() => {
-        useAppStore.getState().pushLog(makeLogEntry({ seq: 2, timestamp: 2000, message: "ws-new" }));
+        useAppStore.getState().pushLog(createLogEntry({ seq: 2, timestamp: 2000, message: "ws-new" }));
       });
 
       await vi.waitFor(() => {
@@ -161,17 +119,11 @@ describe("useLogData", () => {
 
     it("orders multiple WS entries newest first before REST entries", async () => {
       seedState();
-      const restEntry = makeLogEntry({ seq: 1, timestamp: 1000, message: "rest" });
-
-      server.use(http.get("/api/logs/recent", () => HttpResponse.json([restEntry])));
-
-      const { result } = renderHookWithProviders(() => useLogData({}));
-
-      await waitForLoaded(result);
+      const result = await renderLoadedWithRestEntry(createLogEntry({ seq: 1, timestamp: 1000, message: "rest" }));
 
       act(() => {
-        useAppStore.getState().pushLog(makeLogEntry({ seq: 2, timestamp: 2000, message: "ws-older" }));
-        useAppStore.getState().pushLog(makeLogEntry({ seq: 3, timestamp: 3000, message: "ws-newer" }));
+        useAppStore.getState().pushLog(createLogEntry({ seq: 2, timestamp: 2000, message: "ws-older" }));
+        useAppStore.getState().pushLog(createLogEntry({ seq: 3, timestamp: 3000, message: "ws-newer" }));
       });
 
       await vi.waitFor(() => {
@@ -179,22 +131,17 @@ describe("useLogData", () => {
       });
     });
 
+    // dup-ignore-start: parallel WS-merge filter test case — render+push+assert shape token-matches the sibling filter-scenario tests below that push and check a different message set, not duplicated setup
     it("excludes WS entries whose rowKey matches a REST entry (deduplication)", async () => {
       seedState();
-      const restEntry = makeLogEntry({ seq: 1, timestamp: 5000, message: "rest" });
-
-      server.use(http.get("/api/logs/recent", () => HttpResponse.json([restEntry])));
-
-      const { result } = renderHookWithProviders(() => useLogData({}));
-
-      await waitForLoaded(result);
+      const result = await renderLoadedWithRestEntry(createLogEntry({ seq: 1, timestamp: 5000, message: "rest" }));
 
       act(() => {
         // Same seq+timestamp as REST entry → same rowKey → excluded
-        useAppStore.getState().pushLog(makeLogEntry({ seq: 1, timestamp: 5000, message: "exact-dup" }));
+        useAppStore.getState().pushLog(createLogEntry({ seq: 1, timestamp: 5000, message: "exact-dup" }));
         // Different seq → different rowKey → included
-        useAppStore.getState().pushLog(makeLogEntry({ seq: 2, timestamp: 5000, message: "same-ts-diff-seq" }));
-        useAppStore.getState().pushLog(makeLogEntry({ seq: 3, timestamp: 6000, message: "newer" }));
+        useAppStore.getState().pushLog(createLogEntry({ seq: 2, timestamp: 5000, message: "same-ts-diff-seq" }));
+        useAppStore.getState().pushLog(createLogEntry({ seq: 3, timestamp: 6000, message: "newer" }));
       });
 
       await vi.waitFor(() => {
@@ -204,20 +151,18 @@ describe("useLogData", () => {
         expect(messages).not.toContain("exact-dup");
       });
     });
+    // dup-ignore-end
 
+    // dup-ignore-start: parallel WS-merge filter test case — render+push+assert shape token-matches the sibling filter-scenario tests in this describe block that push and check a different message set, not duplicated setup
     it("preserves distinct records that share a timestamp (same-timestamp dedup fix)", async () => {
       seedState();
 
-      server.use(http.get("/api/logs/recent", () => HttpResponse.json([])));
-
-      const { result } = renderHookWithProviders(() => useLogData({}));
-
-      await waitForLoaded(result);
+      const result = await renderLoadedLogData();
 
       act(() => {
-        useAppStore.getState().pushLog(makeLogEntry({ seq: 10, timestamp: 9000, message: "first" }));
-        useAppStore.getState().pushLog(makeLogEntry({ seq: 11, timestamp: 9000, message: "second" }));
-        useAppStore.getState().pushLog(makeLogEntry({ seq: 12, timestamp: 9000, message: "third" }));
+        useAppStore.getState().pushLog(createLogEntry({ seq: 10, timestamp: 9000, message: "first" }));
+        useAppStore.getState().pushLog(createLogEntry({ seq: 11, timestamp: 9000, message: "second" }));
+        useAppStore.getState().pushLog(createLogEntry({ seq: 12, timestamp: 9000, message: "third" }));
       });
 
       await vi.waitFor(() => {
@@ -228,21 +173,19 @@ describe("useLogData", () => {
         expect(messages).toContain("third");
       });
     });
+    // dup-ignore-end
 
+    // dup-ignore-start: parallel WS-merge filter test case — render+push+assert shape token-matches the sibling filter-scenario tests in this describe block that push and check a different message set, not duplicated setup
     it("excludes WS entries for a different app_key when appKey is provided", async () => {
       seedState();
 
-      server.use(http.get("/api/logs/recent", () => HttpResponse.json([])));
-
-      const { result } = renderHookWithProviders(() => useLogData({ appKey: "my_app" }));
-
-      await waitForLoaded(result);
+      const result = await renderLoadedLogData([], { appKey: "my_app" });
 
       act(() => {
-        useAppStore.getState().pushLog(makeLogEntry({ seq: 1, timestamp: 9000, app_key: "my_app", message: "mine" }));
+        useAppStore.getState().pushLog(createLogEntry({ seq: 1, timestamp: 9000, app_key: "my_app", message: "mine" }));
         useAppStore
           .getState()
-          .pushLog(makeLogEntry({ seq: 2, timestamp: 9001, app_key: "other_app", message: "not-mine" }));
+          .pushLog(createLogEntry({ seq: 2, timestamp: 9001, app_key: "other_app", message: "not-mine" }));
       });
 
       await vi.waitFor(() => {
@@ -251,23 +194,21 @@ describe("useLogData", () => {
         expect(messages).not.toContain("not-mine");
       });
     });
+    // dup-ignore-end
 
+    // dup-ignore-start: parallel WS-merge filter test case — render+push+assert shape token-matches the sibling filter-scenario tests in this describe block that push and check a different message set, not duplicated setup
     it("excludes WS entries for a different execution_id when executionId is provided", async () => {
       seedState();
 
-      server.use(http.get("/api/logs/recent", () => HttpResponse.json([])));
-
-      const { result } = renderHookWithProviders(() => useLogData({ executionId: "exec-1" }));
-
-      await waitForLoaded(result);
+      const result = await renderLoadedLogData([], { executionId: "exec-1" });
 
       act(() => {
         useAppStore
           .getState()
-          .pushLog(makeLogEntry({ seq: 1, timestamp: 9000, execution_id: "exec-1", message: "this-exec" }));
+          .pushLog(createLogEntry({ seq: 1, timestamp: 9000, execution_id: "exec-1", message: "this-exec" }));
         useAppStore
           .getState()
-          .pushLog(makeLogEntry({ seq: 2, timestamp: 9001, execution_id: "exec-2", message: "other-exec" }));
+          .pushLog(createLogEntry({ seq: 2, timestamp: 9001, execution_id: "exec-2", message: "other-exec" }));
       });
 
       await vi.waitFor(() => {
@@ -276,19 +217,17 @@ describe("useLogData", () => {
         expect(messages).not.toContain("other-exec");
       });
     });
+    // dup-ignore-end
 
+    // dup-ignore-start: parallel WS-merge filter test case — render+push+assert shape token-matches the sibling filter-scenario tests in this describe block that push and check a different message set, not duplicated setup
     it("includes all WS entries not in the REST set when no filters are provided", async () => {
       seedState();
 
-      server.use(http.get("/api/logs/recent", () => HttpResponse.json([])));
-
-      const { result } = renderHookWithProviders(() => useLogData({}));
-
-      await waitForLoaded(result);
+      const result = await renderLoadedLogData();
 
       act(() => {
-        useAppStore.getState().pushLog(makeLogEntry({ seq: 1, timestamp: 1000, app_key: "app-a", message: "a" }));
-        useAppStore.getState().pushLog(makeLogEntry({ seq: 2, timestamp: 2000, app_key: "app-b", message: "b" }));
+        useAppStore.getState().pushLog(createLogEntry({ seq: 1, timestamp: 1000, app_key: "app-a", message: "a" }));
+        useAppStore.getState().pushLog(createLogEntry({ seq: 2, timestamp: 2000, app_key: "app-b", message: "b" }));
       });
 
       await vi.waitFor(() => {
@@ -297,20 +236,17 @@ describe("useLogData", () => {
         expect(messages).toContain("b");
       });
     });
+    // dup-ignore-end
 
     it("throttles live WS entries before exposing them to the table", async () => {
       seedState();
 
-      server.use(http.get("/api/logs/recent", () => HttpResponse.json([])));
-
-      const { result } = renderHookWithProviders(() => useLogData({}));
-
-      await waitForLoaded(result);
+      const result = await renderLoadedLogData();
 
       vi.useFakeTimers();
       try {
         act(() => {
-          useAppStore.getState().pushLog(makeLogEntry({ seq: 1, timestamp: 1000, message: "throttled" }));
+          useAppStore.getState().pushLog(createLogEntry({ seq: 1, timestamp: 1000, message: "throttled" }));
         });
 
         expect(result.current.allEntries.map((e) => e.message)).not.toContain("throttled");
@@ -336,15 +272,13 @@ describe("useLogData", () => {
       let capturedUrl: string | undefined;
 
       server.use(
-        http.get("/api/logs/recent", ({ request }) => {
+        http.get(LOGS_ENDPOINT, ({ request }) => {
           capturedUrl = request.url;
           return HttpResponse.json([]);
         }),
       );
 
-      const { result } = renderHookWithProviders(() => useLogData({}));
-
-      await waitForLoaded(result);
+      await renderLoaded();
 
       expect(capturedUrl).toBeDefined();
       const url = new URL(capturedUrl!);
@@ -361,15 +295,13 @@ describe("useLogData", () => {
       let fetchCount = 0;
 
       server.use(
-        http.get("/api/logs/recent", () => {
+        http.get(LOGS_ENDPOINT, () => {
           fetchCount++;
           return HttpResponse.json([]);
         }),
       );
 
-      const { result } = renderHookWithProviders(() => useLogData({}));
-
-      await waitForLoaded(result);
+      await renderLoaded();
       const firstFetchCount = fetchCount;
 
       await act(() => {
@@ -384,7 +316,7 @@ describe("useLogData", () => {
     it("gates fetching until uptimeSeconds is available for since-restart", async () => {
       // Default: since-restart with null uptime → should not fetch
 
-      server.use(http.get("/api/logs/recent", () => HttpResponse.json([])));
+      server.use(http.get(LOGS_ENDPOINT, () => HttpResponse.json([])));
 
       const { result } = renderHookWithProviders(() => useLogData({}));
 
@@ -404,13 +336,9 @@ describe("useLogData", () => {
     it("shows a toast error and sets loading to false when the REST fetch rejects", async () => {
       seedState();
 
-      server.use(http.get("/api/logs/recent", () => HttpResponse.error()));
+      server.use(http.get(LOGS_ENDPOINT, () => HttpResponse.error()));
 
-      const { result } = renderHookWithProviders(() => useLogData({}));
-
-      await vi.waitFor(() => {
-        expect(result.current.loading).toBe(false);
-      });
+      const result = await renderLoaded();
 
       expect(toast.error).toHaveBeenCalledTimes(1);
       expect(result.current.restEntries).toHaveLength(0);

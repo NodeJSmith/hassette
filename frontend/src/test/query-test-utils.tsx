@@ -8,8 +8,10 @@
  */
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
+import type { Mock } from "vitest";
+import { afterEach, beforeEach, expect, vi } from "vitest";
 
 import type { AppStore } from "../state/store";
 import { useAppStore } from "../state/store";
@@ -61,4 +63,62 @@ export function renderHookWithProviders<T, TProps = undefined>(
   }
 
   return renderHook(hook, { wrapper: Wrapper, initialProps: initialProps as TProps });
+}
+
+/**
+ * Renders a value-driven invalidator-style hook (e.g. `useQueryInvalidator`) with an
+ * isolated QueryClient and a ready-made `invalidateQueries` spy, wired up via
+ * `renderHookWithProviders` with `{ value }` as the rerender prop.
+ *
+ * `hook` receives the current `value` on each render/rerender — pass a closure over the
+ * hook under test (and its other, non-varying arguments) since those differ per test.
+ * Call `rerender({ value: nextValue })` on the returned result to simulate a value change.
+ */
+export function renderInvalidatorHook<T>(hook: (value: T) => void, initialValue: T) {
+  const queryClient = createTestQueryClient();
+  const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+  const renderResult = renderHookWithProviders<void, { value: T }>(({ value }) => hook(value), {
+    queryClient,
+    initialProps: { value: initialValue },
+  });
+
+  return { queryClient, invalidateSpy, ...renderResult };
+}
+
+/**
+ * Installs Vitest fake timers for each test in the enclosing `describe` block and restores real
+ * timers afterward. Call once at the top of a `describe(...)` body whose tests need a
+ * controllable clock (e.g. debounce/timeout assertions).
+ *
+ * Generic Vitest lifecycle helper — has no TanStack Query dependency, so it's usable from any
+ * hook test file, not just Query-based ones.
+ */
+export function useFakeTimersForEachTest(): void {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+}
+
+/** Advances the active fake-timer clock by `ms` inside `act()` — the clock-tick action every
+ * debounce/backoff/poll-interval test simulates at least once. Generic Vitest lifecycle helper
+ * with no TanStack Query dependency, so it's usable from any hook test file, not just Query-based
+ * ones. */
+export function advanceTime(ms: number) {
+  act(() => {
+    vi.advanceTimersByTime(ms);
+  });
+}
+
+/** Waits for `mockFn` to have been called exactly `times` times — the "next call landed" signal
+ * most polling/refetch tests wait on at least once. Generic Vitest assertion helper with no
+ * TanStack Query dependency, so it's usable from any hook test file, not just Query-based ones. */
+export async function waitForCallCount(mockFn: Mock, times: number): Promise<void> {
+  await vi.waitFor(() => {
+    expect(mockFn).toHaveBeenCalledTimes(times);
+  });
 }
