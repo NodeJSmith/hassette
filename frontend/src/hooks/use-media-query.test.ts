@@ -1,5 +1,7 @@
-import { act, renderHook } from "@testing-library/react";
+import { act } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { renderMediaQuery } from "../test/media-query-test-utils";
 
 describe("BREAKPOINT_MOBILE", () => {
   it("is exported as 768", async () => {
@@ -46,29 +48,23 @@ describe("useMediaQuery", () => {
     vi.restoreAllMocks();
   });
 
-  it("returns true when below breakpoint", async () => {
+  it("returns true when below breakpoint", () => {
     currentMatches = true;
-    const { useMediaQuery, BREAKPOINT_MOBILE } = await import("./use-media-query");
-
-    const { result } = renderHook(() => useMediaQuery(BREAKPOINT_MOBILE));
+    const { result } = renderMediaQuery();
 
     expect(result.current).toBe(true);
   });
 
-  it("returns false when above breakpoint", async () => {
+  it("returns false when above breakpoint", () => {
     currentMatches = false;
-    const { useMediaQuery, BREAKPOINT_MOBILE } = await import("./use-media-query");
-
-    const { result } = renderHook(() => useMediaQuery(BREAKPOINT_MOBILE));
+    const { result } = renderMediaQuery();
 
     expect(result.current).toBe(false);
   });
 
-  it("responds to change event", async () => {
+  it("responds to change event", () => {
     currentMatches = false;
-    const { useMediaQuery, BREAKPOINT_MOBILE } = await import("./use-media-query");
-
-    const { result } = renderHook(() => useMediaQuery(BREAKPOINT_MOBILE));
+    const { result } = renderMediaQuery();
     expect(result.current).toBe(false);
 
     act(() => {
@@ -80,11 +76,9 @@ describe("useMediaQuery", () => {
     expect(result.current).toBe(true);
   });
 
-  it("cleans up listener on unmount", async () => {
+  it("cleans up listener on unmount", () => {
     currentMatches = false;
-    const { useMediaQuery, BREAKPOINT_MOBILE } = await import("./use-media-query");
-
-    const { unmount } = renderHook(() => useMediaQuery(BREAKPOINT_MOBILE));
+    const { unmount } = renderMediaQuery();
     unmount();
 
     expect(removeSpy).toHaveBeenCalledWith("change", expect.any(Function));

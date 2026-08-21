@@ -1,7 +1,7 @@
 ---
 task_id: "T08"
 title: "Deduplicate setup boilerplate in use-media-query.test.ts and use-roving-tab-index.test.ts"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#2", "FR#3", "AC#2", "AC#3", "AC#4"]
 ---
