@@ -72,13 +72,13 @@ class ExecutionRecord:
     """
 
     error_type: str | None = None
-    """Exception class name if status is 'error', otherwise None."""
+    """Exception class name if status is `ExecutionStatus.ERROR`, otherwise None."""
 
     error_message: str | None = None
-    """Exception message if status is 'error', otherwise None."""
+    """Exception message if status is `ExecutionStatus.ERROR`, otherwise None."""
 
     error_traceback: str | None = None
-    """Full traceback string if status is 'error', otherwise None."""
+    """Full traceback string if status is `ExecutionStatus.ERROR`, otherwise None."""
 
     # Execution identity
     execution_id: str | None = None

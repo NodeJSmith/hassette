@@ -246,7 +246,7 @@ class TestCompletionWsMessages:
 
 
 class TestExecutionCompletedPayloadStatusIsClosedEnum:
-    """Regression guard for the untyped `ExecutionCompletedPayload.status: str` producer chain.
+    """Regression guard for the untyped ``ExecutionCompletedPayload.status: str`` producer chain.
 
     Before this fix, ``ExecutionRecord``/``ExecutionCompletedPayload``/``from_record()`` all
     typed ``status`` as a bare ``str`` even though ``ExecutionCompletedData`` (the strict wire
@@ -254,7 +254,7 @@ class TestExecutionCompletedPayloadStatusIsClosedEnum:
     Nothing guaranteed the producer chain could only emit one of the 5 real values — a stray
     string anywhere upstream would have silently discarded the *entire* execution_completed
     batch on the frontend (batch validation has no partial acceptance). Retyping the chain to
-    ``ExecutionStatus`` makes an out-of-enum value a `pyright` error at every real call site
+    ``ExecutionStatus`` makes an out-of-enum value a ``pyright`` error at every real call site
     instead of a latent runtime gap.
     """
 

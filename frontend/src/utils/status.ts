@@ -6,6 +6,14 @@ type ManifestStatus = components["schemas"]["ManifestStatus"];
 type ResourceStatus = components["schemas"]["ResourceStatus"];
 type ExecutionStatus = components["schemas"]["ExecutionStatus"];
 
+/** Legacy frontend-only status value, not present in either backend enum — kept for
+ * `INACTIVE_STATUSES` and the maps below that accept it. See `INACTIVE_STATUSES`. */
+type ShuttingDownStatus = "shutting_down";
+
+/** Defensive placeholder used while a live status hasn't loaded yet (e.g. `AppDetailPage`'s
+ * `liveStatus` selector, `ActionButtons`' `status` prop) — not a backend enum value. */
+type UnknownStatus = "unknown";
+
 /** Narrows `status` to a known key of `map` via a runtime `in` check — no `as` cast. Shared by
  * every status lookup below so each map only needs to declare its key type once. */
 function isKnownMapKey<K extends string>(status: string, map: Record<K, unknown>): status is K {
@@ -50,10 +58,8 @@ export function isFailureStatus(status: string): boolean {
   return isKnownMapKey(status, IS_FAILURE_STATUS) && IS_FAILURE_STATUS[status];
 }
 
-/** Status key type for the per-app Start/Stop action-enablement maps below — the "unknown"
- * placeholder is included because `ActionButtons`' `status` prop carries it while a status
- * hasn't loaded yet (see its `Props.status` doc). */
-type ActionButtonStatusKey = ManifestStatus | ResourceStatus | "unknown";
+/** Status key type for the per-app Start/Stop action-enablement maps below. */
+type ActionButtonStatusKey = ManifestStatus | ResourceStatus | UnknownStatus;
 
 /**
  * True for statuses from which "Start" is a valid action. Record/satisfies instead of an ad hoc
@@ -98,14 +104,16 @@ export const CAN_STOP: Record<ActionButtonStatusKey, boolean> = {
 } satisfies Record<ActionButtonStatusKey, boolean>;
 
 /** Statuses that represent intentionally non-active apps (not failures).
- * `"shutting_down"` is a legacy frontend-only value, not present in either backend enum.
- * Typed against `ManifestStatus | ResourceStatus | "shutting_down" | "unknown"` (wider than just
- * the 3 contained values) so callers passing `appLiveStatus()`'s full return union — which can
- * legitimately hold any `ResourceStatus` value, or the app-detail page's "unknown" placeholder —
- * can query membership without a cast. */
-export const INACTIVE_STATUSES: ReadonlySet<ManifestStatus | ResourceStatus | "shutting_down" | "unknown"> = new Set<
-  ManifestStatus | ResourceStatus | "shutting_down" | "unknown"
->(["stopped", "disabled", "shutting_down"]);
+ * Typed against `ManifestStatus | ResourceStatus | ShuttingDownStatus | UnknownStatus` (wider
+ * than just the 3 contained values) so callers passing `appLiveStatus()`'s full return union —
+ * which can legitimately hold any `ResourceStatus` value, or the app-detail page's "unknown"
+ * placeholder — can query membership without a cast. */
+export const INACTIVE_STATUSES: ReadonlySet<ManifestStatus | ResourceStatus | ShuttingDownStatus | UnknownStatus> =
+  new Set<ManifestStatus | ResourceStatus | ShuttingDownStatus | UnknownStatus>([
+    "stopped",
+    "disabled",
+    "shutting_down",
+  ]);
 
 /**
  * True for statuses that still have live instances worth reloading — a degraded app has some
@@ -120,10 +128,9 @@ export function isReloadableStatus(status: ManifestStatus | ResourceStatus): boo
 
 /**
  * `StatusMapKey` covers both `ResourceStatus` and `ManifestStatus` values plus service-health
- * values (`"success"`, `"failure"`, `"unknown"`) and the legacy frontend-only `"shutting_down"`
- * value (not present in either backend enum).
+ * values (`"success"`, `"failure"`).
  */
-type StatusMapKey = ResourceStatus | ManifestStatus | "success" | "failure" | "unknown" | "shutting_down";
+type StatusMapKey = ResourceStatus | ManifestStatus | "success" | "failure" | UnknownStatus | ShuttingDownStatus;
 
 const APP_STATUS_MAP: Record<StatusMapKey, StatusVariant> = {
   running: "success",
@@ -226,9 +233,7 @@ export function levelToKind(level: string): StatusKind {
   return LOG_LEVEL_KIND_MAP.get(level) ?? "mute";
 }
 
-// "unknown" is a defensive placeholder used by the app-detail page while a status hasn't loaded
-// yet (see `AppDetailPage`'s `liveStatus` selector) — not a backend enum value.
-type StatusKindMapKey = ResourceStatus | ManifestStatus | "shutting_down" | "unknown";
+type StatusKindMapKey = ResourceStatus | ManifestStatus | ShuttingDownStatus | UnknownStatus;
 
 const STATUS_KIND_MAP: Record<StatusKindMapKey, StatusKind> = {
   running: "ok",
