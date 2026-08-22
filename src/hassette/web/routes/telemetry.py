@@ -7,7 +7,7 @@ to records with ``execution_start_ts >= since``, or omit it for all-time aggrega
 
 import time
 from logging import getLogger
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Annotated, Literal
 
 from fastapi import APIRouter, Query, Response
 
@@ -15,17 +15,18 @@ from hassette.const.misc import SECONDS_PER_DAY
 from hassette.exceptions import TelemetryUnavailableError
 from hassette.schemas.execution_models import ActivityFeedEntry, AppLastError, Execution
 from hassette.schemas.job_models import JobSummary
-from hassette.schemas.query_constants import DEFAULT_QUERY_LIMIT, DEFAULT_SPARKLINE_BUCKETS, MAX_QUERY_LIMIT
+from hassette.schemas.query_constants import DEFAULT_QUERY_LIMIT, DEFAULT_SPARKLINE_BUCKETS
 from hassette.schemas.summary_models import AppHealthSummary
-from hassette.types.types import QuerySourceTier
 from hassette.web.dependencies import (
-    APP_KEY_PARAM,
-    INSTANCE_INDEX_PARAM,
-    SOURCE_TIER_PARAM,
+    AppKeyPath,
     HassetteDep,
+    LimitQuery,
     RuntimeDep,
     SchedulerDep,
+    SinceQuery,
+    SourceTierQuery,
     TelemetryDep,
+    TelemetryFiltersDep,
     db_degrades_to,
 )
 from hassette.web.mappers import manifest_response_fields, to_listener_with_summary
@@ -113,12 +114,10 @@ def health_status_from_summary(summary: AppHealthSummary) -> HealthStatus:
 
 @router.get("/app/{app_key}/health", response_model=AppHealthResponse)
 async def app_health(
+    app_key: AppKeyPath,
     telemetry: TelemetryDep,
     response: Response,
-    app_key: str = APP_KEY_PARAM,  # pyright: ignore[reportCallInDefaultInitializer]
-    instance_index: int = INSTANCE_INDEX_PARAM,
-    since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
-    source_tier: QuerySourceTier = SOURCE_TIER_PARAM,
+    filters: TelemetryFiltersDep,
 ) -> AppHealthResponse:
     """Health strip metrics for a single app instance."""
     result: AppHealthResponse = AppHealthResponse(
@@ -130,9 +129,7 @@ async def app_health(
         health_status=classify_health_bar(100.0),
     )
     with db_degrades_to(response):
-        agg = await telemetry.get_app_health_aggregates(
-            app_key=app_key, instance_index=instance_index, since=since, source_tier=source_tier
-        )
+        agg = await telemetry.get_app_health_aggregates(app_key=app_key, **filters.query_kwargs)
         error_rate = compute_error_rate(
             total_invocations=agg.total_invocations,
             total_executions=agg.total_executions,
@@ -152,20 +149,16 @@ async def app_health(
 
 @router.get("/app/{app_key}/listeners", response_model=list[ListenerWithSummary])
 async def app_listeners(
+    app_key: AppKeyPath,
     telemetry: TelemetryDep,
     hassette: HassetteDep,
     response: Response,
-    app_key: str = APP_KEY_PARAM,  # pyright: ignore[reportCallInDefaultInitializer]
-    instance_index: int = INSTANCE_INDEX_PARAM,
-    since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
-    source_tier: QuerySourceTier = SOURCE_TIER_PARAM,
+    filters: TelemetryFiltersDep,
 ) -> list[ListenerWithSummary]:
     """Listener metrics with human-readable handler summaries."""
     rows: list[ListenerWithSummary] = []
     with db_degrades_to(response):
-        listeners = await telemetry.get_listener_summary(
-            app_key=app_key, instance_index=instance_index, since=since, source_tier=source_tier
-        )
+        listeners = await telemetry.get_listener_summary(app_key=app_key, **filters.query_kwargs)
         live_counts = hassette.bus_service.live_execution_counts()
         rows = [to_listener_with_summary(ls, live_counts) for ls in listeners]
     return rows
@@ -173,15 +166,15 @@ async def app_listeners(
 
 @router.get("/app/{app_key}/activity", response_model=list[ActivityFeedEntry])
 async def app_activity(
+    app_key: AppKeyPath,
     telemetry: TelemetryDep,
     response: Response,
-    app_key: str = APP_KEY_PARAM,  # pyright: ignore[reportCallInDefaultInitializer]
-    instance_index: int | None = Query(
-        default=None, description="App instance index. None returns activity across all instances."
-    ),  # pyright: ignore[reportCallInDefaultInitializer]
-    limit: int = Query(default=DEFAULT_QUERY_LIMIT, ge=1, le=MAX_QUERY_LIMIT),  # pyright: ignore[reportCallInDefaultInitializer]
-    since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
-    source_tier: QuerySourceTier = SOURCE_TIER_PARAM,
+    instance_index: Annotated[
+        int | None, Query(description="App instance index. None returns activity across all instances.")
+    ] = None,
+    limit: LimitQuery = DEFAULT_QUERY_LIMIT,
+    since: SinceQuery = None,
+    source_tier: SourceTierQuery = "app",
 ) -> list[ActivityFeedEntry]:
     """Recent handler invocations and job executions for a single app, merged and sorted by time."""
     effective_since = since if since is not None else time.time() - SECONDS_PER_DAY
@@ -199,13 +192,11 @@ async def app_activity(
 
 @router.get("/app/{app_key}/jobs", response_model=list[JobSummary])
 async def app_jobs(
+    app_key: AppKeyPath,
     telemetry: TelemetryDep,
     scheduler_service: SchedulerDep,
     response: Response,
-    app_key: str = APP_KEY_PARAM,  # pyright: ignore[reportCallInDefaultInitializer]
-    instance_index: int = INSTANCE_INDEX_PARAM,
-    since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
-    source_tier: QuerySourceTier = SOURCE_TIER_PARAM,
+    filters: TelemetryFiltersDep,
 ) -> list[JobSummary]:
     """Job summaries for a single app instance, enriched with live registry data.
 
@@ -216,11 +207,7 @@ async def app_jobs(
     """
     jobs: list[JobSummary] = []
     with db_degrades_to(response):
-        db_jobs = list(
-            await telemetry.get_job_summary(
-                app_key=app_key, instance_index=instance_index, since=since, source_tier=source_tier
-            )
-        )
+        db_jobs = list(await telemetry.get_job_summary(app_key=app_key, **filters.query_kwargs))
         jobs = await enrich_jobs_with_live_data(db_jobs, scheduler_service)
     return jobs
 
@@ -229,9 +216,9 @@ async def app_jobs(
 async def list_executions(
     telemetry: TelemetryDep,
     response: Response,
-    kind: Literal["handler", "job"] | None = Query(default=None, description="Filter by kind: 'handler' or 'job'."),  # pyright: ignore[reportCallInDefaultInitializer]
-    limit: int = Query(default=DEFAULT_QUERY_LIMIT, ge=1, le=MAX_QUERY_LIMIT),  # pyright: ignore[reportCallInDefaultInitializer]
-    since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
+    kind: Annotated[Literal["handler", "job"] | None, Query(description="Filter by kind: 'handler' or 'job'.")] = None,
+    limit: LimitQuery = DEFAULT_QUERY_LIMIT,
+    since: SinceQuery = None,
 ) -> list[Execution]:
     """Combined execution list (handler invocations and job executions).
 
@@ -249,8 +236,8 @@ async def listener_executions(
     listener_id: int,
     telemetry: TelemetryDep,
     response: Response,
-    limit: int = Query(default=DEFAULT_QUERY_LIMIT, ge=1, le=MAX_QUERY_LIMIT),  # pyright: ignore[reportCallInDefaultInitializer]
-    since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
+    limit: LimitQuery = DEFAULT_QUERY_LIMIT,
+    since: SinceQuery = None,
 ) -> list[Execution]:
     """Execution history for a specific listener (handler invocations)."""
     executions: list[Execution] = []
@@ -264,8 +251,8 @@ async def job_executions(
     job_id: int,
     telemetry: TelemetryDep,
     response: Response,
-    limit: int = Query(default=DEFAULT_QUERY_LIMIT, ge=1, le=MAX_QUERY_LIMIT),  # pyright: ignore[reportCallInDefaultInitializer]
-    since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
+    limit: LimitQuery = DEFAULT_QUERY_LIMIT,
+    since: SinceQuery = None,
 ) -> list[Execution]:
     """Execution history for a specific job."""
     executions: list[Execution] = []
@@ -292,7 +279,7 @@ async def dashboard_app_grid(
     runtime: RuntimeDep,
     telemetry: TelemetryDep,
     response: Response,
-    since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
+    since: SinceQuery = None,
 ) -> DashboardAppGridResponse:
     """Per-app health data for the dashboard grid.
 

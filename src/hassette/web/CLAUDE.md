@@ -14,6 +14,30 @@ from hassette.web.dependencies import RuntimeDep, TelemetryDep, SchedulerDep, Ha
 - `HassetteDep` — the root Hassette instance (drop counters, ready event)
 - `ApiDep` — Home Assistant REST/WebSocket API
 
+## Shared Route Parameters
+
+`dependencies.py` also owns the query/path parameter annotations. Annotate route parameters
+with these instead of repeating a `Query(...)`/`Path(...)` call in every signature:
+
+```python
+from hassette.web.dependencies import AppKeyPath, LimitQuery, SinceQuery, SourceTierQuery
+
+async def my_route(app_key: AppKeyPath, since: SinceQuery = None, limit: LimitQuery = 50) -> ...:
+```
+
+Per-app telemetry routes take the whole `instance_index`/`since`/`source_tier` filter set as one
+injected dependency, and splat it into the query call:
+
+```python
+from hassette.web.dependencies import TelemetryFiltersDep
+
+async def app_health(app_key: AppKeyPath, telemetry: TelemetryDep, filters: TelemetryFiltersDep) -> ...:
+    agg = await telemetry.get_app_health_aggregates(app_key=app_key, **filters.query_kwargs)
+```
+
+FastAPI flattens a dependency's parameters into the operation, so the OpenAPI schema is identical
+to declaring all three inline.
+
 ## Telemetry Error Handling Pattern (#1108b / #1114)
 
 Storage exceptions (`sqlite3.Error`, `OSError`, `ValueError`, `TimeoutError`) are **translated at the `TelemetryQueryService` boundary** into `TelemetryUnavailableError` (defined in `hassette.exceptions`).  The HTTP layer catches only that narrow domain type — never raw storage exceptions.
