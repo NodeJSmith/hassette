@@ -5,13 +5,12 @@ Returns all scheduled jobs across all apps, enriched with live registry data.
 
 from logging import getLogger
 
-from fastapi import APIRouter, HTTPException, Query, Request, Response
+from fastapi import APIRouter, HTTPException, Request, Response
 
 from hassette.exceptions import JobRemovedError
 from hassette.schemas.job_models import JobSummary
-from hassette.types.types import QuerySourceTier
 from hassette.web.auth.trusted_proxies import peer_address_or_unknown
-from hassette.web.dependencies import SOURCE_TIER_PARAM, SchedulerDep, TelemetryDep, db_degrades_to
+from hassette.web.dependencies import SchedulerDep, SinceQuery, SourceTierQuery, TelemetryDep, db_degrades_to
 from hassette.web.models import JobTriggerResponse
 from hassette.web.utils import enrich_jobs_with_live_data
 
@@ -25,8 +24,8 @@ async def all_jobs(
     telemetry: TelemetryDep,
     scheduler_service: SchedulerDep,
     response: Response,
-    since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
-    source_tier: QuerySourceTier = SOURCE_TIER_PARAM,
+    since: SinceQuery = None,
+    source_tier: SourceTierQuery = "app",
 ) -> list[JobSummary]:
     """All scheduled jobs across all apps, enriched with live registry data.
 

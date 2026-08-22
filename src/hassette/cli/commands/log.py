@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from hassette.cli.client import make_client
+from hassette.cli.client import make_client, query_params
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
 from hassette.cli.output import Column, fmt_relative_time, render_table
 from hassette.cli.types import AppKeyArg, InstanceArg, LimitArg, SinceArg, SourceTierArg
@@ -43,41 +43,30 @@ def cmd_log(
     if instance is not None:
         client.error_usage("--instance is not supported on the log command")
 
-    params: dict[str, Any] = {}
-    if app is not None:
-        params["app_key"] = app
-    if since is not None:
-        params["since"] = since
-    if limit is not None:
-        params["limit"] = limit
-    if source_tier is not None:
-        params["source_tier"] = source_tier
-
     raw: list[Any] = client.get(
         "/api/logs/recent",
         list,
-        params=params,
+        params=query_params(app_key=app, since=since, limit=limit, source_tier=source_tier),
     )
     entries = [LogEntryResponse.model_validate(e) for e in raw]
     render_table(entries, LOG_COLUMNS, json_mode=ctx.json_mode)  # pyright: ignore[reportArgumentType]
 
 
+# dup-ignore-start: cyclopts derives each command's flags from its signature, so a shared
+# filter set has to be restated per command — declaration, not copy-pasted logic.
 def cmd_execution(
     uuid: str,
     limit: LimitArg = None,
     *,
     ctx: CLIContextParam = DEFAULT_CLI_CONTEXT,
 ) -> None:
+    # dup-ignore-end
     """Show logs for a specific execution (GET /api/executions/{execution_id})."""
     client = make_client(ctx)
-
-    params: dict[str, Any] = {}
-    if limit is not None:
-        params["limit"] = limit
 
     response = client.get(
         f"/api/executions/{uuid}",
         LogsByExecutionResponse,
-        params=params,
+        params=query_params(limit=limit),
     )
     render_table(response.records, EXECUTION_LOG_COLUMNS, json_mode=ctx.json_mode)  # pyright: ignore[reportArgumentType]

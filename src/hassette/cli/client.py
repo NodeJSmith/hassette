@@ -28,6 +28,17 @@ DEFAULT_TIMEOUT = 10.0
 T = TypeVar("T")
 
 
+def query_params(**values: Any) -> dict[str, Any]:
+    """Build a query-parameter dict from CLI flags, dropping every flag left unset.
+
+    Commands share one convention: an unset flag is ``None`` and must not reach the server,
+    so the endpoint applies its own default. Writing that as ``query_params(since=since,
+    limit=limit)`` keeps the mapping from flag to query key on one line per command instead
+    of an ``if x is not None`` block per flag.
+    """
+    return {key: value for key, value in values.items() if value is not None}
+
+
 class HassetteCLIClient:
     """Synchronous HTTP client for querying the hassette REST API."""
 

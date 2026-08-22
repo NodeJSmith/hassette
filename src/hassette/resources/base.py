@@ -244,7 +244,17 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
-        """Return the log level from the config for this resource."""
+        """Return the log level from the config for this resource.
+
+        Subclasses that map to a per-service ``LoggingConfig`` field override this with a
+        one-line property returning that field. That repetition is deliberate and stays:
+        the alternative — a class attribute naming the field, read here via ``getattr`` —
+        trades a checked attribute access for a string, and the pattern spans 30 files,
+        three of which are generated sync facades. ``tools/check_duplicate_code.py`` reports
+        the overrides as clones because its matched region also swallows the unrelated
+        statement above each one, so they cannot be annotated with ``dup-ignore`` markers
+        without mislabeling that statement (see #1570).
+        """
         return self.hassette.config.logging.log_level
 
     def add_child(self, child_class: type[_ResourceT], **kwargs: Any) -> _ResourceT:
