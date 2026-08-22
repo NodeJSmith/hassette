@@ -8,10 +8,12 @@ import { StatusShape } from "../shared/status-shape";
 
 type AppManifest = components["schemas"]["AppManifestResponse"];
 type InstanceInfo = NonNullable<AppManifest["instances"]>[number];
+type ManifestStatus = components["schemas"]["ManifestStatus"];
+type ResourceStatus = components["schemas"]["ResourceStatus"];
 
 interface Props {
   appKey: string;
-  liveStatus: string;
+  liveStatus: ManifestStatus | ResourceStatus | "unknown";
   manifest: AppManifest | undefined;
   currentInstance: InstanceInfo | undefined;
   resolvedInstanceIndex: number;

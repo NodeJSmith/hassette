@@ -51,7 +51,7 @@ vi.mock("../components/shared/spinner", async () => (await import("./app-detail.
 vi.mock("../hooks/use-correct-url", () => ({ useCorrectUrl: () => vi.fn() }));
 
 function makeExecution(appKey: string, kind: "handler" | "job"): WsExecutionCompletedPayload {
-  return { kind, app_key: appKey, instance_index: 0, status: "ok", duration_ms: 5 };
+  return { kind, app_key: appKey, instance_index: 0, status: "success", duration_ms: 5 };
 }
 
 /** Renders the overview tab and waits for the initial load to settle. */

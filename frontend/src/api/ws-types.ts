@@ -10,6 +10,29 @@ export type WsServerMessage =
   | ConnectivityWsMessage
   | ServiceStatusWsMessage
   | ExecutionCompletedWsMessage;
+/**
+ * Enumeration for resource status.
+ */
+export type ResourceStatus =
+  | "not_started"
+  | "starting"
+  | "running"
+  | "stopping"
+  | "stopped"
+  | "failed"
+  | "crashed"
+  | "exhausted_dead"
+  | "exhausted_cooling";
+/**
+ * Status values for handler invocations and job executions.
+ *
+ * Covers all values allowed by the ``executions.status`` CHECK constraint: migration 001
+ * introduced the original four values (``success``, ``error``, ``cancelled``, ``timed_out``);
+ * migration 009 added ``skipped``.
+ * Pydantic v2 coerces plain strings to enum members on construction and
+ * serialises back to plain strings in JSON responses.
+ */
+export type ExecutionStatus = "success" | "error" | "cancelled" | "timed_out" | "skipped";
 
 export interface AppStatusChangedWsMessage {
   type: "app_status_changed";
@@ -24,8 +47,8 @@ export interface AppStatusChangedWsMessage {
 export interface AppStatusChangedData {
   app_key: string;
   index: number;
-  status: string;
-  previous_status?: string | null;
+  status: ResourceStatus;
+  previous_status?: ResourceStatus | null;
   instance_name?: string | null;
   class_name?: string | null;
   exception?: string | null;
@@ -90,8 +113,8 @@ export interface ServiceStatusWsMessage {
 export interface ServiceStatusData {
   resource_name: string;
   role: string;
-  status: string;
-  previous_status?: string | null;
+  status: ResourceStatus;
+  previous_status?: ResourceStatus | null;
   exception?: string | null;
   exception_type?: string | null;
   exception_traceback?: string | null;
@@ -114,7 +137,7 @@ export interface ExecutionCompletedData {
   kind: "handler" | "job";
   app_key: string;
   instance_index: number;
-  status: string;
+  status: ExecutionStatus;
   duration_ms: number;
   error_type?: string | null;
   listener_id?: number | null;

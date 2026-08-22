@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
+import type { components } from "../../api/generated-types";
 import { useRovingTabIndex } from "../../hooks/use-roving-tab-index";
 import { executionPath, type HandlerKind } from "../../utils/app-routes";
 import { STATUS_DOT_SIZE } from "../../utils/constants";
@@ -26,6 +27,8 @@ declare module "@tanstack/react-table" {
   }
 }
 
+type ExecutionStatus = components["schemas"]["ExecutionStatus"];
+
 const INITIAL_ROWS = 5;
 
 const STATUS_LABEL: Record<StatusKind, string> = {
@@ -39,7 +42,7 @@ const STATUS_LABEL: Record<StatusKind, string> = {
 export interface ExecutionRecord {
   execution_start_ts: number;
   duration_ms: number;
-  status: string;
+  status: ExecutionStatus;
   error_type: string | null;
   error_message: string | null;
   error_traceback?: string | null;

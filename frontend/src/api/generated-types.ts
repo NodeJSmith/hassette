@@ -1103,7 +1103,9 @@ export interface components {
          * ExecutionStatus
          * @description Status values for handler invocations and job executions.
          *
-         *     Covers all values allowed by the CHECK constraints in migrations 001 and 005.
+         *     Covers all values allowed by the ``executions.status`` CHECK constraint: migration 001
+         *     introduced the original four values (``success``, ``error``, ``cancelled``, ``timed_out``);
+         *     migration 009 added ``skipped``.
          *     Pydantic v2 coerces plain strings to enum members on construction and
          *     serialises back to plain strings in JSON responses.
          * @enum {string}

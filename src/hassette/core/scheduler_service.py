@@ -28,7 +28,7 @@ from hassette.scheduler.classes import Job, ScheduleStatus, ScheduleStatusReason
 from hassette.scheduler.error_context import SchedulerErrorContext
 from hassette.scheduler.triggers import _WaitingSentinel
 from hassette.types.enums import ExecutionMode
-from hassette.types.types import LOG_LEVEL_TYPE
+from hassette.types.types import LOG_LEVEL_TYPE, ExecutionStatus
 from hassette.utils.func_utils import callable_stable_name
 from hassette.utils.serialization import safe_json_serialize
 
@@ -551,7 +551,7 @@ class SchedulerService(Service):
             session_id=session_id,
             execution_start_ts=time.time(),
             duration_ms=0.0,
-            status="skipped",
+            status=ExecutionStatus.SKIPPED,
             app_key=job.app_key,
             instance_index=job.instance_index,
             source_tier=job.source_tier,
@@ -585,7 +585,7 @@ class SchedulerService(Service):
             session_id=session_id,
             execution_start_ts=start_ts,
             duration_ms=(time.time() - start_ts) * 1000,
-            status="error",
+            status=ExecutionStatus.ERROR,
             error_type=type(exc).__name__,
             error_message=str(exc),
             error_traceback=traceback_str,

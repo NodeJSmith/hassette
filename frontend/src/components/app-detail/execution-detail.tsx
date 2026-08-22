@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 
 import type { ExecutionData } from "../../api/endpoints";
 import { getExecutionById } from "../../api/endpoints";
+import type { components } from "../../api/generated-types";
 import { useDocumentTitle } from "../../hooks/use-document-title";
 import { STATUS_DOT_SIZE } from "../../utils/constants";
 import { formatDuration, formatTimestamp, truncateId } from "../../utils/format";
@@ -20,6 +21,8 @@ import { Spinner } from "../shared/spinner";
 import { StatusShape } from "../shared/status-shape";
 import { TracebackViewer } from "../shared/traceback-viewer";
 
+type ExecutionStatus = components["schemas"]["ExecutionStatus"];
+
 function buildMetaCells(record: ExecutionData): DetailStatsCell[] {
   return [
     { label: "Duration", value: formatDuration(record.duration_ms) },
@@ -28,24 +31,41 @@ function buildMetaCells(record: ExecutionData): DetailStatsCell[] {
   ];
 }
 
-function StatusBadge({ status, threadLeaked }: { status: string; threadLeaked: boolean }) {
-  return (
-    <>
-      {status === "error" && (
+function statusBadgeFor(status: ExecutionStatus) {
+  switch (status) {
+    case "error":
+      return (
         <Badge variant="danger" size="sm">
           failed
         </Badge>
-      )}
-      {status === "timed_out" && (
+      );
+    case "timed_out":
+      return (
         <Badge variant="warning" size="sm">
           timed out
         </Badge>
-      )}
-      {status === "cancelled" && (
+      );
+    case "cancelled":
+      return (
         <Badge variant="neutral" size="sm">
           cancelled
         </Badge>
-      )}
+      );
+    case "skipped":
+      return (
+        <Badge variant="neutral" size="sm">
+          skipped
+        </Badge>
+      );
+    case "success":
+      return null;
+  }
+}
+
+function StatusBadge({ status, threadLeaked }: { status: ExecutionStatus; threadLeaked: boolean }) {
+  return (
+    <>
+      {statusBadgeFor(status)}
       {threadLeaked && (
         <Badge variant="warning" size="sm">
           thread leaked

@@ -1,3 +1,10 @@
+import type { components } from "../api/generated-types";
+
+type ManifestStatus = components["schemas"]["ManifestStatus"];
+type ResourceStatus = components["schemas"]["ResourceStatus"];
+
+type StatusPriorityKey = ResourceStatus | ManifestStatus | "shutting_down";
+
 /**
  * Canonical status priority ordering. Lower number = more severe / worse.
  * Used for both worst-of-children resolution (sidebar) and table column sorting.
@@ -6,7 +13,7 @@
  * stopping/shutting_down with blocked (tier 1); they now sort between running (4)
  * and stopped (6), which is more semantically correct for transitional statuses.
  */
-export const STATUS_PRIORITY: Readonly<Record<string, number>> = {
+export const STATUS_PRIORITY: Readonly<Record<StatusPriorityKey, number>> = {
   failed: 0,
   crashed: 0,
   exhausted_dead: 0,
@@ -20,10 +27,14 @@ export const STATUS_PRIORITY: Readonly<Record<string, number>> = {
   stopped: 7,
   disabled: 8,
   not_started: 9,
-};
+} satisfies Record<StatusPriorityKey, number>;
 
+// Guards against a live status value newer than this build's generated types — REST responses
+// (unlike WS messages, which AJV-validates against ws-schema.json) aren't runtime-validated
+// against the schema, so `STATUS_PRIORITY[status]` can genuinely miss at runtime despite the
+// compile-time `satisfies` guarantee. See design/specs/102-status-exhaustiveness-enforcement.
 const UNKNOWN_PRIORITY = 99;
 
-export function statusPriority(status: string): number {
+export function statusPriority(status: StatusPriorityKey): number {
   return STATUS_PRIORITY[status] ?? UNKNOWN_PRIORITY;
 }

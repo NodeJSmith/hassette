@@ -1,14 +1,18 @@
 import type { DashboardAppGridEntry } from "../api/endpoints";
+import type { components } from "../api/generated-types";
 import type { SortState } from "../components/shared/sort-header";
 import { type AppStatusEntry, appStatusKey } from "../state/store";
 import { statusPriority } from "./status-priority";
+
+type ManifestStatus = components["schemas"]["ManifestStatus"];
+type ResourceStatus = components["schemas"]["ResourceStatus"];
 
 export interface AppRow {
   app_key: string;
   class_name: string;
   display_name: string;
   filename: string;
-  status: string;
+  status: ManifestStatus;
   block_reason: string | null;
   enabled: boolean;
   auto_loaded: boolean;
@@ -103,7 +107,7 @@ export type AppSortState = SortState<AppSortKey>;
 export function appLiveStatus(
   appStatuses: Record<string, AppStatusEntry>,
   row: Pick<AppRow, "app_key" | "status"> & { instances?: AppRow["instances"] },
-): string {
+): ManifestStatus | ResourceStatus {
   if (row.status === "disabled" || row.status === "blocked") return row.status;
   const instances = row.instances ?? [];
   const knownIndices = new Set(instances.map((inst) => inst.index));
@@ -135,8 +139,8 @@ export function appLiveStatus(
 export function instanceLiveStatus(
   appStatuses: Record<string, AppStatusEntry>,
   appKey: string,
-  inst: { index: number; status: string },
-): string {
+  inst: { index: number; status: ResourceStatus },
+): ResourceStatus {
   return appStatuses[appStatusKey(appKey, inst.index)]?.status ?? inst.status;
 }
 
