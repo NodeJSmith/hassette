@@ -25,7 +25,7 @@ from hassette.test_utils.recording_api import RecordingApi
 from hassette.test_utils.state_proxy_mocks import configure_state_proxy_mock
 from hassette.types import JobCallable, SchedulerErrorHandlerType, TriggerProtocol
 from hassette.types.enums import DEFAULT_OVERLAP_MODE, ExecutionMode
-from hassette.types.types import SchedulerPredicate, SourceTier
+from hassette.types.types import ExecutionStatus, SchedulerPredicate, SourceTier
 
 
 def make_listener_registration(
@@ -110,7 +110,7 @@ def make_execution_record(
     session_id: int | None = 1,
     execution_start_ts: float = 0.0,
     duration_ms: float = 100.0,
-    status: str = "success",
+    status: ExecutionStatus = ExecutionStatus.SUCCESS,
     listener_id: int | None = 1,
     job_id: int | None = None,
     app_key: str = DEFAULT_TEST_APP_KEY,

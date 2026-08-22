@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Literal
 from hassette.events.base import Event, HassettePayload
 from hassette.schemas.app_snapshots import AppInstanceInfo
 from hassette.types import ResourceRole, ResourceStatus, Topic
+from hassette.types.types import ExecutionStatus
 from hassette.utils import get_traceback_string
 
 if TYPE_CHECKING:
@@ -204,7 +205,7 @@ class ExecutionCompletedPayload:
     """
 
     kind: Literal["handler", "job"]
-    status: str
+    status: ExecutionStatus
     duration_ms: float
     listener_id: int | None = None
     job_id: int | None = None
@@ -221,7 +222,7 @@ class HassetteExecutionCompletedEvent(Event[HassettePayload[ExecutionCompletedPa
     def from_record(
         cls,
         kind: Literal["handler", "job"],
-        status: str,
+        status: ExecutionStatus,
         duration_ms: float,
         listener_id: int | None = None,
         job_id: int | None = None,

@@ -1,7 +1,7 @@
 # Design: Status Exhaustiveness Enforcement
 
 **Date:** 2026-08-21
-**Status:** approved
+**Status:** archived
 **Mode:** sketch
 
 ## Problem

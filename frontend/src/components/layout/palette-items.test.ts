@@ -139,4 +139,22 @@ describe("buildActionItems", () => {
 
     expect(endpoints.stopApp).not.toHaveBeenCalledWith("recovered_app");
   });
+
+  it("includes a crashed app (via live WS status) in stop-failing", () => {
+    // isFailureStatus (shared with FailedAppsAlert) marks "crashed" as a failure status.
+    // Apps can't reach ResourceStatus.CRASHED today (only Service subclasses can, via
+    // restart_spec supervision — see status.ts's IS_FAILURE_STATUS comment), but the bulk
+    // command should still include one via the live overlay if that ever changes, since it
+    // routes through the same shared predicate as FailedAppsAlert rather than its own list.
+    vi.spyOn(endpoints, "stopApp").mockResolvedValue(undefined as never);
+    const manifests = [createManifest({ app_key: "crashed_app", status: "running", in_current_config: true })];
+    const liveStatuses: Record<string, AppStatusEntry> = {
+      "crashed_app:0": { status: "crashed", index: 0 },
+    };
+    const items = buildActionItems(manifests, liveStatuses, vi.fn());
+
+    items.find((i) => i.id === "action-stop-failing")?.action();
+
+    expect(endpoints.stopApp).toHaveBeenCalledWith("crashed_app");
+  });
 });

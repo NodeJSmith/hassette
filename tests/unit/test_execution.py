@@ -7,28 +7,29 @@ from unittest.mock import patch
 import pytest
 
 from hassette.exceptions import DependencyError, DependencyInjectionError, HassetteError
+from hassette.types.types import ExecutionStatus
 from hassette.utils.execution import MAX_TRACEBACK_SIZE, ExecutionResult, track_execution
 
 
 class TestExecutionResult:
     def test_defaults(self) -> None:
         result = ExecutionResult()
-        assert result.status == "pending"
+        assert result.status is None
         assert result.duration_ms == 0.0
         assert result.error_message is None
         assert result.error_type is None
         assert result.monotonic_start == 0.0
 
     def test_is_success(self) -> None:
-        result = ExecutionResult(status="success")
+        result = ExecutionResult(status=ExecutionStatus.SUCCESS)
         assert result.is_success is True
 
     def test_is_error(self) -> None:
-        result = ExecutionResult(status="error")
+        result = ExecutionResult(status=ExecutionStatus.ERROR)
         assert result.is_error is True
 
     def test_is_cancelled(self) -> None:
-        result = ExecutionResult(status="cancelled")
+        result = ExecutionResult(status=ExecutionStatus.CANCELLED)
         assert result.is_cancelled is True
 
 

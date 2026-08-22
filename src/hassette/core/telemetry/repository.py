@@ -9,7 +9,7 @@ from hassette.config.classes import AppManifest
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.schemas.log_models import BlockingEvent
-from hassette.types.types import is_framework_key
+from hassette.types.types import ExecutionStatus, is_framework_key
 
 LOGGER = getLogger(__name__)
 
@@ -69,7 +69,9 @@ def execution_insert_params(record: ExecutionRecord) -> dict[str, Any]:
 # which makes it impossible for them to build mismatched column lists.
 _EXECUTION_INSERT_COLUMNS = tuple(
     execution_insert_params(
-        ExecutionRecord(kind="handler", session_id=None, execution_start_ts=0.0, duration_ms=0.0, status="success")
+        ExecutionRecord(
+            kind="handler", session_id=None, execution_start_ts=0.0, duration_ms=0.0, status=ExecutionStatus.SUCCESS
+        )
     )
 )
 

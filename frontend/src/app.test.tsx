@@ -8,6 +8,7 @@ import type { components } from "./api/generated-types";
 import { App } from "./app";
 import { useTelemetryHealth } from "./hooks/use-telemetry-health";
 import { useWebSocket } from "./hooks/use-websocket";
+import { appStatusKey, useAppStore } from "./state/store";
 import { createInstance, createListener, createManifest } from "./test/factories";
 import { withManifests as installManifests } from "./test/handlers";
 import { server } from "./test/server";
@@ -92,11 +93,22 @@ vi.mock("./hooks/use-query-params", () => ({
 // Spy on TelemetryDegradedBanner to verify it is mounted in the layout shell.
 // Component-level signal behaviour is fully tested in alert-banner.test.tsx;
 // here we only care that app.tsx renders the component at all.
+//
+// AlertBanner is also wrapped (not replaced) to count how many times FailedAppsAlert's child
+// actually re-renders — the render-count seam for the "App — FailedAppsAlert re-render scoping"
+// tests below. It still delegates to the real component so the existing content-based
+// "App — FailedAppsAlert" tests above keep working unmodified.
+const alertBannerRenderCount = vi.hoisted(() => ({ renders: 0 }));
+
 vi.mock("./components/layout/alert-banner", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./components/layout/alert-banner")>();
   return {
     ...actual,
     TelemetryDegradedBanner: () => <div data-testid="telemetry-degraded-banner-slot" />,
+    AlertBanner: (props: Parameters<typeof actual.AlertBanner>[0]) => {
+      alertBannerRenderCount.renders += 1;
+      return <actual.AlertBanner {...props} />;
+    },
   };
 });
 
@@ -525,5 +537,78 @@ describe("App — FailedAppsAlert", () => {
     withManifests([createManifest({ app_key: "running_app", display_name: "Running App", status: "running" })]);
     render(<App />);
     expect(screen.queryByTestId("alert-banner")).toBeNull();
+  });
+
+  it("includes a multi-instance app whose live overlay shows one running and one failed instance", async () => {
+    // Exercises appLiveStatus()'s multi-instance branch (app-data.ts), not just its fast-path
+    // passthrough of a manifest already tagged "degraded" — the harder, real-world case this
+    // fix's rationale is built on: a cached manifest can still read "running" while one of its
+    // instances has actually failed, until an execution event refetches the grid.
+    withManifests([
+      createManifest({
+        app_key: "multi_instance_app",
+        display_name: "Multi Instance App",
+        status: "running",
+        instance_count: 2,
+        instances: [
+          createInstance({ app_key: "multi_instance_app", index: 0, status: "running" }),
+          createInstance({ app_key: "multi_instance_app", index: 1, status: "running" }),
+        ],
+      }),
+    ]);
+    render(<App />);
+    await screen.findByTestId("app-entry-multi_instance_app");
+
+    act(() => {
+      useAppStore.getState().updateAppStatus(appStatusKey("multi_instance_app", 0), { status: "running", index: 0 });
+      useAppStore.getState().updateAppStatus(appStatusKey("multi_instance_app", 1), { status: "failed", index: 1 });
+    });
+
+    const banner = await screen.findByTestId("alert-banner");
+    expect(banner.textContent).toContain("multi_instance_app");
+  });
+});
+
+describe("App — FailedAppsAlert re-render scoping", () => {
+  beforeEach(() => {
+    alertBannerRenderCount.renders = 0;
+  });
+
+  it("does not re-render when an unrelated status write leaves the failed-app set unchanged", async () => {
+    withManifests([
+      createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" }),
+      createManifest({ app_key: "healthy_app", display_name: "Healthy App", status: "running" }),
+    ]);
+    render(<App />);
+    // Wait for manifests to load and settle the failure banner before capturing a baseline.
+    await screen.findByTestId("alert-banner");
+    const before = alertBannerRenderCount.renders;
+
+    act(() => {
+      // healthy_app transitions running -> running (e.g. a heartbeat/duration-only WS update).
+      // The overall set of failing apps doesn't change, so the memoized `failedApps` selector
+      // key must not change either.
+      useAppStore.getState().updateAppStatus(appStatusKey("healthy_app", 0), { status: "running", index: 0 });
+    });
+
+    expect(alertBannerRenderCount.renders).toBe(before);
+  });
+
+  it("re-renders when an app enters the failed set", async () => {
+    withManifests([createManifest({ app_key: "flaky_app", display_name: "Flaky App", status: "running" })]);
+    render(<App />);
+    // Wait for manifests to load (sidebar renders one entry per manifest) before triggering the
+    // status change — the banner itself isn't present yet since nothing is failing.
+    await screen.findByTestId("app-entry-flaky_app");
+    expect(screen.queryByTestId("alert-banner")).toBeNull();
+    const before = alertBannerRenderCount.renders;
+
+    act(() => {
+      useAppStore.getState().updateAppStatus(appStatusKey("flaky_app", 0), { status: "failed", index: 0 });
+    });
+
+    const banner = await screen.findByTestId("alert-banner");
+    expect(banner.textContent).toContain("flaky_app");
+    expect(alertBannerRenderCount.renders).toBeGreaterThan(before);
   });
 });

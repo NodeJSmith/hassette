@@ -5,7 +5,6 @@ import {
   INACTIVE_STATUSES,
   isFailureStatus,
   isReloadableStatus,
-  readinessVariant,
   statusToKind,
   statusToVariant,
 } from "./status";
@@ -131,21 +130,5 @@ describe("INACTIVE_STATUSES", () => {
     expect(INACTIVE_STATUSES.has("failed")).toBe(false);
     expect(INACTIVE_STATUSES.has("blocked")).toBe(false);
     expect(INACTIVE_STATUSES.has("starting")).toBe(false);
-  });
-});
-
-describe("readinessVariant", () => {
-  it("returns warning when status is running and not ready", () => {
-    expect(readinessVariant("running", false)).toBe("warning");
-  });
-
-  it("returns success when status is running and ready", () => {
-    expect(readinessVariant("running", true)).toBe("success");
-  });
-
-  it("delegates to statusToVariant for non-running statuses", () => {
-    expect(readinessVariant("failed", false)).toBe("danger");
-    expect(readinessVariant("exhausted_dead", false)).toBe("danger");
-    expect(readinessVariant("exhausted_cooling", false)).toBe("warning");
   });
 });

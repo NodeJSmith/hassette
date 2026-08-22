@@ -5,15 +5,17 @@ from dataclasses import asdict
 import pytest
 from pydantic import TypeAdapter
 
-from hassette.events.hassette import AppStateChangePayload, ServiceStatusPayload
+from hassette.events.hassette import AppStateChangePayload, ExecutionCompletedPayload, ServiceStatusPayload
 from hassette.schemas.domain_models import AppStatusChangedData as AppStatusChangedPayload
 from hassette.schemas.domain_models import ServiceStatusData as WsServiceStatusPayload
 from hassette.types.enums import ResourceRole, ResourceStatus
+from hassette.types.types import ExecutionStatus
 from hassette.web.models import (
     AppStatusChangedWsMessage,
     ConnectedPayload,
     ConnectedWsMessage,
     ConnectivityWsMessage,
+    ExecutionCompletedData,
     ExecutionCompletedWsMessage,
     LogWsMessage,
     ServiceStatusWsMessage,
@@ -241,6 +243,40 @@ class TestCompletionWsMessages:
         assert msg.data[0].kind == "handler"
         assert msg.data[1].kind == "job"
         assert msg.data[1].error_type == "ValueError"
+
+
+class TestExecutionCompletedPayloadStatusIsClosedEnum:
+    """Regression guard for the untyped `ExecutionCompletedPayload.status: str` producer chain.
+
+    Before this fix, ``ExecutionRecord``/``ExecutionCompletedPayload``/``from_record()`` all
+    typed ``status`` as a bare ``str`` even though ``ExecutionCompletedData`` (the strict wire
+    model the frontend validates against) narrows it to the closed ``ExecutionStatus`` enum.
+    Nothing guaranteed the producer chain could only emit one of the 5 real values — a stray
+    string anywhere upstream would have silently discarded the *entire* execution_completed
+    batch on the frontend (batch validation has no partial acceptance). Retyping the chain to
+    ``ExecutionStatus`` makes an out-of-enum value a `pyright` error at every real call site
+    instead of a latent runtime gap.
+    """
+
+    @pytest.mark.parametrize("status", list(ExecutionStatus))
+    def test_every_execution_status_round_trips_through_wire_model(self, status: ExecutionStatus) -> None:
+        """Every real ExecutionStatus member survives payload construction and strict validation."""
+        payload = ExecutionCompletedPayload(
+            kind="handler",
+            status=status,
+            duration_ms=5.0,
+            listener_id=1,
+            app_key="my_app",
+            instance_index=0,
+        )
+
+        # The field genuinely holds an ExecutionStatus instance, not a bare str that merely
+        # compares equal to one (dataclasses do not enforce field types at runtime).
+        assert isinstance(payload.status, ExecutionStatus)
+
+        # Round-trip through the strict Pydantic wire model the frontend validates against.
+        data = ExecutionCompletedData.model_validate(asdict(payload))
+        assert data.status == status
 
 
 class TestServiceStatusDataRetryAt:

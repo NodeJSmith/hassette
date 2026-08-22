@@ -12,6 +12,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
 from hassette.exceptions import DependencyError
+from hassette.types.types import ExecutionStatus
 
 MAX_TRACEBACK_SIZE = 8192
 TRACEBACK_TRUNCATION_SUFFIX = "\n... [truncated]"
@@ -24,7 +25,10 @@ class ExecutionResult:
     execution_id: str | None = None
     monotonic_start: float = 0.0
     duration_ms: float = 0.0
-    status: str = "pending"
+    status: ExecutionStatus | None = None
+    """Outcome of the tracked execution. ``None`` until ``track_execution()`` (or an equivalent
+    caller) assigns a real value on exit — no code path reads ``status`` before that assignment,
+    so there is no live "pending" state to represent."""
     error_message: str | None = None
     error_type: str | None = None
     error_traceback: str | None = None
@@ -49,19 +53,19 @@ class ExecutionResult:
 
     @property
     def is_success(self) -> bool:
-        return self.status == "success"
+        return self.status == ExecutionStatus.SUCCESS
 
     @property
     def is_error(self) -> bool:
-        return self.status == "error"
+        return self.status == ExecutionStatus.ERROR
 
     @property
     def is_cancelled(self) -> bool:
-        return self.status == "cancelled"
+        return self.status == ExecutionStatus.CANCELLED
 
     @property
     def is_timed_out(self) -> bool:
-        return self.status == "timed_out"
+        return self.status == ExecutionStatus.TIMED_OUT
 
 
 @asynccontextmanager
@@ -84,7 +88,7 @@ async def track_execution(
 
         async with track_execution() as result:
             await do_work()
-        # result.status == "success", result.duration_ms populated
+        # result.status == ExecutionStatus.SUCCESS, result.duration_ms populated
 
         async with track_execution(known_errors=(DependencyError,)) as result:
             await do_work()
@@ -95,18 +99,18 @@ async def track_execution(
     result.monotonic_start = time.monotonic()
     try:
         yield result
-        result.status = "success"
+        result.status = ExecutionStatus.SUCCESS
     except asyncio.CancelledError:
-        result.status = "cancelled"
+        result.status = ExecutionStatus.CANCELLED
         raise
     except TimeoutError as exc:
-        result.status = "timed_out"
+        result.status = ExecutionStatus.TIMED_OUT
         result.error_type = "TimeoutError"
         result.error_message = str(exc) if str(exc) else "execution timed out"
         result.exc = exc
         raise
     except Exception as exc:
-        result.status = "error"
+        result.status = ExecutionStatus.ERROR
         result.error_message = str(exc)
         result.error_type = type(exc).__name__
         result.is_di_failure = isinstance(exc, DependencyError)

@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from typing import Literal
 
-from hassette.types.types import SourceTier
+from hassette.types.types import ExecutionStatus, SourceTier
 
 SYNTHETIC_ORIGIN = "HASSETTE_SYNTHETIC"
 """trigger_origin value for immediate-fire synthetic events with no HA counterpart."""
@@ -34,8 +34,8 @@ class ExecutionRecord:
     duration_ms: float
     """Execution duration in milliseconds."""
 
-    status: str
-    """Outcome: 'success', 'error', 'cancelled', 'timed_out', or 'skipped'."""
+    status: ExecutionStatus
+    """Outcome: `ExecutionStatus.SUCCESS`, `.ERROR`, `.CANCELLED`, `.TIMED_OUT`, or `.SKIPPED`."""
 
     # FK fields: exactly one will be non-None (matches the DB CHECK constraint)
     listener_id: int | None = None
