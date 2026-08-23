@@ -1,15 +1,9 @@
-import Ajv, { type ErrorObject } from "ajv";
+import type { ErrorObject, ValidateFunction } from "ajv/dist/types";
 
-import rawSchema from "../../ws-schema.json";
 import type { WsServerMessage } from "./ws-types";
+import { validate as validateGenerated } from "./ws-validator.generated";
 
-// Pydantic emits discriminator as { propertyName, mapping } but AJV only
-// supports { propertyName }. Stripping mapping is safe — AJV infers the
-// discriminator from the oneOf branch schemas' const type fields instead.
-const wsSchema = { ...rawSchema, discriminator: { propertyName: rawSchema.discriminator.propertyName } };
-
-const ajv = new Ajv({ discriminator: true });
-const validate = ajv.compile<WsServerMessage>(wsSchema);
+const validate = validateGenerated as ValidateFunction<WsServerMessage>;
 
 export class WsValidationError extends Error {
   errors: ErrorObject[];

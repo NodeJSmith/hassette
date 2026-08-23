@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit",
     "types": "openapi-typescript openapi.json -o src/api/generated-types.ts",
     "ws-types": "node ../scripts/generate-ws-types.cjs",
+    "validators": "node ../scripts/compile-validators.cjs",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
     "lint:css": "stylelint 'src/**/*.css'",

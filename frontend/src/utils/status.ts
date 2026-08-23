@@ -14,15 +14,6 @@ type ShuttingDownStatus = "shutting_down";
  * `liveStatus` selector, `ActionButtons`' `status` prop) — not a backend enum value. */
 type UnknownStatus = "unknown";
 
-/** Narrows `status` to a known key of `map` via a runtime own-property check — no `as` cast.
- * Uses `hasOwnProperty` rather than `in` so an inherited `Object.prototype` key (e.g.
- * `"constructor"`, `"toString"`) can never be mistaken for a declared status and returned as a
- * lookup value. Shared by every status lookup below so each map only needs to declare its key
- * type once. */
-function isKnownMapKey<K extends string>(status: string, map: Record<K, unknown>): status is K {
-  return Object.prototype.hasOwnProperty.call(map, status);
-}
-
 /**
  * True for statuses that represent an app-level failure and should surface in the
  * `FailedAppsAlert` failure banner. Typed as a `Record` over the full
@@ -48,17 +39,8 @@ export const IS_FAILURE_STATUS = {
   exhausted_cooling: false,
 } satisfies Record<ManifestStatus | ResourceStatus, boolean>;
 
-/**
- * True when `status` (the live status from `appLiveStatus()`/`instanceLiveStatus()`) represents
- * an app-level failure. See `IS_FAILURE_STATUS` for the underlying map.
- *
- * Takes `string` rather than `ManifestStatus | ResourceStatus` even though `appLiveStatus()` is
- * now narrowed (see `app-data.ts`) — kept wide so existing callers passing an arbitrary status
- * string (e.g. tests exercising the unrecognized-status fallback) keep compiling. The `in`-based
- * guard above validates the value against `IS_FAILURE_STATUS`'s keys at runtime.
- */
-export function isFailureStatus(status: string): boolean {
-  return isKnownMapKey(status, IS_FAILURE_STATUS) && IS_FAILURE_STATUS[status];
+export function isFailureStatus(status: ManifestStatus | ResourceStatus): boolean {
+  return IS_FAILURE_STATUS[status] ?? false;
 }
 
 /** Status key type for the per-app Start/Stop action-enablement maps below. */
@@ -155,17 +137,8 @@ const APP_STATUS_MAP: Record<StatusMapKey, StatusVariant> = {
   unknown: "neutral",
 } satisfies Record<StatusMapKey, StatusVariant>;
 
-/**
- * Map a status to a StatusVariant. `status` is typed as the exhaustive `StatusMapKey` union, but
- * real callers (e.g. `apps-table-row.tsx`, `app-detail-header.tsx`) pass REST-sourced values from
- * `appLiveStatus()`/`instanceLiveStatus()` that aren't runtime-validated against the schema (only
- * WS messages go through the AJV validator) — this guard defends against a live value outside the
- * compile-time union, matching `statusPriority()`'s identical REST-unvalidated-input rationale.
- */
 export function statusToVariant(status: StatusMapKey): StatusVariant {
-  if (isKnownMapKey(status, APP_STATUS_MAP)) return APP_STATUS_MAP[status];
-  console.warn(`Unknown status: "${status}"`);
-  return "neutral";
+  return APP_STATUS_MAP[status] ?? "neutral";
 }
 
 const EXECUTION_STATUS_KIND: Record<ExecutionStatus, StatusKind> = {
@@ -176,17 +149,8 @@ const EXECUTION_STATUS_KIND: Record<ExecutionStatus, StatusKind> = {
   skipped: "mute",
 } satisfies Record<ExecutionStatus, StatusKind>;
 
-/**
- * Map an execution status to a StatusKind. `status` is typed as the exhaustive `ExecutionStatus`
- * union, but real callers (`execution-table.tsx`, `recent-activity-section.tsx`) receive records
- * fetched via `getListenerExecutions()`/`getJobExecutions()` — REST endpoints that, unlike WS
- * `execution_completed` events, are not runtime-validated against the schema — so this guard
- * defends against a live value outside the compile-time union.
- */
 export function executionStatusKind(status: ExecutionStatus): StatusKind {
-  if (isKnownMapKey(status, EXECUTION_STATUS_KIND)) return EXECUTION_STATUS_KIND[status];
-  console.warn(`Unknown execution status: "${status}"`);
-  return "err";
+  return EXECUTION_STATUS_KIND[status] ?? "err";
 }
 
 const LOG_LEVEL_MAP: ReadonlyMap<string, StatusVariant> = new Map<string, StatusVariant>([
@@ -255,16 +219,8 @@ const STATUS_KIND_MAP: Record<StatusKindMapKey, StatusKind> = {
   unknown: "mute",
 } satisfies Record<StatusKindMapKey, StatusKind>;
 
-/**
- * Map a status to a StatusKind. `status` is typed as the exhaustive `StatusKindMapKey` union, but
- * real callers (e.g. `apps-table-row.tsx`, `app-detail-header.tsx`, `diagnostics.tsx`) pass the
- * same REST-sourced, unvalidated values documented on `statusToVariant` — this guard defends
- * against a live value outside the compile-time union. Falls back to "mute" (matching this map's
- * existing "unknown" entry) with no console.warn, matching this function's pre-existing behavior.
- */
 export function statusToKind(status: StatusKindMapKey): StatusKind {
-  if (isKnownMapKey(status, STATUS_KIND_MAP)) return STATUS_KIND_MAP[status];
-  return "mute";
+  return STATUS_KIND_MAP[status] ?? "mute";
 }
 
 /** Derive a display chip label from handler/job metadata.

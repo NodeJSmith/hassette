@@ -29,12 +29,6 @@ export const STATUS_PRIORITY: Readonly<Record<StatusPriorityKey, number>> = {
   not_started: 9,
 } satisfies Record<StatusPriorityKey, number>;
 
-// Guards against a live status value newer than this build's generated types — REST responses
-// (unlike WS messages, which AJV-validates against ws-schema.json) aren't runtime-validated
-// against the schema, so `STATUS_PRIORITY[status]` can genuinely miss at runtime despite the
-// compile-time `satisfies` guarantee. See design/specs/102-status-exhaustiveness-enforcement.
-const UNKNOWN_PRIORITY = 99;
-
 export function statusPriority(status: StatusPriorityKey): number {
-  return STATUS_PRIORITY[status] ?? UNKNOWN_PRIORITY;
+  return STATUS_PRIORITY[status] ?? 99;
 }
