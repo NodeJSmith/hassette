@@ -11,6 +11,13 @@ Usage::
 
     python scripts/seed_db.py --scenario healthy
     python scripts/seed_db.py --scenario degraded --output /tmp/hassette-degraded.db
+
+Scenario functions call into shared seed helpers (``_seed_listener``, ``_seed_job``,
+``_seed_app_blocking_event``, etc.) repeatedly with the same call shape, differing only in
+literal ``app_key``/``class_name``/offset arguments. PMD's clone detector treats these calls
+as duplicate fragments, so each occurrence is wrapped in a ``dup-ignore-start``/``dup-ignore-end``
+pair (see ``tools/check_duplicate_code.py``) rather than forced into a data-driven loop, which
+would obscure the per-app literal values scenario authors need to read and edit directly.
 """
 
 import argparse
@@ -464,9 +471,8 @@ def _seed_log_records(
     """Insert ``count`` log records at ``interval_seconds`` spacing. Returns the next unused
     seq value so callers can thread a running counter across multiple calls within a scenario.
 
-    ``instance_name`` is derived from ``class_name``/``instance_index`` (the convention every
-    scenario call site follows) rather than accepted directly, since every caller was building
-    it the same way.
+    The log record's ``instance_name`` is computed internally from ``class_name``/``instance_index``
+    rather than accepted as a parameter, since every caller was building it the same way.
     """
     logger_name = logger_name or f"hassette.apps.{app_key}"
     instance_name = make_instance_name(class_name, instance_index)
@@ -705,9 +711,7 @@ def scenario_degraded(ctx: SeedContext) -> None:
     ):
         base = i * APP_TIME_SPACING_SECONDS
         ctx.add_app_manifest(app_key=app_key, class_name=class_name)
-        # dup-ignore-start: scenario boilerplate -- identical shape to other scenarios' calls
-        # into these shared seed helpers, differing only in the literal app_key/class_name/
-        # offset arguments that PMD's clone detector treats as equivalent.
+        # dup-ignore-start: scenario boilerplate -- see module docstring for rationale
         _seed_simple_app(
             ctx,
             scenario="degraded",
@@ -832,9 +836,7 @@ def scenario_degraded(ctx: SeedContext) -> None:
         start_index=1,
         base_offset=base + 120.0,
     )
-    # dup-ignore-start: scenario boilerplate -- identical shape to other scenarios' calls
-    # into these shared seed helpers, differing only in the literal app_key/class_name/
-    # offset arguments that PMD's clone detector treats as equivalent.
+    # dup-ignore-start: scenario boilerplate -- see module docstring for rationale
     _seed_executions(
         ctx,
         scenario="degraded",
@@ -986,9 +988,7 @@ def scenario_error(ctx: SeedContext) -> None:
         )
         seq += 1
 
-        # dup-ignore-start: scenario boilerplate -- identical shape to other scenarios' calls
-        # into this shared seed helper, differing only in the literal app_key/class_name/
-        # offset arguments that PMD's clone detector treats as equivalent.
+        # dup-ignore-start: scenario boilerplate -- see module docstring for rationale
         _seed_app_blocking_event(
             ctx,
             session_id=session_id,
@@ -1086,9 +1086,7 @@ def scenario_lifecycle(ctx: SeedContext) -> None:
         base_offset=base,
         exec_count=10,
     )
-    # dup-ignore-start: scenario boilerplate -- identical shape to other scenarios' calls
-    # into these shared seed helpers, differing only in the literal app_key/class_name/
-    # offset arguments that PMD's clone detector treats as equivalent.
+    # dup-ignore-start: scenario boilerplate -- see module docstring for rationale
     _seed_listener(
         ctx,
         app_key=app_key,
@@ -1142,9 +1140,7 @@ def scenario_lifecycle(ctx: SeedContext) -> None:
         source_location=f"{app_key}.py:40",
         removed_at=ts(base + 200.0),
     )
-    # dup-ignore-start: scenario boilerplate -- identical shape to other scenarios' calls
-    # into these shared seed helpers, differing only in the literal app_key/class_name/
-    # offset arguments that PMD's clone detector treats as equivalent.
+    # dup-ignore-start: scenario boilerplate -- see module docstring for rationale
     _seed_executions(
         ctx,
         scenario="lifecycle",
@@ -1212,9 +1208,7 @@ def scenario_lifecycle(ctx: SeedContext) -> None:
     )
     # start_index=6 avoids an execution_id collision with instance 0's executions above --
     # both instances share the same app_key by design (that's the point of "multi-instance").
-    # dup-ignore-start: scenario boilerplate -- identical shape to other scenarios' calls
-    # into these shared seed helpers, differing only in the literal app_key/class_name/
-    # offset arguments that PMD's clone detector treats as equivalent.
+    # dup-ignore-start: scenario boilerplate -- see module docstring for rationale
     _seed_executions(
         ctx,
         scenario="lifecycle",
@@ -1248,9 +1242,7 @@ def scenario_lifecycle(ctx: SeedContext) -> None:
     app_key, class_name = "mail_notifier", "MailNotifier"
     base = 3 * APP_TIME_SPACING_SECONDS
     ctx.add_app_manifest(app_key=app_key, class_name=class_name)
-    # dup-ignore-start: scenario boilerplate -- identical shape to other scenarios' calls
-    # into these shared seed helpers, differing only in the literal app_key/class_name/
-    # offset arguments that PMD's clone detector treats as equivalent.
+    # dup-ignore-start: scenario boilerplate -- see module docstring for rationale
     session_id, _listener_id, _job_id = _seed_simple_app(
         ctx,
         scenario="lifecycle",
@@ -1311,9 +1303,7 @@ def scenario_adversarial(ctx: SeedContext) -> None:
         human_description="battery above 20% and state is on, nested three predicates deep",
         source_location=f"{app_key}.py:200",
     )
-    # dup-ignore-start: scenario boilerplate -- identical shape to other scenarios' calls
-    # into these shared seed helpers, differing only in the literal app_key/class_name/
-    # offset arguments that PMD's clone detector treats as equivalent.
+    # dup-ignore-start: scenario boilerplate -- see module docstring for rationale
     _seed_executions(
         ctx,
         scenario="adversarial",
@@ -1354,9 +1344,7 @@ def scenario_adversarial(ctx: SeedContext) -> None:
         )
         for i in range(n_listeners)
     ]
-    # dup-ignore-start: scenario boilerplate -- identical shape to other scenarios' calls
-    # into these shared seed helpers, differing only in the literal app_key/class_name/
-    # offset arguments that PMD's clone detector treats as equivalent.
+    # dup-ignore-start: scenario boilerplate -- see module docstring for rationale
     _seed_executions(
         ctx,
         scenario="adversarial",
@@ -1408,9 +1396,7 @@ def scenario_adversarial(ctx: SeedContext) -> None:
         count=5,
         base_offset=base,
     )
-    # dup-ignore-start: scenario boilerplate -- identical shape to other scenarios' calls
-    # into these shared seed helpers, differing only in the literal app_key/class_name/
-    # offset arguments that PMD's clone detector treats as equivalent.
+    # dup-ignore-start: scenario boilerplate -- see module docstring for rationale
     _seed_executions(
         ctx,
         scenario="adversarial",
@@ -1434,9 +1420,7 @@ def scenario_adversarial(ctx: SeedContext) -> None:
     # dup-ignore-end
 
     # -- Blocking events: both tiers -- one attributed to the Unicode app, one unresolved --
-    # dup-ignore-start: scenario boilerplate -- identical shape to other scenarios' calls
-    # into this shared seed helper, differing only in the literal app_key/class_name/
-    # offset arguments that PMD's clone detector treats as equivalent.
+    # dup-ignore-start: scenario boilerplate -- see module docstring for rationale
     _seed_app_blocking_event(
         ctx,
         session_id=session_id,
