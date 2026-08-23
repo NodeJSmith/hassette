@@ -15,32 +15,24 @@ from hassette_codegen.rendering import UnsafeGeneratedValueError
 from .conftest import assert_compiles, generate_wrapper_or_fail
 
 
-# dup-ignore-start: fan domain factories share the ExtractedDomain(name="fan") preamble by design
+def _fan_domain(services: list[ExtractedService]) -> ExtractedDomain:
+    return ExtractedDomain(name="fan", base_class="BoolBaseState", services=services)
+
+
 def _fan_single_service_domain() -> ExtractedDomain:
-    return ExtractedDomain(
-        name="fan",
-        base_class="BoolBaseState",
+    return _fan_domain(
         services=[
             ExtractedService(
                 name="turn_on",
                 method_name="turn_on",
                 fields=[ServiceField(name="pct", selector_type="number", selector_data={})],
             ),
-        ],
+        ]
     )
 
 
 def _fan_turn_off_domain() -> ExtractedDomain:
-    return ExtractedDomain(
-        name="fan",
-        base_class="BoolBaseState",
-        services=[
-            ExtractedService(name="turn_off", method_name="turn_off", fields=[]),
-        ],
-    )
-
-
-# dup-ignore-end
+    return _fan_domain(services=[ExtractedService(name="turn_off", method_name="turn_off", fields=[])])
 
 
 def _cover_domain() -> ExtractedDomain:
@@ -579,7 +571,7 @@ class TestEntityWrapperEscaping:
 
     # dup-ignore-start: fan domain factory with hostile-input overrides, shares preamble with module factories
     @staticmethod
-    def _domain(
+    def _hostile_fan_domain(
         service_name: str = "turn_on", method_name: str = "turn_on", field_name: str = "percentage"
     ) -> ExtractedDomain:
         return ExtractedDomain(
@@ -599,7 +591,7 @@ class TestEntityWrapperEscaping:
 
     def test_quote_in_service_name_stays_one_literal_at_every_site(self) -> None:
         hostile = 'turn_on", target={"entity_id": "light.evil'
-        output = generate_wrapper_or_fail(self._domain(service_name=hostile))
+        output = generate_wrapper_or_fail(self._hostile_fan_domain(service_name=hostile))
 
         module = ast.parse(output)
         rendered = [
@@ -614,19 +606,19 @@ class TestEntityWrapperEscaping:
 
     def test_non_identifier_method_name_is_rejected(self) -> None:
         with pytest.raises(UnsafeGeneratedValueError):
-            generate_entity_wrapper(self._domain(method_name="turn on"))
+            generate_entity_wrapper(self._hostile_fan_domain(method_name="turn on"))
 
     def test_keyword_method_name_is_rejected(self) -> None:
         with pytest.raises(UnsafeGeneratedValueError):
-            generate_entity_wrapper(self._domain(method_name="class"))
+            generate_entity_wrapper(self._hostile_fan_domain(method_name="class"))
 
     def test_non_identifier_param_name_is_rejected(self) -> None:
         with pytest.raises(UnsafeGeneratedValueError):
-            generate_entity_wrapper(self._domain(field_name="percentage: int = 1, evil"))
+            generate_entity_wrapper(self._hostile_fan_domain(field_name="percentage: int = 1, evil"))
 
     def test_param_rename_is_validated_after_the_override_applies(self) -> None:
         # An override that maps a bad name to a good one must be honoured, not rejected first.
-        domain = self._domain(field_name="for")
+        domain = self._hostile_fan_domain(field_name="for")
         domain.override = DomainOverride(domain="fan", service_param_renames={"for": "for_"})
         output = generate_wrapper_or_fail(domain)
 
