@@ -378,3 +378,52 @@
     await new Promise(r=>setTimeout(r,500));
     }
     })()
+
+# ===========================================================================
+# Skipped execution result label
+# predicate_demo's job accumulates skipped executions (see the
+# web_ui_predicate_skipped entry above). JS opens the job detail pane, then
+# clicks the first execution row whose text includes "skipped" to navigate to
+# its execution detail page, capturing the dedicated "skipped" result label
+# (as opposed to the misleading "completed in Xms" it showed before this fix).
+# Runs BEFORE the degraded_banner entry below on purpose: shot-scraper runs a
+# manifest's entries in order within one long-lived browser/demo-stack session
+# with no per-entry teardown hook, and degraded_demo's alert banner ("1 app
+# failed") would otherwise still be on screen for this entry's full-page shot.
+# ===========================================================================
+- url: "http://localhost:{port}/apps/predicate_demo/handlers"
+  output: docs/_static/web_ui_skipped_result.png
+  width: 1400
+  height: 1300
+  wait: 4000
+  wait_for: "document.querySelector('[data-testid=\"execution-meta-stats\"]')"
+  javascript: >-
+    (async()=>{
+    const poll=(sel,ms=20000)=>new Promise((res,rej)=>{const t=setTimeout(()=>rej(new Error('timeout: '+sel)),ms);(function c(){const e=document.querySelector(sel);if(e){clearTimeout(t);res(e)}else{requestAnimationFrame(c)}})()});
+    const jobRow=await poll('[data-testid^="unified-row-job-"]');
+    jobRow.click();
+    await poll('[data-testid="job-predicate-description"]');
+    for(let i=0;i<60;i++){
+    const rows=[...document.querySelectorAll('[data-testid="execution-row"]')];
+    const skipped=rows.find(r=>r.textContent.includes('skipped'));
+    if(skipped){skipped.click();break}
+    await new Promise(r=>setTimeout(r,500));
+    }
+    })()
+
+# ===========================================================================
+# Degraded app in the failure banner
+# degraded_demo has autostart=false and two instances: one starts normally,
+# the other is configured (crash_on_init=true) to raise during on_initialize()
+# so AppRegistry computes ManifestStatus.DEGRADED for the app as a whole. JS
+# starts the app via the API, then waits for the alert banner to mention it.
+# Runs LAST on purpose — see the note on the skipped_result entry above.
+# ===========================================================================
+- url: "http://localhost:{port}/apps"
+  output: docs/_static/web_ui_degraded_banner.png
+  selector: "[data-testid='alert-banner']"
+  width: 1400
+  height: 300
+  wait: 2000
+  wait_for: "document.querySelector('[data-testid=\"alert-banner\"]')?.textContent.includes('degraded_demo')"
+  javascript: "fetch('/api/apps/degraded_demo/start',{method:'POST'})"

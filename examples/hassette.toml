@@ -84,6 +84,22 @@ class_name = "BackpressureDemo"
 autostart = false
 config = { instance_name = "backpressure_demo" }
 
+# autostart=false is intentional: this app does nothing useful running continuously. It exists
+# to reproduce ManifestStatus.DEGRADED on demand (one instance starts, the other crashes on
+# init) for the docs screenshot (docs/_static/web_ui_degraded_banner.png).
+# Don't remove without updating docs/screenshots.yml and app.tsx's FailedAppsAlert docs.
+[hassette.apps.degraded_demo]
+filename = "degraded_demo.py"
+class_name = "DegradedDemo"
+autostart = false
+
+[[hassette.apps.degraded_demo.config]]
+instance_name = "ok"
+
+[[hassette.apps.degraded_demo.config]]
+instance_name = "crashed"
+crash_on_init = true
+
 [hassette.database]
 retention_days = 14
 max_size_mb = 100
