@@ -20,6 +20,7 @@ def find_requirements(*search_dirs: str | Path) -> list[str]:
         capture_output=True,
         text=True,
         check=True,
+        timeout=30,
     )
     return [f for f in result.stdout.split("\0") if f]
 

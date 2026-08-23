@@ -66,7 +66,7 @@ def create_project_package(project_dir: Path, pyproject_content: str) -> None:
     pkg_dir = project_dir / "test_proj"
     pkg_dir.mkdir()
     (pkg_dir / "__init__.py").write_text("")
-    subprocess.run(["uv", "lock", "--directory", str(project_dir)], check=True, capture_output=True)
+    subprocess.run(["uv", "lock", "--directory", str(project_dir)], check=True, capture_output=True, timeout=60)
 
 
 @pytest.fixture
