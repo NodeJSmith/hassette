@@ -1,9 +1,9 @@
 import type { ErrorObject, ValidateFunction } from "ajv/dist/types";
 
 import type { WsServerMessage } from "./ws-types";
-import { validate as _validate } from "./ws-validator.generated";
+import { validate as validateGenerated } from "./ws-validator.generated";
 
-const validate = _validate as ValidateFunction<WsServerMessage>;
+const validate = validateGenerated as ValidateFunction<WsServerMessage>;
 
 export class WsValidationError extends Error {
   errors: ErrorObject[];
