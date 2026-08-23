@@ -263,6 +263,8 @@ Gotchas:
 
 The docs site embeds `docs/_static/web_ui_*.png`. These are generated, not hand-captured. `docs/screenshots.yml` is the single source of truth — adding a screenshot needs only a manifest entry, no script change. The capture tool starts its own demo stack, so Docker + Playwright + shot-scraper (`uv sync --group dev`) must be available.
 
+**Always capture screenshots — for docs or for PR visual evidence — via `scripts/capture_screenshots.py` (add a manifest entry, then `--only <name>`), never via raw Playwright MCP/browser automation.** The script owns auth (session cookie minting), animation-disabling, viewport sizing, and demo-stack lifecycle — a hand-rolled Playwright script reproduces that plumbing worse and produces screenshots that don't match the rest of `docs/_static/`. If a UI state genuinely isn't config-driven (e.g. it needs a live crashed instance), add a demo fixture (see `examples/degraded_demo.py` and its `autostart = false` entry in `examples/hassette.toml`) rather than faking the state — reproducible beats one-off.
+
 ```bash
 # Regenerate all doc screenshots
 uv run python scripts/capture_screenshots.py
