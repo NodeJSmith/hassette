@@ -1,8 +1,9 @@
 """App management endpoints."""
 
 import re
+from collections.abc import Awaitable, Callable
 from logging import getLogger
-from typing import TYPE_CHECKING, Any, NoReturn
+from typing import TYPE_CHECKING, Any, Literal
 
 import tomli_w
 from fastapi import APIRouter, HTTPException, Request, Response
@@ -29,7 +30,12 @@ if TYPE_CHECKING:
 
 LOGGER = getLogger(__name__)
 
+AppAction = Literal["start", "stop", "reload"]
+
 _VALID_APP_KEY = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_.]{0,127}$")
+
+#: Past-tense verb for each action's success log line.
+_ACTION_PAST_TENSE: dict[AppAction, str] = {"start": "Started", "stop": "Stopped", "reload": "Reloaded"}
 
 # Keep in sync with the manifest fields on AppConfigResponse in models.py.
 _MANIFEST_FIELD_SCHEMAS: dict[str, dict[str, Any]] = {
@@ -65,9 +71,33 @@ def _require_known_app(app_key: str, hassette: HassetteDep) -> None:
         raise HTTPException(status_code=404, detail=f"App {app_key!r} not found")
 
 
-def _raise_bootstrap_not_released(exc: AppBootstrapNotReleasedError) -> NoReturn:
-    """Map a pre-release start/reload attempt to a retryable 409, shared by start_app/reload_app."""
-    raise HTTPException(status_code=409, detail="App bootstrap prerequisites are not ready yet; retry later") from exc
+async def _run_app_action(
+    action: AppAction,
+    app_key: str,
+    hassette: HassetteDep,
+    request: Request,
+    operation: Callable[[], Awaitable[object]],
+) -> ActionResponse:
+    """Run one app lifecycle action behind the validation, error mapping, and logging every
+    start/stop/reload endpoint shares.
+
+    ``AppBootstrapNotReleasedError`` maps to a retryable 409. It is only reachable from
+    start/reload — ``stop_app`` never awaits bootstrap release — so the ``stop`` endpoint
+    declares no 409 response.
+    """
+    _validate_app_key(app_key)
+    _require_known_app(app_key, hassette)
+    try:
+        await operation()
+    except AppBootstrapNotReleasedError as exc:
+        raise HTTPException(
+            status_code=409, detail="App bootstrap prerequisites are not ready yet; retry later"
+        ) from exc
+    except (ValueError, RuntimeError) as exc:
+        LOGGER.warning("Failed to %s app %s", action, app_key, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to {action} app") from exc
+    LOGGER.info("%s app %s (source=%s)", _ACTION_PAST_TENSE[action], app_key, peer_address_or_unknown(request))
+    return ActionResponse(status="accepted", app_key=app_key, action=action)
 
 
 @router.get("/apps", response_model=AppStatusResponse)
@@ -155,30 +185,12 @@ async def get_app_manifest(app_key: str, runtime: RuntimeDep, telemetry: Telemet
     responses={409: {"description": "App bootstrap prerequisites are not ready yet; retry later"}},
 )
 async def start_app(app_key: str, hassette: HassetteDep, request: Request) -> ActionResponse:
-    _validate_app_key(app_key)
-    _require_known_app(app_key, hassette)
-    try:
-        await hassette.app_handler.start_app(app_key)
-    except AppBootstrapNotReleasedError as exc:
-        _raise_bootstrap_not_released(exc)
-    except (ValueError, RuntimeError) as exc:
-        LOGGER.warning("Failed to start app %s", app_key, exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to start app") from exc
-    LOGGER.info("Started app %s (source=%s)", app_key, peer_address_or_unknown(request))
-    return ActionResponse(status="accepted", app_key=app_key, action="start")
+    return await _run_app_action("start", app_key, hassette, request, lambda: hassette.app_handler.start_app(app_key))
 
 
 @router.post("/apps/{app_key}/stop", status_code=202, response_model=ActionResponse)
 async def stop_app(app_key: str, hassette: HassetteDep, request: Request) -> ActionResponse:
-    _validate_app_key(app_key)
-    _require_known_app(app_key, hassette)
-    try:
-        await hassette.app_handler.stop_app(app_key)
-    except (ValueError, RuntimeError) as exc:
-        LOGGER.warning("Failed to stop app %s", app_key, exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to stop app") from exc
-    LOGGER.info("Stopped app %s (source=%s)", app_key, peer_address_or_unknown(request))
-    return ActionResponse(status="accepted", app_key=app_key, action="stop")
+    return await _run_app_action("stop", app_key, hassette, request, lambda: hassette.app_handler.stop_app(app_key))
 
 
 @router.post(
@@ -188,19 +200,11 @@ async def stop_app(app_key: str, hassette: HassetteDep, request: Request) -> Act
     responses={409: {"description": "App bootstrap prerequisites are not ready yet; retry later"}},
 )
 async def reload_app(app_key: str, hassette: HassetteDep, request: Request) -> ActionResponse:
-    _validate_app_key(app_key)
-    _require_known_app(app_key, hassette)
-    try:
-        # Always re-import from disk so a previously-failed app recovers once its
-        # source is fixed -- without force_reload the cached failed class is reused (#1005).
-        await hassette.app_handler.reload_app(app_key, force_reload=True)
-    except AppBootstrapNotReleasedError as exc:
-        _raise_bootstrap_not_released(exc)
-    except (ValueError, RuntimeError) as exc:
-        LOGGER.warning("Failed to reload app %s", app_key, exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to reload app") from exc
-    LOGGER.info("Reloaded app %s (source=%s)", app_key, peer_address_or_unknown(request))
-    return ActionResponse(status="accepted", app_key=app_key, action="reload")
+    # Always re-import from disk so a previously-failed app recovers once its
+    # source is fixed -- without force_reload the cached failed class is reused (#1005).
+    return await _run_app_action(
+        "reload", app_key, hassette, request, lambda: hassette.app_handler.reload_app(app_key, force_reload=True)
+    )
 
 
 @router.get("/apps/{app_key}/config", response_model=AppConfigResponse)

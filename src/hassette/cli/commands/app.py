@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from hassette.cli.client import make_client
+from hassette.cli.client import make_client, query_params
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
 from hassette.cli.output import (
     Column,
@@ -65,19 +65,17 @@ def cmd_app_health(
 ) -> None:
     """Show health metrics for an app instance (GET /api/telemetry/app/{key}/health)."""
     client = make_client(ctx)
-
-    params: dict[str, Any] = {}
-    if instance is not None:
-        params["instance_index"] = client.resolve_instance(key, instance)
-    if since is not None:
-        params["since"] = since
-    if source_tier is not None:
-        params["source_tier"] = source_tier
-
+    params = query_params(
+        instance_index=client.resolve_instance_or_none(key, instance),
+        since=since,
+        source_tier=source_tier,
+    )
     result = client.get(f"/api/telemetry/app/{key}/health", AppHealthResponse, params=params)
     render_detail(result, json_mode=ctx.json_mode)
 
 
+# dup-ignore-start: cyclopts derives each command's flags from its signature, so a shared
+# filter set has to be restated per command — declaration, not copy-pasted logic.
 def cmd_app_activity(
     key: str,
     instance: InstanceArg = None,
@@ -86,17 +84,14 @@ def cmd_app_activity(
     *,
     ctx: CLIContextParam = DEFAULT_CLI_CONTEXT,
 ) -> None:
+    # dup-ignore-end
     """Show recent activity for an app (GET /api/telemetry/app/{key}/activity)."""
     client = make_client(ctx)
-
-    params: dict[str, Any] = {}
-    if instance is not None:
-        params["instance_index"] = client.resolve_instance(key, instance)
-    if since is not None:
-        params["since"] = since
-    if limit is not None:
-        params["limit"] = limit
-
+    params = query_params(
+        instance_index=client.resolve_instance_or_none(key, instance),
+        since=since,
+        limit=limit,
+    )
     raw: list[Any] = client.get(f"/api/telemetry/app/{key}/activity", list, params=params)
     entries = [ActivityFeedEntry.model_validate(e) for e in raw]
     render_table(entries, APP_ACTIVITY_COLUMNS, json_mode=ctx.json_mode)  # pyright: ignore[reportArgumentType]

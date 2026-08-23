@@ -2,13 +2,16 @@
 
 from collections.abc import Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass
 from logging import CRITICAL, DEBUG, ERROR, INFO, WARNING, getLogger
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, TypedDict
 
 from fastapi import Depends, Path, Query, Request
 from starlette.responses import Response
 
 from hassette.exceptions import TelemetryUnavailableError
+from hassette.schemas.query_constants import MAX_QUERY_LIMIT
+from hassette.types.types import QuerySourceTier
 
 if TYPE_CHECKING:
     from hassette import Hassette
@@ -29,18 +32,22 @@ LOG_LEVELS: dict[str, int] = {
 VALID_LOG_LEVEL_NAMES: frozenset[str] = frozenset(LOG_LEVELS)
 DEFAULT_LOG_LEVEL = "INFO"
 VALID_SOURCE_TIERS: frozenset[str] = frozenset({"app", "framework"})
-SOURCE_TIER_PARAM = Query(
-    default="app",
-    description="Filter by source tier. 'app' excludes framework internals. "
-    "'framework' returns only internal actors. 'all' returns everything.",
-)
-INSTANCE_INDEX_PARAM = Query(  # pyright: ignore[reportCallInDefaultInitializer]
-    default=0,
-    description="App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1.",
-)
-APP_KEY_PARAM = Path(  # pyright: ignore[reportCallInDefaultInitializer]
-    description="Use `__hassette__` to query framework-internal actor telemetry.",
-)
+
+# Shared query/path parameter annotations — annotate route parameters with these instead of
+# repeating the `Query(...)`/`Path(...)` call in every signature.
+AppKeyPath = Annotated[str, Path(description="Use `__hassette__` to query framework-internal actor telemetry.")]
+InstanceIndexQuery = Annotated[
+    int, Query(description="App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1.")
+]
+SinceQuery = Annotated[float | None, Query()]
+SourceTierQuery = Annotated[
+    QuerySourceTier,
+    Query(
+        description="Filter by source tier. 'app' excludes framework internals. "
+        "'framework' returns only internal actors. 'all' returns everything."
+    ),
+]
+LimitQuery = Annotated[int, Query(ge=1, le=MAX_QUERY_LIMIT)]
 
 
 def get_hassette(request: Request) -> "Hassette":
@@ -79,6 +86,36 @@ TelemetryDep = Annotated["TelemetryQueryService", Depends(get_telemetry)]
 SchedulerDep = Annotated["SchedulerService", Depends(get_scheduler)]
 ApiDep = Annotated["Api", Depends(get_api)]
 AuthDep = Annotated[str | None, Depends(get_resolved_auth_token)]
+
+
+class TelemetryFilterKwargs(TypedDict):
+    """Keyword arguments accepted by every per-app ``TelemetryQueryService`` filter method."""
+
+    instance_index: int
+    since: float | None
+    source_tier: QuerySourceTier
+
+
+@dataclass
+class TelemetryFilters:
+    """The instance/time/tier query parameters shared by the per-app telemetry routes.
+
+    Declared once here and injected via ``TelemetryFiltersDep`` so a route signature names the
+    filter set instead of restating all three parameters. FastAPI flattens a dependency's
+    parameters into the operation, so the OpenAPI schema is the same as declaring them inline.
+    """
+
+    instance_index: InstanceIndexQuery = 0
+    since: SinceQuery = None
+    source_tier: SourceTierQuery = "app"
+
+    @property
+    def query_kwargs(self) -> TelemetryFilterKwargs:
+        """Splat into a ``TelemetryQueryService`` method that accepts these three filters."""
+        return {"instance_index": self.instance_index, "since": self.since, "source_tier": self.source_tier}
+
+
+TelemetryFiltersDep = Annotated[TelemetryFilters, Depends()]
 
 
 @contextmanager

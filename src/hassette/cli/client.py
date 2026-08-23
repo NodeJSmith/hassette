@@ -28,6 +28,17 @@ DEFAULT_TIMEOUT = 10.0
 T = TypeVar("T")
 
 
+def query_params(**values: Any) -> dict[str, Any]:
+    """Build a query-parameter dict from CLI flags, dropping every flag left unset.
+
+    Commands share one convention: an unset flag is ``None`` and must not reach the server,
+    so the endpoint applies its own default. Writing that as ``query_params(since=since,
+    limit=limit)`` keeps the mapping from flag to query key on one line per command instead
+    of an ``if x is not None`` block per flag.
+    """
+    return {key: value for key, value in values.items() if value is not None}
+
+
 class HassetteCLIClient:
     """Synchronous HTTP client for querying the hassette REST API."""
 
@@ -216,6 +227,14 @@ class HassetteCLIClient:
         names = ", ".join(repr(n) for n in available) if available else "(none)"
         self.error_usage(f"Instance {instance!r} not found for app {app_key!r}. Available instances: {names}")
         raise AssertionError("unreachable")
+
+    def resolve_instance_or_none(self, app_key: str, instance: str | None) -> int | None:
+        """Resolve an instance selector, passing ``None`` through unchanged.
+
+        Convenience wrapper for CLI commands where an unset ``--instance`` flag means
+        "all instances" and should stay ``None`` rather than resolve to an index.
+        """
+        return None if instance is None else self.resolve_instance(app_key, instance)
 
     def _echo_success_target_and_warnings(self) -> None:
         """Surface the resolved non-loopback target and any TLS-verification warning once per

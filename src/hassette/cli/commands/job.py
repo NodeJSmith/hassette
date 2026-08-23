@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from hassette.cli.client import make_client
+from hassette.cli.client import make_client, query_params
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
 from hassette.cli.output import Column, fmt_duration_ms, fmt_relative_time, render_table
 from hassette.cli.types import AppKeyArg, InstanceArg, LimitArg, SinceArg, SourceTierArg
@@ -69,6 +69,8 @@ JOB_LIST_COLUMNS: list[Column] = [
 ]
 
 
+# dup-ignore-start: cyclopts derives each command's flags from its signature, so a shared
+# filter set has to be restated per command — declaration, not copy-pasted logic.
 def cmd_job(
     job_id: int | None = None,
     app: AppKeyArg = None,
@@ -79,30 +81,19 @@ def cmd_job(
     *,
     ctx: CLIContextParam = DEFAULT_CLI_CONTEXT,
 ) -> None:
+    # dup-ignore-end
     """List scheduled jobs, or show execution history for a specific job."""
     client = make_client(ctx)
 
     if job_id is not None:
-        params: dict[str, Any] = {}
-        if since is not None:
-            params["since"] = since
-        if limit is not None:
-            params["limit"] = limit
-
         raw: list[Any] = client.get(
             f"/api/telemetry/job/{job_id}/executions",
             list,
-            params=params,
+            params=query_params(since=since, limit=limit),
         )
         executions = [Execution.model_validate(e) for e in raw]
         render_table(executions, JOB_EXECUTION_COLUMNS, json_mode=ctx.json_mode)  # pyright: ignore[reportArgumentType]
         return
-
-    extra_params: dict[str, Any] = {}
-    if since is not None:
-        extra_params["since"] = since
-    if source_tier is not None:
-        extra_params["source_tier"] = source_tier
 
     raw = client.get_with_app_routing(
         global_path="/api/scheduler/jobs",
@@ -110,7 +101,7 @@ def cmd_job(
         model=list,
         app_key=app,
         instance=instance,
-        extra_params=extra_params,
+        extra_params=query_params(since=since, source_tier=source_tier),
     )
     jobs = [JobSummary.model_validate(e) for e in raw]
     render_table(jobs, JOB_LIST_COLUMNS, json_mode=ctx.json_mode)  # pyright: ignore[reportArgumentType]
