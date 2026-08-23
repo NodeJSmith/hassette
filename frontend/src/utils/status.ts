@@ -14,10 +14,13 @@ type ShuttingDownStatus = "shutting_down";
  * `liveStatus` selector, `ActionButtons`' `status` prop) — not a backend enum value. */
 type UnknownStatus = "unknown";
 
-/** Narrows `status` to a known key of `map` via a runtime `in` check — no `as` cast. Shared by
- * every status lookup below so each map only needs to declare its key type once. */
+/** Narrows `status` to a known key of `map` via a runtime own-property check — no `as` cast.
+ * Uses `hasOwnProperty` rather than `in` so an inherited `Object.prototype` key (e.g.
+ * `"constructor"`, `"toString"`) can never be mistaken for a declared status and returned as a
+ * lookup value. Shared by every status lookup below so each map only needs to declare its key
+ * type once. */
 function isKnownMapKey<K extends string>(status: string, map: Record<K, unknown>): status is K {
-  return status in map;
+  return Object.prototype.hasOwnProperty.call(map, status);
 }
 
 /**
