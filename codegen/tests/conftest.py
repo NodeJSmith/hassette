@@ -22,14 +22,14 @@ HAS_HA_CORE = HA_CORE.exists()
 
 def assert_compiles(source: str) -> None:
     """Write source to a temp file and verify it compiles without errors."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-        f.write(source)
-        f.flush()
-        py_compile.compile(f.name, doraise=True)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        source_path = Path(tmpdir) / "generated.py"
+        source_path.write_text(source)
+        py_compile.compile(str(source_path), doraise=True)
 
 
 def generate_wrapper_or_fail(domain: ExtractedDomain) -> str:
     """Generate an entity wrapper and assert the domain produces output."""
     output = generate_entity_wrapper(domain)
-    assert output is not None
+    assert output and output.strip()
     return output
