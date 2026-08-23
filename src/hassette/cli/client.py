@@ -228,6 +228,14 @@ class HassetteCLIClient:
         self.error_usage(f"Instance {instance!r} not found for app {app_key!r}. Available instances: {names}")
         raise AssertionError("unreachable")
 
+    def resolve_instance_or_none(self, app_key: str, instance: str | None) -> int | None:
+        """Resolve an instance selector, passing ``None`` through unchanged.
+
+        Convenience wrapper for CLI commands where an unset ``--instance`` flag means
+        "all instances" and should stay ``None`` rather than resolve to an index.
+        """
+        return None if instance is None else self.resolve_instance(app_key, instance)
+
     def _echo_success_target_and_warnings(self) -> None:
         """Surface the resolved non-loopback target and any TLS-verification warning once per
         invocation on the success path.

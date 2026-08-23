@@ -66,7 +66,7 @@ def cmd_app_health(
     """Show health metrics for an app instance (GET /api/telemetry/app/{key}/health)."""
     client = make_client(ctx)
     params = query_params(
-        instance_index=None if instance is None else client.resolve_instance(key, instance),
+        instance_index=client.resolve_instance_or_none(key, instance),
         since=since,
         source_tier=source_tier,
     )
@@ -88,7 +88,7 @@ def cmd_app_activity(
     """Show recent activity for an app (GET /api/telemetry/app/{key}/activity)."""
     client = make_client(ctx)
     params = query_params(
-        instance_index=None if instance is None else client.resolve_instance(key, instance),
+        instance_index=client.resolve_instance_or_none(key, instance),
         since=since,
         limit=limit,
     )
