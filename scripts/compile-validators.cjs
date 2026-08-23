@@ -19,6 +19,7 @@ const Ajv = require(require.resolve("ajv", { paths: [FRONTEND_DIR] }));
 const standaloneCode = require(
   require.resolve("ajv/dist/standalone", { paths: [FRONTEND_DIR] }),
 );
+const prettier = require(require.resolve("prettier", { paths: [FRONTEND_DIR] }));
 
 const SCHEMA_PATH = path.join(FRONTEND_DIR, "ws-schema.json");
 const OUTPUT_PATH = path.join(FRONTEND_DIR, "src", "api", "ws-validator.generated.ts");
@@ -31,7 +32,7 @@ const BANNER = `/* @generated from ws-schema.json — do not edit by hand.
 /* eslint-disable */
 // @ts-nocheck`;
 
-function main() {
+async function main() {
   const schema = JSON.parse(fs.readFileSync(SCHEMA_PATH, "utf8"));
 
   // Pydantic emits discriminator as { propertyName, mapping } but Ajv only
@@ -47,9 +48,19 @@ function main() {
   const validate = ajv.compile(schema);
   const code = standaloneCode(ajv, validate);
 
-  const output = `${BANNER}\n\n${code}\n`;
+  // Ajv's standalone codegen emits unformatted source. Format it here so the
+  // output matches what prek's prettier hook would otherwise produce on commit —
+  // otherwise the CI freshness check (`npm run validators && git diff --exit-code`)
+  // always reports a diff, regardless of whether the schema actually changed.
+  const prettierConfig = await prettier.resolveConfig(OUTPUT_PATH);
+  const formattedCode = await prettier.format(code, { ...prettierConfig, filepath: OUTPUT_PATH });
+
+  const output = `${BANNER}\n\n${formattedCode}`;
   fs.writeFileSync(OUTPUT_PATH, output);
   console.log(`Wrote ${OUTPUT_PATH}`);
 }
 
-main();
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
