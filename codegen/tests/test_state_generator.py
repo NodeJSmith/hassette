@@ -12,6 +12,7 @@ from .conftest import assert_compiles
 
 
 def _datetime_domain() -> ExtractedDomain:
+    """Build a test domain with a datetime property to exercise datetime-specific codegen."""
     return ExtractedDomain(
         name="script",
         base_class="BoolBaseState",
