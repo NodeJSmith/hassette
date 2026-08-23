@@ -27,8 +27,8 @@ def run_hassette_container(
     volumes: list[str] | None = None,
     env: dict[str, str] | None = None,
     timeout: int = 60,
-) -> subprocess.CompletedProcess[str]:
-    """Run the hassette Docker image with ``--version`` and return the completed process."""
+) -> tuple[subprocess.CompletedProcess[str], str]:
+    """Run the hassette Docker image with ``--version``, returning (result, combined output)."""
     cmd = ["docker", "run", "--rm"]
     for vol in volumes or []:
         cmd.extend(["-v", vol])
@@ -41,23 +41,22 @@ def run_hassette_container(
     for key, value in merged_env.items():
         cmd.extend(["-e", f"{key}={value}"])
     cmd.extend([DOCKER_IMAGE, "--version"])
-    return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    return result, result.stderr + result.stdout
 
 
 def run_requirements_container(apps_dir: Path) -> tuple[subprocess.CompletedProcess[str], str]:
     """Run the container with INSTALL_DEPS=1 and a read-only apps mount, returning (result, combined output)."""
-    result = run_hassette_container(volumes=[f"{apps_dir}:/apps:ro"], env={"HASSETTE__INSTALL_DEPS": "1"})
-    return result, result.stderr + result.stdout
+    return run_hassette_container(volumes=[f"{apps_dir}:/apps:ro"], env={"HASSETTE__INSTALL_DEPS": "1"})
 
 
 def run_project_container(project_dir: Path, *, timeout: int = 120) -> tuple[subprocess.CompletedProcess[str], str]:
     """Run the container with PROJECT_DIR pointing to the mounted project, returning (result, combined output)."""
-    result = run_hassette_container(
+    return run_hassette_container(
         volumes=[f"{project_dir}:/apps"],
         env={"HASSETTE__PROJECT_DIR": "/apps"},
         timeout=timeout,
     )
-    return result, result.stderr + result.stdout
 
 
 def create_project_package(project_dir: Path, pyproject_content: str) -> None:
@@ -150,11 +149,10 @@ def test_docker_installs_from_config_and_apps(tmp_path: Path):
     (config_dir / "requirements.txt").write_text("pyyaml>=6.0\n")
     (apps_dir / "requirements.txt").write_text("httpx>=0.25\n")
 
-    result = run_hassette_container(
+    _, output = run_hassette_container(
         volumes=[f"{config_dir}:/config:ro", f"{apps_dir}:/apps:ro"],
         env={"HASSETTE__CONFIG_DIR": "/config", "HASSETTE__INSTALL_DEPS": "1"},
     )
-    output = result.stderr + result.stdout
 
     assert output.count("Installing requirements from") >= 2, f"Not all requirements found. Output:\n{output}"
 
@@ -217,8 +215,7 @@ def test_docker_skips_requirements_by_default(tmp_path: Path):
     apps_dir.mkdir()
     (apps_dir / "requirements.txt").write_text("requests\n")
 
-    result = run_hassette_container(volumes=[f"{apps_dir}:/apps:ro"])
-    output = result.stderr + result.stdout
+    result, output = run_hassette_container(volumes=[f"{apps_dir}:/apps:ro"])
 
     assert result.returncode == 0
     assert "requirements install: disabled" in output
@@ -310,8 +307,7 @@ def test_docker_no_project_no_deps_starts_clean(tmp_path: Path):
     apps_dir = tmp_path / "apps"
     apps_dir.mkdir()
 
-    result = run_hassette_container(volumes=[f"{apps_dir}:/apps:ro"])
-    output = result.stderr + result.stdout
+    result, output = run_hassette_container(volumes=[f"{apps_dir}:/apps:ro"])
 
     assert result.returncode == 0, f"Clean start failed. Output:\n{output}"
     assert "project install: skipped" in output
