@@ -455,10 +455,14 @@ class CommandExecutor(Service):
         """
         # `result.status` is only `None` before `track_execution()` (or the CANCELLED default
         # `_execute()` seeds before entering it) assigns a real value — every caller of
-        # `build_record()` does so after that assignment has happened. Assert (rather than
-        # silently coalescing to a fallback status) so a genuine gap in that invariant surfaces
-        # immediately instead of miscategorizing an execution's outcome.
-        assert result.status is not None, "ExecutionResult.status must be populated before building a record"
+        # `build_record()` does so after that assignment has happened. This is a runtime contract
+        # violation, not a type-exhaustiveness guard (contrast `_execute()`'s
+        # `raise AssertionError` on an unreachable `match` arm above) — a direct `build_record()`
+        # call with an unpopulated result is a real gap in the invariant, not an impossible-in-
+        # principle branch. Raise explicitly rather than silently coalescing to a fallback status,
+        # so it surfaces immediately instead of miscategorizing an execution's outcome.
+        if result.status is None:
+            raise RuntimeError("ExecutionResult.status must be populated before building a record")
         session_id = self.hassette.try_session_id()
 
         match cmd:
