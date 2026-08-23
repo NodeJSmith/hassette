@@ -38,7 +38,7 @@ class TestTrackExecution:
         async with track_execution() as result:
             pass  # no error
 
-        assert result.status == "success"
+        assert result.status is ExecutionStatus.SUCCESS
         assert result.duration_ms >= 0.0
         assert result.monotonic_start > 0.0
         assert result.error_message is None
@@ -49,7 +49,7 @@ class TestTrackExecution:
             async with track_execution() as result:
                 raise ValueError("boom")
 
-        assert result.status == "error"
+        assert result.status is ExecutionStatus.ERROR
         assert result.error_message == "boom"
         assert result.error_type == "ValueError"
         assert result.duration_ms >= 0.0
@@ -59,7 +59,7 @@ class TestTrackExecution:
             async with track_execution() as result:
                 raise asyncio.CancelledError()
 
-        assert result.status == "cancelled"
+        assert result.status is ExecutionStatus.CANCELLED
         assert result.duration_ms >= 0.0
 
     async def test_always_reraises(self) -> None:
@@ -67,7 +67,7 @@ class TestTrackExecution:
             async with track_execution() as result:
                 raise RuntimeError("fail")
 
-        assert result.status == "error"
+        assert result.status is ExecutionStatus.ERROR
 
     async def test_timing_is_reasonable(self) -> None:
         async with track_execution() as result:
@@ -89,7 +89,7 @@ class TestTrackExecution:
             async with track_execution() as result:
                 raise DependencyInjectionError("bad sig")
 
-        assert result.status == "error"
+        assert result.status is ExecutionStatus.ERROR
         assert result.error_type == "DependencyInjectionError"
         assert result.error_message == "bad sig"
 
@@ -99,7 +99,7 @@ class TestTrackExecution:
             async with track_execution(known_errors=(DependencyError,)) as result:
                 raise DependencyError("missing dep")
 
-        assert result.status == "error"
+        assert result.status is ExecutionStatus.ERROR
         assert result.error_type == "DependencyError"
         assert result.error_message == "missing dep"
         assert result.error_traceback is None
@@ -110,7 +110,7 @@ class TestTrackExecution:
             async with track_execution(known_errors=(DependencyError,)) as result:
                 raise ValueError("oops")
 
-        assert result.status == "error"
+        assert result.status is ExecutionStatus.ERROR
         assert result.error_type == "ValueError"
         assert result.error_traceback is not None
         assert "ValueError" in result.error_traceback
@@ -121,7 +121,7 @@ class TestTrackExecution:
             async with track_execution(known_errors=(HassetteError,)) as result:
                 raise DependencyInjectionError("bad sig")
 
-        assert result.status == "error"
+        assert result.status is ExecutionStatus.ERROR
         assert result.error_type == "DependencyInjectionError"
         assert result.error_traceback is None
 
@@ -131,7 +131,7 @@ class TestTrackExecution:
             async with track_execution() as result:
                 raise RuntimeError("fail")
 
-        assert result.status == "error"
+        assert result.status is ExecutionStatus.ERROR
         assert result.error_traceback is not None
         assert "RuntimeError" in result.error_traceback
 
