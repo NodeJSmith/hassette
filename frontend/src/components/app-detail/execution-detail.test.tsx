@@ -114,6 +114,19 @@ describe("ExecutionDetailContent", () => {
     expect(container.textContent).toContain("cancelled");
   });
 
+  it("renders skipped badge", () => {
+    const record = createExecution("handler", {
+      execution_id: "abc12345-1234-5678-9abc-def012345678",
+      status: "skipped",
+    });
+    const { container } = render(<ExecutionDetailContent record={record} />);
+    // Scope to the badge element specifically — ErrorDisplay's resolveResultDisplay("skipped")
+    // also renders the literal text "skipped", so a bare textContent check would pass even if
+    // StatusBadge's "skipped" case were broken.
+    const badges = Array.from(container.querySelectorAll('[data-slot="badge"]'));
+    expect(badges.some((badge) => badge.textContent?.trim() === "skipped")).toBe(true);
+  });
+
   it("renders trigger section when trigger_mode is present", () => {
     const record = createExecution("handler", {
       execution_id: "abc12345-1234-5678-9abc-def012345678",

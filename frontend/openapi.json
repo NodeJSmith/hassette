@@ -2661,7 +2661,7 @@
           "skipped"
         ],
         "title": "ExecutionStatus",
-        "description": "Status values for handler invocations and job executions.\n\nCovers all values allowed by the CHECK constraints in migrations 001 and 005.\nPydantic v2 coerces plain strings to enum members on construction and\nserialises back to plain strings in JSON responses."
+        "description": "Status values for handler invocations and job executions.\n\nCovers all values allowed by the ``executions.status`` CHECK constraint: migration 001\nintroduced the original four values (``success``, ``error``, ``cancelled``, ``timed_out``);\nmigration 009 added ``skipped``.\nPydantic v2 coerces plain strings to enum members on construction and\nserialises back to plain strings in JSON responses."
       },
       "HTTPValidationError": {
         "properties": {

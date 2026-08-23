@@ -6,7 +6,9 @@ The execution detail page shows the full record of one handler invocation or job
 
 ## Header
 
-A status shape and a truncated execution ID open the page. Status badges appear next to the ID for non-success outcomes: **failed**, **timed out**, **cancelled**, and **thread leaked** (the handler kept running past its timeout).
+A status shape and a truncated execution ID open the page. Status badges appear next to the ID for non-success outcomes: **failed**, **timed out**, **cancelled**, **skipped**, and **thread leaked** (the handler kept running past its timeout).
+
+A skipped execution means the job's `where=` predicate — a function that decides whether the job should run this time (see [Predicate Reference](../core-concepts/bus/predicate-reference.md)) — returned `False`.
 
 Below the header, the full execution ID appears in a monospace block with a copy button.
 
@@ -21,6 +23,10 @@ A trigger section appears for executions that carry trigger data. It shows the t
 ## Error or Outcome
 
 Failed executions show the full Python traceback in a dedicated viewer. Timed-out and cancelled executions show duration and error details without a traceback — the framework skips traceback capture for these outcomes. Successful executions show a single line: a green status shape and the elapsed duration.
+
+Skipped executions get their own label instead of a duration — a scheduled job whose `where=` predicate returned `False` never ran, so there's no elapsed time to show.
+
+![A skipped job execution's result label](../../_static/web_ui_skipped_result.png)
 
 ## Logs
 

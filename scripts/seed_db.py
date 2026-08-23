@@ -39,7 +39,7 @@ from hassette.test_utils.factories import (
     make_job_registration,
     make_listener_registration,
 )
-from hassette.types.types import LOG_LEVEL_TYPE
+from hassette.types.types import LOG_LEVEL_TYPE, ExecutionStatus
 
 REFERENCE_INSTANT = Instant.from_utc(2026, 1, 15, 12, 0)
 """Deterministic reference point. All scenario timestamps are fixed offsets from this
@@ -428,13 +428,13 @@ def _seed_executions(
     for i in range(count):
         index = start_index + i
         if i < di_end:
-            status, is_di, is_leaked = "error", True, False
+            status, is_di, is_leaked = ExecutionStatus.ERROR, True, False
         elif i < error_end:
-            status, is_di, is_leaked = "error", False, False
+            status, is_di, is_leaked = ExecutionStatus.ERROR, False, False
         elif i < leaked_end:
-            status, is_di, is_leaked = "timed_out", False, True
+            status, is_di, is_leaked = ExecutionStatus.TIMED_OUT, False, True
         else:
-            status, is_di, is_leaked = "success", False, False
+            status, is_di, is_leaked = ExecutionStatus.SUCCESS, False, False
         ctx.add_execution(
             make_execution_record(
                 kind=kind,
@@ -446,8 +446,8 @@ def _seed_executions(
                 status=status,
                 execution_start_ts=ts(base_offset + index * interval_seconds),
                 duration_ms=duration_ms,
-                error_type=error_type if status == "error" else None,
-                error_message=error_message if status == "error" else None,
+                error_type=error_type if status == ExecutionStatus.ERROR else None,
+                error_message=error_message if status == ExecutionStatus.ERROR else None,
                 is_di_failure=is_di,
                 thread_leaked=is_leaked,
             )
@@ -817,7 +817,7 @@ def scenario_degraded(ctx: SeedContext) -> None:
             session_id=failed_session_id,
             listener_id=listener_id,
             app_key=app_key,
-            status="error",
+            status=ExecutionStatus.ERROR,
             execution_start_ts=ts(base + 2.0),
             duration_ms=15.0,
             error_type="DependencyError",

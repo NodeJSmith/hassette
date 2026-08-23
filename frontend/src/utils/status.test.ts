@@ -3,8 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import {
   executionStatusKind,
   INACTIVE_STATUSES,
+  isFailureStatus,
   isReloadableStatus,
-  readinessVariant,
   statusToKind,
   statusToVariant,
 } from "./status";
@@ -36,9 +36,31 @@ describe("statusToVariant", () => {
 
   it("returns neutral and warns for unknown status", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    // Simulates a REST-sourced status value newer than this build's generated types — not
+    // reachable through the compile-time union, only through an unvalidated live value.
+    // @ts-expect-error — validates that statusToVariant still rejects arbitrary strings.
     expect(statusToVariant("exploding")).toBe("neutral");
     expect(warnSpy).toHaveBeenCalledWith('Unknown status: "exploding"');
     warnSpy.mockRestore();
+  });
+});
+
+describe("isFailureStatus", () => {
+  it("treats failed, degraded, and crashed as failures", () => {
+    expect(isFailureStatus("failed")).toBe(true);
+    expect(isFailureStatus("degraded")).toBe(true);
+    expect(isFailureStatus("crashed")).toBe(true);
+  });
+
+  it("treats non-failure statuses as not failures", () => {
+    expect(isFailureStatus("running")).toBe(false);
+    expect(isFailureStatus("stopped")).toBe(false);
+    expect(isFailureStatus("disabled")).toBe(false);
+    expect(isFailureStatus("blocked")).toBe(false);
+  });
+
+  it("returns false for an unrecognized status", () => {
+    expect(isFailureStatus("exploding")).toBe(false);
   });
 });
 
@@ -68,8 +90,11 @@ describe("executionStatusKind", () => {
     expect(executionStatusKind("cancelled")).not.toBe("err");
   });
 
-  it("returns err and warns for an unknown status", () => {
+  it("returns err and warns for an unknown execution status", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    // Simulates a REST-sourced ExecutionRecord.status value newer than this build's generated
+    // types (fetched via getListenerExecutions()/getJobExecutions(), not runtime-validated).
+    // @ts-expect-error — validates that executionStatusKind still rejects arbitrary strings.
     expect(executionStatusKind("exploding")).toBe("err");
     expect(warnSpy).toHaveBeenCalledWith('Unknown execution status: "exploding"');
     warnSpy.mockRestore();
@@ -89,6 +114,8 @@ describe("statusToKind", () => {
   });
 
   it("returns mute for an unknown status", () => {
+    // Simulates a REST-sourced status value newer than this build's generated types.
+    // @ts-expect-error — validates that statusToKind still rejects arbitrary strings.
     expect(statusToKind("exploding")).toBe("mute");
   });
 });
@@ -103,21 +130,5 @@ describe("INACTIVE_STATUSES", () => {
     expect(INACTIVE_STATUSES.has("failed")).toBe(false);
     expect(INACTIVE_STATUSES.has("blocked")).toBe(false);
     expect(INACTIVE_STATUSES.has("starting")).toBe(false);
-  });
-});
-
-describe("readinessVariant", () => {
-  it("returns warning when status is running and not ready", () => {
-    expect(readinessVariant("running", false)).toBe("warning");
-  });
-
-  it("returns success when status is running and ready", () => {
-    expect(readinessVariant("running", true)).toBe("success");
-  });
-
-  it("delegates to statusToVariant for non-running statuses", () => {
-    expect(readinessVariant("failed", false)).toBe("danger");
-    expect(readinessVariant("exhausted_dead", false)).toBe("danger");
-    expect(readinessVariant("exhausted_cooling", false)).toBe("warning");
   });
 });

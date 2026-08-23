@@ -146,6 +146,7 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 "src/hassette/bus/*.py" = ["S101"]
 "src/hassette/core/api_resource.py" = ["S101"]
 "src/hassette/core/bus_service.py" = ["S101"]
+"src/hassette/core/command_executor.py" = ["S101"]
 "src/hassette/core/websocket_service.py" = ["S101"]
 "src/hassette/core/early_drop_policy.py" = ["S311"]
 "src/hassette/core/scheduler_service.py" = ["S101", "S311"]

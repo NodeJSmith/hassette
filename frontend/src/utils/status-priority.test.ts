@@ -53,7 +53,10 @@ describe("statusPriority", () => {
     expect(statusPriority("disabled")).toBe(8);
   });
 
-  it("returns 99 for unknown statuses", () => {
-    expect(statusPriority("nonexistent")).toBe(99);
+  it("returns 99 for an unknown status", () => {
+    // Simulates a REST-sourced status value newer than this build's generated types — not
+    // reachable through the compile-time union, only through an unvalidated live value.
+    // @ts-expect-error — validates that statusPriority still rejects arbitrary strings.
+    expect(statusPriority("exploding")).toBe(99);
   });
 });

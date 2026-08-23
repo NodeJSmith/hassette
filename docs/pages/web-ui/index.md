@@ -121,7 +121,7 @@ The **command palette** opens with Ctrl+K or Cmd+K. It jumps to pages, apps, han
 
 ![Command palette](../../_static/web_ui_detail_command_palette.png)
 
-**Alert banners** appear below the status bar when something needs attention. Red banners indicate failed apps. Amber banners mean telemetry is degraded — Hassette's health check against the telemetry database failed, so the file is unreachable, locked, or unresponsive and some execution history may be missing. The banner also reports any writes dropped separately to queue overflow or retry exhaustion. The database service logs carry the cause.
+**Alert banners** appear below the status bar when something needs attention. Red banners list apps that are `FAILED` or `DEGRADED` (see [Understand App States](manage-apps.md#understand-app-states)) — a degraded app is only partially working, but it still needs a look. Amber banners mean telemetry is degraded — Hassette's health check against the telemetry database failed, so the file is unreachable, locked, or unresponsive and some execution history may be missing. The banner also reports any writes dropped separately to queue overflow or retry exhaustion. The database service logs carry the cause.
 
 ## Pages
 

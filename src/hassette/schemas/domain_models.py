@@ -26,6 +26,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from hassette.types.enums import ResourceStatus
 from hassette.utils import get_version
 
 
@@ -112,8 +113,8 @@ class AppStatusChangedData(BaseModel):
 
     app_key: str
     index: int
-    status: str
-    previous_status: str | None = None
+    status: ResourceStatus
+    previous_status: ResourceStatus | None = None
     instance_name: str | None = None
     class_name: str | None = None
     exception: str | None = None
@@ -135,8 +136,8 @@ class ServiceStatusData(BaseModel):
 
     resource_name: str
     role: str
-    status: str
-    previous_status: str | None = None
+    status: ResourceStatus
+    previous_status: ResourceStatus | None = None
     exception: str | None = None
     exception_type: str | None = None
     exception_traceback: str | None = None

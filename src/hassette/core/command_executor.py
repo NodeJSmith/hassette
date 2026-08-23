@@ -35,7 +35,7 @@ from hassette.resources.service import Service
 from hassette.scheduler.error_context import SchedulerErrorContext
 from hassette.schemas.log_models import BlockingEvent
 from hassette.types.enums import RestartType
-from hassette.types.types import LOG_LEVEL_TYPE
+from hassette.types.types import LOG_LEVEL_TYPE, ExecutionStatus
 from hassette.utils.execution import ExecutionResult, track_execution
 
 if typing.TYPE_CHECKING:
@@ -308,7 +308,7 @@ class CommandExecutor(Service):
             The populated ``ExecutionResult``.
         """
         execution_start_ts = time.time()
-        result = ExecutionResult(execution_id=execution_id, status="cancelled")
+        result = ExecutionResult(execution_id=execution_id, status=ExecutionStatus.CANCELLED)
         match cmd.source_tier:
             case "app":
                 known: tuple[type[Exception], ...] = (DependencyError, HassetteError)
@@ -453,6 +453,16 @@ class CommandExecutor(Service):
             execution_start_ts: Unix timestamp when execution began.
             execution_id: UUIDv7 string for this execution instance.
         """
+        # `result.status` is only `None` before `track_execution()` (or the CANCELLED default
+        # `_execute()` seeds before entering it) assigns a real value — every caller of
+        # `build_record()` does so after that assignment has happened. This is a runtime contract
+        # violation, not a type-exhaustiveness guard (contrast `_execute()`'s
+        # `raise AssertionError` on an unreachable `match` arm above) — a direct `build_record()`
+        # call with an unpopulated result is a real gap in the invariant, not an impossible-in-
+        # principle branch. Raise explicitly rather than silently coalescing to a fallback status,
+        # so it surfaces immediately instead of miscategorizing an execution's outcome.
+        if result.status is None:
+            raise RuntimeError("ExecutionResult.status must be populated before building a record")
         session_id = self.hassette.try_session_id()
 
         match cmd:

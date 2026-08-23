@@ -29,7 +29,7 @@ from hassette.resources.restart import CORE_PERMANENT_RESTART
 from hassette.resources.service import Service
 from hassette.schemas.live_counts import LiveCounts
 from hassette.types.enums import BackpressurePolicy, Topic
-from hassette.types.types import LOG_LEVEL_TYPE
+from hassette.types.types import LOG_LEVEL_TYPE, ExecutionStatus
 from hassette.utils.hass_utils import split_entity_id, valid_entity_id
 
 if typing.TYPE_CHECKING:
@@ -560,7 +560,7 @@ class BusService(Service):
             session_id=session_id,
             execution_start_ts=start_ts,
             duration_ms=(time.time() - start_ts) * 1000,
-            status="error",
+            status=ExecutionStatus.ERROR,
             error_type=type(exc).__name__,
             error_message=str(exc),
             error_traceback=traceback_str,

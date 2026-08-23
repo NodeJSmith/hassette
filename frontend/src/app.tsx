@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 
-import { getAllListeners } from "./api/endpoints";
+import { type AppManifest, getAllListeners } from "./api/endpoints";
 import { AlertBanner, TelemetryDegradedBanner } from "./components/layout/alert-banner";
 import { ErrorBoundary } from "./components/layout/error-boundary";
 import {
@@ -44,9 +44,10 @@ import { HandlersPage } from "./pages/handlers";
 import { LoginPage } from "./pages/login";
 import { LogsPage } from "./pages/logs";
 import { NotFoundPage } from "./pages/not-found";
-import { RELATIVE_TIME_TICK_MS, useAppStore } from "./state/store";
+import { type AppStatusEntry, RELATIVE_TIME_TICK_MS, useAppStore } from "./state/store";
+import { appLiveStatus } from "./utils/app-data";
 import { HOME_PATH, LOGIN_PATH } from "./utils/app-routes";
-import { statusToKind } from "./utils/status";
+import { isFailureStatus, statusToKind } from "./utils/status";
 
 const PALETTE_STALE_TIME_MS = 300_000;
 const SKIP_LINK_CLASS =
@@ -421,15 +422,63 @@ function CommandPalette({ open, onClose }: CommandPaletteProps) {
   );
 }
 
-/** Renders the alert banner when apps have failed. */
-function FailedAppsAlert() {
-  const { data: manifests = [] } = useManifests();
-  const failedApps = manifests
-    .filter((m) => m.status === "failed")
+interface FailedApp {
+  app_key: string;
+  error_message: string | null;
+}
+
+/** Single source of truth for "which manifests are currently failed" — shared by the zustand
+ * selector and the `useMemo` below so the two can never drift out of lockstep with each other
+ * (a field added to `FailedApp` only has to be added here, not mirrored into a second hand-joined
+ * key string). */
+function computeFailedApps(manifests: AppManifest[], appStatuses: Record<string, AppStatusEntry>): FailedApp[] {
+  return manifests
+    .filter((m) => isFailureStatus(appLiveStatus(appStatuses, m)))
     .map((m) => ({
       app_key: m.app_key,
       error_message: m.error_message ?? null,
     }));
+}
+
+/**
+ * Renders the alert banner when apps have failed.
+ *
+ * This component is mounted unconditionally above the routed `<Switch>` (see `App()`), so it's
+ * live on every page. `updateAppStatus` in `state/store.ts` spreads the ENTIRE `appStatus` record
+ * into a brand-new object on every single `app_status_changed` WS message, for any app/instance —
+ * so a naive `useAppStore((s) => s.appStatus)` selector would return a new reference (and force a
+ * re-render + full manifest re-scan) on every unrelated status write anywhere in the system.
+ *
+ * The zustand selector below returns a stable, sorted primitive string instead — the same
+ * "selector must return a primitive" invariant `app-detail.tsx`'s `liveStatus` selector relies on
+ * for referential equality to actually hold (a freshly-built object or array compares unequal on
+ * every store write no matter its contents, which is also why zustand's `useShallow` doesn't help
+ * here: its one-level shallow-equal check still sees fresh `{app_key, error_message}` objects as
+ * different on every recompute). Zustand still re-invokes the selector on every `appStatus` write
+ * — the filter+map+join is cheap — but only triggers a re-render when the resulting string
+ * differs, i.e. when the actual set of failing apps (or their messages) changes.
+ *
+ * The real `{app_key, error_message}[]` array `AlertBanner` needs is then derived via `useMemo`
+ * keyed on that string (plus `manifests`, since `error_message` and the manifest list itself can
+ * change independent of `appStatus`), reading a one-time snapshot of `appStatus` via `getState()`
+ * rather than subscribing to it a second time. Both the key and the array are built from
+ * `computeFailedApps()` so there's only one place that decides which fields identify a "failed
+ * app" — see its doc comment.
+ */
+function FailedAppsAlert() {
+  const { data: manifests = [] } = useManifests();
+
+  const failedAppsKey = useAppStore((s) =>
+    computeFailedApps(manifests, s.appStatus)
+      .map((f) => `${f.app_key}:${f.error_message ?? ""}`)
+      .join("|"),
+  );
+
+  const failedApps = useMemo(() => {
+    const appStatuses = useAppStore.getState().appStatus;
+    return computeFailedApps(manifests, appStatuses);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- appStatus is read via getState(), not subscribed; failedAppsKey drives recomputation
+  }, [failedAppsKey, manifests]);
 
   return <AlertBanner failedApps={failedApps} />;
 }

@@ -60,7 +60,7 @@ describe("useAppStore", () => {
           svc: {
             resource_name: "svc",
             role: "r",
-            status: "ok",
+            status: "running",
             previous_status: null,
             exception: null,
             retry_at: null,
@@ -87,7 +87,7 @@ describe("useAppStore", () => {
           svc: {
             resource_name: "svc",
             role: "r",
-            status: "ok",
+            status: "running",
             previous_status: null,
             exception: null,
             retry_at: null,
@@ -216,7 +216,7 @@ describe("useAppStore", () => {
       useAppStore.getState().updateServiceStatus("svc", {
         resource_name: "svc",
         role: "r",
-        status: "ok",
+        status: "running",
         previous_status: null,
         exception: null,
         retry_at: null,

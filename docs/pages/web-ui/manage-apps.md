@@ -8,14 +8,14 @@ The apps page is the landing page of the web UI. Navigating to `/` redirects to 
 
 ![Apps page table](../../_static/web_ui_apps.png)
 
-The stats strip at the top shows aggregate counts: **TOTAL**, **RUNNING**, **FAILED**, **STOPPED**, **DISABLED**, **HANDLERS**, and **RUNS/HR**. A non-zero **FAILED** count turns that cell red. Zero means all automations are alive.
+The stats strip at the top shows aggregate counts: **TOTAL**, **RUNNING**, **FAILED**, **DEGRADED**, **STOPPED**, **DISABLED**, **HANDLERS**, and **RUNS/HR**. A non-zero **FAILED** or **DEGRADED** count turns that cell red or amber. Zero in both means all automations are fully healthy.
 
 Below the strip, the app table shows one row per app with the following columns:
 
 | Column | What it shows |
 |--------|--------------|
 | **APP** | Status dot, app key, and class name. An **auto** chip appears for apps discovered by directory scan rather than an explicit `hassette.toml` entry. |
-| **STATUS** | Lifecycle state badge: `RUNNING`, `STOPPED`, `FAILED`, `DISABLED`, or `BLOCKED`. |
+| **STATUS** | Lifecycle state badge: `RUNNING`, `STOPPED`, `FAILED`, `DEGRADED`, `DISABLED`, or `BLOCKED`. |
 | **LAST ERROR** | Most recent error message, truncated. Click to expand the full message. Shows `—` when the app is healthy. |
 | **RUNS** | An activity sparkline showing invocation frequency over the selected time window, plus the total run count. |
 | **LAST FIRED** | Relative timestamp of the most recent handler or job execution, for example "3 min ago". Shows `—` if the app has never fired. |
@@ -46,8 +46,10 @@ Action buttons appear in the **ACTIONS** column and in the App Detail header. Wh
 | Button | Available when | What it does |
 |--------|---------------|-------------|
 | **Start** | `STOPPED`, `FAILED`, or `DISABLED` | Initializes the app and begins processing events. |
-| **Stop** | `RUNNING` | Shuts the app down gracefully and cancels its scheduled jobs. The app stops receiving events until started again. |
-| **Reload** | `RUNNING` | Stops then starts the app, picking up code and config changes without restarting the Hassette process. |
+| **Stop** | `RUNNING` or `DEGRADED` | Shuts the app down gracefully and cancels its scheduled jobs. The app stops receiving events until started again. |
+| **Reload** | `RUNNING` or `DEGRADED` | Stops then starts the app, picking up code and config changes without restarting the Hassette process. |
+
+**Stop** and **Reload** are both available for `DEGRADED` apps, not just `RUNNING` ones — a degraded app still has at least one instance running, so shutting it down or picking up new code is a meaningful recovery action. **Start** is not: nothing about `DEGRADED` implies a fully stopped app.
 
 **Reload** picks up changes to an app's Python file or its config in `hassette.toml`. Reloading one app does not affect other running apps. A full Hassette process restart is only needed for global settings, new integrations, or Hassette updates.
 
@@ -55,20 +57,25 @@ These actions call the REST API (`POST /apps/{key}/start`, `/stop`, `/reload`). 
 
 ## Understand App States
 
-The **STATUS** badge on each row reflects the app's current lifecycle state.
+The **STATUS** badge on each row reflects the app's current lifecycle state — one of six values.
 
 | State | Meaning |
 |-------|---------|
-| `STARTING` | The app is running its `on_initialize` hook. |
 | `RUNNING` | The app is processing events normally. |
 | `STOPPED` | The app was stopped via the UI or REST API, or it has `autostart = false` and has not been started yet. It will not process events until started. Apps with `autostart = false` show a **no autostart** chip in the APP column. |
 | `FAILED` | The app encountered an unhandled error. Check the **LAST ERROR** column or the App Detail error banner for the traceback. |
-| `CRASHED` | The app crashed and cannot recover. Check the error details and restart manually. |
+| `DEGRADED` | A multi-instance app has at least one running instance and at least one failed instance. The app is partially working — check which instance failed in the [Multi-instance apps](#multi-instance-apps) view below. |
 | `DISABLED` | The app has `enabled = false` in `hassette.toml`. **Start** enables it for this session. Setting `enabled = true` in config makes the change permanent. |
 | `BLOCKED` | Hassette is restricted to a different set of apps via [`hassette run --app <key>`](../core-concepts/apps/index.md#restricting-which-apps-run), so this app is excluded. The block lasts for the life of the process. |
+
+An individual *instance* row (inside a [multi-instance app](#multi-instance-apps)) carries its own, finer-grained status — including transitional states like `STARTING` that never appear on the parent app's badge.
 
 ![A STOPPED app row with the "no autostart" chip](../../_static/web_ui_no_autostart_chip.png)
 
 A row for an app with `autostart = false`. The app stays `STOPPED` until started on demand, and the **no autostart** chip in the APP column marks why.
+
+A `DEGRADED` app also appears in the [failed apps alert banner](index.md#layout) alongside apps that are fully `FAILED` — a partially working app still needs attention.
+
+![The failed apps alert banner listing a degraded app](../../_static/web_ui_degraded_banner.png)
 
 For the full lifecycle state machine and transition rules, see [Apps lifecycle](../core-concepts/apps/lifecycle.md).

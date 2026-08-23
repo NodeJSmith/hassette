@@ -25,6 +25,7 @@ export default tseslint.config(
     rules: {
       "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
       "@typescript-eslint/no-floating-promises": "error",
+      "@typescript-eslint/switch-exhaustiveness-check": "error",
       "eqeqeq": ["error", "always"],
       "no-console": ["warn", { allow: ["warn", "error"] }],
       "simple-import-sort/imports": "error",

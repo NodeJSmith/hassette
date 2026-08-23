@@ -13,7 +13,7 @@ from hassette.types.enums import (
     ManifestStatus,
     ResourceStatus,
 )
-from hassette.types.types import LOG_LEVEL_TYPE, CliFormat, SourceTier
+from hassette.types.types import LOG_LEVEL_TYPE, CliFormat, ExecutionStatus, SourceTier
 
 MAX_SESSION_TOKEN_LENGTH = 4096
 """Upper bound on the ``token`` field of :class:`SessionRequest`.
@@ -291,7 +291,7 @@ class ExecutionCompletedData(BaseModel):
     kind: Literal["handler", "job"]
     app_key: str
     instance_index: int
-    status: str
+    status: ExecutionStatus
     duration_ms: float
     error_type: str | None = None
     listener_id: int | None = None
