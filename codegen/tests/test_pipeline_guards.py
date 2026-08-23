@@ -210,6 +210,7 @@ class TestCheckModeReportsRejections:
     — the exit code then turns on the rejection alone, not on drift.
     """
 
+    # dup-ignore-start: each test needs its own generate-then-check lifecycle
     def test_a_clean_tree_passes(self, tmp_path: Path) -> None:
         # The control: without a rejection the same setup exits 0, so the failures below are not
         # just "check mode always fails on a freshly generated tree".
@@ -252,3 +253,5 @@ class TestCheckModeReportsRejections:
         run_pipeline(ha_source, repo_root, check_mode=False)
 
         assert run_pipeline(ha_source, repo_root, check_mode=True, domain_filter={"fan"}) == 0
+
+    # dup-ignore-end

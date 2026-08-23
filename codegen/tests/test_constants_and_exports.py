@@ -1,8 +1,6 @@
 """Unit tests for constants extraction and __init__.py generation."""
 
 import ast
-import py_compile
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -18,6 +16,7 @@ from hassette_codegen.pipeline import _check_predicate_freshness
 
 from .conftest import HA_CORE as _HA_CORE
 from .conftest import HAS_HA_CORE as _HAS_HA_CORE
+from .conftest import assert_compiles
 
 _STATES_DIR = Path(__file__).resolve().parent.parent.parent / "src" / "hassette" / "models" / "states"
 
@@ -45,11 +44,7 @@ class TestConstantsExtraction:
 
     def test_generated_constants_compile(self) -> None:
         results = extract_sensor_constants(_HA_CORE)
-        output = generate_sensor_constants(results)
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-            f.write(output)
-            f.flush()
-            py_compile.compile(f.name, doraise=True)
+        assert_compiles(generate_sensor_constants(results))
 
 
 class TestExportsGenerator:
@@ -73,11 +68,7 @@ class TestExportsGenerator:
         assert names == sorted(names)
 
     def test_output_compiles(self) -> None:
-        output = generate_init_py(_STATES_DIR)
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-            f.write(output)
-            f.flush()
-            py_compile.compile(f.name, doraise=True)
+        assert_compiles(generate_init_py(_STATES_DIR))
 
 
 class TestConstantsEscaping:

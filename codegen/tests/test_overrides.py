@@ -61,6 +61,7 @@ class TestValidateOverrides:
         validate_overrides(overrides, {"light", "fan"})
 
 
+# dup-ignore-start: parallel property-override tests each vary inputs and expected survivors
 class TestApplyPropertyOverridesRemove:
     def test_removes_matching_property(self) -> None:
         properties = [
@@ -109,3 +110,6 @@ class TestApplyPropertyOverridesRemove:
         captured = capsys.readouterr()
         assert "nonexistent_field" in captured.err
         assert "WARNING" in captured.err
+
+
+# dup-ignore-end
