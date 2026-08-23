@@ -56,7 +56,7 @@ describe("statusPriority", () => {
   it("returns 99 for an unknown status", () => {
     // Simulates a REST-sourced status value newer than this build's generated types — not
     // reachable through the compile-time union, only through an unvalidated live value.
-    const bogus = "exploding" as unknown as Parameters<typeof statusPriority>[0];
-    expect(statusPriority(bogus)).toBe(99);
+    // @ts-expect-error — validates that statusPriority still rejects arbitrary strings.
+    expect(statusPriority("exploding")).toBe(99);
   });
 });

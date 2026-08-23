@@ -38,8 +38,8 @@ describe("statusToVariant", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     // Simulates a REST-sourced status value newer than this build's generated types — not
     // reachable through the compile-time union, only through an unvalidated live value.
-    const bogus = "exploding" as unknown as Parameters<typeof statusToVariant>[0];
-    expect(statusToVariant(bogus)).toBe("neutral");
+    // @ts-expect-error — validates that statusToVariant still rejects arbitrary strings.
+    expect(statusToVariant("exploding")).toBe("neutral");
     expect(warnSpy).toHaveBeenCalledWith('Unknown status: "exploding"');
     warnSpy.mockRestore();
   });
@@ -94,8 +94,8 @@ describe("executionStatusKind", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     // Simulates a REST-sourced ExecutionRecord.status value newer than this build's generated
     // types (fetched via getListenerExecutions()/getJobExecutions(), not runtime-validated).
-    const bogus = "exploding" as unknown as Parameters<typeof executionStatusKind>[0];
-    expect(executionStatusKind(bogus)).toBe("err");
+    // @ts-expect-error — validates that executionStatusKind still rejects arbitrary strings.
+    expect(executionStatusKind("exploding")).toBe("err");
     expect(warnSpy).toHaveBeenCalledWith('Unknown execution status: "exploding"');
     warnSpy.mockRestore();
   });
@@ -115,8 +115,8 @@ describe("statusToKind", () => {
 
   it("returns mute for an unknown status", () => {
     // Simulates a REST-sourced status value newer than this build's generated types.
-    const bogus = "exploding" as unknown as Parameters<typeof statusToKind>[0];
-    expect(statusToKind(bogus)).toBe("mute");
+    // @ts-expect-error — validates that statusToKind still rejects arbitrary strings.
+    expect(statusToKind("exploding")).toBe("mute");
   });
 });
 
