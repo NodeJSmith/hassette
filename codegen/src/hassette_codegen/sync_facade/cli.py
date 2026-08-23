@@ -8,6 +8,7 @@ from hassette_codegen.output import atomic_write, format_via_ruff
 from hassette_codegen.sync_facade.generic import (
     generate_sync,
     generate_sync_bus,
+    generate_sync_bus_events,
     generate_sync_helpers,
     generate_sync_scheduler,
 )
@@ -16,10 +17,23 @@ from hassette_codegen.sync_facade.recording import generate_sync_recording
 _REPO_ROOT = Path(__file__).resolve().parents[4]
 
 
+MAX_GENERATED_LINES = 800
+"""Line count above which a generated facade gets a nudge to split, mirroring HSL102.
+
+Kept in step with ``[tool.house-lint.rules.HSL102] max_lines`` in pyproject.toml by hand — see
+``codegen/tests/test_sync_facade_cli.py::test_max_generated_lines_matches_hsl102_config``, which
+fails loudly if the two values ever drift apart. The warning is advisory — matching the repo's
+non-blocking ``file-sizes`` CI job — but it fires at generation time, where the person who just
+grew the source class can act on it. ``BusSyncFacade`` crossed this line before it was split
+across ``bus/sync.py`` and ``bus/sync_events.py``.
+"""
+
+
 _LABEL_TO_TARGET = {
     "ApiSyncFacade": "api",
     "RecordingSyncFacade": "recording",
     "BusSyncFacade": "bus",
+    "BusSyncEventShortcuts": "bus",
     "SchedulerSyncFacade": "scheduler",
     "HelperClientSyncFacade": "helpers",
 }
@@ -33,6 +47,14 @@ def _atomic_write_generated(out_path: Path, content: str) -> None:
     """
     if not atomic_write(out_path, content):
         raise SystemExit(f"Generated file failed validation (target: {out_path})")
+
+    written_lines = len(out_path.read_text(encoding="utf-8").splitlines())
+    if written_lines > MAX_GENERATED_LINES:
+        print(
+            f"WARNING: {out_path} is {written_lines} lines (over {MAX_GENERATED_LINES}) — "
+            "split the facade across another generated module, as BUS_EVENT_SHORTCUTS does for the bus.",
+            file=sys.stderr,
+        )
 
 
 def _check_drift(target_path: Path, generated_content: str, label: str) -> bool:
@@ -181,12 +203,20 @@ def main(argv: list[str] | None = None) -> None:
     if run_bus:
         if not bus_path.exists():
             raise SystemExit(f"bus.py not found at {bus_path}")
+        # The Bus facade is emitted as two modules — sync_events.py holds the named-event
+        # shortcuts so sync.py stays under the file-size threshold. sync.py imports it.
+        bus_events_out = bus_path.with_name("sync_events.py")
+        bus_events_code = generate_sync_bus_events(bus_path)
         bus_out = bus_path.with_name("sync.py")
         bus_code = generate_sync_bus(bus_path)
         if args.check:
+            if not _check_drift(bus_events_out, bus_events_code, "BusSyncEventShortcuts"):
+                any_drift = True
             if not _check_drift(bus_out, bus_code, "BusSyncFacade"):
                 any_drift = True
         else:
+            _atomic_write_generated(bus_events_out, bus_events_code)
+            print(f"Wrote {bus_events_out}")
             _atomic_write_generated(bus_out, bus_code)
             print(f"Wrote {bus_out}")
 

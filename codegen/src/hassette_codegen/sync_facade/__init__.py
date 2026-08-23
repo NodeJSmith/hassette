@@ -19,6 +19,9 @@ from hassette_codegen.sync_facade.ast_utils import (
 from hassette_codegen.sync_facade.cli import main
 from hassette_codegen.sync_facade.generic import (
     BUS_CLASS_HEADER,
+    BUS_EVENT_SHORTCUTS,
+    BUS_EVENT_SHORTCUTS_CLASS_HEADER,
+    BUS_EVENT_SHORTCUTS_HEADER,
     BUS_HEADER,
     CLASS_HEADER,
     HEADER,
@@ -28,6 +31,7 @@ from hassette_codegen.sync_facade.generic import (
     gen_wrapper,
     generate_sync,
     generate_sync_bus,
+    generate_sync_bus_events,
     generate_sync_scheduler,
 )
 from hassette_codegen.sync_facade.recording import generate_sync_recording
@@ -40,6 +44,9 @@ from hassette_codegen.sync_facade.recording_transform import (
 __all__ = [
     "BUILTIN_NAMES",
     "BUS_CLASS_HEADER",
+    "BUS_EVENT_SHORTCUTS",
+    "BUS_EVENT_SHORTCUTS_CLASS_HEADER",
+    "BUS_EVENT_SHORTCUTS_HEADER",
     "BUS_HEADER",
     "CLASS_HEADER",
     "HEADER",
@@ -59,6 +66,7 @@ __all__ = [
     "gen_wrapper",
     "generate_sync",
     "generate_sync_bus",
+    "generate_sync_bus_events",
     "generate_sync_recording",
     "generate_sync_scheduler",
     "is_not_implemented_only",

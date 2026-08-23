@@ -9,10 +9,12 @@ from .listeners import (
     Subscription,
 )
 from .sync import BusSyncFacade
+from .sync_events import BusSyncEventShortcuts
 
 __all__ = [
     "Bus",
     "BusErrorContext",
+    "BusSyncEventShortcuts",
     "BusSyncFacade",
     "DurationConfig",
     "HandlerInvoker",
