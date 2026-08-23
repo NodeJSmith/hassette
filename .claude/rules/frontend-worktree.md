@@ -16,7 +16,7 @@ After modifying backend response models (`web/models.py`, `src/hassette/schemas/
    ```bash
    uv run python scripts/export_schemas.py --types
    ```
-   This regenerates `openapi.json`, `ws-schema.json`, `generated-types.ts`, and `ws-types.ts`.
+   This regenerates `openapi.json`, `ws-schema.json`, `generated-types.ts`, `ws-types.ts`, and `ws-validator.generated.ts`.
 
 2. Rebuild the frontend to verify:
    ```bash
@@ -26,7 +26,8 @@ After modifying backend response models (`web/models.py`, `src/hassette/schemas/
 Individual type generation can also be run standalone:
 - REST API types: `cd frontend && npm run types`
 - WebSocket types: `cd frontend && npm run ws-types`
+- WS validators: `cd frontend && npm run validators`
 
-`ws-types.ts` is generated from `ws-schema.json` via `scripts/generate-ws-types.cjs` — do not edit it by hand.
+`ws-types.ts` is generated from `ws-schema.json` via `scripts/generate-ws-types.cjs` — do not edit it by hand. `ws-validator.generated.ts` is generated from `ws-schema.json` via `scripts/compile-validators.cjs` — do not edit it by hand.
 
-The pre-push hook (`tools/check_schemas_fresh.py`) checks `ws-schema.json` and `openapi.json` freshness locally. CI additionally checks `ws-types.ts` and `generated-types.ts` via git-diff in `.github/workflows/tests.yml`.
+The pre-push hook (`tools/check_schemas_fresh.py`) checks `ws-schema.json` and `openapi.json` freshness locally. CI additionally checks `ws-types.ts`, `generated-types.ts`, and `ws-validator.generated.ts` via git-diff in `.github/workflows/tests.yml`.

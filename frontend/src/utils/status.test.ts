@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
   executionStatusKind,
@@ -34,14 +34,9 @@ describe("statusToVariant", () => {
     expect(statusToVariant("exhausted_cooling")).toBe("warning");
   });
 
-  it("returns neutral and warns for unknown status", () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    // Simulates a REST-sourced status value newer than this build's generated types — not
-    // reachable through the compile-time union, only through an unvalidated live value.
+  it("returns neutral for unknown status", () => {
     // @ts-expect-error — validates that statusToVariant still rejects arbitrary strings.
     expect(statusToVariant("exploding")).toBe("neutral");
-    expect(warnSpy).toHaveBeenCalledWith('Unknown status: "exploding"');
-    warnSpy.mockRestore();
   });
 });
 
@@ -60,6 +55,7 @@ describe("isFailureStatus", () => {
   });
 
   it("returns false for an unrecognized status", () => {
+    // @ts-expect-error — validates that isFailureStatus still rejects arbitrary strings.
     expect(isFailureStatus("exploding")).toBe(false);
   });
 });
@@ -90,14 +86,9 @@ describe("executionStatusKind", () => {
     expect(executionStatusKind("cancelled")).not.toBe("err");
   });
 
-  it("returns err and warns for an unknown execution status", () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    // Simulates a REST-sourced ExecutionRecord.status value newer than this build's generated
-    // types (fetched via getListenerExecutions()/getJobExecutions(), not runtime-validated).
+  it("returns err for an unknown execution status", () => {
     // @ts-expect-error — validates that executionStatusKind still rejects arbitrary strings.
     expect(executionStatusKind("exploding")).toBe("err");
-    expect(warnSpy).toHaveBeenCalledWith('Unknown execution status: "exploding"');
-    warnSpy.mockRestore();
   });
 });
 
@@ -114,7 +105,6 @@ describe("statusToKind", () => {
   });
 
   it("returns mute for an unknown status", () => {
-    // Simulates a REST-sourced status value newer than this build's generated types.
     // @ts-expect-error — validates that statusToKind still rejects arbitrary strings.
     expect(statusToKind("exploding")).toBe("mute");
   });

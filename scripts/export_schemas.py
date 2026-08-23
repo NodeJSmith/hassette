@@ -9,7 +9,7 @@ Schema.  Also exports the HassetteConfig JSON Schema for IDE autocompletion
 Outputs:
 
 - ``frontend/openapi.json``  — for ``openapi-typescript``
-- ``frontend/ws-schema.json`` — for ``generate-ws-types.cjs``
+- ``frontend/ws-schema.json`` — for ``generate-ws-types.cjs`` and ``compile-validators.cjs``
 - ``hassette.schema.json``   — for IDE/SchemaStore TOML validation
 
 Usage::
@@ -91,6 +91,21 @@ def main() -> None:
         except subprocess.CalledProcessError as exc:
             raise SystemExit(
                 f"generate-ws-types.cjs failed (exit {exc.returncode})"
+                " — run `npm ci` in the frontend directory if dependencies are missing"
+            ) from exc
+
+        print("Running compile-validators...")
+        try:
+            subprocess.run(
+                ["node", str(scripts_dir / "compile-validators.cjs")],
+                cwd=frontend_dir,
+                check=True,
+            )
+        except FileNotFoundError as exc:
+            raise SystemExit("node not found — Node.js is required for validator compilation") from exc
+        except subprocess.CalledProcessError as exc:
+            raise SystemExit(
+                f"compile-validators.cjs failed (exit {exc.returncode})"
                 " — run `npm ci` in the frontend directory if dependencies are missing"
             ) from exc
 
