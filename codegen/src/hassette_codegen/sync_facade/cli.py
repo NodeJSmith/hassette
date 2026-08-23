@@ -20,10 +20,12 @@ _REPO_ROOT = Path(__file__).resolve().parents[4]
 MAX_GENERATED_LINES = 800
 """Line count above which a generated facade gets a nudge to split, mirroring HSL102.
 
-Kept in step with ``[tool.house-lint.rules.HSL102] max_lines`` in pyproject.toml by hand. The
-warning is advisory — matching the repo's non-blocking ``file-sizes`` CI job — but it fires at
-generation time, where the person who just grew the source class can act on it. ``BusSyncFacade``
-crossed this line before it was split across ``bus/sync.py`` and ``bus/sync_events.py``.
+Kept in step with ``[tool.house-lint.rules.HSL102] max_lines`` in pyproject.toml by hand — see
+``codegen/tests/test_sync_facade_cli.py::test_max_generated_lines_matches_hsl102_config``, which
+fails loudly if the two values ever drift apart. The warning is advisory — matching the repo's
+non-blocking ``file-sizes`` CI job — but it fires at generation time, where the person who just
+grew the source class can act on it. ``BusSyncFacade`` crossed this line before it was split
+across ``bus/sync.py`` and ``bus/sync_events.py``.
 """
 
 

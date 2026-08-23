@@ -44,9 +44,9 @@ from hassette_codegen.sync_facade.recording_transform import (
 __all__ = [
     "BUILTIN_NAMES",
     "BUS_CLASS_HEADER",
+    "BUS_EVENT_SHORTCUTS",
     "BUS_EVENT_SHORTCUTS_CLASS_HEADER",
     "BUS_EVENT_SHORTCUTS_HEADER",
-    "BUS_EVENT_SHORTCUTS",
     "BUS_HEADER",
     "CLASS_HEADER",
     "HEADER",

@@ -406,6 +406,14 @@ def _keep_all(name: str) -> bool:
     return True
 
 
+def _find_class(module: ast.Module, class_name: str) -> ast.ClassDef | None:
+    """Return the top-level class named ``class_name`` in ``module``, or ``None``."""
+    for node in module.body:
+        if isinstance(node, ast.ClassDef) and node.name == class_name:
+            return node
+    return None
+
+
 def _generate_facade(
     source_path: Path,
     class_name: str,
@@ -430,12 +438,7 @@ def _generate_facade(
     source = source_path.read_text(encoding="utf8")
     module = safe_parse(source, str(source_path))
 
-    target_class: ast.ClassDef | None = None
-    for node in module.body:
-        if isinstance(node, ast.ClassDef) and node.name == class_name:
-            target_class = node
-            break
-
+    target_class = _find_class(module, class_name)
     if target_class is None:
         raise SystemExit(f"Could not find class `{class_name}` in {source_path}")
 
@@ -495,13 +498,12 @@ def generate_sync_bus_events(bus_path: Path) -> str:
     renamed shortcut would otherwise drift back into ``sync.py`` with nothing to say so.
     """
     module = safe_parse(bus_path.read_text(encoding="utf8"), str(bus_path))
-    defined = {
-        node.name
-        for cls in module.body
-        if isinstance(cls, ast.ClassDef) and cls.name == "Bus"
-        for node in cls.body
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-    }
+    bus_class = _find_class(module, "Bus")
+    defined = (
+        {node.name for node in bus_class.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))}
+        if bus_class is not None
+        else set()
+    )
     missing = sorted(BUS_EVENT_SHORTCUTS - defined)
     if missing:
         raise SystemExit(f"BUS_EVENT_SHORTCUTS lists methods that `Bus` does not define: {missing}")
