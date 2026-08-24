@@ -12,6 +12,7 @@ Fix the `include_paths` bug in `AppChangeDetector.detect_changes()`. The current
 ## Target Files
 - modify: `src/hassette/core/app_change_detector.py`
 - modify: `tests/unit/core/test_app_change_detector.py`
+- read: `design/specs/104-per-instance-restart/design.md`
 
 ## Prompt
 Fix the `include_paths` bug in `src/hassette/core/app_change_detector.py`. The constants `ROOT_PATH = "root"` and `USER_CONFIG_PATH = "user_config"` (lines 13-14) are passed to `DeepDiff(..., include_paths=[ROOT_PATH, USER_CONFIG_PATH])` (line 72), but DeepDiff's `_skip_this` uses substring matching — `"root"` matches every path since all paths start with `"root"`.

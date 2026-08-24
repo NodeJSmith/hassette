@@ -17,7 +17,8 @@ Add per-instance HTTP endpoints (`POST /apps/{app_key}/instances/{index}/start|s
 - modify: `frontend/src/api/generated-types.ts` (regenerated)
 - read: `src/hassette/core/app_handler.py` (facade delegates from T04)
 - read: `src/hassette/web/models.py` (ActionResponse model)
-- read: `design/specs/104-per-instance-restart/design.md` (Edge Cases, Smoke Test)
+- modify: `docs/pages/` (update relevant multi-instance app documentation pages to mention per-instance restart behavior)
+- read: `design/specs/104-per-instance-restart/design.md` (Edge Cases, Smoke Test, Documentation Updates)
 
 ## Prompt
 ### HTTP Routes (`src/hassette/web/routes/apps.py`)
@@ -56,6 +57,15 @@ The `reload` endpoint hardcodes `force_reload=True`, matching the existing full 
 **Selective restart integration test** (`tests/integration/test_apps.py`):
 - AC#7: Set up a 2-instance app via `HassetteHarness`, change one instance's config, call `apply_changes()`, verify only that instance reloaded while the other remained running
 - AC#10: Same setup — before the reload, record the sibling instance's live listener/job row IDs from the DB. After `reload_instance()`, query the DB and assert the sibling's rows are unaffected (`retired_at IS NULL`, same `id`, no row-count change for that `instance_index`)
+
+### Documentation Updates
+
+Update docs-site pages covering app configuration and multi-instance apps to mention per-instance restart behavior. This includes:
+- The new automatic selective restart (only changed instances restart on config change)
+- The fallback to full restart when instance count changes
+- The new per-instance HTTP endpoints
+
+Check which pages under `docs/pages/` cover multi-instance app configuration and update them. The design doc's `## Documentation Updates` section specifies this ships in the same PR per `.claude/rules/design-completeness.md`.
 
 ### Schema Regeneration
 

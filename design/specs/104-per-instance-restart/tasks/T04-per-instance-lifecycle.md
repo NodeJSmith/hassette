@@ -18,6 +18,7 @@ The core feature task. Add `reload_instance()`, `_reload_instance_unlocked()`, `
 - read: `src/hassette/core/app_factory.py` (create_single_instance from T02)
 - read: `src/hassette/core/app_registry.py` (unregister_app with index, get_instances)
 - read: `src/hassette/core/app_change_detector.py` (ChangeSet structure)
+- read: `tests/unit/core/conftest.py` (lifecycle fixtures, set_registry_apps helper)
 - read: `design/specs/104-per-instance-restart/design.md` (Architecture section)
 
 ## Prompt

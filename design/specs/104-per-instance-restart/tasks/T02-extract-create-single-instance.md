@@ -13,6 +13,7 @@ Extract the inner loop body of `AppFactory.create_instances()` into a `create_si
 - modify: `src/hassette/core/app_factory.py`
 - modify: `tests/unit/test_app_factory.py`
 - read: `src/hassette/core/app_registry.py` (record_failure behavior)
+- read: `design/specs/104-per-instance-restart/design.md`
 
 ## Prompt
 Refactor `src/hassette/core/app_factory.py`:

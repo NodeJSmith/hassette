@@ -15,6 +15,7 @@ Extend the telemetry reconciliation queries to support optional `instance_index`
 - modify: `src/hassette/core/app_lifecycle_service.py` (initialize_instances, reconcile_app_registrations signatures)
 - modify: `tests/unit/core/test_telemetry_repository.py`
 - modify: `tests/unit/core/conftest.py` (if fixtures need updating)
+- read: `design/specs/104-per-instance-restart/design.md`
 
 ## Prompt
 Extend instance-scoped reconciliation across three layers:
