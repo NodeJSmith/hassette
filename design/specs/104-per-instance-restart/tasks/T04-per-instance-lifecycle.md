@@ -47,8 +47,8 @@ The public method calls `_admit_start()` (producing 409 pre-bootstrap), then acq
 - Unregister the instance at that index via `self.registry.unregister_app(app_key, index)`.
 - If the entry had a running App, shut it down via `shutdown_instance()`.
 - Emit STOPPED events for the removed entry if it was a failed entry.
-- Call `factory.load_class()` — on failure, `record_failure(app_key, index, error)` with the real index.
-- Call `factory.create_single_instance()` to create a replacement.
+- Call `factory.load_class()` — on failure, `record_failure(app_key, index, error)` with the real index, then emit `HassetteAppStateEvent` for the failure (mirroring `_start_app_unlocked()`'s post-create failure event emission at lines 526-543 — failures that never produce an `App` object need explicit event emission or the dashboard/WS status cache never learns about them).
+- Call `factory.create_single_instance()` to create a replacement. On validation/init failure (recorded by `create_single_instance` via `record_failure`), emit `HassetteAppStateEvent` for the failed index (same pattern as above).
 - Call `initialize_instances()` with `instance_index=index` so reconciliation is scoped.
 
 **2. Add `stop_instance()` and `start_instance()`:**

@@ -30,7 +30,7 @@ Add three per-instance endpoints following the existing `_run_app_action` patter
     "/apps/{app_key}/instances/{index}/reload",
     status_code=202,
     response_model=ActionResponse,
-    responses={409: {"description": "App bootstrap not yet released"}},
+    responses={409: {"description": "App bootstrap prerequisites are not ready yet; retry later"}},
 )
 async def reload_instance(app_key: str, index: int, hassette: HassetteDep, request: Request) -> ActionResponse:
     return await _run_app_action(
@@ -75,6 +75,10 @@ uv run python scripts/export_schemas.py --types
 ```
 
 This regenerates `openapi.json`, `generated-types.ts`, and related files. See `.claude/rules/frontend-worktree.md` for the full regeneration workflow.
+
+### Follow-up Issue
+
+File a GitHub issue for CLI per-instance lifecycle commands as committed in the design doc's Dependencies and Assumptions section: `hassette app reload <key> --instance <index>`, `hassette app stop <key> --instance <index>`, `hassette app start <key> --instance <index>`. Use the project's issue conventions (type:enhancement, area:cli, size:medium).
 
 ## Focus
 - The `_run_app_action` helper handles error translation, logging, and response construction — reuse it exactly.
