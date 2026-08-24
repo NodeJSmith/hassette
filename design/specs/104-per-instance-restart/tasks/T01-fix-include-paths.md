@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Fix broken include_paths filter in AppChangeDetector"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#5", "AC#5"]
 ---

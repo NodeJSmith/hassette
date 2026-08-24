@@ -2,10 +2,10 @@
 
 from collections.abc import Callable
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 
+from hassette.config.classes import AppManifest
 from hassette.core.app_change_detector import AppChangeDetector, ChangeSet
 
 
@@ -99,15 +99,31 @@ class TestAppChangeDetector:
         return AppChangeDetector()
 
     @pytest.fixture
-    def make_manifest(self) -> Callable:  # factory-local: fixture factory returning Callable
-        """Factory for creating mock manifests."""
+    def make_manifest(self) -> Callable:  # factory-local: needs display_name/autostart overrides not in
+        # test_utils.helpers.create_app_manifest, and real (non-Mock) instances are required here --
+        # DeepDiff cannot do attribute-level diffing on MagicMock objects (MagicMock auto-configures magic
+        # methods like __iter__, which makes DeepDiff treat two mock instances as opaque and report a
+        # whole-object type_changes entry instead of diffing individual attributes), so field-level
+        # detection (display_name vs. app_config) can't be exercised with mocks.
+        """Factory for creating real AppManifest instances."""
 
-        def _make(app_key: str, full_path: Path | None = None, app_config: dict | None = None) -> MagicMock:
-            manifest = MagicMock()
-            manifest.app_key = app_key
-            manifest.full_path = full_path or Path(f"/apps/{app_key}.py")
-            manifest.app_config = app_config or {"instance_name": f"{app_key}.0"}
-            return manifest
+        def _make(
+            app_key: str,
+            full_path: Path | None = None,
+            app_config: dict | None = None,
+            display_name: str | None = None,
+            autostart: bool = True,
+        ) -> AppManifest:
+            return AppManifest(
+                app_key=app_key,
+                filename=f"{app_key}.py",
+                class_name=app_key.capitalize(),
+                display_name=display_name or app_key,
+                app_dir=Path("/apps"),
+                app_config=app_config or {"instance_name": f"{app_key}.0"},
+                full_path=full_path or Path(f"/apps/{app_key}.py"),
+                autostart=autostart,
+            )
 
         return _make
 
@@ -173,6 +189,43 @@ class TestAppChangeDetector:
         assert not changes.orphans
         assert not changes.new_apps
         assert not changes.reimport_apps
+
+    def test_display_name_change_does_not_trigger_reload(
+        self, detector: AppChangeDetector, make_manifest: Callable
+    ) -> None:
+        """A display_name-only change is not an app_config change and must not trigger a reload."""
+        original = {"app1": make_manifest("app1", display_name="Old Name")}
+        current = {"app1": make_manifest("app1", display_name="New Name")}
+
+        changes = detector.detect_changes(original, current)
+
+        assert "app1" not in changes.reload_apps
+        assert not changes.has_changes
+
+    def test_autostart_change_does_not_trigger_reload(
+        self, detector: AppChangeDetector, make_manifest: Callable
+    ) -> None:
+        """An autostart-only change is not an app_config change and must not trigger a reload."""
+        original = {"app1": make_manifest("app1", autostart=True)}
+        current = {"app1": make_manifest("app1", autostart=False)}
+
+        changes = detector.detect_changes(original, current)
+
+        assert "app1" not in changes.reload_apps
+        assert not changes.has_changes
+
+    def test_app_config_change_triggers_reload(self, detector: AppChangeDetector, make_manifest: Callable) -> None:
+        """An app_config change must still trigger a reload, even alongside a non-config change."""
+        original = {
+            "app1": make_manifest("app1", app_config={"setting": "old"}, display_name="Same Name"),
+        }
+        current = {
+            "app1": make_manifest("app1", app_config={"setting": "new"}, display_name="Same Name"),
+        }
+
+        changes = detector.detect_changes(original, current)
+
+        assert changes.reload_apps == frozenset({"app1"})
 
     def test_new_app_not_in_reload(self, detector: AppChangeDetector, make_manifest: Callable) -> None:
         """Test that new apps are not also in reload_apps."""

@@ -10,8 +10,8 @@ from deepdiff import DeepDiff
 if TYPE_CHECKING:
     from hassette.config.classes import AppManifest
 
-ROOT_PATH = "root"
-USER_CONFIG_PATH = "user_config"
+APP_CONFIG_FIELD = "app_config"
+"""The `AppManifest` attribute whose changes should trigger a config reload."""
 
 
 @dataclass(frozen=True)
@@ -65,12 +65,27 @@ class AppChangeDetector:
         Returns:
             ChangeSet with categorized changes
         """
+        # DeepDiff.include_paths does substring matching against every level visited during
+        # traversal (see DeepDiff._skip_this): a level is skipped unless one of the include_paths
+        # is a substring of the level's path, or vice versa. "root['app1']" (the level DeepDiff
+        # visits on its way down to "root['app1'].app_config") does not contain "app_config" as a
+        # substring, so that level is pruned and the traversal never reaches the nested attribute
+        # at all -- include_paths can't express "only descend into this specific nested field."
+        # Instead, run the diff unrestricted and filter the resulting change tree ourselves,
+        # keeping only entries whose path touches the app_config attribute.
         config_diff = DeepDiff(
             original_config,
             current_config,
             ignore_order=True,
-            include_paths=[ROOT_PATH, USER_CONFIG_PATH],
         )
+
+        app_config_marker = f".{APP_CONFIG_FIELD}"
+        config_changed_keys = {
+            item.get_root_key()
+            for entries in config_diff.tree.values()
+            for item in entries
+            if app_config_marker in item.path()
+        }
 
         original_keys = set(original_config.keys())
         current_keys = set(current_config.keys())
@@ -93,7 +108,7 @@ class AppChangeDetector:
         # Apps with config changes (excluding those in other categories)
         reload_apps = {
             app_key
-            for app_key in config_diff.affected_root_keys
+            for app_key in config_changed_keys
             if app_key in current_keys
             and app_key not in new_apps
             and app_key not in orphans
