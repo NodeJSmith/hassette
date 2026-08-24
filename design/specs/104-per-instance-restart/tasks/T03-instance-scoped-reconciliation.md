@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Add instance-scoped DB reconciliation"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#4", "AC#4"]
 ---

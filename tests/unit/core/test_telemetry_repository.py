@@ -7,7 +7,11 @@ import aiosqlite
 import pytest
 
 from hassette.core.execution_record import ExecutionRecord
-from hassette.core.telemetry.repository import TelemetryRepository
+from hassette.core.telemetry.repository import (
+    TelemetryRepository,
+    _build_delete_query,
+    _build_retire_query,
+)
 from hassette.test_utils.config import DEFAULT_TEST_APP_KEY
 from hassette.test_utils.factories import (
     make_execution_record,
@@ -38,6 +42,24 @@ async def insert_committed_execution(db: aiosqlite.Connection, session_id: int, 
     """Insert an execution row (1ms duration, current timestamp) and commit it."""
     await insert_execution_row(db, session_id=session_id, execution_start_ts=time.time(), duration_ms=1.0, **kwargs)
     await db.commit()
+
+
+async def insert_new_session(db: aiosqlite.Connection) -> int:
+    """Insert a second 'running' session row and return its id.
+
+    Simulates reconciliation running against a session distinct from the fixture-provided
+    ``telemetry_session_id`` — used by tests that verify once=True cleanup against a newer
+    session.
+    """
+    now = time.time()
+    cursor = await db.execute(
+        "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'running')",
+        (now, now),
+    )
+    await db.commit()
+    new_session_id = cursor.lastrowid
+    assert new_session_id is not None
+    return new_session_id
 
 
 async def test_register_listener_inserts_and_returns_id(
@@ -238,20 +260,7 @@ async def test_reconcile_deletes_once_true_previous_session(
     once_reg = make_listener_registration(once=True, name=ONCE_LISTENER_NAME)
     once_id = await telemetry_repo.register_listener(once_reg)
 
-    # dup-ignore-start: mirrors the telemetry_session_id fixture's session-insert SQL — this test
-    # deliberately creates a SECOND session (distinct from the fixture-provided one) to simulate
-    # reconciliation running against a newer session; promoting a shared helper into
-    # tests/unit/core/conftest.py for this one cross-file cluster is out of scope (see
-    # design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
-    now = time.time()
-    cursor = await telemetry_db.execute(
-        "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'running')",
-        (now, now),
-    )
-    await telemetry_db.commit()
-    new_session_id = cursor.lastrowid
-    assert new_session_id is not None
-    # dup-ignore-end
+    new_session_id = await insert_new_session(telemetry_db)
 
     await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [], session_id=new_session_id)
 
@@ -661,20 +670,7 @@ async def test_reconcile_once_true_delete_non_empty_live_listener_ids(
     once_reg = make_listener_registration(once=True, name=ONCE_LISTENER_NAME)
     once_id = await telemetry_repo.register_listener(once_reg)
 
-    # dup-ignore-start: mirrors the telemetry_session_id fixture's session-insert SQL — this test
-    # deliberately creates a SECOND session (distinct from the fixture-provided one) to simulate
-    # reconciliation running against a newer session; promoting a shared helper into
-    # tests/unit/core/conftest.py for this one cross-file cluster is out of scope (see
-    # design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
-    now = time.time()
-    cursor = await telemetry_db.execute(
-        "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'running')",
-        (now, now),
-    )
-    await telemetry_db.commit()
-    new_session_id = cursor.lastrowid
-    assert new_session_id is not None
-    # dup-ignore-end
+    new_session_id = await insert_new_session(telemetry_db)
 
     await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [live_id], [], session_id=new_session_id)
 
@@ -728,3 +724,149 @@ async def test_register_listener_clears_removed_at_on_reregistration(
     row = await cursor.fetchone()
     assert row is not None
     assert row["removed_at"] is None, "removed_at should be cleared to NULL after re-registration"
+
+
+@pytest.mark.parametrize(("table", "history_fk"), [("listeners", "listener_id"), ("scheduled_jobs", "job_id")])
+def test_build_delete_query_includes_instance_index_clause(table: str, history_fk: str) -> None:
+    """_build_delete_query() with instance_index adds the AND instance_index clause and bind param."""
+    sql, params = _build_delete_query(table, DEFAULT_TEST_APP_KEY, [], history_fk, instance_index=2)
+
+    assert "AND instance_index = :instance_index" in sql
+    assert params["instance_index"] == 2
+
+
+@pytest.mark.parametrize(("table", "history_fk"), [("listeners", "listener_id"), ("scheduled_jobs", "job_id")])
+def test_build_delete_query_omits_instance_index_clause_when_none(table: str, history_fk: str) -> None:
+    """_build_delete_query() with instance_index=None (default) adds no clause — backward compatible."""
+    sql, params = _build_delete_query(table, DEFAULT_TEST_APP_KEY, [], history_fk)
+
+    assert "instance_index" not in sql
+    assert "instance_index" not in params
+
+
+@pytest.mark.parametrize(("table", "history_fk"), [("listeners", "listener_id"), ("scheduled_jobs", "job_id")])
+def test_build_retire_query_includes_instance_index_clause(table: str, history_fk: str) -> None:
+    """_build_retire_query() with instance_index adds the AND instance_index clause and bind param."""
+    sql, params = _build_retire_query(table, DEFAULT_TEST_APP_KEY, [], history_fk, time.time(), instance_index=3)
+
+    assert "AND instance_index = :instance_index" in sql
+    assert params["instance_index"] == 3
+
+
+@pytest.mark.parametrize(("table", "history_fk"), [("listeners", "listener_id"), ("scheduled_jobs", "job_id")])
+def test_build_retire_query_omits_instance_index_clause_when_none(table: str, history_fk: str) -> None:
+    """_build_retire_query() with instance_index=None (default) adds no clause — backward compatible."""
+    sql, params = _build_retire_query(table, DEFAULT_TEST_APP_KEY, [], history_fk, time.time())
+
+    assert "instance_index" not in sql
+    assert "instance_index" not in params
+
+
+async def test_reconcile_once_true_cleanup_respects_instance_index(
+    telemetry_repo: TelemetryRepository,
+    telemetry_db: aiosqlite.Connection,
+) -> None:
+    """reconcile_registrations(instance_index=...) scopes the once=True cleanup block.
+
+    Leaves a sibling instance's once=True row untouched. This is the exact regression the
+    instance-scoped reconciliation feature exists to prevent — the once=True block bypasses
+    the builder functions and must be scoped independently.
+    """
+    once_reg_0 = make_listener_registration(once=True, name=ONCE_LISTENER_NAME, instance_index=0)
+    once_id_0 = await telemetry_repo.register_listener(once_reg_0)
+
+    once_reg_1 = make_listener_registration(once=True, name=ONCE_LISTENER_NAME, instance_index=1)
+    once_id_1 = await telemetry_repo.register_listener(once_reg_1)
+
+    new_session_id = await insert_new_session(telemetry_db)
+
+    await telemetry_repo.reconcile_registrations(
+        DEFAULT_TEST_APP_KEY, [], [], session_id=new_session_id, instance_index=0
+    )
+
+    await assert_listener_count(
+        telemetry_db, once_id_0, 0, "once=True listener for the target instance_index should be deleted"
+    )
+    await assert_listener_count(
+        telemetry_db, once_id_1, 1, "once=True listener for the sibling instance_index should be preserved"
+    )
+
+
+async def test_reconcile_scopes_listener_deletion_by_instance_index(
+    telemetry_repo: TelemetryRepository,
+    telemetry_db: aiosqlite.Connection,
+) -> None:
+    """reconcile_registrations(instance_index=...) scopes non-once listener deletion.
+
+    A stale sibling-instance row (without execution history) is not deleted alongside the
+    target instance.
+    """
+    stale_instance_0 = await telemetry_repo.register_listener(
+        make_listener_registration(name="test_app.on_a", instance_index=0)
+    )
+    stale_instance_1 = await telemetry_repo.register_listener(
+        make_listener_registration(name="test_app.on_a", instance_index=1)
+    )
+
+    await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [], instance_index=0)
+
+    await assert_listener_count(
+        telemetry_db, stale_instance_0, 0, "Stale listener for the target instance_index should be deleted"
+    )
+    await assert_listener_count(
+        telemetry_db, stale_instance_1, 1, "Sibling instance's listener should be unaffected by scoped reconciliation"
+    )
+
+
+async def test_reconcile_without_instance_index_affects_all_instances(
+    telemetry_repo: TelemetryRepository,
+    telemetry_db: aiosqlite.Connection,
+) -> None:
+    """reconcile_registrations() without instance_index is unaffected by instance boundaries.
+
+    Matches pre-existing app_key-only-scoped behavior — every instance's stale rows are
+    reconciled together.
+    """
+    listener_instance_0 = await telemetry_repo.register_listener(
+        make_listener_registration(name="test_app.on_a", instance_index=0)
+    )
+    listener_instance_1 = await telemetry_repo.register_listener(
+        make_listener_registration(name="test_app.on_a", instance_index=1)
+    )
+
+    await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [])
+
+    await assert_listener_count(
+        telemetry_db, listener_instance_0, 0, "Stale listener for instance_index=0 should be deleted"
+    )
+    await assert_listener_count(
+        telemetry_db, listener_instance_1, 0, "Stale listener for instance_index=1 should also be deleted"
+    )
+
+
+async def test_reconcile_scopes_job_deletion_by_instance_index(
+    telemetry_repo: TelemetryRepository,
+    telemetry_db: aiosqlite.Connection,
+) -> None:
+    """reconcile_registrations(instance_index=...) scopes scheduled_jobs deletion.
+
+    A stale sibling-instance job (without execution history) is not deleted alongside the
+    target instance — the scheduled_jobs analogue of
+    test_reconcile_scopes_listener_deletion_by_instance_index.
+    """
+    stale_job_instance_0 = await telemetry_repo.register_job(make_job_registration(job_name="job_a", instance_index=0))
+    stale_job_instance_1 = await telemetry_repo.register_job(make_job_registration(job_name="job_a", instance_index=1))
+
+    await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [], instance_index=0)
+
+    cursor = await telemetry_db.execute(
+        "SELECT COUNT(*) AS count FROM scheduled_jobs WHERE id = ?", (stale_job_instance_0,)
+    )
+    row = await cursor.fetchone()
+    assert row["count"] == 0, "Stale job for the target instance_index should be deleted"
+
+    cursor = await telemetry_db.execute(
+        "SELECT COUNT(*) AS count FROM scheduled_jobs WHERE id = ?", (stale_job_instance_1,)
+    )
+    row = await cursor.fetchone()
+    assert row["count"] == 1, "Sibling instance's job should be unaffected by scoped reconciliation"

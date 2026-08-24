@@ -658,3 +658,36 @@ async def test_reconciliation_ordering(
     row = await cursor.fetchone()
     assert row is not None
     assert row[0] is not None, "Stale listener with history should be retired"
+
+
+async def test_reconcile_registrations_forwards_instance_index(
+    executor: CommandExecutor,
+    initialized_db: tuple[DatabaseService, int],
+) -> None:
+    """reconcile_registrations() forwards instance_index through to the repository call.
+
+    Registers a sibling instance's listener and confirms it survives reconciliation scoped
+    to a different instance_index — this only passes if CommandExecutor actually forwards
+    the kwarg to TelemetryRepository.reconcile_registrations() via DatabaseService.submit(),
+    rather than dropping it.
+    """
+    db_service, _session_id = initialized_db
+
+    id_target = await executor.register_listener(make_listener_registration(instance_index=0))
+    id_sibling = await executor.register_listener(
+        make_listener_registration(instance_index=1, handler_method="test_app.on_event_sibling")
+    )
+
+    # Reconcile only instance_index=0 with no live IDs: id_target should be deleted (stale, no
+    # history), id_sibling (a different instance) must be untouched.
+    await executor.reconcile_registrations("test_app", [], [], instance_index=0)
+
+    cursor = await db_service.db.execute("SELECT COUNT(*) AS count FROM listeners WHERE id = ?", (id_target,))
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] == 0, "Stale listener for the reconciled instance_index should be deleted"
+
+    cursor = await db_service.db.execute("SELECT COUNT(*) AS count FROM listeners WHERE id = ?", (id_sibling,))
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] == 1, "Listener for the sibling instance_index should be preserved"

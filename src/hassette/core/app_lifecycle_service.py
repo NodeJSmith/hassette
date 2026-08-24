@@ -165,6 +165,7 @@ class AppLifecycleService(Resource):
         app_key: str,
         instances: dict[int, "App[AppConfig]"],
         manifest: "AppManifest",
+        instance_index: int | None = None,
     ) -> None:
         """Initialize all instances for an app key.
 
@@ -176,6 +177,9 @@ class AppLifecycleService(Resource):
             app_key: The app key
             instances: Dict of index -> App to initialize
             manifest: The app manifest
+            instance_index: When provided, scopes post-ready reconciliation to this instance
+                only, so restarting one instance does not retire sibling instances' rows.
+                When None (default), reconciliation is app_key-scoped only — unchanged behavior.
         """
         class_name = manifest.class_name
 
@@ -222,7 +226,7 @@ class AppLifecycleService(Resource):
 
         # Post-ready reconciliation: retire stale rows from previous sessions.
         # Runs after the instance loop to ensure all registrations are complete.
-        await self.reconcile_app_registrations(app_key, instances)
+        await self.reconcile_app_registrations(app_key, instances, instance_index=instance_index)
 
     async def cleanup_failed_instance(self, inst: "App[AppConfig]") -> None:
         """Remove bus listeners and scheduler jobs registered by an instance that failed to initialize.
@@ -1023,6 +1027,7 @@ class AppLifecycleService(Resource):
         self,
         app_key: str,
         instances: "dict[int, App[AppConfig]]",
+        instance_index: int | None = None,
     ) -> None:
         """Run post-ready reconciliation for an app after all instances are initialized.
 
@@ -1033,6 +1038,9 @@ class AppLifecycleService(Resource):
         Args:
             app_key: The app key to reconcile.
             instances: Dict of instance index -> App (may include failed instances).
+            instance_index: When provided, scopes reconciliation to this instance only, so
+                restarting one instance does not retire sibling instances' rows. When None
+                (default), reconciliation is app_key-scoped only — unchanged behavior.
         """
         try:
             bus_service = self.hassette.bus_service
@@ -1047,6 +1055,7 @@ class AppLifecycleService(Resource):
                 list(live_listener_ids),
                 live_job_ids,
                 session_id=session_id,
+                instance_index=instance_index,
             )
             self.logger.debug("Post-ready reconciliation complete for app '%s'", app_key)
         except Exception:
