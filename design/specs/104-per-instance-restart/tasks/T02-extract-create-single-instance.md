@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Extract create_single_instance from AppFactory"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#1"]
 ---

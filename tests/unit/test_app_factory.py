@@ -235,6 +235,64 @@ class TestAppFactoryCreateInstances:
         mock_load_class.assert_called_once_with(mock_manifest, force_reload=True)
 
 
+class TestAppFactoryCreateSingleInstance:
+    def test_create_single_instance_success(self, factory: AppFactory, mock_registry: AppRegistry, mock_manifest):
+        """Registers the instance at the given index on success."""
+        mock_app_class = Mock()
+        config = {"instance_name": "test_instance"}
+
+        factory.create_single_instance("test_app", mock_manifest, 3, config, mock_app_class)
+
+        mock_app_class.assert_called_once()
+        mock_registry.register_app.assert_called_once_with("test_app", 3, mock_app_class.return_value)
+        mock_registry.record_failure.assert_not_called()
+
+    def test_create_single_instance_missing_instance_name(
+        self, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
+    ):
+        """Records failure at the given index when instance_name is missing."""
+        mock_app_class = Mock()
+        config = {"other_field": "value"}
+
+        factory.create_single_instance("test_app", mock_manifest, 2, config, mock_app_class)
+
+        mock_registry.record_failure.assert_called_once()
+        call_args = mock_registry.record_failure.call_args
+        assert call_args[0][0] == "test_app"
+        assert call_args[0][1] == 2
+        assert isinstance(call_args[0][2], ValueError)
+        mock_registry.register_app.assert_not_called()
+        mock_app_class.assert_not_called()
+
+    def test_create_single_instance_validation_failure_records_correct_index(
+        self, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
+    ):
+        """Records failure at the real index (not hardcoded 0) when Pydantic validation fails."""
+        mock_app_class = Mock(__name__="TestApp")
+        validation_error = ValueError("Validation failed")
+        mock_app_class.app_config_cls.model_validate.side_effect = validation_error
+        config = {"instance_name": "test_instance"}
+
+        factory.create_single_instance("test_app", mock_manifest, 5, config, mock_app_class)
+
+        mock_registry.record_failure.assert_called_once_with("test_app", 5, validation_error)
+        mock_registry.register_app.assert_not_called()
+
+    def test_create_single_instance_app_create_failure_records_correct_index(
+        self, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
+    ):
+        """Records failure at the real index when App() constructor raises."""
+        create_error = RuntimeError("Create failed")
+        mock_app_class = Mock(__name__="TestApp")
+        mock_app_class.side_effect = create_error
+        config = {"instance_name": "test_instance"}
+
+        factory.create_single_instance("test_app", mock_manifest, 7, config, mock_app_class)
+
+        mock_registry.record_failure.assert_called_once_with("test_app", 7, create_error)
+        mock_registry.register_app.assert_not_called()
+
+
 class TestAppFactoryLoadClass:
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
     def test_load_class_fresh_load_success(self, mock_load_class, factory: AppFactory, mock_manifest):

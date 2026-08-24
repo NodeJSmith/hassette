@@ -56,31 +56,50 @@ class AppFactory:
 
         # Create instances
         for idx, config in enumerate(app_configs):
-            instance_name = config.get("instance_name")
-            if not is_valid_instance_name(instance_name):
-                self.registry.record_failure(
-                    app_key, idx, ValueError(f"App {app_key} instance {idx} is missing instance_name")
-                )
-                continue
+            self.create_single_instance(app_key, manifest, idx, config, app_class)
 
-            try:
-                validated = app_class.app_config_cls.model_validate(config)
-                app_instance = app_class(
-                    hassette=self.hassette,
-                    app_config=validated,
-                    index=idx,
-                    app_key=app_key,
-                    app_manifest=manifest,
-                )
-                self.registry.register_app(app_key, idx, app_instance)
-            except Exception as exc:
-                self.logger.error(
-                    "Failed to validate/init config for %s (%s):\n%s",
-                    instance_name,
-                    app_class.__name__,
-                    get_short_traceback(),
-                )
-                self.registry.record_failure(app_key, idx, exc)
+    def create_single_instance(
+        self,
+        app_key: str,
+        manifest: "AppManifest",
+        index: int,
+        config_dict: dict,
+        app_class: "type[App[AppConfig]]",
+    ) -> None:
+        """Create and register a single app instance at the given index.
+
+        Args:
+            app_key: The app key from configuration
+            manifest: The app manifest with config
+            index: The instance index this config corresponds to
+            config_dict: The raw config dict for this instance
+            app_class: The already-loaded app class to instantiate
+        """
+        instance_name = config_dict.get("instance_name")
+        if not is_valid_instance_name(instance_name):
+            self.registry.record_failure(
+                app_key, index, ValueError(f"App {app_key} instance {index} is missing instance_name")
+            )
+            return
+
+        try:
+            validated = app_class.app_config_cls.model_validate(config_dict)
+            app_instance = app_class(
+                hassette=self.hassette,
+                app_config=validated,
+                index=index,
+                app_key=app_key,
+                app_manifest=manifest,
+            )
+            self.registry.register_app(app_key, index, app_instance)
+        except Exception as exc:
+            self.logger.error(
+                "Failed to validate/init config for %s (%s):\n%s",
+                instance_name,
+                app_class.__name__,
+                get_short_traceback(),
+            )
+            self.registry.record_failure(app_key, index, exc)
 
     def load_class(
         self,
