@@ -3,7 +3,10 @@ import type { ErrorObject, ValidateFunction } from "ajv/dist/types";
 import type { WsServerMessage } from "./ws-types";
 import { validate as validateGenerated } from "./ws-validator.generated";
 
-const validate = validateGenerated as ValidateFunction<WsServerMessage>;
+const ajvValidate = validateGenerated as ValidateFunction<WsServerMessage>;
+
+const EXPECTED_TYPE_KEYWORD = "type";
+const EXPECTED_TYPE_VALUE = "object";
 
 export class WsValidationError extends Error {
   errors: ErrorObject[];
@@ -15,20 +18,22 @@ export class WsValidationError extends Error {
   }
 }
 
-export function validateWsMessage(data: unknown): WsServerMessage {
-  if (typeof data !== "object" || data === null || !("type" in data)) {
-    throw new WsValidationError([
-      {
-        message: "expected object with type field",
-        keyword: "type",
-        instancePath: "",
-        schemaPath: "#/discriminator",
-        params: { type: "object" },
-      },
-    ]);
+function makeMissingTypeFieldError(): ErrorObject {
+  return {
+    message: "expected object with type field",
+    keyword: EXPECTED_TYPE_KEYWORD,
+    instancePath: "",
+    schemaPath: "#/discriminator",
+    params: { type: EXPECTED_TYPE_VALUE },
+  };
+}
+
+export function validateWsMessage(message: unknown): WsServerMessage {
+  if (typeof message !== "object" || message === null || !(EXPECTED_TYPE_KEYWORD in message)) {
+    throw new WsValidationError([makeMissingTypeFieldError()]);
   }
-  if (validate(data)) {
-    return data;
+  if (ajvValidate(message)) {
+    return message;
   }
-  throw new WsValidationError(validate.errors ?? []);
+  throw new WsValidationError(ajvValidate.errors ?? []);
 }
