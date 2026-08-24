@@ -3,7 +3,9 @@ import type { ErrorObject, ValidateFunction } from "ajv/dist/types";
 import type { WsServerMessage } from "./ws-types";
 import { validate as validateGenerated } from "./ws-validator.generated";
 
-const validate = validateGenerated as ValidateFunction<WsServerMessage>;
+const ajvValidate = validateGenerated as ValidateFunction<WsServerMessage>;
+
+const DISCRIMINATOR_FIELD = "type";
 
 export class WsValidationError extends Error {
   errors: ErrorObject[];
@@ -15,20 +17,24 @@ export class WsValidationError extends Error {
   }
 }
 
-export function validateWsMessage(data: unknown): WsServerMessage {
-  if (typeof data !== "object" || data === null || !("type" in data)) {
-    throw new WsValidationError([
-      {
-        message: "expected object with type field",
-        keyword: "type",
-        instancePath: "",
-        schemaPath: "#/discriminator",
-        params: { type: "object" },
-      },
-    ]);
+function buildMissingTypeFieldError(): ErrorObject {
+  return {
+    message: "expected object with type field",
+    // ajv-style keyword label for the synthetic error; coincidentally the same string as
+    // DISCRIMINATOR_FIELD, but it names the validation rule, not the WS message's field.
+    keyword: "type",
+    instancePath: "",
+    schemaPath: "#/discriminator",
+    params: { type: "object" },
+  };
+}
+
+export function validateWsMessage(message: unknown): WsServerMessage {
+  if (typeof message !== "object" || message === null || !(DISCRIMINATOR_FIELD in message)) {
+    throw new WsValidationError([buildMissingTypeFieldError()]);
   }
-  if (validate(data)) {
-    return data;
+  if (ajvValidate(message)) {
+    return message;
   }
-  throw new WsValidationError(validate.errors ?? []);
+  throw new WsValidationError(ajvValidate.errors ?? []);
 }
