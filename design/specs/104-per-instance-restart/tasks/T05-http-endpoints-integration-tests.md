@@ -1,7 +1,7 @@
 ---
 task_id: "T05"
 title: "Add per-instance HTTP endpoints and integration tests"
-status: "planned"
+status: "done"
 depends_on: ["T04"]
 implements: ["FR#6", "AC#6", "AC#7", "AC#10"]
 ---

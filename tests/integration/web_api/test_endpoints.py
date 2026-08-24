@@ -14,6 +14,7 @@ from hassette.test_utils.web_manifest_helpers import make_manifest_db_row
 from hassette.test_utils.web_telemetry_helpers import make_listener_summary
 from hassette.types.enums import ResourceStatus
 from hassette.web.config_view import MASK_SENTINEL
+from tests.integration.conftest import make_manifest_mock
 
 from .conftest import (
     HEALTH_PATH,
@@ -186,6 +187,105 @@ class TestAppEndpoints:
         assert (await client.post(APP_START_PATH)).status_code == 202
         assert (await client.post(APP_STOP_PATH)).status_code == 202
         assert (await client.post(APP_RELOAD_PATH)).status_code == 202
+
+
+class TestAppInstanceEndpoints:
+    """Per-instance HTTP endpoints: POST /apps/{app_key}/instances/{index}/start|stop|reload (#796)."""
+
+    def _seed_manifest(self, mock_hassette: MagicMock, instance_count: int = 2) -> None:
+        """Wire a manifest mock with ``instance_count`` app_config entries onto the registry."""
+        mock_hassette._app_handler.registry.get_manifest.return_value = make_manifest_mock(
+            app_config=[{"instance_name": f"inst_{i}"} for i in range(instance_count)]
+        )
+
+    async def test_start_instance(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        self._seed_manifest(mock_hassette)
+        mock_hassette.app_handler.start_instance = AsyncMock()
+
+        response = await client.post("/api/apps/my_app/instances/0/start")
+
+        assert response.status_code == 202
+        data = response.json()
+        assert data["action"] == "start"
+        mock_hassette.app_handler.start_instance.assert_awaited_once_with("my_app", 0)
+
+    async def test_stop_instance(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        self._seed_manifest(mock_hassette)
+        mock_hassette.app_handler.stop_instance = AsyncMock()
+
+        response = await client.post("/api/apps/my_app/instances/1/stop")
+
+        assert response.status_code == 202
+        data = response.json()
+        assert data["action"] == "stop"
+        mock_hassette.app_handler.stop_instance.assert_awaited_once_with("my_app", 1)
+
+    async def test_reload_instance(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        self._seed_manifest(mock_hassette)
+        mock_hassette.app_handler.reload_instance = AsyncMock()
+
+        response = await client.post("/api/apps/my_app/instances/0/reload")
+
+        assert response.status_code == 202
+        data = response.json()
+        assert data["action"] == "reload"
+        mock_hassette.app_handler.reload_instance.assert_awaited_once_with("my_app", 0, force_reload=True)
+
+    async def test_start_instance_out_of_range_returns_404(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        self._seed_manifest(mock_hassette, instance_count=1)
+
+        response = await client.post("/api/apps/my_app/instances/5/start")
+
+        assert response.status_code == 404
+
+    async def test_stop_instance_out_of_range_returns_404(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        self._seed_manifest(mock_hassette, instance_count=1)
+
+        response = await client.post("/api/apps/my_app/instances/5/stop")
+
+        assert response.status_code == 404
+
+    async def test_reload_instance_out_of_range_returns_404(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        self._seed_manifest(mock_hassette, instance_count=1)
+
+        response = await client.post("/api/apps/my_app/instances/5/reload")
+
+        assert response.status_code == 404
+
+    async def test_start_instance_unknown_app_returns_404(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        mock_hassette._app_handler.registry.get_manifest.return_value = None
+
+        response = await client.post("/api/apps/unknown_app/instances/0/start")
+
+        assert response.status_code == 404
+
+    async def test_start_instance_returns_retryable_conflict_before_release(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        self._seed_manifest(mock_hassette)
+        mock_hassette.app_handler.start_instance = AsyncMock(side_effect=AppBootstrapNotReleasedError("not released"))
+
+        response = await client.post("/api/apps/my_app/instances/0/start")
+
+        assert response.status_code == 409
+
+    async def test_reload_instance_returns_retryable_conflict_before_release(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        self._seed_manifest(mock_hassette)
+        mock_hassette.app_handler.reload_instance = AsyncMock(side_effect=AppBootstrapNotReleasedError("not released"))
+
+        response = await client.post("/api/apps/my_app/instances/0/reload")
+
+        assert response.status_code == 409
 
 
 class TestAppManifestEndpoint:

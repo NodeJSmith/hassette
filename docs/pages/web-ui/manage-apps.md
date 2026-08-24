@@ -39,6 +39,8 @@ Click any app row to open the App Detail view. The detail view shows health indi
 
 Apps with multiple instances show a parent row with a chevron and an instance count badge (e.g., "2 instances"). Click the chevron to expand into individual instance rows. Each instance row shows its own status dot, badge, last error, and action buttons. Click an instance name to open that instance's detail view.
 
+The REST API exposes per-instance start, stop, and reload endpoints (see [Start, Stop, and Reload](#start-stop-and-reload) below) — a sibling instance keeps running untouched when one instance restarts through the API. The dashboard's action buttons still act on the whole app; a dedicated per-instance control in the UI is a separate, not-yet-built feature. A config change to just one instance in `hassette.toml` already triggers a selective reload automatically: Hassette restarts only the instance whose config changed, not the whole app. Adding or removing an instance falls back to a full app restart, since the instance list itself changed. See [Passing Configuration](../core-concepts/apps/configuration.md#multiple-instances) for the config side of this behavior.
+
 ## Start, Stop, and Reload
 
 Action buttons appear in the **ACTIONS** column and in the App Detail header. Which buttons appear depends on the app's current status:
@@ -53,7 +55,7 @@ Action buttons appear in the **ACTIONS** column and in the App Detail header. Wh
 
 **Reload** picks up changes to an app's Python file or its config in `hassette.toml`. Reloading one app does not affect other running apps. A full Hassette process restart is only needed for global settings, new integrations, or Hassette updates.
 
-These actions call the REST API (`POST /apps/{key}/start`, `/stop`, `/reload`). The CLI does not expose start/stop/reload subcommands. See [CLI Commands](../cli/commands.md) for what the CLI offers.
+These actions call the REST API — `POST /apps/{key}/start`, `/stop`, `/reload` for the whole app, or `POST /apps/{key}/instances/{index}/start`, `/stop`, `/reload` for a single instance. The CLI does not expose start/stop/reload subcommands. See [CLI Commands](../cli/commands.md) for what the CLI offers.
 
 ## Understand App States
 
