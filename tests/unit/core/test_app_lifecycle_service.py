@@ -386,7 +386,7 @@ class TestApplyChangesGating:
             reimport_apps=frozenset(),
             reload_apps=frozenset(),
         )
-        await lifecycle_service.apply_changes(changes)
+        await lifecycle_service.apply_changes(changes, {}, {})
 
         lifecycle_service.start_app.assert_not_called()
 
@@ -406,7 +406,7 @@ class TestApplyChangesGating:
             reimport_apps=frozenset(),
             reload_apps=frozenset(),
         )
-        await lifecycle_service.apply_changes(changes)
+        await lifecycle_service.apply_changes(changes, {}, {})
 
         lifecycle_service.start_app.assert_called_once_with("app_a")
 
@@ -426,7 +426,7 @@ class TestApplyChangesGating:
             reimport_apps=frozenset(),
             reload_apps=frozenset({"app_a"}),
         )
-        await lifecycle_service.apply_changes(changes)
+        await lifecycle_service.apply_changes(changes, {}, {})
 
         lifecycle_service.reload_app.assert_called_once_with("app_a")
 
@@ -446,7 +446,7 @@ class TestApplyChangesGating:
             reimport_apps=frozenset(),
             reload_apps=frozenset({"app_a"}),
         )
-        await lifecycle_service.apply_changes(changes)
+        await lifecycle_service.apply_changes(changes, {}, {})
 
         lifecycle_service.reload_app.assert_not_called()
 
@@ -466,7 +466,7 @@ class TestApplyChangesGating:
             reimport_apps=frozenset({"app_a"}),
             reload_apps=frozenset(),
         )
-        await lifecycle_service.apply_changes(changes)
+        await lifecycle_service.apply_changes(changes, {}, {})
 
         lifecycle_service.reload_app.assert_called_once_with("app_a", force_reload=True)
 
@@ -486,7 +486,7 @@ class TestApplyChangesGating:
             reimport_apps=frozenset({"app_a"}),
             reload_apps=frozenset(),
         )
-        await lifecycle_service.apply_changes(changes)
+        await lifecycle_service.apply_changes(changes, {}, {})
 
         lifecycle_service.reload_app.assert_not_called()
 
@@ -506,6 +506,6 @@ class TestApplyChangesGating:
             reimport_apps=frozenset(),
             reload_apps=frozenset(),
         )
-        await lifecycle_service.apply_changes(changes)
+        await lifecycle_service.apply_changes(changes, {}, {})
 
         lifecycle_service.stop_app.assert_called_once_with("app_a")

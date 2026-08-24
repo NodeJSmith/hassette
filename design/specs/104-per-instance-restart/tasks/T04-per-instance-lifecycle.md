@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Add per-instance lifecycle methods and selective restart"
-status: "planned"
+status: "done"
 depends_on: ["T02", "T03"]
 implements: ["FR#1", "FR#2", "FR#3", "FR#7", "FR#8", "AC#1", "AC#2", "AC#3", "AC#8", "AC#9"]
 ---

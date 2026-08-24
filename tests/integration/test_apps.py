@@ -183,13 +183,14 @@ class TestApps:
             "Precondition: my_app config has initial value"
         )
 
+        original_config = deepcopy(self.app_handler.registry.manifests)
         self.app_handler.registry.manifests["my_app"].app_config = {"test_entity": "light.office"}
 
         change_set = ChangeSet(
             orphans=frozenset(), new_apps=frozenset(), reimport_apps=frozenset(), reload_apps=frozenset({"my_app"})
         )
 
-        await self.app_handler.apply_changes(change_set)
+        await self.app_handler.apply_changes(change_set, original_config, self.app_handler.registry.manifests)
         await wait_for(
             lambda: (
                 "my_app" in self.app_handler.registry
@@ -421,6 +422,7 @@ class TestApps:
         await self.app_handler.lifecycle.start_app("no_autostart_app")
         assert "no_autostart_app" in self.app_handler.registry, "Precondition: no_autostart_app is running"
 
+        original_app_config = deepcopy(self.app_handler.registry.manifests)
         new_app_config = deepcopy(self.app_handler.registry.manifests)
         new_app_config["no_autostart_app"].app_config = {"test_entity": "light.changed"}
         self.app_handler.registry.set_manifests(new_app_config)
@@ -432,7 +434,7 @@ class TestApps:
             reload_apps=frozenset({"no_autostart_app"}),
         )
 
-        await self.app_handler.apply_changes(change_set)
+        await self.app_handler.apply_changes(change_set, original_app_config, new_app_config)
         await wait_for(
             lambda: "no_autostart_app" in self.app_handler.registry,
             desc="no_autostart_app still running after reload",
