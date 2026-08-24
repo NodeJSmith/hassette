@@ -5,8 +5,7 @@ import { validate as validateGenerated } from "./ws-validator.generated";
 
 const ajvValidate = validateGenerated as ValidateFunction<WsServerMessage>;
 
-const EXPECTED_TYPE_KEYWORD = "type";
-const EXPECTED_TYPE_VALUE = "object";
+const DISCRIMINATOR_FIELD = "type";
 
 export class WsValidationError extends Error {
   errors: ErrorObject[];
@@ -18,19 +17,21 @@ export class WsValidationError extends Error {
   }
 }
 
-function makeMissingTypeFieldError(): ErrorObject {
+function buildMissingTypeFieldError(): ErrorObject {
   return {
     message: "expected object with type field",
-    keyword: EXPECTED_TYPE_KEYWORD,
+    // ajv-style keyword label for the synthetic error; coincidentally the same string as
+    // DISCRIMINATOR_FIELD, but it names the validation rule, not the WS message's field.
+    keyword: "type",
     instancePath: "",
     schemaPath: "#/discriminator",
-    params: { type: EXPECTED_TYPE_VALUE },
+    params: { type: "object" },
   };
 }
 
 export function validateWsMessage(message: unknown): WsServerMessage {
-  if (typeof message !== "object" || message === null || !(EXPECTED_TYPE_KEYWORD in message)) {
-    throw new WsValidationError([makeMissingTypeFieldError()]);
+  if (typeof message !== "object" || message === null || !(DISCRIMINATOR_FIELD in message)) {
+    throw new WsValidationError([buildMissingTypeFieldError()]);
   }
   if (ajvValidate(message)) {
     return message;
