@@ -252,7 +252,10 @@ async def reload_app(app_key: str, hassette: HassetteDep, request: Request) -> A
     "/apps/{app_key}/instances/{index}/start",
     status_code=202,
     response_model=ActionResponse,
-    responses={409: {"description": "App bootstrap prerequisites are not ready yet; retry later"}},
+    responses={
+        404: {"description": "App is unknown, or instance index is out of range for the app's current config"},
+        409: {"description": "App bootstrap prerequisites are not ready yet; retry later"},
+    },
 )
 async def start_instance(app_key: str, index: int, hassette: HassetteDep, request: Request) -> ActionResponse:
     _require_valid_instance_index(app_key, index, hassette, "start")
@@ -261,7 +264,12 @@ async def start_instance(app_key: str, index: int, hassette: HassetteDep, reques
     )
 
 
-@router.post("/apps/{app_key}/instances/{index}/stop", status_code=202, response_model=ActionResponse)
+@router.post(
+    "/apps/{app_key}/instances/{index}/stop",
+    status_code=202,
+    response_model=ActionResponse,
+    responses={404: {"description": "App is unknown, or instance index is out of range for the app's current config"}},
+)
 async def stop_instance(app_key: str, index: int, hassette: HassetteDep, request: Request) -> ActionResponse:
     _require_valid_instance_index(app_key, index, hassette, "stop")
     return await _run_app_action(
@@ -273,7 +281,10 @@ async def stop_instance(app_key: str, index: int, hassette: HassetteDep, request
     "/apps/{app_key}/instances/{index}/reload",
     status_code=202,
     response_model=ActionResponse,
-    responses={409: {"description": "App bootstrap prerequisites are not ready yet; retry later"}},
+    responses={
+        404: {"description": "App is unknown, or instance index is out of range for the app's current config"},
+        409: {"description": "App bootstrap prerequisites are not ready yet; retry later"},
+    },
 )
 async def reload_instance(app_key: str, index: int, hassette: HassetteDep, request: Request) -> ActionResponse:
     _require_valid_instance_index(app_key, index, hassette, "reload")

@@ -1954,6 +1954,13 @@ export interface operations {
                     "application/json": components["schemas"]["ActionResponse"];
                 };
             };
+            /** @description App is unknown, or instance index is out of range for the app's current config */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             /** @description App bootstrap prerequisites are not ready yet; retry later */
             409: {
                 headers: {
@@ -1993,6 +2000,13 @@ export interface operations {
                     "application/json": components["schemas"]["ActionResponse"];
                 };
             };
+            /** @description App is unknown, or instance index is out of range for the app's current config */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -2024,6 +2038,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ActionResponse"];
                 };
+            };
+            /** @description App is unknown, or instance index is out of range for the app's current config */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description App bootstrap prerequisites are not ready yet; retry later */
             409: {

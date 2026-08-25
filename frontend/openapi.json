@@ -336,6 +336,9 @@
               }
             }
           },
+          "404": {
+            "description": "App is unknown, or instance index is out of range for the app's current config"
+          },
           "409": {
             "description": "App bootstrap prerequisites are not ready yet; retry later"
           },
@@ -390,6 +393,9 @@
               }
             }
           },
+          "404": {
+            "description": "App is unknown, or instance index is out of range for the app's current config"
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -440,6 +446,9 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "App is unknown, or instance index is out of range for the app's current config"
           },
           "409": {
             "description": "App bootstrap prerequisites are not ready yet; retry later"
