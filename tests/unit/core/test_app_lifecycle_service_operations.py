@@ -1024,6 +1024,28 @@ class TestStartInstanceBehavior:
         # create_single_instance(app_key, manifest, index, config_dict, app_class) — index is arg[2]
         assert mock_factory.create_single_instance.call_args.args[2] == 1
 
+    async def test_already_running_index_skips_without_recreating(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        mock_factory: MagicMock,
+        mock_manifest: MagicMock,
+        mock_app_instance: MagicMock,
+    ) -> None:
+        """start_instance no-ops when the target index already has a running instance, rather
+        than overwriting the registry entry and leaking the original instance's listeners,
+        scheduler jobs, and tasks (ship-time review finding — register_app() silently replaces
+        any prior entry at that index).
+        """
+        mock_manifest.app_config = [{"instance_name": "a"}]
+        mock_registry.get_manifest = Mock(return_value=mock_manifest)
+        mock_factory.normalize_configs = Mock(side_effect=lambda cfg: cfg)
+        mock_registry.get = Mock(return_value=mock_app_instance)
+
+        await lifecycle_service.start_instance("test_app", 0)
+
+        mock_factory.create_single_instance.assert_not_called()
+
     async def test_out_of_range_index_skips_cleanly(
         self,
         lifecycle_service: AppLifecycleService,

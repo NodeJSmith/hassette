@@ -799,6 +799,13 @@ class AppLifecycleService(Resource):
     ) -> None:
         """Create and initialize a single instance for a given app key and index.
 
+        No-ops if the target index is already running — unlike ``reload_instance``, this does
+        not stop-then-recreate. Starting over a live instance without stopping it first would
+        overwrite the registry entry (``register_app()`` replaces any prior entry at that index)
+        while leaving the original instance's listeners, scheduler jobs, and tasks running but
+        unreachable by later stop/shutdown calls. Callers that want a fresh instance should use
+        ``reload_instance`` instead.
+
         Args:
             app_key: The app key
             index: The instance index to start
@@ -819,6 +826,10 @@ class AppLifecycleService(Resource):
                     return
 
                 if not self._instance_index_in_range(app_key, index, app_manifest):
+                    return
+
+                if self.registry.get(app_key, index) is not None:
+                    self.logger.debug("Instance %d of app %s is already running — skipping start", index, app_key)
                     return
 
                 await self._create_instance_unlocked(app_key, index, app_manifest)
