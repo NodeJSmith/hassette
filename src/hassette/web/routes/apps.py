@@ -67,20 +67,23 @@ def _validate_app_key(app_key: str) -> None:
         raise HTTPException(status_code=400, detail=f"Invalid app_key: {app_key!r}")
 
 
-def _require_known_app(app_key: str, hassette: HassetteDep, action: AppAction) -> None:
-    """Validate that ``app_key`` is known.
-
-    ``stop`` is permissive for an orphaned app (manifest gone from config, but the registry still
-    has running instances) — ``AppLifecycleService.stop_instance()``/``_stop_app_unlocked()`` are
-    deliberately permissive in that case, so the route lets the request through. ``start`` and
+def _orphan_app_permitted(app_key: str, hassette: HassetteDep, action: AppAction) -> bool:
+    """An app with no manifest is only ever treated as "known" via its still-running instances
+    for ``stop`` — ``AppLifecycleService.stop_instance()``/``_stop_app_unlocked()`` are
+    deliberately permissive for an orphaned app (manifest gone from config, but the registry
+    still has running instances), so the route lets the request through to match. ``start`` and
     ``reload`` are NOT extended the same permissiveness: their service-layer counterparts silently
     no-op on a missing manifest (log + return, no exception), so admitting an orphaned app there
     would turn a clear 404 into a 202-accepted request that does nothing.
     """
-    registry = hassette.app_handler.registry
-    if registry.get_manifest(app_key) is not None:
+    return action == "stop" and bool(hassette.app_handler.registry.get_instances(app_key))
+
+
+def _require_known_app(app_key: str, hassette: HassetteDep, action: AppAction) -> None:
+    """Validate that ``app_key`` is known, or is an orphaned app that ``action`` still permits."""
+    if hassette.app_handler.registry.get_manifest(app_key) is not None:
         return
-    if action == "stop" and registry.get_instances(app_key):
+    if _orphan_app_permitted(app_key, hassette, action):
         return
     raise HTTPException(status_code=404, detail=f"App {app_key!r} not found")
 
@@ -95,16 +98,13 @@ def _require_valid_instance_index(app_key: str, index: int, hassette: HassetteDe
     changes. Uses the shared ``normalize_app_config()`` (``hassette.schemas``) rather than a
     web-local reimplementation, so this count can never drift from ``AppFactory``'s.
 
-    ``stop`` skips range validation when the manifest is gone but running instances still exist
-    (orphaned app — config removed while instances are running), matching
-    ``AppLifecycleService.stop_instance()``'s own permissiveness. ``start``/``reload`` do not get
-    this fallback — see ``_require_known_app``'s docstring for why.
+    Skips range validation for an orphaned app that ``action`` still permits (see
+    ``_orphan_app_permitted``'s docstring for the ``stop``-only rationale).
     """
     _validate_app_key(app_key)
-    registry = hassette.app_handler.registry
-    manifest = registry.get_manifest(app_key)
+    manifest = hassette.app_handler.registry.get_manifest(app_key)
     if manifest is None:
-        if action == "stop" and registry.get_instances(app_key):
+        if _orphan_app_permitted(app_key, hassette, action):
             return
         raise HTTPException(status_code=404, detail=f"App {app_key!r} not found")
     valid_index_count = len(normalize_app_config(manifest.app_config))

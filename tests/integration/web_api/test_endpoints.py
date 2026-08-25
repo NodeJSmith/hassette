@@ -43,6 +43,20 @@ CONFIG_PATH = "/api/config"
 OPENAPI_PATH = "/api/openapi.json"
 
 
+def app_action_path(app_key: str, action: str) -> str:
+    """Build a full-app-key action URL — single source of truth so a route rename only needs
+    to change here.
+    """
+    return f"/api/apps/{app_key}/{action}"
+
+
+def instance_action_path(app_key: str, index: int, action: str) -> str:
+    """Build a per-instance action URL — single source of truth so a route rename only needs
+    to change here.
+    """
+    return f"/api/apps/{app_key}/instances/{index}/{action}"
+
+
 class TestHealthEndpoints:
     async def test_health_returns_200_when_ok(self, client: "AsyncClient") -> None:
         """GET /api/health returns 200 with status 'ok' when WebSocket is connected."""
@@ -202,7 +216,7 @@ class TestAppInstanceEndpoints:
         self._seed_manifest(mock_hassette)
         mock_hassette.app_handler.start_instance = AsyncMock()
 
-        response = await client.post("/api/apps/my_app/instances/0/start")
+        response = await client.post(instance_action_path("my_app", 0, "start"))
 
         assert response.status_code == 202
         data = response.json()
@@ -213,7 +227,7 @@ class TestAppInstanceEndpoints:
         self._seed_manifest(mock_hassette)
         mock_hassette.app_handler.stop_instance = AsyncMock()
 
-        response = await client.post("/api/apps/my_app/instances/1/stop")
+        response = await client.post(instance_action_path("my_app", 1, "stop"))
 
         assert response.status_code == 202
         data = response.json()
@@ -224,7 +238,7 @@ class TestAppInstanceEndpoints:
         self._seed_manifest(mock_hassette)
         mock_hassette.app_handler.reload_instance = AsyncMock()
 
-        response = await client.post("/api/apps/my_app/instances/0/reload")
+        response = await client.post(instance_action_path("my_app", 0, "reload"))
 
         assert response.status_code == 202
         data = response.json()
@@ -236,7 +250,7 @@ class TestAppInstanceEndpoints:
     ) -> None:
         self._seed_manifest(mock_hassette, instance_count=1)
 
-        response = await client.post("/api/apps/my_app/instances/5/start")
+        response = await client.post(instance_action_path("my_app", 5, "start"))
 
         assert response.status_code == 404
 
@@ -245,7 +259,7 @@ class TestAppInstanceEndpoints:
     ) -> None:
         self._seed_manifest(mock_hassette, instance_count=1)
 
-        response = await client.post("/api/apps/my_app/instances/5/stop")
+        response = await client.post(instance_action_path("my_app", 5, "stop"))
 
         assert response.status_code == 404
 
@@ -254,7 +268,7 @@ class TestAppInstanceEndpoints:
     ) -> None:
         self._seed_manifest(mock_hassette, instance_count=1)
 
-        response = await client.post("/api/apps/my_app/instances/5/reload")
+        response = await client.post(instance_action_path("my_app", 5, "reload"))
 
         assert response.status_code == 404
 
@@ -264,7 +278,7 @@ class TestAppInstanceEndpoints:
         mock_hassette._app_handler.registry.get_manifest.return_value = None
         mock_hassette._app_handler.registry.get_instances.return_value = {}
 
-        response = await client.post("/api/apps/unknown_app/instances/0/start")
+        response = await client.post(instance_action_path("unknown_app", 0, "start"))
 
         assert response.status_code == 404
 
@@ -274,7 +288,7 @@ class TestAppInstanceEndpoints:
         self._seed_manifest(mock_hassette)
         mock_hassette.app_handler.start_instance = AsyncMock(side_effect=AppBootstrapNotReleasedError("not released"))
 
-        response = await client.post("/api/apps/my_app/instances/0/start")
+        response = await client.post(instance_action_path("my_app", 0, "start"))
 
         assert response.status_code == 409
 
@@ -284,7 +298,7 @@ class TestAppInstanceEndpoints:
         self._seed_manifest(mock_hassette)
         mock_hassette.app_handler.reload_instance = AsyncMock(side_effect=AppBootstrapNotReleasedError("not released"))
 
-        response = await client.post("/api/apps/my_app/instances/0/reload")
+        response = await client.post(instance_action_path("my_app", 0, "reload"))
 
         assert response.status_code == 409
 
@@ -296,7 +310,7 @@ class TestAppInstanceEndpoints:
         mock_hassette._app_handler.registry.get_instances.return_value = {0: MagicMock()}
         mock_hassette.app_handler.stop_instance = AsyncMock()
 
-        response = await client.post("/api/apps/orphan_app/instances/0/stop")
+        response = await client.post(instance_action_path("orphan_app", 0, "stop"))
 
         assert response.status_code == 202
         mock_hassette.app_handler.stop_instance.assert_awaited_once_with("orphan_app", 0)
@@ -309,53 +323,32 @@ class TestAppInstanceEndpoints:
         mock_hassette._app_handler.registry.get_instances.return_value = {0: MagicMock()}
         mock_hassette.app_handler.stop_app = AsyncMock()
 
-        response = await client.post("/api/apps/orphan_app/stop")
+        response = await client.post(app_action_path("orphan_app", "stop"))
 
         assert response.status_code == 202
         mock_hassette.app_handler.stop_app.assert_awaited_once_with("orphan_app")
 
-    async def test_start_instance_orphaned_app_still_returns_404(
-        self, client: "AsyncClient", mock_hassette: MagicMock
+    @pytest.mark.parametrize(
+        "path",
+        [
+            instance_action_path("orphan_app", 0, "start"),
+            instance_action_path("orphan_app", 0, "reload"),
+            app_action_path("orphan_app", "start"),
+            app_action_path("orphan_app", "reload"),
+        ],
+        ids=["start_instance", "reload_instance", "start_app", "reload_app"],
+    )
+    async def test_orphaned_app_start_or_reload_still_returns_404(
+        self, client: "AsyncClient", mock_hassette: MagicMock, path: str
     ) -> None:
-        """Unlike stop, start does not get orphan permissiveness -- the service layer would silently
-        no-op on a missing manifest, so admitting the request would swap a clear 404 for a 202 that
-        does nothing.
+        """Unlike stop, start/reload do not get orphan permissiveness -- the service layer would
+        silently no-op on a missing manifest, so admitting the request would swap a clear 404 for
+        a 202 that does nothing. Covers both the full-app-key and per-instance routes.
         """
         mock_hassette._app_handler.registry.get_manifest.return_value = None
         mock_hassette._app_handler.registry.get_instances.return_value = {0: MagicMock()}
 
-        response = await client.post("/api/apps/orphan_app/instances/0/start")
-
-        assert response.status_code == 404
-
-    async def test_reload_instance_orphaned_app_still_returns_404(
-        self, client: "AsyncClient", mock_hassette: MagicMock
-    ) -> None:
-        mock_hassette._app_handler.registry.get_manifest.return_value = None
-        mock_hassette._app_handler.registry.get_instances.return_value = {0: MagicMock()}
-
-        response = await client.post("/api/apps/orphan_app/instances/0/reload")
-
-        assert response.status_code == 404
-
-    async def test_start_app_orphaned_app_still_returns_404(
-        self, client: "AsyncClient", mock_hassette: MagicMock
-    ) -> None:
-        """Full-key start also keeps the orphan-app 404, matching the per-instance behavior."""
-        mock_hassette._app_handler.registry.get_manifest.return_value = None
-        mock_hassette._app_handler.registry.get_instances.return_value = {0: MagicMock()}
-
-        response = await client.post("/api/apps/orphan_app/start")
-
-        assert response.status_code == 404
-
-    async def test_reload_app_orphaned_app_still_returns_404(
-        self, client: "AsyncClient", mock_hassette: MagicMock
-    ) -> None:
-        mock_hassette._app_handler.registry.get_manifest.return_value = None
-        mock_hassette._app_handler.registry.get_instances.return_value = {0: MagicMock()}
-
-        response = await client.post("/api/apps/orphan_app/reload")
+        response = await client.post(path)
 
         assert response.status_code == 404
 
