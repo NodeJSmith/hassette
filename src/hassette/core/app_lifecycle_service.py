@@ -708,6 +708,9 @@ class AppLifecycleService(Resource):
             await self.hassette.send_event(HassetteAppStateEvent.from_app(app=inst, status=NOT_STARTED))
             await self.initialize_instances(app_key, {index: inst}, app_manifest, instance_index=index)
         except Exception:
+            phantom = self.registry.get(app_key, index)
+            if phantom is not None:
+                await self.cleanup_failed_instance(phantom)
             self.registry.unregister_app(app_key, index)
             self.registry.record_failure(app_key, index, Exception(f"Post-registration failure for {app_key}[{index}]"))
             await self._emit_failure_event_if_present(app_key, index)

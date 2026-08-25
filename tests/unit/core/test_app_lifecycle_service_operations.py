@@ -1628,10 +1628,12 @@ class TestCreateInstanceUnlockedPostRegistrationFailure:
         mock_registry.get = Mock(return_value=mock_inst)
 
         mock_hassette.send_event = AsyncMock(side_effect=RuntimeError("event bus failure"))
+        lifecycle_service.cleanup_failed_instance = AsyncMock()
 
         with pytest.raises(RuntimeError, match="event bus failure"):
             await lifecycle_service._create_instance_unlocked("test_app", 0, mock_manifest)
 
+        lifecycle_service.cleanup_failed_instance.assert_called_once_with(mock_inst)
         mock_registry.unregister_app.assert_called_once_with("test_app", 0)
         mock_registry.record_failure.assert_called_once()
         assert mock_registry.record_failure.call_args.args[0] == "test_app"
