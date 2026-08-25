@@ -707,6 +707,111 @@ class TestApplyChangesPerInstanceRestart:
         lifecycle_service.reload_app.assert_called_once_with("app_a")
         lifecycle_service._reload_instance_unlocked.assert_not_called()
 
+    async def test_changed_index_colliding_with_unchanged_sibling_falls_back_to_full_reload(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        mock_factory: MagicMock,
+    ) -> None:
+        """When a changed index adopts the instance_name of an unchanged sibling (index 0
+        renames a -> b while index 1 stays b), the selective batch reload would leave two live
+        instances sharing one App.unique_name — see PR #1687 review finding. Detecting the
+        overlap must fall back to a full reload_app instead of the per-index batch reload.
+        """
+        old_manifest = MagicMock()
+        old_manifest.app_config = [{"instance_name": "a"}, {"instance_name": "b"}]
+        new_manifest = MagicMock()
+        new_manifest.app_config = [{"instance_name": "b"}, {"instance_name": "b"}]
+
+        mock_factory.normalize_configs = Mock(side_effect=lambda cfg: cfg)
+        mock_registry.get_manifest = Mock(return_value=new_manifest)
+
+        lifecycle_service.should_auto_reconcile = Mock(return_value=True)
+        lifecycle_service.reload_app = AsyncMock()
+        lifecycle_service._create_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+        lifecycle_service._stop_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+
+        changes = ChangeSet(
+            orphans=frozenset(), new_apps=frozenset(), reimport_apps=frozenset(), reload_apps=frozenset({"app_a"})
+        )
+
+        await lifecycle_service.apply_changes(changes, {"app_a": old_manifest}, {"app_a": new_manifest})
+
+        lifecycle_service.reload_app.assert_called_once_with("app_a")
+        # The selective batch-reload path must never run once the overlap is detected — proves
+        # the fallback happens before any stop/create, not after a partial batch reload.
+        lifecycle_service._create_instance_unlocked.assert_not_called()
+        lifecycle_service._stop_instance_unlocked.assert_not_called()
+
+    async def test_two_changed_indices_colliding_with_each_other_falls_back_to_full_reload(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        mock_factory: MagicMock,
+    ) -> None:
+        """Two *changed* indices adopting the same new instance_name from each other (index 0:
+        a -> c, index 1: b -> c) share no name with any unchanged sibling, so the unchanged-vs-
+        changed overlap check alone would miss it — but the selective batch reload's create-all
+        phase would still create two live instances both deriving App.unique_name "c", the same
+        permanent owner-registry collision. Must also fall back to a full reload_app.
+        """
+        old_manifest = MagicMock()
+        old_manifest.app_config = [{"instance_name": "a"}, {"instance_name": "b"}]
+        new_manifest = MagicMock()
+        new_manifest.app_config = [{"instance_name": "c"}, {"instance_name": "c"}]
+
+        mock_factory.normalize_configs = Mock(side_effect=lambda cfg: cfg)
+        mock_registry.get_manifest = Mock(return_value=new_manifest)
+
+        lifecycle_service.should_auto_reconcile = Mock(return_value=True)
+        lifecycle_service.reload_app = AsyncMock()
+        lifecycle_service._create_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+        lifecycle_service._stop_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+
+        changes = ChangeSet(
+            orphans=frozenset(), new_apps=frozenset(), reimport_apps=frozenset(), reload_apps=frozenset({"app_a"})
+        )
+
+        await lifecycle_service.apply_changes(changes, {"app_a": old_manifest}, {"app_a": new_manifest})
+
+        lifecycle_service.reload_app.assert_called_once_with("app_a")
+        lifecycle_service._create_instance_unlocked.assert_not_called()
+        lifecycle_service._stop_instance_unlocked.assert_not_called()
+
+    async def test_changed_index_with_no_sibling_overlap_takes_selective_reload_path(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        mock_factory: MagicMock,
+    ) -> None:
+        """The common case — a changed index's new name doesn't collide with any unchanged
+        sibling's current name — must still take the fast selective per-index batch reload, not
+        the full reload_app fallback (regression guard for the overlap check above; don't let a
+        false-positive overlap detection slow down the normal rename case).
+        """
+        old_manifest = MagicMock()
+        old_manifest.app_config = [{"instance_name": "a"}, {"instance_name": "b"}]
+        new_manifest = MagicMock()
+        new_manifest.app_config = [{"instance_name": "a-changed"}, {"instance_name": "b"}]
+
+        mock_factory.normalize_configs = Mock(side_effect=lambda cfg: cfg)
+        mock_registry.get_manifest = Mock(return_value=new_manifest)
+
+        lifecycle_service.should_auto_reconcile = Mock(return_value=True)
+        lifecycle_service.reload_app = AsyncMock()
+        lifecycle_service._stop_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+        lifecycle_service._create_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+
+        changes = ChangeSet(
+            orphans=frozenset(), new_apps=frozenset(), reimport_apps=frozenset(), reload_apps=frozenset({"app_a"})
+        )
+
+        await lifecycle_service.apply_changes(changes, {"app_a": old_manifest}, {"app_a": new_manifest})
+
+        lifecycle_service.reload_app.assert_not_called()
+        lifecycle_service._stop_instance_unlocked.assert_called_once_with("app_a", 0)
+        lifecycle_service._create_instance_unlocked.assert_called_once()
+
     async def test_failure_reloading_one_instance_does_not_block_remaining_instances(
         self,
         lifecycle_service: AppLifecycleService,

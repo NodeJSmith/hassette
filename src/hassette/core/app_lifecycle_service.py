@@ -965,6 +965,51 @@ class AppLifecycleService(Resource):
             self.logger.debug("No per-instance config changes detected for app %s", app_key)
             return
 
+        # A changed index can adopt an instance_name that an *unchanged* sibling still holds —
+        # e.g. index 0's instance_name changes A -> B while index 1's instance_name stays B (see
+        # PR #1687 review finding, filed against the stop-all/create-all fix above). Neither this
+        # method's changed_indices computation nor _reload_changed_indices' batch reload ever
+        # looks at indices outside the batch, so index 1 is never touched: after the batch
+        # reload, index 0 (now "B") and index 1 (still "B") both exist and both derive the same
+        # App.unique_name, permanently sharing one entry in the Bus/Scheduler owner-keyed
+        # registries. instance_name uniqueness within one app_key's app_config is not enforced
+        # anywhere at config-validation time (see config/classes.py's validate_app_config, which
+        # only fills in a *missing* instance_name — it never checks for duplicates), so this
+        # overlap is not something we can reject as an invalid config: the new config is valid on
+        # its own, it only conflicts with the *currently running* old config during the
+        # transition. Detect the overlap here and fall back to a full app reload, which stops
+        # every instance (including untouched ones) before recreating any of them.
+        changed_set = set(changed_indices)
+        unchanged_names = {old_instances[i]["instance_name"] for i in range(len(old_instances)) if i not in changed_set}
+        new_names_list = [new_instances[i]["instance_name"] for i in changed_set]
+        new_names = set(new_names_list)
+        overlap = unchanged_names & new_names
+        if overlap:
+            self.logger.debug(
+                "Changed instance(s) of app %s would adopt instance_name(s) %s still held by an "
+                "unchanged sibling instance - reloading all instances to avoid a name collision",
+                app_key,
+                sorted(overlap),
+            )
+            await self.reload_app(app_key)
+            return
+
+        # Two *changed* indices can also adopt the same new instance_name from each other --
+        # e.g. index 0: a -> c, index 1: b -> c. No unchanged sibling holds "c", so the check
+        # above sees no overlap, but _reload_changed_indices' create-all phase would still
+        # create two live instances both deriving App.unique_name "c", the same permanent
+        # owner-registry collision as the unchanged-sibling case. `new_names` (a set) silently
+        # collapses such duplicates, so compare its length against the changed-index count
+        # rather than checking membership.
+        if len(new_names) != len(new_names_list):
+            self.logger.debug(
+                "Changed instance(s) of app %s would collide on a shared new instance_name - "
+                "reloading all instances to avoid a name collision",
+                app_key,
+            )
+            await self.reload_app(app_key)
+            return
+
         await self._reload_changed_indices(app_key, changed_indices)
 
     async def _reload_changed_indices(self, app_key: str, changed_indices: list[int]) -> None:
