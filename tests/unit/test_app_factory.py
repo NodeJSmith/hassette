@@ -389,3 +389,23 @@ class TestAppFactoryNormalizeConfigs:
         configs = [{"instance_name": "test1"}, {"instance_name": "test2"}]
         result = AppFactory.normalize_configs(configs)
         assert result == configs
+
+    def test_normalize_configs_single_dict_returns_independent_copy(self):
+        """Mutating the result of a single-dict input must not mutate the original."""
+        config = {"instance_name": "test"}
+        result = AppFactory.normalize_configs(config)
+
+        result[0]["instance_name"] = "mutated"
+
+        assert config["instance_name"] == "test"
+
+    def test_normalize_configs_list_returns_independent_copies(self):
+        """Mutating the result of a list input must not mutate the original list or dicts."""
+        configs = [{"instance_name": "test1"}, {"instance_name": "test2"}]
+        result = AppFactory.normalize_configs(configs)
+
+        result.append({"instance_name": "test3"})
+        result[0]["instance_name"] = "mutated"
+
+        assert len(configs) == 2
+        assert configs[0]["instance_name"] == "test1"
