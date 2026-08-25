@@ -16,7 +16,7 @@ from hassette.core.database_service import DatabaseService
 from hassette.test_utils import wait_for
 from hassette.test_utils.factories import make_job_registration, make_listener_registration
 from hassette.test_utils.harness import HassetteHarness
-from hassette.test_utils.helpers import create_listener
+from hassette.test_utils.helpers import create_listener, noop
 from hassette.types import Topic
 from hassette.utils.app_utils import load_app_class_from_manifest
 
@@ -634,3 +634,104 @@ class TestPerInstanceSelectiveRestart:
 
         job1_cursor = await db_service.db.execute("SELECT id FROM scheduled_jobs WHERE id = ?", (job1_id,))
         assert await job1_cursor.fetchone() is None, "instance 1's stale job row should be cleaned up by its own reload"
+
+    async def test_batch_reload_stops_every_index_before_creating_any_replacement(
+        self, real_db_lifecycle: tuple[AppLifecycleService, CommandExecutor, DatabaseService]
+    ) -> None:
+        """Regression test for PR #1687 review finding: a batch reload that renames multiple
+        instances can make a *new* instance take an ``instance_name`` (and therefore
+        ``App.unique_name``/owner_id) still held by *another* instance in the same batch — e.g.
+        index 0's name changes "alpha" -> "beta" while index 1's changes "beta" -> "gamma". Since
+        Bus owner registries (``BusService.router``, ``BusService._removal_callbacks``) are keyed
+        by that name string alone, interleaving each index's stop-then-create concurrently could
+        let index 0's new "beta" register its listener before index 1's old "beta" finished
+        tearing down — the old teardown would then call ``remove_listeners_by_owner("beta")`` and
+        rip out the new instance's freshly-registered listener too, since both are indistinguishable
+        by owner_id alone.
+
+        Proven deterministically by delaying index 1's stop and observing that no create is ever
+        attempted while that stop is still pending — the fix's stop-all-then-create-all split
+        makes this ordering structural, not timing-dependent. This test fails against the
+        pre-fix implementation (which reloads each index fully concurrently, stop-then-create
+        per index) because index 0's create would proceed immediately, well before index 1's
+        delayed stop of the name-colliding old "beta" instance completes.
+        """
+        lifecycle, _executor, _db_service = real_db_lifecycle
+        app_key = self.MULTI_INSTANCE_APP_KEY
+        original_manifest = self._make_manifest(
+            [
+                {"value": "a", "instance_name": "alpha"},
+                {"value": "b", "instance_name": "beta"},
+            ]
+        )
+        lifecycle.set_apps_configs({app_key: original_manifest})
+
+        await lifecycle.start_app(app_key)
+        instance1_before = lifecycle.registry.get(app_key, 1)
+        assert instance1_before is not None, "Precondition: instance 1 should be running"
+        assert instance1_before.unique_name == "MultiInstanceApp.beta"
+
+        original_config = deepcopy(lifecycle.registry.manifests)
+        # Rename both indices in one edit — index 0 takes the name index 1 is about to vacate.
+        lifecycle.registry.manifests[app_key].app_config = [
+            {"value": "a2", "instance_name": "beta"},
+            {"value": "b2", "instance_name": "gamma"},
+        ]
+
+        call_order: list[str] = []
+        index_1_stop_entered = asyncio.Event()
+        release_index_1_stop = asyncio.Event()
+
+        orig_stop = lifecycle._stop_instance_unlocked
+        orig_create = lifecycle._create_instance_unlocked
+
+        async def instrumented_stop(app_key_: str, index: int) -> None:
+            if index == 1:
+                index_1_stop_entered.set()
+                await release_index_1_stop.wait()
+            await orig_stop(app_key_, index)
+            call_order.append(f"stop_{index}_done")
+
+        async def instrumented_create(app_key_: str, index: int, manifest: object, force_reload: bool = False) -> None:
+            call_order.append(f"create_{index}_start")
+            await orig_create(app_key_, index, manifest, force_reload)
+
+        lifecycle._stop_instance_unlocked = instrumented_stop
+        lifecycle._create_instance_unlocked = instrumented_create
+
+        change_set = ChangeSet(
+            orphans=frozenset(), new_apps=frozenset(), reimport_apps=frozenset(), reload_apps=frozenset({app_key})
+        )
+        task = asyncio.create_task(lifecycle.apply_changes(change_set, original_config, lifecycle.registry.manifests))
+
+        await asyncio.wait_for(index_1_stop_entered.wait(), timeout=1)
+        # While index 1's stop of the old, name-colliding "beta" instance is still pending, no
+        # create for either index may have started yet — the fix's stop-all-then-create-all
+        # split forbids it structurally, not just by timing luck.
+        await asyncio.sleep(0)  # let any wrongly-scheduled create task get a chance to run
+        assert not any(entry.startswith("create_") for entry in call_order), (
+            f"a create started before index 1's stop finished: {call_order}"
+        )
+        assert not task.done()
+
+        release_index_1_stop.set()
+        await asyncio.wait_for(task, timeout=2)
+
+        # Every stop finished strictly before every create started.
+        stop_done_positions = [i for i, entry in enumerate(call_order) if entry.startswith("stop_")]
+        create_start_positions = [i for i, entry in enumerate(call_order) if entry.startswith("create_")]
+        assert stop_done_positions
+        assert create_start_positions
+        assert max(stop_done_positions) < min(create_start_positions), call_order
+
+        # Sanity: the new index-0 instance ("beta") came out of the reload fully usable — it can
+        # register a listener under the now-uncontested "beta" owner_id. The ordering assertions
+        # above are what actually prove the race is closed; this just confirms the fixed flow
+        # doesn't leave the replacement instance in a broken state.
+        instance0_after = lifecycle.registry.get(app_key, 0)
+        assert instance0_after is not None
+        assert instance0_after.unique_name == "MultiInstanceApp.beta"
+
+        sub = await instance0_after.bus.on(topic="test.race_topic", handler=noop, name="post_reload_listener")
+        owner_listeners = lifecycle.hassette.bus_service.get_listeners_by_owner("MultiInstanceApp.beta")
+        assert sub.listener.listener_id in {listener.listener_id for listener in owner_listeners}

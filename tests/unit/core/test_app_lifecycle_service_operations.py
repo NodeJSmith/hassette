@@ -713,10 +713,10 @@ class TestApplyChangesPerInstanceRestart:
         mock_registry: MagicMock,
         mock_factory: MagicMock,
     ) -> None:
-        """A 3-instance app where indices 0, 1, and 2 all changed config: if reloading index 0
-        raises, indices 1 and 2 must still be attempted, and the exception must not escape
-        ``apply_changes()`` (see code review finding — per-index try/except around the batch
-        reload loop in ``_reload_app_or_changed_instances``).
+        """A 3-instance app where indices 0, 1, and 2 all changed config: if creating the
+        replacement for index 0 raises, indices 1 and 2 must still be attempted, and the
+        exception must not escape ``apply_changes()`` (see code review finding — per-index
+        try/except around the batch reload's create phase in ``_reload_changed_indices``).
         """
         old_manifest = MagicMock()
         old_manifest.app_config = [
@@ -735,15 +735,18 @@ class TestApplyChangesPerInstanceRestart:
         mock_registry.get_manifest = Mock(return_value=new_manifest)
 
         lifecycle_service.should_auto_reconcile = Mock(return_value=True)
+        lifecycle_service._stop_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
-        reloaded_indices: list[int] = []
+        created_indices: list[int] = []
 
-        async def reload_side_effect(_app_key: str, index: int, _force_reload: bool = False) -> None:
-            reloaded_indices.append(index)
+        async def create_side_effect(_app_key: str, index: int, _manifest: object, _force_reload: bool = False) -> None:
+            created_indices.append(index)
             if index == 0:
                 raise RuntimeError("boom")
 
-        lifecycle_service._reload_instance_unlocked = AsyncMock(side_effect=reload_side_effect)  # pyright: ignore[reportAttributeAccessIssue]
+        lifecycle_service._create_instance_unlocked = AsyncMock(  # pyright: ignore[reportAttributeAccessIssue]
+            side_effect=create_side_effect
+        )
 
         changes = ChangeSet(
             orphans=frozenset(), new_apps=frozenset(), reimport_apps=frozenset(), reload_apps=frozenset({"app_a"})
@@ -753,7 +756,7 @@ class TestApplyChangesPerInstanceRestart:
         await lifecycle_service.apply_changes(changes, {"app_a": old_manifest}, {"app_a": new_manifest})
 
         # All three indices were attempted despite index 0's failure.
-        assert reloaded_indices == [0, 1, 2]
+        assert created_indices == [0, 1, 2]
 
     async def test_batch_reload_runs_instances_concurrently_not_sequentially(
         self,
@@ -761,11 +764,12 @@ class TestApplyChangesPerInstanceRestart:
         mock_registry: MagicMock,
         mock_factory: MagicMock,
     ) -> None:
-        """The batch loop uses asyncio.gather, not a sequential await-per-index loop (ship-time
+        """Each phase of the batch (stop-all, then create-all — see PR #1687 review finding)
+        uses asyncio.gather within itself, not a sequential await-per-index loop (ship-time
         challenge finding — sequential processing held the per-app-key lock for the sum of
-        every changed instance's timeout). Proven deterministically: index 1 must reach its
-        reload before index 0's reload releases, which is only possible if both are running
-        concurrently under the same lock acquisition.
+        every changed instance's timeout). Proven deterministically for the create phase: index
+        1 must reach its create before index 0's create releases, which is only possible if both
+        are running concurrently under the same lock acquisition.
         """
         old_manifest = MagicMock()
         old_manifest.app_config = [{"instance_name": "a"}, {"instance_name": "b"}]
@@ -778,19 +782,22 @@ class TestApplyChangesPerInstanceRestart:
         mock_factory.normalize_configs = Mock(side_effect=lambda cfg: cfg)
         mock_registry.get_manifest = Mock(return_value=new_manifest)
         lifecycle_service.should_auto_reconcile = Mock(return_value=True)
+        lifecycle_service._stop_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
         index_0_entered = asyncio.Event()
         index_0_release = asyncio.Event()
         index_1_entered = asyncio.Event()
 
-        async def reload_side_effect(_app_key: str, index: int, _force_reload: bool = False) -> None:
+        async def create_side_effect(_app_key: str, index: int, _manifest: object, _force_reload: bool = False) -> None:
             if index == 0:
                 index_0_entered.set()
                 await index_0_release.wait()
             else:
                 index_1_entered.set()
 
-        lifecycle_service._reload_instance_unlocked = AsyncMock(side_effect=reload_side_effect)  # pyright: ignore[reportAttributeAccessIssue]
+        lifecycle_service._create_instance_unlocked = AsyncMock(  # pyright: ignore[reportAttributeAccessIssue]
+            side_effect=create_side_effect
+        )
 
         changes = ChangeSet(
             orphans=frozenset(), new_apps=frozenset(), reimport_apps=frozenset(), reload_apps=frozenset({"app_a"})
@@ -801,7 +808,7 @@ class TestApplyChangesPerInstanceRestart:
 
         await asyncio.wait_for(index_0_entered.wait(), timeout=1)
         # If index 1 only starts after index 0 releases, this would deadlock — the whole point
-        # of the assertion is that index 1 reaches its reload while index 0 is still blocked.
+        # of the assertion is that index 1 reaches its create while index 0 is still blocked.
         await asyncio.wait_for(index_1_entered.wait(), timeout=1)
         assert not task.done()  # index 0 is still parked on its release event
 

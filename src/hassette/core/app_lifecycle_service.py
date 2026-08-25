@@ -968,19 +968,45 @@ class AppLifecycleService(Resource):
         await self._reload_changed_indices(app_key, changed_indices)
 
     async def _reload_changed_indices(self, app_key: str, changed_indices: list[int]) -> None:
-        """Concurrently reload the given instance indices of ``app_key`` under one lock.
+        """Reload the given instance indices of ``app_key`` under one lock, stopping every
+        affected index before creating any replacement.
 
         Extracted from ``_reload_app_or_changed_instances`` — see that method for the fallback
         cases (missing manifest, instance-count changed) that precede this batch reload.
+
+        Split into a stop-all phase followed by a create-all phase (rather than reloading each
+        index fully concurrently, stop-then-create) — see PR #1687 review finding. A batch that
+        renames multiple instances can make a *new* instance take an ``instance_name`` (and
+        therefore ``App.unique_name``/owner_id) still held by *another* instance in the same
+        batch — e.g. index 0's ``instance_name`` changes ``A`` -> ``B`` while index 1's changes
+        ``B`` -> ``C``. Bus/Scheduler owner registries (``BusService.router``,
+        ``BusService._removal_callbacks``, the equivalent Scheduler structures) are keyed by that
+        name string alone, not by ``(app_key, index)``. Interleaving each index's stop-then-create
+        concurrently (the previous ``asyncio.gather`` over full per-index reloads) could let index
+        0's new "B" register its listeners/jobs/removal-callback before index 1's old "B" finished
+        tearing down — the old teardown would then rip out the new instance's freshly-registered
+        state, since both are indistinguishable by owner_id alone. Stopping every affected index
+        first (nothing new has been registered yet, so no create can collide with an in-flight
+        stop) and only then creating replacements eliminates the interleaving hazard structurally,
+        regardless of which names overlap or in which order — no overlap detection needed.
         """
         self.logger.debug("Reloading changed instance(s) %s of app %s", changed_indices, app_key)
 
-        async def _reload_one(idx: int) -> None:
-            # Per-index try/except, mirroring reload_instance()'s own guard — a failure at
+        app_manifest = self.registry.get_manifest(app_key)
+        if not app_manifest:
+            self.logger.debug("Skipping disabled or unknown app %s", app_key)
+            return
+
+        valid_indices = [idx for idx in changed_indices if self._instance_index_in_range(app_key, idx, app_manifest)]
+        if not valid_indices:
+            return
+
+        async def _create_one(idx: int) -> None:
+            # Per-index try/except, mirroring the previous _reload_one() guard — a failure at
             # one index must not abort the remaining indices in this batch, nor the caller's
             # loop over other app_keys in apply_changes() (see code review finding).
             try:
-                await self._reload_instance_unlocked(app_key, idx)
+                await self._create_instance_unlocked(app_key, idx, app_manifest)
             except Exception:
                 self.logger.error("Failed to reload instance %d of app %s:\n%s", idx, app_key, get_short_traceback())
 
@@ -988,10 +1014,18 @@ class AppLifecycleService(Resource):
         # lock, so calling it per-index here (instead of the unlocked body) would deadlock on
         # the non-reentrant asyncio.Lock on the second index. Instances of the same app_key
         # share no mutable state (each owns its own Bus/Scheduler/StateManager/Api/AsyncCache —
-        # see design.md "Dependencies and Assumptions"), so reloading the batch concurrently is
-        # safe and bounds the lock's hold time at one instance's timeout instead of N.
+        # see design.md "Dependencies and Assumptions"), so each phase runs concurrently within
+        # itself. This bounds the lock's hold time at roughly two instances' timeouts (one stop
+        # phase plus one create phase) instead of N — looser than the previous single-phase
+        # claim of "one instance's timeout," but still far short of a fully sequential N-instance
+        # bound, and necessary to close the name-collision race described above.
+        #
+        # _stop_instance_unlocked already wraps its own body in try/except (see its docstring),
+        # so a stop failure at one index is isolated and logged there without needing a guard
+        # here too — unlike the create phase below, which needs its own per-index try/except.
         async with self._get_app_key_lock(app_key):
-            await asyncio.gather(*(_reload_one(idx) for idx in changed_indices))
+            await asyncio.gather(*(self._stop_instance_unlocked(app_key, idx) for idx in valid_indices))
+            await asyncio.gather(*(_create_one(idx) for idx in valid_indices))
 
     async def handle_change_event(
         self,
