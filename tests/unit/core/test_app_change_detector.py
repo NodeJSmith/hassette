@@ -8,7 +8,7 @@ import pytest
 from hassette.config.classes import AppManifest
 from hassette.core.app_change_detector import (
     APP_CONFIG_PATH_PATTERN,
-    IMPLEMENTATION_PATH_PATTERN,
+    REIMPORT_PATH_PATTERN,
     AppChangeDetector,
     ChangeSet,
 )
@@ -44,10 +44,11 @@ class TestAppConfigPathPattern:
         assert not APP_CONFIG_PATH_PATTERN.search(path)
 
 
-class TestImplementationPathPattern:
-    """IMPLEMENTATION_PATH_PATTERN must match `.filename`/`.class_name`/`.app_dir` as full path
-    segments, not as a substring of a longer field name (e.g. a future `filename_prefix` field
-    must not match) -- same substring-safety concern as `APP_CONFIG_PATH_PATTERN`.
+class TestReimportPathPattern:
+    """REIMPORT_PATH_PATTERN must match `.filename`/`.class_name`/`.app_dir`/`.cache_key` as
+    full path segments, not as a substring of a longer field name (e.g. a future
+    `filename_prefix` field must not match) -- same substring-safety concern as
+    `APP_CONFIG_PATH_PATTERN`.
     """
 
     @pytest.mark.parametrize(
@@ -56,10 +57,11 @@ class TestImplementationPathPattern:
             "root['app1'].filename",
             "root['app1'].class_name",
             "root['app1'].app_dir",
+            "root['app1'].cache_key",
         ],
     )
-    def test_matches_implementation_field_segment(self, path: str) -> None:
-        assert IMPLEMENTATION_PATH_PATTERN.search(path)
+    def test_matches_reimport_field_segment(self, path: str) -> None:
+        assert REIMPORT_PATH_PATTERN.search(path)
 
     @pytest.mark.parametrize(
         "path",
@@ -68,10 +70,11 @@ class TestImplementationPathPattern:
             "root['app1'].class_name_override",
             "root['app1'].app_config",
             "root['app1'].app_dir_override",
+            "root['app1'].cache_key_override",
         ],
     )
     def test_does_not_match_field_name_prefix_collision(self, path: str) -> None:
-        assert not IMPLEMENTATION_PATH_PATTERN.search(path)
+        assert not REIMPORT_PATH_PATTERN.search(path)
 
 
 class TestChangeSet:
@@ -181,6 +184,7 @@ class TestAppChangeDetector:
             filename: str | None = None,
             class_name: str | None = None,
             app_dir: Path | None = None,
+            cache_key: str | None = None,
         ) -> AppManifest:
             return AppManifest(
                 app_key=app_key,
@@ -191,6 +195,7 @@ class TestAppChangeDetector:
                 app_config=app_config or {"instance_name": f"{app_key}.0"},
                 full_path=full_path or Path(f"/apps/{app_key}.py"),
                 autostart=autostart,
+                cache_key=cache_key or "",
             )
 
         return _make
@@ -488,6 +493,26 @@ class TestAppChangeDetector:
 
         assert changes.reimport_apps == frozenset({"app1"})
         assert "app1" not in changes.reload_apps
+
+    def test_cache_key_change_triggers_reimport_not_reload(
+        self, detector: AppChangeDetector, make_manifest: Callable
+    ) -> None:
+        """A cache_key-only change (no app_config change, no file-watcher event) must land in
+        reimport_apps -- not reload_apps. App.__init__ builds its AsyncCache exactly once,
+        keyed on the manifest's cache_key at construction time; reload_apps's per-instance path
+        only diffs app_config, so a cache_key-only change would otherwise silently no-op and
+        leave the running instance bound to its old cache path. See
+        app_change_detector.py's REIMPORT_FIELDS docstring.
+        """
+        original = {"app1": make_manifest("app1", cache_key="old_key")}
+        current = {"app1": make_manifest("app1", cache_key="new_key")}
+
+        changes = detector.detect_changes(original, current)
+
+        assert changes.reimport_apps == frozenset({"app1"})
+        assert "app1" not in changes.reload_apps
+        assert not changes.orphans
+        assert not changes.new_apps
 
     def test_filename_and_app_config_change_together_only_in_reimport(
         self, detector: AppChangeDetector, make_manifest: Callable
