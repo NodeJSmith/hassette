@@ -697,15 +697,21 @@ class AppLifecycleService(Resource):
         config_dict = app_configs[index]
         self.factory.create_single_instance(app_key, app_manifest, index, config_dict, app_class)
 
-        if await self._emit_failure_event_if_present(app_key, index):
-            return
+        try:
+            if await self._emit_failure_event_if_present(app_key, index):
+                return
 
-        inst = self.registry.get(app_key, index)
-        if inst is None:
-            return
+            inst = self.registry.get(app_key, index)
+            if inst is None:
+                return
 
-        await self.hassette.send_event(HassetteAppStateEvent.from_app(app=inst, status=NOT_STARTED))
-        await self.initialize_instances(app_key, {index: inst}, app_manifest, instance_index=index)
+            await self.hassette.send_event(HassetteAppStateEvent.from_app(app=inst, status=NOT_STARTED))
+            await self.initialize_instances(app_key, {index: inst}, app_manifest, instance_index=index)
+        except Exception:
+            self.registry.unregister_app(app_key, index)
+            self.registry.record_failure(app_key, index, Exception(f"Post-registration failure for {app_key}[{index}]"))
+            await self._emit_failure_event_if_present(app_key, index)
+            raise
 
     async def _stop_instance_unlocked(self, app_key: str, index: int) -> None:
         """Unregister and shut down a single instance at ``index``, if one exists.

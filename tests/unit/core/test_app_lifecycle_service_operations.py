@@ -1604,6 +1604,40 @@ class TestCreateInstanceUnlockedSynchronousFailure:
         assert len(failed_payloads) == 1
 
 
+class TestCreateInstanceUnlockedPostRegistrationFailure:
+    async def test_send_event_failure_after_registration_unregisters_and_records_failure(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        mock_factory: MagicMock,
+        mock_manifest: MagicMock,
+        mock_hassette: MagicMock,
+    ) -> None:
+        """If send_event raises after create_single_instance has already registered the app
+        in the registry, the compensating handler must unregister the phantom entry and record
+        a failure — otherwise the registry permanently reports a "running" instance that was
+        never initialized.
+        """
+        mock_manifest.app_config = [{"instance_name": "a"}]
+        mock_factory.normalize_configs = Mock(side_effect=lambda cfg: cfg)
+        mock_factory.load_class = Mock(return_value=MagicMock())
+
+        mock_registry.get_failed_instance_infos = Mock(return_value={})
+
+        mock_inst = MagicMock()
+        mock_registry.get = Mock(return_value=mock_inst)
+
+        mock_hassette.send_event = AsyncMock(side_effect=RuntimeError("event bus failure"))
+
+        with pytest.raises(RuntimeError, match="event bus failure"):
+            await lifecycle_service._create_instance_unlocked("test_app", 0, mock_manifest)
+
+        mock_registry.unregister_app.assert_called_once_with("test_app", 0)
+        mock_registry.record_failure.assert_called_once()
+        assert mock_registry.record_failure.call_args.args[0] == "test_app"
+        assert mock_registry.record_failure.call_args.args[1] == 0
+
+
 class TestReloadInstanceUnlockedGuards:
     async def test_unknown_app_key_returns_without_stopping_or_creating(
         self,
