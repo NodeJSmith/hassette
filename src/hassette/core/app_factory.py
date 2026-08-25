@@ -3,6 +3,7 @@
 from logging import getLogger
 from typing import TYPE_CHECKING
 
+from hassette.schemas.app_config_shape import normalize_app_config
 from hassette.utils.app_utils import (
     class_already_loaded,
     class_failed_to_load,
@@ -140,8 +141,4 @@ class AppFactory:
     @staticmethod
     def normalize_configs(app_config: dict | list[dict] | None) -> list[dict]:
         """Ensure app_config is a list of dicts."""
-        if app_config is None:
-            return []
-        if isinstance(app_config, dict):
-            return [app_config]
-        return list(app_config)
+        return normalize_app_config(app_config)

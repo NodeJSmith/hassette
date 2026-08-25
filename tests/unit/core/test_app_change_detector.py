@@ -6,7 +6,37 @@ from pathlib import Path
 import pytest
 
 from hassette.config.classes import AppManifest
-from hassette.core.app_change_detector import AppChangeDetector, ChangeSet
+from hassette.core.app_change_detector import APP_CONFIG_PATH_PATTERN, AppChangeDetector, ChangeSet
+
+
+class TestAppConfigPathPattern:
+    """APP_CONFIG_PATH_PATTERN must match `.app_config` as a full path segment, not as a
+    substring of a longer field name — the same substring-matching pitfall documented on
+    `AppChangeDetector`'s `include_paths` handling (see the comment there on why DeepDiff's
+    `include_paths` can't express "only descend into this specific nested field").
+    """
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "root['app1'].app_config",
+            "root['app1'].app_config['setting']",
+            "root['app1'].app_config[0]",
+        ],
+    )
+    def test_matches_app_config_segment(self, path: str) -> None:
+        assert APP_CONFIG_PATH_PATTERN.search(path)
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "root['app1'].app_config_extra",
+            "root['app1'].app_config_version",
+            "root['app1'].legacy_app_config",
+        ],
+    )
+    def test_does_not_match_field_name_prefix_collision(self, path: str) -> None:
+        assert not APP_CONFIG_PATH_PATTERN.search(path)
 
 
 class TestChangeSet:

@@ -651,7 +651,7 @@ class AppLifecycleService(Resource):
         valid index range) can change while a caller was parked in ``_admit_start()``.
         """
         valid_index_count = len(self.factory.normalize_configs(app_manifest.app_config))
-        if index >= valid_index_count:
+        if index < 0 or index >= valid_index_count:
             self.logger.debug(
                 "Instance %d of app %s is out of range (%d configured) — skipping",
                 index,
@@ -810,17 +810,20 @@ class AppLifecycleService(Resource):
 
         await self._admit_start(app_key=app_key, admission_mode=admission_mode)
 
-        async with self._get_app_key_lock(app_key):
-            # Re-fetch under the lock — mirrors start_app()'s stale-manifest race guard.
-            app_manifest = self.registry.get_manifest(app_key)
-            if not app_manifest:
-                self.logger.debug("Skipping disabled or unknown app %s", app_key)
-                return
+        try:
+            async with self._get_app_key_lock(app_key):
+                # Re-fetch under the lock — mirrors start_app()'s stale-manifest race guard.
+                app_manifest = self.registry.get_manifest(app_key)
+                if not app_manifest:
+                    self.logger.debug("Skipping disabled or unknown app %s", app_key)
+                    return
 
-            if not self._instance_index_in_range(app_key, index, app_manifest):
-                return
+                if not self._instance_index_in_range(app_key, index, app_manifest):
+                    return
 
-            await self._create_instance_unlocked(app_key, index, app_manifest)
+                await self._create_instance_unlocked(app_key, index, app_manifest)
+        except Exception:
+            self.logger.error("Failed to start instance %d of app %s:\n%s", index, app_key, get_short_traceback())
 
     def should_autostart(self, app_key: str) -> bool:
         """A new/not-yet-running app auto-starts only if its manifest allows it."""
@@ -951,21 +954,33 @@ class AppLifecycleService(Resource):
             self.logger.debug("No per-instance config changes detected for app %s", app_key)
             return
 
+        await self._reload_changed_indices(app_key, changed_indices)
+
+    async def _reload_changed_indices(self, app_key: str, changed_indices: list[int]) -> None:
+        """Concurrently reload the given instance indices of ``app_key`` under one lock.
+
+        Extracted from ``_reload_app_or_changed_instances`` — see that method for the fallback
+        cases (missing manifest, instance-count changed) that precede this batch reload.
+        """
         self.logger.debug("Reloading changed instance(s) %s of app %s", changed_indices, app_key)
+
+        async def _reload_one(idx: int) -> None:
+            # Per-index try/except, mirroring reload_instance()'s own guard — a failure at
+            # one index must not abort the remaining indices in this batch, nor the caller's
+            # loop over other app_keys in apply_changes() (see code review finding).
+            try:
+                await self._reload_instance_unlocked(app_key, idx)
+            except Exception:
+                self.logger.error("Failed to reload instance %d of app %s:\n%s", idx, app_key, get_short_traceback())
+
         # Single lock acquisition for the whole batch — reload_instance() also acquires this
         # lock, so calling it per-index here (instead of the unlocked body) would deadlock on
-        # the non-reentrant asyncio.Lock on the second index.
+        # the non-reentrant asyncio.Lock on the second index. Instances of the same app_key
+        # share no mutable state (each owns its own Bus/Scheduler/StateManager/Api/AsyncCache —
+        # see design.md "Dependencies and Assumptions"), so reloading the batch concurrently is
+        # safe and bounds the lock's hold time at one instance's timeout instead of N.
         async with self._get_app_key_lock(app_key):
-            for idx in changed_indices:
-                # Per-index try/except, mirroring reload_instance()'s own guard — a failure at
-                # one index must not abort the remaining indices in this batch, nor the caller's
-                # loop over other app_keys in apply_changes() (see code review finding).
-                try:
-                    await self._reload_instance_unlocked(app_key, idx)
-                except Exception:
-                    self.logger.error(
-                        "Failed to reload instance %d of app %s:\n%s", idx, app_key, get_short_traceback()
-                    )
+            await asyncio.gather(*(_reload_one(idx) for idx in changed_indices))
 
     async def handle_change_event(
         self,

@@ -1,5 +1,6 @@
 """App change detector for calculating configuration differences."""
 
+import re
 from dataclasses import dataclass
 from logging import getLogger
 from pathlib import Path
@@ -12,6 +13,10 @@ if TYPE_CHECKING:
 
 APP_CONFIG_FIELD = "app_config"
 """The `AppManifest` attribute whose changes should trigger a config reload."""
+
+APP_CONFIG_PATH_PATTERN = re.compile(rf"\.{re.escape(APP_CONFIG_FIELD)}(\[|\.|$)")
+"""Matches `.app_config` as a full path segment, not a substring of a longer field name
+(e.g. a future `app_config_overrides` field must not match)."""
 
 
 @dataclass(frozen=True)
@@ -79,12 +84,11 @@ class AppChangeDetector:
             ignore_order=True,
         )
 
-        app_config_marker = f".{APP_CONFIG_FIELD}"
         config_changed_keys = {
             item.get_root_key()
             for entries in config_diff.tree.values()
             for item in entries
-            if app_config_marker in item.path()
+            if APP_CONFIG_PATH_PATTERN.search(item.path())
         }
 
         original_keys = set(original_config.keys())

@@ -642,10 +642,8 @@ class TestApplyChangesPerInstanceRestart:
 
         # Only index 1 was ever (re)created.
         mock_factory.create_single_instance.assert_called_once()
-        _app_key_arg, _manifest_arg, index_arg, _config_arg, _class_arg = (
-            mock_factory.create_single_instance.call_args.args
-        )
-        assert index_arg == 1
+        # create_single_instance(app_key, manifest, index, config_dict, app_class) — index is arg[2]
+        assert mock_factory.create_single_instance.call_args.args[2] == 1
 
     async def test_reimport_reloads_all_instances_via_reload_app_not_reload_instance(
         self,
@@ -756,6 +754,59 @@ class TestApplyChangesPerInstanceRestart:
 
         # All three indices were attempted despite index 0's failure.
         assert reloaded_indices == [0, 1, 2]
+
+    async def test_batch_reload_runs_instances_concurrently_not_sequentially(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        mock_factory: MagicMock,
+    ) -> None:
+        """The batch loop uses asyncio.gather, not a sequential await-per-index loop (ship-time
+        challenge finding — sequential processing held the per-app-key lock for the sum of
+        every changed instance's timeout). Proven deterministically: index 1 must reach its
+        reload before index 0's reload releases, which is only possible if both are running
+        concurrently under the same lock acquisition.
+        """
+        old_manifest = MagicMock()
+        old_manifest.app_config = [{"instance_name": "a"}, {"instance_name": "b"}]
+        new_manifest = MagicMock()
+        new_manifest.app_config = [
+            {"instance_name": "a", "off_delay": 1},
+            {"instance_name": "b", "off_delay": 2},
+        ]
+
+        mock_factory.normalize_configs = Mock(side_effect=lambda cfg: cfg)
+        mock_registry.get_manifest = Mock(return_value=new_manifest)
+        lifecycle_service.should_auto_reconcile = Mock(return_value=True)
+
+        index_0_entered = asyncio.Event()
+        index_0_release = asyncio.Event()
+        index_1_entered = asyncio.Event()
+
+        async def reload_side_effect(_app_key: str, index: int, _force_reload: bool = False) -> None:
+            if index == 0:
+                index_0_entered.set()
+                await index_0_release.wait()
+            else:
+                index_1_entered.set()
+
+        lifecycle_service._reload_instance_unlocked = AsyncMock(side_effect=reload_side_effect)  # pyright: ignore[reportAttributeAccessIssue]
+
+        changes = ChangeSet(
+            orphans=frozenset(), new_apps=frozenset(), reimport_apps=frozenset(), reload_apps=frozenset({"app_a"})
+        )
+        task = asyncio.create_task(
+            lifecycle_service.apply_changes(changes, {"app_a": old_manifest}, {"app_a": new_manifest})
+        )
+
+        await asyncio.wait_for(index_0_entered.wait(), timeout=1)
+        # If index 1 only starts after index 0 releases, this would deadlock — the whole point
+        # of the assertion is that index 1 reaches its reload while index 0 is still blocked.
+        await asyncio.wait_for(index_1_entered.wait(), timeout=1)
+        assert not task.done()  # index 0 is still parked on its release event
+
+        index_0_release.set()
+        await asyncio.wait_for(task, timeout=1)
 
     async def test_should_auto_reconcile_wraps_the_entire_per_instance_branch(
         self,
@@ -904,6 +955,52 @@ class TestStopInstanceBehavior:
 
         mock_registry.unregister_app.assert_not_called()
 
+    async def test_succeeds_without_admission_check_before_bootstrap_release(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        mock_factory: MagicMock,
+        mock_manifest: MagicMock,
+    ) -> None:
+        """stop_instance does not call _admit_start — it works before bootstrap release,
+        matching the existing stop_app convention (design.md Edge Cases: "The stop endpoint
+        does not go through admission").
+        """
+        mock_manifest.app_config = [{"instance_name": "a"}]
+        mock_registry.get_manifest = Mock(return_value=mock_manifest)
+        mock_registry.get_failed_instance_infos = Mock(return_value={})
+        mock_factory.normalize_configs = Mock(side_effect=lambda cfg: cfg)
+        mock_registry.unregister_app = Mock(return_value={})
+        lifecycle_service._admit_start = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+
+        await lifecycle_service.stop_instance("test_app", 0)
+
+        lifecycle_service._admit_start.assert_not_called()
+
+
+class TestStartInstanceFailure:
+    async def test_create_instance_failure_does_not_raise(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        mock_factory: MagicMock,
+        mock_manifest: MagicMock,
+    ) -> None:
+        """An exception from create_single_instance is caught and logged, not propagated.
+
+        Mirrors TestStopInstanceFailure.test_unregister_failure_does_not_raise but for
+        start_instance — proves the try/except containment around its lock body (added in
+        the ship-time challenge fixer pass) actually works, matching _start_app_unlocked's
+        existing containment for the full app-key path.
+        """
+        mock_manifest.app_config = [{"instance_name": "a"}]
+        mock_registry.get_manifest = Mock(return_value=mock_manifest)
+        mock_factory.normalize_configs = Mock(side_effect=lambda cfg: cfg)
+        mock_factory.load_class = Mock(return_value=MagicMock())
+        mock_factory.create_single_instance = Mock(side_effect=RuntimeError("factory blew up"))
+
+        await lifecycle_service.start_instance("test_app", 0)  # must not raise
+
 
 class TestStartInstanceBehavior:
     async def test_creates_and_initializes_target_index(
@@ -924,10 +1021,8 @@ class TestStartInstanceBehavior:
         await lifecycle_service.start_instance("test_app", 1)
 
         mock_factory.create_single_instance.assert_called_once()
-        _app_key_arg, _manifest_arg, index_arg, _config_arg, _class_arg = (
-            mock_factory.create_single_instance.call_args.args
-        )
-        assert index_arg == 1
+        # create_single_instance(app_key, manifest, index, config_dict, app_class) — index is arg[2]
+        assert mock_factory.create_single_instance.call_args.args[2] == 1
 
     async def test_out_of_range_index_skips_cleanly(
         self,
@@ -942,6 +1037,25 @@ class TestStartInstanceBehavior:
         mock_factory.normalize_configs = Mock(side_effect=lambda cfg: cfg)
 
         await lifecycle_service.start_instance("test_app", 5)
+
+        mock_factory.create_single_instance.assert_not_called()
+
+    async def test_negative_index_skips_cleanly(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        mock_factory: MagicMock,
+        mock_manifest: MagicMock,
+    ) -> None:
+        """start_instance no-ops for a negative index rather than resolving it via Python's
+        negative-indexing semantics into the last configured instance (ship-time challenge
+        finding — the shared _instance_index_in_range() helper only checked the upper bound).
+        """
+        mock_manifest.app_config = [{"instance_name": "a"}]
+        mock_registry.get_manifest = Mock(return_value=mock_manifest)
+        mock_factory.normalize_configs = Mock(side_effect=lambda cfg: cfg)
+
+        await lifecycle_service.start_instance("test_app", -1)
 
         mock_factory.create_single_instance.assert_not_called()
 

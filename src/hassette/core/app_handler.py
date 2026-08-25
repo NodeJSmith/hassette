@@ -35,8 +35,6 @@ class AppHandler(Resource):
 
     depends_on: ClassVar[list[type[Resource]]] = [AppBootstrapCoordinator]
 
-    # Per-instance restart instead of full app-key restart (#796)
-
     registry: AppRegistry
     """Registry for tracking app state."""
 

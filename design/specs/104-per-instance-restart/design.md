@@ -1,7 +1,7 @@
 # Design: Per-Instance App Restart
 
 **Date:** 2026-08-24
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Research:** design/research/2026-08-24-per-instance-restart/research.md
 

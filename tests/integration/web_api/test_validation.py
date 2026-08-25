@@ -211,8 +211,9 @@ class TestAppKeyValidation:
     async def test_nonexistent_app_key_returns_404(
         self, client: "AsyncClient", mock_hassette: MagicMock, action: str
     ) -> None:
-        """Non-existent app_key returns 404 when registry has no manifest."""
+        """Non-existent app_key returns 404 when registry has no manifest and no running instances."""
         mock_hassette._app_handler.registry.get_manifest.return_value = None
+        mock_hassette._app_handler.registry.get_instances.return_value = {}
         response = await client.post(f"/api/apps/unknown_app/{action}")
         assert response.status_code == 404
 

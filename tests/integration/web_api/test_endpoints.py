@@ -262,6 +262,7 @@ class TestAppInstanceEndpoints:
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
         mock_hassette._app_handler.registry.get_manifest.return_value = None
+        mock_hassette._app_handler.registry.get_instances.return_value = {}
 
         response = await client.post("/api/apps/unknown_app/instances/0/start")
 
@@ -286,6 +287,77 @@ class TestAppInstanceEndpoints:
         response = await client.post("/api/apps/my_app/instances/0/reload")
 
         assert response.status_code == 409
+
+    async def test_stop_instance_orphaned_app_reaches_service_layer(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        """An app removed from config but still running can be stopped via per-instance endpoint."""
+        mock_hassette._app_handler.registry.get_manifest.return_value = None
+        mock_hassette._app_handler.registry.get_instances.return_value = {0: MagicMock()}
+        mock_hassette.app_handler.stop_instance = AsyncMock()
+
+        response = await client.post("/api/apps/orphan_app/instances/0/stop")
+
+        assert response.status_code == 202
+        mock_hassette.app_handler.stop_instance.assert_awaited_once_with("orphan_app", 0)
+
+    async def test_stop_app_orphaned_app_reaches_service_layer(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        """Full-key stop also works for an orphaned app with running instances but no manifest."""
+        mock_hassette._app_handler.registry.get_manifest.return_value = None
+        mock_hassette._app_handler.registry.get_instances.return_value = {0: MagicMock()}
+        mock_hassette.app_handler.stop_app = AsyncMock()
+
+        response = await client.post("/api/apps/orphan_app/stop")
+
+        assert response.status_code == 202
+        mock_hassette.app_handler.stop_app.assert_awaited_once_with("orphan_app")
+
+    async def test_start_instance_orphaned_app_still_returns_404(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        """Unlike stop, start does not get orphan permissiveness -- the service layer would silently
+        no-op on a missing manifest, so admitting the request would swap a clear 404 for a 202 that
+        does nothing.
+        """
+        mock_hassette._app_handler.registry.get_manifest.return_value = None
+        mock_hassette._app_handler.registry.get_instances.return_value = {0: MagicMock()}
+
+        response = await client.post("/api/apps/orphan_app/instances/0/start")
+
+        assert response.status_code == 404
+
+    async def test_reload_instance_orphaned_app_still_returns_404(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        mock_hassette._app_handler.registry.get_manifest.return_value = None
+        mock_hassette._app_handler.registry.get_instances.return_value = {0: MagicMock()}
+
+        response = await client.post("/api/apps/orphan_app/instances/0/reload")
+
+        assert response.status_code == 404
+
+    async def test_start_app_orphaned_app_still_returns_404(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        """Full-key start also keeps the orphan-app 404, matching the per-instance behavior."""
+        mock_hassette._app_handler.registry.get_manifest.return_value = None
+        mock_hassette._app_handler.registry.get_instances.return_value = {0: MagicMock()}
+
+        response = await client.post("/api/apps/orphan_app/start")
+
+        assert response.status_code == 404
+
+    async def test_reload_app_orphaned_app_still_returns_404(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        mock_hassette._app_handler.registry.get_manifest.return_value = None
+        mock_hassette._app_handler.registry.get_instances.return_value = {0: MagicMock()}
+
+        response = await client.post("/api/apps/orphan_app/reload")
+
+        assert response.status_code == 404
 
 
 class TestAppManifestEndpoint:
