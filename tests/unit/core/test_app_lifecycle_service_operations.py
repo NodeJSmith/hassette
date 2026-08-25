@@ -13,6 +13,8 @@ from hassette.test_utils import EventCapture, wait_for
 from hassette.types import Topic
 from hassette.types.enums import BlockReason, ResourceStatus
 
+from .conftest import set_registry_apps
+
 
 class TestApplyChanges:
     async def test_routes_changes_to_correct_methods(self, lifecycle_service: AppLifecycleService) -> None:
@@ -607,6 +609,7 @@ class TestApplyChangesPerInstanceRestart:
         instance 1 — ``shutdown_instance`` is called only for instance 1, and
         ``create_single_instance`` is called only for index 1.
         """
+        set_registry_apps(mock_registry, {"app_a": {0: MagicMock(), 1: MagicMock()}})
         old_manifest = MagicMock()
         old_manifest.app_config = [{"instance_name": "a"}, {"instance_name": "b", "off_delay": 10}]
         new_manifest = MagicMock()
@@ -686,6 +689,7 @@ class TestApplyChangesPerInstanceRestart:
         """When the instance list length changes between old and new config, the
         system falls back to a full ``reload_app`` instead of per-instance reload.
         """
+        set_registry_apps(mock_registry, {"app_a": {0: MagicMock()}})
         old_manifest = MagicMock()
         old_manifest.app_config = [{"instance_name": "a"}]
         new_manifest = MagicMock()
@@ -718,6 +722,7 @@ class TestApplyChangesPerInstanceRestart:
         instances sharing one App.unique_name — see PR #1687 review finding. Detecting the
         overlap must fall back to a full reload_app instead of the per-index batch reload.
         """
+        set_registry_apps(mock_registry, {"app_a": {0: MagicMock(), 1: MagicMock()}})
         old_manifest = MagicMock()
         old_manifest.app_config = [{"instance_name": "a"}, {"instance_name": "b"}]
         new_manifest = MagicMock()
@@ -755,6 +760,7 @@ class TestApplyChangesPerInstanceRestart:
         phase would still create two live instances both deriving App.unique_name "c", the same
         permanent owner-registry collision. Must also fall back to a full reload_app.
         """
+        set_registry_apps(mock_registry, {"app_a": {0: MagicMock(), 1: MagicMock()}})
         old_manifest = MagicMock()
         old_manifest.app_config = [{"instance_name": "a"}, {"instance_name": "b"}]
         new_manifest = MagicMock()
@@ -789,6 +795,7 @@ class TestApplyChangesPerInstanceRestart:
         the full reload_app fallback (regression guard for the overlap check above; don't let a
         false-positive overlap detection slow down the normal rename case).
         """
+        set_registry_apps(mock_registry, {"app_a": {0: MagicMock(), 1: MagicMock()}})
         old_manifest = MagicMock()
         old_manifest.app_config = [{"instance_name": "a"}, {"instance_name": "b"}]
         new_manifest = MagicMock()
@@ -823,6 +830,7 @@ class TestApplyChangesPerInstanceRestart:
         exception must not escape ``apply_changes()`` (see code review finding — per-index
         try/except around the batch reload's create phase in ``_reload_changed_indices``).
         """
+        set_registry_apps(mock_registry, {"app_a": {0: MagicMock(), 1: MagicMock(), 2: MagicMock()}})
         old_manifest = MagicMock()
         old_manifest.app_config = [
             {"instance_name": "a"},
@@ -876,6 +884,7 @@ class TestApplyChangesPerInstanceRestart:
         1 must reach its create before index 0's create releases, which is only possible if both
         are running concurrently under the same lock acquisition.
         """
+        set_registry_apps(mock_registry, {"app_a": {0: MagicMock(), 1: MagicMock()}})
         old_manifest = MagicMock()
         old_manifest.app_config = [{"instance_name": "a"}, {"instance_name": "b"}]
         new_manifest = MagicMock()
@@ -950,6 +959,35 @@ class TestApplyChangesPerInstanceRestart:
 
         lifecycle_service.reload_app.assert_not_called()
         lifecycle_service._reload_instance_unlocked.assert_not_called()
+
+    async def test_dormant_app_falls_back_to_full_reload_not_selective(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+    ) -> None:
+        """A dormant multi-instance app (no running instances) reaching _reload_app_or_changed_instances
+        via should_auto_reconcile (autostart just flipped to True) must create ALL instances via a
+        full reload_app, not just the ones whose app_config changed. The selective path only creates
+        changed indices, permanently leaving unchanged siblings unstarted.
+        """
+        # Explicitly dormant — no running instances (fixture default is empty, but every other test
+        # in this class calls set_registry_apps explicitly, so match the convention).
+        set_registry_apps(mock_registry, {})
+
+        lifecycle_service.should_auto_reconcile = Mock(return_value=True)
+        lifecycle_service.reload_app = AsyncMock()
+        lifecycle_service._stop_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+        lifecycle_service._create_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+
+        changes = ChangeSet(
+            orphans=frozenset(), new_apps=frozenset(), reimport_apps=frozenset(), reload_apps=frozenset({"app_a"})
+        )
+
+        await lifecycle_service.apply_changes(changes, {"app_a": MagicMock()}, {"app_a": MagicMock()})
+
+        lifecycle_service.reload_app.assert_called_once_with("app_a")
+        lifecycle_service._stop_instance_unlocked.assert_not_called()
+        lifecycle_service._create_instance_unlocked.assert_not_called()
 
 
 class TestReloadInstanceEvents:

@@ -933,13 +933,22 @@ class AppLifecycleService(Resource):
         current_config: dict[str, "AppManifest"],
     ) -> None:
         """Reload only the instances whose ``app_config`` dict changed, or fall back to a full
-        app-key reload when the instance list length changed (see design doc "Data flow for
-        selective restart").
+        app-key reload when the app has no running instances (dormant), the instance list length
+        changed, or a name collision would occur (see design doc "Data flow for selective restart").
 
         A missing entry on either side of ``original_config``/``current_config`` (should not
         happen for a key already in ``changes.reload_apps``, but config snapshots are caller-
         supplied) falls back to a full reload rather than raising.
         """
+        # A dormant app (no running instances) that reaches here via should_auto_reconcile
+        # (autostart just flipped to True) needs all instances created, not just the ones whose
+        # app_config changed. The selective path only creates changed indices, permanently
+        # leaving unchanged siblings unstarted.
+        if app_key not in self.registry:
+            self.logger.debug("App %s has no running instances - starting all via full reload", app_key)
+            await self.reload_app(app_key)
+            return
+
         old_manifest = original_config.get(app_key)
         new_manifest = current_config.get(app_key)
         if old_manifest is None or new_manifest is None:
