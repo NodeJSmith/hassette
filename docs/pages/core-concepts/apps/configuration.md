@@ -70,6 +70,8 @@ The `name` field distinguishes instances in logs and the web UI. Without it, Has
 
 Single-instance apps are the default. Most apps never need `[[...]]` blocks. Multiple instances let the same logic run across different rooms, devices, or entity sets without duplicating app code.
 
+A live config reload restarts only the instances whose `config` block actually changed. If instance `1`'s config changes but instance `0`'s stays the same, instance `1` restarts and instance `0` keeps running with its existing state — its scheduled jobs and event subscriptions never drop. Adding or removing an instance (changing the number of `[[...]]` blocks) falls back to a full restart of every instance for that app key, since the instance list itself changed. See [Start, Stop, and Reload](../../web-ui/manage-apps.md#start-stop-and-reload) for the equivalent per-instance REST API endpoints — the web UI dashboard doesn't expose per-instance controls yet.
+
 ## Typed Configuration
 
 The values supplied under `config` are validated at startup against an [`AppConfig`][hassette.app.app_config.AppConfig] subclass defined in Python. A missing required field or a type mismatch raises a Pydantic `ValidationError` before any app starts, showing the field name and expected type. [Apps](../apps/index.md) covers defining the model — including [secret fields](index.md#secret-fields) (typed `SecretStr`, masked in the dashboard) and [presentation metadata](index.md#presentation-metadata) (the `ui` hints that control how each field renders).

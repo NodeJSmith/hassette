@@ -298,6 +298,174 @@
         }
       }
     },
+    "/api/apps/{app_key}/instances/{index}/start": {
+      "post": {
+        "tags": [
+          "apps"
+        ],
+        "summary": "Start Instance",
+        "operationId": "start_instance_api_apps__app_key__instances__index__start_post",
+        "parameters": [
+          {
+            "name": "app_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "App Key"
+            }
+          },
+          {
+            "name": "index",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Index"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "App is unknown, or instance index is out of range for the app's current config"
+          },
+          "409": {
+            "description": "App bootstrap prerequisites are not ready yet; retry later"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/apps/{app_key}/instances/{index}/stop": {
+      "post": {
+        "tags": [
+          "apps"
+        ],
+        "summary": "Stop Instance",
+        "operationId": "stop_instance_api_apps__app_key__instances__index__stop_post",
+        "parameters": [
+          {
+            "name": "app_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "App Key"
+            }
+          },
+          {
+            "name": "index",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Index"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "App is unknown, or instance index is out of range for the app's current config"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/apps/{app_key}/instances/{index}/reload": {
+      "post": {
+        "tags": [
+          "apps"
+        ],
+        "summary": "Reload Instance",
+        "operationId": "reload_instance_api_apps__app_key__instances__index__reload_post",
+        "parameters": [
+          {
+            "name": "app_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "App Key"
+            }
+          },
+          {
+            "name": "index",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Index"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "App is unknown, or instance index is out of range for the app's current config"
+          },
+          "409": {
+            "description": "App bootstrap prerequisites are not ready yet; retry later"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/apps/{app_key}/config": {
       "get": {
         "tags": [

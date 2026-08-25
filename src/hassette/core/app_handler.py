@@ -22,6 +22,7 @@ from hassette.types.types import LOG_LEVEL_TYPE
 if typing.TYPE_CHECKING:
     from hassette import AppConfig, Hassette
     from hassette.app.app import App
+    from hassette.config.classes import AppManifest
 
 
 class AppHandler(Resource):
@@ -33,8 +34,6 @@ class AppHandler(Resource):
     """
 
     depends_on: ClassVar[list[type[Resource]]] = [AppBootstrapCoordinator]
-
-    # Per-instance restart instead of full app-key restart (#796)
 
     registry: AppRegistry
     """Registry for tracking app state."""
@@ -138,6 +137,23 @@ class AppHandler(Resource):
         """Reload an app by key — delegates to lifecycle service."""
         await self.lifecycle.reload_app(app_key, force_reload=force_reload)
 
-    async def apply_changes(self, changes: ChangeSet) -> None:
+    async def reload_instance(self, app_key: str, index: int, force_reload: bool = False) -> None:
+        """Reload a single instance by key and index — delegates to lifecycle service."""
+        await self.lifecycle.reload_instance(app_key, index, force_reload=force_reload)
+
+    async def stop_instance(self, app_key: str, index: int) -> None:
+        """Stop a single instance by key and index — delegates to lifecycle service."""
+        await self.lifecycle.stop_instance(app_key, index)
+
+    async def start_instance(self, app_key: str, index: int) -> None:
+        """Start a single instance by key and index — delegates to lifecycle service."""
+        await self.lifecycle.start_instance(app_key, index)
+
+    async def apply_changes(
+        self,
+        changes: ChangeSet,
+        original_config: dict[str, "AppManifest"],
+        current_config: dict[str, "AppManifest"],
+    ) -> None:
         """Apply detected changes — delegates to lifecycle service."""
-        await self.lifecycle.apply_changes(changes)
+        await self.lifecycle.apply_changes(changes, original_config, current_config)

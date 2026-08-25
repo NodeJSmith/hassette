@@ -11,6 +11,7 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from hassette.app.app_config import AppConfig
 from hassette.config.classes import AppManifest
 from hassette.exceptions import AppBootstrapNotReleasedError, TelemetryUnavailableError
+from hassette.schemas.app_config_shape import normalize_app_config
 from hassette.schemas.app_snapshots import AppFullSnapshot, tally_manifest_statuses
 from hassette.web.auth.trusted_proxies import peer_address_or_unknown
 from hassette.web.config_view import deref_schema, mask_app_config, mask_values, resolve_app_config_cls
@@ -66,9 +67,49 @@ def _validate_app_key(app_key: str) -> None:
         raise HTTPException(status_code=400, detail=f"Invalid app_key: {app_key!r}")
 
 
-def _require_known_app(app_key: str, hassette: HassetteDep) -> None:
-    if hassette.app_handler.registry.get_manifest(app_key) is None:
+def _orphan_app_permitted(app_key: str, hassette: HassetteDep, action: AppAction) -> bool:
+    """An app with no manifest is only ever treated as "known" via its still-running instances
+    for ``stop`` — ``AppLifecycleService.stop_instance()``/``_stop_app_unlocked()`` are
+    deliberately permissive for an orphaned app (manifest gone from config, but the registry
+    still has running instances), so the route lets the request through to match. ``start`` and
+    ``reload`` are NOT extended the same permissiveness: their service-layer counterparts silently
+    no-op on a missing manifest (log + return, no exception), so admitting an orphaned app there
+    would turn a clear 404 into a 202-accepted request that does nothing.
+    """
+    return action == "stop" and bool(hassette.app_handler.registry.get_instances(app_key))
+
+
+def _require_known_app(app_key: str, hassette: HassetteDep, action: AppAction) -> None:
+    """Validate that ``app_key`` is known, or is an orphaned app that ``action`` still permits."""
+    if hassette.app_handler.registry.get_manifest(app_key) is not None:
+        return
+    if _orphan_app_permitted(app_key, hassette, action):
+        return
+    raise HTTPException(status_code=404, detail=f"App {app_key!r} not found")
+
+
+def _require_valid_instance_index(app_key: str, index: int, hassette: HassetteDep, action: AppAction) -> None:
+    """Validate that ``app_key`` is known and ``index`` is within its current instance count.
+
+    Runs before ``_run_app_action`` so an out-of-range index returns a fast 404 without
+    waiting for lock acquisition. ``AppLifecycleService`` re-validates the index itself after
+    acquiring the per-app-key lock (see ``_instance_index_in_range``) — this route-level check
+    is a fast path, not a substitute for that authoritative re-check under concurrent config
+    changes. Uses the shared ``normalize_app_config()`` (``hassette.schemas``) rather than a
+    web-local reimplementation, so this count can never drift from ``AppFactory``'s.
+
+    Skips range validation for an orphaned app that ``action`` still permits (see
+    ``_orphan_app_permitted``'s docstring for the ``stop``-only rationale).
+    """
+    _validate_app_key(app_key)
+    manifest = hassette.app_handler.registry.get_manifest(app_key)
+    if manifest is None:
+        if _orphan_app_permitted(app_key, hassette, action):
+            return
         raise HTTPException(status_code=404, detail=f"App {app_key!r} not found")
+    valid_index_count = len(normalize_app_config(manifest.app_config))
+    if index < 0 or index >= valid_index_count:
+        raise HTTPException(status_code=404, detail=f"Instance {index} not found for app {app_key!r}")
 
 
 async def _run_app_action(
@@ -86,7 +127,7 @@ async def _run_app_action(
     declares no 409 response.
     """
     _validate_app_key(app_key)
-    _require_known_app(app_key, hassette)
+    _require_known_app(app_key, hassette, action)
     try:
         await operation()
     except AppBootstrapNotReleasedError as exc:
@@ -204,6 +245,57 @@ async def reload_app(app_key: str, hassette: HassetteDep, request: Request) -> A
     # source is fixed -- without force_reload the cached failed class is reused (#1005).
     return await _run_app_action(
         "reload", app_key, hassette, request, lambda: hassette.app_handler.reload_app(app_key, force_reload=True)
+    )
+
+
+@router.post(
+    "/apps/{app_key}/instances/{index}/start",
+    status_code=202,
+    response_model=ActionResponse,
+    responses={
+        404: {"description": "App is unknown, or instance index is out of range for the app's current config"},
+        409: {"description": "App bootstrap prerequisites are not ready yet; retry later"},
+    },
+)
+async def start_instance(app_key: str, index: int, hassette: HassetteDep, request: Request) -> ActionResponse:
+    _require_valid_instance_index(app_key, index, hassette, "start")
+    return await _run_app_action(
+        "start", app_key, hassette, request, lambda: hassette.app_handler.start_instance(app_key, index)
+    )
+
+
+@router.post(
+    "/apps/{app_key}/instances/{index}/stop",
+    status_code=202,
+    response_model=ActionResponse,
+    responses={404: {"description": "App is unknown, or instance index is out of range for the app's current config"}},
+)
+async def stop_instance(app_key: str, index: int, hassette: HassetteDep, request: Request) -> ActionResponse:
+    _require_valid_instance_index(app_key, index, hassette, "stop")
+    return await _run_app_action(
+        "stop", app_key, hassette, request, lambda: hassette.app_handler.stop_instance(app_key, index)
+    )
+
+
+@router.post(
+    "/apps/{app_key}/instances/{index}/reload",
+    status_code=202,
+    response_model=ActionResponse,
+    responses={
+        404: {"description": "App is unknown, or instance index is out of range for the app's current config"},
+        409: {"description": "App bootstrap prerequisites are not ready yet; retry later"},
+    },
+)
+async def reload_instance(app_key: str, index: int, hassette: HassetteDep, request: Request) -> ActionResponse:
+    _require_valid_instance_index(app_key, index, hassette, "reload")
+    # Always re-import from disk, matching the full app-key reload endpoint's force_reload=True
+    # convention (#1005) at instance granularity.
+    return await _run_app_action(
+        "reload",
+        app_key,
+        hassette,
+        request,
+        lambda: hassette.app_handler.reload_instance(app_key, index, force_reload=True),
     )
 
 

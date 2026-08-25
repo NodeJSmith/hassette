@@ -14,6 +14,7 @@ from hassette.test_utils.web_manifest_helpers import make_manifest_db_row
 from hassette.test_utils.web_telemetry_helpers import make_listener_summary
 from hassette.types.enums import ResourceStatus
 from hassette.web.config_view import MASK_SENTINEL
+from tests.integration.conftest import make_manifest_mock
 
 from .conftest import (
     HEALTH_PATH,
@@ -40,6 +41,20 @@ LOGS_RECENT_PATH = "/api/logs/recent"
 LOGS_LEVEL_PATH = "/api/logs/level"
 CONFIG_PATH = "/api/config"
 OPENAPI_PATH = "/api/openapi.json"
+
+
+def app_action_path(app_key: str, action: str) -> str:
+    """Build a full-app-key action URL — single source of truth so a route rename only needs
+    to change here.
+    """
+    return f"/api/apps/{app_key}/{action}"
+
+
+def instance_action_path(app_key: str, index: int, action: str) -> str:
+    """Build a per-instance action URL — single source of truth so a route rename only needs
+    to change here.
+    """
+    return f"/api/apps/{app_key}/instances/{index}/{action}"
 
 
 class TestHealthEndpoints:
@@ -186,6 +201,156 @@ class TestAppEndpoints:
         assert (await client.post(APP_START_PATH)).status_code == 202
         assert (await client.post(APP_STOP_PATH)).status_code == 202
         assert (await client.post(APP_RELOAD_PATH)).status_code == 202
+
+
+class TestAppInstanceEndpoints:
+    """Per-instance HTTP endpoints: POST /apps/{app_key}/instances/{index}/start|stop|reload (#796)."""
+
+    def _seed_manifest(self, mock_hassette: MagicMock, instance_count: int = 2) -> None:
+        """Wire a manifest mock with ``instance_count`` app_config entries onto the registry."""
+        mock_hassette._app_handler.registry.get_manifest.return_value = make_manifest_mock(
+            app_config=[{"instance_name": f"inst_{i}"} for i in range(instance_count)]
+        )
+
+    async def test_start_instance(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        self._seed_manifest(mock_hassette)
+        mock_hassette.app_handler.start_instance = AsyncMock()
+
+        response = await client.post(instance_action_path("my_app", 0, "start"))
+
+        assert response.status_code == 202
+        data = response.json()
+        assert data["action"] == "start"
+        mock_hassette.app_handler.start_instance.assert_awaited_once_with("my_app", 0)
+
+    async def test_stop_instance(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        self._seed_manifest(mock_hassette)
+        mock_hassette.app_handler.stop_instance = AsyncMock()
+
+        response = await client.post(instance_action_path("my_app", 1, "stop"))
+
+        assert response.status_code == 202
+        data = response.json()
+        assert data["action"] == "stop"
+        mock_hassette.app_handler.stop_instance.assert_awaited_once_with("my_app", 1)
+
+    async def test_reload_instance(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        self._seed_manifest(mock_hassette)
+        mock_hassette.app_handler.reload_instance = AsyncMock()
+
+        response = await client.post(instance_action_path("my_app", 0, "reload"))
+
+        assert response.status_code == 202
+        data = response.json()
+        assert data["action"] == "reload"
+        mock_hassette.app_handler.reload_instance.assert_awaited_once_with("my_app", 0, force_reload=True)
+
+    async def test_start_instance_out_of_range_returns_404(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        self._seed_manifest(mock_hassette, instance_count=1)
+
+        response = await client.post(instance_action_path("my_app", 5, "start"))
+
+        assert response.status_code == 404
+
+    async def test_stop_instance_out_of_range_returns_404(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        self._seed_manifest(mock_hassette, instance_count=1)
+
+        response = await client.post(instance_action_path("my_app", 5, "stop"))
+
+        assert response.status_code == 404
+
+    async def test_reload_instance_out_of_range_returns_404(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        self._seed_manifest(mock_hassette, instance_count=1)
+
+        response = await client.post(instance_action_path("my_app", 5, "reload"))
+
+        assert response.status_code == 404
+
+    async def test_start_instance_unknown_app_returns_404(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        mock_hassette._app_handler.registry.get_manifest.return_value = None
+        mock_hassette._app_handler.registry.get_instances.return_value = {}
+
+        response = await client.post(instance_action_path("unknown_app", 0, "start"))
+
+        assert response.status_code == 404
+
+    async def test_start_instance_returns_retryable_conflict_before_release(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        self._seed_manifest(mock_hassette)
+        mock_hassette.app_handler.start_instance = AsyncMock(side_effect=AppBootstrapNotReleasedError("not released"))
+
+        response = await client.post(instance_action_path("my_app", 0, "start"))
+
+        assert response.status_code == 409
+
+    async def test_reload_instance_returns_retryable_conflict_before_release(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        self._seed_manifest(mock_hassette)
+        mock_hassette.app_handler.reload_instance = AsyncMock(side_effect=AppBootstrapNotReleasedError("not released"))
+
+        response = await client.post(instance_action_path("my_app", 0, "reload"))
+
+        assert response.status_code == 409
+
+    async def test_stop_instance_orphaned_app_reaches_service_layer(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        """An app removed from config but still running can be stopped via per-instance endpoint."""
+        mock_hassette._app_handler.registry.get_manifest.return_value = None
+        mock_hassette._app_handler.registry.get_instances.return_value = {0: MagicMock()}
+        mock_hassette.app_handler.stop_instance = AsyncMock()
+
+        response = await client.post(instance_action_path("orphan_app", 0, "stop"))
+
+        assert response.status_code == 202
+        mock_hassette.app_handler.stop_instance.assert_awaited_once_with("orphan_app", 0)
+
+    async def test_stop_app_orphaned_app_reaches_service_layer(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        """Full-key stop also works for an orphaned app with running instances but no manifest."""
+        mock_hassette._app_handler.registry.get_manifest.return_value = None
+        mock_hassette._app_handler.registry.get_instances.return_value = {0: MagicMock()}
+        mock_hassette.app_handler.stop_app = AsyncMock()
+
+        response = await client.post(app_action_path("orphan_app", "stop"))
+
+        assert response.status_code == 202
+        mock_hassette.app_handler.stop_app.assert_awaited_once_with("orphan_app")
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            instance_action_path("orphan_app", 0, "start"),
+            instance_action_path("orphan_app", 0, "reload"),
+            app_action_path("orphan_app", "start"),
+            app_action_path("orphan_app", "reload"),
+        ],
+        ids=["start_instance", "reload_instance", "start_app", "reload_app"],
+    )
+    async def test_orphaned_app_start_or_reload_still_returns_404(
+        self, client: "AsyncClient", mock_hassette: MagicMock, path: str
+    ) -> None:
+        """Unlike stop, start/reload do not get orphan permissiveness -- the service layer would
+        silently no-op on a missing manifest, so admitting the request would swap a clear 404 for
+        a 202 that does nothing. Covers both the full-app-key and per-instance routes.
+        """
+        mock_hassette._app_handler.registry.get_manifest.return_value = None
+        mock_hassette._app_handler.registry.get_instances.return_value = {0: MagicMock()}
+
+        response = await client.post(path)
+
+        assert response.status_code == 404
 
 
 class TestAppManifestEndpoint:

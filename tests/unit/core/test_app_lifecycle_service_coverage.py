@@ -172,7 +172,7 @@ class TestHandleChangeEventBranches:
 
         applied: list[ChangeSet] = []
 
-        async def capture_apply(changes: ChangeSet) -> None:
+        async def capture_apply(changes: ChangeSet, _original_config: dict, _current_config: dict) -> None:
             applied.append(changes)
 
         lifecycle_service.apply_changes = capture_apply  # pyright: ignore[reportAttributeAccessIssue]

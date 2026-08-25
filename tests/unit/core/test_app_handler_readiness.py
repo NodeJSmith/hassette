@@ -1,39 +1,17 @@
-"""Unit tests for AppHandler readiness and bootstrap scheduling semantics."""
+"""Unit tests for AppHandler readiness and bootstrap scheduling semantics.
+
+Uses the shared `app_handler`/`app_handler_mock_hassette` fixtures from conftest.py (also
+used by test_app_handler_facade.py).
+"""
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from hassette.core.app_bootstrap_coordinator import AppBootstrapCoordinator
 from hassette.core.app_handler import AppHandler
 from hassette.core.app_lifecycle_service import AppAdmissionMode
-from hassette.test_utils.mock_hassette import make_mock_hassette
-
-
-@pytest.fixture
-def mock_hassette() -> AsyncMock:
-    hassette = make_mock_hassette(
-        sealed=False,
-        dev_mode=False,
-        logging={"log_level": "DEBUG"},
-        lifecycle={"app_startup_timeout_seconds": 30},
-    )
-    hassette.send_event = AsyncMock()
-    hassette.bus_service.router = MagicMock()
-    hassette.session_id = 1
-    hassette.try_session_id.return_value = 1
-    return hassette
-
-
-@pytest.fixture
-def app_handler(mock_hassette: MagicMock) -> AppHandler:
-    with (
-        patch("hassette.core.app_lifecycle_service.AppFactory"),
-        patch("hassette.core.app_lifecycle_service.AppChangeDetector"),
-    ):
-        handler = AppHandler(mock_hassette)
-    return handler
 
 
 class TestAppHandlerReadiness:
@@ -98,7 +76,9 @@ class TestAppHandlerReadiness:
 
 
 class TestAppBootstrapCoordinator:
-    async def test_becomes_ready_before_release_and_cancels_wait_on_shutdown(self, mock_hassette: AsyncMock) -> None:
+    async def test_becomes_ready_before_release_and_cancels_wait_on_shutdown(
+        self, app_handler_mock_hassette: AsyncMock
+    ) -> None:
         gate = asyncio.Event()
         entered = asyncio.Event()
 
@@ -108,9 +88,9 @@ class TestAppBootstrapCoordinator:
             await gate.wait()
             return True
 
-        mock_hassette.state_proxy = MagicMock()
-        mock_hassette.state_proxy.wait_initial_state_capability = AsyncMock(side_effect=blocked_wait)
-        coordinator = AppBootstrapCoordinator(mock_hassette)
+        app_handler_mock_hassette.state_proxy = MagicMock()
+        app_handler_mock_hassette.state_proxy.wait_initial_state_capability = AsyncMock(side_effect=blocked_wait)
+        coordinator = AppBootstrapCoordinator(app_handler_mock_hassette)
 
         await coordinator.on_initialize()
         await asyncio.wait_for(entered.wait(), timeout=1.0)
@@ -122,10 +102,10 @@ class TestAppBootstrapCoordinator:
 
         assert coordinator.shutdown_completed is True
 
-    async def test_releases_after_initial_state_capability(self, mock_hassette: AsyncMock) -> None:
-        mock_hassette.state_proxy = MagicMock()
-        mock_hassette.state_proxy.wait_initial_state_capability = AsyncMock(return_value=True)
-        coordinator = AppBootstrapCoordinator(mock_hassette)
+    async def test_releases_after_initial_state_capability(self, app_handler_mock_hassette: AsyncMock) -> None:
+        app_handler_mock_hassette.state_proxy = MagicMock()
+        app_handler_mock_hassette.state_proxy.wait_initial_state_capability = AsyncMock(return_value=True)
+        coordinator = AppBootstrapCoordinator(app_handler_mock_hassette)
 
         await coordinator.on_initialize()
 
