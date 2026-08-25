@@ -15,10 +15,12 @@ if TYPE_CHECKING:
 APP_CONFIG_FIELD = "app_config"
 """The `AppManifest` attribute whose changes should trigger a config reload."""
 
-IMPLEMENTATION_FIELDS = ("filename", "class_name")
-"""`AppManifest` attributes that name the app's implementation target. A change to either
-means the app must reimport its class from a (possibly new) source file, not merely reload
-its config -- see `IMPLEMENTATION_PATH_PATTERN`."""
+IMPLEMENTATION_FIELDS = ("filename", "class_name", "app_dir")
+"""`AppManifest` attributes that name the app's implementation target. A change to any of
+these means the app must reimport its class from a (possibly new) source file, not merely
+reload its config -- `full_path` (the file the app actually loads from) is `app_dir /
+filename`, so a change to `app_dir` alone moves the source file just as surely as a change
+to `filename` -- see `IMPLEMENTATION_PATH_PATTERN`."""
 
 
 def _field_path_pattern(*fields: str) -> re.Pattern[str]:

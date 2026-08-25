@@ -45,9 +45,9 @@ class TestAppConfigPathPattern:
 
 
 class TestImplementationPathPattern:
-    """IMPLEMENTATION_PATH_PATTERN must match `.filename`/`.class_name` as full path segments,
-    not as a substring of a longer field name (e.g. a future `filename_prefix` field must not
-    match) -- same substring-safety concern as `APP_CONFIG_PATH_PATTERN`.
+    """IMPLEMENTATION_PATH_PATTERN must match `.filename`/`.class_name`/`.app_dir` as full path
+    segments, not as a substring of a longer field name (e.g. a future `filename_prefix` field
+    must not match) -- same substring-safety concern as `APP_CONFIG_PATH_PATTERN`.
     """
 
     @pytest.mark.parametrize(
@@ -55,6 +55,7 @@ class TestImplementationPathPattern:
         [
             "root['app1'].filename",
             "root['app1'].class_name",
+            "root['app1'].app_dir",
         ],
     )
     def test_matches_implementation_field_segment(self, path: str) -> None:
@@ -66,6 +67,7 @@ class TestImplementationPathPattern:
             "root['app1'].filename_prefix",
             "root['app1'].class_name_override",
             "root['app1'].app_config",
+            "root['app1'].app_dir_override",
         ],
     )
     def test_does_not_match_field_name_prefix_collision(self, path: str) -> None:
@@ -178,13 +180,14 @@ class TestAppChangeDetector:
             autostart: bool = True,
             filename: str | None = None,
             class_name: str | None = None,
+            app_dir: Path | None = None,
         ) -> AppManifest:
             return AppManifest(
                 app_key=app_key,
                 filename=filename or f"{app_key}.py",
                 class_name=class_name or app_key.capitalize(),
                 display_name=display_name or app_key,
-                app_dir=Path("/apps"),
+                app_dir=app_dir or Path("/apps"),
                 app_config=app_config or {"instance_name": f"{app_key}.0"},
                 full_path=full_path or Path(f"/apps/{app_key}.py"),
                 autostart=autostart,
@@ -462,6 +465,24 @@ class TestAppChangeDetector:
         """A class_name-only change must also land in reimport_apps, not reload_apps."""
         original = {"app1": make_manifest("app1", class_name="OldApp")}
         current = {"app1": make_manifest("app1", class_name="NewApp")}
+
+        changes = detector.detect_changes(original, current)
+
+        assert changes.reimport_apps == frozenset({"app1"})
+        assert "app1" not in changes.reload_apps
+
+    def test_app_dir_change_triggers_reimport_not_reload(
+        self, detector: AppChangeDetector, make_manifest: Callable
+    ) -> None:
+        """An app_dir-only change must also land in reimport_apps, not reload_apps.
+
+        full_path (the file the app actually loads from) is app_dir / filename, so moving
+        an app to a new directory changes its implementation target just as surely as
+        renaming its file -- and is just as invisible to the file watcher (which reports
+        the changed *configuration* file, not the app's new source path).
+        """
+        original = {"app1": make_manifest("app1", app_dir=Path("/apps/old"))}
+        current = {"app1": make_manifest("app1", app_dir=Path("/apps/new"))}
 
         changes = detector.detect_changes(original, current)
 
