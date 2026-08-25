@@ -18,13 +18,13 @@ from hassette.test_utils.web_manifest_helpers import make_manifest_list_response
 from hassette.web.models import AppInstanceResponse
 from tests.unit.cli.conftest import REMOTE_SERVER_URL, capture_stderr, make_cli_config
 
-HEALTH_ENDPOINT = "/api/health"
-CRASH_ENDPOINT = "/api/crash"
-MISSING_ENDPOINT = "/api/missing"
-TELEMETRY_STATUS_ENDPOINT = "/api/telemetry/status"
-LISTENERS_ENDPOINT = "/api/bus/listeners"
-APP_LISTENERS_ENDPOINT_TEMPLATE = "/api/telemetry/app/{app_key}/listeners"
 MANIFESTS_ENDPOINT = "/api/apps/manifests"
+BUS_LISTENERS_ENDPOINT = "/api/bus/listeners"
+CRASH_ENDPOINT = "/api/crash"
+HEALTH_ENDPOINT = "/api/health"
+MISSING_ENDPOINT = "/api/missing"
+APP_LISTENERS_ENDPOINT_TEMPLATE = "/api/telemetry/app/{app_key}/listeners"
+TELEMETRY_STATUS_ENDPOINT = "/api/telemetry/status"
 
 # Helpers
 
@@ -93,7 +93,7 @@ def route_listeners(client: HassetteCLIClient, **kwargs: Any) -> Any:
     ``instance`` are ever varied, so those stay at the call site.
     """
     return client.get_with_app_routing(
-        global_path=LISTENERS_ENDPOINT,
+        global_path=BUS_LISTENERS_ENDPOINT,
         per_app_path_template=APP_LISTENERS_ENDPOINT_TEMPLATE,
         model=list,
         **kwargs,
@@ -347,7 +347,7 @@ class TestAppKeyRouting:
     def test_no_app_uses_global_listener_url(self) -> None:
         client, captured_urls = url_capturing_client()
         route_listeners(client, app_key=None)
-        assert any(LISTENERS_ENDPOINT in u for u in captured_urls)
+        assert any(BUS_LISTENERS_ENDPOINT in u for u in captured_urls)
 
     def test_app_key_uses_per_app_listener_url(self) -> None:
         client, captured_urls = url_capturing_client()
