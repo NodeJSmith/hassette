@@ -6,7 +6,12 @@ from pathlib import Path
 import pytest
 
 from hassette.config.classes import AppManifest
-from hassette.core.app_change_detector import APP_CONFIG_PATH_PATTERN, AppChangeDetector, ChangeSet
+from hassette.core.app_change_detector import (
+    APP_CONFIG_PATH_PATTERN,
+    IMPLEMENTATION_PATH_PATTERN,
+    AppChangeDetector,
+    ChangeSet,
+)
 
 
 class TestAppConfigPathPattern:
@@ -37,6 +42,34 @@ class TestAppConfigPathPattern:
     )
     def test_does_not_match_field_name_prefix_collision(self, path: str) -> None:
         assert not APP_CONFIG_PATH_PATTERN.search(path)
+
+
+class TestImplementationPathPattern:
+    """IMPLEMENTATION_PATH_PATTERN must match `.filename`/`.class_name` as full path segments,
+    not as a substring of a longer field name (e.g. a future `filename_prefix` field must not
+    match) -- same substring-safety concern as `APP_CONFIG_PATH_PATTERN`.
+    """
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "root['app1'].filename",
+            "root['app1'].class_name",
+        ],
+    )
+    def test_matches_implementation_field_segment(self, path: str) -> None:
+        assert IMPLEMENTATION_PATH_PATTERN.search(path)
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "root['app1'].filename_prefix",
+            "root['app1'].class_name_override",
+            "root['app1'].app_config",
+        ],
+    )
+    def test_does_not_match_field_name_prefix_collision(self, path: str) -> None:
+        assert not IMPLEMENTATION_PATH_PATTERN.search(path)
 
 
 class TestChangeSet:
@@ -143,11 +176,13 @@ class TestAppChangeDetector:
             app_config: dict | None = None,
             display_name: str | None = None,
             autostart: bool = True,
+            filename: str | None = None,
+            class_name: str | None = None,
         ) -> AppManifest:
             return AppManifest(
                 app_key=app_key,
-                filename=f"{app_key}.py",
-                class_name=app_key.capitalize(),
+                filename=filename or f"{app_key}.py",
+                class_name=class_name or app_key.capitalize(),
                 display_name=display_name or app_key,
                 app_dir=Path("/apps"),
                 app_config=app_config or {"instance_name": f"{app_key}.0"},
@@ -403,3 +438,66 @@ class TestAppChangeDetector:
         assert "app1" in changes.reload_apps
         assert "app2" not in changes.reload_apps
         assert "app3" not in changes.reload_apps
+
+    def test_filename_change_triggers_reimport_not_reload(
+        self, detector: AppChangeDetector, make_manifest: Callable
+    ) -> None:
+        """A filename-only change (no app_config change, no file-watcher event) must land in
+        reimport_apps -- not reload_apps -- so apply_changes() forces a class reimport instead
+        of a config-only reload. See app_change_detector.py:106 comment.
+        """
+        original = {"app1": make_manifest("app1", filename="old_app1.py")}
+        current = {"app1": make_manifest("app1", filename="new_app1.py")}
+
+        changes = detector.detect_changes(original, current)
+
+        assert changes.reimport_apps == frozenset({"app1"})
+        assert "app1" not in changes.reload_apps
+        assert not changes.orphans
+        assert not changes.new_apps
+
+    def test_class_name_change_triggers_reimport_not_reload(
+        self, detector: AppChangeDetector, make_manifest: Callable
+    ) -> None:
+        """A class_name-only change must also land in reimport_apps, not reload_apps."""
+        original = {"app1": make_manifest("app1", class_name="OldApp")}
+        current = {"app1": make_manifest("app1", class_name="NewApp")}
+
+        changes = detector.detect_changes(original, current)
+
+        assert changes.reimport_apps == frozenset({"app1"})
+        assert "app1" not in changes.reload_apps
+
+    def test_filename_and_app_config_change_together_only_in_reimport(
+        self, detector: AppChangeDetector, make_manifest: Callable
+    ) -> None:
+        """When app_config and filename change together for the same app_key, the app must end
+        up in exactly one bucket -- reimport_apps -- since force_reload implies a fresh config
+        load too. It must not also appear in reload_apps.
+        """
+        original = {
+            "app1": make_manifest("app1", filename="old_app1.py", app_config={"setting": "old"}),
+        }
+        current = {
+            "app1": make_manifest("app1", filename="new_app1.py", app_config={"setting": "new"}),
+        }
+
+        changes = detector.detect_changes(original, current)
+
+        assert changes.reimport_apps == frozenset({"app1"})
+        assert "app1" not in changes.reload_apps
+
+    def test_app_config_only_change_unaffected_by_implementation_detection(
+        self, detector: AppChangeDetector, make_manifest: Callable
+    ) -> None:
+        """Regression check: an app_config-only change (no filename/class_name change) must
+        still route to reload_apps, not reimport_apps, now that implementation-field detection
+        exists alongside it.
+        """
+        original = {"app1": make_manifest("app1", app_config={"setting": "old"})}
+        current = {"app1": make_manifest("app1", app_config={"setting": "new"})}
+
+        changes = detector.detect_changes(original, current)
+
+        assert changes.reload_apps == frozenset({"app1"})
+        assert "app1" not in changes.reimport_apps

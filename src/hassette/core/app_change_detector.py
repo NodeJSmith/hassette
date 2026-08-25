@@ -11,12 +11,30 @@ from deepdiff import DeepDiff
 if TYPE_CHECKING:
     from hassette.config.classes import AppManifest
 
+
 APP_CONFIG_FIELD = "app_config"
 """The `AppManifest` attribute whose changes should trigger a config reload."""
 
-APP_CONFIG_PATH_PATTERN = re.compile(rf"\.{re.escape(APP_CONFIG_FIELD)}(\[|\.|$)")
-"""Matches `.app_config` as a full path segment, not a substring of a longer field name
-(e.g. a future `app_config_overrides` field must not match)."""
+IMPLEMENTATION_FIELDS = ("filename", "class_name")
+"""`AppManifest` attributes that name the app's implementation target. A change to either
+means the app must reimport its class from a (possibly new) source file, not merely reload
+its config -- see `IMPLEMENTATION_PATH_PATTERN`."""
+
+
+def _field_path_pattern(*fields: str) -> re.Pattern[str]:
+    """Build a regex matching any of ``fields`` as a full DeepDiff path segment.
+
+    Anchors on `.field` so a field name is never matched as a substring of a longer one
+    (e.g. `app_config` must not match a future `app_config_overrides` field).
+    """
+    return re.compile(rf"\.({'|'.join(re.escape(field) for field in fields)})(\[|\.|$)")
+
+
+APP_CONFIG_PATH_PATTERN = _field_path_pattern(APP_CONFIG_FIELD)
+"""Matches `.app_config` as a full path segment -- see `_field_path_pattern`."""
+
+IMPLEMENTATION_PATH_PATTERN = _field_path_pattern(*IMPLEMENTATION_FIELDS)
+"""Matches `.filename` or `.class_name` as a full path segment -- see `_field_path_pattern`."""
 
 
 @dataclass(frozen=True)
@@ -30,7 +48,8 @@ class ChangeSet:
     """Apps added to config."""
 
     reimport_apps: frozenset[str]
-    """Apps needing class reimport (file changed)."""
+    """Apps needing class reimport (source file content changed, or the manifest's
+    implementation target -- `filename`/`class_name` -- changed)."""
 
     reload_apps: frozenset[str]
     """Apps needing config reload."""
@@ -91,6 +110,19 @@ class AppChangeDetector:
             if APP_CONFIG_PATH_PATTERN.search(item.path())
         }
 
+        # Apps whose implementation target (filename or class_name) changed. A live edit to
+        # either means the app must reimport its class -- possibly from a different file
+        # entirely -- so these apps route into reimport_apps below, not reload_apps. The file
+        # watcher can't catch this on its own: it reports the changed *configuration* file
+        # (e.g. hassette.toml), never the newly-configured source path, so changed_file_paths
+        # never contains the app's new full_path either.
+        implementation_changed_keys = {
+            item.get_root_key()
+            for entries in config_diff.tree.values()
+            for item in entries
+            if IMPLEMENTATION_PATH_PATTERN.search(item.path())
+        }
+
         original_keys = set(original_config.keys())
         current_keys = set(current_config.keys())
 
@@ -100,13 +132,15 @@ class AppChangeDetector:
         orphans = original_keys - current_keys
         new_apps = current_keys - original_keys
 
-        # Apps that need reimport due to file change
+        # Apps that need reimport due to file change or implementation-target (filename/class_name) change
         # Exclude new apps (they haven't been imported yet) and apps not in current_keys (filtered by only_apps)
         changed = changed_file_paths or frozenset()
         reimport_apps = {
             app.app_key
             for app in current_config.values()
-            if app.full_path in changed and app.app_key not in new_apps and app.app_key in current_keys
+            if app.app_key not in new_apps
+            and app.app_key in current_keys
+            and (app.full_path in changed or app.app_key in implementation_changed_keys)
         }
 
         # Apps with config changes (excluding those in other categories)
