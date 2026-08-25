@@ -19,6 +19,12 @@ from hassette.web.models import AppInstanceResponse
 from tests.unit.cli.conftest import REMOTE_SERVER_URL, capture_stderr, make_cli_config
 
 HEALTH_ENDPOINT = "/api/health"
+CRASH_ENDPOINT = "/api/crash"
+MISSING_ENDPOINT = "/api/missing"
+TELEMETRY_STATUS_ENDPOINT = "/api/telemetry/status"
+LISTENERS_ENDPOINT = "/api/bus/listeners"
+APP_LISTENERS_ENDPOINT_TEMPLATE = "/api/telemetry/app/{app_key}/listeners"
+MANIFESTS_ENDPOINT = "/api/apps/manifests"
 
 # Helpers
 
@@ -87,8 +93,8 @@ def route_listeners(client: HassetteCLIClient, **kwargs: Any) -> Any:
     ``instance`` are ever varied, so those stay at the call site.
     """
     return client.get_with_app_routing(
-        global_path="/api/bus/listeners",
-        per_app_path_template="/api/telemetry/app/{app_key}/listeners",
+        global_path=LISTENERS_ENDPOINT,
+        per_app_path_template=APP_LISTENERS_ENDPOINT_TEMPLATE,
         model=list,
         **kwargs,
     )
@@ -188,7 +194,7 @@ class TestTolerate503:
         config = _make_host_port_config()
         transport = make_transport(503, {"value": "degraded"})
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
-        result = client.get("/api/telemetry/status", SimpleModel, tolerate_503=True)
+        result = client.get(TELEMETRY_STATUS_ENDPOINT, SimpleModel, tolerate_503=True)
         assert isinstance(result, SimpleModel)
         assert result.value == "degraded"
 
@@ -197,7 +203,7 @@ class TestTolerate503:
         transport = make_transport(503, {"value": "degraded"})
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
         with pytest.raises(SystemExit) as exc_info:
-            client.get("/api/telemetry/status", SimpleModel)
+            client.get(TELEMETRY_STATUS_ENDPOINT, SimpleModel)
         assert exc_info.value.code == 1
 
     def test_500_still_exits_even_when_503_tolerated(self) -> None:
@@ -205,7 +211,7 @@ class TestTolerate503:
         transport = make_transport(500, {"detail": "boom"})
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
         with pytest.raises(SystemExit) as exc_info:
-            client.get("/api/telemetry/status", SimpleModel, tolerate_503=True)
+            client.get(TELEMETRY_STATUS_ENDPOINT, SimpleModel, tolerate_503=True)
         assert exc_info.value.code == 1
 
     def test_503_with_non_json_body_exits_instead_of_crashing(self) -> None:
@@ -217,7 +223,7 @@ class TestTolerate503:
 
         client = HassetteCLIClient(config, json_mode=False, transport=httpx.MockTransport(handler))
         with pytest.raises(SystemExit) as exc_info:
-            client.get("/api/telemetry/status", SimpleModel, tolerate_503=True)
+            client.get(TELEMETRY_STATUS_ENDPOINT, SimpleModel, tolerate_503=True)
         assert exc_info.value.code == 1
 
     def test_503_with_wrong_shape_json_exits_instead_of_crashing(self) -> None:
@@ -226,7 +232,7 @@ class TestTolerate503:
         transport = make_transport(503, {"unexpected": "shape"})
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
         with pytest.raises(SystemExit) as exc_info:
-            client.get("/api/telemetry/status", SimpleModel, tolerate_503=True)
+            client.get(TELEMETRY_STATUS_ENDPOINT, SimpleModel, tolerate_503=True)
         assert exc_info.value.code == 1
 
 
@@ -239,14 +245,14 @@ class TestHttpErrorsHumanMode:
         transport = make_transport(404, {"detail": "Not found"})
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
         with pytest.raises(SystemExit) as exc_info:
-            client.get("/api/missing", SimpleModel)
+            client.get(MISSING_ENDPOINT, SimpleModel)
         assert exc_info.value.code == 1
 
     def test_404_prints_to_stderr(self) -> None:
         config = _make_host_port_config()
         transport = make_transport(404, {"detail": "Not found"})
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
-        _code, stderr = get_expecting_exit(client, "/api/missing")
+        _code, stderr = get_expecting_exit(client, MISSING_ENDPOINT)
         assert len(stderr) > 0
 
     def test_500_exits_with_code_1(self) -> None:
@@ -254,7 +260,7 @@ class TestHttpErrorsHumanMode:
         transport = make_transport(500, {"detail": "Internal server error"})
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
         with pytest.raises(SystemExit) as exc_info:
-            client.get("/api/crash", SimpleModel)
+            client.get(CRASH_ENDPOINT, SimpleModel)
         assert exc_info.value.code == 1
 
     def test_nothing_on_stdout_for_http_error_human_mode(self, capsys: pytest.CaptureFixture[str]) -> None:
@@ -275,7 +281,7 @@ class TestHttpErrorsJsonMode:
         config = _make_host_port_config()
         transport = make_transport(404, {"detail": "Not found"})
         client = HassetteCLIClient(config, json_mode=True, transport=transport)
-        parsed = get_json_error(client, capsys, "/api/missing", expect_code=1)
+        parsed = get_json_error(client, capsys, MISSING_ENDPOINT, expect_code=1)
         assert parsed["error"] is True
         assert parsed["status"] == 404
         assert "detail" in parsed
@@ -285,7 +291,7 @@ class TestHttpErrorsJsonMode:
         transport = make_transport(500, {"detail": "boom"})
         client = HassetteCLIClient(config, json_mode=True, transport=transport)
         # In json mode, error goes to stdout only
-        parsed = get_json_error(client, capsys, "/api/crash")
+        parsed = get_json_error(client, capsys, CRASH_ENDPOINT)
         assert parsed["error"] is True
 
 
@@ -341,12 +347,12 @@ class TestAppKeyRouting:
     def test_no_app_uses_global_listener_url(self) -> None:
         client, captured_urls = url_capturing_client()
         route_listeners(client, app_key=None)
-        assert any("/api/bus/listeners" in u for u in captured_urls)
+        assert any(LISTENERS_ENDPOINT in u for u in captured_urls)
 
     def test_app_key_uses_per_app_listener_url(self) -> None:
         client, captured_urls = url_capturing_client()
         route_listeners(client, app_key="my_app")
-        assert any("/api/telemetry/app/my_app/listeners" in u for u in captured_urls)
+        assert any(APP_LISTENERS_ENDPOINT_TEMPLATE.format(app_key="my_app") in u for u in captured_urls)
 
 
 # --instance flag
@@ -374,7 +380,7 @@ class TestInstanceRouting:
         def handler(request: httpx.Request) -> httpx.Response:
             nonlocal call_count
             call_count += 1
-            if "/api/apps/manifests" in str(request.url):
+            if MANIFESTS_ENDPOINT in str(request.url):
                 return httpx.Response(
                     200,
                     content=manifest_list.model_dump_json().encode(),
@@ -403,7 +409,7 @@ class TestInstanceRouting:
         manifest_list = _make_manifest_list(instances)
 
         def handler(request: httpx.Request) -> httpx.Response:
-            if "/api/apps/manifests" in str(request.url):
+            if MANIFESTS_ENDPOINT in str(request.url):
                 return httpx.Response(
                     200,
                     content=manifest_list.model_dump_json().encode(),
@@ -438,34 +444,34 @@ class TestDebugMode:
         config = _make_host_port_config()
         transport = make_transport(500, {"detail": "Internal server error"})
         client = HassetteCLIClient(config, json_mode=False, debug_mode=True, transport=transport)
-        _code, stderr = get_expecting_exit(client, "/api/crash")
+        _code, stderr = get_expecting_exit(client, CRASH_ENDPOINT)
         assert "GET" in stderr
-        assert "/api/crash" in stderr
+        assert CRASH_ENDPOINT in stderr
         assert "Internal server error" in stderr
 
     def test_debug_json_mode_includes_debug_key(self, capsys: pytest.CaptureFixture[str]) -> None:
         config = _make_host_port_config()
         transport = make_transport(500, {"detail": "boom"})
         client = HassetteCLIClient(config, json_mode=True, debug_mode=True, transport=transport)
-        parsed = get_json_error(client, capsys, "/api/crash")
+        parsed = get_json_error(client, capsys, CRASH_ENDPOINT)
         assert parsed["error"] is True
         assert "debug" in parsed
         assert parsed["debug"]["method"] == "GET"
-        assert "/api/crash" in parsed["debug"]["url"]
+        assert CRASH_ENDPOINT in parsed["debug"]["url"]
         assert "boom" in parsed["debug"]["body"]
 
     def test_no_debug_human_mode_omits_url(self) -> None:
         config = _make_host_port_config()
         transport = make_transport(500, {"detail": "Internal server error"})
         client = HassetteCLIClient(config, json_mode=False, debug_mode=False, transport=transport)
-        _code, stderr = get_expecting_exit(client, "/api/crash")
+        _code, stderr = get_expecting_exit(client, CRASH_ENDPOINT)
         assert "URL:" not in stderr
 
     def test_no_debug_json_mode_omits_debug_key(self, capsys: pytest.CaptureFixture[str]) -> None:
         config = _make_host_port_config()
         transport = make_transport(500, {"detail": "boom"})
         client = HassetteCLIClient(config, json_mode=True, debug_mode=False, transport=transport)
-        parsed = get_json_error(client, capsys, "/api/crash")
+        parsed = get_json_error(client, capsys, CRASH_ENDPOINT)
         assert "debug" not in parsed
 
 
