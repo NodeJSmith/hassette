@@ -1404,3 +1404,172 @@ class TestPersistManifests:
         await asyncio.wait_for(lifecycle_service.persist_manifests(), timeout=1)
 
         assert in_flight_count == 2
+
+
+class TestCreateInstanceUnlockedSynchronousFailure:
+    async def test_returns_early_without_initializing_when_create_single_instance_fails_synchronously(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        mock_factory: MagicMock,
+        mock_manifest: MagicMock,
+        mock_hassette: MagicMock,
+        event_capture: EventCapture,
+    ) -> None:
+        """create_single_instance() can register a failure synchronously (e.g. a config
+        validation error at instance-creation time, not a class-load error) without raising.
+        _create_instance_unlocked must notice that recorded failure via
+        _emit_failure_event_if_present and return early rather than proceeding to
+        initialize_instances().
+        """
+        event_capture.install(mock_hassette)
+        mock_manifest.app_config = [{"instance_name": "a"}]
+        mock_factory.normalize_configs = Mock(side_effect=lambda cfg: cfg)
+        mock_factory.load_class = Mock(return_value=MagicMock())
+
+        failure_info = AppInstanceInfo(
+            app_key="test_app",
+            index=0,
+            instance_name="test_app.0",
+            class_name="TestApp",
+            status=ResourceStatus.FAILED,
+            error=ValueError("bad config"),
+            error_message="bad config",
+            error_traceback="Traceback...",
+        )
+        mock_registry.get_failed_instance_infos = Mock(return_value={0: failure_info})
+
+        lifecycle_service.initialize_instances = AsyncMock()
+
+        await lifecycle_service._create_instance_unlocked("test_app", 0, mock_manifest)
+
+        mock_factory.create_single_instance.assert_called_once()
+        lifecycle_service.initialize_instances.assert_not_called()
+
+        failed_payloads = [
+            payload
+            for payload in event_capture.payloads(Topic.HASSETTE_EVENT_APP_STATE_CHANGED)
+            if payload.status == ResourceStatus.FAILED
+        ]
+        assert len(failed_payloads) == 1
+
+
+class TestReloadInstanceUnlockedGuards:
+    async def test_unknown_app_key_returns_without_stopping_or_creating(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+    ) -> None:
+        """Unknown/missing app_key (manifest is None after get_manifest) logs and returns
+        without stopping or creating anything.
+        """
+        mock_registry.get_manifest = Mock(return_value=None)
+        lifecycle_service._stop_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+        lifecycle_service._create_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+
+        await lifecycle_service._reload_instance_unlocked("missing_app", 0)
+
+        lifecycle_service._stop_instance_unlocked.assert_not_called()
+        lifecycle_service._create_instance_unlocked.assert_not_called()
+
+    async def test_index_out_of_range_returns_without_stopping_or_creating(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        mock_manifest: MagicMock,
+        mock_factory: MagicMock,
+    ) -> None:
+        """Index beyond the current manifest's instance count returns without stopping or
+        creating anything.
+        """
+        mock_manifest.app_config = [{"instance_name": "a"}]
+        mock_registry.get_manifest = Mock(return_value=mock_manifest)
+        mock_factory.normalize_configs = Mock(side_effect=lambda cfg: cfg)
+        lifecycle_service._stop_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+        lifecycle_service._create_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+
+        await lifecycle_service._reload_instance_unlocked("test_app", 5)
+
+        lifecycle_service._stop_instance_unlocked.assert_not_called()
+        lifecycle_service._create_instance_unlocked.assert_not_called()
+
+
+class TestReloadInstanceFailure:
+    async def test_reload_instance_unlocked_failure_does_not_raise(
+        self,
+        lifecycle_service: AppLifecycleService,
+    ) -> None:
+        """If _reload_instance_unlocked raises inside the lock body, the public
+        reload_instance() catches it and logs rather than propagating — mirrors
+        TestReloadAppFailure.test_stop_failure_prevents_start_and_does_not_raise
+        (test_app_lifecycle_service_coverage.py) but for the per-instance path.
+        """
+        lifecycle_service._reload_instance_unlocked = AsyncMock(  # pyright: ignore[reportAttributeAccessIssue]
+            side_effect=RuntimeError("boom")
+        )
+
+        await lifecycle_service.reload_instance("test_app", 0)  # must not raise
+
+        lifecycle_service._reload_instance_unlocked.assert_awaited_once_with("test_app", 0, False)
+
+
+class TestStopInstanceUnlockedShutdownFailure:
+    async def test_shutdown_instances_failure_does_not_raise(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        mock_manifest: MagicMock,
+        mock_factory: MagicMock,
+    ) -> None:
+        """An exception raised by shutdown_instances() (as opposed to unregister_app, already
+        covered by TestStopInstanceFailure.test_unregister_failure_does_not_raise) is also
+        caught and logged by the same try/except in _stop_instance_unlocked.
+        """
+        mock_manifest.app_config = [{"instance_name": "a"}]
+        mock_registry.get_manifest = Mock(return_value=mock_manifest)
+        mock_registry.get_failed_instance_infos = Mock(return_value={})
+        mock_factory.normalize_configs = Mock(side_effect=lambda cfg: cfg)
+        app1 = MagicMock()
+        mock_registry.unregister_app = Mock(return_value={0: app1})
+        lifecycle_service.shutdown_instances = AsyncMock(side_effect=RuntimeError("shutdown blew up"))
+
+        await lifecycle_service.stop_instance("test_app", 0)  # must not raise
+
+        lifecycle_service.shutdown_instances.assert_awaited_once()
+
+
+class TestStartInstanceAdmissionGuards:
+    async def test_unknown_app_key_skips_before_admission_check(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+    ) -> None:
+        """Missing/unknown manifest returns before _admit_start is even called — the first
+        `if not app_manifest: return` guard near the top of start_instance().
+        """
+        mock_registry.get_manifest = Mock(return_value=None)
+        lifecycle_service._admit_start = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+
+        await lifecycle_service.start_instance("test_app", 0)
+
+        lifecycle_service._admit_start.assert_not_called()
+
+    async def test_manifest_removed_during_admission_wait_skips_post_lock_creation(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        mock_manifest: MagicMock,
+        mock_factory: MagicMock,
+    ) -> None:
+        """A manifest removed while start_instance() is parked in _admit_start() must not be
+        used for the post-lock re-fetch — mirrors start_app()'s equivalent race guard
+        (TestStartAppStaleManifestRace.test_manifest_removed_during_admission_wait_is_not_used).
+        """
+        mock_registry.get_manifest = Mock(side_effect=[mock_manifest, None])
+        lifecycle_service._admit_start = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+        lifecycle_service._create_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+
+        await lifecycle_service.start_instance("test_app", 0)
+
+        lifecycle_service._admit_start.assert_awaited_once()
+        lifecycle_service._create_instance_unlocked.assert_not_called()

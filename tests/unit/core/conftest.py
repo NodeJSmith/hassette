@@ -15,6 +15,7 @@ import pytest
 from hassette.bus.duration_hold import DurationHoldManager
 from hassette.bus.router import Router
 from hassette.commands import ExecuteJob
+from hassette.core.app_handler import AppHandler
 from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.core.bus_service import BusService, compute_elapsed, make_synthetic_state_event
 from hassette.core.command_executor import CommandExecutor, ExecutionMarker
@@ -139,6 +140,37 @@ def mock_hassette() -> AsyncMock:
     hassette.session_id = 1
     hassette.try_session_id.return_value = 1
     return hassette
+
+
+@pytest.fixture
+def app_handler_mock_hassette() -> AsyncMock:
+    """Create a mock Hassette instance for AppHandler construction/facade tests.
+
+    Distinct from `mock_hassette` above (which is tuned for `AppLifecycleService` tests) --
+    shared by test_app_handler_facade.py and test_app_handler_readiness.py, which both need
+    an `AppHandler` built against a mock Hassette rather than a real `AppLifecycleService`.
+    """
+    hassette = make_mock_hassette(
+        sealed=False,
+        dev_mode=False,
+        logging={"log_level": "DEBUG"},
+        lifecycle={"app_startup_timeout_seconds": 30},
+    )
+    hassette.send_event = AsyncMock()
+    hassette.bus_service.router = MagicMock()
+    hassette.session_id = 1
+    hassette.try_session_id.return_value = 1
+    return hassette
+
+
+@pytest.fixture
+def app_handler(app_handler_mock_hassette: MagicMock) -> AppHandler:
+    with (
+        patch("hassette.core.app_lifecycle_service.AppFactory"),
+        patch("hassette.core.app_lifecycle_service.AppChangeDetector"),
+    ):
+        handler = AppHandler(app_handler_mock_hassette)
+    return handler
 
 
 def set_registry_apps(registry: MagicMock, apps: dict[str, dict[int, Any]]) -> None:
