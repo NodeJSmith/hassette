@@ -1,14 +1,14 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { AlertBanner } from "./alert-banner";
+import { AlertShell } from "./alert-shell";
 
-describe("AlertBanner", () => {
+describe("AlertShell", () => {
   it("renders children inside the shared shell", () => {
     const { getByTestId } = render(
-      <AlertBanner tone="danger" data-testid="b">
+      <AlertShell tone="danger" data-testid="b">
         boom
-      </AlertBanner>,
+      </AlertShell>,
     );
     const el = getByTestId("b");
     expect(el.textContent).toBe("boom");
@@ -17,14 +17,14 @@ describe("AlertBanner", () => {
 
   it("applies tone-specific background tokens", () => {
     const { getByTestId: getDanger } = render(
-      <AlertBanner tone="danger" data-testid="danger">
+      <AlertShell tone="danger" data-testid="danger">
         x
-      </AlertBanner>,
+      </AlertShell>,
     );
     const { getByTestId: getWarning } = render(
-      <AlertBanner tone="warning" data-testid="warning">
+      <AlertShell tone="warning" data-testid="warning">
         x
-      </AlertBanner>,
+      </AlertShell>,
     );
     expect(getDanger("danger").className).toContain("bg-[var(--destructive-bg)]");
     expect(getWarning("warning").className).toContain("bg-[var(--status-warning-bg)]");
@@ -32,9 +32,9 @@ describe("AlertBanner", () => {
 
   it("forwards role and extra classes", () => {
     const { getByTestId } = render(
-      <AlertBanner tone="warning" role="alert" className="text-[var(--status-warning)]" data-testid="b">
+      <AlertShell tone="warning" role="alert" className="text-[var(--status-warning)]" data-testid="b">
         blocked
-      </AlertBanner>,
+      </AlertShell>,
     );
     const el = getByTestId("b");
     expect(el.getAttribute("role")).toBe("alert");

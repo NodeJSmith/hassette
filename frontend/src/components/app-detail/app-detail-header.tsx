@@ -1,10 +1,10 @@
 import { Badge } from "@/components/ui/badge";
 
 import type { components } from "../../api/generated-types";
-import { HEADING_STATUS_SHAPE_SIZE, INLINE_STATUS_DOT_SIZE } from "../../utils/constants";
+import { BADGE_STATUS_DOT_SIZE, HEADING_STATUS_SHAPE_SIZE } from "../../utils/constants";
 import { statusToKind, statusToVariant } from "../../utils/status";
 import { ActionButtons } from "../shared/action-buttons";
-import { AlertBanner } from "../shared/alert-banner";
+import { AlertShell } from "../shared/alert-shell";
 import { ErrorBanner } from "../shared/error-banner";
 import { StatusShape } from "../shared/status-shape";
 
@@ -61,7 +61,7 @@ export function AppDetailHeader({
           {/* Shown for every status, healthy included — "running" should be a
               statement, not the absence of a pill. */}
           <Badge variant={statusToVariant(liveStatus)} size="sm" data-testid="app-status-pill">
-            <StatusShape kind={statusToKind(liveStatus)} size={INLINE_STATUS_DOT_SIZE} /> {liveStatus}
+            <StatusShape kind={statusToKind(liveStatus)} size={BADGE_STATUS_DOT_SIZE} /> {liveStatus}
           </Badge>
           <ActionButtons appKey={appKey} status={liveStatus} variant="text" confirmStop />
         </div>
@@ -88,14 +88,14 @@ export function AppDetailHeader({
       )}
 
       {manifest?.block_reason && (
-        <AlertBanner
+        <AlertShell
           tone="warning"
           className="text-[length:var(--text-body)] text-[var(--status-warning)]"
           role="alert"
           data-testid="block-reason-banner"
         >
           <strong>Blocked:</strong> {manifest.block_reason}
-        </AlertBanner>
+        </AlertShell>
       )}
     </>
   );

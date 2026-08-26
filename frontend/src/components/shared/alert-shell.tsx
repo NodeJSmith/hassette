@@ -5,12 +5,16 @@ import { cn } from "@/lib/utils";
 /** Semantic tone of a banner — selects the destructive or warning token pair. */
 export type AlertTone = "danger" | "warning";
 
+// The two tones intentionally differ in border treatment: `danger` softens `--destructive` to 30%
+// so a full-width error block doesn't read as a hard red rule, while `warning` uses
+// `--status-warning` at full strength. Both are carried over verbatim from the call sites this
+// shell replaced — a new tone should pick whichever reads better, not copy either by default.
 const TONE_CLASSES: Record<AlertTone, string> = {
   danger: "border-[color:color-mix(in_srgb,var(--destructive)_30%,transparent)] bg-[var(--destructive-bg)]",
   warning: "border-[var(--status-warning)] bg-[var(--status-warning-bg)]",
 };
 
-interface AlertBannerProps {
+interface AlertShellProps {
   tone: AlertTone;
   children: ReactNode;
   /** Extra classes for content-level styling (text color, size); the shell is fixed. */
@@ -22,9 +26,12 @@ interface AlertBannerProps {
 /**
  * Shared shell for full-width inline banners (errors, blocked apps).
  *
+ * Distinct from `components/layout/alert-banner.tsx`'s `AlertBanner`, which is a specific
+ * failed-apps notice rather than a reusable container.
+ *
  * Owns the container geometry so tone variants can't drift apart; callers supply content.
  */
-export function AlertBanner({ tone, children, className, role, "data-testid": testId }: AlertBannerProps) {
+export function AlertShell({ tone, children, className, role, "data-testid": testId }: AlertShellProps) {
   return (
     <div
       className={cn("mb-4 rounded-md border px-4 py-3", TONE_CLASSES[tone], className)}

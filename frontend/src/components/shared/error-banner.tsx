@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { AlertBanner } from "./alert-banner";
+import { AlertShell } from "./alert-shell";
 import { TracebackLines } from "./traceback-viewer";
 
 interface ErrorBannerProps {
@@ -21,7 +21,7 @@ export function ErrorBanner({
   const [traceExpanded, setTraceExpanded] = useState(false);
 
   return (
-    <AlertBanner tone="danger" data-testid={testId}>
+    <AlertShell tone="danger" data-testid={testId}>
       <span className="mb-1 block text-sm font-semibold text-destructive">
         {heading}
         {errorType ? ` — ${errorType}` : ""}
@@ -49,6 +49,6 @@ export function ErrorBanner({
           )}
         </div>
       )}
-    </AlertBanner>
+    </AlertShell>
   );
 }

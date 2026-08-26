@@ -5,5 +5,6 @@ export const DETAIL_FETCH_LIMIT = 50;
 export const SMALL_ICON_SIZE = 12;
 // Status shape scaled to sit alongside heading-sized text (h1/h2).
 export const HEADING_STATUS_SHAPE_SIZE = 14;
-// Status shape scaled to sit inline inside a badge/pill.
-export const INLINE_STATUS_DOT_SIZE = 8;
+// Status shape scaled to sit inline inside a badge/pill. Deliberately smaller than the
+// standalone STATUS_DOT_SIZE above, which is sized for table cells and list rows.
+export const BADGE_STATUS_DOT_SIZE = 8;
