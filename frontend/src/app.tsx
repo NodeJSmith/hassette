@@ -50,7 +50,7 @@ import { HOME_PATH, LOGIN_PATH } from "./utils/app-routes";
 import { isFailureStatus, statusToKind } from "./utils/status";
 
 const PALETTE_STALE_TIME_MS = 300_000;
-const MAIN_CONTENT_ID = "main-content";
+export const MAIN_CONTENT_ID = "main-content";
 const SKIP_LINK_CLASS =
   "sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[var(--z-skip-link)] focus:rounded-md focus:border-2 focus:border-primary focus:bg-card focus:px-4 focus:py-2 focus:text-foreground";
 const LAYOUT_CLASS =

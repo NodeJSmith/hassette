@@ -5,7 +5,7 @@ import type * as React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { components } from "./api/generated-types";
-import { App } from "./app";
+import { App, MAIN_CONTENT_ID } from "./app";
 import { useTelemetryHealth } from "./hooks/use-telemetry-health";
 import { useWebSocket } from "./hooks/use-websocket";
 import { appStatusKey, useAppStore } from "./state/store";
@@ -129,16 +129,16 @@ describe("App — layout structure", () => {
     expect(screen.getByRole("main")).toBeDefined();
   });
 
-  it("main content has id=main-content for skip link", () => {
+  it("main content carries MAIN_CONTENT_ID for the skip link", () => {
     const { container } = render(<App />);
     const main = container.querySelector("main");
-    expect(main!.getAttribute("id")).toBe("main-content");
+    expect(main!.getAttribute("id")).toBe(MAIN_CONTENT_ID);
   });
 
   it("renders a skip link", () => {
     render(<App />);
     const skipLink = screen.getByTestId("skip-link");
-    expect(skipLink.getAttribute("href")).toBe("#main-content");
+    expect(skipLink.getAttribute("href")).toBe(`#${MAIN_CONTENT_ID}`);
   });
 });
 
