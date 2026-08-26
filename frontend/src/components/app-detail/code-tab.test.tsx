@@ -3,6 +3,7 @@ import { delay, http, HttpResponse } from "msw";
 import type { ComponentProps } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createListener } from "../../test/factories";
 import { server } from "../../test/server";
 import { CodeTab } from "./code-tab";
 
@@ -47,7 +48,7 @@ describe("CodeTab", () => {
   };
 
   async function renderAndWaitForLoad(props: Partial<ComponentProps<typeof CodeTab>> = {}) {
-    const result = render(<CodeTab appKey="test_app" listeners={[]} {...props} />);
+    const result = render(<CodeTab appKey={defaultSource.app_key} listeners={[]} {...props} />);
     await waitFor(() => {
       expect(screen.getByTestId("code-tab-content")).toBeDefined();
     });
@@ -64,7 +65,7 @@ describe("CodeTab", () => {
   });
 
   it("shows loading spinner initially", () => {
-    render(<CodeTab appKey="test_app" listeners={[]} />);
+    render(<CodeTab appKey={defaultSource.app_key} listeners={[]} />);
     expect(screen.getByRole("status")).toBeDefined();
   });
 
@@ -73,9 +74,8 @@ describe("CodeTab", () => {
   });
 
   it("includes Shiki token color utilities for light and dark themes", async () => {
-    render(<CodeTab appKey="test_app" listeners={[]} />);
-    const codeTab = await screen.findByTestId("code-tab-content");
-    const body = codeTab.lastElementChild;
+    await renderAndWaitForLoad();
+    const body = screen.getByTestId("code-tab-content").lastElementChild;
     expect(body?.className).toContain(
       "[&_.shiki_span:not(.line):not(.line-num)]:text-[var(--shiki-light,var(--ink-1))]",
     );
@@ -97,7 +97,7 @@ describe("CodeTab", () => {
         return HttpResponse.json({ detail: "not found" }, { status: 404 });
       }),
     );
-    render(<CodeTab appKey="test_app" listeners={[]} />);
+    render(<CodeTab appKey={defaultSource.app_key} listeners={[]} />);
     await waitFor(() => {
       expect(screen.getByTestId("code-tab-error")).toBeDefined();
     });
@@ -121,13 +121,9 @@ describe("CodeTab", () => {
 
   it("annotates handler lines with title tooltip on hover", async () => {
     const listeners = [
-      {
-        listener_id: 1,
-        handler_method: "on_state_change",
-        source_location: "test_app.py:2",
-      },
+      createListener({ listener_id: 1, handler_method: "on_state_change", source_location: "test_app.py:2" }),
     ];
-    await renderAndWaitForLoad({ listeners: listeners as never });
+    await renderAndWaitForLoad({ listeners });
     const line2 = screen.getByTestId("code-line-2");
     expect(line2.getAttribute("title")).toContain("on_state_change");
     expect(line2.classList.contains("line--annotated")).toBe(true);
@@ -162,7 +158,7 @@ describe("CodeTab", () => {
       }),
     );
 
-    const { unmount } = render(<CodeTab appKey="test_app" listeners={[]} />);
+    const { unmount } = render(<CodeTab appKey={defaultSource.app_key} listeners={[]} />);
     expect(screen.getByRole("status")).toBeDefined();
 
     // Wait for the request to be initiated
