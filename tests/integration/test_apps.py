@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
 import typing
+from collections.abc import Iterable
 from copy import deepcopy
 from pathlib import Path
 from unittest.mock import patch
@@ -28,6 +29,22 @@ if typing.TYPE_CHECKING:
 TEST_APPS_PATH = Path(__file__).parent.parent / "data" / "apps"
 
 
+def change_set(
+    *,
+    orphans: Iterable[str] = (),
+    new_apps: Iterable[str] = (),
+    reimport_apps: Iterable[str] = (),
+    reload_apps: Iterable[str] = (),
+) -> ChangeSet:
+    """Build a ChangeSet from plain iterables, defaulting every unlisted bucket to empty."""
+    return ChangeSet(
+        orphans=frozenset(orphans),
+        new_apps=frozenset(new_apps),
+        reimport_apps=frozenset(reimport_apps),
+        reload_apps=frozenset(reload_apps),
+    )
+
+
 class TestApps:
     hassette: HassetteHarness
     app_handler: "AppHandler"
@@ -36,6 +53,51 @@ class TestApps:
     def setup(self, hassette_with_app_handler: HassetteHarness):
         self.hassette = hassette_with_app_handler
         self.app_handler = hassette_with_app_handler.app_handler
+
+    async def on_load_completed(self) -> asyncio.Event:
+        """Subscribe to APP_LOAD_COMPLETED and return an Event set the next time it fires."""
+        event = asyncio.Event()
+
+        async def handler(**kwargs):  # noqa
+            self.hassette.task_bucket.post_to_loop(event.set)
+
+        await self.hassette.bus_service.add_listener(
+            create_listener(
+                handler,
+                task_bucket=self.app_handler.task_bucket,
+                owner_id="test",
+                topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED,
+            )
+        )
+        return event
+
+    async def run_change_event(
+        self,
+        changes: ChangeSet,
+        *,
+        new_manifests: dict[str, AppManifest] | None = None,
+        timeout: float = 1,
+    ) -> None:
+        """Force one reconciliation pass with `changes` and wait for APP_LOAD_COMPLETED.
+
+        When `new_manifests` is given, refresh_config is stubbed to return it — the shape the
+        file-watcher path produces — instead of re-reading hassette.toml.
+        """
+        event = await self.on_load_completed()
+
+        with contextlib.ExitStack() as stack:
+            mock_detect = stack.enter_context(
+                patch.object(self.app_handler.lifecycle.change_detector, "detect_changes")
+            )
+            mock_detect.return_value = changes
+
+            if new_manifests is not None:
+                mock_refresh_config = stack.enter_context(patch.object(self.app_handler.lifecycle, "refresh_config"))
+                self.app_handler.registry.set_manifests(new_manifests)
+                mock_refresh_config.return_value = (self.app_handler.registry.manifests, new_manifests)
+
+            await self.app_handler.lifecycle.handle_change_event()
+            await asyncio.wait_for(event.wait(), timeout=timeout)
 
     async def test_apps_are_working(self) -> None:
         """Test actual WebSocket calls against running HA instance."""
@@ -70,13 +132,13 @@ class TestApps:
         """Verify that calling handle_changes() without config modifications preserves all running apps."""
         orig_apps = set(self.app_handler.registry.app_keys())
 
-        event = asyncio.Event()
         results = []
 
         async def handler(**kwargs):
             results.append(kwargs)
             self.hassette.task_bucket.post_to_loop(event.set)
 
+        event = asyncio.Event()
         await self.hassette.bus_service.add_listener(
             create_listener(
                 handler,
@@ -110,33 +172,10 @@ class TestApps:
             "Precondition: my_app config shows enabled"
         )
 
-        event = asyncio.Event()
+        await self.run_change_event(change_set(orphans={"my_app"}))
 
-        async def handler(**kwargs):  # noqa
-            self.hassette.task_bucket.post_to_loop(event.set)
-
-        await self.hassette.bus_service.add_listener(
-            create_listener(
-                handler,
-                task_bucket=self.app_handler.task_bucket,
-                owner_id="test",
-                topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED,
-            )
-        )
-
-        with patch.object(self.app_handler.lifecycle.change_detector, "detect_changes") as mock_detect:
-            mock_detect.return_value = ChangeSet(
-                orphans=frozenset({"my_app"}),
-                new_apps=frozenset(),
-                reimport_apps=frozenset(),
-                reload_apps=frozenset(),
-            )
-
-            await self.app_handler.lifecycle.handle_change_event()
-            await asyncio.wait_for(event.wait(), timeout=1)
-
-            assert "my_app" not in self.app_handler.registry, "my_app should stop after being disabled"
-            assert "my_app_sync" in self.app_handler.registry, "Other enabled apps should continue running"
+        assert "my_app" not in self.app_handler.registry, "my_app should stop after being disabled"
+        assert "my_app_sync" in self.app_handler.registry, "Other enabled apps should continue running"
 
     async def test_handle_changes_enables_app(self) -> None:
         """Verify that editing hassette.toml to enable a disabled app starts the instance."""
@@ -148,38 +187,10 @@ class TestApps:
         new_app_config = deepcopy(self.app_handler.registry.manifests)
         new_app_config["disabled_app"].enabled = True
 
-        event = asyncio.Event()
+        await self.run_change_event(change_set(new_apps={"disabled_app"}), new_manifests=new_app_config)
 
-        async def handler(**kwargs):  # noqa
-            self.hassette.task_bucket.post_to_loop(event.set)
-
-        await self.hassette.bus_service.add_listener(
-            create_listener(
-                handler,
-                task_bucket=self.app_handler.task_bucket,
-                owner_id="test",
-                topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED,
-            )
-        )
-
-        with (
-            patch.object(self.app_handler.lifecycle.change_detector, "detect_changes") as mock_detect,
-            patch.object(self.app_handler.lifecycle, "refresh_config") as mock_refresh_config,
-        ):
-            self.app_handler.registry.set_manifests(new_app_config)
-            mock_refresh_config.return_value = (self.app_handler.registry.manifests, new_app_config)
-            mock_detect.return_value = ChangeSet(
-                orphans=frozenset(),
-                new_apps=frozenset({"disabled_app"}),
-                reimport_apps=frozenset(),
-                reload_apps=frozenset(),
-            )
-
-            await self.app_handler.lifecycle.handle_change_event()
-            await asyncio.wait_for(event.wait(), timeout=1)
-
-            assert "disabled_app" in self.app_handler.registry, "disabled_app should start after being enabled"
-            assert "my_app" in self.app_handler.registry, "Other enabled apps should continue running"
+        assert "disabled_app" in self.app_handler.registry, "disabled_app should start after being enabled"
+        assert "my_app" in self.app_handler.registry, "Other enabled apps should continue running"
 
     async def test_config_changes_are_reflected_after_reload(self) -> None:
         """Verify that editing hassette.toml to change an app's config reloads the instance."""
@@ -195,11 +206,9 @@ class TestApps:
         original_config = deepcopy(self.app_handler.registry.manifests)
         self.app_handler.registry.manifests["my_app"].app_config = {"test_entity": "light.office"}
 
-        change_set = ChangeSet(
-            orphans=frozenset(), new_apps=frozenset(), reimport_apps=frozenset(), reload_apps=frozenset({"my_app"})
-        )
+        changes = change_set(reload_apps={"my_app"})
 
-        await self.app_handler.apply_changes(change_set, original_config, self.app_handler.registry.manifests)
+        await self.app_handler.apply_changes(changes, original_config, self.app_handler.registry.manifests)
         await wait_for(
             lambda: (
                 "my_app" in self.app_handler.registry
@@ -307,124 +316,40 @@ class TestApps:
         """A reload ChangeSet with new_apps containing an autostart=false app leaves it unstarted."""
         assert "no_autostart_app" not in self.app_handler.registry, "Precondition: not running"
 
-        event = asyncio.Event()
-
-        async def handler(**kwargs):  # noqa
-            self.hassette.task_bucket.post_to_loop(event.set)
-
-        await self.hassette.bus_service.add_listener(
-            create_listener(
-                handler,
-                task_bucket=self.app_handler.task_bucket,
-                owner_id="test",
-                topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED,
-            )
-        )
-
         new_app_config = deepcopy(self.app_handler.registry.manifests)
 
-        with (
-            patch.object(self.app_handler.lifecycle.change_detector, "detect_changes") as mock_detect,
-            patch.object(self.app_handler.lifecycle, "refresh_config") as mock_refresh_config,
-        ):
-            self.app_handler.registry.set_manifests(new_app_config)
-            mock_refresh_config.return_value = (self.app_handler.registry.manifests, new_app_config)
-            mock_detect.return_value = ChangeSet(
-                orphans=frozenset(),
-                new_apps=frozenset({"no_autostart_app"}),
-                reimport_apps=frozenset(),
-                reload_apps=frozenset(),
-            )
+        await self.run_change_event(change_set(new_apps={"no_autostart_app"}), new_manifests=new_app_config)
 
-            await self.app_handler.lifecycle.handle_change_event()
-            await asyncio.wait_for(event.wait(), timeout=1)
-
-            assert "no_autostart_app" not in self.app_handler.registry, (
-                "no_autostart_app should remain unstarted after reload with new_apps (autostart=false)"
-            )
+        assert "no_autostart_app" not in self.app_handler.registry, (
+            "no_autostart_app should remain unstarted after reload with new_apps (autostart=false)"
+        )
 
     async def test_unrelated_reload_leaves_manually_started_autostart_false_app_running(self) -> None:
         """A reload that changes an unrelated app leaves an already-running autostart=false app running."""
         await self.app_handler.lifecycle.start_app("no_autostart_app")
         assert "no_autostart_app" in self.app_handler.registry, "Precondition: no_autostart_app is manually running"
 
-        event = asyncio.Event()
-
-        async def handler(**kwargs):  # noqa
-            self.hassette.task_bucket.post_to_loop(event.set)
-
-        await self.hassette.bus_service.add_listener(
-            create_listener(
-                handler,
-                task_bucket=self.app_handler.task_bucket,
-                owner_id="test",
-                topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED,
-            )
-        )
-
         new_app_config = deepcopy(self.app_handler.registry.manifests)
         new_app_config["my_app"].app_config = {"test_entity": "light.some_other_light"}
 
-        with (
-            patch.object(self.app_handler.lifecycle.change_detector, "detect_changes") as mock_detect,
-            patch.object(self.app_handler.lifecycle, "refresh_config") as mock_refresh_config,
-        ):
-            self.app_handler.registry.set_manifests(new_app_config)
-            mock_refresh_config.return_value = (self.app_handler.registry.manifests, new_app_config)
-            mock_detect.return_value = ChangeSet(
-                orphans=frozenset(),
-                new_apps=frozenset(),
-                reimport_apps=frozenset(),
-                reload_apps=frozenset({"my_app"}),
-            )
+        await self.run_change_event(change_set(reload_apps={"my_app"}), new_manifests=new_app_config)
 
-            await self.app_handler.lifecycle.handle_change_event()
-            await asyncio.wait_for(event.wait(), timeout=1)
-
-            assert "no_autostart_app" in self.app_handler.registry, (
-                "no_autostart_app should still be running after an unrelated reload"
-            )
+        assert "no_autostart_app" in self.app_handler.registry, (
+            "no_autostart_app should still be running after an unrelated reload"
+        )
 
     async def test_reload_of_not_running_autostart_false_app_leaves_it_unstarted(self) -> None:
         """A reload with reload_apps containing an autostart=false app that is not running leaves it unstarted."""
         assert "no_autostart_app" not in self.app_handler.registry, "Precondition: not running"
 
-        event = asyncio.Event()
-
-        async def handler(**kwargs):  # noqa
-            self.hassette.task_bucket.post_to_loop(event.set)
-
-        await self.hassette.bus_service.add_listener(
-            create_listener(
-                handler,
-                task_bucket=self.app_handler.task_bucket,
-                owner_id="test",
-                topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED,
-            )
-        )
-
         new_app_config = deepcopy(self.app_handler.registry.manifests)
         new_app_config["no_autostart_app"].app_config = {"test_entity": "light.changed"}
 
-        with (
-            patch.object(self.app_handler.lifecycle.change_detector, "detect_changes") as mock_detect,
-            patch.object(self.app_handler.lifecycle, "refresh_config") as mock_refresh_config,
-        ):
-            self.app_handler.registry.set_manifests(new_app_config)
-            mock_refresh_config.return_value = (self.app_handler.registry.manifests, new_app_config)
-            mock_detect.return_value = ChangeSet(
-                orphans=frozenset(),
-                new_apps=frozenset(),
-                reimport_apps=frozenset(),
-                reload_apps=frozenset({"no_autostart_app"}),
-            )
+        await self.run_change_event(change_set(reload_apps={"no_autostart_app"}), new_manifests=new_app_config)
 
-            await self.app_handler.lifecycle.handle_change_event()
-            await asyncio.wait_for(event.wait(), timeout=1)
-
-            assert "no_autostart_app" not in self.app_handler.registry, (
-                "no_autostart_app should remain unstarted after config change reload (autostart=false, not running)"
-            )
+        assert "no_autostart_app" not in self.app_handler.registry, (
+            "no_autostart_app should remain unstarted after config change reload (autostart=false, not running)"
+        )
 
     async def test_reload_of_running_autostart_false_app_leaves_it_running(self) -> None:
         """A reload of a running autostart=false app that had config changes reloads and keeps it running."""
@@ -436,14 +361,9 @@ class TestApps:
         new_app_config["no_autostart_app"].app_config = {"test_entity": "light.changed"}
         self.app_handler.registry.set_manifests(new_app_config)
 
-        change_set = ChangeSet(
-            orphans=frozenset(),
-            new_apps=frozenset(),
-            reimport_apps=frozenset(),
-            reload_apps=frozenset({"no_autostart_app"}),
-        )
+        changes = change_set(reload_apps={"no_autostart_app"})
 
-        await self.app_handler.apply_changes(change_set, original_app_config, new_app_config)
+        await self.app_handler.apply_changes(changes, original_app_config, new_app_config)
         await wait_for(
             lambda: "no_autostart_app" in self.app_handler.registry,
             desc="no_autostart_app still running after reload",
@@ -558,10 +478,8 @@ class TestPerInstanceSelectiveRestart:
         # Mutate instance 1's config only — instance 0's dict stays identical.
         lifecycle.registry.manifests[app_key].app_config = [{"value": "a"}, {"value": "changed"}]
 
-        change_set = ChangeSet(
-            orphans=frozenset(), new_apps=frozenset(), reimport_apps=frozenset(), reload_apps=frozenset({app_key})
-        )
-        await lifecycle.apply_changes(change_set, original_config, lifecycle.registry.manifests)
+        changes = change_set(reload_apps={app_key})
+        await lifecycle.apply_changes(changes, original_config, lifecycle.registry.manifests)
 
         await wait_for(
             lambda: (
@@ -699,10 +617,8 @@ class TestPerInstanceSelectiveRestart:
         lifecycle._stop_instance_unlocked = instrumented_stop
         lifecycle._create_instance_unlocked = instrumented_create
 
-        change_set = ChangeSet(
-            orphans=frozenset(), new_apps=frozenset(), reimport_apps=frozenset(), reload_apps=frozenset({app_key})
-        )
-        task = asyncio.create_task(lifecycle.apply_changes(change_set, original_config, lifecycle.registry.manifests))
+        changes = change_set(reload_apps={app_key})
+        task = asyncio.create_task(lifecycle.apply_changes(changes, original_config, lifecycle.registry.manifests))
 
         await asyncio.wait_for(index_1_stop_entered.wait(), timeout=1)
         # While index 1's stop of the old, name-colliding "beta" instance is still pending, no

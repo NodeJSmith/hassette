@@ -10,8 +10,11 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from hassette import Hassette
+from hassette.commands import InvokeHandler
 from hassette.config.config import HassetteConfig
+from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
+from hassette.core.execution_record import ExecutionRecord
 from hassette.core.sync_executor import SyncExecutor
 from hassette.test_utils import make_mock_hassette
 from hassette.test_utils.helpers import cleanup_hassette_streams
@@ -114,6 +117,44 @@ async def initialized_db(db_hassette: AsyncMock) -> AsyncIterator[tuple[Database
         yield db_service, session_id
     finally:
         await db_service.on_shutdown()
+
+
+@pytest.fixture
+async def executor(
+    db_hassette: AsyncMock, initialized_db: tuple[DatabaseService, int]
+) -> AsyncIterator[CommandExecutor]:
+    """Create and prepare a CommandExecutor with real DB wired in."""
+    _db_service, _session_id = initialized_db
+    exc = CommandExecutor(db_hassette, parent=db_hassette)
+    await exc.on_initialize()
+    try:
+        yield exc
+    finally:
+        await exc.on_shutdown()
+
+
+def invoke_cmd(listener: MagicMock, *, listener_id: int = 1, effective_timeout: float | None = None) -> InvokeHandler:
+    """Build the InvokeHandler command the executor receives for a bus dispatch."""
+    return InvokeHandler(
+        listener=listener,
+        event=MagicMock(),
+        topic="test",
+        listener_id=listener_id,
+        source_tier="app",
+        effective_timeout=effective_timeout,
+    )
+
+
+def pop_execution_record(executor: CommandExecutor) -> ExecutionRecord:
+    """Pop the record ``executor`` queued for the execution that just ran.
+
+    Asserts the queue is non-empty and the entry is an ``ExecutionRecord`` so callers can go
+    straight to the field they care about.
+    """
+    assert not executor._write_queue.empty()
+    record = executor._write_queue.get_nowait()
+    assert isinstance(record, ExecutionRecord)
+    return record
 
 
 def make_mock_job(

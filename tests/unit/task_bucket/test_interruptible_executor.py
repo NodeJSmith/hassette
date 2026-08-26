@@ -28,8 +28,25 @@ from hassette.task_bucket.interruptible_executor import (
     async_raise,
     join_or_interrupt_threads,
 )
+from tests.unit.conftest import (
+    await_worker_ready,
+    start_busy_thread,
+    start_sleeping_thread,
+    submit_busy_worker,
+    submit_c_blocked_worker,
+    timed_shutdown,
+)
 
 _EXECUTOR_LOGGER = "hassette.task_bucket.interruptible_executor"
+
+
+def interrupt_and_join(thread: threading.Thread) -> None:
+    """Interrupt `thread` with async_raise(SystemExit) and assert it actually exits."""
+    assert thread.ident is not None  # the thread has started, so ident is set
+    async_raise(thread.ident, SystemExit)
+    thread.join(timeout=3.0)
+    assert not thread.is_alive(), "Thread should have been terminated by async_raise"
+
 
 # async_raise(SystemExit) into a worker stuck in a C-level call (time.sleep) deadlocks under
 # coverage's settrace tracer on Python 3.11. Python 3.12+ trace via sys.monitoring (PEP 669)
@@ -132,12 +149,8 @@ class TestAsyncRaise:
         t.start()
         time.sleep(0.05)  # let it spin up
 
-        assert t.ident is not None
-        async_raise(t.ident, SystemExit)
-
         # Thread must stop within a generous but bounded time.
-        t.join(timeout=3.0)
-        assert not t.is_alive(), "Thread should have been terminated by async_raise"
+        interrupt_and_join(t)
         assert done.is_set(), "Thread should have received SystemExit"
 
 
@@ -177,28 +190,14 @@ class TestJoinOrInterruptThreads:
 
         t = threading.Thread(target=short_work, daemon=True)
         t.start()
-        assert started.wait(timeout=2.0), "worker did not signal start in time"
+        await_worker_ready(started)
 
         joined = join_or_interrupt_threads({t}, timeout=2.0, log=False)
         assert t in joined
 
     def test_logs_straggler_name_before_interrupt(self) -> None:
         """When log=True, the straggler's name and stack must be logged before async_raise."""
-        ready = threading.Event()
-
-        def busy_loop() -> None:
-            ready.set()
-            try:
-                while True:
-                    pass
-            except SystemExit:
-                # Swallow SystemExit so the thread exits cleanly without triggering
-                # pytest's threadexception plugin.
-                pass
-
-        t = threading.Thread(target=busy_loop, name="test-straggler-thread", daemon=True)
-        t.start()
-        assert ready.wait(timeout=2.0), "worker did not signal ready in time"
+        t = start_busy_thread(name="test-straggler-thread")
 
         with capture_warnings() as records:
             join_or_interrupt_threads({t}, timeout=0.05, log=True)
@@ -231,21 +230,7 @@ class TestJoinOrInterruptThreads:
 
     def test_suppresses_system_error_from_async_raise(self) -> None:
         """SystemError from async_raise must be suppressed, not propagated."""
-        ready = threading.Event()
-
-        def loop() -> None:
-            ready.set()
-            try:
-                while True:
-                    pass
-            except SystemExit:
-                # Swallow SystemExit so the thread exits cleanly without triggering
-                # pytest's threadexception plugin.
-                pass
-
-        t = threading.Thread(target=loop, daemon=True)
-        t.start()
-        assert ready.wait(timeout=2.0), "worker did not signal ready in time"
+        t = start_busy_thread()
 
         with patch(
             "hassette.task_bucket.interruptible_executor.async_raise",
@@ -255,9 +240,7 @@ class TestJoinOrInterruptThreads:
             join_or_interrupt_threads({t}, timeout=0.05, log=False)
 
         # Clean up — t is still running because async_raise was patched to raise SystemError
-        assert t.ident is not None
-        async_raise(t.ident, SystemExit)
-        t.join(timeout=2.0)
+        interrupt_and_join(t)
 
 
 # InterruptibleThreadPoolExecutor.shutdown — integration-level tests
@@ -275,19 +258,10 @@ class TestInterruptibleThreadPoolExecutorShutdown:
         within the budget.
         """
         executor = InterruptibleThreadPoolExecutor(max_workers=1)
-        started = threading.Event()
-
-        def c_blocked() -> None:
-            started.set()
-            time.sleep(60)  # long C-level sleep
-
-        executor.submit(c_blocked)
-        assert started.wait(timeout=2.0), "worker did not signal start in time"
+        submit_c_blocked_worker(executor)
 
         budget = 1.0
-        wall_start = time.monotonic()
-        executor.shutdown(join_threads_or_timeout=True, timeout=budget)
-        elapsed = time.monotonic() - wall_start
+        elapsed = timed_shutdown(executor, budget)
 
         # Allow a 20% margin over budget for scheduling jitter.
         assert elapsed < budget * 1.2, f"shutdown() took {elapsed:.2f}s, expected < {budget * 1.2:.2f}s"
@@ -295,15 +269,7 @@ class TestInterruptibleThreadPoolExecutorShutdown:
     def test_shutdown_does_not_raise(self) -> None:
         """shutdown() must never propagate an exception from the interrupt loop."""
         executor = InterruptibleThreadPoolExecutor(max_workers=2)
-        ready = threading.Event()
-
-        def busy() -> None:
-            ready.set()
-            while True:
-                pass
-
-        executor.submit(busy)
-        assert ready.wait(timeout=2.0), "worker did not signal ready in time"
+        submit_busy_worker(executor)
 
         # Must not raise — benign errors are suppressed
         executor.shutdown(join_threads_or_timeout=True, timeout=0.5)
@@ -313,20 +279,8 @@ class TestInterruptibleThreadPoolExecutorShutdown:
         within the shutdown budget.
         """
         executor = InterruptibleThreadPoolExecutor(max_workers=1)
-        ready = threading.Event()
         terminated = threading.Event()
-
-        def busy_loop() -> None:
-            ready.set()
-            try:
-                while True:
-                    pass
-            except SystemExit:
-                terminated.set()
-                raise
-
-        executor.submit(busy_loop)
-        assert ready.wait(timeout=2.0), "worker did not signal ready in time"
+        submit_busy_worker(executor, terminated=terminated, reraise=True)
 
         budget = 2.0
         executor.shutdown(join_threads_or_timeout=True, timeout=budget)
@@ -336,18 +290,7 @@ class TestInterruptibleThreadPoolExecutorShutdown:
     def test_stack_logged_for_python_straggler(self) -> None:
         """Straggler thread name and stack must be logged before interrupt."""
         executor = InterruptibleThreadPoolExecutor(max_workers=1, thread_name_prefix="test-worker")
-        ready = threading.Event()
-
-        def busy_loop() -> None:
-            ready.set()
-            try:
-                while True:
-                    pass
-            except SystemExit:
-                raise
-
-        executor.submit(busy_loop)
-        assert ready.wait(timeout=2.0), "worker did not signal ready in time"
+        submit_busy_worker(executor, reraise=True)
 
         with capture_warnings() as records:
             executor.shutdown(join_threads_or_timeout=True, timeout=2.0)
@@ -360,14 +303,7 @@ class TestInterruptibleThreadPoolExecutorShutdown:
     def test_shutdown_without_join_skips_interrupt_loop(self) -> None:
         """shutdown(join_threads_or_timeout=False) must skip the join/interrupt loop."""
         executor = InterruptibleThreadPoolExecutor(max_workers=1)
-        ready = threading.Event()
-
-        def busy() -> None:
-            ready.set()
-            time.sleep(30)
-
-        executor.submit(busy)
-        assert ready.wait(timeout=2.0), "worker did not signal ready in time"
+        submit_c_blocked_worker(executor, seconds=30)
 
         # Should return immediately (no join attempt)
         wall_start = time.monotonic()
@@ -424,19 +360,7 @@ class TestInterruptibleThreadPoolExecutorShutdown:
         and its mocked ValueError actually fires (a dead thread would join first and
         async_raise would never run — a vacuous test).
         """
-        ready = threading.Event()
-
-        def busy_loop() -> None:
-            ready.set()
-            try:
-                while True:
-                    time.sleep(0.01)
-            except SystemExit:
-                pass  # swallow so pytest's threadexception plugin doesn't flag it
-
-        t = threading.Thread(target=busy_loop, daemon=True)
-        t.start()
-        assert ready.wait(timeout=2.0), "worker did not signal ready in time"
+        t = start_sleeping_thread()
 
         with patch(
             "hassette.task_bucket.interruptible_executor.async_raise",
@@ -446,26 +370,12 @@ class TestInterruptibleThreadPoolExecutorShutdown:
             join_or_interrupt_threads({t}, timeout=0.05, log=False)
 
         # Clean up: actually stop the live thread now that the real async_raise is back.
-        assert t.ident is not None  # thread has started, so ident is set
-        async_raise(t.ident, SystemExit)
-        t.join(timeout=2.0)
-        assert not t.is_alive()
+        interrupt_and_join(t)
 
     def test_res_greater_than_one_suppressed_during_shutdown(self) -> None:
         """SystemError from async_raise (res>1 path) must be suppressed at shutdown."""
         executor = InterruptibleThreadPoolExecutor(max_workers=1)
-        ready = threading.Event()
-
-        def busy() -> None:
-            ready.set()
-            try:
-                while True:
-                    pass
-            except SystemExit:
-                raise
-
-        executor.submit(busy)
-        assert ready.wait(timeout=2.0), "worker did not signal ready in time"
+        submit_busy_worker(executor, reraise=True)
 
         with patch(
             "hassette.task_bucket.interruptible_executor.async_raise",
