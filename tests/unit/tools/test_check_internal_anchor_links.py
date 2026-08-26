@@ -26,6 +26,8 @@ CHECK_TAG_CASES: list[tuple[str, str, str | None]] = [
     ("dynamic_expr_flagged", "<a href={appUrl}>", "{appUrl}"),
     ("dynamic_expr_external_template_not_flagged", "<a href={`https://x.com/${id}`}>", None),
     ("dynamic_expr_external_string_not_flagged", '<a href={"https://x.com"}>', None),
+    ("dynamic_expr_fragment_template_not_flagged", "<a href={`#${MAIN_CONTENT_ID}`}>", None),
+    ("dynamic_expr_fragment_string_not_flagged", '<a href={"#top"}>', None),
 ]
 
 
