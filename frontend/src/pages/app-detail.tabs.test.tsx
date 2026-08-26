@@ -181,7 +181,7 @@ describe("AppDetailPage tabs", () => {
     expect(logsTab.getAttribute("href")).toBe("/apps/test_app/logs");
   });
 
-  // T03: "view in code" navigates to /apps/:key/code?line=N instead of mutating signal
+  // "view in code" navigates to /apps/:key/code?line=N instead of mutating signal
   it("onSwitchToCode navigates to code tab with ?line= param", async () => {
     setupApi(createManifest());
     const { findByTestId } = renderPage({ key: "test_app", tab: "handlers" });

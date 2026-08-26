@@ -1,8 +1,10 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { delay, http, HttpResponse } from "msw";
+import type { ComponentProps } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { server } from "../../test/server";
+import { CodeTab } from "./code-tab";
 
 // Mock shiki to avoid async highlighting in tests
 vi.mock("shiki", () => ({
@@ -33,7 +35,8 @@ vi.mock("../../hooks/use-query-params", () => ({
 // jsdom doesn't implement scrollIntoView — mock it globally
 window.HTMLElement.prototype.scrollIntoView = vi.fn();
 
-import { CodeTab } from "./code-tab";
+// Long enough to observe the request in flight, short enough not to slow the suite.
+const IN_FLIGHT_DELAY_MS = 100;
 
 describe("CodeTab", () => {
   const defaultSource = {
@@ -42,6 +45,14 @@ describe("CodeTab", () => {
     content: "class TestApp:\n    def on_state_change(self):\n        pass\n",
     line_count: 3,
   };
+
+  async function renderAndWaitForLoad(props: Partial<ComponentProps<typeof CodeTab>> = {}) {
+    const result = render(<CodeTab appKey="test_app" listeners={[]} {...props} />);
+    await waitFor(() => {
+      expect(screen.getByTestId("code-tab-content")).toBeDefined();
+    });
+    return result;
+  }
 
   beforeEach(() => {
     mockLineParam = null;
@@ -58,10 +69,7 @@ describe("CodeTab", () => {
   });
 
   it("renders source code after loading", async () => {
-    render(<CodeTab appKey="test_app" listeners={[]} />);
-    await waitFor(() => {
-      expect(screen.getByTestId("code-tab-content")).toBeDefined();
-    });
+    await renderAndWaitForLoad();
   });
 
   it("includes Shiki token color utilities for light and dark themes", async () => {
@@ -77,10 +85,7 @@ describe("CodeTab", () => {
   });
 
   it("renders line numbers in gutter", async () => {
-    render(<CodeTab appKey="test_app" listeners={[]} />);
-    await waitFor(() => {
-      expect(screen.getByTestId("code-tab-content")).toBeDefined();
-    });
+    await renderAndWaitForLoad();
     // Line numbers 1, 2, 3 should appear in gutter
     const gutterLines = screen.getAllByTestId(/^code-line-\d+$/);
     expect(gutterLines.length).toBeGreaterThanOrEqual(1);
@@ -100,27 +105,17 @@ describe("CodeTab", () => {
   });
 
   it("shows line count in header", async () => {
-    render(<CodeTab appKey="test_app" listeners={[]} />);
-    await waitFor(() => {
-      expect(screen.getByTestId("code-tab-content")).toBeDefined();
-    });
-    // "class TestApp:\n    def on_state_change(self):\n        pass\n" = 3 lines
-    expect(screen.getByTestId("code-tab-header").textContent).toContain("3 lines");
+    await renderAndWaitForLoad();
+    expect(screen.getByTestId("code-tab-header").textContent).toContain(`${defaultSource.line_count} lines`);
   });
 
   it("shows read-only label in header", async () => {
-    render(<CodeTab appKey="test_app" listeners={[]} />);
-    await waitFor(() => {
-      expect(screen.getByTestId("code-tab-content")).toBeDefined();
-    });
+    await renderAndWaitForLoad();
     expect(screen.getByTestId("code-tab-header").textContent).toContain("read-only");
   });
 
   it("shows copy path button in header", async () => {
-    render(<CodeTab appKey="test_app" listeners={[]} />);
-    await waitFor(() => {
-      expect(screen.getByTestId("code-tab-content")).toBeDefined();
-    });
+    await renderAndWaitForLoad();
     expect(screen.getByTestId("copy-path-btn")).toBeDefined();
   });
 
@@ -132,22 +127,16 @@ describe("CodeTab", () => {
         source_location: "test_app.py:2",
       },
     ];
-    render(<CodeTab appKey="test_app" listeners={listeners as never} />);
-    await waitFor(() => {
-      expect(screen.getByTestId("code-tab-content")).toBeDefined();
-    });
+    await renderAndWaitForLoad({ listeners: listeners as never });
     const line2 = screen.getByTestId("code-line-2");
     expect(line2.getAttribute("title")).toContain("on_state_change");
     expect(line2.classList.contains("line--annotated")).toBe(true);
   });
 
-  // T03: CodeTab reads ?line= from URL instead of focusLine prop
+  // CodeTab reads ?line= from URL instead of focusLine prop
   it("reads focusLine from ?line= query param and applies line--focus class", async () => {
     mockLineParam = "2";
-    render(<CodeTab appKey="test_app" listeners={[]} />);
-    await waitFor(() => {
-      expect(screen.getByTestId("code-tab-content")).toBeDefined();
-    });
+    await renderAndWaitForLoad();
     // Wait for the focus effect to run
     await waitFor(() => {
       const line2 = screen.getByTestId("code-line-2");
@@ -157,10 +146,7 @@ describe("CodeTab", () => {
 
   it("does not apply line--focus class when ?line= is absent", async () => {
     mockLineParam = null;
-    render(<CodeTab appKey="test_app" listeners={[]} />);
-    await waitFor(() => {
-      expect(screen.getByTestId("code-tab-content")).toBeDefined();
-    });
+    await renderAndWaitForLoad();
     const line1 = screen.getByTestId("code-line-1");
     expect(line1.classList.contains("line--focus")).toBe(false);
   });
@@ -171,7 +157,7 @@ describe("CodeTab", () => {
     server.use(
       http.get("/api/apps/:app_key/source", async ({ request }) => {
         requestSignal = request.signal;
-        await delay(100);
+        await delay(IN_FLIGHT_DELAY_MS);
         return HttpResponse.json(defaultSource);
       }),
     );
