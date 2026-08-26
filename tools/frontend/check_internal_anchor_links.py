@@ -29,6 +29,10 @@ EXPR_HREF = re.compile(r"\bhref\s*=\s*\{([^}]+)\}")
 # Prefixes that indicate external or non-route hrefs
 EXTERNAL_PREFIXES = ("http://", "https://", "mailto:", "tel:", "#")
 
+# Expression hrefs (href={...}) that cannot be an internal route: an absolute URL, or a
+# same-page fragment such as href={`#${MAIN_CONTENT_ID}`} (a skip link, not navigation).
+SAFE_EXPR_PREFIXES = ("`http", '"http', "`#", '"#')
+
 # file:line exemptions for cases where a native <a> is intentional
 # JSX tags can span multiple lines when attributes are wrapped. 5 lines covers
 # the longest realistic <a ... > opening tag in this codebase.
@@ -81,11 +85,11 @@ def _check_tag(tag: str, path: Path, line_num: int) -> tuple[Path, int, str] | N
     expr = EXPR_HREF.search(tag)
     if expr:
         expr_text = expr.group(1).strip()
-        # Flag all dynamic hrefs unless the expression is clearly an external URL.
-        # This is intentionally broad: a false positive is a CI failure with an
-        # actionable EXEMPTIONS entry, while a false negative is a silent full-page
-        # reload on an internal route.
-        if not (expr_text.startswith("`http") or expr_text.startswith('"http')):
+        # Flag all dynamic hrefs unless the expression is clearly an external URL or a
+        # same-page fragment. This is intentionally broad: a false positive is a CI
+        # failure with an actionable EXEMPTIONS entry, while a false negative is a
+        # silent full-page reload on an internal route.
+        if not expr_text.startswith(SAFE_EXPR_PREFIXES):
             return (path, line_num, f"{{{expr_text}}}")
 
     return None

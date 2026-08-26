@@ -1,5 +1,5 @@
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Toaster } from "sonner";
 import { Redirect, Route, Switch, useLocation, useSearch } from "wouter";
 
@@ -50,12 +50,16 @@ import { HOME_PATH, LOGIN_PATH } from "./utils/app-routes";
 import { isFailureStatus, statusToKind } from "./utils/status";
 
 const PALETTE_STALE_TIME_MS = 300_000;
+const MAIN_CONTENT_ID = "main-content";
 const SKIP_LINK_CLASS =
   "sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[var(--z-skip-link)] focus:rounded-md focus:border-2 focus:border-primary focus:bg-card focus:px-4 focus:py-2 focus:text-foreground";
 const LAYOUT_CLASS =
   "relative grid min-h-screen min-h-dvh [grid-template-columns:var(--size-sidebar)_1fr] gap-2 pt-2 pr-2 pb-2 pl-0 max-sidebar:grid-cols-1 max-sidebar:gap-0 max-sidebar:p-0";
 const MAIN_CLASS =
   "col-start-2 flex min-w-0 flex-col overflow-y-auto rounded-t-lg bg-card shadow-md [scrollbar-gutter:stable] max-sidebar:col-start-1 max-sidebar:rounded-none max-sidebar:shadow-none";
+
+/** Where focus lands after the mobile drawer closes: the hamburger that opened it, or main content. */
+type DrawerCloseFocusTarget = "main" | "opener";
 
 /** Bare-key shortcuts must not fire while the user is typing into the app filter or palette. */
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -83,35 +87,41 @@ export function App() {
   const drawerRef = useRef<HTMLDivElement>(null);
   const drawerEverOpenedRef = useRef(false);
   const prevDrawerOpenRef = useRef(drawerOpen);
-  const drawerCloseFocusTargetRef = useRef<"main" | "opener">("opener");
+  const drawerCloseFocusTargetRef = useRef<DrawerCloseFocusTarget>("opener");
 
   if (drawerOpen && !drawerMounted) setDrawerMounted(true);
 
+  // Every close/toggle records where focus should land before flipping state, so the
+  // focus-restoration effect below has exactly one place to read that decision from.
+  const closeDrawer = useCallback((focusTarget: DrawerCloseFocusTarget = "opener") => {
+    drawerCloseFocusTargetRef.current = focusTarget;
+    setDrawerOpen(false);
+  }, []);
+
+  const toggleDrawer = useCallback(() => {
+    drawerCloseFocusTargetRef.current = "opener";
+    setDrawerOpen((prev) => !prev);
+  }, []);
+
   useEffect(() => {
-    const id = setInterval(() => {
-      if (!document.hidden) useAppStore.getState().incrementTick();
-    }, RELATIVE_TIME_TICK_MS);
-    const onVisible = () => {
+    const tickIfVisible = () => {
       if (!document.hidden) useAppStore.getState().incrementTick();
     };
-    document.addEventListener("visibilitychange", onVisible);
+    const id = setInterval(tickIfVisible, RELATIVE_TIME_TICK_MS);
+    document.addEventListener("visibilitychange", tickIfVisible);
     return () => {
       clearInterval(id);
-      document.removeEventListener("visibilitychange", onVisible);
+      document.removeEventListener("visibilitychange", tickIfVisible);
     };
   }, []);
 
   useEffect(() => {
-    drawerCloseFocusTargetRef.current = "main";
-    setDrawerOpen(false);
-  }, [location, search]);
+    closeDrawer("main");
+  }, [location, search, closeDrawer]);
 
   useEffect(() => {
-    if (!belowSidebarBreakpoint) {
-      drawerCloseFocusTargetRef.current = "main";
-      setDrawerOpen(false);
-    }
-  }, [belowSidebarBreakpoint]);
+    if (!belowSidebarBreakpoint) closeDrawer("main");
+  }, [belowSidebarBreakpoint, closeDrawer]);
 
   useEffect(() => {
     if (drawerOpen) {
@@ -122,7 +132,7 @@ export function App() {
       if (drawerCloseFocusTargetRef.current === "opener" && belowSidebarBreakpoint) {
         hamburgerRef.current?.focus();
       } else {
-        document.getElementById("main-content")?.focus();
+        document.getElementById(MAIN_CONTENT_ID)?.focus();
       }
       drawerCloseFocusTargetRef.current = "opener";
     }
@@ -135,10 +145,7 @@ export function App() {
         e.preventDefault();
         setPaletteOpen((prev) => !prev);
       }
-      if (e.key === "Escape" && drawerOpen) {
-        drawerCloseFocusTargetRef.current = "opener";
-        setDrawerOpen(false);
-      }
+      if (e.key === "Escape" && drawerOpen) closeDrawer();
       // Collapsing is desktop-only: below the breakpoint the sidebar is a drawer and its
       // collapse toggle is hidden, so honoring [ there would silently flip persisted state
       // the user cannot see until they resize back.
@@ -157,7 +164,7 @@ export function App() {
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [drawerOpen, belowSidebarBreakpoint]);
+  }, [drawerOpen, belowSidebarBreakpoint, closeDrawer]);
 
   // The login view bypasses the always-mounted shell entirely: WebSocketEffect and
   // TelemetryHealthEffect would immediately hit a rejected handshake / 401 against an
@@ -181,7 +188,7 @@ export function App() {
         <Toaster position="bottom-right" theme={theme} closeButton richColors />
 
         {/* Skip link */}
-        <a href="#main-content" className={SKIP_LINK_CLASS} data-testid="skip-link">
+        <a href={`#${MAIN_CONTENT_ID}`} className={SKIP_LINK_CLASS} data-testid="skip-link">
           Skip to main content
         </a>
 
@@ -189,12 +196,12 @@ export function App() {
         <div
           ref={drawerRef}
           className={cn(
-            "fixed top-0 bottom-0 left-0 z-[var(--z-drawer-layer)] w-60 overflow-y-auto bg-card transition-transform duration-[var(--duration-med)] ease-[var(--ease-default)]",
+            "fixed top-0 bottom-0 left-0 z-[var(--z-drawer-layer)] w-[var(--size-sidebar)] overflow-y-auto bg-card transition-transform duration-[var(--duration-med)] ease-[var(--ease-default)]",
             drawerOpen ? "translate-x-0" : "-translate-x-full",
           )}
           aria-hidden={!drawerOpen}
           data-testid="mobile-drawer"
-          {...(!drawerOpen ? { inert: true } : {})}
+          inert={!drawerOpen}
         >
           {drawerMounted && (
             <>
@@ -203,10 +210,7 @@ export function App() {
                   type="button"
                   className="flex size-[var(--size-touch)] cursor-pointer items-center justify-center rounded-md border border-border bg-transparent text-foreground-secondary transition-colors hover:bg-[var(--highlight-bg)] hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary [&_svg]:size-5 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-2 [&_svg]:stroke-linecap-round [&_svg]:stroke-linejoin-round"
                   aria-label="Close navigation"
-                  onClick={() => {
-                    drawerCloseFocusTargetRef.current = "opener";
-                    setDrawerOpen(false);
-                  }}
+                  onClick={() => closeDrawer()}
                 >
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <line x1="6" y1="6" x2="18" y2="18" />
@@ -223,10 +227,7 @@ export function App() {
             className="fixed inset-0 z-[var(--z-drawer-backdrop)] bg-[var(--overlay-background)]"
             role="presentation"
             data-testid="mobile-drawer-backdrop"
-            onClick={() => {
-              drawerCloseFocusTargetRef.current = "opener";
-              setDrawerOpen(false);
-            }}
+            onClick={() => closeDrawer()}
           />
         )}
 
@@ -235,21 +236,16 @@ export function App() {
           className={cn(
             LAYOUT_CLASS,
             sidebarCollapsed &&
-              "is-collapsed min-[901px]:[grid-template-columns:0_1fr] min-[901px]:gap-0 min-[901px]:pl-2",
+              // `not-max-sidebar` is the exact complement of the `max-sidebar` (drawer) breakpoint
+              // above, so both derive from `--breakpoint-sidebar` and can never drift apart.
+              "is-collapsed not-max-sidebar:[grid-template-columns:0_1fr] not-max-sidebar:gap-0 not-max-sidebar:pl-2",
           )}
           data-testid="layout"
         >
           {!sidebarCollapsed && <Sidebar onOpenPalette={() => setPaletteOpen(true)} />}
-          <main className={MAIN_CLASS} id="main-content" tabIndex={-1}>
-            <StatusBar
-              onMenuClick={() => {
-                drawerCloseFocusTargetRef.current = "opener";
-                setDrawerOpen((prev) => !prev);
-              }}
-              drawerOpen={drawerOpen}
-              hamburgerRef={hamburgerRef}
-            />
-            <div {...(drawerOpen ? { inert: true } : {})}>
+          <main className={MAIN_CLASS} id={MAIN_CONTENT_ID} tabIndex={-1}>
+            <StatusBar onMenuClick={toggleDrawer} drawerOpen={drawerOpen} hamburgerRef={hamburgerRef} />
+            <div inert={drawerOpen}>
               <TelemetryDegradedBanner />
               <FailedAppsAlert />
               <ErrorBoundary resetKey={location}>
