@@ -153,20 +153,6 @@ export function executionStatusKind(status: ExecutionStatus): StatusKind {
   return EXECUTION_STATUS_KIND[status] ?? "err";
 }
 
-const LOG_LEVEL_MAP: ReadonlyMap<string, StatusVariant> = new Map<string, StatusVariant>([
-  ["DEBUG", "neutral"],
-  ["INFO", "success"],
-  ["WARNING", "warning"],
-  ["ERROR", "danger"],
-  ["CRITICAL", "danger"],
-]);
-
-/** Map a log level string to a StatusVariant. Unknown values return "neutral" silently
- * (no console.warn — unlike sibling functions, custom log levels from the wire are expected). */
-export function levelToVariant(level: string): StatusVariant {
-  return LOG_LEVEL_MAP.get(level) ?? "neutral";
-}
-
 /**
  * StatusKind: semantic shape/color for StatusShape SVG indicators.
  * Use StatusKind (via statusToKind) for shape indicators (dots, triangles, squares).
@@ -181,24 +167,11 @@ export function levelToVariant(level: string): StatusVariant {
  * service-health values ("success", "failure", "unknown"). STATUS_KIND_MAP
  * covers both ResourceStatus and ManifestStatus plus the legacy "shutting_down"
  * value and the "unknown" placeholder — use executionStatusKind() for
- * execution results, levelToKind() for log levels. New ResourceStatus or
- * ManifestStatus variants must be added to both maps.
+ * execution results. Log levels are not mapped here at all: they carry their own
+ * styling via LOG_LEVEL_STYLES in components/shared/log-table/constants.ts.
+ * New ResourceStatus or ManifestStatus variants must be added to both maps.
  */
 export type StatusKind = "ok" | "warn" | "err" | "cancel" | "mute";
-
-const LOG_LEVEL_KIND_MAP: ReadonlyMap<string, StatusKind> = new Map<string, StatusKind>([
-  ["DEBUG", "mute"],
-  ["INFO", "mute"],
-  ["WARNING", "warn"],
-  ["ERROR", "err"],
-  ["CRITICAL", "err"],
-]);
-
-/** Map a log level string to a StatusKind for use with StatusShape.
- * Unknown levels return "mute". */
-export function levelToKind(level: string): StatusKind {
-  return LOG_LEVEL_KIND_MAP.get(level) ?? "mute";
-}
 
 type StatusKindMapKey = ResourceStatus | ManifestStatus | ShuttingDownStatus | UnknownStatus;
 

@@ -23,6 +23,7 @@ type LogEntryResponse = components["schemas"]["LogEntryResponse"];
 type TelemetryStatusResponse = components["schemas"]["TelemetryStatusResponse"];
 type AppInstanceResponse = components["schemas"]["AppInstanceResponse"];
 type Execution = components["schemas"]["Execution"];
+type SystemStatusResponse = components["schemas"]["SystemStatusResponse"];
 
 export function createInstance(overrides: Partial<AppInstanceResponse> = {}): AppInstanceResponse {
   return {
@@ -259,6 +260,25 @@ export function createTelemetryStatus(overrides: Partial<TelemetryStatusResponse
     error_handler_failures: 0,
     ...overrides,
   } satisfies TelemetryStatusResponse;
+}
+
+/** A fully healthy `/api/health` response: connected, bootstrap released, nothing dropped. */
+export function createSystemStatus(overrides: Partial<SystemStatusResponse> = {}): SystemStatusResponse {
+  return {
+    status: "ok",
+    websocket_connected: true,
+    bootstrap_released: true,
+    uptime_seconds: 120,
+    entity_count: 10,
+    app_count: 2,
+    services: [],
+    version: "1.0.0",
+    boot_issues: [],
+    log_queue_drops: 0,
+    db_write_queue_drops: 0,
+    log_persistence_active: true,
+    ...overrides,
+  } satisfies SystemStatusResponse;
 }
 
 export function createExecution(kind: "handler" | "job", overrides: Partial<Execution> = {}): Execution {

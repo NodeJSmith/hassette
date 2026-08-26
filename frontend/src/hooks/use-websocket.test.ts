@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "../api/client";
 import { getSystemStatus, type SystemStatus } from "../api/endpoints";
 import { useAppStore } from "../state/store";
-import { createLogEntry } from "../test/factories";
+import { createLogEntry, createSystemStatus } from "../test/factories";
 // dup-ignore-end
 import { createWouterMock } from "../test/mock-wouter";
 import {
@@ -33,20 +33,7 @@ const mockedGetSystemStatus = vi.mocked(getSystemStatus);
 // Mirrors use-websocket.ts's internal (unexported) HANDSHAKE_TIMEOUT_MS.
 const HANDSHAKE_TIMEOUT_MS = 10_000;
 
-const HEALTHY_SYSTEM_STATUS: SystemStatus = {
-  status: "ok",
-  websocket_connected: true,
-  bootstrap_released: true,
-  uptime_seconds: 120,
-  entity_count: 10,
-  app_count: 2,
-  services: [],
-  version: "1.0.0",
-  boot_issues: [],
-  log_queue_drops: 0,
-  db_write_queue_drops: 0,
-  log_persistence_active: true,
-};
+const HEALTHY_SYSTEM_STATUS: SystemStatus = createSystemStatus();
 
 describe("useWebSocket", () => {
   beforeEach(() => {

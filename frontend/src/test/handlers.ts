@@ -13,7 +13,7 @@ import { http, HttpResponse } from "msw";
 import type { SetupServer } from "msw/node";
 
 import type { components } from "../api/generated-types";
-import { createManifestList, createSystemConfig } from "./factories";
+import { createManifestList, createSystemConfig, createSystemStatus, createTelemetryStatus } from "./factories";
 
 type SystemStatusResponse = components["schemas"]["SystemStatusResponse"];
 type ManifestListResponse = components["schemas"]["AppManifestListResponse"];
@@ -136,13 +136,7 @@ export const handlers = [
 
   // GET /api/telemetry/status
   http.get("/api/telemetry/status", () => {
-    return HttpResponse.json<TelemetryStatusResponse>({
-      degraded: false,
-      dropped_overflow: 0,
-      dropped_exhausted: 0,
-      dropped_shutdown: 0,
-      error_handler_failures: 0,
-    });
+    return HttpResponse.json<TelemetryStatusResponse>(createTelemetryStatus());
   }),
 
   // GET /api/logs/recent
@@ -183,19 +177,6 @@ export const handlers = [
 
   // GET /api/health
   http.get("/api/health", () => {
-    return HttpResponse.json<SystemStatusResponse>({
-      status: "ok",
-      websocket_connected: true,
-      bootstrap_released: true,
-      uptime_seconds: 120,
-      entity_count: 10,
-      app_count: 2,
-      services: [],
-      version: "1.0.0",
-      boot_issues: [],
-      log_queue_drops: 0,
-      db_write_queue_drops: 0,
-      log_persistence_active: true,
-    });
+    return HttpResponse.json<SystemStatusResponse>(createSystemStatus());
   }),
 ];
