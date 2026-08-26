@@ -46,7 +46,8 @@ const SECONDS_PER_HOUR = 3600;
 const VALID_SORT_KEYS: ReadonlySet<string> = new Set<AppSortState["key"]>(["name", "status", "error", "runs", "last"]);
 
 /** StatusShape size (px) for the status-filter menu rows, sized to sit inline with their
- * text-xs labels rather than with the table's larger STATUS_DOT_SIZE glyphs. */
+ * text-xs labels. Smaller than the shared STATUS_DOT_SIZE (10px), which is sized for the
+ * list rows and detail panes that import it — this page's table does not use it. */
 const FILTER_SHAPE_SIZE = 8;
 
 /** Stats-strip grid columns below the sidebar breakpoint. Mirrors StatsStrip's own
@@ -95,7 +96,7 @@ const DATA_TABLE_CLASS = [TABLE_FRAME_CLASS, TABLE_HEAD_CELL_CLASS, TABLE_BODY_C
 /** True when a raw `?filter=` query param names one of the FILTER_OPTIONS. Narrows to FilterId so
  * callers need no cast. */
 function isFilterId(value: string | null): value is FilterId {
-  return value !== null && (FILTER_OPTIONS as readonly string[]).includes(value);
+  return value !== null && FILTER_OPTIONS.some((option) => option === value);
 }
 
 function buildAppsCells(
