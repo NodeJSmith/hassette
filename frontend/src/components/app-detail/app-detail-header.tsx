@@ -1,8 +1,10 @@
 import { Badge } from "@/components/ui/badge";
 
 import type { components } from "../../api/generated-types";
+import { HEADING_STATUS_SHAPE_SIZE, INLINE_STATUS_DOT_SIZE } from "../../utils/constants";
 import { statusToKind, statusToVariant } from "../../utils/status";
 import { ActionButtons } from "../shared/action-buttons";
+import { AlertBanner } from "../shared/alert-banner";
 import { ErrorBanner } from "../shared/error-banner";
 import { StatusShape } from "../shared/status-shape";
 
@@ -18,6 +20,19 @@ interface Props {
   currentInstance: InstanceInfo | undefined;
   resolvedInstanceIndex: number;
   showParentOverview: boolean;
+}
+
+/** Middot-separated chip appended to the subtitle meta line. */
+function MetaBadge({ label, testId }: { label: string; testId: string }) {
+  return (
+    <>
+      {" "}
+      &middot;{" "}
+      <Badge variant="muted" data-testid={testId}>
+        {label}
+      </Badge>
+    </>
+  );
 }
 
 export function AppDetailHeader({
@@ -38,15 +53,15 @@ export function AppDetailHeader({
             className="flex min-w-0 items-start gap-[0.35em] font-sans text-[length:var(--text-h2)] leading-tight font-semibold max-mobile:text-[length:var(--text-body)]"
             data-testid="app-title"
           >
-            <StatusShape kind={statusToKind(liveStatus)} size={14} />
-            <span className="ml-2 min-w-0 break-all">{appKey}</span>
+            <StatusShape kind={statusToKind(liveStatus)} size={HEADING_STATUS_SHAPE_SIZE} />
+            <span className="min-w-0 break-all">{appKey}</span>
           </h1>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2 max-mobile:justify-start">
           {/* Shown for every status, healthy included — "running" should be a
               statement, not the absence of a pill. */}
           <Badge variant={statusToVariant(liveStatus)} size="sm" data-testid="app-status-pill">
-            <StatusShape kind={statusToKind(liveStatus)} size={8} /> {liveStatus}
+            <StatusShape kind={statusToKind(liveStatus)} size={INLINE_STATUS_DOT_SIZE} /> {liveStatus}
           </Badge>
           <ActionButtons appKey={appKey} status={liveStatus} variant="text" confirmStop />
         </div>
@@ -58,26 +73,10 @@ export function AppDetailHeader({
         {manifest && manifest.instance_count > 1 && !showParentOverview && (
           <> &middot; instance {resolvedInstanceIndex}</>
         )}
-        {manifest?.auto_loaded && (
-          <>
-            {" "}
-            &middot;{" "}
-            <Badge variant="muted" data-testid="auto-loaded-badge">
-              auto
-            </Badge>
-          </>
-        )}
+        {manifest?.auto_loaded && <MetaBadge label="auto" testId="auto-loaded-badge" />}
         {/* Strict `=== false`, not `!manifest?.autostart`: `manifest` is undefined while
             loading, and we must not flash the chip before the manifest arrives. */}
-        {manifest?.autostart === false && (
-          <>
-            {" "}
-            &middot;{" "}
-            <Badge variant="muted" data-testid="no-autostart-badge">
-              no autostart
-            </Badge>
-          </>
-        )}
+        {manifest?.autostart === false && <MetaBadge label="no autostart" testId="no-autostart-badge" />}
       </p>
 
       {errorMsg && (
@@ -89,13 +88,14 @@ export function AppDetailHeader({
       )}
 
       {manifest?.block_reason && (
-        <div
-          className="mb-4 rounded-md border border-[var(--status-warning)] bg-[var(--status-warning-bg)] px-4 py-3 text-[length:var(--text-body)] text-[var(--status-warning)]"
+        <AlertBanner
+          tone="warning"
+          className="text-[length:var(--text-body)] text-[var(--status-warning)]"
           role="alert"
           data-testid="block-reason-banner"
         >
           <strong>Blocked:</strong> {manifest.block_reason}
-        </div>
+        </AlertBanner>
       )}
     </>
   );

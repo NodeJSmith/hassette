@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { AlertBanner } from "./alert-banner";
 import { TracebackLines } from "./traceback-viewer";
 
 interface ErrorBannerProps {
@@ -20,10 +21,7 @@ export function ErrorBanner({
   const [traceExpanded, setTraceExpanded] = useState(false);
 
   return (
-    <div
-      className="mb-4 rounded-md border border-[color:color-mix(in_srgb,var(--destructive)_30%,transparent)] bg-[var(--destructive-bg)] px-4 py-3"
-      data-testid={testId}
-    >
+    <AlertBanner tone="danger" data-testid={testId}>
       <span className="mb-1 block text-sm font-semibold text-destructive">
         {heading}
         {errorType ? ` — ${errorType}` : ""}
@@ -51,6 +49,6 @@ export function ErrorBanner({
           )}
         </div>
       )}
-    </div>
+    </AlertBanner>
   );
 }
