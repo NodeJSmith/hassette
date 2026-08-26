@@ -44,6 +44,35 @@ const FILTER_TONES: Record<FilterId, StatusKind | null> = {
 const MIN_WINDOW_FOR_RATE_CALC = 60;
 const SECONDS_PER_HOUR = 3600;
 const VALID_SORT_KEYS: ReadonlySet<string> = new Set<AppSortState["key"]>(["name", "status", "error", "runs", "last"]);
+
+/** StatusShape size (px) for the status-filter menu rows, sized to sit inline with their
+ * text-xs labels. Smaller than the shared STATUS_DOT_SIZE (10px), which is sized for the
+ * list rows and detail panes that import it — this page's table does not use it. */
+const FILTER_SHAPE_SIZE = 8;
+
+/** Stats-strip grid columns below the sidebar breakpoint. Mirrors StatsStrip's own
+ * `max-sidebar:grid-cols-4` so the two agree regardless of CSS rule ordering; above the
+ * breakpoint we pass no override and StatsStrip's default column count applies. */
+const COMPACT_STATS_COLUMNS = 4;
+
+/** `<colgroup>` widths as a percent of table width, index-aligned with the `<th>` cells below.
+ * The compact layout drops the last-error, runs, last-fired, and actions columns, so app and
+ * status absorb their width. Both lists total 100%. */
+const COLUMN_WIDTHS: Record<"compact" | "full", readonly { column: string; width: string }[]> = {
+  compact: [
+    { column: "app", width: "72%" },
+    { column: "status", width: "28%" },
+  ],
+  full: [
+    { column: "app", width: "35%" },
+    { column: "status", width: "12%" },
+    { column: "error", width: "22%" },
+    { column: "runs", width: "10%" },
+    { column: "last", width: "11%" },
+    { column: "actions", width: "10%" },
+  ],
+};
+
 const PAGE_CLASS = "flex min-h-0 flex-1 flex-col gap-8 p-8 max-mobile:p-3 max-small-mobile:p-2";
 const PAGE_HEADER_CLASS = "flex items-baseline gap-4 border-b border-border pb-3";
 const PAGE_TITLE_CLASS =
@@ -53,8 +82,22 @@ const SEARCH_INPUT_CLASS =
   "min-w-[var(--size-search-min)] self-end rounded-md border border-[var(--border-strong)] bg-input px-2 py-1.5 font-sans text-[length:var(--text-mono-sm)] text-foreground outline-none placeholder:text-foreground-faint focus-visible:border-primary focus-visible:shadow-[0_0_0_2px_var(--primary-soft)] max-mobile:w-full max-mobile:min-w-0 max-mobile:self-stretch";
 const ALERT_CLASS =
   "flex items-start gap-3 rounded-md border border-destructive bg-[var(--destructive-bg)] px-4 py-3 text-sm text-foreground";
-const DATA_TABLE_CLASS =
-  "w-full table-fixed border-collapse bg-card [&_thead_tr]:bg-muted [&_th]:border-b [&_th]:border-border [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-mono [&_th]:text-xs [&_th]:font-medium [&_th]:uppercase [&_th]:text-muted-foreground [&_th]:whitespace-nowrap [&_td]:border-b [&_td]:border-border [&_td]:px-3 [&_td]:py-2 [&_td]:align-middle [&_td]:text-[length:var(--text-small)] [&_td]:overflow-hidden [&_td]:text-ellipsis [&_tbody_tr:last-child_td]:border-b-0 [&_tbody_tr:hover]:bg-muted";
+// This page hand-rolls its <table>, so cell styling rides on the table element as `[&_th]`/
+// `[&_td]` child selectors. Split by what each group styles, then joined verbatim (not via cn(),
+// which would reorder and merge the groups).
+const TABLE_FRAME_CLASS = "w-full table-fixed border-collapse bg-card";
+const TABLE_HEAD_CELL_CLASS =
+  "[&_thead_tr]:bg-muted [&_th]:border-b [&_th]:border-border [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-mono [&_th]:text-xs [&_th]:font-medium [&_th]:uppercase [&_th]:text-muted-foreground [&_th]:whitespace-nowrap";
+const TABLE_BODY_CELL_CLASS =
+  "[&_td]:border-b [&_td]:border-border [&_td]:px-3 [&_td]:py-2 [&_td]:align-middle [&_td]:text-[length:var(--text-small)] [&_td]:overflow-hidden [&_td]:text-ellipsis";
+const TABLE_ROW_CLASS = "[&_tbody_tr:last-child_td]:border-b-0 [&_tbody_tr:hover]:bg-muted";
+const DATA_TABLE_CLASS = [TABLE_FRAME_CLASS, TABLE_HEAD_CELL_CLASS, TABLE_BODY_CELL_CLASS, TABLE_ROW_CLASS].join(" ");
+
+/** True when a raw `?filter=` query param names one of the FILTER_OPTIONS. Narrows to FilterId so
+ * callers need no cast. */
+function isFilterId(value: string | null): value is FilterId {
+  return value !== null && FILTER_OPTIONS.some((option) => option === value);
+}
 
 function buildAppsCells(
   apps: AppRow[],
@@ -127,7 +170,7 @@ function StatusFilterContent({
             data-testid={`filter-${f}`}
           >
             <span className="inline-flex w-full items-center gap-[var(--spacing-1-5)]">
-              {tone && <StatusShape kind={tone} size={8} />}
+              {tone && <StatusShape kind={tone} size={FILTER_SHAPE_SIZE} />}
               <span>{f}</span>
               <span className="ml-auto font-mono text-xs text-muted-foreground">{count}</span>
             </span>
@@ -165,8 +208,7 @@ export function AppsPage() {
   const isCompact = useMediaQuery(BREAKPOINT_SIDEBAR);
   const qp = useQueryParams();
   const rawFilter = qp.get("filter");
-  const filter: FilterId =
-    rawFilter !== null && (FILTER_OPTIONS as readonly string[]).includes(rawFilter) ? (rawFilter as FilterId) : "all";
+  const filter: FilterId = isFilterId(rawFilter) ? rawFilter : "all";
   const rawSort = qp.get("sort");
   const sort: AppSortState = {
     key: (rawSort !== null && VALID_SORT_KEYS.has(rawSort) ? rawSort : "status") as AppSortState["key"],
@@ -286,7 +328,7 @@ export function AppsPage() {
       <div className={TABLE_SECTION_CLASS}>
         <StatsStrip
           cells={buildAppsCells(allApps, appStatus, windowSeconds, isCompact)}
-          cols={isCompact ? 4 : undefined}
+          cols={isCompact ? COMPACT_STATS_COLUMNS : undefined}
           data-testid="apps-stats-strip"
         />
         {searchInput}
@@ -305,21 +347,9 @@ export function AppsPage() {
               data-testid="apps-table"
             >
               <colgroup>
-                {isCompact ? (
-                  <>
-                    <col className="w-[72%]" />
-                    <col className="w-[28%]" />
-                  </>
-                ) : (
-                  <>
-                    <col className="w-[35%]" />
-                    <col className="w-[12%]" />
-                    <col className="w-[22%]" />
-                    <col className="w-[10%]" />
-                    <col className="w-[11%]" />
-                    <col className="w-[10%]" />
-                  </>
-                )}
+                {COLUMN_WIDTHS[isCompact ? "compact" : "full"].map(({ column, width }) => (
+                  <col key={column} style={{ width }} />
+                ))}
               </colgroup>
               <thead>
                 <tr>

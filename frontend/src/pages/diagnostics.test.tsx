@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { components } from "../api/generated-types";
 import { queryKeys } from "../lib/query-keys";
 import type { ServiceStatusEntry } from "../state/store";
+import { createSystemStatus } from "../test/factories";
 import { createTestQueryClient } from "../test/query-test-utils";
 import { renderWithAppState } from "../test/render-helpers";
 import { server } from "../test/server";
@@ -13,26 +14,7 @@ vi.mock("../components/shared/spinner", () => ({
   Spinner: () => <div data-testid="spinner" />,
 }));
 
-type SystemStatusResponse = components["schemas"]["SystemStatusResponse"];
 type ServiceInfoResponse = components["schemas"]["ServiceInfoResponse"];
-
-function makeSystemStatus(overrides: Partial<SystemStatusResponse> = {}): SystemStatusResponse {
-  return {
-    status: "ok",
-    websocket_connected: true,
-    bootstrap_released: true,
-    uptime_seconds: 120,
-    entity_count: 10,
-    app_count: 2,
-    services: [],
-    version: "1.0.0",
-    boot_issues: [],
-    log_queue_drops: 0,
-    db_write_queue_drops: 0,
-    log_persistence_active: true,
-    ...overrides,
-  };
-}
 
 function makeServiceInfo(overrides: Partial<ServiceInfoResponse> = {}): ServiceInfoResponse {
   return {
@@ -83,7 +65,7 @@ describe("DiagnosticsPage", () => {
   });
 
   it("shows empty state when no services returned from HTTP seed", async () => {
-    server.use(http.get("/api/health", () => HttpResponse.json(makeSystemStatus({ services: [] }))));
+    server.use(http.get("/api/health", () => HttpResponse.json(createSystemStatus({ services: [] }))));
     const { findByTestId } = renderWithAppState(<DiagnosticsPage />);
     expect(await findByTestId("diag-services-empty")).toBeDefined();
   });
@@ -92,7 +74,7 @@ describe("DiagnosticsPage", () => {
     server.use(
       http.get("/api/health", () =>
         HttpResponse.json(
-          makeSystemStatus({
+          createSystemStatus({
             services: [
               makeServiceInfo({ name: "bus", status: "running" }),
               makeServiceInfo({ name: "scheduler", status: "running" }),
@@ -110,7 +92,7 @@ describe("DiagnosticsPage", () => {
     server.use(
       http.get("/api/health", () =>
         HttpResponse.json(
-          makeSystemStatus({
+          createSystemStatus({
             services: [makeServiceInfo({ name: "bus", status: "running" })],
           }),
         ),
@@ -132,7 +114,7 @@ describe("DiagnosticsPage", () => {
     server.use(
       http.get("/api/health", () =>
         HttpResponse.json(
-          makeSystemStatus({
+          createSystemStatus({
             services: [
               makeServiceInfo({ name: "db", status: "exhausted_cooling", role: "service", retry_at: futureRetryAt }),
             ],
@@ -161,7 +143,7 @@ describe("DiagnosticsPage", () => {
   });
 
   it("hides the boot issues panel when startup was clean", async () => {
-    server.use(http.get("/api/health", () => HttpResponse.json(makeSystemStatus({ boot_issues: [] }))));
+    server.use(http.get("/api/health", () => HttpResponse.json(createSystemStatus({ boot_issues: [] }))));
     const { findByTestId, queryByTestId } = renderWithAppState(<DiagnosticsPage />);
     await findByTestId("diag-services-panel");
     expect(queryByTestId("diag-boot-panel")).toBeNull();
@@ -171,7 +153,7 @@ describe("DiagnosticsPage", () => {
     server.use(
       http.get("/api/health", () =>
         HttpResponse.json(
-          makeSystemStatus({
+          createSystemStatus({
             boot_issues: [
               { severity: "warn", label: "Config warning", detail: "check your config" },
               { severity: "err", label: "Critical error", detail: "failed to load something" },
@@ -191,7 +173,7 @@ describe("DiagnosticsPage", () => {
     server.use(
       http.get("/api/health", () =>
         HttpResponse.json(
-          makeSystemStatus({
+          createSystemStatus({
             boot_issues: [{ severity: "err", label: "Some error", detail: "The full detail text" }],
           }),
         ),
@@ -256,7 +238,7 @@ describe("DiagnosticsPage", () => {
   it("flags inactive log persistence even when zero records were dropped", async () => {
     server.use(
       http.get("/api/health", () =>
-        HttpResponse.json(makeSystemStatus({ log_persistence_active: false, db_write_queue_drops: 0 })),
+        HttpResponse.json(createSystemStatus({ log_persistence_active: false, db_write_queue_drops: 0 })),
       ),
     );
     const { findByTestId } = renderWithAppState(<DiagnosticsPage />);
@@ -267,7 +249,7 @@ describe("DiagnosticsPage", () => {
   it("shows DB write drops while persistence is still active", async () => {
     server.use(
       http.get("/api/health", () =>
-        HttpResponse.json(makeSystemStatus({ log_persistence_active: true, db_write_queue_drops: 42 })),
+        HttpResponse.json(createSystemStatus({ log_persistence_active: true, db_write_queue_drops: 42 })),
       ),
     );
     const { findByTestId, queryByTestId } = renderWithAppState(<DiagnosticsPage />);
@@ -286,7 +268,7 @@ describe("DiagnosticsPage", () => {
     const queryClient = createTestQueryClient();
     queryClient.setQueryData(
       queryKeys.systemStatus(),
-      makeSystemStatus({
+      createSystemStatus({
         log_persistence_active: false,
         db_write_queue_drops: 42,
         services: [makeServiceInfo({ name: "stale-service" })],
@@ -311,7 +293,7 @@ describe("DiagnosticsPage", () => {
   it("separates log-queue drops from DB-write-queue drops", async () => {
     server.use(
       http.get("/api/health", () =>
-        HttpResponse.json(makeSystemStatus({ log_queue_drops: 12, db_write_queue_drops: 4 })),
+        HttpResponse.json(createSystemStatus({ log_queue_drops: 12, db_write_queue_drops: 4 })),
       ),
     );
     const { findByTestId } = renderWithAppState(<DiagnosticsPage />);
@@ -324,7 +306,7 @@ describe("DiagnosticsPage", () => {
   it("keeps log drop counters independent in the stats strip", async () => {
     server.use(
       http.get("/api/health", () =>
-        HttpResponse.json(makeSystemStatus({ log_queue_drops: 12, db_write_queue_drops: 4 })),
+        HttpResponse.json(createSystemStatus({ log_queue_drops: 12, db_write_queue_drops: 4 })),
       ),
     );
     const { findByTestId } = renderWithAppState(<DiagnosticsPage />, {
@@ -347,7 +329,7 @@ describe("DiagnosticsPage", () => {
     server.use(
       http.get("/api/health", () =>
         HttpResponse.json(
-          makeSystemStatus({
+          createSystemStatus({
             services: [
               makeServiceInfo({ name: "db", status: "starting", role: "service", ready_phase: "migrating schema" }),
             ],
@@ -364,7 +346,7 @@ describe("DiagnosticsPage", () => {
     server.use(
       http.get("/api/health", () =>
         HttpResponse.json(
-          makeSystemStatus({
+          createSystemStatus({
             services: [makeServiceInfo({ name: "bus", status: "running", ready_phase: "Bus initialized" })],
           }),
         ),
