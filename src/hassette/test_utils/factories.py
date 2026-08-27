@@ -409,15 +409,20 @@ def make_mock_listener(
     instance_index: int = 1,
     topic: str = "hass.event.test",
     handler_name: str = "MyApp.on_event",
+    invoke_side_effect: Any = None,
 ) -> MagicMock:
     """Build a MagicMock stand-in for a Listener with configurable attributes.
 
     Covers command-executor tests (invoke wiring), dispatch tests (db_id routing),
     and registration tests (identity fields).
+
+    Args:
+        invoke_side_effect: Applied to both ``invoke`` and ``invoker.invoke`` — the two entry
+            points a caller may reach, which every failure-path test has to set in lockstep.
     """
     listener = MagicMock()
-    listener.invoke = AsyncMock()
-    listener.invoker.invoke = AsyncMock()
+    listener.invoke = AsyncMock(side_effect=invoke_side_effect)
+    listener.invoker.invoke = AsyncMock(side_effect=invoke_side_effect)
     listener.error_handler = error_handler
     listener.invoker.error_handler = error_handler
     listener.listener_id = listener_id

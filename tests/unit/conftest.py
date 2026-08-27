@@ -8,7 +8,11 @@ import logging
 import logging.handlers
 import queue
 import sys
+import threading
+import time
 import warnings
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from io import StringIO
 from typing import TYPE_CHECKING
@@ -35,6 +39,7 @@ from hassette.logging_ import (
 )
 from hassette.models.entities.light import LightEntity
 from hassette.models.states import LightState
+from hassette.task_bucket.interruptible_executor import InterruptibleThreadPoolExecutor
 from hassette.test_utils.factories import make_mock_parent
 
 if TYPE_CHECKING:
@@ -47,6 +52,9 @@ TEST_TOKEN = "test-token"
 #: Shared timezone for tests that build fixed ZonedDateTime instances — America/Chicago
 #: covers DST transitions in a way UTC doesn't, so most scheduler/trigger tests use it.
 TZ = "America/Chicago"
+
+#: Upper bound on how long a submitted worker may take to signal that it is running.
+WORKER_READY_TIMEOUT = 2.0
 
 
 def make_sync_executor_config(
@@ -324,3 +332,115 @@ def drain_forgotten_await_handles():
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", HassetteForgottenAwaitWarning)
         gc.collect()
+
+
+def await_worker_ready(ready: threading.Event) -> None:
+    """Block until a submitted worker signals that it is actually running."""
+    assert ready.wait(timeout=WORKER_READY_TIMEOUT), "worker did not signal ready in time"
+
+
+def busy_loop_worker(
+    ready: threading.Event,
+    *,
+    terminated: threading.Event | None = None,
+    reraise: bool = False,
+) -> Callable[[], None]:
+    """Build a Python-level busy loop that signals `ready`, then spins until interrupted.
+
+    Only Python bytecode runs in the loop, so ``async_raise`` lands on the next instruction —
+    the property the shutdown-interrupt tests rely on. SystemExit is swallowed by default so
+    pytest's threadexception plugin does not treat the interrupted worker as a test failure;
+    `reraise` keeps it propagating for tests asserting that the executor suppresses it.
+    `terminated` is set when the interrupt is observed.
+
+    Keep the loop body a bare ``pass``. Giving it any other shape (an ``if`` on a closure
+    variable, for instance) makes CPython 3.14 deliver the async SystemExit at a point the
+    frame's exception table does not route to this handler, so it escapes the thread instead
+    of being caught — verified empirically, not a theoretical concern.
+    """
+
+    def run() -> None:
+        ready.set()
+        try:
+            while True:
+                pass
+        except SystemExit:
+            if terminated is not None:
+                terminated.set()
+            if reraise:
+                raise
+
+    return run
+
+
+def sleeping_loop_worker(ready: threading.Event, interval: float = 0.01) -> Callable[[], None]:
+    """Build a loop of short C sleeps that signals `ready`, then runs until interrupted.
+
+    Unlike `busy_loop_worker`, the worker yields between iterations; each sleep returns to
+    Python promptly, so ``async_raise`` still reaches it. SystemExit is swallowed.
+    """
+
+    def run() -> None:
+        ready.set()
+        try:
+            while True:
+                time.sleep(interval)
+        except SystemExit:
+            pass
+
+    return run
+
+
+def c_blocked_worker(ready: threading.Event, seconds: float = 60.0) -> Callable[[], None]:
+    """Build a worker that signals `ready`, then blocks in a C-level sleep.
+
+    ``async_raise`` cannot interrupt this until the call returns to Python, so shutdown must
+    abandon the thread at budget expiry instead of waiting for it.
+    """
+
+    def run() -> None:
+        ready.set()
+        time.sleep(seconds)
+
+    return run
+
+
+def start_busy_thread(*, name: str | None = None, terminated: threading.Event | None = None) -> threading.Thread:
+    """Start a daemon thread running `busy_loop_worker` and wait until it is spinning."""
+    ready = threading.Event()
+    thread = threading.Thread(target=busy_loop_worker(ready, terminated=terminated), name=name, daemon=True)
+    thread.start()
+    await_worker_ready(ready)
+    return thread
+
+
+def start_sleeping_thread(interval: float = 0.01) -> threading.Thread:
+    """Start a daemon thread running `sleeping_loop_worker` and wait until it is looping."""
+    ready = threading.Event()
+    thread = threading.Thread(target=sleeping_loop_worker(ready, interval), daemon=True)
+    thread.start()
+    await_worker_ready(ready)
+    return thread
+
+
+def submit_busy_worker(
+    executor: ThreadPoolExecutor, *, terminated: threading.Event | None = None, reraise: bool = False
+) -> None:
+    """Submit a Python busy-loop worker to `executor` and wait until it is spinning."""
+    ready = threading.Event()
+    executor.submit(busy_loop_worker(ready, terminated=terminated, reraise=reraise))
+    await_worker_ready(ready)
+
+
+def submit_c_blocked_worker(executor: ThreadPoolExecutor, seconds: float = 60.0) -> None:
+    """Submit a C-blocked worker to `executor` and wait until it is blocked."""
+    ready = threading.Event()
+    executor.submit(c_blocked_worker(ready, seconds))
+    await_worker_ready(ready)
+
+
+def timed_shutdown(executor: InterruptibleThreadPoolExecutor, budget: float) -> float:
+    """Shut `executor` down through the join/interrupt loop; return elapsed wall-clock seconds."""
+    wall_start = time.monotonic()
+    executor.shutdown(join_threads_or_timeout=True, timeout=budget)
+    return time.monotonic() - wall_start

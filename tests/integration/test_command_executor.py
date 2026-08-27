@@ -2,53 +2,61 @@
 
 import asyncio
 import time
-from collections.abc import AsyncIterator
 from unittest.mock import AsyncMock, MagicMock, PropertyMock
 
 import pytest
 
-from hassette.commands import ExecuteJob, InvokeHandler
+from hassette.commands import ExecuteJob
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
 from hassette.core.execution_record import ExecutionRecord
 from hassette.exceptions import DependencyError, HassetteError
-from hassette.test_utils.factories import make_job_registration, make_listener_registration, make_mock_listener
+from hassette.test_utils.factories import (
+    make_execution_record,
+    make_job_registration,
+    make_listener_registration,
+    make_mock_listener,
+)
+from hassette.types.types import ExecutionStatus
 from hassette.utils.execution import ExecutionResult
 
-from .conftest import make_mock_job
+from .conftest import invoke_cmd, make_mock_job, pop_execution_record
 
 
-@pytest.fixture
-async def executor(
-    db_hassette: AsyncMock, initialized_db: tuple[DatabaseService, int]
-) -> AsyncIterator[CommandExecutor]:
-    """Create and prepare a CommandExecutor with real DB wired in."""
-    _db_service, _session_id = initialized_db
-    exc = CommandExecutor(db_hassette, parent=db_hassette)
-    await exc.on_initialize()
-    try:
-        yield exc
-    finally:
-        await exc.on_shutdown()
+def queue_record(
+    executor: CommandExecutor,
+    listener_id: int,
+    session_id: int,
+    *,
+    status: ExecutionStatus = "success",
+    duration_ms: float = 10.0,
+) -> None:
+    """Put one handler execution record straight onto the executor's write queue.
+
+    ``execution_id`` stays None so a caller can queue several records without tripping the
+    UNIQUE constraint on that column.
+    """
+    executor._write_queue.put_nowait(
+        make_execution_record(
+            listener_id=listener_id,
+            session_id=session_id,
+            execution_start_ts=time.time(),
+            duration_ms=duration_ms,
+            status=status,
+            execution_id=None,
+        )
+    )
 
 
 async def test_cancelled_error_reraises(executor: CommandExecutor) -> None:
     """CancelledError must be re-raised after queueing a 'cancelled' record."""
-    listener = make_mock_listener()
-    listener.invoke.side_effect = asyncio.CancelledError()
-    listener.invoker.invoke.side_effect = asyncio.CancelledError()
-
-    cmd = InvokeHandler(
-        listener=listener, event=MagicMock(), topic="test", listener_id=1, source_tier="app", effective_timeout=None
-    )
+    listener = make_mock_listener(invoke_side_effect=asyncio.CancelledError())
 
     with pytest.raises(asyncio.CancelledError):
-        await executor.execute(cmd)
+        await executor.execute(invoke_cmd(listener))
 
     # Record should have been queued
-    assert not executor._write_queue.empty()
-    record = executor._write_queue.get_nowait()
-    assert isinstance(record, ExecutionRecord)
+    record = pop_execution_record(executor)
     assert record.status == "cancelled"
     assert record.listener_id == 1
 
@@ -67,15 +75,7 @@ async def test_restart_cancellation_persists_cancelled_row(
 
     listener_id = await executor.register_listener(make_listener_registration())
 
-    record = ExecutionRecord(
-        kind="handler",
-        listener_id=listener_id,
-        session_id=session_id,
-        execution_start_ts=time.time(),
-        duration_ms=10.0,
-        status="cancelled",
-    )
-    executor._write_queue.put_nowait(record)
+    queue_record(executor, listener_id, session_id, status="cancelled")
     await executor.drain_and_persist()
 
     # dup-ignore-start: shares the "fetch one row, assert count then fields" shape with
@@ -93,89 +93,41 @@ async def test_restart_cancellation_persists_cancelled_row(
     # dup-ignore-end
 
 
-async def test_dependency_error_swallowed(executor: CommandExecutor) -> None:
-    """DependencyError must be swallowed (not re-raised) and logged as error."""
-    listener = make_mock_listener()
-    listener.invoke.side_effect = DependencyError("missing dep")
-    listener.invoker.invoke.side_effect = DependencyError("missing dep")
+@pytest.mark.parametrize(
+    ("exc", "expect_traceback"),
+    [
+        pytest.param(DependencyError("missing dep"), False, id="dependency_error"),
+        pytest.param(HassetteError("framework error"), False, id="hassette_error"),
+        pytest.param(ValueError("oops"), True, id="unexpected_error"),
+    ],
+)
+async def test_handler_error_swallowed(executor: CommandExecutor, exc: Exception, expect_traceback: bool) -> None:
+    """Handler errors are swallowed (not re-raised) and recorded with status='error'.
 
-    cmd = InvokeHandler(
-        listener=listener, event=MagicMock(), topic="test", listener_id=1, source_tier="app", effective_timeout=None
-    )
+    Framework errors are logged via logger.error, so they carry no traceback; an unexpected
+    exception goes through logger.exception and stores one.
+    """
+    listener = make_mock_listener(invoke_side_effect=exc)
 
     # Should not raise
-    await executor.execute(cmd)
+    await executor.execute(invoke_cmd(listener))
 
-    assert not executor._write_queue.empty()
-    record = executor._write_queue.get_nowait()
-    assert isinstance(record, ExecutionRecord)
+    record = pop_execution_record(executor)
     assert record.status == "error"
-    assert record.error_type == "DependencyError"
-    assert record.error_message == "missing dep"
-    # DependencyError should NOT include traceback (logger.error, not logger.exception)
-    # We can't easily assert logger call, but we verify the record has no traceback
-    assert record.error_traceback is None
-
-
-async def test_hassette_error_swallowed(executor: CommandExecutor) -> None:
-    """HassetteError must be swallowed and logged without traceback."""
-    listener = make_mock_listener()
-    listener.invoke.side_effect = HassetteError("framework error")
-    listener.invoker.invoke.side_effect = HassetteError("framework error")
-
-    cmd = InvokeHandler(
-        listener=listener, event=MagicMock(), topic="test", listener_id=1, source_tier="app", effective_timeout=None
-    )
-
-    await executor.execute(cmd)
-
-    assert not executor._write_queue.empty()
-    record = executor._write_queue.get_nowait()
-    assert isinstance(record, ExecutionRecord)
-    assert record.status == "error"
-    assert record.error_type == "HassetteError"
-    assert record.error_message == "framework error"
-    assert record.error_traceback is None
-
-
-async def test_unexpected_error_swallowed(executor: CommandExecutor) -> None:
-    """Generic Exception must be swallowed and include traceback."""
-    listener = make_mock_listener()
-    listener.invoke.side_effect = ValueError("oops")
-    listener.invoker.invoke.side_effect = ValueError("oops")
-
-    cmd = InvokeHandler(
-        listener=listener, event=MagicMock(), topic="test", listener_id=1, source_tier="app", effective_timeout=None
-    )
-
-    await executor.execute(cmd)
-
-    assert not executor._write_queue.empty()
-    record = executor._write_queue.get_nowait()
-    assert isinstance(record, ExecutionRecord)
-    assert record.status == "error"
-    assert record.error_type == "ValueError"
-    assert record.error_message == "oops"
-    # logger.exception includes traceback — we verify it was stored
-    assert record.error_traceback is not None
-    assert "ValueError" in record.error_traceback
+    assert record.error_type == type(exc).__name__
+    assert record.error_message == str(exc)
+    if expect_traceback:
+        assert record.error_traceback is not None
+        assert type(exc).__name__ in record.error_traceback
+    else:
+        assert record.error_traceback is None
 
 
 async def test_success_record_queued(executor: CommandExecutor) -> None:
     """Successful invocation must queue a 'success' record."""
-    listener = make_mock_listener()
-    listener.invoke.return_value = None
-    listener.invoker.invoke.return_value = None
+    await executor.execute(invoke_cmd(make_mock_listener()))
 
-    cmd = InvokeHandler(
-        listener=listener, event=MagicMock(), topic="test", listener_id=1, source_tier="app", effective_timeout=None
-    )
-
-    await executor.execute(cmd)
-
-    assert not executor._write_queue.empty()
-    record = executor._write_queue.get_nowait()
-    assert isinstance(record, ExecutionRecord)
+    record = pop_execution_record(executor)
     assert record.status == "success"
     assert record.listener_id == 1
     assert record.error_type is None
@@ -194,34 +146,16 @@ async def test_execute_timeout_fires(executor: CommandExecutor) -> None:
     listener.invoke = slow_handler
     listener.invoker.invoke = slow_handler
 
-    cmd = InvokeHandler(
-        listener=listener, event=MagicMock(), topic="test", listener_id=1, source_tier="app", effective_timeout=0.05
-    )
+    await executor.execute(invoke_cmd(listener, effective_timeout=0.05))
 
-    await executor.execute(cmd)
-
-    assert not executor._write_queue.empty()
-    record = executor._write_queue.get_nowait()
-    assert isinstance(record, ExecutionRecord)
-    assert record.status == "timed_out"
+    assert pop_execution_record(executor).status == "timed_out"
 
 
 async def test_execute_timeout_none_is_noop(executor: CommandExecutor) -> None:
     """effective_timeout=None does not enforce timeout."""
-    listener = make_mock_listener()
-    listener.invoke.return_value = None
-    listener.invoker.invoke.return_value = None
+    await executor.execute(invoke_cmd(make_mock_listener()))
 
-    cmd = InvokeHandler(
-        listener=listener, event=MagicMock(), topic="test", listener_id=1, source_tier="app", effective_timeout=None
-    )
-
-    await executor.execute(cmd)
-
-    assert not executor._write_queue.empty()
-    record = executor._write_queue.get_nowait()
-    assert isinstance(record, ExecutionRecord)
-    assert record.status == "success"
+    assert pop_execution_record(executor).status == "success"
 
 
 async def test_timeout_warning_rate_limited(executor: CommandExecutor) -> None:
@@ -244,15 +178,7 @@ async def test_timeout_warning_rate_limited(executor: CommandExecutor) -> None:
 
     # Fire 3 timeouts with the same listener_id
     for _ in range(3):
-        cmd = InvokeHandler(
-            listener=listener,
-            event=MagicMock(),
-            topic="test",
-            listener_id=1,
-            source_tier="app",
-            effective_timeout=0.01,
-        )
-        await executor.execute(cmd)
+        await executor.execute(invoke_cmd(listener, effective_timeout=0.01))
 
     executor.logger.warning = original_warning  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -275,15 +201,7 @@ async def test_timeout_warning_lazy_eviction(executor: CommandExecutor) -> None:
     executor._timeout_warn_timestamps = {1: time.monotonic() - 120.0}  # pyright: ignore[reportAttributeAccessIssue]
 
     # Fire a timeout for a different listener_id
-    cmd = InvokeHandler(
-        listener=listener,
-        event=MagicMock(),
-        topic="test",
-        listener_id=2,
-        source_tier="app",
-        effective_timeout=0.01,
-    )
-    await executor.execute(cmd)
+    await executor.execute(invoke_cmd(listener, listener_id=2, effective_timeout=0.01))
 
     # Stale entry for listener_id=1 should have been evicted
     assert 1 not in executor._timeout_warn_timestamps
@@ -298,15 +216,7 @@ async def test_serve_drains_queue_to_db(executor: CommandExecutor, initialized_d
     listener_id = await executor.register_listener(reg)
 
     # Queue a success record directly
-    record = ExecutionRecord(
-        kind="handler",
-        listener_id=listener_id,
-        session_id=session_id,
-        execution_start_ts=time.time(),
-        duration_ms=10.0,
-        status="success",
-    )
-    executor._write_queue.put_nowait(record)
+    queue_record(executor, listener_id, session_id)
 
     # Drain without going through serve() loop — call drain_and_persist directly
     await executor.drain_and_persist()
@@ -338,15 +248,7 @@ async def test_flush_queue_on_shutdown(executor: CommandExecutor, initialized_db
 
     # Put two records in the queue
     for _ in range(2):
-        record = ExecutionRecord(
-            kind="handler",
-            listener_id=listener_id,
-            session_id=session_id,
-            execution_start_ts=time.time(),
-            duration_ms=5.0,
-            status="success",
-        )
-        executor._write_queue.put_nowait(record)
+        queue_record(executor, listener_id, session_id, duration_ms=5.0)
 
     await executor.flush_queue()
 
@@ -369,9 +271,7 @@ async def test_execute_job_success_record_queued(executor: CommandExecutor) -> N
     cmd = ExecuteJob(job=job, callable=callable_mock, job_db_id=42, source_tier="app", effective_timeout=None)
     await executor.execute(cmd)
 
-    assert not executor._write_queue.empty()
-    record = executor._write_queue.get_nowait()
-    assert isinstance(record, ExecutionRecord)
+    record = pop_execution_record(executor)
     assert record.kind == "job"
     assert record.status == "success"
     assert record.job_id == 42
@@ -386,9 +286,7 @@ async def test_execute_job_error_swallowed(executor: CommandExecutor) -> None:
     cmd = ExecuteJob(job=job, callable=callable_mock, job_db_id=42, source_tier="app", effective_timeout=None)
     await executor.execute(cmd)
 
-    assert not executor._write_queue.empty()
-    record = executor._write_queue.get_nowait()
-    assert isinstance(record, ExecutionRecord)
+    record = pop_execution_record(executor)
     assert record.kind == "job"
     assert record.status == "error"
     assert record.error_type == "RuntimeError"
@@ -402,11 +300,7 @@ def test_build_record_uses_session_id_directly(db_hassette: AsyncMock) -> None:
     db_hassette.session_id = 99
     db_hassette.try_session_id.return_value = 99
 
-    listener = make_mock_listener()
-
-    cmd = InvokeHandler(
-        listener=listener, event=MagicMock(), topic="test", listener_id=5, source_tier="app", effective_timeout=None
-    )
+    cmd = invoke_cmd(make_mock_listener(), listener_id=5)
     result = ExecutionResult()
     result.status = "success"
     result.duration_ms = 1.0
@@ -431,21 +325,11 @@ async def test_persist_batch_drops_presession_records(
     listener_id = await executor.register_listener(reg)
 
     now = time.time()
-    valid = ExecutionRecord(
-        kind="handler",
-        listener_id=listener_id,
-        session_id=session_id,
-        execution_start_ts=now,
-        duration_ms=5.0,
-        status="success",
+    valid = make_execution_record(
+        listener_id=listener_id, session_id=session_id, execution_start_ts=now, execution_id=None
     )
-    pre_session = ExecutionRecord(
-        kind="handler",
-        listener_id=listener_id,
-        session_id=None,  # pre-session record
-        execution_start_ts=now,
-        duration_ms=3.0,
-        status="success",
+    pre_session = make_execution_record(
+        listener_id=listener_id, session_id=None, execution_start_ts=now, execution_id=None
     )
 
     # Patch try_session_id to return None so the "session not ready" path is triggered

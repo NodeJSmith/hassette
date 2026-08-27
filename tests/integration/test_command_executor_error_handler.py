@@ -1,15 +1,13 @@
 """Integration tests for CommandExecutor error handler invocation paths."""
 
 import asyncio
-from collections.abc import AsyncIterator
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 
 from hassette.bus.error_context import BusErrorContext
 from hassette.commands import ExecuteJob, InvokeHandler
 from hassette.core.command_executor import CommandExecutor
-from hassette.core.database_service import DatabaseService
 from hassette.scheduler.error_context import SchedulerErrorContext
 from hassette.test_utils import wait_for
 from hassette.test_utils.factories import make_mock_listener
@@ -18,20 +16,6 @@ from hassette.test_utils.helpers import settle
 from .conftest import make_mock_job
 
 WAIT_TIMEOUT = 2.0
-
-
-@pytest.fixture
-async def executor(
-    db_hassette: AsyncMock, initialized_db: tuple[DatabaseService, int]
-) -> AsyncIterator[CommandExecutor]:
-    """Create and prepare a CommandExecutor with real DB and TaskBucket wired in."""
-    _db_service, _session_id = initialized_db
-    exc = CommandExecutor(db_hassette, parent=db_hassette)
-    await exc.on_initialize()
-    try:
-        yield exc
-    finally:
-        await exc.on_shutdown()
 
 
 async def test_error_handler_runs_after_framework_log(executor: CommandExecutor) -> None:

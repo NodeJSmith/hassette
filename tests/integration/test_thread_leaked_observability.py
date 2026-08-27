@@ -11,12 +11,11 @@ via ``make_mock_hassette()``, not a mock pool.
 import asyncio
 import threading
 import time
-from collections.abc import AsyncIterator
-from unittest.mock import AsyncMock, MagicMock
+from collections.abc import Awaitable, Callable
+from unittest.mock import MagicMock
 
 import pytest
 
-from hassette.commands import InvokeHandler
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
 from hassette.core.execution_record import ExecutionRecord
@@ -25,21 +24,36 @@ from hassette.task_bucket.task_bucket import TaskBucket
 from hassette.test_utils.factories import make_listener_registration, make_mock_listener
 from hassette.test_utils.mock_hassette import make_mock_hassette
 
-# Shared fixtures
+from .conftest import invoke_cmd, pop_execution_record
+
+InvokeFn = Callable[[object], Awaitable[None]]
 
 
-@pytest.fixture
-async def executor(
-    db_hassette: AsyncMock, initialized_db: tuple[DatabaseService, int]
-) -> AsyncIterator[CommandExecutor]:
-    """CommandExecutor with real DB wired in (same pattern as test_command_executor.py)."""
-    _db_service, _session_id = initialized_db
-    exc = CommandExecutor(db_hassette, parent=db_hassette)
-    await exc.on_initialize()
-    try:
-        yield exc
-    finally:
-        await exc.on_shutdown()
+def sync_invoker(sync_executor: SyncExecutor, handler: Callable[[object], None]) -> InvokeFn:
+    """Wrap a sync handler in the async adapter the bus uses, so it runs on a pool worker."""
+    adapted = TaskBucket(make_mock_hassette(), sync_executor=sync_executor).make_async_adapter(handler)
+
+    async def invoke(event: object) -> None:
+        await adapted(event)
+
+    return invoke
+
+
+def make_invoker_listener(invoke: InvokeFn) -> MagicMock:
+    """Listener that dispatches to `invoke`, carrying the identity fields the executor reads."""
+    listener = make_mock_listener()
+    listener.invoker.invoke = invoke
+    listener.invoker.error_handler = None
+    listener.identity.app_key = "test_app"
+    listener.identity.instance_index = 0
+    return listener
+
+
+def assert_timed_out(executor: CommandExecutor, *, thread_leaked: bool, reason: str) -> None:
+    """Assert the queued record is a timeout with the expected thread_leaked verdict."""
+    record = pop_execution_record(executor)
+    assert record.status == "timed_out"
+    assert record.thread_leaked is thread_leaked, reason
 
 
 # Not-started sync timeout → thread_leaked=False (handle.thread still None)
@@ -58,8 +72,6 @@ async def test_not_started_sync_timeout_no_false_positive(
     """
     pool_gate = threading.Event()
     started = threading.Barrier(3)
-    hassette_mock = make_mock_hassette()
-    bucket = TaskBucket(hassette_mock, sync_executor=sync_executor)
 
     def pool_filler() -> None:
         started.wait(timeout=2.0)
@@ -78,38 +90,19 @@ async def test_not_started_sync_timeout_no_false_positive(
     def sync_fn(_event: object) -> None:
         pass  # never reached within the test
 
-    adapted = bucket.make_async_adapter(sync_fn)
+    listener = make_invoker_listener(sync_invoker(sync_executor, sync_fn))
 
-    async def invoke(event: object) -> None:
-        await adapted(event)
-
-    listener = make_mock_listener()
-    listener.invoker.invoke = invoke
-    listener.invoker.error_handler = None
-    listener.identity.app_key = "test_app"
-    listener.identity.instance_index = 0
-
-    cmd = InvokeHandler(
-        listener=listener,
-        event=MagicMock(),
-        topic="test",
-        listener_id=4,
-        source_tier="app",
-        effective_timeout=0.01,  # 10ms — fires before pool has a free slot
-    )
-
-    await executor.execute(cmd)
+    # 10ms timeout — fires before the pool has a free slot
+    await executor.execute(invoke_cmd(listener, listener_id=4, effective_timeout=0.01))
 
     # Release the pool fillers so they exit before teardown.
     pool_gate.set()
     await asyncio.gather(filler_f1, filler_f2, return_exceptions=True)
 
-    assert not executor._write_queue.empty()
-    record = executor._write_queue.get_nowait()
-    assert isinstance(record, ExecutionRecord)
-    assert record.status == "timed_out"
-    assert record.thread_leaked is False, (
-        "thread_leaked must be False when worker never dequeued (handle.thread is None)"
+    assert_timed_out(
+        executor,
+        thread_leaked=False,
+        reason="thread_leaked must be False when worker never dequeued (handle.thread is None)",
     )
 
 
@@ -125,8 +118,6 @@ async def test_sync_handler_timeout_sets_thread_leaked(
     The handler sleeps for much longer than the timeout; when asyncio cancels
     the await the worker thread is still alive, so the liveness check fires.
     """
-    bucket = TaskBucket(make_mock_hassette(), sync_executor=sync_executor)
-
     released = threading.Event()
 
     def sync_blocking(_event: object) -> None:
@@ -134,36 +125,19 @@ async def test_sync_handler_timeout_sets_thread_leaked(
         # alive when the asyncio timeout fires.
         released.wait(timeout=5.0)
 
-    adapted = bucket.make_async_adapter(sync_blocking)
+    listener = make_invoker_listener(sync_invoker(sync_executor, sync_blocking))
 
-    async def invoke(event: object) -> None:
-        await adapted(event)
-
-    listener = make_mock_listener()
-    listener.invoker.invoke = invoke
-    listener.invoker.error_handler = None
-    listener.identity.app_key = "test_app"
-    listener.identity.instance_index = 0
-
-    cmd = InvokeHandler(
-        listener=listener,
-        event=MagicMock(),
-        topic="test",
-        listener_id=1,
-        source_tier="app",
-        effective_timeout=0.05,  # 50ms — worker will still be alive
-    )
-
-    await executor.execute(cmd)
+    # 50ms timeout — the worker will still be alive when it fires
+    await executor.execute(invoke_cmd(listener, effective_timeout=0.05))
 
     # Release the worker so it can exit cleanly after the test.
     released.set()
 
-    assert not executor._write_queue.empty()
-    record = executor._write_queue.get_nowait()
-    assert isinstance(record, ExecutionRecord)
-    assert record.status == "timed_out"
-    assert record.thread_leaked is True, "Expected thread_leaked=True for a sync handler still alive after timeout"
+    assert_timed_out(
+        executor,
+        thread_leaked=True,
+        reason="Expected thread_leaked=True for a sync handler still alive after timeout",
+    )
 
 
 # Async handler timeout → thread_leaked=False (no worker thread involved)
@@ -173,30 +147,19 @@ async def test_async_handler_timeout_does_not_set_thread_leaked(
     executor: CommandExecutor,
 ) -> None:
     """An async handler that times out does NOT set thread_leaked (no worker thread)."""
-    listener = make_mock_listener()
 
     async def slow_async(_event: object) -> None:
         await asyncio.sleep(10.0)
 
-    listener.invoker.invoke = slow_async
-    listener.invoker.error_handler = None
+    listener = make_invoker_listener(slow_async)
 
-    cmd = InvokeHandler(
-        listener=listener,
-        event=MagicMock(),
-        topic="test",
-        listener_id=2,
-        source_tier="app",
-        effective_timeout=0.05,
+    await executor.execute(invoke_cmd(listener, listener_id=2, effective_timeout=0.05))
+
+    assert_timed_out(
+        executor,
+        thread_leaked=False,
+        reason="thread_leaked must be False for async handlers (no worker thread)",
     )
-
-    await executor.execute(cmd)
-
-    assert not executor._write_queue.empty()
-    record = executor._write_queue.get_nowait()
-    assert isinstance(record, ExecutionRecord)
-    assert record.status == "timed_out"
-    assert record.thread_leaked is False, "thread_leaked must be False for async handlers (no worker thread)"
 
 
 # Thread-leaked distinguishable from clean timeout (thread finishes before check)
@@ -215,29 +178,15 @@ async def test_pure_async_timeout_no_handle_no_thread_leaked(
     async def async_slow(_event: object) -> None:
         await asyncio.sleep(10.0)
 
-    listener = make_mock_listener()
-    listener.invoker.invoke = async_slow
-    listener.invoker.error_handler = None
-    listener.identity.app_key = "test_app"
-    listener.identity.instance_index = 0
+    listener = make_invoker_listener(async_slow)
 
-    cmd = InvokeHandler(
-        listener=listener,
-        event=MagicMock(),
-        topic="test",
-        listener_id=3,
-        source_tier="app",
-        effective_timeout=0.05,
+    await executor.execute(invoke_cmd(listener, listener_id=3, effective_timeout=0.05))
+
+    assert_timed_out(
+        executor,
+        thread_leaked=False,
+        reason="No worker thread — handle is None, so thread_leaked must be False",
     )
-
-    await executor.execute(cmd)
-
-    assert not executor._write_queue.empty()
-    record = executor._write_queue.get_nowait()
-    assert isinstance(record, ExecutionRecord)
-    assert record.status == "timed_out"
-    # No worker thread — handle is None, so thread_leaked must be False
-    assert record.thread_leaked is False
 
 
 # Completed sync handler with user-code TimeoutError → thread_leaked=False
@@ -256,121 +205,65 @@ async def test_completed_sync_handler_no_false_thread_leaked(
     would cause a false thread_leaked=True.  The active flag — cleared by _call's finally
     block when the handler returns/raises — prevents this false positive.
     """
-    bucket = TaskBucket(make_mock_hassette(), sync_executor=sync_executor)
 
     def sync_raises_timeout(_event: object) -> None:
         raise TimeoutError("user-code timeout")
 
-    adapted = bucket.make_async_adapter(sync_raises_timeout)
+    listener = make_invoker_listener(sync_invoker(sync_executor, sync_raises_timeout))
 
-    async def invoke(event: object) -> None:
-        await adapted(event)
+    # No framework timeout — the TimeoutError comes from user code
+    await executor.execute(invoke_cmd(listener, listener_id=5))
 
-    listener = make_mock_listener()
-    listener.invoker.invoke = invoke
-    listener.invoker.error_handler = None
-    listener.identity.app_key = "test_app"
-    listener.identity.instance_index = 0
-
-    cmd = InvokeHandler(
-        listener=listener,
-        event=MagicMock(),
-        topic="test",
-        listener_id=5,
-        source_tier="app",
-        effective_timeout=None,  # no framework timeout — the TimeoutError is from user code
-    )
-
-    await executor.execute(cmd)
-
-    assert not executor._write_queue.empty()
-    record = executor._write_queue.get_nowait()
-    assert isinstance(record, ExecutionRecord)
-    assert record.status == "timed_out"
-    assert record.thread_leaked is False, (
-        "thread_leaked must be False when the sync handler completed (active=False) "
-        "even though the pool thread is still alive"
+    assert_timed_out(
+        executor,
+        thread_leaked=False,
+        reason=(
+            "thread_leaked must be False when the sync handler completed (active=False) "
+            "even though the pool thread is still alive"
+        ),
     )
 
 
 # Round-trip persistence — thread_leaked column survives write+read back
 
 
-async def test_thread_leaked_persists_to_db(
+@pytest.mark.parametrize("thread_leaked", [True, False], ids=["leaked", "not_leaked"])
+async def test_thread_leaked_round_trips_through_db(
     executor: CommandExecutor,
     initialized_db: tuple[DatabaseService, int],
+    thread_leaked: bool,
 ) -> None:
-    """thread_leaked=True on an execution record persists to the DB and reads back correctly.
+    """The thread_leaked flag persists to the DB and reads back as 1/0.
 
-    Verifies the 004.sql migration column is wired end-to-end: build_record →
-    execution_insert_params → INSERT → SELECT.
+    Verifies the 004.sql migration column is wired end-to-end: execution_insert_params →
+    INSERT → SELECT. The record is built directly rather than via build_record, because
+    build_record with a MagicMock event would try to bind a MagicMock origin to SQLite.
     """
-    db_service, _session_id = initialized_db
+    db_service, session_id = initialized_db
 
     # Register the listener so the FK constraint is satisfied.
-    reg = make_listener_registration(topic="test")
-    listener_id = await executor.register_listener(reg)
+    listener_id = await executor.register_listener(make_listener_registration(topic="test"))
 
-    # Build the record directly so we avoid calling build_record with a MagicMock event
-    # (cmd.event.payload.origin would be a MagicMock and SQLite can't bind it).
-    # The persistence path is independent of how the flag is set — we're testing the
-    # execution_insert_params → INSERT → SELECT round-trip, not build_record itself.
+    execution_id = f"test-exec-thread-leaked-{thread_leaked}"
     record = ExecutionRecord(
         kind="handler",
         listener_id=listener_id,
-        session_id=_session_id,
+        session_id=session_id,
         execution_start_ts=time.time(),
         duration_ms=55.0,
         status="timed_out",
-        thread_leaked=True,
+        thread_leaked=thread_leaked,
         error_type="TimeoutError",
         error_message="execution timed out",
-        execution_id="test-exec-thread-leaked",
+        execution_id=execution_id,
     )
-    assert record.thread_leaked is True
 
-    # Persist and read back.
     await executor.persist_batch([record])
 
     cursor = await db_service.db.execute(
         "SELECT thread_leaked FROM executions WHERE execution_id = ?",
-        ("test-exec-thread-leaked",),
+        (execution_id,),
     )
     row = await cursor.fetchone()
     assert row is not None, "execution row not found after persist"
-    assert row[0] == 1, f"Expected thread_leaked=1, got {row[0]}"
-
-
-async def test_thread_leaked_false_persists_as_zero(
-    executor: CommandExecutor,
-    initialized_db: tuple[DatabaseService, int],
-) -> None:
-    """thread_leaked=False (default) persists as 0 in the DB."""
-    db_service, _session_id = initialized_db
-
-    reg = make_listener_registration(topic="test", name="test_app.on_event_false")
-    listener_id = await executor.register_listener(reg)
-
-    record = ExecutionRecord(
-        kind="handler",
-        listener_id=listener_id,
-        session_id=_session_id,
-        execution_start_ts=time.time(),
-        duration_ms=50.0,
-        status="timed_out",
-        thread_leaked=False,
-        error_type="TimeoutError",
-        error_message="execution timed out",
-        execution_id="test-exec-no-leak",
-    )
-    assert record.thread_leaked is False
-
-    await executor.persist_batch([record])
-
-    cursor = await db_service.db.execute(
-        "SELECT thread_leaked FROM executions WHERE execution_id = ?",
-        ("test-exec-no-leak",),
-    )
-    row = await cursor.fetchone()
-    assert row is not None
-    assert row[0] == 0, f"Expected thread_leaked=0, got {row[0]}"
+    assert row[0] == int(thread_leaked)
