@@ -540,6 +540,11 @@ Documentation:
 - **Modify `docs/pages/core-concepts/internals/lifecycle.md`:** document teardown outcomes and restart refusal.
 - **Modify `CLAUDE.md`:** record the lifecycle ownership invariant for maintainers.
 
+<!-- Gap check 2026-08-27: 3 gaps included — mutable `_init_task`/flag assertions
+(`tests/unit/resources/test_lifecycle_transitions.py:376`) → T03 Focus; constructor-bypassing lifecycle field setup
+(`tests/unit/core/test_logging_service.py:48`) → T03 Focus; stale public TaskBucket cancellation description
+(`docs/pages/core-concepts/apps/task-bucket.md:93`) → T08 Focus. -->
+
 ### Behavioral Invariants
 
 - Clean Resource and Service shutdown remains bounded by existing lifecycle configuration.
