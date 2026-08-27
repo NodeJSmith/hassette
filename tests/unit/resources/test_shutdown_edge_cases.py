@@ -1,38 +1,61 @@
 """Tests for Resource shutdown/init edge-case branches not covered elsewhere.
 
 Verifies:
-- initialize() early-returns as a no-op when already initializing
+- A concurrent initialize() call while one is already in flight joins that same attempt
+  instead of running a second independent initialization
 - shutdown() skips the STOPPING transition when status is already terminal
-- _finalize_shutdown() swallows an exception raised by handle_stop()
+- _shutdown_body() swallows an exception raised by handle_stop()
 - _emit_readiness_event() swallows an exception raised while building/sending the event
 """
 
+import asyncio
 from unittest.mock import AsyncMock, patch
 
 from hassette.resources.lifecycle import mark_ready
+from hassette.resources.teardown import RestartSafety, TeardownCause
 from hassette.test_utils import make_mock_hassette
 from hassette.types.enums import ResourceStatus
 
 from .conftest import ConcreteResource
 
 
-class TestInitializeAlreadyInitializing:
-    async def test_initialize_is_noop_when_already_initializing(self) -> None:
+class TestInitializeJoinsInFlightAttempt:
+    async def test_second_initialize_joins_in_flight_attempt(self) -> None:
+        """A concurrent initialize() call while one is already in flight joins that same
+        attempt instead of running a second independent initialization.
+
+        Superseded by the coordinator design: initialize() is no longer a same-instance
+        no-op when already initializing — every concurrent caller shields and awaits the one
+        resource-owned ``_init_task`` attempt. See ``tests/unit/resources/lifecycle/test_init.py``
+        for the dedicated concurrency/re-entry coverage this scenario belongs to.
+        """
         hassette = make_mock_hassette(sealed=False)
         resource = ConcreteResource(hassette=hassette)
-        resource.initializing = True  # simulate a concurrent initialize() already in flight
 
         calls: list[str] = []
+        entered = asyncio.Event()
+        release = asyncio.Event()
 
-        async def _spy_on_initialize() -> None:
+        async def _gated_on_initialize() -> None:
             calls.append("called")
+            entered.set()
+            await release.wait()
 
-        resource.on_initialize = _spy_on_initialize  # pyright: ignore[reportAttributeAccessIssue]
+        resource.on_initialize = _gated_on_initialize  # pyright: ignore[reportAttributeAccessIssue]
 
-        await resource.initialize()
+        first = asyncio.create_task(resource.initialize())
+        await asyncio.wait_for(entered.wait(), timeout=1)
 
-        assert calls == [], "on_initialize must not run — the second call is a no-op"
-        assert resource.status == ResourceStatus.NOT_STARTED, "handle_starting() must not run either"
+        second = asyncio.create_task(resource.initialize())
+
+        release.set()
+        await first
+        await second
+
+        assert calls == ["called"], "on_initialize must run exactly once — both calls share one attempt"
+        assert resource.status == ResourceStatus.RUNNING
+
+        await resource.shutdown()
 
 
 class TestShutdownSkipsStoppingWhenTerminal:
@@ -40,7 +63,7 @@ class TestShutdownSkipsStoppingWhenTerminal:
         hassette = make_mock_hassette(sealed=False)
         resource = ConcreteResource(hassette=hassette)
         # Force an already-terminal status without going through the normal shutdown path
-        # (shutdown_completed/shutting_down remain False, so shutdown() does not early-return).
+        # (no teardown report exists yet, so shutdown() does not early-return).
         resource._status = ResourceStatus.STOPPED
 
         status_during_hook: list[ResourceStatus] = []
@@ -58,7 +81,7 @@ class TestShutdownSkipsStoppingWhenTerminal:
         assert resource.shutdown_completed is True
 
 
-class TestFinalizeShutdownSwallowsHandleStopException:
+class TestShutdownBodySwallowsHandleStopException:
     async def test_handle_stop_exception_does_not_propagate(self) -> None:
         hassette = make_mock_hassette(sealed=False)
         resource = ConcreteResource(hassette=hassette)
@@ -66,15 +89,15 @@ class TestFinalizeShutdownSwallowsHandleStopException:
 
         # handle_stop() is a module-level function (hassette.resources.lifecycle), not a
         # method — patch it at the call site (base.py) rather than reassigning an instance
-        # attribute, since _finalize_shutdown() calls the free function directly.
+        # attribute, since _shutdown_body()'s post-hook stage calls the free function directly.
         with patch("hassette.resources.base.handle_stop", side_effect=RuntimeError("handle_stop boom")):
             # Must not raise despite handle_stop() blowing up.
-            await resource._finalize_shutdown()
+            report = await resource._shutdown_body()
 
-        assert resource.shutdown_completed is True
+        assert report is not None, "the body must complete and return a report rather than raise"
 
     async def test_cleanup_exception_does_not_propagate(self) -> None:
-        """A non-timeout exception from cleanup() is logged and swallowed, not re-raised."""
+        """A non-timeout exception from cleanup() is logged, swallowed, and recorded as evidence."""
         hassette = make_mock_hassette(sealed=False)
         resource = ConcreteResource(hassette=hassette)
         await resource.initialize()
@@ -84,13 +107,15 @@ class TestFinalizeShutdownSwallowsHandleStopException:
 
         resource.cleanup = _raising_cleanup  # pyright: ignore[reportAttributeAccessIssue]
 
-        # Must not raise despite cleanup() blowing up, and shutdown must still complete.
-        await resource._finalize_shutdown()
+        # Must not raise despite cleanup() blowing up, and the body must still complete.
+        report = await resource._shutdown_body()
 
-        assert resource.shutdown_completed is True
+        assert TeardownCause.CLEANUP_FAILED in report.causes
+        assert report.restart_safety is RestartSafety.UNSAFE
+        assert "cleanup" in report.failed_operations
 
     async def test_skips_handle_stop_when_event_streams_already_closed(self) -> None:
-        """When event streams are already closed, _finalize_shutdown() skips handle_stop()."""
+        """When event streams are already closed, the shutdown body skips handle_stop()."""
         hassette = make_mock_hassette(sealed=False)
         hassette.event_streams_closed = True
         resource = ConcreteResource(hassette=hassette)
@@ -99,13 +124,12 @@ class TestFinalizeShutdownSwallowsHandleStopException:
 
         # handle_stop() is a module-level function (hassette.resources.lifecycle), not a
         # method — patch it at the call site (base.py) rather than reassigning an instance
-        # attribute, since _finalize_shutdown() calls the free function directly.
+        # attribute, since _shutdown_body()'s post-hook stage calls the free function directly.
         with patch("hassette.resources.base.handle_stop") as mock_handle_stop:
-            await resource._finalize_shutdown()
+            await resource._shutdown_body()
 
             mock_handle_stop.assert_not_called()
         assert resource.status == ResourceStatus.RUNNING, "status must be untouched by the skipped STOPPED event"
-        assert resource.shutdown_completed is True
 
 
 class TestEmitReadinessEventSwallowsException:

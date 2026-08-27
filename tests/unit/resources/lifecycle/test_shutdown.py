@@ -12,9 +12,16 @@ Verifies:
 - Service subclasses inherit propagation
 """
 
+import asyncio
+import contextlib
+
+import pytest
+
+from hassette.exceptions import LifecycleReentryError
 from hassette.resources.lifecycle import start
 from hassette.resources.operations import ordered_children_for_shutdown
-from hassette.test_utils import make_mock_hassette
+from hassette.resources.teardown import RestartSafety
+from hassette.test_utils import make_mock_hassette, wait_for
 from tests.unit.resources.conftest import wait_for_running
 
 from .conftest import (
@@ -64,15 +71,24 @@ async def test_shutdown_event_cleared_by_initialize():
 
 
 async def test_start_resets_shutdown_completed():
-    """start() resets shutdown_completed so the init task is spawned."""
+    """start() spawns a joiner task; once it runs, the coordinator resets shutdown_completed.
+
+    start() itself never assigns ``_init_task`` or resets shutdown state directly (design:
+    "start() calls the public initialization front door but never assigns _init_task itself").
+    Only the coordinated ``initialize()`` call the joiner makes does that, once it actually
+    runs — so this test waits for that to happen instead of asserting synchronously.
+    """
     resource = await make_initialized_shutdown_counter()
 
     await resource.shutdown()
     assert resource.shutdown_completed is True
 
     start(resource)
-    assert resource.shutdown_completed is False
-    assert resource._init_task is not None, "start() should have spawned an init task"
+    # The pre-existing `_init_task` reference from make_initialized_shutdown_counter() is
+    # already non-None (though done), so waiting on "is not None" alone would pass immediately
+    # without ever letting start()'s spawned joiner run. Wait for the actual effect instead.
+    await wait_for(lambda: not resource.shutdown_completed, desc="coordinator accepted new init attempt")
+    assert resource._init_task is not None, "start() should have led to an init task being assigned"
 
     # Cleanup: await the spawned init task, then shut down
     assert resource._init_task is not None
@@ -220,6 +236,112 @@ async def test_shutdown_propagation_timeout_forces_terminal_state():
     assert hanging.shutting_down is False
     # Normal child should also be shut down (gather runs concurrently)
     assert normal.shutdown_completed is True
+
+
+async def test_cancelling_one_shutdown_awaiter_does_not_cancel_shared_attempt():
+    """Cancelling one caller's own wrapping task around ``shutdown()`` must not cancel the
+    shared ``_shutdown_task`` attempt -- the other concurrent caller still receives a normal
+    completed report and the shared task/body are left running to completion.
+
+    ``coordinate_shutdown()`` shields the shared task from each individual awaiter
+    (``await asyncio.shield(task)``); cancelling one caller's outer wrapping task only
+    interrupts that caller's own await, not the shielded shared task underneath it.
+    """
+    resource = await make_initialized_shutdown_counter()
+
+    calls: list[str] = []
+    entered = asyncio.Event()
+    release = asyncio.Event()
+
+    async def _gated_on_shutdown() -> None:
+        calls.append("called")
+        entered.set()
+        await release.wait()
+        resource.shutdown_count += 1
+
+    resource.on_shutdown = _gated_on_shutdown  # pyright: ignore[reportAttributeAccessIssue]
+
+    first = asyncio.create_task(resource.shutdown())
+    await asyncio.wait_for(entered.wait(), timeout=1)
+
+    second = asyncio.create_task(resource.shutdown())
+
+    # Cancel only the first caller's own wrapping task.
+    first.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await first
+
+    shared_task = resource._shutdown_task
+    assert shared_task is not None
+    assert not shared_task.done(), "cancelling one awaiter must not cancel the shared attempt"
+
+    # Release the gate; the shared attempt completes normally and the surviving caller gets
+    # a real completed report, not a CancelledError.
+    release.set()
+    report = await second
+
+    assert shared_task.done()
+    assert not shared_task.cancelled()
+    assert report is resource._teardown_report
+    assert report.restart_safety is RestartSafety.SAFE
+    assert calls == ["called"], "on_shutdown must have run exactly once despite the cancelled awaiter"
+
+
+async def test_shutdown_rejects_reentrant_call_from_shutdown_hook():
+    """A shutdown hook that calls ``self.shutdown()`` (or another lifecycle front door) on
+    itself must be rejected with ``LifecycleReentryError`` before any duplicate task creation
+    or state mutation -- the calling task *is* the shutdown coordinator being awaited.
+    """
+    resource = await make_initialized_shutdown_counter()
+
+    captured: list[BaseException] = []
+    calls: list[str] = []
+
+    async def _reentrant_on_shutdown() -> None:
+        calls.append("called")
+        resource.shutdown_count += 1
+        try:
+            await resource.shutdown()
+        except LifecycleReentryError as exc:
+            captured.append(exc)
+
+    resource.on_shutdown = _reentrant_on_shutdown  # pyright: ignore[reportAttributeAccessIssue]
+
+    report = await resource.shutdown()
+
+    assert len(captured) == 1
+    assert isinstance(captured[0], LifecycleReentryError)
+    assert calls == ["called"], "the re-entrant call must not have re-run shutdown"
+    assert resource.shutdown_count == 1
+    assert report is resource._teardown_report
+
+
+async def test_resistant_shutdown_body_is_cancelled_after_coordinator_times_out():
+    """A shutdown body that outlives the coordinator's bounded observation window is cancelled
+    by the coordinator itself in the timeout branch -- it is not left running as an orphaned,
+    unobserved task once every external joiner (the ``shutdown()`` caller) has returned.
+    """
+    hassette = make_mock_hassette(sealed=False)
+    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 0.1  # short bound
+
+    resource = HangingChild(hassette)
+    await resource.initialize()
+
+    report = await resource.shutdown()
+
+    # The coordinator's timeout branch calls body_task.cancel() itself before returning --
+    # the body (blocked forever on HangingChild.on_shutdown's Event().wait()) does not outlive
+    # the coordinator as an orphaned task.
+    body_task = resource._shutdown_body_task
+    assert body_task is not None
+    assert report.restart_safety is RestartSafety.UNSAFE  # timed-out/pending body is never SAFE evidence
+
+    # Let the requested cancellation actually land, then confirm the exception observer already
+    # consumed the CancelledError -- i.e. task.cancelled() can be read afterward without raising
+    # because the done callback already retrieved it.
+    with contextlib.suppress(asyncio.CancelledError):
+        await body_task
+    assert body_task.cancelled()
 
 
 async def test_service_inherits_shutdown_propagation():

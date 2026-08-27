@@ -2,7 +2,7 @@ import asyncio
 import threading
 import typing
 from contextlib import suppress
-from typing import Any, final
+from typing import Any
 
 from dotenv import load_dotenv
 
@@ -18,6 +18,7 @@ from hassette.exceptions import AppPrecheckFailedError, FatalError
 from hassette.logging_ import enable_basic_logging
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import handle_stop, mark_not_ready, start
+from hassette.resources.teardown import TeardownCause, TeardownReport
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
 from hassette.task_bucket import TaskBucket, make_task_factory
@@ -774,18 +775,20 @@ class Hassette(Resource):
         if self._event_stream_service is not None:
             await self._event_stream_service.close_streams()
 
-    @final
-    async def shutdown(self) -> None:
-        """Override to wrap the entire shutdown in a total timeout.
+    async def _shutdown_body(self) -> "TeardownReport":
+        """Root shutdown body: wraps the ordinary hooks/cleanup/children pipeline in the
+        total shutdown timeout, then closes event streams and finalizes terminal status.
 
-        FinalMeta exempts Hassette from the @final on Resource.shutdown().
-        This ensures hooks + child propagation + cleanup all share one budget.
+        On total timeout, force-finalizes every child before falling through to the same
+        stream-closing/status finalization the clean path runs — this is the existing
+        stream-closing fallback the design requires even when the total timeout fires.
         """
-        if not self.shutdown_completed and not self.shutting_down:
-            self.logger.info("Hassette shutdown initiated", stacklevel=2)
+        self.logger.info("Hassette shutdown initiated", stacklevel=2)
+
+        report: TeardownReport
         try:
             async with asyncio.timeout(self.config.lifecycle.total_shutdown_timeout_seconds):
-                await super().shutdown()
+                report = await super()._shutdown_body()
         except TimeoutError:
             self.logger.critical(
                 "Total shutdown timeout (%ss) exceeded — forcing termination",
@@ -793,11 +796,12 @@ class Hassette(Resource):
             )
             for child in self.children:
                 child._force_terminal()
+            report = TeardownReport(causes=(TeardownCause.TOTAL_TIMEOUT, TeardownCause.FORCED_TERMINAL))
         finally:
-            # shutdown_completed FIRST — prevents re-entry regardless of what follows.
-            self.shutdown_completed = True
             # Emit Hassette's own STOPPED event while streams are still open,
-            # then close streams and set terminal status.
+            # then close streams and set terminal status. Guarded by event_streams_closed
+            # so the clean path (which already closed streams via _on_children_stopped())
+            # does not double-close or double-emit.
             if not self.event_streams_closed:
                 with suppress(Exception):
                     await handle_stop(self)
@@ -807,6 +811,8 @@ class Hassette(Resource):
             if self.status != ResourceStatus.STOPPED:
                 self.status = ResourceStatus.STOPPED
             mark_not_ready(self, "shutdown complete")
+
+        return report
 
     async def before_shutdown(self) -> None:
         """Remove bus listeners, stop the loop watchdog, and finalize session before child shutdown."""

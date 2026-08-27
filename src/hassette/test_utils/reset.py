@@ -110,24 +110,47 @@ async def reset_app_handler(app_handler: "AppHandler", original_manifests: dict[
     await app_handler.bootstrap_apps(admission_mode=AppAdmissionMode.WAIT_FOR_RELEASE)
 
 
+def _reject_if_active_or_reported(resource: "Resource") -> None:
+    """Raise if ``resource`` has an active shutdown task or any stored teardown report.
+
+    Reset is limited to a shutdown request that has never started a teardown attempt — an
+    active shutdown task (in progress) or a completed one (a stored report, ``SAFE`` or
+    ``UNSAFE``) both mean a real teardown attempt happened, and this helper must never clear
+    that evidence or fabricate a fresh lifecycle state on top of it. In particular, no
+    test-only reset may clear a ``RestartSafety.UNSAFE`` report — it has no in-process reset
+    path, by design.
+    """
+    if resource._shutdown_task is not None or resource._teardown_report is not None:
+        raise RuntimeError(
+            f"reset_hassette_lifecycle() cannot reset '{resource.unique_name}': it has an active "
+            "shutdown task or a stored teardown report. Reset is limited to a shutdown request "
+            "that has not yet started a teardown attempt; construct a fresh instance instead."
+        )
+
+
 def reset_resource_flags(resource: "Resource") -> None:
-    """Recursively reset lifecycle flags on all descendants of a resource (not the resource itself)."""
+    """Recursively reset a not-yet-started shutdown request on all descendants of a resource
+    (not the resource itself).
+
+    Raises if any descendant has an active shutdown task or a stored teardown report — see
+    ``_reject_if_active_or_reported()``. Never clears coordinator fields (``_shutdown_task``,
+    ``_shutdown_body_task``, ``_teardown_report``); those are not test-resettable.
+    """
     for child in resource.children:
-        child.shutdown_completed = False
-        child.shutting_down = False
+        _reject_if_active_or_reported(child)
         child.shutdown_event.clear()
         reset_resource_flags(child)
 
 
 async def reset_hassette_lifecycle(hassette: "Hassette", *, original_children: list["Resource"] | None = None) -> None:
-    """Clear Hassette shutdown/ready flags for module-scoped fixture reuse.
+    """Clear Hassette's not-yet-started shutdown request for module-scoped fixture reuse.
 
-    This helper is intentionally limited: it only clears an in-flight shutdown
-    request and marks the instance as ready again, optionally restoring the
-    ``children`` list to a previously captured snapshot. It does **not** undo the
-    effects of a full ``await hassette.shutdown()`` call (such as closed event
-    streams or fully shut-down children) and must not be used to revive a
-    Hassette that has been completely shut down.
+    This helper is intentionally limited: it only clears an in-flight shutdown *request*
+    (``shutdown_event``) that has not yet started a teardown attempt, and marks the instance as
+    ready again, optionally restoring the ``children`` list to a previously captured snapshot.
+    It does **not** undo the effects of a full ``await hassette.shutdown()`` call (such as
+    closed event streams, a stored teardown report, or fully shut-down children) and must not
+    be used to revive a Hassette that has been completely shut down.
 
     Args:
         hassette: The Hassette instance whose shutdown/ready flags should be
@@ -135,7 +158,8 @@ async def reset_hassette_lifecycle(hassette: "Hassette", *, original_children: l
         original_children: If provided, restore the children list to this snapshot.
 
     Raises:
-        RuntimeError: If event streams were already closed by a full shutdown.
+        RuntimeError: If event streams were already closed by a full shutdown, or if the root
+            or any descendant has an active shutdown task or a stored teardown report.
     """
     if hassette.event_streams_closed:
         msg = (
@@ -145,9 +169,9 @@ async def reset_hassette_lifecycle(hassette: "Hassette", *, original_children: l
         )
         raise RuntimeError(msg)
 
+    _reject_if_active_or_reported(hassette)
+
     hassette.shutdown_event.clear()
-    hassette.shutting_down = False
-    hassette.shutdown_completed = False
     hassette._fatal_shutdown_reason = None
     mark_ready(hassette, reason="reset for test")
     if original_children is not None:

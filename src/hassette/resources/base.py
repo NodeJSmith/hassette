@@ -8,16 +8,18 @@ from typing import Any, ClassVar, TypeVar, final
 from hassette.exceptions import CannotOverrideFinalError
 from hassette.resources.lifecycle import (
     cancel,
+    coordinate_initialize,
+    coordinate_shutdown,
     create_service_status_event,
     handle_failed,
     handle_running,
     handle_starting,
     handle_stop,
     mark_not_ready,
-    request_shutdown,
 )
 from hassette.resources.operations import ordered_children_for_shutdown, run_hooks
-from hassette.types.enums import TERMINAL_STATUSES, ResourceRole, ResourceStatus
+from hassette.resources.teardown import TeardownCause, TeardownReport, merge_teardown_reports
+from hassette.types.enums import ResourceRole, ResourceStatus
 from hassette.types.types import FRAMEWORK_APP_KEY_PREFIX, LOG_LEVEL_TYPE, SourceTier
 
 from .mixins import LifecycleMixin
@@ -42,11 +44,6 @@ class FinalMeta(type):
             return
 
         FinalMeta.LOADED_CLASSES.add(subclass_name)
-
-        if subclass_name in ("hassette.resources.service.Service", "hassette.core.core.Hassette"):
-            # allow Service to override Resource's final initialize/shutdown
-            # allow Hassette to override Resource's final shutdown (total timeout wrapper)
-            return
 
         # Collect all methods marked as final from the MRO (excluding object and cls itself)
         finals: dict[str, type] = {}
@@ -90,12 +87,6 @@ class _ResourceContextFilter(Filter):
 
 class Resource(LifecycleMixin, metaclass=FinalMeta):
     """Base class for resources in the Hassette framework."""
-
-    shutting_down: bool = False
-    """Flag indicating whether the instance is in the process of shutting down."""
-
-    initializing: bool = False
-    """Flag indicating whether the instance is in the process of starting up."""
 
     _unique_name: str
     """Unique name for the instance."""
@@ -335,18 +326,37 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         Cancels tasks for resources that were never given a shutdown signal (grandchildren).
         Service overrides this to also cancel _serve_task.
 
+        Records ``TeardownCause.FORCED_TERMINAL`` on the resource's teardown report before
+        cancelling any work, so restart is refused even if a caller inspects the report before
+        this method's cancellation and terminal-status side effects finish. Leaves an already
+        completed report unchanged — a resource that already proved ``RestartSafety.SAFE`` (or
+        already recorded other unsafe evidence) is not retroactively altered.
+
         Note: this does NOT call on_shutdown() hooks, so bus subscriptions and scheduler
         jobs owned by force-terminated resources are not cleaned up. This is intentional —
         calling hooks risks re-entrancy with the child's own finally block. Stale
         subscriptions may remain active against STOPPED resources; this is an accepted
         gap because force-terminal is nearly always followed by process exit.
         """
-        if self.shutdown_completed:
+        if self._teardown_report is not None:
             return
+        self._teardown_report = TeardownReport(causes=(TeardownCause.FORCED_TERMINAL,))
         cancel(self)
+        # Cancel an active shutdown coordinator too -- but never the currently running task
+        # (self-cancellation mid-synchronous-execution is a footgun and would not take effect
+        # until the next suspension point anyway). This is the cross-resource case: a parent's
+        # own shutdown body force-terminating an unresponsive child whose shutdown coordinator
+        # is still pending elsewhere. Because the report above is stored first, the child's
+        # coordinator (`_run_shutdown_coordinator`) treats the resulting cancellation as a
+        # restart-unsafe return rather than letting `CancelledError` reach its joined callers.
+        current_task = asyncio.current_task()
+        if (
+            self._shutdown_task is not None
+            and not self._shutdown_task.done()
+            and self._shutdown_task is not current_task
+        ):
+            self._shutdown_task.cancel()
         self.task_bucket.cancel_all_sync()
-        self.shutting_down = False
-        self.shutdown_completed = True
         self._status = ResourceStatus.STOPPED  # bypass setter to skip validation
         mark_not_ready(self, "shutdown timed out")
         for child in self.children:
@@ -376,29 +386,34 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
                 child._force_terminal()
             return False
 
-    async def _finalize_shutdown(self) -> None:
-        """Common shutdown cleanup: cancel tasks, propagate to children, emit stopped event."""
+    async def _run_post_hook_shutdown_stage(self) -> TeardownReport:
+        """Cleanup, child propagation, and terminal event emission shared by every
+        ``_shutdown_body()`` implementation (Resource, Service, and Hassette).
+
+        Runs after the class-specific shutdown hooks have already executed. Returns evidence
+        instead of setting flags directly — the shutdown coordinator (``coordinate_shutdown()``
+        in ``hassette.resources.lifecycle``) is the sole owner of the final stored
+        ``TeardownReport``.
+        """
+        causes: list[TeardownCause] = []
+        failed_operations: list[str] = []
+
         timeout = self.hassette.config.lifecycle.resource_shutdown_timeout_seconds
         try:
             async with asyncio.timeout(timeout):
                 await self.cleanup()
         except TimeoutError:
             self.logger.warning("cleanup() timed out after %ss for %s", timeout, self.unique_name)
+            causes.append(TeardownCause.CLEANUP_TIMED_OUT)
+            failed_operations.append("cleanup")
         except Exception as exc:
             self.logger.exception("Error during cleanup: %s %s", type(exc).__name__, exc)
+            causes.append(TeardownCause.CLEANUP_FAILED)
+            failed_operations.append("cleanup")
 
         children_clean = await self._shutdown_children()
-
-        self.shutdown_completed = True
-
-        if self.initializing:
-            if self.shutdown_event.is_set():
-                self.logger.debug(
-                    "%s shutting down with initializing=True (shutdown requested during init)", self.unique_name
-                )
-            else:
-                self.logger.warning("%s shutting down with initializing=True — this indicates a bug", self.unique_name)
-            self.initializing = False
+        if not children_clean:
+            causes.append(TeardownCause.CHILD_SHUTDOWN_TIMED_OUT)
 
         if children_clean:
             await self._on_children_stopped()
@@ -411,6 +426,8 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         else:
             self.logger.debug("Skipping STOPPED event as event streams are closed")
 
+        return TeardownReport(causes=tuple(causes), failed_operations=tuple(failed_operations))
+
     async def _on_children_stopped(self) -> None:
         """Called after children shut down cleanly, before this resource's STOPPED event.
 
@@ -422,44 +439,46 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         before the parent emits its own STOPPED event. Default is a no-op.
         Overrides MUST call ``await super()._on_children_stopped()``.
 
-        Note: _finalize_shutdown() is intentionally not @final — this hook exists
-        so subclasses do NOT need to override _finalize_shutdown() for post-children
-        behavior.
+        Note: _shutdown_body() is intentionally not @final — this hook exists so
+        subclasses do NOT need to override _shutdown_body() for post-children behavior.
         """
 
     @final
     async def initialize(self) -> None:
-        """Initialize the instance by calling the lifecycle hooks in order.
+        """Coordinator front door: joins or creates the resource's one owned initialization
+        attempt.
 
-        NOTE: keep flag resets and child propagation in sync with Service.initialize().
-        NOTE: _auto_wait_dependencies() runs before hooks — keep in sync with Service.initialize().
+        This method itself never runs class-specific initialization work — see
+        ``_initialize_body()``, which every initialization attempt (direct calls, ``start()``'s
+        spawned joiner, and ``restart()``) ultimately runs exactly once per attempt. See
+        ``coordinate_initialize()`` in ``hassette.resources.lifecycle`` for the full admission
+        sequence (re-entry rejection, joining an active shutdown, restart refusal, task
+        ownership).
         """
-        self.shutdown_completed = False
-        self.shutdown_event.clear()
+        await coordinate_initialize(self)
 
-        if self.initializing:
-            return
-        self.initializing = True
+    async def _initialize_body(self) -> None:
+        """Class-specific initialization work, run exactly once per coordinated attempt.
 
+        NOTE: keep child propagation in sync with Service._initialize_body().
+        NOTE: _auto_wait_dependencies() runs before hooks — keep in sync with Service.
+        """
         self.logger.debug("Initializing %s: %s", self.role, self.unique_name)
         await handle_starting(self)
 
         try:
-            try:
-                await self._auto_wait_dependencies()
-            except Exception as exc:
-                await handle_failed(self, exc)
-                raise
-            if self.hassette.shutdown_event.is_set():
-                mark_not_ready(self, "shutdown requested during dependency wait")
-                return
-            await run_hooks(self, [self.before_initialize, self.on_initialize, self.after_initialize])
-            for child in self.children:
-                if child.status not in (ResourceStatus.STARTING, ResourceStatus.RUNNING):
-                    await child.initialize()
-            await handle_running(self)
-        finally:
-            self.initializing = False
+            await self._auto_wait_dependencies()
+        except Exception as exc:
+            await handle_failed(self, exc)
+            raise
+        if self.hassette.shutdown_event.is_set():
+            mark_not_ready(self, "shutdown requested during dependency wait")
+            return
+        await run_hooks(self, [self.before_initialize, self.on_initialize, self.after_initialize])
+        for child in self.children:
+            if child.status not in (ResourceStatus.STARTING, ResourceStatus.RUNNING):
+                await child.initialize()
+        await handle_running(self)
 
     async def before_initialize(self) -> None:
         """Optional: prepare to accept new work, allocate sockets, queues, temp files, etc."""
@@ -474,29 +493,35 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         pass
 
     @final
-    async def shutdown(self) -> None:
-        """Shutdown the instance by calling the lifecycle hooks in order.
+    async def shutdown(self) -> TeardownReport:
+        """Coordinator front door: joins or creates the resource's one owned shutdown attempt
+        and returns its stored ``TeardownReport``.
 
-        NOTE: keep guards and flag resets in sync with Service.shutdown().
+        This method itself never runs class-specific shutdown work — see ``_shutdown_body()``,
+        which the coordinator runs exactly once per attempt. Repeated calls after completion
+        return the same stored report without rerunning hooks. See ``coordinate_shutdown()`` in
+        ``hassette.resources.lifecycle`` for the full sequence (re-entry rejection, initializer
+        cancellation/observation, bounded body observation, force-terminal evidence merging).
         """
-        if self.shutdown_completed:
-            return
-        if self.shutting_down:
-            return
-        self.shutting_down = True
-        if self._status not in TERMINAL_STATUSES:
-            self.status = ResourceStatus.STOPPING
-        request_shutdown(self, f"{self.unique_name} shutdown")
+        return await coordinate_shutdown(self)
 
-        try:
-            await run_hooks(
-                self,
-                [self.before_shutdown, self.on_shutdown, self.after_shutdown],
-                continue_on_error=True,
-            )
-        finally:
-            await self._finalize_shutdown()
-            self.shutting_down = False
+    async def _shutdown_body(self) -> TeardownReport:
+        """Class-specific shutdown work, run exactly once per coordinated attempt.
+
+        NOTE: keep hook ordering in sync with Service._shutdown_body().
+        """
+        hook_errors = await run_hooks(
+            self,
+            [self.before_shutdown, self.on_shutdown, self.after_shutdown],
+            continue_on_error=True,
+        )
+        hook_report = (
+            TeardownReport(causes=(TeardownCause.SHUTDOWN_HOOK_FAILED,), failed_operations=("shutdown_hooks",))
+            if hook_errors
+            else TeardownReport()
+        )
+        tail_report = await self._run_post_hook_shutdown_stage()
+        return merge_teardown_reports(hook_report, tail_report)
 
     async def before_shutdown(self) -> None:
         """Optional: stop accepting new work, signal loops to wind down, etc."""

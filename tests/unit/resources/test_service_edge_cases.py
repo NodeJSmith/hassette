@@ -134,28 +134,41 @@ class TestServiceShutdownIdempotency:
 
         assert calls == ["called"], f"on_shutdown must run exactly once, ran {len(calls)} times"
 
-    async def test_noop_when_already_shutting_down(self) -> None:
+    async def test_concurrent_shutdown_joins_in_flight_attempt(self) -> None:
+        """A second shutdown() call while one is already in flight joins that same attempt
+        instead of running hooks a second time.
+
+        Superseded by the coordinator design: shutdown() is no longer a same-instance
+        no-op while shutting down — every concurrent caller shields and awaits the one
+        resource-owned ``_shutdown_task`` attempt, and both receive the same stored report.
+        """
         hassette = make_mock_hassette(sealed=False)
         svc = SimpleService(hassette)
         await svc.initialize()
         await wait_for_running(svc)
 
-        svc.shutting_down = True  # simulate a concurrent shutdown already in progress
-
         calls: list[str] = []
+        entered = asyncio.Event()
+        release = asyncio.Event()
 
-        async def _spy_before_shutdown() -> None:
+        async def _gated_before_shutdown() -> None:
             calls.append("called")
+            entered.set()
+            await release.wait()
 
-        svc.before_shutdown = _spy_before_shutdown  # pyright: ignore[reportAttributeAccessIssue]
+        svc.before_shutdown = _gated_before_shutdown  # pyright: ignore[reportAttributeAccessIssue]
 
-        await svc.shutdown()
+        first = asyncio.create_task(svc.shutdown())
+        await asyncio.wait_for(entered.wait(), timeout=1)
 
-        assert calls == [], "hooks must not run — shutdown() is a no-op while shutting_down is True"
+        second = asyncio.create_task(svc.shutdown())
 
-        # Cleanup: reset the flag and shut down for real so the serve task doesn't leak.
-        svc.shutting_down = False
-        await svc.shutdown()
+        release.set()
+        report1 = await first
+        report2 = await second
+
+        assert calls == ["called"], "before_shutdown must run exactly once — both calls share one attempt"
+        assert report1 == report2
 
 
 class TestServiceShutdownSkipsStoppingWhenTerminal:

@@ -9,7 +9,9 @@ import asyncio
 import typing
 from contextlib import suppress
 
-from hassette.resources.lifecycle import handle_failed, start
+from hassette.exceptions import RestartRefusedError
+from hassette.resources.lifecycle import handle_failed, reject_lifecycle_reentry, start
+from hassette.resources.teardown import RestartSafety
 from hassette.utils.service_utils import wait_for_ready
 
 if typing.TYPE_CHECKING:
@@ -61,9 +63,19 @@ async def start_children_and_wait(resource: "Resource", timeout: float | None = 
 
 
 async def restart(resource: "Resource") -> None:
-    """Restart the instance by shutting it down and re-initializing it."""
+    """Restart the instance by shutting it down and re-initializing it.
+
+    Requires the shutdown attempt to prove ``RestartSafety.SAFE`` before initializing —
+    an ``UNSAFE`` report raises ``RestartRefusedError`` without starting a new attempt. The
+    direct-``initialize()`` refusal check remains the authoritative gate (callers can bypass
+    ``restart()`` entirely); this check exists so ``restart()`` fails fast with a clear message
+    instead of relying on ``initialize()`` to raise the same error one call later.
+    """
+    reject_lifecycle_reentry(resource, "restart")
     resource.logger.debug("Restarting '%s' %s", resource.class_name, resource.role)
-    await resource.shutdown()
+    report = await resource.shutdown()
+    if report.restart_safety is not RestartSafety.SAFE:
+        raise RestartRefusedError(resource.unique_name, report)
     await resource.initialize()
 
 

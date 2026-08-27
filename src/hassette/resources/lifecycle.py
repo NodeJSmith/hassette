@@ -11,11 +11,25 @@ concrete implementation always in play at runtime — to access the mutable life
 Protocol intentionally does not declare.
 """
 
+import asyncio
 import typing
+from contextlib import suppress
+from typing import Any
 
 from hassette.events import HassetteServiceEvent
+from hassette.exceptions import LifecycleReentryError, RestartRefusedError
 from hassette.resources.mixins import LifecycleMixin, _LifecycleHostP
+from hassette.resources.teardown import (
+    RestartSafety,
+    TeardownCause,
+    TeardownReport,
+    add_teardown_evidence,
+    merge_teardown_reports,
+)
 from hassette.types.enums import TERMINAL_STATUSES, ResourceStatus
+
+if typing.TYPE_CHECKING:
+    from collections.abc import Coroutine
 
 
 def create_service_status_event(
@@ -88,16 +102,27 @@ def request_shutdown(resource: _LifecycleHostP, reason: str | None = None) -> No
 
 
 def start(resource: _LifecycleHostP) -> None:
-    """Start the instance by spawning its initialize method in a task."""
-    resource = typing.cast("LifecycleMixin", resource)
-    resource.shutdown_completed = False
+    """Start the instance by spawning its coordinated ``initialize()`` front door in a task.
 
-    if resource._init_task and not resource._init_task.done():
+    Performs the same synchronous re-entry and restart-refusal checks the coordinator itself
+    performs, then spawns a joiner task that calls the public ``initialize()`` front door.
+    Deliberately does **not** assign ``_init_task`` here and does **not** reset shutdown
+    state (``shutdown_event``, the stored teardown report) — only an accepted initialization
+    attempt inside the coordinator does that. See ``coordinate_initialize()``.
+    """
+    resource = typing.cast("LifecycleMixin", resource)
+    reject_lifecycle_reentry(resource, "start")
+
+    if resource._init_task is not None and not resource._init_task.done():
         resource.logger.debug("%s already started or running", resource.unique_name, stacklevel=2)
         return
 
+    report = resource._teardown_report
+    if report is not None and report.restart_safety is RestartSafety.UNSAFE:
+        raise RestartRefusedError(resource.unique_name, report)
+
     resource.logger.debug("%s starting", resource.unique_name)
-    resource._init_task = resource.task_bucket.spawn(resource.initialize(), name="resource:resource_initialize")
+    resource.task_bucket.spawn(resource.initialize(), name="resource:resource_initialize")
 
 
 def cancel(resource: _LifecycleHostP) -> None:
@@ -233,3 +258,236 @@ async def handle_crash(resource: _LifecycleHostP, exception: Exception) -> None:
 
 
 # dup-ignore-end
+
+
+def reject_lifecycle_reentry(resource: _LifecycleHostP, method_name: str) -> None:
+    """Raise ``LifecycleReentryError`` when a lifecycle front door is called from its own
+    active initialization coordinator, shutdown coordinator, or shutdown body.
+
+    Every public front door (``initialize()``, ``start()``, ``restart()``, ``shutdown()``)
+    calls this first, before creating, joining, or cancelling any lifecycle task. A hook that
+    calls back into its own owner's lifecycle orchestration cannot be joined or cancelled
+    safely -- the calling task *is* the coordinator or body being awaited.
+
+    Args:
+        resource: The resource whose lifecycle task identity is being checked.
+        method_name: The name of the front-door method performing the check, used in the
+            raised error's message.
+    """
+    resource = typing.cast("LifecycleMixin", resource)
+    current = asyncio.current_task()
+    if current is not None and current in (resource._init_task, resource._shutdown_task, resource._shutdown_body_task):
+        raise LifecycleReentryError(resource.unique_name, method_name)
+
+
+def _create_lifecycle_task(coro: "Coroutine[Any, Any, Any]", *, name: str) -> asyncio.Task:
+    """Create a lifecycle-owned task outside TaskBucket ownership.
+
+    Uses the ``asyncio.Task`` constructor directly (not ``loop.create_task()``), the same
+    mechanism Hassette's own task factory (``make_task_factory``) uses internally. This
+    bypasses the loop's custom task factory, which would otherwise attribute the task to
+    whichever TaskBucket is current in context. The shutdown body cancels TaskBucket work, so
+    putting the coordinator or body task in that same bucket would create circular
+    self-cancellation.
+    """
+    loop = asyncio.get_running_loop()
+    return asyncio.Task(coro, loop=loop, name=name)
+
+
+def _install_exception_observer(resource: _LifecycleHostP, task: asyncio.Task, label: str) -> None:
+    """Attach a done callback that retrieves and logs any exception the task raised.
+
+    Ensures every lifecycle coordinator/body task is exception-observed even when every
+    external joiner cancels its own wait -- an unretrieved task exception would otherwise
+    surface as an "exception was never retrieved" warning with no other observer.
+    """
+    resource = typing.cast("LifecycleMixin", resource)
+
+    def _observe(t: asyncio.Task) -> None:
+        if t.cancelled():
+            return
+        exc = t.exception()
+        if exc is not None:
+            resource.logger.exception(
+                "%s: %s task %r finished with an unhandled exception",
+                resource.unique_name,
+                label,
+                t.get_name(),
+                exc_info=exc,
+            )
+
+    task.add_done_callback(_observe)
+
+
+async def coordinate_initialize(resource: _LifecycleHostP) -> None:
+    """Coordinator front door for ``initialize()``.
+
+    Every initialization path -- direct ``initialize()`` calls, ``start()``'s spawned joiner,
+    and ``restart()`` -- funnels through this function, so ``_init_task`` is authoritative for
+    every attempt. See the "Minimal lifecycle coordinator" section of
+    ``design/specs/105-teardown-restart-safety/design.md`` for the full admission sequence.
+    """
+    resource = typing.cast("LifecycleMixin", resource)
+    reject_lifecycle_reentry(resource, "initialize")
+
+    shutdown_task = resource._shutdown_task
+    if shutdown_task is not None and not shutdown_task.done():
+        # Initialization requested during shutdown waits for that shutdown outcome before
+        # deciding whether a new incarnation may start.
+        await asyncio.shield(shutdown_task)
+
+    report = resource._teardown_report
+    if report is not None and report.restart_safety is RestartSafety.UNSAFE:
+        raise RestartRefusedError(resource.unique_name, report)
+
+    init_task = resource._init_task
+    if init_task is None or init_task.done():
+        if resource._teardown_report is not None:
+            # First accepted initialization after a clean (SAFE) teardown: consume the report
+            # and reopen the resources that a completed shutdown attempt sealed/cleared.
+            resource._teardown_report = None
+            resource._shutdown_task = None
+            resource.task_bucket.reopen()
+            resource.shutdown_event.clear()
+        init_task = _create_lifecycle_task(
+            resource._initialize_body(), name=f"resource:initialize:{resource.unique_name}"
+        )
+        _install_exception_observer(resource, init_task, "initialization coordinator")
+        resource._init_task = init_task
+
+    await asyncio.shield(init_task)
+
+
+async def _observe_active_initializer(resource: "LifecycleMixin") -> bool:
+    """Cancel and bound-observe an active ``_init_task`` before shutdown hooks run.
+
+    Returns ``True`` when the initializer was still pending after the bounded wait (adds
+    ``TeardownCause.INITIALIZATION_TASK_PENDING`` to the shutdown report), ``False`` otherwise
+    (including when there was no active initializer to observe).
+    """
+    init_task = resource._init_task
+    if init_task is None or init_task.done():
+        return False
+
+    init_task.cancel()
+    timeout = resource.hassette.config.lifecycle.resource_shutdown_timeout_seconds
+    _done, pending = await asyncio.wait([init_task], timeout=timeout)
+    if pending:
+        return True
+
+    with suppress(BaseException):
+        init_task.exception()
+    return False
+
+
+async def _run_shutdown_coordinator(resource: "LifecycleMixin") -> TeardownReport:
+    """Body of the shutdown coordinator task (``_shutdown_task``).
+
+    Cancels and observes an active initializer, transitions status and requests shutdown,
+    then bounds observation of the class-specific ``_shutdown_body()`` for
+    ``resource_shutdown_timeout_seconds``. Stores and returns the merged report.
+
+    If something external cancels this coordinator task directly (``_force_terminal()`` may do
+    this for an unresponsive child from an ancestor's own shutdown body -- see
+    ``Resource._force_terminal()``), the cancellation is converted to a normal
+    ``RestartSafety.UNSAFE`` return *only* when force-terminal evidence was already stored
+    before the cancellation was requested. Every joined caller then receives that report rather
+    than ``CancelledError``. A cancellation with no pre-recorded evidence is a genuine error and
+    propagates normally.
+    """
+    try:
+        initialization_pending = await _observe_active_initializer(resource)
+
+        if resource._status not in TERMINAL_STATUSES:
+            resource.status = ResourceStatus.STOPPING
+        request_shutdown(resource, f"{resource.unique_name} shutdown")
+
+        body_task = _create_lifecycle_task(
+            resource._shutdown_body(), name=f"resource:shutdown_body:{resource.unique_name}"
+        )
+        _install_exception_observer(resource, body_task, "shutdown body")
+        resource._shutdown_body_task = body_task
+
+        if typing.cast("object", resource) is resource.hassette:
+            # The root resource's own _shutdown_body() (Hassette._shutdown_body()) already
+            # self-bounds with total_shutdown_timeout_seconds via its own asyncio.timeout(). The
+            # coordinator's outer wait must track that same budget instead of imposing the
+            # generic per-resource timeout on top of it — otherwise a body that's still working
+            # past resource_shutdown_timeout_seconds but within total_shutdown_timeout_seconds
+            # gets abandoned and force-terminated here before its own budget ever gets a chance
+            # to fire. Using the root's total budget directly (not max() against the per-resource
+            # timeout) preserves the reverse relationship too: a total timeout intentionally set
+            # smaller than the per-resource one (e.g. in tests) still bounds the wait correctly.
+            timeout = resource.hassette.config.lifecycle.total_shutdown_timeout_seconds
+        else:
+            timeout = resource.hassette.config.lifecycle.resource_shutdown_timeout_seconds
+        done, _pending = await asyncio.wait([body_task], timeout=timeout)
+
+        if body_task in done:
+            try:
+                report = body_task.result()
+            except asyncio.CancelledError:  # noqa: ASYNC103 — body cancellation is bounded evidence for this
+                # coordinator, not a fatal event for it: convert to SHUTDOWN_BODY_FAILED instead of propagating.
+                report = TeardownReport(
+                    causes=(TeardownCause.SHUTDOWN_BODY_FAILED,), failed_operations=("_shutdown_body",)
+                )
+            except Exception:
+                resource.logger.exception("Shutdown body for %s raised", resource.unique_name)
+                report = TeardownReport(
+                    causes=(TeardownCause.SHUTDOWN_BODY_FAILED,), failed_operations=("_shutdown_body",)
+                )
+        else:
+            resource.logger.warning("%s shutdown body did not complete within %ss", resource.unique_name, timeout)
+            report = TeardownReport(causes=(TeardownCause.SHUTDOWN_BODY_TIMED_OUT,))
+            resource._force_terminal()
+            if not body_task.done():
+                body_task.cancel()
+                report = add_teardown_evidence(
+                    report,
+                    causes=(TeardownCause.SHUTDOWN_BODY_PENDING,),
+                    pending_tasks=(body_task.get_name(),),
+                )
+
+        if initialization_pending:
+            report = add_teardown_evidence(report, causes=(TeardownCause.INITIALIZATION_TASK_PENDING,))
+    except asyncio.CancelledError:  # noqa: ASYNC103 — re-raised below when no force evidence was stored first
+        existing = resource._teardown_report
+        if existing is None:
+            raise
+        body_task = resource._shutdown_body_task
+        if body_task is not None and not body_task.done():
+            body_task.cancel()
+        return existing  # noqa: ASYNC104 — FORCED_TERMINAL (or other) evidence was already stored before this
+        # coordinator was cancelled, so every joined caller gets that report instead of CancelledError.
+
+    # A retained body task (or a concurrent _force_terminal() call) may already have stored
+    # evidence on this attempt (e.g. FORCED_TERMINAL) before this point is reached. Merge
+    # rather than overwrite so a later completion can only add evidence, never remove it.
+    existing = resource._teardown_report
+    if existing is not None:
+        report = merge_teardown_reports(existing, report)
+
+    resource._teardown_report = report
+    return report
+
+
+async def coordinate_shutdown(resource: _LifecycleHostP) -> TeardownReport:
+    """Coordinator front door for ``shutdown()``.
+
+    Creates ``_shutdown_task`` exactly once per shutdown attempt; every caller (concurrent or
+    repeated) shields and awaits that same task, so a repeated call after completion returns
+    the stored report without rerunning hooks. Task selection and assignment happen without an
+    intervening ``await`` so the check-and-create step is atomic on the event loop.
+    """
+    resource = typing.cast("LifecycleMixin", resource)
+    reject_lifecycle_reentry(resource, "shutdown")
+
+    task = resource._shutdown_task
+    if task is None:
+        task = _create_lifecycle_task(
+            _run_shutdown_coordinator(resource), name=f"resource:shutdown:{resource.unique_name}"
+        )
+        _install_exception_observer(resource, task, "shutdown coordinator")
+        resource._shutdown_task = task
+
+    return await asyncio.shield(task)

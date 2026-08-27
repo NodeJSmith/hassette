@@ -23,14 +23,16 @@ import pytest
 from hassette.api.api import Api
 from hassette.bus.bus import Bus
 from hassette.core.scheduler_service import _ScheduledJobQueue
+from hassette.exceptions import LifecycleReentryError
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import handle_failed, handle_starting
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
+from hassette.resources.teardown import RestartSafety
 from hassette.scheduler.scheduler import Scheduler
 from hassette.test_utils import make_mock_hassette
 from hassette.types.enums import ResourceStatus
-from tests.unit.resources.conftest import wait_for_running
+from tests.unit.resources.conftest import ConcreteResource, wait_for_running
 
 from .conftest import SimpleParent, make_parent_with_child
 
@@ -194,19 +196,39 @@ async def test_service_init_propagation_after_serve_spawn():
     await parent_svc.shutdown()
 
 
-async def test_service_status_is_starting_after_initialize():
-    """Service.initialize() returns with status STARTING, not RUNNING.
+async def test_service_status_is_starting_before_serve_task_runs():
+    """Service._initialize_body() spawns the serve task with status still STARTING.
 
-    Unlike Resource.initialize() which calls handle_running() at the end,
+    Unlike Resource._initialize_body() which calls handle_running() at the end,
     Service defers handle_running() to _serve_wrapper(). This is intentional:
-    Services are ready when serve() actually starts, not when initialize() returns.
+    Services are ready when serve() actually starts, not when the initialize body returns.
+
+    ``initialize()`` itself is now the coordinator front door: it runs ``_initialize_body()``
+    in its own owned ``_init_task`` (every initialization path, including a direct
+    ``await initialize()``, must be tracked by that one task so concurrent callers and shutdown
+    can join or observe it). That task-based execution means the event loop gets a chance to
+    run the freshly spawned serve task's synchronous prefix (through its first suspension
+    point) before ``await svc.initialize()`` returns to its caller -- so by the time
+    ``initialize()`` returns, ``handle_running()`` has typically already run and status has
+    already advanced to RUNNING. The STARTING-not-RUNNING guarantee this test protects now
+    applies to the body itself, observed via a status-capturing hook, not to the state visible
+    after ``initialize()`` returns.
     """
     hassette = make_mock_hassette(sealed=False)
     svc = SimpleServiceWithServeFlag(hassette)
 
+    statuses_during_body: list[ResourceStatus] = []
+
+    async def _capture_before_serve_spawn() -> None:
+        statuses_during_body.append(svc.status)
+
+    svc.after_initialize = _capture_before_serve_spawn  # runs after serve task spawn, before body returns
+
     await svc.initialize()
 
-    assert svc.status == ResourceStatus.STARTING, f"Service should be STARTING after initialize(), got {svc.status}"
+    assert statuses_during_body == [ResourceStatus.STARTING], (
+        f"Service body should still be STARTING right after spawning serve(), got {statuses_during_body}"
+    )
 
     # Cleanup
     await svc.shutdown()
@@ -260,3 +282,128 @@ async def test_leaf_ready_after_restart(leaf_type: str):
 
     await init_target.initialize()
     assert resource.is_ready(), f"{leaf_type} should be ready after re-initialize"
+
+
+async def test_initialize_waits_for_active_shutdown_before_evaluating_report():
+    """A concurrent ``initialize()`` call made while a shutdown is already in flight waits for
+    that shutdown's outcome (shielding ``_shutdown_task``) before deciding whether a new
+    initialization attempt is admitted -- it does not race ahead of the report the shutdown
+    attempt is about to store.
+    """
+    hassette = make_mock_hassette(sealed=False)
+    resource = ConcreteResource(hassette=hassette)
+    await resource.initialize()
+    assert resource.status == ResourceStatus.RUNNING
+
+    shutdown_entered = asyncio.Event()
+    shutdown_release = asyncio.Event()
+
+    async def _gated_on_shutdown() -> None:
+        shutdown_entered.set()
+        await shutdown_release.wait()
+
+    resource.on_shutdown = _gated_on_shutdown  # pyright: ignore[reportAttributeAccessIssue]
+
+    shutdown_task = asyncio.create_task(resource.shutdown())
+    await asyncio.wait_for(shutdown_entered.wait(), timeout=1)
+
+    init_entered = asyncio.Event()
+
+    async def _tracking_on_initialize() -> None:
+        init_entered.set()
+
+    resource.on_initialize = _tracking_on_initialize  # pyright: ignore[reportAttributeAccessIssue]
+
+    init_task = asyncio.create_task(resource.initialize())
+
+    # While shutdown is still gated, the concurrent initialize() must not have proceeded past
+    # its shielded wait on the shutdown task -- it must not have reached a new attempt's
+    # on_initialize() hook yet. Bounded wait expecting a timeout proves this deterministically.
+    with pytest.raises(TimeoutError):
+        await asyncio.wait_for(init_entered.wait(), timeout=0.2)
+    assert not init_entered.is_set()
+    assert not init_task.done()
+
+    # Release the shutdown; only now may initialize() evaluate the stored report and proceed.
+    shutdown_release.set()
+    report = await shutdown_task
+    await init_task
+
+    assert report.restart_safety is RestartSafety.SAFE
+    assert init_entered.is_set(), "initialize() must proceed only after the active shutdown's report exists"
+    assert resource.status == ResourceStatus.RUNNING
+
+
+async def test_shutdown_cancels_and_observes_initializer_before_shutdown_hooks():
+    """``shutdown()`` cancels and bound-observes an active initializer *before* running any
+    shutdown hooks (``before_shutdown``/``on_shutdown``) -- the initializer must be cancelled
+    first, not concurrently or after.
+    """
+    hassette = make_mock_hassette(sealed=False)
+    resource = ConcreteResource(hassette=hassette)
+
+    init_entered = asyncio.Event()
+    init_cancelled = asyncio.Event()
+
+    async def _gated_on_initialize() -> None:
+        init_entered.set()
+        try:
+            await asyncio.Event().wait()  # block forever until cancelled
+        except asyncio.CancelledError:
+            init_cancelled.set()
+            raise
+
+    resource.on_initialize = _gated_on_initialize  # pyright: ignore[reportAttributeAccessIssue]
+
+    init_task = asyncio.create_task(resource.initialize())
+    await asyncio.wait_for(init_entered.wait(), timeout=1)
+
+    shutdown_hook_entered = asyncio.Event()
+
+    async def _tracking_on_shutdown() -> None:
+        # Must only run after the initializer has already been observed as cancelled.
+        assert init_cancelled.is_set(), "shutdown hooks must not run before the initializer is cancelled/observed"
+        shutdown_hook_entered.set()
+
+    resource.on_shutdown = _tracking_on_shutdown  # pyright: ignore[reportAttributeAccessIssue]
+
+    report = await resource.shutdown()
+
+    assert init_cancelled.is_set()
+    assert shutdown_hook_entered.is_set()
+    assert report.restart_safety is RestartSafety.SAFE
+
+    with pytest.raises(asyncio.CancelledError):
+        await init_task
+
+
+async def test_initialize_rejects_reentrant_call_from_initialize_hook():
+    """An initialization hook that calls ``self.initialize()`` (or another lifecycle front
+    door) on itself must be rejected with ``LifecycleReentryError`` before any duplicate task
+    creation or state mutation -- the calling task *is* the initialization coordinator being
+    awaited.
+    """
+    hassette = make_mock_hassette(sealed=False)
+    resource = ConcreteResource(hassette=hassette)
+
+    captured: list[BaseException] = []
+    call_count = 0
+
+    async def _reentrant_on_initialize() -> None:
+        nonlocal call_count
+        call_count += 1
+        try:
+            await resource.initialize()
+        except LifecycleReentryError as exc:
+            captured.append(exc)
+
+    resource.on_initialize = _reentrant_on_initialize  # pyright: ignore[reportAttributeAccessIssue]
+
+    await resource.initialize()
+
+    assert len(captured) == 1
+    assert isinstance(captured[0], LifecycleReentryError)
+    assert call_count == 1, "the re-entrant call must not have started a second attempt"
+    assert resource.status == ResourceStatus.RUNNING
+
+    await resource.shutdown()

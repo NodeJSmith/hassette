@@ -23,6 +23,7 @@ Shutdown STOPPING path:
 - RUNNING → STOPPED direct transition is valid (natural service completion via _serve_wrapper)
 """
 
+import asyncio
 from unittest.mock import AsyncMock
 
 import pytest
@@ -373,16 +374,36 @@ async def test_handle_crash_idempotent_when_already_crashed():
 
 
 async def test_start_idempotent_when_task_running():
-    """start() when _init_task is already running skips re-spawn."""
+    """start() when _init_task is already running skips re-spawn.
+
+    start() itself only spawns a joiner that calls the coordinated initialize() front door —
+    it no longer assigns _init_task synchronously (see hassette.resources.lifecycle.start()) —
+    so this waits for the coordinator to actually create and assign the task before asserting.
+    """
     hassette = make_mock_hassette(sealed=False)
     resource = ConcreteResource(hassette)
 
+    entered = asyncio.Event()
+    release = asyncio.Event()
+
+    async def _gated_on_initialize() -> None:
+        entered.set()
+        await release.wait()
+
+    resource.on_initialize = _gated_on_initialize  # pyright: ignore[reportAttributeAccessIssue]
+
     start(resource)
+    await asyncio.wait_for(entered.wait(), timeout=1)
     first_task = resource._init_task
     assert first_task is not None
+    assert not first_task.done()
 
     start(resource)
     assert resource._init_task is first_task
+
+    release.set()
+    await first_task
+    await resource.shutdown()
 
 
 async def test_cancel_cancels_running_task():
@@ -390,7 +411,16 @@ async def test_cancel_cancels_running_task():
     hassette = make_mock_hassette(sealed=False)
     resource = ConcreteResource(hassette)
 
+    entered = asyncio.Event()
+
+    async def _gated_on_initialize() -> None:
+        entered.set()
+        await asyncio.Event().wait()  # block forever until cancelled
+
+    resource.on_initialize = _gated_on_initialize  # pyright: ignore[reportAttributeAccessIssue]
+
     start(resource)
+    await asyncio.wait_for(entered.wait(), timeout=1)
     assert resource._init_task is not None
     assert not resource._init_task.done()
 

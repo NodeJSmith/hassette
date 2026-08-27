@@ -4,51 +4,51 @@ Verifies:
 - Total timeout caps wall-clock shutdown duration
 - _force_terminal() is called on all descendants when total timeout fires
 - close_streams() equivalent runs even on total timeout
-- shutdown_completed is set before handle_stop() and close_streams()
+- The stored teardown report records TOTAL_TIMEOUT and FORCED_TERMINAL
 """
 
 import asyncio
-from contextlib import suppress
+from unittest.mock import AsyncMock
 
+from hassette.config.config import HassetteConfig
 from hassette.resources.base import FinalMeta, Resource
-from hassette.resources.lifecycle import handle_stop, mark_not_ready
-from hassette.test_utils import make_mock_hassette
+from hassette.resources.teardown import RestartSafety, TeardownCause, TeardownReport
+from hassette.test_utils import make_mock_hassette, make_task_bucket
+from hassette.test_utils.config import make_test_config
 from hassette.types.enums import ResourceStatus
 
 from .conftest import HangingChild, ShutdownCounter, SimpleParent
 
-# Pre-register so FinalMeta allows the shutdown() override on this test helper
+# Pre-register so FinalMeta allows the _shutdown_body() override on this test helper. Only
+# initialize()/shutdown() are @final now — this registration is a defensive no-op kept for
+# parity with the rest of the suite, since _shutdown_body() was never @final.
 FinalMeta.LOADED_CLASSES.add("tests.unit.resources.lifecycle.test_total_timeout.TotalTimeoutRoot")
+FinalMeta.LOADED_CLASSES.add("tests.unit.resources.lifecycle.test_total_timeout.RootIdentityResource")
+FinalMeta.LOADED_CLASSES.add("tests.unit.resources.lifecycle.test_total_timeout.SleepingChild")
 
 
 class TotalTimeoutRoot(Resource):
-    """Mimics Hassette's shutdown() override with total timeout wrapping.
+    """Mimics Hassette's root shutdown body: total-timeout-wrapped teardown.
 
-    Uses the same pattern as the real Hassette.shutdown() to test the
-    total_shutdown_timeout_seconds behavior without requiring the full
+    Uses the same pattern as ``Hassette._shutdown_body()`` to test the
+    ``total_shutdown_timeout_seconds`` behavior without requiring the full
     Hassette __init__ machinery.
     """
 
     _close_streams_called: bool = False
     _handle_stop_called: bool = False
-    _handle_stop_order: int = 0
-    _close_streams_order: int = 0
-    _shutdown_completed_order: int = 0
-    _order_counter: int = 0
 
     @property
     def event_streams_closed(self) -> bool:
         return self._close_streams_called
 
     async def _close_streams(self) -> None:
-        self._order_counter += 1
-        self._close_streams_order = self._order_counter
         self._close_streams_called = True
 
-    async def shutdown(self) -> None:
+    async def _shutdown_body(self) -> "TeardownReport":
         try:
             async with asyncio.timeout(self.hassette.config.lifecycle.total_shutdown_timeout_seconds):
-                await super().shutdown()
+                report = await super()._shutdown_body()
         except TimeoutError:
             self.logger.critical(
                 "Total shutdown timeout (%ss) exceeded — forcing termination",
@@ -56,20 +56,13 @@ class TotalTimeoutRoot(Resource):
             )
             for child in self.children:
                 child._force_terminal()
+            report = TeardownReport(causes=(TeardownCause.TOTAL_TIMEOUT, TeardownCause.FORCED_TERMINAL))
         finally:
-            self._order_counter += 1
-            self._shutdown_completed_order = self._order_counter
-            self.shutdown_completed = True
-            if not self.event_streams_closed:
-                with suppress(Exception):
-                    self._order_counter += 1
-                    self._handle_stop_order = self._order_counter
-                    self._handle_stop_called = True
-                    await handle_stop(self)
-            with suppress(Exception):
-                await self._close_streams()
+            self._handle_stop_called = True
+            await self._close_streams()
             self.status = ResourceStatus.STOPPED
-            mark_not_ready(self, "shutdown complete")
+
+        return report
 
 
 def make_total_timeout_root(total_timeout: float = 0.1, resource_timeout: float = 5) -> TotalTimeoutRoot:
@@ -92,7 +85,7 @@ async def test_total_shutdown_timeout_caps_wall_clock():
     await normal.initialize()
 
     start = asyncio.get_event_loop().time()
-    await root.shutdown()
+    report = await root.shutdown()
     elapsed = asyncio.get_event_loop().time() - start
 
     # Should complete in roughly total_shutdown_timeout_seconds (0.2s), not
@@ -101,6 +94,8 @@ async def test_total_shutdown_timeout_caps_wall_clock():
     assert elapsed < 3.0, f"Shutdown took {elapsed:.2f}s — total timeout should have capped it"
     assert root.shutdown_completed is True
     assert hanging.shutdown_completed is True
+    assert report.restart_safety is RestartSafety.UNSAFE
+    assert TeardownCause.TOTAL_TIMEOUT in report.causes
 
 
 async def test_total_timeout_force_patches_all_descendants():
@@ -135,21 +130,104 @@ async def test_total_timeout_finally_always_closes_streams():
     assert root._close_streams_called is True, "close_streams must be called even on total timeout"
 
 
-async def test_total_timeout_sets_shutdown_completed_first():
-    """shutdown_completed=True is set before handle_stop() and close_streams() in the finally block."""
+async def test_total_timeout_report_records_forced_terminal_and_total_timeout():
+    """The stored teardown report records both TOTAL_TIMEOUT and FORCED_TERMINAL on timeout."""
     root = make_total_timeout_root()
     root.add_child(HangingChild)
 
     await root.initialize()
 
-    await root.shutdown()
+    report = await root.shutdown()
 
-    # _shutdown_completed_order should be less than handle_stop and close_streams
-    assert root._shutdown_completed_order < root._handle_stop_order, (
-        f"shutdown_completed (order={root._shutdown_completed_order}) must be set before "
-        f"handle_stop (order={root._handle_stop_order})"
-    )
-    assert root._shutdown_completed_order < root._close_streams_order, (
-        f"shutdown_completed (order={root._shutdown_completed_order}) must be set before "
-        f"close_streams (order={root._close_streams_order})"
-    )
+    assert report.restart_safety is RestartSafety.UNSAFE
+    assert TeardownCause.TOTAL_TIMEOUT in report.causes
+    assert TeardownCause.FORCED_TERMINAL in report.causes
+    assert root.teardown_report == report
+
+
+class RootIdentityResource(Resource):
+    """A ``Resource`` whose ``.hassette`` is itself, mimicking ``Hassette.__init__``'s
+    self-reference (``super().__init__(self, ..., parent=self)``).
+
+    Exercises the root-identity branch in ``_run_shutdown_coordinator``
+    (``resource is resource.hassette``), which bounds the shutdown coordinator's outer wait
+    with ``total_shutdown_timeout_seconds`` instead of the generic
+    ``resource_shutdown_timeout_seconds`` used for every non-root resource.
+    """
+
+    _shutdown_sleep: float = 0.0
+
+    def __init__(self, config: HassetteConfig) -> None:
+        self.config = config
+        self.event_streams_closed = False
+        task_bucket = make_task_bucket()
+        task_bucket.cancel_all = AsyncMock()
+        super().__init__(self, task_bucket=task_bucket, parent=self)
+
+    @property
+    def unique_name(self) -> str:
+        return "RootIdentityResource"
+
+    async def send_event(self, event: object) -> None:
+        """No-op stand-in for `Hassette.send_event` — the event bus isn't under test here."""
+
+    async def _shutdown_body(self) -> "TeardownReport":
+        await asyncio.sleep(self._shutdown_sleep)
+        return await super()._shutdown_body()
+
+
+class SleepingChild(Resource):
+    """Non-root resource whose shutdown body sleeps for a configurable duration.
+
+    Companion fixture to `RootIdentityResource` — same shape, but `resource is resource.hassette`
+    is always `False`, so it exercises the generic (non-root) timeout branch.
+    """
+
+    _shutdown_sleep: float = 0.0
+
+    async def on_shutdown(self) -> None:
+        await asyncio.sleep(self._shutdown_sleep)
+
+
+async def test_root_identity_uses_total_timeout_not_resource_timeout(tmp_path):
+    """A root resource (`resource is resource.hassette`) is bounded by
+    `total_shutdown_timeout_seconds`, not `resource_shutdown_timeout_seconds` — even when the
+    per-resource timeout is deliberately set smaller (matching the real 10s/30s production
+    relationship, scaled down here for test speed).
+    """
+    config = make_test_config(data_dir=tmp_path)
+    config.lifecycle.resource_shutdown_timeout_seconds = 0.1
+    config.lifecycle.total_shutdown_timeout_seconds = 0.3
+    root = RootIdentityResource(config)
+    root._shutdown_sleep = 0.2  # longer than the 0.1s resource timeout, shorter than the 0.3s total
+
+    await root.initialize()
+
+    start = asyncio.get_event_loop().time()
+    report = await root.shutdown()
+    elapsed = asyncio.get_event_loop().time() - start
+
+    # Proves the sleep wasn't cut short by the smaller resource timeout.
+    assert elapsed >= 0.2, f"Shutdown completed in {elapsed:.2f}s — body should have run the full 0.2s sleep"
+    assert TeardownCause.SHUTDOWN_BODY_TIMED_OUT not in report.causes
+    assert TeardownCause.SHUTDOWN_BODY_PENDING not in report.causes
+    assert report.restart_safety is RestartSafety.SAFE
+
+
+async def test_non_root_with_same_timeouts_still_force_terminates(tmp_path):
+    """A non-root resource with the identical 0.1s/0.3s timeout split still gets force-terminated
+    at the smaller resource timeout — proving the root-identity branch is root-specific and
+    doesn't silently widen the shutdown budget for every resource.
+    """
+    hassette = make_mock_hassette(data_dir=tmp_path, sealed=False)
+    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 0.1
+    hassette.config.lifecycle.total_shutdown_timeout_seconds = 0.3
+    child = SleepingChild(hassette)
+    child._shutdown_sleep = 0.2  # longer than the 0.1s resource timeout the non-root branch uses
+
+    await child.initialize()
+
+    report = await child.shutdown()
+
+    assert TeardownCause.SHUTDOWN_BODY_TIMED_OUT in report.causes
+    assert report.restart_safety is RestartSafety.UNSAFE

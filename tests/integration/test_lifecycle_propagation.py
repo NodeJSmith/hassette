@@ -16,10 +16,11 @@ if TYPE_CHECKING:
 
 
 class TestHassetteShutdownSinglePass:
-    """Verify that Hassette's shutdown is single-pass — children are shut down once by _finalize_shutdown().
+    """Verify that Hassette's shutdown is single-pass — children are shut down once by
+    Resource._run_post_hook_shutdown_stage() (part of _shutdown_body()).
 
-    Hassette.on_shutdown() is a no-op; child shutdown propagation is owned entirely
-    by _finalize_shutdown() with timeout enforcement.
+    Hassette.on_shutdown() is a no-op; child shutdown propagation is owned entirely by
+    _run_post_hook_shutdown_stage() with timeout enforcement.
     """
 
     async def test_child_on_shutdown_called_once(self, hassette_with_bus: "HassetteHarness") -> None:
@@ -133,12 +134,13 @@ class TestCloseStreamsAfterChildrenStopped:
         assert "super()" in source, "_on_children_stopped should call super()"
 
     async def test_children_stopped_before_on_children_stopped_hook(self, hassette_with_bus: "HassetteHarness") -> None:
-        """In _finalize_shutdown(), children's handle_stop() fires before the _on_children_stopped hook.
+        """In the post-hook shutdown stage, children's handle_stop() fires before the
+        _on_children_stopped hook.
 
-        Instead of calling _finalize_shutdown() directly (which may hang on the test harness),
+        Instead of calling the shutdown body directly (which may hang on the test harness),
         this test shuts down a single child and verifies that child.handle_stop() runs during
         shutdown. The ordering guarantee (children STOPPED -> _on_children_stopped) is
-        verified by inspecting the _finalize_shutdown source code structure.
+        verified by inspecting the shutdown stage's source code structure.
         """
         hassette = hassette_with_bus
         bus = hassette.bus
@@ -155,29 +157,30 @@ class TestCloseStreamsAfterChildrenStopped:
         try:
             # handle_stop() is a module-level function (hassette.resources.lifecycle),
             # not a method — patch it at the call site (base.py) rather than reassigning
-            # an instance attribute, since _finalize_shutdown() calls the free function
-            # directly.
+            # an instance attribute, since _run_post_hook_shutdown_stage() calls the free
+            # function directly.
             with patch("hassette.resources.base.handle_stop", side_effect=tracked_handle_stop):
                 await bus.shutdown()
             assert stopped_called, "Child should have emitted a STOPPED event during shutdown"
             assert bus.status == ResourceStatus.STOPPED
         finally:
-            # Restore for other tests
-            bus.shutdown_completed = False
-            bus.shutting_down = False
-            bus.shutdown_event.clear()
+            # Restore for other tests. The coordinator itself clears the stored teardown
+            # report, the shutdown task, and shutdown_event once this accepted initialization
+            # begins — no manual flag resets are needed (or possible; they're now read-only).
             await bus.initialize()
 
-    async def test_finalize_shutdown_calls_hook_after_children(self) -> None:
-        """Verify _finalize_shutdown() code structure: _shutdown_children is called before _on_children_stopped.
+    async def test_shutdown_stage_calls_hook_after_children(self) -> None:
+        """Verify shutdown stage code structure: _shutdown_children is called before
+        _on_children_stopped.
 
-        This is a structural test verifying the ordering contract in Resource._finalize_shutdown().
+        This is a structural test verifying the ordering contract in
+        Resource._run_post_hook_shutdown_stage().
         """
-        source = inspect.getsource(Resource._finalize_shutdown)
+        source = inspect.getsource(Resource._run_post_hook_shutdown_stage)
         children_pos = source.find("_shutdown_children")
         hook_pos = source.find("_on_children_stopped")
-        assert children_pos > 0, "_finalize_shutdown should call _shutdown_children"
-        assert hook_pos > 0, "_finalize_shutdown should contain _on_children_stopped call"
+        assert children_pos > 0, "_run_post_hook_shutdown_stage should call _shutdown_children"
+        assert hook_pos > 0, "_run_post_hook_shutdown_stage should contain _on_children_stopped call"
         assert children_pos < hook_pos, (
-            "_shutdown_children should appear before _on_children_stopped in _finalize_shutdown"
+            "_shutdown_children should appear before _on_children_stopped in _run_post_hook_shutdown_stage"
         )

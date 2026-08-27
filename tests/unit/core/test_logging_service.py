@@ -57,8 +57,10 @@ def make_logging_service(
     svc.ready_event = asyncio.Event()
     svc._ready_reason = None
     svc._shutdown_event = asyncio.Event()
-    svc.shutting_down = False
-    svc.initializing = False
+    svc._init_task = None
+    svc._shutdown_task = None
+    svc._shutdown_body_task = None
+    svc._teardown_report = None
     # Wire the stream handler via proper __init__ path but skip super().__init__
     svc._stream_handler = stream_handler
     svc.capture_handler = LogCaptureHandler(buffer_size=hassette.config.web_api.log_buffer_size)

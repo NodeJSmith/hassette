@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Coordinate shared lifecycle attempts"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02"]
 implements: ["FR#4", "FR#5", "FR#6", "FR#7", "FR#14", "FR#15", "FR#16", "FR#17", "AC#4"]
 ---

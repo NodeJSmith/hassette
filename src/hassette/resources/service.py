@@ -2,7 +2,7 @@ import asyncio
 import warnings
 from abc import abstractmethod
 from contextlib import suppress
-from typing import Any, ClassVar, final
+from typing import Any, ClassVar
 
 from anyio import ClosedResourceError
 
@@ -15,11 +15,11 @@ from hassette.resources.lifecycle import (
     handle_starting,
     handle_stop,
     mark_not_ready,
-    request_shutdown,
 )
 from hassette.resources.operations import run_hooks
 from hassette.resources.restart import RestartSpec
-from hassette.types.enums import TERMINAL_STATUSES, ResourceRole, ResourceStatus
+from hassette.resources.teardown import TeardownCause, TeardownReport, merge_teardown_reports
+from hassette.types.enums import ResourceRole, ResourceStatus
 
 
 class Service(Resource):
@@ -91,78 +91,75 @@ class Service(Resource):
         """Subclasses MUST override: run until cancelled or finished."""
         raise NotImplementedError
 
-    @final
-    async def initialize(self) -> None:
+    async def _initialize_body(self) -> None:
         """Initialize the Service and propagate to children.
 
-        NOTE: Unlike Resource.initialize(), this method returns while status is
+        NOTE: Unlike Resource._initialize_body(), this method returns while status is
         still STARTING.  handle_running() is called by _serve_wrapper() when
         serve() actually begins.  Children MUST NOT call
         self.parent.wait_ready() during their on_initialize — this will deadlock
         because the parent's readiness depends on serve() running, which cannot
         start until child initialization completes.
 
-        Keep flag resets and child propagation in sync with Resource.initialize().
-        NOTE: _auto_wait_dependencies() runs before hooks — keep in sync with Resource.initialize().
+        Keep child propagation in sync with Resource._initialize_body().
+        NOTE: _auto_wait_dependencies() runs before hooks — keep in sync with Resource.
         """
-        self.shutdown_completed = False
-        self.shutdown_event.clear()
-
-        if self.initializing:
-            return
-        self.initializing = True
         self.logger.debug("Initializing %s: %s", self.role, self.unique_name)
         await handle_starting(self)
         try:
-            try:
-                await self._auto_wait_dependencies()
-            except Exception as exc:
-                await handle_failed(self, exc)
-                raise
-            if self.hassette.shutdown_event.is_set():
-                mark_not_ready(self, "shutdown requested during dependency wait")
-                return
-            await run_hooks(self, [self.before_initialize, self.on_initialize])
-            self._serve_task = self.task_bucket.spawn(self._serve_wrapper(), name=f"service:serve:{self.class_name}")
-            await run_hooks(self, [self.after_initialize])
-            for child in self.children:
-                if child.status not in (ResourceStatus.STARTING, ResourceStatus.RUNNING):
-                    await child.initialize()
-        finally:
-            self.initializing = False
+            await self._auto_wait_dependencies()
+        except Exception as exc:
+            await handle_failed(self, exc)
+            raise
+        if self.hassette.shutdown_event.is_set():
+            mark_not_ready(self, "shutdown requested during dependency wait")
+            return
+        await run_hooks(self, [self.before_initialize, self.on_initialize])
+        self._serve_task = self.task_bucket.spawn(self._serve_wrapper(), name=f"service:serve:{self.class_name}")
+        await run_hooks(self, [self.after_initialize])
+        for child in self.children:
+            if child.status not in (ResourceStatus.STARTING, ResourceStatus.RUNNING):
+                await child.initialize()
 
-    @final
-    async def shutdown(self) -> None:
-        """NOTE: keep guards and flag resets in sync with Resource.shutdown()."""
-        if self.shutdown_completed:
-            return
-        if self.shutting_down:
-            return
-        self.shutting_down = True
-        if self._status not in TERMINAL_STATUSES:
-            self.status = ResourceStatus.STOPPING
-        request_shutdown(self, f"{self.unique_name} shutdown")
-        try:
-            await run_hooks(self, [self.before_shutdown], continue_on_error=True)
-            if self.is_running() and self._serve_task:
-                self._serve_task.cancel()
-                self.logger.debug("Cancelled serve() task")
-                try:
-                    await asyncio.wait_for(
-                        self._serve_task,
-                        timeout=self.hassette.config.lifecycle.resource_shutdown_timeout_seconds,
+    async def _shutdown_body(self) -> TeardownReport:
+        """NOTE: keep hook ordering in sync with Resource._shutdown_body()."""
+        reports: list[TeardownReport] = []
+
+        hook_errors = await run_hooks(self, [self.before_shutdown], continue_on_error=True)
+        if hook_errors:
+            reports.append(
+                TeardownReport(causes=(TeardownCause.SHUTDOWN_HOOK_FAILED,), failed_operations=("before_shutdown",))
+            )
+
+        if self.is_running() and self._serve_task:
+            self._serve_task.cancel()
+            self.logger.debug("Cancelled serve() task")
+            timeout = self.hassette.config.lifecycle.resource_shutdown_timeout_seconds
+            _done, pending = await asyncio.wait([self._serve_task], timeout=timeout)
+            if pending:
+                self.logger.warning(
+                    "Serve task for %s did not complete within resource shutdown timeout",
+                    self.unique_name,
+                )
+                reports.append(
+                    TeardownReport(
+                        causes=(TeardownCause.SERVE_TASK_PENDING,),
+                        pending_tasks=(self._serve_task.get_name(),),
                     )
-                except asyncio.CancelledError:  # noqa: ASYNC103 — we just called .cancel(); this is the expected path
-                    pass  # noqa: ASYNC104
-                except TimeoutError:
-                    self.logger.warning(
-                        "Serve task for %s did not complete within resource shutdown timeout",
-                        self.unique_name,
-                    )
-            await run_hooks(self, [self.on_shutdown, self.after_shutdown], continue_on_error=True)
-        finally:
-            await self._finalize_shutdown()
-            self.shutting_down = False
+                )
+            else:
+                with suppress(BaseException):
+                    self._serve_task.exception()
+
+        hook_errors = await run_hooks(self, [self.on_shutdown, self.after_shutdown], continue_on_error=True)
+        if hook_errors:
+            reports.append(
+                TeardownReport(causes=(TeardownCause.SHUTDOWN_HOOK_FAILED,), failed_operations=("shutdown_hooks",))
+            )
+
+        reports.append(await self._run_post_hook_shutdown_stage())
+
+        return merge_teardown_reports(*reports)
 
     async def _serve_wrapper(self) -> None:
         try:
