@@ -16,7 +16,7 @@ from hassette.events import HassetteServiceEvent
 from hassette.resources.lifecycle import mark_ready
 from hassette.resources.restart import RestartSpec
 from hassette.test_utils import make_mock_hassette, make_service_failed_event, make_service_running_event, wait_for
-from hassette.test_utils.helpers import make_crashed_event
+from hassette.test_utils.helpers import PLACEHOLDER_SERVICE_NAME, make_crashed_event
 from hassette.types import ResourceStatus, Topic
 from hassette.types.enums import ResourceRole, RestartType
 
@@ -82,7 +82,9 @@ class TestRegisterInternalEventListeners:
         assert registered_by_name["hassette.service_watcher.on_bus_service_running"].get("where") is not None
 
 
-def make_running_event(previous_status: ResourceStatus, resource_name: str = "SomeService") -> HassetteServiceEvent:
+def make_running_event(
+    previous_status: ResourceStatus, resource_name: str = PLACEHOLDER_SERVICE_NAME
+) -> HassetteServiceEvent:
     """Build a RUNNING HassetteServiceEvent with a given previous_status, for log_service_event tests."""
     return HassetteServiceEvent.from_service_status(
         resource_name=resource_name,
@@ -299,14 +301,12 @@ class TestShutdownIfCrashed:
         hassette.record_fatal_reason = Mock()
         watcher = make_watcher(hassette)
 
-        event = make_crashed_event(
-            resource_name="SomeService", exception=None, exception_type=None, exception_traceback=None
-        )
+        event = make_crashed_event(exception=None, exception_type=None, exception_traceback=None)
 
         with patch("hassette.core.service_watcher.request_shutdown"):
             await watcher.shutdown_if_crashed(event)
 
-        hassette.record_fatal_reason.assert_called_once_with("service 'SomeService' crashed")
+        hassette.record_fatal_reason.assert_called_once_with(f"service '{PLACEHOLDER_SERVICE_NAME}' crashed")
 
     async def test_reraises_on_unexpected_internal_failure(self) -> None:
         """If record_fatal_reason itself raises, shutdown_if_crashed logs and re-raises."""
@@ -314,9 +314,7 @@ class TestShutdownIfCrashed:
         hassette.record_fatal_reason = Mock(side_effect=RuntimeError("state corrupted"))
         watcher = make_watcher(hassette)
 
-        event = make_crashed_event(
-            resource_name="SomeService", exception="boom", exception_type="RuntimeError", exception_traceback=None
-        )
+        event = make_crashed_event(exception="boom", exception_type="RuntimeError", exception_traceback=None)
 
         with patch("hassette.core.service_watcher.request_shutdown") as mock_request_shutdown:
             with pytest.raises(RuntimeError, match="state corrupted"):

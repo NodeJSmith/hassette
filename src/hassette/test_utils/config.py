@@ -52,6 +52,12 @@ WAIT_FOR_READY_TIMEOUT_SECONDS: float = 5.0
 # documented in CLAUDE.md.
 TEST_TOTAL_TIMEOUT_SECONDS = 30
 
+# Matches the production default shared by LifecycleConfig.event_handler_timeout_seconds and
+# SchedulerConfig.job_timeout_seconds. Bus- and scheduler-dispatch tests use it as the stand-in
+# "config default" their per-listener/per-job overrides are resolved against, so the value is
+# named once instead of repeated as a bare literal across those files.
+TEST_CONFIG_TIMEOUT_SECONDS = 600.0
+
 # Early-drop retry tuning shared by tests/integration/websocket/test_reconnect.py and
 # tests/unit/core/test_ws_connection_state.py. Small backoff values keep the retry loop fast
 # and deterministic in CI. Tests that need a different value for the specific behavior under

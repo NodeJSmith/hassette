@@ -19,12 +19,13 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 import hassette.utils.date_utils as date_utils
+from hassette.commands import ExecuteJob
 from hassette.exceptions import JobRemovedError
 from hassette.test_utils.web_job_helpers import make_real_job
 from hassette.types.enums import ExecutionMode
 
 from .conftest import make_scheduler_service
-from .test_scheduler_service_timeout import get_executed_cmd
+from .test_scheduler_service_timeout import run_job_and_get_cmd
 
 
 def _make_trigger_service():
@@ -49,10 +50,9 @@ class TestRunJobTriggerMode:
         svc = _make_trigger_service()
         job = make_real_job()
 
-        await svc.run_job(job, trigger_mode="manual")
+        cmd = await run_job_and_get_cmd(svc, job, trigger_mode="manual")
 
         svc._executor.execute.assert_called_once()
-        cmd = get_executed_cmd(svc)
         assert cmd.trigger_mode == "manual"
 
     async def test_run_job_defaults_trigger_mode_to_none(self) -> None:
@@ -60,9 +60,8 @@ class TestRunJobTriggerMode:
         svc = _make_trigger_service()
         job = make_real_job()
 
-        await svc.run_job(job)
+        cmd = await run_job_and_get_cmd(svc, job)
 
-        cmd = get_executed_cmd(svc)
         assert cmd.trigger_mode is None
 
 
@@ -170,7 +169,10 @@ class TestSubmitJob:
         await asyncio.wait_for(spawned[0], timeout=1)
 
         svc._executor.execute.assert_called_once()
-        cmd = get_executed_cmd(svc)
+        # Extracted inline rather than via run_job_and_get_cmd: the dispatch under test came from
+        # submit_job()'s spawned task, already awaited above, not from a direct run_job() call.
+        cmd = svc._executor.execute.call_args[0][0]
+        assert isinstance(cmd, ExecuteJob)
         assert cmd.trigger_mode == "manual", "manual submission must record trigger_mode='manual' telemetry"
 
     async def test_submit_job_raises_when_never_registered(self) -> None:
