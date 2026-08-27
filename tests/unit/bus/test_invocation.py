@@ -13,6 +13,7 @@ from hassette.bus.error_context import BusErrorContext
 from hassette.bus.invocation import build_tracked_invoke_fn
 from hassette.bus.listeners import Listener
 from hassette.commands import InvokeHandler
+from hassette.test_utils.config import TEST_CONFIG_TIMEOUT_SECONDS
 from hassette.test_utils.factories import make_mock_event, make_mock_executor
 from hassette.test_utils.helpers import create_listener
 
@@ -60,7 +61,7 @@ async def invoke_and_get_cmd(
 class TestTimeoutResolution:
     async def test_timeout_disabled_returns_none(self) -> None:
         """listener.timeout_disabled=True → effective_timeout=None, config_resolver not called."""
-        config_resolver = MagicMock(return_value=600.0)
+        config_resolver = MagicMock(return_value=TEST_CONFIG_TIMEOUT_SECONDS)
         listener = create_listener(topic="test.topic", timeout_disabled=True)
 
         cmd = await invoke_and_get_cmd(listener=listener, config_resolver=config_resolver)
@@ -70,7 +71,7 @@ class TestTimeoutResolution:
 
     async def test_per_listener_timeout_used_when_set(self) -> None:
         """listener.timeout=5 → effective_timeout=5.0, config_resolver not called."""
-        config_resolver = MagicMock(return_value=600.0)
+        config_resolver = MagicMock(return_value=TEST_CONFIG_TIMEOUT_SECONDS)
         listener = create_listener(topic="test.topic", timeout=5.0)
 
         cmd = await invoke_and_get_cmd(listener=listener, config_resolver=config_resolver)
@@ -148,10 +149,8 @@ class TestInvokeHandlerConstruction:
         # Set db_id after building the invoke_fn (simulates async registration completing)
         listener.db_id = 42
 
-        # dup-ignore-start: Bus-layer fire-and-extract-cmd tail mirrors the BusService-level
-        # dispatch tests in tests/unit/core/test_bus_service_error_handler.py and
-        # test_bus_service_timeout.py — same build_tracked_invoke_fn behavior verified at two
-        # integration points (Bus vs BusService) by design, not copy-paste.
+        # dup-ignore-start: fire-and-extract-cmd tail — see the matching comment in
+        # invoke_and_get_cmd above.
         await invoke_fn()
 
         cmd = executor.execute.call_args[0][0]

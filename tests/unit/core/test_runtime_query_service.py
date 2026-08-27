@@ -13,11 +13,11 @@ from hassette.events.hassette import (
     HassetteExecutionCompletedEvent,
     HassetteServiceEvent,
 )
-from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppStatusSnapshot
+from hassette.schemas.app_snapshots import AppFullSnapshot, AppStatusSnapshot
 from hassette.schemas.domain_models import SystemStatus
 from hassette.test_utils import create_app_manifest
 from hassette.test_utils.mock_hassette import make_mock_hassette
-from hassette.test_utils.web_manifest_helpers import make_manifest_db_row
+from hassette.test_utils.web_manifest_helpers import make_app_instance_info, make_manifest_db_row
 from hassette.types.enums import BlockReason, ResourceRole, ResourceStatus
 
 WS_QUEUE_MAX = 256
@@ -82,21 +82,7 @@ def mock_hassette():
     hassette._websocket_service.is_ready = Mock(return_value=True)
 
     # Mock app handler — sync methods need explicit Mock (parent is AsyncMock)
-    # dup-ignore-start: same AppInstanceInfo("my_app", index=0, ...) literal shape used by
-    # tests/e2e/mock_fixtures/manifests.py and tests/unit/test_model_types.py — different test tiers/
-    # directories (e2e fixtures, top-level unit tests) building unrelated fixture data;
-    # src/hassette/test_utils/web_manifest_helpers.py's make_app_instance_info() factory already
-    # covers this shape, but adopting it across all three call sites is out of scope for this
-    # cluster, which is marker-only per this task's file classification (see
-    # design/specs/099-dedupe-tests-unit-core/design.md, Group B row).
-    instance = AppInstanceInfo(
-        app_key="my_app",
-        index=0,
-        instance_name="MyApp[0]",
-        class_name="MyApp",
-        status=ResourceStatus.RUNNING,
-    )
-    # dup-ignore-end
+    instance = make_app_instance_info(app_key="my_app")
     hassette._app_handler.get_status_snapshot = Mock(return_value=AppStatusSnapshot(instances=[instance]))
     hassette._app_handler.registry.get_full_snapshot = Mock(return_value=AppFullSnapshot(manifests=[]))
 
@@ -371,10 +357,10 @@ class TestCompletionPayloadEnrichment:
     async def test_handler_payload_carries_app_identity(self, runtime: RuntimeQueryService) -> None:
         """app_key and instance_index from a handler execution are stored in the pending dict."""
         runtime.broadcast = AsyncMock()
-        ev = HassetteExecutionCompletedEvent.from_record(
+        event = HassetteExecutionCompletedEvent.from_record(
             kind="handler", listener_id=42, status="success", duration_ms=5.0, app_key="lights", instance_index=1
         )
-        await runtime.on_execution_completed(ev)
+        await runtime.on_execution_completed(event)
         assert runtime._pending_completions[0]["app_key"] == "lights"
         assert runtime._pending_completions[0]["instance_index"] == 1
         assert runtime._pending_completions[0]["kind"] == "handler"
@@ -383,10 +369,10 @@ class TestCompletionPayloadEnrichment:
     async def test_job_payload_carries_app_identity(self, runtime: RuntimeQueryService) -> None:
         """app_key and instance_index from a job execution are stored in the pending dict."""
         runtime.broadcast = AsyncMock()
-        ev = HassetteExecutionCompletedEvent.from_record(
+        event = HassetteExecutionCompletedEvent.from_record(
             kind="job", job_id=99, status="success", duration_ms=8.0, app_key="climate", instance_index=2
         )
-        await runtime.on_execution_completed(ev)
+        await runtime.on_execution_completed(event)
         assert runtime._pending_completions[0]["app_key"] == "climate"
         assert runtime._pending_completions[0]["instance_index"] == 2
         assert runtime._pending_completions[0]["kind"] == "job"
@@ -395,10 +381,10 @@ class TestCompletionPayloadEnrichment:
     async def test_payload_defaults_to_empty_app_key(self, runtime: RuntimeQueryService) -> None:
         """Events without app_key default to empty string and zero index."""
         runtime.broadcast = AsyncMock()
-        ev = HassetteExecutionCompletedEvent.from_record(
+        event = HassetteExecutionCompletedEvent.from_record(
             kind="handler", listener_id=999, status="success", duration_ms=5.0
         )
-        await runtime.on_execution_completed(ev)
+        await runtime.on_execution_completed(event)
         assert runtime._pending_completions[0]["app_key"] == ""
         assert runtime._pending_completions[0]["instance_index"] == 0
 
@@ -415,10 +401,10 @@ class TestCompletionBatching:
 
         runtime.broadcast = fake_broadcast
 
-        ev1 = HassetteExecutionCompletedEvent.from_record(
+        event1 = HassetteExecutionCompletedEvent.from_record(
             kind="handler", listener_id=1, status="success", duration_ms=10.0, app_key="my_app", instance_index=0
         )
-        ev2 = HassetteExecutionCompletedEvent.from_record(
+        event2 = HassetteExecutionCompletedEvent.from_record(
             kind="handler",
             listener_id=2,
             status="failed",
@@ -428,8 +414,8 @@ class TestCompletionBatching:
             error_type="ValueError",
         )
 
-        await runtime.on_execution_completed(ev1)
-        await runtime.on_execution_completed(ev2)
+        await runtime.on_execution_completed(event1)
+        await runtime.on_execution_completed(event2)
 
         # Flush should not have fired yet (still in the same tick)
         assert len(broadcast_calls) == 0
@@ -452,15 +438,15 @@ class TestCompletionBatching:
 
         runtime.broadcast = fake_broadcast
 
-        ev1 = HassetteExecutionCompletedEvent.from_record(
+        event1 = HassetteExecutionCompletedEvent.from_record(
             kind="job", job_id=10, status="success", duration_ms=50.0, app_key="scheduler_app", instance_index=0
         )
-        ev2 = HassetteExecutionCompletedEvent.from_record(
+        event2 = HassetteExecutionCompletedEvent.from_record(
             kind="job", job_id=11, status="success", duration_ms=30.0, app_key="scheduler_app", instance_index=0
         )
 
-        await runtime.on_execution_completed(ev1)
-        await runtime.on_execution_completed(ev2)
+        await runtime.on_execution_completed(event1)
+        await runtime.on_execution_completed(event2)
 
         assert len(broadcast_calls) == 0
         msg = await assert_flushed_single_message(runtime, broadcast_calls)
@@ -471,10 +457,10 @@ class TestCompletionBatching:
         """After flush, _pending_completions is empty."""
         runtime.broadcast = AsyncMock()
 
-        ev = HassetteExecutionCompletedEvent.from_record(
+        event = HassetteExecutionCompletedEvent.from_record(
             kind="handler", listener_id=3, status="success", duration_ms=1.0, app_key="app", instance_index=0
         )
-        await runtime.on_execution_completed(ev)
+        await runtime.on_execution_completed(event)
         assert len(runtime._pending_completions) == 1
 
         await runtime.flush_completions()
@@ -495,15 +481,15 @@ class TestCompletionBatching:
 
         runtime.broadcast = fake_broadcast
 
-        handler_ev = HassetteExecutionCompletedEvent.from_record(
+        handler_event = HassetteExecutionCompletedEvent.from_record(
             kind="handler", listener_id=1, status="success", duration_ms=5.0, app_key="my_app", instance_index=0
         )
-        job_ev = HassetteExecutionCompletedEvent.from_record(
+        job_event = HassetteExecutionCompletedEvent.from_record(
             kind="job", job_id=10, status="success", duration_ms=8.0, app_key="my_app", instance_index=0
         )
 
-        await runtime.on_execution_completed(handler_ev)
-        await runtime.on_execution_completed(job_ev)
+        await runtime.on_execution_completed(handler_event)
+        await runtime.on_execution_completed(job_event)
 
         # Single message containing both handler and job entries
         msg = await assert_flushed_single_message(runtime, broadcast_calls)

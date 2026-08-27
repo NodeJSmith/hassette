@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 
 from hassette.bus.invocation import build_tracked_invoke_fn
 from hassette.commands import InvokeHandler
+from hassette.test_utils.config import TEST_CONFIG_TIMEOUT_SECONDS
 from hassette.test_utils.factories import make_mock_event, make_mock_executor
 from hassette.test_utils.helpers import create_listener
 
@@ -14,14 +15,15 @@ class TestDispatchResolvesEffectiveTimeout:
     async def test_dispatch_resolves_effective_timeout_from_listener(self) -> None:
         """listener.timeout=5 -> effective_timeout=5."""
         executor = make_mock_executor()
-        config_timeout = 600.0
         # dup-ignore-start: BusService-level dispatch test mirrors tests/unit/bus/test_invocation.py's
         # Bus-layer coverage of build_tracked_invoke_fn's timeout resolution — same behavior verified
         # at two integration points (Bus vs BusService) by design, not copy-paste.
         listener = create_listener(topic="test.topic", timeout=5.0)
         event = make_mock_event()
 
-        invoke_fn = build_tracked_invoke_fn(listener, event, "test.topic", executor, lambda: config_timeout)
+        invoke_fn = build_tracked_invoke_fn(
+            listener, event, "test.topic", executor, lambda: TEST_CONFIG_TIMEOUT_SECONDS
+        )
         await invoke_fn()
 
         cmd = executor.execute.call_args[0][0]
@@ -32,32 +34,32 @@ class TestDispatchResolvesEffectiveTimeout:
     async def test_dispatch_resolves_effective_timeout_from_config(self) -> None:
         """listener.timeout=None -> uses config default."""
         executor = make_mock_executor()
-        config_timeout = 600.0
-        # dup-ignore-start: BusService-level dispatch test mirrors tests/unit/bus/test_invocation.py's
-        # Bus-layer coverage of build_tracked_invoke_fn's timeout resolution — same behavior verified
-        # at two integration points (Bus vs BusService) by design, not copy-paste.
+        # dup-ignore-start: build-and-fire tail mirroring the Bus-layer coverage — see the matching
+        # comment in test_dispatch_resolves_effective_timeout_from_listener above.
         listener = create_listener(topic="test.topic")
         event = make_mock_event()
 
-        invoke_fn = build_tracked_invoke_fn(listener, event, "test.topic", executor, lambda: config_timeout)
+        invoke_fn = build_tracked_invoke_fn(
+            listener, event, "test.topic", executor, lambda: TEST_CONFIG_TIMEOUT_SECONDS
+        )
         await invoke_fn()
 
         cmd = executor.execute.call_args[0][0]
         assert isinstance(cmd, InvokeHandler)
-        assert cmd.effective_timeout == 600.0
+        assert cmd.effective_timeout == TEST_CONFIG_TIMEOUT_SECONDS
         # dup-ignore-end
 
     async def test_dispatch_resolves_timeout_disabled(self) -> None:
         """listener.timeout_disabled=True -> effective_timeout=None."""
         executor = make_mock_executor()
-        config_timeout = 600.0
-        # dup-ignore-start: BusService-level dispatch test mirrors tests/unit/bus/test_invocation.py's
-        # Bus-layer coverage of build_tracked_invoke_fn's timeout resolution — same behavior verified
-        # at two integration points (Bus vs BusService) by design, not copy-paste.
+        # dup-ignore-start: build-and-fire tail mirroring the Bus-layer coverage — see the matching
+        # comment in test_dispatch_resolves_effective_timeout_from_listener above.
         listener = create_listener(topic="test.topic", timeout_disabled=True)
         event = make_mock_event()
 
-        invoke_fn = build_tracked_invoke_fn(listener, event, "test.topic", executor, lambda: config_timeout)
+        invoke_fn = build_tracked_invoke_fn(
+            listener, event, "test.topic", executor, lambda: TEST_CONFIG_TIMEOUT_SECONDS
+        )
         await invoke_fn()
 
         cmd = executor.execute.call_args[0][0]
@@ -67,7 +69,7 @@ class TestDispatchResolvesEffectiveTimeout:
 
     async def test_once_listener_removed_after_dispatch(self) -> None:
         """once=True handler is removed from the bus after dispatch regardless of execution outcome."""
-        svc = make_bus_service(config_timeout=600.0)
+        svc = make_bus_service(config_timeout=TEST_CONFIG_TIMEOUT_SECONDS)
         listener = create_listener(topic="test.topic", timeout=0.001, once=True)
         event = make_mock_event()
 
