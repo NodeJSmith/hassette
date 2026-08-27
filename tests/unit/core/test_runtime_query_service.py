@@ -13,11 +13,11 @@ from hassette.events.hassette import (
     HassetteExecutionCompletedEvent,
     HassetteServiceEvent,
 )
-from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppStatusSnapshot
+from hassette.schemas.app_snapshots import AppFullSnapshot, AppStatusSnapshot
 from hassette.schemas.domain_models import SystemStatus
 from hassette.test_utils import create_app_manifest
 from hassette.test_utils.mock_hassette import make_mock_hassette
-from hassette.test_utils.web_manifest_helpers import make_manifest_db_row
+from hassette.test_utils.web_manifest_helpers import make_app_instance_info, make_manifest_db_row
 from hassette.types.enums import BlockReason, ResourceRole, ResourceStatus
 
 WS_QUEUE_MAX = 256
@@ -82,21 +82,7 @@ def mock_hassette():
     hassette._websocket_service.is_ready = Mock(return_value=True)
 
     # Mock app handler — sync methods need explicit Mock (parent is AsyncMock)
-    # dup-ignore-start: same AppInstanceInfo("my_app", index=0, ...) literal shape used by
-    # tests/e2e/mock_fixtures/manifests.py and tests/unit/test_model_types.py — different test tiers/
-    # directories (e2e fixtures, top-level unit tests) building unrelated fixture data;
-    # src/hassette/test_utils/web_manifest_helpers.py's make_app_instance_info() factory already
-    # covers this shape, but adopting it across all three call sites is out of scope for this
-    # cluster, which is marker-only per this task's file classification (see
-    # design/specs/099-dedupe-tests-unit-core/design.md, Group B row).
-    instance = AppInstanceInfo(
-        app_key="my_app",
-        index=0,
-        instance_name="MyApp[0]",
-        class_name="MyApp",
-        status=ResourceStatus.RUNNING,
-    )
-    # dup-ignore-end
+    instance = make_app_instance_info(app_key="my_app")
     hassette._app_handler.get_status_snapshot = Mock(return_value=AppStatusSnapshot(instances=[instance]))
     hassette._app_handler.registry.get_full_snapshot = Mock(return_value=AppFullSnapshot(manifests=[]))
 

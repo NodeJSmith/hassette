@@ -5,7 +5,14 @@ from unittest.mock import AsyncMock, MagicMock
 from hassette.config import HassetteConfig
 from hassette.config.models import DEFAULT_WEB_API_PORT
 from hassette.schemas.summary_models import SessionRecord
-from tests.e2e.mock_fixtures.constants import TS_BASE
+from tests.e2e.mock_fixtures.constants import (
+    SESSION_DURATION_SECONDS,
+    TS_BASE,
+    TS_SESSION_2_STARTED,
+    TS_SESSION_2_STOPPED,
+    TS_SESSION_3_STARTED,
+    TS_SESSION_3_STOPPED,
+)
 
 
 def build_session_list() -> list[SessionRecord]:
@@ -18,25 +25,25 @@ def build_session_list() -> list[SessionRecord]:
             status="running",
             error_type=None,
             error_message=None,
-            duration_seconds=3600.0,
+            duration_seconds=SESSION_DURATION_SECONDS,
         ),
         SessionRecord(
             id=2,
-            started_at=1704060000.0,
-            stopped_at=1704063600.0,
+            started_at=TS_SESSION_2_STARTED,
+            stopped_at=TS_SESSION_2_STOPPED,
             status="success",
             error_type=None,
             error_message=None,
-            duration_seconds=3600.0,
+            duration_seconds=SESSION_DURATION_SECONDS,
         ),
         SessionRecord(
             id=3,
-            started_at=1704050000.0,
-            stopped_at=1704053600.0,
+            started_at=TS_SESSION_3_STARTED,
+            stopped_at=TS_SESSION_3_STOPPED,
             status="failure",
             error_type="RuntimeError",
             error_message="WebSocket connection lost",
-            duration_seconds=3600.0,
+            duration_seconds=SESSION_DURATION_SECONDS,
         ),
     ]
 

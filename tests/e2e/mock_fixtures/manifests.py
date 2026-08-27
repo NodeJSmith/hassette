@@ -4,42 +4,39 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
-from hassette.schemas.app_snapshots import AppInstanceInfo, AppManifestInfo, AppStatusSnapshot
-from hassette.test_utils.web_manifest_helpers import make_manifest, make_manifest_db_row
+from hassette.schemas.app_snapshots import AppManifestInfo, AppStatusSnapshot
+from hassette.test_utils.web_manifest_helpers import make_app_instance_info, make_manifest, make_manifest_db_row
 from hassette.types.enums import ManifestStatus, ResourceStatus
+from tests.e2e.mock_fixtures.constants import (
+    APP_KEY_BROKEN_APP,
+    APP_KEY_DISABLED_APP,
+    APP_KEY_MULTI_APP,
+    APP_KEY_MY_APP,
+    APP_KEY_NOSOURCE_APP,
+    APP_KEY_OTHER_APP,
+)
+
+BROKEN_APP_ERROR = "Init error: bad config"
+BROKEN_APP_TRACEBACK = (
+    'Traceback (most recent call last):\n  File "broken_app.py", line 10, in on_initialize\n'
+    '    raise ValueError("bad config")\nValueError: bad config\n'
+)
 
 
 def build_manifests() -> list[AppManifestInfo]:
     """Build a rich set of app manifests for e2e tests."""
     return [
         make_manifest(
-            app_key="my_app",
+            app_key=APP_KEY_MY_APP,
             class_name="MyApp",
             display_name="My App",
             filename="my_app.py",
             status=ManifestStatus.RUNNING,
             instance_count=1,
-            instances=[
-                # dup-ignore-start: same AppInstanceInfo("my_app", index=0, ...) literal shape used
-                # by tests/unit/core/test_runtime_query_service.py and tests/unit/test_model_types.py
-                # — different test tiers/directories building unrelated fixture data;
-                # src/hassette/test_utils/web_manifest_helpers.py's make_app_instance_info() factory
-                # already covers this shape, but adopting it across all three call sites is out of
-                # scope for this cluster, which is marker-only per this task's file classification
-                # (see design/specs/099-dedupe-tests-unit-core/design.md, Group B row).
-                AppInstanceInfo(
-                    app_key="my_app",
-                    index=0,
-                    instance_name="MyApp[0]",
-                    class_name="MyApp",
-                    status=ResourceStatus.RUNNING,
-                    owner_id="MyApp.MyApp[0]",
-                )
-                # dup-ignore-end
-            ],
+            instances=[make_app_instance_info(app_key=APP_KEY_MY_APP, owner_id="MyApp.MyApp[0]")],
         ),
         make_manifest(
-            app_key="other_app",
+            app_key=APP_KEY_OTHER_APP,
             class_name="OtherApp",
             display_name="Other App",
             filename="other_app.py",
@@ -47,34 +44,26 @@ def build_manifests() -> list[AppManifestInfo]:
             instance_count=0,
         ),
         make_manifest(
-            app_key="broken_app",
+            app_key=APP_KEY_BROKEN_APP,
             class_name="BrokenApp",
             display_name="Broken App",
             filename="broken_app.py",
             status=ManifestStatus.FAILED,
             instance_count=1,
             instances=[
-                AppInstanceInfo(
-                    app_key="broken_app",
-                    index=0,
-                    instance_name="BrokenApp[0]",
+                make_app_instance_info(
+                    app_key=APP_KEY_BROKEN_APP,
                     class_name="BrokenApp",
                     status=ResourceStatus.FAILED,
-                    error_message="Init error: bad config",
-                    error_traceback=(
-                        'Traceback (most recent call last):\n  File "broken_app.py", line 10, in '
-                        'on_initialize\n    raise ValueError("bad config")\nValueError: bad config\n'
-                    ),
+                    error_message=BROKEN_APP_ERROR,
+                    error_traceback=BROKEN_APP_TRACEBACK,
                 )
             ],
-            error_message="Init error: bad config",
-            error_traceback=(
-                'Traceback (most recent call last):\n  File "broken_app.py", line 10, in on_initialize\n'
-                '    raise ValueError("bad config")\nValueError: bad config\n'
-            ),
+            error_message=BROKEN_APP_ERROR,
+            error_traceback=BROKEN_APP_TRACEBACK,
         ),
         make_manifest(
-            app_key="disabled_app",
+            app_key=APP_KEY_DISABLED_APP,
             class_name="DisabledApp",
             display_name="Disabled App",
             filename="disabled_app.py",
@@ -83,55 +72,35 @@ def build_manifests() -> list[AppManifestInfo]:
             instance_count=0,
         ),
         make_manifest(
-            app_key="nosource_app",
+            app_key=APP_KEY_NOSOURCE_APP,
             class_name="NoSourceApp",
             display_name="No Source App",
             filename="nosource_app.py",
             status=ManifestStatus.RUNNING,
             instance_count=1,
             instances=[
-                AppInstanceInfo(
-                    app_key="nosource_app",
-                    index=0,
-                    instance_name="NoSourceApp[0]",
+                make_app_instance_info(
+                    app_key=APP_KEY_NOSOURCE_APP,
                     class_name="NoSourceApp",
-                    status=ResourceStatus.RUNNING,
                     owner_id="NoSourceApp.NoSourceApp[0]",
                 ),
             ],
         ),
         make_manifest(
-            app_key="multi_app",
+            app_key=APP_KEY_MULTI_APP,
             class_name="MultiApp",
             display_name="Multi App",
             filename="multi_app.py",
             status=ManifestStatus.RUNNING,
             instance_count=3,
             instances=[
-                AppInstanceInfo(
-                    app_key="multi_app",
-                    index=0,
-                    instance_name="MultiApp[0]",
+                make_app_instance_info(
+                    app_key=APP_KEY_MULTI_APP,
+                    index=index,
                     class_name="MultiApp",
-                    status=ResourceStatus.RUNNING,
-                    owner_id="MultiApp.MultiApp[0]",
-                ),
-                AppInstanceInfo(
-                    app_key="multi_app",
-                    index=1,
-                    instance_name="MultiApp[1]",
-                    class_name="MultiApp",
-                    status=ResourceStatus.RUNNING,
-                    owner_id="MultiApp.MultiApp[1]",
-                ),
-                AppInstanceInfo(
-                    app_key="multi_app",
-                    index=2,
-                    instance_name="MultiApp[2]",
-                    class_name="MultiApp",
-                    status=ResourceStatus.RUNNING,
-                    owner_id="MultiApp.MultiApp[2]",
-                ),
+                    owner_id=f"MultiApp.MultiApp[{index}]",
+                )
+                for index in range(3)
             ],
         ),
     ]
@@ -141,38 +110,18 @@ def build_old_snapshot() -> AppStatusSnapshot:
     """Build the legacy AppStatusSnapshot used to seed mock_hassette."""
     return AppStatusSnapshot(
         instances=[
-            # dup-ignore-start: same AppInstanceInfo("my_app", index=0, ...) literal shape used by
-            # tests/unit/core/test_runtime_query_service.py and tests/unit/test_model_types.py —
-            # different test tiers/directories building unrelated fixture data;
-            # src/hassette/test_utils/web_manifest_helpers.py's make_app_instance_info() factory
-            # already covers this shape, but adopting it across all three call sites is out of
-            # scope for this cluster, which is marker-only per this task's file classification
-            # (see design/specs/099-dedupe-tests-unit-core/design.md, Group B row).
-            AppInstanceInfo(
-                app_key="my_app",
-                index=0,
-                instance_name="MyApp[0]",
-                class_name="MyApp",
-                status=ResourceStatus.RUNNING,
-                owner_id="MyApp.MyApp[0]",
-            ),
-            # dup-ignore-end
-            AppInstanceInfo(
-                app_key="nosource_app",
-                index=0,
-                instance_name="NoSourceApp[0]",
+            make_app_instance_info(app_key=APP_KEY_MY_APP, owner_id="MyApp.MyApp[0]"),
+            make_app_instance_info(
+                app_key=APP_KEY_NOSOURCE_APP,
                 class_name="NoSourceApp",
-                status=ResourceStatus.RUNNING,
                 owner_id="NoSourceApp.NoSourceApp[0]",
             ),
-            AppInstanceInfo(
-                app_key="broken_app",
-                index=0,
-                instance_name="BrokenApp[0]",
+            make_app_instance_info(
+                app_key=APP_KEY_BROKEN_APP,
                 class_name="BrokenApp",
                 status=ResourceStatus.FAILED,
-                error_message="Init error: bad config",
-                error=Exception("Init error: bad config"),
+                error_message=BROKEN_APP_ERROR,
+                error=Exception(BROKEN_APP_ERROR),
             ),
         ],
     )
@@ -195,16 +144,16 @@ def wire_app_manifest_lookups(hassette, manifests: list[AppManifestInfo]) -> Non
     # Build a stub AppManifest for each manifest — source endpoint reads full_path and app_dir.
     # We create a temp-like path pointing to a real file to avoid 404 errors in source tests;
     # for the "nosource_app" we deliberately point at a non-existent path.
-    _stubs: dict[str, MagicMock] = {}
+    stubs: dict[str, MagicMock] = {}
 
-    for m in manifests:
+    for manifest in manifests:
         stub = MagicMock()
-        stub.app_key = m.app_key
-        stub.filename = m.filename
-        stub.class_name = m.class_name
-        stub.enabled = m.enabled
+        stub.app_key = manifest.app_key
+        stub.filename = manifest.filename
+        stub.class_name = manifest.class_name
+        stub.enabled = manifest.enabled
         # Use a real Python file for apps that should have source, None path for nosource_app.
-        if m.app_key == "nosource_app":
+        if manifest.app_key == APP_KEY_NOSOURCE_APP:
             stub.full_path.resolve.return_value = Path("/nonexistent/nosource_app.py")
             stub.app_dir.resolve.return_value = Path("/nonexistent")
             stub.full_path.exists.return_value = False
@@ -216,27 +165,27 @@ def wire_app_manifest_lookups(hassette, manifests: list[AppManifestInfo]) -> Non
             stub.full_path.resolve.return_value = real_path
             stub.app_dir.resolve.return_value = real_path.parent
             stub.full_path.exists.return_value = True
-        stub.app_config = {"instance_name": f"{m.class_name}.0", "env_prefix": m.app_key + "_"}
-        stub.autostart = m.autostart
-        _stubs[m.app_key] = stub
+        stub.app_config = {"instance_name": f"{manifest.class_name}.0", "env_prefix": manifest.app_key + "_"}
+        stub.autostart = manifest.autostart
+        stubs[manifest.app_key] = stub
 
-    hassette._app_handler.registry.get_manifest.side_effect = lambda app_key: _stubs.get(app_key)
+    hassette._app_handler.registry.get_manifest.side_effect = lambda app_key: stubs.get(app_key)
 
-    _manifest_info_by_key = {m.app_key: m for m in manifests}
+    manifest_info_by_key = {manifest.app_key: manifest for manifest in manifests}
 
     # DB spine mocks — /apps/manifests and the dashboard grid both call
     # telemetry.get_all_app_manifests(); /apps/{key}/manifest calls telemetry.get_app_manifest().
     db_rows_by_key = {
-        m.app_key: make_manifest_db_row(
-            app_key=m.app_key,
-            class_name=m.class_name,
-            display_name=m.display_name,
-            filename=m.filename,
-            enabled=int(m.enabled),
-            autostart=int(m.autostart),
-            auto_loaded=int(m.auto_loaded),
+        manifest.app_key: make_manifest_db_row(
+            app_key=manifest.app_key,
+            class_name=manifest.class_name,
+            display_name=manifest.display_name,
+            filename=manifest.filename,
+            enabled=int(manifest.enabled),
+            autostart=int(manifest.autostart),
+            auto_loaded=int(manifest.auto_loaded),
         )
-        for m in manifests
+        for manifest in manifests
     }
     hassette._telemetry_query_service.get_all_app_manifests = AsyncMock(return_value=list(db_rows_by_key.values()))
     hassette._telemetry_query_service.get_app_manifest = AsyncMock(side_effect=db_rows_by_key.get)
@@ -245,8 +194,8 @@ def wire_app_manifest_lookups(hassette, manifests: list[AppManifestInfo]) -> Non
     # registry.manifests.get(app_key) is not None, then calls registry.build_manifest_info()
     # to derive status/instances. The value stored per key is never read (build_manifest_info
     # is stubbed below to ignore it) — its presence is what matters.
-    hassette._app_handler.registry.manifests = dict(_manifest_info_by_key)
-    hassette._app_handler.registry.build_manifest_info.side_effect = lambda app_key, _manifest: _manifest_info_by_key[
+    hassette._app_handler.registry.manifests = dict(manifest_info_by_key)
+    hassette._app_handler.registry.build_manifest_info.side_effect = lambda app_key, _manifest: manifest_info_by_key[
         app_key
     ]
 
@@ -257,5 +206,5 @@ def wire_owner_resolution(hassette) -> None:
         0: SimpleNamespace(unique_name="MyApp.MyApp[0]"),
     }
     hassette._app_handler.registry.get.side_effect = lambda app_key, index=0: (
-        SimpleNamespace(unique_name="MyApp.MyApp[0]") if app_key == "my_app" and index == 0 else None
+        SimpleNamespace(unique_name="MyApp.MyApp[0]") if app_key == APP_KEY_MY_APP and index == 0 else None
     )
