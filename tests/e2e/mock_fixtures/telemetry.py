@@ -5,13 +5,62 @@ one telemetry surface end-to-end (build the data, then wire it onto the mock que
 reads top-to-bottom without jumping across the file.
 """
 
+from collections.abc import Callable, Mapping
+from typing import TypeVar
 from unittest.mock import AsyncMock
 
 from hassette.schemas.execution_models import Execution
 from hassette.schemas.job_models import JobErrorRecord, JobGlobalStats, JobSummary
 from hassette.schemas.listener_models import HandlerErrorRecord, ListenerGlobalStats, ListenerSummary
 from hassette.schemas.summary_models import AppHealthSummary, GlobalSummary
-from tests.e2e.mock_fixtures.constants import MANUAL_JOB_ID, TS_BASE, TS_OLDER, TS_OLDEST, TS_RECENT
+from tests.e2e.mock_fixtures.constants import (
+    APP_KEY_BROKEN_APP,
+    APP_KEY_MY_APP,
+    APP_KEY_NOSOURCE_APP,
+    MANUAL_JOB_ID,
+    TS_BASE,
+    TS_OLDER,
+    TS_OLDEST,
+    TS_RECENT,
+)
+
+T = TypeVar("T")
+
+# source_tier values the telemetry routes pass through to the query service.
+FRAMEWORK_TIER = "framework"
+APP_TIER = "app"
+
+# get_error_counts() returns (handler_errors, job_errors); these are the non-framework totals.
+DEFAULT_ERROR_COUNTS = (3, 6)
+
+
+def by_app_key_or_all(items_by_app: Mapping[str, list[T]]) -> Callable[..., list[T]]:
+    """Build a side effect that filters per-app telemetry rows by ``app_key``.
+
+    Mirrors what the real query services do: no ``app_key`` means every app's rows, a known
+    ``app_key`` means only that app's, and an unknown one means an empty list.
+    """
+    all_items = [item for items in items_by_app.values() for item in items]
+
+    def side_effect(app_key: str | None = None, **_) -> list[T]:
+        if app_key is None:
+            return all_items
+        return items_by_app.get(app_key, [])
+
+    return side_effect
+
+
+def by_tier(values: Mapping[str, T], *, default_tier: str, fallback: T) -> Callable[..., T]:
+    """Build a side effect that routes on ``source_tier``.
+
+    ``values`` maps a tier name to the rows served for it; any tier without an entry (including
+    ``default_tier``, when the caller omits ``source_tier`` entirely) gets ``fallback``.
+    """
+
+    def side_effect(source_tier: str = default_tier, **_) -> T:
+        return values.get(source_tier, fallback)
+
+    return side_effect
 
 
 def build_listener_telemetry() -> dict[str, list[ListenerSummary]]:
@@ -21,7 +70,7 @@ def build_listener_telemetry() -> dict[str, list[ListenerSummary]]:
             listener_id=1,
             handler_method="on_light_change",
             topic="state_changed.light.kitchen",
-            app_key="my_app",
+            app_key=APP_KEY_MY_APP,
             instance_index=0,
             debounce=0.5,
             throttle=None,
@@ -49,7 +98,7 @@ def build_listener_telemetry() -> dict[str, list[ListenerSummary]]:
             listener_id=2,
             handler_method="on_temp_update",
             topic="state_changed.sensor.temperature",
-            app_key="my_app",
+            app_key=APP_KEY_MY_APP,
             instance_index=0,
             debounce=None,
             throttle=1.0,
@@ -79,7 +128,7 @@ def build_listener_telemetry() -> dict[str, list[ListenerSummary]]:
             listener_id=3,
             handler_method="on_door_open",
             topic="state_changed.binary_sensor.door",
-            app_key="broken_app",
+            app_key=APP_KEY_BROKEN_APP,
             instance_index=0,
             debounce=None,
             throttle=None,
@@ -109,7 +158,7 @@ def build_listener_telemetry() -> dict[str, list[ListenerSummary]]:
             listener_id=100,
             handler_method="on_event",
             topic="state_changed.switch.fan",
-            app_key="nosource_app",
+            app_key=APP_KEY_NOSOURCE_APP,
             instance_index=0,
             debounce=None,
             throttle=None,
@@ -134,22 +183,15 @@ def build_listener_telemetry() -> dict[str, list[ListenerSummary]]:
         ),
     ]
     return {
-        "my_app": telemetry_listeners_my_app,
-        "broken_app": telemetry_listeners_broken_app,
-        "nosource_app": telemetry_listeners_nosource_app,
+        APP_KEY_MY_APP: telemetry_listeners_my_app,
+        APP_KEY_BROKEN_APP: telemetry_listeners_broken_app,
+        APP_KEY_NOSOURCE_APP: telemetry_listeners_nosource_app,
     }
 
 
 def wire_listener_telemetry(hassette, listeners_by_app: dict[str, list[ListenerSummary]]) -> None:
     """Wire listener summary side effects onto the mock telemetry query service."""
-    all_listeners = [ls for app_listeners in listeners_by_app.values() for ls in app_listeners]
-
-    def _listener_side_effect(app_key=None, **_):
-        if app_key is None:
-            return all_listeners
-        return listeners_by_app.get(app_key, [])
-
-    hassette._telemetry_query_service.get_listener_summary = AsyncMock(side_effect=_listener_side_effect)
+    hassette._telemetry_query_service.get_listener_summary = AsyncMock(side_effect=by_app_key_or_all(listeners_by_app))
 
 
 def build_job_telemetry() -> dict[str, list[JobSummary]]:
@@ -157,7 +199,7 @@ def build_job_telemetry() -> dict[str, list[JobSummary]]:
     telemetry_jobs_my_app = [
         JobSummary(
             job_id=1,
-            app_key="my_app",
+            app_key=APP_KEY_MY_APP,
             instance_index=0,
             job_name="check_lights",
             handler_method="check_lights",
@@ -175,7 +217,7 @@ def build_job_telemetry() -> dict[str, list[JobSummary]]:
         ),
         JobSummary(
             job_id=2,
-            app_key="my_app",
+            app_key=APP_KEY_MY_APP,
             instance_index=0,
             job_name="morning_routine",
             handler_method="morning_routine",
@@ -195,7 +237,7 @@ def build_job_telemetry() -> dict[str, list[JobSummary]]:
         # submission is wired via `wire_scheduler_trigger()` in mock_fixtures/scheduler.py.
         JobSummary(
             job_id=MANUAL_JOB_ID,
-            app_key="my_app",
+            app_key=APP_KEY_MY_APP,
             instance_index=0,
             job_name="send_notification",
             handler_method="send_notification",
@@ -216,7 +258,7 @@ def build_job_telemetry() -> dict[str, list[JobSummary]]:
     telemetry_jobs_broken_app = [
         JobSummary(
             job_id=3,
-            app_key="broken_app",
+            app_key=APP_KEY_BROKEN_APP,
             instance_index=0,
             job_name="retry_connection",
             handler_method="retry_connection",
@@ -237,7 +279,7 @@ def build_job_telemetry() -> dict[str, list[JobSummary]]:
     telemetry_jobs_nosource_app = [
         JobSummary(
             job_id=100,
-            app_key="nosource_app",
+            app_key=APP_KEY_NOSOURCE_APP,
             instance_index=0,
             job_name="poll_sensor",
             handler_method="poll_sensor",
@@ -255,22 +297,15 @@ def build_job_telemetry() -> dict[str, list[JobSummary]]:
         ),
     ]
     return {
-        "my_app": telemetry_jobs_my_app,
-        "broken_app": telemetry_jobs_broken_app,
-        "nosource_app": telemetry_jobs_nosource_app,
+        APP_KEY_MY_APP: telemetry_jobs_my_app,
+        APP_KEY_BROKEN_APP: telemetry_jobs_broken_app,
+        APP_KEY_NOSOURCE_APP: telemetry_jobs_nosource_app,
     }
 
 
 def wire_job_telemetry(hassette, jobs_by_app: dict[str, list[JobSummary]]) -> None:
     """Wire job summary side effects onto the mock telemetry query service."""
-    all_jobs = [j for app_jobs in jobs_by_app.values() for j in app_jobs]
-
-    def _job_side_effect(app_key=None, **_):
-        if app_key is None:
-            return all_jobs
-        return jobs_by_app.get(app_key, [])
-
-    hassette._telemetry_query_service.get_job_summary = AsyncMock(side_effect=_job_side_effect)
+    hassette._telemetry_query_service.get_job_summary = AsyncMock(side_effect=by_app_key_or_all(jobs_by_app))
 
 
 def build_executions() -> list[Execution]:
@@ -365,7 +400,7 @@ def build_error_records() -> tuple[list[HandlerErrorRecord | JobErrorRecord], li
     """
     app_tier_errors = [
         HandlerErrorRecord(
-            app_key="my_app",
+            app_key=APP_KEY_MY_APP,
             listener_id=42,
             handler_method="on_light_change",
             topic="state_changed.light.kitchen",
@@ -376,7 +411,7 @@ def build_error_records() -> tuple[list[HandlerErrorRecord | JobErrorRecord], li
             error_message="Bad state value",
         ),
         JobErrorRecord(
-            app_key="my_app",
+            app_key=APP_KEY_MY_APP,
             job_id=7,
             handler_method="check_lights",
             job_name="check_lights",
@@ -387,7 +422,7 @@ def build_error_records() -> tuple[list[HandlerErrorRecord | JobErrorRecord], li
             error_message="Light service unavailable",
         ),
         HandlerErrorRecord(
-            app_key="broken_app",
+            app_key=APP_KEY_BROKEN_APP,
             listener_id=43,
             handler_method="on_door_open",
             topic="state_changed.binary_sensor.door",
@@ -432,16 +467,12 @@ def wire_error_telemetry(
     framework_tier_errors: list[HandlerErrorRecord],
 ) -> None:
     """Wire error records with source_tier routing onto the mock telemetry query service."""
-
-    def _make_errors_side_effect(source_tier: str = "all", **_kwargs):
-        if source_tier == "framework":
-            return framework_tier_errors
-        if source_tier == "app":
-            return app_tier_errors
-        return app_tier_errors + framework_tier_errors
-
     hassette._telemetry_query_service.get_recent_errors = AsyncMock(
-        side_effect=lambda **kwargs: _make_errors_side_effect(**kwargs)
+        side_effect=by_tier(
+            {FRAMEWORK_TIER: framework_tier_errors, APP_TIER: app_tier_errors},
+            default_tier="all",
+            fallback=app_tier_errors + framework_tier_errors,
+        )
     )
 
 
@@ -493,14 +524,12 @@ def wire_global_summary(
     framework_tier_errors: list[HandlerErrorRecord] | None = None,
 ) -> None:
     """Wire global summary and error count side effects onto the mock telemetry query service."""
-
-    def _make_summary_side_effect(source_tier: str = "app", **_kwargs):
-        if source_tier == "framework":
-            return framework_global_summary
-        return default_global_summary
-
     hassette._telemetry_query_service.get_global_summary = AsyncMock(
-        side_effect=lambda **kwargs: _make_summary_side_effect(**kwargs)
+        side_effect=by_tier(
+            {FRAMEWORK_TIER: framework_global_summary},
+            default_tier=APP_TIER,
+            fallback=default_global_summary,
+        )
     )
 
     fw_errors = framework_tier_errors or []
@@ -508,21 +537,19 @@ def wire_global_summary(
         sum(1 for e in fw_errors if isinstance(e, HandlerErrorRecord)),
         sum(1 for e in fw_errors if isinstance(e, JobErrorRecord)),
     )
-
-    def _make_error_counts_side_effect(source_tier: str = "app", **_kwargs) -> tuple[int, int]:
-        if source_tier == "framework":
-            return framework_error_counts
-        return (3, 6)
-
     hassette._telemetry_query_service.get_error_counts = AsyncMock(
-        side_effect=lambda **kwargs: _make_error_counts_side_effect(**kwargs)
+        side_effect=by_tier(
+            {FRAMEWORK_TIER: framework_error_counts},
+            default_tier=APP_TIER,
+            fallback=DEFAULT_ERROR_COUNTS,
+        )
     )
 
 
 def build_app_health_summaries() -> dict[str, AppHealthSummary]:
     """Build per-app health summaries for e2e tests."""
     return {
-        "my_app": AppHealthSummary(
+        APP_KEY_MY_APP: AppHealthSummary(
             handler_count=2,
             job_count=2,
             total_invocations=30,
@@ -532,7 +559,7 @@ def build_app_health_summaries() -> dict[str, AppHealthSummary]:
             avg_duration_ms=2.0,
             last_activity_ts=TS_BASE,
         ),
-        "broken_app": AppHealthSummary(
+        APP_KEY_BROKEN_APP: AppHealthSummary(
             handler_count=1,
             job_count=1,
             total_invocations=3,

@@ -10,7 +10,7 @@ sessions/config) to stay under the repo's file-size threshold; this
 from ``tests.e2e.mock_fixtures`` without caring about the internal layout.
 """
 
-from tests.e2e.mock_fixtures.constants import MANUAL_JOB_ID
+from tests.e2e.mock_fixtures.constants import APP_KEY_MY_APP, MANUAL_JOB_ID
 from tests.e2e.mock_fixtures.manifests import (
     build_manifests,
     build_old_snapshot,
@@ -35,6 +35,7 @@ from tests.e2e.mock_fixtures.telemetry import (
 )
 
 __all__ = [
+    "APP_KEY_MY_APP",
     "JOB_MY_APP_1_TOTAL_EXECUTIONS",
     "JOB_MY_APP_2_TOTAL_EXECUTIONS",
     "LISTENER_MY_APP_1_TOTAL_INVOCATIONS",
@@ -71,7 +72,7 @@ __all__ = [
 _listeners = build_listener_telemetry()
 _jobs = build_job_telemetry()
 
-LISTENER_MY_APP_1_TOTAL_INVOCATIONS: int = _listeners["my_app"][0].total_invocations
-LISTENER_MY_APP_2_TOTAL_INVOCATIONS: int = _listeners["my_app"][1].total_invocations
-JOB_MY_APP_1_TOTAL_EXECUTIONS: int = _jobs["my_app"][0].total_executions
-JOB_MY_APP_2_TOTAL_EXECUTIONS: int = _jobs["my_app"][1].total_executions
+LISTENER_MY_APP_1_TOTAL_INVOCATIONS: int = _listeners[APP_KEY_MY_APP][0].total_invocations
+LISTENER_MY_APP_2_TOTAL_INVOCATIONS: int = _listeners[APP_KEY_MY_APP][1].total_invocations
+JOB_MY_APP_1_TOTAL_EXECUTIONS: int = _jobs[APP_KEY_MY_APP][0].total_executions
+JOB_MY_APP_2_TOTAL_EXECUTIONS: int = _jobs[APP_KEY_MY_APP][1].total_executions
