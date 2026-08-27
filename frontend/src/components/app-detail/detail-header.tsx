@@ -32,7 +32,7 @@ export function DetailHeader({ name, kindLabel, statusKind, kind, subtitle, head
       <div className="mb-3 flex flex-wrap items-baseline gap-2">
         <h2 className="font-mono text-[length:var(--text-h2)] font-semibold text-foreground">{name}</h2>
         {isFailing && (
-          <Badge variant="danger" size="sm" data-testid="handler-status-pill">
+          <Badge variant="danger" size="sm" data-testid={`${kind}-status-pill`}>
             failing
           </Badge>
         )}

@@ -18,6 +18,11 @@ describe("DetailHeader", () => {
     expect(getByTestId("handler-status-pill").textContent).toBe("failing");
   });
 
+  it("names the failing badge test id after the kind", () => {
+    const { getByTestId } = render(<DetailHeader name="broken_job" kindLabel="cron" statusKind="err" kind="job" />);
+    expect(getByTestId("job-status-pill").textContent).toBe("failing");
+  });
+
   it("hides the failing badge when statusKind is 'ok'", () => {
     const { queryByTestId } = render(
       <DetailHeader name="healthy_listener" kindLabel="listener" statusKind="ok" kind="handler" />,

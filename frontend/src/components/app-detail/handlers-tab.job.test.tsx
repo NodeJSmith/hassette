@@ -206,7 +206,7 @@ describe("HandlersTab job detail", () => {
     });
     const { getByTestId } = renderHandlersTab([], [job], "job/44");
     await waitFor(() => getByTestId("job-detail-44"));
-    expect(getByTestId("handler-status-pill").textContent).toBe("failing");
+    expect(getByTestId("job-status-pill").textContent).toBe("failing");
   });
 
   it("job detail: shows mode chip for every job", async () => {
