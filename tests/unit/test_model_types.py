@@ -33,14 +33,14 @@ STANDARD_LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
 # factories fill optional fields with realistic values, which would mask exactly those defaults.
 
 
-def _build(model: Any, defaults: dict[str, Any], overrides: dict[str, Any]) -> Any:
+def build(model: Any, defaults: dict[str, Any], overrides: dict[str, Any]) -> Any:
     """Instantiate `model` from `defaults`, with `overrides` replacing any of them."""
     return model(**(defaults | overrides))
 
 
 def minimal_execution(**overrides: Any) -> Execution:
     """Execution with only its required fields set."""
-    return _build(
+    return build(
         Execution,
         {
             "kind": "handler",
@@ -56,7 +56,7 @@ def minimal_execution(**overrides: Any) -> Execution:
 
 def minimal_manifest_response(**overrides: Any) -> AppManifestResponse:
     """AppManifestResponse with only its required fields set."""
-    return _build(
+    return build(
         AppManifestResponse,
         {
             "app_key": "my_app",
@@ -73,7 +73,7 @@ def minimal_manifest_response(**overrides: Any) -> AppManifestResponse:
 
 def minimal_grid_entry(**overrides: Any) -> DashboardAppGridEntry:
     """DashboardAppGridEntry with only its required fields set."""
-    return _build(
+    return build(
         DashboardAppGridEntry,
         {
             "app_key": "my_app",
@@ -97,7 +97,7 @@ def minimal_grid_entry(**overrides: Any) -> DashboardAppGridEntry:
 
 def minimal_instance_response(**overrides: Any) -> AppInstanceResponse:
     """AppInstanceResponse with only its required fields set."""
-    return _build(
+    return build(
         AppInstanceResponse,
         {
             "app_key": "my_app",
@@ -112,7 +112,7 @@ def minimal_instance_response(**overrides: Any) -> AppInstanceResponse:
 
 def minimal_health_response(**overrides: Any) -> AppHealthResponse:
     """AppHealthResponse with only its required fields set."""
-    return _build(
+    return build(
         AppHealthResponse,
         {
             "error_rate": 0.0,
@@ -128,7 +128,7 @@ def minimal_health_response(**overrides: Any) -> AppHealthResponse:
 
 def minimal_listener_with_summary(**overrides: Any) -> ListenerWithSummary:
     """ListenerWithSummary with only its required fields set."""
-    return _build(
+    return build(
         ListenerWithSummary,
         {
             "listener_id": 1,
@@ -147,7 +147,7 @@ def minimal_listener_with_summary(**overrides: Any) -> ListenerWithSummary:
 
 def minimal_log_record(**overrides: Any) -> LogRecord:
     """LogRecord with only its required fields set."""
-    return _build(
+    return build(
         LogRecord,
         {"id": 1, "seq": 1, "timestamp": 1.0, "level": "INFO", "logger_name": "test", "message": "test"},
         overrides,
@@ -156,7 +156,7 @@ def minimal_log_record(**overrides: Any) -> LogRecord:
 
 def minimal_log_entry_response(**overrides: Any) -> LogEntryResponse:
     """LogEntryResponse with only its required fields set."""
-    return _build(
+    return build(
         LogEntryResponse,
         {
             "seq": 1,
@@ -173,7 +173,7 @@ def minimal_log_entry_response(**overrides: Any) -> LogEntryResponse:
 
 def minimal_execution_completed_data(**overrides: Any) -> ExecutionCompletedData:
     """ExecutionCompletedData with only its required fields set."""
-    return _build(
+    return build(
         ExecutionCompletedData,
         {"kind": "handler", "app_key": "my_app", "instance_index": 0, "status": "success", "duration_ms": 10.0},
         overrides,
@@ -182,7 +182,7 @@ def minimal_execution_completed_data(**overrides: Any) -> ExecutionCompletedData
 
 def minimal_system_status(**overrides: Any) -> SystemStatusResponse:
     """SystemStatusResponse with only its required fields set."""
-    return _build(
+    return build(
         SystemStatusResponse,
         {
             "status": "ok",
