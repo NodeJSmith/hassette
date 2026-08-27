@@ -85,7 +85,7 @@ async def run_hooks(
     hooks: list[typing.Callable[[], typing.Awaitable[None]]],
     *,
     continue_on_error: bool = False,
-) -> None:
+) -> "tuple[Exception, ...]":
     """Execute lifecycle hooks with error handling.
 
     Args:
@@ -93,7 +93,19 @@ async def run_hooks(
         hooks: List of async callables to execute in order.
         continue_on_error: If False (initialize), re-raise on Exception.
             If True (shutdown), log and continue to next hook.
+
+    Returns:
+        An immutable tuple of the exceptions handled while continuing past failed
+        hooks (``continue_on_error=True``), in the order they occurred. Always empty
+        when ``continue_on_error=False`` — that mode re-raises on the first failure
+        instead of collecting it.
+
+    Raises:
+        Exception: The first hook failure, when ``continue_on_error=False``.
+        asyncio.CancelledError: Always re-raised regardless of ``continue_on_error`` —
+            cancellation is never treated as a handled, continuable failure.
     """
+    handled: list[Exception] = []
     for method in hooks:
         try:
             await method()
@@ -108,10 +120,12 @@ async def run_hooks(
                 resource.logger.error("Error during shutdown: %s %s", type(exc).__name__, exc)
                 with suppress(Exception):
                     await handle_failed(resource, exc)
+                handled.append(exc)
             else:
                 with suppress(Exception):
                     await handle_failed(resource, exc)
                 raise
+    return tuple(handled)
 
 
 def ordered_children_for_shutdown(resource: "Resource") -> "list[Resource]":

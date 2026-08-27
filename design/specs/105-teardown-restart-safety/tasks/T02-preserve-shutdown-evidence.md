@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Preserve task and hook shutdown evidence"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#11"]
 ---
