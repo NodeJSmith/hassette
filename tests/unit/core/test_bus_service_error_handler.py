@@ -2,6 +2,7 @@
 
 from hassette.bus.invocation import build_tracked_invoke_fn
 from hassette.commands import InvokeHandler
+from hassette.test_utils.config import TEST_CONFIG_TIMEOUT_SECONDS
 from hassette.test_utils.factories import make_mock_event, make_mock_executor
 from hassette.test_utils.helpers import create_listener
 
@@ -20,7 +21,9 @@ class TestDispatchCarriesAppLevelHandler:
         # behavior verified at two integration points (Bus vs BusService) by design, not copy-paste.
         listener = create_listener(topic="test.topic", app_error_handler_resolver=lambda: app_handler)
 
-        invoke_fn = build_tracked_invoke_fn(listener, event, "test.topic", executor, lambda: 600.0)
+        invoke_fn = build_tracked_invoke_fn(
+            listener, event, "test.topic", executor, lambda: TEST_CONFIG_TIMEOUT_SECONDS
+        )
         await invoke_fn()
 
         cmd = executor.execute.call_args[0][0]
@@ -33,12 +36,13 @@ class TestDispatchCarriesAppLevelHandler:
         executor = make_mock_executor()
         event = make_mock_event()
 
-        # dup-ignore-start: BusService-level dispatch test mirrors tests/unit/bus/test_invocation.py's
-        # Bus-layer coverage of build_tracked_invoke_fn's app_level_error_handler resolution — same
-        # behavior verified at two integration points (Bus vs BusService) by design, not copy-paste.
+        # dup-ignore-start: build-and-fire tail mirroring the Bus-layer coverage — see the matching
+        # comment in test_dispatch_carries_app_level_handler above.
         listener = create_listener(topic="test.topic")
 
-        invoke_fn = build_tracked_invoke_fn(listener, event, "test.topic", executor, lambda: 600.0)
+        invoke_fn = build_tracked_invoke_fn(
+            listener, event, "test.topic", executor, lambda: TEST_CONFIG_TIMEOUT_SECONDS
+        )
         await invoke_fn()
 
         cmd = executor.execute.call_args[0][0]
@@ -51,12 +55,13 @@ class TestDispatchCarriesAppLevelHandler:
         executor = make_mock_executor()
         event = make_mock_event()
 
-        # dup-ignore-start: BusService-level dispatch test mirrors tests/unit/bus/test_invocation.py's
-        # Bus-layer coverage of build_tracked_invoke_fn's app_level_error_handler resolution — same
-        # behavior verified at two integration points (Bus vs BusService) by design, not copy-paste.
+        # dup-ignore-start: build-and-fire tail mirroring the Bus-layer coverage — see the matching
+        # comment in test_dispatch_carries_app_level_handler above.
         listener = create_listener(topic="test.topic", app_error_handler_resolver=lambda: None)
 
-        invoke_fn = build_tracked_invoke_fn(listener, event, "test.topic", executor, lambda: 600.0)
+        invoke_fn = build_tracked_invoke_fn(
+            listener, event, "test.topic", executor, lambda: TEST_CONFIG_TIMEOUT_SECONDS
+        )
         await invoke_fn()
 
         cmd = executor.execute.call_args[0][0]
@@ -69,21 +74,27 @@ class TestDispatchCarriesAppLevelHandler:
         executor = make_mock_executor()
         event = make_mock_event()
 
-        current_handler = [None]
+        # Rebinding this local is visible to the resolver lambda below, which closes over the
+        # variable rather than its value — no mutable cell needed to swap the handler mid-test.
+        current_handler = None
 
         async def handler_v2(ctx) -> None:
             pass
 
-        listener = create_listener(topic="test.topic", app_error_handler_resolver=lambda: current_handler[0])
+        listener = create_listener(topic="test.topic", app_error_handler_resolver=lambda: current_handler)
 
-        invoke_fn = build_tracked_invoke_fn(listener, event, "test.topic", executor, lambda: 600.0)
+        invoke_fn = build_tracked_invoke_fn(
+            listener, event, "test.topic", executor, lambda: TEST_CONFIG_TIMEOUT_SECONDS
+        )
         await invoke_fn()
         cmd = executor.execute.call_args[0][0]
         assert cmd.app_level_error_handler is None
 
-        current_handler[0] = handler_v2
+        current_handler = handler_v2
 
-        invoke_fn = build_tracked_invoke_fn(listener, event, "test.topic", executor, lambda: 600.0)
+        invoke_fn = build_tracked_invoke_fn(
+            listener, event, "test.topic", executor, lambda: TEST_CONFIG_TIMEOUT_SECONDS
+        )
         await invoke_fn()
         cmd = executor.execute.call_args[0][0]
         assert cmd.app_level_error_handler is handler_v2

@@ -26,6 +26,7 @@ from hassette.core.service_watcher import ServiceWatcher
 from hassette.core.telemetry.repository import TelemetryRepository
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
+from hassette.test_utils.config import TEST_CONFIG_TIMEOUT_SECONDS
 from hassette.test_utils.factories import make_execution_record
 from hassette.test_utils.helpers import block_until_cancelled
 from hassette.test_utils.mock_hassette import make_mock_hassette
@@ -472,7 +473,9 @@ def make_watcher(hassette: MagicMock) -> ServiceWatcher:
     return watcher
 
 
-def make_bus_service(*, config_timeout: float | None = 600.0, max_concurrent_dispatches: int = 50) -> BusService:
+def make_bus_service(
+    *, config_timeout: float | None = TEST_CONFIG_TIMEOUT_SECONDS, max_concurrent_dispatches: int = 50
+) -> BusService:
     """Create a BusService with mocked internals, bypassing Resource.__init__."""
     svc = BusService.__new__(BusService)
     svc.hassette = MagicMock()
@@ -516,7 +519,7 @@ def make_bus_service(*, config_timeout: float | None = 600.0, max_concurrent_dis
 
 def make_scheduler_service(
     *,
-    config_timeout: float | None = 600.0,
+    config_timeout: float | None = TEST_CONFIG_TIMEOUT_SECONDS,
     behind_schedule_threshold: float = 60,
 ) -> SchedulerService:
     """Create a SchedulerService with mocked internals, bypassing Resource.__init__."""

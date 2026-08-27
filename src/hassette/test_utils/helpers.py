@@ -49,6 +49,10 @@ STATE_DICT_KEYS = frozenset({"last_changed", "last_updated", "last_reported", "c
 SETTLE_SECONDS = 0.05
 """Default settle window: seconds to let a stray extra handler call land before a negative assertion."""
 
+PLACEHOLDER_SERVICE_NAME = "TestService"
+"""Stand-in resource_name for the service-lifecycle event factories below. Tests that don't
+assert on the name should take this default rather than inventing another placeholder."""
+
 
 class FakeStateReader:
     """Minimal dict-backed implementation of the StateReader protocol.
@@ -504,7 +508,7 @@ def make_service_running_event(service: "Service") -> HassetteServiceEvent:
 
 
 def make_crashed_event(
-    resource_name: str = "TestService",
+    resource_name: str = PLACEHOLDER_SERVICE_NAME,
     exception_type: str | None = "RuntimeError",
     exception: str | None = "something broke",
     exception_traceback: str | None = "Traceback ...",
