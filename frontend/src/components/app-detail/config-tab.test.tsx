@@ -109,8 +109,8 @@ describe("ConfigTab", () => {
   it("renders non-secret values plainly — host and port are visible", async () => {
     renderConfigTab();
     await waitForTestId("config-schema-view");
-    expect(screen.getByTestId("config-value-host").textContent).toContain("192.168.1.1");
-    expect(screen.getByTestId("config-value-port").textContent).toContain("8080");
+    expect(screen.getByTestId("config-value-host").textContent).toContain(HOST);
+    expect(screen.getByTestId("config-value-port").textContent).toContain(String(PORT));
   });
 
   it("renders empty config message when schema has no properties", async () => {
@@ -182,9 +182,9 @@ describe("ConfigTab", () => {
     await waitForTestId("raw-config-toml");
     const rawBlock = screen.getByTestId("raw-config-toml");
     expect(rawBlock.innerHTML).toContain("shiki");
-    expect(rawBlock.textContent).toContain("hassette.apps.test_app.config");
-    expect(rawBlock.textContent).toContain('host = "192.168.1.1"');
-    expect(rawBlock.textContent).toContain("port = 8080");
+    expect(rawBlock.textContent).toContain(`hassette.apps.${APP_KEY}.config`);
+    expect(rawBlock.textContent).toContain(`host = "${HOST}"`);
+    expect(rawBlock.textContent).toContain(`port = ${PORT}`);
   });
 
   it("includes Shiki token color utilities for light and dark themes", async () => {
