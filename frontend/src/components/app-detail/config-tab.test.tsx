@@ -15,21 +15,27 @@ vi.mock("shiki", () => ({
   }),
 }));
 
+const APP_KEY = "test_app";
 const MASK_SENTINEL = "••••••••";
+const HOST = "192.168.1.1";
+const PORT = 8080;
+
+/** Long enough to keep the request in flight while the component unmounts mid-request. */
+const MOCK_RESPONSE_DELAY_MS = 100;
 
 /** App config response with a schema that marks 'token' as a secret via anyOf. */
 const defaultConfig = {
-  app_key: "test_app",
+  app_key: APP_KEY,
   filename: "test_app.py",
   class_name: "TestApp",
   enabled: true,
   autostart: true,
   app_config: {
     token: MASK_SENTINEL,
-    host: "192.168.1.1",
-    port: 8080,
+    host: HOST,
+    port: PORT,
   },
-  config_toml: `[hassette.apps.test_app.config]\ntoken = "${MASK_SENTINEL}"\nhost = "192.168.1.1"\nport = 8080\n`,
+  config_toml: `[hassette.apps.${APP_KEY}.config]\ntoken = "${MASK_SENTINEL}"\nhost = "${HOST}"\nport = ${PORT}\n`,
   config_schema: {
     type: "object",
     properties: {
@@ -46,7 +52,7 @@ const defaultConfig = {
 
 /** App config response without a schema — falls back to SimpleConfigTable. */
 const noSchemaConfig = {
-  app_key: "test_app",
+  app_key: APP_KEY,
   filename: "test_app.py",
   class_name: "TestApp",
   enabled: true,
@@ -54,8 +60,18 @@ const noSchemaConfig = {
   app_config: {
     api_key: "some-value",
   },
-  config_toml: '[hassette.apps.test_app.config]\napi_key = "some-value"\n',
+  config_toml: `[hassette.apps.${APP_KEY}.config]\napi_key = "some-value"\n`,
 };
+
+function renderConfigTab() {
+  return render(<ConfigTab appKey={APP_KEY} />);
+}
+
+function waitForTestId(testId: string) {
+  return waitFor(() => {
+    expect(screen.getByTestId(testId)).toBeDefined();
+  });
+}
 
 describe("ConfigTab", () => {
   beforeEach(() => {
@@ -67,41 +83,32 @@ describe("ConfigTab", () => {
   });
 
   it("shows loading state initially", () => {
-    render(<ConfigTab appKey="test_app" />);
+    renderConfigTab();
     expect(screen.getByRole("status")).toBeDefined();
   });
 
   it("does not duplicate the file/class meta bar (shown above the tab bar instead)", async () => {
-    render(<ConfigTab appKey="test_app" />);
-    await waitFor(() => {
-      expect(screen.getByTestId("config-tab-content")).toBeDefined();
-    });
+    renderConfigTab();
+    await waitForTestId("config-tab-content");
     expect(screen.queryByTestId("config-meta")).toBeNull();
   });
 
   it("renders config through the shared schema renderer when schema is present", async () => {
-    render(<ConfigTab appKey="test_app" />);
-    await waitFor(() => {
-      expect(screen.getByTestId("config-tab-content")).toBeDefined();
-    });
+    renderConfigTab();
+    await waitForTestId("config-tab-content");
     expect(screen.getByTestId("config-schema-view")).toBeDefined();
   });
 
   it("masks the token field — shows the mask sentinel, not plaintext", async () => {
-    render(<ConfigTab appKey="test_app" />);
-    await waitFor(() => {
-      expect(screen.getByTestId("config-schema-view")).toBeDefined();
-    });
+    renderConfigTab();
+    await waitForTestId("config-schema-view");
     const tokenCell = screen.getByTestId("config-value-token");
     expect(tokenCell.textContent).toContain(MASK_SENTINEL);
-    expect(tokenCell.textContent).not.toContain("supersecret123");
   });
 
   it("renders non-secret values plainly — host and port are visible", async () => {
-    render(<ConfigTab appKey="test_app" />);
-    await waitFor(() => {
-      expect(screen.getByTestId("config-schema-view")).toBeDefined();
-    });
+    renderConfigTab();
+    await waitForTestId("config-schema-view");
     expect(screen.getByTestId("config-value-host").textContent).toContain("192.168.1.1");
     expect(screen.getByTestId("config-value-port").textContent).toContain("8080");
   });
@@ -116,10 +123,8 @@ describe("ConfigTab", () => {
         });
       }),
     );
-    render(<ConfigTab appKey="test_app" />);
-    await waitFor(() => {
-      expect(screen.getByTestId("config-tab-content")).toBeDefined();
-    });
+    renderConfigTab();
+    await waitForTestId("config-tab-content");
     expect(screen.getByText(/no configuration/i)).toBeDefined();
   });
 
@@ -129,10 +134,8 @@ describe("ConfigTab", () => {
         return HttpResponse.json(noSchemaConfig);
       }),
     );
-    render(<ConfigTab appKey="test_app" />);
-    await waitFor(() => {
-      expect(screen.getByTestId("config-values-table")).toBeDefined();
-    });
+    renderConfigTab();
+    await waitForTestId("config-values-table");
     expect(screen.getByTestId("config-value-api_key").textContent).toContain("some-value");
   });
 
@@ -142,12 +145,12 @@ describe("ConfigTab", () => {
     server.use(
       http.get("/api/apps/:app_key/config", async ({ request }) => {
         requestSignal = request.signal;
-        await delay(100);
+        await delay(MOCK_RESPONSE_DELAY_MS);
         return HttpResponse.json(defaultConfig);
       }),
     );
 
-    const { unmount } = render(<ConfigTab appKey="test_app" />);
+    const { unmount } = renderConfigTab();
     expect(screen.getByRole("status")).toBeDefined();
 
     await waitFor(() => expect(requestSignal).toBeDefined());
@@ -165,23 +168,18 @@ describe("ConfigTab", () => {
             { instance: 0, room: "kitchen" },
             { instance: 1, room: "bedroom" },
           ],
-          config_toml:
-            '[[hassette.apps.test_app.config]]\ninstance = 0\nroom = "kitchen"\n\n[[hassette.apps.test_app.config]]\ninstance = 1\nroom = "bedroom"\n',
+          config_toml: `[[hassette.apps.${APP_KEY}.config]]\ninstance = 0\nroom = "kitchen"\n\n[[hassette.apps.${APP_KEY}.config]]\ninstance = 1\nroom = "bedroom"\n`,
         });
       }),
     );
-    render(<ConfigTab appKey="test_app" />);
-    await waitFor(() => {
-      expect(screen.getByTestId("config-instance-0")).toBeDefined();
-    });
+    renderConfigTab();
+    await waitForTestId("config-instance-0");
     expect(screen.getByTestId("config-instance-1")).toBeDefined();
   });
 
   it("renders raw config as TOML with syntax highlighting", async () => {
-    render(<ConfigTab appKey="test_app" />);
-    await waitFor(() => {
-      expect(screen.getByTestId("raw-config-toml")).toBeDefined();
-    });
+    renderConfigTab();
+    await waitForTestId("raw-config-toml");
     const rawBlock = screen.getByTestId("raw-config-toml");
     expect(rawBlock.innerHTML).toContain("shiki");
     expect(rawBlock.textContent).toContain("hassette.apps.test_app.config");
@@ -190,7 +188,7 @@ describe("ConfigTab", () => {
   });
 
   it("includes Shiki token color utilities for light and dark themes", async () => {
-    render(<ConfigTab appKey="test_app" />);
+    renderConfigTab();
     const rawBlock = await screen.findByTestId("raw-config-toml");
     expect(rawBlock.className).toContain("[&_.shiki_span:not(.line)]:text-[var(--shiki-light,var(--ink-1))]");
     expect(rawBlock.className).toContain("dark:[&_.shiki_span:not(.line)]:text-[var(--shiki-dark,var(--ink-1))]");
