@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Define the teardown safety contract"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#2", "FR#8", "FR#14"]
 ---
