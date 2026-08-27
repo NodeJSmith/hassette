@@ -29,6 +29,7 @@ T = TypeVar("T")
 # source_tier values the telemetry routes pass through to the query service.
 FRAMEWORK_TIER = "framework"
 APP_TIER = "app"
+ALL_TIER = "all"
 
 # get_error_counts() returns (handler_errors, job_errors); these are the non-framework totals.
 DEFAULT_ERROR_COUNTS = (3, 6)
@@ -470,7 +471,7 @@ def wire_error_telemetry(
     hassette._telemetry_query_service.get_recent_errors = AsyncMock(
         side_effect=by_tier(
             {FRAMEWORK_TIER: framework_tier_errors, APP_TIER: app_tier_errors},
-            default_tier="all",
+            default_tier=ALL_TIER,
             fallback=app_tier_errors + framework_tier_errors,
         )
     )
