@@ -4,7 +4,7 @@ Durable issues discovered during orchestration that were intentionally not fixed
 
 ## KI-001: `test_interruptible_executor.py` leaves the interpreter hung at exit outside xdist
 
-Status: open
+Status: filed (#1718)
 Run: 117
 Source: T03
 Reason not fixed now: out-of-scope
@@ -271,7 +271,7 @@ Acceptance criteria:
 
 ## KI-007: `_shutdown_children()` duplicated between `Resource` and `Hassette`
 
-Status: open
+Status: filed (#1719)
 Run: 117
 Source: impl-review
 Reason not fixed now: out-of-scope
@@ -312,7 +312,7 @@ Acceptance criteria:
 
 ## KI-008: `Resource._shutdown_children()`'s `asyncio.gather()` can orphan sibling coroutines when the TaskBucket seals mid-iteration
 
-Status: open
+Status: filed (#1720)
 Run: 117
 Source: cross-file-review
 Reason not fixed now: out-of-scope
