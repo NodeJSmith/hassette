@@ -47,7 +47,7 @@ def _propagate_hassette_logger() -> None:
 
     Some other test in the session may have left `propagate` set to False (e.g. via
     `enable_basic_logging()`) -- caplog relies on propagation to the root logger. Same
-    workaround as `tests/unit/web/test_auth.py`.
+    workaround as `tests/unit/web/conftest.py`.
     """
     logging.getLogger("hassette").propagate = True
 
