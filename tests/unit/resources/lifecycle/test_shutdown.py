@@ -17,7 +17,8 @@ import contextlib
 
 import pytest
 
-from hassette.exceptions import LifecycleReentryError
+from hassette.exceptions import LifecycleReentryError, RestartRefusedError
+from hassette.resources import lifecycle
 from hassette.resources.lifecycle import start
 from hassette.resources.operations import ordered_children_for_shutdown
 from hassette.resources.teardown import TeardownCause
@@ -497,6 +498,65 @@ async def test_task_bucket_shutdown_stage_seals_before_cleanup_and_records_pendi
         task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await task
+
+
+async def test_coordinator_failure_records_coordinator_failed_and_blocks_restart(monkeypatch):
+    """When something raises inside the coordinator's try body itself (not the shutdown body
+    task), the outer ``except Exception`` block stores a ``COORDINATOR_FAILED`` report, the
+    exception propagates out of ``shutdown()``, and a subsequent ``initialize()`` is refused via
+    ``RestartRefusedError`` -- the "a completed attempt always produces a report" invariant holds
+    even when the coordinator fails outside the shutdown body.
+    """
+    resource = await make_initialized_shutdown_counter()
+
+    def _boom(_resource, _reason=None):
+        raise RuntimeError("boom")
+
+    # request_shutdown() is called unqualified inside _run_shutdown_coordinator's try body, so
+    # patching the module-level name it resolves against is enough to fail the coordinator
+    # before it ever creates the shutdown body task.
+    monkeypatch.setattr(lifecycle, "request_shutdown", _boom)
+
+    with pytest.raises(RuntimeError, match="boom"):
+        await resource.shutdown()
+
+    report = resource._teardown_report
+    assert report is not None
+    assert TeardownCause.COORDINATOR_FAILED in report.causes
+    assert report.is_restart_safe is False
+
+    with pytest.raises(RestartRefusedError):
+        await resource.initialize()
+
+
+async def test_coordinator_failure_merges_with_preexisting_force_terminal_evidence(monkeypatch):
+    """A coordinator failure that occurs after ``FORCED_TERMINAL`` evidence was already stored
+    on the resource must merge into that existing report rather than overwrite it -- the
+    ``COORDINATOR_FAILED`` cause is added alongside ``FORCED_TERMINAL``, not in place of it.
+    """
+    resource = await make_initialized_shutdown_counter()
+
+    # Simulate force-terminal evidence already having been recorded on this resource before the
+    # coordinator's try body raises (e.g. a concurrent _force_terminal() call from a parent's
+    # own shutdown body).
+    resource._force_terminal()
+    existing_report = resource._teardown_report
+    assert existing_report is not None
+    assert TeardownCause.FORCED_TERMINAL in existing_report.causes
+
+    def _boom(_resource, _reason=None):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(lifecycle, "request_shutdown", _boom)
+
+    with pytest.raises(RuntimeError, match="boom"):
+        await resource.shutdown()
+
+    report = resource._teardown_report
+    assert report is not None
+    assert TeardownCause.FORCED_TERMINAL in report.causes, "pre-existing evidence must not be dropped by the merge"
+    assert TeardownCause.COORDINATOR_FAILED in report.causes
+    assert report.is_restart_safe is False
 
 
 async def test_service_inherits_shutdown_propagation():
