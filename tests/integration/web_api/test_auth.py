@@ -31,7 +31,7 @@ from hassette.web.auth.session import SESSION_COOKIE_NAME, mint_session_cookie, 
 from hassette.web.auth.trusted_proxies import refresh_trusted_proxies, resolve_trusted_proxies
 from hassette.web.middleware import FAILED_AUTH_THRESHOLD
 
-from .conftest import make_log_record
+from .conftest import CONFIG_PATH, make_log_record
 
 _STUB_SPA_FILES = ("index.html", "assets/index-abc123.js")
 _TRUSTED_PEER_IP = "203.0.113.5"
@@ -44,7 +44,12 @@ _MUTATION_PEER_IP = "203.0.113.7"
 """Peer address the mutation-logging tests assert appears in the logged source IP."""
 
 _FAKE_CLIENT_PORT = 12345
-"""Arbitrary source port for the synthetic ASGI `client` tuple -- never asserted on."""
+"""Arbitrary source port for the synthetic ASGI `client` tuple -- never asserted on.
+
+Deliberately one value for every synthetic peer: the call sites this replaced used two
+different arbitrary ports, and no test reads the port back, so the distinction carried no
+meaning worth preserving.
+"""
 
 _WRONG_TOKEN = "wrong-token"
 """Credential that never matches `WEB_API_TEST_TOKEN`, for every fail-closed assertion."""
@@ -52,9 +57,6 @@ _WRONG_TOKEN = "wrong-token"
 _MIDDLEWARE_LOGGER = "hassette.web.middleware"
 """Logger the coalesced failed-auth WARN is emitted on."""
 
-# Route paths hit by multiple tests below -- single source of truth so a route rename only
-# needs to change here.
-CONFIG_PATH = "/api/config"
 AUTH_SESSION_PATH = "/api/auth/session"
 
 
