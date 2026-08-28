@@ -219,7 +219,6 @@ async def test_root_identity_uses_total_timeout_not_resource_timeout(tmp_path):
     # Proves the sleep wasn't cut short by the smaller resource timeout.
     assert elapsed >= 0.2, f"Shutdown completed in {elapsed:.2f}s — body should have run the full 0.2s sleep"
     assert TeardownCause.SHUTDOWN_BODY_TIMED_OUT not in report.causes
-    assert TeardownCause.SHUTDOWN_BODY_PENDING not in report.causes
     assert report.restart_safety is RestartSafety.SAFE
 
 

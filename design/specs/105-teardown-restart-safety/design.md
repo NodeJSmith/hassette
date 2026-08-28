@@ -186,7 +186,6 @@ class RestartSafety(StrEnum):
 class TeardownCause(StrEnum):
     SHUTDOWN_HOOK_FAILED = auto()
     SHUTDOWN_BODY_TIMED_OUT = auto()
-    SHUTDOWN_BODY_PENDING = auto()
     SHUTDOWN_BODY_FAILED = auto()
     CLEANUP_FAILED = auto()
     CLEANUP_TIMED_OUT = auto()
@@ -237,7 +236,7 @@ The coordinator tasks are lifecycle-owned rather than TaskBucket-owned. The shut
 
 Common module-level helpers in `src/hassette/resources/lifecycle.py` create or join these tasks. Final public `Resource.initialize()` and `Resource.shutdown()` are coordinator front doors only. They schedule named internal `_initialize_body()` and `_shutdown_body()` methods; they never schedule a public lifecycle method as its own body. `Service` supplies its service-specific body implementations, and Hassette supplies its root shutdown body and timeout fallback. `start()` calls the public initialization front door but never assigns `_init_task` itself. The underscored bodies are unsafe to call directly because they bypass admission and ownership.
 
-Task selection and assignment happen without an intervening `await`, which makes each check-and-create step atomic on the event loop. Each shutdown coordinator stores the class-specific shutdown body in `_shutdown_body_task` and observes the whole body for `hassette.config.lifecycle.resource_shutdown_timeout_seconds`. This is the authoritative per-resource deadline, including hooks, cleanup, service cancellation, and child propagation. If it expires, the coordinator records `SHUTDOWN_BODY_TIMED_OUT`, invokes force-terminal handling, and records `SHUTDOWN_BODY_PENDING` plus the task name if the body remains live. The task separation lets the coordinator return promptly even if the body resists cancellation.
+Task selection and assignment happen without an intervening `await`, which makes each check-and-create step atomic on the event loop. Each shutdown coordinator stores the class-specific shutdown body in `_shutdown_body_task` and observes the whole body for `hassette.config.lifecycle.resource_shutdown_timeout_seconds`. This is the authoritative per-resource deadline, including hooks, cleanup, service cancellation, and child propagation. If it expires, the coordinator records `SHUTDOWN_BODY_TIMED_OUT`, invokes force-terminal handling, and, if the body remains live, records its task name in the report's `pending_tasks` (no separate cause -- the two checks share the same branch with no suspension point between them). The task separation lets the coordinator return promptly even if the body resists cancellation.
 
 1. Every lifecycle front door first rejects `asyncio.current_task()` matching `_init_task`, `_shutdown_task`, or `_shutdown_body_task` with `LifecycleReentryError`; none creates a joiner or cancellation cycle for a re-entrant call.
 2. If a shutdown task is active, initialization awaits it through `asyncio.shield()`.
@@ -251,11 +250,13 @@ The shutdown body first requests shutdown, cancels the active `_init_task`, and 
 
 Before joining or creating lifecycle work, every public front door checks whether `asyncio.current_task()` is `_init_task`, `_shutdown_task`, or `_shutdown_body_task`. If so, it raises `LifecycleReentryError` without joining or cancelling a coordinator, setting shutdown state, or creating another task. Re-entrant lifecycle orchestration from initialization and shutdown hooks is unsupported; a hook that cannot continue should raise or return and let its lifecycle owner decide recovery.
 
+This detection is limited to a resource re-entering its own active coordinator or body. Cross-resource lifecycle cycles -- a child's hook calling into its parent's lifecycle, or two resources awaiting each other -- are not detected here and rely on the whole-body shutdown timeout to eventually force-terminate.
+
 Attempt bodies return evidence; the coordinator is the only ordinary path that stores the final report. Before storing, it merges the body's result with any force-terminal evidence already present. This prevents a late body completion from replacing a restart-unsafe report with a safe one.
 
 If force-terminal cancels `_shutdown_task`, the coordinator catches that cancellation only when `_teardown_report` already contains `FORCED_TERMINAL`. It cancels the retained body task and returns the stored report normally, so every joined caller receives `RestartSafety.UNSAFE` rather than `CancelledError`. Coordinator cancellation without pre-recorded force evidence remains an error and is not converted to success.
 
-Both coordinator and body tasks install lifecycle-owned done callbacks that retrieve every exception. A body that finishes after refusal logs its final outcome with resource and operation context; a later exception monotonically adds `SHUTDOWN_BODY_FAILED` and the operation name to the stored report. The body reference is cleared only after the callback has observed completion. If all external joiners cancel, these callbacks still prevent an absent report or an unretrieved task exception.
+Both coordinator and body tasks install lifecycle-owned done callbacks that retrieve every exception. These callbacks only log: a body or coordinator task that finishes with an unhandled exception is logged with resource, operation, and task-name context via `resource.logger.exception(...)`, but the callback never mutates `_teardown_report` and never clears `_shutdown_body_task` -- the body task reference simply stays pointed at the last completed body task until the next shutdown attempt overwrites it. If all external joiners cancel, these callbacks still prevent an unretrieved task exception from surfacing as an "exception was never retrieved" warning with no other observer.
 
 `start()` performs the same synchronous re-entry and refusal checks before spawning its initialize joiner. It no longer resets shutdown state. `restart()` is subject to the same re-entry guard, then awaits the report, requires `RestartSafety.SAFE`, and calls the coordinated `initialize()` path. The direct initialize check remains mandatory because callers can bypass `restart()`.
 

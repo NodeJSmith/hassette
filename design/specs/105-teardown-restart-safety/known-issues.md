@@ -233,3 +233,133 @@ Acceptance criteria:
 - Full file (`test_service_watcher.py`, 21 tests) passes with no cascades. Met.
 - `test_task_bucket.py` (12 tests) still passes. Met.
 - Full unit+integration suite (7078 tests) passes. Met.
+
+## KI-006: files touched outside any task's declared Target Files list
+
+Status: open
+Run: 117
+Source: impl-review
+Reason not fixed now: out-of-scope
+Observed in: T03, T04
+Affected files:
+- src/hassette/context.py
+- src/hassette/test_utils/fixtures.py
+- src/hassette/test_utils/harness.py
+- src/hassette/test_utils/helpers.py
+
+Issue:
+The full-branch implementation review found four files modified during orchestration that were not
+listed in any task's `## Target Files` section: `src/hassette/context.py` (a small addition
+supporting `context.PROTECT_TASK`, part of the KI-003 fix) and three `src/hassette/test_utils/*.py`
+files (part of the KI-002/KI-003 test-infrastructure deadlock fix in T04's scope). Each change is
+individually justified and documented in this file's own KI-002/KI-003 entries, but the original
+task decomposition never anticipated them, so they weren't tracked as declared scope at plan time.
+
+Why deferred:
+This is a documentation/traceability gap in the plan, not a code defect — every change is already
+justified in KI-002/KI-003 with root-cause evidence, and re-litigating scope after the fact would
+not change any code. Fixing this would mean retroactively editing already-shipped task files, which
+provides no future value once the branch merges.
+
+Recommended follow-up:
+None required. This entry exists purely as a durable record that these four files were touched
+outside declared scope, in case a future audit of this branch's diff needs that context. No action
+needed unless a reviewer specifically asks why these files changed.
+
+Acceptance criteria:
+- N/A — informational record, no follow-up action defined.
+
+## KI-007: `_shutdown_children()` duplicated between `Resource` and `Hassette`
+
+Status: open
+Run: 117
+Source: impl-review
+Reason not fixed now: out-of-scope
+Observed in: T04, T06
+Affected files:
+- src/hassette/resources/base.py
+- src/hassette/core/core.py
+
+Issue:
+`Resource._shutdown_children()` (`base.py`, T04) and `Hassette._shutdown_children()` (`core.py`,
+T06) share a near-identical per-child classification loop: gather child teardown reports, merge
+causes, add `CHILD_SHUTDOWN_FAILED`/`CHILD_SHUTDOWN_TIMED_OUT`/`CHILD_RESTART_UNSAFE` evidence, and
+track affected-resource identity. The design's Key Constraints explicitly limits scope to "one
+initialization task and one shutdown task per resource" without introducing a new lifecycle
+controller object, and neither task's Target Files or Prompt called for a shared helper module —
+Hassette's version also has root-specific concerns (dependency-wave ordering, total-timeout
+merging) that a naive extraction would need to accommodate carefully.
+
+Why deferred:
+Extracting a shared helper is a real structural improvement but requires touching both `base.py`
+and `core.py` together, verifying the extraction preserves each caller's distinct child-set
+iteration order (reverse insertion for `Resource`, reverse dependency-wave for `Hassette`), and was
+not scoped or budgeted into T04/T06's task boundaries. Doing it now, post-hoc, in the final review
+pass risks a subtle behavioral regression in code this design treats as load-bearing for restart
+safety, with no corresponding task-level test plan to pin it first.
+
+Recommended follow-up:
+A follow-up `topic:code-quality` issue (or `topic:architecture` if the extraction proves more
+involved than expected) to factor the shared per-child classification loop into one helper
+function, called by both `Resource._shutdown_children()` and `Hassette._shutdown_children()`, with
+a characterization test pinning both callers' current behavior before refactoring.
+
+Acceptance criteria:
+- A shared helper exists and both `_shutdown_children()` implementations call it.
+- `tests/unit/resources/lifecycle/test_shutdown.py` and
+  `tests/unit/resources/lifecycle/test_total_timeout.py` (both callers' existing regression
+  coverage) pass unchanged.
+
+## KI-008: `Resource._shutdown_children()`'s `asyncio.gather()` can orphan sibling coroutines when the TaskBucket seals mid-iteration
+
+Status: open
+Run: 117
+Source: cross-file-review
+Reason not fixed now: out-of-scope
+Affected files:
+- src/hassette/resources/base.py (`Resource._shutdown_children()`, `asyncio.gather()` call)
+- pyproject.toml (`filterwarnings`, the `PytestUnraisableExceptionWarning` entry added this run)
+
+Issue:
+`Resource._shutdown_children()` builds the list of `child.shutdown()` coroutines eagerly and passes
+them to `asyncio.gather(*[child.shutdown() for child in children], return_exceptions=True)`.
+`gather()` wraps each coroutine via `ensure_future()`/`create_task()` one at a time as it iterates
+the argument list, not all at once up front. If the TaskBucket seals mid-iteration — a real scenario
+a forced-shutdown test can trigger (see `test_run_forever_cleans_up_detectors_when_db_start_fails`)
+— the not-yet-wrapped sibling coroutines are abandoned mid-creation. Because they were never
+awaited, they later trigger a "coroutine was never awaited" `RuntimeWarning` when the garbage
+collector finally reclaims them, which pytest surfaces as a `PytestUnraisableExceptionWarning`
+session-level error unrelated to the test that actually exercised the sealed-bucket rejection path.
+
+This run's `pyproject.toml` already added a `filterwarnings` entry to downgrade
+`"Exception ignored while finalizing coroutine <coroutine object Resource.shutdown"` so this GC
+artifact doesn't abort otherwise-passing test sessions. The filter's own comment states the
+intent plainly: it does not mask the sealed-rejection `RuntimeError` itself (that is still
+raised/logged), and the underlying `gather()` orphaning is "a separate, pre-existing base.py issue
+to track and fix independently, not something a test-side filter should paper over long-term."
+
+Why deferred:
+The fix belongs in `Resource._shutdown_children()`'s child-coroutine construction — e.g. wrapping
+each child's `shutdown()` in a task via `TaskBucket`-aware creation before handing them to
+`gather()`, so a mid-iteration seal cannot leave any coroutine un-wrapped and un-awaited. That is a
+production-code change to shared teardown machinery this design already treats as load-bearing for
+restart safety (see KI-007), was not in scope for any of T01-T08's Target Files, and needs its own
+regression test pinning the mid-iteration-seal race before touching the gather call. The
+`pyproject.toml` filter is an intentional, explicitly-labeled stopgap, not a fix.
+
+Recommended follow-up:
+File a separate `topic:code-quality` (or `topic:architecture`, if the fix requires restructuring how
+child shutdown tasks are created rather than a local wrap) issue to make
+`Resource._shutdown_children()`'s child-coroutine dispatch resilient to a TaskBucket sealing
+mid-iteration — e.g. by pre-wrapping each child's `shutdown()` call as a tracked task before passing
+it to `asyncio.gather()` — with a regression test that reproduces the mid-iteration seal
+deterministically. Once fixed, remove the now-unnecessary `filterwarnings` entry from
+`pyproject.toml`.
+
+Acceptance criteria:
+- `Resource._shutdown_children()` no longer leaves any sibling coroutine unwrapped/unawaited when
+  the TaskBucket seals mid-iteration through `asyncio.gather()`.
+- A regression test reproduces the mid-iteration seal race and passes against the fix.
+- The `pyproject.toml` `filterwarnings` entry for
+  `"Exception ignored while finalizing coroutine <coroutine object Resource.shutdown"` is removed
+  once the underlying orphaning can no longer occur.

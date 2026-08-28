@@ -404,6 +404,19 @@ async def _run_shutdown_coordinator(resource: "LifecycleMixin") -> TeardownRepor
     """
     try:
         initialization_pending = await _observe_active_initializer(resource)
+        if initialization_pending:
+            # The initializer didn't observe cancellation within its bounded observation window
+            # and is still running. The shutdown body proceeds anyway (see design.md's Edge Cases
+            # -- the report ends up UNSAFE), but that only protects the *next* restart attempt; it
+            # does not stop this still-live coroutine from concurrently mutating shared state
+            # (e.g. self.children) while the shutdown body iterates it. Log loudly so an operator
+            # debugging a fatal shutdown can distinguish "clean refusal" from "shutdown hooks ran
+            # while init was still mutating state."
+            resource.logger.warning(
+                "%s: shutdown proceeding while initialization is still running and did not "
+                "observe cancellation -- init and shutdown may now race on shared state",
+                resource.unique_name,
+            )
 
         if resource._status not in TERMINAL_STATUSES:
             resource.status = ResourceStatus.STOPPING
@@ -449,11 +462,12 @@ async def _run_shutdown_coordinator(resource: "LifecycleMixin") -> TeardownRepor
             resource._force_terminal()
             if not body_task.done():
                 body_task.cancel()
-                report = add_teardown_evidence(
-                    report,
-                    causes=(TeardownCause.SHUTDOWN_BODY_PENDING,),
-                    pending_tasks=(body_task.get_name(),),
-                )
+                # No separate SHUTDOWN_BODY_PENDING cause -- this branch is reached only when the
+                # body already timed out (SHUTDOWN_BODY_TIMED_OUT, above), and no suspension point
+                # separates the two checks, so a second cause here would record the same fact
+                # twice under two names. pending_tasks alone carries the "still alive right now"
+                # detail.
+                report = add_teardown_evidence(report, pending_tasks=(body_task.get_name(),))
 
         if initialization_pending:
             report = add_teardown_evidence(report, causes=(TeardownCause.INITIALIZATION_TASK_PENDING,))
@@ -466,6 +480,22 @@ async def _run_shutdown_coordinator(resource: "LifecycleMixin") -> TeardownRepor
             body_task.cancel()
         return existing  # noqa: ASYNC104 — FORCED_TERMINAL (or other) evidence was already stored before this
         # coordinator was cancelled, so every joined caller gets that report instead of CancelledError.
+    except Exception:
+        # Anything else escaping the try body (observing the initializer, requesting shutdown,
+        # reading a config value) is itself teardown evidence, not a bare crash -- mirrors how
+        # a raising shutdown body is turned into SHUTDOWN_BODY_FAILED evidence above rather than
+        # left to propagate silently, so the "a completed attempt always produces a report"
+        # invariant coordinate_initialize() relies on for its RestartRefusedError guard holds
+        # even when the coordinator itself fails outside the body.
+        resource.logger.exception("Shutdown coordinator for %s raised", resource.unique_name)
+        report = TeardownReport(
+            causes=(TeardownCause.COORDINATOR_FAILED,), failed_operations=("_run_shutdown_coordinator",)
+        )
+        existing = resource._teardown_report
+        if existing is not None:
+            report = merge_teardown_reports(existing, report)
+        resource._teardown_report = report
+        raise
 
     # A retained body task (or a concurrent _force_terminal() call) may already have stored
     # evidence on this attempt (e.g. FORCED_TERMINAL) before this point is reached. Merge

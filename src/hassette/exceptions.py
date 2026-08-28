@@ -587,6 +587,11 @@ class LifecycleReentryError(HassetteError):
     Raised before creating, joining, or cancelling another lifecycle task. A hook that cannot
     continue should raise or return and let its lifecycle owner decide recovery.
 
+    Detection is limited to a resource re-entering its own active coordinator or body task.
+    Cross-resource lifecycle cycles -- a child's hook calling into its parent's lifecycle, or two
+    resources awaiting each other -- are not detected here and rely on the whole-body shutdown
+    timeout to eventually force-terminate.
+
     Attributes:
         resource_name: The ``unique_name`` of the resource whose lifecycle was re-entered.
         method_name: The name of the front-door method that detected the re-entrant call.

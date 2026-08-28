@@ -51,10 +51,11 @@ class TeardownCause(StrEnum):
     """A registered shutdown hook raised during the teardown attempt."""
 
     SHUTDOWN_BODY_TIMED_OUT = auto()
-    """The resource's shutdown body did not complete within its allotted timeout."""
-
-    SHUTDOWN_BODY_PENDING = auto()
-    """The resource's shutdown body task is still pending when the report was produced."""
+    """The resource's shutdown body did not complete within its allotted timeout. When the body
+    also remains alive past that timeout, its task name is recorded in the report's
+    ``pending_tasks`` rather than as a separate cause -- the two checks share the same
+    ``SHUTDOWN_BODY_TIMED_OUT`` branch with no suspension point between them, so a distinct
+    "pending" cause would record the same fact twice."""
 
     SHUTDOWN_BODY_FAILED = auto()
     """The resource's shutdown body raised during the teardown attempt."""
@@ -88,6 +89,10 @@ class TeardownCause(StrEnum):
 
     TOTAL_TIMEOUT = auto()
     """The overall teardown attempt exceeded its total allotted timeout."""
+
+    COORDINATOR_FAILED = auto()
+    """The shutdown coordinator itself raised outside the shutdown body (e.g. while observing the
+    active initializer or requesting shutdown), not the shutdown body task it dispatches."""
 
 
 def _dedupe_preserve_order(*groups: Iterable[T]) -> tuple[T, ...]:
