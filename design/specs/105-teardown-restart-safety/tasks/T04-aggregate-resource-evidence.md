@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Aggregate Resource teardown evidence"
-status: "planned"
+status: "done"
 depends_on: ["T03"]
 implements: ["FR#1", "FR#2", "FR#3", "FR#7", "FR#10", "FR#11", "FR#17", "AC#1", "AC#3", "AC#5"]
 ---
