@@ -379,6 +379,7 @@ async def test_exponential_backoff(watcher: ServiceWatcher):
 
 async def test_budget_reset_on_recovery(watcher: ServiceWatcher):
     """Budget resets when a service transitions to RUNNING and becomes ready."""
+    context.PROTECT_TASK.set(False)
     dummy = register_dummy_service(
         watcher, fail=True, restart_type=RestartType.TRANSIENT, budget_intensity=5, startup_timeout_seconds=1.0
     )
@@ -623,6 +624,7 @@ async def test_shutdown_safe_sleep_aborts_on_shutdown(watcher: ServiceWatcher):
 
 async def test_budget_reset_on_recovery_confirmed(watcher: ServiceWatcher):
     """Budget resets when service reaches RUNNING and signals readiness."""
+    context.PROTECT_TASK.set(False)
     dummy = register_dummy_service(
         watcher, fail=True, restart_type=RestartType.TRANSIENT, budget_intensity=5, startup_timeout_seconds=1.0
     )

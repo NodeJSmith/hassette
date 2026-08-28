@@ -190,52 +190,46 @@ Acceptance criteria:
   file's failure count no longer grows past the two pre-existing, independently-reproducible
   failures once the 6 shutdown-triggering tests are isolated.
 
-## KI-005: `test_budget_reset_on_recovery(_confirmed)` fail — a real regression from this branch's own restart-safety logic, not pre-existing on `main`
 
-Status: open
-Run: discovered while verifying KI-004's fix
+## KI-005: `test_budget_reset_on_recovery(_confirmed)` fail -- a real regression from this branch's own restart-safety logic, not pre-existing on `main`
+
+Status: resolved
+Run: discovered while verifying KI-004's fix, fixed in this session
 Source: this session
 
 Issue:
-`test_budget_reset_on_recovery` and `test_budget_reset_on_recovery_confirmed` fail deterministically,
-in isolation and regardless of file order:
-```
-AssertionError: assert 2 == 0
- +  where 2 = budget_entries(<ServiceWatcher ...>, '_Dummy:service')
-```
-Both build a dummy service with `fail=True` (its `on_initialize` always raises), accumulate 2
-restart attempts, then manually call `mark_ready()` and fire a synthetic RUNNING event expecting
-the restart budget to reset to 0. The captured logs show the underlying restart attempts hitting
-`"Restart refused for '_Dummy...': teardown was not proven restart-safe (cleanup_failed)"` — a
-message from this branch's own restart-safety design (cleanup-failure detection introduced in
-T01-T04).
+`test_budget_reset_on_recovery` and `test_budget_reset_on_recovery_confirmed` failed due to two
+independent causes, both introduced by this branch. Confirmed via a disposable worktree checked out
+at `main`: both tests pass cleanly on `main` (`2 passed`).
 
-**Confirmed via a disposable worktree checked out at `main` (not inferred): both tests pass
-cleanly on `main` (`2 passed`).** This is a real regression introduced by this branch's own new
-restart-safety semantics, in the same category as KI-002/KI-003/KI-004 — not a pre-existing,
-someone-else's-problem bug that happens to predate this work. It was invisible until now only
-because KI-002's cascade prevented these two tests (positioned after other shutdown-triggering
-tests in file order) from ever actually running.
+**Cause 1 -- cleanup conflation (production code gap):** `Resource.cleanup()` awaited
+`self._init_task` with only `suppress(asyncio.CancelledError)`. When a service's `on_initialize()`
+raised (e.g. `RuntimeError`), the done `_init_task` re-raised that stored exception during cleanup.
+`_run_post_hook_shutdown_stage()`'s outer `except Exception` caught it and classified it as
+`TeardownCause.CLEANUP_FAILED`, making `restart_safety == UNSAFE` and raising
+`RestartRefusedError`. The classification was wrong: a service that failed during init has nothing
+to clean up -- the init exception was already recorded by `handle_failed()`, and re-raising it
+during cleanup was a leak, not a cleanup failure.
 
-Why deferred (for now):
-Root-causing this means understanding whether the test's `fail=True` + manual `mark_ready()`
-combination is now testing a scenario this branch's restart-safety design correctly refuses (i.e.
-the test's own expectations are stale relative to the new cleanup-failure-blocks-restart
-guarantee, and the test needs updating), or whether there's a genuine gap in the design (recovery
-should be possible even after a cleanup failure, and isn't). That's a production-semantics
-question, not a mechanical test-infra fix — it needs its own investigation before landing a fix,
-the same way KI-003's "narrow vs broad" design question did.
+Fix: `cleanup()` now skips re-awaiting a done `_init_task` entirely -- the exception was already
+observed, and there is no pending work to cancel or join.
 
-Recommended follow-up:
-Investigate whether `_run_task_bucket_shutdown_stage()`/`cleanup()`'s cleanup-failure detection is
-correctly refusing restart in this dummy's specific failure mode (a `Service` whose
-`on_initialize()` raises synchronously — check what "cleanup" even means for an instance that
-never finished initializing), or whether the refusal is overly broad and these two tests are
-catching a real design gap in T01-T04's restart-safety logic. Fix production code or update the
-tests' expectations accordingly, whichever the investigation concludes is correct — do not "fix"
-this by loosening the restart-safety guarantee without confirming that's actually right.
+**Cause 2 -- PROTECT_TASK leaked into test bodies (test infra interaction with KI-003 fix):** The
+`watcher` fixture sets `context.PROTECT_TASK = True` (KI-003 fix, commit acc6c147) to prevent
+pytest-asyncio's synthetic task from being tracked/cancelled by the root TaskBucket. pytest-asyncio
+propagates contextvars from the fixture task into the test body's task, so `PROTECT_TASK` remained
+`True` during the test. This caused `ServiceWatcher.on_service_running()`'s internally spawned
+readiness-check task to be created but not tracked in the task bucket (the task factory sees
+`PROTECT_TASK=True` and excludes the task). `on_running_and_await()`'s `pending_tasks()` diff
+therefore found no new tasks and didn't wait for the readiness check, so `budget.reset()` never ran
+before the assertion.
+
+Fix: the two budget-reset tests clear `context.PROTECT_TASK.set(False)` at the start of their body.
+These tests don't trigger `hassette.shutdown()`, so they don't need the protection -- they just need
+ServiceWatcher's internally-spawned tasks to be properly tracked.
 
 Acceptance criteria:
-- `uv run pytest tests/integration/test_service_watcher.py::test_budget_reset_on_recovery
-  tests/integration/test_service_watcher.py::test_budget_reset_on_recovery_confirmed` pass, with a
-  clear understanding of whether the fix was a test update or a production-code change, and why.
+- Both tests pass. Met.
+- Full file (`test_service_watcher.py`, 21 tests) passes with no cascades. Met.
+- `test_task_bucket.py` (12 tests) still passes. Met.
+- Full unit+integration suite (7078 tests) passes. Met.

@@ -641,8 +641,11 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         timeout = timeout or self.hassette.config.lifecycle.resource_shutdown_timeout_seconds
 
         cancel(self)
-        with suppress(asyncio.CancelledError):
-            if self._init_task:
-                await asyncio.wait_for(self._init_task, timeout=timeout)
+        if self._init_task:
+            if self._init_task.done():
+                pass
+            else:
+                with suppress(asyncio.CancelledError):
+                    await asyncio.wait_for(self._init_task, timeout=timeout)
 
         self.logger.debug("Cleaned up resources")
