@@ -330,8 +330,13 @@ class TestShutdownTotalTimeout:
         async def hang_forever(_self):
             await asyncio.sleep(1000)
 
+        # Patch _shutdown_body(), not shutdown(): shutdown() is the @final coordinator front door
+        # (coordinate_shutdown()) that itself enforces the timeout being tested here. Hassette
+        # doesn't override shutdown(), only _shutdown_body() — patching Resource.shutdown would
+        # replace h.shutdown()'s own entry point (and every child's) with hang_forever, bypassing
+        # the total-timeout enforcement entirely instead of exercising it.
         with (
-            patch.object(Resource, "shutdown", new=hang_forever),
+            patch.object(Resource, "_shutdown_body", new=hang_forever),
             preserve_config(h.config),
         ):
             h.config.lifecycle.total_shutdown_timeout_seconds = 0.05
