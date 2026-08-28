@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 import pytest
 
+from hassette import context
 from hassette.core.service_watcher import ServiceWatcher
 from hassette.events import Event, HassetteServiceEvent
 from hassette.events.base import HassettePayload
@@ -58,7 +59,19 @@ async def watcher(hassette_with_bus, request: pytest.FixtureRequest) -> ServiceW
     before this fixture's own cleanup (``watcher.shutdown()`` /
     ``reset_hassette_lifecycle()``) ever runs, and leaves the loop poisoned for the rest of
     the pytest-xdist worker's session.
+
+    Also sets context.PROTECT_TASK, so this test's own top-level task is never tracked by any
+    TaskBucket in the first place (see hassette.context.PROTECT_TASK for the full mechanism).
+    Restart-budget exhaustion drives a real hassette.shutdown(), whose cancel_all() would
+    otherwise cancel this test's own task as a side effect purely because pytest-asyncio's task
+    creation for it happened to be routed through the same loop's factory with no other bucket
+    claimed -- the same "no active scope" signal a genuinely rogue task also produces, and the
+    only thing that distinguishes them is this deliberate opt-in. A bare `.set()` (not a scoped
+    context manager) is required: this fixture's own task finishes before the test body's task
+    is even created, and pytest-asyncio's own contextvar-propagation machinery is what carries
+    the value forward from here into that later task -- see PROTECT_TASK's docstring.
     """
+    context.PROTECT_TASK.set(True)
     hassette = hassette_with_bus.hassette
     watcher = ServiceWatcher(hassette, parent=hassette)
     original_children = list(hassette.children)
@@ -66,7 +79,6 @@ async def watcher(hassette_with_bus, request: pytest.FixtureRequest) -> ServiceW
     config_cm.__enter__()
 
     loop = asyncio.get_running_loop()
-    active_task_factory = loop.get_task_factory()
     safe_task_factory = hassette_with_bus._previous_task_factory
 
     def _teardown() -> None:
@@ -102,8 +114,15 @@ async def watcher(hassette_with_bus, request: pytest.FixtureRequest) -> ServiceW
                 loop.run_until_complete(reset_hassette_lifecycle(hassette, original_children=original_children))
         finally:
             config_cm.__exit__(None, None, None)
-            if was_sealed:
-                loop.set_task_factory(active_task_factory)
+            # Do NOT restore active_task_factory here: it routes through hassette.task_bucket,
+            # which -- once was_sealed is true -- is permanently sealed for the rest of this
+            # module's shared hassette_with_bus harness (a real, completed shutdown is not
+            # reversible; see the already_shut_down branch above). Restoring it anyway would
+            # route the *next* test's own setup (constructing its ServiceWatcher, etc.) back
+            # through the dead bucket, which immediately rejects that work with "TaskBucket(...)
+            # is sealed and rejected new work: setup" -- breaking the next test before its body
+            # even starts. Leaving safe_task_factory in place is correct for the rest of the
+            # module: nothing legitimate can route through the sealed bucket again regardless.
 
     # PT021: request.addfinalizer() instead of `yield` is deliberate here -- see the
     # docstring above for why a `yield`-based async-generator fixture deadlocks here.
