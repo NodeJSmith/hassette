@@ -60,47 +60,90 @@ Acceptance criteria:
 
 ## KI-002: `test_service_watcher.py` cascades 474 pre-existing errors after its first shutdown test
 
-Status: open
-Run: 117
+Status: resolved (cascade eliminated; one confined failure remains — see KI-003)
+Run: 117, fixed in commits 872e38ad, bc652d54, 618ac075
 Source: T04
-Reason not fixed now: out-of-scope
 Observed in: T04 (full-`tests/integration/` test gate baseline, `1 failed, 884 passed, 1 skipped,
 474 errors in 254.24s`), confirmed pre-existing on base_commit via a fix-and-revert investigation.
 
-Issue:
-`test_always_failing_service_stops_after_max_attempts` calls `hassette.shutdown()` inline against
-a module-scoped `Hassette` harness fixture shared by every other test in the file. Once that test
-shuts the shared instance down, every subsequent test in `test_service_watcher.py` errors — this
-is the same underlying mechanism as the single reported failure, just multiplied across the file
-(21 errors from this one file account for the bulk of the 474 total). A collateral-cancellation
-fix was attempted (decoupling `fixtures.py`/`harness.py`) and it did resolve the target test, but
-it also uncovered a second, separate T04-owned bug (`AttributeError: 'bool' object has no
-attribute 'restart_safety'` in `resources/base.py`) and broke 5 previously-passing tests in
-`tests/integration/test_task_bucket.py` (its "rogue task capture" contract, per `tests/conftest.py`'s
-`bucket` fixture) — a net regression, so the fix was reverted. `severity-fix-3.md` in the T04
-dispatch has the full before/after run output.
+Issue (as originally observed):
+`test_always_failing_service_stops_after_max_attempts` (later also
+`test_permanent_exhaustion_triggers_shutdown`) calls `hassette.shutdown()` inline against a
+module-scoped `Hassette` harness fixture shared by every other test in the file. Once that test
+shuts the shared instance down, every subsequent test in `test_service_watcher.py` errored — the
+same underlying mechanism as the single reported failure, just multiplied across the file (21
+errors from this one file accounted for the bulk of the 474 total).
 
-Confirmed not a T04 regression: a containment run of `tests/integration/` with
-`test_service_watcher.py` excluded (`--ignore=tests/integration/test_service_watcher.py`) passed
-cleanly — `1335 passed, 1 skipped, 2 warnings in 255.08s`, zero failures — proving T04's own
-changes introduce no regressions and every one of the 474 baseline errors traces back to this one
-file's shared-fixture cascade.
+Root cause found and fixed (commit 872e38ad): yield-based async-generator harness fixtures had
+their teardown resumed by pytest-asyncio creating a new `Task` on the shared session-scoped loop.
+Once a test sealed the shared `TaskBucket` (via `hassette.shutdown()`), that `Task` creation was
+rejected by the loop's still-installed bucket-routing task factory before the fixture's own
+teardown or factory restore could run — poisoning every later test in the pytest-xdist worker,
+regardless of file. Fixed by converting the affected fixtures (and the `watcher` fixture in
+`test_service_watcher.py`) from `yield`-based teardown to `request.addfinalizer()`, mirroring the
+existing `hassette_instance` pattern, plus suppressing a related cross-`contextvars.Context`
+`ValueError` in `HassetteHarness.stop()`.
+
+This also surfaced two further bugs along the way, each root-caused and fixed independently:
+- The wrong patch target in `test_forces_all_children_terminal_when_super_shutdown_times_out`,
+  which made that test hang rather than exercise the total-shutdown-timeout path it was meant to
+  test (commit bc652d54) — a test bug, not a production defect.
+- `Hassette._shutdown_children()` returning a plain `bool` instead of the `TeardownReport` every
+  other `_shutdown_children()` override returns, causing
+  `AttributeError: 'bool' object has no attribute 'restart_safety'` inside the shared
+  `_run_post_hook_shutdown_stage()` (commit 618ac075).
+
+Result: `tests/integration/test_service_watcher.py` full-file error count dropped from 21 to 19,
+and the broader `tests/integration/` cascade dropped from 474 to 0 outside this one file — a
+full-suite `nox -s dev` run now shows all remaining errors confined to
+`test_service_watcher.py` itself. One failure remains in that file after all three fixes; see
+KI-003 for why it's a distinct, still-open issue.
+
+## KI-003: `test_permanent_exhaustion_triggers_shutdown` fails on a pre-existing `CancelledError` race in the harness's `TaskBucket` routing
+
+Status: open
+Run: commit 618ac075 (discovered while fixing KI-002's third bug)
+Source: T04 fixer dispatch
+Reason not fixed now: out-of-scope — lives entirely in test-harness machinery
+(`src/hassette/test_utils/harness.py`, `src/hassette/task_bucket/task_bucket.py`), not in any
+task's target files for this design.
+
+Issue:
+`HassetteHarness.start()` installs a custom event-loop task factory
+(`make_task_factory(self.hassette.task_bucket)`) that attributes every new task created via
+`loop.create_task()` to the root `TaskBucket` when no `ctx.CURRENT_BUCKET` is set. pytest-asyncio
+creates the test function's own top-level coroutine via `loop.create_task()`, so the test's own
+task gets attributed to that same root bucket. When `test_permanent_exhaustion_triggers_shutdown`
+drives a real `hassette.shutdown()`, `_run_task_bucket_shutdown_stage()` calls
+`TaskBucket.cancel_all()` on the root bucket, which excludes only `asyncio.current_task()` at that
+call site (the dedicated shutdown-body/coordinator task) — not the test's own, different task. The
+test's own task is cancelled as a side effect, and its assertions never run.
+
+Confirmed pre-existing, not introduced by the KI-002 fixes: reproduces identically with
+`src/hassette/core/core.py` stashed back to its pre-`TeardownReport`-fix state (root-caused via
+temporary, fully-reverted instrumentation in `cancel_all()`). Before the KI-002 fixes, this test
+failed with `AttributeError` instead — `_shutdown_children()`'s crash happened to win a race
+against the scheduler delivering the already-pending cancellation to the test's own task, masking
+this issue entirely. Fixing the `AttributeError` let shutdown run further (through
+`_on_children_stopped()`, `handle_stop()`, stream closing), giving the scheduler enough additional
+`await` cycles to deliver the pending cancellation — so the symptom changed from `AttributeError`
+to `CancelledError`, deterministically across 5 consecutive runs (not flaky).
 
 Why deferred:
-Fixing this requires either `task_bucket.py` (`cancel_all`/`cancel_all_sync` ancestor-chain
-exclusion) or `test_service_watcher.py` (function-scoped isolation for shutdown-triggering tests)
-— both outside every task's Target Files list in this design (T01-T08). It also surfaced a second
-bug in T04's own in-progress `resources/base.py` code that only manifests once the cascade is
-fixed; that bug still needs root-causing before any real fix to this file can land safely.
+The fix is structural to shared test-harness machinery — either exclude the calling/joining task
+from `TaskBucket.cancel_all()` more broadly (not just the literal `current_task()` at the
+shutdown-body call site), or ensure pytest-asyncio's own test task is never attributed to the
+harness's root bucket in the first place. Both are outside every task's target files in this
+design, and outside the scope of the dispatch that discovered this issue.
 
 Recommended follow-up:
-File a separate issue to give `test_always_failing_service_stops_after_max_attempts` (and any
-other shutdown-triggering test in this file) its own function-scoped `Hassette` instance instead
-of sharing the module-scoped one, and root-cause the `restart_safety` `AttributeError` surfaced
-during the reverted fix attempt before relying on it.
+File a separate issue to give `test_permanent_exhaustion_triggers_shutdown` (and any other test in
+this file that drives a real `hassette.shutdown()`) a task context that isn't itself attributed to
+the bucket being cancelled — either a dedicated harness mode, or excluding the joining/awaiting
+task tree (not just the single current task) from `cancel_all()`.
 
 Acceptance criteria:
-- `uv run pytest tests/integration/test_service_watcher.py` produces zero errors caused by a prior
-  test's `hassette.shutdown()` call against the shared fixture.
-- The full `tests/integration/` suite's error count drops from 474 to (ideally) 0, with any
-  remainder traced to a cause unrelated to this cascade.
+- `uv run pytest tests/integration/test_service_watcher.py::test_permanent_exhaustion_triggers_shutdown`
+  passes without the test's own task being cancelled as a side effect of the `Hassette` instance
+  under test shutting down.
+- `uv run pytest tests/integration/test_service_watcher.py` produces zero failures/errors.
