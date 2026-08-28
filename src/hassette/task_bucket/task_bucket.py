@@ -469,6 +469,11 @@ def make_task_factory(
             name = getattr(coro, "__name__", type(coro).__name__)
             t.set_name(name)
 
+        if ctx.PROTECT_TASK.get():
+            # This task must never be tracked by any bucket, so no cancel_all() anywhere can
+            # ever cancel it as a side effect. See hassette.context.PROTECT_TASK.
+            return t
+
         # compare using `is not None` to avoid `__len__` being called to determine truthiness
         current_bucket = ctx.CURRENT_BUCKET.get()
         owner = current_bucket if current_bucket is not None else global_bucket
