@@ -240,6 +240,43 @@ def get_dummy_service(
     return _Dummy(hassette)
 
 
+def get_refusing_dummy_service(
+    called: dict[str, int],
+    hassette,
+    *,
+    refuse_after: int = 1,
+    restart_spec: RestartSpec | None = None,
+) -> Service:
+    """A Service whose ``on_shutdown`` hook raises starting on the ``refuse_after``-th call
+    (1-indexed), producing ``TeardownCause.SHUTDOWN_HOOK_FAILED`` evidence -- an ``UNSAFE``
+    teardown report -- so ``restart()`` raises ``RestartRefusedError`` from that call onward.
+
+    ``refuse_after=1`` (the default) refuses on every restart attempt, for tests that only need
+    the very first restart to hit refusal. A caller driving a service through a normal restart
+    (or budget exhaustion) before forcing refusal on a later, post-cooldown attempt passes a
+    higher value.
+    """
+    spec = restart_spec if restart_spec is not None else RestartSpec()
+
+    class _Refusing(Service):
+        """Restarts cleanly until on_shutdown call number `refuse_after`, then always refuses."""
+
+        restart_spec: ClassVar[RestartSpec] = spec
+
+        async def serve(self):
+            await asyncio.Event().wait()
+
+        async def on_shutdown(self):
+            called["cancel"] += 1
+            if called["cancel"] >= refuse_after:
+                raise RuntimeError("shutdown hook fails from this call onward")
+
+        async def on_initialize(self):
+            called["start"] += 1
+
+    return _Refusing(hassette)
+
+
 class DummyServiceSetup(NamedTuple):
     """Everything a ServiceWatcher test needs to drive one dummy service."""
 
@@ -802,3 +839,127 @@ async def test_bus_recovery_reconciliation(watcher: ServiceWatcher):
 
     # Reconciliation should have picked up the FAILED service and entered restart flow
     assert budget_entries(watcher, dummy.key) == 1, "Reconciliation should have recorded one restart"
+
+
+def crashed_events(events: "list[Event]") -> "list[Event]":
+    """Filter EventCapture output down to CRASHED service-status events."""
+    return [
+        e
+        for e in events
+        if e.topic == Topic.HASSETTE_EVENT_SERVICE_STATUS and e.payload.data.status == ResourceStatus.CRASHED
+    ]
+
+
+async def test_restart_refused_during_backoff_escalates_to_fatal_shutdown(
+    test_config_class: type[HassetteConfig], unused_tcp_port_factory: "Callable[[], int]"
+):
+    """A RestartRefusedError raised from restart() inside execute_restart() (the immediate
+    backoff+restart path) is caught and escalated through handle_restart_refused(): one fatal
+    reason, one root shutdown request, exactly one CRASHED event, and no retry.
+    """
+    async with isolated_watcher(test_config_class, unused_tcp_port_factory) as watcher:
+        hassette = watcher.hassette
+        calls = make_call_counts()
+        spec = make_fast_spec(restart_type=RestartType.TRANSIENT, budget_intensity=5)
+        # refuse_after=1: the very first restart attempt refuses.
+        service = get_refusing_dummy_service(calls, hassette, refuse_after=1, restart_spec=spec)
+        hassette.children.append(service)
+        failed_event = make_service_failed_event(service)
+
+        assert hassette.fatal_shutdown_reason is None
+
+        with EventCapture.capturing(hassette) as capture:
+            await restart_and_await(watcher, failed_event)
+
+        # One fatal reason, naming the refused service, and root shutdown requested.
+        assert hassette.fatal_shutdown_reason is not None
+        assert service.class_name in hassette.fatal_shutdown_reason
+        assert hassette.shutdown_event.is_set()
+
+        # Exactly one CRASHED event, carrying the refusal's exception fields.
+        events = crashed_events(capture.events)
+        assert len(events) == 1
+        assert events[0].payload.data.resource_name == service.class_name
+        assert events[0].payload.data.exception_type == "RestartRefusedError"
+        assert events[0].payload.data.exception is not None
+        assert service.class_name in events[0].payload.data.exception
+
+        # restart() (and thus on_shutdown) was attempted exactly once -- no retry after refusal.
+        assert calls["cancel"] == 1
+        assert calls["start"] == 0, "initialize() must not run after a refused shutdown"
+
+        # A duplicate trigger after the handler returns: no second CRASHED event or recovery.
+        with EventCapture.capturing(hassette) as capture2:
+            await watcher.restart_service(failed_event)
+        assert capture2.events == []
+        assert calls == {"cancel": 1, "start": 0}
+
+
+async def test_restart_refused_during_cooldown_escalates_to_fatal_shutdown(
+    test_config_class: type[HassetteConfig], unused_tcp_port_factory: "Callable[[], int]"
+):
+    """A RestartRefusedError raised from restart() inside cooldown_and_retry() (the TRANSIENT
+    post-cooldown restart path) is caught and escalated the same way as the backoff path: one
+    fatal reason, one root shutdown request, exactly one CRASHED event, and no retry.
+    """
+    async with isolated_watcher(test_config_class, unused_tcp_port_factory) as watcher:
+        hassette = watcher.hassette
+        calls = make_call_counts()
+        spec = make_fast_spec(
+            restart_type=RestartType.TRANSIENT,
+            budget_intensity=1,
+            cooldown_seconds=0.01,
+            max_cooldown_cycles=0,
+        )
+        # refuse_after=2: the first restart (which consumes the one budget slot) succeeds
+        # cleanly; the second on_shutdown call -- the post-cooldown restart attempt -- refuses.
+        service = get_refusing_dummy_service(calls, hassette, refuse_after=2, restart_spec=spec)
+        hassette.children.append(service)
+        failed_event = make_service_failed_event(service)
+        key = watcher.service_key(service.class_name, service.role)
+
+        # First restart succeeds cleanly, consuming the one budget slot.
+        await restart_and_await(watcher, failed_event)
+        assert calls == {"cancel": 1, "start": 1}
+        assert hassette.fatal_shutdown_reason is None
+
+        # Second FAILED event exceeds budget (intensity=1) -> TRANSIENT cooldown scheduled.
+        with EventCapture.capturing(hassette) as capture:
+            await watcher.restart_service(failed_event)
+            cooldown_task = watcher._cooldown_tasks[key]
+            await asyncio.wait_for(asyncio.shield(cooldown_task), timeout=AWAIT_TIMEOUT)
+
+        assert hassette.fatal_shutdown_reason is not None
+        assert service.class_name in hassette.fatal_shutdown_reason
+        assert hassette.shutdown_event.is_set()
+
+        events = crashed_events(capture.events)
+        assert len(events) == 1
+        assert events[0].payload.data.resource_name == service.class_name
+        assert events[0].payload.data.exception_type == "RestartRefusedError"
+
+        # restart() was attempted exactly once during cooldown (on_shutdown call #2) -- no retry,
+        # and initialize() never ran for that refused attempt.
+        assert calls == {"cancel": 2, "start": 1}
+
+
+async def test_restart_refusal_shutdown_survives_event_dispatch_failure(
+    test_config_class: type[HassetteConfig], unused_tcp_port_factory: "Callable[[], int]"
+):
+    """A broken event bus (send_event raising) must not prevent the fatal reason or the root
+    shutdown request -- event dispatch is telemetry, not the control path.
+    """
+    async with isolated_watcher(test_config_class, unused_tcp_port_factory) as watcher:
+        hassette = watcher.hassette
+        calls = make_call_counts()
+        spec = make_fast_spec(restart_type=RestartType.TRANSIENT, budget_intensity=5)
+        service = get_refusing_dummy_service(calls, hassette, refuse_after=1, restart_spec=spec)
+        hassette.children.append(service)
+        failed_event = make_service_failed_event(service)
+
+        with patch.object(hassette, "send_event", side_effect=RuntimeError("bus dead")):
+            await restart_and_await(watcher, failed_event)
+
+        assert hassette.fatal_shutdown_reason is not None
+        assert service.class_name in hassette.fatal_shutdown_reason
+        assert hassette.shutdown_event.is_set()

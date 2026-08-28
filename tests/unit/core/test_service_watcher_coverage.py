@@ -13,14 +13,22 @@ import pytest
 
 from hassette.core.bus_service import BusService
 from hassette.events import HassetteServiceEvent
+from hassette.exceptions import RestartRefusedError
 from hassette.resources.lifecycle import mark_ready
 from hassette.resources.restart import RestartSpec
+from hassette.resources.teardown import TeardownCause, TeardownReport
 from hassette.test_utils import make_mock_hassette, make_service_failed_event, make_service_running_event, wait_for
 from hassette.test_utils.helpers import PLACEHOLDER_SERVICE_NAME, make_crashed_event
 from hassette.types import ResourceStatus, Topic
 from hassette.types.enums import ResourceRole, RestartType
 
 from .conftest import DummyService, make_watcher, make_watcher_hassette
+
+
+def make_unsafe_restart_refused_error(resource_name: str = PLACEHOLDER_SERVICE_NAME) -> RestartRefusedError:
+    """Build a RestartRefusedError carrying a real UNSAFE TeardownReport, for refusal tests."""
+    report = TeardownReport(causes=(TeardownCause.SHUTDOWN_HOOK_FAILED,), failed_operations=("shutdown_hooks",))
+    return RestartRefusedError(resource_name, report)
 
 
 class TestConfigLogLevel:
@@ -391,3 +399,238 @@ class TestReconcileAfterBusRecoverySkips:
         await watcher.reconcile_after_bus_recovery()
 
         watcher.restart_service.assert_not_called()
+
+
+class TestRestartAdmissionBlocked:
+    def test_false_when_no_fatal_reason_and_no_shutdown(self) -> None:
+        hassette = make_watcher_hassette()
+        watcher = make_watcher(hassette)
+
+        assert watcher.restart_admission_blocked() is False
+
+    def test_true_when_fatal_reason_recorded(self) -> None:
+        hassette = make_watcher_hassette()
+        hassette.fatal_shutdown_reason = "already fatal"
+        watcher = make_watcher(hassette)
+
+        assert watcher.restart_admission_blocked() is True
+
+    def test_true_when_shutdown_requested(self) -> None:
+        hassette = make_watcher_hassette()
+        watcher = make_watcher(hassette)
+        hassette.shutdown_event.set()
+
+        assert watcher.restart_admission_blocked() is True
+
+
+class TestHandleRestartRefused:
+    async def test_records_fatal_reason_with_resource_identity(self) -> None:
+        """The fatal reason names the role/name that refused, matching the sibling
+        handle_exhaustion/restart_service fatal-reason conventions.
+        """
+        hassette = make_watcher_hassette()
+        # record_fatal_reason must be a sync Mock, not the hassette AsyncMock's auto-child --
+        # calling an unawaited AsyncMock child here would leak a never-awaited coroutine (see
+        # the identical pattern in TestShutdownIfCrashed above).
+        hassette.record_fatal_reason = Mock()
+        watcher = make_watcher(hassette)
+        error = make_unsafe_restart_refused_error(PLACEHOLDER_SERVICE_NAME)
+
+        with patch("hassette.core.service_watcher.request_shutdown"):
+            await watcher.handle_restart_refused(PLACEHOLDER_SERVICE_NAME, ResourceRole.SERVICE, error)
+
+        hassette.record_fatal_reason.assert_called_once()
+        reason = hassette.record_fatal_reason.call_args.args[0]
+        assert PLACEHOLDER_SERVICE_NAME in reason
+
+    async def test_requests_shutdown_not_full_hassette_shutdown(self) -> None:
+        """The refusal handler must call request_shutdown(), never hassette.shutdown() inline --
+        run_forever() must own root teardown, not this handler.
+        """
+        hassette = make_watcher_hassette()
+        hassette.record_fatal_reason = Mock()
+        watcher = make_watcher(hassette)
+        error = make_unsafe_restart_refused_error()
+
+        with patch("hassette.core.service_watcher.request_shutdown") as mock_request_shutdown:
+            await watcher.handle_restart_refused(PLACEHOLDER_SERVICE_NAME, ResourceRole.SERVICE, error)
+
+        mock_request_shutdown.assert_called_once()
+        hassette.shutdown.assert_not_called()
+
+    async def test_sends_one_crashed_event_with_refusal_exception_fields(self) -> None:
+        hassette = make_watcher_hassette()
+        hassette.record_fatal_reason = Mock()
+        watcher = make_watcher(hassette)
+        error = make_unsafe_restart_refused_error(PLACEHOLDER_SERVICE_NAME)
+
+        with patch("hassette.core.service_watcher.request_shutdown"):
+            await watcher.handle_restart_refused(PLACEHOLDER_SERVICE_NAME, ResourceRole.SERVICE, error)
+
+        hassette.send_event.assert_awaited_once()
+        sent_event = hassette.send_event.call_args.args[0]
+        assert sent_event.topic == Topic.HASSETTE_EVENT_SERVICE_STATUS
+        assert sent_event.payload.data.status == ResourceStatus.CRASHED
+        assert sent_event.payload.data.resource_name == PLACEHOLDER_SERVICE_NAME
+        assert sent_event.payload.data.exception_type == "RestartRefusedError"
+        assert sent_event.payload.data.exception is not None
+        assert PLACEHOLDER_SERVICE_NAME in sent_event.payload.data.exception
+
+    async def test_event_dispatch_failure_does_not_undo_fatal_reason_or_shutdown(self) -> None:
+        """Event dispatch is telemetry, not the control path -- its failure must not undo the
+        already-recorded fatal reason or shutdown request, and must not raise out of the
+        handler.
+        """
+        hassette = make_watcher_hassette()
+        hassette.record_fatal_reason = Mock()
+        hassette.send_event = AsyncMock(side_effect=RuntimeError("bus dead"))
+        watcher = make_watcher(hassette)
+        error = make_unsafe_restart_refused_error()
+
+        with patch("hassette.core.service_watcher.request_shutdown") as mock_request_shutdown:
+            # Must not raise despite send_event failing.
+            await watcher.handle_restart_refused(PLACEHOLDER_SERVICE_NAME, ResourceRole.SERVICE, error)
+
+        hassette.record_fatal_reason.assert_called_once()
+        mock_request_shutdown.assert_called_once()
+
+
+class TestExecuteRestartCatchesRefusal:
+    async def test_catches_restart_refused_and_escalates(self) -> None:
+        hassette = make_watcher_hassette()
+        watcher = make_watcher(hassette)
+        dummy = DummyService(hassette)
+        hassette.children = [dummy]
+        key = watcher.service_key(dummy.class_name, dummy.role)
+        watcher._restarting.add(key)
+        budget = watcher.get_budget(key, dummy.restart_spec)
+        budget.record_restart()
+
+        error = make_unsafe_restart_refused_error(dummy.class_name)
+        watcher.handle_restart_refused = AsyncMock()
+
+        with patch("hassette.core.service_watcher.restart", side_effect=error):
+            await watcher.execute_restart(dummy.class_name, dummy.role, key, dummy.restart_spec, dummy, budget)
+
+        watcher.handle_restart_refused.assert_awaited_once_with(dummy.class_name, dummy.role, error)
+        # The in-restart guard is released only after the refusal handler returns.
+        assert key not in watcher._restarting
+
+    async def test_skips_restart_when_admission_blocked_at_entry(self) -> None:
+        hassette = make_watcher_hassette()
+        hassette.fatal_shutdown_reason = "already fatal"
+        watcher = make_watcher(hassette)
+        dummy = DummyService(hassette)
+        key = watcher.service_key(dummy.class_name, dummy.role)
+        watcher._restarting.add(key)
+        budget = watcher.get_budget(key, dummy.restart_spec)
+
+        with patch("hassette.core.service_watcher.restart", new_callable=AsyncMock) as mock_restart:
+            await watcher.execute_restart(dummy.class_name, dummy.role, key, dummy.restart_spec, dummy, budget)
+
+        mock_restart.assert_not_called()
+        assert key not in watcher._restarting
+
+    async def test_skips_restart_when_admission_blocked_after_backoff(self) -> None:
+        """A fatal reason recorded during the backoff sleep (an await point) must still stop
+        the restart() call that follows it.
+        """
+        hassette = make_watcher_hassette()
+        watcher = make_watcher(hassette)
+        dummy = DummyService(hassette)
+        key = watcher.service_key(dummy.class_name, dummy.role)
+        watcher._restarting.add(key)
+        budget = watcher.get_budget(key, RestartSpec(backoff_base_seconds=1.0))
+        budget.record_restart()
+
+        async def block_after_backoff(_duration: float) -> bool:
+            hassette.fatal_shutdown_reason = "fatal mid-backoff"
+            return True
+
+        with (
+            patch.object(watcher, "shutdown_safe_sleep", side_effect=block_after_backoff),
+            patch("hassette.core.service_watcher.restart", new_callable=AsyncMock) as mock_restart,
+        ):
+            await watcher.execute_restart(
+                dummy.class_name, dummy.role, key, RestartSpec(backoff_base_seconds=1.0), dummy, budget
+            )
+
+        mock_restart.assert_not_called()
+        assert key not in watcher._restarting
+
+
+class TestCooldownAndRetryCatchesRefusal:
+    async def test_catches_restart_refused_and_escalates(self) -> None:
+        hassette = make_watcher_hassette()
+        watcher = make_watcher(hassette)
+        dummy = DummyService(hassette)
+        hassette.children = [dummy]
+        spec = RestartSpec(restart_type=RestartType.TRANSIENT, cooldown_seconds=0.001, max_cooldown_cycles=0)
+        key = watcher.service_key(dummy.class_name, dummy.role)
+
+        error = make_unsafe_restart_refused_error(dummy.class_name)
+        watcher.handle_restart_refused = AsyncMock()
+
+        with patch("hassette.core.service_watcher.restart", side_effect=error):
+            await watcher.cooldown_and_retry(dummy.class_name, dummy.role, key, spec)
+
+        watcher.handle_restart_refused.assert_awaited_once_with(dummy.class_name, dummy.role, error)
+
+    async def test_skips_when_admission_blocked_at_entry(self) -> None:
+        """Blocked at entry: the cooldown cycle counter must not even be incremented."""
+        hassette = make_watcher_hassette()
+        hassette.shutdown_event.set()
+        watcher = make_watcher(hassette)
+        dummy = DummyService(hassette)
+        spec = RestartSpec(restart_type=RestartType.TRANSIENT, cooldown_seconds=999, max_cooldown_cycles=0)
+        key = watcher.service_key(dummy.class_name, dummy.role)
+
+        with patch("hassette.core.service_watcher.restart", new_callable=AsyncMock) as mock_restart:
+            await watcher.cooldown_and_retry(dummy.class_name, dummy.role, key, spec)
+
+        mock_restart.assert_not_called()
+        assert key not in watcher._cooldown_cycles
+
+    async def test_skips_budget_reset_when_admission_blocked_after_sleep(self) -> None:
+        """Fatal admission closing during the cooldown sleep must stop the budget reset too,
+        not just the restart() call.
+        """
+        hassette = make_watcher_hassette()
+        watcher = make_watcher(hassette)
+        dummy = DummyService(hassette)
+        hassette.children = [dummy]
+        spec = RestartSpec(restart_type=RestartType.TRANSIENT, cooldown_seconds=0.001, max_cooldown_cycles=0)
+        key = watcher.service_key(dummy.class_name, dummy.role)
+        budget = watcher.get_budget(key, spec)
+        budget.record_restart()
+
+        async def block_after_sleep(_duration: float) -> bool:
+            hassette.fatal_shutdown_reason = "fatal mid-sleep"
+            return True
+
+        with (
+            patch.object(watcher, "shutdown_safe_sleep", side_effect=block_after_sleep),
+            patch("hassette.core.service_watcher.restart", new_callable=AsyncMock) as mock_restart,
+        ):
+            await watcher.cooldown_and_retry(dummy.class_name, dummy.role, key, spec)
+
+        mock_restart.assert_not_called()
+        budget.evict_expired()
+        assert len(budget._timestamps) == 1, "budget must not be reset once admission is blocked"
+
+
+class TestRestartServiceAdmissionBlocked:
+    async def test_skips_entirely_when_admission_blocked(self) -> None:
+        hassette = make_watcher_hassette()
+        hassette.fatal_shutdown_reason = "already fatal"
+        watcher = make_watcher(hassette)
+        dummy = DummyService(hassette)
+        hassette.children = [dummy]
+        event = make_service_failed_event(dummy)
+
+        await watcher.restart_service(event)
+
+        hassette.send_event.assert_not_called()
+        key = watcher.service_key(dummy.class_name, dummy.role)
+        assert key not in watcher._budgets
+        assert key not in watcher._restarting

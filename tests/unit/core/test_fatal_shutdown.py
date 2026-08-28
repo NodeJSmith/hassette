@@ -7,11 +7,14 @@ Project rule: no log-capture tests. Assert on state / FatalError only.
 """
 
 import asyncio
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from hassette.exceptions import RestartRefusedError
+from hassette.resources.teardown import TeardownCause, TeardownReport
 from hassette.test_utils.helpers import make_crashed_event
+from hassette.types.enums import ResourceRole
 
 from .conftest import make_watcher
 
@@ -86,3 +89,93 @@ class TestShutdownIfCrashedSetsFatalReason:
         assert call_order == ["reason_set_first", "request_shutdown"], (
             f"Expected reason set before request_shutdown, got order: {call_order}"
         )
+
+
+class TestHandleRestartRefusedSetsFatalReason:
+    """handle_restart_refused writes the fatal reason before requesting shutdown and before
+    dispatching the CRASHED event -- the same race-safe ordering guarantee as
+    shutdown_if_crashed (see TestShutdownIfCrashedSetsFatalReason above), for the typed
+    restart-refusal escalation path.
+    """
+
+    @pytest.fixture
+    def watcher_hassette(self):
+        """Minimal mock hassette with the fields ServiceWatcher.handle_restart_refused needs."""
+        hassette = MagicMock()
+        hassette.config.logging.service_watcher = "DEBUG"
+        hassette.shutdown_event = asyncio.Event()
+        hassette._fatal_shutdown_reason = None
+        hassette.send_event = AsyncMock()
+
+        def record(reason: str) -> None:
+            if hassette._fatal_shutdown_reason is None:
+                hassette._fatal_shutdown_reason = reason
+
+        hassette.record_fatal_reason = MagicMock(side_effect=record)
+        return hassette
+
+    @staticmethod
+    def make_error(resource_name: str = "BusService") -> RestartRefusedError:
+        report = TeardownReport(causes=(TeardownCause.SHUTDOWN_HOOK_FAILED,), failed_operations=("shutdown_hooks",))
+        return RestartRefusedError(resource_name, report)
+
+    async def test_sets_fatal_reason_with_resource_name(self, watcher_hassette):
+        watcher = make_watcher(watcher_hassette)
+        error = self.make_error("BusService")
+
+        with patch("hassette.core.service_watcher.request_shutdown"):
+            await watcher.handle_restart_refused("BusService", ResourceRole.SERVICE, error)
+
+        assert watcher_hassette._fatal_shutdown_reason is not None
+        assert "BusService" in watcher_hassette._fatal_shutdown_reason
+
+    async def test_calls_request_shutdown_not_full_shutdown(self, watcher_hassette):
+        """handle_restart_refused must call request_shutdown() (sets shutdown_event), never a
+        bare hassette.shutdown() -- run_forever() must own root teardown, not this handler.
+        """
+        watcher = make_watcher(watcher_hassette)
+        error = self.make_error("BusService")
+
+        with patch("hassette.core.service_watcher.request_shutdown") as mock_request_shutdown:
+            await watcher.handle_restart_refused("BusService", ResourceRole.SERVICE, error)
+
+        mock_request_shutdown.assert_called_once()
+        watcher_hassette.shutdown.assert_not_called()
+
+    async def test_reason_set_before_request_shutdown(self, watcher_hassette):
+        """Fatal reason is set BEFORE request_shutdown is called (ordering guarantee)."""
+        call_order: list[str] = []
+
+        def track_request_shutdown(_resource, _reason=None):
+            if watcher_hassette._fatal_shutdown_reason is not None:
+                call_order.append("reason_set_first")
+            call_order.append("request_shutdown")
+
+        watcher = make_watcher(watcher_hassette)
+        error = self.make_error("BusService")
+
+        with patch("hassette.core.service_watcher.request_shutdown", side_effect=track_request_shutdown):
+            await watcher.handle_restart_refused("BusService", ResourceRole.SERVICE, error)
+
+        assert call_order == ["reason_set_first", "request_shutdown"], (
+            f"Expected reason set before request_shutdown, got order: {call_order}"
+        )
+
+    async def test_reason_set_before_event_dispatch(self, watcher_hassette):
+        """Fatal reason is set BEFORE the CRASHED event is dispatched -- event dispatch is
+        telemetry, not the control path, and event handlers run asynchronously (task-per-
+        handler), so a reader reacting to the event must already see the reason.
+        """
+        observed: dict[str, object] = {}
+
+        async def track_send_event(_event):
+            observed["reason_at_dispatch"] = watcher_hassette._fatal_shutdown_reason
+
+        watcher_hassette.send_event = AsyncMock(side_effect=track_send_event)
+        watcher = make_watcher(watcher_hassette)
+        error = self.make_error("BusService")
+
+        with patch("hassette.core.service_watcher.request_shutdown"):
+            await watcher.handle_restart_refused("BusService", ResourceRole.SERVICE, error)
+
+        assert observed["reason_at_dispatch"] is not None

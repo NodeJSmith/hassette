@@ -1,7 +1,7 @@
 ---
 task_id: "T07"
 title: "Escalate ServiceWatcher restart refusal"
-status: "planned"
+status: "done"
 depends_on: ["T05", "T06"]
 implements: ["FR#8", "FR#9", "FR#12", "AC#6"]
 ---
