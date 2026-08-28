@@ -48,6 +48,11 @@ def _propagate_hassette_logger() -> None:
     Some other test in the session may have left `propagate` set to False (e.g. via
     `enable_basic_logging()`) -- caplog relies on propagation to the root logger. Same
     workaround as `tests/unit/web/conftest.py`.
+
+    Kept as a local copy rather than hoisted into this directory's conftest: the unit-side
+    consolidation covers `tests/unit/web/` only, and this is the one module here that needs
+    the workaround, so a directory-wide autouse fixture would apply it to every integration
+    web-api module to serve a single caller.
     """
     logging.getLogger("hassette").propagate = True
 
