@@ -17,6 +17,7 @@ from hassette.web.config_view import MASK_SENTINEL
 from tests.integration.conftest import make_manifest_mock
 
 from .conftest import (
+    CONFIG_PATH,
     HEALTH_PATH,
     get_json,
     make_log_record,
@@ -39,7 +40,6 @@ APP_MANIFESTS_PATH = "/api/apps/manifests"
 BUS_LISTENERS_PATH = "/api/bus/listeners"
 LOGS_RECENT_PATH = "/api/logs/recent"
 LOGS_LEVEL_PATH = "/api/logs/level"
-CONFIG_PATH = "/api/config"
 OPENAPI_PATH = "/api/openapi.json"
 
 
