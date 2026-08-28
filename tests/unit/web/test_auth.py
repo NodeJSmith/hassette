@@ -3,11 +3,9 @@ precedence between a presented bearer token, trusted-peer match, and a session c
 """
 
 import ipaddress
-import logging
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-import pytest
 from starlette.datastructures import Headers
 
 from hassette.web.auth import authorize_ws
@@ -48,17 +46,6 @@ def _make_websocket(
     ws.cookies = cookies or {}
     ws.client = SimpleNamespace(host=client_host) if client_host is not None else None
     return ws
-
-
-@pytest.fixture(autouse=True)
-def _propagate_hassette_logger() -> None:
-    """Ensure the "hassette" logger propagates so caplog can see records.
-
-    Some other test in the session may have left ``propagate`` set to False (e.g. via
-    ``enable_basic_logging()``); caplog relies on propagation to the root logger. Same
-    workaround as ``tests/unit/test_validate_apps.py``.
-    """
-    logging.getLogger("hassette").propagate = True
 
 
 class TestAuthorizeWsPrecedence:
