@@ -59,7 +59,7 @@ def make_transport(
     return httpx.MockTransport(_fixed_response)
 
 
-def _make_host_port_config(host: str = "127.0.0.1", port: int = 8126) -> HassetteConfig:
+def make_host_port_config(host: str = "127.0.0.1", port: int = 8126) -> HassetteConfig:
     """Bare host/port config for base-URL construction tests.
 
     Narrower than the shared ``make_cli_config()`` (from ``conftest.py``) — no ``cli``/``data_dir``
@@ -69,7 +69,8 @@ def _make_host_port_config(host: str = "127.0.0.1", port: int = 8126) -> Hassett
     return HassetteConfig(token=None, web_api=WebApiConfig(host=host, port=port))
 
 
-def _make_manifest_list(instances: list[AppInstanceResponse], app_key: str = "my_app"):
+def make_manifest_list(instances: list[AppInstanceResponse], app_key: str = "my_app"):
+    """Wrap ``instances`` in a single-app manifest list, as ``/api/apps/manifests`` returns it."""
     manifest = make_manifest_response(app_key=app_key, instance_count=len(instances), instances=instances)
     return make_manifest_list_response(manifests=[manifest])
 
@@ -83,7 +84,7 @@ def url_capturing_client() -> tuple[HassetteCLIClient, list[str]]:
         return httpx.Response(200, content=b"[]", headers={"content-type": "application/json"})
 
     transport = httpx.MockTransport(handler)
-    return HassetteCLIClient(_make_host_port_config(), json_mode=False, transport=transport), captured_urls
+    return HassetteCLIClient(make_host_port_config(), json_mode=False, transport=transport), captured_urls
 
 
 def route_listeners(client: HassetteCLIClient, **kwargs: Any) -> Any:
@@ -139,27 +140,41 @@ def stderr_for_successful_get(config: HassetteConfig, **client_kwargs: Any) -> s
     return buf.getvalue()
 
 
+def stderr_for_connect_error(config: HassetteConfig, **client_kwargs: Any) -> str:
+    """Return what a client built from ``config`` writes to stderr when the server is unreachable.
+
+    The connect-error path is the sibling of ``stderr_for_successful_get`` — the address echo, the
+    full-base-URL report, and the TLS-verification warning all have to appear here too, so only the
+    config/flags that produced the client ever vary between these tests.
+    """
+    client = HassetteCLIClient(
+        config, json_mode=False, transport=make_transport(raise_exc=httpx.ConnectError), **client_kwargs
+    )
+    _code, stderr = get_expecting_exit(client)
+    return stderr
+
+
 # Base URL construction & address substitution
 
 
 class TestBaseUrl:
     def test_default_address(self) -> None:
-        config = _make_host_port_config("127.0.0.1", 8126)
+        config = make_host_port_config()
         client = HassetteCLIClient(config, json_mode=False)
         assert client.base_url == "http://127.0.0.1:8126"
 
     def test_bind_all_ipv4_substituted(self) -> None:
-        config = _make_host_port_config("0.0.0.0", 8126)
+        config = make_host_port_config("0.0.0.0", 8126)
         client = HassetteCLIClient(config, json_mode=False)
         assert client.base_url == "http://127.0.0.1:8126"
 
     def test_bind_all_ipv6_substituted(self) -> None:
-        config = _make_host_port_config("::", 8080)
+        config = make_host_port_config("::", 8080)
         client = HassetteCLIClient(config, json_mode=False)
         assert client.base_url == "http://[::1]:8080"
 
     def test_non_default_host_port(self) -> None:
-        config = _make_host_port_config("192.168.1.5", 9000)
+        config = make_host_port_config("192.168.1.5", 9000)
         client = HassetteCLIClient(config, json_mode=False)
         assert client.base_url == "http://192.168.1.5:9000"
 
@@ -169,7 +184,7 @@ class TestBaseUrl:
 
 class TestSuccessfulRequests:
     def test_returns_deserialized_pydantic_model(self) -> None:
-        config = _make_host_port_config()
+        config = make_host_port_config()
         transport = make_transport(200, {"value": "hello"})
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
         result = client.get("/test", SimpleModel)
@@ -177,7 +192,7 @@ class TestSuccessfulRequests:
         assert result.value == "hello"
 
     def test_returns_dict_for_dict_response(self) -> None:
-        config = _make_host_port_config()
+        config = make_host_port_config()
         body = {"web_api": {"port": 8126}}
         transport = make_transport(200, body)
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
@@ -191,7 +206,7 @@ class TestSuccessfulRequests:
 
 class TestTolerate503:
     def test_503_deserializes_body_when_tolerated(self) -> None:
-        config = _make_host_port_config()
+        config = make_host_port_config()
         transport = make_transport(503, {"value": "degraded"})
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
         result = client.get(TELEMETRY_STATUS_ENDPOINT, SimpleModel, tolerate_503=True)
@@ -199,7 +214,7 @@ class TestTolerate503:
         assert result.value == "degraded"
 
     def test_503_still_exits_when_not_tolerated(self) -> None:
-        config = _make_host_port_config()
+        config = make_host_port_config()
         transport = make_transport(503, {"value": "degraded"})
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
         with pytest.raises(SystemExit) as exc_info:
@@ -207,7 +222,7 @@ class TestTolerate503:
         assert exc_info.value.code == 1
 
     def test_500_still_exits_even_when_503_tolerated(self) -> None:
-        config = _make_host_port_config()
+        config = make_host_port_config()
         transport = make_transport(500, {"detail": "boom"})
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
         with pytest.raises(SystemExit) as exc_info:
@@ -216,7 +231,7 @@ class TestTolerate503:
 
     def test_503_with_non_json_body_exits_instead_of_crashing(self) -> None:
         """A tolerated 503 from a proxy/LB (HTML body, not JSON) exits cleanly, not a traceback."""
-        config = _make_host_port_config()
+        config = make_host_port_config()
 
         def handler(_req: httpx.Request) -> httpx.Response:
             return httpx.Response(503, content=b"<html>503 Service Unavailable</html>")
@@ -228,7 +243,7 @@ class TestTolerate503:
 
     def test_503_with_wrong_shape_json_exits_instead_of_crashing(self) -> None:
         """A tolerated 503 whose JSON doesn't match the model exits cleanly, not a traceback."""
-        config = _make_host_port_config()
+        config = make_host_port_config()
         transport = make_transport(503, {"unexpected": "shape"})
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
         with pytest.raises(SystemExit) as exc_info:
@@ -241,7 +256,7 @@ class TestTolerate503:
 
 class TestHttpErrorsHumanMode:
     def test_404_exits_with_code_1(self, capsys: pytest.CaptureFixture[str]) -> None:
-        config = _make_host_port_config()
+        config = make_host_port_config()
         transport = make_transport(404, {"detail": "Not found"})
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
         with pytest.raises(SystemExit) as exc_info:
@@ -249,14 +264,14 @@ class TestHttpErrorsHumanMode:
         assert exc_info.value.code == 1
 
     def test_404_prints_to_stderr(self) -> None:
-        config = _make_host_port_config()
+        config = make_host_port_config()
         transport = make_transport(404, {"detail": "Not found"})
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
         _code, stderr = get_expecting_exit(client, MISSING_ENDPOINT)
         assert len(stderr) > 0
 
     def test_500_exits_with_code_1(self) -> None:
-        config = _make_host_port_config()
+        config = make_host_port_config()
         transport = make_transport(500, {"detail": "Internal server error"})
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
         with pytest.raises(SystemExit) as exc_info:
@@ -264,7 +279,7 @@ class TestHttpErrorsHumanMode:
         assert exc_info.value.code == 1
 
     def test_nothing_on_stdout_for_http_error_human_mode(self, capsys: pytest.CaptureFixture[str]) -> None:
-        config = _make_host_port_config()
+        config = make_host_port_config()
         transport = make_transport(503, {"detail": "Service unavailable"})
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
         with pytest.raises(SystemExit):
@@ -278,7 +293,7 @@ class TestHttpErrorsHumanMode:
 
 class TestHttpErrorsJsonMode:
     def test_404_json_error_structure(self, capsys: pytest.CaptureFixture[str]) -> None:
-        config = _make_host_port_config()
+        config = make_host_port_config()
         transport = make_transport(404, {"detail": "Not found"})
         client = HassetteCLIClient(config, json_mode=True, transport=transport)
         parsed = get_json_error(client, capsys, MISSING_ENDPOINT, expect_code=1)
@@ -287,7 +302,7 @@ class TestHttpErrorsJsonMode:
         assert "detail" in parsed
 
     def test_json_mode_error_nothing_on_stderr(self, capsys: pytest.CaptureFixture[str]) -> None:
-        config = _make_host_port_config()
+        config = make_host_port_config()
         transport = make_transport(500, {"detail": "boom"})
         client = HassetteCLIClient(config, json_mode=True, transport=transport)
         # In json mode, error goes to stdout only
@@ -300,7 +315,7 @@ class TestHttpErrorsJsonMode:
 
 class TestNetworkErrors:
     def test_connection_refused_exits_code_2(self) -> None:
-        config = _make_host_port_config()
+        config = make_host_port_config()
         transport = make_transport(raise_exc=httpx.ConnectError)
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
         with pytest.raises(SystemExit) as exc_info:
@@ -308,14 +323,11 @@ class TestNetworkErrors:
         assert exc_info.value.code == 2
 
     def test_connection_refused_mentions_address_stderr(self) -> None:
-        config = _make_host_port_config("127.0.0.1", 8126)
-        transport = make_transport(raise_exc=httpx.ConnectError)
-        client = HassetteCLIClient(config, json_mode=False, transport=transport)
-        _code, stderr = get_expecting_exit(client)
+        stderr = stderr_for_connect_error(make_host_port_config())
         assert "127.0.0.1" in stderr or "8126" in stderr
 
     def test_timeout_exits_code_2(self) -> None:
-        config = _make_host_port_config()
+        config = make_host_port_config()
         transport = make_transport(raise_exc=httpx.TimeoutException)
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
         with pytest.raises(SystemExit) as exc_info:
@@ -323,7 +335,7 @@ class TestNetworkErrors:
         assert exc_info.value.code == 2
 
     def test_timeout_json_mode_null_status(self, capsys: pytest.CaptureFixture[str]) -> None:
-        config = _make_host_port_config()
+        config = make_host_port_config()
         transport = make_transport(raise_exc=httpx.TimeoutException)
         client = HassetteCLIClient(config, json_mode=True, transport=transport)
         parsed = get_json_error(client, capsys)
@@ -332,7 +344,7 @@ class TestNetworkErrors:
         assert "detail" in parsed
 
     def test_connection_refused_json_mode_null_status(self, capsys: pytest.CaptureFixture[str]) -> None:
-        config = _make_host_port_config()
+        config = make_host_port_config()
         transport = make_transport(raise_exc=httpx.ConnectError)
         client = HassetteCLIClient(config, json_mode=True, transport=transport)
         parsed = get_json_error(client, capsys)
@@ -365,7 +377,7 @@ class TestInstanceRouting:
         assert any("instance_index=1" in u for u in captured_urls)
 
     def test_name_instance_resolves_to_index(self) -> None:
-        config = _make_host_port_config()
+        config = make_host_port_config()
         call_count = 0
         instances = [
             AppInstanceResponse(
@@ -375,7 +387,7 @@ class TestInstanceRouting:
                 app_key="my_app", index=1, instance_name="office", class_name="MyApp", status="running"
             ),
         ]
-        manifest_list = _make_manifest_list(instances)
+        manifest_list = make_manifest_list(instances)
 
         def handler(request: httpx.Request) -> httpx.Response:
             nonlocal call_count
@@ -400,13 +412,13 @@ class TestInstanceRouting:
         assert any("instance_index=1" in u for u in captured_urls)
 
     def test_unknown_instance_name_exits_nonzero(self) -> None:
-        config = _make_host_port_config()
+        config = make_host_port_config()
         instances = [
             AppInstanceResponse(
                 app_key="my_app", index=0, instance_name="default", class_name="MyApp", status="running"
             ),
         ]
-        manifest_list = _make_manifest_list(instances)
+        manifest_list = make_manifest_list(instances)
 
         def handler(request: httpx.Request) -> httpx.Response:
             if MANIFESTS_ENDPOINT in str(request.url):
@@ -427,7 +439,7 @@ class TestInstanceRouting:
         assert "default" in buf.getvalue()
 
     def test_instance_without_app_exits_nonzero(self) -> None:
-        config = _make_host_port_config()
+        config = make_host_port_config()
         transport = make_transport(200, [])
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
         with capture_stderr() as buf, pytest.raises(SystemExit) as exc_info:
@@ -441,7 +453,7 @@ class TestInstanceRouting:
 
 class TestDebugMode:
     def test_debug_human_mode_shows_url_and_body(self) -> None:
-        config = _make_host_port_config()
+        config = make_host_port_config()
         transport = make_transport(500, {"detail": "Internal server error"})
         client = HassetteCLIClient(config, json_mode=False, debug_mode=True, transport=transport)
         _code, stderr = get_expecting_exit(client, CRASH_ENDPOINT)
@@ -450,7 +462,7 @@ class TestDebugMode:
         assert "Internal server error" in stderr
 
     def test_debug_json_mode_includes_debug_key(self, capsys: pytest.CaptureFixture[str]) -> None:
-        config = _make_host_port_config()
+        config = make_host_port_config()
         transport = make_transport(500, {"detail": "boom"})
         client = HassetteCLIClient(config, json_mode=True, debug_mode=True, transport=transport)
         parsed = get_json_error(client, capsys, CRASH_ENDPOINT)
@@ -461,14 +473,14 @@ class TestDebugMode:
         assert "boom" in parsed["debug"]["body"]
 
     def test_no_debug_human_mode_omits_url(self) -> None:
-        config = _make_host_port_config()
+        config = make_host_port_config()
         transport = make_transport(500, {"detail": "Internal server error"})
         client = HassetteCLIClient(config, json_mode=False, debug_mode=False, transport=transport)
         _code, stderr = get_expecting_exit(client, CRASH_ENDPOINT)
         assert "URL:" not in stderr
 
     def test_no_debug_json_mode_omits_debug_key(self, capsys: pytest.CaptureFixture[str]) -> None:
-        config = _make_host_port_config()
+        config = make_host_port_config()
         transport = make_transport(500, {"detail": "boom"})
         client = HassetteCLIClient(config, json_mode=True, debug_mode=False, transport=transport)
         parsed = get_json_error(client, capsys, CRASH_ENDPOINT)
@@ -480,7 +492,7 @@ class TestDebugMode:
 
 class TestRedirectResponse:
     def test_302_mentions_redirect_forward_auth_and_docs(self) -> None:
-        config = _make_host_port_config()
+        config = make_host_port_config()
         transport = make_transport(302, {"detail": "Found"})
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
         code, stderr = get_expecting_exit(client)
@@ -490,7 +502,7 @@ class TestRedirectResponse:
         assert "cli configuration docs" in stderr.lower()
 
     def test_302_json_mode_mentions_redirect(self, capsys: pytest.CaptureFixture[str]) -> None:
-        config = _make_host_port_config()
+        config = make_host_port_config()
         transport = make_transport(302, {"detail": "Found"})
         client = HassetteCLIClient(config, json_mode=True, transport=transport)
         parsed = get_json_error(client, capsys)
@@ -502,10 +514,7 @@ class TestRedirectResponse:
 
 class TestFullBaseUrlInErrorMessages:
     def test_network_error_reports_full_base_url(self, tmp_path: Path) -> None:
-        config = make_cli_config(data_dir=tmp_path, cli_server_url=REMOTE_SERVER_URL)
-        transport = make_transport(raise_exc=httpx.ConnectError)
-        client = HassetteCLIClient(config, json_mode=False, transport=transport)
-        _code, stderr = get_expecting_exit(client)
+        stderr = stderr_for_connect_error(make_cli_config(data_dir=tmp_path, cli_server_url=REMOTE_SERVER_URL))
         assert REMOTE_SERVER_URL in stderr
 
     def test_http_error_reports_full_base_url(self, tmp_path: Path) -> None:
@@ -526,7 +535,7 @@ class TestTargetEcho:
         assert REMOTE_SERVER_URL in stderr
 
     def test_loopback_success_omits_target(self) -> None:
-        config = _make_host_port_config()
+        config = make_host_port_config()
         stderr = stderr_for_successful_get(config)
         assert stderr == ""
 
@@ -547,7 +556,7 @@ class TestTargetEcho:
         assert parsed["target"] == REMOTE_SERVER_URL
 
     def test_loopback_401_json_mode_omits_target(self, capsys: pytest.CaptureFixture[str]) -> None:
-        config = _make_host_port_config()
+        config = make_host_port_config()
         transport = make_transport(401, {"detail": "Unauthorized"})
         client = HassetteCLIClient(config, json_mode=True, transport=transport)
         parsed = get_json_error(client, capsys)
