@@ -9,11 +9,11 @@ import asyncio
 import logging
 import queue
 import time
-from collections.abc import Coroutine
+from collections.abc import Callable, Coroutine
 from typing import Any
 from unittest.mock import MagicMock
 
-from hassette.logging_ import HassetteQueueListener, LogPersistenceHandler
+from hassette.logging_ import DEQUEUE_TIMEOUT_SECONDS, HassetteQueueListener, LogPersistenceHandler
 
 
 def _enqueue_returning_false(coro: Coroutine[Any, Any, Any]) -> bool:
@@ -28,11 +28,17 @@ def _enqueue_raising_runtime_error(coro: Coroutine[Any, Any, Any]) -> bool:
     raise RuntimeError("DB shut down")
 
 
-def _make_dropping_db_service() -> MagicMock:
-    """Return a db_service mock whose enqueue() always returns False (simulates full queue)."""
+def _make_dropping_db_service(
+    enqueue_side_effect: Callable[[Coroutine[Any, Any, Any]], bool] = _enqueue_returning_false,
+) -> MagicMock:
+    """Return a db_service mock whose enqueue() refuses coroutines, so emitted records are dropped.
+
+    Defaults to simulating a full queue (enqueue returns False). Pass
+    _enqueue_raising_runtime_error to simulate a shut-down service instead.
+    """
     db_service = MagicMock()
     db_service._insert_log_records = MagicMock(return_value=MagicMock())
-    db_service.enqueue = MagicMock(side_effect=_enqueue_returning_false)
+    db_service.enqueue = MagicMock(side_effect=enqueue_side_effect)
     return db_service
 
 
@@ -57,7 +63,7 @@ class TestLogPersistenceHandlerBatching:
             loop.close()
 
     def test_batch_does_not_flush_below_threshold(self) -> None:
-        """Batch accumulates below BATCH_SIZE without flushing."""
+        """Batch accumulates at one record below BATCH_SIZE without flushing."""
         loop = asyncio.new_event_loop()
         db_service = MagicMock()
         db_service.enqueue = MagicMock(return_value=True)
@@ -162,9 +168,7 @@ class TestLogPersistenceDropCountWithDB:
     def test_db_write_queue_drops_increments_on_enqueue_failure(self) -> None:
         """When enqueue() returns False (queue full), db_write_queue_drops increases."""
         loop = asyncio.new_event_loop()
-        db_service = MagicMock()
-        db_service._insert_log_records = MagicMock(return_value=MagicMock())
-        db_service.enqueue = MagicMock(side_effect=_enqueue_returning_false)
+        db_service = _make_dropping_db_service()
         handler = LogPersistenceHandler(db_service, loop, persistence_level=logging.DEBUG)
         try:
             for i in range(LogPersistenceHandler.BATCH_SIZE):
@@ -180,9 +184,7 @@ class TestLogPersistenceDropCountWithDB:
     def test_db_write_queue_drops_increments_on_db_shutdown_runtime_error(self) -> None:
         """When enqueue() raises RuntimeError (DB shut down), db_write_queue_drops increases."""
         loop = asyncio.new_event_loop()
-        db_service = MagicMock()
-        db_service._insert_log_records = MagicMock(return_value=MagicMock())
-        db_service.enqueue = MagicMock(side_effect=_enqueue_raising_runtime_error)
+        db_service = _make_dropping_db_service(_enqueue_raising_runtime_error)
         handler = LogPersistenceHandler(db_service, loop, persistence_level=logging.DEBUG)
         try:
             for i in range(LogPersistenceHandler.BATCH_SIZE):
@@ -200,7 +202,7 @@ class TestDequeueTimeoutFlush:
     """HassetteQueueListener dequeue-timeout triggers flush_if_pending on idle."""
 
     def test_dequeue_timeout_triggers_flush_if_pending(self) -> None:
-        """After 200ms idle, the listener thread calls flush_if_pending on handlers."""
+        """After DEQUEUE_TIMEOUT_SECONDS idle, the listener thread calls flush_if_pending on handlers."""
         q: queue.Queue[logging.LogRecord] = queue.Queue()
         loop = asyncio.new_event_loop()
         db_service = _make_dropping_db_service()
@@ -213,8 +215,8 @@ class TestDequeueTimeoutFlush:
         record = logging.LogRecord("test", logging.WARNING, "", 0, "timeout test", (), None)
         q.put(record)
 
-        # Wait for the dequeue-timeout cycle to flush (200ms timeout + processing)
-        time.sleep(0.5)
+        # Wait for the dequeue-timeout cycle to flush, with margin for thread scheduling
+        time.sleep(DEQUEUE_TIMEOUT_SECONDS + 0.3)
 
         listener.stop()
         loop.run_until_complete(asyncio.sleep(0))
