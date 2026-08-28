@@ -1,3 +1,4 @@
+import asyncio
 import contextlib
 import json
 import os
@@ -32,13 +33,60 @@ if TYPE_CHECKING:
 
 @contextlib.asynccontextmanager
 async def build_harness(harness: HassetteHarness) -> "AsyncIterator[HassetteHarness]":
-    """Start and stop a HassetteHarness, reloading config on exit."""
+    """Start and stop a HassetteHarness, reloading config on exit.
+
+    Safe to use directly inside a test body (see e.g. ``tests/integration/test_apps_env.py``)
+    because ``__aexit__`` then runs inline in the test's own already-running Task rather than
+    being resumed later by pytest-asyncio. It is NOT safe to drive a ``yield``-based *fixture*
+    from this context manager -- see ``_start_module_harness()`` below and
+    ``tests/integration/conftest.py::hassette_instance`` for why.
+    """
     try:
         await harness.start()
         yield harness
     finally:
         await harness.stop()
         harness.config.reload()
+
+
+async def _start_module_harness(harness: HassetteHarness, request: pytest.FixtureRequest) -> HassetteHarness:
+    """Start *harness* and register synchronous teardown via ``request.addfinalizer()``.
+
+    Every module-scoped harness fixture below shares this shape instead of the
+    ``async with harness: yield harness`` pattern used elsewhere in this file, for the
+    same reason documented in full in ``tests/integration/conftest.py::hassette_instance``:
+    pytest-asyncio resumes a ``yield``-based async-generator fixture's teardown by creating
+    a brand-new Task on the shared (session-scoped) event loop. If a test running against
+    this harness triggers a real ``hassette.shutdown()`` (e.g. ServiceWatcher exhausting a
+    PERMANENT service's restart budget in ``tests/integration/test_service_watcher.py``),
+    the loop's task factory -- installed by ``HassetteHarness.start()`` and still pointing
+    at this harness's now-sealed root TaskBucket -- rejects that very Task-creation call
+    before ``HassetteHarness.stop()`` (which itself correctly restores the previous task
+    factory in its own ``finally`` block) ever gets a chance to run. Because that loop is
+    shared for the rest of the pytest-xdist worker's session, every later test on the
+    worker then fails the same way, regardless of which module it lives in.
+
+    A synchronous ``request.addfinalizer()`` callback sidesteps this: it restores the task
+    factory that ``HassetteHarness.start()`` saved (``harness._previous_task_factory``)
+    *before* calling ``loop.run_until_complete()``, so that call's own internal Task
+    creation (via ``ensure_future()``) is safe, and only then drives ``harness.stop()``
+    (which redundantly re-restores the same factory, harmlessly) plus the config reload.
+    """
+    await harness.start()
+    loop = asyncio.get_running_loop()
+
+    def _teardown() -> None:
+        # Order matters: restore the task factory before anything that might create a new
+        # Task, including run_until_complete()'s own ensure_future() call.
+        loop.set_task_factory(harness._previous_task_factory)
+        loop.run_until_complete(harness.stop())
+        harness.config.reload()
+
+    # PT021: request.addfinalizer() instead of `yield` is deliberate here, not the usual
+    # missed-convention case that rule flags -- see the docstring above for why a `yield`
+    # based async-generator fixture deadlocks for this specific fixture family.
+    request.addfinalizer(_teardown)
+    return harness
 
 
 @pytest.fixture
@@ -76,14 +124,14 @@ def hassette_harness(
 async def hassette_with_sync_executor(
     hassette_harness: "Callable[[HassetteConfig], HassetteHarness]",
     test_config: "HassetteConfig",
-) -> "AsyncIterator[HassetteHarness]":
+    request: pytest.FixtureRequest,
+) -> HassetteHarness:
     """Harness with the sync executor wired, but no bus/scheduler/app components.
 
     TaskBucket.run_in_thread delegates to SyncExecutor.submit(), so any
     test that dispatches a sync handler through the bare task bucket needs it.
     """
-    async with hassette_harness(test_config).with_sync_executor() as harness:
-        yield harness
+    return await _start_module_harness(hassette_harness(test_config).with_sync_executor(), request)
 
 
 @pytest.fixture
@@ -100,9 +148,9 @@ def sync_executor() -> Iterator[SyncExecutor]:
 async def hassette_with_bus(
     hassette_harness: "Callable[[HassetteConfig], HassetteHarness]",
     test_config: "HassetteConfig",
-) -> "AsyncIterator[HassetteHarness]":
-    async with hassette_harness(test_config).with_bus() as harness:
-        yield harness
+    request: pytest.FixtureRequest,
+) -> HassetteHarness:
+    return await _start_module_harness(hassette_harness(test_config).with_bus(), request)
 
 
 @pytest.fixture(scope="module")
@@ -120,27 +168,31 @@ async def hassette_with_mock_api(
 async def hassette_with_scheduler(
     hassette_harness: "Callable[[HassetteConfig], HassetteHarness]",
     test_config: "HassetteConfig",
-) -> "AsyncIterator[HassetteHarness]":
-    async with hassette_harness(test_config).with_bus().with_scheduler() as harness:
-        yield harness
+    request: pytest.FixtureRequest,
+) -> HassetteHarness:
+    return await _start_module_harness(hassette_harness(test_config).with_bus().with_scheduler(), request)
 
 
 @pytest.fixture(scope="module")
 async def hassette_with_file_watcher(
     hassette_harness: "Callable[[HassetteConfig], HassetteHarness]",
     test_config_with_apps,
-) -> "AsyncIterator[HassetteHarness]":
-    async with hassette_harness(test_config_with_apps).with_bus().with_file_watcher().with_api_mock() as harness:
-        yield harness
+    request: pytest.FixtureRequest,
+) -> HassetteHarness:
+    return await _start_module_harness(
+        hassette_harness(test_config_with_apps).with_bus().with_file_watcher().with_api_mock(), request
+    )
 
 
 @pytest.fixture(scope="module")
 async def hassette_with_app_handler(
     hassette_harness: "Callable[[HassetteConfig], HassetteHarness]",
     test_config_with_apps,
-) -> "AsyncIterator[HassetteHarness]":
-    async with hassette_harness(test_config_with_apps).with_app_handler().with_scheduler() as harness:
-        yield harness
+    request: pytest.FixtureRequest,
+) -> HassetteHarness:
+    return await _start_module_harness(
+        hassette_harness(test_config_with_apps).with_app_handler().with_scheduler(), request
+    )
 
 
 @pytest.fixture
@@ -156,23 +208,25 @@ async def hassette_with_app_handler_custom_config(
 async def hassette_with_state_proxy(
     hassette_harness: "Callable[[HassetteConfig], HassetteHarness]",
     test_config: "HassetteConfig",
-) -> "AsyncIterator[HassetteHarness]":
+    request: pytest.FixtureRequest,
+) -> HassetteHarness:
     """Module-scoped HassetteHarness fixture with state proxy.
 
     Uses module scope for 5-10x performance improvement.
     State is reset between tests by the autouse cleanup_harness fixture.
     """
-    async with hassette_harness(test_config).with_state_proxy().with_state_registry().with_scheduler() as harness:
-        yield harness
+    return await _start_module_harness(
+        hassette_harness(test_config).with_state_proxy().with_state_registry().with_scheduler(), request
+    )
 
 
 @pytest.fixture(scope="module")
 async def hassette_with_state_registry(
     hassette_harness: "Callable[[HassetteConfig], HassetteHarness]",
     test_config: "HassetteConfig",
-) -> "AsyncIterator[HassetteHarness]":
-    async with hassette_harness(test_config).with_bus().with_state_registry() as harness:
-        yield harness
+    request: pytest.FixtureRequest,
+) -> HassetteHarness:
+    return await _start_module_harness(hassette_harness(test_config).with_bus().with_state_registry(), request)
 
 
 def _load_and_shuffle_events(path: Path) -> list[Event]:

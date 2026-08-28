@@ -44,16 +44,71 @@ def make_fast_spec(**overrides: object) -> RestartSpec:
 
 
 @pytest.fixture
-async def watcher(hassette_with_bus):
-    """Return a fresh service watcher for each test."""
+async def watcher(hassette_with_bus, request: pytest.FixtureRequest) -> ServiceWatcher:
+    """Return a fresh service watcher for each test.
+
+    Deliberately a *plain* async fixture (no ``yield``) with cleanup registered via
+    ``request.addfinalizer()`` as a *synchronous* callback, mirroring
+    ``tests/integration/conftest.py::hassette_instance`` (see its docstring for the full
+    mechanism). This file specifically exercises restart-budget exhaustion, which calls
+    ``hassette.shutdown()`` and seals the shared ``hassette_with_bus`` harness's root
+    TaskBucket mid-test. If teardown were a ``yield``-based async generator, pytest-asyncio's
+    resumption of it would need to create a brand-new Task via the loop's task factory --
+    which, while that factory still routes through the now-sealed bucket, raises immediately,
+    before this fixture's own cleanup (``watcher.shutdown()`` /
+    ``reset_hassette_lifecycle()``) ever runs, and leaves the loop poisoned for the rest of
+    the pytest-xdist worker's session.
+    """
     hassette = hassette_with_bus.hassette
     watcher = ServiceWatcher(hassette, parent=hassette)
     original_children = list(hassette.children)
-    with preserve_config(hassette.config):
-        yield watcher
-        # Clean up bus listeners registered by this watcher via propagation
-        await watcher.shutdown()
-        await reset_hassette_lifecycle(hassette, original_children=original_children)
+    config_cm = preserve_config(hassette.config)
+    config_cm.__enter__()
+
+    loop = asyncio.get_running_loop()
+    active_task_factory = loop.get_task_factory()
+    safe_task_factory = hassette_with_bus._previous_task_factory
+
+    def _teardown() -> None:
+        # Order matters: restore a safe (non-bucket-routed) task factory *before* anything
+        # that might create a new Task, including run_until_complete()'s own
+        # ensure_future() call. Only swap away from the currently-active factory when the
+        # root TaskBucket it routes to is actually sealed (e.g. this test triggered a full
+        # hassette.shutdown()) -- most tests never seal it, and unconditionally swapping to
+        # the harness's pre-install factory would needlessly drop bucket routing for the
+        # cleanup calls below.
+        was_sealed = hassette.task_bucket.is_sealed
+        if was_sealed:
+            loop.set_task_factory(safe_task_factory)
+        try:
+            # Clean up bus listeners registered by this watcher via propagation
+            loop.run_until_complete(watcher.shutdown())
+            # reset_hassette_lifecycle() only clears a shutdown *request* that hasn't started
+            # a teardown attempt yet -- it explicitly refuses (RuntimeError) to touch an
+            # instance with an active shutdown task or a stored teardown report, and refuses
+            # a fortiori once event streams are closed by a completed shutdown (see its
+            # docstring and `_reject_if_active_or_reported()` in
+            # `hassette.test_utils.reset`). A test that lets a PERMANENT service exhaust its
+            # restart budget (e.g. test_always_failing_service_stops_after_max_attempts)
+            # causes ServiceWatcher to trigger a real, completed `hassette.shutdown()` --
+            # reset is not possible in that case, and the shared `hassette_with_bus` harness
+            # is genuinely no longer reusable for the rest of this module regardless.
+            already_shut_down = (
+                hassette.event_streams_closed
+                or hassette._shutdown_task is not None
+                or hassette._teardown_report is not None
+            )
+            if not already_shut_down:
+                loop.run_until_complete(reset_hassette_lifecycle(hassette, original_children=original_children))
+        finally:
+            config_cm.__exit__(None, None, None)
+            if was_sealed:
+                loop.set_task_factory(active_task_factory)
+
+    # PT021: request.addfinalizer() instead of `yield` is deliberate here -- see the
+    # docstring above for why a `yield`-based async-generator fixture deadlocks here.
+    request.addfinalizer(_teardown)  # noqa: PT021
+    return watcher
 
 
 async def restart_and_await(watcher: ServiceWatcher, event: HassetteServiceEvent) -> None:
