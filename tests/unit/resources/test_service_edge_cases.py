@@ -14,15 +14,19 @@ Verifies:
 """
 
 import asyncio
+import contextlib
 from typing import ClassVar
 from unittest.mock import AsyncMock
 
 import pytest
 
-from hassette.exceptions import FatalError
+from hassette.exceptions import FatalError, RestartRefusedError
 from hassette.resources.base import Resource
+from hassette.resources.lifecycle import start
+from hassette.resources.operations import restart
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
+from hassette.resources.teardown import RestartSafety, TeardownCause
 from hassette.test_utils import make_mock_hassette, wait_for
 from hassette.types.enums import ResourceStatus
 from tests.unit.resources.lifecycle.conftest import SimpleService
@@ -55,6 +59,29 @@ class FatalErrorService(Service):
 
     async def serve(self) -> None:
         raise FatalError("fatal boom")
+
+
+class ResistantService(Service):
+    """Service whose serve() swallows CancelledError and stays pending indefinitely.
+
+    Simulates a cancellation-resistant ``serve()`` task (design Edge Cases: "serve() catches
+    cancellation and remains pending"). ``release()`` lets a test unblock the task afterward so
+    it never leaks past the end of the test — call it, then cancel and await the raw task.
+    """
+
+    restart_spec = RestartSpec()
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._release = asyncio.Event()
+
+    async def serve(self) -> None:
+        while not self._release.is_set():
+            with contextlib.suppress(asyncio.CancelledError):
+                await asyncio.Event().wait()
+
+    def release(self) -> None:
+        self._release.set()
 
 
 class TestForceTerminalWithoutServeTask:
@@ -212,3 +239,83 @@ class TestIsRunning:
 
         await svc.shutdown()
         assert svc.is_running() is False, "serve task cancelled and completed"
+
+
+class TestServiceShutdownBodyServeTaskPending:
+    """``Service._shutdown_body()`` observes a cancellation-resistant ``serve()`` task with a
+    bounded ``asyncio.wait()`` rather than treating ``cancel()`` as termination proof. Called
+    directly (bypassing the shutdown coordinator's own whole-body deadline, which shares the
+    same config value and would otherwise race this inner bound and obscure which stage
+    produced the evidence — see ``test_add_child_and_restart.py``'s ``_make_unsafe_parent`` for
+    the same race explained for children).
+    """
+
+    async def test_resistant_serve_task_adds_serve_task_pending_within_budget(self) -> None:
+        hassette = make_mock_hassette(sealed=False)
+        hassette.config.lifecycle.resource_shutdown_timeout_seconds = 0.1
+        # The resistant serve() task is TaskBucket-owned too, so the post-hook shutdown stage's
+        # own TaskBucket.cancel_all() bounds its wait by task_cancellation_timeout_seconds, not
+        # resource_shutdown_timeout_seconds. Keep both short so the outer asyncio.wait_for below
+        # proves the whole body stays within a bounded budget rather than racing the 5s default.
+        hassette.config.lifecycle.task_cancellation_timeout_seconds = 0.1
+
+        svc = ResistantService(hassette)
+        await svc.initialize()
+        await wait_for_running(svc)
+
+        old_task = svc._serve_task
+        assert old_task is not None
+
+        try:
+            # Generous headroom over the 0.1s config bounds above (see CLAUDE.md's guidance on
+            # config-driven real-clock timeouts) — this proves boundedness, not tightness.
+            report = await asyncio.wait_for(svc._shutdown_body(), timeout=5)
+
+            assert report.restart_safety is RestartSafety.UNSAFE
+            assert TeardownCause.SERVE_TASK_PENDING in report.causes
+            assert old_task.get_name() in report.pending_tasks
+            assert not old_task.done(), "resistant task must remain pending, not be treated as terminated"
+        finally:
+            svc.release()
+            old_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await old_task
+
+
+class TestServiceResistantServeNeverReplaced:
+    """A restart-unsafe report from a resistant ``serve()`` task must refuse every same-instance
+    initialization path and never spawn a replacement ``serve()`` task.
+    """
+
+    async def test_shutdown_refuses_restart_and_never_spawns_replacement(self) -> None:
+        hassette = make_mock_hassette(sealed=False)
+        hassette.config.lifecycle.resource_shutdown_timeout_seconds = 0.1
+        hassette.config.lifecycle.task_cancellation_timeout_seconds = 0.1
+
+        svc = ResistantService(hassette)
+        await svc.initialize()
+        await wait_for_running(svc)
+
+        old_task = svc._serve_task
+        assert old_task is not None
+
+        try:
+            report = await asyncio.wait_for(svc.shutdown(), timeout=5)
+            assert report.restart_safety is RestartSafety.UNSAFE
+            assert svc.teardown_report is report
+
+            with pytest.raises(RestartRefusedError):
+                await restart(svc)
+
+            with pytest.raises(RestartRefusedError):
+                start(svc)
+
+            with pytest.raises(RestartRefusedError):
+                await svc.initialize()
+
+            assert svc._serve_task is old_task, "no replacement serve() task may ever be created after refusal"
+        finally:
+            svc.release()
+            old_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await old_task

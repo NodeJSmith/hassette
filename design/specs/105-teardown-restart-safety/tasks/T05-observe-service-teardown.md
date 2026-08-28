@@ -1,7 +1,7 @@
 ---
 task_id: "T05"
 title: "Observe Service teardown safely"
-status: "planned"
+status: "done"
 depends_on: ["T04"]
 implements: ["FR#2", "FR#3", "FR#7", "FR#9", "FR#17", "AC#2"]
 ---
