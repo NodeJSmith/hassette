@@ -27,6 +27,7 @@ from hassette.scheduler.classes import Job
 from hassette.scheduler.scheduler import Scheduler
 from hassette.test_utils import make_mock_hassette
 from hassette.test_utils.factories import make_scheduled_job
+from hassette.test_utils.helpers import SHORT_SHUTDOWN_TIMEOUT_SECONDS
 from hassette.types.enums import ResourceStatus
 
 from .conftest import HangingChild, ShutdownCounter, SimpleParent, make_running_simple_service
@@ -254,7 +255,7 @@ async def test_on_children_stopped_called_on_clean_shutdown():
 async def test_on_children_stopped_skipped_on_timeout():
     """_on_children_stopped() is NOT called when child shutdown times out."""
     hassette = make_mock_hassette(sealed=False)
-    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 0.1
+    hassette.config.lifecycle.resource_shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
 
     parent = HookTrackingParent(hassette)
     parent.add_child(HangingChild)
@@ -269,7 +270,7 @@ async def test_on_children_stopped_skipped_on_timeout():
 async def test_cleanup_timeout_fires_on_hung_cleanup():
     """When cleanup() hangs, asyncio.timeout catches it and logs a warning."""
     hassette = make_mock_hassette(sealed=False)
-    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 0.1
+    hassette.config.lifecycle.resource_shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
 
     class HungCleanupResource(Resource):
         async def cleanup(self, timeout: float | None = None) -> None:

@@ -15,6 +15,7 @@ from hassette.resources.base import FinalMeta, Resource
 from hassette.resources.teardown import TeardownCause, TeardownReport
 from hassette.test_utils import make_mock_hassette, make_task_bucket
 from hassette.test_utils.config import make_test_config
+from hassette.test_utils.helpers import SHORT_SHUTDOWN_TIMEOUT_SECONDS
 from hassette.types.enums import ResourceStatus
 
 from .conftest import HangingChild, ShutdownCounter, SimpleParent
@@ -205,7 +206,7 @@ async def test_root_identity_uses_total_timeout_not_resource_timeout(tmp_path):
     relationship, scaled down here for test speed).
     """
     config = make_test_config(data_dir=tmp_path)
-    config.lifecycle.resource_shutdown_timeout_seconds = 0.1
+    config.lifecycle.resource_shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
     config.lifecycle.total_shutdown_timeout_seconds = 0.3
     root = RootIdentityResource(config)
     root._shutdown_sleep = 0.2  # longer than the 0.1s resource timeout, shorter than the 0.3s total
@@ -228,7 +229,7 @@ async def test_non_root_with_same_timeouts_still_force_terminates(tmp_path):
     doesn't silently widen the shutdown budget for every resource.
     """
     hassette = make_mock_hassette(data_dir=tmp_path, sealed=False)
-    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 0.1
+    hassette.config.lifecycle.resource_shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
     hassette.config.lifecycle.total_shutdown_timeout_seconds = 0.3
     child = SleepingChild(hassette)
     child._shutdown_sleep = 0.2  # longer than the 0.1s resource timeout the non-root branch uses

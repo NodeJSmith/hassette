@@ -10,7 +10,7 @@ wrapper, _on_children_stopped(), and several one-line accessors/helpers.
 import asyncio
 import logging
 import queue
-from contextlib import suppress
+from contextlib import contextmanager, suppress
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -326,6 +326,29 @@ class TestShutdownChildren:
         h._file_watcher._force_terminal.assert_called_once()
 
 
+@contextmanager
+def hanging_shutdown_body(h: Hassette, total_shutdown_timeout_seconds: float):
+    """Patch ``Resource._shutdown_body()`` to hang forever and set a short total-shutdown
+    timeout, so tests can exercise the coordinator's force-terminal path deterministically.
+
+    Patches ``_shutdown_body()``, not ``shutdown()``: ``shutdown()`` is the ``@final``
+    coordinator front door (``coordinate_shutdown()``) that itself enforces the timeout being
+    tested here. Hassette doesn't override ``shutdown()``, only ``_shutdown_body()`` — patching
+    ``Resource.shutdown`` would replace ``h.shutdown()``'s own entry point (and every child's)
+    with the hang, bypassing the total-timeout enforcement entirely instead of exercising it.
+    """
+
+    async def hang_forever(_self):
+        await asyncio.sleep(1000)
+
+    with (
+        patch.object(Resource, "_shutdown_body", new=hang_forever),
+        preserve_config(h.config),
+    ):
+        h.config.lifecycle.total_shutdown_timeout_seconds = total_shutdown_timeout_seconds
+        yield
+
+
 class TestShutdownTotalTimeout:
     async def test_forces_all_children_terminal_when_super_shutdown_times_out(self, wired_hassette: Hassette) -> None:
         """shutdown() force-terminates every child if the wrapped super().shutdown() exceeds the total timeout."""
@@ -333,19 +356,7 @@ class TestShutdownTotalTimeout:
         for child in h.children:
             child._force_terminal = Mock()
 
-        async def hang_forever(_self):
-            await asyncio.sleep(1000)
-
-        # Patch _shutdown_body(), not shutdown(): shutdown() is the @final coordinator front door
-        # (coordinate_shutdown()) that itself enforces the timeout being tested here. Hassette
-        # doesn't override shutdown(), only _shutdown_body() — patching Resource.shutdown would
-        # replace h.shutdown()'s own entry point (and every child's) with hang_forever, bypassing
-        # the total-timeout enforcement entirely instead of exercising it.
-        with (
-            patch.object(Resource, "_shutdown_body", new=hang_forever),
-            preserve_config(h.config),
-        ):
-            h.config.lifecycle.total_shutdown_timeout_seconds = 0.05
+        with hanging_shutdown_body(h, total_shutdown_timeout_seconds=0.05):
             await h.shutdown()
 
         assert h.shutdown_completed is True
@@ -375,17 +386,10 @@ class TestShutdownTotalTimeout:
         for child in h.children:
             child._force_terminal = Mock()
 
-        async def hang_forever(_self):
-            await asyncio.sleep(1000)
-
-        with (
-            patch.object(Resource, "_shutdown_body", new=hang_forever),
-            preserve_config(h.config),
-        ):
-            # 0.5s (with the 0.9 ROOT_SHUTDOWN_BODY_TIMEOUT_FRACTION) still gives the body
-            # ~450ms to win its race against the coordinator's outer wait, matching the
-            # sibling test's precedent for real-world CI scheduling jitter headroom.
-            h.config.lifecycle.total_shutdown_timeout_seconds = 0.5
+        # 0.5s (with the 0.9 ROOT_SHUTDOWN_BODY_TIMEOUT_FRACTION) still gives the body
+        # ~450ms to win its race against the coordinator's outer wait, matching the
+        # sibling test's precedent for real-world CI scheduling jitter headroom.
+        with hanging_shutdown_body(h, total_shutdown_timeout_seconds=0.5):
             report = await h.shutdown()
 
         assert report.is_restart_safe is False
@@ -411,17 +415,10 @@ class TestShutdownTotalTimeout:
         for child in h.children:
             child._force_terminal = Mock(side_effect=record_and_force)
 
-        async def hang_forever(_self):
-            await asyncio.sleep(1000)
-
-        with (
-            patch.object(Resource, "_shutdown_body", new=hang_forever),
-            preserve_config(h.config),
-        ):
-            # 0.5s (with the 0.9 ROOT_SHUTDOWN_BODY_TIMEOUT_FRACTION) still gives the body
-            # ~450ms to win its race against the coordinator's outer wait, matching the
-            # sibling test's precedent for real-world CI scheduling jitter headroom.
-            h.config.lifecycle.total_shutdown_timeout_seconds = 0.5
+        # 0.5s (with the 0.9 ROOT_SHUTDOWN_BODY_TIMEOUT_FRACTION) still gives the body
+        # ~450ms to win its race against the coordinator's outer wait, matching the
+        # sibling test's precedent for real-world CI scheduling jitter headroom.
+        with hanging_shutdown_body(h, total_shutdown_timeout_seconds=0.5):
             await h.shutdown()
 
         assert observed_unsafe_before_force, "no children were force-terminated"

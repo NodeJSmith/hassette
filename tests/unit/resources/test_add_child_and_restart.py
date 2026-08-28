@@ -11,6 +11,7 @@ from hassette.exceptions import RestartRefusedError
 from hassette.resources.lifecycle import start
 from hassette.resources.operations import restart
 from hassette.test_utils import make_mock_hassette
+from hassette.test_utils.helpers import SHORT_SHUTDOWN_TIMEOUT_SECONDS
 from hassette.types.enums import ResourceStatus
 
 from .conftest import ConcreteResource, wait_for_running
@@ -85,7 +86,7 @@ class TestRestartRefusedAfterChildTimeout:
         avoid this same race.
         """
         hassette = make_mock_hassette(sealed=False)
-        hassette.config.lifecycle.resource_shutdown_timeout_seconds = 0.1
+        hassette.config.lifecycle.resource_shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
 
         parent = SimpleParent(hassette)
         hanging = parent.add_child(HangingChild)

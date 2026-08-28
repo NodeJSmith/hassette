@@ -49,6 +49,32 @@ async def _get_health(hassette: Hassette) -> Response:
         return await client.get(HEALTH_ENDPOINT)
 
 
+async def _teardown_bare_hassette(
+    hassette: Hassette,
+    run_task: asyncio.Task,
+    loop: asyncio.AbstractEventLoop,
+    *,
+    previous_task_factory: object,
+    instance_token: object,
+) -> None:
+    """Shut down a manually-wired Hassette instance and restore loop/context state.
+
+    Shared by this module's two call sites that construct a bare Hassette (bypassing the
+    harness) and drive it via ``run_forever()``. Order matters: restore the task factory
+    before anything below (including ``cleanup_hassette_streams``'s internal task creation)
+    that might create a new Task on this session-scoped loop — ``run_forever()`` installs a
+    TaskBucket-routing factory that seals once shutdown completes. Callers must set their own
+    unblocking events (e.g. a hung ``serve()``'s wait event) before calling this.
+    """
+    hassette.shutdown_event.set()
+    with contextlib.suppress(Exception):
+        await asyncio.wait_for(run_task, timeout=WEBAPI_READY_TIMEOUT)
+    loop.set_task_factory(previous_task_factory)  # pyright: ignore[reportArgumentType]
+    await cleanup_hassette_streams(hassette)
+    if instance_token is not None:
+        hassette_context.HASSETTE_INSTANCE.reset(instance_token)  # pyright: ignore[reportArgumentType]
+
+
 @contextlib.asynccontextmanager
 async def _running_hassette_without_ha(
     tmp_path: Path, unused_tcp_port_factory: Callable[[], int]
@@ -120,17 +146,10 @@ async def _running_hassette_without_ha(
         )
         yield hassette
     finally:
-        hassette.shutdown_event.set()
         never_connects.set()
-        with contextlib.suppress(Exception):
-            await asyncio.wait_for(run_task, timeout=WEBAPI_READY_TIMEOUT)
-        # Restore the task factory before anything below (including cleanup_hassette_streams'
-        # internal task creation) that might create a new Task on this session-scoped loop —
-        # run_forever() installs a TaskBucket-routing factory that seals once shutdown completes.
-        loop.set_task_factory(previous_task_factory)
-        await cleanup_hassette_streams(hassette)
-        if instance_token is not None:
-            hassette_context.HASSETTE_INSTANCE.reset(instance_token)
+        await _teardown_bare_hassette(
+            hassette, run_task, loop, previous_task_factory=previous_task_factory, instance_token=instance_token
+        )
 
 
 class TestDashboardWithoutHA:
@@ -277,15 +296,8 @@ class TestInitialStateSyncBeforeApps:
             assert app is not None
             assert app.is_ready()
         finally:
-            hassette.shutdown_event.set()
             release_connection.set()
             keep_ws_alive.set()
-            with contextlib.suppress(Exception):
-                await asyncio.wait_for(run_task, timeout=WEBAPI_READY_TIMEOUT)
-            # Restore the task factory before anything below (including cleanup_hassette_streams'
-            # internal task creation) that might create a new Task on this session-scoped loop —
-            # run_forever() installs a TaskBucket-routing factory that seals once shutdown completes.
-            loop.set_task_factory(previous_task_factory)
-            await cleanup_hassette_streams(hassette)
-            if instance_token is not None:
-                hassette_context.HASSETTE_INSTANCE.reset(instance_token)
+            await _teardown_bare_hassette(
+                hassette, run_task, loop, previous_task_factory=previous_task_factory, instance_token=instance_token
+            )

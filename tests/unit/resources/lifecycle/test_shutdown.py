@@ -23,6 +23,7 @@ from hassette.resources.lifecycle import start
 from hassette.resources.operations import ordered_children_for_shutdown
 from hassette.resources.teardown import TeardownCause
 from hassette.test_utils import make_mock_hassette, wait_for
+from hassette.test_utils.helpers import SHORT_SHUTDOWN_TIMEOUT_SECONDS
 from tests.unit.resources.conftest import ConcreteResource, wait_for_running
 
 from .conftest import (
@@ -218,7 +219,7 @@ async def test_shutdown_propagation_with_no_children():
 async def test_shutdown_propagation_timeout_forces_terminal_state():
     """When child shutdown times out, timed-out children are forced to consistent terminal state."""
     hassette = make_mock_hassette(sealed=False)
-    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 0.1  # very short timeout
+    hassette.config.lifecycle.resource_shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
 
     parent = SimpleParent(hassette)
     hanging = parent.add_child(HangingChild)
@@ -323,7 +324,7 @@ async def test_resistant_shutdown_body_is_cancelled_after_coordinator_times_out(
     unobserved task once every external joiner (the ``shutdown()`` caller) has returned.
     """
     hassette = make_mock_hassette(sealed=False)
-    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 0.1  # short bound
+    hassette.config.lifecycle.resource_shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
 
     resource = HangingChild(hassette)
     await resource.initialize()
@@ -408,7 +409,7 @@ async def test_shutdown_children_timeout_preserves_finished_safe_child_report():
     restart-unsafe overall.
     """
     hassette = make_mock_hassette(sealed=False)
-    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 0.1
+    hassette.config.lifecycle.resource_shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
 
     parent = SimpleParent(hassette)
     hanging = parent.add_child(HangingChild)
@@ -500,6 +501,10 @@ async def test_task_bucket_shutdown_stage_seals_before_cleanup_and_records_pendi
             await task
 
 
+def raise_boom(_resource, _reason=None):
+    raise RuntimeError("boom")
+
+
 async def test_coordinator_failure_records_coordinator_failed_and_blocks_restart(monkeypatch):
     """When something raises inside the coordinator's try body itself (not the shutdown body
     task), the outer ``except Exception`` block stores a ``COORDINATOR_FAILED`` report, the
@@ -509,13 +514,10 @@ async def test_coordinator_failure_records_coordinator_failed_and_blocks_restart
     """
     resource = await make_initialized_shutdown_counter()
 
-    def _boom(_resource, _reason=None):
-        raise RuntimeError("boom")
-
     # request_shutdown() is called unqualified inside _run_shutdown_coordinator's try body, so
     # patching the module-level name it resolves against is enough to fail the coordinator
     # before it ever creates the shutdown body task.
-    monkeypatch.setattr(lifecycle, "request_shutdown", _boom)
+    monkeypatch.setattr(lifecycle, "request_shutdown", raise_boom)
 
     with pytest.raises(RuntimeError, match="boom"):
         await resource.shutdown()
@@ -544,10 +546,7 @@ async def test_coordinator_failure_merges_with_preexisting_force_terminal_eviden
     assert existing_report is not None
     assert TeardownCause.FORCED_TERMINAL in existing_report.causes
 
-    def _boom(_resource, _reason=None):
-        raise RuntimeError("boom")
-
-    monkeypatch.setattr(lifecycle, "request_shutdown", _boom)
+    monkeypatch.setattr(lifecycle, "request_shutdown", raise_boom)
 
     with pytest.raises(RuntimeError, match="boom"):
         await resource.shutdown()

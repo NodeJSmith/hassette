@@ -162,6 +162,7 @@ filterwarnings = [
     # incidental GC artifact of that intentional rejection from aborting the whole session.
     # The underlying gather() orphaning is a separate, pre-existing base.py issue to track and
     # fix independently, not something a test-side filter should paper over long-term.
+    # Tracked in https://github.com/NodeJSmith/hassette/issues/1720.
     "default:Exception ignored while finalizing coroutine <coroutine object Resource\\.shutdown:pytest.PytestUnraisableExceptionWarning",
 ]
 # Skip Docker/system/e2e tests by default (run explicitly: pytest -m docker / -m e2e / nox -s system).

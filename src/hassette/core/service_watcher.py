@@ -204,6 +204,28 @@ class ServiceWatcher(Resource):
         """
         return self.hassette.fatal_shutdown_reason is not None or self.hassette.shutdown_event.is_set()
 
+    def log_if_admission_blocked(self, name: str | None, role: object | None, action: str) -> bool:
+        """Return True and log at debug level if restart admission is currently blocked.
+
+        Shared by the admission checks in ``restart_service()`` (entry), ``cooldown_and_retry()``
+        (entry and its post-sleep re-check), and ``execute_restart()`` (entry and its
+        post-backoff re-check) so all five near-identical inline blocks share one log format.
+        ``action`` is a short phrase naming what step is being skipped (e.g. "restart_service",
+        "cooldown").
+        """
+        if not self.restart_admission_blocked():
+            return False
+        if name is not None and role is not None:
+            self.logger.debug(
+                "%s '%s' restart admission blocked (fatal reason or shutdown requested), skipping %s",
+                role,
+                name,
+                action,
+            )
+        else:
+            self.logger.debug("Restart admission blocked (fatal reason or shutdown requested), skipping %s", action)
+        return True
+
     async def handle_restart_refused(self, name: str, role: object, error: RestartRefusedError) -> None:
         """Escalate a typed restart refusal to one fatal outcome.
 
@@ -315,12 +337,7 @@ class ServiceWatcher(Resource):
 
         Tracks cooldown cycles. If max_cooldown_cycles is exceeded, transitions to EXHAUSTED_DEAD.
         """
-        if self.restart_admission_blocked():
-            self.logger.debug(
-                "%s '%s' restart admission blocked (fatal reason or shutdown requested), skipping cooldown",
-                role,
-                name,
-            )
+        if self.log_if_admission_blocked(name, role, "cooldown"):
             return
 
         self._cooldown_cycles[key] = self._cooldown_cycles.get(key, 0) + 1
@@ -362,12 +379,7 @@ class ServiceWatcher(Resource):
         # sufficient to close the delayed-task race for both effects. A fatal reason or root
         # shutdown request recorded during the cooldown sleep must stop the budget reset too,
         # not just the restart attempt.
-        if self.restart_admission_blocked():
-            self.logger.debug(
-                "%s '%s' restart admission blocked after cooldown sleep, skipping budget reset and restart",
-                role,
-                name,
-            )
+        if self.log_if_admission_blocked(name, role, "budget reset and restart (after cooldown sleep)"):
             return
 
         # Reset budget and attempt restart
@@ -390,10 +402,7 @@ class ServiceWatcher(Resource):
 
     async def restart_service(self, event: HassetteServiceEvent) -> None:
         """Restart a failed service using per-service RestartSpec-driven behavior."""
-        if self.restart_admission_blocked():
-            self.logger.debug(
-                "Restart admission blocked (fatal reason or shutdown requested), skipping restart_service"
-            )
+        if self.log_if_admission_blocked(None, None, "restart_service"):
             return
 
         status_payload = event.payload.data
@@ -489,12 +498,7 @@ class ServiceWatcher(Resource):
         )
 
         try:
-            if self.restart_admission_blocked():
-                self.logger.debug(
-                    "%s '%s' restart admission blocked (fatal reason or shutdown requested), skipping backoff+restart",
-                    role,
-                    name,
-                )
+            if self.log_if_admission_blocked(name, role, "backoff and restart"):
                 return
 
             if backoff > 0:
@@ -515,8 +519,7 @@ class ServiceWatcher(Resource):
             # Admission check again, immediately before the restart() call — the backoff sleep
             # above is an await point where a refusal on another service key (or a fatal error)
             # could have landed since the entry check.
-            if self.restart_admission_blocked():
-                self.logger.debug("%s '%s' restart admission blocked after backoff, skipping restart", role, name)
+            if self.log_if_admission_blocked(name, role, "restart (after backoff)"):
                 return
 
             # Step 7: Restart the service — catch and log exceptions, do NOT double-count budget.

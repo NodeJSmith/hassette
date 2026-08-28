@@ -28,6 +28,7 @@ from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.resources.teardown import TeardownCause
 from hassette.test_utils import make_mock_hassette, wait_for
+from hassette.test_utils.helpers import SHORT_SHUTDOWN_TIMEOUT_SECONDS
 from hassette.types.enums import ResourceStatus
 from tests.unit.resources.lifecycle.conftest import SimpleService
 
@@ -252,7 +253,7 @@ class TestServiceShutdownBodyServeTaskPending:
 
     async def test_resistant_serve_task_adds_serve_task_pending_within_budget(self) -> None:
         hassette = make_mock_hassette(sealed=False)
-        hassette.config.lifecycle.resource_shutdown_timeout_seconds = 0.1
+        hassette.config.lifecycle.resource_shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
         # The resistant serve() task is TaskBucket-owned too, so the post-hook shutdown stage's
         # own TaskBucket.cancel_all() bounds its wait by task_cancellation_timeout_seconds, not
         # resource_shutdown_timeout_seconds. Keep both short so the outer asyncio.wait_for below
@@ -289,7 +290,7 @@ class TestServiceResistantServeNeverReplaced:
 
     async def test_shutdown_refuses_restart_and_never_spawns_replacement(self) -> None:
         hassette = make_mock_hassette(sealed=False)
-        hassette.config.lifecycle.resource_shutdown_timeout_seconds = 0.1
+        hassette.config.lifecycle.resource_shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
         hassette.config.lifecycle.task_cancellation_timeout_seconds = 0.1
 
         svc = ResistantService(hassette)
