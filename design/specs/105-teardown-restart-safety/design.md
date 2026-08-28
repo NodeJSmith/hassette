@@ -1,7 +1,7 @@
 # Design: Teardown Restart Safety
 
 **Date:** 2026-08-26
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Research:** `design/research/2026-08-26-teardown-restart-safety/research.md`
 
