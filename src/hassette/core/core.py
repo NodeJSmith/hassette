@@ -18,7 +18,13 @@ from hassette.exceptions import AppPrecheckFailedError, FatalError
 from hassette.logging_ import enable_basic_logging
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import handle_stop, mark_not_ready, start
-from hassette.resources.teardown import TeardownCause, TeardownReport
+from hassette.resources.teardown import (
+    RestartSafety,
+    TeardownCause,
+    TeardownReport,
+    add_teardown_evidence,
+    merge_teardown_reports,
+)
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
 from hassette.task_bucket import TaskBucket, make_task_factory
@@ -726,14 +732,29 @@ class Hassette(Resource):
             self.logger.critical("Hassette terminated due to a fatal error: %s", self._fatal_shutdown_reason)
             raise FatalError(self._fatal_shutdown_reason)
 
-    async def _shutdown_children(self) -> bool:
+    async def _shutdown_children(self) -> TeardownReport:
         """Wave-based shutdown: gather each dependency level sequentially.
 
         Dependents (leaf services) shut down first, their dependencies last.
         Within each wave, services shut down concurrently via gather.
+
+        Evidence is accumulated across all waves and returned as one aggregated
+        ``TeardownReport``, mirroring ``Resource._shutdown_children()``'s contract:
+
+        - A child whose ``shutdown()`` call itself raises unexpectedly adds
+          ``CHILD_SHUTDOWN_FAILED`` and the child's identity to ``affected_resources``.
+        - A child that returns without raising, but whose own report is
+          ``RestartSafety.UNSAFE``, adds ``CHILD_RESTART_UNSAFE`` and the child's identity.
+        - A wave that exceeds the shutdown timeout adds ``CHILD_SHUTDOWN_TIMED_OUT``,
+          force-terminates only the children in that wave still unfinished, and returns
+          immediately with the evidence merged so far — later waves do not run.
         """
         timeout = self.config.lifecycle.resource_shutdown_timeout_seconds
         type_to_instance = {type(c): c for c in self.children}
+
+        child_reports: list[TeardownReport] = []
+        causes: list[TeardownCause] = []
+        affected: list[str] = []
 
         for wave_types in reversed(self._init_waves):
             wave = [type_to_instance[t] for t in wave_types if t in type_to_instance]
@@ -746,19 +767,36 @@ class Hassette(Resource):
                         *[child.shutdown() for child in wave],
                         return_exceptions=True,
                     )
-                    for child, result in zip(wave, results, strict=True):
-                        if isinstance(result, Exception):
-                            self.logger.error("Child %s shutdown failed: %s", child.unique_name, result)
             except TimeoutError:
                 self.logger.error(
                     "Shutdown wave [%s] timed out after %ss — forcing remaining children",
                     ", ".join(c.class_name for c in wave),
                     timeout,
                 )
+                causes.append(TeardownCause.CHILD_SHUTDOWN_TIMED_OUT)
                 for child in wave:
-                    child._force_terminal()
-                return False
-        return True
+                    if not child.shutdown_completed:
+                        child._force_terminal()
+                        affected.append(child.unique_name)
+                    child_report = child.teardown_report
+                    if child_report is not None:
+                        child_reports.append(child_report)
+                merged = merge_teardown_reports(*child_reports) if child_reports else TeardownReport()
+                return add_teardown_evidence(merged, causes=tuple(causes), affected_resources=tuple(affected))
+
+            for child, result in zip(wave, results, strict=True):
+                if isinstance(result, BaseException):
+                    self.logger.error("Child %s shutdown failed: %s", child.unique_name, result)
+                    causes.append(TeardownCause.CHILD_SHUTDOWN_FAILED)
+                    affected.append(child.unique_name)
+                    continue
+                child_reports.append(result)
+                if result.restart_safety is RestartSafety.UNSAFE:
+                    causes.append(TeardownCause.CHILD_RESTART_UNSAFE)
+                    affected.append(child.unique_name)
+
+        merged = merge_teardown_reports(*child_reports) if child_reports else TeardownReport()
+        return add_teardown_evidence(merged, causes=tuple(causes), affected_resources=tuple(affected))
 
     async def _on_children_stopped(self) -> None:
         """Emit Hassette's own STOPPED event, then close event streams.

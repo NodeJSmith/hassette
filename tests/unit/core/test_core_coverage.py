@@ -23,6 +23,7 @@ from hassette.core.core import Hassette
 from hassette.exceptions import AppPrecheckFailedError, FatalError
 from hassette.logging_ import HassetteQueueHandler, LogPersistenceHandler
 from hassette.resources.base import Resource
+from hassette.resources.teardown import TeardownCause
 from hassette.test_utils import preserve_config, wait_for
 from hassette.types.enums import ResourceStatus
 from hassette.utils.url_utils import build_rest_url, build_ws_url
@@ -280,8 +281,10 @@ class TestSendEventGuards:
 
 
 class TestShutdownChildren:
-    async def test_continues_and_returns_true_after_child_exception(self, wired_hassette: Hassette) -> None:
-        """_shutdown_children() logs a per-child failure but still returns True (no all_clean tracking)."""
+    async def test_records_child_shutdown_failed_and_continues_siblings(self, wired_hassette: Hassette) -> None:
+        """_shutdown_children() logs a per-child failure, records CHILD_SHUTDOWN_FAILED and the
+        child's identity in the aggregated report, but still awaits every sibling's shutdown.
+        """
         h = wired_hassette
         for child in h.children:
             child.shutdown = AsyncMock()
@@ -291,15 +294,18 @@ class TestShutdownChildren:
 
         result = await h._shutdown_children()
 
-        assert result is True
+        assert TeardownCause.CHILD_SHUTDOWN_FAILED in result.causes
+        assert h._file_watcher.unique_name in result.affected_resources
         h._file_watcher.shutdown.assert_awaited_once()
         for child in h.children:
             if child is not h._file_watcher:
                 child.shutdown.assert_awaited_once()
         error_mock.assert_called()
 
-    async def test_force_terminates_wave_on_timeout_and_returns_false(self, wired_hassette: Hassette) -> None:
-        """_shutdown_children() force-terminates the timed-out wave's children and returns False."""
+    async def test_force_terminates_wave_on_timeout_and_records_timed_out_cause(self, wired_hassette: Hassette) -> None:
+        """_shutdown_children() force-terminates the timed-out wave's children and records
+        CHILD_SHUTDOWN_TIMED_OUT on the aggregated report.
+        """
         h = wired_hassette
 
         async def hang(*_args, **_kwargs):
@@ -316,7 +322,7 @@ class TestShutdownChildren:
             h.config.lifecycle.resource_shutdown_timeout_seconds = 0.5
             result = await h._shutdown_children()
 
-        assert result is False
+        assert TeardownCause.CHILD_SHUTDOWN_TIMED_OUT in result.causes
         h._file_watcher._force_terminal.assert_called_once()
 
 
