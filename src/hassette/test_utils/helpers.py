@@ -566,9 +566,17 @@ def make_task_bucket() -> MagicMock:
     ``spawn`` creates a real ``asyncio.Task`` when a loop is running so the execution-mode
     guard (which spawns and awaits the cancellable child handler task) behaves like production.
     Outside a running loop it returns a MagicMock so sync-context construction still works.
+
+    ``pending_task_names()`` defaults to an empty tuple (not an unconfigured, truthy
+    ``MagicMock``) so callers that check it for shutdown evidence (e.g. the Resource shutdown
+    stages in ``hassette.resources.base``) see "nothing pending" by default, matching a real,
+    freshly constructed ``TaskBucket``. ``cancel_all()`` defaults to an ``AsyncMock`` returning
+    the same empty tuple, mirroring the real ``TaskBucket.cancel_all()`` return shape.
     """
     tb = MagicMock()
     tb.make_async_adapter = MagicMock(side_effect=lambda fn: fn)
+    tb.pending_task_names = MagicMock(return_value=())
+    tb.cancel_all = AsyncMock(return_value=())
 
     def spawn_side_effect(coro: Any, *, name: str | None = None) -> Any:  # noqa: ARG001
         try:

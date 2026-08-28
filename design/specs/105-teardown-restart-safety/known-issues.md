@@ -57,3 +57,50 @@ Acceptance criteria:
   seconds of the last test completing, in isolation and as part of the full suite.
 - `uv run nox -s dev` (or the CI-equivalent full-suite command) never requires manual process
   termination.
+
+## KI-002: `test_service_watcher.py` cascades 474 pre-existing errors after its first shutdown test
+
+Status: open
+Run: 117
+Source: T04
+Reason not fixed now: out-of-scope
+Observed in: T04 (full-`tests/integration/` test gate baseline, `1 failed, 884 passed, 1 skipped,
+474 errors in 254.24s`), confirmed pre-existing on base_commit via a fix-and-revert investigation.
+
+Issue:
+`test_always_failing_service_stops_after_max_attempts` calls `hassette.shutdown()` inline against
+a module-scoped `Hassette` harness fixture shared by every other test in the file. Once that test
+shuts the shared instance down, every subsequent test in `test_service_watcher.py` errors — this
+is the same underlying mechanism as the single reported failure, just multiplied across the file
+(21 errors from this one file account for the bulk of the 474 total). A collateral-cancellation
+fix was attempted (decoupling `fixtures.py`/`harness.py`) and it did resolve the target test, but
+it also uncovered a second, separate T04-owned bug (`AttributeError: 'bool' object has no
+attribute 'restart_safety'` in `resources/base.py`) and broke 5 previously-passing tests in
+`tests/integration/test_task_bucket.py` (its "rogue task capture" contract, per `tests/conftest.py`'s
+`bucket` fixture) — a net regression, so the fix was reverted. `severity-fix-3.md` in the T04
+dispatch has the full before/after run output.
+
+Confirmed not a T04 regression: a containment run of `tests/integration/` with
+`test_service_watcher.py` excluded (`--ignore=tests/integration/test_service_watcher.py`) passed
+cleanly — `1335 passed, 1 skipped, 2 warnings in 255.08s`, zero failures — proving T04's own
+changes introduce no regressions and every one of the 474 baseline errors traces back to this one
+file's shared-fixture cascade.
+
+Why deferred:
+Fixing this requires either `task_bucket.py` (`cancel_all`/`cancel_all_sync` ancestor-chain
+exclusion) or `test_service_watcher.py` (function-scoped isolation for shutdown-triggering tests)
+— both outside every task's Target Files list in this design (T01-T08). It also surfaced a second
+bug in T04's own in-progress `resources/base.py` code that only manifests once the cascade is
+fixed; that bug still needs root-causing before any real fix to this file can land safely.
+
+Recommended follow-up:
+File a separate issue to give `test_always_failing_service_stops_after_max_attempts` (and any
+other shutdown-triggering test in this file) its own function-scoped `Hassette` instance instead
+of sharing the module-scoped one, and root-cause the `restart_safety` `AttributeError` surfaced
+during the reverted fix attempt before relying on it.
+
+Acceptance criteria:
+- `uv run pytest tests/integration/test_service_watcher.py` produces zero errors caused by a prior
+  test's `hassette.shutdown()` call against the shared fixture.
+- The full `tests/integration/` suite's error count drops from 474 to (ideally) 0, with any
+  remainder traced to a cause unrelated to this cascade.

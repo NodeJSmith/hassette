@@ -20,9 +20,9 @@ import pytest
 from hassette.exceptions import LifecycleReentryError
 from hassette.resources.lifecycle import start
 from hassette.resources.operations import ordered_children_for_shutdown
-from hassette.resources.teardown import RestartSafety
+from hassette.resources.teardown import RestartSafety, TeardownCause
 from hassette.test_utils import make_mock_hassette, wait_for
-from tests.unit.resources.conftest import wait_for_running
+from tests.unit.resources.conftest import ConcreteResource, wait_for_running
 
 from .conftest import (
     ErrorChild,
@@ -342,6 +342,161 @@ async def test_resistant_shutdown_body_is_cancelled_after_coordinator_times_out(
     with contextlib.suppress(asyncio.CancelledError):
         await body_task
     assert body_task.cancelled()
+
+
+async def test_shutdown_children_records_child_restart_unsafe_without_raising():
+    """A child that returns ``RestartSafety.UNSAFE`` from its own ``shutdown()`` call (without
+    raising -- ``ErrorChild`` fails inside ``on_shutdown()``, which ``run_hooks(...,
+    continue_on_error=True)`` catches and turns into a ``SHUTDOWN_HOOK_FAILED`` report rather
+    than an exception) makes the parent's aggregated report ``RestartSafety.UNSAFE`` too, merging
+    the child's own cause and recording ``CHILD_RESTART_UNSAFE`` with the child's identity.
+    """
+    hassette = make_mock_hassette(sealed=False)
+    parent = SimpleParent(hassette)
+    child = parent.add_child(ErrorChild)
+
+    await parent.initialize()
+    await child.initialize()
+
+    report = await parent.shutdown()
+
+    child_report = child.teardown_report
+    assert child_report is not None
+    assert child_report.restart_safety is RestartSafety.UNSAFE
+    assert TeardownCause.SHUTDOWN_HOOK_FAILED in child_report.causes
+
+    assert report.restart_safety is RestartSafety.UNSAFE
+    assert TeardownCause.CHILD_RESTART_UNSAFE in report.causes
+    assert TeardownCause.SHUTDOWN_HOOK_FAILED in report.causes, "child's own cause must be merged into the parent"
+    assert child.unique_name in report.affected_resources
+
+
+async def test_shutdown_children_records_child_shutdown_failed_and_continues_siblings():
+    """A child whose ``shutdown()`` call itself raises (not just a hook inside it) adds
+    ``CHILD_SHUTDOWN_FAILED`` and the child's identity to the parent's aggregated report, and
+    siblings still complete via ``asyncio.gather(return_exceptions=True)``.
+    """
+    hassette = make_mock_hassette(sealed=False)
+    parent = SimpleParent(hassette)
+
+    child_ok = parent.add_child(ShutdownCounter)
+    child_broken = parent.add_child(ShutdownCounter)
+
+    await parent.initialize()
+    await child_ok.initialize()
+    await child_broken.initialize()
+
+    async def exploding_shutdown():
+        raise RuntimeError("unexpected boom")
+
+    # Bypass the @final descriptor by setting on the instance dict.
+    object.__setattr__(child_broken, "shutdown", exploding_shutdown)
+
+    report = await parent.shutdown()
+
+    assert report.restart_safety is RestartSafety.UNSAFE
+    assert TeardownCause.CHILD_SHUTDOWN_FAILED in report.causes
+    assert child_broken.unique_name in report.affected_resources
+    assert child_ok.shutdown_count == 1, "sibling must still complete despite the broken child"
+
+
+async def test_shutdown_children_timeout_preserves_finished_safe_child_report():
+    """A wave that times out force-terminates only the children still unfinished at that
+    point -- a child that already completed cleanly keeps its own ``SAFE`` report unchanged,
+    while the unfinished (hanging) child is force-terminated and the parent is
+    ``RestartSafety.UNSAFE`` overall.
+    """
+    hassette = make_mock_hassette(sealed=False)
+    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 0.1
+
+    parent = SimpleParent(hassette)
+    hanging = parent.add_child(HangingChild)
+    normal = parent.add_child(ShutdownCounter)
+
+    await parent.initialize()
+    await hanging.initialize()
+    await normal.initialize()
+
+    # Call _shutdown_children() directly rather than the full shutdown() coordinator: the
+    # coordinator's own whole-body deadline shares the same `resource_shutdown_timeout_seconds`
+    # config value, starting its clock earlier (as soon as the body task is created, before
+    # hooks/TaskBucket/cleanup even run) -- with an identical duration it would race and usually
+    # fire first, producing SHUTDOWN_BODY_TIMED_OUT instead of the child-aggregation evidence
+    # this test targets.
+    report = await parent._shutdown_children()
+
+    assert report.restart_safety is RestartSafety.UNSAFE
+    assert TeardownCause.CHILD_SHUTDOWN_TIMED_OUT in report.causes
+
+    hanging_report = hanging.teardown_report
+    assert hanging_report is not None
+    assert hanging_report.restart_safety is RestartSafety.UNSAFE
+    assert TeardownCause.FORCED_TERMINAL in hanging_report.causes
+
+    normal_report = normal.teardown_report
+    assert normal_report is not None
+    assert normal_report.restart_safety is RestartSafety.SAFE, (
+        "a child that already completed cleanly before the wave timed out must keep its SAFE report"
+    )
+
+
+async def test_task_bucket_shutdown_stage_seals_before_cleanup_and_records_pending_tasks():
+    """The TaskBucket shutdown stage seals the bucket and records ``TASKS_PENDING`` with the
+    straggling task's name -- before ``cleanup()`` runs, so a task spawned before shutdown but
+    still pending after the bounded cancellation wait is rejected as new work and reported by
+    name.
+    """
+    hassette = make_mock_hassette(sealed=False)
+    hassette.config.lifecycle.task_cancellation_timeout_seconds = 0.05
+    resource = ConcreteResource(hassette=hassette)
+    await resource.initialize()
+
+    entered = asyncio.Event()
+    never_set = asyncio.Event()
+
+    async def _resist_cancellation() -> None:
+        entered.set()
+        with contextlib.suppress(asyncio.CancelledError):
+            await never_set.wait()
+        await never_set.wait()  # keep the task genuinely pending past the bounded wait
+
+    # A plain `make_mock_hassette()` resource never installs the loop's custom TaskBucket task
+    # factory (only `HassetteHarness`/real `Hassette.run()` do) -- `task_bucket.spawn()`'s fast
+    # path relies on that factory to auto-register the task, so it would silently create an
+    # untracked task here. Create the task directly and register it via `add()` instead, which
+    # tracks it regardless of the installed task factory.
+    task = asyncio.create_task(_resist_cancellation(), name="straggler")
+    resource.task_bucket.add(task)
+    # Let the task actually start and reach its first await before shutdown() cancels it --
+    # cancelling a task that has never run its first step delivers CancelledError before the
+    # coroutine body (including the `suppress` block) ever executes, so it would not resist
+    # cancellation at all.
+    await asyncio.wait_for(entered.wait(), timeout=1)
+
+    cleanup_saw_sealed = []
+    original_cleanup = resource.cleanup
+
+    async def _spying_cleanup(timeout: float | None = None) -> None:
+        cleanup_saw_sealed.append(resource.task_bucket.is_sealed)
+        await original_cleanup(timeout)
+
+    resource.cleanup = _spying_cleanup  # pyright: ignore[reportAttributeAccessIssue]
+
+    try:
+        report = await resource.shutdown()
+
+        assert cleanup_saw_sealed == [True], "TaskBucket must already be sealed by the time cleanup() runs"
+        assert TeardownCause.TASKS_PENDING in report.causes
+        assert "straggler" in report.pending_tasks
+        assert report.restart_safety is RestartSafety.UNSAFE
+    finally:
+        # The straggler task ignores its first cancellation by design (that is what makes it a
+        # straggler) -- clean it up unconditionally so it can never outlive this test, whether
+        # the assertions above pass or fail.
+        never_set.set()
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
 
 
 async def test_service_inherits_shutdown_propagation():

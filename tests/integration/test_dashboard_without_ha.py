@@ -20,6 +20,7 @@ import pytest
 from httpx2 import ASGITransport, AsyncClient, Response
 
 from hassette import Hassette
+from hassette import context as hassette_context
 from hassette.test_utils import make_light_state_dict, wait_for
 from hassette.test_utils.config import TEST_TOTAL_TIMEOUT_SECONDS
 from hassette.test_utils.helpers import cleanup_hassette_streams
@@ -90,6 +91,16 @@ async def _running_hassette_without_ha(
     )
 
     hassette = Hassette(config)
+    loop = asyncio.get_running_loop()
+    previous_task_factory = loop.get_task_factory()
+    # wire_services() calls context.set_global_hassette(hassette) internally and does not
+    # expose the returned Token, so set it ourselves first to capture the Token — wire_services()'s
+    # own call then early-returns None (same instance already set) and is a no-op. This function
+    # runs setup and teardown in the same coroutine/Context (unlike a pytest-asyncio generator
+    # fixture), so resetting a manually-captured Token in the finally block below is valid — see
+    # tests/integration/conftest.py's hassette_instance docstring for why that would NOT be true
+    # across a fixture setup/teardown boundary.
+    instance_token = hassette_context.set_global_hassette(hassette)
     hassette.wire_services()
 
     never_connects = asyncio.Event()
@@ -113,7 +124,13 @@ async def _running_hassette_without_ha(
         never_connects.set()
         with contextlib.suppress(Exception):
             await asyncio.wait_for(run_task, timeout=WEBAPI_READY_TIMEOUT)
+        # Restore the task factory before anything below (including cleanup_hassette_streams'
+        # internal task creation) that might create a new Task on this session-scoped loop —
+        # run_forever() installs a TaskBucket-routing factory that seals once shutdown completes.
+        loop.set_task_factory(previous_task_factory)
         await cleanup_hassette_streams(hassette)
+        if instance_token is not None:
+            hassette_context.HASSETTE_INSTANCE.reset(instance_token)
 
 
 class TestDashboardWithoutHA:
@@ -198,6 +215,12 @@ class TestInitialStateSyncBeforeApps:
         )
 
         hassette = Hassette(config)
+        loop = asyncio.get_running_loop()
+        previous_task_factory = loop.get_task_factory()
+        # See _running_hassette_without_ha's comment above for why capturing our own Token here
+        # (instead of relying on wire_services()'s internal, unexposed set_global_hassette() call)
+        # is both necessary and valid in this plain-coroutine test body.
+        instance_token = hassette_context.set_global_hassette(hassette)
         hassette.wire_services()
 
         connection_attempted = asyncio.Event()
@@ -259,4 +282,10 @@ class TestInitialStateSyncBeforeApps:
             keep_ws_alive.set()
             with contextlib.suppress(Exception):
                 await asyncio.wait_for(run_task, timeout=WEBAPI_READY_TIMEOUT)
+            # Restore the task factory before anything below (including cleanup_hassette_streams'
+            # internal task creation) that might create a new Task on this session-scoped loop —
+            # run_forever() installs a TaskBucket-routing factory that seals once shutdown completes.
+            loop.set_task_factory(previous_task_factory)
             await cleanup_hassette_streams(hassette)
+            if instance_token is not None:
+                hassette_context.HASSETTE_INSTANCE.reset(instance_token)

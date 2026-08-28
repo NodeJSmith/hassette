@@ -6,11 +6,14 @@ Verifies:
 - _force_terminal() recurses to grandchildren
 - _force_terminal() cancels task buckets
 - _force_terminal() skips completed children
+- _force_terminal() records FORCED_TERMINAL restart-unsafe evidence before cancelling work
+- _force_terminal() leaves an already-completed SAFE report unchanged
 - Service._force_terminal() cancels serve task
 - _on_children_stopped() hook fires on clean shutdown
 - _on_children_stopped() is skipped on timeout
 - cleanup() timeout is enforced
-- _finalize_shutdown() resets initializing flag
+- A completed shutdown() clears the read-only `initializing` property regardless of how
+  shutdown_event was set beforehand
 """
 
 import asyncio
@@ -19,6 +22,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
 from hassette.resources.base import Resource
+from hassette.resources.teardown import RestartSafety, TeardownCause
 from hassette.scheduler.classes import Job
 from hassette.scheduler.scheduler import Scheduler
 from hassette.test_utils import make_mock_hassette
@@ -147,6 +151,61 @@ async def test_force_terminal_skips_completed_children():
         mock_cancel.assert_called_once_with(root)
 
 
+async def test_force_terminal_stores_forced_terminal_report_before_cancelling_work():
+    """_force_terminal() stores its restart-unsafe report (FORCED_TERMINAL) before cancelling
+    anything -- ``cancel()``, ``task_bucket.cancel_all_sync()``, and the recursive descendant
+    call all happen strictly after ``self._teardown_report`` already reflects the forced
+    outcome, so a caller inspecting the report mid-cancellation never sees ``None`` or a report
+    that doesn't yet name the forced-terminal cause.
+    """
+    hassette = make_mock_hassette(sealed=False)
+    root = SimpleParent(hassette)
+    await root.initialize()
+
+    order: list[str] = []
+    original_cancel_all_sync = root.task_bucket.cancel_all_sync
+
+    def _spy_cancel_all_sync() -> None:
+        assert root._teardown_report is not None, "report must already be stored before cancel_all_sync() runs"
+        order.append("cancel_all_sync")
+        original_cancel_all_sync()
+
+    root.task_bucket.cancel_all_sync = _spy_cancel_all_sync  # pyright: ignore[reportAttributeAccessIssue]
+
+    with patch("hassette.resources.base.cancel") as mock_cancel:
+        mock_cancel.side_effect = lambda _r: order.append("cancel")
+        root._force_terminal()
+
+    report = root.teardown_report
+    assert report is not None
+    assert report.restart_safety is RestartSafety.UNSAFE
+    assert TeardownCause.FORCED_TERMINAL in report.causes
+    assert order == ["cancel", "cancel_all_sync"], "both cancellation calls must run after the report was stored"
+    assert root.status == ResourceStatus.STOPPED
+
+
+async def test_force_terminal_leaves_completed_safe_child_report_unchanged():
+    """A child that already completed a clean (``RestartSafety.SAFE``) shutdown before a parent's
+    force-terminal call keeps its own report unchanged -- force-terminal only degrades resources
+    that have not yet completed a teardown attempt.
+    """
+    hassette = make_mock_hassette(sealed=False)
+    root = SimpleParent(hassette)
+    child = root.add_child(ShutdownCounter)
+
+    await root.initialize()
+
+    await child.shutdown()
+    safe_report = child.teardown_report
+    assert safe_report is not None
+    assert safe_report.restart_safety is RestartSafety.SAFE
+
+    root._force_terminal()
+
+    assert child.teardown_report is safe_report, "force-terminal must not touch an already-completed SAFE report"
+    assert child.teardown_report.restart_safety is RestartSafety.SAFE
+
+
 async def test_service_force_terminal_cancels_serve_task():
     """Service._force_terminal() cancels the _serve_task before calling super()."""
     svc = await make_running_simple_service()
@@ -225,18 +284,27 @@ async def test_cleanup_timeout_fires_on_hung_cleanup():
     assert resource.shutdown_completed is True
 
 
-async def test_finalize_shutdown_resets_initializing_flag():
-    """_finalize_shutdown() clears initializing regardless of how shutdown was triggered."""
+async def test_shutdown_clears_initializing_regardless_of_shutdown_event_state():
+    """A completed ``shutdown()`` leaves ``initializing`` False regardless of whether
+    ``shutdown_event`` was already set beforehand.
+
+    Superseded by the coordinator design: there is no ``_finalize_shutdown()`` method and no
+    mutable ``initializing`` flag to force directly anymore — ``initializing`` is now a
+    read-only property derived from ``_init_task`` (see ``LifecycleMixin.initializing`` in
+    ``hassette.resources.mixins``). This exercises the same observable outcome (the resource
+    is not "initializing" once its coordinated shutdown attempt has completed) through the
+    public front doors instead.
+    """
     hassette = make_mock_hassette(sealed=False)
 
     resource1 = SimpleParent(hassette)
-    resource1.initializing = True
+    await resource1.initialize()
     resource1.shutdown_event.set()
-    await resource1._finalize_shutdown()
+    await resource1.shutdown()
     assert resource1.initializing is False
 
     resource2 = SimpleParent(hassette)
-    resource2.initializing = True
-    resource2.shutdown_event.clear()
-    await resource2._finalize_shutdown()
+    await resource2.initialize()
+    assert not resource2.shutdown_event.is_set()
+    await resource2.shutdown()
     assert resource2.initializing is False

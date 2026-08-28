@@ -109,6 +109,12 @@ def start(resource: _LifecycleHostP) -> None:
     Deliberately does **not** assign ``_init_task`` here and does **not** reset shutdown
     state (``shutdown_event``, the stored teardown report) — only an accepted initialization
     attempt inside the coordinator does that. See ``coordinate_initialize()``.
+
+    The joiner is created outside the resource's own TaskBucket (the same lifecycle-owned task
+    mechanism the coordinator and shutdown body use, not ``task_bucket.spawn()``): a clean
+    teardown seals the bucket, and reopening it is itself one of the effects of the accepted
+    initialization attempt this joiner triggers, so admitting the joiner *through* the bucket
+    it is about to reopen would reject it with a sealed-bucket error.
     """
     resource = typing.cast("LifecycleMixin", resource)
     reject_lifecycle_reentry(resource, "start")
@@ -122,7 +128,8 @@ def start(resource: _LifecycleHostP) -> None:
         raise RestartRefusedError(resource.unique_name, report)
 
     resource.logger.debug("%s starting", resource.unique_name)
-    resource.task_bucket.spawn(resource.initialize(), name="resource:resource_initialize")
+    joiner = _create_lifecycle_task(resource.initialize(), name="resource:resource_initialize")
+    _install_exception_observer(resource, joiner, "start joiner")
 
 
 def cancel(resource: _LifecycleHostP) -> None:

@@ -18,7 +18,13 @@ from hassette.resources.lifecycle import (
     mark_not_ready,
 )
 from hassette.resources.operations import ordered_children_for_shutdown, run_hooks
-from hassette.resources.teardown import TeardownCause, TeardownReport, merge_teardown_reports
+from hassette.resources.teardown import (
+    RestartSafety,
+    TeardownCause,
+    TeardownReport,
+    add_teardown_evidence,
+    merge_teardown_reports,
+)
 from hassette.types.enums import ResourceRole, ResourceStatus
 from hassette.types.types import FRAMEWORK_APP_KEY_PREFIX, LOG_LEVEL_TYPE, SourceTier
 
@@ -337,10 +343,21 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         calling hooks risks re-entrancy with the child's own finally block. Stale
         subscriptions may remain active against STOPPED resources; this is an accepted
         gap because force-terminal is nearly always followed by process exit.
+
+        Seals the TaskBucket and takes its synchronous pending-name snapshot before recording
+        the report, so a whole-body-deadline force-terminal call (triggered by the shutdown
+        coordinator in ``lifecycle.py`` when ``_shutdown_body()`` itself never reaches its own
+        TaskBucket stage -- see ``_run_task_bucket_shutdown_stage()``) still records TaskBucket's
+        final pending names even though the interrupted body's own stage never returned.
         """
         if self._teardown_report is not None:
             return
-        self._teardown_report = TeardownReport(causes=(TeardownCause.FORCED_TERMINAL,))
+        self.task_bucket.seal()
+        pending = self.task_bucket.pending_task_names()
+        causes: list[TeardownCause] = [TeardownCause.FORCED_TERMINAL]
+        if pending:
+            causes.append(TeardownCause.TASKS_PENDING)
+        self._teardown_report = TeardownReport(causes=tuple(causes), pending_tasks=pending)
         cancel(self)
         # Cancel an active shutdown coordinator too -- but never the currently running task
         # (self-cancellation mid-synchronous-execution is a footgun and would not take effect
@@ -362,29 +379,80 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         for child in self.children:
             child._force_terminal()
 
-    async def _shutdown_children(self) -> bool:
-        """Propagate shutdown to children. Returns True if all completed within timeout and without errors."""
+    async def _shutdown_children(self) -> TeardownReport:
+        """Propagate shutdown to children and aggregate their teardown reports.
+
+        Children shut down concurrently, in reverse insertion order
+        (``ordered_children_for_shutdown()``), via ``asyncio.gather(return_exceptions=True)``
+        so one child's failure does not stop its siblings from completing:
+
+        - A child whose ``shutdown()`` call itself raises unexpectedly adds
+          ``CHILD_SHUTDOWN_FAILED`` and the child's identity to ``affected_resources``.
+        - A child that returns without raising, but whose own report is
+          ``RestartSafety.UNSAFE``, adds ``CHILD_RESTART_UNSAFE`` and the child's identity —
+          the child's own causes and details are merged in first.
+        - A wave that exceeds the shutdown timeout adds ``CHILD_SHUTDOWN_TIMED_OUT`` and
+          force-terminates only the children still unfinished at that point; a child that
+          already completed keeps its own (possibly ``SAFE``) report unchanged.
+        """
         timeout = self.hassette.config.lifecycle.resource_shutdown_timeout_seconds
         children = ordered_children_for_shutdown(self)
         if not children:
-            return True
+            return TeardownReport()
+
+        child_reports: list[TeardownReport] = []
+        causes: list[TeardownCause] = []
+        affected: list[str] = []
+
         try:
             async with asyncio.timeout(timeout):
-                all_clean = True
                 results = await asyncio.gather(
                     *[child.shutdown() for child in children],
                     return_exceptions=True,
                 )
-                for child, result in zip(children, results, strict=True):
-                    if isinstance(result, Exception):
-                        all_clean = False
-                        self.logger.error("Child %s shutdown failed: %s", child.unique_name, result)
-            return all_clean
         except TimeoutError:
             self.logger.error("Timed out waiting for children to shut down after %ss", timeout)
+            causes.append(TeardownCause.CHILD_SHUTDOWN_TIMED_OUT)
             for child in children:
-                child._force_terminal()
-            return False
+                if not child.shutdown_completed:
+                    child._force_terminal()
+                    affected.append(child.unique_name)
+                child_report = child.teardown_report
+                if child_report is not None:
+                    child_reports.append(child_report)
+            merged = merge_teardown_reports(*child_reports) if child_reports else TeardownReport()
+            return add_teardown_evidence(merged, causes=tuple(causes), affected_resources=tuple(affected))
+
+        for child, result in zip(children, results, strict=True):
+            if isinstance(result, BaseException):
+                self.logger.error("Child %s shutdown failed: %s", child.unique_name, result)
+                causes.append(TeardownCause.CHILD_SHUTDOWN_FAILED)
+                affected.append(child.unique_name)
+                continue
+            child_reports.append(result)
+            if result.restart_safety is RestartSafety.UNSAFE:
+                causes.append(TeardownCause.CHILD_RESTART_UNSAFE)
+                affected.append(child.unique_name)
+
+        merged = merge_teardown_reports(*child_reports) if child_reports else TeardownReport()
+        return add_teardown_evidence(merged, causes=tuple(causes), affected_resources=tuple(affected))
+
+    async def _run_task_bucket_shutdown_stage(self) -> TeardownReport:
+        """Seal the TaskBucket, cancel tracked work, and record final pending-task evidence.
+
+        First-class shutdown stage: sealing, cancellation, and the final synchronous pending-name
+        snapshot all happen here, before subclass ``cleanup()`` runs (design: "Sealing,
+        cancellation, and final TaskBucket inspection form a first-class shutdown stage before
+        subclass cleanup"). Kept separate from ``cleanup()`` so an enclosing whole-body timeout or
+        force-terminal call can still inspect the sealed bucket directly (see
+        ``_force_terminal()``) even if this stage itself is interrupted before returning.
+        """
+        self.task_bucket.seal()
+        await self.task_bucket.cancel_all()
+        pending = self.task_bucket.pending_task_names()
+        if pending:
+            return TeardownReport(causes=(TeardownCause.TASKS_PENDING,), pending_tasks=pending)
+        return TeardownReport()
 
     async def _run_post_hook_shutdown_stage(self) -> TeardownReport:
         """Cleanup, child propagation, and terminal event emission shared by every
@@ -395,8 +463,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         in ``hassette.resources.lifecycle``) is the sole owner of the final stored
         ``TeardownReport``.
         """
-        causes: list[TeardownCause] = []
-        failed_operations: list[str] = []
+        reports: list[TeardownReport] = [await self._run_task_bucket_shutdown_stage()]
 
         timeout = self.hassette.config.lifecycle.resource_shutdown_timeout_seconds
         try:
@@ -404,18 +471,15 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
                 await self.cleanup()
         except TimeoutError:
             self.logger.warning("cleanup() timed out after %ss for %s", timeout, self.unique_name)
-            causes.append(TeardownCause.CLEANUP_TIMED_OUT)
-            failed_operations.append("cleanup")
+            reports.append(TeardownReport(causes=(TeardownCause.CLEANUP_TIMED_OUT,), failed_operations=("cleanup",)))
         except Exception as exc:
             self.logger.exception("Error during cleanup: %s %s", type(exc).__name__, exc)
-            causes.append(TeardownCause.CLEANUP_FAILED)
-            failed_operations.append("cleanup")
+            reports.append(TeardownReport(causes=(TeardownCause.CLEANUP_FAILED,), failed_operations=("cleanup",)))
 
-        children_clean = await self._shutdown_children()
-        if not children_clean:
-            causes.append(TeardownCause.CHILD_SHUTDOWN_TIMED_OUT)
+        children_report = await self._shutdown_children()
+        reports.append(children_report)
 
-        if children_clean:
+        if children_report.restart_safety is RestartSafety.SAFE:
             await self._on_children_stopped()
 
         if not self.hassette.event_streams_closed:
@@ -426,7 +490,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         else:
             self.logger.debug("Skipping STOPPED event as event streams are closed")
 
-        return TeardownReport(causes=tuple(causes), failed_operations=tuple(failed_operations))
+        return merge_teardown_reports(*reports)
 
     async def _on_children_stopped(self) -> None:
         """Called after children shut down cleanly, before this resource's STOPPED event.
@@ -568,7 +632,11 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
     async def cleanup(self, timeout: float | None = None) -> None:
         """Cleanup resources owned by the instance.
 
-        This method is called during shutdown to ensure that all resources are properly released.
+        Called during shutdown, after ``_run_task_bucket_shutdown_stage()`` has already sealed
+        and cancelled the TaskBucket's tracked work as its own first-class stage -- this method
+        no longer owns TaskBucket cancellation. Subclass overrides use this for resources they
+        own directly (caches, connections, etc.); the base implementation only cancels and
+        observes the resource's own initialization task, if one is still pending.
         """
         timeout = timeout or self.hassette.config.lifecycle.resource_shutdown_timeout_seconds
 
@@ -577,5 +645,4 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
             if self._init_task:
                 await asyncio.wait_for(self._init_task, timeout=timeout)
 
-        await self.task_bucket.cancel_all()
         self.logger.debug("Cleaned up resources")
