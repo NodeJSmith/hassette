@@ -19,7 +19,7 @@ import time
 from collections.abc import Callable, Coroutine
 from typing import Any
 
-from hassette.core.command_executor import CommandExecutor, RetryableBatch
+from hassette.core.command_executor import _MAX_RETRY_COUNT, CommandExecutor, RetryableBatch
 from hassette.core.execution_record import ExecutionRecord
 from hassette.test_utils.factories import make_execution_record
 
@@ -204,20 +204,20 @@ async def test_operational_error_triggers_retry():
 
 
 async def test_max_retries_drops_batch():
-    """RetryableBatch with retry_count=3 is dropped and _dropped_exhausted is incremented."""
+    """RetryableBatch at _MAX_RETRY_COUNT is dropped and _dropped_exhausted is incremented."""
     executor = init_executor()
 
     inv = make_invocation(listener_id=5, session_id=1)
-    exhausted_batch = RetryableBatch(records=[inv], retry_count=3)
+    exhausted_batch = RetryableBatch(records=[inv], retry_count=_MAX_RETRY_COUNT)
 
     wire_raising_persist(executor, sqlite3.OperationalError("disk I/O error"))
 
-    # Pass retry_count=3 to indicate exhausted batch
+    # Pass the exhausted retry count to indicate the batch has no retries left
     await CommandExecutor.persist_batch(  # pyright: ignore[reportArgumentType]
-        executor, exhausted_batch.records, retry_count=3
+        executor, exhausted_batch.records, retry_count=_MAX_RETRY_COUNT
     )
 
-    # Should NOT have re-enqueued (retry_count >= 3)
+    # Should NOT have re-enqueued (retry_count >= _MAX_RETRY_COUNT)
     assert executor._write_queue.empty()
     # Should have incremented dropped_exhausted
     assert executor._dropped_exhausted == 1
