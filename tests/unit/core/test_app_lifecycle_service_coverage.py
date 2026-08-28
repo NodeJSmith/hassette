@@ -36,6 +36,10 @@ class ChangeEventLockRace:
     race through the methods below rather than touching them from a test body.
     """
 
+    # Generous upper bound on a race that resolves in microseconds: every await below is already
+    # gated on a deterministic signal, so this only bounds a hang, it never paces the test.
+    WAIT_TIMEOUT_SECONDS = 1.0
+
     def __init__(self, lifecycle_service: AppLifecycleService) -> None:
         self.lifecycle_service = lifecycle_service
         self.gate = asyncio.Event()
@@ -52,7 +56,7 @@ class ChangeEventLockRace:
     async def start_first(self, coro: Coroutine[Any, Any, Any]) -> asyncio.Task[Any]:
         """Start the lock-holding caller and wait until it is parked inside the gated collaborator."""
         task = asyncio.create_task(coro)
-        await asyncio.wait_for(self.first_entered.wait(), timeout=1.0)
+        await asyncio.wait_for(self.first_entered.wait(), timeout=self.WAIT_TIMEOUT_SECONDS)
         return task
 
     async def run_concurrent_call_and_assert_serialized(self, first_task: asyncio.Task[Any]) -> None:
@@ -77,8 +81,8 @@ class ChangeEventLockRace:
         assert not second_task.done()
 
         self.gate.set()
-        await asyncio.wait_for(first_task, timeout=1.0)
-        await asyncio.wait_for(second_task, timeout=1.0)
+        await asyncio.wait_for(first_task, timeout=self.WAIT_TIMEOUT_SECONDS)
+        await asyncio.wait_for(second_task, timeout=self.WAIT_TIMEOUT_SECONDS)
 
         assert self.call_count == 2
 
