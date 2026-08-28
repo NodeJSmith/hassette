@@ -248,7 +248,7 @@ def get_refusing_dummy_service(
     restart_spec: RestartSpec | None = None,
 ) -> Service:
     """A Service whose ``on_shutdown`` hook raises starting on the ``refuse_after``-th call
-    (1-indexed), producing ``TeardownCause.SHUTDOWN_HOOK_FAILED`` evidence -- an ``UNSAFE``
+    (1-indexed), producing ``TeardownCause.SHUTDOWN_HOOK_FAILED`` evidence -- a restart-unsafe
     teardown report -- so ``restart()`` raises ``RestartRefusedError`` from that call onward.
 
     ``refuse_after=1`` (the default) refuses on every restart attempt, for tests that only need

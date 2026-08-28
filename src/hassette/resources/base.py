@@ -392,7 +392,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
           the child's own causes and details are merged in first.
         - A wave that exceeds the shutdown timeout adds ``CHILD_SHUTDOWN_TIMED_OUT`` and
           force-terminates only the children still unfinished at that point; a child that
-          already completed keeps its own (possibly ``SAFE``) report unchanged.
+          already completed keeps its own (possibly restart-safe) report unchanged.
         """
         timeout = self.hassette.config.lifecycle.resource_shutdown_timeout_seconds
         children = ordered_children_for_shutdown(self)

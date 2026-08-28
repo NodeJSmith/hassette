@@ -363,3 +363,54 @@ Acceptance criteria:
 - The `pyproject.toml` `filterwarnings` entry for
   `"Exception ignored while finalizing coroutine <coroutine object Resource.shutdown"` is removed
   once the underlying orphaning can no longer occur.
+
+## KI-009: `TeardownCause.COORDINATOR_FAILED` is undocumented in design.md and the docs site
+
+Status: resolved — fixed during known issues walkthrough
+Run: 117
+Source: clean-code
+Reason not fixed now: out-of-scope
+Observed in: commit f68a709f
+Affected files:
+- design/specs/105-teardown-restart-safety/design.md
+- docs/pages/core-concepts/internals/lifecycle.md
+- src/hassette/resources/teardown.py (`TeardownCause.COORDINATOR_FAILED`)
+- src/hassette/resources/lifecycle.py (`_run_shutdown_coordinator`'s new `except Exception` block)
+
+Issue:
+`TeardownCause.COORDINATOR_FAILED` (added in f68a709f to close a ship-time challenge finding) has
+no corresponding entry in design.md's cause enumeration, FR list, or Edge Cases, and
+`docs/pages/core-concepts/internals/lifecycle.md`'s "Inspecting a report" / restart-refusal
+narrative does not mention it either. Every other `TeardownCause` value has at least a design.md
+docstring-level mention or an FR referencing the scenario that produces it; this one does not,
+which makes it discoverable only by reading `teardown.py`'s enum docstring or the code path in
+`lifecycle.py` directly. No production behavior is missing or wrong — `TeardownReport()` is
+still correctly constructed and stored before the exception is re-raised (verified by reading
+`_run_shutdown_coordinator`'s new `except Exception` block, `src/hassette/resources/lifecycle.py`
+lines ~482-497) — this is a documentation-completeness gap, not a code defect.
+
+Why deferred:
+Not a clean-code (llm-checker/lazy-checker/nitpicker) finding — it surfaced while checking the
+rename-consistency of this run's newly-added code per the dispatch's special note. Fixing it
+requires drafting new design.md prose (an Edge Case entry and doc-site mention) rather than a
+mechanical string fix, and doing that well means understanding when a coordinator can actually
+raise outside the shutdown body (observing the initializer, requesting shutdown, reading config)
+well enough to describe it accurately — judgment call, not a same-shape find-and-replace.
+
+Recommended follow-up:
+Add `COORDINATOR_FAILED` to design.md's cause list/Edge Cases (mirroring how `TOTAL_TIMEOUT` and
+`FORCED_TERMINAL` are documented) and a short mention in `docs/pages/core-concepts/internals/lifecycle.md`'s
+report-inspection section, describing what triggers it and that the exception still propagates to
+the shutdown caller after the report is stored.
+
+Acceptance criteria:
+- design.md's cause enumeration and Edge Cases section mention `COORDINATOR_FAILED` and what
+  produces it.
+- `docs/pages/core-concepts/internals/lifecycle.md` mentions it alongside the other documented
+  causes.
+
+Result: Added `COORDINATOR_FAILED` to design.md's `TeardownCause` code block and a new Edge Cases
+bullet describing when the coordinator raises outside the shutdown body. Added a short paragraph
+to `docs/pages/core-concepts/internals/lifecycle.md`'s report-inspection section. Fixed directly
+during the known issues walkthrough rather than deferred, since the author of this KI entry
+(the same session) already had full context on why the cause exists.

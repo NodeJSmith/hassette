@@ -121,6 +121,7 @@ The same risk is present outside `restart()`: `start()` and direct `initialize()
 - A safe report is cleared only when an accepted new initialization begins. A restart-unsafe report has no in-process reset path.
 - Force-terminal runs after a child already reported `is_restart_safe` `True`. It leaves that completed child's report unchanged and degrades only unfinished resources.
 - Fatal escalation receives duplicate triggering events. The active watcher guard handles overlap; afterward the process-latched fatal reason and root shutdown event prevent another recovery attempt or fatal transition.
+- The shutdown coordinator itself raises outside the shutdown body -- observing the active initializer, requesting shutdown, or reading a config value before the body task is even created. The coordinator records `COORDINATOR_FAILED`, merges it with any evidence a concurrent force-terminal already stored, and re-raises, so `_teardown_report` is never left unset and a later `coordinate_initialize()` call still sees a restart-unsafe report instead of skipping the `RestartRefusedError` guard entirely.
 
 ## Operational Lifecycle
 
@@ -192,6 +193,7 @@ class TeardownCause(StrEnum):
     CHILD_RESTART_UNSAFE = auto()
     FORCED_TERMINAL = auto()
     TOTAL_TIMEOUT = auto()
+    COORDINATOR_FAILED = auto()
 
 
 @dataclass(frozen=True, slots=True)
