@@ -191,6 +191,42 @@ async def test_run_forever_starts_and_shuts_down(hassette_instance: Hassette) ->
     assert hassette_instance.loop_thread_id == threading.get_ident(), "Thread ID does not match"
 
 
+async def test_run_forever_restores_prior_task_factory_on_shutdown(hassette_instance: Hassette) -> None:
+    """run_forever() installs its own task factory on the loop; a real shutdown must restore
+    whatever factory (if any) was installed before it, not leave the loop permanently routing
+    every later create_task() through a closure over this instance's now-sealed task_bucket.
+
+    Regression test: an embedded caller (or a test suite reusing the same event loop across
+    cases, as ``tests/integration/conftest.py::hassette_instance``'s own docstring documents
+    working around) would otherwise see every subsequent task creation on this loop raise
+    "TaskBucket ... is sealed" -- confirmed as the exact mechanism behind CI's `system` test
+    failures, where pytest-asyncio's own end-of-session ``loop.shutdown_asyncgens()`` hit it.
+    """
+    hassette_instance.wait_for_ready = AsyncMock(return_value=True)
+    hassette_instance.session_manager.mark_orphaned_sessions = AsyncMock()
+    hassette_instance.session_manager.create_session = AsyncMock()
+
+    loop = asyncio.get_running_loop()
+
+    def sentinel_factory(loop, coro):  # distinguishable stand-in for "whatever was there before"
+        return asyncio.Task(coro, loop=loop)
+
+    loop.set_task_factory(sentinel_factory)
+
+    with patch("hassette.core.core.start"):
+        task = asyncio.create_task(hassette_instance.run_forever())
+        # coordinator-internal
+        await wait_for(lambda: hassette_instance._loop is not None, desc="run_forever installed its own factory")
+        assert loop.get_task_factory() is not sentinel_factory, "run_forever() should have installed its own factory"
+
+        hassette_instance.shutdown_event.set()
+        await task
+
+    assert loop.get_task_factory() is sentinel_factory, (
+        "shutdown should have restored the factory that was installed before run_forever()"
+    )
+
+
 async def test_run_forever_handles_session_init_failure(hassette_instance: Hassette) -> None:
     """run_forever triggers shutdown and raises FatalError when session initialization raises."""
     hassette_instance.wait_for_ready = AsyncMock(return_value=True)

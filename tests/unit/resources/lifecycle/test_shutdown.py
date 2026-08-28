@@ -22,8 +22,10 @@ from hassette.resources import lifecycle
 from hassette.resources.lifecycle import start
 from hassette.resources.operations import ordered_children_for_shutdown
 from hassette.resources.teardown import TeardownCause
+from hassette.task_bucket import make_task_factory
 from hassette.test_utils import make_mock_hassette, wait_for
 from hassette.test_utils.helpers import SHORT_SHUTDOWN_TIMEOUT_SECONDS
+from hassette.types.enums import ResourceStatus
 from tests.unit.resources.conftest import ConcreteResource, wait_for_running
 
 from .conftest import (
@@ -96,6 +98,33 @@ async def test_start_resets_shutdown_completed():
     assert resource._init_task is not None
     await resource._init_task
     await resource.shutdown()
+
+
+async def test_shutdown_immediately_after_start_does_not_leave_resource_running():
+    """A shutdown() called immediately after start(), with no intervening await, must not be
+    overtaken by that pending start.
+
+    Regression test: start()'s joiner does not assign ``_init_task`` synchronously -- only the
+    joiner actually running ``coordinate_initialize()`` does that, which can be a full
+    event-loop turn later. Without ``_pending_start_task`` tracking that pending joiner,
+    ``shutdown()``'s ``_observe_active_initializer()`` would see ``_init_task`` still ``None``,
+    conclude there was nothing to cancel, and complete cleanly -- only for the still-pending
+    joiner to resume afterward, consume the just-stored safe report, and initialize the
+    resource anyway, leaving it running after the explicit shutdown had already returned.
+    """
+    hassette = make_mock_hassette(sealed=False)
+    resource = ConcreteResource(hassette=hassette)
+
+    start(resource)
+    # No await between start() and shutdown(): the joiner has not had an event-loop turn yet.
+    report = await resource.shutdown()
+
+    assert report.is_restart_safe is True
+    assert resource.status == ResourceStatus.STOPPED, (
+        f"resource must stay STOPPED after an explicit shutdown, got {resource.status}"
+    )
+    assert resource._init_task is None or resource._init_task.done()
+    assert resource._pending_start_task is None
 
 
 async def test_ordered_children_for_shutdown_returns_reversed():
@@ -580,3 +609,34 @@ async def test_service_inherits_shutdown_propagation():
         child_b.unique_name,
         child_a.unique_name,
     ], f"Expected reverse order, got {shutdown_order}"
+
+
+async def test_shutdown_children_survives_root_bucket_sealed_as_global_factory_bucket():
+    """Child-shutdown propagation must succeed even when the parent's own TaskBucket is also
+    installed as the event loop's global task-factory fallback bucket -- the exact arrangement
+    ``Hassette.run_forever()`` uses for the root resource (``loop.set_task_factory(
+    make_task_factory(self.task_bucket))``).
+
+    Regression test: ``_run_task_bucket_shutdown_stage()`` seals the parent's own bucket before
+    ``_shutdown_children()`` runs. ``asyncio.gather()``'s own implicit task creation for each
+    ``child.shutdown()`` coroutine used to route through the loop's task factory with no bucket
+    context set, which fell back to the now-sealed global bucket and rejected every
+    child-shutdown task immediately -- silently aborting child teardown and surfacing as
+    ``SHUTDOWN_BODY_FAILED`` (confirmed via CI: this exact mechanism broke every `system` job).
+    """
+    hassette = make_mock_hassette(sealed=False)
+    parent = SimpleParent(hassette)
+    child = parent.add_child(ShutdownCounter)
+
+    loop = asyncio.get_running_loop()
+    previous_factory = loop.get_task_factory()
+    loop.set_task_factory(make_task_factory(parent.task_bucket))  # pyright: ignore[reportArgumentType]
+    try:
+        await parent.initialize()
+        report = await parent.shutdown()
+    finally:
+        loop.set_task_factory(previous_factory)
+
+    assert report.is_restart_safe is True, f"expected a clean report, got causes={report.causes}"
+    assert child.shutdown_count == 1, "child's on_shutdown must have actually run"
+    assert child.status == ResourceStatus.STOPPED

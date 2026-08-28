@@ -10,6 +10,7 @@ from hassette.resources.lifecycle import (
     cancel,
     coordinate_initialize,
     coordinate_shutdown,
+    create_lifecycle_task,
     create_service_status_event,
     handle_failed,
     handle_running,
@@ -405,10 +406,14 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
 
         try:
             async with asyncio.timeout(timeout):
-                results = await asyncio.gather(
-                    *[child.shutdown() for child in children],
-                    return_exceptions=True,
-                )
+                # create_lifecycle_task(), not asyncio.gather()'s own implicit task creation --
+                # this resource's own TaskBucket is already sealed here; see
+                # create_lifecycle_task()'s docstring for why that matters.
+                child_tasks = [
+                    create_lifecycle_task(child.shutdown(), name=f"resource:shutdown_propagate:{child.unique_name}")
+                    for child in children
+                ]
+                results = await asyncio.gather(*child_tasks, return_exceptions=True)
         except TimeoutError:
             self.logger.error("Timed out waiting for children to shut down after %ss", timeout)
             causes.append(TeardownCause.CHILD_SHUTDOWN_TIMED_OUT)

@@ -7,8 +7,8 @@ invoked as ``handle_failed(resource, exc)`` instead of ``resource.handle_failed(
 Functions are typed against ``_LifecycleHostP`` (see ``hassette.resources.mixins``) at the public
 signature to keep the contract minimal, then narrowed internally to ``LifecycleMixin`` — the
 concrete implementation always in play at runtime — to access the mutable lifecycle state
-(``ready_event``, ``shutdown_event``, ``_ready_reason``, ``_init_task``, ``status``) that the
-Protocol intentionally does not declare.
+(``ready_event``, ``shutdown_event``, ``_ready_reason``, ``_init_task``, ``_pending_start_task``,
+``status``) that the Protocol intentionally does not declare.
 """
 
 import asyncio
@@ -122,13 +122,29 @@ def start(resource: _LifecycleHostP) -> None:
         resource.logger.debug("%s already started or running", resource.unique_name, stacklevel=2)
         return
 
+    # A second guard, not a duplicate of the one above: _init_task is only assigned once the
+    # joiner below actually runs coordinate_initialize(), which can be a turn or more later.
+    # Without this check, a second start() call issued before that first turn would see
+    # _init_task still None and spawn a second, redundant joiner. See _pending_start_task's
+    # docstring for the shutdown-race this same field also closes.
+    if resource._pending_start_task is not None and not resource._pending_start_task.done():
+        resource.logger.debug("%s start already pending", resource.unique_name, stacklevel=2)
+        return
+
     report = resource._teardown_report
     if report is not None and not report.is_restart_safe:
         raise RestartRefusedError(resource.unique_name, report)
 
     resource.logger.debug("%s starting", resource.unique_name)
-    joiner = _create_lifecycle_task(resource.initialize(), name="resource:resource_initialize")
+    joiner = create_lifecycle_task(resource.initialize(), name="resource:resource_initialize")
     _install_exception_observer(resource, joiner, "start joiner")
+    resource._pending_start_task = joiner
+
+    def _clear_pending_start(task: asyncio.Task) -> None:
+        if resource._pending_start_task is task:
+            resource._pending_start_task = None
+
+    joiner.add_done_callback(_clear_pending_start)
 
 
 def cancel(resource: _LifecycleHostP) -> None:
@@ -286,8 +302,17 @@ def reject_lifecycle_reentry(resource: _LifecycleHostP, method_name: str) -> Non
         raise LifecycleReentryError(resource.unique_name, method_name)
 
 
-def _create_lifecycle_task(coro: "Coroutine[Any, Any, Any]", *, name: str) -> asyncio.Task:
+def create_lifecycle_task(coro: "Coroutine[Any, Any, Any]", *, name: str) -> asyncio.Task:
     """Create a lifecycle-owned task outside TaskBucket ownership.
+
+    Not module-private despite the plain name -- ``Resource._shutdown_children()`` (base.py)
+    and ``Hassette._shutdown_children()`` (core.py) also use this to create each child's
+    ``shutdown()`` task, for the same reason the coordinator/body tasks below need it: those
+    calls happen after ``_run_task_bucket_shutdown_stage()`` has already sealed the resource's
+    own TaskBucket, and for the root resource that bucket is also the loop's global fallback
+    bucket (see ``make_task_factory``). Letting ``asyncio.gather()`` create those child-shutdown
+    tasks the normal way would route them through the now-sealed factory and reject every one
+    immediately, silently aborting child teardown.
 
     Uses the ``asyncio.Task`` constructor directly (not ``loop.create_task()``), the same
     mechanism Hassette's own task factory (``make_task_factory``) uses internally. This
@@ -355,7 +380,7 @@ async def coordinate_initialize(resource: _LifecycleHostP) -> None:
             resource._shutdown_task = None
             resource.task_bucket.reopen()
             resource.shutdown_event.clear()
-        init_task = _create_lifecycle_task(
+        init_task = create_lifecycle_task(
             resource._initialize_body(), name=f"resource:initialize:{resource.unique_name}"
         )
         _install_exception_observer(resource, init_task, "initialization coordinator")
@@ -367,10 +392,24 @@ async def coordinate_initialize(resource: _LifecycleHostP) -> None:
 async def _observe_active_initializer(resource: "LifecycleMixin") -> bool:
     """Cancel and bound-observe an active ``_init_task`` before shutdown hooks run.
 
+    Also cancels a still-pending ``start()`` joiner (``_pending_start_task``) first, before it
+    has had a chance to run ``coordinate_initialize()`` and create ``_init_task`` at all -- see
+    ``_pending_start_task``'s docstring for the race this closes. Cancelling the joiner here is
+    safe even once ``_init_task`` already exists: the joiner is only ever awaited internally (via
+    ``coordinate_initialize()``'s own ``asyncio.shield(init_task)``), so interrupting its outer
+    await never affects ``_init_task`` itself, which the check below continues to own.
+
     Returns ``True`` when the initializer was still pending after the bounded wait (adds
     ``TeardownCause.INITIALIZATION_TASK_PENDING`` to the shutdown report), ``False`` otherwise
     (including when there was no active initializer to observe).
     """
+    pending_start = resource._pending_start_task
+    if pending_start is not None and not pending_start.done():
+        pending_start.cancel()
+        with suppress(BaseException):
+            await pending_start
+    resource._pending_start_task = None
+
     init_task = resource._init_task
     if init_task is None or init_task.done():
         return False
@@ -421,7 +460,7 @@ async def _run_shutdown_coordinator(resource: "LifecycleMixin") -> TeardownRepor
             resource.status = ResourceStatus.STOPPING
         request_shutdown(resource, f"{resource.unique_name} shutdown")
 
-        body_task = _create_lifecycle_task(
+        body_task = create_lifecycle_task(
             resource._shutdown_body(), name=f"resource:shutdown_body:{resource.unique_name}"
         )
         _install_exception_observer(resource, body_task, "shutdown body")
@@ -520,7 +559,7 @@ async def coordinate_shutdown(resource: _LifecycleHostP) -> TeardownReport:
 
     task = resource._shutdown_task
     if task is None:
-        task = _create_lifecycle_task(
+        task = create_lifecycle_task(
             _run_shutdown_coordinator(resource), name=f"resource:shutdown:{resource.unique_name}"
         )
         _install_exception_observer(resource, task, "shutdown coordinator")

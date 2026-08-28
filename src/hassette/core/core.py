@@ -17,7 +17,7 @@ from hassette.conversion import STATE_REGISTRY, TYPE_REGISTRY, StateRegistry, Ty
 from hassette.exceptions import AppPrecheckFailedError, FatalError
 from hassette.logging_ import enable_basic_logging
 from hassette.resources.base import Resource
-from hassette.resources.lifecycle import handle_stop, mark_not_ready, start
+from hassette.resources.lifecycle import create_lifecycle_task, handle_stop, mark_not_ready, start
 from hassette.resources.teardown import (
     TeardownCause,
     TeardownReport,
@@ -57,6 +57,8 @@ from .web_ui_watcher import WebUiWatcherService
 from .websocket_service import WebsocketService
 
 if typing.TYPE_CHECKING:
+    from collections.abc import Callable
+
     from hassette.events import Event
 
 ROOT_SHUTDOWN_BODY_TIMEOUT_FRACTION = 0.9
@@ -117,6 +119,12 @@ class Hassette(Resource):
 
         self._loop: asyncio.AbstractEventLoop | None = None
         self._loop_thread_id: int | None = None
+
+        # The loop's task factory prior to run_forever() installing Hassette's own -- restored
+        # in _shutdown_body()'s finally block so an embedded caller whose event loop outlives
+        # this Hassette instance doesn't keep routing every later create_task() through a
+        # closure over self.task_bucket after that bucket has been permanently sealed.
+        self._previous_task_factory: Callable[..., Any] | None = None
 
         # Service slot declarations — populated by wire_services()
         self._sync_executor_service: SyncExecutorService | None = None
@@ -581,6 +589,10 @@ class Hassette(Resource):
         self._loop_thread_id = threading.get_ident()
         self.loop.set_debug(self.config.asyncio_debug_mode)
 
+        # Preserve whatever factory (if any) the embedding caller already installed, so
+        # _shutdown_body() can restore it instead of leaving the loop permanently routing
+        # create_task() through a closure over this instance's own task_bucket.
+        self._previous_task_factory = self.loop.get_task_factory()
         # pyright ignore is to handle what seems like another 3.11 bug/type issue
         self.loop.set_task_factory(make_task_factory(self.task_bucket))  # pyright: ignore[reportArgumentType]
 
@@ -766,10 +778,15 @@ class Hassette(Resource):
             self.logger.debug("Shutting down wave: [%s]", ", ".join(c.class_name for c in wave))
             try:
                 async with asyncio.timeout(timeout):
-                    results = await asyncio.gather(
-                        *[child.shutdown() for child in wave],
-                        return_exceptions=True,
-                    )
+                    # create_lifecycle_task(), not asyncio.gather()'s own implicit task creation --
+                    # self.task_bucket is already sealed here, and for this root resource it also
+                    # doubles as the loop's global factory bucket (see run_forever()); see
+                    # create_lifecycle_task()'s docstring for why that matters.
+                    wave_tasks = [
+                        create_lifecycle_task(child.shutdown(), name=f"resource:shutdown_propagate:{child.unique_name}")
+                        for child in wave
+                    ]
+                    results = await asyncio.gather(*wave_tasks, return_exceptions=True)
             except TimeoutError:
                 self.logger.error(
                     "Shutdown wave [%s] timed out after %ss — forcing remaining children",
@@ -866,6 +883,15 @@ class Hassette(Resource):
             for child in self.children:
                 child._force_terminal()
         finally:
+            # Restore whatever task factory (if any) was installed before run_forever() set
+            # its own -- an event loop that outlives this shutdown (an embedded caller, or a
+            # test suite reusing the loop across cases) must not keep routing create_task()
+            # through a closure over self.task_bucket, which is now permanently sealed.
+            if self._loop is not None:
+                # pyright ignore for the same apparent 3.11 stub issue as the set_task_factory()
+                # call in run_forever() -- a plain callable/None argument is flagged there too.
+                self._loop.set_task_factory(self._previous_task_factory)  # pyright: ignore[reportArgumentType]
+
             # Emit Hassette's own STOPPED event while streams are still open,
             # then close streams and set terminal status. Guarded by event_streams_closed
             # so the clean path (which already closed streams via _on_children_stopped())

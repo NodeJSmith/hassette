@@ -139,6 +139,22 @@ class LifecycleMixin(_LifecycleHostP):
     each starting their own attempt.
     """
 
+    _pending_start_task: asyncio.Task | None = None
+    """``start()``'s own joiner task. Stays set for the entire duration of the joiner's
+    ``initialize()`` call -- including the full run of ``_init_task`` once ``coordinate_initialize()``
+    creates it -- and is cleared only when the joiner itself finishes (via its own done-callback)
+    or when ``_observe_active_initializer()`` cancels it explicitly. The two fields are therefore
+    both non-``None`` for most of a normal initialization, not just briefly at the start.
+
+    ``start()`` does not assign ``_init_task`` synchronously -- that only happens once the
+    joiner actually runs ``coordinate_initialize()``, which can be several event-loop turns
+    later. Without this field, a ``shutdown()`` called immediately after ``start()`` (before the
+    joiner gets a turn) would see no active initializer and complete cleanly, only for the
+    still-pending joiner to resume afterward and initialize the resource anyway -- leaving it
+    running after an explicit shutdown. ``_observe_active_initializer()`` cancels this task
+    (in addition to ``_init_task``) before a shutdown attempt proceeds.
+    """
+
     _shutdown_task: asyncio.Task | None = None
     """The one resource-owned shutdown attempt. Concurrent shutdown callers join this task."""
 
@@ -172,6 +188,7 @@ class LifecycleMixin(_LifecycleHostP):
         self._previous_status = ResourceStatus.NOT_STARTED
         self._status = ResourceStatus.NOT_STARTED
         self._init_task = None
+        self._pending_start_task = None
         self._shutdown_task = None
         self._shutdown_body_task = None
         self._teardown_report = None
