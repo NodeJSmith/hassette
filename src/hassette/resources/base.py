@@ -19,7 +19,6 @@ from hassette.resources.lifecycle import (
 )
 from hassette.resources.operations import ordered_children_for_shutdown, run_hooks
 from hassette.resources.teardown import (
-    RestartSafety,
     TeardownCause,
     TeardownReport,
     add_teardown_evidence,
@@ -335,7 +334,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         Records ``TeardownCause.FORCED_TERMINAL`` on the resource's teardown report before
         cancelling any work, so restart is refused even if a caller inspects the report before
         this method's cancellation and terminal-status side effects finish. Leaves an already
-        completed report unchanged — a resource that already proved ``RestartSafety.SAFE`` (or
+        completed report unchanged — a resource that already proved ``is_restart_safe`` (or
         already recorded other unsafe evidence) is not retroactively altered.
 
         Note: this does NOT call on_shutdown() hooks, so bus subscriptions and scheduler
@@ -388,8 +387,8 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
 
         - A child whose ``shutdown()`` call itself raises unexpectedly adds
           ``CHILD_SHUTDOWN_FAILED`` and the child's identity to ``affected_resources``.
-        - A child that returns without raising, but whose own report is
-          ``RestartSafety.UNSAFE``, adds ``CHILD_RESTART_UNSAFE`` and the child's identity —
+        - A child that returns without raising, but whose own report has
+          ``is_restart_safe`` ``False``, adds ``CHILD_RESTART_UNSAFE`` and the child's identity —
           the child's own causes and details are merged in first.
         - A wave that exceeds the shutdown timeout adds ``CHILD_SHUTDOWN_TIMED_OUT`` and
           force-terminates only the children still unfinished at that point; a child that
@@ -430,7 +429,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
                 affected.append(child.unique_name)
                 continue
             child_reports.append(result)
-            if result.restart_safety is RestartSafety.UNSAFE:
+            if not result.is_restart_safe:
                 causes.append(TeardownCause.CHILD_RESTART_UNSAFE)
                 affected.append(child.unique_name)
 
@@ -479,7 +478,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         children_report = await self._shutdown_children()
         reports.append(children_report)
 
-        if children_report.restart_safety is RestartSafety.SAFE:
+        if children_report.is_restart_safe:
             await self._on_children_stopped()
 
         if not self.hassette.event_streams_closed:

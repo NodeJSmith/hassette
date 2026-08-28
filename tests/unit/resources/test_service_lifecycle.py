@@ -12,7 +12,6 @@ from hassette.resources.base import FinalMeta
 from hassette.resources.operations import restart
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
-from hassette.resources.teardown import RestartSafety
 from hassette.test_utils import make_mock_hassette, wait_for
 from hassette.test_utils.helpers import block_until_cancelled
 from tests.unit.resources.conftest import wait_for_running
@@ -89,7 +88,7 @@ async def test_serve_task_cancelled_even_when_on_shutdown_overridden():
 
     assert svc.shutdown_called, "on_shutdown should have been called"
     assert svc._serve_task.done(), "serve task should be done after shutdown"
-    assert report.restart_safety is RestartSafety.SAFE, "cooperative teardown must remain restart-safe"
+    assert report.is_restart_safe is True, "cooperative teardown must remain restart-safe"
 
 
 async def test_on_initialize_runs_before_serve_task_spawned():
@@ -175,11 +174,11 @@ async def test_simple_service_completes_full_lifecycle():
     report = await svc.shutdown()
 
     assert svc._serve_task.done()
-    assert report.restart_safety is RestartSafety.SAFE, "cooperative teardown must remain restart-safe"
+    assert report.is_restart_safe is True, "cooperative teardown must remain restart-safe"
 
 
 async def test_clean_teardown_still_permits_same_instance_restart():
-    """A ``RestartSafety.SAFE`` report from cooperative Service teardown continues to authorize
+    """A restart-safe report from cooperative Service teardown continues to authorize
     same-instance restart via the existing ``restart()`` round trip: the serve() task is
     replaced with a fresh one and the service returns to RUNNING.
     """

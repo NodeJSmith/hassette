@@ -20,10 +20,9 @@ from hassette.resources.operations import (
     run_hooks,
     start_children_and_wait,
 )
-from hassette.resources.teardown import RestartSafety, TeardownCause, TeardownReport
+from hassette.resources.teardown import TeardownCause, TeardownReport
 
 __all__ = [
-    "RestartSafety",
     "TeardownCause",
     "TeardownReport",
     "cancel",

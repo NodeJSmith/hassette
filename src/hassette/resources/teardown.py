@@ -3,9 +3,9 @@
 A completed shutdown attempt is represented by a :class:`TeardownReport`. ``None`` (not an
 instance of this class) means "no completed teardown attempt" -- the resource has never shut
 down, or a shutdown attempt is still in progress. Because a completed report has only two final
-states, :class:`RestartSafety` is derived from the report's recorded :class:`TeardownCause`
-values rather than stored separately, so a report can never claim ``SAFE`` while also carrying
-negative evidence.
+states, :attr:`TeardownReport.is_restart_safe` is derived from the report's recorded
+:class:`TeardownCause` values rather than stored separately, so a report can never claim
+restart-safe while also carrying negative evidence.
 
 This module defines only the data shape and pure, side-effect-free construction helpers. Lifecycle
 coordination -- creating and joining initialization/shutdown tasks, invoking shutdown bodies, and
@@ -22,29 +22,12 @@ from typing import TypeVar
 T = TypeVar("T")
 
 
-class RestartSafety(StrEnum):
-    """Whether a completed teardown attempt proved same-instance restart is safe.
-
-    Only a *completed* teardown attempt has a value here at all -- see the module docstring for
-    what an absent (``None``) report means. ``SAFE`` and ``UNSAFE`` are the only final states;
-    there is no partial or unknown completed state.
-    """
-
-    SAFE = auto()
-    """No causes were recorded during the completed teardown attempt -- restarting the same
-    instance is safe."""
-
-    UNSAFE = auto()
-    """At least one cause was recorded during the completed teardown attempt -- restarting the
-    same instance is not safe."""
-
-
 class TeardownCause(StrEnum):
     """A concrete piece of negative evidence collected during a shutdown attempt.
 
-    Any non-empty set of causes on a :class:`TeardownReport` makes ``restart_safety`` ``UNSAFE``
-    -- see :attr:`TeardownReport.restart_safety`. Once recorded, a cause is never removed from a
-    report; later evidence may only add to it (see :func:`add_teardown_evidence`).
+    Any non-empty set of causes on a :class:`TeardownReport` makes
+    :attr:`TeardownReport.is_restart_safe` ``False``. Once recorded, a cause is never removed
+    from a report; later evidence may only add to it (see :func:`add_teardown_evidence`).
     """
 
     SHUTDOWN_HOOK_FAILED = auto()
@@ -82,7 +65,7 @@ class TeardownCause(StrEnum):
     """A child resource's shutdown attempt did not complete within its allotted timeout."""
 
     CHILD_RESTART_UNSAFE = auto()
-    """A child resource's own teardown report recorded ``restart_safety`` as ``UNSAFE``."""
+    """A child resource's own teardown report recorded ``is_restart_safe`` as ``False``."""
 
     FORCED_TERMINAL = auto()
     """The resource was forced into a terminal state without a normal teardown attempt completing."""
@@ -116,8 +99,8 @@ def _dedupe_preserve_order(*groups: Iterable[T]) -> tuple[T, ...]:
 class TeardownReport:
     """Immutable evidence collected during one completed shutdown attempt.
 
-    ``restart_safety`` is derived from ``causes`` rather than stored, so a report can never
-    claim :attr:`RestartSafety.SAFE` while also carrying negative evidence.
+    ``is_restart_safe`` is derived from ``causes`` rather than stored, so a report can never
+    claim restart-safe while also carrying negative evidence.
 
     ``failed_operations`` records bounded operation identities -- a hook's qualified name,
     ``"cleanup"``, a child's resource name -- never exception type, message, or traceback. Those
@@ -134,9 +117,9 @@ class TeardownReport:
     affected_resources: tuple[str, ...] = ()
 
     @property
-    def restart_safety(self) -> RestartSafety:
-        """``SAFE`` only when no causes were recorded; ``UNSAFE`` otherwise."""
-        return RestartSafety.SAFE if not self.causes else RestartSafety.UNSAFE
+    def is_restart_safe(self) -> bool:
+        """``True`` only when no causes were recorded; ``False`` otherwise."""
+        return not self.causes
 
 
 def merge_teardown_reports(*reports: TeardownReport) -> TeardownReport:

@@ -26,7 +26,7 @@ from hassette.resources.lifecycle import start
 from hassette.resources.operations import restart
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
-from hassette.resources.teardown import RestartSafety, TeardownCause
+from hassette.resources.teardown import TeardownCause
 from hassette.test_utils import make_mock_hassette, wait_for
 from hassette.types.enums import ResourceStatus
 from tests.unit.resources.lifecycle.conftest import SimpleService
@@ -271,7 +271,7 @@ class TestServiceShutdownBodyServeTaskPending:
             # config-driven real-clock timeouts) — this proves boundedness, not tightness.
             report = await asyncio.wait_for(svc._shutdown_body(), timeout=5)
 
-            assert report.restart_safety is RestartSafety.UNSAFE
+            assert report.is_restart_safe is False
             assert TeardownCause.SERVE_TASK_PENDING in report.causes
             assert old_task.get_name() in report.pending_tasks
             assert not old_task.done(), "resistant task must remain pending, not be treated as terminated"
@@ -301,7 +301,7 @@ class TestServiceResistantServeNeverReplaced:
 
         try:
             report = await asyncio.wait_for(svc.shutdown(), timeout=5)
-            assert report.restart_safety is RestartSafety.UNSAFE
+            assert report.is_restart_safe is False
             assert svc.teardown_report is report
 
             with pytest.raises(RestartRefusedError):

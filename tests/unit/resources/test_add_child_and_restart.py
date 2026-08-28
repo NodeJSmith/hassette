@@ -10,7 +10,6 @@ import pytest
 from hassette.exceptions import RestartRefusedError
 from hassette.resources.lifecycle import start
 from hassette.resources.operations import restart
-from hassette.resources.teardown import RestartSafety
 from hassette.test_utils import make_mock_hassette
 from hassette.types.enums import ResourceStatus
 
@@ -63,7 +62,7 @@ class TestRestart:
 
 
 class TestRestartRefusedAfterChildTimeout:
-    """A child timeout that leaves the parent's stored report ``RestartSafety.UNSAFE`` must
+    """A child timeout that leaves the parent's stored report with ``is_restart_safe`` ``False`` must
     refuse every same-instance initialization path -- ``restart()``, ``start()``, and a direct
     ``initialize()`` call -- without running a second ``on_initialize()`` hook.
     """
@@ -80,7 +79,7 @@ class TestRestartRefusedAfterChildTimeout:
         outside (``SHUTDOWN_BODY_TIMED_OUT``/``FORCED_TERMINAL``) rather than
         ``_shutdown_children()`` reaching its own ``CHILD_SHUTDOWN_TIMED_OUT`` first. Either path
         proves the same thing this test needs: a hanging child makes the parent's report
-        ``RestartSafety.UNSAFE``. See ``test_shutdown.py``'s dedicated
+        restart-unsafe. See ``test_shutdown.py``'s dedicated
         ``test_shutdown_children_timeout_preserves_finished_safe_child_report`` for the specific
         ``CHILD_SHUTDOWN_TIMED_OUT`` cause, tested by calling ``_shutdown_children()`` directly to
         avoid this same race.
@@ -95,7 +94,7 @@ class TestRestartRefusedAfterChildTimeout:
         await hanging.initialize()
 
         report = await parent.shutdown()
-        assert report.restart_safety is RestartSafety.UNSAFE
+        assert report.is_restart_safe is False
         return parent
 
     async def test_restart_raises_and_never_reinitializes(self) -> None:

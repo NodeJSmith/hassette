@@ -22,7 +22,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
 from hassette.resources.base import Resource
-from hassette.resources.teardown import RestartSafety, TeardownCause
+from hassette.resources.teardown import TeardownCause
 from hassette.scheduler.classes import Job
 from hassette.scheduler.scheduler import Scheduler
 from hassette.test_utils import make_mock_hassette
@@ -178,14 +178,14 @@ async def test_force_terminal_stores_forced_terminal_report_before_cancelling_wo
 
     report = root.teardown_report
     assert report is not None
-    assert report.restart_safety is RestartSafety.UNSAFE
+    assert report.is_restart_safe is False
     assert TeardownCause.FORCED_TERMINAL in report.causes
     assert order == ["cancel", "cancel_all_sync"], "both cancellation calls must run after the report was stored"
     assert root.status == ResourceStatus.STOPPED
 
 
 async def test_force_terminal_leaves_completed_safe_child_report_unchanged():
-    """A child that already completed a clean (``RestartSafety.SAFE``) shutdown before a parent's
+    """A child that already completed a clean, restart-safe shutdown before a parent's
     force-terminal call keeps its own report unchanged -- force-terminal only degrades resources
     that have not yet completed a teardown attempt.
     """
@@ -198,12 +198,12 @@ async def test_force_terminal_leaves_completed_safe_child_report_unchanged():
     await child.shutdown()
     safe_report = child.teardown_report
     assert safe_report is not None
-    assert safe_report.restart_safety is RestartSafety.SAFE
+    assert safe_report.is_restart_safe is True
 
     root._force_terminal()
 
     assert child.teardown_report is safe_report, "force-terminal must not touch an already-completed SAFE report"
-    assert child.teardown_report.restart_safety is RestartSafety.SAFE
+    assert child.teardown_report.is_restart_safe is True
 
 
 async def test_service_force_terminal_cancels_serve_task():

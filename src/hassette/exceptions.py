@@ -543,8 +543,8 @@ class RestartRefusedError(FatalError):
     """Raised when a lifecycle front door refuses to start a new attempt after teardown proved
     restart-unsafe.
 
-    Carries the resource identity and the exact stored ``TeardownReport`` (``RestartSafety.UNSAFE``
-    whenever this exception is raised) so ``ServiceWatcher`` and any other caller can inspect why
+    Carries the resource identity and the exact stored ``TeardownReport`` (``is_restart_safe`` is
+    always ``False`` whenever this exception is raised) so ``ServiceWatcher`` and any other caller can inspect why
     restart was refused without re-deriving evidence from logs. The message lists the report's
     causes and any populated bounded detail fields (failed operations, pending tasks, affected
     resources) so existing exception logging remains useful on its own. Inherits ``FatalError``

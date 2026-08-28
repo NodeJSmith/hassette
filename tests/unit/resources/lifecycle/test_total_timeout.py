@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock
 
 from hassette.config.config import HassetteConfig
 from hassette.resources.base import FinalMeta, Resource
-from hassette.resources.teardown import RestartSafety, TeardownCause, TeardownReport
+from hassette.resources.teardown import TeardownCause, TeardownReport
 from hassette.test_utils import make_mock_hassette, make_task_bucket
 from hassette.test_utils.config import make_test_config
 from hassette.types.enums import ResourceStatus
@@ -103,7 +103,7 @@ async def test_total_shutdown_timeout_caps_wall_clock():
     assert elapsed < 3.0, f"Shutdown took {elapsed:.2f}s — total timeout should have capped it"
     assert root.shutdown_completed is True
     assert hanging.shutdown_completed is True
-    assert report.restart_safety is RestartSafety.UNSAFE
+    assert report.is_restart_safe is False
     assert TeardownCause.TOTAL_TIMEOUT in report.causes
 
 
@@ -148,7 +148,7 @@ async def test_total_timeout_report_records_forced_terminal_and_total_timeout():
 
     report = await root.shutdown()
 
-    assert report.restart_safety is RestartSafety.UNSAFE
+    assert report.is_restart_safe is False
     assert TeardownCause.TOTAL_TIMEOUT in report.causes
     assert TeardownCause.FORCED_TERMINAL in report.causes
     assert root.teardown_report == report
@@ -219,7 +219,7 @@ async def test_root_identity_uses_total_timeout_not_resource_timeout(tmp_path):
     # Proves the sleep wasn't cut short by the smaller resource timeout.
     assert elapsed >= 0.2, f"Shutdown completed in {elapsed:.2f}s — body should have run the full 0.2s sleep"
     assert TeardownCause.SHUTDOWN_BODY_TIMED_OUT not in report.causes
-    assert report.restart_safety is RestartSafety.SAFE
+    assert report.is_restart_safe is True
 
 
 async def test_non_root_with_same_timeouts_still_force_terminates(tmp_path):
@@ -238,4 +238,4 @@ async def test_non_root_with_same_timeouts_still_force_terminates(tmp_path):
     report = await child.shutdown()
 
     assert TeardownCause.SHUTDOWN_BODY_TIMED_OUT in report.causes
-    assert report.restart_safety is RestartSafety.UNSAFE
+    assert report.is_restart_safe is False

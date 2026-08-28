@@ -10,7 +10,7 @@ import pytest
 import hassette.exceptions as exceptions_pkg
 import hassette.resources as resources_pkg
 from hassette.exceptions import FatalError, LifecycleReentryError, RestartRefusedError
-from hassette.resources import RestartSafety, TeardownCause, TeardownReport
+from hassette.resources import TeardownCause, TeardownReport
 from hassette.resources.teardown import add_teardown_evidence, merge_teardown_reports
 
 
@@ -18,18 +18,18 @@ class TestRestartSafetyDerivation:
     def test_empty_report_is_safe(self) -> None:
         report = TeardownReport()
 
-        assert report.restart_safety == RestartSafety.SAFE
+        assert report.is_restart_safe is True
 
     def test_report_with_any_cause_is_unsafe(self) -> None:
         report = TeardownReport(causes=(TeardownCause.SHUTDOWN_HOOK_FAILED,))
 
-        assert report.restart_safety == RestartSafety.UNSAFE
+        assert report.is_restart_safe is False
 
-    def test_restart_safety_cannot_be_set_independently_of_causes(self) -> None:
-        # TeardownReport intentionally has no constructor parameter for restart_safety --
+    def test_is_restart_safe_cannot_be_set_independently_of_causes(self) -> None:
+        # TeardownReport intentionally has no constructor parameter for is_restart_safe --
         # it is always derived from `causes`, so a caller cannot construct a report that
-        # claims SAFE while also carrying negative evidence.
-        assert "restart_safety" not in TeardownReport.__dataclass_fields__
+        # claims restart-safe while also carrying negative evidence.
+        assert "is_restart_safe" not in TeardownReport.__dataclass_fields__
 
 
 class TestReportImmutability:
@@ -87,13 +87,13 @@ class TestMergeTeardownReports:
     def test_merge_of_two_safe_reports_is_safe(self) -> None:
         merged = merge_teardown_reports(TeardownReport(), TeardownReport())
 
-        assert merged.restart_safety == RestartSafety.SAFE
+        assert merged.is_restart_safe is True
 
     def test_merge_with_no_arguments_returns_safe_empty_report(self) -> None:
         merged = merge_teardown_reports()
 
         assert merged == TeardownReport()
-        assert merged.restart_safety == RestartSafety.SAFE
+        assert merged.is_restart_safe is True
 
 
 class TestAddTeardownEvidence:
@@ -115,7 +115,7 @@ class TestAddTeardownEvidence:
         updated = add_teardown_evidence(report, causes=[TeardownCause.SHUTDOWN_BODY_FAILED])
 
         assert TeardownCause.SHUTDOWN_BODY_TIMED_OUT in updated.causes
-        assert updated.restart_safety == RestartSafety.UNSAFE
+        assert updated.is_restart_safe is False
 
     def test_add_no_evidence_returns_equal_but_new_report(self) -> None:
         report = TeardownReport(causes=(TeardownCause.CLEANUP_FAILED,))
@@ -215,7 +215,6 @@ class TestLifecycleReentryError:
 
 class TestPublicImportSurface:
     def test_teardown_types_importable_from_resources_package(self) -> None:
-        assert resources_pkg.RestartSafety is RestartSafety
         assert resources_pkg.TeardownCause is TeardownCause
         assert resources_pkg.TeardownReport is TeardownReport
 

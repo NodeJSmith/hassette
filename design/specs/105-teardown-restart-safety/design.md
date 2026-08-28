@@ -48,7 +48,7 @@ The same risk is present outside `restart()`: `start()` and direct `initialize()
 2. **Complete clean teardown**
    - Sees: Shutdown complete without teardown refusal diagnostics.
    - Decides: Nothing; recovery continues automatically.
-   - Then: A `RestartSafety.SAFE` report authorizes one initialization attempt and existing restart accounting remains unchanged.
+   - Then: A report with `is_restart_safe` `True` authorizes one initialization attempt and existing restart accounting remains unchanged.
 3. **Resume normal operation**
    - Sees: The service returns to `RUNNING` and readiness resets its budget as it does today.
    - Decides: No action is needed.
@@ -77,25 +77,25 @@ The same risk is present outside `restart()`: `start()` and direct `initialize()
    - Decides: The caller may cancel its own wait without cancelling framework lifecycle work.
    - Then: The attempt continues under resource ownership and no duplicate hook sequence starts.
 2. **Call initialize after teardown**
-   - Sees: `RestartSafety.SAFE` permits one new attempt; `RestartSafety.UNSAFE` raises `RestartRefusedError` with the stored report.
+   - Sees: A report with `is_restart_safe` `True` permits one new attempt; `is_restart_safe` `False` raises `RestartRefusedError` with the stored report.
    - Decides: Replace the process or abandon the object after refusal.
    - Then: Restart-unsafe evidence remains sticky and cannot be reset by another entry point.
 
 ## Functional Requirements
 
 - **FR#1** Every completed `Resource.shutdown()` and `Service.shutdown()` call must return and store an immutable teardown report.
-- **FR#2** A teardown report may have `RestartSafety.SAFE` only when shutdown hooks, cleanup, tracked async work, child shutdown, and the service task have all completed without negative evidence.
-- **FR#3** Hook errors, whole-body shutdown timeout, cleanup errors or timeouts, pending TaskBucket work, child failure or timeout, a pending service task, force-terminal use, and the root total timeout must produce `RestartSafety.UNSAFE` with concrete causes.
+- **FR#2** A teardown report may have `is_restart_safe` `True` only when shutdown hooks, cleanup, tracked async work, child shutdown, and the service task have all completed without negative evidence.
+- **FR#3** Hook errors, whole-body shutdown timeout, cleanup errors or timeouts, pending TaskBucket work, child failure or timeout, a pending service task, force-terminal use, and the root total timeout must produce a report with `is_restart_safe` `False` with concrete causes.
 - **FR#4** Concurrent shutdown callers must join one shutdown attempt and receive its report; cancelling an awaiter must not cancel the shared attempt.
 - **FR#5** Concurrent initialization callers must join one initialization attempt; direct `initialize()` must be tracked by the same coordinator as `start()`.
 - **FR#6** Initialization requested during shutdown must wait for that shutdown outcome before deciding whether a new incarnation may start.
-- **FR#7** `restart()`, `start()`, and direct `initialize()` must reject a stored `RestartSafety.UNSAFE` outcome without clearing it or starting lifecycle work.
+- **FR#7** `restart()`, `start()`, and direct `initialize()` must reject a stored report with `is_restart_safe` `False` without clearing it or starting lifecycle work.
 - **FR#8** Restart refusal must raise `RestartRefusedError` containing the resource identity and teardown report.
-- **FR#9** A `RestartSafety.SAFE` report must continue to authorize same-instance restart using existing service backoff, budget, cooldown, and readiness-reset behavior.
+- **FR#9** A report with `is_restart_safe` `True` must continue to authorize same-instance restart using existing service backoff, budget, cooldown, and readiness-reset behavior.
 - **FR#10** Force-terminal handling must store a restart-unsafe report before cancelling work or writing terminal lifecycle bookkeeping.
 - **FR#11** TaskBucket shutdown must stop accepting new owner work before its final pending-task check and report every remaining task by name.
 - **FR#12** `ServiceWatcher` must route `RestartRefusedError` from both normal backoff and cooldown recovery to one fatal outcome without another retry or cooldown.
-- **FR#13** Hassette's total shutdown timeout must return and store `RestartSafety.UNSAFE` with total-timeout and force-terminal evidence while still running its existing stream-closing fallback.
+- **FR#13** Hassette's total shutdown timeout must return and store a report with `is_restart_safe` `False` with total-timeout and force-terminal evidence while still running its existing stream-closing fallback.
 - **FR#14** Python callers must be able to inspect the returned report, any current unconsumed report, and refusal details without a frontend or schema change.
 - **FR#15** Shutdown requested during initialization must cancel and observe the initialization attempt before running shutdown hooks.
 - **FR#16** Any lifecycle front door invoked from the active initialization coordinator, shutdown coordinator, or shutdown body that would join or cancel its own lifecycle attempt, including `initialize()`, `start()`, `restart()`, and `shutdown()`, must fail explicitly before creating another task.
@@ -103,14 +103,14 @@ The same risk is present outside `restart()`: `start()` and direct `initialize()
 
 ## Edge Cases
 
-- A child returns `RestartSafety.UNSAFE` without raising. The parent must also become restart-unsafe and retain the child's identity and causes.
+- A child returns a report with `is_restart_safe` `False` without raising. The parent must also become restart-unsafe and retain the child's identity and causes.
 - A child `shutdown()` raises unexpectedly. Sibling shutdown continues, but the parent records child failure and cannot authorize restart.
 - A child wave times out after some children finish safely. Safe child reports remain safe; unfinished children are force-terminal and the parent is restart-unsafe.
 - A shutdown hook raises while later hooks still need to run. The hook runner continues as it does today and returns the error evidence to aggregation.
 - A shutdown hook blocks or resists cancellation. The whole shutdown body deadline records timeout and force-terminal evidence rather than leaving the coordinator pending forever.
 - Cleanup times out or raises. Child shutdown and terminal bookkeeping still run, but the report remains restart-unsafe.
 - A tracked task ignores cancellation or creates more owner work during teardown. TaskBucket sealing rejects new work, and any task still pending after the bounded wait appears in the report.
-- `serve()` catches cancellation and remains pending. Shutdown observes it with a bounded wait, returns `RestartSafety.UNSAFE`, and never spawns a replacement task.
+- `serve()` catches cancellation and remains pending. Shutdown observes it with a bounded wait, returns a report with `is_restart_safe` `False`, and never spawns a replacement task.
 - A caller awaiting shared initialization or shutdown is cancelled. `asyncio.shield()` cancels only that wait; the resource-owned task continues.
 - Shutdown begins while initialization is blocked. It cancels and observes that attempt before running shutdown hooks; a resistant initializer makes teardown restart-unsafe.
 - An initialization hook calls `initialize()`, `start()`, `restart()`, or `await self.shutdown()`. The front door raises `LifecycleReentryError` before joining, cancelling, or creating a lifecycle task; hooks must fail or return rather than recursively await lifecycle orchestration.
@@ -119,7 +119,7 @@ The same risk is present outside `restart()`: `start()` and direct `initialize()
 - Two restart callers receive one restart-unsafe report and both receive refusal without starting initialization.
 - Repeated shutdown before a new clean initialization returns the same stored report and does not rerun hooks.
 - A safe report is cleared only when an accepted new initialization begins. A restart-unsafe report has no in-process reset path.
-- Force-terminal runs after a child already reported `RestartSafety.SAFE`. It leaves that completed child's report unchanged and degrades only unfinished resources.
+- Force-terminal runs after a child already reported `is_restart_safe` `True`. It leaves that completed child's report unchanged and degrades only unfinished resources.
 - Fatal escalation receives duplicate triggering events. The active watcher guard handles overlap; afterward the process-latched fatal reason and root shutdown event prevent another recovery attempt or fatal transition.
 
 ## Operational Lifecycle
@@ -131,22 +131,22 @@ The teardown report is orthogonal to `ResourceStatus`:
 | Never started or currently live | no shutdown attempt, or prior safe report consumed | `None` | Existing rules apply |
 | Initialization active | initialization task pending | `None` | Join the task |
 | Shutdown active | shutdown task pending | `None` until final evidence is stored | Wait for shutdown |
-| Shutdown proved restart-safe | shutdown task complete | `RestartSafety.SAFE` | One new attempt may consume the report |
-| Shutdown did not prove restart-safe | shutdown task complete or force-cancelled | `RestartSafety.UNSAFE` | Refuse permanently for this object |
+| Shutdown proved restart-safe | shutdown task complete | `is_restart_safe` `True` | One new attempt may consume the report |
+| Shutdown did not prove restart-safe | shutdown task complete or force-cancelled | `is_restart_safe` `False` | Refuse permanently for this object |
 
-`ResourceStatus.STOPPED` continues to mean that lifecycle orchestration reached its terminal phase. It may coexist with `RestartSafety.UNSAFE`; only the report decides restart eligibility.
+`ResourceStatus.STOPPED` continues to mean that lifecycle orchestration reached its terminal phase. It may coexist with `is_restart_safe` `False`; only the report decides restart eligibility.
 
 For watcher-driven recovery, clean teardown follows the current retry lifecycle. Refusal is terminal for the in-process object because waiting longer cannot prove stale work stopped. It bypasses remaining retries and cooldowns, records a fatal reason, requests root shutdown, and attempts one `CRASHED` event. Process replacement is the only supported recovery after refusal and remains the embedding host or supervisor's responsibility.
 
 ## Acceptance Criteria
 
-- **AC#1** Unit tests prove a child timeout returns `RestartSafety.UNSAFE`, records child and force-terminal causes, and prevents `restart()`, `start()`, and direct `initialize()` from running a second initialize hook. Covers FR#1, FR#3, FR#7, and FR#10.
-- **AC#2** Unit tests prove a cancellation-resistant `serve()` task does not make shutdown exceed its observation budget, produces `RestartSafety.UNSAFE`, and never gets a replacement `serve()` task. Covers FR#2, FR#3, and FR#7.
+- **AC#1** Unit tests prove a child timeout returns a report with `is_restart_safe` `False`, records child and force-terminal causes, and prevents `restart()`, `start()`, and direct `initialize()` from running a second initialize hook. Covers FR#1, FR#3, FR#7, and FR#10.
+- **AC#2** Unit tests prove a cancellation-resistant `serve()` task does not make shutdown exceed its observation budget, produces a report with `is_restart_safe` `False`, and never gets a replacement `serve()` task. Covers FR#2, FR#3, and FR#7.
 - **AC#3** Unit tests prove hook failure, cleanup failure, cleanup timeout, and TaskBucket stragglers each produce their named cause and failed-operation name while later shutdown stages still run. Covers FR#1, FR#2, FR#3, and FR#11.
 - **AC#4** Event-gated unit tests prove concurrent callers join one shielded initialization or shutdown attempt, caller cancellation does not cancel that attempt, shutdown observes an active initializer before hooks, and lifecycle re-entry from initialization or shutdown hooks raises explicitly. Covers FR#4, FR#5, FR#6, FR#15, and FR#16.
-- **AC#5** Unit tests prove repeated shutdown returns the stored report, initialization consumes only a `RestartSafety.SAFE` report, and force-terminal cannot produce restart eligibility. Covers FR#7, FR#9, and FR#10.
+- **AC#5** Unit tests prove repeated shutdown returns the stored report, initialization consumes only a report with `is_restart_safe` `True`, and force-terminal cannot produce restart eligibility. Covers FR#7, FR#9, and FR#10.
 - **AC#6** Integration tests exercise refusal from both `ServiceWatcher.execute_restart()` and `cooldown_and_retry()`, observing one restart call, no further retry after the handler returns, one fatal reason, and root shutdown requested even when `CRASHED` event dispatch fails. Covers FR#8 and FR#12.
-- **AC#7** Root lifecycle tests prove total-timeout fallback closes event streams and returns `RestartSafety.UNSAFE` with total-timeout and force-terminal causes. Covers FR#13.
+- **AC#7** Root lifecycle tests prove total-timeout fallback closes event streams and returns a report with `is_restart_safe` `False` with total-timeout and force-terminal causes. Covers FR#13.
 - **AC#8** Existing clean restart, restart-budget, cooldown, readiness-reset, lifecycle propagation, and orderly shutdown tests remain green. Covers FR#9.
 - **AC#9** `uv run nox -s dev` completes with zero test failures.
 - **AC#10** `prek -a` completes with no errors.
@@ -155,7 +155,7 @@ For watcher-driven recovery, clean teardown follows the current retry lifecycle.
 
 - Clean teardown requires positive evidence. A timeout, swallowed exception, pending task, or force-terminal path must never default to success.
 - Teardown eligibility remains separate from `ResourceStatus`; do not add a combined status such as `STOPPED_UNSAFE` or expand frontend status maps.
-- No public or test-only reset may clear a `RestartSafety.UNSAFE` report on the same object.
+- No public or test-only reset may clear a report with `is_restart_safe` `False` on the same object.
 - Observation of cancellation-resistant tasks must use bounded `asyncio.wait()` semantics rather than treating `cancel()` or `wait_for()` cancellation as termination proof.
 - The authoritative coordinator must remain limited to one initialization task and one shutdown task per resource. Bounded stage observation may use scoped tasks, but do not introduce generation tokens, a general operation queue, or a new lifecycle controller object.
 - The report must not claim that sync executor threads or arbitrary untracked tasks stopped.
@@ -164,9 +164,9 @@ For watcher-driven recovery, clean teardown follows the current retry lifecycle.
 ## Dependencies and Assumptions
 
 - No new package is required. The design uses Python 3.11 asyncio, frozen dataclasses, and existing Hassette lifecycle machinery.
-- Python task cancellation is cooperative. `RestartSafety.UNSAFE` prevents same-instance restart but cannot stop a coroutine or thread that ignores cancellation.
+- Python task cancellation is cooperative. `is_restart_safe` `False` prevents same-instance restart but cannot stop a coroutine or thread that ignores cancellation.
 - Refusal records a fatal reason and requests process shutdown. Process replacement is the embedding host or supervisor's responsibility. This PR does not guarantee that the host will kill a process that never exits; that is an accepted deployment limitation.
-- `RestartSafety.SAFE` covers lifecycle hooks, completion of the lifecycle-owned initialization attempt, work tracked by the resource's TaskBucket, child resources, and `Service.serve()`. Receiving the report proves the lifecycle-owned shutdown attempt reached its return point. The claim does not cover sync executor threads or tasks deliberately created outside supported Hassette ownership paths.
+- `is_restart_safe` `True` covers lifecycle hooks, completion of the lifecycle-owned initialization attempt, work tracked by the resource's TaskBucket, child resources, and `Service.serve()`. Receiving the report proves the lifecycle-owned shutdown attempt reached its return point. The claim does not cover sync executor threads or tasks deliberately created outside supported Hassette ownership paths.
 - TaskBucket sealing covers async work created through `TaskBucket.spawn()` and Hassette's task factory. The global TaskBucket and per-resource sync submission attribution remain outside scope.
 - The change has no persisted data, database migration, authentication, configuration, or frontend dependency.
 - The work is delivered as one narrowed PR for issue #1696.
@@ -178,11 +178,6 @@ For watcher-driven recovery, clean teardown follows the current retry lifecycle.
 Create `src/hassette/resources/teardown.py` with the immutable teardown types. `None` represents no completed teardown attempt, and the in-progress task represents active teardown, so restart safety needs only two final values.
 
 ```python
-class RestartSafety(StrEnum):
-    SAFE = auto()
-    UNSAFE = auto()
-
-
 class TeardownCause(StrEnum):
     SHUTDOWN_HOOK_FAILED = auto()
     SHUTDOWN_BODY_TIMED_OUT = auto()
@@ -207,13 +202,13 @@ class TeardownReport:
     affected_resources: tuple[str, ...] = ()
 
     @property
-    def restart_safety(self) -> RestartSafety:
-        return RestartSafety.SAFE if not self.causes else RestartSafety.UNSAFE
+    def is_restart_safe(self) -> bool:
+        return not self.causes
 ```
 
 The concrete implementation may add small pure constructors or merge functions, but it must keep these rules:
 
-- `restart_safety` is derived so a report cannot contain contradictory safety and causes.
+- `is_restart_safe` is derived so a report cannot contain contradictory safety and causes.
 - Cause, failed-operation, task, and resource tuples are deduplicated and deterministic.
 - `failed_operations` records bounded operation identities such as a hook's qualified name or `cleanup`; exception type, message, and traceback remain in existing logs rather than being copied into the report.
 - Aggregation returns a new report; it never mutates a report that another caller may already hold.
@@ -240,13 +235,13 @@ Task selection and assignment happen without an intervening `await`, which makes
 
 1. Every lifecycle front door first rejects `asyncio.current_task()` matching `_init_task`, `_shutdown_task`, or `_shutdown_body_task` with `LifecycleReentryError`; none creates a joiner or cancellation cycle for a re-entrant call.
 2. If a shutdown task is active, initialization awaits it through `asyncio.shield()`.
-3. If its report is `RestartSafety.UNSAFE`, initialization raises `RestartRefusedError` before changing any event, status, TaskBucket, or task field.
-4. If its report is `RestartSafety.SAFE`, the first accepted initialization clears the prior report, clears the completed shutdown task, reopens the TaskBucket, clears `shutdown_event`, and creates `_init_task` before awaiting.
+3. If its report has `is_restart_safe` `False`, initialization raises `RestartRefusedError` before changing any event, status, TaskBucket, or task field.
+4. If its report has `is_restart_safe` `True`, the first accepted initialization clears the prior report, clears the completed shutdown task, reopens the TaskBucket, clears `shutdown_event`, and creates `_init_task` before awaiting.
 5. Other initialization callers join `_init_task` through `asyncio.shield()`.
 6. Shutdown creates `_shutdown_task` once. All shutdown callers shield and await that task.
 7. Repeated shutdown after completion returns `_teardown_report` without rerunning hooks.
 
-The shutdown body first requests shutdown, cancels the active `_init_task`, and observes it for `hassette.config.lifecycle.resource_shutdown_timeout_seconds`. Only then does it run shutdown hooks. If initialization remains pending, the body records `INITIALIZATION_TASK_PENDING`, proceeds with best-effort teardown, and can never return `RestartSafety.SAFE`.
+The shutdown body first requests shutdown, cancels the active `_init_task`, and observes it for `hassette.config.lifecycle.resource_shutdown_timeout_seconds`. Only then does it run shutdown hooks. If initialization remains pending, the body records `INITIALIZATION_TASK_PENDING`, proceeds with best-effort teardown, and can never return a report with `is_restart_safe` `True`.
 
 Before joining or creating lifecycle work, every public front door checks whether `asyncio.current_task()` is `_init_task`, `_shutdown_task`, or `_shutdown_body_task`. If so, it raises `LifecycleReentryError` without joining or cancelling a coordinator, setting shutdown state, or creating another task. Re-entrant lifecycle orchestration from initialization and shutdown hooks is unsupported; a hook that cannot continue should raise or return and let its lifecycle owner decide recovery.
 
@@ -254,11 +249,11 @@ This detection is limited to a resource re-entering its own active coordinator o
 
 Attempt bodies return evidence; the coordinator is the only ordinary path that stores the final report. Before storing, it merges the body's result with any force-terminal evidence already present. This prevents a late body completion from replacing a restart-unsafe report with a safe one.
 
-If force-terminal cancels `_shutdown_task`, the coordinator catches that cancellation only when `_teardown_report` already contains `FORCED_TERMINAL`. It cancels the retained body task and returns the stored report normally, so every joined caller receives `RestartSafety.UNSAFE` rather than `CancelledError`. Coordinator cancellation without pre-recorded force evidence remains an error and is not converted to success.
+If force-terminal cancels `_shutdown_task`, the coordinator catches that cancellation only when `_teardown_report` already contains `FORCED_TERMINAL`. It cancels the retained body task and returns the stored report normally, so every joined caller receives a report with `is_restart_safe` `False` rather than `CancelledError`. Coordinator cancellation without pre-recorded force evidence remains an error and is not converted to success.
 
 Both coordinator and body tasks install lifecycle-owned done callbacks that retrieve every exception. These callbacks only log: a body or coordinator task that finishes with an unhandled exception is logged with resource, operation, and task-name context via `resource.logger.exception(...)`, but the callback never mutates `_teardown_report` and never clears `_shutdown_body_task` -- the body task reference simply stays pointed at the last completed body task until the next shutdown attempt overwrites it. If all external joiners cancel, these callbacks still prevent an unretrieved task exception from surfacing as an "exception was never retrieved" warning with no other observer.
 
-`start()` performs the same synchronous re-entry and refusal checks before spawning its initialize joiner. It no longer resets shutdown state. `restart()` is subject to the same re-entry guard, then awaits the report, requires `RestartSafety.SAFE`, and calls the coordinated `initialize()` path. The direct initialize check remains mandatory because callers can bypass `restart()`.
+`start()` performs the same synchronous re-entry and refusal checks before spawning its initialize joiner. It no longer resets shutdown state. `restart()` is subject to the same re-entry guard, then awaits the report, requires `is_restart_safe` `True`, and calls the coordinated `initialize()` path. The direct initialize check remains mandatory because callers can bypass `restart()`.
 
 The existing mutable `initializing`, `shutting_down`, and `shutdown_completed` flags stop controlling lifecycle admission. Preserve their useful read behavior as properties derived from coordinator tasks and report safety, then migrate internal assignments and test reset helpers. This removes three values that can drift without imposing a documented public break on read-only diagnostics.
 
@@ -274,7 +269,7 @@ Each shutdown layer returns evidence instead of logging and discarding it:
 - Base `Resource.cleanup()` no longer owns TaskBucket cancellation; it is lifecycle cleanup for subclass-owned resources only. Existing overrides may continue to call `super().cleanup()`, but task evidence is collected exactly once by the shutdown body. Cleanup reports timeout or failure. The initialization task is cancelled and observed separately; a still-pending initializer adds `INITIALIZATION_TASK_PENDING`.
 - `Service._shutdown_body()` cancels `_serve_task` and observes it with `asyncio.wait()`. A task still pending at the deadline adds `SERVE_TASK_PENDING`; shutdown does not wait indefinitely for cancellation acknowledgement.
 - `_shutdown_children()` gathers child reports. A raised exception adds `CHILD_SHUTDOWN_FAILED`; a timeout force-finalizes unfinished children and adds `CHILD_SHUTDOWN_TIMED_OUT`.
-- `_on_children_stopped()` runs only when every child report has `RestartSafety.SAFE`, preserving the current safe-only hook contract.
+- `_on_children_stopped()` runs only when every child report has `is_restart_safe` `True`, preserving the current safe-only hook contract.
 - Failure to emit a terminal status event is logged but does not by itself imply that owned work survived, so it does not change teardown eligibility.
 
 The shutdown attempt starts with a safe report and combines each stage's immutable evidence. It stores the final report before returning. If the attempt is cancelled by force-terminal or root timeout, the force path stores restart-unsafe evidence first, so later callers never see an absent or safe report.
@@ -283,7 +278,7 @@ The shutdown attempt starts with a safe report and combines each stage's immutab
 
 `Resource._force_terminal()` remains an exit-oriented fallback. It now records `FORCED_TERMINAL` before cancelling the initialization task, shutdown coordinator, TaskBucket work, service task, or descendants. Cancelling the coordinator triggers the report-return behavior above; it does not leak cancellation to joined callers. The method may still write `STOPPED` directly to finish lifecycle bookkeeping, but that status cannot authorize restart.
 
-Force-terminal leaves an already completed `RestartSafety.SAFE` resource unchanged. For an active or incomplete resource it merges causes monotonically and recurses. A later task completion cannot overwrite its restart-unsafe report with a safe one.
+Force-terminal leaves an already completed restart-safe resource unchanged. For an active or incomplete resource it merges causes monotonically and recurses. A later task completion cannot overwrite its restart-unsafe report with a safe one.
 
 Hassette supplies a root-specific `_shutdown_body()` that runs dependency-wave teardown through the same resource-owned shutdown attempt. Its total timeout adds both `TOTAL_TIMEOUT` and `FORCED_TERMINAL` to the root report before force-finalizing unfinished descendants, then executes the existing `handle_stop()` and event-stream closing fallback. The public shutdown front door and outer coordinator alone store and return the merged report, so neither the root body nor a cancellation-resistant inner stage can recursively enter public shutdown or later overwrite timeout evidence. This does not add a global draining gate for unrelated admission paths.
 
@@ -306,7 +301,7 @@ Clean shutdown never enters this branch. Existing `RestartSpec`, budget recordin
 
 The repository probe confirmed that changing lifecycle `shutdown()` from `None` to `TeardownReport` is additive for current production callers: they await and discard the existing return value. Hassette's override and tests must update their annotations and aggregation behavior.
 
-The behavior changes are intentional: direct initialization after a `RestartSafety.UNSAFE` teardown raises `RestartRefusedError`, and any self-joining or self-cancelling lifecycle front door invoked from an active initialization coordinator, shutdown coordinator, or shutdown body raises `LifecycleReentryError`. App authors do not override the final lifecycle orchestration methods, so their hook signatures remain unchanged.
+The behavior changes are intentional: direct initialization after a teardown with `is_restart_safe` `False` raises `RestartRefusedError`, and any self-joining or self-cancelling lifecycle front door invoked from an active initialization coordinator, shutdown coordinator, or shutdown body raises `LifecycleReentryError`. App authors do not override the final lifecycle orchestration methods, so their hook signatures remain unchanged.
 
 ## Implementation Preferences
 
@@ -505,7 +500,7 @@ Shared and production code:
 - **Modify `src/hassette/exceptions.py`:** add `RestartRefusedError` with resource identity and report plus `LifecycleReentryError` for lifecycle calls made from their own coordinator or body.
 - **Modify `src/hassette/resources/mixins.py`:** add shutdown coordinator, retained body, and report ownership; make `_init_task` authoritative for every initializer; and derive lifecycle diagnostics from tasks/report.
 - **Modify `src/hassette/resources/lifecycle.py`:** add internal create/join/admission helpers, observe coordinator/body completion, and stop `start()` from resetting shutdown evidence.
-- **Modify `src/hassette/resources/operations.py`:** return hook evidence and require `RestartSafety.SAFE` in `restart()`.
+- **Modify `src/hassette/resources/operations.py`:** return hook evidence and require `is_restart_safe` `True` in `restart()`.
 - **Modify `src/hassette/resources/base.py`:** split final public lifecycle front doors from unsafe internal bodies; aggregate cleanup, task, and child evidence; return reports; make TaskBucket cancellation a first-class stage; and classify force-terminal.
 - **Modify `src/hassette/resources/service.py`:** provide service-specific internal lifecycle bodies and bounded service-task observation without overriding a public front door recursively.
 - **Modify `src/hassette/resources/__init__.py`:** export teardown data types only; do not export new coordinator helpers.
@@ -563,7 +558,7 @@ Documentation:
 
 ### Blast Radius
 
-Every `Resource`, `Service`, and `App` instance inherits the coordinator and report-returning shutdown contract. App object shutdown becomes observable, and direct reinitialization of the same App object is refused after `RestartSafety.UNSAFE`, but AppLifecycleService replacement policy remains unchanged.
+Every `Resource`, `Service`, and `App` instance inherits the coordinator and report-returning shutdown contract. App object shutdown becomes observable, and direct reinitialization of the same App object is refused after a teardown with `is_restart_safe` `False`, but AppLifecycleService replacement policy remains unchanged.
 
 Framework services depend on clean same-instance restart, so regressions in report aggregation or report consumption could turn recoverable failures into process shutdown. ServiceWatcher tests and existing restart-budget tests are the main protection.
 

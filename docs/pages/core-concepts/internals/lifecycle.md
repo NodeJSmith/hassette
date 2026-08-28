@@ -129,16 +129,16 @@ and new work in the same process at once.
 Every completed `shutdown()` call returns a [`TeardownReport`][hassette.resources.teardown.TeardownReport] — an
 immutable record of what shutdown actually observed. A report carries zero or more
 [`TeardownCause`][hassette.resources.teardown.TeardownCause] values (a failed hook, a timed-out child, tasks still
-pending, and so on). Its `restart_safety` property derives directly from those causes:
+pending, and so on). Its `is_restart_safe` property derives directly from those causes:
 
 ```python
 --8<-- "pages/core-concepts/snippets/internals_teardown_report.py"
 ```
 
-`RestartSafety.SAFE` means every shutdown hook, cleanup step, tracked task, child resource, and
-(for `Service`) the `serve()` task completed with no negative evidence. `RestartSafety.UNSAFE`
-means at least one of those did not. There is no third state — a report can never claim `SAFE`
-while also carrying causes, because `restart_safety` is computed, not stored.
+`is_restart_safe` is `True` when every shutdown hook, cleanup step, tracked task, child resource,
+and (for `Service`) the `serve()` task completed with no negative evidence. It's `False` when at
+least one of those did not. There is no third state — a report can never claim restart-safe
+while also carrying causes, because `is_restart_safe` is computed, not stored.
 
 ### Inspecting a report
 
@@ -146,7 +146,7 @@ Python callers read the report two ways:
 
 - The **return value** of `await resource.shutdown()` — the exact report from that call.
 - The **`teardown_report` property** — the current unconsumed report, or `None` if no shutdown
-  attempt has completed yet (or a prior `SAFE` report was already consumed by a new
+  attempt has completed yet (or a prior restart-safe report was already consumed by a new
   initialization). Prefer the return value when history matters; `teardown_report` only reflects
   the current state.
 
@@ -175,12 +175,13 @@ resistant initializer that doesn't finish in time makes the resulting teardown r
 ### Restart refusal
 
 `restart()`, `start()`, and a direct `initialize()` call all check the stored report before doing
-anything else. A `SAFE` report authorizes exactly one new attempt and is then cleared — normal
-restart behavior, backoff, and budgets are unaffected. A `RestartSafety.UNSAFE` report raises
+anything else. A report with `is_restart_safe` `True` authorizes exactly one new attempt and is
+then cleared — normal restart behavior, backoff, and budgets are unaffected. A report with
+`is_restart_safe` `False` raises
 [`RestartRefusedError`][hassette.exceptions.RestartRefusedError], which carries the resource's name and the
-full report, and no initialization work starts. There is no in-process way to clear an `UNSAFE`
-report on the same object — not through `restart()`, not through a test-reset helper. Once shutdown
-fails to prove safety, that object is done recovering on its own.
+full report, and no initialization work starts. There is no in-process way to clear a
+restart-unsafe report on the same object — not through `restart()`, not through a test-reset helper.
+Once shutdown fails to prove safety, that object is done recovering on its own.
 
 `ServiceWatcher` treats `RestartRefusedError` as a fatal outcome rather than an ordinary restart
 failure: it records a fatal reason, requests shutdown of the whole process directly (not only

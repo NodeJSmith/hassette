@@ -20,7 +20,6 @@ from hassette.events import HassetteServiceEvent
 from hassette.exceptions import LifecycleReentryError, RestartRefusedError
 from hassette.resources.mixins import LifecycleMixin, _LifecycleHostP
 from hassette.resources.teardown import (
-    RestartSafety,
     TeardownCause,
     TeardownReport,
     add_teardown_evidence,
@@ -124,7 +123,7 @@ def start(resource: _LifecycleHostP) -> None:
         return
 
     report = resource._teardown_report
-    if report is not None and report.restart_safety is RestartSafety.UNSAFE:
+    if report is not None and not report.is_restart_safe:
         raise RestartRefusedError(resource.unique_name, report)
 
     resource.logger.debug("%s starting", resource.unique_name)
@@ -344,7 +343,7 @@ async def coordinate_initialize(resource: _LifecycleHostP) -> None:
         await asyncio.shield(shutdown_task)
 
     report = resource._teardown_report
-    if report is not None and report.restart_safety is RestartSafety.UNSAFE:
+    if report is not None and not report.is_restart_safe:
         raise RestartRefusedError(resource.unique_name, report)
 
     init_task = resource._init_task
@@ -397,7 +396,7 @@ async def _run_shutdown_coordinator(resource: "LifecycleMixin") -> TeardownRepor
     If something external cancels this coordinator task directly (``_force_terminal()`` may do
     this for an unresponsive child from an ancestor's own shutdown body -- see
     ``Resource._force_terminal()``), the cancellation is converted to a normal
-    ``RestartSafety.UNSAFE`` return *only* when force-terminal evidence was already stored
+    restart-unsafe (``is_restart_safe`` ``False``) return *only* when force-terminal evidence was already stored
     before the cancellation was requested. Every joined caller then receives that report rather
     than ``CancelledError``. A cancellation with no pre-recorded evidence is a genuine error and
     propagates normally.

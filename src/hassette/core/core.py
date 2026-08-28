@@ -19,7 +19,6 @@ from hassette.logging_ import enable_basic_logging
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import handle_stop, mark_not_ready, start
 from hassette.resources.teardown import (
-    RestartSafety,
     TeardownCause,
     TeardownReport,
     add_teardown_evidence,
@@ -747,8 +746,8 @@ class Hassette(Resource):
 
         - A child whose ``shutdown()`` call itself raises unexpectedly adds
           ``CHILD_SHUTDOWN_FAILED`` and the child's identity to ``affected_resources``.
-        - A child that returns without raising, but whose own report is
-          ``RestartSafety.UNSAFE``, adds ``CHILD_RESTART_UNSAFE`` and the child's identity.
+        - A child that returns without raising, but whose own report has
+          ``is_restart_safe`` ``False``, adds ``CHILD_RESTART_UNSAFE`` and the child's identity.
         - A wave that exceeds the shutdown timeout adds ``CHILD_SHUTDOWN_TIMED_OUT``,
           force-terminates only the children in that wave still unfinished, and returns
           immediately with the evidence merged so far — later waves do not run.
@@ -795,7 +794,7 @@ class Hassette(Resource):
                     affected.append(child.unique_name)
                     continue
                 child_reports.append(result)
-                if result.restart_safety is RestartSafety.UNSAFE:
+                if not result.is_restart_safe:
                     causes.append(TeardownCause.CHILD_RESTART_UNSAFE)
                     affected.append(child.unique_name)
 

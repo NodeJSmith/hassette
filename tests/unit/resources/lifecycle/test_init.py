@@ -28,7 +28,6 @@ from hassette.resources.base import Resource
 from hassette.resources.lifecycle import handle_failed, handle_starting
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
-from hassette.resources.teardown import RestartSafety
 from hassette.scheduler.scheduler import Scheduler
 from hassette.test_utils import make_mock_hassette
 from hassette.types.enums import ResourceStatus
@@ -329,7 +328,7 @@ async def test_initialize_waits_for_active_shutdown_before_evaluating_report():
     report = await shutdown_task
     await init_task
 
-    assert report.restart_safety is RestartSafety.SAFE
+    assert report.is_restart_safe is True
     assert init_entered.is_set(), "initialize() must proceed only after the active shutdown's report exists"
     assert resource.status == ResourceStatus.RUNNING
 
@@ -371,7 +370,7 @@ async def test_shutdown_cancels_and_observes_initializer_before_shutdown_hooks()
 
     assert init_cancelled.is_set()
     assert shutdown_hook_entered.is_set()
-    assert report.restart_safety is RestartSafety.SAFE
+    assert report.is_restart_safe is True
 
     with pytest.raises(asyncio.CancelledError):
         await init_task

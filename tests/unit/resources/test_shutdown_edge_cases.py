@@ -12,7 +12,7 @@ import asyncio
 from unittest.mock import AsyncMock, patch
 
 from hassette.resources.lifecycle import mark_ready
-from hassette.resources.teardown import RestartSafety, TeardownCause
+from hassette.resources.teardown import TeardownCause
 from hassette.test_utils import make_mock_hassette
 from hassette.types.enums import ResourceStatus
 
@@ -111,7 +111,7 @@ class TestShutdownBodySwallowsHandleStopException:
         report = await resource._shutdown_body()
 
         assert TeardownCause.CLEANUP_FAILED in report.causes
-        assert report.restart_safety is RestartSafety.UNSAFE
+        assert report.is_restart_safe is False
         assert "cleanup" in report.failed_operations
 
     async def test_skips_handle_stop_when_event_streams_already_closed(self) -> None:

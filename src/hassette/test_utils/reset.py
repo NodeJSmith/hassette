@@ -114,11 +114,11 @@ def _reject_if_active_or_reported(resource: "Resource") -> None:
     """Raise if ``resource`` has an active shutdown task or any stored teardown report.
 
     Reset is limited to a shutdown request that has never started a teardown attempt — an
-    active shutdown task (in progress) or a completed one (a stored report, ``SAFE`` or
-    ``UNSAFE``) both mean a real teardown attempt happened, and this helper must never clear
+    active shutdown task (in progress) or a completed one (a stored report, restart-safe or
+    not) both mean a real teardown attempt happened, and this helper must never clear
     that evidence or fabricate a fresh lifecycle state on top of it. In particular, no
-    test-only reset may clear a ``RestartSafety.UNSAFE`` report — it has no in-process reset
-    path, by design.
+    test-only reset may clear a report whose ``is_restart_safe`` is ``False`` — it has no
+    in-process reset path, by design.
     """
     if resource._shutdown_task is not None or resource._teardown_report is not None:
         raise RuntimeError(

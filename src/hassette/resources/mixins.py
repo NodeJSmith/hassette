@@ -5,7 +5,7 @@ from logging import Logger, getLogger
 from typing import Any, Protocol
 
 from hassette.exceptions import InvalidLifecycleTransitionError
-from hassette.resources.teardown import RestartSafety, TeardownReport
+from hassette.resources.teardown import TeardownReport
 from hassette.types.enums import ResourceStatus
 from hassette.types.types import CoroLikeT
 
@@ -155,8 +155,8 @@ class LifecycleMixin(_LifecycleHostP):
 
     ``None`` means no completed teardown attempt exists (never shut down, or a shutdown
     attempt is still in progress). Cleared only when the first accepted new initialization
-    consumes a ``RestartSafety.SAFE`` report; a ``RestartSafety.UNSAFE`` report has no
-    in-process reset path.
+    consumes a report with ``is_restart_safe`` ``True``; a report with ``is_restart_safe``
+    ``False`` has no in-process reset path.
     """
 
     _previous_status: ResourceStatus = ResourceStatus.NOT_STARTED
@@ -199,8 +199,8 @@ class LifecycleMixin(_LifecycleHostP):
         """Read-only diagnostic: whether a completed teardown report exists.
 
         Derived from ``_teardown_report`` rather than a mutable flag. Becomes ``True`` once a
-        shutdown attempt has stored its final report (regardless of ``restart_safety``), and is
-        cleared only when the first accepted new initialization consumes a ``SAFE`` report.
+        shutdown attempt has stored its final report (regardless of ``is_restart_safe``), and is
+        cleared only when the first accepted new initialization consumes a restart-safe report.
         """
         return self._teardown_report is not None
 
@@ -208,8 +208,8 @@ class LifecycleMixin(_LifecycleHostP):
     def teardown_report(self) -> TeardownReport | None:
         """Read-only: the current unconsumed teardown report, or ``None``.
 
-        ``None`` means no completed teardown attempt exists yet, or a prior ``SAFE`` report has
-        already been consumed by a new initialization attempt. A caller that needs the exact
+        ``None`` means no completed teardown attempt exists yet, or a prior restart-safe report
+        has already been consumed by a new initialization attempt. A caller that needs the exact
         report from a specific shutdown call should use the value ``await resource.shutdown()``
         returns instead — this property only reflects the current, possibly-since-superseded
         state.
@@ -217,10 +217,10 @@ class LifecycleMixin(_LifecycleHostP):
         return self._teardown_report
 
     @property
-    def restart_safety(self) -> RestartSafety | None:
-        """Read-only: ``teardown_report.restart_safety``, or ``None`` if no report exists yet."""
+    def is_restart_safe(self) -> bool | None:
+        """Read-only: ``teardown_report.is_restart_safe``, or ``None`` if no report exists yet."""
         report = self._teardown_report
-        return report.restart_safety if report is not None else None
+        return report.is_restart_safe if report is not None else None
 
     @property
     def status(self) -> ResourceStatus:

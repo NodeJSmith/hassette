@@ -20,7 +20,7 @@ import pytest
 from hassette.exceptions import LifecycleReentryError
 from hassette.resources.lifecycle import start
 from hassette.resources.operations import ordered_children_for_shutdown
-from hassette.resources.teardown import RestartSafety, TeardownCause
+from hassette.resources.teardown import TeardownCause
 from hassette.test_utils import make_mock_hassette, wait_for
 from tests.unit.resources.conftest import ConcreteResource, wait_for_running
 
@@ -283,7 +283,7 @@ async def test_cancelling_one_shutdown_awaiter_does_not_cancel_shared_attempt():
     assert shared_task.done()
     assert not shared_task.cancelled()
     assert report is resource._teardown_report
-    assert report.restart_safety is RestartSafety.SAFE
+    assert report.is_restart_safe is True
     assert calls == ["called"], "on_shutdown must have run exactly once despite the cancelled awaiter"
 
 
@@ -334,7 +334,7 @@ async def test_resistant_shutdown_body_is_cancelled_after_coordinator_times_out(
     # the coordinator as an orphaned task.
     body_task = resource._shutdown_body_task
     assert body_task is not None
-    assert report.restart_safety is RestartSafety.UNSAFE  # timed-out/pending body is never SAFE evidence
+    assert report.is_restart_safe is False  # timed-out/pending body is never restart-safe evidence
 
     # Let the requested cancellation actually land, then confirm the exception observer already
     # consumed the CancelledError -- i.e. task.cancelled() can be read afterward without raising
@@ -345,11 +345,11 @@ async def test_resistant_shutdown_body_is_cancelled_after_coordinator_times_out(
 
 
 async def test_shutdown_children_records_child_restart_unsafe_without_raising():
-    """A child that returns ``RestartSafety.UNSAFE`` from its own ``shutdown()`` call (without
-    raising -- ``ErrorChild`` fails inside ``on_shutdown()``, which ``run_hooks(...,
+    """A child whose own ``shutdown()`` call returns a report with ``is_restart_safe`` ``False``
+    (without raising -- ``ErrorChild`` fails inside ``on_shutdown()``, which ``run_hooks(...,
     continue_on_error=True)`` catches and turns into a ``SHUTDOWN_HOOK_FAILED`` report rather
-    than an exception) makes the parent's aggregated report ``RestartSafety.UNSAFE`` too, merging
-    the child's own cause and recording ``CHILD_RESTART_UNSAFE`` with the child's identity.
+    than an exception) makes the parent's aggregated report ``is_restart_safe`` ``False`` too,
+    merging the child's own cause and recording ``CHILD_RESTART_UNSAFE`` with the child's identity.
     """
     hassette = make_mock_hassette(sealed=False)
     parent = SimpleParent(hassette)
@@ -362,10 +362,10 @@ async def test_shutdown_children_records_child_restart_unsafe_without_raising():
 
     child_report = child.teardown_report
     assert child_report is not None
-    assert child_report.restart_safety is RestartSafety.UNSAFE
+    assert child_report.is_restart_safe is False
     assert TeardownCause.SHUTDOWN_HOOK_FAILED in child_report.causes
 
-    assert report.restart_safety is RestartSafety.UNSAFE
+    assert report.is_restart_safe is False
     assert TeardownCause.CHILD_RESTART_UNSAFE in report.causes
     assert TeardownCause.SHUTDOWN_HOOK_FAILED in report.causes, "child's own cause must be merged into the parent"
     assert child.unique_name in report.affected_resources
@@ -394,7 +394,7 @@ async def test_shutdown_children_records_child_shutdown_failed_and_continues_sib
 
     report = await parent.shutdown()
 
-    assert report.restart_safety is RestartSafety.UNSAFE
+    assert report.is_restart_safe is False
     assert TeardownCause.CHILD_SHUTDOWN_FAILED in report.causes
     assert child_broken.unique_name in report.affected_resources
     assert child_ok.shutdown_count == 1, "sibling must still complete despite the broken child"
@@ -402,9 +402,9 @@ async def test_shutdown_children_records_child_shutdown_failed_and_continues_sib
 
 async def test_shutdown_children_timeout_preserves_finished_safe_child_report():
     """A wave that times out force-terminates only the children still unfinished at that
-    point -- a child that already completed cleanly keeps its own ``SAFE`` report unchanged,
+    point -- a child that already completed cleanly keeps its own restart-safe report unchanged,
     while the unfinished (hanging) child is force-terminated and the parent is
-    ``RestartSafety.UNSAFE`` overall.
+    restart-unsafe overall.
     """
     hassette = make_mock_hassette(sealed=False)
     hassette.config.lifecycle.resource_shutdown_timeout_seconds = 0.1
@@ -425,18 +425,18 @@ async def test_shutdown_children_timeout_preserves_finished_safe_child_report():
     # this test targets.
     report = await parent._shutdown_children()
 
-    assert report.restart_safety is RestartSafety.UNSAFE
+    assert report.is_restart_safe is False
     assert TeardownCause.CHILD_SHUTDOWN_TIMED_OUT in report.causes
 
     hanging_report = hanging.teardown_report
     assert hanging_report is not None
-    assert hanging_report.restart_safety is RestartSafety.UNSAFE
+    assert hanging_report.is_restart_safe is False
     assert TeardownCause.FORCED_TERMINAL in hanging_report.causes
 
     normal_report = normal.teardown_report
     assert normal_report is not None
-    assert normal_report.restart_safety is RestartSafety.SAFE, (
-        "a child that already completed cleanly before the wave timed out must keep its SAFE report"
+    assert normal_report.is_restart_safe is True, (
+        "a child that already completed cleanly before the wave timed out must keep its restart-safe report"
     )
 
 
@@ -488,7 +488,7 @@ async def test_task_bucket_shutdown_stage_seals_before_cleanup_and_records_pendi
         assert cleanup_saw_sealed == [True], "TaskBucket must already be sealed by the time cleanup() runs"
         assert TeardownCause.TASKS_PENDING in report.causes
         assert "straggler" in report.pending_tasks
-        assert report.restart_safety is RestartSafety.UNSAFE
+        assert report.is_restart_safe is False
     finally:
         # The straggler task ignores its first cancellation by design (that is what makes it a
         # straggler) -- clean it up unconditionally so it can never outlive this test, whether

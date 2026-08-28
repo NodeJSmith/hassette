@@ -1,11 +1,10 @@
 from hassette.resources.base import Resource
-from hassette.resources.teardown import RestartSafety
 
 
 async def inspect_teardown(resource: Resource) -> None:
     # The return value is the exact report from this call.
     report = await resource.shutdown()
-    if report.restart_safety is RestartSafety.UNSAFE:
+    if not report.is_restart_safe:
         print(f"{resource.unique_name} refused to restart: {report.causes}")
 
     # The property reflects the current unconsumed report (or None).
