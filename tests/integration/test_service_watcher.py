@@ -4,13 +4,15 @@ Tests use RestartSpec-based per-service configuration rather than global config 
 """
 
 import asyncio
+import contextlib
 import time
+from collections.abc import AsyncIterator, Callable
 from typing import ClassVar, NamedTuple
 from unittest.mock import patch
 
 import pytest
 
-from hassette import context
+from hassette import HassetteConfig, context
 from hassette.core.service_watcher import ServiceWatcher
 from hassette.events import Event, HassetteServiceEvent
 from hassette.events.base import HassettePayload
@@ -20,6 +22,8 @@ from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.test_utils import (
     EventCapture,
+    HassetteHarness,
+    build_harness,
     make_service_failed_event,
     make_service_running_event,
     preserve_config,
@@ -128,6 +132,57 @@ async def watcher(hassette_with_bus, request: pytest.FixtureRequest) -> ServiceW
     # docstring above for why a `yield`-based async-generator fixture deadlocks here.
     request.addfinalizer(_teardown)  # noqa: PT021
     return watcher
+
+
+@contextlib.asynccontextmanager
+async def isolated_watcher(
+    test_config_class: type[HassetteConfig], unused_tcp_port_factory: "Callable[[], int]"
+) -> AsyncIterator[ServiceWatcher]:
+    """Build a fresh, private Hassette instance for a single test and yield its ServiceWatcher.
+
+    Some tests in this file drive a real, complete ``hassette.shutdown()`` (restart-budget
+    exhaustion or a fatal error). ``reset_hassette_lifecycle()`` correctly refuses to revive an
+    instance that has already fully shut down (see KI-004 in
+    ``design/specs/105-teardown-restart-safety/known-issues.md``), so those tests cannot share
+    the module-scoped ``watcher`` fixture's ``hassette_with_bus`` instance with the rest of this
+    file -- running the file in its normal order left one dead shared instance behind for every
+    test that followed the first one to trigger shutdown.
+
+    Builds its own ``HassetteConfig`` instance (via the ``test_config_class`` factory, the same
+    ``TestConfig`` subclass ``test_config`` itself is built from) rather than reusing the
+    session-scoped ``test_config`` object that ``hassette_with_bus`` is already live on for the
+    rest of this file. ``build_harness()``'s own teardown calls ``config.reload()``, which fully
+    re-runs the config's ``__init__`` in place -- sharing an object with a harness that is still
+    alive for the rest of the module would reset that harness's live config out from under it
+    mid-file. Constructs ``HassetteHarness`` directly (not via the module-scoped
+    ``hassette_harness`` factory fixture) with ``skip_global_set=True``: the module-scoped
+    ``hassette_with_bus`` harness has already claimed the process-global "current Hassette"
+    contextvar for the whole file, and only one harness may hold it at a time.
+
+    Uses ``build_harness()`` directly inside the test body (not as a ``yield``-based pytest
+    fixture), per its own docstring: ``__aexit__`` then runs inline in the test's own
+    already-running Task, so there's no risk of pytest-asyncio resuming teardown as a *new* Task
+    on the loop after this harness's own task factory has sealed shut -- see
+    ``_start_module_harness()``'s docstring in ``hassette.test_utils.fixtures`` for why that
+    matters specifically for ``yield``-based *fixtures* shared across a session-scoped loop.
+
+    Unlike the shared ``watcher`` fixture, no ``context.PROTECT_TASK`` is needed here:
+    ``build_harness()`` installs its task factory from *inside* this test's own already-running
+    task -- i.e., strictly after that task was created -- so the factory can never retroactively
+    claim it. ``make_task_factory()`` only ever registers tasks it is asked to *create*
+    (``hassette.task_bucket.task_bucket.make_task_factory``); it has no path back to a task that
+    already existed before the factory was installed. So even a real ``hassette.shutdown()`` ->
+    ``cancel_all()`` here can never reach this test's own task.
+    """
+    config = test_config_class(web_api={"port": unused_tcp_port_factory()})
+    harness = HassetteHarness(config, unused_tcp_port=unused_tcp_port_factory(), skip_global_set=True)
+    async with build_harness(harness.with_bus()) as harness:
+        hassette = harness.hassette
+        watcher = ServiceWatcher(hassette, parent=hassette)
+        try:
+            yield watcher
+        finally:
+            await watcher.shutdown()
 
 
 async def restart_and_await(watcher: ServiceWatcher, event: HassetteServiceEvent) -> None:
@@ -251,41 +306,47 @@ async def test_restart_service_cancels_then_starts(watcher: ServiceWatcher):
     )
 
 
-async def test_always_failing_service_stops_after_max_attempts(watcher: ServiceWatcher):
+async def test_always_failing_service_stops_after_max_attempts(
+    test_config_class: type[HassetteConfig], unused_tcp_port_factory: "Callable[[], int]"
+):
     """A service that always fails on restart stops being restarted after budget exhaustion."""
-    hassette = watcher.hassette
+    async with isolated_watcher(test_config_class, unused_tcp_port_factory) as watcher:
+        hassette = watcher.hassette
 
-    # budget_intensity=3 means 3 restarts before exhaustion
-    dummy = register_dummy_service(watcher, fail=True, restart_type=RestartType.PERMANENT, budget_intensity=3)
+        # budget_intensity=3 means 3 restarts before exhaustion
+        dummy = register_dummy_service(watcher, fail=True, restart_type=RestartType.PERMANENT, budget_intensity=3)
 
-    # Each call to restart_service increments budget and spawns a restart task.
-    # The service fails on restart but exceptions are caught.
-    for _ in range(3):
-        await restart_and_await(watcher, dummy.failed_event)
+        # Each call to restart_service increments budget and spawns a restart task.
+        # The service fails on restart but exceptions are caught.
+        for _ in range(3):
+            await restart_and_await(watcher, dummy.failed_event)
 
-    assert budget_entries(watcher, dummy.key) == 3
-    assert not hassette.shutdown_event.is_set(), "Shutdown should not happen before budget exhausted"
+        assert budget_entries(watcher, dummy.key) == 3
+        assert not hassette.shutdown_event.is_set(), "Shutdown should not happen before budget exhausted"
 
-    # The 4th call should trigger shutdown (budget exhausted, PERMANENT)
-    await watcher.restart_service(dummy.failed_event)
+        # The 4th call should trigger shutdown (budget exhausted, PERMANENT)
+        await watcher.restart_service(dummy.failed_event)
 
-    assert hassette.shutdown_event.is_set(), "Shutdown should be triggered after budget exhausted"
+        assert hassette.shutdown_event.is_set(), "Shutdown should be triggered after budget exhausted"
 
 
-async def test_crashed_event_emitted_before_shutdown(watcher: ServiceWatcher):
+async def test_crashed_event_emitted_before_shutdown(
+    test_config_class: type[HassetteConfig], unused_tcp_port_factory: "Callable[[], int]"
+):
     """When budget is exhausted for PERMANENT service, a CRASHED event is emitted before shutdown."""
-    dummy = register_dummy_service(watcher, fail=True, restart_type=RestartType.PERMANENT, budget_intensity=1)
+    async with isolated_watcher(test_config_class, unused_tcp_port_factory) as watcher:
+        dummy = register_dummy_service(watcher, fail=True, restart_type=RestartType.PERMANENT, budget_intensity=1)
 
-    # The one budget slot is used first, so the second call exceeds it
-    events = await exhaust_budget(watcher, dummy, restarts=1)
+        # The one budget slot is used first, so the second call exceeds it
+        events = await exhaust_budget(watcher, dummy, restarts=1)
 
-    # First send_event call should be the CRASHED event (shutdown may emit STOPPED after)
-    assert len(events) >= 1
-    crashed_event = events[0]
-    assert crashed_event.topic == Topic.HASSETTE_EVENT_SERVICE_STATUS
-    assert crashed_event.payload.data.status == ResourceStatus.CRASHED
-    assert crashed_event.payload.data.previous_status == ResourceStatus.FAILED
-    assert crashed_event.payload.data.resource_name == dummy.service.class_name
+        # First send_event call should be the CRASHED event (shutdown may emit STOPPED after)
+        assert len(events) >= 1
+        crashed_event = events[0]
+        assert crashed_event.topic == Topic.HASSETTE_EVENT_SERVICE_STATUS
+        assert crashed_event.payload.data.status == ResourceStatus.CRASHED
+        assert crashed_event.payload.data.previous_status == ResourceStatus.FAILED
+        assert crashed_event.payload.data.resource_name == dummy.service.class_name
 
 
 async def test_exponential_backoff(watcher: ServiceWatcher):
@@ -335,59 +396,68 @@ async def test_budget_reset_on_recovery(watcher: ServiceWatcher):
     assert budget_entries(watcher, dummy.key) == 0  # budget reset
 
 
-async def test_permanent_exhaustion_triggers_shutdown(watcher: ServiceWatcher):
+async def test_permanent_exhaustion_triggers_shutdown(
+    test_config_class: type[HassetteConfig], unused_tcp_port_factory: "Callable[[], int]"
+):
     """PERMANENT service: exhausting budget triggers hassette.shutdown()."""
-    hassette = watcher.hassette
-    dummy = register_dummy_service(watcher, restart_type=RestartType.PERMANENT, budget_intensity=2)
+    async with isolated_watcher(test_config_class, unused_tcp_port_factory) as watcher:
+        hassette = watcher.hassette
+        dummy = register_dummy_service(watcher, restart_type=RestartType.PERMANENT, budget_intensity=2)
 
-    # Use up budget
-    await restart_and_await(watcher, dummy.failed_event)
-    await restart_and_await(watcher, dummy.failed_event)
+        # Use up budget
+        await restart_and_await(watcher, dummy.failed_event)
+        await restart_and_await(watcher, dummy.failed_event)
 
-    assert not hassette.shutdown_event.is_set(), "Should not shutdown until budget exhausted"
+        assert not hassette.shutdown_event.is_set(), "Should not shutdown until budget exhausted"
 
-    # Exhaust budget (budget check is synchronous — no spawn needed)
-    await watcher.restart_service(dummy.failed_event)
-    assert hassette.shutdown_event.is_set()
+        # Exhaust budget (budget check is synchronous — no spawn needed)
+        await watcher.restart_service(dummy.failed_event)
+        assert hassette.shutdown_event.is_set()
 
 
-async def test_permanent_exhaustion_records_fatal_reason(watcher: ServiceWatcher):
+async def test_permanent_exhaustion_records_fatal_reason(
+    test_config_class: type[HassetteConfig], unused_tcp_port_factory: "Callable[[], int]"
+):
     """PERMANENT exhaustion records _fatal_shutdown_reason synchronously at the decision site.
 
     Regression test for the reason-race: the CRASHED event is dispatched asynchronously
     (task-per-handler), so the reason must be set synchronously in handle_exhaustion — not
     only in the async shutdown_if_crashed handler — or run_forever() exits 0 on a real crash.
     """
-    hassette = watcher.hassette
-    assert hassette._fatal_shutdown_reason is None
+    async with isolated_watcher(test_config_class, unused_tcp_port_factory) as watcher:
+        hassette = watcher.hassette
+        assert hassette._fatal_shutdown_reason is None
 
-    dummy = register_dummy_service(watcher, restart_type=RestartType.PERMANENT, budget_intensity=2)
+        dummy = register_dummy_service(watcher, restart_type=RestartType.PERMANENT, budget_intensity=2)
 
-    await restart_and_await(watcher, dummy.failed_event)
-    await restart_and_await(watcher, dummy.failed_event)
-    await watcher.restart_service(dummy.failed_event)  # exhausts → handle_exhaustion (PERMANENT, no spawn)
+        await restart_and_await(watcher, dummy.failed_event)
+        await restart_and_await(watcher, dummy.failed_event)
+        await watcher.restart_service(dummy.failed_event)  # exhausts → handle_exhaustion (PERMANENT, no spawn)
 
-    assert hassette._fatal_shutdown_reason is not None
-    assert dummy.service.class_name in hassette._fatal_shutdown_reason
+        assert hassette._fatal_shutdown_reason is not None
+        assert dummy.service.class_name in hassette._fatal_shutdown_reason
 
 
-async def test_fatal_error_records_fatal_reason(watcher: ServiceWatcher):
+async def test_fatal_error_records_fatal_reason(
+    test_config_class: type[HassetteConfig], unused_tcp_port_factory: "Callable[[], int]"
+):
     """A service raising a configured fatal error records _fatal_shutdown_reason synchronously."""
-    hassette = watcher.hassette
-    assert hassette._fatal_shutdown_reason is None
+    async with isolated_watcher(test_config_class, unused_tcp_port_factory) as watcher:
+        hassette = watcher.hassette
+        assert hassette._fatal_shutdown_reason is None
 
-    dummy = register_dummy_service(
-        watcher,
-        restart_type=RestartType.TRANSIENT,
-        budget_intensity=5,
-        fatal_error_names=("RuntimeError",),
-    )
+        dummy = register_dummy_service(
+            watcher,
+            restart_type=RestartType.TRANSIENT,
+            budget_intensity=5,
+            fatal_error_names=("RuntimeError",),
+        )
 
-    event = make_service_failed_event(dummy.service, exception=RuntimeError("boom"))
-    await watcher.restart_service(event)  # fatal-error path triggers immediately
+        event = make_service_failed_event(dummy.service, exception=RuntimeError("boom"))
+        await watcher.restart_service(event)  # fatal-error path triggers immediately
 
-    assert hassette._fatal_shutdown_reason is not None
-    assert "RuntimeError" in hassette._fatal_shutdown_reason
+        assert hassette._fatal_shutdown_reason is not None
+        assert "RuntimeError" in hassette._fatal_shutdown_reason
 
 
 async def test_transient_exhaustion_enters_cooldown(watcher: ServiceWatcher):
@@ -431,44 +501,47 @@ async def test_temporary_exhaustion_stays_dead(watcher: ServiceWatcher):
     assert dead_event.payload.data.retry_at is None
 
 
-async def test_fatal_error_triggers_immediate_shutdown(watcher: ServiceWatcher):
+async def test_fatal_error_triggers_immediate_shutdown(
+    test_config_class: type[HassetteConfig], unused_tcp_port_factory: "Callable[[], int]"
+):
     """Service with fatal_error_names: matching exception triggers immediate shutdown, no restart."""
-    hassette = watcher.hassette
-    dummy = register_dummy_service(
-        watcher,
-        restart_type=RestartType.TRANSIENT,
-        fatal_error_names=("FatalDbError", "SchemaVersionError"),
-        budget_intensity=5,
-    )
+    async with isolated_watcher(test_config_class, unused_tcp_port_factory) as watcher:
+        hassette = watcher.hassette
+        dummy = register_dummy_service(
+            watcher,
+            restart_type=RestartType.TRANSIENT,
+            fatal_error_names=("FatalDbError", "SchemaVersionError"),
+            budget_intensity=5,
+        )
 
-    # Create a failed event with exception_type matching a fatal error name
-    fatal_event = HassetteServiceEvent(
-        topic=Topic.HASSETTE_EVENT_SERVICE_STATUS,
-        payload=HassettePayload(
-            data=ServiceStatusPayload(
-                resource_name=dummy.service.class_name,
-                role=dummy.service.role,
-                status=ResourceStatus.FAILED,
-                previous_status=ResourceStatus.RUNNING,
-                exception="fatal db error",
-                exception_type="FatalDbError",
-                exception_traceback=None,
-                ready=False,
-                ready_phase=None,
+        # Create a failed event with exception_type matching a fatal error name
+        fatal_event = HassetteServiceEvent(
+            topic=Topic.HASSETTE_EVENT_SERVICE_STATUS,
+            payload=HassettePayload(
+                data=ServiceStatusPayload(
+                    resource_name=dummy.service.class_name,
+                    role=dummy.service.role,
+                    status=ResourceStatus.FAILED,
+                    previous_status=ResourceStatus.RUNNING,
+                    exception="fatal db error",
+                    exception_type="FatalDbError",
+                    exception_traceback=None,
+                    ready=False,
+                    ready_phase=None,
+                ),
             ),
-        ),
-    )
+        )
 
-    with EventCapture.capturing(hassette) as capture:
-        await watcher.restart_service(fatal_event)
+        with EventCapture.capturing(hassette) as capture:
+            await watcher.restart_service(fatal_event)
 
-    # Should have emitted CRASHED and triggered shutdown
-    assert hassette.shutdown_event.is_set()
-    assert len(capture.events) >= 1
-    # First event should be CRASHED
-    assert capture.events[0].payload.data.status == ResourceStatus.CRASHED
-    # No restart should have been attempted
-    assert dummy.calls["start"] == 0
+        # Should have emitted CRASHED and triggered shutdown
+        assert hassette.shutdown_event.is_set()
+        assert len(capture.events) >= 1
+        # First event should be CRASHED
+        assert capture.events[0].payload.data.status == ResourceStatus.CRASHED
+        # No restart should have been attempted
+        assert dummy.calls["start"] == 0
 
 
 async def test_non_retryable_error_skips_restart(watcher: ServiceWatcher):
