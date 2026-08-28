@@ -33,6 +33,15 @@ class TotalTimeoutRoot(Resource):
     Uses the same pattern as ``Hassette._shutdown_body()`` to test the
     ``total_shutdown_timeout_seconds`` behavior without requiring the full
     Hassette __init__ machinery.
+
+    Note: this fixture does not model ``ROOT_SHUTDOWN_BODY_TIMEOUT_FRACTION`` —
+    it wraps with the full, unshaved ``total_shutdown_timeout_seconds``. That's
+    fine here because `make_total_timeout_root()` gives each instance a distinct
+    mock `.hassette`, so `resource is resource.hassette` is always False for this
+    fixture, and no test built on `TotalTimeoutRoot` reaches
+    `_run_shutdown_coordinator()`'s root-identity branch that the fraction margin
+    defends against (that branch is covered separately below by
+    `RootIdentityResource`).
     """
 
     _close_streams_called: bool = False

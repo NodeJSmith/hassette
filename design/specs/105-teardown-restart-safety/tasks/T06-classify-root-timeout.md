@@ -1,7 +1,7 @@
 ---
 task_id: "T06"
 title: "Classify root shutdown timeout evidence"
-status: "planned"
+status: "done"
 depends_on: ["T05"]
 implements: ["FR#3", "FR#10", "FR#13", "FR#17", "AC#7"]
 ---

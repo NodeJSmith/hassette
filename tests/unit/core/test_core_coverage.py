@@ -23,7 +23,7 @@ from hassette.core.core import Hassette
 from hassette.exceptions import AppPrecheckFailedError, FatalError
 from hassette.logging_ import HassetteQueueHandler, LogPersistenceHandler
 from hassette.resources.base import Resource
-from hassette.resources.teardown import TeardownCause
+from hassette.resources.teardown import RestartSafety, TeardownCause
 from hassette.test_utils import preserve_config, wait_for
 from hassette.types.enums import ResourceStatus
 from hassette.utils.url_utils import build_rest_url, build_ws_url
@@ -363,6 +363,71 @@ class TestShutdownTotalTimeout:
 
         assert h.shutdown_completed is True
         assert h.status == ResourceStatus.STOPPED
+
+    async def test_total_timeout_report_has_total_timeout_and_forced_terminal_causes(
+        self, wired_hassette: Hassette
+    ) -> None:
+        """shutdown() returns/stores RestartSafety.UNSAFE with TOTAL_TIMEOUT and FORCED_TERMINAL
+        causes when the total shutdown timeout fires, while still closing event streams via the
+        existing fallback.
+        """
+        h = wired_hassette
+        for child in h.children:
+            child._force_terminal = Mock()
+
+        async def hang_forever(_self):
+            await asyncio.sleep(1000)
+
+        with (
+            patch.object(Resource, "_shutdown_body", new=hang_forever),
+            preserve_config(h.config),
+        ):
+            # 0.5s (with the 0.9 ROOT_SHUTDOWN_BODY_TIMEOUT_FRACTION) still gives the body
+            # ~450ms to win its race against the coordinator's outer wait, matching the
+            # sibling test's precedent for real-world CI scheduling jitter headroom.
+            h.config.lifecycle.total_shutdown_timeout_seconds = 0.5
+            report = await h.shutdown()
+
+        assert report.restart_safety is RestartSafety.UNSAFE
+        assert TeardownCause.TOTAL_TIMEOUT in report.causes
+        assert TeardownCause.FORCED_TERMINAL in report.causes
+        assert h.teardown_report == report
+        assert h.event_streams_closed is True
+
+    async def test_total_timeout_stores_report_before_force_terminating_children(
+        self, wired_hassette: Hassette
+    ) -> None:
+        """Root timeout evidence is stored on the resource's own teardown report before
+        descendants are force-finalized, so a caller observing mid-force-terminal already
+        sees RestartSafety.UNSAFE rather than an absent report.
+        """
+        h = wired_hassette
+        observed_unsafe_before_force: list[bool] = []
+
+        def record_and_force() -> None:
+            report = h._teardown_report
+            observed_unsafe_before_force.append(report is not None and report.restart_safety is RestartSafety.UNSAFE)
+
+        for child in h.children:
+            child._force_terminal = Mock(side_effect=record_and_force)
+
+        async def hang_forever(_self):
+            await asyncio.sleep(1000)
+
+        with (
+            patch.object(Resource, "_shutdown_body", new=hang_forever),
+            preserve_config(h.config),
+        ):
+            # 0.5s (with the 0.9 ROOT_SHUTDOWN_BODY_TIMEOUT_FRACTION) still gives the body
+            # ~450ms to win its race against the coordinator's outer wait, matching the
+            # sibling test's precedent for real-world CI scheduling jitter headroom.
+            h.config.lifecycle.total_shutdown_timeout_seconds = 0.5
+            await h.shutdown()
+
+        assert observed_unsafe_before_force, "no children were force-terminated"
+        assert all(observed_unsafe_before_force), (
+            "root's own teardown report must be stored (UNSAFE) before force-finalizing descendants"
+        )
 
 
 class TestBeforeShutdownCounterFallback:

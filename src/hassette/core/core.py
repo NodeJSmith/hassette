@@ -60,6 +60,10 @@ from .websocket_service import WebsocketService
 if typing.TYPE_CHECKING:
     from hassette.events import Event
 
+ROOT_SHUTDOWN_BODY_TIMEOUT_FRACTION = 0.9
+"""Fraction of ``total_shutdown_timeout_seconds`` given to ``Hassette._shutdown_body()``'s own
+internal deadline (see its docstring for why this margin is required, not optional)."""
+
 
 def _service_not_wired_error(service: str) -> RuntimeError:
     """Build the error raised when a service accessor is read before ``wire_services()`` ran.
@@ -817,24 +821,51 @@ class Hassette(Resource):
         """Root shutdown body: wraps the ordinary hooks/cleanup/children pipeline in the
         total shutdown timeout, then closes event streams and finalizes terminal status.
 
-        On total timeout, force-finalizes every child before falling through to the same
-        stream-closing/status finalization the clean path runs — this is the existing
-        stream-closing fallback the design requires even when the total timeout fires.
+        On total timeout, stores ``TOTAL_TIMEOUT``/``FORCED_TERMINAL`` evidence directly on
+        this resource's own report *before* force-finalizing any child, then force-finalizes
+        every child before falling through to the same stream-closing/status finalization the
+        clean path runs — this is the existing stream-closing fallback the design requires
+        even when the total timeout fires.
+
+        The internal deadline below uses ``ROOT_SHUTDOWN_BODY_TIMEOUT_FRACTION`` of
+        ``total_shutdown_timeout_seconds`` rather than the full value. The shutdown coordinator
+        (``coordinate_shutdown()`` / ``_run_shutdown_coordinator()`` in
+        ``hassette.resources.lifecycle``) bounds its own outer wait for this root body by that
+        same full ``total_shutdown_timeout_seconds`` value, but its timer starts one event-loop
+        tick before this body's own ``asyncio.timeout()`` context is entered (the coordinator
+        calls ``asyncio.wait(..., timeout=...)`` immediately after scheduling this body's task,
+        while the task itself only starts running, and only then starts its own timer, on the
+        next tick). Two timers of identical duration where one starts strictly earlier always
+        expire in that same order, so an equal duration here would let the coordinator's
+        generic per-resource timeout path abandon this method first on every total-timeout run,
+        before it ever produces ``TOTAL_TIMEOUT`` evidence or runs the fallback below. Shaving a
+        safety margin off this body's own deadline guarantees it completes (and its result is
+        observed by the coordinator) before that outer backstop fires.
         """
         self.logger.info("Hassette shutdown initiated", stacklevel=2)
 
+        total_timeout = self.config.lifecycle.total_shutdown_timeout_seconds
+        body_timeout = total_timeout * ROOT_SHUTDOWN_BODY_TIMEOUT_FRACTION
+
         report: TeardownReport
         try:
-            async with asyncio.timeout(self.config.lifecycle.total_shutdown_timeout_seconds):
+            async with asyncio.timeout(body_timeout):
                 report = await super()._shutdown_body()
         except TimeoutError:
             self.logger.critical(
                 "Total shutdown timeout (%ss) exceeded — forcing termination",
-                self.config.lifecycle.total_shutdown_timeout_seconds,
+                total_timeout,
             )
+            timeout_report = TeardownReport(causes=(TeardownCause.TOTAL_TIMEOUT, TeardownCause.FORCED_TERMINAL))
+            existing = self._teardown_report
+            report = merge_teardown_reports(existing, timeout_report) if existing is not None else timeout_report
+            # Store directly on this resource's own report before force-finalizing any child,
+            # so a caller inspecting `teardown_report` mid-loop already observes UNSAFE rather
+            # than an absent report. The shutdown coordinator's own merge of this returned value
+            # with any evidence already present is monotonic, so this is safe to also return.
+            self._teardown_report = report
             for child in self.children:
                 child._force_terminal()
-            report = TeardownReport(causes=(TeardownCause.TOTAL_TIMEOUT, TeardownCause.FORCED_TERMINAL))
         finally:
             # Emit Hassette's own STOPPED event while streams are still open,
             # then close streams and set terminal status. Guarded by event_streams_closed
