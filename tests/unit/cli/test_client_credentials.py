@@ -50,6 +50,10 @@ class TestCredentialAttachment:
     # whitespace-only one must both be treated as unset, mirroring ``resolve_auth_token()``'s
     # server-side handling — suppressed *and* falling through to the token file, so the CLI can't
     # resolve a different credential than the service actually validates against.
+    #
+    # The neither-source-set case (no config token, no token file) is deliberately not a row here:
+    # ``test_missing_token_never_calls_generating_resolver`` below already pins it, asserting the
+    # same header absence plus the stronger invariant that the CLI never mints a token of its own.
     @pytest.mark.parametrize(
         ("config_token", "token_file", "expected_header"),
         [
