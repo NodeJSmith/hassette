@@ -16,35 +16,42 @@ from unittest.mock import MagicMock
 from hassette.logging_ import HassetteQueueListener, LogPersistenceHandler
 
 
+def _enqueue_returning_false(coro: Coroutine[Any, Any, Any]) -> bool:
+    """Stand in for a full DB write queue: refuse the coroutine and report the drop."""
+    coro.close()
+    return False
+
+
+def _enqueue_raising_runtime_error(coro: Coroutine[Any, Any, Any]) -> bool:
+    """Stand in for a shut-down DB service: refuse the coroutine and raise."""
+    coro.close()
+    raise RuntimeError("DB shut down")
+
+
 def _make_dropping_db_service() -> MagicMock:
     """Return a db_service mock whose enqueue() always returns False (simulates full queue)."""
     db_service = MagicMock()
     db_service._insert_log_records = MagicMock(return_value=MagicMock())
-
-    def drop_enqueue(coro: Coroutine[Any, Any, Any]) -> bool:
-        coro.close()
-        return False
-
-    db_service.enqueue = MagicMock(side_effect=drop_enqueue)
+    db_service.enqueue = MagicMock(side_effect=_enqueue_returning_false)
     return db_service
 
 
 class TestLogPersistenceHandlerBatching:
     """LogPersistenceHandler batches records and flushes at threshold."""
 
-    def test_batch_flushes_at_50_records(self) -> None:
-        """Batch is flushed when it reaches BATCH_SIZE (50)."""
+    def test_batch_flushes_at_batch_size_records(self) -> None:
+        """Batch is flushed when it reaches BATCH_SIZE."""
         loop = asyncio.new_event_loop()
         db_service = _make_dropping_db_service()
         handler = LogPersistenceHandler(db_service, loop, persistence_level=logging.DEBUG)
         try:
-            for i in range(50):
+            for i in range(LogPersistenceHandler.BATCH_SIZE):
                 record = logging.LogRecord("test", logging.INFO, "", 0, f"msg{i}", (), None)
                 handler.emit(record)
 
-            # enqueue() returns False → all 50 dropped after flush
+            # enqueue() returns False → the whole batch is dropped after flush
             loop.run_until_complete(asyncio.sleep(0))
-            assert handler.db_write_queue_drops == 50
+            assert handler.db_write_queue_drops == LogPersistenceHandler.BATCH_SIZE
             assert len(handler._batch) == 0
         finally:
             loop.close()
@@ -57,12 +64,12 @@ class TestLogPersistenceHandlerBatching:
         db_service._insert_log_records = MagicMock(return_value=MagicMock())
         handler = LogPersistenceHandler(db_service, loop, persistence_level=logging.DEBUG)
         try:
-            for i in range(49):
+            for i in range(LogPersistenceHandler.BATCH_SIZE - 1):
                 record = logging.LogRecord("test", logging.INFO, "", 0, f"msg{i}", (), None)
                 handler.emit(record)
 
             assert handler.db_write_queue_drops == 0
-            assert len(handler._batch) == 49
+            assert len(handler._batch) == LogPersistenceHandler.BATCH_SIZE - 1
         finally:
             loop.close()
 
@@ -152,31 +159,21 @@ class TestLogPersistenceHandlerBatching:
 class TestLogPersistenceDropCountWithDB:
     """LogPersistenceHandler counts drops caused by DB queue-full backpressure."""
 
-    @staticmethod
-    def enqueue_returning_false(coro: Coroutine[Any, Any, Any]) -> bool:
-        coro.close()
-        return False
-
-    @staticmethod
-    def enqueue_raising_runtime_error(coro: Coroutine[Any, Any, Any]) -> bool:
-        coro.close()
-        raise RuntimeError("DB shut down")
-
     def test_db_write_queue_drops_increments_on_enqueue_failure(self) -> None:
         """When enqueue() returns False (queue full), db_write_queue_drops increases."""
         loop = asyncio.new_event_loop()
         db_service = MagicMock()
         db_service._insert_log_records = MagicMock(return_value=MagicMock())
-        db_service.enqueue = MagicMock(side_effect=self.enqueue_returning_false)
+        db_service.enqueue = MagicMock(side_effect=_enqueue_returning_false)
         handler = LogPersistenceHandler(db_service, loop, persistence_level=logging.DEBUG)
         try:
-            for i in range(50):
+            for i in range(LogPersistenceHandler.BATCH_SIZE):
                 record = logging.LogRecord("test", logging.INFO, "", 0, f"msg{i}", (), None)
                 handler.emit(record)
 
             loop.run_until_complete(asyncio.sleep(0))
 
-            assert handler.db_write_queue_drops == 50
+            assert handler.db_write_queue_drops == LogPersistenceHandler.BATCH_SIZE
         finally:
             loop.close()
 
@@ -185,16 +182,16 @@ class TestLogPersistenceDropCountWithDB:
         loop = asyncio.new_event_loop()
         db_service = MagicMock()
         db_service._insert_log_records = MagicMock(return_value=MagicMock())
-        db_service.enqueue = MagicMock(side_effect=self.enqueue_raising_runtime_error)
+        db_service.enqueue = MagicMock(side_effect=_enqueue_raising_runtime_error)
         handler = LogPersistenceHandler(db_service, loop, persistence_level=logging.DEBUG)
         try:
-            for i in range(50):
+            for i in range(LogPersistenceHandler.BATCH_SIZE):
                 record = logging.LogRecord("test", logging.INFO, "", 0, f"msg{i}", (), None)
                 handler.emit(record)
 
             loop.run_until_complete(asyncio.sleep(0))
 
-            assert handler.db_write_queue_drops == 50
+            assert handler.db_write_queue_drops == LogPersistenceHandler.BATCH_SIZE
         finally:
             loop.close()
 
