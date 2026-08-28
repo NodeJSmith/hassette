@@ -1,7 +1,7 @@
 ---
 task_id: "T08"
 title: "Document and verify restart safety"
-status: "planned"
+status: "done"
 depends_on: ["T06", "T07"]
 implements: ["AC#8", "AC#9", "AC#10"]
 ---

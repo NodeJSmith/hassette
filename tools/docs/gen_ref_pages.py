@@ -48,6 +48,7 @@ PUBLIC_MODULES: frozenset[str] = frozenset(
         "hassette.di",  # AnnotationDetails, build_injection_plan, TypeMatcher, AnnotatedMatcher, etc.
         "hassette.resources.base",  # Resource base class referenced in lifecycle/internals docs
         "hassette.resources.service",  # Service base class referenced in internals docs
+        "hassette.resources.teardown",  # TeardownReport, TeardownCause, RestartSafety referenced in lifecycle docs
         "hassette.execution_mode",  # ExecutionModeGuard, DEFAULT_QUEUE_DEPTH referenced in bus docs
         "hassette.bus.listeners",  # Subscription, Listener referenced in bus docs
         "hassette.bus.error_context",  # BusErrorContext referenced in handler docs

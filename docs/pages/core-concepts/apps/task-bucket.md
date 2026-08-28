@@ -84,13 +84,34 @@ A blocking call made directly in a handler — `requests.get(...)`, a database d
 
 ## Shutdown
 
-The bucket cancels all tracked tasks when the app shuts down. Hassette cancels every pending task, waits up to `task_cancellation_timeout_seconds` (default: 5s, configurable in [global settings](../configuration/index.md)) for them to finish, and logs warnings for any tasks that do not exit within the timeout.
+Shutdown seals the bucket before it touches any tracked task. A sealed bucket rejects new work: a
+coroutine handed to `spawn()` is closed rather than left dangling, and a task created through
+Hassette's task factory (the event-loop hook that assigns every framework-created task to a
+bucket) is cancelled immediately, with its exception consumed so the rejection can't surface as an
+unhandled-task warning. This closes the window where a handler still running during shutdown could
+spawn work that outlives the cancellation sweep.
+
+After sealing, Hassette cancels every tracked task and waits up to `task_cancellation_timeout_seconds`
+(default: 5s, configurable in [global settings](../configuration/index.md)) for them to finish.
+Tasks that exit within that window are gone. Tasks that don't are logged and their names are
+recorded as evidence that the app's teardown did not fully complete — see
+[Teardown Safety and Restart Refusal](../internals/lifecycle.md#teardown-safety-and-restart-refusal)
+for what that evidence means for restarting the same app object. `cancel_all()` doesn't promise a
+universal hard stop: Python task cancellation is cooperative, and a task that ignores it stays
+alive past the bounded wait. The bucket reopens automatically only when a later initialization
+attempt is accepted after a clean, restart-safe teardown.
 
 Manual cleanup is not required.
 
 ## Inspecting and Cancelling Tasks
 
-Apps rarely need these directly — shutdown calls them automatically. `pending_tasks()` returns the set of tasks the bucket currently tracks. `cancel_all()` cancels every tracked task and awaits their completion; `cancel_all_sync()` is the fire-and-forget variant for sync contexts. Custom teardown sequences and the [test harness](../../testing/harness.md) drain helpers use them.
+Apps rarely need these directly — shutdown calls them automatically. `pending_tasks()` returns the
+set of tasks the bucket currently tracks; `pending_task_names()` returns a synchronous, sorted
+snapshot of their names, safe to call without awaiting anything. `cancel_all()` cancels every
+tracked task and returns a tuple of the names still pending after the bounded wait described above
+— an empty tuple means every task finished. `cancel_all_sync()` is the fire-and-forget variant for
+sync contexts. `seal()` and `is_sealed()` expose the bucket's admission state directly. Custom
+teardown sequences and the [test harness](../../testing/harness.md) drain helpers use these.
 
 ??? note "Advanced: collecting task exceptions in test infrastructure"
     `install_exception_recorder(fn)` registers a callback that receives every exception raised by a bucket task; `uninstall_exception_recorder()` removes it. The [test harness](../../testing/harness.md) uses this to surface handler failures as `DrainError`. Custom harnesses can do the same.
