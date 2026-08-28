@@ -2,6 +2,7 @@ import asyncio
 import concurrent.futures
 import contextlib
 import inspect
+from unittest.mock import patch
 
 import pytest
 
@@ -170,19 +171,37 @@ async def test_seal_rejects_task_factory_add_and_cancels_task(bucket: TaskBucket
     async def rogue():
         await asyncio.sleep(10)
 
-    before = asyncio.all_tasks()
+    # The task factory constructs the task before add() can reject and cancel it, and
+    # create_task() never returns a handle once add() raises — so the only reliable way to
+    # keep a reference is to capture it as add() is called, rather than trying to recover it
+    # afterward by filtering asyncio.all_tasks().
+    #
+    # No name assertion here on purpose: on Python <3.14, asyncio.BaseEventLoop.create_task()
+    # applies a caller-supplied name=... to the returned task via tasks._set_task_name() *after*
+    # the task factory returns (only 3.14 forwards name= directly into the factory's own
+    # kwargs — see make_task_factory()'s docstring). Since a rejected task's factory call never
+    # returns, that post-hoc rename never runs, so the task's name at rejection time is still the
+    # coroutine's fallback name ("rogue"), not "rejected-rogue" — confirmed by reproducing this
+    # exact mismatch locally on 3.11. Identity (there is exactly one captured task, and it's the
+    # one this test created) is what the assertions below actually need, not its name.
+    captured_tasks: list[asyncio.Task] = []
+    original_add = bucket.add
+
+    def spy_add(task: asyncio.Task) -> None:
+        captured_tasks.append(task)
+        original_add(task)
+
     bucket.seal()
     try:
-        with ctx.use_task_bucket(bucket), pytest.raises(RuntimeError, match=bucket.unique_name):
-            # rejection raises out of the task factory before create_task() can return a handle,
-            # so there is no reference to store — the created-but-cancelled task is recovered
-            # below via asyncio.all_tasks().
+        with (
+            patch.object(bucket, "add", side_effect=spy_add),
+            ctx.use_task_bucket(bucket),
+            pytest.raises(RuntimeError, match=bucket.unique_name),
+        ):
             asyncio.create_task(rogue(), name="rejected-rogue")  # noqa: RUF006
 
-        after = asyncio.all_tasks()
-        new_tasks = [t for t in after - before if t.get_name() == "rejected-rogue"]
-        assert len(new_tasks) == 1, "the factory constructs the task before rejection can cancel it"
-        rejected_task = new_tasks[0]
+        assert len(captured_tasks) == 1, "add() must be called exactly once with the rejected task"
+        rejected_task = captured_tasks[0]
 
         with contextlib.suppress(asyncio.CancelledError):
             await rejected_task
