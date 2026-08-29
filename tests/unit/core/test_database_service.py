@@ -113,6 +113,29 @@ async def test_worker_started_after_initialize(
     assert not task.done()
 
 
+async def test_force_terminal_cancels_untracked_db_worker(
+    initialized_service_with_worker: DatabaseService,
+) -> None:
+    """_force_terminal() cancels _db_worker_task even though it bypasses TaskBucket.
+
+    _db_worker_task is created outside any TaskBucket (see on_initialize()), so
+    Service._force_terminal()'s TaskBucket-only cancellation never reaches it. This is
+    exactly the path Hassette._shutdown_body() takes on total-shutdown timeout, which
+    force-terminates children directly and never runs on_shutdown() -- without this
+    override the worker (and its queue/connections) would survive that timeout.
+    """
+    service = initialized_service_with_worker
+    task = service._db_worker_task
+    assert task is not None
+    assert not task.done()
+
+    service._force_terminal()
+
+    with contextlib.suppress(asyncio.CancelledError):
+        await task
+    assert task.cancelled()
+
+
 async def test_submit_returns_coroutine_result(
     initialized_service_with_worker: DatabaseService,
 ) -> None:

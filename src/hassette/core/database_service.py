@@ -255,8 +255,22 @@ class DatabaseService(Service):
         # runs before wave-based child shutdown begins, killing the worker before
         # on_shutdown() can drain the queue — producing two 10s stalls per test
         # (one in each downstream wave that tries to submit() a write to the dead
-        # worker). The worker's lifecycle is managed exclusively by on_shutdown().
+        # worker). The worker's lifecycle is managed by on_shutdown() (drain-and-close) and
+        # _force_terminal() (hard cancel on the total-shutdown-timeout path).
         self._db_worker_task = create_lifecycle_task(self.db_write_worker(), name=f"db_write_worker:{self.unique_name}")
+
+    def _force_terminal(self) -> None:
+        """Override to also cancel the untracked database write worker.
+
+        ``_db_worker_task`` bypasses TaskBucket entirely (see ``on_initialize()``), so
+        ``Service._force_terminal()``'s ``TaskBucket.cancel_all_sync()`` never reaches it.
+        Without this override, a total-shutdown-timeout force-terminal call (which skips
+        ``on_shutdown()``, the only other place this task is cancelled) leaves the worker
+        and its queue/connections running after the process has declared shutdown complete.
+        """
+        if self._db_worker_task is not None and not self._db_worker_task.done():
+            self._db_worker_task.cancel()
+        super()._force_terminal()
 
     async def serve(self) -> None:
         """Run the heartbeat, retention, and size failsafe loop until shutdown."""
