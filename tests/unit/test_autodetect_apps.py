@@ -5,23 +5,15 @@ Complements test_validate_apps.py (TestValidateApps) and test_autodetect_apps_in
 """
 
 from pathlib import Path
-from textwrap import dedent
 
 import pytest
 
 from hassette import context
 from hassette.config.config import HassetteConfig
 from hassette.config.defaults import AUTODETECT_EXCLUDE_DIRS_DEFAULT
+from hassette.test_utils import write_app
 from hassette.types.types import AppDict
 from hassette.utils.app_utils import autodetect_apps
-
-
-def write_app(app_dir: Path, filename: str, source: str) -> Path:
-    """Write `source` as a module inside `app_dir`, creating the directory if needed."""
-    app_dir.mkdir(parents=True, exist_ok=True)
-    path = app_dir / filename
-    path.write_text(dedent(source))
-    return path
 
 
 def detect(app_dir: Path, known_paths: set[Path] | None = None) -> dict[str, AppDict]:

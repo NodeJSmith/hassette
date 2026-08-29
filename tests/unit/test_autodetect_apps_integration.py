@@ -73,8 +73,12 @@ class TestAutoDetectIntegration:
             cli_parse_args=False,
         )
 
+        # `autodetect` is only evaluated inside set_validated_app_manifests(), so the assertion
+        # has to run after it — and against `manifests`, which is what discovery populates.
+        config.set_validated_app_manifests()
+
         # Should not auto-detect any apps (no manual apps configured either)
-        assert len(config.apps.apps) == 0, f"Expected 0 apps, got {len(config.apps.apps)}"
+        assert len(config.apps.manifests) == 0, f"Expected 0 manifests, got {sorted(config.apps.manifests)}"
 
     @pytest.mark.parametrize("ext", [".py", ""])
     def test_defined_filename_without_extension_is_handled(self, tmp_path: Path, ext: str) -> None:

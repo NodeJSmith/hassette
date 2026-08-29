@@ -65,6 +65,7 @@ from .helpers import make_task_bucket as make_task_bucket
 from .helpers import patch_loop_getaddrinfo as patch_loop_getaddrinfo
 from .helpers import wire_up_app_running_listener as wire_up_app_running_listener
 from .helpers import wire_up_app_state_listener as wire_up_app_state_listener
+from .helpers import write_app as write_app
 from .helpers import write_app_toml as write_app_toml
 from .helpers import write_test_app_with_decorator as write_test_app_with_decorator
 from .mock_hassette import make_mock_hassette as make_mock_hassette
