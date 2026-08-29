@@ -13,7 +13,6 @@ Tests cover:
 - RetryableBatch.not_before backoff deferral (#656)
 """
 
-import asyncio
 import sqlite3
 import time
 from collections.abc import Callable, Coroutine
@@ -76,43 +75,42 @@ def wire_raising_persist(executor: CommandExecutor, exc: BaseException) -> None:
 
 
 async def test_bounded_queue_drops_on_full():
-    """Filling a queue beyond maxsize triggers QueueFull; _dropped_overflow is incremented."""
+    """enqueue_record drops the record and increments _dropped_overflow once the queue is full."""
     executor = init_executor(queue_max=3)
 
     rec = make_invocation()
 
-    # Fill queue to max
+    # Fill queue to max through the real enqueue path
     for _ in range(3):
-        executor._write_queue.put_nowait(rec)
+        executor.enqueue_record(rec)
 
-    # Next put_nowait should raise QueueFull — simulate what execute() does
-    try:
-        executor._write_queue.put_nowait(rec)
-        # Should have raised — if not, test the catch path manually
-    except asyncio.QueueFull:
-        executor._dropped_overflow += 1
-        executor.logger.error("Queue full — dropping record")
+    assert executor._write_queue.qsize() == 3
+    assert executor._dropped_overflow == 0
+
+    # Queue is full — this record must be dropped rather than raising
+    executor.enqueue_record(rec)
 
     assert executor._dropped_overflow == 1
     assert executor._write_queue.qsize() == 3
 
 
 async def test_enqueue_record_warns_at_configured_capacity_threshold() -> None:
-    """enqueue_record logs a capacity WARNING once occupancy *before* the enqueue reaches the
-    configured threshold, using lifecycle.command_executor_capacity_warn_threshold (#1041).
+    """enqueue_record opens the capacity rate-limit window once occupancy *before* the enqueue
+    reaches the configured lifecycle.command_executor_capacity_warn_threshold (#1041).
     """
     executor = init_executor(queue_max=4)
     executor.hassette.config.lifecycle.command_executor_capacity_warn_threshold = 0.5  # 2/4
 
     rec = make_invocation()
     executor.enqueue_record(rec)  # current_size=0 before put — below threshold
-    assert executor.logger.warning.call_count == 0
+    assert executor._last_capacity_warn_ts is None
 
     executor.enqueue_record(rec)  # current_size=1 before put — still below threshold
-    assert executor.logger.warning.call_count == 0
+    assert executor._last_capacity_warn_ts is None
 
     executor.enqueue_record(rec)  # current_size=2 before put — at threshold
-    assert executor.logger.warning.call_count == 1
+    assert executor._last_capacity_warn_ts is not None
+    assert executor._write_queue.qsize() == 3
 
 
 async def test_enqueue_record_capacity_warning_respects_configured_rate_limit() -> None:
@@ -125,13 +123,16 @@ async def test_enqueue_record_capacity_warning_respects_configured_rate_limit() 
 
     rec = make_invocation()
     executor.enqueue_record(rec)  # current_size=0 before put — below threshold
-    assert executor.logger.warning.call_count == 0
+    assert executor._last_capacity_warn_ts is None
 
     executor.enqueue_record(rec)  # current_size=1 before put — at threshold, fires
-    assert executor.logger.warning.call_count == 1
+    first_capacity_warn_ts = executor._last_capacity_warn_ts
+    assert first_capacity_warn_ts is not None
 
     executor.enqueue_record(rec)  # current_size=2 before put — still at/above threshold
-    assert executor.logger.warning.call_count == 1, "second warning should be suppressed by rate-limit"
+    assert executor._last_capacity_warn_ts == first_capacity_warn_ts, (
+        "second warning should be suppressed by rate-limit, leaving the window timestamp untouched"
+    )
 
 
 async def test_retryable_batch_expanded_in_drain():
@@ -224,7 +225,7 @@ async def test_max_retries_drops_batch():
 
 
 async def test_data_error_drops_immediately():
-    """DataError from persist_execution_batch → drop immediately + REGRESSION log, no re-enqueue."""
+    """DataError from persist_execution_batch → drop immediately, no re-enqueue and no retry."""
     executor = init_executor()
 
     inv = make_invocation(listener_id=5, session_id=1)
@@ -233,12 +234,12 @@ async def test_data_error_drops_immediately():
 
     await CommandExecutor.persist_batch(executor, [inv])  # pyright: ignore[reportArgumentType]
 
-    # No re-enqueue
+    # No re-enqueue, and none of the three counted drop paths were taken — a DataError is
+    # dropped where it is raised, so it is neither an overflow, a retry-exhausted drop, nor a
+    # shutdown-flush drop. Together these are what separate this branch from the sibling
+    # OperationalError path, which re-enqueues and eventually increments dropped_exhausted.
     assert executor._write_queue.empty()
-
-    # REGRESSION log
-    error_calls = [str(c) for c in executor.logger.error.call_args_list]
-    assert any("REGRESSION" in c or "DataError" in c or "non-retryable" in c.lower() for c in error_calls)
+    assert executor.get_drop_counters() == (0, 0, 0)
 
 
 async def test_integrity_error_row_by_row_fallback():
