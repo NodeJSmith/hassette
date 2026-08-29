@@ -79,6 +79,7 @@
   --warn-bg: #f5eedd;
   --err: oklch(0.514 0.19 28);
   --err-bg: #f5dedc;
+  --err-border: color-mix(in srgb, var(--err) 30%, transparent);
   --cancel: oklch(0.515 0.108 237);
   --mute: #9097a0;
   --mute-bg: #eff0ec;
@@ -249,6 +250,7 @@
   --status-warning: var(--warn);
   --status-warning-bg: var(--warn-bg);
   --destructive-bg: var(--err-bg);
+  --destructive-border: var(--err-border);
   --status-cancel: var(--cancel);
   --status-muted: var(--mute);
   --status-muted-bg: var(--mute-bg);
