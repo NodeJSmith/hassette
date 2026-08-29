@@ -11,6 +11,7 @@
 
 import type { components } from "../api/generated-types";
 import type { WsExecutionCompletedPayload } from "../api/ws-types";
+import type { ServiceStatusEntry } from "../state/store";
 import type { UnifiedRow } from "../utils/handler-rows";
 
 type AppManifestResponse = components["schemas"]["AppManifestResponse"];
@@ -24,6 +25,7 @@ type TelemetryStatusResponse = components["schemas"]["TelemetryStatusResponse"];
 type AppInstanceResponse = components["schemas"]["AppInstanceResponse"];
 type Execution = components["schemas"]["Execution"];
 type SystemStatusResponse = components["schemas"]["SystemStatusResponse"];
+type ServiceInfoResponse = components["schemas"]["ServiceInfoResponse"];
 
 export function createInstance(overrides: Partial<AppInstanceResponse> = {}): AppInstanceResponse {
   return {
@@ -445,4 +447,31 @@ export function createSystemConfig(
   const config_values = { ...DEFAULT_CONFIG_VALUES, ...valueOverrides };
   const config_schema = schemaOverrides ?? MINIMAL_CONFIG_SCHEMA;
   return { config_schema, config_values } satisfies ConfigSchemaResponse;
+}
+
+/** A service as the REST `/api/services` seed reports it. */
+export function createServiceInfo(overrides: Partial<ServiceInfoResponse> = {}): ServiceInfoResponse {
+  return {
+    name: "bus",
+    status: "running",
+    role: "core",
+    ready_phase: null,
+    retry_at: null,
+    ...overrides,
+  } satisfies ServiceInfoResponse;
+}
+
+/** A service as the live WS status stream reports it — richer than the REST seed. */
+export function createServiceStatusEntry(overrides: Partial<ServiceStatusEntry> = {}): ServiceStatusEntry {
+  return {
+    resource_name: "bus",
+    role: "core",
+    status: "running",
+    previous_status: null,
+    exception: null,
+    retry_at: null,
+    ready: true,
+    ready_phase: null,
+    ...overrides,
+  } satisfies ServiceStatusEntry;
 }
