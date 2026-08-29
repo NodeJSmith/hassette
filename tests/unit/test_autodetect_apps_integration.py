@@ -7,12 +7,12 @@ Complements `test_autodetect_apps.py` (TestAutoDetectAppsCurrDir, TestAutoDetect
 
 from collections.abc import Iterator
 from pathlib import Path
-from textwrap import dedent
 
 import pytest
 
 from hassette import context
 from hassette.config.config import HassetteConfig
+from hassette.test_utils import write_app
 from hassette.test_utils.config import TEST_TOKEN
 
 
@@ -28,15 +28,14 @@ class TestAutoDetectIntegration:
         """Test that autodetect_apps is enabled by default in HassetteConfig."""
         # Create a temporary app directory with an app
         app_dir = tmp_path / "apps"
-        app_dir.mkdir()
-
-        app_file = app_dir / "test_app.py"
-        app_file.write_text(
-            dedent("""
+        write_app(
+            app_dir,
+            "test_app.py",
+            """
             from hassette import App, AppConfig
 
             class TestApp(App[AppConfig]): ...
-        """)
+            """,
         )
 
         # Create config with the temp app directory
@@ -55,15 +54,14 @@ class TestAutoDetectIntegration:
         """Test that autodetect_apps can be disabled in HassetteConfig."""
         # Create a temporary app directory with an app
         app_dir = tmp_path / "apps"
-        app_dir.mkdir()
-
-        app_file = app_dir / "test_app.py"
-        app_file.write_text(
-            dedent("""
+        write_app(
+            app_dir,
+            "test_app.py",
+            """
             from hassette import App, AppConfig
 
             class TestApp(App[AppConfig]): ...
-        """)
+            """,
         )
 
         # Create config with auto-detect disabled
@@ -73,8 +71,12 @@ class TestAutoDetectIntegration:
             cli_parse_args=False,
         )
 
+        # `autodetect` is only evaluated inside set_validated_app_manifests(), so the assertion
+        # has to run after it — and against `manifests`, which is what discovery populates.
+        config.set_validated_app_manifests()
+
         # Should not auto-detect any apps (no manual apps configured either)
-        assert len(config.apps.apps) == 0, f"Expected 0 apps, got {len(config.apps.apps)}"
+        assert len(config.apps.manifests) == 0, f"Expected 0 manifests, got {sorted(config.apps.manifests)}"
 
     @pytest.mark.parametrize("ext", [".py", ""])
     def test_defined_filename_without_extension_is_handled(self, tmp_path: Path, ext: str) -> None:
@@ -86,18 +88,17 @@ class TestAutoDetectIntegration:
         """
         # Create a temporary app directory with an app
         app_dir = tmp_path / "apps"
-        app_dir.mkdir()
-
-        app_file = app_dir / "priority_app.py"
-        app_file.write_text(
-            dedent("""
+        write_app(
+            app_dir,
+            "priority_app.py",
+            """
             from hassette import App, AppConfig
 
             class MyConfig(AppConfig):
                 custom: str = "auto-app"
 
             class AutoDetectedApp(App[AppConfig]): ...
-        """)
+            """,
         )
 
         # Create config with manual app configuration that conflicts
@@ -133,15 +134,14 @@ class TestAutoDetectIntegration:
         """Test that manually configured apps take precedence over auto-detected ones."""
         # Create a temporary app directory with an app
         app_dir = tmp_path / "apps"
-        app_dir.mkdir()
-
-        app_file = app_dir / "priority_app.py"
-        app_file.write_text(
-            dedent("""
+        write_app(
+            app_dir,
+            "priority_app.py",
+            """
             from hassette import App, AppConfig
 
             class AutoDetectedApp(App[AppConfig]): ...
-        """)
+            """,
         )
 
         # Create config with manual app configuration that conflicts
@@ -179,26 +179,27 @@ class TestAutoDetectIntegration:
         """Test that HassetteConfig combines manual and auto-detected apps correctly."""
         # Create a temporary app directory with multiple apps
         app_dir = tmp_path / "apps"
-        app_dir.mkdir()
 
         # Auto-detected app
-        auto_file = app_dir / "auto_app.py"
-        auto_file.write_text(
-            dedent("""
+        write_app(
+            app_dir,
+            "auto_app.py",
+            """
             from hassette import App, AppConfig
 
             class AutoApp(App[AppConfig]): ...
-        """)
+            """,
         )
 
         # Manually configured app
-        manual_file = app_dir / "manual_app.py"
-        manual_file.write_text(
-            dedent("""
+        write_app(
+            app_dir,
+            "manual_app.py",
+            """
             from hassette import App, AppConfig
 
             class ManualApp(App[AppConfig]): ...
-        """)
+            """,
         )
 
         # Create config with one manual app

@@ -8,12 +8,13 @@ Complements `test_autodetect_apps.py` (TestAutoDetectAppsCurrDir, TestAutoDetect
 import logging
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
 from hassette import context
 from hassette.config.config import HassetteConfig
+from hassette.test_utils import write_app
 from hassette.test_utils.config import make_test_config
 
 
@@ -120,22 +121,30 @@ class TestValidateApps:
             f"Expected app_key to be 'valid_app', got {result['valid_app'].app_key}"
         )
 
-    @patch("hassette.config.config.autodetect_apps")
-    def test_validate_apps_calls_autodetect(self, mock_autodetect: MagicMock, tmp_path: Path) -> None:
-        """Test that validate_apps calls autodetect_app_manifests when autodetect=True."""
+    def test_validate_apps_merges_autodetected_and_manual_apps(self, tmp_path: Path) -> None:
+        """Real discovery runs when autodetect=True and merges with manually configured apps."""
+        # `app_dir.name` is load-bearing, not scaffolding: autodetect_apps() passes it as the
+        # package name, so a discovered app's key is "{app_dir.name}.{module_stem}.{class_name}"
+        # — the literals asserted below change if this directory is renamed.
         app_dir = tmp_path / "test_apps"
-        app_dir.mkdir(parents=True, exist_ok=True)
+        write_app(
+            app_dir,
+            "validate_auto_app.py",
+            """
+            from hassette import App, AppConfig
 
-        # Mock the auto-detection to return a detected app
-        mock_app_dict = {
-            "filename": "auto.py",
-            "class_name": "AutoApp",
-            "app_dir": app_dir,
-            "app_key": "auto.AutoApp",
-            "enabled": True,
-            "full_path": app_dir / "auto.py",
-        }
-        mock_autodetect.return_value = {"auto.AutoApp": mock_app_dict}
+            class ValidateAutoApp(App[AppConfig]): ...
+            """,
+        )
+        write_app(
+            app_dir,
+            "validate_manual_app.py",
+            """
+            from hassette import App, AppConfig
+
+            class ValidateManualApp(App[AppConfig]): ...
+            """,
+        )
 
         config = self.make_config(
             tmp_path,
@@ -143,8 +152,8 @@ class TestValidateApps:
             directory=app_dir,
             apps={
                 "manual_app": {
-                    "filename": "manual.py",
-                    "class_name": "ManualApp",
+                    "filename": "validate_manual_app.py",
+                    "class_name": "ValidateManualApp",
                 }
             },
         )
@@ -153,44 +162,61 @@ class TestValidateApps:
             config.set_validated_app_manifests()
         result = config.apps.manifests
 
-        # Should have both manual and auto-detected apps
-        assert len(result) == 2, f"Expected 2 apps, got {len(result)}"
-        assert "manual_app" in result, "Expected to find 'manual_app' in detected apps"
-        assert "auto.AutoApp" in result, "Expected to find 'auto.AutoApp' in detected apps"
+        autodetected_key = "test_apps.validate_auto_app.ValidateAutoApp"
+        assert sorted(result) == sorted(["manual_app", autodetected_key]), (
+            f"Expected the manual app plus the auto-detected one, got {sorted(result)}"
+        )
 
-        # Check that autodetect_app_manifests was called with correct parameters
-        mock_autodetect.assert_called_once()
-        args, _ = mock_autodetect.call_args
-        assert args[0] == app_dir, f"Expected app_dir to be {app_dir}, got {args[0]}"
-        # Should include the path of the manual app in known_paths
-        known_paths = args[1]
-        expected_path = (app_dir / "manual.py").resolve()
-        assert expected_path in known_paths, f"Expected known_paths to include {expected_path}, got {known_paths}"
+        # Discovery ran against the configured app directory.
+        auto_manifest = result[autodetected_key]
+        assert auto_manifest.app_dir == app_dir, f"Expected app_dir to be {app_dir}, got {auto_manifest.app_dir}"
+        assert auto_manifest.filename == "validate_auto_app.py", (
+            f"Expected filename to be 'validate_auto_app.py', got {auto_manifest.filename}"
+        )
 
-    @patch("hassette.config.config.autodetect_apps")
-    def test_validate_apps_skips_conflicting_autodetected(self, mock_autodetect: MagicMock, tmp_path: Path) -> None:
-        """Test that validate_apps skips auto-detected apps that conflict with manual ones."""
+        # The manually configured file is handed to discovery as a known path, so it is not
+        # detected a second time under its derived key.
+        assert "test_apps.validate_manual_app.ValidateManualApp" not in result, (
+            f"Expected the manually configured file to be skipped by discovery, got {sorted(result)}"
+        )
+
+    def test_validate_apps_skips_conflicting_autodetected(self, tmp_path: Path) -> None:
+        """Auto-detected apps whose key is already claimed by a manual app are dropped.
+
+        The manual entry deliberately points at a *different* file than the one discovery finds:
+        a manually configured file is excluded from discovery via known_paths, so pointing both
+        at the same file would never reach the key-conflict branch.
+        """
+        # Same "{app_dir.name}.{module_stem}.{class_name}" key format as the test above.
         app_dir = tmp_path / "test_apps"
-        app_dir.mkdir(parents=True, exist_ok=True)
+        write_app(
+            app_dir,
+            "validate_conflict_app.py",
+            """
+            from hassette import App, AppConfig
 
-        # Mock auto-detection to return an app with the same key
-        mock_app_dict = {
-            "filename": "my_app.py",
-            "class_name": "MyApp",
-            "app_dir": app_dir,
-            "app_key": "my_app",
-            "enabled": True,
-        }
-        mock_autodetect.return_value = {"my_app": mock_app_dict}
+            class ValidateConflictApp(App[AppConfig]): ...
+            """,
+        )
+        write_app(
+            app_dir,
+            "validate_override_app.py",
+            """
+            from hassette import App, AppConfig
 
+            class ValidateOverrideApp(App[AppConfig]): ...
+            """,
+        )
+
+        conflicting_key = "test_apps.validate_conflict_app.ValidateConflictApp"
         config = self.make_config(
             tmp_path,
             autodetect=True,
             directory=app_dir,
             apps={
-                "my_app": {
-                    "filename": "my_app.py",
-                    "class_name": "MyApp",
+                conflicting_key: {
+                    "filename": "validate_override_app.py",
+                    "class_name": "ValidateOverrideApp",
                 }
             },
         )
@@ -199,21 +225,16 @@ class TestValidateApps:
             config.set_validated_app_manifests()
         result = config.apps.manifests
 
-        # Should only have the manual app, not the auto-detected one
-        assert len(result) == 1, f"Expected 1 app, got {len(result)}"
-        assert "my_app" in result, "Expected to find 'my_app' in detected apps"
-        # Should be the original manual config, not the auto-detected one
-        assert result["my_app"].filename == "my_app.py", (
-            f"Expected filename to be 'my_app.py', got {result['my_app'].filename}"
+        # Only the manual app survives — the auto-detected app that resolved to the same key
+        # is skipped rather than overwriting it.
+        assert sorted(result) == [conflicting_key], f"Expected only {conflicting_key!r}, got {sorted(result)}"
+        manifest = result[conflicting_key]
+        assert manifest.filename == "validate_override_app.py", (
+            f"Expected filename to be 'validate_override_app.py', got {manifest.filename}"
         )
-        assert result["my_app"].class_name == "MyApp", (
-            f"Expected class_name to be 'MyApp', got {result['my_app'].class_name}"
+        assert manifest.class_name == "ValidateOverrideApp", (
+            f"Expected class_name to be 'ValidateOverrideApp', got {manifest.class_name}"
         )
-
-        # The behavior is that auto-detected apps with conflicting keys are simply not added
-        # Let's verify that autodetect_app_manifests was called and the result is correct
-        mock_autodetect.assert_called_once()
-        # The important thing is that the result only contains the manual app
 
     def test_validate_apps_skips_autodetect_when_disabled(self, tmp_path: Path) -> None:
         """Test that validate_apps skips auto-detection when autodetect=False."""

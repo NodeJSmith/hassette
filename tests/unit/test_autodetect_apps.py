@@ -5,23 +5,15 @@ Complements test_validate_apps.py (TestValidateApps) and test_autodetect_apps_in
 """
 
 from pathlib import Path
-from textwrap import dedent
 
 import pytest
 
 from hassette import context
 from hassette.config.config import HassetteConfig
 from hassette.config.defaults import AUTODETECT_EXCLUDE_DIRS_DEFAULT
+from hassette.test_utils import write_app
 from hassette.types.types import AppDict
 from hassette.utils.app_utils import autodetect_apps
-
-
-def write_app(app_dir: Path, filename: str, source: str) -> Path:
-    """Write `source` as a module inside `app_dir`, creating the directory if needed."""
-    app_dir.mkdir(parents=True, exist_ok=True)
-    path = app_dir / filename
-    path.write_text(dedent(source))
-    return path
 
 
 def detect(app_dir: Path, known_paths: set[Path] | None = None) -> dict[str, AppDict]:
@@ -56,7 +48,7 @@ class TestAutoDetectAppsCurrDir:
             from hassette import App, AppConfig
 
             class CurrentDirApp(App[AppConfig]): ...
-        """,
+            """,
         )
 
         assert_detected(detect(tmp_path), f"{tmp_path.name}.current_dir_app.CurrentDirApp")
@@ -70,7 +62,7 @@ class TestAutoDetectAppsCurrDir:
             from hassette import App, AppConfig
 
             class VenvApp(App[AppConfig]): ...
-        """,
+            """,
         )
 
         assert_detected(detect(tmp_path))
@@ -84,7 +76,7 @@ class TestAutoDetectAppsCurrDir:
             from hassette import App, AppConfig
 
             class HiddenApp(App[AppConfig]): ...
-        """,
+            """,
         )
 
         assert_detected(detect(tmp_path))
@@ -111,7 +103,7 @@ class TestAutoDetectApps:
                 message: str = "Hello"
 
             class SimpleApp(App[SimpleAppConfig]): ...
-        """,
+            """,
         )
 
         result = detect(app_dir)
@@ -137,7 +129,7 @@ class TestAutoDetectApps:
                 interval: int = 60
 
             class MySyncApp(AppSync[SyncAppConfig]): ...
-        """,
+            """,
         )
 
         result = detect(app_dir)
@@ -162,7 +154,7 @@ class TestAutoDetectApps:
             class FirstApp(App[SharedConfig]): ...
 
             class SecondApp(AppSync[SharedConfig]): ...
-        """,
+            """,
         )
 
         result = detect(app_dir)
@@ -185,7 +177,7 @@ class TestAutoDetectApps:
                 smtp_server: str = "localhost"
 
             class EmailNotifier(App[EmailConfig]): ...
-        """,
+            """,
         )
 
         result = detect(app_dir)
@@ -206,7 +198,7 @@ class TestAutoDetectApps:
             from hassette import App, AppConfig
 
             class ConfiguredApp(App[AppConfig]): ...
-        """,
+            """,
         )
 
         assert_detected(detect(app_dir, known_paths={app_file.resolve()}))
@@ -225,7 +217,7 @@ class TestAutoDetectApps:
             AppSync = AppSync
 
             class RealApp(App[AppConfig]): ...
-        """,
+            """,
         )
 
         assert_detected(detect(app_dir), "apps.base_classes.RealApp")
@@ -240,7 +232,7 @@ class TestAutoDetectApps:
             from hassette import App, AppConfig
 
             class ModuleApp(App[AppConfig]): ...
-        """,
+            """,
         )
         write_app(
             app_dir,
@@ -250,7 +242,7 @@ class TestAutoDetectApps:
             from hassette import App, AppConfig
 
             class LocalApp(App[AppConfig]): ...
-        """,
+            """,
         )
 
         # Each app is detected in its own module; ModuleApp must NOT appear under importer.py
@@ -267,7 +259,7 @@ class TestAutoDetectApps:
             from hassette import App, AppConfig
 
             class BrokenApp(App[AppConfig]): ...
-        """,
+            """,
         )
         write_app(
             app_dir,
@@ -276,7 +268,7 @@ class TestAutoDetectApps:
             from hassette import App, AppConfig
 
             class GoodApp(App[AppConfig]): ...
-        """,
+            """,
         )
 
         # The broken module is skipped rather than aborting the whole scan
@@ -304,7 +296,7 @@ class TestAutoDetectApps:
                     pass
 
             class ActualApp(App[AppConfig]): ...
-        """,
+            """,
         )
 
         assert_detected(detect(app_dir), "apps.mixed_classes.ActualApp")
