@@ -94,6 +94,8 @@ class _HassetteConfigP(Protocol):
 class _HassetteP(Protocol):
     config: _HassetteConfigP
     shutdown_event: asyncio.Event
+    loop: asyncio.AbstractEventLoop
+    loop_thread_id: int | None
 
     async def send_event(self, event: Any) -> None: ...
 
@@ -175,6 +177,22 @@ class LifecycleMixin(_LifecycleHostP):
     ``False`` has no in-process reset path.
     """
 
+    _shutdown_deadline: float | None = None
+    """Wall-clock deadline (via the running loop's ``time()``) for the current shutdown
+    attempt's ``_shutdown_body()`` call.
+
+    Set once by ``_run_shutdown_coordinator()`` (``hassette.resources.lifecycle``) right
+    before it creates the body task, using whichever ``timeout`` it already computed for that
+    attempt (``resource_shutdown_timeout_seconds`` normally, ``total_shutdown_timeout_seconds``
+    for the root resource). Every stage inside the body that would otherwise independently wait
+    up to the full per-resource timeout -- the serve-task wait in ``Service``, and
+    ``cleanup()``/``_shutdown_children()`` in ``Resource`` -- reads it via
+    ``remaining_shutdown_budget()`` instead, so no single stage can consume the whole
+    coordinator-level budget and starve the stages after it. ``None`` means no shutdown attempt
+    has recorded a deadline yet (e.g. a direct ``cleanup()`` call outside the normal coordinator
+    flow, as some tests do).
+    """
+
     _previous_status: ResourceStatus = ResourceStatus.NOT_STARTED
     """Previous status of the instance."""
 
@@ -192,6 +210,7 @@ class LifecycleMixin(_LifecycleHostP):
         self._shutdown_task = None
         self._shutdown_body_task = None
         self._teardown_report = None
+        self._shutdown_deadline = None
 
     @property
     def initializing(self) -> bool:

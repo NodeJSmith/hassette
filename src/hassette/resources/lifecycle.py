@@ -12,6 +12,7 @@ concrete implementation always in play at runtime — to access the mutable life
 """
 
 import asyncio
+import threading
 import typing
 from contextlib import suppress
 from typing import Any
@@ -114,8 +115,33 @@ def start(resource: _LifecycleHostP) -> None:
     teardown seals the bucket, and reopening it is itself one of the effects of the accepted
     initialization attempt this joiner triggers, so admitting the joiner *through* the bucket
     it is about to reopen would reject it with a sealed-bucket error.
+
+    Thread-safe: when called from a thread other than the event loop's own (e.g. a sync handler
+    running on the dedicated sync-handler thread pool), re-dispatches itself onto the loop
+    thread via ``call_soon_threadsafe`` and returns immediately -- restoring the cross-thread
+    reach ``TaskBucket.spawn()`` used to provide before this function's joiner creation moved to
+    ``create_lifecycle_task()`` (see its docstring), which requires an already-running loop on
+    the calling thread. Unlike ``spawn()``'s cross-thread path, this is pure fire-and-forget: the
+    calling thread has already returned by the time the re-dispatched call actually runs, so a
+    ``LifecycleReentryError`` or ``RestartRefusedError`` raised at that point cannot propagate
+    back to it and is logged here instead.
     """
     resource = typing.cast("LifecycleMixin", resource)
+
+    if threading.get_ident() != resource.hassette.loop_thread_id:
+
+        def _start_on_loop_thread() -> None:
+            try:
+                start(resource)
+            except Exception:
+                resource.logger.exception(
+                    "%s: cross-thread start() failed after re-dispatch onto the loop thread",
+                    resource.unique_name,
+                )
+
+        resource.hassette.loop.call_soon_threadsafe(_start_on_loop_thread)
+        return
+
     reject_lifecycle_reentry(resource, "start")
 
     if resource._init_task is not None and not resource._init_task.done():
@@ -148,14 +174,34 @@ def start(resource: _LifecycleHostP) -> None:
 
 
 def cancel(resource: _LifecycleHostP) -> None:
-    """Cancel the main task of the instance, if it is running."""
+    """Cancel the main task of the instance, if it is running.
+
+    Also cancels a still-pending ``start()`` joiner (``_pending_start_task``) when present --
+    ``start()`` assigns that field synchronously but only assigns ``_init_task`` a turn or more
+    later, once the joiner actually runs ``coordinate_initialize()``. Without this check, a
+    ``cancel()`` called in the same event-loop turn as ``start()`` would see ``_init_task`` still
+    ``None``, report nothing to cancel, and let the queued joiner go on to initialize the
+    resource despite the cancellation request. Cancel-and-forget is safe here: ``cancel()`` is
+    synchronous and cannot await the joiner the way ``_observe_active_initializer()`` does, but
+    the joiner's own ``add_done_callback(_clear_pending_start)`` (set up in ``start()``) clears
+    ``_pending_start_task`` once it settles, and ``_install_exception_observer()`` already
+    ensures its exception/cancellation is observed.
+    """
     resource = typing.cast("LifecycleMixin", resource)
+    cancelled_something = False
+
+    if resource._pending_start_task is not None and not resource._pending_start_task.done():
+        resource._pending_start_task.cancel()
+        resource.logger.debug("%s cancelled pending start joiner", resource.unique_name)
+        cancelled_something = True
+
     if resource._init_task and not resource._init_task.done():
         resource._init_task.cancel()
         resource.logger.debug("%s cancelled task", resource.unique_name)
-        return
+        cancelled_something = True
 
-    resource.logger.debug("%s no running task to cancel", resource.unique_name)
+    if not cancelled_something:
+        resource.logger.debug("%s no running task to cancel", resource.unique_name)
 
 
 # dup-ignore-start: lifecycle state handlers share cast → guard → transition → emit-event structure by design
@@ -325,6 +371,24 @@ def create_lifecycle_task(coro: "Coroutine[Any, Any, Any]", *, name: str) -> asy
     return asyncio.Task(coro, loop=loop, name=name)
 
 
+def remaining_shutdown_budget(resource: _LifecycleHostP, floor: float = 0.0) -> float:
+    """Return the wall-clock seconds left in the current shutdown attempt's outer budget.
+
+    Every stage inside ``_shutdown_body()`` that would otherwise independently wait up to
+    the full ``resource_shutdown_timeout_seconds`` (the serve-task wait in ``Service``, and
+    ``cleanup()``/``_shutdown_children()`` in ``Resource``) must call this instead, so no
+    single stage can consume the whole coordinator-level budget and starve the stages after
+    it. Falls back to the full per-resource timeout when no shutdown attempt has recorded a
+    deadline yet -- e.g. a direct ``cleanup()`` call outside the normal coordinator flow (some
+    tests do this).
+    """
+    resource = typing.cast("LifecycleMixin", resource)
+    deadline = resource._shutdown_deadline
+    if deadline is None:
+        return resource.hassette.config.lifecycle.resource_shutdown_timeout_seconds
+    return max(floor, deadline - asyncio.get_running_loop().time())
+
+
 def _install_exception_observer(resource: _LifecycleHostP, task: asyncio.Task, label: str) -> None:
     """Attach a done callback that retrieves and logs any exception the task raised.
 
@@ -460,12 +524,6 @@ async def _run_shutdown_coordinator(resource: "LifecycleMixin") -> TeardownRepor
             resource.status = ResourceStatus.STOPPING
         request_shutdown(resource, f"{resource.unique_name} shutdown")
 
-        body_task = create_lifecycle_task(
-            resource._shutdown_body(), name=f"resource:shutdown_body:{resource.unique_name}"
-        )
-        _install_exception_observer(resource, body_task, "shutdown body")
-        resource._shutdown_body_task = body_task
-
         if typing.cast("object", resource) is resource.hassette:
             # The root resource's own _shutdown_body() (Hassette._shutdown_body()) already
             # self-bounds with total_shutdown_timeout_seconds via its own asyncio.timeout(). The
@@ -479,6 +537,20 @@ async def _run_shutdown_coordinator(resource: "LifecycleMixin") -> TeardownRepor
             timeout = resource.hassette.config.lifecycle.total_shutdown_timeout_seconds
         else:
             timeout = resource.hassette.config.lifecycle.resource_shutdown_timeout_seconds
+
+        # Recorded before the body task is created (i.e. before it can consume any of this
+        # budget itself) so every stage inside _shutdown_body() can query how much of this outer
+        # wait is left via remaining_shutdown_budget(), instead of each independently claiming
+        # the full `timeout` value and starving whichever stage runs last. See
+        # LifecycleMixin._shutdown_deadline's docstring.
+        resource._shutdown_deadline = asyncio.get_running_loop().time() + timeout
+
+        body_task = create_lifecycle_task(
+            resource._shutdown_body(), name=f"resource:shutdown_body:{resource.unique_name}"
+        )
+        _install_exception_observer(resource, body_task, "shutdown body")
+        resource._shutdown_body_task = body_task
+
         done, _pending = await asyncio.wait([body_task], timeout=timeout)
 
         if body_task in done:

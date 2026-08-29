@@ -15,6 +15,7 @@ from hassette.resources.lifecycle import (
     handle_starting,
     handle_stop,
     mark_not_ready,
+    remaining_shutdown_budget,
 )
 from hassette.resources.operations import run_hooks
 from hassette.resources.restart import RestartSpec
@@ -134,7 +135,7 @@ class Service(Resource):
         if self.is_running() and self._serve_task:
             self._serve_task.cancel()
             self.logger.debug("Cancelled serve() task")
-            timeout = self.hassette.config.lifecycle.resource_shutdown_timeout_seconds
+            timeout = remaining_shutdown_budget(self)
             _done, pending = await asyncio.wait([self._serve_task], timeout=timeout)
             if pending:
                 self.logger.warning(

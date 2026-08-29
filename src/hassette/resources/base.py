@@ -17,6 +17,7 @@ from hassette.resources.lifecycle import (
     handle_starting,
     handle_stop,
     mark_not_ready,
+    remaining_shutdown_budget,
 )
 from hassette.resources.operations import ordered_children_for_shutdown, run_hooks
 from hassette.resources.teardown import (
@@ -401,7 +402,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
           force-terminates only the children still unfinished at that point; a child that
           already completed keeps its own (possibly restart-safe) report unchanged.
         """
-        timeout = self.hassette.config.lifecycle.resource_shutdown_timeout_seconds
+        timeout = remaining_shutdown_budget(self)
         children = ordered_children_for_shutdown(self)
         if not children:
             return TeardownReport()
@@ -457,13 +458,13 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         force-terminal call can still inspect the sealed bucket directly (see
         ``_force_terminal()``) even if this stage itself is interrupted before returning.
 
-        Uses ``CANCEL_BUDGET_FRACTION`` of the per-resource shutdown budget instead of the
-        full ``task_cancellation_timeout_seconds``, because this stage runs inside a body that
-        runs inside a coordinator that runs inside a wave — all sharing the same wall-clock
-        budget.
+        Uses ``CANCEL_BUDGET_FRACTION`` of what remains of the coordinator-level shutdown
+        deadline (``remaining_shutdown_budget()``), not the full ``task_cancellation_timeout_seconds``
+        or a fresh full per-resource timeout, because this stage runs inside a body that runs
+        inside a coordinator that runs inside a wave — all sharing the same wall-clock budget.
         """
         self.task_bucket.seal()
-        cancel_budget = self.hassette.config.lifecycle.resource_shutdown_timeout_seconds * CANCEL_BUDGET_FRACTION
+        cancel_budget = remaining_shutdown_budget(self) * CANCEL_BUDGET_FRACTION
         await self.task_bucket.cancel_all(timeout=cancel_budget)
         pending = self.task_bucket.pending_task_names()
         if pending:
@@ -481,7 +482,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         """
         reports: list[TeardownReport] = [await self._run_task_bucket_shutdown_stage()]
 
-        timeout = self.hassette.config.lifecycle.resource_shutdown_timeout_seconds
+        timeout = remaining_shutdown_budget(self)
         try:
             async with asyncio.timeout(timeout):
                 await self.cleanup()

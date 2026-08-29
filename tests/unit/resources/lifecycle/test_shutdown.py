@@ -530,6 +530,78 @@ async def test_task_bucket_shutdown_stage_seals_before_cleanup_and_records_pendi
             await task
 
 
+class SlowCleanupParent(SimpleParent):
+    """Parent whose ``cleanup()`` consumes a large, real fraction of the shared shutdown
+    deadline before completing on its own (not by hitting any timeout).
+    """
+
+    async def cleanup(self, timeout: float | None = None) -> None:
+        await asyncio.sleep(0.6)
+
+
+async def test_shutdown_children_uses_remaining_budget_after_slow_cleanup():
+    """Regression for the shared-deadline bug: ``Resource._run_post_hook_shutdown_stage()``
+    used to wrap ``await self.cleanup()`` in ``async with asyncio.timeout(timeout)`` using the
+    *full* ``resource_shutdown_timeout_seconds`` value, and ``_shutdown_children()`` did the
+    same for its own wait -- both blind to how much of the *shared* shutdown deadline earlier
+    stages had already spent. A slow-but-successful ``cleanup()`` plus a child that never
+    responds to shutdown could together consume far more real wall-clock time than the shared
+    deadline actually allows, because ``_shutdown_children()`` would start counting a second,
+    independent full timeout window from wherever ``cleanup()`` happened to finish.
+
+    ``remaining_shutdown_budget()`` fixes this: ``_shutdown_children()`` only gets whatever is
+    left of the deadline that ``cleanup()`` didn't use, so it gives up on the hanging child
+    (``CHILD_SHUTDOWN_TIMED_OUT``) close to when the *shared* deadline is reached, not a fresh
+    full timeout window later.
+
+    Called directly against ``_run_post_hook_shutdown_stage()`` with ``_shutdown_deadline`` set
+    manually to simulate what the shutdown coordinator does -- the coordinator's own outer wait
+    shares the identical ``resource_shutdown_timeout_seconds`` config value and would otherwise
+    race this inner bound (see ``test_add_child_and_restart.py``'s ``_make_unsafe_parent`` for
+    the same race explained for a plain ``shutdown()`` call, and
+    ``TestServiceShutdownBodyServeTaskPending`` in ``test_service_edge_cases.py`` for the same
+    pattern applied to ``Service._shutdown_body()``).
+    """
+    hassette = make_mock_hassette(sealed=False)
+    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 2.0
+
+    parent = SlowCleanupParent(hassette)
+    hanging = parent.add_child(HangingChild)
+    await parent.initialize()
+    await hanging.initialize()
+
+    loop = asyncio.get_running_loop()
+    # Simulate what the shutdown coordinator does before running _shutdown_body(): record the
+    # shared deadline for this attempt so remaining_shutdown_budget() has something to read.
+    parent._shutdown_deadline = loop.time() + 2.0
+    start = loop.time()
+
+    # Generous headroom over the 2.0s config bound above (see CLAUDE.md's guidance on
+    # config-driven real-clock timeouts) -- this proves boundedness, not tightness.
+    report = await asyncio.wait_for(parent._run_post_hook_shutdown_stage(), timeout=8)
+    elapsed = loop.time() - start
+
+    assert TeardownCause.CHILD_SHUTDOWN_TIMED_OUT in report.causes
+    # Fixed behavior lands close to the 2.0s shared deadline (~1.4s left after cleanup's 0.6s
+    # real sleep). The bug this guards against would instead give _shutdown_children() a fresh
+    # full 2.0s window on top of cleanup's 0.6s, landing at ~2.6s+ -- the 2.3s threshold sits
+    # strictly between the two with real margin on both sides, wider than a bare 0.1s cutoff
+    # over the expected-fixed value would give.
+    assert elapsed < 2.3, (
+        "_shutdown_children() must use the remaining budget (~1.4s left after cleanup's 0.6s "
+        f"real sleep), not a fresh full 2.0s window on top of it -- took {elapsed:.2f}s"
+    )
+
+    # The STOPPED event must still be sent -- _run_post_hook_shutdown_stage() reaches that call
+    # unconditionally after child propagation, regardless of whether a child timed out.
+    stopped_events = [
+        call.args[0]
+        for call in hassette.send_event.call_args_list
+        if getattr(call.args[0].payload.data, "status", None) == ResourceStatus.STOPPED
+    ]
+    assert stopped_events, "the STOPPED event must still be emitted after a slow cleanup()"
+
+
 def raise_boom(_resource, _reason=None):
     raise RuntimeError("boom")
 

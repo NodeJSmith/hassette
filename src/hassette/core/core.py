@@ -17,7 +17,13 @@ from hassette.conversion import STATE_REGISTRY, TYPE_REGISTRY, StateRegistry, Ty
 from hassette.exceptions import AppPrecheckFailedError, FatalError
 from hassette.logging_ import enable_basic_logging
 from hassette.resources.base import Resource
-from hassette.resources.lifecycle import create_lifecycle_task, handle_stop, mark_not_ready, start
+from hassette.resources.lifecycle import (
+    create_lifecycle_task,
+    handle_stop,
+    mark_not_ready,
+    remaining_shutdown_budget,
+    start,
+)
 from hassette.resources.teardown import (
     TeardownCause,
     TeardownReport,
@@ -768,8 +774,16 @@ class Hassette(Resource):
           wave ran over budget. Force-terminating the timed-out wave's children first makes this
           safe: nothing in a later wave can still be depended on by anything left half-shut-down
           above it.
+
+        Each wave's own timeout is capped at whatever remains of the coordinator-level
+        ``_shutdown_deadline`` (see ``remaining_shutdown_budget()``), not always the full
+        per-resource timeout -- multiple waves each independently claiming a fresh full budget
+        could, in aggregate, exceed the coordinator's outer wait for this entire
+        ``_shutdown_body()`` call and get the whole method cancelled mid-loop before later waves
+        (or the STOPPED event) ever run. A wave still gets up to its full nominal timeout when
+        enough of the shared budget remains, preserving the "give each wave a fair shot" intent
+        above for the normal case.
         """
-        timeout = self.config.lifecycle.resource_shutdown_timeout_seconds
         type_to_instance = {type(c): c for c in self.children}
 
         child_reports: list[TeardownReport] = []
@@ -780,6 +794,7 @@ class Hassette(Resource):
             wave = [type_to_instance[t] for t in wave_types if t in type_to_instance]
             if not wave:
                 continue
+            timeout = min(self.config.lifecycle.resource_shutdown_timeout_seconds, remaining_shutdown_budget(self))
             self.logger.debug("Shutting down wave: [%s]", ", ".join(c.class_name for c in wave))
             try:
                 async with asyncio.timeout(timeout):
