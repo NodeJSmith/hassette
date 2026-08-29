@@ -12,7 +12,7 @@ import aiosqlite
 from hassette.const.misc import SECONDS_PER_DAY
 from hassette.core.migration_runner import _collect_migrations, _read_user_version, run_migrations
 from hassette.exceptions import SchemaVersionError
-from hassette.resources.lifecycle import mark_not_ready, mark_ready
+from hassette.resources.lifecycle import create_lifecycle_task, mark_not_ready, mark_ready
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.types.enums import RestartType
@@ -249,7 +249,14 @@ class DatabaseService(Service):
             self.logger.warning("Startup size failsafe check failed; continuing without cleanup", exc_info=True)
 
         self._db_write_queue = asyncio.Queue(maxsize=self.hassette.config.database.write_queue_max)
-        self._db_worker_task = asyncio.create_task(self.db_write_worker())
+        # Bypass the loop's global task factory so the worker is not tracked by
+        # any TaskBucket. A bare asyncio.create_task() falls through to the root
+        # Hassette bucket via make_task_factory(); the root bucket's cancel_all()
+        # runs before wave-based child shutdown begins, killing the worker before
+        # on_shutdown() can drain the queue — producing two 10s stalls per test
+        # (one in each downstream wave that tries to submit() a write to the dead
+        # worker). The worker's lifecycle is managed exclusively by on_shutdown().
+        self._db_worker_task = create_lifecycle_task(self.db_write_worker(), name=f"db_write_worker:{self.unique_name}")
 
     async def serve(self) -> None:
         """Run the heartbeat, retention, and size failsafe loop until shutdown."""
