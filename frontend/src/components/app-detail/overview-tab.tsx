@@ -42,7 +42,7 @@ function LogSearchInput({ value, onChange }: { value: string; onChange: (next: s
       aria-label="Search app logs"
       value={value}
       onInput={(e) => {
-        onChange((e.target as HTMLInputElement).value);
+        onChange(e.currentTarget.value);
       }}
       data-testid="overview-logs-search"
     />

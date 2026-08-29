@@ -10,6 +10,7 @@ import { getShikiHighlighter, SHIKI_THEMES } from "../../utils/shiki";
 import { ConfigSchemaView, ExpandableValue } from "../shared/config-schema-view";
 import { EmptyState } from "../shared/empty-state";
 import { Spinner } from "../shared/spinner";
+import { SECTION_LABEL_CLASS } from "./overview-section";
 
 interface Props {
   appKey: string;
@@ -17,7 +18,6 @@ interface Props {
 
 const DATA_TABLE_CLASS =
   "w-full border-collapse bg-card [&_thead_tr]:bg-muted [&_th]:border-b [&_th]:border-border [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-mono [&_th]:text-xs [&_th]:font-medium [&_th]:uppercase [&_th]:tracking-[var(--text-label-tracking)] [&_th]:text-muted-foreground [&_th]:whitespace-nowrap [&_td]:border-b [&_td]:border-border [&_td]:px-3 [&_td]:py-2 [&_td]:align-top [&_td]:text-[length:var(--text-small)] [&_tbody_tr:last-child_td]:border-b-0 [&_tbody_tr:hover]:bg-muted";
-const SECTION_LABEL_CLASS = "mb-2 font-sans text-[length:var(--text-h3)] font-semibold text-foreground";
 
 /** True when the value is a plain (non-array) object usable as a ConfigRecord. */
 function isConfigRecord(value: unknown): value is ConfigRecord {
