@@ -353,17 +353,17 @@ async def test_always_failing_service_stops_after_max_attempts(
         # budget_intensity=3 means 3 restarts before exhaustion
         dummy = register_dummy_service(watcher, fail=True, restart_type=RestartType.PERMANENT, budget_intensity=3)
 
-        # Each call to restart_service increments budget and spawns a restart task.
-        # The service fails on restart but exceptions are caught.
-        for _ in range(3):
+        # Each call to restart_service increments budget and spawns a restart task. The service
+        # fails on restart; the 3rd attempt both records the last budget entry and, failing from
+        # within execute_restart() itself, exhausts it immediately -- no extra event is needed
+        # to notice exhaustion (see test_execute_restart_own_failure_triggers_exhaustion).
+        for _ in range(2):
             await restart_and_await(watcher, dummy.failed_event)
+            assert not hassette.shutdown_event.is_set(), "Shutdown should not happen before budget exhausted"
+
+        await restart_and_await(watcher, dummy.failed_event)
 
         assert budget_entries(watcher, dummy.key) == 3
-        assert not hassette.shutdown_event.is_set(), "Shutdown should not happen before budget exhausted"
-
-        # The 4th call should trigger shutdown (budget exhausted, PERMANENT)
-        await watcher.restart_service(dummy.failed_event)
-
         assert hassette.shutdown_event.is_set(), "Shutdown should be triggered after budget exhausted"
 
 
@@ -374,12 +374,17 @@ async def test_crashed_event_emitted_before_shutdown(
     async with isolated_watcher(test_config_class, unused_tcp_port_factory) as watcher:
         dummy = register_dummy_service(watcher, fail=True, restart_type=RestartType.PERMANENT, budget_intensity=1)
 
-        # The one budget slot is used first, so the second call exceeds it
-        events = await exhaust_budget(watcher, dummy, restarts=1)
+        # The single allowed attempt both records the last budget entry (Step 5) and fails from
+        # within execute_restart() -- exhaustion fires directly from that failure, not a
+        # follow-up event (see test_execute_restart_own_failure_triggers_exhaustion). The
+        # capture also picks up the dummy's own restart()-internal shutdown/reinitialize churn
+        # and Hassette's own shutdown events, so filter for CRASHED rather than assume index 0.
+        with EventCapture.capturing(watcher.hassette) as capture:
+            await restart_and_await(watcher, dummy.failed_event)
 
-        # First send_event call should be the CRASHED event (shutdown may emit STOPPED after)
-        assert len(events) >= 1
-        crashed_event = events[0]
+        crashed = crashed_events(capture.events)
+        assert len(crashed) == 1, "Should emit exactly one CRASHED event"
+        crashed_event = crashed[0]
         assert crashed_event.topic == Topic.HASSETTE_EVENT_SERVICE_STATUS
         assert crashed_event.payload.data.status == ResourceStatus.CRASHED
         assert crashed_event.payload.data.previous_status == ResourceStatus.FAILED
@@ -637,30 +642,59 @@ async def test_in_restart_guard_prevents_double_budget(watcher: ServiceWatcher):
     watcher._restarting.discard(dummy.key)
 
 
-async def test_in_restart_guard_triggers_exhaustion_when_budget_spent(
+async def test_in_restart_guard_drops_duplicate_even_when_budget_exhausted(watcher: ServiceWatcher):
+    """A FAILED event racing the in-restart guard is always dropped, even if budget is exhausted.
+
+    Budget state alone cannot tell whether a FAILED event arriving while `_restarting` is set
+    is the in-flight attempt's own failure or a duplicate/redelivery of the original failure
+    that started this attempt -- record_restart() for the current attempt already ran before
+    the guard is ever consulted, so is_exhausted() reads the same either way. Treating an
+    already-exhausted budget as proof this racing event represents a genuine new failure was
+    a false positive: no second failure has actually happened yet. The in-flight attempt's own
+    failure is detected directly in execute_restart()'s own exception handler instead (see
+    test_execute_restart_own_failure_triggers_exhaustion), which cannot race this guard.
+    """
+    dummy = register_dummy_service(watcher, restart_type=RestartType.PERMANENT, budget_intensity=1)
+
+    watcher._restarting.add(dummy.key)
+    budget = watcher.get_budget(dummy.key, dummy.spec)
+    budget.record_restart()
+    assert budget.is_exhausted()
+
+    with EventCapture.capturing(watcher.hassette) as capture:
+        await watcher.restart_service(dummy.failed_event)
+
+    assert watcher.hassette.fatal_shutdown_reason is None, (
+        "A duplicate FAILED event racing the in-restart guard must not trigger exhaustion"
+    )
+    assert capture.events == [], "Dropped duplicate must not emit any status event"
+    assert dummy.key in watcher._restarting, "Guard must remain set -- the in-flight attempt still owns this key"
+
+    # Clean up
+    watcher._restarting.discard(dummy.key)
+
+
+async def test_execute_restart_own_failure_triggers_exhaustion(
     test_config_class: type[HassetteConfig], unused_tcp_port_factory: "Callable[[], int]"
 ):
-    """A FAILED event arriving while _restarting is set still triggers exhaustion if budget is spent.
+    """The in-flight restart attempt's own failure triggers exhaustion directly, not via a
+    racing FAILED event.
 
-    Covers the race where handle_failed() inside a restart attempt dispatches a FAILED event
-    that arrives while the _restarting guard is still set. Without the exhaustion check in
-    the guard, this event would be silently dropped and no exhaustion handler would ever fire.
+    With budget_intensity=1, the single restart attempt spawned by restart_service() both
+    records the last budget entry (Step 5) and then fails from within execute_restart() (the
+    dummy service's on_initialize() always raises). That failure is detected on the same task
+    that owns `_restarting`, not inferred from a duplicate event arriving through the bus.
 
     Uses isolated_watcher because the PERMANENT exhaustion path drives a real hassette.shutdown().
     """
     async with isolated_watcher(test_config_class, unused_tcp_port_factory) as watcher:
-        dummy = register_dummy_service(watcher, restart_type=RestartType.PERMANENT, budget_intensity=1)
-
-        watcher._restarting.add(dummy.key)
-        budget = watcher.get_budget(dummy.key, dummy.spec)
-        budget.record_restart()
-        assert budget.is_exhausted()
+        dummy = register_dummy_service(watcher, fail=True, restart_type=RestartType.PERMANENT, budget_intensity=1)
 
         with EventCapture.capturing(watcher.hassette) as capture:
-            await watcher.restart_service(dummy.failed_event)
+            await restart_and_await(watcher, dummy.failed_event)
 
         assert watcher.hassette.fatal_shutdown_reason is not None, (
-            "Budget exhaustion during in-restart guard should trigger fatal shutdown for PERMANENT"
+            "The restart attempt's own failure exhausting the budget should trigger fatal shutdown for PERMANENT"
         )
         assert len(crashed_events(capture.events)) == 1, "Should emit exactly one CRASHED event"
 

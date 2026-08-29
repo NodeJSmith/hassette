@@ -12,7 +12,7 @@ from hassette.events.base import HassettePayload
 from hassette.events.hassette import ServiceStatusPayload
 from hassette.exceptions import RestartRefusedError
 from hassette.resources.base import Resource
-from hassette.resources.lifecycle import mark_ready, request_shutdown
+from hassette.resources.lifecycle import create_service_status_event, mark_ready, request_shutdown
 from hassette.resources.operations import restart
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
@@ -452,26 +452,19 @@ class ServiceWatcher(Resource):
             return
 
         # Step 3: In-restart guard — prevent double budget depletion from concurrent FAILED events.
-        # Still check exhaustion: the in-flight restart may have consumed the last budget entry,
-        # and the FAILED event from that attempt's handle_failed() races the guard — if it
-        # arrives while _restarting is set, skipping the exhaustion check here would leave
-        # the budget exhausted with no handler to act on it.
+        # Always drop while a restart is in progress: the budget's exhausted/not-exhausted state
+        # alone cannot tell whether this event is the in-flight attempt's own failure or a
+        # duplicate/redelivery of the original failure that started this attempt — record_restart()
+        # for the current attempt already ran at Step 5, so is_exhausted() reads the same either
+        # way. The in-flight attempt's own failure is instead detected directly and unambiguously
+        # in execute_restart()'s own exception handler, which cannot race this guard because it
+        # runs on the same task that owns `_restarting` for this key.
         if key in self._restarting:
-            budget = self.get_budget(key, spec)
-            if budget.is_exhausted():
-                self.logger.debug(
-                    "%s '%s' restart in progress and budget exhausted, handling exhaustion",
-                    role,
-                    name,
-                )
-                self._restarting.discard(key)
-                await self.handle_exhaustion(name, role, key, spec, status_payload)
-            else:
-                self.logger.debug(
-                    "%s '%s' restart already in progress, dropping duplicate FAILED event",
-                    role,
-                    name,
-                )
+            self.logger.debug(
+                "%s '%s' restart already in progress, dropping duplicate FAILED event",
+                role,
+                name,
+            )
             return
 
         # Step 4: Check budget exhaustion
@@ -550,6 +543,18 @@ class ServiceWatcher(Resource):
                     name,
                     exc,
                 )
+                # This is the attempt's own failure, observed directly on the task that owns
+                # `_restarting` for this key -- not inferred from a FAILED event racing back
+                # through the bus (see Step 3's guard). Check exhaustion here, unambiguously.
+                if budget.is_exhausted():
+                    self.logger.debug(
+                        "%s '%s' restart attempt failed and budget exhausted, handling exhaustion",
+                        role,
+                        name,
+                    )
+                    self._restarting.discard(key)
+                    status_event = create_service_status_event(service, ResourceStatus.FAILED, exc)
+                    await self.handle_exhaustion(name, role, key, spec, status_event.payload.data)
         finally:
             self._restarting.discard(key)
 
