@@ -30,6 +30,12 @@ from hassette.types.types import FRAMEWORK_APP_KEY_PREFIX, LOG_LEVEL_TYPE, Sourc
 
 from .mixins import LifecycleMixin
 
+CANCEL_BUDGET_FRACTION = 0.2
+"""Fraction of ``resource_shutdown_timeout_seconds`` used as the cancel_all timeout in
+``_run_task_bucket_shutdown_stage()``. Kept small (20%) because nested resources each run their
+own cancel_all, and the full ``task_cancellation_timeout_seconds`` default (5s) compounding
+across parent + child reaches the 10s wave timeout."""
+
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -450,9 +456,15 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         subclass cleanup"). Kept separate from ``cleanup()`` so an enclosing whole-body timeout or
         force-terminal call can still inspect the sealed bucket directly (see
         ``_force_terminal()``) even if this stage itself is interrupted before returning.
+
+        Uses ``CANCEL_BUDGET_FRACTION`` of the per-resource shutdown budget instead of the
+        full ``task_cancellation_timeout_seconds``, because this stage runs inside a body that
+        runs inside a coordinator that runs inside a wave — all sharing the same wall-clock
+        budget.
         """
         self.task_bucket.seal()
-        await self.task_bucket.cancel_all()
+        cancel_budget = self.hassette.config.lifecycle.resource_shutdown_timeout_seconds * CANCEL_BUDGET_FRACTION
+        await self.task_bucket.cancel_all(timeout=cancel_budget)
         pending = self.task_bucket.pending_task_names()
         if pending:
             return TeardownReport(causes=(TeardownCause.TASKS_PENDING,), pending_tasks=pending)

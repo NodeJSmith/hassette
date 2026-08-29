@@ -405,8 +405,12 @@ class TaskBucket(Resource):
         for t in tasks:
             t.cancel()
 
-    async def cancel_all(self) -> tuple[str, ...]:
+    async def cancel_all(self, *, timeout: float | None = None) -> tuple[str, ...]:
         """Cancel all tracked tasks, wait for them to finish, and return names still pending.
+
+        Args:
+            timeout: Seconds to wait for tasks to finish after cancellation. Defaults to
+                ``task_cancellation_timeout_seconds`` from config.
 
         Returns:
             A deterministic (sorted), deduplication-free tuple of the names of tasks
@@ -421,11 +425,12 @@ class TaskBucket(Resource):
             self.logger.debug("No tasks to cancel in bucket %s", self.unique_name)
             return ()
 
+        effective_timeout = timeout if timeout is not None else self.config_cancel_timeout
         self.logger.debug("Cancelling %d tasks in bucket %s", len(tasks), self.unique_name)
         for t in tasks:
             t.cancel()
 
-        done, pending = await asyncio.wait(tasks, timeout=self.config_cancel_timeout)
+        done, pending = await asyncio.wait(tasks, timeout=effective_timeout)
         self.logger.debug("%d tasks done, %d still pending in bucket %s", len(done), len(pending), self.unique_name)
 
         for t in done:
@@ -437,7 +442,7 @@ class TaskBucket(Resource):
 
         for t in pending:
             self.logger.warning(
-                "[%s] task %s refused to die within %.1fs", self.unique_name, t.get_name(), self.config_cancel_timeout
+                "[%s] task %s refused to die within %.1fs", self.unique_name, t.get_name(), effective_timeout
             )
 
         return tuple(sorted(t.get_name() for t in pending))

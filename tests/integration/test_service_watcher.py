@@ -637,6 +637,34 @@ async def test_in_restart_guard_prevents_double_budget(watcher: ServiceWatcher):
     watcher._restarting.discard(dummy.key)
 
 
+async def test_in_restart_guard_triggers_exhaustion_when_budget_spent(
+    test_config_class: type[HassetteConfig], unused_tcp_port_factory: "Callable[[], int]"
+):
+    """A FAILED event arriving while _restarting is set still triggers exhaustion if budget is spent.
+
+    Covers the race where handle_failed() inside a restart attempt dispatches a FAILED event
+    that arrives while the _restarting guard is still set. Without the exhaustion check in
+    the guard, this event would be silently dropped and no exhaustion handler would ever fire.
+
+    Uses isolated_watcher because the PERMANENT exhaustion path drives a real hassette.shutdown().
+    """
+    async with isolated_watcher(test_config_class, unused_tcp_port_factory) as watcher:
+        dummy = register_dummy_service(watcher, restart_type=RestartType.PERMANENT, budget_intensity=1)
+
+        watcher._restarting.add(dummy.key)
+        budget = watcher.get_budget(dummy.key, dummy.spec)
+        budget.record_restart()
+        assert budget.is_exhausted()
+
+        with EventCapture.capturing(watcher.hassette) as capture:
+            await watcher.restart_service(dummy.failed_event)
+
+        assert watcher.hassette.fatal_shutdown_reason is not None, (
+            "Budget exhaustion during in-restart guard should trigger fatal shutdown for PERMANENT"
+        )
+        assert len(crashed_events(capture.events)) == 1, "Should emit exactly one CRASHED event"
+
+
 async def test_shutdown_safe_sleep_aborts_on_shutdown(watcher: ServiceWatcher):
     """Backoff sleep aborts early when shutdown_event is set."""
     hassette = watcher.hassette

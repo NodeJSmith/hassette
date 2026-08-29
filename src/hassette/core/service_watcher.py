@@ -451,13 +451,27 @@ class ServiceWatcher(Resource):
             await self.handle_exhaustion(name, role, key, spec, status_payload)
             return
 
-        # Step 3: In-restart guard — prevent double budget depletion from concurrent FAILED events
+        # Step 3: In-restart guard — prevent double budget depletion from concurrent FAILED events.
+        # Still check exhaustion: the in-flight restart may have consumed the last budget entry,
+        # and the FAILED event from that attempt's handle_failed() races the guard — if it
+        # arrives while _restarting is set, skipping the exhaustion check here would leave
+        # the budget exhausted with no handler to act on it.
         if key in self._restarting:
-            self.logger.debug(
-                "%s '%s' restart already in progress, dropping duplicate FAILED event",
-                role,
-                name,
-            )
+            budget = self.get_budget(key, spec)
+            if budget.is_exhausted():
+                self.logger.debug(
+                    "%s '%s' restart in progress and budget exhausted, handling exhaustion",
+                    role,
+                    name,
+                )
+                self._restarting.discard(key)
+                await self.handle_exhaustion(name, role, key, spec, status_payload)
+            else:
+                self.logger.debug(
+                    "%s '%s' restart already in progress, dropping duplicate FAILED event",
+                    role,
+                    name,
+                )
             return
 
         # Step 4: Check budget exhaustion
