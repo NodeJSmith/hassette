@@ -94,8 +94,12 @@ async def test_flush_queue_handles_db_closed():
     inv = make_invocation(listener_id=5, session_id=1)
     executor._write_queue.put_nowait(inv)
 
+    submit_attempts = 0
+
     # Make submit raise RuntimeError (simulating closed DB) — close the coro to avoid leak
     async def fail_submit(coro):
+        nonlocal submit_attempts
+        submit_attempts += 1
         coro.close()  # prevent "coroutine was never awaited" warning
         raise RuntimeError("database is closed")
 
@@ -109,7 +113,10 @@ async def test_flush_queue_handles_db_closed():
     # flush_queue must NOT raise — shutdown must complete
     await executor.flush_queue()
 
-    # The queue is fully drained: shutdown made its best-effort persist attempt and moved on
+    # flush_queue drains the queue *before* it attempts to persist, so an empty queue alone
+    # proves nothing. Pin the persist attempt itself — this fails if flush_queue ever dequeues
+    # and returns early, which is the regression the empty-queue check cannot see.
+    assert submit_attempts == 1, "flush_queue must make its best-effort persist attempt"
     assert executor._write_queue.empty()
 
 

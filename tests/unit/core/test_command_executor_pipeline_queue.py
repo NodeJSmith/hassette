@@ -126,11 +126,11 @@ async def test_enqueue_record_capacity_warning_respects_configured_rate_limit() 
     assert executor._last_capacity_warn_ts is None
 
     executor.enqueue_record(rec)  # current_size=1 before put — at threshold, fires
-    first_warn_ts = executor._last_capacity_warn_ts
-    assert first_warn_ts is not None
+    first_capacity_warn_ts = executor._last_capacity_warn_ts
+    assert first_capacity_warn_ts is not None
 
     executor.enqueue_record(rec)  # current_size=2 before put — still at/above threshold
-    assert executor._last_capacity_warn_ts == first_warn_ts, (
+    assert executor._last_capacity_warn_ts == first_capacity_warn_ts, (
         "second warning should be suppressed by rate-limit, leaving the window timestamp untouched"
     )
 
@@ -234,9 +234,12 @@ async def test_data_error_drops_immediately():
 
     await CommandExecutor.persist_batch(executor, [inv])  # pyright: ignore[reportArgumentType]
 
-    # No re-enqueue, and not counted as a retry-exhausted drop
+    # No re-enqueue, and none of the three counted drop paths were taken — a DataError is
+    # dropped where it is raised, so it is neither an overflow, a retry-exhausted drop, nor a
+    # shutdown-flush drop. Together these are what separate this branch from the sibling
+    # OperationalError path, which re-enqueues and eventually increments dropped_exhausted.
     assert executor._write_queue.empty()
-    assert executor._dropped_exhausted == 0
+    assert executor.get_drop_counters() == (0, 0, 0)
 
 
 async def test_integrity_error_row_by_row_fallback():
