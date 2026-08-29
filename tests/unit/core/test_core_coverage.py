@@ -325,6 +325,37 @@ class TestShutdownChildren:
         assert TeardownCause.CHILD_SHUTDOWN_TIMED_OUT in result.causes
         h._file_watcher._force_terminal.assert_called_once()
 
+    async def test_wave_timeout_does_not_abandon_later_waves(self, wired_hassette: Hassette) -> None:
+        """A wave that times out force-terminates its own children and records evidence, but
+        the loop must still proceed to every remaining (lower-dependency) wave.
+
+        Regression test: ``_shutdown_children()`` used to ``return`` immediately on the first
+        wave timeout, silently abandoning every wave below it -- including the last wave, which
+        owns real OS resources (the sync-executor thread pool, DB connections, the HTTP
+        session). AppHandler depends (transitively) on everything else, so it shuts down in the
+        first wave; SyncExecutorService and DatabaseService have no dependencies, so they shut
+        down in the very last wave. Hanging AppHandler must not prevent those from ever being
+        asked to shut down.
+        """
+        h = wired_hassette
+
+        async def hang(*_args, **_kwargs):
+            await asyncio.sleep(1000)
+
+        for child in h.children:
+            child.shutdown = AsyncMock()
+            child._force_terminal = Mock()
+        h._app_handler.shutdown = hang
+
+        with preserve_config(h.config):
+            h.config.lifecycle.resource_shutdown_timeout_seconds = 0.5
+            result = await h._shutdown_children()
+
+        assert TeardownCause.CHILD_SHUTDOWN_TIMED_OUT in result.causes
+        h._app_handler._force_terminal.assert_called_once()
+        h._sync_executor_service.shutdown.assert_awaited_once()
+        h._database_service.shutdown.assert_awaited_once()
+
 
 @contextmanager
 def hanging_shutdown_body(h: Hassette, total_shutdown_timeout_seconds: float):

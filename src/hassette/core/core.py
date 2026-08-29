@@ -761,8 +761,13 @@ class Hassette(Resource):
         - A child that returns without raising, but whose own report has
           ``is_restart_safe`` ``False``, adds ``CHILD_RESTART_UNSAFE`` and the child's identity.
         - A wave that exceeds the shutdown timeout adds ``CHILD_SHUTDOWN_TIMED_OUT``,
-          force-terminates only the children in that wave still unfinished, and returns
-          immediately with the evidence merged so far — later waves do not run.
+          force-terminates only the children in that wave still unfinished, and proceeds to the
+          next (lower-dependency) wave rather than abandoning the rest of the shutdown — a wave
+          that owns real OS resources (DB connections, the sync-executor thread pool, the HTTP
+          session) must still get a chance to close them even when an earlier, more-dependent
+          wave ran over budget. Force-terminating the timed-out wave's children first makes this
+          safe: nothing in a later wave can still be depended on by anything left half-shut-down
+          above it.
         """
         timeout = self.config.lifecycle.resource_shutdown_timeout_seconds
         type_to_instance = {type(c): c for c in self.children}
@@ -801,8 +806,7 @@ class Hassette(Resource):
                     child_report = child.teardown_report
                     if child_report is not None:
                         child_reports.append(child_report)
-                merged = merge_teardown_reports(*child_reports) if child_reports else TeardownReport()
-                return add_teardown_evidence(merged, causes=tuple(causes), affected_resources=tuple(affected))
+                continue
 
             for child, result in zip(wave, results, strict=True):
                 if isinstance(result, BaseException):
