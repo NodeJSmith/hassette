@@ -48,7 +48,7 @@ class TestAutoDetectAppsCurrDir:
             from hassette import App, AppConfig
 
             class CurrentDirApp(App[AppConfig]): ...
-        """,
+            """,
         )
 
         assert_detected(detect(tmp_path), f"{tmp_path.name}.current_dir_app.CurrentDirApp")
@@ -62,7 +62,7 @@ class TestAutoDetectAppsCurrDir:
             from hassette import App, AppConfig
 
             class VenvApp(App[AppConfig]): ...
-        """,
+            """,
         )
 
         assert_detected(detect(tmp_path))
@@ -76,7 +76,7 @@ class TestAutoDetectAppsCurrDir:
             from hassette import App, AppConfig
 
             class HiddenApp(App[AppConfig]): ...
-        """,
+            """,
         )
 
         assert_detected(detect(tmp_path))
@@ -103,7 +103,7 @@ class TestAutoDetectApps:
                 message: str = "Hello"
 
             class SimpleApp(App[SimpleAppConfig]): ...
-        """,
+            """,
         )
 
         result = detect(app_dir)
@@ -129,7 +129,7 @@ class TestAutoDetectApps:
                 interval: int = 60
 
             class MySyncApp(AppSync[SyncAppConfig]): ...
-        """,
+            """,
         )
 
         result = detect(app_dir)
@@ -154,7 +154,7 @@ class TestAutoDetectApps:
             class FirstApp(App[SharedConfig]): ...
 
             class SecondApp(AppSync[SharedConfig]): ...
-        """,
+            """,
         )
 
         result = detect(app_dir)
@@ -177,7 +177,7 @@ class TestAutoDetectApps:
                 smtp_server: str = "localhost"
 
             class EmailNotifier(App[EmailConfig]): ...
-        """,
+            """,
         )
 
         result = detect(app_dir)
@@ -198,7 +198,7 @@ class TestAutoDetectApps:
             from hassette import App, AppConfig
 
             class ConfiguredApp(App[AppConfig]): ...
-        """,
+            """,
         )
 
         assert_detected(detect(app_dir, known_paths={app_file.resolve()}))
@@ -217,7 +217,7 @@ class TestAutoDetectApps:
             AppSync = AppSync
 
             class RealApp(App[AppConfig]): ...
-        """,
+            """,
         )
 
         assert_detected(detect(app_dir), "apps.base_classes.RealApp")
@@ -232,7 +232,7 @@ class TestAutoDetectApps:
             from hassette import App, AppConfig
 
             class ModuleApp(App[AppConfig]): ...
-        """,
+            """,
         )
         write_app(
             app_dir,
@@ -242,7 +242,7 @@ class TestAutoDetectApps:
             from hassette import App, AppConfig
 
             class LocalApp(App[AppConfig]): ...
-        """,
+            """,
         )
 
         # Each app is detected in its own module; ModuleApp must NOT appear under importer.py
@@ -259,7 +259,7 @@ class TestAutoDetectApps:
             from hassette import App, AppConfig
 
             class BrokenApp(App[AppConfig]): ...
-        """,
+            """,
         )
         write_app(
             app_dir,
@@ -268,7 +268,7 @@ class TestAutoDetectApps:
             from hassette import App, AppConfig
 
             class GoodApp(App[AppConfig]): ...
-        """,
+            """,
         )
 
         # The broken module is skipped rather than aborting the whole scan
@@ -296,7 +296,7 @@ class TestAutoDetectApps:
                     pass
 
             class ActualApp(App[AppConfig]): ...
-        """,
+            """,
         )
 
         assert_detected(detect(app_dir), "apps.mixed_classes.ActualApp")

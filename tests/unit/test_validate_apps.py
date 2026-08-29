@@ -121,8 +121,11 @@ class TestValidateApps:
             f"Expected app_key to be 'valid_app', got {result['valid_app'].app_key}"
         )
 
-    def test_validate_apps_calls_autodetect(self, tmp_path: Path) -> None:
+    def test_validate_apps_merges_autodetected_and_manual_apps(self, tmp_path: Path) -> None:
         """Real discovery runs when autodetect=True and merges with manually configured apps."""
+        # `app_dir.name` is load-bearing, not scaffolding: autodetect_apps() passes it as the
+        # package name, so a discovered app's key is "{app_dir.name}.{module_stem}.{class_name}"
+        # — the literals asserted below change if this directory is renamed.
         app_dir = tmp_path / "test_apps"
         write_app(
             app_dir,
@@ -184,6 +187,7 @@ class TestValidateApps:
         a manually configured file is excluded from discovery via known_paths, so pointing both
         at the same file would never reach the key-conflict branch.
         """
+        # Same "{app_dir.name}.{module_stem}.{class_name}" key format as the test above.
         app_dir = tmp_path / "test_apps"
         write_app(
             app_dir,
