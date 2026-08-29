@@ -474,15 +474,25 @@ def make_task_factory(
             name = getattr(coro, "__name__", type(coro).__name__)
             t.set_name(name)
 
-        if ctx.PROTECT_TASK.get():
-            # This task must never be tracked by any bucket, so no cancel_all() anywhere can
-            # ever cancel it as a side effect. See hassette.context.PROTECT_TASK.
-            return t
-
         # compare using `is not None` to avoid `__len__` being called to determine truthiness
         current_bucket = ctx.CURRENT_BUCKET.get()
-        owner = current_bucket if current_bucket is not None else global_bucket
-        owner.add(t)
+        if current_bucket is not None:
+            # An explicit bucket claimed this task (e.g. TaskBucket.spawn()'s
+            # `with ctx.use_task_bucket(self):`) -- it is owned/controlled by that bucket by
+            # definition, so PROTECT_TASK does not apply here. Skipping tracking for an
+            # explicitly-claimed task would make it invisible to its own owner's
+            # pending_tasks()/cancel_all(), not just to unrelated buckets elsewhere.
+            current_bucket.add(t)
+            return t
+
+        if ctx.PROTECT_TASK.get():
+            # No explicit bucket claimed this task, so it would otherwise fall through to the
+            # global fallback bucket below -- a bucket it doesn't own or control. Skip tracking
+            # entirely so no cancel_all() anywhere can ever cancel it as a side effect. See
+            # hassette.context.PROTECT_TASK.
+            return t
+
+        global_bucket.add(t)
         return t
 
     return factory

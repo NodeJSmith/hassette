@@ -115,6 +115,33 @@ async def test_factory_tracks_rogue_create_task(bucket: TaskBucket):
     assert rogue_task_handle.cancelled(), "task should be cancelled after cancel_all"
 
 
+async def test_protect_task_does_not_hide_explicit_spawn_from_its_own_bucket(bucket: TaskBucket):
+    """PROTECT_TASK must not blind a bucket to work explicitly spawned on it.
+
+    Regression test: the task factory used to check PROTECT_TASK before CURRENT_BUCKET, so a
+    protected context (e.g. the test-harness ``watcher`` fixture in test_service_watcher.py)
+    made every task invisible to tracking -- including ones created via the bucket's own
+    ``spawn()``, which explicitly claims CURRENT_BUCKET for the duration. That left
+    explicitly-owned work untracked and uncancellable by its own bucket's cancel_all().
+    PROTECT_TASK should only suppress tracking for *unclaimed* tasks that would otherwise fall
+    through to the global fallback bucket -- not tasks a bucket explicitly claimed.
+    """
+    ctx.PROTECT_TASK.set(True)
+    try:
+        spawned = bucket.spawn(sleeper(), name="protected-context-explicit-spawn")
+        await asyncio.sleep(0)  # let it start
+
+        assert spawned in bucket.pending_tasks(), (
+            "bucket.spawn() must still be tracked by its own bucket under PROTECT_TASK"
+        )
+
+        await bucket.cancel_all()
+        assert spawned.done(), f"task should be done after cancel_all, is {spawned._state}"
+        assert spawned.cancelled(), "task should be cancelled after cancel_all"
+    finally:
+        ctx.PROTECT_TASK.set(False)
+
+
 async def test_run_sync_raises_inside_loop(bucket: TaskBucket) -> None:
     """run_sync rejects being invoked inside the running event loop."""
 
