@@ -14,7 +14,7 @@ import { ErrorSpotlight } from "./error-spotlight";
 import { HandlerHealthGrid } from "./handler-health-grid";
 import { buildItems } from "./handler-list";
 import { OverviewHealthStrip } from "./health-strip";
-import { OVERVIEW_SECTION_CLASS } from "./overview-section";
+import { OVERVIEW_SECTION_CLASS, SECTION_LABEL_CLASS } from "./overview-section";
 import { isFailing } from "./overview-tab-helpers";
 import { RecentActivitySection } from "./recent-activity-section";
 
@@ -32,7 +32,22 @@ interface Props {
 
 const SEARCH_INPUT_CLASS =
   "min-w-[var(--size-search-min)] rounded-md border border-[var(--border-strong)] bg-input px-2 py-1.5 font-sans text-[length:var(--text-mono-sm)] text-foreground outline-none placeholder:text-foreground-faint focus-visible:border-primary focus-visible:shadow-[0_0_0_2px_var(--primary-soft)] max-mobile:w-full max-mobile:min-w-0";
-const SECTION_LABEL_CLASS = "mb-2 font-sans text-[length:var(--text-h3)] font-semibold text-foreground";
+
+function LogSearchInput({ value, onChange }: { value: string; onChange: (next: string) => void }) {
+  return (
+    <input
+      type="text"
+      className={SEARCH_INPUT_CLASS}
+      placeholder="Search logs…"
+      aria-label="Search app logs"
+      value={value}
+      onInput={(e) => {
+        onChange((e.target as HTMLInputElement).value);
+      }}
+      data-testid="overview-logs-search"
+    />
+  );
+}
 
 function RecentLogsSection({
   appKey,
@@ -50,20 +65,6 @@ function RecentLogsSection({
     ? "no logs have been recorded for this app."
     : "nothing has been logged recently. change the level filter or extend the time window to see older lines.";
 
-  const searchInput = (
-    <input
-      type="text"
-      className={SEARCH_INPUT_CLASS}
-      placeholder="Search logs…"
-      aria-label="Search app logs"
-      value={search}
-      onInput={(e) => {
-        setSearch((e.target as HTMLInputElement).value);
-      }}
-      data-testid="overview-logs-search"
-    />
-  );
-
   const footer = (
     <TableFooter
       count={log.countLabel}
@@ -76,7 +77,7 @@ function RecentLogsSection({
     <section className={OVERVIEW_SECTION_CLASS} data-testid="overview-logs-section">
       <div className="flex items-baseline justify-between gap-4">
         <h3 className={SECTION_LABEL_CLASS}>logs</h3>
-        {searchInput}
+        <LogSearchInput value={search} onChange={setSearch} />
       </div>
       <TableCard footer={footer} scrollHeight="400px">
         <LogTableWithDrawer drawerProps={log.drawerProps}>
