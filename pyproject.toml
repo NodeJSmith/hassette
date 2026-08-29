@@ -151,33 +151,6 @@ filterwarnings = [
     # test_reconnection.py) so a crashed instance's tasks are reaped at loop teardown. Keeping
     # ResourceWarning fatal ensures the leak can't return silently.
     "default:Top-level \\[apps\\.\\*\\]:DeprecationWarning:hassette\\.config\\.classes",
-    # Resource._shutdown_children() passes eagerly-created `child.shutdown()` coroutines to
-    # asyncio.gather(*[...]). gather() wraps each one via ensure_future()/create_task() as it
-    # iterates; if the TaskBucket seals mid-iteration (a real scenario a forced-shutdown test
-    # can trigger — see test_run_forever_cleans_up_detectors_when_db_start_fails), the
-    # not-yet-wrapped sibling coroutines are abandoned and later trigger a
-    # "coroutine was never awaited" RuntimeWarning when GC finally reclaims them at session
-    # end, surfaced by pytest as an unraisable-exception session error. This does not mask the
-    # sealed-rejection RuntimeError itself (still raised/logged); it only prevents an
-    # incidental GC artifact of that intentional rejection from aborting the whole session.
-    # The underlying gather() orphaning is a separate, pre-existing base.py issue to track and
-    # fix independently, not something a test-side filter should paper over long-term.
-    # Tracked in https://github.com/NodeJSmith/hassette/issues/1720.
-    #
-    # Two Python versions, two message formats for the identical "coroutine was never awaited"
-    # unraisable exception: 3.14 reports "Exception ignored while finalizing coroutine
-    # <coroutine object Resource.shutdown ...>: None"; 3.11-3.13 report "Exception ignored in:
-    # <coroutine object Resource.shutdown ...>" instead. Both must be matched or the filter only
-    # suppresses on whichever version it was last verified against (confirmed via CI: this
-    # entry previously matched only 3.14 and left 3.11/3.12/3.13 failing on the exact
-    # PytestUnraisableExceptionWarning it was meant to silence).
-    # The literal ":" in "Exception ignored in:" is replaced below with "." — a regex wildcard
-    # that still matches that colon at runtime — because pytest's filterwarnings parser naively
-    # splits the whole config string on literal ":" characters into
-    # action/message/category/module/lineno fields, so a real colon inside the message text (as
-    # opposed to inside a bracketed regex class) shifts every field after it and breaks parsing
-    # entirely — confirmed by reproducing the resulting ModuleNotFoundError locally.
-    "default:(Exception ignored in.|Exception ignored while finalizing coroutine) <coroutine object Resource\\.shutdown:pytest.PytestUnraisableExceptionWarning",
 ]
 # Skip Docker/system/e2e tests by default (run explicitly: pytest -m docker / -m e2e / nox -s system).
 # e2e must not mix into ad-hoc runs: Playwright breaks the session-scoped asyncio loop for every
