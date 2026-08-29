@@ -5,11 +5,17 @@ import { http, HttpResponse } from "msw";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { createExecution } from "../../test/factories";
-import { createWouterMock } from "../../test/mock-wouter";
-import { createTestQueryClient } from "../../test/query-test-utils";
-import { server } from "../../test/server";
+import { createExecution } from "@/test/factories";
+import { createWouterMock } from "@/test/mock-wouter";
+import { createTestQueryClient } from "@/test/query-test-utils";
+import { server } from "@/test/server";
+
 import { ExecutionDetailContent, ExecutionDetailFetcher } from "./execution-detail";
+
+const HANDLER_KIND = "handler";
+const TEST_EXECUTION_ID = "abc12345-1234-5678-9abc-def012345678";
+const FETCHER_EXECUTION_ID = "abc-123";
+const SAMPLE_TRACEBACK = "Traceback (most recent call last):\n  File ...\nValueError: bad input";
 
 vi.mock("wouter", () => createWouterMock());
 
@@ -29,22 +35,21 @@ function Wrapper({ children }: { children: ReactNode }) {
 
 describe("ExecutionDetailContent", () => {
   it("renders truncated execution ID in heading", () => {
-    const record = createExecution("handler", { execution_id: "abc12345-1234-5678-9abc-def012345678" });
+    const record = createExecution(HANDLER_KIND, { execution_id: TEST_EXECUTION_ID });
     const { getByRole } = render(<ExecutionDetailContent record={record} />);
     expect(getByRole("heading").textContent).toContain("12345678");
   });
 
   it("renders full execution ID in code element", () => {
-    const uuid = "abc12345-1234-5678-9abc-def012345678";
-    const record = createExecution("handler", { execution_id: uuid });
+    const record = createExecution(HANDLER_KIND, { execution_id: TEST_EXECUTION_ID });
     const { container } = render(<ExecutionDetailContent record={record} />);
     const code = container.querySelector("code");
-    expect(code?.textContent).toBe(uuid);
+    expect(code?.textContent).toBe(TEST_EXECUTION_ID);
   });
 
   it("renders meta stats with duration, timestamp, and status", () => {
-    const record = createExecution("handler", {
-      execution_id: "abc12345-1234-5678-9abc-def012345678",
+    const record = createExecution(HANDLER_KIND, {
+      execution_id: TEST_EXECUTION_ID,
       duration_ms: 150,
       status: "success",
     });
@@ -53,8 +58,8 @@ describe("ExecutionDetailContent", () => {
   });
 
   it("renders success outcome banner for successful execution", () => {
-    const record = createExecution("handler", {
-      execution_id: "abc12345-1234-5678-9abc-def012345678",
+    const record = createExecution(HANDLER_KIND, {
+      execution_id: TEST_EXECUTION_ID,
       status: "success",
       duration_ms: 42,
     });
@@ -63,30 +68,30 @@ describe("ExecutionDetailContent", () => {
   });
 
   it("renders failed badge for error status", () => {
-    const record = createExecution("handler", {
-      execution_id: "abc12345-1234-5678-9abc-def012345678",
+    const record = createExecution(HANDLER_KIND, {
+      execution_id: TEST_EXECUTION_ID,
       status: "error",
       error_type: "ValueError",
       error_message: "bad input",
-      error_traceback: "Traceback (most recent call last):\n  File ...\nValueError: bad input",
+      error_traceback: SAMPLE_TRACEBACK,
     });
     const { container } = render(<ExecutionDetailContent record={record} />);
     expect(container.textContent).toContain("failed");
   });
 
   it("renders traceback viewer for error with traceback", () => {
-    const record = createExecution("handler", {
-      execution_id: "abc12345-1234-5678-9abc-def012345678",
+    const record = createExecution(HANDLER_KIND, {
+      execution_id: TEST_EXECUTION_ID,
       status: "error",
-      error_traceback: "Traceback (most recent call last):\n  File ...\nValueError: bad input",
+      error_traceback: SAMPLE_TRACEBACK,
     });
     const { container } = render(<ExecutionDetailContent record={record} />);
     expect(container.textContent).toContain("Traceback");
   });
 
   it("renders timed out badge", () => {
-    const record = createExecution("handler", {
-      execution_id: "abc12345-1234-5678-9abc-def012345678",
+    const record = createExecution(HANDLER_KIND, {
+      execution_id: TEST_EXECUTION_ID,
       status: "timed_out",
       thread_leaked: false,
     });
@@ -95,8 +100,8 @@ describe("ExecutionDetailContent", () => {
   });
 
   it("renders thread leaked badge alongside timed out", () => {
-    const record = createExecution("handler", {
-      execution_id: "abc12345-1234-5678-9abc-def012345678",
+    const record = createExecution(HANDLER_KIND, {
+      execution_id: TEST_EXECUTION_ID,
       status: "timed_out",
       thread_leaked: true,
     });
@@ -106,8 +111,8 @@ describe("ExecutionDetailContent", () => {
   });
 
   it("renders cancelled badge", () => {
-    const record = createExecution("handler", {
-      execution_id: "abc12345-1234-5678-9abc-def012345678",
+    const record = createExecution(HANDLER_KIND, {
+      execution_id: TEST_EXECUTION_ID,
       status: "cancelled",
     });
     const { container } = render(<ExecutionDetailContent record={record} />);
@@ -115,8 +120,8 @@ describe("ExecutionDetailContent", () => {
   });
 
   it("renders skipped badge", () => {
-    const record = createExecution("handler", {
-      execution_id: "abc12345-1234-5678-9abc-def012345678",
+    const record = createExecution(HANDLER_KIND, {
+      execution_id: TEST_EXECUTION_ID,
       status: "skipped",
     });
     const { container } = render(<ExecutionDetailContent record={record} />);
@@ -128,8 +133,8 @@ describe("ExecutionDetailContent", () => {
   });
 
   it("renders trigger section when trigger_mode is present", () => {
-    const record = createExecution("handler", {
-      execution_id: "abc12345-1234-5678-9abc-def012345678",
+    const record = createExecution(HANDLER_KIND, {
+      execution_id: TEST_EXECUTION_ID,
       trigger_mode: "manual",
     });
     const { container } = render(<ExecutionDetailContent record={record} />);
@@ -138,8 +143,8 @@ describe("ExecutionDetailContent", () => {
   });
 
   it("renders trigger context and origin when present", () => {
-    const record = createExecution("handler", {
-      execution_id: "abc12345-1234-5678-9abc-def012345678",
+    const record = createExecution(HANDLER_KIND, {
+      execution_id: TEST_EXECUTION_ID,
       trigger_context_id: "ctx-abc12345-long-uuid-value",
       trigger_origin: "LOCAL",
       trigger_mode: "event",
@@ -150,8 +155,8 @@ describe("ExecutionDetailContent", () => {
   });
 
   it("does not render trigger section when no trigger fields", () => {
-    const record = createExecution("handler", {
-      execution_id: "abc12345-1234-5678-9abc-def012345678",
+    const record = createExecution(HANDLER_KIND, {
+      execution_id: TEST_EXECUTION_ID,
       trigger_mode: null,
       trigger_context_id: null,
     });
@@ -160,14 +165,13 @@ describe("ExecutionDetailContent", () => {
   });
 
   it("renders ExecutionLogs component with execution ID", () => {
-    const uuid = "abc12345-1234-5678-9abc-def012345678";
-    const record = createExecution("handler", { execution_id: uuid });
+    const record = createExecution(HANDLER_KIND, { execution_id: TEST_EXECUTION_ID });
     const { getByTestId } = render(<ExecutionDetailContent record={record} />);
-    expect(getByTestId("execution-logs").textContent).toContain(uuid);
+    expect(getByTestId("execution-logs").textContent).toContain(TEST_EXECUTION_ID);
   });
 
   it("renders empty state when execution_id is null", () => {
-    const record = createExecution("handler", { execution_id: null });
+    const record = createExecution(HANDLER_KIND, { execution_id: null });
     const { container } = render(<ExecutionDetailContent record={record} />);
     expect(container.textContent).toContain("no execution ID");
   });
@@ -179,19 +183,18 @@ describe("ExecutionDetailContent", () => {
     // clipboard object, avoids fighting that installation.
     const user = userEvent.setup();
     const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
-    const uuid = "abc12345-1234-5678-9abc-def012345678";
-    const record = createExecution("handler", { execution_id: uuid });
+    const record = createExecution(HANDLER_KIND, { execution_id: TEST_EXECUTION_ID });
 
     const { container } = render(<ExecutionDetailContent record={record} />);
-    const btn = container.querySelector("[aria-label='Copy execution ID']")!;
-    await user.click(btn);
+    const copyButton = container.querySelector("[aria-label='Copy execution ID']")!;
+    await user.click(copyButton);
 
-    await waitFor(() => expect(writeText).toHaveBeenCalledWith(uuid));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(TEST_EXECUTION_ID));
   });
 
   it("renders ErrorDisplay for non-error failures without traceback", () => {
-    const record = createExecution("handler", {
-      execution_id: "abc12345-1234-5678-9abc-def012345678",
+    const record = createExecution(HANDLER_KIND, {
+      execution_id: TEST_EXECUTION_ID,
       status: "timed_out",
       error_type: "TimeoutError",
       error_message: "Handler exceeded deadline",
@@ -210,7 +213,7 @@ describe("ExecutionDetailFetcher", () => {
     );
     const { container } = render(
       <Wrapper>
-        <ExecutionDetailFetcher executionId="abc-123" />
+        <ExecutionDetailFetcher executionId={FETCHER_EXECUTION_ID} />
       </Wrapper>,
     );
     expect(container.querySelector("[role='status']")).not.toBeNull();
@@ -224,7 +227,7 @@ describe("ExecutionDetailFetcher", () => {
     );
     const { findByText } = render(
       <Wrapper>
-        <ExecutionDetailFetcher executionId="abc-123" />
+        <ExecutionDetailFetcher executionId={FETCHER_EXECUTION_ID} />
       </Wrapper>,
     );
     expect(await findByText("failed to load execution")).toBeDefined();
@@ -238,15 +241,15 @@ describe("ExecutionDetailFetcher", () => {
     );
     const { findByText } = render(
       <Wrapper>
-        <ExecutionDetailFetcher executionId="abc-123" />
+        <ExecutionDetailFetcher executionId={FETCHER_EXECUTION_ID} />
       </Wrapper>,
     );
     expect(await findByText("execution not found")).toBeDefined();
   });
 
   it("renders execution detail content on successful fetch", async () => {
-    const execution = createExecution("handler", {
-      execution_id: "abc-123",
+    const execution = createExecution(HANDLER_KIND, {
+      execution_id: FETCHER_EXECUTION_ID,
       status: "success",
       duration_ms: 42,
     });
@@ -257,7 +260,7 @@ describe("ExecutionDetailFetcher", () => {
     );
     const { findByText } = render(
       <Wrapper>
-        <ExecutionDetailFetcher executionId="abc-123" />
+        <ExecutionDetailFetcher executionId={FETCHER_EXECUTION_ID} />
       </Wrapper>,
     );
     expect(await findByText(/completed in/)).toBeDefined();
