@@ -8,16 +8,13 @@ import { statusToKind } from "../../utils/status";
 import { StatusShape } from "../shared/status-shape";
 import type { MergedService } from "./merge-services";
 
+/** Both ServiceRow and its ServiceRowMeta child take exactly the merged service and nothing else. */
 interface ServiceRowProps {
   service: MergedService;
 }
 
-interface ServiceRowMetaProps {
-  service: MergedService;
-}
-
 /** Status, ready-phase, and retry annotations — a plainly running service shows none of them. */
-function ServiceRowMeta({ service }: ServiceRowMetaProps) {
+function ServiceRowMeta({ service }: ServiceRowProps) {
   const retryAtLabel = useRelativeTime(service.retry_at);
   const isRunning = service.status === "running";
   const isCooling = service.status === "exhausted_cooling";

@@ -1,10 +1,9 @@
 import { http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
-import type { components } from "../api/generated-types";
 import { queryKeys } from "../lib/query-keys";
 import type { ServiceStatusEntry } from "../state/store";
-import { createSystemStatus } from "../test/factories";
+import { createServiceInfo, createServiceStatusEntry, createSystemStatus } from "../test/factories";
 import { createTestQueryClient } from "../test/query-test-utils";
 import { renderWithAppState } from "../test/render-helpers";
 import { server } from "../test/server";
@@ -13,33 +12,6 @@ import { DiagnosticsPage } from "./diagnostics";
 vi.mock("../components/shared/spinner", () => ({
   Spinner: () => <div data-testid="spinner" />,
 }));
-
-type ServiceInfoResponse = components["schemas"]["ServiceInfoResponse"];
-
-function makeServiceInfo(overrides: Partial<ServiceInfoResponse> = {}): ServiceInfoResponse {
-  return {
-    name: "bus",
-    status: "running",
-    role: "core",
-    ready_phase: null,
-    retry_at: null,
-    ...overrides,
-  };
-}
-
-function makeServiceEntry(overrides: Partial<ServiceStatusEntry> = {}): ServiceStatusEntry {
-  return {
-    resource_name: "bus",
-    role: "core",
-    status: "running",
-    previous_status: null,
-    exception: null,
-    retry_at: null,
-    ready: true,
-    ready_phase: null,
-    ...overrides,
-  };
-}
 
 describe("DiagnosticsPage", () => {
   it("renders a spinner while loading", () => {
@@ -76,8 +48,8 @@ describe("DiagnosticsPage", () => {
         HttpResponse.json(
           createSystemStatus({
             services: [
-              makeServiceInfo({ name: "bus", status: "running" }),
-              makeServiceInfo({ name: "scheduler", status: "running" }),
+              createServiceInfo({ name: "bus", status: "running" }),
+              createServiceInfo({ name: "scheduler", status: "running" }),
             ],
           }),
         ),
@@ -93,13 +65,13 @@ describe("DiagnosticsPage", () => {
       http.get("/api/health", () =>
         HttpResponse.json(
           createSystemStatus({
-            services: [makeServiceInfo({ name: "bus", status: "running" })],
+            services: [createServiceInfo({ name: "bus", status: "running" })],
           }),
         ),
       ),
     );
     const serviceStatus: Record<string, ServiceStatusEntry> = {
-      bus: makeServiceEntry({ resource_name: "bus", status: "exhausted_cooling", retry_at: null }),
+      bus: createServiceStatusEntry({ resource_name: "bus", status: "exhausted_cooling", retry_at: null }),
     };
     const { findByTestId } = renderWithAppState(<DiagnosticsPage />, {
       storeOverrides: { serviceStatus },
@@ -116,7 +88,7 @@ describe("DiagnosticsPage", () => {
         HttpResponse.json(
           createSystemStatus({
             services: [
-              makeServiceInfo({ name: "db", status: "exhausted_cooling", role: "service", retry_at: futureRetryAt }),
+              createServiceInfo({ name: "db", status: "exhausted_cooling", role: "service", retry_at: futureRetryAt }),
             ],
           }),
         ),
@@ -271,7 +243,7 @@ describe("DiagnosticsPage", () => {
       createSystemStatus({
         log_persistence_active: false,
         db_write_queue_drops: 42,
-        services: [makeServiceInfo({ name: "stale-service" })],
+        services: [createServiceInfo({ name: "stale-service" })],
       }),
     );
     server.use(http.get("/api/health", () => HttpResponse.json(null, { status: 500 })));
@@ -331,7 +303,7 @@ describe("DiagnosticsPage", () => {
         HttpResponse.json(
           createSystemStatus({
             services: [
-              makeServiceInfo({ name: "db", status: "starting", role: "service", ready_phase: "migrating schema" }),
+              createServiceInfo({ name: "db", status: "starting", role: "service", ready_phase: "migrating schema" }),
             ],
           }),
         ),
@@ -347,7 +319,7 @@ describe("DiagnosticsPage", () => {
       http.get("/api/health", () =>
         HttpResponse.json(
           createSystemStatus({
-            services: [makeServiceInfo({ name: "bus", status: "running", ready_phase: "Bus initialized" })],
+            services: [createServiceInfo({ name: "bus", status: "running", ready_phase: "Bus initialized" })],
           }),
         ),
       ),

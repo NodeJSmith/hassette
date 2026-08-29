@@ -1,5 +1,6 @@
+import { AlertShell } from "../shared/alert-shell";
 import { DropCounterRow } from "./drop-counter-row";
-import { Panel, PANEL_WARNING_CLASS } from "./panel";
+import { Panel, PANEL_BANNER_CLASS } from "./panel";
 
 interface LoggingPanelProps {
   logQueueDrops: number;
@@ -12,10 +13,15 @@ export function LoggingPanel({ logQueueDrops, dbWriteQueueDrops, logPersistenceI
   return (
     <Panel title="logging health" ariaLabel="Logging health" data-testid="diag-logging-panel">
       {logPersistenceInactive && (
-        <div className={PANEL_WARNING_CLASS} role="alert" data-testid="diag-log-persistence-inactive">
+        <AlertShell
+          tone="warning"
+          className={PANEL_BANNER_CLASS}
+          role="alert"
+          data-testid="diag-log-persistence-inactive"
+        >
           Log persistence inactive — log records are not being written to the database, so the DB write drop count below
           has stopped moving.
-        </div>
+        </AlertShell>
       )}
       <ul className="flex list-none flex-col p-0" aria-label="Log drop counters">
         <DropCounterRow label="Log queue full" value={logQueueDrops} testId="diag-drop-log-queue" />
