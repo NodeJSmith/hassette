@@ -22,7 +22,7 @@ import pytest
 
 from hassette.exceptions import FatalError, RestartRefusedError
 from hassette.resources.base import Resource
-from hassette.resources.lifecycle import start
+from hassette.resources.lifecycle import compute_shutdown_budget, start
 from hassette.resources.operations import restart
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
@@ -306,70 +306,36 @@ class UnresponsiveService(Service):
 
 
 class TestShutdownBodySurvivesUnresponsiveServeTask:
-    """Regression for the shared-deadline bug: ``Service._shutdown_body()``'s serve-task wait
-    used to claim the *full* ``resource_shutdown_timeout_seconds`` for itself, blind to how much
-    of the *shared* shutdown deadline an earlier stage (here, ``before_shutdown()``) had already
-    spent -- the same budget the shutdown coordinator's own outer
-    ``asyncio.wait([body_task], timeout=...)`` uses to bound the *entire* ``_shutdown_body()``
-    call (``_run_shutdown_coordinator()`` in ``hassette.resources.lifecycle``). A slow
-    ``before_shutdown()`` plus a ``serve()`` that never honors cancellation could together
-    consume far more real wall-clock time than the shared deadline actually allows, because the
-    serve-task wait would start counting a second, independent full timeout window from wherever
-    ``before_shutdown()`` happened to finish.
+    """Regression: a slow ``before_shutdown()`` plus an unresponsive ``serve()`` must still
+    finish within the body budget. The hooks pool bounds both stages, and the mandatory tail
+    (task-cancel, cleanup, children) runs regardless of how much of the pool hooks consumed.
 
-    ``remaining_shutdown_budget()`` fixes this: the serve-task wait only gets whatever is left
-    of the deadline that ``before_shutdown()`` didn't use, so it gives up close to the *shared*
-    deadline (recording ``SERVE_TASK_PENDING``), not a fresh full timeout window later.
-
-    Called directly against ``_shutdown_body()`` with ``_shutdown_deadline`` set manually to
-    simulate what the shutdown coordinator does -- the coordinator's own outer wait shares the
-    identical ``resource_shutdown_timeout_seconds`` config value and would otherwise race this
-    inner bound (same pattern as ``TestServiceShutdownBodyServeTaskPending`` above, and
-    ``test_add_child_and_restart.py``'s ``_make_unsafe_parent`` for the same race explained for
-    a plain ``shutdown()`` call).
+    Called directly against ``_shutdown_body()`` with ``_shutdown_budget`` set manually to
+    simulate what the shutdown coordinator does — the coordinator's own outer wait is not
+    present here, so we verify the body self-limits.
     """
 
     async def test_body_completes_within_shared_budget_not_a_fresh_one(self) -> None:
         hassette = make_mock_hassette(sealed=False)
-        hassette.config.lifecycle.resource_shutdown_timeout_seconds = 2.0
+        hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5.0
 
         svc = UnresponsiveService(hassette)
         child = svc.add_child(ShutdownCounter)
         await svc.initialize()
         await wait_for_running(svc)
-        # Service._initialize_body() already propagates initialization to children spawned
-        # before initialize() ran -- no separate child.initialize() call needed here.
 
         loop = asyncio.get_running_loop()
-        # Simulate what the shutdown coordinator does before running _shutdown_body(): record
-        # the shared deadline for this attempt so remaining_shutdown_budget() has something to
-        # read, without also racing the coordinator's own competing outer wait.
-        svc._shutdown_deadline = loop.time() + 2.0
-        start = loop.time()
+        svc._shutdown_budget = compute_shutdown_budget(5.0, loop.time())
+        start_time = loop.time()
 
-        # Generous headroom over the 2.0s config bound above (see CLAUDE.md's guidance on
-        # config-driven real-clock timeouts) -- this proves boundedness, not tightness.
-        report = await asyncio.wait_for(svc._shutdown_body(), timeout=8)
-        elapsed = loop.time() - start
+        report = await asyncio.wait_for(svc._shutdown_body(), timeout=10)
+        elapsed = loop.time() - start_time
 
         assert TeardownCause.SERVE_TASK_PENDING in report.causes, (
             "the serve task never honoring cancellation must still be recorded as evidence"
         )
-        # Fixed behavior lands close to the 2.0s shared deadline (~1.4s left after
-        # before_shutdown's 0.6s real sleep). The bug this guards against would instead give the
-        # serve-task wait a fresh full 2.0s window on top of before_shutdown's 0.6s, landing at
-        # ~2.6s+ -- the 2.3s threshold sits strictly between the two with real margin on both
-        # sides, wider than a bare 0.1s cutoff over the expected-fixed value would give.
-        assert elapsed < 2.3, (
-            "the serve-task wait must use the remaining budget (~1.4s left after before_shutdown's "
-            f"0.6s real sleep), not a fresh full 2.0s window on top of it -- took {elapsed:.2f}s"
-        )
+        assert elapsed < 5.5, f"the body must finish within the 5.0s budget — took {elapsed:.2f}s"
 
-        # before_shutdown() plus the serve task together consume essentially the entire shared
-        # deadline -- there genuinely isn't real time left for the child's own graceful shutdown,
-        # so it is force-terminated. What matters is that _shutdown_children() still gets invoked
-        # and processes the child (one way or the other), rather than the whole body being
-        # abandoned by an external force-terminate.
         assert child.shutdown_completed is True, "child shutdown must still be attempted, not skipped entirely"
 
         stopped_events = [
@@ -417,3 +383,51 @@ class TestServiceResistantServeNeverReplaced:
             old_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await old_task
+
+
+class SlowServeService(Service):
+    """Service whose serve() takes real wall-clock time to observe cancellation,
+    consuming most of the hooks pool before on_shutdown/after_shutdown run.
+    """
+
+    restart_spec = RestartSpec()
+
+    async def serve(self) -> None:
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            await asyncio.sleep(1.5)
+            raise
+
+
+async def test_slow_serve_wait_records_late_hooks_as_failed():
+    """The serve-wait shares the hooks pool with on_shutdown/after_shutdown.
+    A slow serve() that consumes most of the pool leaves on_shutdown/after_shutdown
+    with near-zero budget — they time out and are recorded as SHUTDOWN_HOOK_FAILED,
+    but the mandatory tail (task-cancel, cleanup, children) still runs.
+
+    This is the intended tradeoff: the hooks pool is a shared budget, and the
+    mandatory tail is guaranteed regardless of how the pool is divided.
+    """
+    hassette = make_mock_hassette(sealed=False)
+    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5.0
+
+    svc = SlowServeService(hassette)
+
+    async def hanging_on_shutdown() -> None:
+        await asyncio.Event().wait()
+
+    svc.on_shutdown = hanging_on_shutdown  # pyright: ignore[reportAttributeAccessIssue]
+    await svc.initialize()
+    await wait_for_running(svc)
+
+    loop = asyncio.get_running_loop()
+    start_time = loop.time()
+
+    report = await asyncio.wait_for(svc.shutdown(), timeout=10)
+    elapsed = loop.time() - start_time
+
+    assert TeardownCause.SHUTDOWN_HOOK_FAILED in report.causes, (
+        "on_shutdown must be recorded as failed when the serve-wait consumed the hooks pool"
+    )
+    assert elapsed < 5.5, f"shutdown must stay within the coordinator budget — took {elapsed:.2f}s"

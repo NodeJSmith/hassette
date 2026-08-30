@@ -12,6 +12,7 @@ concrete implementation always in play at runtime — to access the mutable life
 """
 
 import asyncio
+import dataclasses
 import threading
 import typing
 from contextlib import suppress
@@ -30,6 +31,66 @@ from hassette.types.enums import TERMINAL_STATUSES, ResourceStatus
 
 if typing.TYPE_CHECKING:
     from collections.abc import Coroutine
+
+
+COORDINATOR_MARGIN_FRACTION = 0.1
+"""Fraction of the total shutdown timeout reserved as a gap between the body's own
+deadline and the coordinator's outer ``asyncio.wait()`` bound. Guarantees the body
+finishes (and its result is observed) before the coordinator abandons it — replacing
+the former ``ROOT_SHUTDOWN_BODY_TIMEOUT_FRACTION`` and the ``HOOK_BUDGET_FRACTION``
+margin that each addressed the same race from different directions."""
+
+TASK_CANCEL_SECONDS = 1.0
+"""Fixed budget for ``_run_task_bucket_shutdown_stage()``. Replaces the former
+``CANCEL_BUDGET_FRACTION`` (20% of shrinking remainder)."""
+
+CLEANUP_SECONDS = 0.5
+"""Fixed budget for ``cleanup()``. Replaces the former ``CLEANUP_BUDGET_FRACTION``
+(50% of shrinking remainder)."""
+
+CHILDREN_FLOOR_SECONDS = 1.0
+"""Minimum guaranteed budget for ``_shutdown_children()``. Unchanged from the former
+``CHILDREN_SHUTDOWN_BUDGET_FLOOR_SECONDS`` — the floor concept is preserved, but now
+children also benefit from any slack the hooks pool didn't use."""
+
+TAIL_RESERVATION_SECONDS = TASK_CANCEL_SECONDS + CLEANUP_SECONDS + CHILDREN_FLOOR_SECONDS
+"""Sum of fixed mandatory-tail stage budgets. Subtracted from the body budget to
+compute the hooks pool — the tail is guaranteed regardless of hook behavior."""
+
+
+@dataclasses.dataclass(frozen=True)
+class ShutdownBudget:
+    """Pre-computed budget allocation for a single shutdown attempt.
+
+    Computed once by ``compute_shutdown_budget()`` at the top of
+    ``_run_shutdown_coordinator()`` and stored on the resource. Each stage reads its
+    own field directly — no stage derives its budget from "what's left of a shrinking
+    remainder."
+
+    The ``hooks_pool_deadline`` is the one place where sequential "remaining" logic
+    still applies: hooks run sequentially and each gets whatever remains of the pool.
+    The pool itself is a fixed allocation from the total, so compounding within it
+    cannot starve the mandatory tail (task cancel, cleanup, children).
+    """
+
+    hooks_pool_deadline: float
+    """Absolute loop time by which all hooks, serve-wait, and initializer observation
+    must finish. Each consumer reads ``max(0, hooks_pool_deadline - loop.time())``."""
+
+    task_cancel_seconds: float
+    """Fixed duration for ``_run_task_bucket_shutdown_stage()``."""
+
+    cleanup_seconds: float
+    """Fixed duration for ``cleanup()``."""
+
+    children_floor_seconds: float
+    """Minimum guaranteed duration for ``_shutdown_children()``."""
+
+    body_deadline: float
+    """Absolute loop time by which the entire ``_shutdown_body()`` must finish.
+    Children get ``max(children_floor_seconds, body_deadline - loop.time())``
+    after task-cancel and cleanup have run — so early-finishing hooks pass their
+    slack to children naturally."""
 
 
 def create_service_status_event(
@@ -371,47 +432,67 @@ def create_lifecycle_task(coro: "Coroutine[Any, Any, Any]", *, name: str) -> asy
     return asyncio.Task(coro, loop=loop, name=name)
 
 
-def remaining_shutdown_budget(resource: _LifecycleHostP, floor: float = 0.0) -> float:
-    """Return the wall-clock seconds left in the current shutdown attempt's outer budget.
+def compute_shutdown_budget(total_seconds: float, now: float) -> ShutdownBudget:
+    """Allocate shutdown time across stages up front, from the total.
 
-    Every stage inside ``_shutdown_body()`` that would otherwise independently wait up to
-    the full ``resource_shutdown_timeout_seconds`` (the serve-task wait in ``Service``, and
-    ``cleanup()``/``_shutdown_children()`` in ``Resource``) must call this instead, so no
-    single stage can consume the whole coordinator-level budget and starve the stages after
-    it. Falls back to the full per-resource timeout when no shutdown attempt has recorded a
-    deadline yet -- e.g. a direct ``cleanup()`` call outside the normal coordinator flow (some
-    tests do this).
+    Called once per shutdown attempt. The allocation is:
 
-    Every consumer reads this same shrinking value, but does not treat it the same way -- this
-    is the one place that ties the whole per-resource waterfall together (in execution order
-    within a single ``_shutdown_body()`` call):
+    1. ``COORDINATOR_MARGIN_FRACTION`` of total reserved for the coordinator/body gap.
+    2. ``TAIL_RESERVATION_SECONDS`` reserved for task-cancel + cleanup + children floor.
+    3. Everything else becomes the hooks pool (hooks, serve-wait, initializer observation).
 
-    1. ``Service._shutdown_body()`` only -- the ``before_shutdown`` hook, then the serve-task
-       wait (``service.py``'s ``SERVE_WAIT_BUDGET_FRACTION``, a fraction), then the
-       ``on_shutdown``/``after_shutdown`` hooks.
-    2. ``Resource._shutdown_body()`` -- ``before_shutdown``/``on_shutdown``/``after_shutdown``
-       hooks. Every hook here and in step 1 runs via ``run_hooks(bound_to_shutdown_budget=True)``
-       (``operations.py``'s ``HOOK_BUDGET_FRACTION``, a large fraction of the remainder per hook,
-       not the full remainder) -- hooks are the actual user/framework work being waited on, so a
-       hook that genuinely needs the time gets nearly all of it; the fraction exists only to keep
-       a hook that consumes its entire sub-budget from racing the coordinator's own outer deadline
-       (see ``HOOK_BUDGET_FRACTION``'s docstring). The *stages that follow* the hooks reserve a
-       much smaller share instead, so those later stages are not starved by however much of the
-       budget the hooks happened to use.
-    3. ``_run_task_bucket_shutdown_stage()`` (``base.py``'s ``CANCEL_BUDGET_FRACTION``, a
-       fraction of what remains after the hooks).
-    4. ``cleanup()`` (``base.py``'s ``CLEANUP_BUDGET_FRACTION``, a fraction of what remains
-       after task-bucket cancel).
-    5. ``_shutdown_children()`` -- always last, so it is the stage most exposed to starvation by
-       every stage before it; guaranteed at least ``base.py``'s
-       ``CHILDREN_SHUTDOWN_BUDGET_FLOOR_SECONDS`` via this function's own ``floor`` argument,
-       regardless of how much the earlier stages already spent.
+    If the total is too small to meaningfully split (hooks pool would be negative),
+    the hooks pool gets 0 and the tail stages share whatever the body budget allows.
+    """
+    margin = total_seconds * COORDINATOR_MARGIN_FRACTION
+    body_budget = total_seconds - margin
+
+    if body_budget >= TAIL_RESERVATION_SECONDS:
+        hooks_pool = body_budget - TAIL_RESERVATION_SECONDS
+        task_cancel = TASK_CANCEL_SECONDS
+        cleanup = CLEANUP_SECONDS
+        children_floor = CHILDREN_FLOOR_SECONDS
+    else:
+        hooks_pool = 0.0
+        scale = body_budget / TAIL_RESERVATION_SECONDS if TAIL_RESERVATION_SECONDS > 0 else 0.0
+        task_cancel = TASK_CANCEL_SECONDS * scale
+        cleanup = CLEANUP_SECONDS * scale
+        children_floor = CHILDREN_FLOOR_SECONDS * scale
+
+    return ShutdownBudget(
+        hooks_pool_deadline=now + hooks_pool,
+        task_cancel_seconds=task_cancel,
+        cleanup_seconds=cleanup,
+        children_floor_seconds=children_floor,
+        body_deadline=now + body_budget,
+    )
+
+
+def hooks_pool_remaining(resource: _LifecycleHostP) -> float:
+    """Seconds left in the hooks pool for the current shutdown attempt.
+
+    Used by ``run_hooks()`` (each hook), the serve-task wait, and
+    ``_observe_active_initializer()`` — everything that shares the discretionary pool.
+    Returns 0 when the pool is exhausted or no budget has been set.
     """
     resource = typing.cast("LifecycleMixin", resource)
-    deadline = resource._shutdown_deadline
-    if deadline is None:
+    budget = resource._shutdown_budget
+    if budget is None:
         return resource.hassette.config.lifecycle.resource_shutdown_timeout_seconds
-    return max(floor, deadline - asyncio.get_running_loop().time())
+    return max(0.0, budget.hooks_pool_deadline - asyncio.get_running_loop().time())
+
+
+def children_budget_remaining(resource: _LifecycleHostP) -> float:
+    """Seconds available for ``_shutdown_children()``.
+
+    Children run last and benefit from any slack the earlier stages left behind.
+    Returns at least ``children_floor_seconds`` even when the body is over budget.
+    """
+    resource = typing.cast("LifecycleMixin", resource)
+    budget = resource._shutdown_budget
+    if budget is None:
+        return resource.hassette.config.lifecycle.resource_shutdown_timeout_seconds
+    return max(budget.children_floor_seconds, budget.body_deadline - asyncio.get_running_loop().time())
 
 
 def _install_exception_observer(resource: _LifecycleHostP, task: asyncio.Task, label: str) -> None:
@@ -516,7 +597,7 @@ async def _observe_active_initializer(resource: "LifecycleMixin") -> bool:
         return False
 
     init_task.cancel()
-    timeout = resource.hassette.config.lifecycle.resource_shutdown_timeout_seconds
+    timeout = hooks_pool_remaining(resource)
     _done, pending = await asyncio.wait([init_task], timeout=timeout)
     if pending:
         return True
@@ -542,15 +623,16 @@ async def _run_shutdown_coordinator(resource: "LifecycleMixin") -> TeardownRepor
     propagates normally.
     """
     try:
+        if typing.cast("object", resource) is resource.hassette:
+            timeout = resource.hassette.config.lifecycle.total_shutdown_timeout_seconds
+        else:
+            timeout = resource.hassette.config.lifecycle.resource_shutdown_timeout_seconds
+
+        now = asyncio.get_running_loop().time()
+        resource._shutdown_budget = compute_shutdown_budget(timeout, now)
+
         initialization_pending = await _observe_active_initializer(resource)
         if initialization_pending:
-            # The initializer didn't observe cancellation within its bounded observation window
-            # and is still running. The shutdown body proceeds anyway (see design.md's Edge Cases
-            # -- the report ends up UNSAFE), but that only protects the *next* restart attempt; it
-            # does not stop this still-live coroutine from concurrently mutating shared state
-            # (e.g. self.children) while the shutdown body iterates it. Log loudly so an operator
-            # debugging a fatal shutdown can distinguish "clean refusal" from "shutdown hooks ran
-            # while init was still mutating state."
             resource.logger.warning(
                 "%s: shutdown proceeding while initialization is still running and did not "
                 "observe cancellation -- init and shutdown may now race on shared state",
@@ -560,27 +642,6 @@ async def _run_shutdown_coordinator(resource: "LifecycleMixin") -> TeardownRepor
         if resource._status not in TERMINAL_STATUSES:
             resource.status = ResourceStatus.STOPPING
         request_shutdown(resource, f"{resource.unique_name} shutdown")
-
-        if typing.cast("object", resource) is resource.hassette:
-            # The root resource's own _shutdown_body() (Hassette._shutdown_body()) already
-            # self-bounds with total_shutdown_timeout_seconds via its own asyncio.timeout(). The
-            # coordinator's outer wait must track that same budget instead of imposing the
-            # generic per-resource timeout on top of it — otherwise a body that's still working
-            # past resource_shutdown_timeout_seconds but within total_shutdown_timeout_seconds
-            # gets abandoned and force-terminated here before its own budget ever gets a chance
-            # to fire. Using the root's total budget directly (not max() against the per-resource
-            # timeout) preserves the reverse relationship too: a total timeout intentionally set
-            # smaller than the per-resource one (e.g. in tests) still bounds the wait correctly.
-            timeout = resource.hassette.config.lifecycle.total_shutdown_timeout_seconds
-        else:
-            timeout = resource.hassette.config.lifecycle.resource_shutdown_timeout_seconds
-
-        # Recorded before the body task is created (i.e. before it can consume any of this
-        # budget itself) so every stage inside _shutdown_body() can query how much of this outer
-        # wait is left via remaining_shutdown_budget(), instead of each independently claiming
-        # the full `timeout` value and starving whichever stage runs last. See
-        # LifecycleMixin._shutdown_deadline's docstring.
-        resource._shutdown_deadline = asyncio.get_running_loop().time() + timeout
 
         body_task = create_lifecycle_task(
             resource._shutdown_body(), name=f"resource:shutdown_body:{resource.unique_name}"

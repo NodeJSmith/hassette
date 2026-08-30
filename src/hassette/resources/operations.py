@@ -10,7 +10,7 @@ import typing
 from contextlib import suppress
 
 from hassette.exceptions import RestartRefusedError
-from hassette.resources.lifecycle import handle_failed, reject_lifecycle_reentry, remaining_shutdown_budget, start
+from hassette.resources.lifecycle import handle_failed, hooks_pool_remaining, reject_lifecycle_reentry, start
 from hassette.utils.service_utils import wait_for_ready
 
 if typing.TYPE_CHECKING:
@@ -19,22 +19,6 @@ if typing.TYPE_CHECKING:
     from hassette import Hassette, TaskBucket
     from hassette.resources.base import Resource
 
-HOOK_BUDGET_FRACTION = 0.9
-"""Fraction of what remains of the shared shutdown deadline (``remaining_shutdown_budget()``) a
-single lifecycle hook may claim via its own ``asyncio.timeout()`` in ``run_hooks()``, when
-``bound_to_shutdown_budget=True``. Kept below 1.0 so a hook that blocks for its entire allotted
-sub-budget still leaves the shared deadline with real margin before the coordinator's own outer
-``asyncio.wait([body_task], timeout=timeout)`` bound (``_run_shutdown_coordinator()`` in
-``lifecycle.py``) -- which starts counting down from essentially the same instant
-``remaining_shutdown_budget()`` first reports for the first hook, since the deadline is recorded
-before the body task (and therefore the first hook) ever runs. Claiming the full remainder here
-(the pre-fix behavior) meant a hook that genuinely used its whole budget raced the coordinator's
-own timeout at a near-identical deadline: if the coordinator's wait observed the timeout first, it
-force-terminated ``_shutdown_body()`` before ``run_hooks()`` ever got to record the hook failure or
-reach the TaskBucket-cancel/cleanup/child-teardown stages that run after hooks, leaving owned
-resources uncleaned. Recomputed fresh per hook (like every other consumer of
-``remaining_shutdown_budget()``), so this margin holds even across multiple hooks that each
-consume their own full sub-budget in sequence."""
 
 # NOTE: `Resource` is imported only under TYPE_CHECKING above. `hassette.resources.base` imports
 # `run_hooks` and `ordered_children_for_shutdown` from this module at module level, so a top-level
@@ -123,9 +107,9 @@ async def run_hooks(
         continue_on_error: If False (initialize), re-raise on Exception.
             If True (shutdown), log and continue to next hook.
         bound_to_shutdown_budget: If True, wrap each hook call in
-            ``asyncio.timeout(remaining_shutdown_budget(resource))`` so a hook — framework or
-            user-authored (e.g. ``App.on_shutdown()``) — cannot hang past the resource's shared
-            shutdown deadline. Only meaningful for shutdown hooks; initialize hooks pass False
+            ``asyncio.timeout(hooks_pool_remaining(resource))`` so a hook — framework or
+            user-authored (e.g. ``App.on_shutdown()``) — cannot hang past the hooks pool
+            deadline. Only meaningful for shutdown hooks; initialize hooks pass False
             (they run under a separate startup timeout, not this shutdown budget). A hook that
             times out surfaces as a plain ``TimeoutError``, handled the same as any other
             exception below.
@@ -145,9 +129,9 @@ async def run_hooks(
     for method in hooks:
         try:
             if bound_to_shutdown_budget:
-                budget = remaining_shutdown_budget(resource) * HOOK_BUDGET_FRACTION
+                budget = hooks_pool_remaining(resource)
                 resource.logger.debug(
-                    "%s: entering hook %s with %.2fs of shared deadline remaining",
+                    "%s: entering hook %s with %.2fs of hooks pool remaining",
                     resource.unique_name,
                     getattr(method, "__name__", repr(method)),
                     budget,

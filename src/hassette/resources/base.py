@@ -7,7 +7,10 @@ from typing import Any, ClassVar, TypeVar, final
 
 from hassette.exceptions import CannotOverrideFinalError
 from hassette.resources.lifecycle import (
+    CLEANUP_SECONDS,
+    TASK_CANCEL_SECONDS,
     cancel,
+    children_budget_remaining,
     coordinate_initialize,
     coordinate_shutdown,
     create_lifecycle_task,
@@ -17,7 +20,6 @@ from hassette.resources.lifecycle import (
     handle_starting,
     handle_stop,
     mark_not_ready,
-    remaining_shutdown_budget,
 )
 from hassette.resources.operations import ordered_children_for_shutdown, run_hooks
 from hassette.resources.teardown import (
@@ -30,26 +32,6 @@ from hassette.types.enums import ResourceRole, ResourceStatus
 from hassette.types.types import FRAMEWORK_APP_KEY_PREFIX, LOG_LEVEL_TYPE, SourceTier
 
 from .mixins import LifecycleMixin
-
-CANCEL_BUDGET_FRACTION = 0.2
-"""Fraction of what remains of the shared shutdown deadline (``remaining_shutdown_budget()``, not
-the fixed ``resource_shutdown_timeout_seconds`` config value) used as the cancel_all timeout in
-``_run_task_bucket_shutdown_stage()``. Kept small (20%) because nested resources each run their
-own cancel_all, and the full ``task_cancellation_timeout_seconds`` default (5s) compounding
-across parent + child reaches the 10s wave timeout."""
-
-CLEANUP_BUDGET_FRACTION = 0.5
-"""Fraction of what remains of the shared shutdown deadline (after the task-bucket cancel stage)
-reserved for ``cleanup()`` in ``_run_post_hook_shutdown_stage()``. Claiming the full remainder here
-(the pre-fix behavior) starved ``_shutdown_children()``, which always runs next and last — see
-``CHILDREN_SHUTDOWN_BUDGET_FLOOR_SECONDS`` for its own guaranteed floor."""
-
-CHILDREN_SHUTDOWN_BUDGET_FLOOR_SECONDS = 1.0
-"""Minimum seconds ``_shutdown_children()`` is guaranteed via ``remaining_shutdown_budget()``'s
-``floor`` argument, regardless of how much of the shared shutdown budget earlier stages (hooks,
-task-bucket cancel, ``cleanup()``) already consumed. Children run unconditionally last and can
-independently own DB connections, sockets, or sync-executor threads — they must never be started
-with ~0 seconds left just because an earlier stage happened to run long."""
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
@@ -416,11 +398,11 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
           force-terminates only the children still unfinished at that point; a child that
           already completed keeps its own (possibly restart-safe) report unchanged.
 
-        Guaranteed at least ``CHILDREN_SHUTDOWN_BUDGET_FLOOR_SECONDS`` via ``remaining_shutdown_budget()``'s
-        ``floor`` argument — this stage runs unconditionally last, so it must never start with ~0
-        seconds left just because ``cleanup()`` or an earlier hook consumed the rest.
+        Children benefit from any slack the hooks pool didn't use — their budget is
+        ``max(children_floor_seconds, body_deadline - now)``, so early-finishing hooks pass
+        their slack to children naturally.
         """
-        timeout = remaining_shutdown_budget(self, floor=CHILDREN_SHUTDOWN_BUDGET_FLOOR_SECONDS)
+        timeout = children_budget_remaining(self)
         self.logger.debug(
             "%s: entering _shutdown_children() with %.2fs budgeted",
             self.unique_name,
@@ -489,19 +471,16 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         force-terminal call can still inspect the sealed bucket directly (see
         ``_force_terminal()``) even if this stage itself is interrupted before returning.
 
-        Uses ``CANCEL_BUDGET_FRACTION`` of what remains of the coordinator-level shutdown
-        deadline (``remaining_shutdown_budget()``), not the full ``task_cancellation_timeout_seconds``
-        or a fresh full per-resource timeout, because this stage runs inside a body that runs
-        inside a coordinator that runs inside a wave — all sharing the same wall-clock budget.
+        Uses the pre-computed ``task_cancel_seconds`` from the ``ShutdownBudget`` — a fixed
+        allocation from the total, not a fraction of whatever happens to remain.
         """
         self.task_bucket.seal()
-        remaining = remaining_shutdown_budget(self)
-        cancel_budget = remaining * CANCEL_BUDGET_FRACTION
+        budget = self._shutdown_budget
+        cancel_budget = budget.task_cancel_seconds if budget is not None else TASK_CANCEL_SECONDS
         self.logger.debug(
-            "%s: entering task-bucket cancel with %.2fs budgeted (%.2fs of shared deadline remained)",
+            "%s: entering task-bucket cancel with %.2fs budgeted",
             self.unique_name,
             cancel_budget,
-            remaining,
         )
         await self.task_bucket.cancel_all(timeout=cancel_budget)
         pending = self.task_bucket.pending_task_names()
@@ -520,19 +499,18 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         """
         reports: list[TeardownReport] = [await self._run_task_bucket_shutdown_stage()]
 
-        remaining = remaining_shutdown_budget(self)
-        timeout = remaining * CLEANUP_BUDGET_FRACTION
+        budget = self._shutdown_budget
+        cleanup_timeout = budget.cleanup_seconds if budget is not None else CLEANUP_SECONDS
         self.logger.debug(
-            "%s: entering cleanup() with %.2fs budgeted (%.2fs of shared deadline remained)",
+            "%s: entering cleanup() with %.2fs budgeted",
             self.unique_name,
-            timeout,
-            remaining,
+            cleanup_timeout,
         )
         try:
-            async with asyncio.timeout(timeout):
+            async with asyncio.timeout(cleanup_timeout):
                 await self.cleanup()
         except TimeoutError:
-            self.logger.warning("cleanup() timed out after %ss for %s", timeout, self.unique_name)
+            self.logger.warning("cleanup() timed out after %ss for %s", cleanup_timeout, self.unique_name)
             reports.append(TeardownReport(causes=(TeardownCause.CLEANUP_TIMED_OUT,), failed_operations=("cleanup",)))
         except Exception as exc:
             self.logger.exception("Error during cleanup: %s %s", type(exc).__name__, exc)

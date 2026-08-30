@@ -14,20 +14,13 @@ from hassette.resources.lifecycle import (
     handle_running,
     handle_starting,
     handle_stop,
+    hooks_pool_remaining,
     mark_not_ready,
-    remaining_shutdown_budget,
 )
 from hassette.resources.operations import run_hooks
 from hassette.resources.restart import RestartSpec
 from hassette.resources.teardown import TeardownCause, TeardownReport, merge_teardown_reports
 from hassette.types.enums import ResourceRole, ResourceStatus
-
-SERVE_WAIT_BUDGET_FRACTION = 0.5
-"""Fraction of what remains of the shared shutdown deadline reserved for waiting on the
-cancelled ``serve()`` task. Claiming the full remainder here (the pre-fix behavior) left nothing
-for the ``on_shutdown``/``after_shutdown`` hooks and ``_run_post_hook_shutdown_stage()`` that run
-afterward in the same ``_shutdown_body()`` — mirrors ``base.py``'s ``CANCEL_BUDGET_FRACTION``
-pattern."""
 
 
 class Service(Resource):
@@ -144,13 +137,13 @@ class Service(Resource):
         if self.is_running() and self._serve_task:
             self._serve_task.cancel()
             self.logger.debug("Cancelled serve() task")
-            remaining = remaining_shutdown_budget(self)
-            timeout = remaining * SERVE_WAIT_BUDGET_FRACTION
+            # Shares the hooks pool with before_shutdown (already ran) and on_shutdown/after_shutdown
+            # (run next). A slow serve-wait squeezes later hooks, but can't starve the mandatory tail.
+            timeout = hooks_pool_remaining(self)
             self.logger.debug(
-                "%s: entering serve-task wait with %.2fs budgeted (%.2fs of shared deadline remained)",
+                "%s: entering serve-task wait with %.2fs of hooks pool remaining",
                 self.unique_name,
                 timeout,
-                remaining,
             )
             _done, pending = await asyncio.wait([self._serve_task], timeout=timeout)
             if pending:

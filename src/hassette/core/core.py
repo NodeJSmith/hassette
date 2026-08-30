@@ -18,10 +18,11 @@ from hassette.exceptions import AppPrecheckFailedError, FatalError
 from hassette.logging_ import enable_basic_logging
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import (
+    COORDINATOR_MARGIN_FRACTION,
+    children_budget_remaining,
     create_lifecycle_task,
     handle_stop,
     mark_not_ready,
-    remaining_shutdown_budget,
     start,
 )
 from hassette.resources.teardown import (
@@ -66,10 +67,6 @@ if typing.TYPE_CHECKING:
     from collections.abc import Callable
 
     from hassette.events import Event
-
-ROOT_SHUTDOWN_BODY_TIMEOUT_FRACTION = 0.9
-"""Fraction of ``total_shutdown_timeout_seconds`` given to ``Hassette._shutdown_body()``'s own
-internal deadline (see its docstring for why this margin is required, not optional)."""
 
 
 def _service_not_wired_error(service: str) -> RuntimeError:
@@ -775,14 +772,10 @@ class Hassette(Resource):
           safe: nothing in a later wave can still be depended on by anything left half-shut-down
           above it.
 
-        Each wave's own timeout is capped at whatever remains of the coordinator-level
-        ``_shutdown_deadline`` (see ``remaining_shutdown_budget()``), not always the full
-        per-resource timeout -- multiple waves each independently claiming a fresh full budget
-        could, in aggregate, exceed the coordinator's outer wait for this entire
-        ``_shutdown_body()`` call and get the whole method cancelled mid-loop before later waves
-        (or the STOPPED event) ever run. A wave still gets up to its full nominal timeout when
-        enough of the shared budget remains, preserving the "give each wave a fair shot" intent
-        above for the normal case.
+        Each wave's own timeout is capped at ``children_budget_remaining()`` — the time
+        left until ``body_deadline``, floored at ``children_floor_seconds``. Multiple waves
+        share this budget rather than each independently claiming a fresh full window, so the
+        body finishes before the coordinator's outer wait.
         """
         type_to_instance = {type(c): c for c in self.children}
 
@@ -794,7 +787,7 @@ class Hassette(Resource):
             wave = [type_to_instance[t] for t in wave_types if t in type_to_instance]
             if not wave:
                 continue
-            timeout = min(self.config.lifecycle.resource_shutdown_timeout_seconds, remaining_shutdown_budget(self))
+            timeout = min(self.config.lifecycle.resource_shutdown_timeout_seconds, children_budget_remaining(self))
             self.logger.debug("Shutting down wave: [%s]", ", ".join(c.class_name for c in wave))
             try:
                 async with asyncio.timeout(timeout):
@@ -870,25 +863,19 @@ class Hassette(Resource):
         clean path runs — this is the existing stream-closing fallback the design requires
         even when the total timeout fires.
 
-        The internal deadline below uses ``ROOT_SHUTDOWN_BODY_TIMEOUT_FRACTION`` of
-        ``total_shutdown_timeout_seconds`` rather than the full value. The shutdown coordinator
-        (``coordinate_shutdown()`` / ``_run_shutdown_coordinator()`` in
-        ``hassette.resources.lifecycle``) bounds its own outer wait for this root body by that
-        same full ``total_shutdown_timeout_seconds`` value, but its timer starts one event-loop
-        tick before this body's own ``asyncio.timeout()`` context is entered (the coordinator
-        calls ``asyncio.wait(..., timeout=...)`` immediately after scheduling this body's task,
-        while the task itself only starts running, and only then starts its own timer, on the
-        next tick). Two timers of identical duration where one starts strictly earlier always
-        expire in that same order, so an equal duration here would let the coordinator's
-        generic per-resource timeout path abandon this method first on every total-timeout run,
-        before it ever produces ``TOTAL_TIMEOUT`` evidence or runs the fallback below. Shaving a
-        safety margin off this body's own deadline guarantees it completes (and its result is
-        observed by the coordinator) before that outer backstop fires.
+        The internal deadline uses ``body_deadline`` from the ``ShutdownBudget`` computed
+        by the coordinator. The budget's ``COORDINATOR_MARGIN_FRACTION`` reserves a gap
+        between this body's own deadline and the coordinator's outer ``asyncio.wait()``
+        bound, guaranteeing this method completes (and its result is observed) before
+        that outer backstop fires.
         """
         self.logger.info("Hassette shutdown initiated", stacklevel=2)
 
-        total_timeout = self.config.lifecycle.total_shutdown_timeout_seconds
-        body_timeout = total_timeout * ROOT_SHUTDOWN_BODY_TIMEOUT_FRACTION
+        budget = self._shutdown_budget
+        if budget is not None:
+            body_timeout = max(0.0, budget.body_deadline - asyncio.get_running_loop().time())
+        else:
+            body_timeout = self.config.lifecycle.total_shutdown_timeout_seconds * (1 - COORDINATOR_MARGIN_FRACTION)
 
         report: TeardownReport
         try:
@@ -897,7 +884,7 @@ class Hassette(Resource):
         except TimeoutError:
             self.logger.critical(
                 "Total shutdown timeout (%ss) exceeded — forcing termination",
-                total_timeout,
+                self.config.lifecycle.total_shutdown_timeout_seconds,
             )
             timeout_report = TeardownReport(causes=(TeardownCause.TOTAL_TIMEOUT, TeardownCause.FORCED_TERMINAL))
             existing = self._teardown_report

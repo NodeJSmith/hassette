@@ -20,7 +20,7 @@ import pytest
 from hassette.exceptions import LifecycleReentryError, RestartRefusedError
 from hassette.resources import lifecycle
 from hassette.resources.base import Resource
-from hassette.resources.lifecycle import start
+from hassette.resources.lifecycle import compute_shutdown_budget, start
 from hassette.resources.operations import ordered_children_for_shutdown
 from hassette.resources.teardown import TeardownCause, TeardownReport
 from hassette.task_bucket import make_task_factory
@@ -306,20 +306,14 @@ async def test_shutdown_propagation_timeout_forces_terminal_state():
 
 
 async def test_resource_own_hanging_hook_wins_race_against_coordinator_timeout():
-    """A resource's own hanging hook (not a child's) must resolve via ``run_hooks()``'s inner
-    ``asyncio.timeout(remaining_shutdown_budget(...) * HOOK_BUDGET_FRACTION)`` bound -- recording
-    ``SHUTDOWN_HOOK_FAILED`` and letting ``_shutdown_body()`` proceed through its later stages --
-    rather than losing the race to the coordinator's own outer ``asyncio.wait([body_task],
-    timeout=timeout)`` bound.
+    """A resource's own hanging hook must resolve via ``run_hooks()``'s
+    ``asyncio.timeout(hooks_pool_remaining(...))`` bound — recording ``SHUTDOWN_HOOK_FAILED``
+    and letting ``_shutdown_body()`` proceed through its later stages — rather than losing the
+    race to the coordinator's own outer ``asyncio.wait([body_task], timeout=timeout)`` bound.
 
-    Without ``HOOK_BUDGET_FRACTION``, a hook that consumes its entire sub-budget computes an
-    inner ``asyncio.timeout()`` deadline of ``now + (deadline - now) == deadline`` -- the exact
-    same absolute instant as the coordinator's own outer bound, since both are ultimately derived
-    from the same ``resource._shutdown_deadline``. Which of two ``asyncio`` timer callbacks
-    scheduled for the identical ``when`` value runs first is an implementation detail of the
-    event loop, not a documented guarantee -- so correctness must not depend on it.
-    ``HOOK_BUDGET_FRACTION`` removes the exact tie by construction, independent of how any given
-    ``asyncio`` implementation happens to break it today.
+    The up-front budget's ``COORDINATOR_MARGIN_FRACTION`` guarantees that the body's stages
+    (hooks pool + mandatory tail) finish before the coordinator's outer wait, so the hook's
+    inner timeout always fires first by construction.
     """
     hassette = make_mock_hassette(sealed=False)
     hassette.config.lifecycle.resource_shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
@@ -418,13 +412,13 @@ class TrulyResistantChild(Resource):
     """Resource whose ``on_shutdown()`` catches its own cancellation and re-blocks forever.
 
     Distinct from ``HangingChild``: a plain ``Event().wait()`` with no ``except CancelledError``
-    is now caught by ``run_hooks()``'s own ``asyncio.timeout(remaining_shutdown_budget(...))``
-    bound (``bound_to_shutdown_budget=True`` in ``base.py``'s ``_shutdown_body()``) and resolves
-    with a ``TimeoutError`` inside the shutdown body itself -- it no longer needs the outer
-    coordinator to force-cancel it. Swallowing the injected ``CancelledError`` and re-awaiting a
-    fresh ``Event().wait()`` genuinely resists that inner bound too (the timeout context manager
-    only injects cancellation once), so this is what still exercises the coordinator's own
-    external force-cancel fallback this test targets.
+    is caught by ``run_hooks()``'s own ``asyncio.timeout(hooks_pool_remaining(...))`` bound
+    (``bound_to_shutdown_budget=True`` in ``base.py``'s ``_shutdown_body()``) and resolves with
+    a ``TimeoutError`` inside the shutdown body itself -- it no longer needs the outer coordinator
+    to force-cancel it. Swallowing the injected ``CancelledError`` and re-awaiting a fresh
+    ``Event().wait()`` genuinely resists that inner bound too (the timeout context manager only
+    injects cancellation once), so this is what still exercises the coordinator's own external
+    force-cancel fallback this test targets.
     """
 
     async def on_shutdown(self) -> None:
@@ -674,30 +668,17 @@ class SlowCleanupParent(SimpleParent):
 
 
 async def test_shutdown_children_uses_remaining_budget_after_slow_cleanup():
-    """Regression for the shared-deadline bug: ``Resource._run_post_hook_shutdown_stage()``
-    used to wrap ``await self.cleanup()`` in ``async with asyncio.timeout(timeout)`` using the
-    *full* ``resource_shutdown_timeout_seconds`` value, and ``_shutdown_children()`` did the
-    same for its own wait -- both blind to how much of the *shared* shutdown deadline earlier
-    stages had already spent. A slow-but-successful ``cleanup()`` plus a child that never
-    responds to shutdown could together consume far more real wall-clock time than the shared
-    deadline actually allows, because ``_shutdown_children()`` would start counting a second,
-    independent full timeout window from wherever ``cleanup()`` happened to finish.
+    """Regression: children must be bounded by the body deadline even when cleanup is slow.
 
-    ``remaining_shutdown_budget()`` fixes this: ``_shutdown_children()`` only gets whatever is
-    left of the deadline that ``cleanup()`` didn't use, so it gives up on the hanging child
-    (``CHILD_SHUTDOWN_TIMED_OUT``) close to when the *shared* deadline is reached, not a fresh
-    full timeout window later.
-
-    Called directly against ``_run_post_hook_shutdown_stage()`` with ``_shutdown_deadline`` set
-    manually to simulate what the shutdown coordinator does -- the coordinator's own outer wait
-    shares the identical ``resource_shutdown_timeout_seconds`` config value and would otherwise
-    race this inner bound (see ``test_add_child_and_restart.py``'s ``_make_unsafe_parent`` for
-    the same race explained for a plain ``shutdown()`` call, and
-    ``TestServiceShutdownBodyServeTaskPending`` in ``test_service_edge_cases.py`` for the same
-    pattern applied to ``Service._shutdown_body()``).
+    ``SlowCleanupParent.cleanup()`` takes 0.6s of real wall-clock time. With a 5.0s total
+    budget, the up-front allocation gives task-cancel 1.0s, cleanup 0.5s, and children the
+    remaining body budget (body_deadline - now). The cleanup's real 0.6s exceeds its 0.5s
+    allocation (it times out), so children start with the body_deadline already partly spent.
+    The key property: the whole post-hook stage still finishes within the body_deadline, not
+    an independent fresh timeout window after cleanup.
     """
     hassette = make_mock_hassette(sealed=False)
-    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 2.0
+    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5.0
 
     parent = SlowCleanupParent(hassette)
     hanging = parent.add_child(HangingChild)
@@ -705,29 +686,15 @@ async def test_shutdown_children_uses_remaining_budget_after_slow_cleanup():
     await hanging.initialize()
 
     loop = asyncio.get_running_loop()
-    # Simulate what the shutdown coordinator does before running _shutdown_body(): record the
-    # shared deadline for this attempt so remaining_shutdown_budget() has something to read.
-    parent._shutdown_deadline = loop.time() + 2.0
-    start = loop.time()
+    parent._shutdown_budget = compute_shutdown_budget(5.0, loop.time())
+    start_time = loop.time()
 
-    # Generous headroom over the 2.0s config bound above (see CLAUDE.md's guidance on
-    # config-driven real-clock timeouts) -- this proves boundedness, not tightness.
-    report = await asyncio.wait_for(parent._run_post_hook_shutdown_stage(), timeout=8)
-    elapsed = loop.time() - start
+    report = await asyncio.wait_for(parent._run_post_hook_shutdown_stage(), timeout=10)
+    elapsed = loop.time() - start_time
 
-    assert TeardownCause.CHILD_SHUTDOWN_TIMED_OUT in report.causes
-    # Fixed behavior lands close to the 2.0s shared deadline (~1.4s left after cleanup's 0.6s
-    # real sleep). The bug this guards against would instead give _shutdown_children() a fresh
-    # full 2.0s window on top of cleanup's 0.6s, landing at ~2.6s+ -- the 2.3s threshold sits
-    # strictly between the two with real margin on both sides, wider than a bare 0.1s cutoff
-    # over the expected-fixed value would give.
-    assert elapsed < 2.3, (
-        "_shutdown_children() must use the remaining budget (~1.4s left after cleanup's 0.6s "
-        f"real sleep), not a fresh full 2.0s window on top of it -- took {elapsed:.2f}s"
-    )
+    assert report.is_restart_safe is False, "the hanging child must produce an unsafe report"
+    assert elapsed < 5.5, f"the post-hook stage must finish within the body budget — took {elapsed:.2f}s"
 
-    # The STOPPED event must still be sent -- _run_post_hook_shutdown_stage() reaches that call
-    # unconditionally after child propagation, regardless of whether a child timed out.
     stopped_events = [
         call.args[0]
         for call in hassette.send_event.call_args_list
@@ -846,3 +813,71 @@ async def test_shutdown_children_survives_root_bucket_sealed_as_global_factory_b
     assert report.is_restart_safe is True, f"expected a clean report, got causes={report.causes}"
     assert child.shutdown_count == 1, "child's on_shutdown must have actually run"
     assert child.status == ResourceStatus.STOPPED
+
+
+class ThreeHangingHooksParent(Resource):
+    """Resource with three hook stages that all hang: ``before_shutdown``,
+    ``on_shutdown``, and ``after_shutdown`` each do ``asyncio.Event().wait()``.
+
+    The hooks pool is shared across all three. With the up-front budget
+    allocation, the pool is bounded and all three together cannot starve the
+    mandatory tail stages (task-cancel, cleanup, children).
+    """
+
+    async def before_shutdown(self) -> None:
+        await asyncio.Event().wait()
+
+    async def on_shutdown(self) -> None:
+        await asyncio.Event().wait()
+
+    async def after_shutdown(self) -> None:
+        await asyncio.Event().wait()
+
+
+async def test_multiple_hanging_hooks_cannot_starve_mandatory_tail():
+    """Worst-case budget test: three hooks all hang, verifying the mandatory tail is guaranteed.
+
+    1. All hooks time out (SHUTDOWN_HOOK_FAILED) — the hooks pool is exhausted.
+    2. The mandatory tail still runs: task-cancel completes, cleanup completes, and
+       children get their guaranteed floor (CHILD_SHUTDOWN_TIMED_OUT, not
+       SHUTDOWN_BODY_TIMED_OUT — the body finishes before the coordinator abandons it).
+    3. Total elapsed time stays within the coordinator's outer budget.
+
+    This is the test that would have caught the old waterfall compounding bug: with
+    fraction-of-remainder budgets, three hooks each taking 0.9 of the shrinking
+    remainder leave negligible time for everything after them. With up-front allocation,
+    the hooks pool is bounded and the tail reservation is guaranteed.
+    """
+    hassette = make_mock_hassette(sealed=False)
+    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5.0
+
+    parent = ThreeHangingHooksParent(hassette)
+    hanging_child = parent.add_child(HangingChild)
+    await parent.initialize()
+    await hanging_child.initialize()
+
+    loop = asyncio.get_running_loop()
+    start = loop.time()
+
+    report = await asyncio.wait_for(parent.shutdown(), timeout=10)
+
+    elapsed = loop.time() - start
+
+    assert TeardownCause.SHUTDOWN_HOOK_FAILED in report.causes, (
+        "hanging hooks must be caught by the hooks pool deadline"
+    )
+    assert TeardownCause.SHUTDOWN_BODY_TIMED_OUT not in report.causes, (
+        "the body must finish before the coordinator's outer bound — "
+        "if SHUTDOWN_BODY_TIMED_OUT appears, the mandatory tail was starved"
+    )
+    assert TeardownCause.FORCED_TERMINAL not in report.causes, (
+        "force-terminal means the coordinator gave up — the body should self-complete"
+    )
+
+    child_report = hanging_child.teardown_report
+    assert child_report is not None, "hanging child must have a teardown report"
+    assert child_report.is_restart_safe is False
+
+    assert elapsed < 5.5, (
+        f"total shutdown must stay within the 5.0s coordinator budget (with margin) — took {elapsed:.2f}s"
+    )

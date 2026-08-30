@@ -441,9 +441,8 @@ class TestShutdownTotalTimeout:
         for child in h.children:
             child._force_terminal = Mock()
 
-        # 0.5s (with the 0.9 ROOT_SHUTDOWN_BODY_TIMEOUT_FRACTION) still gives the body
-        # ~450ms to win its race against the coordinator's outer wait, matching the
-        # sibling test's precedent for real-world CI scheduling jitter headroom.
+        # 0.5s (with COORDINATOR_MARGIN_FRACTION) still gives the body enough
+        # headroom to win its race against the coordinator's outer wait.
         with hanging_shutdown_body(h, total_shutdown_timeout_seconds=0.5):
             report = await h.shutdown()
 
@@ -470,9 +469,8 @@ class TestShutdownTotalTimeout:
         for child in h.children:
             child._force_terminal = Mock(side_effect=record_and_force)
 
-        # 0.5s (with the 0.9 ROOT_SHUTDOWN_BODY_TIMEOUT_FRACTION) still gives the body
-        # ~450ms to win its race against the coordinator's outer wait, matching the
-        # sibling test's precedent for real-world CI scheduling jitter headroom.
+        # 0.5s (with COORDINATOR_MARGIN_FRACTION) still gives the body enough
+        # headroom to win its race against the coordinator's outer wait.
         with hanging_shutdown_body(h, total_shutdown_timeout_seconds=0.5):
             await h.shutdown()
 

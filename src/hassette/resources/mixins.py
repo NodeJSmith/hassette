@@ -9,6 +9,9 @@ from hassette.resources.teardown import TeardownReport
 from hassette.types.enums import ResourceStatus
 from hassette.types.types import CoroLikeT
 
+if typing.TYPE_CHECKING:
+    from hassette.resources.lifecycle import ShutdownBudget
+
 LOGGER = getLogger(__name__)
 
 
@@ -177,20 +180,15 @@ class LifecycleMixin(_LifecycleHostP):
     ``False`` has no in-process reset path.
     """
 
-    _shutdown_deadline: float | None = None
-    """Wall-clock deadline (via the running loop's ``time()``) for the current shutdown
-    attempt's ``_shutdown_body()`` call.
+    _shutdown_budget: "ShutdownBudget | None" = None
+    """Pre-computed budget allocation for the current shutdown attempt.
 
-    Set once by ``_run_shutdown_coordinator()`` (``hassette.resources.lifecycle``) right
-    before it creates the body task, using whichever ``timeout`` it already computed for that
-    attempt (``resource_shutdown_timeout_seconds`` normally, ``total_shutdown_timeout_seconds``
-    for the root resource). Every stage inside the body that would otherwise independently wait
-    up to the full per-resource timeout -- the serve-task wait in ``Service``, and
-    ``cleanup()``/``_shutdown_children()`` in ``Resource`` -- reads it via
-    ``remaining_shutdown_budget()`` instead, so no single stage can consume the whole
-    coordinator-level budget and starve the stages after it. ``None`` means no shutdown attempt
-    has recorded a deadline yet (e.g. a direct ``cleanup()`` call outside the normal coordinator
-    flow, as some tests do).
+    Set once by ``_run_shutdown_coordinator()`` (``hassette.resources.lifecycle``) via
+    ``compute_shutdown_budget()`` before any shutdown stage runs. Each stage reads its own
+    field (hooks read ``hooks_pool_deadline``, task-cancel reads ``task_cancel_seconds``, etc.)
+    instead of computing a fraction of a shrinking remainder. ``None`` means no shutdown
+    attempt has set a budget yet (e.g. a direct ``cleanup()`` call outside the normal
+    coordinator flow, as some tests do).
     """
 
     _previous_status: ResourceStatus = ResourceStatus.NOT_STARTED
@@ -210,7 +208,7 @@ class LifecycleMixin(_LifecycleHostP):
         self._shutdown_task = None
         self._shutdown_body_task = None
         self._teardown_report = None
-        self._shutdown_deadline = None
+        self._shutdown_budget = None
 
     @property
     def initializing(self) -> bool:
