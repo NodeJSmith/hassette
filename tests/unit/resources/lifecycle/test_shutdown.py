@@ -492,12 +492,20 @@ async def test_shutdown_children_timeout_preserves_finished_safe_child_report():
     point -- a child that already completed cleanly keeps its own restart-safe report unchanged,
     while the unfinished (hanging) child is force-terminated and the parent is
     restart-unsafe overall.
+
+    Uses ``TrulyResistantChild``, not ``HangingChild``: with ``bound_to_shutdown_budget=True``
+    on ``run_hooks()``, ``HangingChild.on_shutdown()`` now resolves on its own (as
+    ``SHUTDOWN_HOOK_FAILED``) at roughly the same ``resource_shutdown_timeout_seconds`` deadline
+    this test also uses for the parent's own wave-level timeout below -- an identical-deadline
+    race that made the child's own coordinator complete before (or after) the wave timeout fired,
+    non-deterministically. ``TrulyResistantChild`` never lets its shutdown hook resolve on its
+    own, so the parent's wave-level timeout is guaranteed to be what force-terminates it.
     """
     hassette = make_mock_hassette(sealed=False)
     hassette.config.lifecycle.resource_shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
 
     parent = SimpleParent(hassette)
-    hanging = parent.add_child(HangingChild)
+    hanging = parent.add_child(TrulyResistantChild)
     normal = parent.add_child(ShutdownCounter)
 
     await parent.initialize()
