@@ -19,7 +19,7 @@ vi.mock("../shared/execution-table", async () => {
 
 const { ExecutionTable } = await import("../shared/execution-table");
 
-const OK_EXECUTION: ExecutionRecord = {
+const SUCCESS_EXECUTION: ExecutionRecord = {
   execution_start_ts: 1_700_000_000,
   duration_ms: 12,
   status: "success",
@@ -64,7 +64,7 @@ describe("ExecutionSection", () => {
   });
 
   it("shows the ExecutionTable when records exist, even if loading", () => {
-    const { getByTestId, queryByTestId } = renderSection({ records: [OK_EXECUTION], loading: true });
+    const { getByTestId, queryByTestId } = renderSection({ records: [SUCCESS_EXECUTION], loading: true });
     expect(queryByTestId("spinner")).toBeNull();
     expect(getByTestId("mock-execution-table").getAttribute("data-record-count")).toBe("1");
   });
@@ -73,7 +73,7 @@ describe("ExecutionSection", () => {
     render(
       <ExecutionSection
         heading="Executions"
-        records={[OK_EXECUTION]}
+        records={[SUCCESS_EXECUTION]}
         kind="job"
         tableId="table-42"
         loading={false}
@@ -88,7 +88,7 @@ describe("ExecutionSection", () => {
     // "context" argument), so the second call arg is undefined here.
     expect(ExecutionTable).toHaveBeenCalledWith(
       expect.objectContaining({
-        records: [OK_EXECUTION],
+        records: [SUCCESS_EXECUTION],
         kind: "job",
         tableId: "table-42",
         appKey: "my_app",
