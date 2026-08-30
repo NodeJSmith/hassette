@@ -257,6 +257,46 @@ describe("HandlerHealthCard — accessibility", () => {
     expect(getByTestId("overview-health-card-listener-1").getAttribute("tabindex")).toBe("-1");
   });
 
+  it("gives tooltip triggers the card's tabIndex so a non-active card adds no tab stops", () => {
+    const item = makeListenerItem({
+      listener_id: 1,
+      total_invocations: 10,
+      failed: 3,
+      avg_duration_ms: 12,
+      last_invoked_at: 1767225600,
+      last_error_message: "boom",
+      last_error_type: "ValueError",
+    });
+    const { getByTestId } = renderWithAppState(
+      <HandlerHealthCard item={item} appKey="test_app" instanceQs="" tabIndex={-1} />,
+    );
+    const card = getByTestId("overview-health-card-listener-1");
+    const inner = Array.from(card.querySelectorAll("[tabindex]"));
+
+    expect(inner.length).toBeGreaterThan(1);
+    for (const el of inner) {
+      expect(el.getAttribute("tabindex")).toBe("-1");
+    }
+  });
+
+  it("keeps tooltip triggers tab-reachable on the active card", () => {
+    const item = makeListenerItem({
+      listener_id: 1,
+      total_invocations: 10,
+      failed: 3,
+      avg_duration_ms: 12,
+      last_invoked_at: 1767225600,
+    });
+    const { getByTestId } = renderCard(item);
+    const card = getByTestId("overview-health-card-listener-1");
+    const inner = Array.from(card.querySelectorAll("[tabindex]"));
+
+    expect(inner.length).toBeGreaterThan(1);
+    for (const el of inner) {
+      expect(el.getAttribute("tabindex")).toBe("0");
+    }
+  });
+
   it("includes a visible focus outline utility", () => {
     const item = makeListenerItem({ listener_id: 1 });
     const { getByTestId } = renderCard(item);
