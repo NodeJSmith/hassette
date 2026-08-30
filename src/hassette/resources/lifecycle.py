@@ -391,11 +391,13 @@ def remaining_shutdown_budget(resource: _LifecycleHostP, floor: float = 0.0) -> 
        ``on_shutdown``/``after_shutdown`` hooks.
     2. ``Resource._shutdown_body()`` -- ``before_shutdown``/``on_shutdown``/``after_shutdown``
        hooks. Every hook here and in step 1 runs via ``run_hooks(bound_to_shutdown_budget=True)``
-       (``operations.py``), which claims the *full* remainder per hook, not a fraction -- hooks
-       are the actual user/framework work being waited on, so a hook that genuinely needs the
-       time gets it; it is the *stages that follow* the hooks that reserve a share instead of
-       claiming everything, so those later stages are not starved by however much of the budget
-       the hooks happened to use.
+       (``operations.py``'s ``HOOK_BUDGET_FRACTION``, a large fraction of the remainder per hook,
+       not the full remainder) -- hooks are the actual user/framework work being waited on, so a
+       hook that genuinely needs the time gets nearly all of it; the fraction exists only to keep
+       a hook that consumes its entire sub-budget from racing the coordinator's own outer deadline
+       (see ``HOOK_BUDGET_FRACTION``'s docstring). The *stages that follow* the hooks reserve a
+       much smaller share instead, so those later stages are not starved by however much of the
+       budget the hooks happened to use.
     3. ``_run_task_bucket_shutdown_stage()`` (``base.py``'s ``CANCEL_BUDGET_FRACTION``, a
        fraction of what remains after the hooks).
     4. ``cleanup()`` (``base.py``'s ``CLEANUP_BUDGET_FRACTION``, a fraction of what remains

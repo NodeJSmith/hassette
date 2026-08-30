@@ -22,7 +22,7 @@ from hassette.resources import lifecycle
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import start
 from hassette.resources.operations import ordered_children_for_shutdown
-from hassette.resources.teardown import TeardownCause
+from hassette.resources.teardown import TeardownCause, TeardownReport
 from hassette.task_bucket import make_task_factory
 from hassette.test_utils import make_mock_hassette, wait_for
 from hassette.test_utils.helpers import SHORT_SHUTDOWN_TIMEOUT_SECONDS
@@ -305,6 +305,37 @@ async def test_shutdown_propagation_timeout_forces_terminal_state():
     assert normal.shutdown_completed is True
 
 
+async def test_resource_own_hanging_hook_wins_race_against_coordinator_timeout():
+    """A resource's own hanging hook (not a child's) must resolve via ``run_hooks()``'s inner
+    ``asyncio.timeout(remaining_shutdown_budget(...) * HOOK_BUDGET_FRACTION)`` bound -- recording
+    ``SHUTDOWN_HOOK_FAILED`` and letting ``_shutdown_body()`` proceed through its later stages --
+    rather than losing the race to the coordinator's own outer ``asyncio.wait([body_task],
+    timeout=timeout)`` bound.
+
+    Without ``HOOK_BUDGET_FRACTION``, a hook that consumes its entire sub-budget computes an
+    inner ``asyncio.timeout()`` deadline of ``now + (deadline - now) == deadline`` -- the exact
+    same absolute instant as the coordinator's own outer bound, since both are ultimately derived
+    from the same ``resource._shutdown_deadline``. Which of two ``asyncio`` timer callbacks
+    scheduled for the identical ``when`` value runs first is an implementation detail of the
+    event loop, not a documented guarantee -- so correctness must not depend on it.
+    ``HOOK_BUDGET_FRACTION`` removes the exact tie by construction, independent of how any given
+    ``asyncio`` implementation happens to break it today.
+    """
+    hassette = make_mock_hassette(sealed=False)
+    hassette.config.lifecycle.resource_shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
+
+    resource = HangingChild(hassette)
+    await resource.initialize()
+
+    report = await resource.shutdown()
+
+    assert TeardownCause.SHUTDOWN_HOOK_FAILED in report.causes
+    assert TeardownCause.SHUTDOWN_BODY_TIMED_OUT not in report.causes, (
+        "the hook's own inner timeout must resolve before the coordinator's outer bound fires"
+    )
+    assert TeardownCause.FORCED_TERMINAL not in report.causes
+
+
 async def test_cancelling_one_shutdown_awaiter_does_not_cancel_shared_attempt():
     """Cancelling one caller's own wrapping task around ``shutdown()`` must not cancel the
     shared ``_shutdown_task`` attempt -- the other concurrent caller still receives a normal
@@ -483,6 +514,45 @@ async def test_shutdown_children_records_child_shutdown_failed_and_continues_sib
 
     assert report.is_restart_safe is False
     assert TeardownCause.CHILD_SHUTDOWN_FAILED in report.causes
+    assert child_broken.unique_name in report.affected_resources
+    assert child_ok.shutdown_count == 1, "sibling must still complete despite the broken child"
+
+
+async def test_shutdown_children_merges_child_report_when_shutdown_raises():
+    """When a child's ``shutdown()`` call raises from *outside* its own ``_shutdown_body()`` --
+    e.g. the coordinator itself failing (``COORDINATOR_FAILED``, see
+    ``_run_shutdown_coordinator()``'s ``except Exception`` branch in ``lifecycle.py``, which
+    stores evidence on the child's own report before re-raising) -- the parent must merge that
+    already-stored report into its own aggregated report, not just record the generic
+    ``CHILD_SHUTDOWN_FAILED`` cause and drop the child's concrete cause and ``failed_operations``.
+    """
+    hassette = make_mock_hassette(sealed=False)
+    parent = SimpleParent(hassette)
+
+    child_ok = parent.add_child(ShutdownCounter)
+    child_broken = parent.add_child(ShutdownCounter)
+
+    await parent.initialize()
+    await child_ok.initialize()
+    await child_broken.initialize()
+
+    async def exploding_shutdown_with_stored_evidence():
+        # Mirrors what _run_shutdown_coordinator()'s except Exception branch does in the real
+        # flow: store evidence on the child's own report before re-raising.
+        child_broken._teardown_report = TeardownReport(
+            causes=(TeardownCause.COORDINATOR_FAILED,), failed_operations=("_run_shutdown_coordinator",)
+        )
+        raise RuntimeError("coordinator boom")
+
+    # Bypass the @final descriptor by setting on the instance dict.
+    object.__setattr__(child_broken, "shutdown", exploding_shutdown_with_stored_evidence)
+
+    report = await parent.shutdown()
+
+    assert report.is_restart_safe is False
+    assert TeardownCause.CHILD_SHUTDOWN_FAILED in report.causes
+    assert TeardownCause.COORDINATOR_FAILED in report.causes, "child's own stored cause must be merged into the parent"
+    assert "_run_shutdown_coordinator" in report.failed_operations
     assert child_broken.unique_name in report.affected_resources
     assert child_ok.shutdown_count == 1, "sibling must still complete despite the broken child"
 

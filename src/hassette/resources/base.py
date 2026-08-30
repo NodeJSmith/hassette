@@ -462,6 +462,14 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
                 self.logger.error("Child %s shutdown failed: %s", child.unique_name, result)
                 causes.append(TeardownCause.CHILD_SHUTDOWN_FAILED)
                 affected.append(child.unique_name)
+                # The coordinator stores evidence (e.g. COORDINATOR_FAILED) on the child's own
+                # report before re-raising -- see coordinate_shutdown()'s except Exception branch
+                # in lifecycle.py. Merge it in so the child's concrete cause and
+                # failed_operations survive in the parent's aggregated report instead of being
+                # replaced by only the generic CHILD_SHUTDOWN_FAILED cause.
+                child_report = child.teardown_report
+                if child_report is not None:
+                    child_reports.append(child_report)
                 continue
             child_reports.append(result)
             if not result.is_restart_safe:

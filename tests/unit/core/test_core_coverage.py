@@ -23,7 +23,7 @@ from hassette.core.core import Hassette
 from hassette.exceptions import AppPrecheckFailedError, FatalError
 from hassette.logging_ import HassetteQueueHandler, LogPersistenceHandler
 from hassette.resources.base import Resource
-from hassette.resources.teardown import TeardownCause
+from hassette.resources.teardown import TeardownCause, TeardownReport
 from hassette.test_utils import preserve_config, wait_for
 from hassette.types.enums import ResourceStatus
 from hassette.utils.url_utils import build_rest_url, build_ws_url
@@ -301,6 +301,30 @@ class TestShutdownChildren:
             if child is not h._file_watcher:
                 child.shutdown.assert_awaited_once()
         error_mock.assert_called()
+
+    async def test_merges_child_report_when_shutdown_raises(self, wired_hassette: Hassette) -> None:
+        """When a child's ``shutdown()`` call raises, its own already-stored ``teardown_report``
+        (e.g. ``COORDINATOR_FAILED``, stored by ``_run_shutdown_coordinator()``'s
+        ``except Exception`` branch before it re-raises) must be merged into the parent's
+        aggregated report -- not dropped in favor of only the generic ``CHILD_SHUTDOWN_FAILED``
+        cause.
+        """
+        h = wired_hassette
+        for child in h.children:
+            child.shutdown = AsyncMock()
+        h._file_watcher.shutdown = AsyncMock(side_effect=RuntimeError("coordinator boom"))
+        h._file_watcher._teardown_report = TeardownReport(
+            causes=(TeardownCause.COORDINATOR_FAILED,), failed_operations=("_run_shutdown_coordinator",)
+        )
+
+        result = await h._shutdown_children()
+
+        assert TeardownCause.CHILD_SHUTDOWN_FAILED in result.causes
+        assert TeardownCause.COORDINATOR_FAILED in result.causes, (
+            "child's own stored cause must be merged into the parent"
+        )
+        assert "_run_shutdown_coordinator" in result.failed_operations
+        assert h._file_watcher.unique_name in result.affected_resources
 
     async def test_force_terminates_wave_on_timeout_and_records_timed_out_cause(self, wired_hassette: Hassette) -> None:
         """_shutdown_children() force-terminates the timed-out wave's children and records
