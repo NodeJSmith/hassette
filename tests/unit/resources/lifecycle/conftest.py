@@ -33,7 +33,19 @@ class ShutdownCounter(Resource):
 
 
 class HangingChild(Resource):
-    """Resource whose shutdown hangs indefinitely."""
+    """Resource whose ``on_shutdown()`` never completes on its own — a plain, uncaught
+    ``Event().wait()``.
+
+    Since ``bound_to_shutdown_budget=True`` was added to the ``run_hooks()`` calls in
+    ``_shutdown_body()`` (PR #1723), this no longer hangs *indefinitely*: the hook is caught by
+    the shared shutdown budget's own inner ``asyncio.timeout()`` and resolves with a
+    ``TimeoutError`` (recorded as ``SHUTDOWN_HOOK_FAILED``) within roughly
+    ``resource_shutdown_timeout_seconds`` — it still never *gracefully* completes, so it remains
+    useful anywhere a test wants shutdown/child-teardown failure evidence. For a fixture that
+    genuinely resists cancellation and would still hang the whole shutdown body past the
+    coordinator's own outer wait (catches ``CancelledError`` and re-blocks), see
+    ``TrulyResistantChild`` in ``test_shutdown.py``.
+    """
 
     async def on_shutdown(self) -> None:
         await asyncio.Event().wait()

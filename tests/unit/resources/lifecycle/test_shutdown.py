@@ -19,6 +19,7 @@ import pytest
 
 from hassette.exceptions import LifecycleReentryError, RestartRefusedError
 from hassette.resources import lifecycle
+from hassette.resources.base import Resource
 from hassette.resources.lifecycle import start
 from hassette.resources.operations import ordered_children_for_shutdown
 from hassette.resources.teardown import TeardownCause
@@ -347,6 +348,26 @@ async def test_shutdown_rejects_reentrant_call_from_shutdown_hook():
     assert report is resource._teardown_report
 
 
+class TrulyResistantChild(Resource):
+    """Resource whose ``on_shutdown()`` catches its own cancellation and re-blocks forever.
+
+    Distinct from ``HangingChild``: a plain ``Event().wait()`` with no ``except CancelledError``
+    is now caught by ``run_hooks()``'s own ``asyncio.timeout(remaining_shutdown_budget(...))``
+    bound (``bound_to_shutdown_budget=True`` in ``base.py``'s ``_shutdown_body()``) and resolves
+    with a ``TimeoutError`` inside the shutdown body itself -- it no longer needs the outer
+    coordinator to force-cancel it. Swallowing the injected ``CancelledError`` and re-awaiting a
+    fresh ``Event().wait()`` genuinely resists that inner bound too (the timeout context manager
+    only injects cancellation once), so this is what still exercises the coordinator's own
+    external force-cancel fallback this test targets.
+    """
+
+    async def on_shutdown(self) -> None:
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:  # noqa: ASYNC103 -- deliberately swallowed, this is the point of the test
+            await asyncio.Event().wait()  # ignore cancellation and hang forever
+
+
 async def test_resistant_shutdown_body_is_cancelled_after_coordinator_times_out():
     """A shutdown body that outlives the coordinator's bounded observation window is cancelled
     by the coordinator itself in the timeout branch -- it is not left running as an orphaned,
@@ -355,14 +376,14 @@ async def test_resistant_shutdown_body_is_cancelled_after_coordinator_times_out(
     hassette = make_mock_hassette(sealed=False)
     hassette.config.lifecycle.resource_shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
 
-    resource = HangingChild(hassette)
+    resource = TrulyResistantChild(hassette)
     await resource.initialize()
 
     report = await resource.shutdown()
 
     # The coordinator's timeout branch calls body_task.cancel() itself before returning --
-    # the body (blocked forever on HangingChild.on_shutdown's Event().wait()) does not outlive
-    # the coordinator as an orphaned task.
+    # the body (blocked forever on TrulyResistantChild.on_shutdown()'s re-blocking Event().wait())
+    # does not outlive the coordinator as an orphaned task.
     body_task = resource._shutdown_body_task
     assert body_task is not None
     assert report.is_restart_safe is False  # timed-out/pending body is never restart-safe evidence

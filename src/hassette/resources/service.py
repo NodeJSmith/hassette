@@ -22,6 +22,13 @@ from hassette.resources.restart import RestartSpec
 from hassette.resources.teardown import TeardownCause, TeardownReport, merge_teardown_reports
 from hassette.types.enums import ResourceRole, ResourceStatus
 
+SERVE_WAIT_BUDGET_FRACTION = 0.5
+"""Fraction of what remains of the shared shutdown deadline reserved for waiting on the
+cancelled ``serve()`` task. Claiming the full remainder here (the pre-fix behavior) left nothing
+for the ``on_shutdown``/``after_shutdown`` hooks and ``_run_post_hook_shutdown_stage()`` that run
+afterward in the same ``_shutdown_body()`` — mirrors ``base.py``'s ``CANCEL_BUDGET_FRACTION``
+pattern."""
+
 
 class Service(Resource):
     """Base class for background services.
@@ -126,7 +133,9 @@ class Service(Resource):
         """NOTE: keep hook ordering in sync with Resource._shutdown_body()."""
         reports: list[TeardownReport] = []
 
-        hook_errors = await run_hooks(self, [self.before_shutdown], continue_on_error=True)
+        hook_errors = await run_hooks(
+            self, [self.before_shutdown], continue_on_error=True, bound_to_shutdown_budget=True
+        )
         if hook_errors:
             reports.append(
                 TeardownReport(causes=(TeardownCause.SHUTDOWN_HOOK_FAILED,), failed_operations=("before_shutdown",))
@@ -135,7 +144,14 @@ class Service(Resource):
         if self.is_running() and self._serve_task:
             self._serve_task.cancel()
             self.logger.debug("Cancelled serve() task")
-            timeout = remaining_shutdown_budget(self)
+            remaining = remaining_shutdown_budget(self)
+            timeout = remaining * SERVE_WAIT_BUDGET_FRACTION
+            self.logger.debug(
+                "%s: entering serve-task wait with %.2fs budgeted (%.2fs of shared deadline remained)",
+                self.unique_name,
+                timeout,
+                remaining,
+            )
             _done, pending = await asyncio.wait([self._serve_task], timeout=timeout)
             if pending:
                 self.logger.warning(
@@ -152,7 +168,9 @@ class Service(Resource):
                 with suppress(BaseException):
                     self._serve_task.exception()
 
-        hook_errors = await run_hooks(self, [self.on_shutdown, self.after_shutdown], continue_on_error=True)
+        hook_errors = await run_hooks(
+            self, [self.on_shutdown, self.after_shutdown], continue_on_error=True, bound_to_shutdown_budget=True
+        )
         if hook_errors:
             reports.append(
                 TeardownReport(causes=(TeardownCause.SHUTDOWN_HOOK_FAILED,), failed_operations=("shutdown_hooks",))

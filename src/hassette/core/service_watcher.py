@@ -529,6 +529,14 @@ class ServiceWatcher(Resource):
             if self.log_if_admission_blocked(name, role, "restart (after backoff)"):
                 return
 
+            if service.shutting_down:
+                self.logger.debug(
+                    "%s '%s' was already mid-shutdown for an unrelated reason when the watcher's "
+                    "backoff sleep ended -- restart() will join that in-flight attempt",
+                    role,
+                    name,
+                )
+
             # Step 7: Restart the service — catch and log exceptions, do NOT double-count budget.
             # Clear the in-restart guard in the finally so concurrent FAILED events cannot enter
             # restart_service() while the restart is still in progress.

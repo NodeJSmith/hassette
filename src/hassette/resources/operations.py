@@ -10,7 +10,7 @@ import typing
 from contextlib import suppress
 
 from hassette.exceptions import RestartRefusedError
-from hassette.resources.lifecycle import handle_failed, reject_lifecycle_reentry, start
+from hassette.resources.lifecycle import handle_failed, reject_lifecycle_reentry, remaining_shutdown_budget, start
 from hassette.utils.service_utils import wait_for_ready
 
 if typing.TYPE_CHECKING:
@@ -96,6 +96,7 @@ async def run_hooks(
     hooks: list[typing.Callable[[], typing.Awaitable[None]]],
     *,
     continue_on_error: bool = False,
+    bound_to_shutdown_budget: bool = False,
 ) -> "tuple[Exception, ...]":
     """Execute lifecycle hooks with error handling.
 
@@ -104,6 +105,13 @@ async def run_hooks(
         hooks: List of async callables to execute in order.
         continue_on_error: If False (initialize), re-raise on Exception.
             If True (shutdown), log and continue to next hook.
+        bound_to_shutdown_budget: If True, wrap each hook call in
+            ``asyncio.timeout(remaining_shutdown_budget(resource))`` so a hook — framework or
+            user-authored (e.g. ``App.on_shutdown()``) — cannot hang past the resource's shared
+            shutdown deadline. Only meaningful for shutdown hooks; initialize hooks pass False
+            (they run under a separate startup timeout, not this shutdown budget). A hook that
+            times out surfaces as a plain ``TimeoutError``, handled the same as any other
+            exception below.
 
     Returns:
         An immutable tuple of the exceptions handled while continuing past failed
@@ -119,7 +127,18 @@ async def run_hooks(
     handled: list[Exception] = []
     for method in hooks:
         try:
-            await method()
+            if bound_to_shutdown_budget:
+                budget = remaining_shutdown_budget(resource)
+                resource.logger.debug(
+                    "%s: entering hook %s with %.2fs of shared deadline remaining",
+                    resource.unique_name,
+                    getattr(method, "__name__", repr(method)),
+                    budget,
+                )
+                async with asyncio.timeout(budget):
+                    await method()
+            else:
+                await method()
         except asyncio.CancelledError as exc:
             if continue_on_error:
                 resource.logger.warning("Shutdown hook was cancelled, forcing cleanup")

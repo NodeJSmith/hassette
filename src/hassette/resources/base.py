@@ -32,10 +32,24 @@ from hassette.types.types import FRAMEWORK_APP_KEY_PREFIX, LOG_LEVEL_TYPE, Sourc
 from .mixins import LifecycleMixin
 
 CANCEL_BUDGET_FRACTION = 0.2
-"""Fraction of ``resource_shutdown_timeout_seconds`` used as the cancel_all timeout in
+"""Fraction of what remains of the shared shutdown deadline (``remaining_shutdown_budget()``, not
+the fixed ``resource_shutdown_timeout_seconds`` config value) used as the cancel_all timeout in
 ``_run_task_bucket_shutdown_stage()``. Kept small (20%) because nested resources each run their
 own cancel_all, and the full ``task_cancellation_timeout_seconds`` default (5s) compounding
 across parent + child reaches the 10s wave timeout."""
+
+CLEANUP_BUDGET_FRACTION = 0.5
+"""Fraction of what remains of the shared shutdown deadline (after the task-bucket cancel stage)
+reserved for ``cleanup()`` in ``_run_post_hook_shutdown_stage()``. Claiming the full remainder here
+(the pre-fix behavior) starved ``_shutdown_children()``, which always runs next and last — see
+``CHILDREN_SHUTDOWN_BUDGET_FLOOR_SECONDS`` for its own guaranteed floor."""
+
+CHILDREN_SHUTDOWN_BUDGET_FLOOR_SECONDS = 1.0
+"""Minimum seconds ``_shutdown_children()`` is guaranteed via ``remaining_shutdown_budget()``'s
+``floor`` argument, regardless of how much of the shared shutdown budget earlier stages (hooks,
+task-bucket cancel, ``cleanup()``) already consumed. Children run unconditionally last and can
+independently own DB connections, sockets, or sync-executor threads — they must never be started
+with ~0 seconds left just because an earlier stage happened to run long."""
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
@@ -401,8 +415,17 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         - A wave that exceeds the shutdown timeout adds ``CHILD_SHUTDOWN_TIMED_OUT`` and
           force-terminates only the children still unfinished at that point; a child that
           already completed keeps its own (possibly restart-safe) report unchanged.
+
+        Guaranteed at least ``CHILDREN_SHUTDOWN_BUDGET_FLOOR_SECONDS`` via ``remaining_shutdown_budget()``'s
+        ``floor`` argument — this stage runs unconditionally last, so it must never start with ~0
+        seconds left just because ``cleanup()`` or an earlier hook consumed the rest.
         """
-        timeout = remaining_shutdown_budget(self)
+        timeout = remaining_shutdown_budget(self, floor=CHILDREN_SHUTDOWN_BUDGET_FLOOR_SECONDS)
+        self.logger.debug(
+            "%s: entering _shutdown_children() with %.2fs budgeted",
+            self.unique_name,
+            timeout,
+        )
         children = ordered_children_for_shutdown(self)
         if not children:
             return TeardownReport()
@@ -464,7 +487,14 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         inside a coordinator that runs inside a wave — all sharing the same wall-clock budget.
         """
         self.task_bucket.seal()
-        cancel_budget = remaining_shutdown_budget(self) * CANCEL_BUDGET_FRACTION
+        remaining = remaining_shutdown_budget(self)
+        cancel_budget = remaining * CANCEL_BUDGET_FRACTION
+        self.logger.debug(
+            "%s: entering task-bucket cancel with %.2fs budgeted (%.2fs of shared deadline remained)",
+            self.unique_name,
+            cancel_budget,
+            remaining,
+        )
         await self.task_bucket.cancel_all(timeout=cancel_budget)
         pending = self.task_bucket.pending_task_names()
         if pending:
@@ -482,7 +512,14 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         """
         reports: list[TeardownReport] = [await self._run_task_bucket_shutdown_stage()]
 
-        timeout = remaining_shutdown_budget(self)
+        remaining = remaining_shutdown_budget(self)
+        timeout = remaining * CLEANUP_BUDGET_FRACTION
+        self.logger.debug(
+            "%s: entering cleanup() with %.2fs budgeted (%.2fs of shared deadline remained)",
+            self.unique_name,
+            timeout,
+            remaining,
+        )
         try:
             async with asyncio.timeout(timeout):
                 await self.cleanup()
@@ -595,6 +632,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
             self,
             [self.before_shutdown, self.on_shutdown, self.after_shutdown],
             continue_on_error=True,
+            bound_to_shutdown_budget=True,
         )
         hook_report = (
             TeardownReport(causes=(TeardownCause.SHUTDOWN_HOOK_FAILED,), failed_operations=("shutdown_hooks",))

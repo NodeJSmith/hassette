@@ -190,13 +190,20 @@ class SleepingChild(Resource):
     """Non-root resource whose shutdown body sleeps for a configurable duration.
 
     Companion fixture to `RootIdentityResource` — same shape, but `resource is resource.hassette`
-    is always `False`, so it exercises the generic (non-root) timeout branch.
+    is always `False`, so it exercises the generic (non-root) timeout branch. Sleeps directly in
+    ``_shutdown_body()`` rather than in an ``on_shutdown()`` hook, matching
+    ``RootIdentityResource``'s own override -- shutdown hooks are now individually bounded by the
+    shared shutdown budget (``bound_to_shutdown_budget=True`` in ``base.py``'s
+    ``_shutdown_body()``), which would resolve a hook-level sleep from *inside* the body before
+    the coordinator's own outer wait ever gets a chance to fire, defeating the point of this
+    fixture as a test of the outer-wait config selection.
     """
 
     _shutdown_sleep: float = 0.0
 
-    async def on_shutdown(self) -> None:
+    async def _shutdown_body(self) -> "TeardownReport":
         await asyncio.sleep(self._shutdown_sleep)
+        return await super()._shutdown_body()
 
 
 async def test_root_identity_uses_total_timeout_not_resource_timeout(tmp_path):

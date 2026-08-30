@@ -569,3 +569,47 @@ Test harnesses must construct fresh resources after a completed teardown. `reset
 ## Open Questions
 
 None. Sync-thread ownership, app replacement, root-wide admission, frontend telemetry, and enforced process death are accepted exclusions rather than unresolved design decisions.
+
+## Addendum
+
+### 2026-08-30: Wave-level shutdown timeout is a deliberate, accepted trade-off
+
+Edge Case (line 108) covers a wave timing out *after* some children have already fully
+completed, but does not name the narrower case: `_shutdown_children()` (and `Hassette`'s own
+wave-based override in `core.py`) wraps an entire wave's `asyncio.gather()` in one shared
+`asyncio.timeout()`. There is no per-child timeout and no salvage path for a child that is
+milliseconds from finishing on its own when the wave deadline fires — on timeout, every child in
+that wave without an already-recorded `teardown_report` is force-terminated, including ones that
+would have completed cleanly within the same event-loop tick.
+
+This is an accepted trade-off, not a gap to close: co-scheduled siblings sharing one wave-level
+timeout is a deliberate simplification. Correctly distinguishing "about to finish" from "actually
+hung" would require per-task completion checking (e.g. `asyncio.wait(child_tasks, timeout=...,
+return_when=ALL_COMPLETED)` plus a done-check race against `force_terminal()`) — real
+implementation complexity for a narrow edge case whose worst outcome is a technically-fine
+child's teardown evidence being labeled force-terminated instead of gracefully-completed, not a
+correctness or data-loss risk. Revisit only if this narrow mislabeling actually causes a concrete
+observed problem (a flaky test, a confusing production report) — that gives a real trigger to
+design the fix against, rather than guessing at the right shape now.
+
+### 2026-08-30: A bare teardown timeout also forecloses transient backoff/cooldown recovery
+
+Key Constraints (line 159, "No public or test-only reset may clear a report with
+`is_restart_safe` `False`") is written for the case this design targets: a coroutine that
+provably ignores cancellation. `RestartSpec`/`RestartBudget` already model transient-vs-permanent
+failure for ordinary `FAILED`/`CRASHED` service-loop failures (retry with backoff, exhaust-and-
+shutdown, mark-dead-but-recoverable). Teardown/shutdown timeout is a second failure axis this
+design introduces with no equivalent distinction: any `SHUTDOWN_BODY_TIMED_OUT`,
+`CLEANUP_TIMED_OUT`, or `TASKS_PENDING` cause makes `is_restart_safe` permanently `False`, with no
+in-process reset path, regardless of whether the timeout came from a genuinely-wedged coroutine or
+from ordinary budget pressure (a GC pause, a co-located app's CPU spike, or — before the 2026-08-30
+budget-accounting fix above — one stage structurally starving another). `handle_restart_refused()`
+escalates straight to fatal process shutdown on the *first* `RestartRefusedError`, with no budget,
+retry, or cooldown of its own.
+
+This is an acknowledged gap, not a decision reversal: a first-strike/second-strike distinction
+(one isolated timeout gets standard `RestartSpec` transient handling; only a repeated or
+confirmed-resistant one escalates to permanent refusal) would be a real architecture change to the
+restart-safety model, and this design already explicitly rejects a full generation-scoped
+lifecycle controller as overkill (see Alternatives Considered). Recorded here so a future incident
+where a transient timeout wedges a resource permanently isn't a surprise.

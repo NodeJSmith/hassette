@@ -381,6 +381,29 @@ def remaining_shutdown_budget(resource: _LifecycleHostP, floor: float = 0.0) -> 
     it. Falls back to the full per-resource timeout when no shutdown attempt has recorded a
     deadline yet -- e.g. a direct ``cleanup()`` call outside the normal coordinator flow (some
     tests do this).
+
+    Every consumer reads this same shrinking value, but does not treat it the same way -- this
+    is the one place that ties the whole per-resource waterfall together (in execution order
+    within a single ``_shutdown_body()`` call):
+
+    1. ``Service._shutdown_body()`` only -- the ``before_shutdown`` hook, then the serve-task
+       wait (``service.py``'s ``SERVE_WAIT_BUDGET_FRACTION``, a fraction), then the
+       ``on_shutdown``/``after_shutdown`` hooks.
+    2. ``Resource._shutdown_body()`` -- ``before_shutdown``/``on_shutdown``/``after_shutdown``
+       hooks. Every hook here and in step 1 runs via ``run_hooks(bound_to_shutdown_budget=True)``
+       (``operations.py``), which claims the *full* remainder per hook, not a fraction -- hooks
+       are the actual user/framework work being waited on, so a hook that genuinely needs the
+       time gets it; it is the *stages that follow* the hooks that reserve a share instead of
+       claiming everything, so those later stages are not starved by however much of the budget
+       the hooks happened to use.
+    3. ``_run_task_bucket_shutdown_stage()`` (``base.py``'s ``CANCEL_BUDGET_FRACTION``, a
+       fraction of what remains after the hooks).
+    4. ``cleanup()`` (``base.py``'s ``CLEANUP_BUDGET_FRACTION``, a fraction of what remains
+       after task-bucket cancel).
+    5. ``_shutdown_children()`` -- always last, so it is the stage most exposed to starvation by
+       every stage before it; guaranteed at least ``base.py``'s
+       ``CHILDREN_SHUTDOWN_BUDGET_FLOOR_SECONDS`` via this function's own ``floor`` argument,
+       regardless of how much the earlier stages already spent.
     """
     resource = typing.cast("LifecycleMixin", resource)
     deadline = resource._shutdown_deadline
