@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createJob, createListener } from "../../test/factories";
 import { createWouterMock } from "../../test/mock-wouter";
 import { renderWithAppState } from "../../test/render-helpers";
+import type { HandlerKind } from "../../utils/app-routes";
 import { HandlerHealthCard } from "./handler-health-card";
 import { buildItems } from "./handler-list";
 
@@ -14,8 +15,8 @@ vi.mock("wouter", () => createWouterMock({ useLocation: () => ["/", mockNavigate
 
 const APP_KEY = "my_app";
 
-const cardTestId = (kind: "listener" | "job", id: number) => `overview-health-card-${kind}-${id}`;
-const handlerRoute = (kind: "listener" | "job", id: number) => `/apps/${APP_KEY}/handlers/${kind}/${id}`;
+const cardTestId = (kind: HandlerKind, id: number) => `overview-health-card-${kind}-${id}`;
+const handlerRoute = (kind: HandlerKind, id: number) => `/apps/${APP_KEY}/handlers/${kind}/${id}`;
 
 function makeListenerItem(overrides: Parameters<typeof createListener>[0] = {}) {
   const listener = createListener({ listener_id: 1, ...overrides });
@@ -27,7 +28,7 @@ function makeJobItem(overrides: Parameters<typeof createJob>[0] = {}) {
   return buildItems([], [job])[0];
 }
 
-function renderCard(item: ReturnType<typeof buildItems>[number], { appKey = "test_app", instanceQs = "" } = {}) {
+function renderCard(item: ReturnType<typeof buildItems>[number], { appKey = APP_KEY, instanceQs = "" } = {}) {
   return renderWithAppState(<HandlerHealthCard item={item} appKey={appKey} instanceQs={instanceQs} tabIndex={0} />);
 }
 
@@ -35,36 +36,38 @@ beforeEach(() => {
   mockNavigate.mockClear();
 });
 
-it("renders listener name, kind chip, and run count", () => {
-  const item = makeListenerItem({
-    listener_id: 42,
-    handler_method: "on_motion",
-    listener_kind: "state change",
-    total_invocations: 5,
-    failed: 0,
-    timed_out: 0,
+describe("HandlerHealthCard — name, kind chip, and run count", () => {
+  it("renders listener name, kind chip, and run count", () => {
+    const item = makeListenerItem({
+      listener_id: 42,
+      handler_method: "on_motion",
+      listener_kind: "state change",
+      total_invocations: 5,
+      failed: 0,
+      timed_out: 0,
+    });
+    const { container, getByText } = renderCard(item);
+
+    expect(container.textContent).toContain("on_motion");
+    expect(getByText("state change")).toBeDefined();
+    expect(container.textContent).toContain("5 calls");
   });
-  const { container, getByText } = renderCard(item);
 
-  expect(container.textContent).toContain("on_motion");
-  expect(getByText("state change")).toBeDefined();
-  expect(container.textContent).toContain("5 calls");
-});
+  it("renders job name, kind chip, and run count", () => {
+    const item = makeJobItem({
+      job_id: 7,
+      job_name: "my_task",
+      trigger_type: "interval",
+      total_executions: 3,
+      failed: 0,
+      timed_out: 0,
+    });
+    const { container, getByText } = renderCard(item);
 
-it("renders job name, kind chip, and run count", () => {
-  const item = makeJobItem({
-    job_id: 7,
-    job_name: "my_task",
-    trigger_type: "interval",
-    total_executions: 3,
-    failed: 0,
-    timed_out: 0,
+    expect(container.textContent).toContain("my_task");
+    expect(getByText("interval")).toBeDefined();
+    expect(container.textContent).toContain("3 runs");
   });
-  const { container, getByText } = renderCard(item);
-
-  expect(container.textContent).toContain("my_task");
-  expect(getByText("interval")).toBeDefined();
-  expect(container.textContent).toContain("3 runs");
 });
 
 describe("HandlerHealthCard — error display", () => {
@@ -240,7 +243,7 @@ describe("HandlerHealthCard — accessibility", () => {
   it("renders the provided tabIndex", () => {
     const item = makeListenerItem({ listener_id: 1 });
     const { getByTestId } = renderWithAppState(
-      <HandlerHealthCard item={item} appKey="test_app" instanceQs="" tabIndex={-1} />,
+      <HandlerHealthCard item={item} appKey={APP_KEY} instanceQs="" tabIndex={-1} />,
     );
     expect(getByTestId(cardTestId("listener", 1)).getAttribute("tabindex")).toBe("-1");
   });
