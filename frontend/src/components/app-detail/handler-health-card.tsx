@@ -21,14 +21,14 @@ import {
 } from "./overview-tab-helpers";
 import type { UnifiedItem } from "./unified-handler-row";
 
+const STAT_ROW_CLASS = "flex gap-3 font-mono text-[length:var(--text-mono-sm)] text-muted-foreground";
+
 interface HandlerHealthCardProps {
   item: UnifiedItem;
   appKey: string;
   instanceQs: string;
   tabIndex: 0 | -1;
 }
-
-const STAT_ROW_CLASS = "flex gap-3 font-mono text-[length:var(--text-mono-sm)] text-muted-foreground";
 
 interface StatTooltipProps {
   label: string;
