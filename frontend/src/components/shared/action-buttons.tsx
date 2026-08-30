@@ -15,17 +15,10 @@ import {
 import { Button } from "@/components/ui/button";
 
 import { reloadApp, startApp, stopApp } from "../../api/endpoints";
-import type { components } from "../../api/generated-types";
 import { useAsyncAction } from "../../hooks/use-async-action";
+import type { ActionButtonStatusKey } from "../../utils/status";
 import { CAN_START, CAN_STOP, isReloadableStatus } from "../../utils/status";
 import { IconPlay, IconRefresh, IconSquare } from "./icons";
-
-type ManifestStatus = components["schemas"]["ManifestStatus"];
-type ResourceStatus = components["schemas"]["ResourceStatus"];
-
-// "unknown" is a defensive placeholder the app-detail page passes while a status hasn't
-// loaded yet (see `AppDetailPage`'s `liveStatus` selector) — not a backend enum value.
-type AppStatus = ManifestStatus | ResourceStatus | "unknown";
 
 // `verb` reads as "Failed to <verb>", `outcome` as "App "<key>" <outcome>".
 const ACTIONS = {
@@ -62,7 +55,7 @@ async function performAction(appKey: string, name: ActionName) {
   toast.success(`App "${appKey}" ${outcome}`);
 }
 
-function buildButtonSpecs(status: AppStatus, onClick: Record<ActionName, () => void>): ActionButtonSpec[] {
+function buildButtonSpecs(status: ActionButtonStatusKey, handlers: Record<ActionName, () => void>): ActionButtonSpec[] {
   return [
     {
       action: "start",
@@ -72,7 +65,7 @@ function buildButtonSpecs(status: AppStatus, onClick: Record<ActionName, () => v
       icon: <IconPlay />,
       label: "Start",
       ariaLabel: "Start app",
-      onClick: onClick.start,
+      onClick: handlers.start,
     },
     {
       action: "reload",
@@ -82,7 +75,7 @@ function buildButtonSpecs(status: AppStatus, onClick: Record<ActionName, () => v
       icon: <IconRefresh />,
       label: "Reload",
       ariaLabel: "Reload app",
-      onClick: onClick.reload,
+      onClick: handlers.reload,
     },
     {
       action: "stop",
@@ -92,7 +85,7 @@ function buildButtonSpecs(status: AppStatus, onClick: Record<ActionName, () => v
       icon: <IconSquare />,
       label: "Stop",
       ariaLabel: "Stop app",
-      onClick: onClick.stop,
+      onClick: handlers.stop,
     },
   ];
 }
@@ -156,7 +149,9 @@ function StopConfirmDialog({ appKey, open, onOpenChange, onConfirm }: StopConfir
 
 interface Props {
   appKey: string;
-  status: AppStatus;
+  // `unknown` is a defensive placeholder the app-detail page passes while a status hasn't
+  // loaded yet (see `AppDetailPage`'s `liveStatus` selector) — not a backend enum value.
+  status: ActionButtonStatusKey;
   variant?: "icon" | "text";
   confirmStop?: boolean;
 }

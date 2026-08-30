@@ -213,6 +213,7 @@ describe("ExecutionTable", () => {
     await user.click(row);
     expect(mockNavigate).not.toHaveBeenCalled();
   });
+
   it("moves the roving tabindex between rows with arrow keys", async () => {
     const user = userEvent.setup();
     const records = [

@@ -43,8 +43,9 @@ export function isFailureStatus(status: ManifestStatus | ResourceStatus): boolea
   return IS_FAILURE_STATUS[status] ?? false;
 }
 
-/** Status key type for the per-app Start/Stop action-enablement maps below. */
-type ActionButtonStatusKey = ManifestStatus | ResourceStatus | UnknownStatus;
+/** Status key type for the per-app Start/Stop action-enablement maps below, and for
+ * `ActionButtons`' own `status` prop. */
+export type ActionButtonStatusKey = ManifestStatus | ResourceStatus | UnknownStatus;
 
 /**
  * True for statuses from which "Start" is a valid action. Record/satisfies instead of an ad hoc
