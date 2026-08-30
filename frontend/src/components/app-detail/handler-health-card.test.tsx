@@ -161,17 +161,19 @@ describe("HandlerHealthCard — avg duration", () => {
   });
 });
 
-it("omits last active when timestamp is null", () => {
-  const item = makeListenerItem({
-    listener_id: 1,
-    last_invoked_at: null,
-    failed: 0,
-    timed_out: 0,
-  });
-  const { container } = renderCard(item);
+describe("HandlerHealthCard — last active", () => {
+  it("omits last active when timestamp is null", () => {
+    const item = makeListenerItem({
+      listener_id: 1,
+      last_invoked_at: null,
+      failed: 0,
+      timed_out: 0,
+    });
+    const { container } = renderCard(item);
 
-  expect(container.textContent).not.toContain("ago");
-  expect(container.textContent).not.toContain("—");
+    expect(container.textContent).not.toContain("ago");
+    expect(container.textContent).not.toContain("—");
+  });
 });
 
 describe("HandlerHealthCard — card click navigation", () => {
@@ -224,15 +226,15 @@ describe("HandlerHealthCard — Enter key navigation", () => {
   });
 });
 
-it("renders handler name as a span, not an anchor", () => {
-  const item = makeListenerItem({ listener_id: 6 });
-  const { container } = renderCard(item);
-
-  expect(container.querySelector("a")).toBeNull();
-  expect(container.textContent).toContain("on_state_change");
-});
-
 describe("HandlerHealthCard — accessibility", () => {
+  it("renders handler name as a span, not an anchor", () => {
+    const item = makeListenerItem({ listener_id: 6 });
+    const { container } = renderCard(item);
+
+    expect(container.querySelector("a")).toBeNull();
+    expect(container.textContent).toContain("on_state_change");
+  });
+
   it("has role=button and aria-label for screen readers", () => {
     const item = makeListenerItem({ listener_id: 1, handler_method: "on_motion" });
     const { getByRole } = renderCard(item);
