@@ -1,4 +1,5 @@
 import { render } from "@testing-library/react";
+import type { ComponentProps } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { ExecutionRecord } from "../shared/execution-table";
@@ -18,7 +19,7 @@ vi.mock("../shared/execution-table", async () => {
 
 const { ExecutionTable } = await import("../shared/execution-table");
 
-const RECORD: ExecutionRecord = {
+const OK_EXECUTION: ExecutionRecord = {
   execution_start_ts: 1_700_000_000,
   duration_ms: 12,
   status: "success",
@@ -27,38 +28,43 @@ const RECORD: ExecutionRecord = {
   thread_leaked: false,
 };
 
+function renderSection(overrides: Partial<ComponentProps<typeof ExecutionSection>> = {}) {
+  return render(
+    <ExecutionSection
+      heading="Executions"
+      records={[]}
+      kind="handler"
+      tableId="table-1"
+      loading={false}
+      {...overrides}
+    />,
+  );
+}
+
 describe("ExecutionSection", () => {
   afterEach(() => {
     vi.clearAllMocks();
   });
 
   it("renders the heading text", () => {
-    const { getByRole } = render(
-      <ExecutionSection heading="Executions" records={[]} kind="handler" tableId="table-1" loading={false} />,
-    );
+    const { getByRole } = renderSection();
     expect(getByRole("heading", { level: 3 }).textContent).toBe("Executions");
   });
 
   it("shows a spinner when loading and records is undefined", () => {
-    const { getByTestId, queryByTestId } = render(
-      <ExecutionSection heading="Executions" records={undefined} kind="handler" tableId="table-1" loading={true} />,
-    );
+    const { getByTestId, queryByTestId } = renderSection({ records: undefined, loading: true });
     expect(getByTestId("spinner")).not.toBeNull();
     expect(queryByTestId("mock-execution-table")).toBeNull();
   });
 
   it("shows the ExecutionTable when records is an empty array (loaded but empty)", () => {
-    const { getByTestId, queryByTestId } = render(
-      <ExecutionSection heading="Executions" records={[]} kind="handler" tableId="table-1" loading={true} />,
-    );
+    const { getByTestId, queryByTestId } = renderSection({ records: [], loading: true });
     expect(queryByTestId("spinner")).toBeNull();
     expect(getByTestId("mock-execution-table").getAttribute("data-record-count")).toBe("0");
   });
 
   it("shows the ExecutionTable when records exist, even if loading", () => {
-    const { getByTestId, queryByTestId } = render(
-      <ExecutionSection heading="Executions" records={[RECORD]} kind="handler" tableId="table-1" loading={true} />,
-    );
+    const { getByTestId, queryByTestId } = renderSection({ records: [OK_EXECUTION], loading: true });
     expect(queryByTestId("spinner")).toBeNull();
     expect(getByTestId("mock-execution-table").getAttribute("data-record-count")).toBe("1");
   });
@@ -67,7 +73,7 @@ describe("ExecutionSection", () => {
     render(
       <ExecutionSection
         heading="Executions"
-        records={[RECORD]}
+        records={[OK_EXECUTION]}
         kind="job"
         tableId="table-42"
         loading={false}
@@ -82,7 +88,7 @@ describe("ExecutionSection", () => {
     // "context" argument), so the second call arg is undefined here.
     expect(ExecutionTable).toHaveBeenCalledWith(
       expect.objectContaining({
-        records: [RECORD],
+        records: [OK_EXECUTION],
         kind: "job",
         tableId: "table-42",
         appKey: "my_app",
