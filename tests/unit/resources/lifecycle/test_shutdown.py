@@ -128,6 +128,41 @@ async def test_shutdown_immediately_after_start_does_not_leave_resource_running(
     assert resource._pending_start_task is None
 
 
+async def test_shutdown_after_completed_shutdown_cancels_queued_start():
+    """A shutdown() called immediately after start(), on a resource that already completed a
+    prior clean shutdown, must not be overtaken by that pending start either.
+
+    Regression test: distinct from ``test_shutdown_immediately_after_start_does_not_leave_
+    resource_running`` above, which covers the *first* shutdown attempt (``_shutdown_task`` is
+    still ``None`` at that point, so ``coordinate_shutdown()`` creates a fresh coordinator that
+    calls ``_observe_active_initializer()`` and cancels the pending joiner). Here the resource
+    has already shut down once, so ``_shutdown_task`` is a *completed* task -- it stays that way
+    until the next accepted ``initialize()`` attempt consumes the report and clears it (see
+    ``coordinate_initialize()``). Without the ``elif task.done():`` branch in
+    ``coordinate_shutdown()``, this second ``shutdown()`` call would see a non-``None`` task and
+    simply return the already-stored report without ever cancelling the newly-queued
+    ``_pending_start_task`` -- letting that joiner resume afterward, consume the report, and
+    initialize the resource despite the explicit shutdown having already returned.
+    """
+    hassette = make_mock_hassette(sealed=False)
+    resource = ConcreteResource(hassette=hassette)
+
+    await resource.initialize()
+    first_report = await resource.shutdown()
+    assert first_report.is_restart_safe is True
+
+    start(resource)
+    # No await between start() and shutdown(): the joiner has not had an event-loop turn yet.
+    second_report = await resource.shutdown()
+
+    assert second_report.is_restart_safe is True
+    assert resource.status == ResourceStatus.STOPPED, (
+        f"resource must stay STOPPED after the second explicit shutdown, got {resource.status}"
+    )
+    assert resource._init_task is None or resource._init_task.done()
+    assert resource._pending_start_task is None
+
+
 async def test_ordered_children_for_shutdown_returns_reversed():
     """ordered_children_for_shutdown() returns children in reverse insertion order."""
     hassette = make_mock_hassette(sealed=False)

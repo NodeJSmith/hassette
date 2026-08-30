@@ -476,19 +476,14 @@ async def coordinate_initialize(resource: _LifecycleHostP) -> None:
     await asyncio.shield(init_task)
 
 
-async def _observe_active_initializer(resource: "LifecycleMixin") -> bool:
-    """Cancel and bound-observe an active ``_init_task`` before shutdown hooks run.
+async def _cancel_pending_start(resource: "LifecycleMixin") -> None:
+    """Cancel and await a still-queued ``start()`` joiner (``_pending_start_task``), if any.
 
-    Also cancels a still-pending ``start()`` joiner (``_pending_start_task``) first, before it
-    has had a chance to run ``coordinate_initialize()`` and create ``_init_task`` at all -- see
-    ``_pending_start_task``'s docstring for the race this closes. Cancelling the joiner here is
-    safe even once ``_init_task`` already exists: the joiner is only ever awaited internally (via
-    ``coordinate_initialize()``'s own ``asyncio.shield(init_task)``), so interrupting its outer
-    await never affects ``_init_task`` itself, which the check below continues to own.
-
-    Returns ``True`` when the initializer was still pending after the bounded wait (adds
-    ``TeardownCause.INITIALIZATION_TASK_PENDING`` to the shutdown report), ``False`` otherwise
-    (including when there was no active initializer to observe).
+    Safe to call whether or not the joiner has had an event-loop turn yet: cancelling before its
+    first turn prevents the coroutine body (including ``coordinate_initialize()``'s synchronous
+    admission mutations) from ever running at all, and cancelling it mid-flight is observed here
+    via the bare ``await`` under ``suppress(BaseException)``. See ``_pending_start_task``'s
+    docstring for the shutdown race this closes.
     """
     pending_start = resource._pending_start_task
     if pending_start is not None and not pending_start.done():
@@ -496,6 +491,23 @@ async def _observe_active_initializer(resource: "LifecycleMixin") -> bool:
         with suppress(BaseException):
             await pending_start
     resource._pending_start_task = None
+
+
+async def _observe_active_initializer(resource: "LifecycleMixin") -> bool:
+    """Cancel and bound-observe an active ``_init_task`` before shutdown hooks run.
+
+    Also cancels a still-pending ``start()`` joiner (``_pending_start_task``) first, via
+    ``_cancel_pending_start()``, before it has had a chance to run ``coordinate_initialize()``
+    and create ``_init_task`` at all. Cancelling the joiner here is safe even once ``_init_task``
+    already exists: the joiner is only ever awaited internally (via ``coordinate_initialize()``'s
+    own ``asyncio.shield(init_task)``), so interrupting its outer await never affects ``_init_task``
+    itself, which the check below continues to own.
+
+    Returns ``True`` when the initializer was still pending after the bounded wait (adds
+    ``TeardownCause.INITIALIZATION_TASK_PENDING`` to the shutdown report), ``False`` otherwise
+    (including when there was no active initializer to observe).
+    """
+    await _cancel_pending_start(resource)
 
     init_task = resource._init_task
     if init_task is None or init_task.done():
@@ -648,6 +660,18 @@ async def coordinate_shutdown(resource: _LifecycleHostP) -> TeardownReport:
     repeated) shields and awaits that same task, so a repeated call after completion returns
     the stored report without rerunning hooks. Task selection and assignment happen without an
     intervening ``await`` so the check-and-create step is atomic on the event loop.
+
+    A completed ``_shutdown_task`` is reused as-is *unless* ``start()`` has queued a joiner
+    (``_pending_start_task``) that has not run ``coordinate_initialize()`` yet -- ``_shutdown_task``
+    only gets cleared once that joiner's accepted attempt actually runs (see
+    ``coordinate_initialize()``), which can be a full event-loop turn later. Without cancelling
+    that joiner here too, this call would return the already-stored clean report while the still-
+    queued joiner goes on to initialize the resource behind its back, leaving it running after an
+    explicit shutdown already returned. This calls the same ``_cancel_pending_start()`` helper
+    ``_observe_active_initializer()`` uses for the *first* shutdown attempt (``_shutdown_task``
+    still ``None``) -- but deliberately does not rerun the full coordinator/body: this call has
+    already completed and rerunning it would fire ``on_shutdown()`` hooks and emit STOPPED a
+    second time, violating this method's own "never reruns hooks" contract above.
     """
     resource = typing.cast("LifecycleMixin", resource)
     reject_lifecycle_reentry(resource, "shutdown")
@@ -659,5 +683,7 @@ async def coordinate_shutdown(resource: _LifecycleHostP) -> TeardownReport:
         )
         _install_exception_observer(resource, task, "shutdown coordinator")
         resource._shutdown_task = task
+    elif task.done():
+        await _cancel_pending_start(resource)
 
     return await asyncio.shield(task)
