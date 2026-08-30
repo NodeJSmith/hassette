@@ -1,5 +1,5 @@
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createJob, createListener } from "../../test/factories";
 import { createWouterMock } from "../../test/mock-wouter";
@@ -11,6 +11,11 @@ import { buildItems } from "./handler-list";
 const mockNavigate = vi.fn();
 
 vi.mock("wouter", () => createWouterMock({ useLocation: () => ["/", mockNavigate] }));
+
+const APP_KEY = "my_app";
+
+const cardTestId = (kind: "listener" | "job", id: number) => `overview-health-card-${kind}-${id}`;
+const handlerRoute = (kind: "listener" | "job", id: number) => `/apps/${APP_KEY}/handlers/${kind}/${id}`;
 
 function makeListenerItem(overrides: Parameters<typeof createListener>[0] = {}) {
   const listener = createListener({ listener_id: 1, ...overrides });
@@ -26,43 +31,43 @@ function renderCard(item: ReturnType<typeof buildItems>[number], { appKey = "tes
   return renderWithAppState(<HandlerHealthCard item={item} appKey={appKey} instanceQs={instanceQs} tabIndex={0} />);
 }
 
-describe("HandlerHealthCard — healthy listener", () => {
-  it("renders handler name, kind chip, and run count", () => {
-    const item = makeListenerItem({
-      listener_id: 42,
-      handler_method: "on_motion",
-      listener_kind: "state change",
-      total_invocations: 5,
-      failed: 0,
-      timed_out: 0,
-    });
-    const { container, getByText } = renderCard(item);
-
-    expect(container.textContent).toContain("on_motion");
-    expect(getByText("state change")).toBeDefined();
-    expect(container.textContent).toContain("5 calls");
-  });
+beforeEach(() => {
+  mockNavigate.mockClear();
 });
 
-describe("HandlerHealthCard — healthy job", () => {
-  it("renders handler name, kind chip, and run count", () => {
-    const item = makeJobItem({
-      job_id: 7,
-      job_name: "my_task",
-      trigger_type: "interval",
-      total_executions: 3,
-      failed: 0,
-      timed_out: 0,
-    });
-    const { container, getByText } = renderCard(item);
-
-    expect(container.textContent).toContain("my_task");
-    expect(getByText("interval")).toBeDefined();
-    expect(container.textContent).toContain("3 runs");
+it("renders listener name, kind chip, and run count", () => {
+  const item = makeListenerItem({
+    listener_id: 42,
+    handler_method: "on_motion",
+    listener_kind: "state change",
+    total_invocations: 5,
+    failed: 0,
+    timed_out: 0,
   });
+  const { container, getByText } = renderCard(item);
+
+  expect(container.textContent).toContain("on_motion");
+  expect(getByText("state change")).toBeDefined();
+  expect(container.textContent).toContain("5 calls");
 });
 
-describe("HandlerHealthCard — failing handler", () => {
+it("renders job name, kind chip, and run count", () => {
+  const item = makeJobItem({
+    job_id: 7,
+    job_name: "my_task",
+    trigger_type: "interval",
+    total_executions: 3,
+    failed: 0,
+    timed_out: 0,
+  });
+  const { container, getByText } = renderCard(item);
+
+  expect(container.textContent).toContain("my_task");
+  expect(getByText("interval")).toBeDefined();
+  expect(container.textContent).toContain("3 runs");
+});
+
+describe("HandlerHealthCard — error display", () => {
   it("shows error type and error message when handler is failing", () => {
     const item = makeListenerItem({
       listener_id: 1,
@@ -75,9 +80,7 @@ describe("HandlerHealthCard — failing handler", () => {
     expect(container.textContent).toContain("KeyError");
     expect(container.textContent).toContain("missing key 'state'");
   });
-});
 
-describe("HandlerHealthCard — timed out handler", () => {
   it("shows 'timed out' when handler has timeouts but no error type", () => {
     const item = makeListenerItem({
       listener_id: 1,
@@ -90,9 +93,7 @@ describe("HandlerHealthCard — timed out handler", () => {
 
     expect(container.textContent).toContain("timed out");
   });
-});
 
-describe("HandlerHealthCard — no errors shown for healthy handler", () => {
   it("does not show error type or error message when handler is healthy", () => {
     const item = makeListenerItem({
       listener_id: 1,
@@ -103,13 +104,10 @@ describe("HandlerHealthCard — no errors shown for healthy handler", () => {
     });
     const { container } = renderCard(item);
 
-    // No error content should appear
     expect(container.textContent).not.toContain("KeyError");
     expect(container.textContent).not.toContain("missing key");
   });
-});
 
-describe("HandlerHealthCard — error rate shown when failed > 0", () => {
   it("shows error rate when there are failures", () => {
     const item = makeListenerItem({
       listener_id: 1,
@@ -123,9 +121,7 @@ describe("HandlerHealthCard — error rate shown when failed > 0", () => {
     // 2/10 = 20%
     expect(container.textContent).toContain("20%");
   });
-});
 
-describe("HandlerHealthCard — error rate omitted when failed is 0", () => {
   it("does not show error rate when failed is 0", () => {
     const item = makeListenerItem({
       listener_id: 1,
@@ -162,83 +158,75 @@ describe("HandlerHealthCard — avg duration", () => {
   });
 });
 
-describe("HandlerHealthCard — last active when null", () => {
-  it("omits last active when timestamp is null", () => {
-    const item = makeListenerItem({
-      listener_id: 1,
-      last_invoked_at: null,
-      failed: 0,
-      timed_out: 0,
-    });
-    const { container } = renderCard(item);
-
-    expect(container.textContent).not.toContain("ago");
-    expect(container.textContent).not.toContain("—");
+it("omits last active when timestamp is null", () => {
+  const item = makeListenerItem({
+    listener_id: 1,
+    last_invoked_at: null,
+    failed: 0,
+    timed_out: 0,
   });
+  const { container } = renderCard(item);
+
+  expect(container.textContent).not.toContain("ago");
+  expect(container.textContent).not.toContain("—");
 });
 
 describe("HandlerHealthCard — card click navigation", () => {
   it("navigates to handler detail page when card is clicked", async () => {
     const user = userEvent.setup();
-    mockNavigate.mockClear();
     const item = makeListenerItem({ listener_id: 4 });
-    const { getByTestId } = renderCard(item, { appKey: "my_app" });
+    const { getByTestId } = renderCard(item, { appKey: APP_KEY });
 
-    const card = getByTestId("overview-health-card-listener-4");
+    const card = getByTestId(cardTestId("listener", 4));
     await user.click(card);
 
-    expect(mockNavigate).toHaveBeenCalledWith("/apps/my_app/handlers/listener/4");
+    expect(mockNavigate).toHaveBeenCalledWith(handlerRoute("listener", 4));
   });
 
   it("navigates to job handler detail page when job card is clicked", async () => {
     const user = userEvent.setup();
-    mockNavigate.mockClear();
     const item = makeJobItem({ job_id: 9 });
-    const { getByTestId } = renderCard(item, { appKey: "my_app" });
+    const { getByTestId } = renderCard(item, { appKey: APP_KEY });
 
-    const card = getByTestId("overview-health-card-job-9");
+    const card = getByTestId(cardTestId("job", 9));
     await user.click(card);
 
-    expect(mockNavigate).toHaveBeenCalledWith("/apps/my_app/handlers/job/9");
+    expect(mockNavigate).toHaveBeenCalledWith(handlerRoute("job", 9));
   });
 });
 
 describe("HandlerHealthCard — Enter key navigation", () => {
   it("navigates when Enter key is pressed on the card", async () => {
     const user = userEvent.setup();
-    mockNavigate.mockClear();
     const item = makeListenerItem({ listener_id: 5 });
-    const { getByTestId } = renderCard(item, { appKey: "my_app" });
+    const { getByTestId } = renderCard(item, { appKey: APP_KEY });
 
-    const card = getByTestId("overview-health-card-listener-5");
+    const card = getByTestId(cardTestId("listener", 5));
     card.focus();
     await user.keyboard("{Enter}");
 
-    expect(mockNavigate).toHaveBeenCalledWith("/apps/my_app/handlers/listener/5");
+    expect(mockNavigate).toHaveBeenCalledWith(handlerRoute("listener", 5));
   });
 
   it("navigates when Space key is pressed on the card", async () => {
     const user = userEvent.setup();
-    mockNavigate.mockClear();
     const item = makeListenerItem({ listener_id: 5 });
-    const { getByTestId } = renderCard(item, { appKey: "my_app" });
+    const { getByTestId } = renderCard(item, { appKey: APP_KEY });
 
-    const card = getByTestId("overview-health-card-listener-5");
+    const card = getByTestId(cardTestId("listener", 5));
     card.focus();
     await user.keyboard("{ }");
 
-    expect(mockNavigate).toHaveBeenCalledWith("/apps/my_app/handlers/listener/5");
+    expect(mockNavigate).toHaveBeenCalledWith(handlerRoute("listener", 5));
   });
 });
 
-describe("HandlerHealthCard — name is not a link", () => {
-  it("renders handler name as a span, not an anchor", () => {
-    const item = makeListenerItem({ listener_id: 6 });
-    const { container } = renderCard(item);
+it("renders handler name as a span, not an anchor", () => {
+  const item = makeListenerItem({ listener_id: 6 });
+  const { container } = renderCard(item);
 
-    expect(container.querySelector("a")).toBeNull();
-    expect(container.textContent).toContain("on_state_change");
-  });
+  expect(container.querySelector("a")).toBeNull();
+  expect(container.textContent).toContain("on_state_change");
 });
 
 describe("HandlerHealthCard — accessibility", () => {
@@ -254,13 +242,13 @@ describe("HandlerHealthCard — accessibility", () => {
     const { getByTestId } = renderWithAppState(
       <HandlerHealthCard item={item} appKey="test_app" instanceQs="" tabIndex={-1} />,
     );
-    expect(getByTestId("overview-health-card-listener-1").getAttribute("tabindex")).toBe("-1");
+    expect(getByTestId(cardTestId("listener", 1)).getAttribute("tabindex")).toBe("-1");
   });
 
   it("includes a visible focus outline utility", () => {
     const item = makeListenerItem({ listener_id: 1 });
     const { getByTestId } = renderCard(item);
-    const card = getByTestId("overview-health-card-listener-1");
+    const card = getByTestId(cardTestId("listener", 1));
     expect(card.className).toContain("focus-visible:outline-solid");
     expect(card.className).toContain("focus-visible:outline-primary");
   });
@@ -268,7 +256,7 @@ describe("HandlerHealthCard — accessibility", () => {
   it("has data-roving-item attribute", () => {
     const item = makeListenerItem({ listener_id: 1 });
     const { getByTestId } = renderCard(item);
-    expect(getByTestId("overview-health-card-listener-1").hasAttribute("data-roving-item")).toBe(true);
+    expect(getByTestId(cardTestId("listener", 1)).hasAttribute("data-roving-item")).toBe(true);
   });
 });
 
@@ -276,12 +264,12 @@ describe("HandlerHealthCard — data-testid", () => {
   it("includes kind and id in data-testid for listener", () => {
     const item = makeListenerItem({ listener_id: 99 });
     const { getByTestId } = renderCard(item);
-    expect(getByTestId("overview-health-card-listener-99")).toBeDefined();
+    expect(getByTestId(cardTestId("listener", 99))).toBeDefined();
   });
 
   it("includes kind and id in data-testid for job", () => {
     const item = makeJobItem({ job_id: 77 });
     const { getByTestId } = renderCard(item);
-    expect(getByTestId("overview-health-card-job-77")).toBeDefined();
+    expect(getByTestId(cardTestId("job", 77))).toBeDefined();
   });
 });
