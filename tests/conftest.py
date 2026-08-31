@@ -1,4 +1,9 @@
 import asyncio
+import faulthandler
+import os
+import sys
+import threading
+import time
 import tracemalloc
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -28,6 +33,12 @@ if TYPE_CHECKING:
 
 tracemalloc.start()
 
+# Seconds to wait after the session reports its result before declaring the interpreter
+# wedged at shutdown. Normal teardown finishes well within this even under load; a leaked
+# non-daemon thread hangs it for minutes. Set above worst-case healthy teardown, well below
+# CI's job timeout.
+EXIT_WATCHDOG_TIMEOUT = 60  # seconds
+
 TEST_DATA_PATH = Path.cwd().joinpath("tests", "data")
 TEST_CONFIG_PATH = TEST_DATA_PATH / "config"
 TEST_EVENTS_PATH = TEST_DATA_PATH / "events"
@@ -53,6 +64,35 @@ pytest_plugins: list[str] = [
     # coverage was started by the nox sessions' .pth file. See tests/coverage_integrity.py.
     "tests.coverage_integrity",
 ]
+
+
+def pytest_sessionfinish(exitstatus: int) -> None:
+    """Diagnostic watchdog: dump thread state and force-exit if the interpreter hangs.
+
+    aiosqlite worker threads are set to daemon in DatabaseService.on_initialize(), so they
+    no longer block interpreter exit. This watchdog is retained as a diagnostic safety net
+    — if something else introduces a non-daemon thread leak, the watchdog catches it
+    instead of letting CI hang to the job timeout. Registered at the root conftest so it
+    protects every suite (unit, integration, e2e, system), not just tests/system/.
+    """
+
+    def force_exit_if_stalled() -> None:
+        time.sleep(EXIT_WATCHDOG_TIMEOUT)
+        non_daemon = [
+            t for t in threading.enumerate() if t.is_alive() and not t.daemon and t is not threading.main_thread()
+        ]
+        if not non_daemon:
+            return
+        sys.stderr.write(
+            f"\n[conftest] interpreter still alive {EXIT_WATCHDOG_TIMEOUT}s after session "
+            f"finish — {len(non_daemon)} non-daemon thread(s) blocking shutdown. "
+            "Thread tracebacks:\n"
+        )
+        sys.stderr.flush()
+        faulthandler.dump_traceback()
+        os._exit(exitstatus or 1)
+
+    threading.Thread(target=force_exit_if_stalled, name="exit-hang-watchdog", daemon=True).start()
 
 
 @pytest.fixture(autouse=True)

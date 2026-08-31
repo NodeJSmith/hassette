@@ -2,15 +2,12 @@
 
 import asyncio
 import contextlib
-import faulthandler
 import json
 import logging
 import os
 import shutil
 import socket
 import subprocess
-import sys
-import threading
 import time
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import asynccontextmanager
@@ -44,40 +41,6 @@ if not HA_TOKEN:
 HA_CONTAINER_NAME = "hassette-system-ha"
 STARTUP_TIMEOUT = 60  # seconds
 SHUTDOWN_TIMEOUT = 30  # seconds — matches Hassette's total_shutdown_timeout_seconds
-
-# Seconds to wait after the session reports its result before declaring the interpreter
-# wedged at shutdown. Normal teardown — Docker compose down plus coverage write — finishes
-# well within this even under load; a leaked non-daemon thread hangs it for minutes. Set
-# above worst-case healthy teardown, well below the 10-minute job timeout.
-EXIT_WATCHDOG_TIMEOUT = 60  # seconds
-
-
-def pytest_sessionfinish(exitstatus: int) -> None:
-    """Diagnostic watchdog: dump thread state and force-exit if the interpreter hangs.
-
-    aiosqlite worker threads are set to daemon in DatabaseService.on_initialize(), so they
-    no longer block interpreter exit. This watchdog is retained as a diagnostic safety net
-    — if something else introduces a non-daemon thread leak, the watchdog catches it
-    instead of letting CI hang to the job timeout.
-    """
-
-    def force_exit_if_stalled() -> None:
-        time.sleep(EXIT_WATCHDOG_TIMEOUT)
-        non_daemon = [
-            t for t in threading.enumerate() if t.is_alive() and not t.daemon and t is not threading.main_thread()
-        ]
-        if not non_daemon:
-            return
-        sys.stderr.write(
-            f"\n[system-conftest] interpreter still alive {EXIT_WATCHDOG_TIMEOUT}s after session "
-            f"finish — {len(non_daemon)} non-daemon thread(s) blocking shutdown. "
-            "Thread tracebacks:\n"
-        )
-        sys.stderr.flush()
-        faulthandler.dump_traceback()
-        os._exit(exitstatus or 1)
-
-    threading.Thread(target=force_exit_if_stalled, name="exit-hang-watchdog", daemon=True).start()
 
 
 class SystemTestConfig(HassetteConfig):
