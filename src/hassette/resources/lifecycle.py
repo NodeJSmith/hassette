@@ -583,6 +583,17 @@ def total_deadline_remaining(resource: _LifecycleHostP) -> float:
     return max(0.0, budget.total_deadline - asyncio.get_running_loop().time())
 
 
+def elapsed_since(start: float) -> float:
+    """Seconds elapsed since ``start``, an ``asyncio.get_running_loop().time()`` snapshot.
+
+    Shared by every shutdown-stage timing log (waves, task-bucket cancel, cleanup,
+    child propagation, initializer observation, shutdown-body wait, and the coordinator
+    itself) so each stage measures its own span with one line instead of repeating the
+    subtraction.
+    """
+    return asyncio.get_running_loop().time() - start
+
+
 def _install_exception_observer(resource: _LifecycleHostP, task: asyncio.Task, label: str) -> None:
     """Attach a done callback that retrieves and logs any exception the task raised.
 
@@ -692,7 +703,14 @@ async def _observe_active_initializer(resource: "LifecycleMixin") -> bool:
 
     init_task.cancel()
     timeout = hooks_pool_remaining(resource)
+    observe_start = asyncio.get_running_loop().time()
     _done, pending = await asyncio.wait([init_task], timeout=timeout)
+    resource.logger.debug(
+        "%s: initializer observation completed in %.2fs (budget %.2fs)",
+        resource.unique_name,
+        elapsed_since(observe_start),
+        timeout,
+    )
     if pending:
         return True
 
@@ -725,9 +743,9 @@ async def _run_shutdown_coordinator(resource: "LifecycleMixin") -> TeardownRepor
         else:
             timeout = resource.hassette.config.lifecycle.resource_shutdown_timeout_seconds
 
-        now = asyncio.get_running_loop().time()
+        coordinator_start = asyncio.get_running_loop().time()
         task_cancel_ceiling = resource.hassette.config.lifecycle.task_cancellation_timeout_seconds
-        resource._shutdown_budget = compute_shutdown_budget(timeout, now, task_cancel_ceiling)
+        resource._shutdown_budget = compute_shutdown_budget(timeout, coordinator_start, task_cancel_ceiling)
 
         initialization_pending = await _observe_active_initializer(resource)
         if initialization_pending:
@@ -755,7 +773,9 @@ async def _run_shutdown_coordinator(resource: "LifecycleMixin") -> TeardownRepor
         # internal logic (e.g. Hassette._shutdown_body()'s TOTAL_TIMEOUT fallback) bounds itself
         # with, so it gets a chance to finish gracefully before this cruder outer backstop fires.
         wait_timeout = total_deadline_remaining(resource)
+        body_wait_start = asyncio.get_running_loop().time()
         done, _pending = await asyncio.wait([body_task], timeout=wait_timeout)
+        body_wait_elapsed = elapsed_since(body_wait_start)
 
         if body_task in done:
             try:
@@ -770,12 +790,14 @@ async def _run_shutdown_coordinator(resource: "LifecycleMixin") -> TeardownRepor
                 report = TeardownReport(
                     causes=(TeardownCause.SHUTDOWN_BODY_FAILED,), failed_operations=("_shutdown_body",)
                 )
+            resource.logger.debug("%s: shutdown body completed in %.2fs", resource.unique_name, body_wait_elapsed)
         else:
             resource.logger.warning(
-                "%s shutdown body did not complete within its %ss deadline (%ss configured timeout)",
+                "%s shutdown body did not complete within its %.2fs deadline (%.2fs configured timeout, %.2fs elapsed)",
                 resource.unique_name,
                 wait_timeout,
                 timeout,
+                body_wait_elapsed,
             )
             report = TeardownReport(causes=(TeardownCause.SHUTDOWN_BODY_TIMED_OUT,))
             resource._force_terminal()
@@ -823,6 +845,11 @@ async def _run_shutdown_coordinator(resource: "LifecycleMixin") -> TeardownRepor
     if existing is not None:
         report = merge_teardown_reports(existing, report)
 
+    resource.logger.debug(
+        "%s: shutdown coordinator completed in %.2fs",
+        resource.unique_name,
+        elapsed_since(coordinator_start),
+    )
     resource._teardown_report = report
     return report
 

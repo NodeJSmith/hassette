@@ -14,6 +14,7 @@ from hassette.resources.lifecycle import (
     coordinate_initialize,
     coordinate_shutdown,
     create_service_status_event,
+    elapsed_since,
     handle_failed,
     handle_running,
     handle_starting,
@@ -437,7 +438,13 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
             self.unique_name,
             cancel_budget,
         )
+        cancel_start = asyncio.get_running_loop().time()
         await self.task_bucket.cancel_all(timeout=cancel_budget)
+        self.logger.debug(
+            "%s: task-bucket cancel stage completed in %.2fs",
+            self.unique_name,
+            elapsed_since(cancel_start),
+        )
         pending = self.task_bucket.pending_task_names()
         if pending:
             return TeardownReport(causes=(TeardownCause.TASKS_PENDING,), pending_tasks=pending)
@@ -461,6 +468,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
             self.unique_name,
             cleanup_timeout,
         )
+        cleanup_start = asyncio.get_running_loop().time()
         try:
             async with asyncio.timeout(cleanup_timeout):
                 await self.cleanup()
@@ -470,8 +478,19 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         except Exception as exc:
             self.logger.exception("Error during cleanup: %s %s", type(exc).__name__, exc)
             reports.append(TeardownReport(causes=(TeardownCause.CLEANUP_FAILED,), failed_operations=("cleanup",)))
+        self.logger.debug(
+            "%s: cleanup() stage completed in %.2fs",
+            self.unique_name,
+            elapsed_since(cleanup_start),
+        )
 
+        children_start = asyncio.get_running_loop().time()
         children_report = await self._shutdown_children()
+        self.logger.debug(
+            "%s: child shutdown propagation completed in %.2fs",
+            self.unique_name,
+            elapsed_since(children_start),
+        )
         reports.append(children_report)
 
         if children_report.is_restart_safe:

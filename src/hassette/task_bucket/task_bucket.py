@@ -10,7 +10,7 @@ from typing import Any, ParamSpec, TypeVar, cast, overload
 
 from hassette import context as ctx
 from hassette.resources.base import Resource
-from hassette.resources.lifecycle import mark_ready
+from hassette.resources.lifecycle import elapsed_since, mark_ready
 from hassette.resources.operations import register_task_bucket_factory
 from hassette.types.types import LOG_LEVEL_TYPE, CoroLikeT
 from hassette.utils.func_utils import is_async_callable
@@ -427,11 +427,18 @@ class TaskBucket(Resource):
 
         effective_timeout = timeout if timeout is not None else self.config_cancel_timeout
         self.logger.debug("Cancelling %d tasks in bucket %s", len(tasks), self.unique_name)
+        cancel_start = asyncio.get_running_loop().time()
         for t in tasks:
             t.cancel()
 
         done, pending = await asyncio.wait(tasks, timeout=effective_timeout)
-        self.logger.debug("%d tasks done, %d still pending in bucket %s", len(done), len(pending), self.unique_name)
+        self.logger.debug(
+            "%d tasks done, %d still pending in bucket %s — completed in %.2fs",
+            len(done),
+            len(pending),
+            self.unique_name,
+            elapsed_since(cancel_start),
+        )
 
         for t in done:
             if t.cancelled():

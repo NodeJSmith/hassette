@@ -20,6 +20,7 @@ from hassette.resources.base import Resource
 from hassette.resources.lifecycle import (
     COORDINATOR_MARGIN_FRACTION,
     children_budget_remaining,
+    elapsed_since,
     handle_stop,
     mark_not_ready,
     start,
@@ -777,18 +778,25 @@ class Hassette(Resource):
         causes: list[TeardownCause] = []
         affected: list[str] = []
 
+        waves_start = asyncio.get_running_loop().time()
         for wave_types in reversed(self._init_waves):
             wave = [type_to_instance[t] for t in wave_types if t in type_to_instance]
             if not wave:
                 continue
             timeout = min(self.config.lifecycle.resource_shutdown_timeout_seconds, children_budget_remaining(self))
             self.logger.debug("Shutting down wave: [%s]", ", ".join(c.class_name for c in wave))
-
+            wave_start = asyncio.get_running_loop().time()
             result = await shutdown_batch(self, wave, timeout)
+            self.logger.debug(
+                "Shutdown wave [%s] completed in %.2fs",
+                ", ".join(c.class_name for c in wave),
+                elapsed_since(wave_start),
+            )
             child_reports.extend(result.reports)
             causes.extend(result.causes)
             affected.extend(result.affected)
 
+        self.logger.debug("All shutdown waves completed in %.2fs", elapsed_since(waves_start))
         return finalize_shutdown_report(child_reports, causes, affected)
 
     async def _on_children_stopped(self) -> None:
