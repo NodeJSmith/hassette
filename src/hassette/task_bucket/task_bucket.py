@@ -427,11 +427,18 @@ class TaskBucket(Resource):
 
         effective_timeout = timeout if timeout is not None else self.config_cancel_timeout
         self.logger.debug("Cancelling %d tasks in bucket %s", len(tasks), self.unique_name)
+        cancel_start = asyncio.get_running_loop().time()
         for t in tasks:
             t.cancel()
 
         done, pending = await asyncio.wait(tasks, timeout=effective_timeout)
-        self.logger.debug("%d tasks done, %d still pending in bucket %s", len(done), len(pending), self.unique_name)
+        self.logger.debug(
+            "%d tasks done, %d still pending in bucket %s — completed in %.2fs",
+            len(done),
+            len(pending),
+            self.unique_name,
+            asyncio.get_running_loop().time() - cancel_start,
+        )
 
         for t in done:
             if t.cancelled():

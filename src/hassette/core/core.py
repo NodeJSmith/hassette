@@ -783,12 +783,14 @@ class Hassette(Resource):
         causes: list[TeardownCause] = []
         affected: list[str] = []
 
+        waves_start = asyncio.get_running_loop().time()
         for wave_types in reversed(self._init_waves):
             wave = [type_to_instance[t] for t in wave_types if t in type_to_instance]
             if not wave:
                 continue
             timeout = min(self.config.lifecycle.resource_shutdown_timeout_seconds, children_budget_remaining(self))
             self.logger.debug("Shutting down wave: [%s]", ", ".join(c.class_name for c in wave))
+            wave_start = asyncio.get_running_loop().time()
             try:
                 async with asyncio.timeout(timeout):
                     # create_lifecycle_task(), not asyncio.gather()'s own implicit task creation --
@@ -802,8 +804,9 @@ class Hassette(Resource):
                     results = await asyncio.gather(*wave_tasks, return_exceptions=True)
             except TimeoutError:
                 self.logger.error(
-                    "Shutdown wave [%s] timed out after %ss — forcing remaining children",
+                    "Shutdown wave [%s] timed out after %.2fs (budget %.2fs) — forcing remaining children",
                     ", ".join(c.class_name for c in wave),
+                    asyncio.get_running_loop().time() - wave_start,
                     timeout,
                 )
                 causes.append(TeardownCause.CHILD_SHUTDOWN_TIMED_OUT)
@@ -816,6 +819,11 @@ class Hassette(Resource):
                         child_reports.append(child_report)
                 continue
 
+            self.logger.debug(
+                "Shutdown wave [%s] completed in %.2fs",
+                ", ".join(c.class_name for c in wave),
+                asyncio.get_running_loop().time() - wave_start,
+            )
             for child, result in zip(wave, results, strict=True):
                 if isinstance(result, BaseException):
                     self.logger.error("Child %s shutdown failed: %s", child.unique_name, result)
@@ -835,6 +843,7 @@ class Hassette(Resource):
                     causes.append(TeardownCause.CHILD_RESTART_UNSAFE)
                     affected.append(child.unique_name)
 
+        self.logger.debug("All shutdown waves completed in %.2fs", asyncio.get_running_loop().time() - waves_start)
         merged = merge_teardown_reports(*child_reports) if child_reports else TeardownReport()
         return add_teardown_evidence(merged, causes=tuple(causes), affected_resources=tuple(affected))
 
