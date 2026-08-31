@@ -408,7 +408,9 @@ class TestShutdownTotalTimeout:
         for child in h.children:
             child._force_terminal = Mock()
 
-        with hanging_shutdown_body(h, total_shutdown_timeout_seconds=0.05):
+        # 0.5s (with COORDINATOR_MARGIN_FRACTION) still gives the body enough
+        # headroom to win its race against the coordinator's outer wait.
+        with hanging_shutdown_body(h, total_shutdown_timeout_seconds=0.5):
             await h.shutdown()
 
         assert h.shutdown_completed is True
