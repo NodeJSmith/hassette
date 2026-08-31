@@ -50,11 +50,6 @@ if typing.TYPE_CHECKING:
     from hassette.config.classes import AppManifest
     from hassette.events import Event, HassStateDict
 
-#
-# Do not use raw floats in harness code — reference these constants instead so
-# any future re-tuning is a single-site edit.
-
-
 DEPENDENCIES: dict[str, set[str]] = {
     "sync_executor": set(),
     "bus": {"sync_executor"},
@@ -91,6 +86,8 @@ COMPONENT_CLASS_MAP: dict[str, type[Resource]] = {
 }
 
 
+# Do not use raw floats in harness code — reference these constants instead so
+# any future re-tuning is a single-site edit.
 class Timeouts:
     """Centralised timeout constants for the test harness.
 
@@ -683,52 +680,62 @@ class HassetteHarness:
         shutdown_errors: list[Exception] = []
 
         try:
-            # Stop the loop watchdog before shutting down children — avoids spurious stall
-            # warnings during teardown and ensures no daemon thread outlives the test. A failed
-            # stop() can leave a daemon thread alive across tests, so surface it like the rest.
-            if self.hassette._loop_watchdog is not None:
-                with _collect_shutdown_errors(shutdown_errors):
-                    self.hassette._loop_watchdog.stop()
-                self.hassette._loop_watchdog = None
-
-            # Shut down in reverse order so dependents stop before their dependencies.
-            for resource in reversed(self.hassette.children):
-                with _collect_shutdown_errors(shutdown_errors):
-                    await shutdown_resource(resource)
-
-            # Close event streams after all children have stopped — children send
-            # STOPPED status events during shutdown, so streams must stay open until then.
-            # Use _close_streams_now() to bypass the no-op override on _HarnessEventStreamService,
-            # which prevents test-initiated hassette.shutdown() calls from closing streams prematurely.
-            with _collect_shutdown_errors(shutdown_errors):
-                ess = self.hassette._event_stream_service
-                if isinstance(ess, _HarnessEventStreamService) and not ess.event_streams_closed:
-                    await ess._close_streams_now()
-
-            with _collect_shutdown_errors(shutdown_errors):
-                await self._exit_stack.aclose()
-
-            # Assert clean AFTER all other cleanup so assertion errors are not masked.
-            with _collect_shutdown_errors(shutdown_errors, exc_types=AssertionError):
-                if self.api_mock is not None:
-                    self.api_mock.assert_clean()
+            await self._shut_down_children_and_streams(shutdown_errors)
         finally:
-            # Reset the global singleton unconditionally, ahead of the loop teardown below so a
-            # failure restoring the loop can't skip it. If any statement above escapes the
-            # collected-error net — observed on Python 3.11, where a late teardown exception
-            # finalizes before this point — skipping the reset leaks HASSETTE_INSTANCE and poisons
-            # every subsequent test on the worker with "already set" errors.
-            if self._hassette_ctx_token is not None:
-                context.HASSETTE_INSTANCE.reset(self._hassette_ctx_token)
-            date_utils.configure(self._original_tz)
-
-            if self.hassette._loop is not None:
-                self.hassette._loop.set_task_factory(self._previous_task_factory)
-            self.hassette._loop = None
-            self.hassette._loop_thread_id = None
+            self._restore_context_and_loop()
 
         if shutdown_errors:
             raise ExceptionGroup("errors during harness teardown", shutdown_errors)
+
+    async def _shut_down_children_and_streams(self, shutdown_errors: list[Exception]) -> None:
+        """Stop the watchdog, children, event streams, and exit stack, collecting errors as it goes."""
+        # Stop the loop watchdog before shutting down children — avoids spurious stall
+        # warnings during teardown and ensures no daemon thread outlives the test. A failed
+        # stop() can leave a daemon thread alive across tests, so surface it like the rest.
+        if self.hassette._loop_watchdog is not None:
+            with _collect_shutdown_errors(shutdown_errors):
+                self.hassette._loop_watchdog.stop()
+            self.hassette._loop_watchdog = None
+
+        # Shut down in reverse order so dependents stop before their dependencies.
+        for resource in reversed(self.hassette.children):
+            with _collect_shutdown_errors(shutdown_errors):
+                await shutdown_resource(resource)
+
+        # Close event streams after all children have stopped — children send
+        # STOPPED status events during shutdown, so streams must stay open until then.
+        # Use _close_streams_now() to bypass the no-op override on _HarnessEventStreamService,
+        # which prevents test-initiated hassette.shutdown() calls from closing streams prematurely.
+        with _collect_shutdown_errors(shutdown_errors):
+            ess = self.hassette._event_stream_service
+            if isinstance(ess, _HarnessEventStreamService) and not ess.event_streams_closed:
+                await ess._close_streams_now()
+
+        with _collect_shutdown_errors(shutdown_errors):
+            await self._exit_stack.aclose()
+
+        # Assert clean AFTER all other cleanup so assertion errors are not masked.
+        with _collect_shutdown_errors(shutdown_errors, exc_types=AssertionError):
+            if self.api_mock is not None:
+                self.api_mock.assert_clean()
+
+    def _restore_context_and_loop(self) -> None:
+        """Reset the global singleton and loop state — runs unconditionally, even after a teardown error.
+
+        Reset the global singleton ahead of the loop teardown below so a failure restoring the
+        loop can't skip it. If any statement in ``_shut_down_children_and_streams`` escapes the
+        collected-error net — observed on Python 3.11, where a late teardown exception finalizes
+        after that method returns — skipping the reset leaks HASSETTE_INSTANCE and poisons every
+        subsequent test on the worker with "already set" errors.
+        """
+        if self._hassette_ctx_token is not None:
+            context.HASSETTE_INSTANCE.reset(self._hassette_ctx_token)
+        date_utils.configure(self._original_tz)
+
+        if self.hassette._loop is not None:
+            self.hassette._loop.set_task_factory(self._previous_task_factory)
+        self.hassette._loop = None
+        self.hassette._loop_thread_id = None
 
     async def _start_sync_executor(self) -> None:
         self.hassette._sync_executor_service = self.hassette.add_child(SyncExecutorService)

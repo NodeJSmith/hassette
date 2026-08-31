@@ -27,6 +27,7 @@ from hassette.types.enums import ConnectionState
 from hassette.web.app import create_fastapi_app
 
 WEBAPI_READY_TIMEOUT = 10.0
+STARTUP_EVENT_TIMEOUT = 5
 HEALTH_ENDPOINT = "/api/health"
 STATE_READER_APP = """
 from hassette import App, AppConfig
@@ -233,8 +234,8 @@ class TestInitialStateSyncBeforeApps:
 
         run_task = asyncio.create_task(hassette.run_forever())
         try:
-            await asyncio.wait_for(connection_attempted.wait(), timeout=5)
-            await asyncio.wait_for(state_proxy_subscribed.wait(), timeout=5)
+            await asyncio.wait_for(connection_attempted.wait(), timeout=STARTUP_EVENT_TIMEOUT)
+            await asyncio.wait_for(state_proxy_subscribed.wait(), timeout=STARTUP_EVENT_TIMEOUT)
 
             with pytest.raises(TimeoutError):
                 await asyncio.wait_for(load_cache_entered.wait(), timeout=1)
@@ -247,7 +248,7 @@ class TestInitialStateSyncBeforeApps:
                 timeout=WEBAPI_READY_TIMEOUT,
                 desc="state-reading app ready",
             )
-            await asyncio.wait_for(load_cache_entered.wait(), timeout=5)
+            await asyncio.wait_for(load_cache_entered.wait(), timeout=STARTUP_EVENT_TIMEOUT)
             hassette.api.get_states_raw.assert_awaited_once()
 
             app = hassette.app_handler.registry.get("state_reader", 0)

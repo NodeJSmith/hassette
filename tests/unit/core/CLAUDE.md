@@ -1,6 +1,12 @@
 # Tests: unit/core
 
-## Available fixtures (this directory's conftest.py)
+Fixtures below are defined in family-scoped `_fixtures_*.py` modules in this directory
+(`_fixtures_app_lifecycle.py`, `_fixtures_command_executor.py`, `_fixtures_bus_scheduler.py`,
+`_fixtures_blocking_io.py`, `_fixtures_service_watcher.py`, `_fixtures_telemetry.py`) and
+re-exported from `conftest.py`. Import from `.conftest` as before — the re-export keeps that
+surface stable; only the definitions moved.
+
+## Available fixtures (re-exported from this directory's conftest.py)
 
 - `mock_hassette` — `make_mock_hassette()` wired for `AppLifecycleService` tests
 - `mock_registry`, `mock_factory`, `mock_manifest`, `mock_app_instance` — mocked collaborators for lifecycle tests
