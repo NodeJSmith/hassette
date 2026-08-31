@@ -72,7 +72,10 @@ async def _teardown_bare_hassette(
     cancellation delivered to *this* coroutine while awaiting ``run_task`` would otherwise skip
     the task-factory restore and instance-token reset entirely. Since the loop is session-scoped,
     a poisoned task factory or a stale global Hassette reference would then affect every later
-    test on the same worker, not just this one.
+    test on the same worker, not just this one. The instance-token reset gets its own nested
+    ``finally`` around ``cleanup_hassette_streams`` for the same reason: a cancellation delivered
+    specifically during that await would otherwise propagate past its own ``suppress(Exception)``
+    (again, ``CancelledError`` is a ``BaseException``) and skip the reset below it.
     """
     hassette.shutdown_event.set()
     try:
@@ -80,10 +83,12 @@ async def _teardown_bare_hassette(
             await asyncio.wait_for(run_task, timeout=WEBAPI_READY_TIMEOUT)
     finally:
         loop.set_task_factory(previous_task_factory)  # pyright: ignore[reportArgumentType]
-        with contextlib.suppress(Exception):
-            await cleanup_hassette_streams(hassette)
-        if instance_token is not None:
-            hassette_context.HASSETTE_INSTANCE.reset(instance_token)  # pyright: ignore[reportArgumentType]
+        try:
+            with contextlib.suppress(Exception):
+                await cleanup_hassette_streams(hassette)
+        finally:
+            if instance_token is not None:
+                hassette_context.HASSETTE_INSTANCE.reset(instance_token)  # pyright: ignore[reportArgumentType]
 
 
 @contextlib.asynccontextmanager

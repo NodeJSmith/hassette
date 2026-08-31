@@ -278,8 +278,33 @@ def cancel(resource: _LifecycleHostP) -> None:
     the joiner's own ``add_done_callback(_clear_pending_start)`` (set up in ``start()``) clears
     ``_pending_start_task`` once it settles, and ``_install_exception_observer()`` already
     ensures its exception/cancellation is observed.
+
+    Thread-safe: mirrors ``start()``'s cross-thread redispatch (see its docstring) via
+    ``call_soon_threadsafe`` when called off the loop thread. This is what preserves ordering
+    for a sync handler that calls ``start(resource)`` immediately followed by
+    ``cancel(resource)``: both redispatches land on the loop's ``call_soon`` queue in the same
+    FIFO order they were submitted, so this cancel's redispatched callback always runs after
+    that start's, and finds whatever start() actually set (``_pending_start_task`` or
+    ``_init_task``) instead of racing ahead of the not-yet-processed start() callback and
+    finding nothing to cancel.
     """
     resource = typing.cast("LifecycleMixin", resource)
+
+    loop_thread_id = resource.hassette.loop_thread_id
+    if loop_thread_id is not None and threading.get_ident() != loop_thread_id:
+
+        def _cancel_on_loop_thread() -> None:
+            try:
+                cancel(resource)
+            except Exception:
+                resource.logger.exception(
+                    "%s: cross-thread cancel() failed after re-dispatch onto the loop thread",
+                    resource.unique_name,
+                )
+
+        resource.hassette.loop.call_soon_threadsafe(_cancel_on_loop_thread)
+        return
+
     cancelled_something = False
 
     if resource._pending_start_task is not None and not resource._pending_start_task.done():

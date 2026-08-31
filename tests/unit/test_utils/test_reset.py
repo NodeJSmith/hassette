@@ -1,51 +1,18 @@
 """Unit tests for hassette.test_utils.reset."""
 
-import asyncio
 import logging
 import re
-from dataclasses import dataclass, field
 
 import pytest
 
 from hassette.resources.teardown import TeardownCause, TeardownReport
+from hassette.test_utils import make_mock_hassette
 from hassette.test_utils.reset import (
     _reject_tree_if_active_or_reported,
     reset_hassette_lifecycle,
     reset_resource_flags,
 )
-from hassette.types.enums import ResourceStatus
-
-
-@dataclass
-class FakeResourceNode:
-    """Minimal stand-in for a Resource, carrying only the attributes
-    _reject_tree_if_active_or_reported()/reset_resource_flags() actually read or mutate.
-    """
-
-    unique_name: str
-    children: list["FakeResourceNode"] = field(default_factory=list)
-    _shutdown_task: object | None = None
-    _teardown_report: TeardownReport | None = None
-    shutdown_event: asyncio.Event = field(default_factory=asyncio.Event)
-
-
-@dataclass
-class FakeHassette:
-    """Minimal stand-in for Hassette, carrying only the attributes
-    reset_hassette_lifecycle() actually reads or mutates.
-    """
-
-    unique_name: str = "Hassette"
-    event_streams_closed: bool = False
-    children: list[FakeResourceNode] = field(default_factory=list)
-    _shutdown_task: object | None = None
-    _teardown_report: TeardownReport | None = None
-    _fatal_shutdown_reason: str | None = None
-    _status: ResourceStatus = ResourceStatus.RUNNING
-    shutdown_event: asyncio.Event = field(default_factory=asyncio.Event)
-    ready_event: asyncio.Event = field(default_factory=asyncio.Event)
-    logger: logging.Logger = field(default_factory=lambda: logging.getLogger("test.fake_hassette"))
-    _ready_reason: str | None = None
+from tests.unit.resources.conftest import ConcreteResource
 
 
 class TestRejectTreeIfActiveOrReported:
@@ -63,13 +30,12 @@ class TestRejectTreeIfActiveOrReported:
         functions in the same order reset_hassette_lifecycle() now does: validate the whole
         tree first, then (separately) mutate.
         """
-        root = FakeResourceNode("root")
-        sibling = FakeResourceNode("sibling")
+        hassette = make_mock_hassette(sealed=False)
+        root = ConcreteResource(hassette)
+        sibling = root.add_child(ConcreteResource)
         sibling.shutdown_event.set()
-        child = FakeResourceNode("child")
-        grandchild = FakeResourceNode("grandchild")
-        child.children.append(grandchild)
-        root.children.extend([sibling, child])
+        child = root.add_child(ConcreteResource)
+        grandchild = child.add_child(ConcreteResource)
 
         # Simulate a completed teardown attempt on the grandchild -- validation must refuse to
         # proceed anywhere in the tree once this is found, however deep it is.
@@ -87,13 +53,12 @@ class TestRejectTreeIfActiveOrReported:
         """Sanity check: a tree with no active or reported descendants passes validation, and
         reset_resource_flags() then clears every descendant's shutdown_event.
         """
-        root = FakeResourceNode("root")
-        child = FakeResourceNode("child")
+        hassette = make_mock_hassette(sealed=False)
+        root = ConcreteResource(hassette)
+        child = root.add_child(ConcreteResource)
         child.shutdown_event.set()
-        grandchild = FakeResourceNode("grandchild")
+        grandchild = child.add_child(ConcreteResource)
         grandchild.shutdown_event.set()
-        child.children.append(grandchild)
-        root.children.append(child)
 
         _reject_tree_if_active_or_reported(root)
         reset_resource_flags(root)
@@ -113,14 +78,23 @@ class TestResetHassetteLifecycleOriginalChildren:
         child is about to be dropped from the tree entirely and its state is therefore
         irrelevant to whether reset can proceed.
         """
-        hassette = FakeHassette()
-        original_child = FakeResourceNode("original_child")
+        hassette = make_mock_hassette(sealed=False)
+        hassette._shutdown_task = None
+        hassette._teardown_report = None
+        # reset_hassette_lifecycle() calls mark_ready(hassette, ...), which logs via
+        # resource.logger.debug(...). A plain AsyncMock's un-configured attribute chains are
+        # themselves AsyncMock (unlike MagicMock, whose children default to MagicMock), so an
+        # untouched `.logger` here would make that debug() call return an unawaited coroutine
+        # instead of actually logging synchronously, like the real Resource logger it stands in
+        # for.
+        hassette.logger = logging.getLogger("test.fake_hassette")
+        original_child = ConcreteResource(hassette)
         hassette.children.append(original_child)
         snapshot = list(hassette.children)
 
         # A test dynamically adds its own child with a completed (unsafe) teardown report --
         # e.g. a dummy service that exhausted its restart budget during the test body.
-        test_added_child = FakeResourceNode("test_added_child")
+        test_added_child = ConcreteResource(hassette)
         test_added_child._teardown_report = TeardownReport(causes=(TeardownCause.FORCED_TERMINAL,))
         hassette.children.append(test_added_child)
 
@@ -136,8 +110,10 @@ class TestResetHassetteLifecycleOriginalChildren:
         stored teardown report must still block reset -- only test-added, about-to-be-discarded
         children are exempt.
         """
-        hassette = FakeHassette()
-        original_child = FakeResourceNode("original_child")
+        hassette = make_mock_hassette(sealed=False)
+        hassette._shutdown_task = None
+        hassette._teardown_report = None
+        original_child = ConcreteResource(hassette)
         original_child._teardown_report = TeardownReport(causes=(TeardownCause.FORCED_TERMINAL,))
         hassette.children.append(original_child)
         snapshot = list(hassette.children)

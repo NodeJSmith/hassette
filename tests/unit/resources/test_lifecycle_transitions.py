@@ -443,6 +443,51 @@ async def test_start_from_worker_thread_redispatches_onto_loop_thread():
     await resource.shutdown()
 
 
+async def test_cancel_from_worker_thread_redispatches_onto_loop_thread():
+    """cancel() called off the event-loop thread re-dispatches via call_soon_threadsafe.
+
+    Mirrors start()'s cross-thread redispatch (test_start_from_worker_thread_redispatches_onto_loop_thread)
+    so that a sync handler calling start(resource) immediately followed by cancel(resource) --
+    both from the same worker thread, with no intervening await -- preserves ordering. Without
+    this redispatch, cancel() would run synchronously on the worker thread and see
+    _pending_start_task still None (start()'s own redispatch has not been processed by the loop
+    yet), report nothing to cancel, and let the queued _start_on_loop_thread callback go on to
+    initialize the resource despite the ordered cancellation request. Regression test for the
+    Codex review finding on lifecycle.py's cancel().
+    """
+    hassette = make_mock_hassette(sealed=False)
+    resource = ConcreteResource(hassette)
+
+    initialized = asyncio.Event()
+
+    async def _tracking_on_initialize() -> None:
+        initialized.set()
+
+    resource.on_initialize = _tracking_on_initialize  # pyright: ignore[reportAttributeAccessIssue]
+
+    errors: list[Exception] = []
+
+    def _start_then_cancel_from_worker_thread() -> None:
+        try:
+            start(resource)
+            cancel(resource)
+        except Exception as exc:
+            errors.append(exc)
+
+    thread = threading.Thread(target=_start_then_cancel_from_worker_thread)
+    thread.start()
+    thread.join(timeout=5.0)
+
+    assert not thread.is_alive(), "start()/cancel() should not hang when called from a worker thread"
+    assert not errors, f"start()/cancel() raised from a worker thread: {errors}"
+
+    # Give the loop a few turns to process both redispatched callbacks in order.
+    for _ in range(5):
+        await asyncio.sleep(0)
+
+    assert not initialized.is_set(), "resource must not have initialized -- cancel() should have won the race"
+
+
 async def test_start_with_unset_loop_thread_id_does_not_redispatch():
     """Regression: start() must not treat an unset ``loop_thread_id`` (``None``, before
     ``run_forever()`` captures it) as "definitely a different thread." Comparing

@@ -164,6 +164,11 @@ class RootIdentityResource(Resource):
     """
 
     _shutdown_sleep: float = 0.0
+    loop_thread_id: int | None = None
+    """Satisfies ``_HassetteP``'s ``loop_thread_id`` field for ``lifecycle.cancel()``/``start()``,
+    which read it unconditionally off ``resource.hassette`` -- and here ``resource.hassette`` is
+    this instance itself. ``None`` mirrors the real ``Hassette``'s own pre-``run_forever()``
+    default, which both functions already treat as "unknown, do not redispatch."""
 
     def __init__(self, config: HassetteConfig) -> None:
         self.config = config

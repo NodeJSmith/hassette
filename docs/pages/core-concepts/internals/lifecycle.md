@@ -142,9 +142,9 @@ while also carrying causes, because `is_restart_safe` is computed, not stored.
 
 An exception raised outside the shutdown body itself — while observing a pending initializer or
 requesting shutdown, for example — also counts as negative evidence. The coordinator stores it on
-`teardown_report` before re-raising. `await resource.shutdown()` raises in this case instead of
-returning a report — catch the exception, then read `teardown_report` for the same restart-unsafe
-evidence a normal completion would have returned.
+`teardown_report` before re-raising, so `await resource.shutdown()` raises in this case instead of
+returning a report. `teardown_report` retains the same restart-unsafe evidence a normal completion
+would have returned.
 
 ### Inspecting a report
 
