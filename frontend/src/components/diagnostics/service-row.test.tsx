@@ -39,6 +39,6 @@ describe("ServiceRow", () => {
 
     await user.click(getByRole("button", { name: /hide exception/i }));
     expect(queryByText(exception)).toBeNull();
-    expect(getByRole("button", { name: /show exception/i })).toBeDefined();
+    expect(getByRole("button", { name: /show exception/i }).getAttribute("aria-expanded")).toBe("false");
   });
 });
