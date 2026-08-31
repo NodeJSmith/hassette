@@ -32,6 +32,8 @@ from hassette.events import (
 )
 from hassette.events.base import HassettePayload
 from hassette.events.hassette import HassetteFileWatcherEvent, HassetteServiceEvent, ServiceStatusPayload
+from hassette.exceptions import RestartRefusedError
+from hassette.resources.teardown import TeardownCause, TeardownReport
 from hassette.types import StateT
 from hassette.types.enums import BackpressurePolicy, ExecutionMode, ResourceRole, ResourceStatus, Topic
 from hassette.utils.func_utils import callable_name, callable_short_name
@@ -48,6 +50,9 @@ STATE_DICT_KEYS = frozenset({"last_changed", "last_updated", "last_reported", "c
 
 SETTLE_SECONDS = 0.05
 """Default settle window: seconds to let a stray extra handler call land before a negative assertion."""
+
+SHORT_SHUTDOWN_TIMEOUT_SECONDS = 0.1
+"""Short ``resource_shutdown_timeout_seconds`` for tests that force a timeout/force-terminal branch."""
 
 PLACEHOLDER_SERVICE_NAME = "TestService"
 """Stand-in resource_name for the service-lifecycle event factories below. Tests that don't
@@ -544,6 +549,12 @@ def make_crashed_event(
     )
 
 
+def make_unsafe_restart_refused_error(resource_name: str = PLACEHOLDER_SERVICE_NAME) -> RestartRefusedError:
+    """Build a RestartRefusedError carrying a real UNSAFE TeardownReport, for refusal tests."""
+    report = TeardownReport(causes=(TeardownCause.SHUTDOWN_HOOK_FAILED,), failed_operations=("shutdown_hooks",))
+    return RestartRefusedError(resource_name, report)
+
+
 async def wire_up_app_state_listener(
     bus: "Bus",
     event: asyncio.Event,
@@ -578,9 +589,17 @@ def make_task_bucket() -> MagicMock:
     ``spawn`` creates a real ``asyncio.Task`` when a loop is running so the execution-mode
     guard (which spawns and awaits the cancellable child handler task) behaves like production.
     Outside a running loop it returns a MagicMock so sync-context construction still works.
+
+    ``pending_task_names()`` defaults to an empty tuple (not an unconfigured, truthy
+    ``MagicMock``) so callers that check it for shutdown evidence (e.g. the Resource shutdown
+    stages in ``hassette.resources.base``) see "nothing pending" by default, matching a real,
+    freshly constructed ``TaskBucket``. ``cancel_all()`` defaults to an ``AsyncMock`` returning
+    the same empty tuple, mirroring the real ``TaskBucket.cancel_all()`` return shape.
     """
     tb = MagicMock()
     tb.make_async_adapter = MagicMock(side_effect=lambda fn: fn)
+    tb.pending_task_names = MagicMock(return_value=())
+    tb.cancel_all = AsyncMock(return_value=())
 
     def spawn_side_effect(coro: Any, *, name: str | None = None) -> Any:  # noqa: ARG001
         try:

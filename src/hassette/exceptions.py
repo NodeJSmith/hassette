@@ -5,6 +5,7 @@ from yarl import URL
 
 if TYPE_CHECKING:
     from hassette.models.states import BaseState
+    from hassette.resources.teardown import TeardownReport
 
 MAX_ISSUES_IN_SUMMARY = 5
 
@@ -536,6 +537,74 @@ class InvalidLifecycleTransitionError(HassetteError):
         self.to_status = to_status
         self.resource_name = resource_name
         super().__init__(f"Invalid lifecycle transition for '{resource_name}': {from_status!r} → {to_status!r}")
+
+
+class RestartRefusedError(FatalError):
+    """Raised when a lifecycle front door refuses to start a new attempt after teardown proved
+    restart-unsafe.
+
+    Carries the resource identity and the exact stored ``TeardownReport`` (``is_restart_safe`` is
+    always ``False`` whenever this exception is raised) so ``ServiceWatcher`` and any other caller can inspect why
+    restart was refused without re-deriving evidence from logs. The message lists the report's
+    causes and any populated bounded detail fields (failed operations, pending tasks, affected
+    resources) so existing exception logging remains useful on its own. Inherits ``FatalError``
+    because a restart-unsafe object can never recover safely in-process; only process replacement
+    can, and that is the embedding host or supervisor's responsibility.
+
+    Attributes:
+        resource_name: The ``unique_name`` of the resource that refused to restart.
+        report: The stored ``TeardownReport``.
+    """
+
+    def __init__(self, resource_name: str, report: "TeardownReport") -> None:
+        self.resource_name = resource_name
+        self.report = report
+
+        causes = ", ".join(report.causes) if report.causes else "no recorded causes"
+        msg = f"Restart refused for '{resource_name}': teardown was not proven restart-safe ({causes})."
+
+        details: list[str] = []
+        if report.failed_operations:
+            details.append(f"failed_operations={list(report.failed_operations)}")
+        if report.pending_tasks:
+            details.append(f"pending_tasks={list(report.pending_tasks)}")
+        if report.affected_resources:
+            details.append(f"affected_resources={list(report.affected_resources)}")
+        if details:
+            msg += " " + "; ".join(details)
+
+        super().__init__(msg)
+
+
+class LifecycleReentryError(HassetteError):
+    """Raised when a lifecycle front door (``initialize()``, ``start()``, ``restart()``, or
+    ``shutdown()``) is invoked from the resource's own active initialization coordinator,
+    shutdown coordinator, or shutdown body.
+
+    A hook that calls back into its own owner's lifecycle orchestration cannot be joined,
+    cancelled, or awaited safely -- the calling task *is* the coordinator or body being awaited,
+    so joining or cancelling it would create a self-referential deadlock or cancellation cycle.
+    Raised before creating, joining, or cancelling another lifecycle task. A hook that cannot
+    continue should raise or return and let its lifecycle owner decide recovery.
+
+    Detection is limited to a resource re-entering its own active coordinator or body task.
+    Cross-resource lifecycle cycles -- a child's hook calling into its parent's lifecycle, or two
+    resources awaiting each other -- are not detected here and rely on the whole-body shutdown
+    timeout to eventually force-terminate.
+
+    Attributes:
+        resource_name: The ``unique_name`` of the resource whose lifecycle was re-entered.
+        method_name: The name of the front-door method that detected the re-entrant call.
+    """
+
+    def __init__(self, resource_name: str, method_name: str) -> None:
+        self.resource_name = resource_name
+        self.method_name = method_name
+        super().__init__(
+            f"Lifecycle re-entry detected for '{resource_name}': '{method_name}' was called from "
+            "its own active initialization coordinator, shutdown coordinator, or shutdown body. "
+            "Hooks must not call back into lifecycle orchestration; raise or return instead."
+        )
 
 
 class ListenerNameRequiredError(HassetteError):

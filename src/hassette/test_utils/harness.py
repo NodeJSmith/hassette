@@ -727,9 +727,19 @@ class HassetteHarness:
         collected-error net — observed on Python 3.11, where a late teardown exception finalizes
         after that method returns — skipping the reset leaks HASSETTE_INSTANCE and poisons every
         subsequent test on the worker with "already set" errors.
+
+        The reset itself can raise ValueError when stop() is driven from a different
+        contextvars.Context than the one active when the Token was created — e.g. a synchronous
+        request.addfinalizer() callback resuming a module-scoped harness fixture (see
+        tests/integration/conftest.py::hassette_instance for the general mechanism this mirrors).
+        ContextVar.reset() across Context boundaries is invalid by design; the mutation it would
+        undo was scoped to that now-finished setup Task's own context copy anyway, so there is
+        nothing left to leak. Suppress and continue so the task-factory restore below still runs
+        even when this happens.
         """
         if self._hassette_ctx_token is not None:
-            context.HASSETTE_INSTANCE.reset(self._hassette_ctx_token)
+            with contextlib.suppress(ValueError):
+                context.HASSETTE_INSTANCE.reset(self._hassette_ctx_token)
         date_utils.configure(self._original_tz)
 
         if self.hassette._loop is not None:

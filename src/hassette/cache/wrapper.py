@@ -1,5 +1,6 @@
 """Async cache backed by ``aiosqlite``, using a read/write connection pair in WAL mode."""
 
+import contextlib
 import logging
 import sqlite3
 import time
@@ -20,6 +21,7 @@ from hassette.cache._helpers import (
     validate_key,
 )
 from hassette.cache.sync import SyncCache
+from hassette.utils.aiosqlite_utils import stop_connection_sync
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +74,13 @@ class AsyncCache:
         retries once from step 1 with a warning log. If the retry also fails, the
         exception propagates -- a second failure on a freshly-created database indicates
         a filesystem or permissions problem, not recoverable corruption.
+
+        Both cleanup calls to ``_close_connections()`` here suppress its own exception --
+        it now raises on a failed close (see its docstring), but a connection already known
+        to be broken or corrupt failing to close cleanly is not itself actionable here, and
+        letting it propagate would replace the ``sqlite3.Error`` being handled (bare ``raise``
+        never runs) or abort the corruption retry before it starts. ``_close_connections()``
+        already logs the close failure internally, so nothing is silently lost.
         """
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -81,14 +90,16 @@ class AsyncCache:
             await self._check_integrity()
         except sqlite3.Error as exc:
             if not _is_corruption(exc):
-                await self._close_connections()
+                with contextlib.suppress(Exception):
+                    await self._close_connections()
                 raise
 
             # Corruption confirmed — delete and retry once.
             logger.warning(
                 "Cache database at %s failed to initialize; deleting and recreating", self.db_path, exc_info=True
             )
-            await self._close_connections()
+            with contextlib.suppress(Exception):
+                await self._close_connections()
             self._delete_db_files()
             await self._open_connections()
             await self._run_schema()
@@ -118,16 +129,29 @@ class AsyncCache:
             raise sqlite3.DatabaseError(f"Cache database integrity check failed: {row!r}")
 
     async def _close_connections(self) -> None:
+        """Close both connections, attempting each even if the other fails.
+
+        Raises the first close error encountered (after both attempts complete) instead of
+        swallowing it -- a caller (``App.cleanup()``) relies on this to distinguish a clean
+        close from one that left a connection/background thread in an unknown state, so
+        ``_run_post_hook_shutdown_stage()`` can record ``TeardownCause.CLEANUP_FAILED`` rather
+        than reporting a restart-safe teardown that never actually confirmed the cache closed.
+        """
+        first_error: Exception | None = None
         for attr in ("_write", "_read"):
             conn: aiosqlite.Connection | None = getattr(self, attr)
             if conn is None:
                 continue
             try:
                 await conn.close()
-            except Exception:
+            except Exception as exc:
                 logger.exception("Error closing cache connection (%s)", attr)
+                if first_error is None:
+                    first_error = exc
             finally:
                 setattr(self, attr, None)
+        if first_error is not None:
+            raise first_error
 
     def _delete_db_files(self) -> None:
         self.db_path.unlink(missing_ok=True)
@@ -223,5 +247,17 @@ class AsyncCache:
         await self._write_conn.commit()
 
     async def close(self) -> None:
-        """Close both ``aiosqlite`` connections. Swallows and logs close errors."""
+        """Close both ``aiosqlite`` connections. Attempts both even if one fails; logs and
+        raises the first close error encountered, if any.
+        """
         await self._close_connections()
+
+    def force_close(self) -> None:
+        """Synchronously stop both connections' background threads without the async close protocol.
+
+        Used by ``App._force_terminal()``, which cannot ``await`` anything. See
+        ``stop_connection_sync()`` for why this is safe to call from a force-terminal path.
+        """
+        for attr in ("_write", "_read"):
+            stop_connection_sync(getattr(self, attr))
+            setattr(self, attr, None)

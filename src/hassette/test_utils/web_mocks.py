@@ -6,6 +6,7 @@ components for integration tests (bus routing, scheduler, state propagation).
 """
 
 import asyncio
+import threading
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -130,6 +131,11 @@ def create_hassette_stub(
     # `fatal_shutdown_reason is not None` sees None, not MagicMock's auto-truthy attribute.
     hassette._fatal_shutdown_reason = None
     hassette.fatal_shutdown_reason = None
+
+    # Thread / loop identity — matches make_mock_hassette()/HassetteHarness so any code that
+    # reaches the real lifecycle.start()/cancel() path through this stub takes the same-thread
+    # fast path instead of silently no-op'ing through a MagicMock .loop.call_soon_threadsafe().
+    hassette.loop_thread_id = threading.get_ident()
 
     # Root-level fields
     hassette.config.dev_mode = dev_mode

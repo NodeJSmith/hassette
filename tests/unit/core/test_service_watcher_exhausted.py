@@ -7,7 +7,7 @@ Verifies:
 - Status assignment is skipped (with warning) when get_service returns None
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from hassette.events.hassette import ServiceStatusPayload
 from hassette.resources.restart import RestartSpec
@@ -153,3 +153,32 @@ async def test_exhausted_status_skipped_when_service_not_found():
     )
 
     hassette.send_event.assert_called()
+
+
+async def test_cooldown_and_retry_proceeds_when_not_admission_blocked():
+    """Regression for the restart-refusal admission checks in cooldown_and_retry: a normal
+    (non-fatal, non-shutdown) recovery must still reset the budget and attempt restart() -- the
+    new checks must not block the clean-recovery path they were added alongside.
+    """
+    hassette = make_watcher_hassette()
+    service = DummyService(hassette)
+    service._status = ResourceStatus.EXHAUSTED_COOLING
+    hassette.children = [service]
+
+    watcher = make_watcher(hassette)
+    spec = RestartSpec(restart_type=RestartType.TRANSIENT, cooldown_seconds=0.001, max_cooldown_cycles=0)
+    key = f"{service.class_name}:{service.role}"
+    budget = watcher.get_budget(key, spec)
+    budget.record_restart()
+
+    with patch("hassette.core.service_watcher.restart", new_callable=AsyncMock) as mock_restart:
+        await watcher.cooldown_and_retry(
+            name=service.class_name,
+            role=service.role,
+            key=key,
+            spec=spec,
+        )
+
+    mock_restart.assert_awaited_once_with(service)
+    budget.evict_expired()
+    assert len(budget._timestamps) == 0, "budget should have been reset when admission is not blocked"

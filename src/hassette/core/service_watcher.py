@@ -10,8 +10,9 @@ from hassette.event_handling.accessors import get_path
 from hassette.events import HassetteServiceEvent
 from hassette.events.base import HassettePayload
 from hassette.events.hassette import ServiceStatusPayload
+from hassette.exceptions import RestartRefusedError
 from hassette.resources.base import Resource
-from hassette.resources.lifecycle import mark_ready, request_shutdown
+from hassette.resources.lifecycle import create_service_status_event, mark_ready, request_shutdown
 from hassette.resources.operations import restart
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
@@ -190,6 +191,73 @@ class ServiceWatcher(Resource):
             ),
         )
 
+    def restart_admission_blocked(self) -> bool:
+        """Return True when a fatal reason has been recorded or root shutdown has been requested.
+
+        Checked at entry to ``restart_service()``, ``execute_restart()``, and
+        ``cooldown_and_retry()``, and again immediately before every ``restart()`` call in the
+        latter two, so a delayed retry or cooldown-continuation task started before a refusal
+        landed cannot race past the process-latched fatal state after it lands. This closes the
+        race without a second watcher state machine — the same process-latched
+        ``fatal_shutdown_reason``/``shutdown_event`` state that ``handle_restart_refused()``
+        writes is what every admission check reads.
+        """
+        return self.hassette.fatal_shutdown_reason is not None or self.hassette.shutdown_event.is_set()
+
+    def log_if_admission_blocked(self, name: str | None, role: object | None, action: str) -> bool:
+        """Return True and log at debug level if restart admission is currently blocked.
+
+        Shared by the admission checks in ``restart_service()`` (entry), ``cooldown_and_retry()``
+        (entry and its post-sleep re-check), and ``execute_restart()`` (entry and its
+        post-backoff re-check) so all five near-identical inline blocks share one log format.
+        ``action`` is a short phrase naming what step is being skipped (e.g. "restart_service",
+        "cooldown").
+        """
+        if not self.restart_admission_blocked():
+            return False
+        if name is not None and role is not None:
+            self.logger.debug(
+                "%s '%s' restart admission blocked (fatal reason or shutdown requested), skipping %s",
+                role,
+                name,
+                action,
+            )
+        else:
+            self.logger.debug("Restart admission blocked (fatal reason or shutdown requested), skipping %s", action)
+        return True
+
+    async def handle_restart_refused(self, name: str, role: object, error: RestartRefusedError) -> None:
+        """Escalate a typed restart refusal to one fatal outcome.
+
+        Records the fatal reason synchronously at this decision site (same race-safe pattern as
+        ``handle_exhaustion``'s PERMANENT branch — see its comment: the CRASHED event dispatched
+        below is handled asynchronously, so relying on ``shutdown_if_crashed`` alone would race
+        any caller reading ``fatal_shutdown_reason``). Requests shutdown via ``request_shutdown()``
+        rather than calling ``hassette.shutdown()`` inline, so ``run_forever()`` owns root
+        teardown and fatal-exit behavior instead of this handler racing it. The CRASHED event is
+        best-effort and sent last — event dispatch is telemetry, not the control path, so its
+        failure is logged and does not undo the already-recorded fatal reason or shutdown
+        request. Callers hold ``_restarting`` until this coroutine returns, so no retry or
+        cooldown scheduling can observe a half-completed refusal.
+        """
+        reason = f"{role} '{name}' restart refused: {error}"
+        self.logger.error("%s '%s' restart refused, escalating to fatal shutdown: %s", role, name, error)
+        self.hassette.record_fatal_reason(reason)
+        request_shutdown(self.hassette, reason)
+
+        crashed_event = HassetteServiceEvent.from_service_status(
+            resource_name=name,
+            role=role,  # pyright: ignore[reportArgumentType]
+            status=ResourceStatus.CRASHED,
+            previous_status=ResourceStatus.FAILED,
+            exception=error,
+            ready=False,
+        )
+        try:
+            await self.hassette.send_event(crashed_event)
+        except Exception as exc:
+            self.logger.error("%s '%s' failed to dispatch CRASHED event after restart refusal: %s", role, name, exc)
+
     async def handle_exhaustion(
         self,
         name: str,
@@ -269,6 +337,9 @@ class ServiceWatcher(Resource):
 
         Tracks cooldown cycles. If max_cooldown_cycles is exceeded, transitions to EXHAUSTED_DEAD.
         """
+        if self.log_if_admission_blocked(name, role, "cooldown"):
+            return
+
         self._cooldown_cycles[key] = self._cooldown_cycles.get(key, 0) + 1
         cycle = self._cooldown_cycles[key]
 
@@ -303,6 +374,14 @@ class ServiceWatcher(Resource):
             self.logger.debug("%s '%s' cooldown aborted (shutdown requested)", role, name)
             return
 
+        # Admission check before the budget reset and the restart() call below — nothing async
+        # happens between here and restart(), so one check immediately upstream of both is
+        # sufficient to close the delayed-task race for both effects. A fatal reason or root
+        # shutdown request recorded during the cooldown sleep must stop the budget reset too,
+        # not just the restart attempt.
+        if self.log_if_admission_blocked(name, role, "budget reset and restart (after cooldown sleep)"):
+            return
+
         # Reset budget and attempt restart
         budget = self._budgets.get(key)
         if budget:
@@ -316,11 +395,16 @@ class ServiceWatcher(Resource):
         self.logger.info("%s '%s' cooldown complete, attempting restart", role, name)
         try:
             await restart(service)
+        except RestartRefusedError as exc:
+            await self.handle_restart_refused(name, role, exc)
         except Exception as exc:
             self.logger.error("%s '%s' restart after cooldown failed: %s", role, name, exc)
 
     async def restart_service(self, event: HassetteServiceEvent) -> None:
         """Restart a failed service using per-service RestartSpec-driven behavior."""
+        if self.log_if_admission_blocked(None, None, "restart_service"):
+            return
+
         status_payload = event.payload.data
         name = status_payload.resource_name
         role = status_payload.role
@@ -367,7 +451,14 @@ class ServiceWatcher(Resource):
             await self.handle_exhaustion(name, role, key, spec, status_payload)
             return
 
-        # Step 3: In-restart guard — prevent double budget depletion from concurrent FAILED events
+        # Step 3: In-restart guard — prevent double budget depletion from concurrent FAILED events.
+        # Always drop while a restart is in progress: the budget's exhausted/not-exhausted state
+        # alone cannot tell whether this event is the in-flight attempt's own failure or a
+        # duplicate/redelivery of the original failure that started this attempt — record_restart()
+        # for the current attempt already ran at Step 5, so is_exhausted() reads the same either
+        # way. The in-flight attempt's own failure is instead detected directly and unambiguously
+        # in execute_restart()'s own exception handler, which cannot race this guard because it
+        # runs on the same task that owns `_restarting` for this key.
         if key in self._restarting:
             self.logger.debug(
                 "%s '%s' restart already in progress, dropping duplicate FAILED event",
@@ -414,6 +505,9 @@ class ServiceWatcher(Resource):
         )
 
         try:
+            if self.log_if_admission_blocked(name, role, "backoff and restart"):
+                return
+
             if backoff > 0:
                 self.logger.info(
                     "%s '%s' restarting (attempt %d, waiting %.1fs)",
@@ -429,11 +523,27 @@ class ServiceWatcher(Resource):
 
             self.logger.debug("%s '%s' is being restarted", role, name)
 
+            # Admission check again, immediately before the restart() call — the backoff sleep
+            # above is an await point where a refusal on another service key (or a fatal error)
+            # could have landed since the entry check.
+            if self.log_if_admission_blocked(name, role, "restart (after backoff)"):
+                return
+
+            if service.shutting_down:
+                self.logger.debug(
+                    "%s '%s' was already mid-shutdown for an unrelated reason when the watcher's "
+                    "backoff sleep ended -- restart() will join that in-flight attempt",
+                    role,
+                    name,
+                )
+
             # Step 7: Restart the service — catch and log exceptions, do NOT double-count budget.
             # Clear the in-restart guard in the finally so concurrent FAILED events cannot enter
             # restart_service() while the restart is still in progress.
             try:
                 await restart(service)
+            except RestartRefusedError as exc:
+                await self.handle_restart_refused(name, role, exc)
             except Exception as exc:
                 self.logger.error(
                     "%s '%s' restart raised an exception (service left in FAILED state): %s",
@@ -441,6 +551,18 @@ class ServiceWatcher(Resource):
                     name,
                     exc,
                 )
+                # This is the attempt's own failure, observed directly on the task that owns
+                # `_restarting` for this key -- not inferred from a FAILED event racing back
+                # through the bus (see Step 3's guard). Check exhaustion here, unambiguously.
+                if budget.is_exhausted():
+                    self.logger.debug(
+                        "%s '%s' restart attempt failed and budget exhausted, handling exhaustion",
+                        role,
+                        name,
+                    )
+                    self._restarting.discard(key)
+                    status_event = create_service_status_event(service, ResourceStatus.FAILED, exc)
+                    await self.handle_exhaustion(name, role, key, spec, status_event.payload.data)
         finally:
             self._restarting.discard(key)
 

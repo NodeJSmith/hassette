@@ -45,6 +45,14 @@ class TaskBucket(Resource):
     _exception_recorders: "list[ExceptionRecorderT]"
     """List of recorders called for each non-CancelledError task exception."""
 
+    _sealed: bool = False
+    """Whether the bucket is currently rejecting new owner work.
+
+    Class-level default so instances built via ``TaskBucket.__new__`` (test
+    infrastructure that bypasses ``__init__`` to avoid full ``Resource`` wiring)
+    still start unsealed rather than raising ``AttributeError``.
+    """
+
     def __init__(
         self,
         hassette: "Hassette",
@@ -56,6 +64,7 @@ class TaskBucket(Resource):
         self._tasks: set[asyncio.Task[Any]] = set()
         self._exception_recorders = []
         self._sync_executor = sync_executor
+        self._sealed = False
         mark_ready(self, reason="TaskBucket initialized")
 
     @property
@@ -72,8 +81,68 @@ class TaskBucket(Resource):
         # truthiness should not trigger __len__
         return True
 
+    @property
+    def is_sealed(self) -> bool:
+        """Whether the bucket is currently rejecting new owner work."""
+        return self._sealed
+
+    def seal(self) -> None:
+        """Stop accepting new owner work via ``spawn()`` or the task factory.
+
+        Idempotent — calling this on an already-sealed bucket is a no-op. Existing
+        tracked tasks are unaffected; sealing only governs admission of new work.
+        """
+        if self._sealed:
+            return
+        self._sealed = True
+        self.logger.debug("Sealed bucket %s; rejecting new owner work", self.unique_name)
+
+    def reopen(self) -> None:
+        """Resume accepting new owner work.
+
+        Intended to be called only from an accepted new lifecycle initialization
+        attempt after a clean, restart-safe teardown. Idempotent.
+        """
+        if not self._sealed:
+            return
+        self._sealed = False
+        self.logger.debug("Reopened bucket %s; accepting new owner work", self.unique_name)
+
+    def _sealed_rejection(self, name: str) -> RuntimeError:
+        return RuntimeError(f"TaskBucket({self.unique_name}) is sealed and rejected new work: {name}")
+
+    def _close_rejected_coro(self, coro: "CoroLikeT[Any]") -> None:
+        close = getattr(coro, "close", None)
+        if callable(close):
+            close()
+
+    def pending_task_names(self) -> tuple[str, ...]:
+        """Return a deterministic, synchronous snapshot of names for tasks still pending.
+
+        Unlike :meth:`pending_tasks`, this returns plain, sorted names rather than task
+        objects — safe to call from a force-terminal or timeout path that must inspect
+        the bucket without awaiting anything.
+        """
+        return tuple(sorted(t.get_name() for t in self.pending_tasks()))
+
     def add(self, task: asyncio.Task[Any]) -> None:
-        """Add a task to the bucket and attach exception logging."""
+        """Add a task to the bucket and attach exception logging.
+
+        If the bucket is sealed, the task is cancelled and its eventual exception
+        (including ``CancelledError``) is consumed via a done callback so rejection
+        cannot produce an unobserved-task-exception warning. Raises ``RuntimeError``
+        identifying the bucket in that case; the task is never tracked.
+        """
+        if self._sealed:
+            task.cancel()
+
+            def _consume_rejected(t: asyncio.Task[Any]) -> None:
+                with contextlib.suppress(BaseException):
+                    t.exception()
+
+            task.add_done_callback(_consume_rejected)
+            raise self._sealed_rejection(task.get_name())
+
         self._tasks.add(task)
 
         def _done(t: asyncio.Task[Any]) -> None:
@@ -131,22 +200,34 @@ class TaskBucket(Resource):
             self._exception_recorders.remove(recorder)
 
     def spawn(self, coro: CoroLikeT[T], *, name: str | None = None) -> asyncio.Task[T]:
-        """Convenience: create and track a new task."""
-        if name is None:
-            name = getattr(coro, "__qualname__", None) or repr(coro)
-        self.logger.debug("Spawning task %s in bucket %s", name, self.unique_name)
+        """Convenience: create and track a new task.
+
+        Raises ``RuntimeError`` without creating a task if the bucket is sealed. The
+        unsubmitted coroutine is closed first (when it supports ``close()``) so a
+        rejection never produces a "coroutine was never awaited" warning.
+        """
+        # Assign once to a fixed-type local: a nested closure below captures the enclosing
+        # scope's *declared* parameter type, not a narrowed one, so re-narrowing `name` after
+        # this point would leave the closure seeing `str | None` again.
+        task_name: str = name if name is not None else (getattr(coro, "__qualname__", None) or repr(coro))
+
+        if self._sealed:
+            self._close_rejected_coro(coro)
+            raise self._sealed_rejection(task_name)
+
+        self.logger.debug("Spawning task %s in bucket %s", task_name, self.unique_name)
         current_thread = threading.get_ident()
 
         if current_thread == self.hassette.loop_thread_id:
             # Fast path: already on loop thread
             with ctx.use_task_bucket(self):
-                return asyncio.create_task(coro, name=name)
+                return asyncio.create_task(coro, name=task_name)
         else:
             # Dev-mode tracking: log cross-thread spawn
             if self.hassette.config.dev_mode:
                 self.logger.debug(
                     "Cross-thread spawn: %s from thread %s (loop thread %s)",
-                    name,
+                    task_name,
                     current_thread,
                     self.hassette.loop_thread_id,
                 )
@@ -154,9 +235,13 @@ class TaskBucket(Resource):
             result: Future[asyncio.Task[T]] = Future()
 
             def _create() -> None:
+                if self._sealed:
+                    self._close_rejected_coro(coro)
+                    result.set_exception(self._sealed_rejection(task_name))
+                    return
                 try:
                     with ctx.use_task_bucket(self):
-                        task = asyncio.create_task(coro, name=name)
+                        task = asyncio.create_task(coro, name=task_name)
                     result.set_result(task)
                 except Exception as exc:
                     result.set_exception(exc)
@@ -167,11 +252,11 @@ class TaskBucket(Resource):
             except CfTimeoutError:
                 self.logger.error(
                     "Cross-thread spawn of '%s' timed out after %.0fs waiting for the event loop",
-                    name,
+                    task_name,
                     _CROSS_THREAD_SPAWN_TIMEOUT_SECS,
                 )
                 raise RuntimeError(
-                    f"Cross-thread spawn of '{name}' timed out waiting for the event loop "
+                    f"Cross-thread spawn of '{task_name}' timed out waiting for the event loop "
                     "— the loop may have stopped or is severely congested"
                 ) from None
 
@@ -320,21 +405,32 @@ class TaskBucket(Resource):
         for t in tasks:
             t.cancel()
 
-    async def cancel_all(self) -> None:
-        """Cancel all tracked tasks, wait for them to finish, and log stragglers."""
+    async def cancel_all(self, *, timeout: float | None = None) -> tuple[str, ...]:
+        """Cancel all tracked tasks, wait for them to finish, and return names still pending.
+
+        Args:
+            timeout: Seconds to wait for tasks to finish after cancellation. Defaults to
+                ``task_cancellation_timeout_seconds`` from config.
+
+        Returns:
+            A sorted tuple of the names of tasks that were still pending after the bounded
+            wait. Duplicate names are not removed. Empty if every tracked task finished, or
+            if there was nothing to cancel.
+        """
         # snapshot to avoid mutation during iteration
         current = asyncio.current_task()
         tasks = [t for t in list(self._tasks) if not t.done() and t is not current]
 
         if not tasks:
             self.logger.debug("No tasks to cancel in bucket %s", self.unique_name)
-            return
+            return ()
 
+        effective_timeout = timeout if timeout is not None else self.config_cancel_timeout
         self.logger.debug("Cancelling %d tasks in bucket %s", len(tasks), self.unique_name)
         for t in tasks:
             t.cancel()
 
-        done, pending = await asyncio.wait(tasks, timeout=self.config_cancel_timeout)
+        done, pending = await asyncio.wait(tasks, timeout=effective_timeout)
         self.logger.debug("%d tasks done, %d still pending in bucket %s", len(done), len(pending), self.unique_name)
 
         for t in done:
@@ -346,8 +442,10 @@ class TaskBucket(Resource):
 
         for t in pending:
             self.logger.warning(
-                "[%s] task %s refused to die within %.1fs", self.unique_name, t.get_name(), self.config_cancel_timeout
+                "[%s] task %s refused to die within %.1fs", self.unique_name, t.get_name(), effective_timeout
             )
+
+        return tuple(sorted(t.get_name() for t in pending))
 
     def __len__(self) -> int:
         return len(self._tasks)
@@ -378,8 +476,23 @@ def make_task_factory(
 
         # compare using `is not None` to avoid `__len__` being called to determine truthiness
         current_bucket = ctx.CURRENT_BUCKET.get()
-        owner = current_bucket if current_bucket is not None else global_bucket
-        owner.add(t)
+        if current_bucket is not None:
+            # An explicit bucket claimed this task (e.g. TaskBucket.spawn()'s
+            # `with ctx.use_task_bucket(self):`) -- it is owned/controlled by that bucket by
+            # definition, so PROTECT_TASK does not apply here. Skipping tracking for an
+            # explicitly-claimed task would make it invisible to its own owner's
+            # pending_tasks()/cancel_all(), not just to unrelated buckets elsewhere.
+            current_bucket.add(t)
+            return t
+
+        if ctx.PROTECT_TASK.get():
+            # No explicit bucket claimed this task, so it would otherwise fall through to the
+            # global fallback bucket below -- a bucket it doesn't own or control. Skip tracking
+            # entirely so no cancel_all() anywhere can ever cancel it as a side effect. See
+            # hassette.context.PROTECT_TASK.
+            return t
+
+        global_bucket.add(t)
         return t
 
     return factory

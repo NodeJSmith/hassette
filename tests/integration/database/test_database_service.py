@@ -555,3 +555,27 @@ async def test_size_failsafe_logs_warning_on_consecutive_triggers(initialized_se
         assert any("consecutive" in c for c in warning_calls), (
             f"Expected consecutive-trigger warning on second call, got: {warning_calls}"
         )
+
+
+async def test_force_terminal_closes_real_connections(initialized_service: DatabaseService) -> None:
+    """_force_terminal() must stop the real aiosqlite connections synchronously.
+
+    Regression: force-terminal intentionally skips on_shutdown()/cleanup() (see
+    Resource._force_terminal()'s docstring) because production assumes force-terminal is nearly
+    always followed by process exit. That assumption doesn't hold in a long-lived process --
+    notably the test suite -- where a leaked aiosqlite.Connection instead sits open until
+    Python's GC eventually reclaims it, firing an unraisable-exception warning attributed to
+    whichever test happens to be running at that moment. Same class of leak fixed for App's cache
+    in tests/unit/resources/lifecycle/test_force_terminal.py.
+    """
+    write_conn = initialized_service._db
+    read_conn = initialized_service._read_db
+    assert write_conn is not None
+    assert read_conn is not None
+
+    initialized_service._force_terminal()
+
+    assert initialized_service._db is None
+    assert initialized_service._read_db is None
+    assert write_conn._running is False, "the write connection's background thread must be signaled to stop"
+    assert read_conn._running is False, "the read connection's background thread must be signaled to stop"

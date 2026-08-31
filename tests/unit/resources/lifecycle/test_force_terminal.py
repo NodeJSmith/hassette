@@ -5,24 +5,30 @@ Verifies:
 - App shutdown propagates to Bus and Scheduler
 - _force_terminal() recurses to grandchildren
 - _force_terminal() cancels task buckets
-- _force_terminal() skips completed children
+- _force_terminal() still recurses into already-completed children
+- _force_terminal() records FORCED_TERMINAL restart-unsafe evidence before cancelling work
+- _force_terminal() leaves an already-completed SAFE report unchanged
 - Service._force_terminal() cancels serve task
 - _on_children_stopped() hook fires on clean shutdown
 - _on_children_stopped() is skipped on timeout
 - cleanup() timeout is enforced
-- _finalize_shutdown() resets initializing flag
+- A completed shutdown() clears the read-only `initializing` property regardless of how
+  shutdown_event was set beforehand
 """
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
+from hassette.cache import AsyncCache
 from hassette.resources.base import Resource
+from hassette.resources.teardown import TeardownCause, TeardownReport
 from hassette.scheduler.classes import Job
 from hassette.scheduler.scheduler import Scheduler
 from hassette.test_utils import make_mock_hassette
 from hassette.test_utils.factories import make_scheduled_job
+from hassette.test_utils.helpers import SHORT_SHUTDOWN_TIMEOUT_SECONDS
 from hassette.types.enums import ResourceStatus
 
 from .conftest import HangingChild, ShutdownCounter, SimpleParent, make_running_simple_service
@@ -78,6 +84,37 @@ async def test_app_shutdown_propagates_to_bus_and_scheduler():
     assert not app.scheduler.is_ready(), "Scheduler should not be ready after app shutdown"
 
 
+async def test_force_terminal_stops_cache_connections():
+    """App._force_terminal() must stop the cache's aiosqlite connections synchronously.
+
+    Regression: force-terminal intentionally skips cleanup()/on_shutdown() (see
+    Resource._force_terminal()'s docstring) because production assumes force-terminal is nearly
+    always followed by process exit. That assumption does not hold in a long-lived process --
+    notably the test suite -- where a leaked aiosqlite.Connection instead sits open until
+    Python's GC eventually reclaims it, firing an unraisable-exception warning attributed to
+    whichever test happens to be running at that moment. Observed in CI:
+    tests/integration/test_hot_reload.py::TestBasicHotReload::test_hot_reload_starts_newly_enabled_app
+    leaked two open connections this way when an app's shutdown was force-terminated.
+    """
+    hassette = make_mock_hassette(sealed=False)
+    app = App(hassette, app_config=AppConfig(instance_name="test_app"), index=0, app_key="test_app")
+
+    await app.initialize()
+
+    assert isinstance(app.cache, AsyncCache)
+    write_conn = app.cache._write
+    read_conn = app.cache._read
+    assert write_conn is not None
+    assert read_conn is not None
+
+    app._force_terminal()
+
+    assert app.cache._write is None
+    assert app.cache._read is None
+    assert write_conn._running is False, "the write connection's background thread must be signaled to stop"
+    assert read_conn._running is False, "the read connection's background thread must be signaled to stop"
+
+
 async def test_force_terminal_recurses_to_grandchildren():
     """_force_terminal() recursively sets all descendants to STOPPED with shutdown_completed=True."""
     hassette = make_mock_hassette(sealed=False)
@@ -121,8 +158,14 @@ async def test_force_terminal_cancels_task_bucket():
     child.task_bucket.cancel_all_sync.assert_called_once()
 
 
-async def test_force_terminal_skips_completed_children():
-    """_force_terminal() returns early for resources with shutdown_completed=True."""
+async def test_force_terminal_still_recurses_into_already_completed_children():
+    """Regression: _force_terminal() must still recurse into a child whose own report was
+    already stored (e.g. an already-completed shutdown) -- only the report itself is left
+    unchanged (see test_force_terminal_leaves_completed_safe_child_report_unchanged below), not
+    the recursive call. An early return here would also skip any *grandchildren* under that
+    child, which is exactly what Hassette._shutdown_body() relies on this method reaching
+    unconditionally on its total-timeout path.
+    """
     hassette = make_mock_hassette(sealed=False)
     root = SimpleParent(hassette)
     child = root.add_child(SimpleParent)
@@ -143,8 +186,94 @@ async def test_force_terminal_skips_completed_children():
         # Root should be force-terminated
         assert root.shutdown_completed is True
         assert root.status == ResourceStatus.STOPPED
-        # Child was already completed — cancel() should NOT have been called on it
-        mock_cancel.assert_called_once_with(root)
+        # The already-completed child is still reached by the recursive call — cancel() is a
+        # safe no-op on it (nothing left to cancel), but it must still be called so a hung
+        # grandchild under it would also be reached.
+        assert mock_cancel.call_args_list == [call(root), call(child)]
+
+
+async def test_force_terminal_stores_forced_terminal_report_before_cancelling_work():
+    """_force_terminal() stores its restart-unsafe report (FORCED_TERMINAL) before cancelling
+    anything -- ``cancel()``, ``task_bucket.cancel_all_sync()``, and the recursive descendant
+    call all happen strictly after ``self._teardown_report`` already reflects the forced
+    outcome, so a caller inspecting the report mid-cancellation never sees ``None`` or a report
+    that doesn't yet name the forced-terminal cause.
+    """
+    hassette = make_mock_hassette(sealed=False)
+    root = SimpleParent(hassette)
+    await root.initialize()
+
+    order: list[str] = []
+    original_cancel_all_sync = root.task_bucket.cancel_all_sync
+
+    def _spy_cancel_all_sync() -> None:
+        assert root._teardown_report is not None, "report must already be stored before cancel_all_sync() runs"
+        order.append("cancel_all_sync")
+        original_cancel_all_sync()
+
+    root.task_bucket.cancel_all_sync = _spy_cancel_all_sync  # pyright: ignore[reportAttributeAccessIssue]
+
+    with patch("hassette.resources.base.cancel") as mock_cancel:
+        mock_cancel.side_effect = lambda _r: order.append("cancel")
+        root._force_terminal()
+
+    report = root.teardown_report
+    assert report is not None
+    assert report.is_restart_safe is False
+    assert TeardownCause.FORCED_TERMINAL in report.causes
+    assert order == ["cancel", "cancel_all_sync"], "both cancellation calls must run after the report was stored"
+    assert root.status == ResourceStatus.STOPPED
+
+
+async def test_force_terminal_leaves_completed_safe_child_report_unchanged():
+    """A child that already completed a clean, restart-safe shutdown before a parent's
+    force-terminal call keeps its own report unchanged -- force-terminal only degrades resources
+    that have not yet completed a teardown attempt.
+    """
+    hassette = make_mock_hassette(sealed=False)
+    root = SimpleParent(hassette)
+    child = root.add_child(ShutdownCounter)
+
+    await root.initialize()
+
+    await child.shutdown()
+    safe_report = child.teardown_report
+    assert safe_report is not None
+    assert safe_report.is_restart_safe is True
+
+    root._force_terminal()
+
+    assert child.teardown_report is safe_report, "force-terminal must not touch an already-completed SAFE report"
+    assert child.teardown_report.is_restart_safe is True
+
+
+async def test_force_terminal_reaches_grandchild_under_already_reported_child():
+    """Regression: a live grandchild under a child whose own report was already stored must
+    still be force-terminated. Before this fix, `_force_terminal()`'s "leave an already-stored
+    report unchanged" guard returned before the recursive call into children entirely, so a
+    resource with a stored report (restart-safe or not) blocked force-termination of its own
+    descendants -- exactly the total-timeout path `Hassette._shutdown_body()` relies on this
+    method reaching unconditionally.
+
+    Sets the child's report directly (rather than via `child.shutdown()`, which would also
+    propagate to and shut down the grandchild itself, defeating the scenario) to simulate a
+    resource that completed its own teardown attempt while a descendant it owns is still alive.
+    """
+    hassette = make_mock_hassette(sealed=False)
+    root = SimpleParent(hassette)
+    child = root.add_child(SimpleParent)
+    grandchild = child.add_child(SimpleParent)
+
+    await root.initialize()
+
+    child._teardown_report = TeardownReport(causes=(TeardownCause.FORCED_TERMINAL,))
+    assert grandchild.shutdown_completed is False
+    assert grandchild.status == ResourceStatus.RUNNING
+
+    root._force_terminal()
+
+    assert grandchild.shutdown_completed is True
+    assert grandchild.status == ResourceStatus.STOPPED
 
 
 async def test_service_force_terminal_cancels_serve_task():
@@ -195,7 +324,7 @@ async def test_on_children_stopped_called_on_clean_shutdown():
 async def test_on_children_stopped_skipped_on_timeout():
     """_on_children_stopped() is NOT called when child shutdown times out."""
     hassette = make_mock_hassette(sealed=False)
-    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 0.1
+    hassette.config.lifecycle.resource_shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
 
     parent = HookTrackingParent(hassette)
     parent.add_child(HangingChild)
@@ -210,7 +339,7 @@ async def test_on_children_stopped_skipped_on_timeout():
 async def test_cleanup_timeout_fires_on_hung_cleanup():
     """When cleanup() hangs, asyncio.timeout catches it and logs a warning."""
     hassette = make_mock_hassette(sealed=False)
-    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 0.1
+    hassette.config.lifecycle.resource_shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
 
     class HungCleanupResource(Resource):
         async def cleanup(self, timeout: float | None = None) -> None:
@@ -225,18 +354,27 @@ async def test_cleanup_timeout_fires_on_hung_cleanup():
     assert resource.shutdown_completed is True
 
 
-async def test_finalize_shutdown_resets_initializing_flag():
-    """_finalize_shutdown() clears initializing regardless of how shutdown was triggered."""
+async def test_shutdown_clears_initializing_regardless_of_shutdown_event_state():
+    """A completed ``shutdown()`` leaves ``initializing`` False regardless of whether
+    ``shutdown_event`` was already set beforehand.
+
+    Superseded by the coordinator design: there is no ``_finalize_shutdown()`` method and no
+    mutable ``initializing`` flag to force directly anymore — ``initializing`` is now a
+    read-only property derived from ``_init_task`` (see ``LifecycleMixin.initializing`` in
+    ``hassette.resources.mixins``). This exercises the same observable outcome (the resource
+    is not "initializing" once its coordinated shutdown attempt has completed) through the
+    public front doors instead.
+    """
     hassette = make_mock_hassette(sealed=False)
 
     resource1 = SimpleParent(hassette)
-    resource1.initializing = True
+    await resource1.initialize()
     resource1.shutdown_event.set()
-    await resource1._finalize_shutdown()
+    await resource1.shutdown()
     assert resource1.initializing is False
 
     resource2 = SimpleParent(hassette)
-    resource2.initializing = True
-    resource2.shutdown_event.clear()
-    await resource2._finalize_shutdown()
+    await resource2.initialize()
+    assert not resource2.shutdown_event.is_set()
+    await resource2.shutdown()
     assert resource2.initializing is False

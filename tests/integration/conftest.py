@@ -1,5 +1,6 @@
 """Shared fixtures for integration tests."""
 
+import asyncio
 import shutil
 import time
 from collections.abc import AsyncIterator, Callable
@@ -45,15 +46,58 @@ _HARNESS_FIXTURES = frozenset(
 
 
 @pytest.fixture
-async def hassette_instance(test_config: HassetteConfig):
-    """Provide a fresh Hassette instance and restore context afterwards."""
+async def hassette_instance(test_config: HassetteConfig, request: pytest.FixtureRequest) -> Hassette:
+    """Provide a fresh Hassette instance and restore context afterwards.
+
+    ``wire_services()`` sets the ``HASSETTE_INSTANCE`` ContextVar internally. Because this
+    fixture is a *plain* (non-generator) async fixture, pytest-asyncio's own
+    ``_apply_contextvar_changes`` machinery already diffs every ContextVar mutated during
+    setup against the outer context and registers a synchronous finalizer that resets it —
+    no manual Token bookkeeping needed here. (A manually-captured Token would in fact be
+    *invalid* to reset later: setup runs inside a copied ``contextvars.Context`` that isn't
+    the same Context our own code runs in afterward, and ``ContextVar.reset()`` raises
+    ``ValueError`` across Context boundaries.) Without this, the ContextVar would leak the
+    (possibly sealed/torn-down) instance into later tests.
+
+    Tests that drive ``run_forever()`` also install a custom asyncio task factory
+    (``loop.set_task_factory(make_task_factory(self.task_bucket))`` in
+    ``Hassette.run_forever()``) that routes every new task through this instance's
+    TaskBucket, and never restores it — mirroring the gap ``HassetteHarness.stop()``
+    closes via its own ``_previous_task_factory`` restore. If a test triggers real
+    shutdown, that bucket seals.
+
+    This fixture is deliberately a *plain* async fixture (no ``yield``) with cleanup
+    registered via ``request.addfinalizer()`` as a *synchronous* callback, rather than
+    an ``async def ... yield ...`` generator. pytest-asyncio always resumes an
+    async-generator fixture's teardown by creating a brand-new asyncio Task on the
+    shared loop (``asyncio_default_test_loop_scope = "session"`` in pyproject.toml, so
+    this loop is reused across the whole session). If that loop's task factory is still
+    pointing at a now-sealed bucket, *that very task creation* raises before any of the
+    generator's own ``finally`` code gets a chance to run — a chicken-and-egg deadlock
+    (confirmed via the reproduction in this task: the error surfaced as
+    "sealed and rejected new work: async_finalizer"/"shutdown_asyncgens", not from our
+    own cleanup code). A plain synchronous finalizer sidesteps this: it runs as ordinary
+    Python code with no task creation involved, so it can restore the task factory
+    *first* and only then use ``loop.run_until_complete()`` (also safe once the factory
+    is back to normal) to drive the async stream cleanup.
+    """
     test_config.reload()
     instance = Hassette(test_config)
     instance.wire_services()
-    try:
-        yield instance
-    finally:
-        await cleanup_hassette_streams(instance)
+    loop = asyncio.get_running_loop()
+    previous_task_factory = loop.get_task_factory()
+
+    def _teardown() -> None:
+        # Order matters: restore the task factory before anything that might create a
+        # new Task, including run_until_complete()'s internal ensure_future() call.
+        loop.set_task_factory(previous_task_factory)
+        loop.run_until_complete(cleanup_hassette_streams(instance))
+
+    # PT021: request.addfinalizer() instead of `yield` is deliberate here, not the usual
+    # missed-convention case that rule flags — see the docstring above for why a `yield`
+    # based async-generator fixture deadlocks for this specific fixture.
+    request.addfinalizer(_teardown)  # noqa: PT021
+    return instance
 
 
 @pytest.fixture(autouse=True)

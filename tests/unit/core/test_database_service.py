@@ -40,6 +40,13 @@ async def initialized_service_with_worker(service: DatabaseService) -> AsyncIter
     mock_conn.execute = AsyncMock()
     mock_conn.commit = AsyncMock()
     mock_conn.close = AsyncMock()
+    # stop() is aiosqlite's *synchronous* counterpart to close() (see stop_connection_sync()) --
+    # an unconfigured attribute on an AsyncMock defaults to AsyncMock too, which would return an
+    # unawaited coroutine here and fail the suite via PytestUnraisableExceptionWarning. Same
+    # reasoning applies to `_thread`: stop_connection_sync() checks `thread.is_alive()` and would
+    # otherwise get an unawaited coroutine back instead of a real bool.
+    mock_conn.stop = MagicMock()
+    mock_conn._thread = None
 
     async def fake_connect(*_args: object, **_kwargs: object) -> AsyncMock:
         return mock_conn
@@ -111,6 +118,104 @@ async def test_worker_started_after_initialize(
     assert task is not None
     assert isinstance(task, asyncio.Task)
     assert not task.done()
+
+
+async def test_force_terminal_cancels_untracked_db_worker(
+    initialized_service_with_worker: DatabaseService,
+) -> None:
+    """_force_terminal() cancels _db_worker_task even though it bypasses TaskBucket.
+
+    _db_worker_task is created outside any TaskBucket (see on_initialize()), so
+    Service._force_terminal()'s TaskBucket-only cancellation never reaches it. This is
+    exactly the path Hassette._shutdown_body() takes on total-shutdown timeout, which
+    force-terminates children directly and never runs on_shutdown() -- without this
+    override the worker (and its queue/connections) would survive that timeout.
+    """
+    service = initialized_service_with_worker
+    task = service._db_worker_task
+    assert task is not None
+    assert not task.done()
+
+    service._force_terminal()
+
+    with contextlib.suppress(asyncio.CancelledError):
+        await task
+    assert task.cancelled()
+
+
+async def test_force_terminal_drains_write_queue(
+    initialized_service_with_worker: DatabaseService,
+) -> None:
+    """_force_terminal() must drain _db_write_queue: swap it to ``None`` (so a subsequent
+    submit()/enqueue() call rejects instead of hanging against a worker that was just
+    cancelled) and close any coroutine/cancel any future still queued (so GC doesn't warn
+    about an unawaited coroutine and a caller awaiting submit() isn't left hanging forever).
+    """
+    service = initialized_service_with_worker
+    queue = service._db_write_queue
+    assert queue is not None
+
+    async def sentinel_coro() -> int:
+        return 99
+
+    future: asyncio.Future[int] = asyncio.get_running_loop().create_future()
+    # No await between put_nowait() and _force_terminal() -- the worker task cannot get an
+    # event-loop turn to consume this item before force_terminal cancels it.
+    queue.put_nowait((sentinel_coro(), future))
+
+    service._force_terminal()
+
+    assert service._db_write_queue is None
+    assert future.cancelled()
+    with pytest.raises(RuntimeError, match="before on_initialize"):
+        service.enqueue(sentinel_coro())
+
+
+async def test_log_worker_exit_logs_unhandled_worker_crash(service: DatabaseService) -> None:
+    """Regression: a crashed ``_db_worker_task`` must be logged.
+
+    ``_db_worker_task`` bypasses TaskBucket entirely (see ``on_initialize()``), so
+    ``TaskBucket.add()``'s own done callback -- the only other place a worker crash gets logged
+    and forwarded to the installed exception recorders -- never runs for it. Without
+    ``_log_worker_exit()`` wired as its own done callback, a crash would be completely silent:
+    every later ``submit()`` would hang forever awaiting a future no worker will ever resolve,
+    with no signal anywhere pointing at why.
+    """
+
+    async def _boom() -> None:
+        raise RuntimeError("worker crashed")
+
+    task = asyncio.create_task(_boom())
+    with contextlib.suppress(RuntimeError):
+        await asyncio.wait([task])
+
+    with patch.object(service, "logger") as mock_logger:
+        service._log_worker_exit(task)
+
+    mock_logger.error.assert_called_once()
+    _args, kwargs = mock_logger.error.call_args
+    assert isinstance(kwargs.get("exc_info"), RuntimeError)
+
+
+async def test_log_worker_exit_ignores_cancelled_worker(service: DatabaseService) -> None:
+    """A cancelled ``_db_worker_task`` (the expected outcome of ``_force_terminal()`` or a clean
+    ``on_shutdown()``) must not be logged as a crash -- ``task.exception()`` raises
+    ``CancelledError`` for a cancelled task, which is not the unhandled-exception case this
+    callback exists to surface.
+    """
+
+    async def _hang() -> None:
+        await asyncio.Event().wait()
+
+    task = asyncio.create_task(_hang())
+    task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await task
+
+    with patch.object(service, "logger") as mock_logger:
+        service._log_worker_exit(task)
+
+    mock_logger.error.assert_not_called()
 
 
 async def test_submit_returns_coroutine_result(

@@ -50,10 +50,10 @@ def make_watcher(hassette: MagicMock) -> ServiceWatcher:
     watcher._ready_reason = None
     watcher._status = ResourceStatus.NOT_STARTED
     watcher._previous_status = ResourceStatus.NOT_STARTED
-    watcher.shutdown_completed = False
-    watcher.shutting_down = False
-    watcher.initializing = False
     watcher._init_task = None
+    watcher._shutdown_task = None
+    watcher._shutdown_body_task = None
+    watcher._teardown_report = None
     watcher.hassette = hassette
     watcher.parent = hassette
     watcher.children = []

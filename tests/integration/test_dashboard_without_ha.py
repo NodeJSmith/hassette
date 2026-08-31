@@ -20,6 +20,7 @@ import pytest
 from httpx2 import ASGITransport, AsyncClient, Response
 
 from hassette import Hassette
+from hassette import context as hassette_context
 from hassette.test_utils import make_light_state_dict, wait_for
 from hassette.test_utils.config import TEST_TOTAL_TIMEOUT_SECONDS
 from hassette.test_utils.helpers import cleanup_hassette_streams
@@ -47,6 +48,47 @@ async def _get_health(hassette: Hassette) -> Response:
     transport = ASGITransport(app=create_fastapi_app(hassette))
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         return await client.get(HEALTH_ENDPOINT)
+
+
+async def _teardown_bare_hassette(
+    hassette: Hassette,
+    run_task: asyncio.Task,
+    loop: asyncio.AbstractEventLoop,
+    *,
+    previous_task_factory: object,
+    instance_token: object,
+) -> None:
+    """Shut down a manually-wired Hassette instance and restore loop/context state.
+
+    Shared by this module's two call sites that construct a bare Hassette (bypassing the
+    harness) and drive it via ``run_forever()``. Order matters: restore the task factory
+    before anything below (including ``cleanup_hassette_streams``'s internal task creation)
+    that might create a new Task on this session-scoped loop — ``run_forever()`` installs a
+    TaskBucket-routing factory that seals once shutdown completes. Callers must set their own
+    unblocking events (e.g. a hung ``serve()``'s wait event) before calling this.
+
+    The restore/cleanup below runs in a ``finally`` block: ``suppress(Exception)`` around the
+    wait for ``run_task`` does not catch ``asyncio.CancelledError`` (a ``BaseException``), so a
+    cancellation delivered to *this* coroutine while awaiting ``run_task`` would otherwise skip
+    the task-factory restore and instance-token reset entirely. Since the loop is session-scoped,
+    a poisoned task factory or a stale global Hassette reference would then affect every later
+    test on the same worker, not just this one. The instance-token reset gets its own nested
+    ``finally`` around ``cleanup_hassette_streams`` for the same reason: a cancellation delivered
+    specifically during that await would otherwise propagate past its own ``suppress(Exception)``
+    (again, ``CancelledError`` is a ``BaseException``) and skip the reset below it.
+    """
+    hassette.shutdown_event.set()
+    try:
+        with contextlib.suppress(Exception):
+            await asyncio.wait_for(run_task, timeout=WEBAPI_READY_TIMEOUT)
+    finally:
+        loop.set_task_factory(previous_task_factory)  # pyright: ignore[reportArgumentType]
+        try:
+            with contextlib.suppress(Exception):
+                await cleanup_hassette_streams(hassette)
+        finally:
+            if instance_token is not None:
+                hassette_context.HASSETTE_INSTANCE.reset(instance_token)  # pyright: ignore[reportArgumentType]
 
 
 @contextlib.asynccontextmanager
@@ -91,6 +133,16 @@ async def _running_hassette_without_ha(
     )
 
     hassette = Hassette(config)
+    loop = asyncio.get_running_loop()
+    previous_task_factory = loop.get_task_factory()
+    # wire_services() calls context.set_global_hassette(hassette) internally and does not
+    # expose the returned Token, so set it ourselves first to capture the Token — wire_services()'s
+    # own call then early-returns None (same instance already set) and is a no-op. This function
+    # runs setup and teardown in the same coroutine/Context (unlike a pytest-asyncio generator
+    # fixture), so resetting a manually-captured Token in the finally block below is valid — see
+    # tests/integration/conftest.py's hassette_instance docstring for why that would NOT be true
+    # across a fixture setup/teardown boundary.
+    instance_token = hassette_context.set_global_hassette(hassette)
     hassette.wire_services()
 
     never_connects = asyncio.Event()
@@ -110,11 +162,10 @@ async def _running_hassette_without_ha(
         )
         yield hassette
     finally:
-        hassette.shutdown_event.set()
         never_connects.set()
-        with contextlib.suppress(Exception):
-            await asyncio.wait_for(run_task, timeout=WEBAPI_READY_TIMEOUT)
-        await cleanup_hassette_streams(hassette)
+        await _teardown_bare_hassette(
+            hassette, run_task, loop, previous_task_factory=previous_task_factory, instance_token=instance_token
+        )
 
 
 class TestDashboardWithoutHA:
@@ -199,6 +250,12 @@ class TestInitialStateSyncBeforeApps:
         )
 
         hassette = Hassette(config)
+        loop = asyncio.get_running_loop()
+        previous_task_factory = loop.get_task_factory()
+        # See _running_hassette_without_ha's comment above for why capturing our own Token here
+        # (instead of relying on wire_services()'s internal, unexposed set_global_hassette() call)
+        # is both necessary and valid in this plain-coroutine test body.
+        instance_token = hassette_context.set_global_hassette(hassette)
         hassette.wire_services()
 
         connection_attempted = asyncio.Event()
@@ -255,9 +312,8 @@ class TestInitialStateSyncBeforeApps:
             assert app is not None
             assert app.is_ready()
         finally:
-            hassette.shutdown_event.set()
             release_connection.set()
             keep_ws_alive.set()
-            with contextlib.suppress(Exception):
-                await asyncio.wait_for(run_task, timeout=WEBAPI_READY_TIMEOUT)
-            await cleanup_hassette_streams(hassette)
+            await _teardown_bare_hassette(
+                hassette, run_task, loop, previous_task_factory=previous_task_factory, instance_token=instance_token
+            )

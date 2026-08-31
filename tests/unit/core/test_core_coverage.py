@@ -10,7 +10,7 @@ wrapper, _on_children_stopped(), and several one-line accessors/helpers.
 import asyncio
 import logging
 import queue
-from contextlib import suppress
+from contextlib import contextmanager, suppress
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -23,6 +23,7 @@ from hassette.core.core import Hassette
 from hassette.exceptions import AppPrecheckFailedError, FatalError
 from hassette.logging_ import HassetteQueueHandler, LogPersistenceHandler
 from hassette.resources.base import Resource
+from hassette.resources.teardown import TeardownCause, TeardownReport
 from hassette.test_utils import preserve_config, wait_for
 from hassette.types.enums import ResourceStatus
 from hassette.utils.url_utils import build_rest_url, build_ws_url
@@ -280,26 +281,52 @@ class TestSendEventGuards:
 
 
 class TestShutdownChildren:
-    async def test_continues_and_returns_true_after_child_exception(self, wired_hassette: Hassette) -> None:
-        """_shutdown_children() logs a per-child failure but still returns True (no all_clean tracking)."""
+    async def test_records_child_shutdown_failed_and_continues_siblings(self, wired_hassette: Hassette) -> None:
+        """_shutdown_children() records CHILD_SHUTDOWN_FAILED and the failed child's identity
+        in the aggregated report, but still awaits every sibling's shutdown.
+        """
         h = wired_hassette
         for child in h.children:
             child.shutdown = AsyncMock()
         h._file_watcher.shutdown = AsyncMock(side_effect=RuntimeError("child broke"))
-        error_mock = Mock()
-        h.logger.error = error_mock
 
         result = await h._shutdown_children()
 
-        assert result is True
+        assert TeardownCause.CHILD_SHUTDOWN_FAILED in result.causes
+        assert h._file_watcher.unique_name in result.affected_resources
         h._file_watcher.shutdown.assert_awaited_once()
         for child in h.children:
             if child is not h._file_watcher:
                 child.shutdown.assert_awaited_once()
-        error_mock.assert_called()
 
-    async def test_force_terminates_wave_on_timeout_and_returns_false(self, wired_hassette: Hassette) -> None:
-        """_shutdown_children() force-terminates the timed-out wave's children and returns False."""
+    async def test_merges_child_report_when_shutdown_raises(self, wired_hassette: Hassette) -> None:
+        """When a child's ``shutdown()`` call raises, its own already-stored ``teardown_report``
+        (e.g. ``COORDINATOR_FAILED``, stored by ``_run_shutdown_coordinator()``'s
+        ``except Exception`` branch before it re-raises) must be merged into the parent's
+        aggregated report -- not dropped in favor of only the generic ``CHILD_SHUTDOWN_FAILED``
+        cause.
+        """
+        h = wired_hassette
+        for child in h.children:
+            child.shutdown = AsyncMock()
+        h._file_watcher.shutdown = AsyncMock(side_effect=RuntimeError("coordinator boom"))
+        h._file_watcher._teardown_report = TeardownReport(
+            causes=(TeardownCause.COORDINATOR_FAILED,), failed_operations=("_run_shutdown_coordinator",)
+        )
+
+        result = await h._shutdown_children()
+
+        assert TeardownCause.CHILD_SHUTDOWN_FAILED in result.causes
+        assert TeardownCause.COORDINATOR_FAILED in result.causes, (
+            "child's own stored cause must be merged into the parent"
+        )
+        assert "_run_shutdown_coordinator" in result.failed_operations
+        assert h._file_watcher.unique_name in result.affected_resources
+
+    async def test_force_terminates_wave_on_timeout_and_records_timed_out_cause(self, wired_hassette: Hassette) -> None:
+        """_shutdown_children() force-terminates the timed-out wave's children and records
+        CHILD_SHUTDOWN_TIMED_OUT on the aggregated report.
+        """
         h = wired_hassette
 
         async def hang(*_args, **_kwargs):
@@ -316,8 +343,62 @@ class TestShutdownChildren:
             h.config.lifecycle.resource_shutdown_timeout_seconds = 0.5
             result = await h._shutdown_children()
 
-        assert result is False
+        assert TeardownCause.CHILD_SHUTDOWN_TIMED_OUT in result.causes
         h._file_watcher._force_terminal.assert_called_once()
+
+    async def test_wave_timeout_does_not_abandon_later_waves(self, wired_hassette: Hassette) -> None:
+        """A wave that times out force-terminates its own children and records evidence, but
+        the loop must still proceed to every remaining (lower-dependency) wave.
+
+        Regression test: ``_shutdown_children()`` used to ``return`` immediately on the first
+        wave timeout, silently abandoning every wave below it -- including the last wave, which
+        owns real OS resources (the sync-executor thread pool, DB connections, the HTTP
+        session). AppHandler depends (transitively) on everything else, so it shuts down in the
+        first wave; SyncExecutorService and DatabaseService have no dependencies, so they shut
+        down in the very last wave. Hanging AppHandler must not prevent those from ever being
+        asked to shut down.
+        """
+        h = wired_hassette
+
+        async def hang(*_args, **_kwargs):
+            await asyncio.sleep(1000)
+
+        for child in h.children:
+            child.shutdown = AsyncMock()
+            child._force_terminal = Mock()
+        h._app_handler.shutdown = hang
+
+        with preserve_config(h.config):
+            h.config.lifecycle.resource_shutdown_timeout_seconds = 0.5
+            result = await h._shutdown_children()
+
+        assert TeardownCause.CHILD_SHUTDOWN_TIMED_OUT in result.causes
+        h._app_handler._force_terminal.assert_called_once()
+        h._sync_executor_service.shutdown.assert_awaited_once()
+        h._database_service.shutdown.assert_awaited_once()
+
+
+@contextmanager
+def hanging_shutdown_body(h: Hassette, total_shutdown_timeout_seconds: float):
+    """Patch ``Resource._shutdown_body()`` to hang forever and set a short total-shutdown
+    timeout, so tests can exercise the coordinator's force-terminal path deterministically.
+
+    Patches ``_shutdown_body()``, not ``shutdown()``: ``shutdown()`` is the ``@final``
+    coordinator front door (``coordinate_shutdown()``) that itself enforces the timeout being
+    tested here. Hassette doesn't override ``shutdown()``, only ``_shutdown_body()`` — patching
+    ``Resource.shutdown`` would replace ``h.shutdown()``'s own entry point (and every child's)
+    with the hang, bypassing the total-timeout enforcement entirely instead of exercising it.
+    """
+
+    async def hang_forever(_self):
+        await asyncio.sleep(1000)
+
+    with (
+        patch.object(Resource, "_shutdown_body", new=hang_forever),
+        preserve_config(h.config),
+    ):
+        h.config.lifecycle.total_shutdown_timeout_seconds = total_shutdown_timeout_seconds
+        yield
 
 
 class TestShutdownTotalTimeout:
@@ -327,14 +408,9 @@ class TestShutdownTotalTimeout:
         for child in h.children:
             child._force_terminal = Mock()
 
-        async def hang_forever(_self):
-            await asyncio.sleep(1000)
-
-        with (
-            patch.object(Resource, "shutdown", new=hang_forever),
-            preserve_config(h.config),
-        ):
-            h.config.lifecycle.total_shutdown_timeout_seconds = 0.05
+        # 0.5s (with COORDINATOR_MARGIN_FRACTION) still gives the body enough
+        # headroom to win its race against the coordinator's outer wait.
+        with hanging_shutdown_body(h, total_shutdown_timeout_seconds=0.5):
             await h.shutdown()
 
         assert h.shutdown_completed is True
@@ -352,6 +428,55 @@ class TestShutdownTotalTimeout:
 
         assert h.shutdown_completed is True
         assert h.status == ResourceStatus.STOPPED
+
+    async def test_total_timeout_report_has_total_timeout_and_forced_terminal_causes(
+        self, wired_hassette: Hassette
+    ) -> None:
+        """shutdown() returns/stores a report with ``is_restart_safe`` ``False`` with TOTAL_TIMEOUT
+        and FORCED_TERMINAL causes when the total shutdown timeout fires, while still closing
+        event streams via the existing fallback.
+        """
+        h = wired_hassette
+        for child in h.children:
+            child._force_terminal = Mock()
+
+        # 0.5s (with COORDINATOR_MARGIN_FRACTION) still gives the body enough
+        # headroom to win its race against the coordinator's outer wait.
+        with hanging_shutdown_body(h, total_shutdown_timeout_seconds=0.5):
+            report = await h.shutdown()
+
+        assert report.is_restart_safe is False
+        assert TeardownCause.TOTAL_TIMEOUT in report.causes
+        assert TeardownCause.FORCED_TERMINAL in report.causes
+        assert h.teardown_report == report
+        assert h.event_streams_closed is True
+
+    async def test_total_timeout_stores_report_before_force_terminating_children(
+        self, wired_hassette: Hassette
+    ) -> None:
+        """Root timeout evidence is stored on the resource's own teardown report before
+        descendants are force-finalized, so a caller observing mid-force-terminal already
+        sees ``is_restart_safe`` ``False`` rather than an absent report.
+        """
+        h = wired_hassette
+        observed_unsafe_before_force: list[bool] = []
+
+        def record_and_force() -> None:
+            report = h._teardown_report
+            observed_unsafe_before_force.append(report is not None and not report.is_restart_safe)
+
+        for child in h.children:
+            child._force_terminal = Mock(side_effect=record_and_force)
+
+        # 0.5s (with COORDINATOR_MARGIN_FRACTION) still gives the body enough
+        # headroom to win its race against the coordinator's outer wait.
+        with hanging_shutdown_body(h, total_shutdown_timeout_seconds=0.5):
+            await h.shutdown()
+
+        assert observed_unsafe_before_force, "no children were force-terminated"
+        assert all(observed_unsafe_before_force), (
+            "root's own teardown report must be stored (UNSAFE) before force-finalizing descendants"
+        )
 
 
 class TestBeforeShutdownCounterFallback:

@@ -241,13 +241,29 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         This method is called during shutdown to cancel tasks and close caches.
         Child cleanup (Bus, Scheduler, etc.) is handled by _finalize_shutdown() propagation,
         not by this method.
+
+        Deliberately does not catch a ``self.cache.close()`` failure -- letting it propagate
+        is what lets ``_run_post_hook_shutdown_stage()``'s existing catch-all record
+        ``TeardownCause.CLEANUP_FAILED`` (it already logs the exception there). Swallowing it
+        here would report a restart-safe teardown for a cache that never confirmed it closed.
         """
         timeout = timeout or self.hassette.config.lifecycle.app_shutdown_timeout_seconds
         await super().cleanup(timeout=timeout)
-        try:
-            await self.cache.close()
-        except Exception as exc:
-            self.logger.exception("Error closing cache: %s %s", type(exc).__name__, exc)
+        await self.cache.close()
+
+    def _force_terminal(self) -> None:
+        """Override to also stop the cache's aiosqlite connections synchronously.
+
+        ``_force_terminal()`` intentionally skips ``cleanup()`` (see
+        ``Resource._force_terminal()``'s docstring) because production assumes force-terminal is
+        nearly always followed by process exit. That assumption does not hold in a long-lived
+        process -- notably the test suite -- where a leaked ``aiosqlite.Connection`` instead sits
+        open until the garbage collector eventually reclaims it, firing an unraisable-exception
+        warning attributed to whichever test happens to be running at that moment.
+        """
+        if isinstance(self.cache, AsyncCache):
+            self.cache.force_close()
+        super()._force_terminal()
 
 
 class AppSync(App[AppConfigT]):

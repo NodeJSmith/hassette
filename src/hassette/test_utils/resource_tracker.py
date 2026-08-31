@@ -71,6 +71,7 @@ class ResourceTracker:
         self._original_recv_aclose: typing.Any = None
         self._original_aiosqlite_connect: typing.Any = None
         self._original_aiosqlite_close: typing.Any = None
+        self._original_aiosqlite_stop: typing.Any = None
         self._original_aiohttp_init: typing.Any = None
         self._original_aiohttp_close: typing.Any = None
         self._original_executor_init: typing.Any = None
@@ -167,9 +168,11 @@ class ResourceTracker:
     def _patch_aiosqlite(self) -> None:
         self._original_aiosqlite_connect = aiosqlite.connect
         self._original_aiosqlite_close = aiosqlite.Connection.close
+        self._original_aiosqlite_stop = aiosqlite.Connection.stop
 
         original_connect = self._original_aiosqlite_connect
         original_close = self._original_aiosqlite_close
+        original_stop = self._original_aiosqlite_stop
 
         def patched_connect(database: typing.Any, **kwargs: typing.Any) -> aiosqlite.Connection:
             conn = original_connect(database, **kwargs)
@@ -180,14 +183,26 @@ class ResourceTracker:
             await original_close(self_conn)
             self.record_close("aiosqlite.Connection", self_conn)
 
+        def patched_stop(self_conn: typing.Any) -> typing.Any:
+            # Connection.stop() is the synchronous counterpart to close() -- used on force-terminal
+            # paths that cannot await anything (see App._force_terminal()). It stops the connection's
+            # background thread just as validly as close(), so it must also count as closed here;
+            # otherwise every force-terminated connection would falsely report as leaked.
+            result = original_stop(self_conn)
+            self.record_close("aiosqlite.Connection", self_conn)
+            return result
+
         aiosqlite.connect = patched_connect  # pyright: ignore[reportAttributeAccessIssue]
         aiosqlite.Connection.close = patched_close  # pyright: ignore[reportAttributeAccessIssue]
+        aiosqlite.Connection.stop = patched_stop  # pyright: ignore[reportAttributeAccessIssue]
 
     def _unpatch_aiosqlite(self) -> None:
         if self._original_aiosqlite_connect is not None:
             aiosqlite.connect = self._original_aiosqlite_connect  # pyright: ignore[reportAttributeAccessIssue]
         if self._original_aiosqlite_close is not None:
             aiosqlite.Connection.close = self._original_aiosqlite_close  # pyright: ignore[reportAttributeAccessIssue]
+        if self._original_aiosqlite_stop is not None:
+            aiosqlite.Connection.stop = self._original_aiosqlite_stop  # pyright: ignore[reportAttributeAccessIssue]
 
     def _patch_aiohttp(self) -> None:
         self._original_aiohttp_init = aiohttp.ClientSession.__init__

@@ -14,6 +14,26 @@ if typing.TYPE_CHECKING:
 LOGGER = getLogger(__name__)
 
 CURRENT_BUCKET: ContextVar["TaskBucket | None"] = ContextVar("CURRENT_BUCKET", default=None)
+PROTECT_TASK: ContextVar[bool] = ContextVar("PROTECT_TASK", default=False)
+"""When True in the ambient context at task-creation time, make_task_factory()'s factory
+skips bucket registration for that task entirely -- it is never added to any TaskBucket, so
+no cancel_all()/cancel_all_sync() on any bucket can ever cancel it as a side effect. Checked
+at creation time (inside the loop's task factory), not at cancellation time: Task.get_context()
+(needed to inspect another task's own bound context from outside it) was only added in Python
+3.12, and this project supports 3.11+, so cancellation-time inspection isn't viable here. Reading
+the *ambient* ContextVar at creation time works on every supported version, the same way
+CURRENT_BUCKET already does in the same factory.
+
+Exists for callers (a test's own top-level task; a caller whose task would otherwise end up
+incidentally tracked in a bucket it doesn't own or control) that must not be swept up by an
+unrelated cancel_all() elsewhere.
+
+Set with a bare ``PROTECT_TASK.set(True)``, not a scoped context manager: the intended caller
+(a pytest fixture) sets this in one task and needs it to still read True at *creation time for
+a different, not-yet-created task* (the test body's own task) that pytest-asyncio's
+contextvar-propagation machinery copies the value into after this task finishes. A ``with``-style
+helper that resets on exit would clear the value before that propagation ever happens, silently
+defeating the whole mechanism."""
 CURRENT_EXECUTION_ID: ContextVar[str | None] = ContextVar("CURRENT_EXECUTION_ID", default=None)
 """UUIDv7 set for the duration of each handler/job execution. Spawned sub-tasks inherit a snapshot
 of this value at creation time; the snapshot is NOT cleared when the originating execution ends."""

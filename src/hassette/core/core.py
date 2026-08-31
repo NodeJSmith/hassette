@@ -2,7 +2,7 @@ import asyncio
 import threading
 import typing
 from contextlib import suppress
-from typing import Any, final
+from typing import Any
 
 from dotenv import load_dotenv
 
@@ -17,7 +17,20 @@ from hassette.conversion import STATE_REGISTRY, TYPE_REGISTRY, StateRegistry, Ty
 from hassette.exceptions import AppPrecheckFailedError, FatalError
 from hassette.logging_ import enable_basic_logging
 from hassette.resources.base import Resource
-from hassette.resources.lifecycle import handle_stop, mark_not_ready, start
+from hassette.resources.lifecycle import (
+    COORDINATOR_MARGIN_FRACTION,
+    children_budget_remaining,
+    create_lifecycle_task,
+    handle_stop,
+    mark_not_ready,
+    start,
+)
+from hassette.resources.teardown import (
+    TeardownCause,
+    TeardownReport,
+    add_teardown_evidence,
+    merge_teardown_reports,
+)
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
 from hassette.task_bucket import TaskBucket, make_task_factory
@@ -51,6 +64,8 @@ from .web_ui_watcher import WebUiWatcherService
 from .websocket_service import WebsocketService
 
 if typing.TYPE_CHECKING:
+    from collections.abc import Callable
+
     from hassette.events import Event
 
 
@@ -107,6 +122,12 @@ class Hassette(Resource):
 
         self._loop: asyncio.AbstractEventLoop | None = None
         self._loop_thread_id: int | None = None
+
+        # The loop's task factory prior to run_forever() installing Hassette's own -- restored
+        # in _shutdown_body()'s finally block so an embedded caller whose event loop outlives
+        # this Hassette instance doesn't keep routing every later create_task() through a
+        # closure over self.task_bucket after that bucket has been permanently sealed.
+        self._previous_task_factory: Callable[..., Any] | None = None
 
         # Service slot declarations — populated by wire_services()
         self._sync_executor_service: SyncExecutorService | None = None
@@ -571,6 +592,10 @@ class Hassette(Resource):
         self._loop_thread_id = threading.get_ident()
         self.loop.set_debug(self.config.asyncio_debug_mode)
 
+        # Preserve whatever factory (if any) the embedding caller already installed, so
+        # _shutdown_body() can restore it instead of leaving the loop permanently routing
+        # create_task() through a closure over this instance's own task_bucket.
+        self._previous_task_factory = self.loop.get_task_factory()
         # pyright ignore is to handle what seems like another 3.11 bug/type issue
         self.loop.set_task_factory(make_task_factory(self.task_bucket))  # pyright: ignore[reportArgumentType]
 
@@ -725,39 +750,93 @@ class Hassette(Resource):
             self.logger.critical("Hassette terminated due to a fatal error: %s", self._fatal_shutdown_reason)
             raise FatalError(self._fatal_shutdown_reason)
 
-    async def _shutdown_children(self) -> bool:
+    async def _shutdown_children(self) -> TeardownReport:
         """Wave-based shutdown: gather each dependency level sequentially.
 
         Dependents (leaf services) shut down first, their dependencies last.
         Within each wave, services shut down concurrently via gather.
+
+        Evidence is accumulated across all waves and returned as one aggregated
+        ``TeardownReport``, mirroring ``Resource._shutdown_children()``'s contract:
+
+        - A child whose ``shutdown()`` call itself raises unexpectedly adds
+          ``CHILD_SHUTDOWN_FAILED`` and the child's identity to ``affected_resources``.
+        - A child that returns without raising, but whose own report has
+          ``is_restart_safe`` ``False``, adds ``CHILD_RESTART_UNSAFE`` and the child's identity.
+        - A wave that exceeds the shutdown timeout adds ``CHILD_SHUTDOWN_TIMED_OUT``,
+          force-terminates only the children in that wave still unfinished, and proceeds to the
+          next (lower-dependency) wave rather than abandoning the rest of the shutdown — a wave
+          that owns real OS resources (DB connections, the sync-executor thread pool, the HTTP
+          session) must still get a chance to close them even when an earlier, more-dependent
+          wave ran over budget. Force-terminating the timed-out wave's children first makes this
+          safe: nothing in a later wave can still be depended on by anything left half-shut-down
+          above it.
+
+        Each wave's own timeout is capped at ``children_budget_remaining()`` — the time
+        left until ``body_deadline``, floored at ``children_floor_seconds``. Multiple waves
+        share this budget rather than each independently claiming a fresh full window, so the
+        body finishes before the coordinator's outer wait.
         """
-        timeout = self.config.lifecycle.resource_shutdown_timeout_seconds
         type_to_instance = {type(c): c for c in self.children}
+
+        child_reports: list[TeardownReport] = []
+        causes: list[TeardownCause] = []
+        affected: list[str] = []
 
         for wave_types in reversed(self._init_waves):
             wave = [type_to_instance[t] for t in wave_types if t in type_to_instance]
             if not wave:
                 continue
+            timeout = min(self.config.lifecycle.resource_shutdown_timeout_seconds, children_budget_remaining(self))
             self.logger.debug("Shutting down wave: [%s]", ", ".join(c.class_name for c in wave))
             try:
                 async with asyncio.timeout(timeout):
-                    results = await asyncio.gather(
-                        *[child.shutdown() for child in wave],
-                        return_exceptions=True,
-                    )
-                    for child, result in zip(wave, results, strict=True):
-                        if isinstance(result, Exception):
-                            self.logger.error("Child %s shutdown failed: %s", child.unique_name, result)
+                    # create_lifecycle_task(), not asyncio.gather()'s own implicit task creation --
+                    # self.task_bucket is already sealed here, and for this root resource it also
+                    # doubles as the loop's global factory bucket (see run_forever()); see
+                    # create_lifecycle_task()'s docstring for why that matters.
+                    wave_tasks = [
+                        create_lifecycle_task(child.shutdown(), name=f"resource:shutdown_propagate:{child.unique_name}")
+                        for child in wave
+                    ]
+                    results = await asyncio.gather(*wave_tasks, return_exceptions=True)
             except TimeoutError:
                 self.logger.error(
                     "Shutdown wave [%s] timed out after %ss — forcing remaining children",
                     ", ".join(c.class_name for c in wave),
                     timeout,
                 )
+                causes.append(TeardownCause.CHILD_SHUTDOWN_TIMED_OUT)
                 for child in wave:
-                    child._force_terminal()
-                return False
-        return True
+                    if not child.shutdown_completed:
+                        child._force_terminal()
+                        affected.append(child.unique_name)
+                    child_report = child.teardown_report
+                    if child_report is not None:
+                        child_reports.append(child_report)
+                continue
+
+            for child, result in zip(wave, results, strict=True):
+                if isinstance(result, BaseException):
+                    self.logger.error("Child %s shutdown failed: %s", child.unique_name, result)
+                    causes.append(TeardownCause.CHILD_SHUTDOWN_FAILED)
+                    affected.append(child.unique_name)
+                    # The coordinator stores evidence (e.g. COORDINATOR_FAILED) on the child's own
+                    # report before re-raising -- see coordinate_shutdown()'s except Exception
+                    # branch in lifecycle.py. Merge it in so the child's concrete cause and
+                    # failed_operations survive in the parent's aggregated report instead of being
+                    # replaced by only the generic CHILD_SHUTDOWN_FAILED cause.
+                    child_report = child.teardown_report
+                    if child_report is not None:
+                        child_reports.append(child_report)
+                    continue
+                child_reports.append(result)
+                if not result.is_restart_safe:
+                    causes.append(TeardownCause.CHILD_RESTART_UNSAFE)
+                    affected.append(child.unique_name)
+
+        merged = merge_teardown_reports(*child_reports) if child_reports else TeardownReport()
+        return add_teardown_evidence(merged, causes=tuple(causes), affected_resources=tuple(affected))
 
     async def _on_children_stopped(self) -> None:
         """Emit Hassette's own STOPPED event, then close event streams.
@@ -774,30 +853,63 @@ class Hassette(Resource):
         if self._event_stream_service is not None:
             await self._event_stream_service.close_streams()
 
-    @final
-    async def shutdown(self) -> None:
-        """Override to wrap the entire shutdown in a total timeout.
+    async def _shutdown_body(self) -> "TeardownReport":
+        """Root shutdown body: wraps the ordinary hooks/cleanup/children pipeline in the
+        total shutdown timeout, then closes event streams and finalizes terminal status.
 
-        FinalMeta exempts Hassette from the @final on Resource.shutdown().
-        This ensures hooks + child propagation + cleanup all share one budget.
+        On total timeout, stores ``TOTAL_TIMEOUT``/``FORCED_TERMINAL`` evidence directly on
+        this resource's own report *before* force-finalizing any child, then force-finalizes
+        every child before falling through to the same stream-closing/status finalization the
+        clean path runs — this is the existing stream-closing fallback the design requires
+        even when the total timeout fires.
+
+        The internal deadline uses ``body_deadline`` from the ``ShutdownBudget`` computed
+        by the coordinator. The budget's ``COORDINATOR_MARGIN_FRACTION`` reserves a gap
+        between this body's own deadline and the coordinator's outer ``asyncio.wait()``
+        bound, guaranteeing this method completes (and its result is observed) before
+        that outer backstop fires.
         """
-        if not self.shutdown_completed and not self.shutting_down:
-            self.logger.info("Hassette shutdown initiated", stacklevel=2)
+        self.logger.info("Hassette shutdown initiated", stacklevel=2)
+
+        budget = self._shutdown_budget
+        if budget is not None:
+            body_timeout = max(0.0, budget.body_deadline - asyncio.get_running_loop().time())
+        else:
+            body_timeout = self.config.lifecycle.total_shutdown_timeout_seconds * (1 - COORDINATOR_MARGIN_FRACTION)
+
+        report: TeardownReport
         try:
-            async with asyncio.timeout(self.config.lifecycle.total_shutdown_timeout_seconds):
-                await super().shutdown()
+            async with asyncio.timeout(body_timeout):
+                report = await super()._shutdown_body()
         except TimeoutError:
             self.logger.critical(
                 "Total shutdown timeout (%ss) exceeded — forcing termination",
                 self.config.lifecycle.total_shutdown_timeout_seconds,
             )
+            timeout_report = TeardownReport(causes=(TeardownCause.TOTAL_TIMEOUT, TeardownCause.FORCED_TERMINAL))
+            existing = self._teardown_report
+            report = merge_teardown_reports(existing, timeout_report) if existing is not None else timeout_report
+            # Store directly on this resource's own report before force-finalizing any child,
+            # so a caller inspecting `teardown_report` mid-loop already observes UNSAFE rather
+            # than an absent report. The shutdown coordinator's own merge of this returned value
+            # with any evidence already present is monotonic, so this is safe to also return.
+            self._teardown_report = report
             for child in self.children:
                 child._force_terminal()
         finally:
-            # shutdown_completed FIRST — prevents re-entry regardless of what follows.
-            self.shutdown_completed = True
+            # Restore whatever task factory (if any) was installed before run_forever() set
+            # its own -- an event loop that outlives this shutdown (an embedded caller, or a
+            # test suite reusing the loop across cases) must not keep routing create_task()
+            # through a closure over self.task_bucket, which is now permanently sealed.
+            if self._loop is not None:
+                # pyright ignore for the same apparent 3.11 stub issue as the set_task_factory()
+                # call in run_forever() -- a plain callable/None argument is flagged there too.
+                self._loop.set_task_factory(self._previous_task_factory)  # pyright: ignore[reportArgumentType]
+
             # Emit Hassette's own STOPPED event while streams are still open,
-            # then close streams and set terminal status.
+            # then close streams and set terminal status. Guarded by event_streams_closed
+            # so the clean path (which already closed streams via _on_children_stopped())
+            # does not double-close or double-emit.
             if not self.event_streams_closed:
                 with suppress(Exception):
                     await handle_stop(self)
@@ -807,6 +919,8 @@ class Hassette(Resource):
             if self.status != ResourceStatus.STOPPED:
                 self.status = ResourceStatus.STOPPED
             mark_not_ready(self, "shutdown complete")
+
+        return report
 
     async def before_shutdown(self) -> None:
         """Remove bus listeners, stop the loop watchdog, and finalize session before child shutdown."""

@@ -5,13 +5,15 @@ Verifies:
 - different instance indices produce different cache directories/db paths
 - an injected DummyCache (via the `cache=` constructor parameter) is used directly --
   no AsyncCache is constructed
-- App.cleanup() closes the cache, and swallows a close() exception
+- App.cleanup() closes the cache, and propagates a close() exception rather than swallowing it
 - AppSync.before_initialize() calls super() so cache init fires for sync apps too
 - default_cache_ttl resolution chain: class attribute -> HassetteConfig.default_cache_ttl -> None
 """
 
 from pathlib import Path
 from unittest.mock import AsyncMock
+
+import pytest
 
 from hassette.app.app import App, AppSync
 from hassette.app.app_config import AppConfig
@@ -134,7 +136,11 @@ class TestCleanupClosesCache:
 
         dummy_cache.close.assert_awaited_once()  # pyright: ignore[reportAttributeAccessIssue]
 
-    async def test_cleanup_swallows_cache_close_exception(self, tmp_path: Path, dummy_cache: DummyCache) -> None:
+    async def test_cleanup_propagates_cache_close_exception(self, tmp_path: Path, dummy_cache: DummyCache) -> None:
+        """cleanup() must not swallow a cache close failure -- the shutdown coordinator's
+        catch-all (_run_post_hook_shutdown_stage()) needs it to record CLEANUP_FAILED rather
+        than report a restart-safe teardown for a cache that never confirmed it closed.
+        """
         hassette = make_mock_hassette(data_dir=tmp_path, sealed=False)
         dummy_cache.close = AsyncMock(side_effect=RuntimeError("cache close boom"))  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -146,8 +152,8 @@ class TestCleanupClosesCache:
             cache=dummy_cache,
         )
 
-        # Must not raise despite cache.close() blowing up.
-        await app.cleanup()
+        with pytest.raises(RuntimeError, match="cache close boom"):
+            await app.cleanup()
 
 
 class TestAppSyncBeforeInitializeCallsSuper:

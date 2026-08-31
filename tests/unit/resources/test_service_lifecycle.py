@@ -9,6 +9,7 @@ import pytest
 
 from hassette.exceptions import CannotOverrideFinalError
 from hassette.resources.base import FinalMeta
+from hassette.resources.operations import restart
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.test_utils import make_mock_hassette, wait_for
@@ -83,10 +84,11 @@ async def test_serve_task_cancelled_even_when_on_shutdown_overridden():
     assert svc._serve_task is not None
     assert not svc._serve_task.done()
 
-    await svc.shutdown()
+    report = await svc.shutdown()
 
     assert svc.shutdown_called, "on_shutdown should have been called"
     assert svc._serve_task.done(), "serve task should be done after shutdown"
+    assert report.is_restart_safe is True, "cooperative teardown must remain restart-safe"
 
 
 async def test_on_initialize_runs_before_serve_task_spawned():
@@ -169,6 +171,27 @@ async def test_simple_service_completes_full_lifecycle():
     assert svc._serve_task is not None
     assert not svc._serve_task.done()
 
-    await svc.shutdown()
+    report = await svc.shutdown()
 
     assert svc._serve_task.done()
+    assert report.is_restart_safe is True, "cooperative teardown must remain restart-safe"
+
+
+async def test_clean_teardown_still_permits_same_instance_restart():
+    """A restart-safe report from cooperative Service teardown continues to authorize
+    same-instance restart via the existing ``restart()`` round trip: the serve() task is
+    replaced with a fresh one and the service returns to RUNNING.
+    """
+    svc = await make_running_simple_service()
+    old_task = svc._serve_task
+    assert old_task is not None
+
+    await restart(svc)
+    await wait_for_running(svc)
+
+    assert svc._serve_task is not None
+    assert svc._serve_task is not old_task, "restart() must spawn a fresh serve() task"
+    assert not svc._serve_task.done()
+    assert svc.teardown_report is None, "an accepted new initialization consumes the prior SAFE report"
+
+    await svc.shutdown()

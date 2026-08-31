@@ -12,11 +12,12 @@ import aiosqlite
 from hassette.const.misc import SECONDS_PER_DAY
 from hassette.core.migration_runner import _collect_migrations, _read_user_version, run_migrations
 from hassette.exceptions import SchemaVersionError
-from hassette.resources.lifecycle import mark_not_ready, mark_ready
+from hassette.resources.lifecycle import create_lifecycle_task, mark_not_ready, mark_ready
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.types.enums import RestartType
 from hassette.types.types import LOG_LEVEL_TYPE
+from hassette.utils.aiosqlite_utils import stop_connection_sync
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
@@ -249,7 +250,68 @@ class DatabaseService(Service):
             self.logger.warning("Startup size failsafe check failed; continuing without cleanup", exc_info=True)
 
         self._db_write_queue = asyncio.Queue(maxsize=self.hassette.config.database.write_queue_max)
-        self._db_worker_task = asyncio.create_task(self.db_write_worker())
+        # Bypass the loop's global task factory so the worker is not tracked by
+        # any TaskBucket. A bare asyncio.create_task() falls through to the root
+        # Hassette bucket via make_task_factory(); the root bucket's cancel_all()
+        # runs before wave-based child shutdown begins, killing the worker before
+        # on_shutdown() can drain the queue — producing two 10s stalls per test
+        # (one in each downstream wave that tries to submit() a write to the dead
+        # worker). The worker's lifecycle is managed by on_shutdown() (drain-and-close) and
+        # _force_terminal() (hard cancel on the total-shutdown-timeout path).
+        self._db_worker_task = create_lifecycle_task(self.db_write_worker(), name=f"db_write_worker:{self.unique_name}")
+        self._db_worker_task.add_done_callback(self._log_worker_exit)
+
+    def _log_worker_exit(self, task: asyncio.Task) -> None:
+        """Log an unhandled exception from ``_db_worker_task``.
+
+        ``_db_worker_task`` bypasses TaskBucket entirely (see ``on_initialize()``), so
+        ``TaskBucket.add()``'s own done callback -- the only other place a worker crash gets
+        logged and forwarded to the installed exception recorders -- never runs for it. Without
+        this callback, a worker crash (e.g. the ``RuntimeError`` guard in ``db_write_worker()``
+        when ``_db_write_queue`` is ``None``, or a ``ValueError`` from ``queue.task_done()``)
+        would go completely unlogged, and every later ``submit()`` would hang awaiting a future
+        no worker will ever resolve, since ``submit()`` has no timeout of its own.
+        """
+        if task.cancelled():
+            return
+        exc = task.exception()
+        if exc is not None:
+            self.logger.error("DB write worker for %s exited unexpectedly", self.unique_name, exc_info=exc)
+
+    def _force_terminal(self) -> None:
+        """Override to also cancel the untracked database write worker, drain its queue, and
+        close connections.
+
+        ``_db_worker_task`` bypasses TaskBucket entirely (see ``on_initialize()``), so
+        ``Service._force_terminal()``'s ``TaskBucket.cancel_all_sync()`` never reaches it.
+        Without cancelling it here, a total-shutdown-timeout force-terminal call (which skips
+        ``on_shutdown()``, the only other place this task is cancelled) leaves the worker
+        and its queue/connections running after the process has declared shutdown complete.
+
+        Swaps ``_db_write_queue`` out to ``None`` (mirroring ``on_shutdown()``'s drain-and-close
+        pattern, minus the graceful ``queue.join()`` this synchronous path can't await) before
+        closing remaining items via ``close_remaining_queue_items()``. Without this, two things
+        go wrong: any coroutine still queued when the worker is cancelled is never closed (GC
+        eventually raises "coroutine was never awaited"), and ``submit()``/``enqueue()`` only
+        reject once ``_db_write_queue`` is ``None`` -- leaving it set would let a caller enqueue
+        into a queue with a cancelled worker, hanging ``submit()``'s awaited future forever.
+
+        Closing ``_db``/``_read_db`` here (via the same synchronous ``stop_connection_sync()``
+        used by ``App._force_terminal()`` for its cache) matters for the same reason: this path
+        intentionally skips ``on_shutdown()``/``cleanup()`` (see ``Resource._force_terminal()``'s
+        docstring) because production assumes force-terminal is nearly always followed by process
+        exit. In a long-lived process -- notably the test suite -- a connection left open here
+        would otherwise sit until the garbage collector reclaims it, firing an unraisable-exception
+        warning attributed to whichever test happens to be running at that moment.
+        """
+        if self._db_worker_task is not None and not self._db_worker_task.done():
+            self._db_worker_task.cancel()
+        queue, self._db_write_queue = self._db_write_queue, None
+        self.close_remaining_queue_items(queue)
+        for attr in ("_read_db", "_db"):
+            stop_connection_sync(getattr(self, attr))
+            setattr(self, attr, None)
+        super()._force_terminal()
 
     async def serve(self) -> None:
         """Run the heartbeat, retention, and size failsafe loop until shutdown."""
