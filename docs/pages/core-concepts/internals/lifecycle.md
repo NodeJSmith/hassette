@@ -6,9 +6,9 @@ A [`Resource`][hassette.resources.base.Resource] is any component with a managed
 
 When a `Service` raises an unhandled exception, Hassette transitions it to `FAILED` and emits a service status event. [`ServiceWatcher`][hassette.core.service_watcher.ServiceWatcher] — an internal supervisor component with no user-facing API — receives that event and consults the service's `restart_spec` (a policy object declaring retry behavior) to decide what comes next.
 
-The outcome depends on three things: the exception type, how many restarts have already occurred within the current time window, and the service's `restart_type`. Most failures result in an exponential backoff delay followed by a fresh `initialize()` call. Structural failures that no retry will fix skip the backoff and either enter a long cooldown period or shut the system down entirely.
+The outcome depends on three things: the exception type, how many restarts have already occurred within the current time window, and the service's `restart_type`. Most failures result in an exponential backoff delay followed by a fresh `initialize()` call. Structural failures that no retry will fix skip the backoff and, depending on `restart_type`, enter a long cooldown period (`TRANSIENT`), stop that service permanently while Hassette keeps running (`TEMPORARY`), or shut the system down entirely (`PERMANENT`).
 
-`ServiceWatcher` tracks restarts in a sliding-window `RestartBudget` keyed per service. Each failed restart records a timestamp. Attempts that fall outside the budget window expire automatically. The budget resets after a successful recovery. A service that runs stably for five minutes after a failure starts fresh.
+`ServiceWatcher` tracks restarts in a sliding-window `RestartBudget` keyed per service. Each failed restart records a timestamp. Attempts that fall outside the budget window expire automatically. The budget resets as soon as the restarted service reaches `RUNNING` and signals readiness with `mark_ready()`, bounded by that service's `startup_timeout_seconds` (default 30 s).
 
 ## Restart Types
 
@@ -101,7 +101,7 @@ stateDiagram-v2
 
 `RUNNING` status and readiness are separate signals. `handle_running()` sets `status = ResourceStatus.RUNNING` and emits a status event. `mark_ready()` sets a readiness `asyncio.Event` that dependents wait on via `_auto_wait_dependencies()`.
 
-A service enters `RUNNING` when its `serve()` loop begins. `initialize()` returns while the service is still `STARTING`; the spawned `_serve_wrapper()` task calls `handle_running()` once `serve()` starts executing. A service signals readiness by calling `mark_ready()` at whatever internal point it is prepared to serve requests. `WebsocketService` calls `mark_ready()` after the first successful connection, authentication, and event subscription with Home Assistant. `BusService` calls it after the internal event stream is open.
+A service enters `RUNNING` when its `serve()` loop begins. `initialize()` returns while the service is still `STARTING`; the spawned `_serve_wrapper()` task calls `handle_running()` once `serve()` starts executing. A service signals readiness by calling `mark_ready()` at whatever internal point it is prepared to serve requests. `WebsocketService` calls `mark_ready()` unconditionally during `on_initialize()`, before it ever attempts a connection — lifecycle readiness is intentionally decoupled from HA connectivity so dependents aren't blocked when Home Assistant is unreachable. `BusService` calls it after the internal event stream is open.
 
 `depends_on` lists the resource types a service waits for before running its own `on_initialize()`. The wait is on readiness, not on `RUNNING` status. A dependent service does not proceed until all declared dependencies have called `mark_ready()`.
 
