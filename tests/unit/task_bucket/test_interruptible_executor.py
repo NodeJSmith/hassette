@@ -303,7 +303,7 @@ class TestInterruptibleThreadPoolExecutorShutdown:
     def test_shutdown_without_join_skips_interrupt_loop(self) -> None:
         """shutdown(join_threads_or_timeout=False) must skip the join/interrupt loop."""
         executor = InterruptibleThreadPoolExecutor(max_workers=1)
-        submit_c_blocked_worker(executor, seconds=30)
+        submit_c_blocked_worker(executor)
 
         # Should return immediately (no join attempt)
         wall_start = time.monotonic()
@@ -376,6 +376,7 @@ class TestInterruptibleThreadPoolExecutorShutdown:
         """SystemError from async_raise (res>1 path) must be suppressed at shutdown."""
         executor = InterruptibleThreadPoolExecutor(max_workers=1)
         submit_busy_worker(executor, reraise=True)
+        worker_threads = set(executor._threads)  # pyright: ignore[reportAttributeAccessIssue]
 
         with patch(
             "hassette.task_bucket.interruptible_executor.async_raise",
@@ -383,3 +384,11 @@ class TestInterruptibleThreadPoolExecutorShutdown:
         ):
             # Must not raise
             executor.shutdown(join_threads_or_timeout=True, timeout=0.5)
+
+        # Clean up — async_raise was patched throughout shutdown, so the busy-loop worker was
+        # never actually interrupted and is still spinning. Unlike the raw threads used
+        # elsewhere in this file (daemon=True), this is a real ThreadPoolExecutor worker thread
+        # (non-daemon by stdlib design), so leaving it running blocks interpreter exit —
+        # interrupt it now that the real async_raise is back.
+        for t in worker_threads:
+            interrupt_and_join(t)

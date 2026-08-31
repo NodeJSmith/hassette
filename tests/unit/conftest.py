@@ -391,11 +391,21 @@ def sleeping_loop_worker(ready: threading.Event, interval: float = 0.01) -> Call
     return run
 
 
-def c_blocked_worker(ready: threading.Event, seconds: float = 60.0) -> Callable[[], None]:
+def c_blocked_worker(ready: threading.Event, seconds: float = 2.0) -> Callable[[], None]:
     """Build a worker that signals `ready`, then blocks in a C-level sleep.
 
     ``async_raise`` cannot interrupt this until the call returns to Python, so shutdown must
     abandon the thread at budget expiry instead of waiting for it.
+
+    The default is short (2s, well above the largest shutdown budget any caller tests — 1.0s
+    with up to 30% jitter margin) rather than a long duration: this thread is a stdlib
+    ``ThreadPoolExecutor`` worker, which CPython always creates non-daemon, so an abandoned one
+    keeps the interpreter alive at process exit until its sleep actually returns. A long default
+    (formerly 60s) turned a bare, non-xdist ``pytest`` run of a single test file into a minutes-
+    long hang after the tests themselves had already passed (see design/specs/105-teardown-
+    restart-safety/known-issues.md KI-001). Under the real xdist-parallel CI/dev invocation this
+    was never actually a hang — the worker process exits before the join would matter — so this
+    is a local-dev ergonomics fix, not a correctness fix.
     """
 
     def run() -> None:
@@ -432,7 +442,7 @@ def submit_busy_worker(
     await_worker_ready(ready)
 
 
-def submit_c_blocked_worker(executor: ThreadPoolExecutor, seconds: float = 60.0) -> None:
+def submit_c_blocked_worker(executor: ThreadPoolExecutor, seconds: float = 2.0) -> None:
     """Submit a C-blocked worker to `executor` and wait until it is blocked."""
     ready = threading.Event()
     executor.submit(c_blocked_worker(ready, seconds))
