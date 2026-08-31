@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createJob, createListener } from "../../test/factories";
 import { createWouterMock } from "../../test/mock-wouter";
 import { renderWithAppState } from "../../test/render-helpers";
+import { CARD_SELECTOR, cardTestId } from "./handler-health.test-helpers";
 import { HandlerHealthGrid } from "./handler-health-grid";
 import { buildItems } from "./handler-list";
 import type { UnifiedItem } from "./unified-handler-row";
@@ -15,13 +16,7 @@ vi.mock("wouter", () =>
   }),
 );
 
-const CARD_TESTID_PREFIX = "overview-health-card-";
-const CARD_SELECTOR = `[data-testid^='${CARD_TESTID_PREFIX}']`;
 const DEFAULT_GRID_PROPS = { appKey: "test_app", instanceQs: "" };
-
-function cardTestId(kind: UnifiedItem["kind"], id: number) {
-  return `${CARD_TESTID_PREFIX}${kind}-${id}`;
-}
 
 function renderGrid(items: UnifiedItem[], overrides: Partial<typeof DEFAULT_GRID_PROPS> = {}) {
   return render(<HandlerHealthGrid items={items} {...DEFAULT_GRID_PROPS} {...overrides} />);

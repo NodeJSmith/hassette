@@ -5,6 +5,7 @@ import { createJob, createListener } from "../../test/factories";
 import { createWouterMock } from "../../test/mock-wouter";
 import { renderWithAppState } from "../../test/render-helpers";
 import type { HandlerKind } from "../../utils/app-routes";
+import { cardTestId } from "./handler-health.test-helpers";
 import { HandlerHealthCard } from "./handler-health-card";
 import { buildItems } from "./handler-list";
 
@@ -15,7 +16,6 @@ vi.mock("wouter", () => createWouterMock({ useLocation: () => ["/", mockNavigate
 
 const APP_KEY = "my_app";
 
-const cardTestId = (kind: HandlerKind, id: number) => `overview-health-card-${kind}-${id}`;
 const handlerRoute = (kind: HandlerKind, id: number) => `/apps/${APP_KEY}/handlers/${kind}/${id}`;
 
 function makeListenerItem(overrides: Parameters<typeof createListener>[0] = {}) {
