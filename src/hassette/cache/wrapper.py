@@ -20,6 +20,7 @@ from hassette.cache._helpers import (
     validate_key,
 )
 from hassette.cache.sync import SyncCache
+from hassette.utils.aiosqlite_utils import stop_connection_sync
 
 logger = logging.getLogger(__name__)
 
@@ -225,3 +226,13 @@ class AsyncCache:
     async def close(self) -> None:
         """Close both ``aiosqlite`` connections. Swallows and logs close errors."""
         await self._close_connections()
+
+    def force_close(self) -> None:
+        """Synchronously stop both connections' background threads without the async close protocol.
+
+        Used by ``App._force_terminal()``, which cannot ``await`` anything. See
+        ``stop_connection_sync()`` for why this is safe to call from a force-terminal path.
+        """
+        for attr in ("_write", "_read"):
+            stop_connection_sync(getattr(self, attr))
+            setattr(self, attr, None)

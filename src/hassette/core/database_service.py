@@ -17,6 +17,7 @@ from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.types.enums import RestartType
 from hassette.types.types import LOG_LEVEL_TYPE
+from hassette.utils.aiosqlite_utils import stop_connection_sync
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
@@ -278,16 +279,27 @@ class DatabaseService(Service):
             self.logger.error("DB write worker for %s exited unexpectedly", self.unique_name, exc_info=exc)
 
     def _force_terminal(self) -> None:
-        """Override to also cancel the untracked database write worker.
+        """Override to also cancel the untracked database write worker and close connections.
 
         ``_db_worker_task`` bypasses TaskBucket entirely (see ``on_initialize()``), so
         ``Service._force_terminal()``'s ``TaskBucket.cancel_all_sync()`` never reaches it.
-        Without this override, a total-shutdown-timeout force-terminal call (which skips
+        Without cancelling it here, a total-shutdown-timeout force-terminal call (which skips
         ``on_shutdown()``, the only other place this task is cancelled) leaves the worker
         and its queue/connections running after the process has declared shutdown complete.
+
+        Closing ``_db``/``_read_db`` here (via the same synchronous ``stop_connection_sync()``
+        used by ``App._force_terminal()`` for its cache) matters for the same reason: this path
+        intentionally skips ``on_shutdown()``/``cleanup()`` (see ``Resource._force_terminal()``'s
+        docstring) because production assumes force-terminal is nearly always followed by process
+        exit. In a long-lived process -- notably the test suite -- a connection left open here
+        would otherwise sit until the garbage collector reclaims it, firing an unraisable-exception
+        warning attributed to whichever test happens to be running at that moment.
         """
         if self._db_worker_task is not None and not self._db_worker_task.done():
             self._db_worker_task.cancel()
+        for attr in ("_read_db", "_db"):
+            stop_connection_sync(getattr(self, attr))
+            setattr(self, attr, None)
         super()._force_terminal()
 
     async def serve(self) -> None:

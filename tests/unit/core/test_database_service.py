@@ -40,6 +40,13 @@ async def initialized_service_with_worker(service: DatabaseService) -> AsyncIter
     mock_conn.execute = AsyncMock()
     mock_conn.commit = AsyncMock()
     mock_conn.close = AsyncMock()
+    # stop() is aiosqlite's *synchronous* counterpart to close() (see stop_connection_sync()) --
+    # an unconfigured attribute on an AsyncMock defaults to AsyncMock too, which would return an
+    # unawaited coroutine here and fail the suite via PytestUnraisableExceptionWarning. Same
+    # reasoning applies to `_thread`: stop_connection_sync() checks `thread.is_alive()` and would
+    # otherwise get an unawaited coroutine back instead of a real bool.
+    mock_conn.stop = MagicMock()
+    mock_conn._thread = None
 
     async def fake_connect(*_args: object, **_kwargs: object) -> AsyncMock:
         return mock_conn

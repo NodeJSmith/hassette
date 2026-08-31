@@ -249,6 +249,20 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         except Exception as exc:
             self.logger.exception("Error closing cache: %s %s", type(exc).__name__, exc)
 
+    def _force_terminal(self) -> None:
+        """Override to also stop the cache's aiosqlite connections synchronously.
+
+        ``_force_terminal()`` intentionally skips ``cleanup()`` (see
+        ``Resource._force_terminal()``'s docstring) because production assumes force-terminal is
+        nearly always followed by process exit. That assumption does not hold in a long-lived
+        process -- notably the test suite -- where a leaked ``aiosqlite.Connection`` instead sits
+        open until the garbage collector eventually reclaims it, firing an unraisable-exception
+        warning attributed to whichever test happens to be running at that moment.
+        """
+        if isinstance(self.cache, AsyncCache):
+            self.cache.force_close()
+        super()._force_terminal()
+
 
 class AppSync(App[AppConfigT]):
     """Synchronous adapter for App."""

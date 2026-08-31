@@ -21,6 +21,7 @@ from unittest.mock import AsyncMock, MagicMock, call, patch
 
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
+from hassette.cache import AsyncCache
 from hassette.resources.base import Resource
 from hassette.resources.teardown import TeardownCause, TeardownReport
 from hassette.scheduler.classes import Job
@@ -81,6 +82,37 @@ async def test_app_shutdown_propagates_to_bus_and_scheduler():
     # After shutdown, children should have been shut down via propagation
     assert not app.bus.is_ready(), "Bus should not be ready after app shutdown"
     assert not app.scheduler.is_ready(), "Scheduler should not be ready after app shutdown"
+
+
+async def test_force_terminal_stops_cache_connections():
+    """App._force_terminal() must stop the cache's aiosqlite connections synchronously.
+
+    Regression: force-terminal intentionally skips cleanup()/on_shutdown() (see
+    Resource._force_terminal()'s docstring) because production assumes force-terminal is nearly
+    always followed by process exit. That assumption does not hold in a long-lived process --
+    notably the test suite -- where a leaked aiosqlite.Connection instead sits open until
+    Python's GC eventually reclaims it, firing an unraisable-exception warning attributed to
+    whichever test happens to be running at that moment. Observed in CI:
+    tests/integration/test_hot_reload.py::TestBasicHotReload::test_hot_reload_starts_newly_enabled_app
+    leaked two open connections this way when an app's shutdown was force-terminated.
+    """
+    hassette = make_mock_hassette(sealed=False)
+    app = App(hassette, app_config=AppConfig(instance_name="test_app"), index=0, app_key="test_app")
+
+    await app.initialize()
+
+    assert isinstance(app.cache, AsyncCache)
+    write_conn = app.cache._write
+    read_conn = app.cache._read
+    assert write_conn is not None
+    assert read_conn is not None
+
+    app._force_terminal()
+
+    assert app.cache._write is None
+    assert app.cache._read is None
+    assert write_conn._running is False, "the write connection's background thread must be signaled to stop"
+    assert read_conn._running is False, "the read connection's background thread must be signaled to stop"
 
 
 async def test_force_terminal_recurses_to_grandchildren():
