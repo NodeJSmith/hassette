@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import uuid
 from unittest.mock import AsyncMock, MagicMock, Mock
 
 from hassette.core.service_watcher import ServiceWatcher
@@ -43,6 +44,7 @@ def make_watcher_hassette(*, strict_lifecycle: bool = False) -> AsyncMock:
 def make_watcher(hassette: MagicMock) -> ServiceWatcher:
     """Build a ServiceWatcher bypassing __init__ (no real Bus child needed)."""
     watcher = ServiceWatcher.__new__(ServiceWatcher)
+    watcher.unique_id = uuid.uuid4().hex[:8]
     watcher.ready_event = asyncio.Event()
     watcher.shutdown_event = asyncio.Event()
     watcher._ready_reason = None

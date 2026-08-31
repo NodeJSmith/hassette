@@ -114,7 +114,7 @@ async def telemetry_db(_migrated_db_template: Path, tmp_path: Path) -> AsyncIter
 
 @pytest.fixture
 async def telemetry_repo(telemetry_db: aiosqlite.Connection) -> TelemetryRepository:
-    """TelemetryRepository backed by an in-memory SQLite connection."""
+    """TelemetryRepository backed by a migrated, on-disk SQLite connection."""
     mock_db_service = MagicMock()
     mock_db_service.db = telemetry_db
     return TelemetryRepository(mock_db_service)

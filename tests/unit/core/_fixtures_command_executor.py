@@ -151,6 +151,7 @@ def make_execute_job_cmd(
     cmd = MagicMock(spec=ExecuteJob)
     cmd.source_tier = "app"
     cmd.job_db_id = 1
+    cmd.trigger_mode = None
     if side_effect is None:
         cmd.callable = AsyncMock(return_value=None)
     else:
