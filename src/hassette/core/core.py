@@ -24,11 +24,10 @@ from hassette.resources.lifecycle import (
     mark_not_ready,
     start,
 )
-from hassette.resources.operations import shutdown_batch
+from hassette.resources.operations import finalize_shutdown_report, shutdown_batch
 from hassette.resources.teardown import (
     TeardownCause,
     TeardownReport,
-    add_teardown_evidence,
     merge_teardown_reports,
 )
 from hassette.scheduler import Scheduler
@@ -790,8 +789,7 @@ class Hassette(Resource):
             causes.extend(result.causes)
             affected.extend(result.affected)
 
-        merged = merge_teardown_reports(*child_reports) if child_reports else TeardownReport()
-        return add_teardown_evidence(merged, causes=tuple(causes), affected_resources=tuple(affected))
+        return finalize_shutdown_report(child_reports, causes, affected)
 
     async def _on_children_stopped(self) -> None:
         """Emit Hassette's own STOPPED event, then close event streams.

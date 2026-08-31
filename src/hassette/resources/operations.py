@@ -17,7 +17,7 @@ from hassette.resources.lifecycle import (
     reject_lifecycle_reentry,
     start,
 )
-from hassette.resources.teardown import TeardownCause, TeardownReport
+from hassette.resources.teardown import TeardownCause, TeardownReport, add_teardown_evidence, merge_teardown_reports
 from hassette.utils.service_utils import wait_for_ready
 
 if typing.TYPE_CHECKING:
@@ -184,7 +184,7 @@ class ShutdownBatchResult(typing.NamedTuple):
     affected: list[str]
 
 
-async def shutdown_batch(parent: "Resource", batch: "list[Resource]", timeout: float) -> ShutdownBatchResult:
+async def shutdown_batch(resource: "Resource", batch: "list[Resource]", timeout: float) -> ShutdownBatchResult:
     """Shut down one batch of children concurrently and classify the results.
 
     Shared by ``Resource._shutdown_children()`` (one batch: all children) and
@@ -211,7 +211,7 @@ async def shutdown_batch(parent: "Resource", batch: "list[Resource]", timeout: f
     try:
         async with asyncio.timeout(timeout):
             # create_lifecycle_task(), not asyncio.gather()'s own implicit task creation --
-            # parent's own TaskBucket is already sealed here; see create_lifecycle_task()'s
+            # resource's own TaskBucket is already sealed here; see create_lifecycle_task()'s
             # docstring for why that matters.
             child_tasks = [
                 create_lifecycle_task(child.shutdown(), name=f"resource:shutdown_propagate:{child.unique_name}")
@@ -219,7 +219,7 @@ async def shutdown_batch(parent: "Resource", batch: "list[Resource]", timeout: f
             ]
             results = await asyncio.gather(*child_tasks, return_exceptions=True)
     except TimeoutError:
-        parent.logger.error(
+        resource.logger.error(
             "Timed out waiting for children to shut down after %ss: [%s]",
             timeout,
             ", ".join(child.class_name for child in batch),
@@ -236,7 +236,7 @@ async def shutdown_batch(parent: "Resource", batch: "list[Resource]", timeout: f
 
     for child, result in zip(batch, results, strict=True):
         if isinstance(result, BaseException):
-            parent.logger.error("Child %s shutdown failed: %s", child.unique_name, result)
+            resource.logger.error("Child %s shutdown failed: %s", child.unique_name, result)
             causes.append(TeardownCause.CHILD_SHUTDOWN_FAILED)
             affected.append(child.unique_name)
             child_report = child.teardown_report
@@ -249,3 +249,16 @@ async def shutdown_batch(parent: "Resource", batch: "list[Resource]", timeout: f
             affected.append(child.unique_name)
 
     return ShutdownBatchResult(child_reports, causes, affected)
+
+
+def finalize_shutdown_report(
+    reports: list[TeardownReport], causes: list[TeardownCause], affected: list[str]
+) -> TeardownReport:
+    """Merge accumulated batch reports and stamp on the accumulated causes/affected evidence.
+
+    Shared tail of ``Resource._shutdown_children()`` and ``Hassette._shutdown_children()``: both
+    accumulate ``ShutdownBatchResult`` fields across one or more ``shutdown_batch()`` calls, then
+    call this once to produce the single aggregated ``TeardownReport`` they return.
+    """
+    merged = merge_teardown_reports(*reports) if reports else TeardownReport()
+    return add_teardown_evidence(merged, causes=tuple(causes), affected_resources=tuple(affected))

@@ -20,11 +20,15 @@ from hassette.resources.lifecycle import (
     handle_stop,
     mark_not_ready,
 )
-from hassette.resources.operations import ordered_children_for_shutdown, run_hooks, shutdown_batch
+from hassette.resources.operations import (
+    finalize_shutdown_report,
+    ordered_children_for_shutdown,
+    run_hooks,
+    shutdown_batch,
+)
 from hassette.resources.teardown import (
     TeardownCause,
     TeardownReport,
-    add_teardown_evidence,
     merge_teardown_reports,
 )
 from hassette.types.enums import ResourceRole, ResourceStatus
@@ -410,8 +414,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
             return TeardownReport()
 
         result = await shutdown_batch(self, children, timeout)
-        merged = merge_teardown_reports(*result.reports) if result.reports else TeardownReport()
-        return add_teardown_evidence(merged, causes=tuple(result.causes), affected_resources=tuple(result.affected))
+        return finalize_shutdown_report(result.reports, result.causes, result.affected)
 
     async def _run_task_bucket_shutdown_stage(self) -> TeardownReport:
         """Seal the TaskBucket, cancel tracked work, and record final pending-task evidence.
