@@ -455,6 +455,18 @@ def write_app_toml(
         tomli_w.dump(toml_dict, f)
 
 
+def write_app(app_dir: Path, filename: str, source: str) -> Path:
+    """Write `source` as a module inside `app_dir`, creating the directory if needed.
+
+    For app files whose exact source matters (auto-detect discovery, import behavior). Use
+    `write_test_app_with_decorator` instead when a canned App subclass is enough.
+    """
+    app_dir.mkdir(parents=True, exist_ok=True)
+    path = app_dir / filename
+    path.write_text(textwrap.dedent(source))
+    return path
+
+
 def write_test_app_with_decorator(
     app_file: Path,
     class_name: str,

@@ -10,14 +10,14 @@ import { isExecutionDefined, useAppExecution } from "../../hooks/use-scoped-exec
 import { useScopedQuery } from "../../hooks/use-scoped-query";
 import { queryKeys } from "../../lib/query-keys";
 import { useAppStore } from "../../state/store";
+import { STATUS_DOT_SIZE } from "../../utils/constants";
 import { formatDurationOrDash, formatRelativeTime, lastDotSegment } from "../../utils/format";
 import { executionStatusKind } from "../../utils/status";
 import { StatusShape } from "../shared/status-shape";
-import { OVERVIEW_SECTION_CLASS } from "./overview-section";
+import { OVERVIEW_SECTION_CLASS, SECTION_LABEL_CLASS } from "./overview-section";
 
 const ACTIVITY_FETCH_LIMIT = 20;
 const ACTIVITY_ROW_LIMIT = 8;
-const SECTION_LABEL_CLASS = "mb-2 font-sans text-[length:var(--text-h3)] font-semibold text-foreground";
 const DATA_TABLE_CLASS =
   "w-full border-collapse bg-card [&_thead_tr]:bg-muted [&_th]:border-b [&_th]:border-border [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-mono [&_th]:text-xs [&_th]:font-medium [&_th]:uppercase [&_th]:tracking-[var(--text-label-tracking)] [&_th]:text-muted-foreground [&_th]:whitespace-nowrap [&_td]:border-b [&_td]:border-border [&_td]:px-3 [&_td]:py-2 [&_td]:align-top [&_td]:text-[length:var(--text-small)] [&_tbody_tr:last-child_td]:border-b-0 [&_tbody_tr:hover]:bg-muted";
 
@@ -100,7 +100,7 @@ function ActivityGroupRow({ group }: { group: ActivityGroup }) {
     <tr data-testid="overview-activity-row">
       <td aria-label={`latest status: ${group.latestStatus}`}>
         <span className="inline-flex items-center gap-1 whitespace-nowrap font-mono text-[length:var(--text-mono-sm)] leading-none">
-          <StatusShape kind={kind} size={8} />
+          <StatusShape kind={kind} size={STATUS_DOT_SIZE} />
         </span>
       </td>
       <td className="text-foreground" title={group.handlerName}>

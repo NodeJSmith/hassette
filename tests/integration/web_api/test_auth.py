@@ -31,7 +31,7 @@ from hassette.web.auth.session import SESSION_COOKIE_NAME, mint_session_cookie, 
 from hassette.web.auth.trusted_proxies import refresh_trusted_proxies, resolve_trusted_proxies
 from hassette.web.middleware import FAILED_AUTH_THRESHOLD
 
-from .conftest import make_log_record
+from .conftest import CONFIG_PATH, make_log_record
 
 _STUB_SPA_FILES = ("index.html", "assets/index-abc123.js")
 _TRUSTED_PEER_IP = "203.0.113.5"
@@ -40,6 +40,25 @@ _TRUSTED_PEER_IP = "203.0.113.5"
 _UNTRUSTED_PEER_IP = "198.51.100.9"
 """Peer address deliberately outside every test's `trusted_proxies` set."""
 
+_MUTATION_PEER_IP = "203.0.113.7"
+"""Peer address the mutation-logging tests assert appears in the logged source IP."""
+
+_FAKE_CLIENT_PORT = 12345
+"""Arbitrary source port for the synthetic ASGI `client` tuple -- never asserted on.
+
+Deliberately one value for every synthetic peer: the call sites this replaced used two
+different arbitrary ports, and no test reads the port back, so the distinction carried no
+meaning worth preserving.
+"""
+
+_WRONG_TOKEN = "wrong-token"
+"""Credential that never matches `WEB_API_TEST_TOKEN`, for every fail-closed assertion."""
+
+_MIDDLEWARE_LOGGER = "hassette.web.middleware"
+"""Logger the coalesced failed-auth WARN is emitted on."""
+
+AUTH_SESSION_PATH = "/api/auth/session"
+
 
 @pytest.fixture(autouse=True)
 def _propagate_hassette_logger() -> None:
@@ -47,7 +66,12 @@ def _propagate_hassette_logger() -> None:
 
     Some other test in the session may have left `propagate` set to False (e.g. via
     `enable_basic_logging()`) -- caplog relies on propagation to the root logger. Same
-    workaround as `tests/unit/web/test_auth.py`.
+    workaround as `tests/unit/web/conftest.py`.
+
+    Kept as a local copy rather than hoisted into this directory's conftest: the unit-side
+    consolidation covers `tests/unit/web/` only, and this is the one module here that needs
+    the workaround, so a directory-wide autouse fixture would apply it to every integration
+    web-api module to serve a single caller.
     """
     logging.getLogger("hassette").propagate = True
 
@@ -91,7 +115,7 @@ async def _request_from_peer(
     *,
     trusted_proxies,
     method: Literal["get", "post"] = "get",
-    path: str = "/api/config",
+    path: str = CONFIG_PATH,
     headers: dict[str, str] | None = None,
     json: dict | None = None,
     **app_kwargs,
@@ -99,7 +123,7 @@ async def _request_from_peer(
     """Issue one request from `peer` against a fresh app built with `trusted_proxies`.
 
     Builds `create_fastapi_app(auth_hassette, trusted_proxies=trusted_proxies, **app_kwargs)`,
-    wraps it in an `ASGITransport` whose ASGI `client` is `(peer, 12345)`, opens an `AsyncClient`
+    wraps it in an `ASGITransport` whose ASGI `client` is `(peer, _FAKE_CLIENT_PORT)`, opens an `AsyncClient`
     against it, and issues one `method` request to `path`. Extracted because this exact
     build-app/wrap-transport/open-client/issue-request sequence repeated near-verbatim across the
     trusted-proxy, sliding-renewal, and cookie-secure-flag tests, differing only in the peer IP,
@@ -110,7 +134,7 @@ async def _request_from_peer(
     test body rather than being folded into this helper.
     """
     app = create_fastapi_app(auth_hassette, trusted_proxies=trusted_proxies, **app_kwargs)
-    transport = ASGITransport(app=app, client=(peer, 12345))
+    transport = ASGITransport(app=app, client=(peer, _FAKE_CLIENT_PORT))
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         request_kwargs: dict = {}
         if headers is not None:
@@ -141,7 +165,7 @@ class TestDefaultDenyNoCredential:
         [
             ("post", "/api/apps/my_app/start"),  # mutation endpoint
             ("get", "/api/apps/my_app/source"),  # source-disclosure endpoint
-            ("get", "/api/config"),  # source-disclosure endpoint
+            ("get", CONFIG_PATH),  # source-disclosure endpoint
             ("get", "/api/apps"),  # representative non-exempt route
             ("get", "/api/docs"),  # deliberately no longer exempt (design.md Edge Cases)
             ("get", "/api/openapi.json"),  # deliberately no longer exempt
@@ -166,7 +190,7 @@ class TestExemptRoutes:
     async def test_auth_session_reachable_with_no_credential(self, auth_client: AsyncClient) -> None:
         # A correct-token request with zero prior credential succeeds -- proving the route is
         # reachable *and* functional, not just "not rejected by the middleware".
-        resp = await auth_client.post("/api/auth/session", json={"token": WEB_API_TEST_TOKEN})
+        resp = await auth_client.post(AUTH_SESSION_PATH, json={"token": WEB_API_TEST_TOKEN})
         assert resp.status_code == 200
         assert SESSION_COOKIE_NAME in resp.cookies
 
@@ -175,7 +199,7 @@ class TestAuthSessionRoute:
     """`POST /api/auth/session` validates the presented token and mints a session cookie."""
 
     async def test_correct_token_mints_verifiable_cookie(self, auth_client: AsyncClient) -> None:
-        resp = await auth_client.post("/api/auth/session", json={"token": WEB_API_TEST_TOKEN})
+        resp = await auth_client.post(AUTH_SESSION_PATH, json={"token": WEB_API_TEST_TOKEN})
 
         assert resp.status_code == 200
         cookie_value = resp.cookies.get(SESSION_COOKIE_NAME)
@@ -183,16 +207,16 @@ class TestAuthSessionRoute:
         assert verify_session_cookie(cookie_value, WEB_API_TEST_TOKEN, TEST_SESSION_TTL) is not None
 
     async def test_incorrect_token_returns_401(self, auth_client: AsyncClient) -> None:
-        resp = await auth_client.post("/api/auth/session", json={"token": "wrong-token"})
+        resp = await auth_client.post(AUTH_SESSION_PATH, json={"token": _WRONG_TOKEN})
 
         assert resp.status_code == 401
         assert SESSION_COOKIE_NAME not in resp.cookies
 
     async def test_minted_cookie_authenticates_subsequent_request(self, auth_client: AsyncClient) -> None:
-        login_resp = await auth_client.post("/api/auth/session", json={"token": WEB_API_TEST_TOKEN})
+        login_resp = await auth_client.post(AUTH_SESSION_PATH, json={"token": WEB_API_TEST_TOKEN})
         assert login_resp.status_code == 200
 
-        resp = await auth_client.get("/api/config")
+        resp = await auth_client.get(CONFIG_PATH)
         assert resp.status_code == 200
 
 
@@ -224,7 +248,7 @@ class TestMiddlewareScope:
         assert resp.status_code == 200
 
     async def test_config_still_requires_credential(self, auth_client: AsyncClient) -> None:
-        resp = await auth_client.get("/api/config")
+        resp = await auth_client.get(CONFIG_PATH)
         assert resp.status_code == 401
 
     async def test_cors_preflight_gets_cors_response_not_opaque_401(self, auth_client: AsyncClient) -> None:
@@ -236,7 +260,7 @@ class TestMiddlewareScope:
         DefaultDenyMiddleware were the outer layer instead of CORSMiddleware.
         """
         resp = await auth_client.options(
-            "/api/config",
+            CONFIG_PATH,
             headers={
                 "Origin": "http://localhost:3000",
                 "Access-Control-Request-Method": "GET",
@@ -255,7 +279,7 @@ class TestSlidingRenewal:
         stale_cookie = await _mint_cookie_at(WEB_API_TEST_TOKEN, seconds_ago=2000)
         auth_client.cookies.set(SESSION_COOKIE_NAME, stale_cookie)
 
-        resp = await auth_client.get("/api/config")
+        resp = await auth_client.get(CONFIG_PATH)
 
         assert resp.status_code == 200
         new_value = resp.cookies.get(SESSION_COOKIE_NAME)
@@ -267,13 +291,13 @@ class TestSlidingRenewal:
         fresh_cookie = await _mint_cookie_at(WEB_API_TEST_TOKEN, seconds_ago=10)
         auth_client.cookies.set(SESSION_COOKIE_NAME, fresh_cookie)
 
-        resp = await auth_client.get("/api/config")
+        resp = await auth_client.get(CONFIG_PATH)
 
         assert resp.status_code == 200
         assert resp.cookies.get(SESSION_COOKIE_NAME) is None
 
     async def test_bearer_authenticated_request_is_not_renewed(self, auth_client: AsyncClient) -> None:
-        resp = await auth_client.get("/api/config", headers={"Authorization": f"Bearer {WEB_API_TEST_TOKEN}"})
+        resp = await auth_client.get(CONFIG_PATH, headers={"Authorization": f"Bearer {WEB_API_TEST_TOKEN}"})
 
         assert resp.status_code == 200
         assert resp.cookies.get(SESSION_COOKIE_NAME) is None
@@ -296,9 +320,9 @@ class TestFailedAuthCounting:
     async def test_burst_against_gated_route_produces_one_coalesced_warn(
         self, auth_client: AsyncClient, caplog: pytest.LogCaptureFixture
     ) -> None:
-        with caplog.at_level(logging.WARNING, logger="hassette.web.middleware"):
+        with caplog.at_level(logging.WARNING, logger=_MIDDLEWARE_LOGGER):
             for _ in range(FAILED_AUTH_THRESHOLD):
-                resp = await auth_client.get("/api/config", headers={"Authorization": "Bearer wrong-token"})
+                resp = await auth_client.get(CONFIG_PATH, headers={"Authorization": f"Bearer {_WRONG_TOKEN}"})
                 assert resp.status_code == 401
 
         warn_records = [r for r in caplog.records if "failed auth attempts" in r.getMessage()]
@@ -318,10 +342,10 @@ class TestFailedAuthCounting:
         app = create_fastapi_app(auth_hassette, auth_token=WEB_API_TEST_TOKEN)
 
         transport = ASGITransport(app=app)
-        with caplog.at_level(logging.WARNING, logger="hassette.web.middleware"):
+        with caplog.at_level(logging.WARNING, logger=_MIDDLEWARE_LOGGER):
             async with AsyncClient(transport=transport, base_url="http://test") as client:
                 for _ in range(FAILED_AUTH_THRESHOLD):
-                    resp = await client.post("/api/auth/session", json={"token": "wrong"})
+                    resp = await client.post(AUTH_SESSION_PATH, json={"token": _WRONG_TOKEN})
                     assert resp.status_code == 401
 
         warn_records = [r for r in caplog.records if "failed auth attempts" in r.getMessage()]
@@ -345,7 +369,7 @@ class TestMutationSuccessLogging:
         self, mutation_hassette, caplog: pytest.LogCaptureFixture
     ) -> None:
         app = create_fastapi_app(mutation_hassette, auth_token=WEB_API_TEST_TOKEN)
-        transport = ASGITransport(app=app, client=("203.0.113.7", 54321))
+        transport = ASGITransport(app=app, client=(_MUTATION_PEER_IP, _FAKE_CLIENT_PORT))
 
         with caplog.at_level(logging.INFO, logger="hassette.web.routes.apps"):
             async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -358,7 +382,7 @@ class TestMutationSuccessLogging:
                 assert len(info_records) == 1
                 message = info_records[0].getMessage()
                 assert "my_app" in message
-                assert "203.0.113.7" in message
+                assert _MUTATION_PEER_IP in message
 
                 # The same record surfaces via GET /api/logs/recent once the real LoggingService
                 # persistence pipeline has written it -- proves this is the kind of record the
@@ -371,13 +395,13 @@ class TestMutationSuccessLogging:
                 )
                 assert logs_resp.status_code == 200
                 messages = [r["message"] for r in logs_resp.json()]
-                assert any("Started app my_app" in m and "203.0.113.7" in m for m in messages)
+                assert any("Started app my_app" in m and _MUTATION_PEER_IP in m for m in messages)
 
     async def test_log_level_change_logs_action_and_source_ip(
         self, mutation_hassette, caplog: pytest.LogCaptureFixture
     ) -> None:
         app = create_fastapi_app(mutation_hassette, auth_token=WEB_API_TEST_TOKEN)
-        transport = ASGITransport(app=app, client=(_UNTRUSTED_PEER_IP, 54321))
+        transport = ASGITransport(app=app, client=(_UNTRUSTED_PEER_IP, _FAKE_CLIENT_PORT))
 
         with caplog.at_level(logging.INFO, logger="hassette.web.routes.logs"):
             async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -404,11 +428,11 @@ class TestBearerTokenAuth:
     """
 
     async def test_wrong_bearer_token_returns_401(self, auth_client: AsyncClient) -> None:
-        resp = await auth_client.get("/api/config", headers={"Authorization": "Bearer wrong-token"})
+        resp = await auth_client.get(CONFIG_PATH, headers={"Authorization": f"Bearer {_WRONG_TOKEN}"})
         assert resp.status_code == 401
 
     async def test_correct_bearer_token_returns_200(self, auth_client: AsyncClient) -> None:
-        resp = await auth_client.get("/api/config", headers={"Authorization": f"Bearer {WEB_API_TEST_TOKEN}"})
+        resp = await auth_client.get(CONFIG_PATH, headers={"Authorization": f"Bearer {WEB_API_TEST_TOKEN}"})
         assert resp.status_code == 200
 
 
@@ -421,7 +445,7 @@ class TestSessionCookieAuth:
         cookie_value = mint_session_cookie(WEB_API_TEST_TOKEN)
         auth_client.cookies.set(SESSION_COOKIE_NAME, cookie_value)
 
-        resp = await auth_client.get("/api/config")
+        resp = await auth_client.get(CONFIG_PATH)
 
         assert resp.status_code == 200
 
@@ -468,7 +492,7 @@ class TestPresentedCredentialPrecedence:
         assert resp.status_code == 200
 
     async def test_wrong_bearer_token_from_trusted_peer_returns_401(self, auth_hassette) -> None:
-        resp = await _trusted_peer_get_config(auth_hassette, headers={"Authorization": "Bearer wrong-token"})
+        resp = await _trusted_peer_get_config(auth_hassette, headers={"Authorization": f"Bearer {_WRONG_TOKEN}"})
 
         assert resp.status_code == 401
 
@@ -501,7 +525,7 @@ class TestPresentedCredentialPrecedence:
         """
         auth_client.cookies.set(SESSION_COOKIE_NAME, mint_session_cookie(WEB_API_TEST_TOKEN))
 
-        resp = await auth_client.get("/api/config", headers={"Authorization": "Bearer wrong-token"})
+        resp = await auth_client.get(CONFIG_PATH, headers={"Authorization": f"Bearer {_WRONG_TOKEN}"})
 
         assert resp.status_code == 401
 
@@ -563,7 +587,7 @@ class TestSessionCookieTtlIntegration:
         expired_cookie = await _mint_cookie_at(WEB_API_TEST_TOKEN, seconds_ago=TEST_SESSION_TTL + 100)
         auth_client.cookies.set(SESSION_COOKIE_NAME, expired_cookie)
 
-        resp = await auth_client.get("/api/config")
+        resp = await auth_client.get(CONFIG_PATH)
 
         assert resp.status_code == 401
 
@@ -571,7 +595,7 @@ class TestSessionCookieTtlIntegration:
         fresh_cookie = await _mint_cookie_at(WEB_API_TEST_TOKEN, seconds_ago=100)
         auth_client.cookies.set(SESSION_COOKIE_NAME, fresh_cookie)
 
-        resp = await auth_client.get("/api/config")
+        resp = await auth_client.get(CONFIG_PATH)
 
         assert resp.status_code == 200
 
@@ -581,15 +605,24 @@ class TestCookieSecureFlag:
     `POST /api/auth/session`; a non-trusted peer with the same spoofed header does not.
     """
 
-    async def test_trusted_peer_with_https_forwarded_proto_gets_secure_cookie(self, auth_hassette) -> None:
+    @pytest.mark.parametrize(
+        ("peer", "expect_secure"),
+        [
+            pytest.param(_TRUSTED_PEER_IP, True, id="trusted-peer-honors-forwarded-proto"),
+            # The untrusted peer does not match trusted_proxies -- its header is spoofed and must
+            # be ignored per `should_set_secure_cookie_flag`'s contract.
+            pytest.param(_UNTRUSTED_PEER_IP, False, id="untrusted-peer-ignores-spoofed-header"),
+        ],
+    )
+    async def test_secure_flag_set_only_for_trusted_peer(self, auth_hassette, peer: str, expect_secure: bool) -> None:
         trusted = await resolve_trusted_proxies((_TRUSTED_PEER_IP,))
         resp = await _request_from_peer(
             auth_hassette,
-            _TRUSTED_PEER_IP,
+            peer,
             trusted_proxies=trusted,
             auth_token=WEB_API_TEST_TOKEN,
             method="post",
-            path="/api/auth/session",
+            path=AUTH_SESSION_PATH,
             json={"token": WEB_API_TEST_TOKEN},
             headers={"X-Forwarded-Proto": "https"},
         )
@@ -597,24 +630,4 @@ class TestCookieSecureFlag:
         assert resp.status_code == 200
         set_cookie_header = resp.headers.get("set-cookie")
         assert set_cookie_header is not None
-        assert "secure" in set_cookie_header.lower()
-
-    async def test_non_trusted_peer_with_spoofed_https_header_gets_no_secure_cookie(self, auth_hassette) -> None:
-        trusted = await resolve_trusted_proxies((_TRUSTED_PEER_IP,))
-        # Direct peer does not match trusted_proxies -- the header is spoofed and must be ignored
-        # per `should_set_secure_cookie_flag`'s contract.
-        resp = await _request_from_peer(
-            auth_hassette,
-            _UNTRUSTED_PEER_IP,
-            trusted_proxies=trusted,
-            auth_token=WEB_API_TEST_TOKEN,
-            method="post",
-            path="/api/auth/session",
-            json={"token": WEB_API_TEST_TOKEN},
-            headers={"X-Forwarded-Proto": "https"},
-        )
-
-        assert resp.status_code == 200
-        set_cookie_header = resp.headers.get("set-cookie")
-        assert set_cookie_header is not None
-        assert "secure" not in set_cookie_header.lower()
+        assert ("secure" in set_cookie_header.lower()) is expect_secure

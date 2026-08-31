@@ -138,8 +138,8 @@ describe("OverviewTab — Error Spotlight", () => {
       createListener({ listener_id: 3, failed: 1 }),
     ];
     const { getAllByTestId, queryByTestId } = renderOverviewTab({ listeners, jobs: [] });
-    expect(getAllByTestId(/^overview-spotlight-entry-/).length).toBe(3);
-    expect(queryByTestId("overview-spotlight-show-more")).toBeNull();
+    expect(getAllByTestId(/^overview-error-spotlight-entry-/).length).toBe(3);
+    expect(queryByTestId("overview-error-spotlight-show-more")).toBeNull();
   });
 
   it("shows 3 expanded entries and a 'show N more' button when more than 3 are failing", () => {
@@ -152,8 +152,8 @@ describe("OverviewTab — Error Spotlight", () => {
     ];
     const { getAllByTestId, getByTestId } = renderOverviewTab({ listeners, jobs: [] });
     // Initially only 3 visible
-    expect(getAllByTestId(/^overview-spotlight-entry-/).length).toBe(3);
-    const btn = getByTestId("overview-spotlight-show-more");
+    expect(getAllByTestId(/^overview-error-spotlight-entry-/).length).toBe(3);
+    const btn = getByTestId("overview-error-spotlight-show-more");
     expect(btn.textContent).toContain("2");
   });
 
@@ -166,9 +166,9 @@ describe("OverviewTab — Error Spotlight", () => {
       createListener({ listener_id: 4, failed: 1 }),
     ];
     const { getAllByTestId, getByTestId } = renderOverviewTab({ listeners, jobs: [] });
-    expect(getAllByTestId(/^overview-spotlight-entry-/).length).toBe(3);
-    await user.click(getByTestId("overview-spotlight-show-more"));
-    expect(getAllByTestId(/^overview-spotlight-entry-/).length).toBe(4);
+    expect(getAllByTestId(/^overview-error-spotlight-entry-/).length).toBe(3);
+    await user.click(getByTestId("overview-error-spotlight-show-more"));
+    expect(getAllByTestId(/^overview-error-spotlight-entry-/).length).toBe(4);
   });
 
   it("links failing listener entry to handlers tab with correct listener ID", () => {
@@ -178,7 +178,7 @@ describe("OverviewTab — Error Spotlight", () => {
       appKey: "my_app",
       instanceQs: "",
     });
-    const entry = getByTestId("overview-spotlight-entry-listener-7");
+    const entry = getByTestId("overview-error-spotlight-entry-listener-7");
     const anchor = entry.querySelector("a");
     expect(anchor).not.toBeNull();
     expect(anchor!.getAttribute("href")).toBe("/apps/my_app/handlers/listener/7");
@@ -191,7 +191,7 @@ describe("OverviewTab — Error Spotlight", () => {
       appKey: "my_app",
       instanceQs: "",
     });
-    const entry = getByTestId("overview-spotlight-entry-job-20");
+    const entry = getByTestId("overview-error-spotlight-entry-job-20");
     const anchor = entry.querySelector("a");
     expect(anchor).not.toBeNull();
     expect(anchor!.getAttribute("href")).toBe("/apps/my_app/handlers/job/20");
@@ -204,7 +204,7 @@ describe("OverviewTab — Error Spotlight", () => {
       appKey: "test_app",
       instanceQs: "?instance=1",
     });
-    const entry = getByTestId("overview-spotlight-entry-listener-3");
+    const entry = getByTestId("overview-error-spotlight-entry-listener-3");
     const anchor = entry.querySelector("a");
     expect(anchor!.getAttribute("href")).toBe("/apps/test_app/handlers/listener/3?instance=1");
   });

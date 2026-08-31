@@ -25,6 +25,11 @@ if TYPE_CHECKING:
     from hassette.test_utils.harness import HassetteHarness
 
 
+# db_hassette config overrides — named so re-tuning is a single-site edit.
+DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX = 500
+DB_HASSETTE_DATABASE_MAX_SIZE_MB = 0
+DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS = 5
+
 _HARNESS_FIXTURES = frozenset(
     {
         "hassette_with_sync_executor",
@@ -125,8 +130,11 @@ def db_hassette(premigrated_db_path: Path, sync_executor: SyncExecutor) -> Async
         data_dir=premigrated_db_path.parent,
         set_ready=False,
         sealed=False,
-        database={"telemetry_write_queue_max": 500, "max_size_mb": 0},
-        lifecycle={"resource_shutdown_timeout_seconds": 5},
+        database={
+            "telemetry_write_queue_max": DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX,
+            "max_size_mb": DB_HASSETTE_DATABASE_MAX_SIZE_MB,
+        },
+        lifecycle={"resource_shutdown_timeout_seconds": DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS},
         scheduler={"min_delay_seconds": 0.1, "max_delay_seconds": 60.0, "default_delay_seconds": 1.0},
     )
     # _create_task_bucket reads hassette.sync_executor when wiring every Resource built

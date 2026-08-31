@@ -31,17 +31,6 @@ from hassette.web.middleware import (
 )
 
 
-@pytest.fixture(autouse=True)
-def _propagate_hassette_logger() -> None:
-    """Ensure the "hassette" logger propagates so caplog can see records.
-
-    Some other test in the session may have left ``propagate`` set to False (e.g. via
-    ``enable_basic_logging()``); caplog relies on propagation to the root logger. Same
-    workaround as ``tests/unit/web/test_auth.py``.
-    """
-    logging.getLogger("hassette").propagate = True
-
-
 class _FakeClock:
     """Deterministic stand-in for :func:`time.monotonic`, injected into ``_FailedAuthTracker``.
 

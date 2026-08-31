@@ -3,7 +3,6 @@ periodic refresh, and the peer-match function's header-free signature.
 """
 
 import asyncio
-import logging
 import re
 import socket
 from typing import Any
@@ -14,17 +13,6 @@ import pytest
 from hassette.exceptions import TrustedProxyConfigError
 from hassette.test_utils import make_addrinfo, patch_loop_getaddrinfo
 from hassette.web.auth.trusted_proxies import is_trusted_peer, refresh_trusted_proxies, resolve_trusted_proxies
-
-
-@pytest.fixture(autouse=True)
-def _propagate_hassette_logger() -> None:
-    """Ensure the "hassette" logger propagates so caplog can see records.
-
-    Some other test in the session may have left ``propagate`` set to False (e.g. via
-    ``enable_basic_logging()``); caplog relies on propagation to the root logger. Same
-    workaround as ``tests/unit/test_validate_apps.py``.
-    """
-    logging.getLogger("hassette").propagate = True
 
 
 class TestResolveTrustedProxiesLiteral:

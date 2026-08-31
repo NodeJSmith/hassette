@@ -79,6 +79,10 @@
   --warn-bg: #f5eedd;
   --err: oklch(0.514 0.19 28);
   --err-bg: #f5dedc;
+  /* Declared here only, like --job-border/--listener-border below. var() resolves lazily
+     against the consuming element, and [data-theme="dark"] sets --err on the same element
+     :root matches, so this already tracks the dark palette — do not duplicate it there. */
+  --err-border: color-mix(in srgb, var(--err) 30%, transparent);
   --cancel: oklch(0.515 0.108 237);
   --mute: #9097a0;
   --mute-bg: #eff0ec;
@@ -249,6 +253,7 @@
   --status-warning: var(--warn);
   --status-warning-bg: var(--warn-bg);
   --destructive-bg: var(--err-bg);
+  --destructive-border: var(--err-border);
   --status-cancel: var(--cancel);
   --status-muted: var(--mute);
   --status-muted-bg: var(--mute-bg);

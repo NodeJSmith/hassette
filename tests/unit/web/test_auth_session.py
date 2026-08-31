@@ -3,10 +3,8 @@ HMAC-derived cookie mint/verify with TTL enforcement, the cookie ``Secure``-flag
 (reusing the trusted-peer matcher), and the sliding-renewal predicate.
 """
 
-import logging
 from unittest.mock import patch
 
-import pytest
 from starlette.datastructures import Headers
 
 from hassette.web.auth.session import (
@@ -18,17 +16,6 @@ from hassette.web.auth.session import (
     verify_session_cookie,
 )
 from hassette.web.auth.trusted_proxies import resolve_trusted_proxies
-
-
-@pytest.fixture(autouse=True)
-def _propagate_hassette_logger() -> None:
-    """Ensure the "hassette" logger propagates so caplog can see records.
-
-    Some other test in the session may have left ``propagate`` set to False (e.g. via
-    ``enable_basic_logging()``); caplog relies on propagation to the root logger. Same
-    workaround as ``tests/unit/test_validate_apps.py``.
-    """
-    logging.getLogger("hassette").propagate = True
 
 
 class TestCheckBearerToken:

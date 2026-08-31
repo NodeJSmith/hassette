@@ -10,7 +10,9 @@ paths, and reconcile_app_registrations' degraded-mode fallbacks.
 """
 
 import asyncio
+from collections.abc import Coroutine
 from pathlib import Path
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, Mock, seal
 
 from hassette.core.app_change_detector import ChangeSet
@@ -20,6 +22,69 @@ from hassette.test_utils import EventCapture, wait_for
 from hassette.types import Topic
 
 from .conftest import set_registry_apps
+
+
+class ChangeEventLockRace:
+    """Deterministic scaffold for the "must serialize on ``_change_event_lock``" tests.
+
+    Each of those tests gates one collaborator while the lock is held, then proves a concurrent
+    ``handle_change_event()`` queues on the lock instead of running alongside it. Only the gated
+    collaborator and the lock-holding caller differ between them, so the events, the call counter,
+    and the lock assertions live here.
+
+    ``gate``, ``first_entered``, and ``call_count`` are this scaffold's own bookkeeping — drive the
+    race through the methods below rather than touching them from a test body.
+    """
+
+    # Generous upper bound on a race that resolves in microseconds: every await below is already
+    # gated on a deterministic signal, so this only bounds a hang, it never paces the test.
+    WAIT_TIMEOUT_SECONDS = 1.0
+
+    def __init__(self, lifecycle_service: AppLifecycleService) -> None:
+        self.lifecycle_service = lifecycle_service
+        self.gate = asyncio.Event()
+        self.first_entered = asyncio.Event()
+        self.call_count = 0
+
+    async def gated_call(self) -> None:
+        """Body for whichever collaborator the test gates — the first caller parks on the gate."""
+        self.call_count += 1
+        if self.call_count == 1:
+            self.first_entered.set()
+            await self.gate.wait()
+
+    async def start_first(self, coro: Coroutine[Any, Any, Any]) -> asyncio.Task[Any]:
+        """Start the lock-holding caller and wait until it is parked inside the gated collaborator."""
+        task = asyncio.create_task(coro)
+        await asyncio.wait_for(self.first_entered.wait(), timeout=self.WAIT_TIMEOUT_SECONDS)
+        return task
+
+    async def run_concurrent_call_and_assert_serialized(self, first_task: asyncio.Task[Any]) -> None:
+        """Run a second, concurrent handle_change_event() and prove the lock serialized it.
+
+        Drives the rest of the race, not just its assertions: starts the second caller, checks it is
+        parked on the lock, then opens the gate and waits for both callers to finish.
+        """
+        second_task = asyncio.create_task(self.lifecycle_service.handle_change_event())
+        # Deterministically wait until the second call has actually queued on the lock
+        # (asyncio.Lock.acquire() appends a waiter future synchronously, before its own await)
+        # rather than assuming a single scheduler tick is enough — see CLAUDE.md's
+        # "Deterministic Async Race Gate" convention.
+        await wait_for(
+            lambda: bool(self.lifecycle_service._change_event_lock._waiters),
+            desc="second call queued on the lock",
+        )
+
+        # The second call must be blocked acquiring the lock, not yet inside the gated collaborator.
+        assert self.lifecycle_service._change_event_lock.locked()
+        assert self.call_count == 1
+        assert not second_task.done()
+
+        self.gate.set()
+        await asyncio.wait_for(first_task, timeout=self.WAIT_TIMEOUT_SECONDS)
+        await asyncio.wait_for(second_task, timeout=self.WAIT_TIMEOUT_SECONDS)
+
+        assert self.call_count == 2
 
 
 class TestBootstrapAppsSuccessLogging:
@@ -311,42 +376,22 @@ class TestHandleChangeEventBranches:
         could start (and mutate self.registry.manifests) before the first call finishes
         reading it, tearing the "what was the world like before this change" snapshot.
         """
-        gate = asyncio.Event()
-        first_entered = asyncio.Event()
-        call_count = 0
+        race = ChangeEventLockRace(lifecycle_service)
         empty = ChangeSet(orphans=frozenset(), new_apps=frozenset(), reimport_apps=frozenset(), reload_apps=frozenset())
 
+        # Wrapped rather than assigned directly (unlike the resolve_only_apps case below) only
+        # because refresh_config has to return a config pair; the gating behavior is identical.
         async def gated_refresh_config() -> tuple[dict, dict]:
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                first_entered.set()
-                await gate.wait()
+            await race.gated_call()
             return {}, {}
 
         lifecycle_service.refresh_config = gated_refresh_config  # pyright: ignore[reportAttributeAccessIssue]
         lifecycle_service.resolve_only_apps = AsyncMock()
         lifecycle_service.change_detector.detect_changes = Mock(return_value=empty)  # pyright: ignore[reportAttributeAccessIssue]
 
-        task1 = asyncio.create_task(lifecycle_service.handle_change_event())
-        await asyncio.wait_for(first_entered.wait(), timeout=1.0)
+        first_task = await race.start_first(lifecycle_service.handle_change_event())
 
-        task2 = asyncio.create_task(lifecycle_service.handle_change_event())
-        # Deterministically wait until task2 has actually queued on the lock (asyncio.Lock.acquire()
-        # appends a waiter future synchronously, before its own await) rather than assuming a single
-        # scheduler tick is enough — see CLAUDE.md's "Deterministic Async Race Gate" convention.
-        await wait_for(lambda: bool(lifecycle_service._change_event_lock._waiters), desc="task2 queued on the lock")
-
-        # task2 must be blocked acquiring the lock, not yet inside refresh_config.
-        assert lifecycle_service._change_event_lock.locked()
-        assert call_count == 1
-        assert not task2.done()
-
-        gate.set()
-        await asyncio.wait_for(task1, timeout=1.0)
-        await asyncio.wait_for(task2, timeout=1.0)
-
-        assert call_count == 2
+        await race.run_concurrent_call_and_assert_serialized(first_task)
 
 
 class TestReplayPreReleaseReconciliationSerialization:
@@ -361,17 +406,8 @@ class TestReplayPreReleaseReconciliationSerialization:
         _change_event_lock. Without that, a file-watcher event arriving while bootstrap is replaying
         could race the take/clear of that state.
         """
-        gate = asyncio.Event()
-        first_entered = asyncio.Event()
-        call_count = 0
+        race = ChangeEventLockRace(lifecycle_service)
         empty = ChangeSet(orphans=frozenset(), new_apps=frozenset(), reimport_apps=frozenset(), reload_apps=frozenset())
-
-        async def gated_resolve_only_apps() -> None:
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                first_entered.set()
-                await gate.wait()
 
         lifecycle_service._pending_reconciliation = PendingReconciliation(
             original_apps_config={},
@@ -379,32 +415,17 @@ class TestReplayPreReleaseReconciliationSerialization:
             changed_paths=None,
         )
 
-        lifecycle_service.resolve_only_apps = gated_resolve_only_apps  # pyright: ignore[reportAttributeAccessIssue]
+        lifecycle_service.resolve_only_apps = race.gated_call  # pyright: ignore[reportAttributeAccessIssue]
         lifecycle_service.refresh_config = AsyncMock(return_value=({}, {}))  # pyright: ignore[reportAttributeAccessIssue]
         lifecycle_service.change_detector.detect_changes = Mock(return_value=empty)  # pyright: ignore[reportAttributeAccessIssue]
 
-        task1 = asyncio.create_task(lifecycle_service._replay_pre_release_reconciliation_if_needed())
-        await asyncio.wait_for(first_entered.wait(), timeout=1.0)
+        first_task = await race.start_first(lifecycle_service._replay_pre_release_reconciliation_if_needed())
 
-        # The lock-holding take() already ran before the gated await, so the pending state is
-        # already cleared even though task1 hasn't finished — proving the take happens inside the lock.
+        # The lock-holding take() already ran before the gated await, so the pending state is already
+        # cleared even though the replay hasn't finished — proving the take happens inside the lock.
         assert lifecycle_service._pending_reconciliation is None
 
-        task2 = asyncio.create_task(lifecycle_service.handle_change_event())
-        # Deterministically wait until task2 has actually queued on the lock (asyncio.Lock.acquire()
-        # appends a waiter future synchronously, before its own await) rather than assuming a single
-        # scheduler tick is enough — see CLAUDE.md's "Deterministic Async Race Gate" convention.
-        await wait_for(lambda: bool(lifecycle_service._change_event_lock._waiters), desc="task2 queued on the lock")
-
-        assert lifecycle_service._change_event_lock.locked()
-        assert call_count == 1
-        assert not task2.done()
-
-        gate.set()
-        await asyncio.wait_for(task1, timeout=1.0)
-        await asyncio.wait_for(task2, timeout=1.0)
-
-        assert call_count == 2
+        await race.run_concurrent_call_and_assert_serialized(first_task)
 
 
 class TestTakePreReleaseReconciliation:

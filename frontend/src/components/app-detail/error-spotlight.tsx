@@ -3,6 +3,7 @@ import { Link } from "wouter";
 
 import { cn } from "@/lib/utils";
 
+import { STATUS_DOT_SIZE } from "../../utils/constants";
 import { StatusShape } from "../shared/status-shape";
 import { OVERVIEW_SECTION_CLASS } from "./overview-section";
 import { handlerHref, itemErrorMessage, itemErrorType } from "./overview-tab-helpers";
@@ -23,11 +24,11 @@ function SpotlightEntry({ item, appKey, instanceQs }: SpotlightEntryProps) {
 
   return (
     <div
-      className="flex items-center gap-2 rounded-md border border-[color-mix(in_srgb,var(--destructive)_30%,transparent)] bg-[var(--destructive-bg)] p-3"
-      data-testid={`overview-spotlight-entry-${item.kind}-${item.id}`}
+      className="flex items-center gap-2 rounded-md border border-[var(--destructive-border)] bg-[var(--destructive-bg)] p-3"
+      data-testid={`overview-error-spotlight-entry-${item.kind}-${item.id}`}
     >
       <span aria-hidden="true">
-        <StatusShape kind={item.statusKind} size={12} />
+        <StatusShape kind={item.statusKind} size={STATUS_DOT_SIZE} />
       </span>
       <span className="shrink-0 whitespace-nowrap font-mono text-[length:var(--text-mono-sm)] font-medium text-foreground">
         {item.name}
@@ -45,15 +46,13 @@ function SpotlightEntry({ item, appKey, instanceQs }: SpotlightEntryProps) {
   );
 }
 
-export function ErrorSpotlight({
-  failingItems,
-  appKey,
-  instanceQs,
-}: {
+interface ErrorSpotlightProps {
   failingItems: UnifiedItem[];
   appKey: string;
   instanceQs: string;
-}) {
+}
+
+export function ErrorSpotlight({ failingItems, appKey, instanceQs }: ErrorSpotlightProps) {
   const [expanded, setExpanded] = useState(false);
 
   const visibleItems = expanded ? failingItems : failingItems.slice(0, SPOTLIGHT_LIMIT);
@@ -72,7 +71,7 @@ export function ErrorSpotlight({
         <button
           type="button"
           className="px-3 py-2 text-left text-sm text-muted-foreground hover:text-foreground"
-          data-testid="overview-spotlight-show-more"
+          data-testid="overview-error-spotlight-show-more"
           onClick={() => setExpanded(true)}
         >
           show {hiddenCount} more

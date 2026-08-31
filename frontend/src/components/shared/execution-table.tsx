@@ -1,4 +1,12 @@
-import { type ColumnDef, flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table";
+import {
+  type Cell,
+  type ColumnDef,
+  flexRender,
+  getCoreRowModel,
+  type Row,
+  type Table as TanStackTable,
+  useReactTable,
+} from "@tanstack/react-table";
 import { useState } from "react";
 import { useLocation } from "wouter";
 
@@ -31,6 +39,11 @@ type ExecutionStatus = components["schemas"]["ExecutionStatus"];
 
 const INITIAL_ROWS = 5;
 
+const HEAD_CLASS =
+  "sticky top-0 z-[var(--z-table-head)] bg-muted px-2 py-1 font-mono text-xs font-medium uppercase tracking-[var(--text-label-tracking)] text-muted-foreground";
+
+const CELL_CLASS = "px-2 py-1 max-mobile:px-1 max-mobile:text-xs";
+
 const STATUS_LABEL: Record<StatusKind, string> = {
   ok: "ok",
   err: "failed",
@@ -51,16 +64,6 @@ export interface ExecutionRecord {
   trigger_origin?: string | null;
   trigger_mode?: string | null;
   thread_leaked: boolean;
-}
-
-interface ExecutionTableProps {
-  records: ExecutionRecord[];
-  kind: "handler" | "job";
-  tableId: string;
-  appKey?: string;
-  handlerKind?: HandlerKind;
-  handlerId?: number;
-  instanceQs?: string;
 }
 
 function statusLabelClass(kind: StatusKind): string {
@@ -139,10 +142,163 @@ const columns: ColumnDef<ExecutionRecord, unknown>[] = [
     id: "detail",
     header: () => <span className="sr-only">Details</span>,
     meta: { headerClassName: "w-8", cellClassName: "text-center align-middle text-muted-foreground transition-colors" },
-    // No `cell` — the row render loop below special-cases `column.id === "detail"` and never calls
-    // flexRender for it (it needs appKey/handlerKind/handlerId, not available at column-definition time).
+    // No `cell` — `ExecutionCell` below special-cases `column.id === "detail"` and never calls
+    // flexRender for it (it needs the row's resolved href, not available at column-definition time).
   },
 ];
+
+type ExecutionKind = "handler" | "job";
+
+interface ExecutionTableProps {
+  records: ExecutionRecord[];
+  kind: ExecutionKind;
+  tableId: string;
+  appKey?: string;
+  handlerKind?: HandlerKind;
+  handlerId?: number;
+  instanceQs?: string;
+}
+
+type DetailTarget = Pick<ExecutionTableProps, "appKey" | "handlerKind" | "handlerId" | "instanceQs">;
+
+// A row links to its execution detail page only when every part of the route is known.
+// Returns null when it isn't — which also drives the row's hover/keyboard affordances.
+function detailHref(record: ExecutionRecord, target: DetailTarget): string | null {
+  const { appKey, handlerKind, handlerId, instanceQs } = target;
+  if (!appKey || !handlerKind || handlerId === undefined || !record.execution_id) {
+    return null;
+  }
+  return executionPath(appKey, handlerKind, handlerId, record.execution_id) + (instanceQs ?? "");
+}
+
+function ExecutionEmptyState({ kind }: { kind: ExecutionKind }) {
+  if (kind === "handler") {
+    return (
+      <EmptyState
+        icon="◌"
+        title="no invocations recorded"
+        body="this handler hasn't been called yet in the current time window."
+      />
+    );
+  }
+  return <EmptyState title="no executions recorded." />;
+}
+
+function ExecutionTableHead({ table }: { table: TanStackTable<ExecutionRecord> }) {
+  return (
+    <TableHeader className="[&_tr]:bg-muted">
+      {table.getHeaderGroups().map((headerGroup) => (
+        <TableRow key={headerGroup.id}>
+          {headerGroup.headers.map((header) => (
+            <TableHead
+              key={header.id}
+              scope="col"
+              className={cn(HEAD_CLASS, header.column.columnDef.meta?.headerClassName)}
+            >
+              {flexRender(header.column.columnDef.header, header.getContext())}
+            </TableHead>
+          ))}
+        </TableRow>
+      ))}
+    </TableHeader>
+  );
+}
+
+// The "detail" column has no `cell` definition — it needs the row's resolved href, which
+// isn't available at column-definition time — so it is rendered here instead of via flexRender.
+function ExecutionCell({ cell, href }: { cell: Cell<ExecutionRecord, unknown>; href: string | null }) {
+  const className = cn(CELL_CLASS, cell.column.columnDef.meta?.cellClassName);
+
+  if (cell.column.id === "detail") {
+    return (
+      <TableCell className={className}>
+        {href && (
+          <span
+            className="inline-flex items-center justify-center align-middle"
+            data-testid="execution-detail-indicator"
+          >
+            <IconArrowRight />
+          </span>
+        )}
+      </TableCell>
+    );
+  }
+
+  const cellProps = cell.column.columnDef.meta?.cellProps?.(cell.row.original) ?? {};
+  return (
+    <TableCell className={className} {...cellProps}>
+      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+    </TableCell>
+  );
+}
+
+interface ExecutionRowProps {
+  row: Row<ExecutionRecord>;
+  kind: ExecutionKind;
+  href: string | null;
+  tabIndex: number;
+  onSelect: () => void;
+  onOpenDetail: () => void;
+}
+
+function ExecutionRow({ row, kind, href, tabIndex, onSelect, onOpenDetail }: ExecutionRowProps) {
+  return (
+    <TableRow
+      className={cn("transition-colors", href && "cursor-pointer hover:bg-muted [&:hover_td:last-child]:text-primary")}
+      data-testid={kind === "handler" ? "invocation-row" : "execution-row"}
+      tabIndex={tabIndex}
+      role="row"
+      aria-label={href ? "View execution detail" : undefined}
+      data-roving-item
+      onClick={() => {
+        onSelect();
+        onOpenDetail();
+      }}
+      onKeyDown={href ? onActivateKeyDown(onOpenDetail) : undefined}
+    >
+      {row.getVisibleCells().map((cell) => (
+        <ExecutionCell key={cell.id} cell={cell} href={href} />
+      ))}
+    </TableRow>
+  );
+}
+
+interface ExecutionRowsProps extends DetailTarget {
+  table: TanStackTable<ExecutionRecord>;
+  kind: ExecutionKind;
+}
+
+// Owns the roving-tabindex wiring: the table body is the roving container, each row an item.
+function ExecutionRows({ table, kind, ...target }: ExecutionRowsProps) {
+  const rows = table.getRowModel().rows;
+  const { containerRef, onContainerKeyDown, getTabIndex, setActiveIndex } = useRovingTabIndex<HTMLTableSectionElement>(
+    rows.length,
+  );
+  const [, navigate] = useLocation();
+
+  return (
+    <TableBody ref={containerRef} onKeyDown={onContainerKeyDown}>
+      {rows.map((row, i) => {
+        const href = detailHref(row.original, target);
+        return (
+          <ExecutionRow
+            key={row.id}
+            row={row}
+            kind={kind}
+            href={href}
+            tabIndex={getTabIndex(i)}
+            onSelect={() => setActiveIndex(i)}
+            onOpenDetail={() => {
+              if (href) {
+                navigate(href);
+              }
+            }}
+          />
+        );
+      })}
+    </TableBody>
+  );
+}
 
 export function ExecutionTable({
   records,
@@ -155,10 +311,6 @@ export function ExecutionTable({
 }: ExecutionTableProps) {
   const [showAll, setShowAll] = useState(false);
   const visible = showAll ? records : records.slice(0, INITIAL_ROWS);
-  const { containerRef, onContainerKeyDown, getTabIndex, setActiveIndex } = useRovingTabIndex<HTMLTableSectionElement>(
-    visible.length,
-  );
-  const [, navigate] = useLocation();
 
   const table = useReactTable({
     data: visible,
@@ -168,18 +320,8 @@ export function ExecutionTable({
   });
 
   if (records.length === 0) {
-    return kind === "handler" ? (
-      <EmptyState
-        icon="◌"
-        title="no invocations recorded"
-        body="this handler hasn't been called yet in the current time window."
-      />
-    ) : (
-      <EmptyState title="no executions recorded." />
-    );
+    return <ExecutionEmptyState kind={kind} />;
   }
-
-  const hasMore = records.length > INITIAL_ROWS;
 
   return (
     <>
@@ -187,93 +329,17 @@ export function ExecutionTable({
         className="table-fixed bg-card max-mobile:table-auto [&_td]:overflow-hidden [&_td]:text-ellipsis"
         data-testid={tableId}
       >
-        <TableHeader className="[&_tr]:bg-muted">
-          {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow key={headerGroup.id}>
-              {headerGroup.headers.map((header) => (
-                <TableHead
-                  key={header.id}
-                  scope="col"
-                  className={cn(
-                    "sticky top-0 z-[var(--z-table-head)] bg-muted px-2 py-1 font-mono text-xs font-medium uppercase tracking-[var(--text-label-tracking)] text-muted-foreground",
-                    header.column.columnDef.meta?.headerClassName,
-                  )}
-                >
-                  {flexRender(header.column.columnDef.header, header.getContext())}
-                </TableHead>
-              ))}
-            </TableRow>
-          ))}
-        </TableHeader>
-        <TableBody ref={containerRef} onKeyDown={onContainerKeyDown}>
-          {table.getRowModel().rows.map((row, i) => {
-            const record = row.original;
-            const canNavigate = appKey && handlerKind && handlerId !== undefined && record.execution_id;
-            const goToDetail = () => {
-              if (canNavigate) {
-                navigate(executionPath(appKey, handlerKind, handlerId, record.execution_id!) + (instanceQs ?? ""));
-              }
-            };
-
-            return (
-              <TableRow
-                key={row.id}
-                className={cn(
-                  "transition-colors",
-                  canNavigate && "cursor-pointer hover:bg-muted [&:hover_td:last-child]:text-primary",
-                )}
-                data-testid={kind === "handler" ? "invocation-row" : "execution-row"}
-                tabIndex={getTabIndex(i)}
-                role="row"
-                aria-label={canNavigate ? "View execution detail" : undefined}
-                data-roving-item
-                onClick={() => {
-                  setActiveIndex(i);
-                  goToDetail();
-                }}
-                onKeyDown={canNavigate ? onActivateKeyDown(goToDetail) : undefined}
-              >
-                {row.getVisibleCells().map((cell) => {
-                  if (cell.column.id === "detail") {
-                    return (
-                      <TableCell
-                        key={cell.id}
-                        className={cn(
-                          "px-2 py-1 max-mobile:px-1 max-mobile:text-xs",
-                          cell.column.columnDef.meta?.cellClassName,
-                        )}
-                      >
-                        {canNavigate && (
-                          <span
-                            className="inline-flex items-center justify-center align-middle"
-                            data-testid="execution-detail-indicator"
-                          >
-                            <IconArrowRight />
-                          </span>
-                        )}
-                      </TableCell>
-                    );
-                  }
-                  const cellProps = cell.column.columnDef.meta?.cellProps?.(record) ?? {};
-                  return (
-                    <TableCell
-                      key={cell.id}
-                      className={cn(
-                        "px-2 py-1 max-mobile:px-1 max-mobile:text-xs",
-                        cell.column.columnDef.meta?.cellClassName,
-                      )}
-                      {...cellProps}
-                    >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  );
-                })}
-              </TableRow>
-            );
-          })}
-        </TableBody>
+        <ExecutionTableHead table={table} />
+        <ExecutionRows
+          table={table}
+          kind={kind}
+          appKey={appKey}
+          handlerKind={handlerKind}
+          handlerId={handlerId}
+          instanceQs={instanceQs}
+        />
       </Table>
-      {hasMore && (
+      {records.length > INITIAL_ROWS && (
         <ShowMoreButton showAll={showAll} onToggle={() => setShowAll((v) => !v)} totalCount={records.length} />
       )}
     </>

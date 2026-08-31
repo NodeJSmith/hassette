@@ -76,17 +76,12 @@ def format_title(part: str) -> str:
     return " ".join(word.capitalize() for word in part.split("_"))
 
 
-def main() -> None:
-    nav = mkdocs_gen_files.Nav()  # pyright: ignore[reportPrivateImportUsage]
-
+def write_overview_page(nav: mkdocs_gen_files.Nav) -> None:  # pyright: ignore[reportPrivateImportUsage]
+    """Clear the reference output dir and write the overview page (top of the nav)."""
     ref_disk_dir = ROOT / "docs" / VIRTUAL_REF_ROOT
     if ref_disk_dir.exists():
         shutil.rmtree(ref_disk_dir)
 
-    if DEBUG:
-        print("[gen-ref] generating API reference stubs...", flush=True)
-
-    # Write the reference overview page first so it appears at the top of the nav.
     index_content = (
         "# API Reference\n\n"
         "The API reference is auto-generated from source docstrings."
@@ -113,6 +108,9 @@ def main() -> None:
         index_file.write(index_content)
     nav[("Overview",)] = "index.md"
 
+
+def write_module_stubs(nav: mkdocs_gen_files.Nav) -> None:  # pyright: ignore[reportPrivateImportUsage]
+    """Walk SRC_DIR and write a per-module reference stub for each public module."""
     for path in sorted(SRC_DIR.rglob("*.py")):
         module_parts = path.relative_to(SRC_DIR).with_suffix("").parts
 
@@ -152,9 +150,23 @@ def main() -> None:
 
         mkdocs_gen_files.set_edit_path(full_doc_path, path.relative_to(ROOT))
 
+
+def write_summary(nav: mkdocs_gen_files.Nav) -> None:  # pyright: ignore[reportPrivateImportUsage]
+    """Build and write SUMMARY.md from the accumulated nav entries."""
     summary_path = VIRTUAL_REF_ROOT / "SUMMARY.md"
     with mkdocs_gen_files.open(summary_path, "w") as nav_file:
         nav_file.writelines(nav.build_literate_nav())
+
+
+def main() -> None:
+    nav = mkdocs_gen_files.Nav()  # pyright: ignore[reportPrivateImportUsage]
+
+    if DEBUG:
+        print("[gen-ref] generating API reference stubs...", flush=True)
+
+    write_overview_page(nav)
+    write_module_stubs(nav)
+    write_summary(nav)
 
 
 if __name__ in {"__main__", "<run_path>"}:

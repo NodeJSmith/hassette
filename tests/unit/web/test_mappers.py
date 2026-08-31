@@ -59,7 +59,7 @@ def test_instance_response_from_copies_all_fields():
     assert result.index == 2
     assert result.instance_name == "app_a.2"
     assert result.class_name == "MyApp"
-    assert result.status == "running"
+    assert result.status is ResourceStatus.RUNNING
     assert result.error_message == "boom"
     assert result.error_traceback == "tb"
     assert result.owner_id == "owner-1"
@@ -73,7 +73,7 @@ def test_instance_response_from_ignores_source_error_attribute():
     result = instance_response_from(info)
 
     assert not hasattr(result, "error")
-    assert result.status == "failed"
+    assert result.status is ResourceStatus.FAILED
 
 
 def test_listener_summary_fields_are_subset_of_response():

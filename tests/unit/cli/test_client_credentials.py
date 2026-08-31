@@ -10,7 +10,6 @@ import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import httpx2 as httpx
 import pytest
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource
 
@@ -21,10 +20,11 @@ from hassette.web.auth.tokens import TOKEN_FILENAME
 from tests.unit.cli.conftest import REMOTE_SERVER_URL, CLIClientFactory, make_cli_config
 from tests.unit.cli.test_client import (
     HEALTH_ENDPOINT,
-    _make_host_port_config,
     get_expecting_exit,
     get_json_error,
+    make_host_port_config,
     make_transport,
+    stderr_for_connect_error,
     stderr_for_successful_get,
 )
 
@@ -43,11 +43,42 @@ CLI_AUTH_TOKEN_ENV = "HASSETTE__CLI__AUTH_TOKEN"
 class TestCredentialAttachment:
     """The CLI resolves a web API bearer token and attaches it to outgoing requests."""
 
-    def test_config_auth_token_attaches_bearer_header(self, tmp_path: Path) -> None:
-        factory = CLIClientFactory(make_cli_config(data_dir=tmp_path, web_api_auth_token="config-token"))
+    # (config token, token file contents, expected Authorization header)
+    #
+    # The blank/empty rows are the load-bearing ones: an empty-string config token (e.g. an unset
+    # env var interpolated by docker-compose as ``HASSETTE__WEB_API__AUTH_TOKEN=""``) and a
+    # whitespace-only one must both be treated as unset, mirroring ``resolve_auth_token()``'s
+    # server-side handling — suppressed *and* falling through to the token file, so the CLI can't
+    # resolve a different credential than the service actually validates against.
+    #
+    # The neither-source-set case (no config token, no token file) is deliberately not a row here:
+    # ``test_missing_token_never_calls_generating_resolver`` below already pins it, asserting the
+    # same header absence plus the stronger invariant that the CLI never mints a token of its own.
+    @pytest.mark.parametrize(
+        ("config_token", "token_file", "expected_header"),
+        [
+            pytest.param("config-token", None, "Bearer config-token", id="config-token"),
+            pytest.param(None, "file-token", "Bearer file-token", id="token-file-fallback"),
+            pytest.param("config-token", "file-token", "Bearer config-token", id="config-token-beats-file"),
+            pytest.param(None, "", None, id="empty-token-file"),
+            pytest.param("", None, None, id="empty-config-token"),
+            pytest.param("  ", "file-token", "Bearer file-token", id="blank-config-token-falls-back-to-file"),
+        ],
+    )
+    def test_resolved_credential_attaches_expected_header(
+        self,
+        tmp_path: Path,
+        config_token: str | None,
+        token_file: str | None,
+        expected_header: str | None,
+    ) -> None:
+        if token_file is not None:
+            (tmp_path / TOKEN_FILENAME).write_text(token_file, encoding="utf-8")
+
+        factory = CLIClientFactory(make_cli_config(data_dir=tmp_path, web_api_auth_token=config_token))
         client, captured_headers = factory.build_capturing_headers()
         client.get(HEALTH_ENDPOINT, dict)
-        assert captured_headers[0]["authorization"] == "Bearer config-token"
+        assert captured_headers[0].get("authorization") == expected_header
 
     def test_env_var_populates_config_and_attaches_bearer_header(
         self,
@@ -99,33 +130,6 @@ class TestCredentialAttachment:
         client.get(HEALTH_ENDPOINT, dict)
         assert captured_headers[0]["authorization"] == "Bearer env-token"
 
-    def test_falls_back_to_token_file_when_config_value_absent(self, tmp_path: Path) -> None:
-        (tmp_path / TOKEN_FILENAME).write_text("file-token", encoding="utf-8")
-        factory = CLIClientFactory(make_cli_config(data_dir=tmp_path))
-        client, captured_headers = factory.build_capturing_headers()
-        client.get(HEALTH_ENDPOINT, dict)
-        assert captured_headers[0]["authorization"] == "Bearer file-token"
-
-    def test_config_value_takes_precedence_over_token_file(self, tmp_path: Path) -> None:
-        (tmp_path / TOKEN_FILENAME).write_text("file-token", encoding="utf-8")
-        factory = CLIClientFactory(make_cli_config(data_dir=tmp_path, web_api_auth_token="config-token"))
-        client, captured_headers = factory.build_capturing_headers()
-        client.get(HEALTH_ENDPOINT, dict)
-        assert captured_headers[0]["authorization"] == "Bearer config-token"
-
-    def test_no_config_value_and_no_token_file_sends_no_authorization_header(self, tmp_path: Path) -> None:
-        factory = CLIClientFactory(make_cli_config(data_dir=tmp_path))
-        client, captured_headers = factory.build_capturing_headers()
-        client.get(HEALTH_ENDPOINT, dict)
-        assert "authorization" not in captured_headers[0]
-
-    def test_empty_token_file_treated_as_no_token(self, tmp_path: Path) -> None:
-        (tmp_path / TOKEN_FILENAME).write_text("", encoding="utf-8")
-        factory = CLIClientFactory(make_cli_config(data_dir=tmp_path))
-        client, captured_headers = factory.build_capturing_headers()
-        client.get(HEALTH_ENDPOINT, dict)
-        assert "authorization" not in captured_headers[0]
-
     def test_missing_token_never_calls_generating_resolver(self, tmp_path: Path) -> None:
         """No token configured, no token file — the CLI must not mint its own token.
 
@@ -154,29 +158,6 @@ class TestCredentialAttachment:
         client = factory.build(transport)
         _code, stderr = get_expecting_exit(client)
         assert "has hassette been started" not in stderr
-
-    def test_empty_string_config_token_sends_no_authorization_header(self, tmp_path: Path) -> None:
-        """An empty-string config token (e.g. an unset env var interpolated by docker-compose
-        as ``HASSETTE__WEB_API__AUTH_TOKEN=""``) must be treated the same as no token at all:
-        no Authorization header is attached.
-        """
-        factory = CLIClientFactory(make_cli_config(data_dir=tmp_path, web_api_auth_token=""))
-        client, captured_headers = factory.build_capturing_headers()
-        client.get(HEALTH_ENDPOINT, dict)
-        assert "authorization" not in captured_headers[0]
-
-    def test_blank_config_token_falls_back_to_token_file(self, tmp_path: Path) -> None:
-        """A blank configured token must mirror resolve_auth_token()'s server-side handling:
-        treated as unset and falling through to the token file, not just suppressed. Otherwise
-        the CLI could resolve a different (missing) credential than the service actually
-        validates against, once the service falls back to a generated token for the same blank
-        config value.
-        """
-        (tmp_path / TOKEN_FILENAME).write_text("file-token", encoding="utf-8")
-        factory = CLIClientFactory(make_cli_config(data_dir=tmp_path, web_api_auth_token="  "))
-        client, captured_headers = factory.build_capturing_headers()
-        client.get(HEALTH_ENDPOINT, dict)
-        assert captured_headers[0]["authorization"] == "Bearer file-token"
 
     def test_empty_string_config_token_401_gives_clear_hint(self, tmp_path: Path) -> None:
         """An empty-string config token must not attach a header and must not resolve as
@@ -220,7 +201,7 @@ class TestNoLiteralWebApiTokenArgument:
 
 class TestVerifySslPassthrough:
     def test_verify_true_by_default(self) -> None:
-        config = _make_host_port_config()
+        config = make_host_port_config()
         with patch("hassette.cli.client.httpx.Client") as mock_client_cls:
             mock_client_cls.return_value = MagicMock()
             HassetteCLIClient(config, json_mode=False)
@@ -324,16 +305,9 @@ class TestVerifySslWarning:
         not only when the failure happens to be an HTTP error response.
         """
         config = make_cli_config(data_dir=tmp_path, cli_server_url=REMOTE_SERVER_URL, cli_verify_ssl=False)
-        transport = make_transport(raise_exc=httpx.ConnectError)
-        client = HassetteCLIClient(config, json_mode=False, transport=transport)
-        _code, stderr = get_expecting_exit(client)
-        assert "TLS verification is disabled" in stderr
+        assert "TLS verification is disabled" in stderr_for_connect_error(config)
 
     def test_flag_sourced_insecure_does_not_warn_on_network_error_path(self, tmp_path: Path) -> None:
         config = make_cli_config(data_dir=tmp_path, cli_server_url=REMOTE_SERVER_URL, cli_verify_ssl=False)
-        transport = make_transport(raise_exc=httpx.ConnectError)
-        client = HassetteCLIClient(
-            config, json_mode=False, transport=transport, verify_ssl_flag=False, server_url_flag=None
-        )
-        _code, stderr = get_expecting_exit(client)
+        stderr = stderr_for_connect_error(config, verify_ssl_flag=False, server_url_flag=None)
         assert "TLS verification is disabled" not in stderr

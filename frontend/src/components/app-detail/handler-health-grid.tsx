@@ -4,11 +4,9 @@ import { useMemo } from "react";
 import { useRovingTabIndex } from "../../hooks/use-roving-tab-index";
 import { EmptyState } from "../shared/empty-state";
 import { HandlerHealthCard } from "./handler-health-card";
-import { OVERVIEW_SECTION_CLASS } from "./overview-section";
+import { OVERVIEW_SECTION_CLASS, SECTION_LABEL_CLASS } from "./overview-section";
 import { sortedByFailingFirst } from "./overview-tab-helpers";
 import type { UnifiedItem } from "./unified-handler-row";
-
-const SECTION_LABEL_CLASS = "mb-2 font-sans text-[length:var(--text-h3)] font-semibold text-foreground";
 
 export function HandlerHealthGrid({
   items,

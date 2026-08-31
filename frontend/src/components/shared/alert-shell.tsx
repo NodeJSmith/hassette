@@ -5,12 +5,13 @@ import { cn } from "@/lib/utils";
 /** Semantic tone of a banner — selects the destructive or warning token pair. */
 export type AlertTone = "danger" | "warning";
 
-// The two tones intentionally differ in border treatment: `danger` softens `--destructive` to 30%
-// so a full-width error block doesn't read as a hard red rule, while `warning` uses
-// `--status-warning` at full strength. Both are carried over verbatim from the call sites this
-// shell replaced — a new tone should pick whichever reads better, not copy either by default.
+// The two tones intentionally differ in border treatment: `danger` uses `--destructive-border`
+// (global.css aliases it to `--err-border`, which is `--err` at 30% alpha) so a full-width error
+// block doesn't read as a hard red rule, while `warning` uses `--status-warning` at full
+// strength. Both are carried over verbatim from the call sites this shell replaced — a new tone
+// should pick whichever reads better, not copy either by default.
 const TONE_CLASSES: Record<AlertTone, string> = {
-  danger: "border-[color:color-mix(in_srgb,var(--destructive)_30%,transparent)] bg-[var(--destructive-bg)]",
+  danger: "border-[var(--destructive-border)] bg-[var(--destructive-bg)]",
   warning: "border-[var(--status-warning)] bg-[var(--status-warning-bg)]",
 };
 

@@ -10,6 +10,7 @@ from hassette.core.command_executor import CommandExecutor
 from hassette.core.execution_record import ExecutionRecord
 from hassette.exceptions import DependencyError, HassetteError
 from hassette.test_utils.factories import make_invoke_handler_cmd
+from hassette.types.types import ExecutionStatus
 from hassette.utils.execution import ExecutionResult
 
 from .conftest import make_executor
@@ -50,7 +51,7 @@ class TestCommandExecutorSourceTierBranching:
         """App-tier execution: DependencyError produces error_traceback=None."""
         result = await run_execute("app", DependencyError("missing dep"))
 
-        assert result.status == "error"
+        assert result.status is ExecutionStatus.ERROR
         assert result.error_type == "DependencyError"
         # App tier: DependencyError is a known_error → traceback suppressed
         assert result.error_traceback is None
@@ -59,14 +60,14 @@ class TestCommandExecutorSourceTierBranching:
         """App-tier execution: HassetteError produces error_traceback=None."""
         result = await run_execute("app", HassetteError("framework error"))
 
-        assert result.status == "error"
+        assert result.status is ExecutionStatus.ERROR
         assert result.error_traceback is None
 
     async def test_framework_tier_preserves_known_error_traceback(self) -> None:
         """Framework-tier execution: DependencyError preserves traceback."""
         result = await run_execute("framework", DependencyError("framework dep error"))
 
-        assert result.status == "error"
+        assert result.status is ExecutionStatus.ERROR
         assert result.error_type == "DependencyError"
         # Framework tier: no known_errors → traceback preserved
         assert result.error_traceback is not None
@@ -76,7 +77,7 @@ class TestCommandExecutorSourceTierBranching:
         """Framework-tier execution: HassetteError preserves traceback."""
         result = await run_execute("framework", HassetteError("internal framework error"))
 
-        assert result.status == "error"
+        assert result.status is ExecutionStatus.ERROR
         assert result.error_traceback is not None
 
     async def test_unexpected_source_tier_raises(self) -> None:
@@ -97,7 +98,7 @@ class TestCommandExecutorSourceTierBranching:
         """App-tier unknown exceptions (not DependencyError/HassetteError) still get tracebacks."""
         result = await run_execute("app", RuntimeError("unexpected app error"))
 
-        assert result.status == "error"
+        assert result.status is ExecutionStatus.ERROR
         assert result.error_type == "RuntimeError"
         assert result.error_traceback is not None
         assert "RuntimeError" in result.error_traceback

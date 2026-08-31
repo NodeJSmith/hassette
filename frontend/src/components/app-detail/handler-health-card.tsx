@@ -21,6 +21,8 @@ import {
 } from "./overview-tab-helpers";
 import type { UnifiedItem } from "./unified-handler-row";
 
+const STAT_ROW_CLASS = "flex gap-3 font-mono text-[length:var(--text-mono-sm)] text-muted-foreground";
+
 interface HandlerHealthCardProps {
   item: UnifiedItem;
   appKey: string;
@@ -28,11 +30,22 @@ interface HandlerHealthCardProps {
   tabIndex: 0 | -1;
 }
 
-function StatTooltip({ label, className, children }: { label: string; className?: string; children: ReactNode }) {
+interface StatTooltipProps {
+  label: string;
+  className?: string;
+  /**
+   * Mirrors the owning card's roving tabindex so a non-active card contributes no tab stops
+   * of its own, while the active card keeps its tooltips keyboard-reachable.
+   */
+  tabIndex: 0 | -1;
+  children: ReactNode;
+}
+
+function StatTooltip({ label, className, tabIndex, children }: StatTooltipProps) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span className={className} tabIndex={0}>
+        <span className={className} tabIndex={tabIndex}>
           {children}
         </span>
       </TooltipTrigger>
@@ -53,7 +66,7 @@ export function HandlerHealthCard({ item, appKey, instanceQs, tabIndex }: Handle
   const avgDuration = item.data.avg_duration_ms ?? null;
   const lastActiveAt = itemLastActiveAt(item);
   const lastActiveDisplay = useRelativeTime(lastActiveAt);
-  const failed = item.data.failed;
+  const failedCount = item.data.failed;
 
   const navigateToHandler = () => navigate(href);
 
@@ -98,31 +111,31 @@ export function HandlerHealthCard({ item, appKey, instanceQs, tabIndex }: Handle
         </div>
 
         {errorMessage && (
-          <StatTooltip label={errorMessage}>
+          <StatTooltip label={errorMessage} tabIndex={tabIndex}>
             <span className="block max-w-full truncate text-sm text-muted-foreground">{errorMessage}</span>
           </StatTooltip>
         )}
 
         <div className="flex flex-col gap-1">
-          <div className="flex gap-3 font-mono text-[length:var(--text-mono-sm)] text-muted-foreground">
-            <StatTooltip label={`total ${callLabel}s`}>
+          <div className={STAT_ROW_CLASS}>
+            <StatTooltip label={`total ${callLabel}s`} tabIndex={tabIndex}>
               <span>{pluralize(runCount, callLabel)}</span>
             </StatTooltip>
             {avgDuration !== null && avgDuration > 0 && (
-              <StatTooltip label="avg duration" className="ml-auto">
+              <StatTooltip label="avg duration" className="ml-auto" tabIndex={tabIndex}>
                 <span>{formatDuration(avgDuration)}</span>
               </StatTooltip>
             )}
           </div>
-          {(failed > 0 || lastActiveAt !== null) && (
-            <div className="flex gap-3 font-mono text-[length:var(--text-mono-sm)] text-muted-foreground">
-              {failed > 0 && (
-                <StatTooltip label="error rate">
-                  <span>{formatRate(failed, runCount)}</span>
+          {(failedCount > 0 || lastActiveAt !== null) && (
+            <div className={STAT_ROW_CLASS}>
+              {failedCount > 0 && (
+                <StatTooltip label="error rate" tabIndex={tabIndex}>
+                  <span>{formatRate(failedCount, runCount)}</span>
                 </StatTooltip>
               )}
               {lastActiveAt !== null && (
-                <StatTooltip label="last active" className="ml-auto">
+                <StatTooltip label="last active" className="ml-auto" tabIndex={tabIndex}>
                   <span>{lastActiveDisplay}</span>
                 </StatTooltip>
               )}

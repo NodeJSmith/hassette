@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from hassette.commands import ExecuteJob, InvokeHandler
+from hassette.types.types import ExecutionStatus
 from hassette.utils.execution import ExecutionResult, track_execution
 
 
@@ -72,7 +73,7 @@ class TestTrackExecutionTimeout:
             async with track_execution() as result:
                 raise TimeoutError("timed out")
 
-        assert result.status == "timed_out"
+        assert result.status is ExecutionStatus.TIMED_OUT
 
 
 class TestExecutionResultIsTimedOut:

@@ -213,4 +213,45 @@ describe("ExecutionTable", () => {
     await user.click(row);
     expect(mockNavigate).not.toHaveBeenCalled();
   });
+
+  it("moves the roving tabindex between rows with arrow keys", async () => {
+    const user = userEvent.setup();
+    const records = [
+      createExecution("job", { execution_start_ts: 1700000001 }),
+      createExecution("job", { execution_start_ts: 1700000002 }),
+    ];
+    const { container } = render(<ExecutionTable records={records} kind="job" tableId="t" />);
+    const rows = container.querySelectorAll<HTMLElement>("[data-testid='execution-row']");
+
+    expect(rows[0].tabIndex).toBe(0);
+    expect(rows[1].tabIndex).toBe(-1);
+
+    rows[0].focus();
+    await user.keyboard("{ArrowDown}");
+
+    expect(rows[0].tabIndex).toBe(-1);
+    expect(rows[1].tabIndex).toBe(0);
+    expect(document.activeElement).toBe(rows[1]);
+  });
+
+  it("activating a row with the keyboard navigates to execution detail page", async () => {
+    const user = userEvent.setup();
+    mockNavigate.mockClear();
+    const execId = "abc12345-6789-abcd-ef01-234567890abc";
+    const { getByTestId } = render(
+      <ExecutionTable
+        records={[createExecution("job", { execution_id: execId })]}
+        kind="job"
+        tableId="t"
+        appKey="my_app"
+        handlerKind="job"
+        handlerId={1}
+      />,
+    );
+
+    getByTestId("execution-row").focus();
+    await user.keyboard("{Enter}");
+
+    expect(mockNavigate).toHaveBeenCalledWith(`/apps/my_app/handlers/job/1/exec/${execId}`);
+  });
 });

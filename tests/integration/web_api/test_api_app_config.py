@@ -10,7 +10,7 @@ from pydantic import BaseModel, SecretStr
 from hassette.web.config_view import MASK_SENTINEL
 from tests.integration.conftest import make_manifest_mock
 
-GLOBAL_CONFIG_PATH = "/api/config"
+from .conftest import CONFIG_PATH as GLOBAL_CONFIG_PATH
 
 
 async def get_app_config(
