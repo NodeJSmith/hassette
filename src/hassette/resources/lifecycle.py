@@ -583,6 +583,17 @@ def total_deadline_remaining(resource: _LifecycleHostP) -> float:
     return max(0.0, budget.total_deadline - asyncio.get_running_loop().time())
 
 
+def elapsed_since(start: float) -> float:
+    """Seconds elapsed since ``start``, an ``asyncio.get_running_loop().time()`` snapshot.
+
+    Shared by every shutdown-stage timing log (waves, task-bucket cancel, cleanup,
+    child propagation, initializer observation, shutdown-body wait, and the coordinator
+    itself) so each stage measures its own span with one line instead of repeating the
+    subtraction.
+    """
+    return asyncio.get_running_loop().time() - start
+
+
 def _install_exception_observer(resource: _LifecycleHostP, task: asyncio.Task, label: str) -> None:
     """Attach a done callback that retrieves and logs any exception the task raised.
 
@@ -697,7 +708,7 @@ async def _observe_active_initializer(resource: "LifecycleMixin") -> bool:
     resource.logger.debug(
         "%s: initializer observation completed in %.2fs (budget %.2fs)",
         resource.unique_name,
-        asyncio.get_running_loop().time() - observe_start,
+        elapsed_since(observe_start),
         timeout,
     )
     if pending:
@@ -764,7 +775,7 @@ async def _run_shutdown_coordinator(resource: "LifecycleMixin") -> TeardownRepor
         wait_timeout = total_deadline_remaining(resource)
         body_wait_start = asyncio.get_running_loop().time()
         done, _pending = await asyncio.wait([body_task], timeout=wait_timeout)
-        body_wait_elapsed = asyncio.get_running_loop().time() - body_wait_start
+        body_wait_elapsed = elapsed_since(body_wait_start)
 
         if body_task in done:
             try:
@@ -837,7 +848,7 @@ async def _run_shutdown_coordinator(resource: "LifecycleMixin") -> TeardownRepor
     resource.logger.debug(
         "%s: shutdown coordinator completed in %.2fs",
         resource.unique_name,
-        asyncio.get_running_loop().time() - coordinator_start,
+        elapsed_since(coordinator_start),
     )
     resource._teardown_report = report
     return report

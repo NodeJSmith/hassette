@@ -10,7 +10,7 @@ from typing import Any, ParamSpec, TypeVar, cast, overload
 
 from hassette import context as ctx
 from hassette.resources.base import Resource
-from hassette.resources.lifecycle import mark_ready
+from hassette.resources.lifecycle import elapsed_since, mark_ready
 from hassette.resources.operations import register_task_bucket_factory
 from hassette.types.types import LOG_LEVEL_TYPE, CoroLikeT
 from hassette.utils.func_utils import is_async_callable
@@ -437,7 +437,7 @@ class TaskBucket(Resource):
             len(done),
             len(pending),
             self.unique_name,
-            asyncio.get_running_loop().time() - cancel_start,
+            elapsed_since(cancel_start),
         )
 
         for t in done:

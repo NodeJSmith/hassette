@@ -15,6 +15,7 @@ from hassette.resources.lifecycle import (
     coordinate_shutdown,
     create_lifecycle_task,
     create_service_status_event,
+    elapsed_since,
     handle_failed,
     handle_running,
     handle_starting,
@@ -494,7 +495,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         self.logger.debug(
             "%s: task-bucket cancel stage completed in %.2fs",
             self.unique_name,
-            asyncio.get_running_loop().time() - cancel_start,
+            elapsed_since(cancel_start),
         )
         pending = self.task_bucket.pending_task_names()
         if pending:
@@ -532,7 +533,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         self.logger.debug(
             "%s: cleanup() stage completed in %.2fs",
             self.unique_name,
-            asyncio.get_running_loop().time() - cleanup_start,
+            elapsed_since(cleanup_start),
         )
 
         children_start = asyncio.get_running_loop().time()
@@ -540,7 +541,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         self.logger.debug(
             "%s: child shutdown propagation completed in %.2fs",
             self.unique_name,
-            asyncio.get_running_loop().time() - children_start,
+            elapsed_since(children_start),
         )
         reports.append(children_report)
 

@@ -21,6 +21,7 @@ from hassette.resources.lifecycle import (
     COORDINATOR_MARGIN_FRACTION,
     children_budget_remaining,
     create_lifecycle_task,
+    elapsed_since,
     handle_stop,
     mark_not_ready,
     start,
@@ -806,7 +807,7 @@ class Hassette(Resource):
                 self.logger.error(
                     "Shutdown wave [%s] timed out after %.2fs (budget %.2fs) — forcing remaining children",
                     ", ".join(c.class_name for c in wave),
-                    asyncio.get_running_loop().time() - wave_start,
+                    elapsed_since(wave_start),
                     timeout,
                 )
                 causes.append(TeardownCause.CHILD_SHUTDOWN_TIMED_OUT)
@@ -822,7 +823,7 @@ class Hassette(Resource):
             self.logger.debug(
                 "Shutdown wave [%s] completed in %.2fs",
                 ", ".join(c.class_name for c in wave),
-                asyncio.get_running_loop().time() - wave_start,
+                elapsed_since(wave_start),
             )
             for child, result in zip(wave, results, strict=True):
                 if isinstance(result, BaseException):
@@ -843,7 +844,7 @@ class Hassette(Resource):
                     causes.append(TeardownCause.CHILD_RESTART_UNSAFE)
                     affected.append(child.unique_name)
 
-        self.logger.debug("All shutdown waves completed in %.2fs", asyncio.get_running_loop().time() - waves_start)
+        self.logger.debug("All shutdown waves completed in %.2fs", elapsed_since(waves_start))
         merged = merge_teardown_reports(*child_reports) if child_reports else TeardownReport()
         return add_teardown_evidence(merged, causes=tuple(causes), affected_resources=tuple(affected))
 
