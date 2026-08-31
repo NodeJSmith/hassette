@@ -10,7 +10,14 @@ import typing
 from contextlib import suppress
 
 from hassette.exceptions import RestartRefusedError
-from hassette.resources.lifecycle import handle_failed, hooks_pool_remaining, reject_lifecycle_reentry, start
+from hassette.resources.lifecycle import (
+    create_lifecycle_task,
+    handle_failed,
+    hooks_pool_remaining,
+    reject_lifecycle_reentry,
+    start,
+)
+from hassette.resources.teardown import TeardownCause, TeardownReport
 from hassette.utils.service_utils import wait_for_ready
 
 if typing.TYPE_CHECKING:
@@ -162,3 +169,83 @@ async def run_hooks(
 def ordered_children_for_shutdown(resource: "Resource") -> "list[Resource]":
     """Return children in shutdown order (reverse insertion)."""
     return list(reversed(resource.children))
+
+
+class ShutdownBatchResult(typing.NamedTuple):
+    """One batch's contribution to a caller's aggregated ``TeardownReport``.
+
+    Returned by ``shutdown_batch()``; the caller extends its own running lists with these
+    three fields across every batch it runs, then merges once at the end (see
+    ``Resource._shutdown_children()`` and ``Hassette._shutdown_children()``).
+    """
+
+    reports: list[TeardownReport]
+    causes: list[TeardownCause]
+    affected: list[str]
+
+
+async def shutdown_batch(parent: "Resource", batch: "list[Resource]", timeout: float) -> ShutdownBatchResult:
+    """Shut down one batch of children concurrently and classify the results.
+
+    Shared by ``Resource._shutdown_children()`` (one batch: all children) and
+    ``Hassette._shutdown_children()`` (one batch per dependency wave, called once per wave).
+    Each caller owns its own aggregation across batches -- this function only classifies a
+    single batch and returns the pieces:
+
+    - A child whose ``shutdown()`` call itself raises unexpectedly adds ``CHILD_SHUTDOWN_FAILED``
+      and the child's identity to the affected list. The coordinator stores evidence (e.g.
+      ``COORDINATOR_FAILED``) on the child's own report before re-raising -- see
+      ``coordinate_shutdown()``'s ``except Exception`` branch in ``lifecycle.py`` -- so that
+      report is merged in when present, instead of being replaced by only the generic cause.
+    - A child that returns without raising, but whose own report has ``is_restart_safe`` ``False``,
+      adds ``CHILD_RESTART_UNSAFE`` and the child's identity -- the child's own causes and
+      details are merged in first.
+    - A batch that exceeds ``timeout`` adds ``CHILD_SHUTDOWN_TIMED_OUT`` and force-terminates only
+      the children still unfinished at that point; a child that already completed keeps its own
+      (possibly restart-safe) report unchanged.
+    """
+    child_reports: list[TeardownReport] = []
+    causes: list[TeardownCause] = []
+    affected: list[str] = []
+
+    try:
+        async with asyncio.timeout(timeout):
+            # create_lifecycle_task(), not asyncio.gather()'s own implicit task creation --
+            # parent's own TaskBucket is already sealed here; see create_lifecycle_task()'s
+            # docstring for why that matters.
+            child_tasks = [
+                create_lifecycle_task(child.shutdown(), name=f"resource:shutdown_propagate:{child.unique_name}")
+                for child in batch
+            ]
+            results = await asyncio.gather(*child_tasks, return_exceptions=True)
+    except TimeoutError:
+        parent.logger.error(
+            "Timed out waiting for children to shut down after %ss: [%s]",
+            timeout,
+            ", ".join(child.class_name for child in batch),
+        )
+        causes.append(TeardownCause.CHILD_SHUTDOWN_TIMED_OUT)
+        for child in batch:
+            if not child.shutdown_completed:
+                child._force_terminal()
+                affected.append(child.unique_name)
+            child_report = child.teardown_report
+            if child_report is not None:
+                child_reports.append(child_report)
+        return ShutdownBatchResult(child_reports, causes, affected)
+
+    for child, result in zip(batch, results, strict=True):
+        if isinstance(result, BaseException):
+            parent.logger.error("Child %s shutdown failed: %s", child.unique_name, result)
+            causes.append(TeardownCause.CHILD_SHUTDOWN_FAILED)
+            affected.append(child.unique_name)
+            child_report = child.teardown_report
+            if child_report is not None:
+                child_reports.append(child_report)
+            continue
+        child_reports.append(result)
+        if not result.is_restart_safe:
+            causes.append(TeardownCause.CHILD_RESTART_UNSAFE)
+            affected.append(child.unique_name)
+
+    return ShutdownBatchResult(child_reports, causes, affected)
