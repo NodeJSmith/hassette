@@ -197,9 +197,18 @@ async def startup_context(
     """
     hassette = Hassette(config)
     hassette.wire_services()
+    loop = asyncio.get_running_loop()
+    # Capture the factory before run_forever() installs its own (Hassette.run_forever() routes
+    # every new task through this instance's TaskBucket via loop.set_task_factory()). Restored
+    # unconditionally below — mirrors HassetteHarness._restore_context_and_loop() and
+    # tests/integration/conftest.py::hassette_instance, which close the same gap for the same
+    # reason: a shutdown that times out or gets force-cancelled can leave the loop routing
+    # create_task() through this instance's now-sealed TaskBucket, which crashes any later task
+    # creation on the shared session loop (e.g. pytest-asyncio's own async-generator teardown
+    # machinery) with "sealed and rejected new work".
+    previous_task_factory = loop.get_task_factory()
     task = asyncio.create_task(hassette.run_forever())
     try:
-        loop = asyncio.get_running_loop()
         deadline = loop.time() + timeout
         while not ready_check(hassette):
             if task.done():
@@ -211,17 +220,20 @@ async def startup_context(
             await asyncio.sleep(0.1)
         yield hassette
     finally:
-        hassette.shutdown_event.set()
         try:
-            await asyncio.wait_for(task, timeout=SHUTDOWN_TIMEOUT)
-        except asyncio.CancelledError:  # noqa: ASYNC103 — shutdown already triggered; cancellation is the expected path
-            pass  # noqa: ASYNC104
-        except TimeoutError:
-            logger.warning("Hassette shutdown timed out after 15s — forcing fallback")
-        if not hassette.shutdown_completed:
-            with contextlib.suppress(Exception):
-                await hassette.shutdown()
-        await asyncio.sleep(0)
+            hassette.shutdown_event.set()
+            try:
+                await asyncio.wait_for(task, timeout=SHUTDOWN_TIMEOUT)
+            except asyncio.CancelledError:  # noqa: ASYNC103 — shutdown already triggered; cancellation is the expected path
+                pass  # noqa: ASYNC104
+            except TimeoutError:
+                logger.warning("Hassette shutdown timed out after 15s — forcing fallback")
+            if not hassette.shutdown_completed:
+                with contextlib.suppress(Exception):
+                    await hassette.shutdown()
+            await asyncio.sleep(0)
+        finally:
+            loop.set_task_factory(previous_task_factory)
 
 
 def make_system_config(ha_url: str, tmp_path: Path) -> HassetteConfig:
