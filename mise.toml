@@ -2,7 +2,7 @@
 prek = "0.4.11"
 python = ["3.14.6"]
 uv = "latest"
-java = "temurin-21.0.12+8.0.LTS" # PMD CPD (tools/check_duplicate_code.py) is a JVM tool
+java = "temurin-21.0.12+101.0.LTS" # PMD CPD (tools/check_duplicate_code.py) is a JVM tool
 
 [env]
 # _.file = '.env'
