@@ -109,12 +109,23 @@ class TeardownReport:
 
     Every field is a tuple so a report is hashable and its equality is structural, which is what
     lets tests assert "the exact same report" by value rather than by object identity.
+    ``__post_init__`` normalizes each field to a tuple -- ``frozen=True`` blocks reassigning a
+    field after construction, but not the type of a value passed in for one; a caller that
+    constructs ``TeardownReport(causes=[...])`` with a list would otherwise keep that mutable
+    list, letting a later mutation change ``is_restart_safe`` out from under a caller and making
+    the report fail to hash where callers rely on structural equality.
     """
 
     causes: tuple[TeardownCause, ...] = ()
     failed_operations: tuple[str, ...] = ()
     pending_tasks: tuple[str, ...] = ()
     affected_resources: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "causes", tuple(self.causes))
+        object.__setattr__(self, "failed_operations", tuple(self.failed_operations))
+        object.__setattr__(self, "pending_tasks", tuple(self.pending_tasks))
+        object.__setattr__(self, "affected_resources", tuple(self.affected_resources))
 
     @property
     def is_restart_safe(self) -> bool:

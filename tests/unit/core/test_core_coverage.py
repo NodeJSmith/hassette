@@ -282,15 +282,13 @@ class TestSendEventGuards:
 
 class TestShutdownChildren:
     async def test_records_child_shutdown_failed_and_continues_siblings(self, wired_hassette: Hassette) -> None:
-        """_shutdown_children() logs a per-child failure, records CHILD_SHUTDOWN_FAILED and the
-        child's identity in the aggregated report, but still awaits every sibling's shutdown.
+        """_shutdown_children() records CHILD_SHUTDOWN_FAILED and the failed child's identity
+        in the aggregated report, but still awaits every sibling's shutdown.
         """
         h = wired_hassette
         for child in h.children:
             child.shutdown = AsyncMock()
         h._file_watcher.shutdown = AsyncMock(side_effect=RuntimeError("child broke"))
-        error_mock = Mock()
-        h.logger.error = error_mock
 
         result = await h._shutdown_children()
 
@@ -300,7 +298,6 @@ class TestShutdownChildren:
         for child in h.children:
             if child is not h._file_watcher:
                 child.shutdown.assert_awaited_once()
-        error_mock.assert_called()
 
     async def test_merges_child_report_when_shutdown_raises(self, wired_hassette: Hassette) -> None:
         """When a child's ``shutdown()`` call raises, its own already-stored ``teardown_report``

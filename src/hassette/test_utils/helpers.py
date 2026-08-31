@@ -32,6 +32,8 @@ from hassette.events import (
 )
 from hassette.events.base import HassettePayload
 from hassette.events.hassette import HassetteFileWatcherEvent, HassetteServiceEvent, ServiceStatusPayload
+from hassette.exceptions import RestartRefusedError
+from hassette.resources.teardown import TeardownCause, TeardownReport
 from hassette.types import StateT
 from hassette.types.enums import BackpressurePolicy, ExecutionMode, ResourceRole, ResourceStatus, Topic
 from hassette.utils.func_utils import callable_name, callable_short_name
@@ -533,6 +535,12 @@ def make_crashed_event(
             ),
         ),
     )
+
+
+def make_unsafe_restart_refused_error(resource_name: str = PLACEHOLDER_SERVICE_NAME) -> RestartRefusedError:
+    """Build a RestartRefusedError carrying a real UNSAFE TeardownReport, for refusal tests."""
+    report = TeardownReport(causes=(TeardownCause.SHUTDOWN_HOOK_FAILED,), failed_operations=("shutdown_hooks",))
+    return RestartRefusedError(resource_name, report)
 
 
 async def wire_up_app_state_listener(

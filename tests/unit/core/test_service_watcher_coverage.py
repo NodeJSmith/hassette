@@ -13,22 +13,14 @@ import pytest
 
 from hassette.core.bus_service import BusService
 from hassette.events import HassetteServiceEvent
-from hassette.exceptions import RestartRefusedError
 from hassette.resources.lifecycle import mark_ready
 from hassette.resources.restart import RestartSpec
-from hassette.resources.teardown import TeardownCause, TeardownReport
 from hassette.test_utils import make_mock_hassette, make_service_failed_event, make_service_running_event, wait_for
-from hassette.test_utils.helpers import PLACEHOLDER_SERVICE_NAME, make_crashed_event
+from hassette.test_utils.helpers import PLACEHOLDER_SERVICE_NAME, make_crashed_event, make_unsafe_restart_refused_error
 from hassette.types import ResourceStatus, Topic
 from hassette.types.enums import ResourceRole, RestartType
 
 from .conftest import DummyService, make_watcher, make_watcher_hassette
-
-
-def make_unsafe_restart_refused_error(resource_name: str = PLACEHOLDER_SERVICE_NAME) -> RestartRefusedError:
-    """Build a RestartRefusedError carrying a real UNSAFE TeardownReport, for refusal tests."""
-    report = TeardownReport(causes=(TeardownCause.SHUTDOWN_HOOK_FAILED,), failed_operations=("shutdown_hooks",))
-    return RestartRefusedError(resource_name, report)
 
 
 class TestConfigLogLevel:

@@ -148,8 +148,9 @@ class Service(Resource):
             _done, pending = await asyncio.wait([self._serve_task], timeout=timeout)
             if pending:
                 self.logger.warning(
-                    "Serve task for %s did not complete within resource shutdown timeout",
+                    "Serve task for %s did not complete within its %.2fs hooks-pool budget",
                     self.unique_name,
+                    timeout,
                 )
                 reports.append(
                     TeardownReport(

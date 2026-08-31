@@ -24,6 +24,7 @@ Shutdown STOPPING path:
 """
 
 import asyncio
+import contextlib
 import threading
 from unittest.mock import AsyncMock
 
@@ -442,6 +443,25 @@ async def test_start_from_worker_thread_redispatches_onto_loop_thread():
     await resource.shutdown()
 
 
+async def test_start_with_unset_loop_thread_id_does_not_redispatch():
+    """Regression: start() must not treat an unset ``loop_thread_id`` (``None``, before
+    ``run_forever()`` captures it) as "definitely a different thread." Comparing
+    ``threading.get_ident() != loop_thread_id`` directly is true for every real thread ident when
+    ``loop_thread_id`` is ``None``, so it would redispatch even when already on the correct
+    thread and then crash on ``resource.hassette.loop`` (``RuntimeError: Event loop is not
+    running`` -- ``_loop`` and ``_loop_thread_id`` are set together in ``run_forever()``).
+    """
+    hassette = make_mock_hassette(sealed=False)
+    hassette.loop_thread_id = None
+    resource = ConcreteResource(hassette)
+
+    start(resource)  # must run synchronously in-place, not redispatch via call_soon_threadsafe
+
+    assert resource._pending_start_task is not None, "start() must have run synchronously, not redispatched"
+    await wait_for_running(resource, timeout=3.0)
+    await resource.shutdown()
+
+
 async def test_cancel_cancels_running_task():
     """cancel() requests cancellation of a running init task."""
     hassette = make_mock_hassette(sealed=False)
@@ -462,6 +482,9 @@ async def test_cancel_cancels_running_task():
 
     cancel(resource)
     assert resource._init_task.cancelling() > 0
+
+    with contextlib.suppress(asyncio.CancelledError):
+        await resource._init_task
 
 
 async def test_cancel_stops_pending_start_joiner_same_turn():

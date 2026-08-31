@@ -8,7 +8,6 @@ Verifies:
 """
 
 import asyncio
-from unittest.mock import AsyncMock
 
 from hassette.config.config import HassetteConfig
 from hassette.resources.base import FinalMeta, Resource
@@ -170,7 +169,6 @@ class RootIdentityResource(Resource):
         self.config = config
         self.event_streams_closed = False
         task_bucket = make_task_bucket()
-        task_bucket.cancel_all = AsyncMock()
         super().__init__(self, task_bucket=task_bucket, parent=self)
 
     @property

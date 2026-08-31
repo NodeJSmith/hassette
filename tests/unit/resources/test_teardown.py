@@ -52,6 +52,32 @@ class TestReportImmutability:
         assert isinstance(report.pending_tasks, tuple)
         assert isinstance(report.affected_resources, tuple)
 
+    def test_report_normalizes_list_arguments_to_tuples(self) -> None:
+        """Regression: ``frozen=True`` blocks reassigning a field after construction, but not
+        the type of a value passed in for one -- a caller constructing
+        ``TeardownReport(causes=[...])`` with a list would otherwise keep that mutable list,
+        letting a later external mutation change ``is_restart_safe`` out from under a caller and
+        making the report fail to hash where callers rely on structural equality.
+        """
+        causes_list = [TeardownCause.CLEANUP_FAILED]
+        report = TeardownReport(
+            causes=causes_list,  # pyright: ignore[reportArgumentType]
+            failed_operations=["cleanup"],  # pyright: ignore[reportArgumentType]
+            pending_tasks=["job-1"],  # pyright: ignore[reportArgumentType]
+            affected_resources=["child-a"],  # pyright: ignore[reportArgumentType]
+        )
+
+        assert isinstance(report.causes, tuple)
+        assert isinstance(report.failed_operations, tuple)
+        assert isinstance(report.pending_tasks, tuple)
+        assert isinstance(report.affected_resources, tuple)
+
+        # mutating the original list must not affect the already-constructed report
+        causes_list.append(TeardownCause.SHUTDOWN_HOOK_FAILED)
+        assert report.causes == (TeardownCause.CLEANUP_FAILED,)
+
+        hash(report)  # must not raise -- a report built from lists must still be hashable
+
 
 class TestMergeTeardownReports:
     def test_merge_deduplicates_while_preserving_first_seen_order(self) -> None:

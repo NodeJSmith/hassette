@@ -87,6 +87,7 @@ class _TaskBucketP(Protocol):
 class _LifecycleConfigP(Protocol):
     resource_shutdown_timeout_seconds: float
     total_shutdown_timeout_seconds: float
+    task_cancellation_timeout_seconds: float
 
 
 class _HassetteConfigP(Protocol):

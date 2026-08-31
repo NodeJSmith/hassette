@@ -128,16 +128,38 @@ def _reject_if_active_or_reported(resource: "Resource") -> None:
         )
 
 
+def _reject_tree_if_active_or_reported(resource: "Resource") -> None:
+    """Validate ``resource`` and every current descendant before any shutdown/ready state is
+    mutated.
+
+    ``reset_hassette_lifecycle()`` calls this on the whole tree after restoring ``children`` to
+    an ``original_children`` snapshot (if given) but before clearing ``shutdown_event`` or any
+    other state. Validating each descendant one at a time, right before clearing it (the
+    previous shape of ``reset_resource_flags()``), let a descendant that fails validation deep
+    in the tree raise only after the root and every earlier sibling had already had their
+    ``shutdown_event`` cleared -- leaving the instance in a half-reset state the module
+    docstring says must never happen. Walking the whole tree read-only first, on the tree shape
+    that will actually persist, closes that gap without rejecting a reset over test-added
+    children that ``original_children`` is about to discard anyway.
+    """
+    _reject_if_active_or_reported(resource)
+    for child in resource.children:
+        _reject_tree_if_active_or_reported(child)
+
+
 def reset_resource_flags(resource: "Resource") -> None:
     """Recursively reset a not-yet-started shutdown request on all descendants of a resource
     (not the resource itself).
 
-    Raises if any descendant has an active shutdown task or a stored teardown report — see
-    ``_reject_if_active_or_reported()``. Never clears coordinator fields (``_shutdown_task``,
-    ``_shutdown_body_task``, ``_teardown_report``); those are not test-resettable.
+    Assumes the whole tree was already validated up front by
+    ``_reject_tree_if_active_or_reported()`` (called from ``reset_hassette_lifecycle()`` after
+    the ``original_children`` restore but before any shutdown/ready state mutation) -- this
+    function itself no longer re-validates each descendant, since doing so here is what let a
+    deep validation failure leave earlier siblings half-reset. Never clears coordinator fields
+    (``_shutdown_task``, ``_shutdown_body_task``, ``_teardown_report``); those are not
+    test-resettable.
     """
     for child in resource.children:
-        _reject_if_active_or_reported(child)
         child.shutdown_event.clear()
         reset_resource_flags(child)
 
@@ -155,7 +177,10 @@ async def reset_hassette_lifecycle(hassette: "Hassette", *, original_children: l
     Args:
         hassette: The Hassette instance whose shutdown/ready flags should be
             cleared for test-fixture reuse.
-        original_children: If provided, restore the children list to this snapshot.
+        original_children: If provided, restore the children list to this snapshot before
+            validating the tree -- so a test that dynamically added its own children (e.g.
+            dummy services for a restart-budget scenario) can still reset even if those
+            now-discarded children have an active shutdown task or a stored teardown report.
 
     Raises:
         RuntimeError: If event streams were already closed by a full shutdown, or if the root
@@ -169,13 +194,21 @@ async def reset_hassette_lifecycle(hassette: "Hassette", *, original_children: l
         )
         raise RuntimeError(msg)
 
-    _reject_if_active_or_reported(hassette)
+    # Restore the children snapshot (if given) *before* validating the tree, not after -- a
+    # test that dynamically added its own children (e.g. dummy services registered directly
+    # under `hassette` for a restart-budget scenario) is exactly what this snapshot exists to
+    # discard. Those children are about to be dropped from the tree entirely, so their own
+    # shutdown/report state is irrelevant to whether reset can proceed; validating before the
+    # restore would reject a reset the caller can perfectly well do, over state that is about
+    # to become unreachable anyway.
+    if original_children is not None:
+        hassette.children[:] = original_children
+
+    _reject_tree_if_active_or_reported(hassette)
 
     hassette.shutdown_event.clear()
     hassette._fatal_shutdown_reason = None
     mark_ready(hassette, reason="reset for test")
-    if original_children is not None:
-        hassette.children[:] = original_children
 
     # Reset _status to RUNNING via the ._status bypass so that subsequent calls to
     # hassette.shutdown() in the next test see RUNNING → STOPPING, which is a valid

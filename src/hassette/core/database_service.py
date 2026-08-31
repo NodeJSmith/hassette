@@ -258,6 +258,24 @@ class DatabaseService(Service):
         # worker). The worker's lifecycle is managed by on_shutdown() (drain-and-close) and
         # _force_terminal() (hard cancel on the total-shutdown-timeout path).
         self._db_worker_task = create_lifecycle_task(self.db_write_worker(), name=f"db_write_worker:{self.unique_name}")
+        self._db_worker_task.add_done_callback(self._log_worker_exit)
+
+    def _log_worker_exit(self, task: asyncio.Task) -> None:
+        """Log an unhandled exception from ``_db_worker_task``.
+
+        ``_db_worker_task`` bypasses TaskBucket entirely (see ``on_initialize()``), so
+        ``TaskBucket.add()``'s own done callback -- the only other place a worker crash gets
+        logged and forwarded to the installed exception recorders -- never runs for it. Without
+        this callback, a worker crash (e.g. the ``RuntimeError`` guard in ``db_write_worker()``
+        when ``_db_write_queue`` is ``None``, or a ``ValueError`` from ``queue.task_done()``)
+        would go completely unlogged, and every later ``submit()`` would hang awaiting a future
+        no worker will ever resolve, since ``submit()`` has no timeout of its own.
+        """
+        if task.cancelled():
+            return
+        exc = task.exception()
+        if exc is not None:
+            self.logger.error("DB write worker for %s exited unexpectedly", self.unique_name, exc_info=exc)
 
     def _force_terminal(self) -> None:
         """Override to also cancel the untracked database write worker.

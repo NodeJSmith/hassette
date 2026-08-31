@@ -65,14 +65,24 @@ async def _teardown_bare_hassette(
     that might create a new Task on this session-scoped loop — ``run_forever()`` installs a
     TaskBucket-routing factory that seals once shutdown completes. Callers must set their own
     unblocking events (e.g. a hung ``serve()``'s wait event) before calling this.
+
+    The restore/cleanup below runs in a ``finally`` block: ``suppress(Exception)`` around the
+    wait for ``run_task`` does not catch ``asyncio.CancelledError`` (a ``BaseException``), so a
+    cancellation delivered to *this* coroutine while awaiting ``run_task`` would otherwise skip
+    the task-factory restore and instance-token reset entirely. Since the loop is session-scoped,
+    a poisoned task factory or a stale global Hassette reference would then affect every later
+    test on the same worker, not just this one.
     """
     hassette.shutdown_event.set()
-    with contextlib.suppress(Exception):
-        await asyncio.wait_for(run_task, timeout=WEBAPI_READY_TIMEOUT)
-    loop.set_task_factory(previous_task_factory)  # pyright: ignore[reportArgumentType]
-    await cleanup_hassette_streams(hassette)
-    if instance_token is not None:
-        hassette_context.HASSETTE_INSTANCE.reset(instance_token)  # pyright: ignore[reportArgumentType]
+    try:
+        with contextlib.suppress(Exception):
+            await asyncio.wait_for(run_task, timeout=WEBAPI_READY_TIMEOUT)
+    finally:
+        loop.set_task_factory(previous_task_factory)  # pyright: ignore[reportArgumentType]
+        with contextlib.suppress(Exception):
+            await cleanup_hassette_streams(hassette)
+        if instance_token is not None:
+            hassette_context.HASSETTE_INSTANCE.reset(instance_token)  # pyright: ignore[reportArgumentType]
 
 
 @contextlib.asynccontextmanager

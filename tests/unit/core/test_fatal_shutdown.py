@@ -11,9 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from hassette.exceptions import RestartRefusedError
-from hassette.resources.teardown import TeardownCause, TeardownReport
-from hassette.test_utils.helpers import make_crashed_event
+from hassette.test_utils.helpers import make_crashed_event, make_unsafe_restart_refused_error
 from hassette.types.enums import ResourceRole
 
 from .conftest import make_watcher
@@ -114,14 +112,9 @@ class TestHandleRestartRefusedSetsFatalReason:
         hassette.record_fatal_reason = MagicMock(side_effect=record)
         return hassette
 
-    @staticmethod
-    def make_error(resource_name: str = "BusService") -> RestartRefusedError:
-        report = TeardownReport(causes=(TeardownCause.SHUTDOWN_HOOK_FAILED,), failed_operations=("shutdown_hooks",))
-        return RestartRefusedError(resource_name, report)
-
     async def test_sets_fatal_reason_with_resource_name(self, watcher_hassette):
         watcher = make_watcher(watcher_hassette)
-        error = self.make_error("BusService")
+        error = make_unsafe_restart_refused_error("BusService")
 
         with patch("hassette.core.service_watcher.request_shutdown"):
             await watcher.handle_restart_refused("BusService", ResourceRole.SERVICE, error)
@@ -134,7 +127,7 @@ class TestHandleRestartRefusedSetsFatalReason:
         bare hassette.shutdown() -- run_forever() must own root teardown, not this handler.
         """
         watcher = make_watcher(watcher_hassette)
-        error = self.make_error("BusService")
+        error = make_unsafe_restart_refused_error("BusService")
 
         with patch("hassette.core.service_watcher.request_shutdown") as mock_request_shutdown:
             await watcher.handle_restart_refused("BusService", ResourceRole.SERVICE, error)
@@ -152,7 +145,7 @@ class TestHandleRestartRefusedSetsFatalReason:
             call_order.append("request_shutdown")
 
         watcher = make_watcher(watcher_hassette)
-        error = self.make_error("BusService")
+        error = make_unsafe_restart_refused_error("BusService")
 
         with patch("hassette.core.service_watcher.request_shutdown", side_effect=track_request_shutdown):
             await watcher.handle_restart_refused("BusService", ResourceRole.SERVICE, error)
@@ -173,7 +166,7 @@ class TestHandleRestartRefusedSetsFatalReason:
 
         watcher_hassette.send_event = AsyncMock(side_effect=track_send_event)
         watcher = make_watcher(watcher_hassette)
-        error = self.make_error("BusService")
+        error = make_unsafe_restart_refused_error("BusService")
 
         with patch("hassette.core.service_watcher.request_shutdown"):
             await watcher.handle_restart_refused("BusService", ResourceRole.SERVICE, error)

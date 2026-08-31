@@ -559,11 +559,17 @@ async def test_shutdown_children_timeout_preserves_finished_safe_child_report():
 
     Uses ``TrulyResistantChild``, not ``HangingChild``: with ``bound_to_shutdown_budget=True``
     on ``run_hooks()``, ``HangingChild.on_shutdown()`` now resolves on its own (as
-    ``SHUTDOWN_HOOK_FAILED``) at roughly the same ``resource_shutdown_timeout_seconds`` deadline
-    this test also uses for the parent's own wave-level timeout below -- an identical-deadline
-    race that made the child's own coordinator complete before (or after) the wave timeout fired,
-    non-deterministically. ``TrulyResistantChild`` never lets its shutdown hook resolve on its
-    own, so the parent's wave-level timeout is guaranteed to be what force-terminates it.
+    ``SHUTDOWN_HOOK_FAILED``) well within ``resource_shutdown_timeout_seconds``.
+    ``TrulyResistantChild`` never lets its shutdown hook resolve on its own, so only an
+    external force-terminate call can stop it.
+
+    The child's own coordinator now self-resolves at ``resource_shutdown_timeout_seconds *
+    (1 - COORDINATOR_MARGIN_FRACTION)`` (its own ``body_deadline``, honored by the
+    coordinator's outer wait) -- reliably *before* an ancestor whose wave-level timeout used
+    that same full duration, which would make the child's own internal timeout win the race
+    every time instead of the parent's. The parent below is therefore given its own explicit,
+    much tighter budget so its wave-level timeout is what force-terminates the still-hanging
+    child, which is what this test targets.
     """
     hassette = make_mock_hassette(sealed=False)
     hassette.config.lifecycle.resource_shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
@@ -576,12 +582,11 @@ async def test_shutdown_children_timeout_preserves_finished_safe_child_report():
     await hanging.initialize()
     await normal.initialize()
 
-    # Call _shutdown_children() directly rather than the full shutdown() coordinator: the
-    # coordinator's own whole-body deadline shares the same `resource_shutdown_timeout_seconds`
-    # config value, starting its clock earlier (as soon as the body task is created, before
-    # hooks/TaskBucket/cleanup even run) -- with an identical duration it would race and usually
-    # fire first, producing SHUTDOWN_BODY_TIMED_OUT instead of the child-aggregation evidence
-    # this test targets.
+    # Call _shutdown_children() directly rather than the full shutdown() coordinator, with an
+    # explicit budget much tighter than the child's own resource_shutdown_timeout_seconds --
+    # see the docstring above for why this must now be deliberately shorter than the child's
+    # own margin-adjusted self-resolution time, not merely different from it.
+    parent._shutdown_budget = compute_shutdown_budget(0.05, asyncio.get_running_loop().time())
     report = await parent._shutdown_children()
 
     assert report.is_restart_safe is False
@@ -701,6 +706,85 @@ async def test_shutdown_children_uses_remaining_budget_after_slow_cleanup():
         if getattr(call.args[0].payload.data, "status", None) == ResourceStatus.STOPPED
     ]
     assert stopped_events, "the STOPPED event must still be emitted after a slow cleanup()"
+
+
+def test_compute_shutdown_budget_reserves_nonzero_hooks_pool_for_small_timeouts():
+    """Regression: a ``resource_shutdown_timeout_seconds`` too small to fit the full tail
+    reservation must still leave the hooks pool a nonzero share, scaled down like every other
+    stage -- not collapsed to exactly 0. ``LifecycleConfig`` places no lower bound on this
+    setting, so a small value (e.g. 2s) is reachable in practice; before this fix, any
+    on_shutdown() hook would be cancelled at its very first suspension point regardless of how
+    little work it does, because ``asyncio.timeout(0)`` is already expired.
+    """
+    now = 100.0
+    budget = lifecycle.compute_shutdown_budget(2.0, now)
+
+    assert budget.hooks_pool_deadline > now, "the hooks pool must not collapse to 0"
+
+
+def test_compute_shutdown_budget_honors_configured_task_cancel_ceiling():
+    """Regression: the task-cancel stage must use the caller-supplied ceiling (in production,
+    ``lifecycle.task_cancellation_timeout_seconds``), not a hardcoded 1.0s -- a task that
+    cooperatively finishes within the configured allowance but after the old hardcoded second
+    was previously reported as ``TASKS_PENDING`` even though it completed on time.
+    """
+    now = 100.0
+    budget = lifecycle.compute_shutdown_budget(30.0, now, task_cancel_ceiling=5.0)
+
+    assert budget.task_cancel_seconds == 5.0
+
+
+async def test_shutdown_coordinator_bounds_body_wait_by_remaining_budget(monkeypatch):
+    """Regression: the coordinator's outer wait on the shutdown body must be bounded by the
+    remaining time to the shared, un-margin-reduced ``total_deadline`` (``now0 + timeout``),
+    not a fresh copy of the full configured timeout measured from whenever the outer wait
+    itself happens to start -- otherwise a shutdown attempt whose initializer-observation
+    phase already spent real time from the same budget gets that spent time PLUS a full
+    timeout again, roughly doubling worst-case shutdown time.
+
+    Simulates the initializer-observation phase spending 0.3s of a 1.0s total budget (via a
+    monkeypatched ``_observe_active_initializer``), then uses ``TrulyResistantChild`` as the
+    resource itself so its ``on_shutdown()`` hangs past its own inner per-hook bound and the
+    coordinator's outer wait is what actually terminates it. Before the fix, total elapsed time
+    was close to 0.3 + 1.0 = 1.3s (the observe-wait plus a full second timeout measured afresh);
+    after the fix, it stays close to the original 1.0s total_deadline (0.3s observing plus 0.7s
+    remaining), not that budget's margin-reduced ``body_deadline`` (0.9s) either -- the outer
+    wait is deliberately looser than that so the body's own internal deadline (e.g. the root's
+    ``Hassette._shutdown_body()`` TOTAL_TIMEOUT fallback) gets a chance to fire first.
+    """
+    observe_sleep_seconds = 0.3
+
+    async def fake_observe_active_initializer(_resource) -> bool:
+        await asyncio.sleep(observe_sleep_seconds)
+        return True
+
+    monkeypatch.setattr(lifecycle, "_observe_active_initializer", fake_observe_active_initializer)
+
+    hassette = make_mock_hassette(sealed=False)
+    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 1.0
+
+    resource = TrulyResistantChild(hassette)
+    await resource.initialize()
+
+    loop = asyncio.get_running_loop()
+    start_time = loop.time()
+    report = await resource.shutdown()
+    elapsed = loop.time() - start_time
+
+    try:
+        assert report.is_restart_safe is False
+        # total_deadline = now0 + 1.0s. Fixed behavior stays close to that regardless of how
+        # much of it _observe_active_initializer() already spent; the pre-fix bug measured a
+        # fresh 1.0s from when the outer wait started instead, landing near 1.3s -- well above
+        # this bound.
+        assert elapsed < 1.15, f"outer body wait must not re-grant the full timeout — took {elapsed:.2f}s"
+    finally:
+        body_task = resource._shutdown_body_task
+        if body_task is not None and not body_task.done():
+            body_task.cancel()
+        if body_task is not None:
+            with contextlib.suppress(asyncio.CancelledError):
+                await body_task
 
 
 def raise_boom(_resource, _reason=None):

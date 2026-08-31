@@ -5,7 +5,7 @@ Verifies:
 - App shutdown propagates to Bus and Scheduler
 - _force_terminal() recurses to grandchildren
 - _force_terminal() cancels task buckets
-- _force_terminal() skips completed children
+- _force_terminal() still recurses into already-completed children
 - _force_terminal() records FORCED_TERMINAL restart-unsafe evidence before cancelling work
 - _force_terminal() leaves an already-completed SAFE report unchanged
 - Service._force_terminal() cancels serve task
@@ -17,12 +17,12 @@ Verifies:
 """
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
 from hassette.resources.base import Resource
-from hassette.resources.teardown import TeardownCause
+from hassette.resources.teardown import TeardownCause, TeardownReport
 from hassette.scheduler.classes import Job
 from hassette.scheduler.scheduler import Scheduler
 from hassette.test_utils import make_mock_hassette
@@ -126,8 +126,14 @@ async def test_force_terminal_cancels_task_bucket():
     child.task_bucket.cancel_all_sync.assert_called_once()
 
 
-async def test_force_terminal_skips_completed_children():
-    """_force_terminal() returns early for resources with shutdown_completed=True."""
+async def test_force_terminal_still_recurses_into_already_completed_children():
+    """Regression: _force_terminal() must still recurse into a child whose own report was
+    already stored (e.g. an already-completed shutdown) -- only the report itself is left
+    unchanged (see test_force_terminal_leaves_completed_safe_child_report_unchanged below), not
+    the recursive call. An early return here would also skip any *grandchildren* under that
+    child, which is exactly what Hassette._shutdown_body() relies on this method reaching
+    unconditionally on its total-timeout path.
+    """
     hassette = make_mock_hassette(sealed=False)
     root = SimpleParent(hassette)
     child = root.add_child(SimpleParent)
@@ -148,8 +154,10 @@ async def test_force_terminal_skips_completed_children():
         # Root should be force-terminated
         assert root.shutdown_completed is True
         assert root.status == ResourceStatus.STOPPED
-        # Child was already completed — cancel() should NOT have been called on it
-        mock_cancel.assert_called_once_with(root)
+        # The already-completed child is still reached by the recursive call — cancel() is a
+        # safe no-op on it (nothing left to cancel), but it must still be called so a hung
+        # grandchild under it would also be reached.
+        assert mock_cancel.call_args_list == [call(root), call(child)]
 
 
 async def test_force_terminal_stores_forced_terminal_report_before_cancelling_work():
@@ -205,6 +213,35 @@ async def test_force_terminal_leaves_completed_safe_child_report_unchanged():
 
     assert child.teardown_report is safe_report, "force-terminal must not touch an already-completed SAFE report"
     assert child.teardown_report.is_restart_safe is True
+
+
+async def test_force_terminal_reaches_grandchild_under_already_reported_child():
+    """Regression: a live grandchild under a child whose own report was already stored must
+    still be force-terminated. Before this fix, `_force_terminal()`'s "leave an already-stored
+    report unchanged" guard returned before the recursive call into children entirely, so a
+    resource with a stored report (restart-safe or not) blocked force-termination of its own
+    descendants -- exactly the total-timeout path `Hassette._shutdown_body()` relies on this
+    method reaching unconditionally.
+
+    Sets the child's report directly (rather than via `child.shutdown()`, which would also
+    propagate to and shut down the grandchild itself, defeating the scenario) to simulate a
+    resource that completed its own teardown attempt while a descendant it owns is still alive.
+    """
+    hassette = make_mock_hassette(sealed=False)
+    root = SimpleParent(hassette)
+    child = root.add_child(SimpleParent)
+    grandchild = child.add_child(SimpleParent)
+
+    await root.initialize()
+
+    child._teardown_report = TeardownReport(causes=(TeardownCause.FORCED_TERMINAL,))
+    assert grandchild.shutdown_completed is False
+    assert grandchild.status == ResourceStatus.RUNNING
+
+    root._force_terminal()
+
+    assert grandchild.shutdown_completed is True
+    assert grandchild.status == ResourceStatus.STOPPED
 
 
 async def test_service_force_terminal_cancels_serve_task():

@@ -413,9 +413,9 @@ class TaskBucket(Resource):
                 ``task_cancellation_timeout_seconds`` from config.
 
         Returns:
-            A deterministic (sorted), deduplication-free tuple of the names of tasks
-            that were still pending after the bounded wait. Empty if every tracked
-            task finished (or there was nothing to cancel).
+            A sorted tuple of the names of tasks that were still pending after the bounded
+            wait. Duplicate names are not removed. Empty if every tracked task finished, or
+            if there was nothing to cancel.
         """
         # snapshot to avoid mutation during iteration
         current = asyncio.current_task()

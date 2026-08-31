@@ -136,6 +136,53 @@ async def test_force_terminal_cancels_untracked_db_worker(
     assert task.cancelled()
 
 
+async def test_log_worker_exit_logs_unhandled_worker_crash(service: DatabaseService) -> None:
+    """Regression: a crashed ``_db_worker_task`` must be logged.
+
+    ``_db_worker_task`` bypasses TaskBucket entirely (see ``on_initialize()``), so
+    ``TaskBucket.add()``'s own done callback -- the only other place a worker crash gets logged
+    and forwarded to the installed exception recorders -- never runs for it. Without
+    ``_log_worker_exit()`` wired as its own done callback, a crash would be completely silent:
+    every later ``submit()`` would hang forever awaiting a future no worker will ever resolve,
+    with no signal anywhere pointing at why.
+    """
+
+    async def _boom() -> None:
+        raise RuntimeError("worker crashed")
+
+    task = asyncio.create_task(_boom())
+    with contextlib.suppress(RuntimeError):
+        await asyncio.wait([task])
+
+    with patch.object(service, "logger") as mock_logger:
+        service._log_worker_exit(task)
+
+    mock_logger.error.assert_called_once()
+    _args, kwargs = mock_logger.error.call_args
+    assert isinstance(kwargs.get("exc_info"), RuntimeError)
+
+
+async def test_log_worker_exit_ignores_cancelled_worker(service: DatabaseService) -> None:
+    """A cancelled ``_db_worker_task`` (the expected outcome of ``_force_terminal()`` or a clean
+    ``on_shutdown()``) must not be logged as a crash -- ``task.exception()`` raises
+    ``CancelledError`` for a cancelled task, which is not the unhandled-exception case this
+    callback exists to surface.
+    """
+
+    async def _hang() -> None:
+        await asyncio.Event().wait()
+
+    task = asyncio.create_task(_hang())
+    task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await task
+
+    with patch.object(service, "logger") as mock_logger:
+        service._log_worker_exit(task)
+
+    mock_logger.error.assert_not_called()
+
+
 async def test_submit_returns_coroutine_result(
     initialized_service_with_worker: DatabaseService,
 ) -> None:
