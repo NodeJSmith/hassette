@@ -279,13 +279,22 @@ class DatabaseService(Service):
             self.logger.error("DB write worker for %s exited unexpectedly", self.unique_name, exc_info=exc)
 
     def _force_terminal(self) -> None:
-        """Override to also cancel the untracked database write worker and close connections.
+        """Override to also cancel the untracked database write worker, drain its queue, and
+        close connections.
 
         ``_db_worker_task`` bypasses TaskBucket entirely (see ``on_initialize()``), so
         ``Service._force_terminal()``'s ``TaskBucket.cancel_all_sync()`` never reaches it.
         Without cancelling it here, a total-shutdown-timeout force-terminal call (which skips
         ``on_shutdown()``, the only other place this task is cancelled) leaves the worker
         and its queue/connections running after the process has declared shutdown complete.
+
+        Swaps ``_db_write_queue`` out to ``None`` (mirroring ``on_shutdown()``'s drain-and-close
+        pattern, minus the graceful ``queue.join()`` this synchronous path can't await) before
+        closing remaining items via ``close_remaining_queue_items()``. Without this, two things
+        go wrong: any coroutine still queued when the worker is cancelled is never closed (GC
+        eventually raises "coroutine was never awaited"), and ``submit()``/``enqueue()`` only
+        reject once ``_db_write_queue`` is ``None`` -- leaving it set would let a caller enqueue
+        into a queue with a cancelled worker, hanging ``submit()``'s awaited future forever.
 
         Closing ``_db``/``_read_db`` here (via the same synchronous ``stop_connection_sync()``
         used by ``App._force_terminal()`` for its cache) matters for the same reason: this path
@@ -297,6 +306,8 @@ class DatabaseService(Service):
         """
         if self._db_worker_task is not None and not self._db_worker_task.done():
             self._db_worker_task.cancel()
+        queue, self._db_write_queue = self._db_write_queue, None
+        self.close_remaining_queue_items(queue)
         for attr in ("_read_db", "_db"):
             stop_connection_sync(getattr(self, attr))
             setattr(self, attr, None)

@@ -241,13 +241,15 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         This method is called during shutdown to cancel tasks and close caches.
         Child cleanup (Bus, Scheduler, etc.) is handled by _finalize_shutdown() propagation,
         not by this method.
+
+        Deliberately does not catch a ``self.cache.close()`` failure -- letting it propagate
+        is what lets ``_run_post_hook_shutdown_stage()``'s existing catch-all record
+        ``TeardownCause.CLEANUP_FAILED`` (it already logs the exception there). Swallowing it
+        here would report a restart-safe teardown for a cache that never confirmed it closed.
         """
         timeout = timeout or self.hassette.config.lifecycle.app_shutdown_timeout_seconds
         await super().cleanup(timeout=timeout)
-        try:
-            await self.cache.close()
-        except Exception as exc:
-            self.logger.exception("Error closing cache: %s %s", type(exc).__name__, exc)
+        await self.cache.close()
 
     def _force_terminal(self) -> None:
         """Override to also stop the cache's aiosqlite connections synchronously.

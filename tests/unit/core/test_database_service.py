@@ -143,6 +143,34 @@ async def test_force_terminal_cancels_untracked_db_worker(
     assert task.cancelled()
 
 
+async def test_force_terminal_drains_write_queue(
+    initialized_service_with_worker: DatabaseService,
+) -> None:
+    """_force_terminal() must drain _db_write_queue: swap it to ``None`` (so a subsequent
+    submit()/enqueue() call rejects instead of hanging against a worker that was just
+    cancelled) and close any coroutine/cancel any future still queued (so GC doesn't warn
+    about an unawaited coroutine and a caller awaiting submit() isn't left hanging forever).
+    """
+    service = initialized_service_with_worker
+    queue = service._db_write_queue
+    assert queue is not None
+
+    async def sentinel_coro() -> int:
+        return 99
+
+    future: asyncio.Future[int] = asyncio.get_running_loop().create_future()
+    # No await between put_nowait() and _force_terminal() -- the worker task cannot get an
+    # event-loop turn to consume this item before force_terminal cancels it.
+    queue.put_nowait((sentinel_coro(), future))
+
+    service._force_terminal()
+
+    assert service._db_write_queue is None
+    assert future.cancelled()
+    with pytest.raises(RuntimeError, match="before on_initialize"):
+        service.enqueue(sentinel_coro())
+
+
 async def test_log_worker_exit_logs_unhandled_worker_crash(service: DatabaseService) -> None:
     """Regression: a crashed ``_db_worker_task`` must be logged.
 

@@ -11,6 +11,7 @@ import hassette.cache
 from hassette.cache.protocol import CacheProtocol
 from hassette.cache.sync import SyncCache
 from hassette.cache.wrapper import AsyncCache
+from hassette.utils.aiosqlite_utils import stop_connection_sync
 
 
 @pytest.fixture
@@ -221,6 +222,45 @@ async def test_close_closes_both_connections(cache: AsyncCache) -> None:
         _ = cache._read_conn
 
 
+async def test_close_attempts_both_connections_and_raises_first_error(cache: AsyncCache) -> None:
+    """close() must not swallow a connection-close failure -- App.cleanup() relies on it
+    propagating so the shutdown coordinator can record CLEANUP_FAILED instead of reporting a
+    restart-safe teardown for a cache that never confirmed it closed. Still attempts the
+    second connection even though the first raised.
+    """
+    write_conn = cache._write
+    read_conn = cache._read
+    assert write_conn is not None
+    assert read_conn is not None
+
+    original_read_close = read_conn.close
+    read_close_called = False
+
+    async def failing_write_close() -> None:
+        raise RuntimeError("write close boom")
+
+    async def tracking_read_close() -> None:
+        nonlocal read_close_called
+        read_close_called = True
+        await original_read_close()
+
+    write_conn.close = failing_write_close  # pyright: ignore[reportAttributeAccessIssue]
+    read_conn.close = tracking_read_close  # pyright: ignore[reportAttributeAccessIssue]
+
+    try:
+        with pytest.raises(RuntimeError, match="write close boom"):
+            await cache.close()
+
+        assert read_close_called, "the read connection must still be closed despite the write connection failing"
+        assert cache._write is None
+        assert cache._read is None
+    finally:
+        # failing_write_close() replaced the real close() entirely, so the write connection's
+        # background thread was never actually stopped -- do it here so the real aiosqlite
+        # connection doesn't leak and fire an unraisable-exception warning from a later GC pass.
+        stop_connection_sync(write_conn)
+
+
 async def test_initialize_propagates_non_corruption_errors(tmp_path: Path) -> None:
     """Non-corruption sqlite3 errors propagate without triggering delete-and-recreate."""
     db_path = tmp_path / "cache.db"
@@ -236,6 +276,63 @@ async def test_initialize_propagates_non_corruption_errors(tmp_path: Path) -> No
         await instance.initialize()
 
     assert db_path.exists(), "Non-corruption error must not trigger delete-and-recreate"
+
+
+async def test_initialize_propagates_original_error_when_cleanup_close_also_fails(tmp_path: Path) -> None:
+    """A _close_connections() failure during non-corruption error cleanup must not mask the
+    original sqlite3.Error -- it's suppressed (already logged inside _close_connections()) so
+    the bare ``raise`` re-raises the error actually being handled, not the close failure.
+    """
+    db_path = tmp_path / "cache.db"
+    db_path.write_bytes(b"placeholder")
+
+    instance = AsyncCache(db_path)
+
+    async def raise_locked() -> None:
+        raise sqlite3.OperationalError("database is locked")
+
+    async def raise_on_close() -> None:
+        raise RuntimeError("close also failed")
+
+    instance._open_connections = raise_locked  # pyright: ignore[reportAttributeAccessIssue]
+    instance._close_connections = raise_on_close  # pyright: ignore[reportAttributeAccessIssue]
+
+    with pytest.raises(sqlite3.OperationalError, match="database is locked"):
+        await instance.initialize()
+
+
+async def test_initialize_corruption_retry_survives_cleanup_close_failure(tmp_path: Path) -> None:
+    """A _close_connections() failure while cleaning up before the corruption delete-and-retry
+    must not abort the retry -- it's suppressed so recovery still proceeds.
+    """
+    db_path = tmp_path / "cache.db"
+    db_path.write_bytes(b"not a valid sqlite database" * 10)
+
+    instance = AsyncCache(db_path)
+    real_close_connections = instance._close_connections
+    call_count = 0
+
+    async def flaky_close() -> None:
+        nonlocal call_count
+        call_count += 1
+        # Actually close the real connections either way -- only simulate the raise on top of
+        # a real close, not instead of one, or the first attempt's connections would be
+        # orphaned (never closed) once _open_connections() overwrites _write/_read on retry.
+        await real_close_connections()
+        if call_count == 1:
+            raise RuntimeError("close also failed")
+
+    instance._close_connections = flaky_close  # pyright: ignore[reportAttributeAccessIssue]
+
+    try:
+        await instance.initialize()
+
+        await instance.set("k", "v")
+        assert await instance.get("k") == "v"
+    finally:
+        await instance.close()
+
+    assert call_count >= 2, "retry must still reach the second _close_connections() call in the test's finally"
 
 
 async def test_initialize_recovers_from_corrupt_database(tmp_path: Path) -> None:
