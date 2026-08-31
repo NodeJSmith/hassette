@@ -20,15 +20,14 @@ from hassette.resources.base import Resource
 from hassette.resources.lifecycle import (
     COORDINATOR_MARGIN_FRACTION,
     children_budget_remaining,
-    create_lifecycle_task,
     handle_stop,
     mark_not_ready,
     start,
 )
+from hassette.resources.operations import finalize_shutdown_report, shutdown_batch
 from hassette.resources.teardown import (
     TeardownCause,
     TeardownReport,
-    add_teardown_evidence,
     merge_teardown_reports,
 )
 from hassette.scheduler import Scheduler
@@ -753,24 +752,19 @@ class Hassette(Resource):
     async def _shutdown_children(self) -> TeardownReport:
         """Wave-based shutdown: gather each dependency level sequentially.
 
-        Dependents (leaf services) shut down first, their dependencies last.
-        Within each wave, services shut down concurrently via gather.
+        Dependents (leaf services) shut down first, their dependencies last. Within each wave,
+        children shut down concurrently via a single ``shutdown_batch()`` call — see that
+        function for the per-child classification rules (failed/restart-unsafe/timed-out).
+        Evidence is accumulated across all waves and returned as one aggregated ``TeardownReport``.
 
-        Evidence is accumulated across all waves and returned as one aggregated
-        ``TeardownReport``, mirroring ``Resource._shutdown_children()``'s contract:
-
-        - A child whose ``shutdown()`` call itself raises unexpectedly adds
-          ``CHILD_SHUTDOWN_FAILED`` and the child's identity to ``affected_resources``.
-        - A child that returns without raising, but whose own report has
-          ``is_restart_safe`` ``False``, adds ``CHILD_RESTART_UNSAFE`` and the child's identity.
-        - A wave that exceeds the shutdown timeout adds ``CHILD_SHUTDOWN_TIMED_OUT``,
-          force-terminates only the children in that wave still unfinished, and proceeds to the
-          next (lower-dependency) wave rather than abandoning the rest of the shutdown — a wave
-          that owns real OS resources (DB connections, the sync-executor thread pool, the HTTP
-          session) must still get a chance to close them even when an earlier, more-dependent
-          wave ran over budget. Force-terminating the timed-out wave's children first makes this
-          safe: nothing in a later wave can still be depended on by anything left half-shut-down
-          above it.
+        A wave that exceeds the shutdown timeout adds ``CHILD_SHUTDOWN_TIMED_OUT``,
+        force-terminates only the children in that wave still unfinished, and proceeds to the
+        next (lower-dependency) wave rather than abandoning the rest of the shutdown — a wave
+        that owns real OS resources (DB connections, the sync-executor thread pool, the HTTP
+        session) must still get a chance to close them even when an earlier, more-dependent
+        wave ran over budget. Force-terminating the timed-out wave's children first makes this
+        safe: nothing in a later wave can still be depended on by anything left half-shut-down
+        above it.
 
         Each wave's own timeout is capped at ``children_budget_remaining()`` — the time
         left until ``body_deadline``, floored at ``children_floor_seconds``. Multiple waves
@@ -789,54 +783,13 @@ class Hassette(Resource):
                 continue
             timeout = min(self.config.lifecycle.resource_shutdown_timeout_seconds, children_budget_remaining(self))
             self.logger.debug("Shutting down wave: [%s]", ", ".join(c.class_name for c in wave))
-            try:
-                async with asyncio.timeout(timeout):
-                    # create_lifecycle_task(), not asyncio.gather()'s own implicit task creation --
-                    # self.task_bucket is already sealed here, and for this root resource it also
-                    # doubles as the loop's global factory bucket (see run_forever()); see
-                    # create_lifecycle_task()'s docstring for why that matters.
-                    wave_tasks = [
-                        create_lifecycle_task(child.shutdown(), name=f"resource:shutdown_propagate:{child.unique_name}")
-                        for child in wave
-                    ]
-                    results = await asyncio.gather(*wave_tasks, return_exceptions=True)
-            except TimeoutError:
-                self.logger.error(
-                    "Shutdown wave [%s] timed out after %ss — forcing remaining children",
-                    ", ".join(c.class_name for c in wave),
-                    timeout,
-                )
-                causes.append(TeardownCause.CHILD_SHUTDOWN_TIMED_OUT)
-                for child in wave:
-                    if not child.shutdown_completed:
-                        child._force_terminal()
-                        affected.append(child.unique_name)
-                    child_report = child.teardown_report
-                    if child_report is not None:
-                        child_reports.append(child_report)
-                continue
 
-            for child, result in zip(wave, results, strict=True):
-                if isinstance(result, BaseException):
-                    self.logger.error("Child %s shutdown failed: %s", child.unique_name, result)
-                    causes.append(TeardownCause.CHILD_SHUTDOWN_FAILED)
-                    affected.append(child.unique_name)
-                    # The coordinator stores evidence (e.g. COORDINATOR_FAILED) on the child's own
-                    # report before re-raising -- see coordinate_shutdown()'s except Exception
-                    # branch in lifecycle.py. Merge it in so the child's concrete cause and
-                    # failed_operations survive in the parent's aggregated report instead of being
-                    # replaced by only the generic CHILD_SHUTDOWN_FAILED cause.
-                    child_report = child.teardown_report
-                    if child_report is not None:
-                        child_reports.append(child_report)
-                    continue
-                child_reports.append(result)
-                if not result.is_restart_safe:
-                    causes.append(TeardownCause.CHILD_RESTART_UNSAFE)
-                    affected.append(child.unique_name)
+            result = await shutdown_batch(self, wave, timeout)
+            child_reports.extend(result.reports)
+            causes.extend(result.causes)
+            affected.extend(result.affected)
 
-        merged = merge_teardown_reports(*child_reports) if child_reports else TeardownReport()
-        return add_teardown_evidence(merged, causes=tuple(causes), affected_resources=tuple(affected))
+        return finalize_shutdown_report(child_reports, causes, affected)
 
     async def _on_children_stopped(self) -> None:
         """Emit Hassette's own STOPPED event, then close event streams.

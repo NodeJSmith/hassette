@@ -13,7 +13,6 @@ from hassette.resources.lifecycle import (
     children_budget_remaining,
     coordinate_initialize,
     coordinate_shutdown,
-    create_lifecycle_task,
     create_service_status_event,
     handle_failed,
     handle_running,
@@ -21,11 +20,15 @@ from hassette.resources.lifecycle import (
     handle_stop,
     mark_not_ready,
 )
-from hassette.resources.operations import ordered_children_for_shutdown, run_hooks
+from hassette.resources.operations import (
+    finalize_shutdown_report,
+    ordered_children_for_shutdown,
+    run_hooks,
+    shutdown_batch,
+)
 from hassette.resources.teardown import (
     TeardownCause,
     TeardownReport,
-    add_teardown_evidence,
     merge_teardown_reports,
 )
 from hassette.types.enums import ResourceRole, ResourceStatus
@@ -393,17 +396,8 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         """Propagate shutdown to children and aggregate their teardown reports.
 
         Children shut down concurrently, in reverse insertion order
-        (``ordered_children_for_shutdown()``), via ``asyncio.gather(return_exceptions=True)``
-        so one child's failure does not stop its siblings from completing:
-
-        - A child whose ``shutdown()`` call itself raises unexpectedly adds
-          ``CHILD_SHUTDOWN_FAILED`` and the child's identity to ``affected_resources``.
-        - A child that returns without raising, but whose own report has
-          ``is_restart_safe`` ``False``, adds ``CHILD_RESTART_UNSAFE`` and the child's identity —
-          the child's own causes and details are merged in first.
-        - A wave that exceeds the shutdown timeout adds ``CHILD_SHUTDOWN_TIMED_OUT`` and
-          force-terminates only the children still unfinished at that point; a child that
-          already completed keeps its own (possibly restart-safe) report unchanged.
+        (``ordered_children_for_shutdown()``), as a single ``shutdown_batch()`` call — see that
+        function for the per-child classification rules (failed/restart-unsafe/timed-out).
 
         Children benefit from any slack the hooks pool didn't use — their budget is
         ``max(children_floor_seconds, body_deadline - now)``, so early-finishing hooks pass
@@ -419,54 +413,8 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         if not children:
             return TeardownReport()
 
-        child_reports: list[TeardownReport] = []
-        causes: list[TeardownCause] = []
-        affected: list[str] = []
-
-        try:
-            async with asyncio.timeout(timeout):
-                # create_lifecycle_task(), not asyncio.gather()'s own implicit task creation --
-                # this resource's own TaskBucket is already sealed here; see
-                # create_lifecycle_task()'s docstring for why that matters.
-                child_tasks = [
-                    create_lifecycle_task(child.shutdown(), name=f"resource:shutdown_propagate:{child.unique_name}")
-                    for child in children
-                ]
-                results = await asyncio.gather(*child_tasks, return_exceptions=True)
-        except TimeoutError:
-            self.logger.error("Timed out waiting for children to shut down after %ss", timeout)
-            causes.append(TeardownCause.CHILD_SHUTDOWN_TIMED_OUT)
-            for child in children:
-                if not child.shutdown_completed:
-                    child._force_terminal()
-                    affected.append(child.unique_name)
-                child_report = child.teardown_report
-                if child_report is not None:
-                    child_reports.append(child_report)
-            merged = merge_teardown_reports(*child_reports) if child_reports else TeardownReport()
-            return add_teardown_evidence(merged, causes=tuple(causes), affected_resources=tuple(affected))
-
-        for child, result in zip(children, results, strict=True):
-            if isinstance(result, BaseException):
-                self.logger.error("Child %s shutdown failed: %s", child.unique_name, result)
-                causes.append(TeardownCause.CHILD_SHUTDOWN_FAILED)
-                affected.append(child.unique_name)
-                # The coordinator stores evidence (e.g. COORDINATOR_FAILED) on the child's own
-                # report before re-raising -- see coordinate_shutdown()'s except Exception branch
-                # in lifecycle.py. Merge it in so the child's concrete cause and
-                # failed_operations survive in the parent's aggregated report instead of being
-                # replaced by only the generic CHILD_SHUTDOWN_FAILED cause.
-                child_report = child.teardown_report
-                if child_report is not None:
-                    child_reports.append(child_report)
-                continue
-            child_reports.append(result)
-            if not result.is_restart_safe:
-                causes.append(TeardownCause.CHILD_RESTART_UNSAFE)
-                affected.append(child.unique_name)
-
-        merged = merge_teardown_reports(*child_reports) if child_reports else TeardownReport()
-        return add_teardown_evidence(merged, causes=tuple(causes), affected_resources=tuple(affected))
+        result = await shutdown_batch(self, children, timeout)
+        return finalize_shutdown_report(result.reports, result.causes, result.affected)
 
     async def _run_task_bucket_shutdown_stage(self) -> TeardownReport:
         """Seal the TaskBucket, cancel tracked work, and record final pending-task evidence.
