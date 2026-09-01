@@ -251,7 +251,7 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         await super().cleanup(timeout=timeout)
         await self.cache.close()
 
-    def _force_terminal(self) -> None:
+    def _force_terminal(self, *, record_cause: bool = True) -> None:
         """Override to also stop the cache's aiosqlite connections synchronously.
 
         ``_force_terminal()`` intentionally skips ``cleanup()`` (see
@@ -263,7 +263,7 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         """
         if isinstance(self.cache, AsyncCache):
             self.cache.force_close()
-        super()._force_terminal()
+        super()._force_terminal(record_cause=record_cause)
 
 
 class AppSync(App[AppConfigT]):

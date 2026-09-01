@@ -249,3 +249,8 @@ async def test_non_root_with_same_timeouts_still_force_terminates(tmp_path):
 
     assert TeardownCause.SHUTDOWN_BODY_TIMED_OUT in report.causes
     assert report.is_restart_safe is False
+    # FORCED_TERMINAL must not be recorded alongside a bare SHUTDOWN_BODY_TIMED_OUT here --
+    # SHUTDOWN_BODY_TIMED_OUT is the only real production trigger for this cause, so if
+    # FORCED_TERMINAL rode along too, is_timeout_only_refusal would be permanently unreachable.
+    assert TeardownCause.FORCED_TERMINAL not in report.causes
+    assert report.is_timeout_only_refusal is True

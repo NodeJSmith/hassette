@@ -85,11 +85,11 @@ class Service(Resource):
                 stacklevel=2,
             )
 
-    def _force_terminal(self) -> None:
+    def _force_terminal(self, *, record_cause: bool = True) -> None:
         """Override to also cancel the serve task."""
         if self._serve_task and not self._serve_task.done():
             self._serve_task.cancel()
-        super()._force_terminal()
+        super()._force_terminal(record_cause=record_cause)
 
     @abstractmethod
     async def serve(self) -> None:

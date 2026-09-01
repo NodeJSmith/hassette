@@ -333,7 +333,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
 
         self.logger.debug("Dependencies satisfied: [%s]", dep_names)
 
-    def _force_terminal(self) -> None:
+    def _force_terminal(self, *, record_cause: bool = True) -> None:
         """Recursively force this resource and all descendants to STOPPED terminal state.
 
         Cancels tasks for resources that were never given a shutdown signal (grandchildren).
@@ -344,6 +344,14 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         this method's cancellation and terminal-status side effects finish. Leaves an already
         completed report unchanged — a resource that already proved ``is_restart_safe`` (or
         already recorded other unsafe evidence) is not retroactively altered.
+
+        ``record_cause=False`` skips adding ``FORCED_TERMINAL`` to *this* resource's own report
+        (recursive calls on children always use the default). The shutdown coordinator in
+        ``lifecycle.py`` passes this when it is already recording ``SHUTDOWN_BODY_TIMED_OUT`` for
+        the same attempt: that cause alone already makes ``is_restart_safe`` ``False``, so adding
+        ``FORCED_TERMINAL`` on top would add no safety information -- it would only push the
+        cause set outside ``TIMEOUT_ONLY_CAUSES`` and make ``is_timeout_only_refusal`` permanently
+        unreachable for the one call site that ever produces ``SHUTDOWN_BODY_TIMED_OUT``.
 
         Note: this does NOT call on_shutdown() hooks, so bus subscriptions and scheduler
         jobs owned by force-terminated resources are not cleaned up. This is intentional —
@@ -368,7 +376,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         if self._teardown_report is None:
             self.task_bucket.seal()
             pending = self.task_bucket.pending_task_names()
-            causes: list[TeardownCause] = [TeardownCause.FORCED_TERMINAL]
+            causes: list[TeardownCause] = [TeardownCause.FORCED_TERMINAL] if record_cause else []
             if pending:
                 causes.append(TeardownCause.TASKS_PENDING)
             self._teardown_report = TeardownReport(causes=tuple(causes), pending_tasks=pending)

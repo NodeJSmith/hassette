@@ -824,7 +824,10 @@ async def _run_shutdown_coordinator(resource: "LifecycleMixin") -> TeardownRepor
                 body_wait_elapsed,
             )
             report = TeardownReport(causes=(TeardownCause.SHUTDOWN_BODY_TIMED_OUT,))
-            resource._force_terminal()
+            # record_cause=False: SHUTDOWN_BODY_TIMED_OUT above already makes is_restart_safe
+            # False, so adding FORCED_TERMINAL too would only push this report outside
+            # TIMEOUT_ONLY_CAUSES and make is_timeout_only_refusal unreachable for this path.
+            resource._force_terminal(record_cause=False)
             if not body_task.done():
                 body_task.cancel()
                 # No separate SHUTDOWN_BODY_PENDING cause -- this branch is reached only when the

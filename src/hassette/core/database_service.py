@@ -282,7 +282,7 @@ class DatabaseService(Service):
         if exc is not None:
             self.logger.error("DB write worker for %s exited unexpectedly", self.unique_name, exc_info=exc)
 
-    def _force_terminal(self) -> None:
+    def _force_terminal(self, *, record_cause: bool = True) -> None:
         """Override to also cancel the untracked database write worker, drain its queue, and
         close connections.
 
@@ -315,7 +315,7 @@ class DatabaseService(Service):
         for attr in ("_read_db", "_db"):
             stop_connection_sync(getattr(self, attr))
             setattr(self, attr, None)
-        super()._force_terminal()
+        super()._force_terminal(record_cause=record_cause)
 
     async def serve(self) -> None:
         """Run the heartbeat, retention, and size failsafe loop until shutdown."""
