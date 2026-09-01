@@ -1,4 +1,8 @@
-"""Unit tests for AppLifecycleService — reconciliation, config, and manifest persistence."""
+"""Unit tests for AppLifecycleService — reconciliation, config, and manifest persistence.
+
+Part of the AppLifecycleService unit-test family (``test_app_lifecycle_service*.py``);
+shared fixtures live in ``_fixtures_app_lifecycle.py`` via ``conftest.py``.
+"""
 
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, Mock

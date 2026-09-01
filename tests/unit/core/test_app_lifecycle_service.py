@@ -1,8 +1,10 @@
 """Unit tests for AppLifecycleService.
 
 Complements test_app_lifecycle_service_coverage.py, test_app_lifecycle_service_instances.py
-(initialize/cleanup/shutdown instance operations split out of this file), and
-test_app_lifecycle_service_operations.py.
+(initialize/cleanup/shutdown instance operations split out of this file), and the
+operation-family files: test_app_lifecycle_service_start_stop.py,
+test_app_lifecycle_service_per_instance_ops.py, test_app_lifecycle_service_reload.py, and
+test_app_lifecycle_service_reconcile.py.
 """
 
 import asyncio

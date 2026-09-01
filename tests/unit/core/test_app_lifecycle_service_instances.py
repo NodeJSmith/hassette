@@ -1,10 +1,12 @@
 """Unit tests for AppLifecycleService instance-level lifecycle operations.
 
 Complements test_app_lifecycle_service.py (init/properties/bootstrap-admission/apply-changes
-gating), test_app_lifecycle_service_coverage.py (remaining branch coverage), and
-test_app_lifecycle_service_operations.py (start/stop/reload/resolve_only_apps/refresh_config/
-reconcile). This file covers instance initialization, failed-instance cleanup, and
-instance/all-app shutdown.
+gating), test_app_lifecycle_service_coverage.py (remaining branch coverage), and the
+operation-family files: test_app_lifecycle_service_start_stop.py (whole-app start/stop),
+test_app_lifecycle_service_per_instance_ops.py (per-instance start/stop/reload and locking),
+test_app_lifecycle_service_reload.py (change application and reload), and
+test_app_lifecycle_service_reconcile.py (resolve_only_apps/refresh_config/reconcile). This
+file covers instance initialization, failed-instance cleanup, and instance/all-app shutdown.
 """
 
 import asyncio
