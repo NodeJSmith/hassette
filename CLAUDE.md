@@ -65,8 +65,10 @@ scenarios — useful for frontend QA, CLI doc generation, visual regression scre
 demos that need the monitoring dashboard in a specific state without waiting on a live Home
 Assistant instance. Available scenarios: `healthy`, `empty`, `degraded`, `error`,
 `large-volume`, `lifecycle`, `adversarial`. Running the script twice for the same scenario
-produces identical database content. See `design/specs/017-seed-db/design.md` for the full
-design.
+produces identical database content. The generators live in `scripts/seed_scenarios/` — one
+module per scenario, plus a shared `base` module holding `SeedContext` and the seed helpers;
+`seed_db.py` itself is just the CLI, the transaction machinery, and the integrity checks. See
+`design/specs/017-seed-db/design.md` for the full design.
 
 ## Architecture
 
