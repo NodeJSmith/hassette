@@ -4,6 +4,18 @@ import { describe, expect, it, vi } from "vitest";
 import { createJob, createListener } from "../../test/factories";
 import { HandlerList } from "./handler-list";
 
+const HANDLER_LIST_TEST_ID = "handler-list";
+
+// vi.hoisted so the row test-id convention is shared between the hoisted vi.mock
+// factory below and the assertions that read it.
+const { ROW_TEST_ID_PREFIX, rowTestId } = vi.hoisted(() => {
+  const prefix = "unified-row-";
+  return {
+    ROW_TEST_ID_PREFIX: prefix,
+    rowTestId: (kind: string, id: number) => `${prefix}${kind}-${id}`,
+  };
+});
+
 // Mock UnifiedHandlerRow to isolate HandlerList behavior — the row component
 // calls query hooks which require the Zustand app store (useAppStore) and MSW.
 vi.mock("./unified-handler-row", () => ({
@@ -15,7 +27,7 @@ vi.mock("./unified-handler-row", () => ({
     isSelected: boolean;
     onSelect: () => void;
   }) => (
-    <div data-testid={`unified-row-${item.kind}-${item.id}`} data-selected={String(isSelected)}>
+    <div data-testid={rowTestId(item.kind, item.id)} data-selected={String(isSelected)}>
       {item.name}
       {item.humanDescription && <span>{item.humanDescription}</span>}
     </div>
@@ -25,7 +37,7 @@ vi.mock("./unified-handler-row", () => ({
 describe("HandlerList", () => {
   it("renders nothing when both arrays are empty", () => {
     const { container } = render(<HandlerList listeners={[]} jobs={[]} selectedId={null} onSelect={() => {}} />);
-    expect(container.querySelector("[data-testid='handler-list']")).toBeNull();
+    expect(container.querySelector(`[data-testid='${HANDLER_LIST_TEST_ID}']`)).toBeNull();
   });
 
   it("renders handler-list container when listeners are present", () => {
@@ -33,13 +45,13 @@ describe("HandlerList", () => {
     const { getByTestId } = render(
       <HandlerList listeners={listeners} jobs={[]} selectedId={null} onSelect={() => {}} />,
     );
-    expect(getByTestId("handler-list")).toBeDefined();
+    expect(getByTestId(HANDLER_LIST_TEST_ID)).toBeDefined();
   });
 
   it("renders handler-list container when jobs are present", () => {
     const jobs = [createJob({ job_id: 10 })];
     const { getByTestId } = render(<HandlerList listeners={[]} jobs={jobs} selectedId={null} onSelect={() => {}} />);
-    expect(getByTestId("handler-list")).toBeDefined();
+    expect(getByTestId(HANDLER_LIST_TEST_ID)).toBeDefined();
   });
 
   it("renders a row for each listener with kind='listener'", () => {
@@ -47,15 +59,15 @@ describe("HandlerList", () => {
     const { getByTestId } = render(
       <HandlerList listeners={listeners} jobs={[]} selectedId={null} onSelect={() => {}} />,
     );
-    expect(getByTestId("unified-row-listener-1")).toBeDefined();
-    expect(getByTestId("unified-row-listener-2")).toBeDefined();
+    expect(getByTestId(rowTestId("listener", 1))).toBeDefined();
+    expect(getByTestId(rowTestId("listener", 2))).toBeDefined();
   });
 
   it("renders a row for each job with kind='job'", () => {
     const jobs = [createJob({ job_id: 5 }), createJob({ job_id: 6 })];
     const { getByTestId } = render(<HandlerList listeners={[]} jobs={jobs} selectedId={null} onSelect={() => {}} />);
-    expect(getByTestId("unified-row-job-5")).toBeDefined();
-    expect(getByTestId("unified-row-job-6")).toBeDefined();
+    expect(getByTestId(rowTestId("job", 5))).toBeDefined();
+    expect(getByTestId(rowTestId("job", 6))).toBeDefined();
   });
 
   it("renders both listeners and jobs in the same list", () => {
@@ -64,8 +76,8 @@ describe("HandlerList", () => {
     const { getByTestId } = render(
       <HandlerList listeners={listeners} jobs={jobs} selectedId={null} onSelect={() => {}} />,
     );
-    expect(getByTestId("unified-row-listener-1")).toBeDefined();
-    expect(getByTestId("unified-row-job-10")).toBeDefined();
+    expect(getByTestId(rowTestId("listener", 1))).toBeDefined();
+    expect(getByTestId(rowTestId("job", 10))).toBeDefined();
   });
 
   it("renders listener human_description as subtitle via row", () => {
@@ -79,8 +91,8 @@ describe("HandlerList", () => {
     const { getByTestId } = render(
       <HandlerList listeners={listeners} jobs={[]} selectedId={{ kind: "listener", id: 1 }} onSelect={() => {}} />,
     );
-    expect(getByTestId("unified-row-listener-1").getAttribute("data-selected")).toBe("true");
-    expect(getByTestId("unified-row-listener-2").getAttribute("data-selected")).toBe("false");
+    expect(getByTestId(rowTestId("listener", 1)).getAttribute("data-selected")).toBe("true");
+    expect(getByTestId(rowTestId("listener", 2)).getAttribute("data-selected")).toBe("false");
   });
 
   it("renders issues first while preserving source order within each health group", () => {
@@ -96,13 +108,13 @@ describe("HandlerList", () => {
     const { container } = render(
       <HandlerList listeners={listeners} jobs={jobs} selectedId={null} onSelect={() => {}} />,
     );
-    const rows = container.querySelectorAll("[data-testid^='unified-row-']");
+    const rows = container.querySelectorAll(`[data-testid^='${ROW_TEST_ID_PREFIX}']`);
     expect(Array.from(rows, (row) => row.getAttribute("data-testid"))).toEqual([
-      "unified-row-listener-2",
-      "unified-row-job-6",
-      "unified-row-listener-1",
-      "unified-row-job-5",
-      "unified-row-job-7",
+      rowTestId("listener", 2),
+      rowTestId("job", 6),
+      rowTestId("listener", 1),
+      rowTestId("job", 5),
+      rowTestId("job", 7),
     ]);
   });
 });
