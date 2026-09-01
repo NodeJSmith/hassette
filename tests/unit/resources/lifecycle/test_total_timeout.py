@@ -25,6 +25,7 @@ from .conftest import HangingChild, ShutdownCounter, SimpleParent
 FinalMeta.LOADED_CLASSES.add("tests.unit.resources.lifecycle.test_total_timeout.TotalTimeoutRoot")
 FinalMeta.LOADED_CLASSES.add("tests.unit.resources.lifecycle.test_total_timeout.RootIdentityResource")
 FinalMeta.LOADED_CLASSES.add("tests.unit.resources.lifecycle.test_total_timeout.SleepingChild")
+FinalMeta.LOADED_CLASSES.add("tests.unit.resources.lifecycle.test_total_timeout.HooksThenHangingChild")
 
 
 class TotalTimeoutRoot(Resource):
@@ -208,6 +209,23 @@ class SleepingChild(Resource):
         return await super()._shutdown_body()
 
 
+class HooksThenHangingChild(Resource):
+    """Non-root resource whose shutdown hooks complete normally, but the stage after hooks
+    (task-bucket cancel / cleanup() / child propagation) sleeps for a configurable duration.
+
+    Companion fixture to `SleepingChild` — that one sleeps *before* hooks run (hooks never get a
+    chance to complete); this one sleeps *after* hooks already ran, by overriding
+    `_run_post_hook_shutdown_stage()` instead of `_shutdown_body()` itself. Proves the two cases
+    classify differently once `_shutdown_hooks_completed` is in the picture.
+    """
+
+    _post_hook_sleep: float = 0.0
+
+    async def _run_post_hook_shutdown_stage(self) -> "TeardownReport":
+        await asyncio.sleep(self._post_hook_sleep)
+        return await super()._run_post_hook_shutdown_stage()
+
+
 async def test_root_identity_uses_total_timeout_not_resource_timeout(tmp_path):
     """A root resource (`resource is resource.hassette`) is bounded by
     `total_shutdown_timeout_seconds`, not `resource_shutdown_timeout_seconds` — even when the
@@ -249,9 +267,36 @@ async def test_non_root_with_same_timeouts_still_force_terminates(tmp_path):
 
     assert TeardownCause.SHUTDOWN_BODY_TIMED_OUT in report.causes
     assert report.is_restart_safe is False
-    # FORCED_TERMINAL must not be recorded alongside a bare SHUTDOWN_BODY_TIMED_OUT here --
-    # SHUTDOWN_BODY_TIMED_OUT is the only real production trigger for this cause, so if
-    # FORCED_TERMINAL rode along too, is_timeout_only_refusal would be permanently unreachable.
+    # SleepingChild sleeps *before* calling super()._shutdown_body(), so shutdown hooks never ran
+    # before the outer timeout fires -- FORCED_TERMINAL must be recorded for real here, since
+    # _force_terminal() skips on_shutdown() and this resource's own release logic never got a
+    # chance to run. See test_body_timeout_after_hooks_complete_stays_timeout_only below for the
+    # companion case (hooks already ran) where FORCED_TERMINAL stays suppressed instead.
+    assert TeardownCause.FORCED_TERMINAL in report.causes
+    assert report.is_timeout_only_refusal is False
+
+
+async def test_body_timeout_after_hooks_complete_stays_timeout_only(tmp_path):
+    """A resource whose shutdown hooks (before_shutdown/on_shutdown/after_shutdown) already
+    completed before the outer timeout fires stays timeout-only-eligible -- FORCED_TERMINAL must
+    stay suppressed, because the resource's own release logic already ran and whatever remains
+    (task-bucket cancel, cleanup(), child propagation) already produces its own evidence through
+    the normal paths. Companion to test_non_root_with_same_timeouts_still_force_terminates above,
+    where hooks never got a chance to run and FORCED_TERMINAL is recorded for real instead.
+    """
+    hassette = make_mock_hassette(data_dir=tmp_path, sealed=False)
+    hassette.config.lifecycle.resource_shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
+    hassette.config.lifecycle.total_shutdown_timeout_seconds = 0.3
+    child = HooksThenHangingChild(hassette)
+    child._post_hook_sleep = 0.2  # longer than the 0.1s resource timeout, after hooks already ran
+
+    await child.initialize()
+
+    report = await child.shutdown()
+
+    assert child._shutdown_hooks_completed is True
+    assert TeardownCause.SHUTDOWN_BODY_TIMED_OUT in report.causes
+    assert report.is_restart_safe is False
     assert TeardownCause.FORCED_TERMINAL not in report.causes
     assert report.is_timeout_only_refusal is True
 

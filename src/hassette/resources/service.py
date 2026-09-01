@@ -169,6 +169,10 @@ class Service(Resource):
         hook_errors = await run_hooks(
             self, [self.on_shutdown, self.after_shutdown], continue_on_error=True, bound_to_shutdown_budget=True
         )
+        # Marks that on_shutdown() -- where most resources release what they hold -- had its
+        # chance to run before whatever comes next. See _shutdown_hooks_completed's docstring
+        # (mixins.py) for how the shutdown coordinator uses this on a body timeout.
+        self._shutdown_hooks_completed = True
         if hook_errors:
             reports.append(
                 TeardownReport(causes=(TeardownCause.SHUTDOWN_HOOK_FAILED,), failed_operations=("shutdown_hooks",))

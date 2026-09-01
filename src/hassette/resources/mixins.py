@@ -179,6 +179,23 @@ class LifecycleMixin(_LifecycleHostP):
     shutdown coordinator itself has returned to its callers.
     """
 
+    _shutdown_hooks_completed: bool = False
+    """Whether ``before_shutdown``/``on_shutdown``/``after_shutdown`` finished running during the
+    current shutdown attempt -- set by ``_shutdown_body()`` (``Resource``/``Service``) right after
+    its ``run_hooks()`` call returns, before the post-hook stage (task-bucket cancel, ``cleanup()``,
+    child propagation) starts.
+
+    Read by ``_run_shutdown_coordinator()`` (``hassette.resources.lifecycle``) when a shutdown body
+    times out, to decide whether ``_force_terminal()`` may suppress ``FORCED_TERMINAL`` on this
+    resource's own report (``record_cause=False``). ``on_shutdown()`` is where most resources
+    release what they hold (bus subscriptions, scheduled jobs, sockets) -- if the hooks never
+    finished, that release logic never ran, and ``_force_terminal()``'s cascade (which skips hooks
+    entirely) can't be trusted not to leave something dangling. Once hooks have completed, whatever
+    remains (task-bucket cancellation, ``cleanup()``, child shutdown) already produces its own
+    evidence through the normal paths, so suppressing ``FORCED_TERMINAL`` there adds no missing
+    safety information.
+    """
+
     _teardown_report: TeardownReport | None = None
     """The final report for the current shutdown attempt.
 
@@ -215,6 +232,7 @@ class LifecycleMixin(_LifecycleHostP):
         self._pending_start_task = None
         self._shutdown_task = None
         self._shutdown_body_task = None
+        self._shutdown_hooks_completed = False
         self._teardown_report = None
         self._shutdown_budget = None
 

@@ -348,16 +348,22 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         ``record_cause=False`` skips adding ``FORCED_TERMINAL`` to *this* resource's own report
         (recursive calls on children always use the default). The shutdown coordinator in
         ``lifecycle.py`` passes this when it is already recording ``SHUTDOWN_BODY_TIMED_OUT`` for
-        the same attempt: that cause alone already makes ``is_restart_safe`` ``False``, so adding
+        the same attempt *and* ``_shutdown_hooks_completed`` is ``True`` for this resource (see
+        that field's docstring in ``mixins.py``): once shutdown hooks have already run, adding
         ``FORCED_TERMINAL`` on top would add no safety information -- it would only push the
-        cause set outside ``TIMEOUT_ONLY_CAUSES`` and make ``is_timeout_only_refusal`` permanently
-        unreachable for the one call site that ever produces ``SHUTDOWN_BODY_TIMED_OUT``.
+        cause set outside ``TIMEOUT_ONLY_CAUSES`` and make ``is_timeout_only_refusal`` unreachable
+        for a resource whose own release logic already completed. When hooks have NOT completed,
+        the coordinator passes ``record_cause=True`` (the default) instead -- see the next
+        paragraph for why that distinction matters.
 
         Note: this does NOT call on_shutdown() hooks, so bus subscriptions and scheduler
         jobs owned by force-terminated resources are not cleaned up. This is intentional —
         calling hooks risks re-entrancy with the child's own finally block. Stale
-        subscriptions may remain active against STOPPED resources; this is an accepted
-        gap because force-terminal is nearly always followed by process exit.
+        subscriptions may remain active against STOPPED resources; this is an accepted gap
+        when force-terminal is followed by process exit (the common case), but NOT an accepted
+        gap for a resource whose shutdown hooks never got a chance to run and is then degraded
+        in place (process keeps running) rather than escalated -- that's exactly the case
+        ``record_cause=True`` guards above.
 
         Seals the TaskBucket and takes its synchronous pending-name snapshot before recording
         the report, so a whole-body-deadline force-terminal call (triggered by the shutdown
@@ -624,6 +630,10 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
             continue_on_error=True,
             bound_to_shutdown_budget=True,
         )
+        # Marks that on_shutdown() -- where most resources release what they hold -- had its
+        # chance to run before whatever comes next. See _shutdown_hooks_completed's docstring
+        # (mixins.py) for how the shutdown coordinator uses this on a body timeout.
+        self._shutdown_hooks_completed = True
         hook_report = (
             TeardownReport(causes=(TeardownCause.SHUTDOWN_HOOK_FAILED,), failed_operations=("shutdown_hooks",))
             if hook_errors
