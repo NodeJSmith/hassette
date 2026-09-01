@@ -32,6 +32,38 @@ class TestRestartSafetyDerivation:
         assert "is_restart_safe" not in TeardownReport.__dataclass_fields__
 
 
+class TestIsTimeoutOnlyRefusal:
+    def test_single_timeout_only_cause_is_timeout_only(self) -> None:
+        report = TeardownReport(causes=(TeardownCause.CLEANUP_TIMED_OUT,))
+
+        assert report.is_timeout_only_refusal is True
+
+    def test_multiple_timeout_only_causes_is_timeout_only(self) -> None:
+        report = TeardownReport(
+            causes=(TeardownCause.TASKS_PENDING, TeardownCause.SERVE_TASK_PENDING),
+        )
+
+        assert report.is_timeout_only_refusal is True
+
+    def test_mixed_timeout_only_and_other_cause_is_not_timeout_only(self) -> None:
+        report = TeardownReport(
+            causes=(TeardownCause.CLEANUP_TIMED_OUT, TeardownCause.CLEANUP_FAILED),
+        )
+
+        assert report.is_timeout_only_refusal is False
+
+    def test_purely_non_timeout_cause_is_not_timeout_only(self) -> None:
+        report = TeardownReport(causes=(TeardownCause.FORCED_TERMINAL,))
+
+        assert report.is_timeout_only_refusal is False
+
+    def test_empty_causes_is_not_timeout_only(self) -> None:
+        report = TeardownReport()
+
+        assert report.is_restart_safe is True
+        assert report.is_timeout_only_refusal is False
+
+
 class TestReportImmutability:
     def test_report_is_frozen(self) -> None:
         report = TeardownReport()

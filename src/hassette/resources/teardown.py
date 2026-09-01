@@ -78,6 +78,21 @@ class TeardownCause(StrEnum):
     active initializer or requesting shutdown), not the shutdown body task it dispatches."""
 
 
+TIMEOUT_ONLY_CAUSES: frozenset[TeardownCause] = frozenset(
+    {
+        TeardownCause.CLEANUP_TIMED_OUT,
+        TeardownCause.TASKS_PENDING,
+        TeardownCause.SERVE_TASK_PENDING,
+        TeardownCause.SHUTDOWN_BODY_TIMED_OUT,
+    }
+)
+"""The subset of :class:`TeardownCause` values that mean "a task might simply still be finishing
+up" rather than an actual failure. Every other cause (a hook or shutdown body raising, cleanup
+raising, a child's own unsafe report, a forced-terminal transition, a total timeout, or the
+coordinator itself raising) represents real negative evidence, not something that resolves by
+waiting longer. See :attr:`TeardownReport.is_timeout_only_refusal`."""
+
+
 def _dedupe_preserve_order(*groups: Iterable[T]) -> tuple[T, ...]:
     """Flatten one or more iterables into one deterministic, deduplicated tuple.
 
@@ -131,6 +146,15 @@ class TeardownReport:
     def is_restart_safe(self) -> bool:
         """``True`` only when no causes were recorded; ``False`` otherwise."""
         return not self.causes
+
+    @property
+    def is_timeout_only_refusal(self) -> bool:
+        """True when every recorded cause is a timeout-only cause (see TIMEOUT_ONLY_CAUSES).
+
+        False when there are no causes at all (nothing to classify -- use is_restart_safe for
+        that case) or when any recorded cause falls outside the timeout-only set.
+        """
+        return bool(self.causes) and all(cause in TIMEOUT_ONLY_CAUSES for cause in self.causes)
 
 
 def merge_teardown_reports(*reports: TeardownReport) -> TeardownReport:
