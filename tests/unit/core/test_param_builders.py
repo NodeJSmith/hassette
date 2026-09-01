@@ -9,7 +9,7 @@ param builders and the migrations at test time rather than at seed-script runtim
 import sqlite3
 from pathlib import Path
 
-from seed_db import _BLOCKING_EVENT_COLUMNS, _SESSION_COLUMNS
+from seed_scenarios.base import _BLOCKING_EVENT_COLUMNS, _SESSION_COLUMNS
 
 from hassette.core.telemetry.repository import (
     execution_insert_params,
@@ -104,7 +104,7 @@ def test_listener_insert_params_round_trip(_migrated_db_template: Path):  # noqa
 
 
 def test_session_columns_match_schema(_migrated_db_template: Path):  # noqa: PT019
-    """_SESSION_COLUMNS (seed_db.py) must match the sessions table, minus id.
+    """_SESSION_COLUMNS (seed_scenarios/base.py) must match the sessions table, minus id.
 
     sessions has no param-builder in repository.py to import (production writes go through
     a narrower path -- see design doc), so this guards the hand-typed column tuple directly
@@ -115,7 +115,7 @@ def test_session_columns_match_schema(_migrated_db_template: Path):  # noqa: PT0
 
 
 def test_blocking_event_columns_match_schema(_migrated_db_template: Path):  # noqa: PT019
-    """_BLOCKING_EVENT_COLUMNS (seed_db.py) must match the blocking_events table, minus id."""
+    """_BLOCKING_EVENT_COLUMNS (seed_scenarios/base.py) must match the blocking_events table, minus id."""
     expected_keys = _table_columns(_migrated_db_template, "blocking_events") - {"id"}
     assert set(_BLOCKING_EVENT_COLUMNS) == expected_keys
 

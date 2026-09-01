@@ -12,9 +12,9 @@ require a running hassette instance. Lint and type checking are verified separat
 Most tests shell out to the real CLI entry point (`uv run python scripts/seed_db.py ...`),
 matching the exact invocation documented in the design doc. The FK-violation and
 consistency-assertion tests need to inject a deliberately broken scenario, which the CLI's
-fixed `--scenario` choices don't allow -- those import `seed_db` directly (the `scripts/`
-directory is on `pythonpath` per pyproject.toml) and call `generate_scenario()` with a
-temporary scenario registered via `monkeypatch.setitem`.
+fixed `--scenario` choices don't allow -- those import `seed_db` and `seed_scenarios`
+directly (the `scripts/` directory is on `pythonpath` per pyproject.toml) and call
+`generate_scenario()` with a temporary scenario registered via `monkeypatch.setitem`.
 """
 
 import sqlite3
@@ -24,6 +24,7 @@ from pathlib import Path
 
 import pytest
 import seed_db
+import seed_scenarios
 
 from hassette.test_utils.factories import make_execution_record
 
@@ -148,7 +149,7 @@ def test_determinism(tmp_path: Path):
         conn_2.close()
 
 
-def _app_manifest_scenario(ctx: seed_db.SeedContext) -> None:
+def _app_manifest_scenario(ctx: seed_scenarios.SeedContext) -> None:
     """Scenario that exercises ``add_app_manifest()`` in isolation, including its defaults."""
     ctx.add_app_manifest(
         app_key="manifest_test_app",
@@ -186,7 +187,7 @@ def test_add_app_manifest_inserts_row_with_correct_fields(tmp_path: Path, monkey
     assert row == ("manifest_test_app", "ManifestTestApp", "Manifest Test App", "manifest_test_app.py", 0, 0, 1)
 
 
-def _bad_fk_scenario(ctx: seed_db.SeedContext) -> None:
+def _bad_fk_scenario(ctx: seed_scenarios.SeedContext) -> None:
     """Scenario that deliberately inserts an execution referencing a listener that doesn't exist."""
     session_id = ctx.add_session(started_at=0.0, last_heartbeat_at=1.0)
     ctx.add_execution(
@@ -220,7 +221,7 @@ def test_fk_violation_detected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     assert not output.exists(), "output file must not be written when a scenario fails integrity checks"
 
 
-def _bad_log_record_scenario(ctx: seed_db.SeedContext) -> None:
+def _bad_log_record_scenario(ctx: seed_scenarios.SeedContext) -> None:
     """Scenario that deliberately inserts a log_records row with a dangling execution_id."""
     ctx.add_log_record(
         seq=1,
@@ -245,7 +246,7 @@ def test_consistency_assertion_catches_dangling_execution_id(tmp_path: Path, mon
     output = tmp_path / "bad_log.db"
     tmp = output.with_name(output.name + ".tmp")
 
-    with pytest.raises(seed_db.SeedIntegrityError, match="log_records"):
+    with pytest.raises(seed_scenarios.SeedIntegrityError, match="log_records"):
         seed_db.generate_scenario("test_bad_log", output, tmp)
 
     assert not output.exists(), "output file must not be written when a scenario fails integrity checks"
