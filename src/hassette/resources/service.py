@@ -53,7 +53,11 @@ class Service(Resource):
 
     role: ClassVar[ResourceRole] = ResourceRole.SERVICE
 
-    restart_spec: ClassVar[RestartSpec] = RestartSpec()
+    # degrade_on_confirmed_quiescent_refusal set explicitly (matching its own True default) so
+    # this shared fallback instance doesn't trigger RestartSpec's own "field left unset" warning
+    # at import time -- __init_subclass__ below already warns, by subclass name, when a concrete
+    # Service actually relies on this fallback instead of declaring its own restart_spec.
+    restart_spec: ClassVar[RestartSpec] = RestartSpec(degrade_on_confirmed_quiescent_refusal=True)
     """Restart strategy for this service. Declare on each concrete subclass."""
 
     _serve_task: asyncio.Task | None = None

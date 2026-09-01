@@ -34,7 +34,7 @@ class TestRestartSafetyDerivation:
 
 class TestIsTimeoutOnlyRefusal:
     def test_single_timeout_only_cause_is_timeout_only(self) -> None:
-        report = TeardownReport(causes=(TeardownCause.CLEANUP_TIMED_OUT,))
+        report = TeardownReport(causes=(TeardownCause.SHUTDOWN_BODY_TIMED_OUT,))
 
         assert report.is_timeout_only_refusal is True
 
@@ -47,8 +47,16 @@ class TestIsTimeoutOnlyRefusal:
 
     def test_mixed_timeout_only_and_other_cause_is_not_timeout_only(self) -> None:
         report = TeardownReport(
-            causes=(TeardownCause.CLEANUP_TIMED_OUT, TeardownCause.CLEANUP_FAILED),
+            causes=(TeardownCause.TASKS_PENDING, TeardownCause.CLEANUP_FAILED),
         )
+
+        assert report.is_timeout_only_refusal is False
+
+    def test_cleanup_timed_out_is_not_timeout_only(self) -> None:
+        # CLEANUP_TIMED_OUT is deliberately excluded from TIMEOUT_ONLY_CAUSES:
+        # is_teardown_confirmed_quiescent() cannot observe cleanup()'s actual completion
+        # (see TIMEOUT_ONLY_CAUSES docstring), so this cause always escalates fatally.
+        report = TeardownReport(causes=(TeardownCause.CLEANUP_TIMED_OUT,))
 
         assert report.is_timeout_only_refusal is False
 

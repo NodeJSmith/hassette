@@ -21,17 +21,20 @@ class TestServiceSubclassWarning:
         assert _NoSpec.__name__ == "_NoSpec"
 
     def test_service_subclass_with_restart_spec_no_warning(self) -> None:
-        """Subclass Service with restart_spec declared produces no warning."""
+        """Subclass Service with restart_spec declared, including the confirmed-quiescent
+        opt-out field, produces no warning -- isolated from RestartSpec's own separate
+        "field left unset" warning (see test_restart_spec.py) by setting the field explicitly.
+        """
         with warnings.catch_warnings():
             warnings.simplefilter("error", UserWarning)
 
             class _WithSpec(Service):
-                restart_spec = RestartSpec()
+                restart_spec = RestartSpec(degrade_on_confirmed_quiescent_refusal=True)
 
                 async def serve(self) -> None:
                     pass
 
-        assert _WithSpec.restart_spec == RestartSpec()
+        assert _WithSpec.restart_spec == RestartSpec(degrade_on_confirmed_quiescent_refusal=True)
 
 
 class TestAbstractServiceNoWarning:

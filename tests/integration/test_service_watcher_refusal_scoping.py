@@ -15,6 +15,7 @@ from unittest.mock import AsyncMock, patch
 
 from hassette import HassetteConfig
 from hassette.core.service_watcher import ServiceWatcher
+from hassette.core.web_api_service import WebApiService
 from hassette.core.websocket_service import WebsocketService
 from hassette.exceptions import RestartRefusedError
 from hassette.resources.restart import CORE_PERMANENT_RESTART, RestartSpec
@@ -256,6 +257,18 @@ def test_websocket_service_opts_out_of_confirmed_quiescent_degrade():
     assert WebsocketService.restart_spec.degrade_on_confirmed_quiescent_refusal is False
 
 
+def test_web_api_service_opts_out_of_confirmed_quiescent_degrade():
+    """Ship-time challenge finding (spec 106): WebApiService is the framework's sole human-facing
+    interface (dashboard, REST API, health endpoints) and meets the same "no path back for a
+    human to notice or intervene" criterion the design already applies to WebsocketService, so it
+    must opt out of the new degrade path the same way -- silently degrading it to EXHAUSTED_DEAD
+    would leave no process exit for a supervisor and no way for an operator to notice short of
+    trying to load the dashboard.
+    """
+    assert WebApiService.restart_spec.restart_type == RestartType.TRANSIENT
+    assert WebApiService.restart_spec.degrade_on_confirmed_quiescent_refusal is False
+
+
 async def test_websocket_service_still_escalates_even_when_confirmed_dead(
     test_config_class: type[HassetteConfig], unused_tcp_port_factory: "Callable[[], int]", monkeypatch
 ):
@@ -326,6 +339,37 @@ async def test_bystander_guard_skips_redundant_crashed_event(
         assert service.status != ResourceStatus.EXHAUSTED_DEAD
 
         never_release.set()
+
+
+async def test_bystander_guard_skips_redundant_dead_event_on_confirmed_quiescence(
+    test_config_class: type[HassetteConfig], unused_tcp_port_factory: "Callable[[], int]"
+):
+    """Ship-time challenge finding (spec 106): the confirmed-quiescent success branch had no
+    bystander guard, unlike the escalation branch just below it. A service that confirms
+    quiescent while an unrelated fatal shutdown is already in progress must not dispatch a
+    misleading "confirmed dead, degraded independently" EXHAUSTED_DEAD event -- same
+    misattribution concern as test_bystander_guard_skips_redundant_crashed_event, just on the
+    success path instead of the escalation path.
+    """
+    async with isolated_watcher(test_config_class, unused_tcp_port_factory) as watcher:
+        hassette = watcher.hassette
+        spec = make_fast_spec(restart_type=RestartType.TRANSIENT, budget_intensity=5)
+        service = get_dummy_service(hassette, restart_spec=spec)
+        hassette.children.append(service)
+
+        error = RestartRefusedError(service.class_name, TeardownReport(causes=(TeardownCause.TASKS_PENDING,)))
+        service._status = ResourceStatus.STOPPED
+
+        # No pending task at all -- is_teardown_confirmed_quiescent() reports True on the very
+        # first check, so wait_for_teardown_confirmation() returns True without ever sleeping,
+        # landing in the success branch this guard covers.
+        hassette.shutdown_event.set()
+
+        with EventCapture.capturing(hassette) as capture:
+            await watcher.handle_timeout_only_refusal(service.class_name, service.role, service, error)
+
+        assert capture.events == []
+        assert service.status != ResourceStatus.EXHAUSTED_DEAD
 
 
 async def test_bystander_guard_skips_redundant_crashed_event_when_shutdown_starts_mid_wait(

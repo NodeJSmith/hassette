@@ -1,7 +1,7 @@
 # Design: Scope restart-refusal escalation to the failing service instead of the whole process
 
 **Date:** 2026-08-31
-**Status:** draft
+**Status:** archived
 **Mode:** sketch
 
 ## Problem
@@ -18,11 +18,11 @@
 
 - **Automatic in-process recovery of the affected service.** `restart()` cannot get a second attempt at the same resource object — `TeardownReport` is cached once and immutable, and the original design explicitly disallows any reset path ("no public or test-only reset may clear UNSAFE"). Actually reconstructing a fresh instance would require a generic per-service factory mechanism `ServiceWatcher` doesn't have today (most core services need extra constructor kwargs beyond `hassette`/`parent` — e.g. `SchedulerService` needs `executor`, `LoggingService` needs `stream_handler`, `AppLifecycleService` needs `registry`), plus a way to remove/replace a child in `Resource.children` without violating the "at most one instance per type" invariant. This is filed separately as [#1767](https://github.com/NodeJSmith/hassette/issues/1767) and deliberately out of scope here.
 - Changing behavior for causes that indicate an actual failure (a hook raised, cleanup raised, a child was force-terminated, the coordinator itself failed) — those keep escalating to root shutdown exactly as today.
-- Changing behavior for services opted out of the new degrade path — `BusService`, `SchedulerService`, `SyncExecutorService` (all `PERMANENT`-restart-type), and `WebsocketService` (`TRANSIENT`, but excluded anyway — see Approach) — see Approach.
+- Changing behavior for services opted out of the new degrade path — `BusService`, `SchedulerService`, `SyncExecutorService` (all `PERMANENT`-restart-type), and `WebsocketService` and `WebApiService` (both `TRANSIENT`, but excluded anyway — see Approach) — see Approach. `WebApiService` was added to this list during ship-time challenge: it meets the same "no path back for a human to notice or intervene" criterion already applied to `WebsocketService` (it's the framework's sole dashboard/REST/health interface), so the same exclusion applies for the same reason.
 
 ## Functional Requirements
 
-- **FR#1** `TeardownReport` can report whether every cause it recorded is one of `CLEANUP_TIMED_OUT`, `TASKS_PENDING`, `SERVE_TASK_PENDING`, `SHUTDOWN_BODY_TIMED_OUT` (a "timeout-only" refusal) versus containing any other cause.
+- **FR#1** `TeardownReport` can report whether every cause it recorded is one of `TASKS_PENDING`, `SERVE_TASK_PENDING`, `SHUTDOWN_BODY_TIMED_OUT` (a "timeout-only" refusal) versus containing any other cause. `CLEANUP_TIMED_OUT` is deliberately excluded even though it sounds recoverable: FR#2's quiescence check has no way to observe `cleanup()`'s actual completion (it only inspects `task_bucket`/`_shutdown_body_task`), so a `CLEANUP_TIMED_OUT` refusal cannot be genuinely confirmed quiescent — it must always escalate.
 - **FR#2** A resource's actual current quiescence — whether its `task_bucket` has any pending tasks and whether its shutdown-body task (if any) has finished — can be checked at any point after teardown, not just at the moment the report was generated.
 - **FR#3** When a `TRANSIENT`- or `TEMPORARY`-restart-type service's restart is refused with a timeout-only report, `ServiceWatcher` waits up to half of `resource_shutdown_timeout_seconds` for that resource to become confirmed-quiescent before deciding how to respond, instead of escalating immediately.
 - **FR#4** If confirmed-quiescent within that wait, `ServiceWatcher` marks only that service `EXHAUSTED_DEAD` (existing terminal status) and emits the corresponding status event — the rest of the framework, including other services and already-running apps, is left untouched. No root shutdown occurs.
@@ -43,7 +43,7 @@
 
 ### Classify the refusal (`src/hassette/resources/teardown.py`)
 
-Add a module-level `TIMEOUT_ONLY_CAUSES: frozenset[TeardownCause]` constant listing exactly the four causes the issue identifies as "might just need more time" (`CLEANUP_TIMED_OUT`, `TASKS_PENDING`, `SERVE_TASK_PENDING`, `SHUTDOWN_BODY_TIMED_OUT`), and a `TeardownReport.is_timeout_only_refusal` property: `True` when `causes` is non-empty and every cause is in that set, `False` otherwise (including the empty-causes/restart-safe case — there's nothing to classify if nothing went wrong). Every other `TeardownCause` (`SHUTDOWN_HOOK_FAILED`, `SHUTDOWN_BODY_FAILED`, `CLEANUP_FAILED`, `INITIALIZATION_TASK_PENDING`, `CHILD_SHUTDOWN_FAILED`, `CHILD_SHUTDOWN_TIMED_OUT`, `CHILD_RESTART_UNSAFE`, `FORCED_TERMINAL`, `TOTAL_TIMEOUT`, `COORDINATOR_FAILED`) represents an actual failure or a child's own unsafe report, not "still finishing up" — any of those present means immediate escalation, same as today.
+Add a module-level `TIMEOUT_ONLY_CAUSES: frozenset[TeardownCause]` constant listing the three causes that mean "might just need more time" *and* are actually verifiable by the FR#2 quiescence check (`TASKS_PENDING`, `SERVE_TASK_PENDING`, `SHUTDOWN_BODY_TIMED_OUT`), and a `TeardownReport.is_timeout_only_refusal` property: `True` when `causes` is non-empty and every cause is in that set, `False` otherwise (including the empty-causes/restart-safe case — there's nothing to classify if nothing went wrong). `CLEANUP_TIMED_OUT` is excluded despite sounding recoverable: the FR#2 quiescence check only inspects `task_bucket.pending_task_names()` and `_shutdown_body_task`, neither of which tracks `cleanup()` — by the time a refusal is raised, `cleanup()` has already been cancelled at its timeout boundary and the task bucket is empty, so there is nothing for the check to actually confirm. Treating it as timeout-only would make the "confirmed quiescent" outcome fire almost instantly regardless of whether the work `cleanup()` was doing (e.g. closing DB connections) genuinely finished — the opposite of what "confirm, don't assume" is supposed to guarantee. Every other `TeardownCause` (`CLEANUP_TIMED_OUT`, `SHUTDOWN_HOOK_FAILED`, `SHUTDOWN_BODY_FAILED`, `CLEANUP_FAILED`, `INITIALIZATION_TASK_PENDING`, `CHILD_SHUTDOWN_FAILED`, `CHILD_SHUTDOWN_TIMED_OUT`, `CHILD_RESTART_UNSAFE`, `FORCED_TERMINAL`, `TOTAL_TIMEOUT`, `COORDINATOR_FAILED`) represents an actual failure, an unverifiable timeout, or a child's own unsafe report, not "still finishing up and checkable" — any of those present means immediate escalation, same as today.
 
 This is deliberately independent from actually checking whether anything is currently running (below) — a report can be timeout-only in shape while the resource has, in the meantime, actually become fully quiescent or still be running. The two checks answer different questions: "was the *reason* for refusal something that resolves with time?" vs. "*has* it resolved?"
 
@@ -154,17 +154,22 @@ That same argument applies to `WebsocketService`, even though it's `TRANSIENT` (
 Because `WebsocketService` needs ordinary `TRANSIENT` semantics for everything else (budget/backoff/cooldown on normal restart failures — only this one specific decision needs PERMANENT-like treatment), reusing `restart_type` as the sole exclusion signal doesn't work; it's an orthogonal axis. `RestartSpec` gains a dedicated field instead:
 
 ```python
-degrade_on_confirmed_quiescent_refusal: bool = True
+degrade_on_confirmed_quiescent_refusal: bool | None = None
 """Whether a timeout-only restart refusal, once confirmed quiescent, degrades just this service
 to EXHAUSTED_DEAD instead of escalating to root shutdown. False for services where running the
-rest of the framework without this one is worse than a clean restart."""
+rest of the framework without this one is worse than a clean restart.
+
+Leave unset (``None``) to get the type-appropriate default: ``True`` for TRANSIENT/TEMPORARY,
+``False`` for PERMANENT. An unset value that resolves to ``True`` emits a warning naming this
+field, since a plain dataclass has no way to tell "the caller explicitly chose the default" from
+"the caller never noticed this field exists" -- the exact way this field went unnoticed on
+WebApiService until a ship-time challenge caught it."""
 ```
 
-Defaults to `True` so every existing and future `TRANSIENT`/`TEMPORARY` service gets the new resilience-improving behavior automatically without an opt-in. Set to `False` on `CORE_PERMANENT_RESTART` (covering `BusService`/`SchedulerService`/`SyncExecutorService` in one place) and explicitly on `WebsocketService`'s own `RestartSpec`. The guard in the previous section reads this field directly (`spec.degrade_on_confirmed_quiescent_refusal`) rather than checking `restart_type`, which both correctly covers `WebsocketService` and reads as a direct statement of intent rather than a `restart_type` proxy.
+`__post_init__` resolves the `None` sentinel to a concrete `bool` before construction completes, so every consumer of an already-built `RestartSpec` treats it as a plain `bool`; the `None` branch only exists to distinguish "explicit default" from "never set" for the warning above. Left unset, every existing and future `TRANSIENT`/`TEMPORARY` service still gets the new resilience-improving behavior automatically, with no opt-in required and no warning (the resolved value is `True`, but it was never left implicit by a service that should have opted out). Set to `False` explicitly on `CORE_PERMANENT_RESTART` (covering `BusService`/`SchedulerService`/`SyncExecutorService` in one place) and on `WebsocketService`/`WebApiService` via the `RestartSpec.single_point_of_failure()` classmethod — a named, self-documenting constructor for "this service is the framework's sole path to some capability nothing else can substitute for," which sets this field to `False` while still taking the same `restart_type`/`budget_intensity`/`budget_period_seconds`/`startup_timeout_seconds` overrides each service already needs. The guard in the previous section reads this field directly (`spec.degrade_on_confirmed_quiescent_refusal`) rather than checking `restart_type`, which both correctly covers `WebsocketService`/`WebApiService` and reads as a direct statement of intent rather than a `restart_type` proxy.
 
-**Known downstream degradation for the remaining `TRANSIENT` services left in-scope** (`DatabaseService`, `WebApiService`, `CommandExecutor`) — named explicitly so "smaller blast radius" is a measured claim, not an assumed one:
+**Known downstream degradation for the remaining `TRANSIENT`/`TEMPORARY` services left in-scope** (`DatabaseService`, `CommandExecutor`, `FileWatcherService`, `WebUiWatcherService`) — named explicitly so "smaller blast radius" is a measured claim, not an assumed one. `WebApiService` was moved to the excluded list during ship-time challenge (see Non-Goals) — it fails the same "no path back for a human to notice or intervene" test `WebsocketService` was already excluded for, so it is not listed here:
 - `DatabaseService` dead: telemetry/dashboard queries degrade to 503 via the existing `db_degrades_to` pattern (`src/hassette/web/CLAUDE.md`). HA state itself lives in `StateProxy`, not here, so event handling and automations keep running.
-- `WebApiService` dead: the dashboard and REST API become unreachable. Automations run via Bus/Scheduler independent of the web layer, so they keep running.
 - `CommandExecutor` dead: despite the name, it persists execution *telemetry* to SQLite (`command_executor.py:104-112`) — it doesn't execute automations itself. Losing it drops telemetry records; nothing stops running.
 - `FileWatcherService`/`WebUiWatcherService` (`TEMPORARY`) are already covered by the docs' own existing statement: "losing live-reload capability does not impair automation execution."
 
@@ -193,8 +198,8 @@ Follow the deterministic event-gated pattern from `CLAUDE.md`'s "Regression test
 - **modify** `src/hassette/resources/mixins.py` — add `pending_task_names(self) -> tuple[str, ...]: ...` to `_TaskBucketP`, so `is_teardown_confirmed_quiescent` can call it through the `_LifecycleHostP`-typed `task_bucket` field without a Pyright error; add `ResourceStatus.EXHAUSTED_DEAD` to `VALID_TRANSITIONS[ResourceStatus.STOPPED]`, since a confirmed-quiescent timeout-only refusal transitions from `STOPPED` (the status `resource.shutdown()` always leaves a resource in, refused or not), not `FAILED`.
 - **modify** `src/hassette/resources/lifecycle.py` — add `is_teardown_confirmed_quiescent(resource)`.
 - **modify** `src/hassette/core/service_watcher.py` — add `wait_for_teardown_confirmation()`, `handle_timeout_only_refusal()`, `_DEATH_CONFIRMATION_POLL_SECONDS`; update the two `except RestartRefusedError` blocks in `cooldown_and_retry()` and `execute_restart()` to check `spec.degrade_on_confirmed_quiescent_refusal`.
-- **modify** `src/hassette/resources/restart.py` — add `degrade_on_confirmed_quiescent_refusal: bool = True` to `RestartSpec`; set `False` on `CORE_PERMANENT_RESTART`.
-- **modify** `src/hassette/core/websocket_service.py` — set `degrade_on_confirmed_quiescent_refusal=False` on `WebsocketService.restart_spec`.
+- **modify** `src/hassette/resources/restart.py` — add `degrade_on_confirmed_quiescent_refusal: bool | None = None` to `RestartSpec`, with `__post_init__` sentinel resolution and a warning when it resolves to `True` implicitly; set `False` explicitly on `CORE_PERMANENT_RESTART`; add the `RestartSpec.single_point_of_failure()` classmethod (explicit named params, no blind `**kwargs` forwarding) as the way single-point-of-failure services opt out.
+- **modify** `src/hassette/core/websocket_service.py`, `src/hassette/core/web_api_service.py` — construct `restart_spec` via `RestartSpec.single_point_of_failure()` instead of the plain constructor.
 - **modify** `docs/pages/core-concepts/internals/lifecycle.md` — update the state diagram and "Restart refusal" section.
 - **modify** `tests/unit/resources/test_teardown.py` — add `is_timeout_only_refusal` coverage.
 - **modify** `tests/unit/resources/test_lifecycle_transitions.py` — add coverage for the new `STOPPED -> EXHAUSTED_DEAD` transition.

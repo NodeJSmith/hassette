@@ -26,7 +26,7 @@ from hassette.schemas.domain_models import (
     SystemStatus,
 )
 from hassette.types import Topic
-from hassette.types.enums import ManifestStatus
+from hassette.types.enums import ManifestStatus, ResourceStatus
 from hassette.types.types import LOG_LEVEL_TYPE
 
 if TYPE_CHECKING:
@@ -305,13 +305,18 @@ class RuntimeQueryService(Resource):
             for child in self.hassette.children
         ]
         bootstrap_released = self.is_bootstrap_released()
-        if is_connected and bootstrap_released:
+        any_service_exhausted_dead = any(
+            child.status == ResourceStatus.EXHAUSTED_DEAD for child in self.hassette.children
+        )
+        if is_connected and bootstrap_released and not any_service_exhausted_dead:
             status = "ok"
-        elif websocket_service.has_ever_connected:
-            # "degraded" covers two distinct situations: a connection that was live and is now
-            # lost, and a currently-live connection where app bootstrap hasn't released yet (e.g.
-            # still waiting on the initial state snapshot). Both mean "not fully healthy yet/anymore",
-            # but only `bootstrap_released` + `websocket_connected` on the response distinguish them.
+        elif websocket_service.has_ever_connected or any_service_exhausted_dead:
+            # "degraded" covers three distinct situations: a connection that was live and is now
+            # lost, a currently-live connection where app bootstrap hasn't released yet (e.g.
+            # still waiting on the initial state snapshot), and a service that independently
+            # reached EXHAUSTED_DEAD via the confirmed-quiescent restart-refusal path (see
+            # ServiceWatcher.handle_timeout_only_refusal) while everything else stays healthy.
+            # Only the per-service `services` list below distinguishes which of these applies.
             status = "degraded"
         else:
             status = "starting"

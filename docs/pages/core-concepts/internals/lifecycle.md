@@ -71,7 +71,7 @@ Backoff between restart attempts uses exponential growth: `backoff_base_seconds 
 | `max_cooldown_cycles` | `int` | `0` | Maximum cooldown cycles before `EXHAUSTED_DEAD`. `0` means infinite. |
 | `non_retryable_error_names` | `tuple[str, ...]` | `()` | Exception names that skip restart and go directly to exhaustion. |
 | `fatal_error_names` | `tuple[str, ...]` | `()` | Exception names that trigger immediate shutdown. |
-| `degrade_on_confirmed_quiescent_refusal` | `bool` | `True` | Whether a timeout-only restart refusal, once confirmed quiescent, degrades just this service to `EXHAUSTED_DEAD` instead of escalating to root shutdown. |
+| `degrade_on_confirmed_quiescent_refusal` | `bool \| None` | `None` | Whether a timeout-only restart refusal degrades just this service to `EXHAUSTED_DEAD` instead of escalating to root shutdown — see [Restart refusal](#restart-refusal) below. `None` resolves to `True` for `TRANSIENT`/`TEMPORARY`, `False` for `PERMANENT`, and warns if left unset on a service that resolves to `True`. |
 
 ## Resource State Machine
 
@@ -97,7 +97,7 @@ stateDiagram-v2
     STOPPED --> EXHAUSTED_DEAD : timeout-only refusal, confirmed quiescent (TRANSIENT/TEMPORARY)
 ```
 
-`NOT_STARTED` is the initial state. `STARTING` covers the period from `initialize()` entry through lifecycle hook execution. `RUNNING` is the normal operating state. For services, it persists for the lifetime of the `serve()` loop. `STOPPING` and `STOPPED` represent clean shutdown. `FAILED` is a transient state. `ServiceWatcher` acts on it immediately and moves the service forward. `CRASHED` and `EXHAUSTED_DEAD` are terminal states from which no recovery occurs. `EXHAUSTED_COOLING` is a waiting state. The service re-enters `STARTING` after the cooldown period completes.
+`NOT_STARTED` is the initial state. `STARTING` covers the period from `initialize()` entry through lifecycle hook execution. `RUNNING` is the normal operating state. For services, it persists for the lifetime of the `serve()` loop. `STOPPING` and `STOPPED` represent clean shutdown. `FAILED` is a transient state. `ServiceWatcher` acts on it immediately and moves the service forward. `CRASHED` and `EXHAUSTED_DEAD` are terminal states from which no recovery occurs. `EXHAUSTED_COOLING` is a waiting state. The service re-enters `STARTING` after the cooldown period completes. The `STOPPED → EXHAUSTED_DEAD` transition is a narrower case, covered in full under [Restart refusal](#restart-refusal) below.
 
 ## Readiness vs Running
 
@@ -193,10 +193,12 @@ Once shutdown fails to prove safety, that object is done recovering on its own.
 
 `ServiceWatcher` does not treat every `RestartRefusedError` identically. It first classifies the
 refusing `TeardownReport`: a report is *timeout-only* when every cause it carries is one of
-`CLEANUP_TIMED_OUT`, `TASKS_PENDING`, `SERVE_TASK_PENDING`, or `SHUTDOWN_BODY_TIMED_OUT` — shutdown
-ran out of time, not something that actively failed. Any other cause (a shutdown hook raising, a
-child forced terminal, the coordinator itself failing) skips straight to the fatal path described
-below.
+`TASKS_PENDING`, `SERVE_TASK_PENDING`, or `SHUTDOWN_BODY_TIMED_OUT` — shutdown ran out of time, not
+something that actively failed, *and* the wait below can actually verify it resolved.
+`CLEANUP_TIMED_OUT` looks similar but is excluded: the wait below only inspects the task bucket and
+shutdown-body task, neither of which tracks `cleanup()`, so there is nothing to confirm — a
+`CLEANUP_TIMED_OUT` refusal always skips straight to the fatal path described below, same as a
+shutdown hook raising, a child forced terminal, or the coordinator itself failing.
 
 For a timeout-only refusal on a service whose `restart_spec.degrade_on_confirmed_quiescent_refusal`
 is `True` — the default for `TRANSIENT` and `TEMPORARY` services — `ServiceWatcher` waits before
@@ -220,7 +222,20 @@ service that opts out of the degrade path by setting `degrade_on_confirmed_quies
 `WebsocketService` opts out too, despite being `TRANSIENT`: it's the framework's sole connection
 to Home Assistant, and letting it sit at `EXHAUSTED_DEAD` while every other service keeps
 reporting healthy would leave Hassette running with no path back to HA for the rest of the
-process's life.
+process's life. `WebApiService` opts out for the same reason on the other side of the framework:
+it's the sole dashboard, REST API, and health-check interface, and a silent `EXHAUSTED_DEAD` there
+leaves no process exit for a supervisor to react to and no way for a human to notice short of
+trying to load the dashboard.
+
+??? note "Under the hood: how a service opts out"
+    `WebsocketService` and `WebApiService` construct their `restart_spec` through
+    [`RestartSpec.single_point_of_failure()`][hassette.resources.restart.RestartSpec.single_point_of_failure],
+    a named constructor for "this service is the framework's sole path to some capability nothing
+    else can substitute for" that sets `degrade_on_confirmed_quiescent_refusal=False` alongside
+    each service's own
+    `restart_type`/`budget_intensity`/`budget_period_seconds`/`startup_timeout_seconds`. Writing a
+    custom `Service` with the same single-point-of-failure characteristics can use the same
+    constructor.
 
 !!! warning
     Restart refusal cannot stop a coroutine or thread that ignores cancellation — Python

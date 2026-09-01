@@ -43,7 +43,13 @@ class WebApiService(Service):
     """Runs the FastAPI/uvicorn server for the web API and healthcheck."""
 
     depends_on: ClassVar[list[type[Resource]]] = [RuntimeQueryService, TelemetryQueryService, SchedulerService]
-    restart_spec: ClassVar[RestartSpec] = RestartSpec(
+    # RestartSpec.single_point_of_failure, like WebsocketService: WebApiService is the framework's
+    # sole human-facing interface (dashboard, REST API, health endpoints). Silently degrading it
+    # to EXHAUSTED_DEAD would leave no process exit for a supervisor to react to and no way for
+    # an operator to notice or intervene short of trying to load the dashboard -- worse than
+    # today's fatal-and-restart behavior for exactly the service where "silent and permanent" is
+    # worst.
+    restart_spec: ClassVar[RestartSpec] = RestartSpec.single_point_of_failure(
         restart_type=RestartType.TRANSIENT,
         budget_intensity=3,
         budget_period_seconds=60,

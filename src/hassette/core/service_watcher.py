@@ -297,13 +297,31 @@ class ServiceWatcher(Resource):
         # resource wouldn't die cleanly, so reusing the full value here would let a genuinely-stuck
         # resource take up to 2x as long to reach root shutdown.
         timeout = self.hassette.config.lifecycle.resource_shutdown_timeout_seconds / 2
+        causes_str = ", ".join(error.report.causes)
         if await self.wait_for_teardown_confirmation(service, timeout):
+            # Same bystander concern as the escalation branch below: an unrelated fatal failure
+            # may have set shutdown_event before or during this wait. Without this check, a
+            # service that happens to confirm quiescent at the same moment would still dispatch a
+            # misleading "confirmed dead, degraded independently" EXHAUSTED_DEAD event while the
+            # process is already fatally tearing down for a different reason -- exactly the
+            # misattribution the escalation branch's guard exists to prevent, just on this branch.
+            shutting_down_now = self.hassette.shutdown_event.is_set()
+            if already_shutting_down or shutting_down_now:
+                self.logger.warning(
+                    "%s '%s' restart refused (timeout-only: %s), confirmed no tasks still running, "
+                    "but an unrelated shutdown is already in progress -- skipping a misattributed "
+                    "EXHAUSTED_DEAD event for this service",
+                    role,
+                    name,
+                    causes_str,
+                )
+                return
             self.logger.warning(
                 "%s '%s' restart refused (timeout-only: %s), confirmed no tasks still running -- "
                 "marking EXHAUSTED_DEAD instead of shutting down the process",
                 role,
                 name,
-                ", ".join(error.report.causes),
+                causes_str,
             )
             dead_event = HassetteServiceEvent.from_service_status(
                 resource_name=name,
@@ -329,17 +347,31 @@ class ServiceWatcher(Resource):
                 "event for this service",
                 role,
                 name,
-                ", ".join(error.report.causes),
+                causes_str,
             )
             return
         self.logger.warning(
             "%s '%s' restart refused (timeout-only: %s) but could not confirm quiescence within %.1fs -- escalating",
             role,
             name,
-            ", ".join(error.report.causes),
+            causes_str,
             timeout,
         )
         await self.handle_restart_refused(name, role, error)
+
+    async def route_restart_refusal(
+        self, name: str, role: object, spec: RestartSpec, service: Service, error: RestartRefusedError
+    ) -> None:
+        """Dispatch a RestartRefusedError to the confirmed-quiescence degrade path or straight to
+        escalation, depending on whether the refusal is timeout-only and the service opted in.
+
+        Shared by both restart() call sites (cooldown-triggered and backoff-triggered) so the
+        routing decision -- and the exact condition under which each is used -- has one definition.
+        """
+        if error.report.is_timeout_only_refusal and spec.degrade_on_confirmed_quiescent_refusal:
+            await self.handle_timeout_only_refusal(name, role, service, error)
+        else:
+            await self.handle_restart_refused(name, role, error)
 
     async def handle_exhaustion(
         self,
@@ -479,10 +511,7 @@ class ServiceWatcher(Resource):
         try:
             await restart(service)
         except RestartRefusedError as exc:
-            if exc.report.is_timeout_only_refusal and spec.degrade_on_confirmed_quiescent_refusal:
-                await self.handle_timeout_only_refusal(name, role, service, exc)
-            else:
-                await self.handle_restart_refused(name, role, exc)
+            await self.route_restart_refusal(name, role, spec, service, exc)
         except Exception as exc:
             self.logger.error("%s '%s' restart after cooldown failed: %s", role, name, exc)
 
@@ -629,10 +658,7 @@ class ServiceWatcher(Resource):
             try:
                 await restart(service)
             except RestartRefusedError as exc:
-                if exc.report.is_timeout_only_refusal and spec.degrade_on_confirmed_quiescent_refusal:
-                    await self.handle_timeout_only_refusal(name, role, service, exc)
-                else:
-                    await self.handle_restart_refused(name, role, exc)
+                await self.route_restart_refusal(name, role, spec, service, exc)
             except Exception as exc:
                 self.logger.error(
                     "%s '%s' restart raised an exception (service left in FAILED state): %s",

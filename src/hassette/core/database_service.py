@@ -145,6 +145,10 @@ class DatabaseService(Service):
         budget_intensity=3,
         budget_period_seconds=120,
         fatal_error_names=("SchemaVersionError",),
+        # Losing this service degrades telemetry/dashboard queries to 503 (see design/specs/106's
+        # "Known downstream degradation") -- HA state lives in StateProxy, not here, so event
+        # handling and automations keep running. Keeps the default.
+        degrade_on_confirmed_quiescent_refusal=True,
     )
 
     _db: aiosqlite.Connection | None

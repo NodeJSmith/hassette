@@ -32,7 +32,7 @@ from hassette.resources.teardown import (
     TeardownReport,
     merge_teardown_reports,
 )
-from hassette.types.enums import ResourceRole, ResourceStatus
+from hassette.types.enums import TERMINAL_STATUSES, ResourceRole, ResourceStatus
 from hassette.types.types import FRAMEWORK_APP_KEY_PREFIX, LOG_LEVEL_TYPE, SourceTier
 
 from .mixins import LifecycleMixin
@@ -388,7 +388,17 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         ):
             self._shutdown_task.cancel()
         self.task_bucket.cancel_all_sync()
-        self._status = ResourceStatus.STOPPED  # bypass setter to skip validation
+        if self._status in TERMINAL_STATUSES:
+            # Don't silently clobber a status this resource already reached on its own (e.g.
+            # EXHAUSTED_DEAD from the confirmed-quiescent restart-refusal path) -- overwriting it
+            # to STOPPED here would erase that evidence with no trace for post-incident triage.
+            self.logger.debug(
+                "%s: force-terminal called but status is already terminal (%s) -- leaving unchanged",
+                self.unique_name,
+                self._status.value,
+            )
+        else:
+            self._status = ResourceStatus.STOPPED  # bypass setter to skip validation
         mark_not_ready(self, "shutdown timed out")
         for child in self.children:
             child._force_terminal()

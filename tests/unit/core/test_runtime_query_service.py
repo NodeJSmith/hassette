@@ -571,6 +571,33 @@ class TestSystemStatus:
         assert status.status == "degraded"
         assert status.bootstrap_released is False
 
+    def test_system_status_degraded_when_service_exhausted_dead_even_if_ws_ready(
+        self, runtime: RuntimeQueryService
+    ) -> None:
+        """Ship-time challenge finding (spec 106): a service reaching EXHAUSTED_DEAD via the
+        confirmed-quiescent restart-refusal path (ServiceWatcher.handle_timeout_only_refusal)
+        must move the aggregate status to 'degraded' even when the websocket is connected and
+        bootstrap has released -- before this fix, get_system_status() only ever looked at
+        websocket/bootstrap state, so this class of degradation was invisible in the primary
+        dashboard widget.
+        """
+        runtime.hassette.websocket_service.is_connected = True
+        runtime.hassette.websocket_service.has_ever_connected = True
+
+        dead_child = Mock()
+        dead_child.status = ResourceStatus.EXHAUSTED_DEAD
+        dead_child.class_name = "CommandExecutor"
+        dead_child.role = ResourceRole.SERVICE
+        dead_child._ready_reason = None
+        dead_child._retry_at = None
+        runtime.hassette.children = [dead_child]
+
+        status = runtime.get_system_status()
+
+        assert status.status == "degraded"
+        assert status.websocket_connected is True
+        assert status.bootstrap_released is True
+
     def test_system_status_reports_log_persistence_active(self, runtime: RuntimeQueryService) -> None:
         """log_persistence_active is carried through from the Hassette instance."""
         assert runtime.get_system_status().log_persistence_active is True

@@ -80,7 +80,6 @@ class TeardownCause(StrEnum):
 
 TIMEOUT_ONLY_CAUSES: frozenset[TeardownCause] = frozenset(
     {
-        TeardownCause.CLEANUP_TIMED_OUT,
         TeardownCause.TASKS_PENDING,
         TeardownCause.SERVE_TASK_PENDING,
         TeardownCause.SHUTDOWN_BODY_TIMED_OUT,
@@ -88,9 +87,17 @@ TIMEOUT_ONLY_CAUSES: frozenset[TeardownCause] = frozenset(
 )
 """The subset of :class:`TeardownCause` values that mean "a task might simply still be finishing
 up" rather than an actual failure. Every other cause (a hook or shutdown body raising, cleanup
-raising, a child's own unsafe report, a forced-terminal transition, a total timeout, or the
-coordinator itself raising) represents real negative evidence, not something that resolves by
-waiting longer. See :attr:`TeardownReport.is_timeout_only_refusal`."""
+timing out or raising, a child's own unsafe report, a forced-terminal transition, a total
+timeout, or the coordinator itself raising) represents real negative evidence, not something that
+resolves by waiting longer. ``CLEANUP_TIMED_OUT`` is deliberately excluded even though ``cleanup()``
+timing out sounds recoverable: ``is_teardown_confirmed_quiescent()`` only inspects
+``task_bucket``/``_shutdown_body_task``, neither of which tracks ``cleanup()`` — by the time this
+runs, ``cleanup()`` has already been cancelled and the bucket is empty, so the confirmation check
+cannot actually verify whether the work it was doing (e.g. closing DB connections) finished. See
+:attr:`TeardownReport.is_timeout_only_refusal`."""
+
+if not set(TeardownCause) >= TIMEOUT_ONLY_CAUSES:
+    raise AssertionError("TIMEOUT_ONLY_CAUSES contains a value that is not a TeardownCause member -- likely a typo")
 
 
 def _dedupe_preserve_order(*groups: Iterable[T]) -> tuple[T, ...]:

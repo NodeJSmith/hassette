@@ -85,12 +85,11 @@ INVALID_TRANSITION_TRACE_LIMIT = 3
 
 
 class WebsocketService(Service):
-    restart_spec: ClassVar[RestartSpec] = RestartSpec(
+    restart_spec: ClassVar[RestartSpec] = RestartSpec.single_point_of_failure(
         restart_type=RestartType.TRANSIENT,
         budget_intensity=5,
         budget_period_seconds=300,
         startup_timeout_seconds=60,
-        degrade_on_confirmed_quiescent_refusal=False,
     )
 
     url: str

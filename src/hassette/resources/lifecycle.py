@@ -466,18 +466,27 @@ def reject_lifecycle_reentry(resource: _LifecycleHostP, method_name: str) -> Non
 
 
 def is_teardown_confirmed_quiescent(resource: _LifecycleHostP) -> bool:
-    """Return True if nothing tracked from the resource's last teardown attempt is still running.
+    """Return True if nothing tracked from the resource's (or any descendant's) last teardown
+    attempt is still running.
 
     Checks the resource's task_bucket for any pending task names and its shutdown-body task (if
-    any) for completion. Both reflect *live* state, not a frozen snapshot from when a
-    TeardownReport was generated -- every tracked task is discarded from the bucket the moment it
-    actually finishes (see TaskBucket's done-callback in task_bucket.py), and _shutdown_body_task
-    is never reset to None, so this can be polled safely at any point after teardown to confirm --
-    rather than assume -- that a timeout-only refusal has actually resolved.
+    any) for completion, then recurses into ``resource.children`` -- matching the granularity of
+    the classification that gates this check: ``TeardownReport.is_timeout_only_refusal`` is
+    computed over a report that already folds in every child's causes (see
+    ``shutdown_batch()``/``finalize_shutdown_report()`` in ``operations.py``), so a service with a
+    child resource (e.g. ``WebApiService``'s ``Scheduler``) must have its confirmation checked at
+    the same subtree scope or a recoverable timeout in the child would never be confirmable. All of
+    this reflects *live* state, not a frozen snapshot from when a TeardownReport was generated --
+    every tracked task is discarded from its bucket the moment it actually finishes (see
+    TaskBucket's done-callback in task_bucket.py), and ``_shutdown_body_task`` is never reset to
+    None, so this can be polled safely at any point after teardown to confirm -- rather than
+    assume -- that a timeout-only refusal has actually resolved.
     """
     resource = typing.cast("LifecycleMixin", resource)
     body_task = resource._shutdown_body_task
-    return not resource.task_bucket.pending_task_names() and (body_task is None or body_task.done())
+    if resource.task_bucket.pending_task_names() or (body_task is not None and not body_task.done()):
+        return False
+    return all(is_teardown_confirmed_quiescent(child) for child in resource.children)
 
 
 def create_lifecycle_task(coro: "Coroutine[Any, Any, Any]", *, name: str) -> asyncio.Task:

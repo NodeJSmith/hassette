@@ -117,6 +117,9 @@ class CommandExecutor(Service):
         restart_type=RestartType.TRANSIENT,
         budget_intensity=3,
         budget_period_seconds=120,
+        # Losing this service only drops telemetry records (see design/specs/106's
+        # "Known downstream degradation") -- nothing stops running, so it keeps the default.
+        degrade_on_confirmed_quiescent_refusal=True,
     )
 
     _write_queue: asyncio.Queue[ExecutionRecord | RetryableBatch]

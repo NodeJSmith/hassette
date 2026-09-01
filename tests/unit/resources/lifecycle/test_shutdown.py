@@ -1031,3 +1031,33 @@ async def test_confirmed_quiescent_false_while_shutdown_body_task_pending():
     await body_task
 
     assert is_teardown_confirmed_quiescent(resource) is True
+
+
+async def test_confirmed_quiescent_false_while_child_task_pending():
+    """Ship-time challenge finding (spec 106): is_teardown_confirmed_quiescent() must recurse
+    into resource.children -- a service with a child resource (e.g. WebApiService's Scheduler)
+    is not confirmed quiescent while a task tracked by the *child's* task_bucket is still
+    pending, even though the parent's own task_bucket is empty. This matches the scope of
+    TeardownReport.is_timeout_only_refusal, which already folds in every child's causes.
+    """
+    hassette = make_mock_hassette(sealed=False)
+    parent = ConcreteResource(hassette)
+    child = parent.add_child(ConcreteResource)
+
+    gate = asyncio.Event()
+    entered = asyncio.Event()
+
+    async def _gated() -> None:
+        entered.set()
+        await gate.wait()
+
+    task = asyncio.create_task(_gated(), name="child-gated-task")
+    child.task_bucket.add(task)
+    await asyncio.wait_for(entered.wait(), timeout=1)
+
+    assert is_teardown_confirmed_quiescent(parent) is False
+
+    gate.set()
+    await task
+
+    assert is_teardown_confirmed_quiescent(parent) is True

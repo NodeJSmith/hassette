@@ -1,3 +1,4 @@
+import warnings
 from dataclasses import dataclass
 
 from hassette.types.enums import RestartType
@@ -46,10 +47,71 @@ class RestartSpec:
     max_cooldown_cycles: int = 0
     """Maximum cooldown cycles before transitioning to EXHAUSTED_DEAD. 0 = infinite."""
 
-    degrade_on_confirmed_quiescent_refusal: bool = True
+    degrade_on_confirmed_quiescent_refusal: bool | None = None
     """Whether a timeout-only restart refusal, once confirmed quiescent, degrades just this service
     to EXHAUSTED_DEAD instead of escalating to root shutdown. False for services where running the
-    rest of the framework without this one is worse than a clean restart."""
+    rest of the framework without this one is worse than a clean restart.
+
+    Leave unset (``None``) to get the type-appropriate default: ``True`` for `TRANSIENT`/`TEMPORARY`,
+    ``False`` for `PERMANENT`. An unset value that resolves to ``True`` -- the direction that lets a
+    service silently degrade instead of escalating -- emits a warning naming this field, since a
+    plain dataclass has no way to tell "the caller explicitly chose the default" from "the caller
+    never noticed this field exists" (the exact way this field went unnoticed on `WebApiService`
+    until a ship-time challenge caught it -- see :meth:`RestartSpec.single_point_of_failure` for
+    services that should set this to ``False``).
+
+    The ``None`` in the type is only ever observed by ``__post_init__``, which always resolves it
+    to a concrete ``bool`` before construction completes -- every consumer of an already-built
+    :class:`RestartSpec` can treat this field as a plain ``bool``.
+    """
+
+    def __post_init__(self) -> None:
+        if self.degrade_on_confirmed_quiescent_refusal is None:
+            resolved = self.restart_type is not RestartType.PERMANENT
+            if resolved:
+                warnings.warn(
+                    f"RestartSpec(restart_type={self.restart_type.value}) does not explicitly set "
+                    "degrade_on_confirmed_quiescent_refusal -- defaulting to True. If this service "
+                    "is a single point of failure where running the framework without it is worse "
+                    "than a clean restart (e.g. the sole connection to Home Assistant, or the sole "
+                    "dashboard/REST interface), set it to False explicitly -- see "
+                    "RestartSpec.single_point_of_failure().",
+                    UserWarning,
+                    stacklevel=2,
+                )
+            object.__setattr__(self, "degrade_on_confirmed_quiescent_refusal", resolved)
+
+    @classmethod
+    def single_point_of_failure(
+        cls,
+        *,
+        restart_type: RestartType = RestartType.TRANSIENT,
+        budget_intensity: int = 5,
+        budget_period_seconds: float = 300.0,
+        startup_timeout_seconds: float = 30.0,
+    ) -> "RestartSpec":
+        """A :class:`RestartSpec` for a service where running the framework without it is worse
+        than a clean restart -- opts out of the confirmed-quiescent degrade path so a
+        timeout-only refusal still escalates to root shutdown instead of silently leaving the
+        service at ``EXHAUSTED_DEAD``.
+
+        Use for a service that is the framework's sole path to some capability nothing else can
+        substitute for (e.g. `WebsocketService`'s connection to Home Assistant, `WebApiService`'s
+        dashboard/REST interface) -- as distinct from `PERMANENT` services, which use
+        :data:`CORE_PERMANENT_RESTART` because losing *them* stops automations from running at
+        all.
+
+        Only exposes the fields the framework's own single-point-of-failure services actually
+        set today. If a future caller needs to vary a different field too, add it here rather
+        than reintroducing an untyped ``**overrides`` passthrough.
+        """
+        return cls(
+            restart_type=restart_type,
+            budget_intensity=budget_intensity,
+            budget_period_seconds=budget_period_seconds,
+            startup_timeout_seconds=startup_timeout_seconds,
+            degrade_on_confirmed_quiescent_refusal=False,
+        )
 
 
 CORE_PERMANENT_RESTART = RestartSpec(
