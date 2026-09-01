@@ -1,7 +1,6 @@
 import asyncio
 import typing
 import uuid
-from contextlib import suppress
 from logging import INFO, Filter, Logger, LogRecord, getLogger
 from typing import Any, ClassVar, TypeVar, final
 
@@ -701,7 +700,22 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
 
         cancel(self)
         if self._init_task and not self._init_task.done():
-            with suppress(asyncio.CancelledError):
+            try:
                 await asyncio.wait_for(self._init_task, timeout=timeout)
+            except asyncio.CancelledError:  # noqa: ASYNC103 — re-raised below when this task's own cancellation is detected
+                # cancel(self) above cancels _init_task -- a different task object than the one
+                # running this coroutine -- so its CancelledError propagating here is expected
+                # and safe to swallow. But an external cancellation of *this* coroutine (e.g. the
+                # enclosing asyncio.timeout(cleanup_timeout) in _run_post_hook_shutdown_stage
+                # expiring while this await is suspended) raises CancelledError at this same
+                # point and is indistinguishable by exception type alone. current_task.cancelling()
+                # disambiguates: it is only nonzero when something called .cancel() on *this*
+                # task, which happens only in the latter case. Swallowing that case would prevent
+                # the enclosing asyncio.timeout() from ever observing its own expiration, silently
+                # losing the CLEANUP_TIMED_OUT evidence it depends on to convert the cancellation
+                # into a TimeoutError.
+                current_task = asyncio.current_task()
+                if current_task is not None and current_task.cancelling():
+                    raise
 
         self.logger.debug("Cleaned up resources")
