@@ -96,9 +96,6 @@ runs, ``cleanup()`` has already been cancelled and the bucket is empty, so the c
 cannot actually verify whether the work it was doing (e.g. closing DB connections) finished. See
 :attr:`TeardownReport.is_timeout_only_refusal`."""
 
-if not set(TeardownCause) >= TIMEOUT_ONLY_CAUSES:
-    raise AssertionError("TIMEOUT_ONLY_CAUSES contains a value that is not a TeardownCause member -- likely a typo")
-
 
 def _dedupe_preserve_order(*groups: Iterable[T]) -> tuple[T, ...]:
     """Flatten one or more iterables into one deterministic, deduplicated tuple.

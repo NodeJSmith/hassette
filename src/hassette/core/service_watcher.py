@@ -33,6 +33,11 @@ SERVICE_STATUS_PATH = "payload.data.status"
 _DEATH_CONFIRMATION_POLL_SECONDS = 1.0
 """Poll interval while waiting to confirm a timeout-only refusal's tracked tasks have died."""
 
+_CONFIRMATION_TIMEOUT_FRACTION = 0.5
+"""Fraction of resource_shutdown_timeout_seconds given to the confirmation wait -- half, since
+that full timeout already elapsed once discovering the resource wouldn't die cleanly, and reusing
+it again would let a genuinely stuck resource take twice as long to reach root shutdown."""
+
 
 class RestartBudget:
     """Sliding-window restart budget tracker.
@@ -283,6 +288,14 @@ class ServiceWatcher(Resource):
             if not completed:
                 return False
 
+    def _unrelated_shutdown_in_progress(self, already_shutting_down: bool) -> bool:
+        """Whether an unrelated shutdown is in progress, checked at either the moment
+        `handle_timeout_only_refusal` entered its confirmation wait (`already_shutting_down`,
+        captured before the wait began) or right now. Shared by both check points in that method
+        -- pre-wait and post-wait -- since a bystander shutdown can start at either point.
+        """
+        return already_shutting_down or self.hassette.shutdown_event.is_set()
+
     async def handle_timeout_only_refusal(
         self, name: str, role: object, service: Service, error: RestartRefusedError
     ) -> None:
@@ -293,10 +306,7 @@ class ServiceWatcher(Resource):
         # Recorded before the wait so we can tell "this service caused the shutdown" apart from
         # "shutdown was already happening for an unrelated reason when this wait aborted."
         already_shutting_down = self.hassette.shutdown_event.is_set()
-        # Half the original teardown timeout: that timeout already fired once discovering this
-        # resource wouldn't die cleanly, so reusing the full value here would let a genuinely-stuck
-        # resource take up to 2x as long to reach root shutdown.
-        timeout = self.hassette.config.lifecycle.resource_shutdown_timeout_seconds / 2
+        timeout = self.hassette.config.lifecycle.resource_shutdown_timeout_seconds * _CONFIRMATION_TIMEOUT_FRACTION
         causes_str = ", ".join(error.report.causes)
         if await self.wait_for_teardown_confirmation(service, timeout):
             # Same bystander concern as the escalation branch below: an unrelated fatal failure
@@ -305,8 +315,7 @@ class ServiceWatcher(Resource):
             # misleading "confirmed dead, degraded independently" EXHAUSTED_DEAD event while the
             # process is already fatally tearing down for a different reason -- exactly the
             # misattribution the escalation branch's guard exists to prevent, just on this branch.
-            shutting_down_now = self.hassette.shutdown_event.is_set()
-            if already_shutting_down or shutting_down_now:
+            if self._unrelated_shutdown_in_progress(already_shutting_down):
                 self.logger.warning(
                     "%s '%s' restart refused (timeout-only: %s), confirmed no tasks still running, "
                     "but an unrelated shutdown is already in progress -- skipping a misattributed "
@@ -339,8 +348,7 @@ class ServiceWatcher(Resource):
         # would still read False. Without this second check, we'd fall through to
         # handle_restart_refused and dispatch a second, misattributed CRASHED event -- the exact
         # scenario this guard exists to prevent, just triggered mid-wait instead of pre-wait.
-        shutting_down_now = self.hassette.shutdown_event.is_set()
-        if already_shutting_down or shutting_down_now:
+        if self._unrelated_shutdown_in_progress(already_shutting_down):
             self.logger.warning(
                 "%s '%s' restart refused (timeout-only: %s) during an already-in-progress "
                 "shutdown for an unrelated reason -- skipping a redundant, misattributed CRASHED "

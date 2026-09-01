@@ -3,6 +3,13 @@ from dataclasses import dataclass
 
 from hassette.types.enums import RestartType
 
+# Shared between RestartSpec's own field defaults and single_point_of_failure()'s parameter
+# defaults below, so the two can never silently drift apart.
+_DEFAULT_RESTART_TYPE = RestartType.TRANSIENT
+_DEFAULT_BUDGET_INTENSITY = 5
+_DEFAULT_BUDGET_PERIOD_SECONDS = 300.0
+_DEFAULT_STARTUP_TIMEOUT_SECONDS = 30.0
+
 
 @dataclass(frozen=True)
 class RestartSpec:
@@ -14,7 +21,7 @@ class RestartSpec:
             restart_spec = RestartSpec(restart_type=RestartType.PERMANENT)
     """
 
-    restart_type: RestartType = RestartType.TRANSIENT
+    restart_type: RestartType = _DEFAULT_RESTART_TYPE
     """Strategy governing restart and budget-exhaustion behavior."""
 
     non_retryable_error_names: tuple[str, ...] = ()
@@ -32,13 +39,13 @@ class RestartSpec:
     backoff_max_seconds: float = 60.0
     """Maximum backoff delay in seconds."""
 
-    budget_intensity: int = 5
+    budget_intensity: int = _DEFAULT_BUDGET_INTENSITY
     """Maximum number of restarts allowed within the budget window."""
 
-    budget_period_seconds: float = 300.0
+    budget_period_seconds: float = _DEFAULT_BUDGET_PERIOD_SECONDS
     """Sliding window size in seconds for the restart budget."""
 
-    startup_timeout_seconds: float = 30.0
+    startup_timeout_seconds: float = _DEFAULT_STARTUP_TIMEOUT_SECONDS
     """How long to wait for mark_ready() after a restart before considering it failed."""
 
     cooldown_seconds: float = 300.0
@@ -85,10 +92,10 @@ class RestartSpec:
     def single_point_of_failure(
         cls,
         *,
-        restart_type: RestartType = RestartType.TRANSIENT,
-        budget_intensity: int = 5,
-        budget_period_seconds: float = 300.0,
-        startup_timeout_seconds: float = 30.0,
+        restart_type: RestartType = _DEFAULT_RESTART_TYPE,
+        budget_intensity: int = _DEFAULT_BUDGET_INTENSITY,
+        budget_period_seconds: float = _DEFAULT_BUDGET_PERIOD_SECONDS,
+        startup_timeout_seconds: float = _DEFAULT_STARTUP_TIMEOUT_SECONDS,
     ) -> "RestartSpec":
         """A :class:`RestartSpec` for a service where running the framework without it is worse
         than a clean restart -- opts out of the confirmed-quiescent degrade path so a

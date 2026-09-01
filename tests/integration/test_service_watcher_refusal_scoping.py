@@ -9,7 +9,7 @@ tests this file's scenarios were split out from (design.md's "Test placement" se
 
 import asyncio
 import contextlib
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import ClassVar
 from unittest.mock import AsyncMock, patch
 
@@ -30,6 +30,12 @@ from tests.integration.test_service_watcher import restart_and_await
 # bound (0.5s), which comfortably fits several monkeypatched poll intervals below.
 FAST_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS = 1
 
+# Fast enough to keep the confirmation-wait tests quick without racing the wait bound above.
+_FAST_POLL_SECONDS = 0.05
+
+# Name for the single pending task these tests spawn to keep a service's task_bucket non-empty.
+_PENDING_TASK_NAME = "test:pending"
+
 
 def make_fast_spec(**overrides: object) -> RestartSpec:
     """RestartSpec with zero backoff for test speed. Override any field via kwargs."""
@@ -38,7 +44,12 @@ def make_fast_spec(**overrides: object) -> RestartSpec:
     return RestartSpec(**defaults)  # pyright: ignore[reportCallIssue]
 
 
-def get_dummy_service(hassette, *, restart_spec: RestartSpec | None = None) -> Service:
+# Repeated across most tests in this file: a TRANSIENT spec fast enough for the confirmation-wait
+# bound, with a low restart budget since none of these tests actually exhaust it.
+TRANSIENT_FAST_SPEC = make_fast_spec(restart_type=RestartType.TRANSIENT, budget_intensity=5)
+
+
+def make_dummy_service(hassette, *, restart_spec: RestartSpec | None = None) -> Service:
     """A Service that never completes serve() on its own -- restart() is mocked in these tests."""
     spec = restart_spec if restart_spec is not None else RestartSpec()
 
@@ -64,6 +75,25 @@ def make_timeout_only_refusal(
         raise RestartRefusedError(service.class_name, TeardownReport(causes=causes))
 
     return _refusing_restart
+
+
+def fire_once_on_first_sleep(
+    original_sleep: "Callable[[float], Awaitable[bool]]", on_first_call: "Callable[[], object]"
+) -> "Callable[[float], Awaitable[bool]]":
+    """Wrap a shutdown_safe_sleep replacement that calls on_first_call() exactly once, on its
+    first invocation, before delegating to the real sleep -- the event-gated way these tests
+    release a pending task or trigger a bystander shutdown at the exact moment the confirmation
+    wait actually starts sleeping, rather than racing it in real time.
+    """
+    released = asyncio.Event()
+
+    async def _wrapped(duration: float) -> bool:
+        if not released.is_set():
+            released.set()
+            on_first_call()
+        return await original_sleep(duration)
+
+    return _wrapped
 
 
 @contextlib.asynccontextmanager
@@ -110,18 +140,18 @@ async def test_unconfirmed_quiescence_still_escalates(
     """A TRANSIENT service whose tracked task never finishes within the confirmation-wait bound
     still results in root-wide shutdown -- unchanged from today.
     """
-    monkeypatch.setattr("hassette.core.service_watcher._DEATH_CONFIRMATION_POLL_SECONDS", 0.05)
+    monkeypatch.setattr("hassette.core.service_watcher._DEATH_CONFIRMATION_POLL_SECONDS", _FAST_POLL_SECONDS)
 
     async with isolated_watcher(test_config_class, unused_tcp_port_factory) as watcher:
         hassette = watcher.hassette
-        spec = make_fast_spec(restart_type=RestartType.TRANSIENT, budget_intensity=5)
-        service = get_dummy_service(hassette, restart_spec=spec)
+        spec = TRANSIENT_FAST_SPEC
+        service = make_dummy_service(hassette, restart_spec=spec)
         hassette.children.append(service)
         failed_event = make_service_failed_event(service)
 
         # A task that never completes -- quiescence is never confirmed within the wait bound.
         never_release = asyncio.Event()
-        service.task_bucket.spawn(never_release.wait(), name="test:pending")
+        service.task_bucket.spawn(never_release.wait(), name=_PENDING_TASK_NAME)
 
         assert hassette.fatal_shutdown_reason is None
 
@@ -157,32 +187,25 @@ async def test_confirmed_quiescence_degrades_only_that_service(
     ends with only that service at EXHAUSTED_DEAD -- a sibling service stays RUNNING, and no
     fatal reason is recorded.
     """
-    monkeypatch.setattr("hassette.core.service_watcher._DEATH_CONFIRMATION_POLL_SECONDS", 0.05)
+    monkeypatch.setattr("hassette.core.service_watcher._DEATH_CONFIRMATION_POLL_SECONDS", _FAST_POLL_SECONDS)
 
     async with isolated_watcher(test_config_class, unused_tcp_port_factory) as watcher:
         hassette = watcher.hassette
-        spec = make_fast_spec(restart_type=RestartType.TRANSIENT, budget_intensity=5)
-        service = get_dummy_service(hassette, restart_spec=spec)
+        spec = TRANSIENT_FAST_SPEC
+        service = make_dummy_service(hassette, restart_spec=spec)
         hassette.children.append(service)
         failed_event = make_service_failed_event(service)
 
-        sibling = get_dummy_service(hassette, restart_spec=make_fast_spec())
+        sibling = make_dummy_service(hassette, restart_spec=make_fast_spec())
         sibling._status = ResourceStatus.RUNNING
         hassette.children.append(sibling)
 
         pending_gate = asyncio.Event()
-        service.task_bucket.spawn(pending_gate.wait(), name="test:pending")
+        service.task_bucket.spawn(pending_gate.wait(), name=_PENDING_TASK_NAME)
 
         # Release the pending task the moment the confirmation wait actually starts sleeping --
         # event-gated, not a real-time race: the wait's own first poll sleep is the signal.
-        original_sleep = watcher.shutdown_safe_sleep
-        released = asyncio.Event()
-
-        async def sleep_and_release(duration: float) -> bool:
-            if not released.is_set():
-                released.set()
-                pending_gate.set()
-            return await original_sleep(duration)
+        sleep_and_release = fire_once_on_first_sleep(watcher.shutdown_safe_sleep, pending_gate.set)
 
         assert hassette.fatal_shutdown_reason is None
 
@@ -221,13 +244,13 @@ async def test_permanent_service_still_escalates_even_when_confirmed_dead(
     even when its task is confirmed dead within the bound -- degrade_on_confirmed_quiescent_refusal,
     not restart_type, gates the new path, but CORE_PERMANENT_RESTART sets both.
     """
-    monkeypatch.setattr("hassette.core.service_watcher._DEATH_CONFIRMATION_POLL_SECONDS", 0.05)
+    monkeypatch.setattr("hassette.core.service_watcher._DEATH_CONFIRMATION_POLL_SECONDS", _FAST_POLL_SECONDS)
 
     async with isolated_watcher(test_config_class, unused_tcp_port_factory) as watcher:
         hassette = watcher.hassette
         assert CORE_PERMANENT_RESTART.degrade_on_confirmed_quiescent_refusal is False
 
-        service = get_dummy_service(hassette, restart_spec=CORE_PERMANENT_RESTART)
+        service = make_dummy_service(hassette, restart_spec=CORE_PERMANENT_RESTART)
         hassette.children.append(service)
         failed_event = make_service_failed_event(service)
 
@@ -277,7 +300,7 @@ async def test_websocket_service_still_escalates_even_when_confirmed_dead(
     (WebsocketService is TRANSIENT, not PERMANENT), is what the guard in
     cooldown_and_retry()/execute_restart() actually checks.
     """
-    monkeypatch.setattr("hassette.core.service_watcher._DEATH_CONFIRMATION_POLL_SECONDS", 0.05)
+    monkeypatch.setattr("hassette.core.service_watcher._DEATH_CONFIRMATION_POLL_SECONDS", _FAST_POLL_SECONDS)
 
     async with isolated_watcher(test_config_class, unused_tcp_port_factory) as watcher:
         hassette = watcher.hassette
@@ -309,19 +332,19 @@ async def test_bystander_guard_skips_redundant_crashed_event(
     would dispatch a second, misattributed CRASHED event for a service whose only real issue
     was a plain timeout.
     """
-    monkeypatch.setattr("hassette.core.service_watcher._DEATH_CONFIRMATION_POLL_SECONDS", 0.05)
+    monkeypatch.setattr("hassette.core.service_watcher._DEATH_CONFIRMATION_POLL_SECONDS", _FAST_POLL_SECONDS)
 
     async with isolated_watcher(test_config_class, unused_tcp_port_factory) as watcher:
         hassette = watcher.hassette
-        spec = make_fast_spec(restart_type=RestartType.TRANSIENT, budget_intensity=5)
-        service = get_dummy_service(hassette, restart_spec=spec)
+        spec = TRANSIENT_FAST_SPEC
+        service = make_dummy_service(hassette, restart_spec=spec)
         hassette.children.append(service)
 
         error = RestartRefusedError(service.class_name, TeardownReport(causes=(TeardownCause.TASKS_PENDING,)))
         service._status = ResourceStatus.STOPPED
 
         never_release = asyncio.Event()
-        service.task_bucket.spawn(never_release.wait(), name="test:pending")
+        service.task_bucket.spawn(never_release.wait(), name=_PENDING_TASK_NAME)
 
         # Simulate an unrelated fatal failure already in progress elsewhere -- captured by
         # handle_timeout_only_refusal() at entry (already_shutting_down), before the wait even
@@ -353,8 +376,8 @@ async def test_bystander_guard_skips_redundant_dead_event_on_confirmed_quiescenc
     """
     async with isolated_watcher(test_config_class, unused_tcp_port_factory) as watcher:
         hassette = watcher.hassette
-        spec = make_fast_spec(restart_type=RestartType.TRANSIENT, budget_intensity=5)
-        service = get_dummy_service(hassette, restart_spec=spec)
+        spec = TRANSIENT_FAST_SPEC
+        service = make_dummy_service(hassette, restart_spec=spec)
         hassette.children.append(service)
 
         error = RestartRefusedError(service.class_name, TeardownReport(causes=(TeardownCause.TASKS_PENDING,)))
@@ -382,31 +405,24 @@ async def test_bystander_guard_skips_redundant_crashed_event_when_shutdown_start
     and fall through to handle_restart_refused(), dispatching a second, misattributed CRASHED
     event -- the same failure mode the pre-wait guard exists to prevent, just triggered mid-wait.
     """
-    monkeypatch.setattr("hassette.core.service_watcher._DEATH_CONFIRMATION_POLL_SECONDS", 0.05)
+    monkeypatch.setattr("hassette.core.service_watcher._DEATH_CONFIRMATION_POLL_SECONDS", _FAST_POLL_SECONDS)
 
     async with isolated_watcher(test_config_class, unused_tcp_port_factory) as watcher:
         hassette = watcher.hassette
-        spec = make_fast_spec(restart_type=RestartType.TRANSIENT, budget_intensity=5)
-        service = get_dummy_service(hassette, restart_spec=spec)
+        spec = TRANSIENT_FAST_SPEC
+        service = make_dummy_service(hassette, restart_spec=spec)
         hassette.children.append(service)
 
         error = RestartRefusedError(service.class_name, TeardownReport(causes=(TeardownCause.TASKS_PENDING,)))
         service._status = ResourceStatus.STOPPED
 
         never_release = asyncio.Event()
-        service.task_bucket.spawn(never_release.wait(), name="test:pending")
+        service.task_bucket.spawn(never_release.wait(), name=_PENDING_TASK_NAME)
 
         # shutdown_event is NOT set before entry -- already_shutting_down snapshots False. Instead,
         # set it from inside the first poll sleep so the wait aborts mid-wait via
         # shutdown_safe_sleep's early-exit path, exactly the window the entry-only snapshot misses.
-        original_sleep = watcher.shutdown_safe_sleep
-        released = asyncio.Event()
-
-        async def sleep_and_trigger_shutdown(duration: float) -> bool:
-            if not released.is_set():
-                released.set()
-                hassette.shutdown_event.set()
-            return await original_sleep(duration)
+        sleep_and_trigger_shutdown = fire_once_on_first_sleep(watcher.shutdown_safe_sleep, hassette.shutdown_event.set)
 
         with (
             patch.object(watcher, "handle_restart_refused", new_callable=AsyncMock) as mock_handle_refused,
