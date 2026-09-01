@@ -9,6 +9,7 @@ from whenever import ZonedDateTime
 from hassette.models.states.alarm_control_panel import AlarmControlPanelAttributes
 from hassette.models.states.camera import CameraAttributes
 from hassette.models.states.climate import ClimateAttributes
+from hassette.models.states.cover import CoverAttributes
 from hassette.models.states.fan import FanAttributes
 from hassette.models.states.humidifier import HumidifierAttributes
 from hassette.models.states.light import LightAttributes
@@ -254,3 +255,70 @@ class TestMediaPlayerAttributes:
     def test_removed_field_lands_in_extras(self, field: str) -> None:
         attrs = MediaPlayerAttributes(**{field: "test_value"})
         assert attrs.extra(field) == "test_value"
+
+
+class TestNumericWideningRegression:
+    """Regression coverage for #1751.
+
+    HA core's base entity classes annotate these attributes as `int`, but platform
+    integrations routinely assign floats (e.g. `media_player.media_duration` receiving
+    fractional seconds crashed Pydantic validation). Widened to `int | float` via
+    `property_overrides` in the corresponding codegen override TOML.
+    """
+
+    @pytest.mark.parametrize(
+        ("attrs_cls", "field", "value"),
+        [
+            (MediaPlayerAttributes, "media_duration", 3600.073313),
+            (MediaPlayerAttributes, "media_position", 45.5),
+            (LightAttributes, "brightness", 127.5),
+            (LightAttributes, "color_temp_kelvin", 2700.5),
+            (FanAttributes, "percentage", 33.3),
+            (CoverAttributes, "current_cover_position", 50.5),
+            (CoverAttributes, "current_cover_tilt_position", 25.5),
+            (WeatherAttributes, "cloud_coverage", 62.5),
+        ],
+    )
+    def test_accepts_fractional_value(self, attrs_cls: type, field: str, value: float) -> None:
+        attrs = attrs_cls(**{field: value})
+        assert getattr(attrs, field) == value
+
+    @pytest.mark.parametrize(
+        ("attrs_cls", "field", "value"),
+        [
+            (MediaPlayerAttributes, "media_duration", 3600),
+            (MediaPlayerAttributes, "media_position", 45),
+            (LightAttributes, "brightness", 255),
+            (LightAttributes, "color_temp_kelvin", 2700),
+            (FanAttributes, "percentage", 33),
+            (CoverAttributes, "current_cover_position", 50),
+            (CoverAttributes, "current_cover_tilt_position", 25),
+            (WeatherAttributes, "cloud_coverage", 62),
+        ],
+    )
+    def test_still_accepts_int_value(self, attrs_cls: type, field: str, value: int) -> None:
+        attrs = attrs_cls(**{field: value})
+        assert getattr(attrs, field) == value
+        assert isinstance(getattr(attrs, field), int)
+
+
+class TestEnumWideningRegression:
+    """Regression coverage for #1752.
+
+    HA core's base entity classes annotate these attributes as a closed enum/Literal, but
+    platform integrations sometimes assign an unvalidated string (e.g. `atag/sensor.py`
+    assigns a third-party library's raw return value straight to `device_class`). Widened to
+    `EnumClass | str` via `property_overrides` in the corresponding codegen override TOML.
+    """
+
+    def test_hvac_mode_accepts_unvalidated_string(self) -> None:
+        attrs = ClimateAttributes(hvac_mode="not_a_real_mode")
+        assert attrs.hvac_mode == "not_a_real_mode"
+
+    def test_sensor_device_class_accepts_unvalidated_string(self) -> None:
+        attrs = SensorAttributes(device_class="not_a_real_device_class")
+        assert attrs.device_class == "not_a_real_device_class"
+
+    def test_sensor_state_class_accepts_unvalidated_string(self) -> None:
+        attrs = SensorAttributes(state_class="not_a_real_state_class")
+        assert attrs.state_class == "not_a_real_state_class"
