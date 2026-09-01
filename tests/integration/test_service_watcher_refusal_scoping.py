@@ -62,19 +62,39 @@ def make_dummy_service(hassette, *, restart_spec: RestartSpec | None = None) -> 
     return _Dummy(hassette)
 
 
-def make_timeout_only_refusal(
-    causes: tuple[TeardownCause, ...] = (TeardownCause.TASKS_PENDING,),
-):
-    """Build a restart() replacement that drives status to STOPPED (matching what a real
-    restart()'s internal shutdown() call always does before RestartRefusedError is ever raised --
-    see design.md's "Status transition correctness") and then raises a timeout-only refusal.
+async def spawn_cancellation_resistant_task(
+    service: Service, release: asyncio.Event, *, name: str = _PENDING_TASK_NAME
+) -> asyncio.Task:
+    """Spawn a task_bucket task that survives a real shutdown()'s single cancellation attempt.
+
+    ``TaskBucket.cancel_all()`` calls ``.cancel()`` on every tracked task exactly once, then
+    waits a bounded amount of time for them to finish -- it never retries. A plain
+    ``event.wait()`` resolves the instant that first cancellation lands and is immediately
+    dropped from the bucket, so it can never produce a real ``TASKS_PENDING``. This suppresses
+    that first ``CancelledError`` once (on a throwaway inner event that is never set, so the
+    suppress block always has something cancellable to absorb), then blocks on ``release``,
+    keeping the task genuinely pending through a real ``shutdown()``/``restart()`` call until
+    the test sets ``release`` -- the same role the old fake ``RestartRefusedError`` construction
+    played, but driven through the actual production shutdown path instead of a hand-built
+    report.
+
+    Async, and awaits the task's own entry before returning: cancelling a task that has never
+    run its first step delivers ``CancelledError`` before the coroutine body (including the
+    ``with suppress(...)`` block) ever executes, so it would not resist cancellation at all --
+    same hazard, same ``entered``-event fix, as the sibling ``_resist_cancellation`` fixture in
+    ``tests/unit/resources/lifecycle/test_shutdown.py``.
     """
+    entered = asyncio.Event()
 
-    async def _refusing_restart(service: Service) -> None:
-        service._status = ResourceStatus.STOPPED
-        raise RestartRefusedError(service.class_name, TeardownReport(causes=causes))
+    async def _resistant() -> None:
+        entered.set()
+        with contextlib.suppress(asyncio.CancelledError):
+            await asyncio.Event().wait()
+        await release.wait()
 
-    return _refusing_restart
+    task = service.task_bucket.spawn(_resistant(), name=name)
+    await asyncio.wait_for(entered.wait(), timeout=1)
+    return task
 
 
 def fire_once_on_first_sleep(
@@ -137,8 +157,9 @@ async def isolated_watcher(
 async def test_unconfirmed_quiescence_still_escalates(
     test_config_class: type[HassetteConfig], unused_tcp_port_factory: "Callable[[], int]", monkeypatch
 ):
-    """A TRANSIENT service whose tracked task never finishes within the confirmation-wait bound
-    still results in root-wide shutdown -- unchanged from today.
+    """A TRANSIENT service whose tracked task survives a real shutdown() and never releases
+    within the confirmation-wait bound still results in root-wide shutdown -- unchanged from
+    today. Drives a real restart() -> shutdown() timeout (TASKS_PENDING), not a mocked one.
     """
     monkeypatch.setattr("hassette.core.service_watcher._DEATH_CONFIRMATION_POLL_SECONDS", _FAST_POLL_SECONDS)
 
@@ -149,20 +170,14 @@ async def test_unconfirmed_quiescence_still_escalates(
         hassette.children.append(service)
         failed_event = make_service_failed_event(service)
 
-        # A task that never completes -- quiescence is never confirmed within the wait bound.
+        # A task that survives real shutdown() cancellation and never releases -- quiescence is
+        # never confirmed within the wait bound.
         never_release = asyncio.Event()
-        service.task_bucket.spawn(never_release.wait(), name=_PENDING_TASK_NAME)
+        pending_task = await spawn_cancellation_resistant_task(service, never_release)
 
         assert hassette.fatal_shutdown_reason is None
 
-        with (
-            patch(
-                "hassette.core.service_watcher.restart",
-                new_callable=AsyncMock,
-                side_effect=make_timeout_only_refusal(),
-            ),
-            EventCapture.capturing(hassette) as capture,
-        ):
+        with EventCapture.capturing(hassette) as capture:
             await restart_and_await(watcher, failed_event)
 
         assert hassette.fatal_shutdown_reason is not None
@@ -177,15 +192,21 @@ async def test_unconfirmed_quiescence_still_escalates(
         assert len(crashed) == 1
         assert crashed[0].payload.data.resource_name == service.class_name
 
-        never_release.set()  # let the pending task finish so teardown doesn't have to cancel it
+        # Explicit join, not an incidental one: release and wait for the straggler task itself,
+        # rather than relying on some later await (harness/watcher teardown) to happen to give it
+        # a chance to finish before the test function returns.
+        never_release.set()
+        await pending_task
 
 
 async def test_confirmed_quiescence_degrades_only_that_service(
     test_config_class: type[HassetteConfig], unused_tcp_port_factory: "Callable[[], int]", monkeypatch
 ):
-    """A TRANSIENT service whose tracked task finishes shortly after the confirmation wait begins
-    ends with only that service at EXHAUSTED_DEAD -- a sibling service stays RUNNING, and no
-    fatal reason is recorded.
+    """A TRANSIENT service whose tracked task survives a real shutdown() but releases shortly
+    after the confirmation wait begins ends with only that service at EXHAUSTED_DEAD -- a
+    sibling service stays RUNNING, and no fatal reason is recorded. Drives a real
+    restart() -> shutdown() timeout (TASKS_PENDING) through to a real confirmed-quiescent
+    resolution, not a mocked refusal.
     """
     monkeypatch.setattr("hassette.core.service_watcher._DEATH_CONFIRMATION_POLL_SECONDS", _FAST_POLL_SECONDS)
 
@@ -201,20 +222,17 @@ async def test_confirmed_quiescence_degrades_only_that_service(
         hassette.children.append(sibling)
 
         pending_gate = asyncio.Event()
-        service.task_bucket.spawn(pending_gate.wait(), name=_PENDING_TASK_NAME)
+        await spawn_cancellation_resistant_task(service, pending_gate)
 
         # Release the pending task the moment the confirmation wait actually starts sleeping --
-        # event-gated, not a real-time race: the wait's own first poll sleep is the signal.
+        # event-gated, not a real-time race: the wait's own first poll sleep is the signal. The
+        # task survives real shutdown()'s own cancel_all() (which fires and gives up long before
+        # this), so the RestartRefusedError this test observes is the real one restart() raises.
         sleep_and_release = fire_once_on_first_sleep(watcher.shutdown_safe_sleep, pending_gate.set)
 
         assert hassette.fatal_shutdown_reason is None
 
         with (
-            patch(
-                "hassette.core.service_watcher.restart",
-                new_callable=AsyncMock,
-                side_effect=make_timeout_only_refusal(),
-            ),
             patch.object(watcher, "shutdown_safe_sleep", side_effect=sleep_and_release),
             EventCapture.capturing(hassette) as capture,
         ):
@@ -241,8 +259,15 @@ async def test_permanent_service_still_escalates_even_when_confirmed_dead(
     test_config_class: type[HassetteConfig], unused_tcp_port_factory: "Callable[[], int]", monkeypatch
 ):
     """A PERMANENT-restart-type service's timeout-only refusal still escalates to root shutdown
-    even when its task is confirmed dead within the bound -- degrade_on_confirmed_quiescent_refusal,
+    even though its task could be confirmed dead within the bound -- degrade_on_confirmed_quiescent_refusal,
     not restart_type, gates the new path, but CORE_PERMANENT_RESTART sets both.
+
+    Drives a real restart() -> shutdown() timeout (TASKS_PENDING) via a task that survives real
+    shutdown() cancellation. Unlike the TRANSIENT tests above, this never needs to release the
+    task: route_restart_refusal() only calls wait_for_teardown_confirmation() when
+    degrade_on_confirmed_quiescent_refusal is True, so a PERMANENT service's refusal escalates
+    straight through handle_restart_refused() without ever polling for quiescence -- proving the
+    opt-out field gates the routing decision itself, not just its outcome.
     """
     monkeypatch.setattr("hassette.core.service_watcher._DEATH_CONFIRMATION_POLL_SECONDS", _FAST_POLL_SECONDS)
 
@@ -254,22 +279,22 @@ async def test_permanent_service_still_escalates_even_when_confirmed_dead(
         hassette.children.append(service)
         failed_event = make_service_failed_event(service)
 
-        # Already-quiescent before the refusal is even raised -- proves that even a confirmed-dead
-        # PERMANENT service still escalates, because the opt-out field, not confirmation, gates it.
+        never_release = asyncio.Event()
+        pending_task = await spawn_cancellation_resistant_task(service, never_release)
 
         assert hassette.fatal_shutdown_reason is None
 
-        with patch(
-            "hassette.core.service_watcher.restart",
-            new_callable=AsyncMock,
-            side_effect=make_timeout_only_refusal(),
-        ):
-            await restart_and_await(watcher, failed_event)
+        await restart_and_await(watcher, failed_event)
 
         assert hassette.fatal_shutdown_reason is not None
         assert service.class_name in hassette.fatal_shutdown_reason
         assert hassette.shutdown_event.is_set()
         assert service.status != ResourceStatus.EXHAUSTED_DEAD
+
+        # Explicit join, not an incidental one -- see the matching comment in
+        # test_unconfirmed_quiescence_still_escalates above.
+        never_release.set()
+        await pending_task
 
 
 def test_websocket_service_opts_out_of_confirmed_quiescent_degrade():
@@ -296,9 +321,13 @@ async def test_websocket_service_still_escalates_even_when_confirmed_dead(
     test_config_class: type[HassetteConfig], unused_tcp_port_factory: "Callable[[], int]", monkeypatch
 ):
     """A real WebsocketService instance's timeout-only refusal still escalates to root shutdown
-    even when confirmed dead within the bound -- proving the opt-out field, not restart_type
-    (WebsocketService is TRANSIENT, not PERMANENT), is what the guard in
+    even though it could be confirmed dead within the bound -- proving the opt-out field, not
+    restart_type (WebsocketService is TRANSIENT, not PERMANENT), is what the guard in
     cooldown_and_retry()/execute_restart() actually checks.
+
+    Drives a real restart() -> shutdown() timeout (TASKS_PENDING) via a task that survives real
+    shutdown() cancellation, same as the PERMANENT test above -- WebsocketService's opt-out
+    means route_restart_refusal() never calls wait_for_teardown_confirmation() here either.
     """
     monkeypatch.setattr("hassette.core.service_watcher._DEATH_CONFIRMATION_POLL_SECONDS", _FAST_POLL_SECONDS)
 
@@ -308,19 +337,22 @@ async def test_websocket_service_still_escalates_even_when_confirmed_dead(
         hassette.children.append(service)
         failed_event = make_service_failed_event(service)
 
+        never_release = asyncio.Event()
+        pending_task = await spawn_cancellation_resistant_task(service, never_release)
+
         assert hassette.fatal_shutdown_reason is None
 
-        with patch(
-            "hassette.core.service_watcher.restart",
-            new_callable=AsyncMock,
-            side_effect=make_timeout_only_refusal(),
-        ):
-            await restart_and_await(watcher, failed_event)
+        await restart_and_await(watcher, failed_event)
 
         assert hassette.fatal_shutdown_reason is not None
         assert service.class_name in hassette.fatal_shutdown_reason
         assert hassette.shutdown_event.is_set()
         assert service.status != ResourceStatus.EXHAUSTED_DEAD
+
+        # Explicit join, not an incidental one -- see the matching comment in
+        # test_unconfirmed_quiescence_still_escalates above.
+        never_release.set()
+        await pending_task
 
 
 async def test_bystander_guard_skips_redundant_crashed_event(
@@ -343,6 +375,9 @@ async def test_bystander_guard_skips_redundant_crashed_event(
         error = RestartRefusedError(service.class_name, TeardownReport(causes=(TeardownCause.TASKS_PENDING,)))
         service._status = ResourceStatus.STOPPED
 
+        # A plain wait is fine here (unlike spawn_cancellation_resistant_task above): this test
+        # calls handle_timeout_only_refusal() directly, so no real shutdown()/cancel_all() ever
+        # runs against this task -- it only needs to look pending to is_teardown_confirmed_quiescent().
         never_release = asyncio.Event()
         service.task_bucket.spawn(never_release.wait(), name=_PENDING_TASK_NAME)
 
@@ -416,6 +451,8 @@ async def test_bystander_guard_skips_redundant_crashed_event_when_shutdown_start
         error = RestartRefusedError(service.class_name, TeardownReport(causes=(TeardownCause.TASKS_PENDING,)))
         service._status = ResourceStatus.STOPPED
 
+        # A plain wait is fine here too -- see the matching comment in
+        # test_bystander_guard_skips_redundant_crashed_event above.
         never_release = asyncio.Event()
         service.task_bucket.spawn(never_release.wait(), name=_PENDING_TASK_NAME)
 
