@@ -50,7 +50,11 @@ def resolve_property_types(
 
     for prop in properties:
         resolved, imports = _resolve_type(prop.python_type, domain_strenum_names)
-        resolved_props.append(ExtractedProperty(name=prop.name, python_type=resolved, has_default=prop.has_default))
+        resolved_props.append(
+            ExtractedProperty(
+                name=prop.name, python_type=resolved, has_default=prop.has_default, union_mode=prop.union_mode
+            )
+        )
         extra_imports.update(imports)
 
     return resolved_props, extra_imports

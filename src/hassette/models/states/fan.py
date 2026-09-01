@@ -30,7 +30,7 @@ class FanEntityFeature(IntFlag):
 class FanAttributes(AttributesBase):
     direction: str | None = Field(default=None)
     oscillating: bool | None = Field(default=None)
-    percentage: int | None = Field(default=None)
+    percentage: int | float | None = Field(default=None)
     preset_mode: str | None = Field(default=None)
     preset_modes: list[str] | None = Field(default=None)
     speed_count: int | None = Field(default=None)

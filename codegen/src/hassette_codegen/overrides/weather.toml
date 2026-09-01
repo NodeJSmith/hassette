@@ -45,3 +45,10 @@ wire_name = "wind_speed"
 [[property_overrides]]
 name = "native_wind_speed_unit"
 wire_name = "wind_speed_unit"
+
+# Widened for #1751 (confirmed genuine-risk platform assignment, not a general scanner) --
+# see media_player.toml for the full rationale shared by every field this issue widened.
+# No write-side mirror: weather is a read-only domain, no corresponding entity command exists.
+[[property_overrides]]
+name = "cloud_coverage"
+type = "int | float | None"

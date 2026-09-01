@@ -17,6 +17,7 @@ class PropertyOverride:
     type: str | None = None
     add: bool = False
     remove: bool = False
+    union_mode: str | None = None
 
 
 @dataclass
@@ -47,7 +48,7 @@ def load_overrides(overrides_dir: Path | None = None) -> dict[str, DomainOverrid
             continue
 
         properties = [
-            ExtractedProperty(name=p["name"], python_type=p["type"], has_default=True)
+            ExtractedProperty(name=p["name"], python_type=p["type"], has_default=True, union_mode=p.get("union_mode"))
             for p in data.get("properties", [])
         ]
 
@@ -58,6 +59,7 @@ def load_overrides(overrides_dir: Path | None = None) -> dict[str, DomainOverrid
                 type=p.get("type"),
                 add=p.get("add", False),
                 remove=p.get("remove", False),
+                union_mode=p.get("union_mode"),
             )
             for p in data.get("property_overrides", [])
         ]
@@ -88,12 +90,20 @@ def apply_property_overrides(
     if not overrides:
         return properties
 
-    result = [ExtractedProperty(name=p.name, python_type=p.python_type, has_default=p.has_default) for p in properties]
+    result = [
+        ExtractedProperty(name=p.name, python_type=p.python_type, has_default=p.has_default, union_mode=p.union_mode)
+        for p in properties
+    ]
 
     for ov in overrides:
         if ov.add:
             result.append(
-                ExtractedProperty(name=ov.wire_name or ov.name, python_type=ov.type or "str | None", has_default=True)
+                ExtractedProperty(
+                    name=ov.wire_name or ov.name,
+                    python_type=ov.type or "str | None",
+                    has_default=True,
+                    union_mode=ov.union_mode,
+                )
             )
             continue
 
@@ -110,6 +120,8 @@ def apply_property_overrides(
                     prop.name = ov.wire_name
                 if ov.type:
                     prop.python_type = ov.type
+                if ov.union_mode:
+                    prop.union_mode = ov.union_mode
                 break
 
     return result

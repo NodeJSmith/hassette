@@ -8,13 +8,14 @@ from whenever import ZonedDateTime
 
 from hassette.models.states.alarm_control_panel import AlarmControlPanelAttributes
 from hassette.models.states.camera import CameraAttributes
-from hassette.models.states.climate import ClimateAttributes
+from hassette.models.states.climate import ClimateAttributes, HVACMode
+from hassette.models.states.cover import CoverAttributes
 from hassette.models.states.fan import FanAttributes
 from hassette.models.states.humidifier import HumidifierAttributes
 from hassette.models.states.light import LightAttributes
 from hassette.models.states.lock import LockAttributes
-from hassette.models.states.media_player import MediaPlayerAttributes
-from hassette.models.states.sensor import SensorAttributes
+from hassette.models.states.media_player import MediaPlayerAttributes, MediaType, RepeatMode
+from hassette.models.states.sensor import SensorAttributes, SensorDeviceClass, SensorStateClass
 from hassette.models.states.weather import WeatherAttributes
 
 
@@ -254,3 +255,113 @@ class TestMediaPlayerAttributes:
     def test_removed_field_lands_in_extras(self, field: str) -> None:
         attrs = MediaPlayerAttributes(**{field: "test_value"})
         assert attrs.extra(field) == "test_value"
+
+
+class TestNumericWideningRegression:
+    """Regression coverage for #1751.
+
+    HA core's base entity classes annotate these attributes as `int`, but platform
+    integrations routinely assign floats (e.g. `media_player.media_duration` receiving
+    fractional seconds crashed Pydantic validation). Widened to `int | float` via
+    `property_overrides` in the corresponding codegen override TOML.
+    """
+
+    @pytest.mark.parametrize(
+        ("attrs_cls", "field", "value"),
+        [
+            (MediaPlayerAttributes, "media_duration", 3600.073313),
+            (MediaPlayerAttributes, "media_position", 45.5),
+            (LightAttributes, "brightness", 127.5),
+            (LightAttributes, "color_temp_kelvin", 2700.5),
+            (FanAttributes, "percentage", 33.3),
+            (CoverAttributes, "current_cover_position", 50.5),
+            (CoverAttributes, "current_cover_tilt_position", 25.5),
+            (WeatherAttributes, "cloud_coverage", 62.5),
+        ],
+    )
+    def test_accepts_fractional_value(self, attrs_cls: type, field: str, value: float) -> None:
+        attrs = attrs_cls(**{field: value})
+        assert getattr(attrs, field) == value
+
+    @pytest.mark.parametrize(
+        ("attrs_cls", "field", "value"),
+        [
+            (MediaPlayerAttributes, "media_duration", 3600),
+            (MediaPlayerAttributes, "media_position", 45),
+            (LightAttributes, "brightness", 255),
+            (LightAttributes, "color_temp_kelvin", 2700),
+            (FanAttributes, "percentage", 33),
+            (CoverAttributes, "current_cover_position", 50),
+            (CoverAttributes, "current_cover_tilt_position", 25),
+            (WeatherAttributes, "cloud_coverage", 62),
+        ],
+    )
+    def test_still_accepts_int_value(self, attrs_cls: type, field: str, value: int) -> None:
+        attrs = attrs_cls(**{field: value})
+        assert getattr(attrs, field) == value
+        assert isinstance(getattr(attrs, field), int)
+
+
+class TestEnumWideningRegression:
+    """Regression coverage for #1752.
+
+    HA core's base entity classes annotate these attributes as a closed enum/Literal, but
+    platform integrations sometimes assign an unvalidated string (e.g. `atag/sensor.py`
+    assigns a third-party library's raw return value straight to `device_class`). Widened to
+    `EnumClass | str` via `property_overrides` in the corresponding codegen override TOML.
+
+    Each field also sets `union_mode="left_to_right"` (enum listed first). Without it, Pydantic's
+    smart union mode always matches plain `str` over `StrEnum` coercion, so *every* incoming
+    string -- including a value that legitimately is a real enum member, which is what HA sends
+    over the wire in the overwhelming majority of cases -- would deserialize as `str` instead of
+    the enum. `left_to_right` restores enum coercion for valid values while still falling back to
+    `str` for the genuinely unvalidated values this widening exists to tolerate.
+    """
+
+    def test_hvac_mode_accepts_unvalidated_string(self) -> None:
+        attrs = ClimateAttributes(hvac_mode="not_a_real_mode")
+        assert attrs.hvac_mode == "not_a_real_mode"
+
+    def test_hvac_mode_still_coerces_valid_value_to_enum(self) -> None:
+        attrs = ClimateAttributes(hvac_mode="cool")
+        assert attrs.hvac_mode is HVACMode.COOL
+
+    def test_sensor_device_class_accepts_unvalidated_string(self) -> None:
+        attrs = SensorAttributes(device_class="not_a_real_device_class")
+        assert attrs.device_class == "not_a_real_device_class"
+
+    def test_sensor_device_class_still_coerces_valid_value_to_enum(self) -> None:
+        attrs = SensorAttributes(device_class="temperature")
+        assert attrs.device_class is SensorDeviceClass.TEMPERATURE
+
+    def test_sensor_state_class_accepts_unvalidated_string(self) -> None:
+        attrs = SensorAttributes(state_class="not_a_real_state_class")
+        assert attrs.state_class == "not_a_real_state_class"
+
+    def test_sensor_state_class_still_coerces_valid_value_to_enum(self) -> None:
+        attrs = SensorAttributes(state_class="measurement")
+        assert attrs.state_class is SensorStateClass.MEASUREMENT
+
+
+class TestPreExistingEnumUnionCoercionFix:
+    """Regression coverage for the same union-mode coercion bug on two fields that already had
+    an `EnumClass | str` escape hatch before #1751/#1752 (`media_content_type`, `repeat`) and so
+    were already silently affected. Fixed in the same PR since it uses the exact `union_mode`
+    mechanism just built for #1752, on the same defect class, in adjacent fields of the same file.
+    """
+
+    def test_media_content_type_still_coerces_valid_value_to_enum(self) -> None:
+        attrs = MediaPlayerAttributes(media_content_type="music")
+        assert attrs.media_content_type is MediaType.MUSIC
+
+    def test_media_content_type_accepts_unvalidated_string(self) -> None:
+        attrs = MediaPlayerAttributes(media_content_type="not_a_real_type")
+        assert attrs.media_content_type == "not_a_real_type"
+
+    def test_repeat_still_coerces_valid_value_to_enum(self) -> None:
+        attrs = MediaPlayerAttributes(repeat="all")
+        assert attrs.repeat is RepeatMode.ALL
+
+    def test_repeat_accepts_unvalidated_string(self) -> None:
+        attrs = MediaPlayerAttributes(repeat="not_a_real_repeat_mode")
+        assert attrs.repeat == "not_a_real_repeat_mode"

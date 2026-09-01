@@ -37,7 +37,7 @@ class {{ enum.name }}(IntFlag):
 
 class {{ domain_title }}Attributes(AttributesBase):
 {% for prop in properties %}
-    {{ prop.name }}: {{ prop.python_type }} = Field(default=None)
+    {{ prop.name }}: {{ prop.python_type }} = Field(default=None{% if prop.union_mode %}, union_mode={{ prop.union_mode | py_literal }}{% endif %})
 {% endfor %}
 {% if not properties %}
     pass

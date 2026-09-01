@@ -45,9 +45,9 @@ class LightEntityFeature(IntFlag):
 
 
 class LightAttributes(AttributesBase):
-    brightness: int | None = Field(default=None)
+    brightness: int | float | None = Field(default=None)
     color_mode: ColorMode | None = Field(default=None)
-    color_temp_kelvin: int | None = Field(default=None)
+    color_temp_kelvin: int | float | None = Field(default=None)
     effect_list: list[str] | None = Field(default=None)
     effect: str | None = Field(default=None)
     hs_color: tuple[float, float] | None = Field(default=None)

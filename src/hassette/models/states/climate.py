@@ -75,7 +75,7 @@ class ClimateAttributes(AttributesBase):
     fan_mode: str | None = Field(default=None)
     fan_modes: list[str] | None = Field(default=None)
     hvac_action: HVACAction | None = Field(default=None)
-    hvac_mode: HVACMode | None = Field(default=None)
+    hvac_mode: HVACMode | str | None = Field(default=None, union_mode="left_to_right")
     hvac_modes: list[HVACMode] | None = Field(default=None)
     max_humidity: float | None = Field(default=None)
     max_temp: float | None = Field(default=None)

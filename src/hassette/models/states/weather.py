@@ -36,7 +36,7 @@ class WeatherAttributes(AttributesBase):
     condition: str | None = Field(default=None)
     humidity: float | None = Field(default=None)
     ozone: float | None = Field(default=None)
-    cloud_coverage: int | None = Field(default=None)
+    cloud_coverage: int | float | None = Field(default=None)
     uv_index: float | None = Field(default=None)
     precision: float | None = Field(default=None)
     wind_bearing: float | str | None = Field(default=None)

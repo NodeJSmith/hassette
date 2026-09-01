@@ -8,3 +8,17 @@ xy_color = "tuple[float, float]"
 rgbw_color = "tuple[int, int, int, int]"
 rgbww_color = "tuple[int, int, int, int, int]"
 white = "int"
+brightness = "int | float | None"
+color_temp_kelvin = "int | float | None"
+
+# Widened for #1751 (confirmed genuine-risk platform assignment, not a general scanner) --
+# see media_player.toml for the full rationale shared by every field this issue widened.
+# Mirrored on the write side above (param_type_overrides) since brightness/color_temp_kelvin
+# both appear only in optional turn_on/toggle params, never a required-only service.
+[[property_overrides]]
+name = "brightness"
+type = "int | float | None"
+
+[[property_overrides]]
+name = "color_temp_kelvin"
+type = "int | float | None"

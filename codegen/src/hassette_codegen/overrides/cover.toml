@@ -1,0 +1,23 @@
+# HA platforms sometimes assign a float to these state attributes despite the base entity
+# class annotating them as int (#1751). Widened to int | float; see media_player.toml for the
+# canonical evidence-and-rationale comment shared by every field this issue widened.
+[[property_overrides]]
+name = "current_cover_position"
+type = "int | float | None"
+
+[[property_overrides]]
+name = "current_cover_tilt_position"
+type = "int | float | None"
+
+# Read-side widening above must be mirrored on the write side: `cover.set_cover_position(
+# position=state.attributes.current_cover_position)` -- the natural read-then-write round trip
+# -- would otherwise be a pyright error. `position`/`tilt_position` are the *service field names*
+# from HA's services.yaml (set_cover_position/set_cover_tilt_position), not the state attribute
+# names above -- HA names the same logical value differently on each side. No `| None`: both
+# params are required with no default (confirmed against services.yaml), and the entity
+# generator already appends `| None` on its own for any occurrence that's actually optional in a
+# given service, so including it here would only make the required call sites misleadingly
+# permissive.
+[param_type_overrides]
+position = "int | float"
+tilt_position = "int | float"

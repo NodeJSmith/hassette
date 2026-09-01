@@ -1,2 +1,31 @@
 [service_param_renames]
 media_content_type = "media_type"
+
+# HA core's base entity class annotates these -- and several other fields across light, fan,
+# cover, and weather -- as int, but individual HA platforms routinely assign a float without
+# casting (confirmed: media_duration crashed Pydantic validation on a platform returning
+# fractional seconds). Rather than build a general auto-widening scanner, only fields with a
+# confirmed genuine-risk platform assignment were manually widened to int | float via
+# property_overrides (#1751); see the sibling override TOML for each other widened field.
+[[property_overrides]]
+name = "media_duration"
+type = "int | float | None"
+
+[[property_overrides]]
+name = "media_position"
+type = "int | float | None"
+
+# Pydantic's smart union mode always matches plain `str` over StrEnum coercion, so without
+# union_mode="left_to_right" (enum listed first) *every* incoming string -- valid HA values
+# included, since HA always sends strings over the wire -- would deserialize as str instead of
+# the enum. left_to_right restores enum coercion for valid values while still falling back to
+# str for values HA platforms send that aren't actual enum members.
+[[property_overrides]]
+name = "media_content_type"
+type = "MediaType | str | None"
+union_mode = "left_to_right"
+
+[[property_overrides]]
+name = "repeat"
+type = "RepeatMode | str | None"
+union_mode = "left_to_right"

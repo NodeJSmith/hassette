@@ -44,8 +44,8 @@ class CoverEntityFeature(IntFlag):
 
 
 class CoverAttributes(AttributesBase):
-    current_cover_position: int | None = Field(default=None)
-    current_cover_tilt_position: int | None = Field(default=None)
+    current_cover_position: int | float | None = Field(default=None)
+    current_cover_tilt_position: int | float | None = Field(default=None)
     device_class: CoverDeviceClass | None = Field(default=None)
     is_closed: bool | None = Field(default=None)
     is_closing: bool | None = Field(default=None)
