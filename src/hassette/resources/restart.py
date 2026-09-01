@@ -46,9 +46,15 @@ class RestartSpec:
     max_cooldown_cycles: int = 0
     """Maximum cooldown cycles before transitioning to EXHAUSTED_DEAD. 0 = infinite."""
 
+    degrade_on_confirmed_quiescent_refusal: bool = True
+    """Whether a timeout-only restart refusal, once confirmed quiescent, degrades just this service
+    to EXHAUSTED_DEAD instead of escalating to root shutdown. False for services where running the
+    rest of the framework without this one is worse than a clean restart."""
+
 
 CORE_PERMANENT_RESTART = RestartSpec(
     restart_type=RestartType.PERMANENT,
     budget_intensity=2,
     budget_period_seconds=30,
+    degrade_on_confirmed_quiescent_refusal=False,
 )

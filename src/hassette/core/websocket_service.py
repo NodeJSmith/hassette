@@ -90,6 +90,7 @@ class WebsocketService(Service):
         budget_intensity=5,
         budget_period_seconds=300,
         startup_timeout_seconds=60,
+        degrade_on_confirmed_quiescent_refusal=False,
     )
 
     url: str

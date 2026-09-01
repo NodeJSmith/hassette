@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Wire confirmed-quiescence gating into ServiceWatcher's restart-refusal handling"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02"]
 implements: ["FR#3", "FR#4", "FR#5", "AC#3", "AC#4", "AC#5", "AC#6", "AC#7"]
 ---

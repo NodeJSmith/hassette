@@ -12,7 +12,12 @@ from hassette.events.base import HassettePayload
 from hassette.events.hassette import ServiceStatusPayload
 from hassette.exceptions import RestartRefusedError
 from hassette.resources.base import Resource
-from hassette.resources.lifecycle import create_service_status_event, mark_ready, request_shutdown
+from hassette.resources.lifecycle import (
+    create_service_status_event,
+    is_teardown_confirmed_quiescent,
+    mark_ready,
+    request_shutdown,
+)
 from hassette.resources.operations import restart
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
@@ -24,6 +29,9 @@ if typing.TYPE_CHECKING:
     from hassette import Hassette
 
 SERVICE_STATUS_PATH = "payload.data.status"
+
+_DEATH_CONFIRMATION_POLL_SECONDS = 1.0
+"""Poll interval while waiting to confirm a timeout-only refusal's tracked tasks have died."""
 
 
 class RestartBudget:
@@ -258,6 +266,81 @@ class ServiceWatcher(Resource):
         except Exception as exc:
             self.logger.error("%s '%s' failed to dispatch CRASHED event after restart refusal: %s", role, name, exc)
 
+    async def wait_for_teardown_confirmation(self, service: Service, timeout: float) -> bool:
+        """Poll until the service's last teardown attempt is confirmed quiescent, or timeout elapses.
+
+        Returns True if confirmed quiescent within the timeout, False if the timeout elapsed
+        first or shutdown was requested mid-wait.
+        """
+        deadline = time.monotonic() + timeout
+        while True:
+            if is_teardown_confirmed_quiescent(service):
+                return True
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return False
+            completed = await self.shutdown_safe_sleep(min(_DEATH_CONFIRMATION_POLL_SECONDS, remaining))
+            if not completed:
+                return False
+
+    async def handle_timeout_only_refusal(
+        self, name: str, role: object, service: Service, error: RestartRefusedError
+    ) -> None:
+        """Wait for confirmed quiescence after a timeout-only refusal, then degrade just this
+        service instead of escalating -- or escalate exactly as handle_restart_refused would if
+        quiescence is never confirmed within the wait.
+        """
+        # Recorded before the wait so we can tell "this service caused the shutdown" apart from
+        # "shutdown was already happening for an unrelated reason when this wait aborted."
+        already_shutting_down = self.hassette.shutdown_event.is_set()
+        # Half the original teardown timeout: that timeout already fired once discovering this
+        # resource wouldn't die cleanly, so reusing the full value here would let a genuinely-stuck
+        # resource take up to 2x as long to reach root shutdown.
+        timeout = self.hassette.config.lifecycle.resource_shutdown_timeout_seconds / 2
+        if await self.wait_for_teardown_confirmation(service, timeout):
+            self.logger.warning(
+                "%s '%s' restart refused (timeout-only: %s), confirmed no tasks still running -- "
+                "marking EXHAUSTED_DEAD instead of shutting down the process",
+                role,
+                name,
+                ", ".join(error.report.causes),
+            )
+            dead_event = HassetteServiceEvent.from_service_status(
+                resource_name=name,
+                role=role,  # pyright: ignore[reportArgumentType]
+                status=ResourceStatus.EXHAUSTED_DEAD,
+                previous_status=service.status,
+                exception=error,
+            )
+            await self.hassette.send_event(dead_event)
+            self.set_service_status(name, role, ResourceStatus.EXHAUSTED_DEAD)
+            return
+        # Re-check after the wait: an unrelated fatal failure may have set shutdown_event
+        # *during* the wait rather than before it, in which case wait_for_teardown_confirmation
+        # returned False via shutdown_safe_sleep's early-exit path, but the entry snapshot above
+        # would still read False. Without this second check, we'd fall through to
+        # handle_restart_refused and dispatch a second, misattributed CRASHED event -- the exact
+        # scenario this guard exists to prevent, just triggered mid-wait instead of pre-wait.
+        shutting_down_now = self.hassette.shutdown_event.is_set()
+        if already_shutting_down or shutting_down_now:
+            self.logger.warning(
+                "%s '%s' restart refused (timeout-only: %s) during an already-in-progress "
+                "shutdown for an unrelated reason -- skipping a redundant, misattributed CRASHED "
+                "event for this service",
+                role,
+                name,
+                ", ".join(error.report.causes),
+            )
+            return
+        self.logger.warning(
+            "%s '%s' restart refused (timeout-only: %s) but could not confirm quiescence within %.1fs -- escalating",
+            role,
+            name,
+            ", ".join(error.report.causes),
+            timeout,
+        )
+        await self.handle_restart_refused(name, role, error)
+
     async def handle_exhaustion(
         self,
         name: str,
@@ -396,7 +479,10 @@ class ServiceWatcher(Resource):
         try:
             await restart(service)
         except RestartRefusedError as exc:
-            await self.handle_restart_refused(name, role, exc)
+            if exc.report.is_timeout_only_refusal and spec.degrade_on_confirmed_quiescent_refusal:
+                await self.handle_timeout_only_refusal(name, role, service, exc)
+            else:
+                await self.handle_restart_refused(name, role, exc)
         except Exception as exc:
             self.logger.error("%s '%s' restart after cooldown failed: %s", role, name, exc)
 
@@ -543,7 +629,10 @@ class ServiceWatcher(Resource):
             try:
                 await restart(service)
             except RestartRefusedError as exc:
-                await self.handle_restart_refused(name, role, exc)
+                if exc.report.is_timeout_only_refusal and spec.degrade_on_confirmed_quiescent_refusal:
+                    await self.handle_timeout_only_refusal(name, role, service, exc)
+                else:
+                    await self.handle_restart_refused(name, role, exc)
             except Exception as exc:
                 self.logger.error(
                     "%s '%s' restart raised an exception (service left in FAILED state): %s",
