@@ -38,6 +38,13 @@ _CONFIRMATION_TIMEOUT_FRACTION = 0.5
 that full timeout already elapsed once discovering the resource wouldn't die cleanly, and reusing
 it again would let a genuinely stuck resource take twice as long to reach root shutdown."""
 
+_STATUS_EVENT_DISPATCH_TIMEOUT_SECONDS = 5.0
+"""Upper bound on how long dispatch_status_event_best_effort() waits for send_event() to accept
+a status event. send_event() awaits a bounded channel that can stay full indefinitely if nothing
+is draining it; every caller here has already committed to its state transition or shutdown
+before this runs, so a stalled channel must degrade to a logged, swallowed timeout rather than
+hang the caller the way an unguarded await would."""
+
 
 class RestartBudget:
     """Sliding-window restart budget tracker.
@@ -205,16 +212,27 @@ class ServiceWatcher(Resource):
         )
 
     async def dispatch_status_event_best_effort(self, name: str, role: object, event: HassetteServiceEvent) -> None:
-        """Send a service-status event without letting delivery failure block the caller's
-        already-decided state transition or shutdown call.
+        """Send a service-status event without letting delivery failure -- or a stalled channel --
+        block the caller's already-decided state transition or shutdown call.
 
         Event dispatch is telemetry, not the control path: every caller here has already recorded
         the fatal reason, requested shutdown, or otherwise committed to its outcome before this is
-        called, so a ``send_event`` failure must be logged and swallowed rather than left to
-        propagate and abort whatever the caller does next.
+        called, so a ``send_event`` failure or hang must be logged and swallowed rather than left
+        to propagate (or block indefinitely) and abort whatever the caller does next. ``send_event``
+        awaits a bounded channel with no timeout of its own, so it is bounded here -- this timeout
+        is local to this method; other ``send_event`` call sites elsewhere in the codebase are not
+        bounded by it and remain a plain, unguarded await.
         """
         try:
-            await self.hassette.send_event(event)
+            await asyncio.wait_for(self.hassette.send_event(event), timeout=_STATUS_EVENT_DISPATCH_TIMEOUT_SECONDS)
+        except TimeoutError:
+            self.logger.error(
+                "%s '%s' timed out dispatching %s event after %.1fs",
+                role,
+                name,
+                event.payload.data.status.name,
+                _STATUS_EVENT_DISPATCH_TIMEOUT_SECONDS,
+            )
         except Exception as exc:
             self.logger.error(
                 "%s '%s' failed to dispatch %s event: %s", role, name, event.payload.data.status.name, exc
