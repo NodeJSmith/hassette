@@ -204,6 +204,22 @@ class ServiceWatcher(Resource):
             ),
         )
 
+    async def dispatch_status_event_best_effort(self, name: str, role: object, event: HassetteServiceEvent) -> None:
+        """Send a service-status event without letting delivery failure block the caller's
+        already-decided state transition or shutdown call.
+
+        Event dispatch is telemetry, not the control path: every caller here has already recorded
+        the fatal reason, requested shutdown, or otherwise committed to its outcome before this is
+        called, so a ``send_event`` failure must be logged and swallowed rather than left to
+        propagate and abort whatever the caller does next.
+        """
+        try:
+            await self.hassette.send_event(event)
+        except Exception as exc:
+            self.logger.error(
+                "%s '%s' failed to dispatch %s event: %s", role, name, event.payload.data.status.name, exc
+            )
+
     def restart_admission_blocked(self) -> bool:
         """Return True when a fatal reason has been recorded or root shutdown has been requested.
 
@@ -266,10 +282,7 @@ class ServiceWatcher(Resource):
             exception=error,
             ready=False,
         )
-        try:
-            await self.hassette.send_event(crashed_event)
-        except Exception as exc:
-            self.logger.error("%s '%s' failed to dispatch CRASHED event after restart refusal: %s", role, name, exc)
+        await self.dispatch_status_event_best_effort(name, role, crashed_event)
 
     async def wait_for_teardown_confirmation(self, service: Service, timeout: float) -> bool:
         """Poll until the service's last teardown attempt is confirmed quiescent, or timeout elapses.
@@ -339,7 +352,7 @@ class ServiceWatcher(Resource):
                 previous_status=service.status,
                 exception=error,
             )
-            await self.hassette.send_event(dead_event)
+            await self.dispatch_status_event_best_effort(name, role, dead_event)
             self.set_service_status(name, role, ResourceStatus.EXHAUSTED_DEAD)
             return
         # Re-check after the wait: an unrelated fatal failure may have set shutdown_event
@@ -407,7 +420,7 @@ class ServiceWatcher(Resource):
                 previous_status=ResourceStatus.FAILED,
                 source_payload=status_payload,
             )
-            await self.hassette.send_event(crashed_event)
+            await self.dispatch_status_event_best_effort(name, role, crashed_event)
             await self.hassette.shutdown()
 
         elif spec.restart_type == RestartType.TRANSIENT:
@@ -427,7 +440,7 @@ class ServiceWatcher(Resource):
                 source_payload=status_payload,
                 retry_at=retry_at,
             )
-            await self.hassette.send_event(cooling_event)
+            await self.dispatch_status_event_best_effort(name, role, cooling_event)
             self.set_service_status(name, role, ResourceStatus.EXHAUSTED_COOLING)
             # Cancel existing cooldown for this service if any
             existing = self._cooldown_tasks.get(key)
@@ -452,7 +465,7 @@ class ServiceWatcher(Resource):
                 previous_status=ResourceStatus.FAILED,
                 source_payload=status_payload,
             )
-            await self.hassette.send_event(dead_event)
+            await self.dispatch_status_event_best_effort(name, role, dead_event)
             self.set_service_status(name, role, ResourceStatus.EXHAUSTED_DEAD)
 
     async def cooldown_and_retry(self, name: str, role: object, key: str, spec: RestartSpec) -> None:
@@ -480,7 +493,7 @@ class ServiceWatcher(Resource):
                 status=ResourceStatus.EXHAUSTED_DEAD,
                 previous_status=ResourceStatus.EXHAUSTED_COOLING,
             )
-            await self.hassette.send_event(dead_event)
+            await self.dispatch_status_event_best_effort(name, role, dead_event)
             self.set_service_status(name, role, ResourceStatus.EXHAUSTED_DEAD, "cooldown cycle limit")
             return
 
@@ -559,7 +572,7 @@ class ServiceWatcher(Resource):
                 previous_status=ResourceStatus.FAILED,
                 source_payload=status_payload,
             )
-            await self.hassette.send_event(crashed_event)
+            await self.dispatch_status_event_best_effort(name, role, crashed_event)
             await self.hassette.shutdown()
             return
 
