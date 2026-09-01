@@ -121,7 +121,11 @@ def _apply_type_renames(properties: list[ExtractedProperty], renames: dict[str, 
         for old_name, new_name in renames.items():
             if old_name in python_type:
                 python_type = python_type.replace(old_name, new_name)
-        result.append(ExtractedProperty(name=prop.name, python_type=python_type, has_default=prop.has_default))
+        result.append(
+            ExtractedProperty(
+                name=prop.name, python_type=python_type, has_default=prop.has_default, union_mode=prop.union_mode
+            )
+        )
     return result
 
 

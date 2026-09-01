@@ -37,7 +37,7 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
     def set_temperature(
         self,
         *,
-        hvac_mode: HVACMode | None = None,
+        hvac_mode: HVACMode | str | None = None,
         target_temp_high: float | None = None,
         target_temp_low: float | None = None,
         temperature: float | None = None,
@@ -97,7 +97,7 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
     def set_hvac_mode(
         self,
         *,
-        hvac_mode: HVACMode | None = None,
+        hvac_mode: HVACMode | str | None = None,
     ) -> Coroutine[Any, Any, None]:
         """Sets the HVAC mode of a thermostat.
 
@@ -193,7 +193,7 @@ class ClimateEntitySyncFacade(BaseEntitySyncFacade[ClimateState, str]):
     def set_temperature(
         self,
         *,
-        hvac_mode: HVACMode | None = None,
+        hvac_mode: HVACMode | str | None = None,
         target_temp_high: float | None = None,
         target_temp_low: float | None = None,
         temperature: float | None = None,
@@ -253,7 +253,7 @@ class ClimateEntitySyncFacade(BaseEntitySyncFacade[ClimateState, str]):
     def set_hvac_mode(
         self,
         *,
-        hvac_mode: HVACMode | None = None,
+        hvac_mode: HVACMode | str | None = None,
     ) -> None:
         """Sets the HVAC mode of a thermostat.
 

@@ -1,3 +1,16 @@
 [[property_overrides]]
 name = "current_direction"
 wire_name = "direction"
+
+# Widened for #1751 (confirmed genuine-risk platform assignment, not a general scanner) --
+# see media_player.toml for the full rationale shared by every field this issue widened.
+[[property_overrides]]
+name = "percentage"
+type = "int | float | None"
+
+# Write-side mirror: no | None, since set_percentage is required with no default (confirmed
+# against services.yaml). turn_on's percentage is optional too, but the entity generator
+# appends | None on its own for whichever occurrence is actually optional in a given service --
+# it does not need to come from this override.
+[param_type_overrides]
+percentage = "int | float"

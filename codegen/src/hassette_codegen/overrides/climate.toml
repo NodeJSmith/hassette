@@ -5,3 +5,24 @@ wire_name = "target_temp_step"
 [[property_overrides]]
 name = "target_humidity"
 wire_name = "humidity"
+
+# Widened for #1752 (confirmed genuine-risk platform assignment -- mqtt/climate.py's
+# _handle_mode_received assigns a raw MQTT payload string via setattr with no HVACMode(...)
+# conversion -- not a general scanner; see media_player.toml for the numeric-widening
+# equivalent, #1751). Mirrored on the write side below (param_type_overrides) since hvac_mode
+# appears in both set_hvac_mode and set_temperature, both already optional with a None default.
+#
+# union_mode="left_to_right" (enum listed first) makes Pydantic try HVACMode coercion before
+# falling back to plain str -- without it, smart-union mode always matches plain str first, so
+# every incoming value (even a valid HVACMode member, which is what HA sends over the wire in
+# the vast majority of cases) would deserialize as str instead of the enum.
+[[property_overrides]]
+name = "hvac_mode"
+type = "HVACMode | str | None"
+union_mode = "left_to_right"
+
+[param_type_overrides]
+hvac_mode = "HVACMode | str | None"
+
+[extra_imports]
+entity = ["from hassette.models.states.climate import HVACMode"]

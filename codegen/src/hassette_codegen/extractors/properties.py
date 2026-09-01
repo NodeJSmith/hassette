@@ -12,6 +12,7 @@ class ExtractedProperty:
     name: str
     python_type: str
     has_default: bool
+    union_mode: str | None = None
 
 
 def extract_properties(init_py: Path) -> list[ExtractedProperty]:

@@ -39,7 +39,7 @@ class FanEntity(BaseEntity[FanState, str]):
     def set_percentage(
         self,
         *,
-        percentage: int,
+        percentage: int | float,
     ) -> Coroutine[Any, Any, None]:
         """Sets the speed of a fan.
 
@@ -56,7 +56,7 @@ class FanEntity(BaseEntity[FanState, str]):
     def turn_on(
         self,
         *,
-        percentage: int | None = None,
+        percentage: int | float | None = None,
         preset_mode: str | None = None,
     ) -> Coroutine[Any, Any, None]:
         """Turns on a fan.
@@ -181,7 +181,7 @@ class FanEntitySyncFacade(BaseEntitySyncFacade[FanState, str]):
     def set_percentage(
         self,
         *,
-        percentage: int,
+        percentage: int | float,
     ) -> None:
         """Sets the speed of a fan.
 
@@ -198,7 +198,7 @@ class FanEntitySyncFacade(BaseEntitySyncFacade[FanState, str]):
     def turn_on(
         self,
         *,
-        percentage: int | None = None,
+        percentage: int | float | None = None,
         preset_mode: str | None = None,
     ) -> None:
         """Turns on a fan.

@@ -92,10 +92,10 @@ class SensorStateClass(StrEnum):
 
 class SensorAttributes(AttributesBase):
     uptime_drift_tolerance: int | None = Field(default=None)
-    device_class: SensorDeviceClass | None = Field(default=None)
+    device_class: SensorDeviceClass | str | None = Field(default=None, union_mode="left_to_right")
     last_reset: ZonedDateTime | None = Field(default=None)
     options: list[str] | None = Field(default=None)
-    state_class: SensorStateClass | None = Field(default=None)
+    state_class: SensorStateClass | str | None = Field(default=None, union_mode="left_to_right")
     suggested_unit_of_measurement: str | None = Field(default=None)
     unit_of_measurement: str | None = Field(default=None)
 

@@ -44,7 +44,7 @@ class CoverEntity(BaseEntity[CoverState, str]):
     def set_cover_position(
         self,
         *,
-        position: int,
+        position: int | float,
     ) -> Coroutine[Any, Any, None]:
         """Moves a cover to a specific position.
 
@@ -93,7 +93,7 @@ class CoverEntity(BaseEntity[CoverState, str]):
     def set_cover_tilt_position(
         self,
         *,
-        tilt_position: int,
+        tilt_position: int | float,
     ) -> Coroutine[Any, Any, None]:
         """Moves a cover tilt to a specific position.
 
@@ -146,7 +146,7 @@ class CoverEntitySyncFacade(BaseEntitySyncFacade[CoverState, str]):
     def set_cover_position(
         self,
         *,
-        position: int,
+        position: int | float,
     ) -> None:
         """Moves a cover to a specific position.
 
@@ -195,7 +195,7 @@ class CoverEntitySyncFacade(BaseEntitySyncFacade[CoverState, str]):
     def set_cover_tilt_position(
         self,
         *,
-        tilt_position: int,
+        tilt_position: int | float,
     ) -> None:
         """Moves a cover tilt to a specific position.
 
