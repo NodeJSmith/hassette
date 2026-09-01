@@ -259,13 +259,13 @@ async def test_permanent_service_still_escalates_even_when_confirmed_dead(
     test_config_class: type[HassetteConfig], unused_tcp_port_factory: "Callable[[], int]", monkeypatch
 ):
     """A PERMANENT-restart-type service's timeout-only refusal still escalates to root shutdown
-    even though its task could be confirmed dead within the bound -- degrade_on_confirmed_quiescent_refusal,
+    even though its task could be confirmed dead within the bound -- allow_scoped_degradation,
     not restart_type, gates the new path, but CORE_PERMANENT_RESTART sets both.
 
     Drives a real restart() -> shutdown() timeout (TASKS_PENDING) via a task that survives real
     shutdown() cancellation. Unlike the TRANSIENT tests above, this never needs to release the
     task: route_restart_refusal() only calls wait_for_teardown_confirmation() when
-    degrade_on_confirmed_quiescent_refusal is True, so a PERMANENT service's refusal escalates
+    allow_scoped_degradation is True, so a PERMANENT service's refusal escalates
     straight through handle_restart_refused() without ever polling for quiescence -- proving the
     opt-out field gates the routing decision itself, not just its outcome.
     """
@@ -273,7 +273,7 @@ async def test_permanent_service_still_escalates_even_when_confirmed_dead(
 
     async with isolated_watcher(test_config_class, unused_tcp_port_factory) as watcher:
         hassette = watcher.hassette
-        assert CORE_PERMANENT_RESTART.degrade_on_confirmed_quiescent_refusal is False
+        assert CORE_PERMANENT_RESTART.allow_scoped_degradation is False
 
         service = make_dummy_service(hassette, restart_spec=CORE_PERMANENT_RESTART)
         hassette.children.append(service)
@@ -302,7 +302,7 @@ def test_websocket_service_opts_out_of_confirmed_quiescent_degrade():
     stays TRANSIENT for ordinary budget/backoff/cooldown behavior).
     """
     assert WebsocketService.restart_spec.restart_type == RestartType.TRANSIENT
-    assert WebsocketService.restart_spec.degrade_on_confirmed_quiescent_refusal is False
+    assert WebsocketService.restart_spec.allow_scoped_degradation is False
 
 
 def test_web_api_service_opts_out_of_confirmed_quiescent_degrade():
@@ -314,7 +314,7 @@ def test_web_api_service_opts_out_of_confirmed_quiescent_degrade():
     trying to load the dashboard.
     """
     assert WebApiService.restart_spec.restart_type == RestartType.TRANSIENT
-    assert WebApiService.restart_spec.degrade_on_confirmed_quiescent_refusal is False
+    assert WebApiService.restart_spec.allow_scoped_degradation is False
 
 
 async def test_websocket_service_still_escalates_even_when_confirmed_dead(

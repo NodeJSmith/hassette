@@ -71,7 +71,7 @@ Backoff between restart attempts uses exponential growth: `backoff_base_seconds 
 | `max_cooldown_cycles` | `int` | `0` | Maximum cooldown cycles before `EXHAUSTED_DEAD`. `0` means infinite. |
 | `non_retryable_error_names` | `tuple[str, ...]` | `()` | Exception names that skip restart and go directly to exhaustion. |
 | `fatal_error_names` | `tuple[str, ...]` | `()` | Exception names that trigger immediate shutdown. |
-| `degrade_on_confirmed_quiescent_refusal` | `bool \| None` | `None` | Whether a timeout-only restart refusal degrades just this service to `EXHAUSTED_DEAD` instead of escalating to root shutdown — see [Restart refusal](#restart-refusal) below. `None` resolves to `True` for `TRANSIENT`/`TEMPORARY`, `False` for `PERMANENT`, and warns if left unset on a service that resolves to `True`. |
+| `allow_scoped_degradation` | `bool \| None` | `None` | Whether a timeout-only restart refusal degrades just this service to `EXHAUSTED_DEAD` instead of escalating to root shutdown — see [Restart refusal](#restart-refusal) below. `None` resolves to `True` for `TRANSIENT`/`TEMPORARY`, `False` for `PERMANENT`, and warns if left unset on a service that resolves to `True`. |
 
 ## Resource State Machine
 
@@ -200,7 +200,7 @@ shutdown-body task, neither of which tracks `cleanup()`, so there is nothing to 
 `CLEANUP_TIMED_OUT` refusal always skips straight to the fatal path described below, same as a
 shutdown hook raising, a child forced terminal, or the coordinator itself failing.
 
-For a timeout-only refusal on a service whose `restart_spec.degrade_on_confirmed_quiescent_refusal`
+For a timeout-only refusal on a service whose `restart_spec.allow_scoped_degradation`
 is `True` — the default for `TRANSIENT` and `TEMPORARY` services — `ServiceWatcher` waits before
 deciding anything. It polls the resource's task bucket and shutdown-body task for up to half of
 `resource_shutdown_timeout_seconds`, checking whether everything from the failed teardown attempt
@@ -216,7 +216,7 @@ shutdown of the whole process directly (not only through event delivery), and ma
 best-effort attempt to emit a `CRASHED` event.
 
 That same fatal path is also what happens for a refusal that isn't timeout-only, and for any
-service that opts out of the degrade path by setting `degrade_on_confirmed_quiescent_refusal` to
+service that opts out of the degrade path by setting `allow_scoped_degradation` to
 `False`. `BusService`, `SchedulerService`, and `SyncExecutorService` opt out because they're
 `PERMANENT` — Hassette treats losing one of them as worse than a clean restart.
 `WebsocketService` opts out too, despite being `TRANSIENT`: it's the framework's sole connection
@@ -231,7 +231,7 @@ trying to load the dashboard.
     `WebsocketService` and `WebApiService` construct their `restart_spec` through
     [`RestartSpec.single_point_of_failure()`][hassette.resources.restart.RestartSpec.single_point_of_failure],
     a named constructor for "this service is the framework's sole path to some capability nothing
-    else can substitute for" that sets `degrade_on_confirmed_quiescent_refusal=False` alongside
+    else can substitute for" that sets `allow_scoped_degradation=False` alongside
     each service's own
     `restart_type`/`budget_intensity`/`budget_period_seconds`/`startup_timeout_seconds`. Writing a
     custom `Service` with the same single-point-of-failure characteristics can use the same

@@ -143,7 +143,7 @@ filterwarnings = [
     # Tests that assert the guard raises opt in locally via filterwarnings("error", ...).
     "default::hassette.exceptions.HassetteBlockingIOWarning",
     "default:.*does not declare restart_spec.*:UserWarning",
-    "default:.*does not explicitly set degrade_on_confirmed_quiescent_refusal.*:UserWarning",
+    "default:.*does not explicitly set allow_scoped_degradation.*:UserWarning",
     # ResourceWarning stays escalated to error (via the global "error" above). These were
     # previously downgraded to mask a leak where a fatal-cascade system test orphaned service
     # tasks onto the shared session-scoped event loop, leaving aiosqlite/aiohttp/anyio handles

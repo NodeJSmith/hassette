@@ -19,7 +19,7 @@ class FileWatcherService(Service):
         budget_intensity=3,
         budget_period_seconds=60,
         # Losing live-reload capability does not impair automation execution. Keeps the default.
-        degrade_on_confirmed_quiescent_refusal=True,
+        allow_scoped_degradation=True,
     )
 
     @property

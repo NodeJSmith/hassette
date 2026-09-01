@@ -26,6 +26,7 @@ FinalMeta.LOADED_CLASSES.add("tests.unit.resources.lifecycle.test_total_timeout.
 FinalMeta.LOADED_CLASSES.add("tests.unit.resources.lifecycle.test_total_timeout.RootIdentityResource")
 FinalMeta.LOADED_CLASSES.add("tests.unit.resources.lifecycle.test_total_timeout.SleepingChild")
 FinalMeta.LOADED_CLASSES.add("tests.unit.resources.lifecycle.test_total_timeout.HooksThenHangingChild")
+FinalMeta.LOADED_CLASSES.add("tests.unit.resources.lifecycle.test_total_timeout.FailingHookThenHangingChild")
 
 
 class TotalTimeoutRoot(Resource):
@@ -226,6 +227,30 @@ class HooksThenHangingChild(Resource):
         return await super()._run_post_hook_shutdown_stage()
 
 
+class FailingHookThenHangingChild(Resource):
+    """Non-root resource whose `on_shutdown()` hook raises, and whose post-hook stage then
+    sleeps for a configurable duration.
+
+    `run_hooks(..., continue_on_error=True)` catches the raise and lets `_shutdown_body()`
+    continue normally -- but that means the resulting `SHUTDOWN_HOOK_FAILED` evidence lives only
+    in `Resource._shutdown_body()`'s own local `hook_report` until it returns. If the post-hook
+    stage below then hangs past the outer coordinator deadline, this whole body task gets
+    cancelled before it ever returns that report, and the hook failure would otherwise be
+    silently lost. Proves `_shutdown_hooks_completed` stays `False` here (not just "hooks never
+    got a chance to run", but also "a hook raised"), so `_force_terminal()` still records
+    `FORCED_TERMINAL` for real instead of letting this misclassify as timeout-only.
+    """
+
+    _post_hook_sleep: float = 0.0
+
+    async def on_shutdown(self) -> None:
+        raise RuntimeError("on_shutdown boom")
+
+    async def _run_post_hook_shutdown_stage(self) -> "TeardownReport":
+        await asyncio.sleep(self._post_hook_sleep)
+        return await super()._run_post_hook_shutdown_stage()
+
+
 async def test_root_identity_uses_total_timeout_not_resource_timeout(tmp_path):
     """A root resource (`resource is resource.hassette`) is bounded by
     `total_shutdown_timeout_seconds`, not `resource_shutdown_timeout_seconds` — even when the
@@ -299,6 +324,29 @@ async def test_body_timeout_after_hooks_complete_stays_timeout_only(tmp_path):
     assert report.is_restart_safe is False
     assert TeardownCause.FORCED_TERMINAL not in report.causes
     assert report.is_timeout_only_refusal is True
+
+
+async def test_body_timeout_after_hook_failure_still_force_terminates(tmp_path):
+    """A resource whose on_shutdown() hook raised, then whose post-hook stage hangs past the
+    outer timeout, must still escalate -- the handled hook failure is real negative evidence
+    (not just "still running") that must not be silently discarded just because the body task
+    that recorded it locally gets cancelled before returning its report.
+    """
+    hassette = make_mock_hassette(data_dir=tmp_path, sealed=False)
+    hassette.config.lifecycle.resource_shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
+    hassette.config.lifecycle.total_shutdown_timeout_seconds = 0.3
+    child = FailingHookThenHangingChild(hassette)
+    child._post_hook_sleep = 0.2  # longer than the 0.1s resource timeout, after on_shutdown() raised
+
+    await child.initialize()
+
+    report = await child.shutdown()
+
+    assert child._shutdown_hooks_completed is False
+    assert TeardownCause.SHUTDOWN_BODY_TIMED_OUT in report.causes
+    assert TeardownCause.FORCED_TERMINAL in report.causes
+    assert report.is_restart_safe is False
+    assert report.is_timeout_only_refusal is False
 
 
 async def test_body_timeout_folds_in_forced_children(tmp_path):

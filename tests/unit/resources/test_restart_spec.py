@@ -6,7 +6,7 @@ Verifies:
 - The dataclass is frozen (post-construction mutation raises)
 - Equality is value-based, not identity-based
 - Frozen + eq=True gives a stable hash, so specs are usable as dict keys / set members
-- degrade_on_confirmed_quiescent_refusal's sentinel resolution and "left unset" warning
+- allow_scoped_degradation's sentinel resolution and "left unset" warning
 - RestartSpec.single_point_of_failure() sets the opt-out field by default
 """
 
@@ -131,7 +131,7 @@ class TestEqualityAndHashing:
         assert len(specs) == 2
 
 
-class TestDegradeOnConfirmedQuiescentRefusal:
+class TestAllowScopedDegradation:
     """Ship-time challenge finding (spec 106): the field defaults to unset (None) rather than a
     bare bool, and __post_init__ resolves it -- warning when the resolved value is the dangerous
     direction (True) and the caller never explicitly chose it. A plain bool default gave no way
@@ -140,32 +140,32 @@ class TestDegradeOnConfirmedQuiescentRefusal:
     """
 
     def test_unset_resolves_to_true_for_transient_and_warns(self) -> None:
-        with pytest.warns(UserWarning, match="degrade_on_confirmed_quiescent_refusal"):
+        with pytest.warns(UserWarning, match="allow_scoped_degradation"):
             spec = RestartSpec(restart_type=RestartType.TRANSIENT)
-        assert spec.degrade_on_confirmed_quiescent_refusal is True
+        assert spec.allow_scoped_degradation is True
 
     def test_unset_resolves_to_true_for_temporary_and_warns(self) -> None:
-        with pytest.warns(UserWarning, match="degrade_on_confirmed_quiescent_refusal"):
+        with pytest.warns(UserWarning, match="allow_scoped_degradation"):
             spec = RestartSpec(restart_type=RestartType.TEMPORARY)
-        assert spec.degrade_on_confirmed_quiescent_refusal is True
+        assert spec.allow_scoped_degradation is True
 
     def test_unset_resolves_to_false_for_permanent_without_warning(self) -> None:
         with warnings.catch_warnings():
             warnings.simplefilter("error", UserWarning)
             spec = RestartSpec(restart_type=RestartType.PERMANENT)
-        assert spec.degrade_on_confirmed_quiescent_refusal is False
+        assert spec.allow_scoped_degradation is False
 
     def test_explicit_true_is_stored_without_warning(self) -> None:
         with warnings.catch_warnings():
             warnings.simplefilter("error", UserWarning)
-            spec = RestartSpec(restart_type=RestartType.TRANSIENT, degrade_on_confirmed_quiescent_refusal=True)
-        assert spec.degrade_on_confirmed_quiescent_refusal is True
+            spec = RestartSpec(restart_type=RestartType.TRANSIENT, allow_scoped_degradation=True)
+        assert spec.allow_scoped_degradation is True
 
     def test_explicit_false_is_stored_without_warning(self) -> None:
         with warnings.catch_warnings():
             warnings.simplefilter("error", UserWarning)
-            spec = RestartSpec(restart_type=RestartType.TRANSIENT, degrade_on_confirmed_quiescent_refusal=False)
-        assert spec.degrade_on_confirmed_quiescent_refusal is False
+            spec = RestartSpec(restart_type=RestartType.TRANSIENT, allow_scoped_degradation=False)
+        assert spec.allow_scoped_degradation is False
 
 
 class TestSinglePointOfFailureRestart:
@@ -184,7 +184,7 @@ class TestSinglePointOfFailureRestart:
         with warnings.catch_warnings():
             warnings.simplefilter("error", UserWarning)
             spec = RestartSpec.single_point_of_failure(restart_type=RestartType.TRANSIENT)
-        assert spec.degrade_on_confirmed_quiescent_refusal is False
+        assert spec.allow_scoped_degradation is False
 
     def test_other_overrides_pass_through(self) -> None:
         spec = RestartSpec.single_point_of_failure(

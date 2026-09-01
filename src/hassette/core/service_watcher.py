@@ -389,7 +389,7 @@ class ServiceWatcher(Resource):
         Shared by both restart() call sites (cooldown-triggered and backoff-triggered) so the
         routing decision -- and the exact condition under which each is used -- has one definition.
         """
-        if error.report.is_timeout_only_refusal and spec.degrade_on_confirmed_quiescent_refusal:
+        if error.report.is_timeout_only_refusal and spec.allow_scoped_degradation:
             await self.handle_timeout_only_refusal(name, role, service, error)
         else:
             await self.handle_restart_refused(name, role, error)

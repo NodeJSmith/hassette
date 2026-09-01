@@ -53,11 +53,11 @@ class Service(Resource):
 
     role: ClassVar[ResourceRole] = ResourceRole.SERVICE
 
-    # degrade_on_confirmed_quiescent_refusal set explicitly (matching its own True default) so
+    # allow_scoped_degradation set explicitly (matching its own True default) so
     # this shared fallback instance doesn't trigger RestartSpec's own "field left unset" warning
     # at import time -- __init_subclass__ below already warns, by subclass name, when a concrete
     # Service actually relies on this fallback instead of declaring its own restart_spec.
-    restart_spec: ClassVar[RestartSpec] = RestartSpec(degrade_on_confirmed_quiescent_refusal=True)
+    restart_spec: ClassVar[RestartSpec] = RestartSpec(allow_scoped_degradation=True)
     """Restart strategy for this service. Declare on each concrete subclass."""
 
     _serve_task: asyncio.Task | None = None
@@ -130,10 +130,10 @@ class Service(Resource):
         """NOTE: keep hook ordering in sync with Resource._shutdown_body()."""
         reports: list[TeardownReport] = []
 
-        hook_errors = await run_hooks(
+        before_shutdown_errors = await run_hooks(
             self, [self.before_shutdown], continue_on_error=True, bound_to_shutdown_budget=True
         )
-        if hook_errors:
+        if before_shutdown_errors:
             reports.append(
                 TeardownReport(causes=(TeardownCause.SHUTDOWN_HOOK_FAILED,), failed_operations=("before_shutdown",))
             )
@@ -166,14 +166,17 @@ class Service(Resource):
                 with suppress(BaseException):
                     self._serve_task.exception()
 
-        hook_errors = await run_hooks(
+        on_shutdown_errors = await run_hooks(
             self, [self.on_shutdown, self.after_shutdown], continue_on_error=True, bound_to_shutdown_budget=True
         )
-        # Marks that on_shutdown() -- where most resources release what they hold -- had its
-        # chance to run before whatever comes next. See _shutdown_hooks_completed's docstring
-        # (mixins.py) for how the shutdown coordinator uses this on a body timeout.
-        self._shutdown_hooks_completed = True
-        if hook_errors:
+        # True only when every shutdown hook -- before_shutdown above included -- ran without
+        # raising. A handled hook failure is real negative evidence, not just "still running"; if
+        # the post-hook stage below then hangs past the outer deadline, this whole body task gets
+        # cancelled before ever returning its report, silently losing that evidence unless this
+        # stays False. See _shutdown_hooks_completed's docstring (mixins.py) for how the shutdown
+        # coordinator uses this on a body timeout.
+        self._shutdown_hooks_completed = not before_shutdown_errors and not on_shutdown_errors
+        if on_shutdown_errors:
             reports.append(
                 TeardownReport(causes=(TeardownCause.SHUTDOWN_HOOK_FAILED,), failed_operations=("shutdown_hooks",))
             )

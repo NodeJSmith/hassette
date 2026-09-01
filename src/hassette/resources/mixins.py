@@ -180,20 +180,25 @@ class LifecycleMixin(_LifecycleHostP):
     """
 
     _shutdown_hooks_completed: bool = False
-    """Whether ``before_shutdown``/``on_shutdown``/``after_shutdown`` finished running during the
-    current shutdown attempt -- set by ``_shutdown_body()`` (``Resource``/``Service``) right after
-    its ``run_hooks()`` call returns, before the post-hook stage (task-bucket cancel, ``cleanup()``,
-    child propagation) starts.
+    """Whether ``before_shutdown``/``on_shutdown``/``after_shutdown`` all finished running
+    *without raising* during the current shutdown attempt -- set by ``_shutdown_body()``
+    (``Resource``/``Service``) right after its ``run_hooks()`` call(s) return, before the
+    post-hook stage (task-bucket cancel, ``cleanup()``, child propagation) starts. A handled hook
+    failure (``continue_on_error=True`` lets ``run_hooks()`` return normally even after one
+    raises) keeps this ``False`` -- see the comment at each set site for why: that failure's
+    ``SHUTDOWN_HOOK_FAILED`` evidence lives only in a local variable until ``_shutdown_body()``
+    returns, and a body cancelled by the coordinator's own timeout never returns it.
 
     Read by ``_run_shutdown_coordinator()`` (``hassette.resources.lifecycle``) when a shutdown body
     times out, to decide whether ``_force_terminal()`` may suppress ``FORCED_TERMINAL`` on this
     resource's own report (``record_cause=False``). ``on_shutdown()`` is where most resources
     release what they hold (bus subscriptions, scheduled jobs, sockets) -- if the hooks never
-    finished, that release logic never ran, and ``_force_terminal()``'s cascade (which skips hooks
-    entirely) can't be trusted not to leave something dangling. Once hooks have completed, whatever
-    remains (task-bucket cancellation, ``cleanup()``, child shutdown) already produces its own
-    evidence through the normal paths, so suppressing ``FORCED_TERMINAL`` there adds no missing
-    safety information.
+    finished cleanly, that release logic either never ran or ran into a real failure, and
+    ``_force_terminal()``'s cascade (which skips hooks entirely) can't be trusted not to leave
+    something dangling either way. Once hooks have completed cleanly, whatever remains
+    (task-bucket cancellation, ``cleanup()``, child shutdown) already produces its own evidence
+    through the normal paths, so suppressing ``FORCED_TERMINAL`` there adds no missing safety
+    information.
     """
 
     _teardown_report: TeardownReport | None = None

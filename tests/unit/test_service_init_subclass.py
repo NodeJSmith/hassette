@@ -29,12 +29,12 @@ class TestServiceSubclassWarning:
             warnings.simplefilter("error", UserWarning)
 
             class _WithSpec(Service):
-                restart_spec = RestartSpec(degrade_on_confirmed_quiescent_refusal=True)
+                restart_spec = RestartSpec(allow_scoped_degradation=True)
 
                 async def serve(self) -> None:
                     pass
 
-        assert _WithSpec.restart_spec == RestartSpec(degrade_on_confirmed_quiescent_refusal=True)
+        assert _WithSpec.restart_spec == RestartSpec(allow_scoped_degradation=True)
 
 
 class TestAbstractServiceNoWarning:

@@ -856,15 +856,18 @@ async def _run_shutdown_coordinator(resource: "LifecycleMixin") -> TeardownRepor
             )
             report = TeardownReport(causes=(TeardownCause.SHUTDOWN_BODY_TIMED_OUT,))
             # record_cause tracks whether the body's shutdown hooks (before_shutdown/on_shutdown/
-            # after_shutdown -- where most resources release what they hold) already ran. If they
-            # did, _force_terminal()'s cascade only cuts short task-bucket cancellation/cleanup()/
-            # child propagation, each of which already produces its own evidence through the normal
-            # paths -- adding FORCED_TERMINAL on top would only push this report outside
-            # TIMEOUT_ONLY_CAUSES and make is_timeout_only_refusal unreachable for this path. If
-            # they did NOT run, _force_terminal() skips them for good (it never calls on_shutdown()
-            # itself), so whatever that resource holds may never be released for the rest of the
-            # process's life -- record FORCED_TERMINAL for real so this escalates instead of
-            # silently degrading. See _shutdown_hooks_completed's docstring (mixins.py).
+            # after_shutdown -- where most resources release what they hold) already ran to
+            # completion *without raising*. If they did, _force_terminal()'s cascade only cuts
+            # short task-bucket cancellation/cleanup()/child propagation, each of which already
+            # produces its own evidence through the normal paths -- adding FORCED_TERMINAL on top
+            # would only push this report outside TIMEOUT_ONLY_CAUSES and make
+            # is_timeout_only_refusal unreachable for this path. If they did NOT run cleanly --
+            # never got a chance to run, or one of them raised -- _force_terminal() skips them for
+            # good (it never calls on_shutdown() itself) and a raised hook's own evidence would
+            # otherwise be lost when this cancelled body never returns it, so whatever that
+            # resource holds may never be released for the rest of the process's life -- record
+            # FORCED_TERMINAL for real so this escalates instead of silently degrading. See
+            # _shutdown_hooks_completed's docstring (mixins.py).
             resource._force_terminal(record_cause=not resource._shutdown_hooks_completed)
             # _force_terminal() cascades into every descendant (each stamped FORCED_TERMINAL on
             # its own report), but the abandoned body never reached its own _shutdown_children()

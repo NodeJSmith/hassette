@@ -148,7 +148,7 @@ class DatabaseService(Service):
         # Losing this service degrades telemetry/dashboard queries to 503 (see design/specs/106's
         # "Known downstream degradation") -- HA state lives in StateProxy, not here, so event
         # handling and automations keep running. Keeps the default.
-        degrade_on_confirmed_quiescent_refusal=True,
+        allow_scoped_degradation=True,
     )
 
     _db: aiosqlite.Connection | None

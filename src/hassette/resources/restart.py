@@ -54,7 +54,7 @@ class RestartSpec:
     max_cooldown_cycles: int = 0
     """Maximum cooldown cycles before transitioning to EXHAUSTED_DEAD. 0 = infinite."""
 
-    degrade_on_confirmed_quiescent_refusal: bool | None = None
+    allow_scoped_degradation: bool | None = None
     """Whether a timeout-only restart refusal, once confirmed quiescent, degrades just this service
     to EXHAUSTED_DEAD instead of escalating to root shutdown. False for services where running the
     rest of the framework without this one is worse than a clean restart.
@@ -73,12 +73,12 @@ class RestartSpec:
     """
 
     def __post_init__(self) -> None:
-        if self.degrade_on_confirmed_quiescent_refusal is None:
+        if self.allow_scoped_degradation is None:
             resolved = self.restart_type is not RestartType.PERMANENT
             if resolved:
                 warnings.warn(
                     f"RestartSpec(restart_type={self.restart_type.value}) does not explicitly set "
-                    "degrade_on_confirmed_quiescent_refusal -- defaulting to True. If this service "
+                    "allow_scoped_degradation -- defaulting to True. If this service "
                     "is a single point of failure where running the framework without it is worse "
                     "than a clean restart (e.g. the sole connection to Home Assistant, or the sole "
                     "dashboard/REST interface), set it to False explicitly -- see "
@@ -86,7 +86,7 @@ class RestartSpec:
                     UserWarning,
                     stacklevel=2,
                 )
-            object.__setattr__(self, "degrade_on_confirmed_quiescent_refusal", resolved)
+            object.__setattr__(self, "allow_scoped_degradation", resolved)
 
     @classmethod
     def single_point_of_failure(
@@ -117,7 +117,7 @@ class RestartSpec:
             budget_intensity=budget_intensity,
             budget_period_seconds=budget_period_seconds,
             startup_timeout_seconds=startup_timeout_seconds,
-            degrade_on_confirmed_quiescent_refusal=False,
+            allow_scoped_degradation=False,
         )
 
 
@@ -125,5 +125,5 @@ CORE_PERMANENT_RESTART = RestartSpec(
     restart_type=RestartType.PERMANENT,
     budget_intensity=2,
     budget_period_seconds=30,
-    degrade_on_confirmed_quiescent_refusal=False,
+    allow_scoped_degradation=False,
 )
