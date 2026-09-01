@@ -95,7 +95,6 @@ stateDiagram-v2
     EXHAUSTED_DEAD --> [*]
     STOPPED --> [*]
     STOPPED --> EXHAUSTED_DEAD : timeout-only refusal, confirmed quiescent (TRANSIENT/TEMPORARY)
-    STOPPED --> CRASHED : restart refused, not confirmed quiescent
 ```
 
 `NOT_STARTED` is the initial state. `STARTING` covers the period from `initialize()` entry through lifecycle hook execution. `RUNNING` is the normal operating state. For services, it persists for the lifetime of the `serve()` loop. `STOPPING` and `STOPPED` represent clean shutdown. `FAILED` is a transient state. `ServiceWatcher` acts on it immediately and moves the service forward. `CRASHED` and `EXHAUSTED_DEAD` are terminal states from which no recovery occurs. `EXHAUSTED_COOLING` is a waiting state. The service re-enters `STARTING` after the cooldown period completes.
