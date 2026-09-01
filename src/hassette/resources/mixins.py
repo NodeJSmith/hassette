@@ -48,7 +48,12 @@ VALID_TRANSITIONS: dict[ResourceStatus, frozenset[ResourceStatus]] = {
         }
     ),
     ResourceStatus.STOPPING: frozenset({ResourceStatus.STOPPED, ResourceStatus.FAILED}),
-    ResourceStatus.STOPPED: frozenset({ResourceStatus.STARTING}),  # restart
+    ResourceStatus.STOPPED: frozenset(
+        {
+            ResourceStatus.STARTING,  # restart
+            ResourceStatus.EXHAUSTED_DEAD,  # confirmed-quiescent timeout-only refusal
+        }
+    ),
     ResourceStatus.FAILED: frozenset(
         {
             ResourceStatus.STARTING,  # restart
@@ -82,6 +87,7 @@ class _TaskBucketP(Protocol):
     def cancel_all_sync(self) -> None: ...
     async def cancel_all(self, *, timeout: float | None = None) -> "tuple[str, ...]": ...
     def reopen(self) -> None: ...
+    def pending_task_names(self) -> tuple[str, ...]: ...
 
 
 class _LifecycleConfigP(Protocol):

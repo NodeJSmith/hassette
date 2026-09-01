@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Add is_teardown_confirmed_quiescent lifecycle helper"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#2", "AC#2"]
 ---

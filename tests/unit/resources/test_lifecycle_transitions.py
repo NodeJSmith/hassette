@@ -314,6 +314,20 @@ async def test_running_to_stopped_direct_is_valid():
     assert resource.status == ResourceStatus.STOPPED
 
 
+async def test_stopped_to_exhausted_dead_is_valid():
+    """STOPPED → EXHAUSTED_DEAD is valid: a confirmed-quiescent timeout-only restart refusal
+    transitions from STOPPED (the status resource.shutdown() always leaves a resource in),
+    not FAILED. Must succeed without raising under strict_lifecycle=True.
+    """
+    hassette = make_mock_hassette(strict_lifecycle=True, sealed=False)
+    resource = ConcreteResource(hassette)
+    resource._status = ResourceStatus.STOPPED
+
+    resource.status = ResourceStatus.EXHAUSTED_DEAD
+
+    assert resource.status == ResourceStatus.EXHAUSTED_DEAD
+
+
 @pytest.mark.parametrize("terminal", [ResourceStatus.STOPPED, ResourceStatus.EXHAUSTED_DEAD])
 async def test_handle_failed_on_terminal_resource_is_noop(terminal: ResourceStatus):
     """handle_failed() on an already-terminal resource is a no-op, even in strict mode.

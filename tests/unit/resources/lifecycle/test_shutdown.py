@@ -20,7 +20,7 @@ import pytest
 from hassette.exceptions import LifecycleReentryError, RestartRefusedError
 from hassette.resources import lifecycle
 from hassette.resources.base import Resource
-from hassette.resources.lifecycle import compute_shutdown_budget, start
+from hassette.resources.lifecycle import compute_shutdown_budget, is_teardown_confirmed_quiescent, start
 from hassette.resources.operations import ordered_children_for_shutdown
 from hassette.resources.teardown import TeardownCause, TeardownReport
 from hassette.task_bucket import make_task_factory
@@ -965,3 +965,69 @@ async def test_multiple_hanging_hooks_cannot_starve_mandatory_tail():
     assert elapsed < 5.5, (
         f"total shutdown must stay within the 5.0s coordinator budget (with margin) — took {elapsed:.2f}s"
     )
+
+
+async def test_confirmed_quiescent_true_when_nothing_tracked():
+    """A resource with an empty task_bucket and no _shutdown_body_task is confirmed quiescent."""
+    hassette = make_mock_hassette(sealed=False)
+    resource = ConcreteResource(hassette)
+
+    assert resource._shutdown_body_task is None
+    assert is_teardown_confirmed_quiescent(resource) is True
+
+
+async def test_confirmed_quiescent_false_while_task_bucket_task_pending():
+    """A task still tracked in task_bucket (not yet done) means not confirmed quiescent -- and
+    becomes confirmed quiescent once that task actually completes.
+
+    Uses an event-gated task so the test controls exactly when it finishes, per this project's
+    regression test conventions (no asyncio.sleep()-based "still running" faking).
+    """
+    hassette = make_mock_hassette(sealed=False)
+    resource = ConcreteResource(hassette)
+
+    gate = asyncio.Event()
+    entered = asyncio.Event()
+
+    async def _gated() -> None:
+        entered.set()
+        await gate.wait()
+
+    # A plain make_mock_hassette() resource never installs the loop's custom TaskBucket task
+    # factory (only HassetteHarness/real Hassette.run() do) -- task_bucket.spawn()'s fast path
+    # relies on that factory to auto-register the task, so it would silently create an untracked
+    # task here. Create the task directly and register it via add() instead, matching
+    # test_task_bucket_shutdown_stage_seals_before_cleanup_and_records_pending_tasks above.
+    task = asyncio.create_task(_gated(), name="gated-task")
+    resource.task_bucket.add(task)
+    await asyncio.wait_for(entered.wait(), timeout=1)
+
+    assert is_teardown_confirmed_quiescent(resource) is False
+
+    gate.set()
+    await task
+
+    assert is_teardown_confirmed_quiescent(resource) is True
+
+
+async def test_confirmed_quiescent_false_while_shutdown_body_task_pending():
+    """A resource with _shutdown_body_task set to an incomplete task is not confirmed quiescent
+    -- and becomes confirmed quiescent once that task completes.
+    """
+    hassette = make_mock_hassette(sealed=False)
+    resource = ConcreteResource(hassette)
+
+    gate = asyncio.Event()
+
+    async def _gated_body() -> None:
+        await gate.wait()
+
+    body_task = lifecycle.create_lifecycle_task(_gated_body(), name="fake-shutdown-body")
+    resource._shutdown_body_task = body_task
+
+    assert is_teardown_confirmed_quiescent(resource) is False
+
+    gate.set()
+    await body_task
+
+    assert is_teardown_confirmed_quiescent(resource) is True

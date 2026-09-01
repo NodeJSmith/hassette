@@ -465,6 +465,21 @@ def reject_lifecycle_reentry(resource: _LifecycleHostP, method_name: str) -> Non
         raise LifecycleReentryError(resource.unique_name, method_name)
 
 
+def is_teardown_confirmed_quiescent(resource: _LifecycleHostP) -> bool:
+    """Return True if nothing tracked from the resource's last teardown attempt is still running.
+
+    Checks the resource's task_bucket for any pending task names and its shutdown-body task (if
+    any) for completion. Both reflect *live* state, not a frozen snapshot from when a
+    TeardownReport was generated -- every tracked task is discarded from the bucket the moment it
+    actually finishes (see TaskBucket's done-callback in task_bucket.py), and _shutdown_body_task
+    is never reset to None, so this can be polled safely at any point after teardown to confirm --
+    rather than assume -- that a timeout-only refusal has actually resolved.
+    """
+    resource = typing.cast("LifecycleMixin", resource)
+    body_task = resource._shutdown_body_task
+    return not resource.task_bucket.pending_task_names() and (body_task is None or body_task.done())
+
+
 def create_lifecycle_task(coro: "Coroutine[Any, Any, Any]", *, name: str) -> asyncio.Task:
     """Create a lifecycle-owned task outside TaskBucket ownership.
 
