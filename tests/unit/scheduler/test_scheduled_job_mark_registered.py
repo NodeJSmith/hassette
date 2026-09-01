@@ -1,6 +1,6 @@
 """Tests for Job.mark_registered — one-time db_id assignment.
 
-Mirrors tests/integration/test_listeners.py::TestMarkRegistered. The scheduler
+Mirrors tests/integration/test_listeners_validation.py::TestMarkRegistered. The scheduler
 keeps the first db_id (first call wins); the second call now also logs a WARNING
 so a double-registration anomaly is surfaced rather than silently swallowed.
 """
