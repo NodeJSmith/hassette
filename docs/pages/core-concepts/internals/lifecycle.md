@@ -71,6 +71,7 @@ Backoff between restart attempts uses exponential growth: `backoff_base_seconds 
 | `max_cooldown_cycles` | `int` | `0` | Maximum cooldown cycles before `EXHAUSTED_DEAD`. `0` means infinite. |
 | `non_retryable_error_names` | `tuple[str, ...]` | `()` | Exception names that skip restart and go directly to exhaustion. |
 | `fatal_error_names` | `tuple[str, ...]` | `()` | Exception names that trigger immediate shutdown. |
+| `degrade_on_confirmed_quiescent_refusal` | `bool` | `True` | Whether a timeout-only restart refusal, once confirmed quiescent, degrades just this service to `EXHAUSTED_DEAD` instead of escalating to root shutdown. |
 
 ## Resource State Machine
 
@@ -93,6 +94,8 @@ stateDiagram-v2
     CRASHED --> [*]
     EXHAUSTED_DEAD --> [*]
     STOPPED --> [*]
+    STOPPED --> EXHAUSTED_DEAD : timeout-only refusal, confirmed quiescent (TRANSIENT/TEMPORARY)
+    STOPPED --> CRASHED : restart refused, not confirmed quiescent
 ```
 
 `NOT_STARTED` is the initial state. `STARTING` covers the period from `initialize()` entry through lifecycle hook execution. `RUNNING` is the normal operating state. For services, it persists for the lifetime of the `serve()` loop. `STOPPING` and `STOPPED` represent clean shutdown. `FAILED` is a transient state. `ServiceWatcher` acts on it immediately and moves the service forward. `CRASHED` and `EXHAUSTED_DEAD` are terminal states from which no recovery occurs. `EXHAUSTED_COOLING` is a waiting state. The service re-enters `STARTING` after the cooldown period completes.
@@ -189,17 +192,46 @@ full report, and no initialization work starts. There is no in-process way to cl
 restart-unsafe report on the same object — not through `restart()`, not through a test-reset helper.
 Once shutdown fails to prove safety, that object is done recovering on its own.
 
-`ServiceWatcher` treats `RestartRefusedError` as a fatal outcome rather than an ordinary restart
-failure: it records a fatal reason, requests shutdown of the whole process directly (not only
-through event delivery), and makes one best-effort attempt to emit a `CRASHED` event. It does not
-retry, enter cooldown, or attempt another restart for that service.
+`ServiceWatcher` does not treat every `RestartRefusedError` identically. It first classifies the
+refusing `TeardownReport`: a report is *timeout-only* when every cause it carries is one of
+`CLEANUP_TIMED_OUT`, `TASKS_PENDING`, `SERVE_TASK_PENDING`, or `SHUTDOWN_BODY_TIMED_OUT` — shutdown
+ran out of time, not something that actively failed. Any other cause (a shutdown hook raising, a
+child forced terminal, the coordinator itself failing) skips straight to the fatal path described
+below.
+
+For a timeout-only refusal on a service whose `restart_spec.degrade_on_confirmed_quiescent_refusal`
+is `True` — the default for `TRANSIENT` and `TEMPORARY` services — `ServiceWatcher` waits before
+deciding anything. It polls the resource's task bucket and shutdown-body task for up to half of
+`resource_shutdown_timeout_seconds`, checking whether everything from the failed teardown attempt
+has actually finished in the meantime. The wait is bounded to half the original timeout because
+that full timeout already elapsed once discovering the resource wouldn't die cleanly; reusing it
+again would let a genuinely stuck resource take twice as long to reach root shutdown.
+
+If that wait confirms nothing is still running, `ServiceWatcher` marks only that one service
+`EXHAUSTED_DEAD` and emits the corresponding status event. Every other service and app keeps
+running untouched — no root shutdown occurs. If the wait times out without confirming quiescence,
+the service falls back to today's fatal path: `ServiceWatcher` records a fatal reason, requests
+shutdown of the whole process directly (not only through event delivery), and makes one
+best-effort attempt to emit a `CRASHED` event.
+
+That same fatal path is also what happens for a refusal that isn't timeout-only, and for any
+service that opts out of the degrade path by setting `degrade_on_confirmed_quiescent_refusal` to
+`False`. `BusService`, `SchedulerService`, and `SyncExecutorService` opt out because they're
+`PERMANENT` — Hassette treats losing one of them as worse than a clean restart.
+`WebsocketService` opts out too, despite being `TRANSIENT`: it's the framework's sole connection
+to Home Assistant, and letting it sit at `EXHAUSTED_DEAD` while every other service keeps
+reporting healthy would leave Hassette running with no path back to HA for the rest of the
+process's life.
 
 !!! warning
     Restart refusal cannot stop a coroutine or thread that ignores cancellation — Python
-    cancellation is cooperative. Refusal prevents the *same object* from starting a second
-    incarnation in the *same process*; it does not, and cannot, guarantee that the process itself
-    exits. Process replacement after refusal is the embedding host or supervisor's responsibility
-    (systemd, Docker, or equivalent), not something Hassette enforces on its own.
+    cancellation is cooperative. This is exactly why the confirmation wait above is bounded rather
+    than indefinite: a task that never responds to cancellation will never confirm quiescent, so
+    the wait has to give up and fall back to root shutdown rather than block forever. Refusal
+    prevents the *same object* from starting a second incarnation in the *same process*; it does
+    not, and cannot, guarantee that the process itself exits. Process replacement after refusal is
+    the embedding host or supervisor's responsibility (systemd, Docker, or equivalent), not
+    something Hassette enforces on its own.
 
 ### Lifecycle re-entry
 

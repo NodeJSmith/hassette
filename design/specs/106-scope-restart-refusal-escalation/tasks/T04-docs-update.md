@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Update lifecycle docs for the new restart-refusal decision flow"
-status: "planned"
+status: "done"
 depends_on: ["T03"]
 implements: ["FR#6"]
 ---
