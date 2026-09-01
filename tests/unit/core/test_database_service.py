@@ -143,6 +143,29 @@ async def test_force_terminal_cancels_untracked_db_worker(
     assert task.cancelled()
 
 
+async def test_has_untracked_teardown_work_pending_while_worker_still_cancelling(
+    initialized_service_with_worker: DatabaseService,
+) -> None:
+    """_has_untracked_teardown_work_pending() must see the untracked worker task as still
+    pending immediately after _force_terminal() cancels it. cancel() only requests cancellation
+    -- it does not complete synchronously -- so is_teardown_confirmed_quiescent() (which calls
+    this hook) must not confirm quiescence while the worker is still unwinding and touching the
+    force-closed queue/connections.
+    """
+    service = initialized_service_with_worker
+    task = service._db_worker_task
+    assert task is not None
+
+    service._force_terminal()
+
+    assert service._has_untracked_teardown_work_pending() is True
+
+    with contextlib.suppress(asyncio.CancelledError):
+        await task
+
+    assert service._has_untracked_teardown_work_pending() is False
+
+
 async def test_force_terminal_drains_write_queue(
     initialized_service_with_worker: DatabaseService,
 ) -> None:

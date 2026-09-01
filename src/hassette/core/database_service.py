@@ -317,6 +317,17 @@ class DatabaseService(Service):
             setattr(self, attr, None)
         super()._force_terminal(record_cause=record_cause)
 
+    def _has_untracked_teardown_work_pending(self) -> bool:
+        """``_db_worker_task`` bypasses TaskBucket entirely (see ``on_initialize()``), so
+        ``is_teardown_confirmed_quiescent()``'s default TaskBucket/``_shutdown_body_task`` checks
+        never see it. ``_force_terminal()`` above only calls ``.cancel()`` without awaiting
+        completion, so the worker can still be mid-cancellation -- still touching the force-closed
+        queue/connections -- for a moment after force-terminal returns. Without this override, a
+        confirmed-quiescent timeout-only refusal could fire while that cancellation is still in
+        flight.
+        """
+        return self._db_worker_task is not None and not self._db_worker_task.done()
+
     async def serve(self) -> None:
         """Run the heartbeat, retention, and size failsafe loop until shutdown."""
         mark_ready(self, reason="Database service started")

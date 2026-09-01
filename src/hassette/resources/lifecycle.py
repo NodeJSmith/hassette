@@ -469,24 +469,54 @@ def is_teardown_confirmed_quiescent(resource: _LifecycleHostP) -> bool:
     """Return True if nothing tracked from the resource's (or any descendant's) last teardown
     attempt is still running.
 
-    Checks the resource's task_bucket for any pending task names and its shutdown-body task (if
-    any) for completion, then recurses into ``resource.children`` -- matching the granularity of
-    the classification that gates this check: ``TeardownReport.is_timeout_only_refusal`` is
-    computed over a report that already folds in every child's causes (see
-    ``shutdown_batch()``/``finalize_shutdown_report()`` in ``operations.py``), so a service with a
-    child resource (e.g. ``WebApiService``'s ``Scheduler``) must have its confirmation checked at
-    the same subtree scope or a recoverable timeout in the child would never be confirmable. All of
-    this reflects *live* state, not a frozen snapshot from when a TeardownReport was generated --
-    every tracked task is discarded from its bucket the moment it actually finishes (see
-    TaskBucket's done-callback in task_bucket.py), and ``_shutdown_body_task`` is never reset to
-    None, so this can be polled safely at any point after teardown to confirm -- rather than
-    assume -- that a timeout-only refusal has actually resolved.
+    Checks the resource's task_bucket for any pending task names, its shutdown-body task (if any)
+    for completion, and ``_has_untracked_teardown_work_pending()`` (for lifecycle-owned work that
+    deliberately bypasses TaskBucket, e.g. ``DatabaseService._db_worker_task``), then recurses into
+    ``resource.children`` -- matching the granularity of the classification that gates this check:
+    ``TeardownReport.is_timeout_only_refusal`` is computed over a report that already folds in
+    every child's causes (see ``shutdown_batch()``/``finalize_shutdown_report()`` in
+    ``operations.py``), so a service with a child resource (e.g. ``WebApiService``'s ``Scheduler``)
+    must have its confirmation checked at the same subtree scope or a recoverable timeout in the
+    child would never be confirmable. All of this reflects *live* state, not a frozen snapshot from
+    when a TeardownReport was generated -- every tracked task is discarded from its bucket the
+    moment it actually finishes (see TaskBucket's done-callback in task_bucket.py), and
+    ``_shutdown_body_task`` is never reset to None, so this can be polled safely at any point after
+    teardown to confirm -- rather than assume -- that a timeout-only refusal has actually resolved.
     """
     resource = typing.cast("LifecycleMixin", resource)
     body_task = resource._shutdown_body_task
-    if resource.task_bucket.pending_task_names() or (body_task is not None and not body_task.done()):
+    if (
+        resource.task_bucket.pending_task_names()
+        or (body_task is not None and not body_task.done())
+        or resource._has_untracked_teardown_work_pending()
+    ):
         return False
     return all(is_teardown_confirmed_quiescent(child) for child in resource.children)
+
+
+def _collect_forced_descendant_evidence(
+    resource: "LifecycleMixin",
+) -> "tuple[list[TeardownReport], list[str]]":
+    """Recursively collect every descendant's own teardown report that is not restart-safe.
+
+    Unlike the normal ``shutdown_batch()``/``finalize_shutdown_report()`` path -- where each
+    level's own report already rolls up its children because a graceful ``shutdown()`` call
+    itself recurses through ``_shutdown_children()`` -- a ``_force_terminal()`` cascade only
+    records each level's own task-bucket evidence on that level's own report; it never folds a
+    child's outcome into its parent's. Called after ``resource._force_terminal()`` so every
+    descendant's report already reflects that cascade.
+    """
+    reports: list[TeardownReport] = []
+    affected: list[str] = []
+    for child in resource.children:
+        child_report = child._teardown_report
+        if child_report is not None and not child_report.is_restart_safe:
+            reports.append(child_report)
+            affected.append(child.unique_name)
+        nested_reports, nested_affected = _collect_forced_descendant_evidence(child)
+        reports.extend(nested_reports)
+        affected.extend(nested_affected)
+    return reports, affected
 
 
 def create_lifecycle_task(coro: "Coroutine[Any, Any, Any]", *, name: str) -> asyncio.Task:
@@ -828,6 +858,18 @@ async def _run_shutdown_coordinator(resource: "LifecycleMixin") -> TeardownRepor
             # False, so adding FORCED_TERMINAL too would only push this report outside
             # TIMEOUT_ONLY_CAUSES and make is_timeout_only_refusal unreachable for this path.
             resource._force_terminal(record_cause=False)
+            # _force_terminal() cascades into every descendant (each stamped FORCED_TERMINAL on
+            # its own report), but the abandoned body never reached its own _shutdown_children()
+            # stage -- the only place that normally folds a child's outcome into the parent's
+            # report (see shutdown_batch()/finalize_shutdown_report() in operations.py). Without
+            # this, a resource with force-terminated, hook-skipped children could still classify
+            # as is_timeout_only_refusal and degrade instead of escalating.
+            descendant_reports, unsafe_descendants = _collect_forced_descendant_evidence(resource)
+            if unsafe_descendants:
+                report = merge_teardown_reports(report, *descendant_reports)
+                report = add_teardown_evidence(
+                    report, causes=(TeardownCause.CHILD_RESTART_UNSAFE,), affected_resources=tuple(unsafe_descendants)
+                )
             if not body_task.done():
                 body_task.cancel()
                 # No separate SHUTDOWN_BODY_PENDING cause -- this branch is reached only when the

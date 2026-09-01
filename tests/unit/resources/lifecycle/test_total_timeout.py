@@ -254,3 +254,36 @@ async def test_non_root_with_same_timeouts_still_force_terminates(tmp_path):
     # FORCED_TERMINAL rode along too, is_timeout_only_refusal would be permanently unreachable.
     assert TeardownCause.FORCED_TERMINAL not in report.causes
     assert report.is_timeout_only_refusal is True
+
+
+async def test_body_timeout_folds_in_forced_children(tmp_path):
+    """A resource whose own body times out before ever reaching its children-shutdown stage
+    still force-terminates live children via _force_terminal()'s cascade -- their outcome must be
+    folded into the parent's report as CHILD_RESTART_UNSAFE, not silently discarded, or a parent
+    with force-terminated, hook-skipped children could misclassify as is_timeout_only_refusal.
+    """
+    hassette = make_mock_hassette(data_dir=tmp_path, sealed=False)
+    hassette.config.lifecycle.resource_shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
+    hassette.config.lifecycle.total_shutdown_timeout_seconds = 0.3
+
+    parent = SleepingChild(hassette)
+    parent._shutdown_sleep = 0.2  # longer than the 0.1s resource timeout -- never reaches children
+    child = parent.add_child(ShutdownCounter)
+
+    await parent.initialize()  # also initializes child (Resource._initialize_body() auto-inits children)
+
+    report = await parent.shutdown()
+
+    assert TeardownCause.SHUTDOWN_BODY_TIMED_OUT in report.causes
+    assert TeardownCause.CHILD_RESTART_UNSAFE in report.causes
+    assert child.unique_name in report.affected_resources
+    assert report.is_restart_safe is False
+    assert report.is_timeout_only_refusal is False, (
+        "a parent whose body timed out AND whose live child was force-terminated must not "
+        "classify as timeout-only -- the child's FORCED_TERMINAL evidence must block degrade"
+    )
+    assert child.shutdown_count == 0, "child was force-terminated, not gracefully shut down"
+
+    child_report = child.teardown_report
+    assert child_report is not None
+    assert TeardownCause.FORCED_TERMINAL in child_report.causes

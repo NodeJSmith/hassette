@@ -411,6 +411,18 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         for child in self.children:
             child._force_terminal()
 
+    def _has_untracked_teardown_work_pending(self) -> bool:
+        """Whether this resource has lifecycle-owned work still running outside TaskBucket and
+        ``_shutdown_body_task`` -- the two things ``is_teardown_confirmed_quiescent()`` checks by
+        default.
+
+        Always ``False`` here. Override when a subclass spawns a task that deliberately bypasses
+        TaskBucket (see ``DatabaseService._db_worker_task``): without this hook,
+        ``is_teardown_confirmed_quiescent()`` would have no way to see that task and could confirm
+        quiescence while it is still running.
+        """
+        return False
+
     async def _shutdown_children(self) -> TeardownReport:
         """Propagate shutdown to children and aggregate their teardown reports.
 

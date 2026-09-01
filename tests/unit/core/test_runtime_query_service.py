@@ -13,6 +13,8 @@ from hassette.events.hassette import (
     HassetteExecutionCompletedEvent,
     HassetteServiceEvent,
 )
+from hassette.resources.restart import RestartSpec
+from hassette.resources.service import Service
 from hassette.schemas.app_snapshots import AppFullSnapshot, AppStatusSnapshot
 from hassette.schemas.domain_models import SystemStatus
 from hassette.test_utils import create_app_manifest
@@ -21,6 +23,22 @@ from hassette.test_utils.web_manifest_helpers import make_app_instance_info, mak
 from hassette.types.enums import BlockReason, ResourceRole, ResourceStatus
 
 WS_QUEUE_MAX = 256
+
+
+class _DummyDeadService(Service):
+    """Minimal concrete Service standing in for a real EXHAUSTED_DEAD child in system-status
+    tests -- an internal collaborator, not a system boundary, so it should be real rather than
+    mocked (see references/common/testing.md, Mock at Boundaries Only).
+
+    Named distinctly from the real ``hassette.core.command_executor.CommandExecutor`` (which
+    this directory's other tests build via the ``make_executor``/``init_executor`` fixtures) so
+    this throwaway stand-in never reads as that real service.
+    """
+
+    restart_spec = RestartSpec()
+
+    async def serve(self) -> None:
+        await asyncio.Event().wait()
 
 
 async def assert_flushed_single_message(
@@ -584,12 +602,8 @@ class TestSystemStatus:
         runtime.hassette.websocket_service.is_connected = True
         runtime.hassette.websocket_service.has_ever_connected = True
 
-        dead_child = Mock()
+        dead_child = _DummyDeadService(runtime.hassette)
         dead_child.status = ResourceStatus.EXHAUSTED_DEAD
-        dead_child.class_name = "CommandExecutor"
-        dead_child.role = ResourceRole.SERVICE
-        dead_child._ready_reason = None
-        dead_child._retry_at = None
         runtime.hassette.children = [dead_child]
 
         status = runtime.get_system_status()
