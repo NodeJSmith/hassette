@@ -13,7 +13,7 @@ surface stable; only the definitions moved.
 - `lifecycle_service` — `AppLifecycleService` built from the mocks above
 - `telemetry_db`, `telemetry_repo`, `telemetry_session_id` — SQLite-backed telemetry test chain
 
-## Shared helpers (module-level functions, not fixtures)
+## Shared helpers and constants (module-level, not fixtures)
 
 - `set_registry_apps(registry, apps)` — configures a `mock_registry`'s `__contains__`, `app_keys()`, `get_running_apps()`, and `get()` from an `apps`-shaped dict (`dict[str, dict[int, App]]`); use instead of assigning `mock_registry.apps = ...` directly (that attribute no longer exists on the real `AppRegistry`)
 - `make_executor(**kw)` — real `CommandExecutor` with dependencies mocked out
@@ -25,6 +25,11 @@ surface stable; only the definitions moved.
 - `make_watcher(hassette)`, `make_watcher_hassette(**kw)` — `ServiceWatcher` test setup
 - `make_blocking_io_hassette(**kw)` — minimal mock Hassette for watchdog and monkeypatch guard tests
 - `make_marker_executor(**kw)` — mock executor with `ExecutionMarker` on `current_execution`
+- `assert_listener_count(db, listener_id, expected, message)` — assert the number of `listeners` rows with that id
+- `fetch_listener_field(db, listener_id, field)` — read one column from a `listeners` row
+- `insert_committed_execution(db, session_id, **kw)` — insert and commit an `executions` row (1ms, now)
+- `insert_new_session(db)` — insert a second `running` session row and return its id, for the once=True/previous-session reconciliation tests
+- `ONCE_LISTENER_NAME` — listener name shared by the once=True reconciliation tests in `test_telemetry_repository_reconcile.py` and `test_telemetry_repository_registration.py`
 
 ## Key conventions
 

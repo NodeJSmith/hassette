@@ -28,15 +28,30 @@ from ._fixtures_command_executor import (
     make_mock_cmd_listener,
 )
 from ._fixtures_service_watcher import DummyService, TempService, make_watcher, make_watcher_hassette
-from ._fixtures_telemetry import TELEMETRY_TEST_DDL, telemetry_db, telemetry_repo, telemetry_session_id
+from ._fixtures_telemetry import (
+    ONCE_LISTENER_NAME,
+    TELEMETRY_TEST_DDL,
+    assert_listener_count,
+    fetch_listener_field,
+    insert_committed_execution,
+    insert_new_session,
+    telemetry_db,
+    telemetry_repo,
+    telemetry_session_id,
+)
 
 __all__ = [
+    "ONCE_LISTENER_NAME",
     "TELEMETRY_TEST_DDL",
     "DummyService",
     "TempService",
     "app_handler",
     "app_handler_mock_hassette",
+    "assert_listener_count",
+    "fetch_listener_field",
     "init_executor",
+    "insert_committed_execution",
+    "insert_new_session",
     "lifecycle_service",
     "make_blocking_io_hassette",
     "make_bus_service",
