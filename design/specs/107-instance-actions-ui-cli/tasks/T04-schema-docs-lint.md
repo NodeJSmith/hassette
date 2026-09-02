@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Regenerate schemas, update docs, and verify build"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02", "T03"]
 implements: ["AC#13", "AC#14"]
 ---
