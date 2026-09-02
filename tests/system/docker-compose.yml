@@ -5,7 +5,7 @@ services:
     volumes:
       - ${HA_CONFIG_PATH:-../../tests/fixtures/ha-config}:/config
     ports:
-      - "18123:8123"
+      - "${SYSTEM_HA_PORT}:8123"
     restart: "no"
     # HA_ACCESS_TOKEN (.env, symlinked from scripts/docker/.env) must match the
     # token baked into tests/fixtures/ha-config/.storage/auth. conftest.py's
