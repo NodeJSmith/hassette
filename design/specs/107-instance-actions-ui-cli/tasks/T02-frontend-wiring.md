@@ -16,7 +16,7 @@ Wire the `instance` prop from T01 into the two page-level components that render
 - modify: `frontend/src/pages/apps-table-row.tsx`
 - modify: `frontend/src/pages/apps-table-row.test.tsx`
 - modify: `frontend/src/pages/app-detail.header.test.tsx`
-- create: E2E test case (in existing `tests/e2e/` file or new)
+- modify: `tests/e2e/test_app_detail.py`
 - read: `frontend/src/pages/app-detail.tsx`
 - read: `frontend/src/api/generated-types.ts`
 - read: `design/specs/107-instance-actions-ui-cli/design.md`

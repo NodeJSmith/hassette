@@ -37,7 +37,7 @@ Update `docs/pages/cli/commands.md`:
 
 2. **Per-command Flags table** (around line 150): Add entries showing `--instance` as accepted by `start`, `stop`, `reload` with action-appropriate wording: "Targets a specific app instance (index or name)" rather than the existing "Filters to..." used by read-only commands. Add `--yes` as accepted by `stop` and `reload` with description "Skip confirmation prompt".
 
-3. **Shared Flags table** (around line 347): Update the `--instance` entry to include `start`, `stop`, `reload` in its list of commands that accept it.
+3. **Shared Flags table** (around line 347): Update the `--instance` entry to include `start`, `stop`, `reload` in its list of commands that accept it, and update the description text to cover both uses: e.g., "Filters to (read commands) or targets (action commands) a specific app instance (index or name)."
 
 ### Build verification
 
