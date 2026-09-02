@@ -60,8 +60,12 @@ BRIEF_JOIN_BUDGET = 0.5
 #: blocking (instead of short-circuiting) is actually caught.
 FAST_RETURN_LIMIT = 0.5
 
-#: Fraction of the shutdown budget allowed as overshoot for scheduling jitter.
-SHUTDOWN_JITTER_MARGIN = 1.2
+#: Deliberately far larger than FAST_RETURN_LIMIT, so a regression that stops short-circuiting
+#: is caught by that assertion rather than masked by the timeout expiring first.
+GENEROUS_JOIN_TIMEOUT = 10.0
+
+#: Multiplier applied to the shutdown budget to allow overshoot for scheduling jitter.
+SHUTDOWN_JITTER_MULTIPLIER = 1.2
 
 
 def interrupt_and_join(thread: threading.Thread) -> None:
@@ -287,7 +291,7 @@ class TestInterruptibleThreadPoolExecutorShutdown:
         budget = 1.0
         elapsed = timed_shutdown(executor, budget)
 
-        limit = budget * SHUTDOWN_JITTER_MARGIN
+        limit = budget * SHUTDOWN_JITTER_MULTIPLIER
         assert elapsed < limit, f"shutdown() took {elapsed:.2f}s, expected < {limit:.2f}s"
 
     def test_shutdown_does_not_raise(self) -> None:
@@ -367,7 +371,7 @@ class TestInterruptibleThreadPoolExecutorShutdown:
         executor._threads = set(threads)  # pyright: ignore[reportAttributeAccessIssue]
 
         wall_start = time.monotonic()
-        executor.join_threads_or_timeout(timeout=10.0)
+        executor.join_threads_or_timeout(timeout=GENEROUS_JOIN_TIMEOUT)
         elapsed = time.monotonic() - wall_start
 
         # Must exit fast — all threads are already dead. Tight bound so a regression
