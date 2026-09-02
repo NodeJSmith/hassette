@@ -289,19 +289,19 @@ code-quality issue per `clean-code-findings.md` (`topic:code-quality`, Code Qual
 
 ## Slate
 
-| # | Severity | Finding | Proposed disposition |
+| # | Severity | Finding | Filed as (2026-09-02) |
 |---|---|---|---|
-| F1 | HIGH | Docker quick start loads zero apps (published image, live) | New issue, `priority:high` (Dockerfile + startup log + troubleshooting + compose snippet; uid-1000 note) |
-| F2 | HIGH | Counter shortcuts always rejected by real HA (live) | New issue, `priority:high` (+ system-test note) |
-| F3 | MEDIUM | Health endpoint 200-excellent for unknown app/instance (live) | Scope-extending comment on #1825 (server-side 404 + resolve_instance validation) |
-| F4 | MEDIUM | Raw traceback on malformed 2xx response (live) | New issue |
-| F5 | MEDIUM | `HASSETTE__LOG_LEVEL` no-op in docs; typo'd env vars swallowed | Two: docs one-liner + unconsumed-env-var warning enhancement |
-| F6 | MEDIUM | No `hassette init` / silent layout errors | **Discuss with Jessica** (init command yes/no; logging half folds into F1) |
-| F7 | LOW | 80-col truncation when piped | New issue (can bundle F8) |
-| F8 | LOW | `log --instance` phantom flag | Bundle with F7 |
-| F9 | LOW | `After` missing `hours=`, silent arg precedence | New issue |
-| F10 | LOW | helper_id vs entity_id undocumented; log-level asymmetry | New issue |
-| F13 | LOW | CLI dead code / SystemExit bypass | Code Quality issue |
+| F1 | HIGH | Docker quick start loads zero apps (published image, live) | **#1850** (`priority:high`; Dockerfile + startup log + troubleshooting + compose snippet; uid-1000 note) |
+| F2 | HIGH | Counter shortcuts always rejected by real HA (live) | **#1851** (`priority:high`; + system-test note) |
+| F3 | MEDIUM | Health endpoint 200-excellent for unknown app/instance (live) | Scope-extending comment on **#1825** (server-side 404 + resolve_instance validation) |
+| F4 | MEDIUM | Raw traceback on malformed 2xx response (live) | **#1852** |
+| F5 | MEDIUM | `HASSETTE__LOG_LEVEL` no-op in docs; typo'd env vars swallowed | **#1853** (docs fix) + **#1854** (unconsumed-env-var warning) |
+| F6 | MEDIUM | No `hassette init` / silent layout errors | Context comment on existing **#541** (Jessica's call: init command wanted; logging half folds into #1850) |
+| F7 | LOW | 80-col truncation when piped | **#1855** (bundled with F8) |
+| F8 | LOW | `log --instance` phantom flag | **#1855** (with F7) |
+| F9 | LOW | `After` missing `hours=`, silent arg precedence | **#1856** |
+| F10 | LOW | helper_id vs entity_id undocumented; log-level asymmetry | **#1857** |
+| F13 | LOW | CLI dead code / SystemExit bypass | **#1858** (Code Quality milestone) |
 
 Also absorbed by existing issues (no action): bare-401 wording → #1823; CLI app-table health
 visibility → #1825; log-table traceback framework-frame noise → #1832.
