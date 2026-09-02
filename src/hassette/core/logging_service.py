@@ -8,6 +8,7 @@ from typing import ClassVar
 
 from hassette.core.database_service import DatabaseService
 from hassette.logging_ import (
+    LOGGER_NAMES,
     CorrelationFilter,
     HassetteQueueHandler,
     HassetteQueueListener,
@@ -21,6 +22,29 @@ if typing.TYPE_CHECKING:
     from hassette import Hassette
 
 _QUEUE_LISTENER_STOP_TIMEOUT_SECONDS = 5.0
+
+
+def _get_loggers() -> list[logging.Logger]:
+    """The loggers this file keeps in sync — see LOGGER_NAMES in logging_.py."""
+    return [logging.getLogger(name) for name in LOGGER_NAMES]
+
+
+def _remove_stale_queue_handlers(loggers: list[logging.Logger]) -> None:
+    """Defensive cleanup: drop any leftover QueueHandler from a previous init."""
+    for logger in loggers:
+        for h in list(logger.handlers):
+            if isinstance(h, logging.handlers.QueueHandler):
+                logger.removeHandler(h)
+
+
+def _add_handler(loggers: list[logging.Logger], handler: logging.Handler) -> None:
+    for logger in loggers:
+        logger.addHandler(handler)
+
+
+def _remove_handler(loggers: list[logging.Logger], handler: logging.Handler) -> None:
+    for logger in loggers:
+        logger.removeHandler(handler)
 
 
 class LoggingService(Resource):
@@ -57,11 +81,9 @@ class LoggingService(Resource):
 
     async def on_initialize(self) -> None:
         """Upgrade logging from sync to async pipeline."""
-        hassette_logger = logging.getLogger("hassette")
+        loggers = _get_loggers()
 
-        for h in list(hassette_logger.handlers):
-            if isinstance(h, logging.handlers.QueueHandler):
-                hassette_logger.removeHandler(h)
+        _remove_stale_queue_handlers(loggers)
         if self._queue_listener is not None:
             with contextlib.suppress(Exception):
                 await asyncio.to_thread(self._queue_listener.stop)
@@ -95,9 +117,9 @@ class LoggingService(Resource):
         listener = HassetteQueueListener(q, *handlers)
 
         # Atomic swap: add QueueHandler FIRST, then remove StreamHandler
-        hassette_logger.addHandler(queue_handler)
+        _add_handler(loggers, queue_handler)
         if self._stream_handler is not None:
-            hassette_logger.removeHandler(self._stream_handler)
+            _remove_handler(loggers, self._stream_handler)
 
         listener.start()
 
@@ -109,12 +131,12 @@ class LoggingService(Resource):
     async def on_shutdown(self) -> None:
         """Stop the async logging pipeline and restore synchronous console logging."""
         self.capture_handler.shutting_down = True
-        hassette_logger = logging.getLogger("hassette")
+        loggers = _get_loggers()
 
         if self._queue_handler is not None:
-            hassette_logger.removeHandler(self._queue_handler)
+            _remove_handler(loggers, self._queue_handler)
         if self._stream_handler is not None:
-            hassette_logger.addHandler(self._stream_handler)
+            _add_handler(loggers, self._stream_handler)
 
         self.logger.warning("LoggingService shutting down — subsequent log records will be console-only")
 

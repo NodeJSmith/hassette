@@ -22,6 +22,14 @@ from hassette.context import CURRENT_EXECUTION_ID
 
 DEQUEUE_TIMEOUT_SECONDS = 0.2
 
+HASSETTE_LOGGER_NAME = "hassette"
+# logging.captureWarnings(True) routes warnings.warn(...) calls (e.g.
+# HassetteForgottenAwaitWarning) to this logger. It must stay wired to the same handlers
+# as HASSETTE_LOGGER_NAME — see enable_basic_logging() below and LoggingService in
+# logging_service.py, which keep both loggers in sync through both phases of the logging model.
+PY_WARNINGS_LOGGER_NAME = "py.warnings"
+LOGGER_NAMES = (HASSETTE_LOGGER_NAME, PY_WARNINGS_LOGGER_NAME)
+
 if TYPE_CHECKING:
     from hassette.core.database_service import DatabaseService
 
@@ -372,6 +380,16 @@ def _extract_record_fields(
     return event_dict
 
 
+def _reset_logger(name: str, level: int | str) -> logging.Logger:
+    """Return the named logger cleared of handlers/filters, non-propagating, at ``level``."""
+    logger = logging.getLogger(name)
+    logger.setLevel(level)
+    logger.propagate = False
+    logger.handlers.clear()
+    logger.filters.clear()
+    return logger
+
+
 def enable_basic_logging(
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
     *,
@@ -437,19 +455,27 @@ def enable_basic_logging(
         ],
     )
 
-    logger = logging.getLogger("hassette")
-    logger.setLevel(log_level)
-    logger.propagate = False
-    logger.handlers.clear()
-    logger.filters.clear()
+    logger = _reset_logger(HASSETTE_LOGGER_NAME, log_level)
 
     stream_handler = logging.StreamHandler(out)
     stream_handler.setLevel(logging.NOTSET)
     stream_handler.setFormatter(formatter)
     logger.addHandler(stream_handler)
 
-    # Capture warnings.warn(...) and friends messages in logs.
+    # Capture warnings.warn(...) and friends messages in logs. Route "py.warnings" through
+    # the same handler as "hassette" — otherwise captured warnings (e.g.
+    # HassetteForgottenAwaitWarning) reach a logger with no handlers of its own and, via
+    # propagation to root's unformatted lastResort handler, bypass the console formatter
+    # and never reach the capture/persistence pipeline. Fixed at WARNING rather than
+    # log_level: captureWarnings always emits at WARNING, so that's the only threshold
+    # that has any effect, and this must stay independent of log_level so raising
+    # log_level to reduce noise can't silently suppress HassetteForgottenAwaitWarning too —
+    # ForgottenAwaitBehavior.IGNORE is the intended lever for that.
+    # LoggingService.on_initialize()/on_shutdown() (Phase 2) mirror this same wiring for
+    # the async pipeline.
     logging.captureWarnings(True)
+    warnings_logger = _reset_logger(PY_WARNINGS_LOGGER_NAME, logging.WARNING)
+    warnings_logger.addHandler(stream_handler)
 
     # Suppress overly verbose logs from libraries that aren't helpful
     logging.getLogger("requests").setLevel(logging.WARNING)

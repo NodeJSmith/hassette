@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 from hassette.core.logging_service import LoggingService
 from hassette.logging_ import (
+    LOGGER_NAMES,
     HassetteQueueHandler,
     HassetteQueueListener,
     LogCaptureHandler,
@@ -17,11 +18,12 @@ from hassette.test_utils.mock_hassette import make_mock_hassette
 
 
 def remove_queue_handlers() -> None:
-    """Remove all QueueHandlers from the hassette logger."""
-    hassette_logger = logging.getLogger("hassette")
-    for h in list(hassette_logger.handlers):
-        if isinstance(h, logging.handlers.QueueHandler):
-            hassette_logger.removeHandler(h)
+    """Remove all QueueHandlers from the hassette and py.warnings loggers."""
+    for logger_name in LOGGER_NAMES:
+        logger = logging.getLogger(logger_name)
+        for h in list(logger.handlers):
+            if isinstance(h, logging.handlers.QueueHandler):
+                logger.removeHandler(h)
 
 
 def make_db_service() -> MagicMock:
@@ -304,6 +306,44 @@ class TestLoggingServiceOnShutdown:
         svc.persistence_handler.flush_if_pending.assert_called_once()
 
         remove_queue_handlers()
+
+
+class TestPyWarningsLoggerWiring:
+    """py.warnings gets the same QueueHandler as hassette, so captured warnings (e.g.
+    HassetteForgottenAwaitWarning) reach the full async pipeline — not just Phase 1's
+    StreamHandler (issue #1816).
+    """
+
+    async def test_on_initialize_attaches_queue_handler_to_py_warnings_logger(self) -> None:
+        """After init, py.warnings carries the same QueueHandler instance as hassette."""
+        svc = await make_initialized_logging_service()
+
+        try:
+            warnings_logger = logging.getLogger("py.warnings")
+            assert svc._queue_handler is not None
+            assert svc._queue_handler in warnings_logger.handlers
+        finally:
+            if svc._queue_listener is not None:
+                svc._queue_listener.stop()
+            remove_queue_handlers()
+
+    async def test_on_shutdown_restores_stream_handler_on_py_warnings_logger(self) -> None:
+        """Shutdown removes the QueueHandler and restores the StreamHandler on py.warnings too."""
+        warnings_logger = logging.getLogger("py.warnings")
+        stream_handler = logging.StreamHandler()
+        warnings_logger.addHandler(stream_handler)
+
+        svc = await make_initialized_logging_service(stream_handler=stream_handler)
+        queue_handler = svc._queue_handler
+
+        await svc.on_shutdown()
+
+        try:
+            assert stream_handler in warnings_logger.handlers
+            assert queue_handler not in warnings_logger.handlers
+        finally:
+            warnings_logger.removeHandler(stream_handler)
+            remove_queue_handlers()
 
 
 class TestPersistenceActive:

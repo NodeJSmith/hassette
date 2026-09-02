@@ -129,6 +129,41 @@ class TestNoisyLibrarySuppression:
         assert logging.getLogger("httpx2").getEffectiveLevel() == logging.WARNING
 
 
+class TestCapturedWarningsRoutedToPipeline:
+    """logging.captureWarnings(True) sends records to a 'py.warnings' logger — enable_basic_logging
+    must wire that logger to the same handler as 'hassette', or captured warnings (e.g.
+    HassetteForgottenAwaitWarning) reach a handler-less logger and are silently dropped (issue #1816).
+    """
+
+    def test_py_warnings_logger_configured_like_hassette_logger(self) -> None:
+        """py.warnings gets the same stream handler, non-propagating, as the hassette logger."""
+        stream = StringIO()
+        handler = enable_basic_logging("WARNING", log_format="console", stream=stream)
+        warnings_logger = logging.getLogger("py.warnings")
+        assert warnings_logger.propagate is False
+        assert handler in warnings_logger.handlers
+
+    def test_captured_warning_reaches_console_stream(self) -> None:
+        """A record on the 'py.warnings' logger — what logging.captureWarnings' internal
+        _showwarning() emits — surfaces in the console stream, not just the message text.
+
+        Exercises the 'py.warnings' logger directly rather than warnings.warn() itself:
+        stdlib's captureWarnings() only rewires warnings.showwarning the first time it's
+        toggled on per-process, and pytest's own per-test catch_warnings(record=True)
+        wrapper installs a fresh recorder before every test body runs — so by the time
+        this suite reaches this test, warnings.warn() no longer routes through hassette's
+        _showwarning at all. That's a pytest/stdlib interaction, not something this fix
+        touches; the handler wiring below is what issue #1816 actually changed.
+        """
+        stream = StringIO()
+        enable_basic_logging("WARNING", log_format="console", stream=stream)
+
+        logging.getLogger("py.warnings").warning("forgotten await test warning")
+
+        output = stream.getvalue()
+        assert "forgotten await test warning" in output
+
+
 class TestColoredlogsRemoved:
     """coloredlogs is not imported anywhere in the codebase."""
 
