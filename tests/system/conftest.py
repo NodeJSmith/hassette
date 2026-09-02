@@ -272,11 +272,21 @@ def make_system_config(ha_url: str, tmp_path: Path) -> HassetteConfig:
     )
 
 
+def free_port() -> int:
+    """Find a free TCP port by binding a socket and releasing it.
+
+    Avoids port conflicts between parallel test runs. Shared by every system test that needs
+    a dynamically assigned port (the web API here, or a whole subprocess's web API in
+    test_sigint_shutdown.py).
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.bind(("", 0))
+        return sock.getsockname()[1]
+
+
 def make_web_system_config(ha_url: str, tmp_path: Path) -> tuple[HassetteConfig, str]:
     """Build a HassetteConfig with the web API enabled, using a dynamically assigned port.
-
-    Finds a free port by binding a socket, releases it, then uses that port for the
-    web API. This avoids port conflicts between parallel test runs.
 
     Args:
         ha_url: Base URL of the running Home Assistant instance.
@@ -286,10 +296,7 @@ def make_web_system_config(ha_url: str, tmp_path: Path) -> tuple[HassetteConfig,
         A tuple of ``(config, base_url)`` where ``base_url`` is e.g.
         ``http://localhost:PORT``.
     """
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.bind(("", 0))
-        port = sock.getsockname()[1]
+    port = free_port()
 
     app_dir = tmp_path / "apps"
     app_dir.mkdir(exist_ok=True)
