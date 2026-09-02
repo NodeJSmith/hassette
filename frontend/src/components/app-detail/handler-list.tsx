@@ -22,12 +22,12 @@ function healthKindFromCounts(failed: number, timedOut: number, total: number) {
   return statusToKind("stopped");
 }
 
-export function listenerHealthKind(l: ListenerData) {
-  return healthKindFromCounts(l.failed, l.timed_out, l.total_invocations);
+export function listenerHealthKind(listener: ListenerData) {
+  return healthKindFromCounts(listener.failed, listener.timed_out, listener.total_invocations);
 }
 
-export function jobHealthKind(j: JobData) {
-  return healthKindFromCounts(j.failed, j.timed_out, j.total_executions);
+export function jobHealthKind(job: JobData) {
+  return healthKindFromCounts(job.failed, job.timed_out, job.total_executions);
 }
 
 export function buildItems(listeners: ListenerData[], jobs: JobData[]): UnifiedItem[] {
