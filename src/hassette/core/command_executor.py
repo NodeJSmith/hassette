@@ -151,6 +151,20 @@ class CommandExecutor(Service):
     rate-limit checks.
     """
 
+    _clock: Callable[[], float]
+    """Clock used by the unowned-warning rate limiter in ``emit_completion_events``.
+
+    Defaults to ``time.monotonic``. Tests inject a ``ControlledClock`` here instead of
+    patching the module-level ``time.monotonic`` — that global patch is visible to every
+    caller in the process, including asyncio's own scheduling, and racing the event loop's
+    clock reads against a mocked one produces intermittent test failures (#1773).
+
+    This class's other rate limiters (``log_timeout_rate_limited``, the capacity warning in
+    ``enqueue_record``, the retry backoff in ``persist_batch``) still call ``time.monotonic()``
+    directly — deliberately not routed through this clock, since no test patches the global
+    clock for those paths.
+    """
+
     current_execution: ExecutionMarker | None = None
     """Thread-visible marker of the execution currently on the loop thread, or None when idle.
 
@@ -174,6 +188,7 @@ class CommandExecutor(Service):
         self._last_capacity_warn_ts = None
         self._last_unowned_warn_ts = None
         self._timeout_warn_timestamps = {}
+        self._clock = time.monotonic
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
@@ -1023,7 +1038,7 @@ class CommandExecutor(Service):
             # log once per drain tick.
             unowned = sum(1 for r in app_records if not r.app_key)
             if unowned:
-                now = time.monotonic()
+                now = self._clock()
                 if (
                     self._last_unowned_warn_ts is None
                     or now - self._last_unowned_warn_ts >= _UNOWNED_WARN_RATE_LIMIT_SECS
