@@ -1,6 +1,7 @@
 """Hassette framework server entry point."""
 
 import asyncio
+import functools
 import os
 import signal
 from logging import getLogger
@@ -12,11 +13,16 @@ from hassette.resources.lifecycle import request_shutdown
 LOGGER = getLogger(__name__)
 
 
-def _handle_sigint(core: Hassette) -> None:
+def _handle_sigint(core: Hassette, _signum: int, _frame: object) -> None:
     """Request shutdown on the first SIGINT; force an immediate exit on any subsequent one.
 
-    Graceful teardown can stall or consume the full shutdown timeout, so a second Ctrl+C must
-    not be swallowed by ``request_shutdown``'s idempotent no-op — it needs to exit immediately.
+    Registered via ``signal.signal()`` rather than ``loop.add_signal_handler()``: shutdown
+    hooks are user-authored async code that can block the event loop thread synchronously
+    (see ``resources/operations.py``'s ``await method()``), and a callback registered through
+    the loop only runs once the loop next gets control — never, if that blocking call is what's
+    stalling teardown in the first place. A raw signal handler is delivered at the interpreter's
+    next bytecode/syscall-interrupt check regardless of what the loop thread is doing, so the
+    force-exit path still fires exactly when teardown is genuinely stuck.
     """
     if core.shutdown_event.is_set():
         LOGGER.warning("second SIGINT received during shutdown; forcing immediate exit")
@@ -43,8 +49,8 @@ async def main(config: HassetteConfig) -> None:
         LOGGER.warning("SIGTERM handler registration is not supported on this platform/event loop")
 
     try:
-        loop.add_signal_handler(signal.SIGINT, _handle_sigint, core)
-    except NotImplementedError:
-        LOGGER.warning("SIGINT handler registration is not supported on this platform/event loop")
+        signal.signal(signal.SIGINT, functools.partial(_handle_sigint, core))
+    except ValueError:
+        LOGGER.warning("SIGINT handler registration is not supported outside the main thread")
 
     await core.run_forever()

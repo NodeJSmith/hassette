@@ -67,6 +67,8 @@ def cmd_run(
     try:
         asyncio.run(run_server(config))
     except KeyboardInterrupt:
+        # Only reachable before server.main() installs its own SIGINT handler, or if that
+        # registration itself fails — once installed, Ctrl+C is handled there, not here.
         LOGGER.info("Keyboard interrupt received, shutting down")
     except AppPrecheckFailedError as exc:
         LOGGER.error("App precheck failed: %s", exc)
