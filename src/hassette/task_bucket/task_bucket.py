@@ -449,7 +449,7 @@ class TaskBucket(Resource):
 
         for t in pending:
             self.logger.warning(
-                "[%s] task %s refused to die within %.1fs", self.unique_name, t.get_name(), effective_timeout
+                "[%s] task %s refused to die within %.2fs", self.unique_name, t.get_name(), effective_timeout
             )
 
         return tuple(sorted(t.get_name() for t in pending))

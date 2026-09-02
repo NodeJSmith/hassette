@@ -473,7 +473,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
             async with asyncio.timeout(cleanup_timeout):
                 await self.cleanup()
         except TimeoutError:
-            self.logger.warning("cleanup() timed out after %ss for %s", cleanup_timeout, self.unique_name)
+            self.logger.warning("cleanup() timed out after %.2fs for %s", cleanup_timeout, self.unique_name)
             reports.append(TeardownReport(causes=(TeardownCause.CLEANUP_TIMED_OUT,), failed_operations=("cleanup",)))
         except Exception as exc:
             self.logger.exception("Error during cleanup: %s %s", type(exc).__name__, exc)
