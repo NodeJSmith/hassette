@@ -1,6 +1,7 @@
 """Hassette framework server entry point."""
 
 import asyncio
+import os
 import signal
 from logging import getLogger
 
@@ -9,6 +10,19 @@ from hassette.exceptions import FatalError
 from hassette.resources.lifecycle import request_shutdown
 
 LOGGER = getLogger(__name__)
+
+
+def _handle_sigint(core: Hassette) -> None:
+    """Request shutdown on the first SIGINT; force an immediate exit on any subsequent one.
+
+    Graceful teardown can stall or consume the full shutdown timeout, so a second Ctrl+C must
+    not be swallowed by ``request_shutdown``'s idempotent no-op — it needs to exit immediately.
+    """
+    if core.shutdown_event.is_set():
+        LOGGER.warning("second SIGINT received during shutdown; forcing immediate exit")
+        os._exit(1)
+
+    request_shutdown(core, "SIGINT received")
 
 
 async def main(config: HassetteConfig) -> None:
@@ -23,10 +37,14 @@ async def main(config: HassetteConfig) -> None:
     core.wire_services()
 
     loop = asyncio.get_running_loop()
-    for sig in (signal.SIGTERM, signal.SIGINT):
-        try:
-            loop.add_signal_handler(sig, request_shutdown, core, f"{sig.name} received")
-        except NotImplementedError:
-            LOGGER.warning("%s handler registration is not supported on this platform/event loop", sig.name)
+    try:
+        loop.add_signal_handler(signal.SIGTERM, request_shutdown, core, "SIGTERM received")
+    except NotImplementedError:
+        LOGGER.warning("SIGTERM handler registration is not supported on this platform/event loop")
+
+    try:
+        loop.add_signal_handler(signal.SIGINT, _handle_sigint, core)
+    except NotImplementedError:
+        LOGGER.warning("SIGINT handler registration is not supported on this platform/event loop")
 
     await core.run_forever()

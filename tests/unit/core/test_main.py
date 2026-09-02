@@ -42,13 +42,8 @@ def patch_hassette_and_signal_handler(mock_core: MagicMock, *, side_effect: Any 
         yield mock_hassette_cls
 
 
-@pytest.mark.parametrize(
-    ("sig", "expected_message"),
-    [(signal.SIGTERM, "SIGTERM received"), (signal.SIGINT, "SIGINT received")],
-    ids=["SIGTERM", "SIGINT"],
-)
-async def test_main_registers_shutdown_signal_handler(sig: signal.Signals, expected_message: str) -> None:
-    """main() installs a handler for each shutdown signal that calls request_shutdown(core, ...)."""
+async def test_main_registers_sigterm_handler() -> None:
+    """main() installs a SIGTERM handler that calls request_shutdown(core, ...) directly."""
     mock_core, mock_config = make_mock_core_and_config()
 
     registered_handlers: dict[signal.Signals, tuple[Any, tuple[Any, ...]]] = {}
@@ -59,10 +54,28 @@ async def test_main_registers_shutdown_signal_handler(sig: signal.Signals, expec
     with patch_hassette_and_signal_handler(mock_core, side_effect=fake_add_signal_handler):
         await main(mock_config)
 
-    assert sig in registered_handlers, f"{sig.name} handler was not registered"
-    callback, args = registered_handlers[sig]
+    assert signal.SIGTERM in registered_handlers, "SIGTERM handler was not registered"
+    callback, args = registered_handlers[signal.SIGTERM]
     assert callback == request_shutdown
-    assert args == (mock_core, expected_message)
+    assert args == (mock_core, "SIGTERM received")
+
+
+async def test_main_registers_sigint_handler() -> None:
+    """main() installs a SIGINT handler distinct from the raw request_shutdown callback."""
+    mock_core, mock_config = make_mock_core_and_config()
+
+    registered_handlers: dict[signal.Signals, tuple[Any, tuple[Any, ...]]] = {}
+
+    def fake_add_signal_handler(registered_sig: signal.Signals, callback, *args) -> None:
+        registered_handlers[registered_sig] = (callback, args)
+
+    with patch_hassette_and_signal_handler(mock_core, side_effect=fake_add_signal_handler):
+        await main(mock_config)
+
+    assert signal.SIGINT in registered_handlers, "SIGINT handler was not registered"
+    callback, args = registered_handlers[signal.SIGINT]
+    assert callback != request_shutdown
+    assert args == (mock_core,)
 
 
 @pytest.mark.parametrize("sig", [signal.SIGTERM, signal.SIGINT], ids=["SIGTERM", "SIGINT"])
@@ -86,6 +99,34 @@ async def test_shutdown_signal_handler_triggers_shutdown_event(sig: signal.Signa
     callback, args = registered_handlers[sig]
     callback(*args)
     assert mock_core.shutdown_event.is_set()
+
+
+async def test_second_sigint_forces_immediate_exit() -> None:
+    """A second SIGINT, received after shutdown was already requested, force-exits instead of no-op'ing."""
+    mock_core, mock_config = make_mock_core_and_config()
+    mock_core.shutdown_event = asyncio.Event()
+    mock_core.ready_event = asyncio.Event()
+
+    registered_handlers: dict[signal.Signals, tuple[Any, tuple[Any, ...]]] = {}
+
+    def fake_add_signal_handler(registered_sig: signal.Signals, callback, *args) -> None:
+        registered_handlers[registered_sig] = (callback, args)
+
+    with patch_hassette_and_signal_handler(mock_core, side_effect=fake_add_signal_handler):
+        await main(mock_config)
+
+    callback, args = registered_handlers[signal.SIGINT]
+
+    # First SIGINT: requests shutdown, does not exit.
+    with patch("hassette.server.os._exit") as mock_exit:
+        callback(*args)
+        mock_exit.assert_not_called()
+    assert mock_core.shutdown_event.is_set()
+
+    # Second SIGINT: shutdown already requested, so it force-exits instead of no-op'ing.
+    with patch("hassette.server.os._exit") as mock_exit:
+        callback(*args)
+        mock_exit.assert_called_once_with(1)
 
 
 async def test_main_continues_when_signal_handler_unsupported() -> None:
