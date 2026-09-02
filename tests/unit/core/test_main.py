@@ -1,4 +1,4 @@
-"""Tests for the server entry point — SIGTERM signal handling and startup validation."""
+"""Tests for the server entry point — SIGTERM/SIGINT signal handling and startup validation."""
 
 import asyncio
 import signal
@@ -78,6 +78,46 @@ async def test_sigterm_handler_triggers_shutdown_event() -> None:
 
     # Simulate what the OS would do by invoking the registered callback
     callback, args = registered_handlers[signal.SIGTERM]
+    callback(*args)
+    assert mock_core.shutdown_event.is_set()
+
+
+async def test_main_registers_sigint_handler() -> None:
+    """main() installs a SIGINT handler that calls request_shutdown(core, ...)."""
+    mock_core, mock_config = make_mock_core_and_config()
+
+    registered_handlers: dict[int, tuple] = {}
+
+    def fake_add_signal_handler(sig: int, callback, *args) -> None:
+        registered_handlers[sig] = (callback, args)
+
+    with patch_hassette_and_signal_handler(mock_core, side_effect=fake_add_signal_handler):
+        await main(mock_config)
+
+    assert signal.SIGINT in registered_handlers, "SIGINT handler was not registered"
+    callback, args = registered_handlers[signal.SIGINT]
+    assert callback == request_shutdown
+    assert args == (mock_core, "SIGINT received")
+
+
+async def test_sigint_handler_triggers_shutdown_event() -> None:
+    """Invoking the SIGINT handler sets the shutdown event on the Hassette instance."""
+    mock_core, mock_config = make_mock_core_and_config()
+    mock_core.shutdown_event = asyncio.Event()
+    mock_core.ready_event = asyncio.Event()
+
+    registered_handlers: dict[int, tuple] = {}
+
+    def fake_add_signal_handler(sig: int, callback, *args) -> None:
+        registered_handlers[sig] = (callback, args)
+
+    with patch_hassette_and_signal_handler(mock_core, side_effect=fake_add_signal_handler):
+        await main(mock_config)
+
+    assert signal.SIGINT in registered_handlers, "SIGINT handler was not registered"
+
+    # Simulate what the OS would do by invoking the registered callback
+    callback, args = registered_handlers[signal.SIGINT]
     callback(*args)
     assert mock_core.shutdown_event.is_set()
 

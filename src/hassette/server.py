@@ -23,9 +23,10 @@ async def main(config: HassetteConfig) -> None:
     core.wire_services()
 
     loop = asyncio.get_running_loop()
-    try:
-        loop.add_signal_handler(signal.SIGTERM, request_shutdown, core, "SIGTERM received")
-    except NotImplementedError:
-        LOGGER.warning("SIGTERM handler registration is not supported on this platform/event loop")
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        try:
+            loop.add_signal_handler(sig, request_shutdown, core, f"{sig.name} received")
+        except NotImplementedError:
+            LOGGER.warning("%s handler registration is not supported on this platform/event loop", sig.name)
 
     await core.run_forever()
