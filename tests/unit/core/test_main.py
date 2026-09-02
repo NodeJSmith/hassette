@@ -42,82 +42,48 @@ def patch_hassette_and_signal_handler(mock_core: MagicMock, *, side_effect: Any 
         yield mock_hassette_cls
 
 
-async def test_main_registers_sigterm_handler() -> None:
-    """main() installs a SIGTERM handler that calls request_shutdown(core, ...)."""
+@pytest.mark.parametrize(
+    ("sig", "expected_message"),
+    [(signal.SIGTERM, "SIGTERM received"), (signal.SIGINT, "SIGINT received")],
+    ids=["SIGTERM", "SIGINT"],
+)
+async def test_main_registers_shutdown_signal_handler(sig: signal.Signals, expected_message: str) -> None:
+    """main() installs a handler for each shutdown signal that calls request_shutdown(core, ...)."""
     mock_core, mock_config = make_mock_core_and_config()
 
-    registered_handlers: dict[int, tuple] = {}
+    registered_handlers: dict[signal.Signals, tuple[Any, tuple[Any, ...]]] = {}
 
-    def fake_add_signal_handler(sig: int, callback, *args) -> None:
-        registered_handlers[sig] = (callback, args)
+    def fake_add_signal_handler(registered_sig: signal.Signals, callback, *args) -> None:
+        registered_handlers[registered_sig] = (callback, args)
 
     with patch_hassette_and_signal_handler(mock_core, side_effect=fake_add_signal_handler):
         await main(mock_config)
 
-    assert signal.SIGTERM in registered_handlers, "SIGTERM handler was not registered"
-    callback, args = registered_handlers[signal.SIGTERM]
+    assert sig in registered_handlers, f"{sig.name} handler was not registered"
+    callback, args = registered_handlers[sig]
     assert callback == request_shutdown
-    assert args == (mock_core, "SIGTERM received")
+    assert args == (mock_core, expected_message)
 
 
-async def test_sigterm_handler_triggers_shutdown_event() -> None:
-    """Invoking the SIGTERM handler sets the shutdown event on the Hassette instance."""
+@pytest.mark.parametrize("sig", [signal.SIGTERM, signal.SIGINT], ids=["SIGTERM", "SIGINT"])
+async def test_shutdown_signal_handler_triggers_shutdown_event(sig: signal.Signals) -> None:
+    """Invoking a registered shutdown signal handler sets the shutdown event on the Hassette instance."""
     mock_core, mock_config = make_mock_core_and_config()
     mock_core.shutdown_event = asyncio.Event()
     mock_core.ready_event = asyncio.Event()
 
-    registered_handlers: dict[int, tuple] = {}
+    registered_handlers: dict[signal.Signals, tuple[Any, tuple[Any, ...]]] = {}
 
-    def fake_add_signal_handler(sig: int, callback, *args) -> None:
-        registered_handlers[sig] = (callback, args)
+    def fake_add_signal_handler(registered_sig: signal.Signals, callback, *args) -> None:
+        registered_handlers[registered_sig] = (callback, args)
 
     with patch_hassette_and_signal_handler(mock_core, side_effect=fake_add_signal_handler):
         await main(mock_config)
 
-    assert signal.SIGTERM in registered_handlers, "SIGTERM handler was not registered"
+    assert sig in registered_handlers, f"{sig.name} handler was not registered"
 
     # Simulate what the OS would do by invoking the registered callback
-    callback, args = registered_handlers[signal.SIGTERM]
-    callback(*args)
-    assert mock_core.shutdown_event.is_set()
-
-
-async def test_main_registers_sigint_handler() -> None:
-    """main() installs a SIGINT handler that calls request_shutdown(core, ...)."""
-    mock_core, mock_config = make_mock_core_and_config()
-
-    registered_handlers: dict[int, tuple] = {}
-
-    def fake_add_signal_handler(sig: int, callback, *args) -> None:
-        registered_handlers[sig] = (callback, args)
-
-    with patch_hassette_and_signal_handler(mock_core, side_effect=fake_add_signal_handler):
-        await main(mock_config)
-
-    assert signal.SIGINT in registered_handlers, "SIGINT handler was not registered"
-    callback, args = registered_handlers[signal.SIGINT]
-    assert callback == request_shutdown
-    assert args == (mock_core, "SIGINT received")
-
-
-async def test_sigint_handler_triggers_shutdown_event() -> None:
-    """Invoking the SIGINT handler sets the shutdown event on the Hassette instance."""
-    mock_core, mock_config = make_mock_core_and_config()
-    mock_core.shutdown_event = asyncio.Event()
-    mock_core.ready_event = asyncio.Event()
-
-    registered_handlers: dict[int, tuple] = {}
-
-    def fake_add_signal_handler(sig: int, callback, *args) -> None:
-        registered_handlers[sig] = (callback, args)
-
-    with patch_hassette_and_signal_handler(mock_core, side_effect=fake_add_signal_handler):
-        await main(mock_config)
-
-    assert signal.SIGINT in registered_handlers, "SIGINT handler was not registered"
-
-    # Simulate what the OS would do by invoking the registered callback
-    callback, args = registered_handlers[signal.SIGINT]
+    callback, args = registered_handlers[sig]
     callback(*args)
     assert mock_core.shutdown_event.is_set()
 
