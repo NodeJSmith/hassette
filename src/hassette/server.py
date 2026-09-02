@@ -13,23 +13,29 @@ from hassette.resources.lifecycle import request_shutdown
 LOGGER = getLogger(__name__)
 
 
-def _handle_sigint_signal(core: Hassette, loop: asyncio.AbstractEventLoop) -> None:
-    """Handle one SIGINT delivery: force-exit if shutdown is already underway, else request it.
+def _handle_sigint_signal(core: Hassette, loop: asyncio.AbstractEventLoop, sigint_seen: threading.Event) -> None:
+    """Handle one SIGINT delivery: force-exit if a SIGINT was already seen, else request it.
 
-    The graceful path is handed to the loop via ``call_soon_threadsafe`` (this runs on a
-    dedicated non-loop thread — see ``_sigint_wait_loop``), matching how ``request_shutdown``
-    is invoked everywhere else. The force-exit path runs directly here instead, with no
-    dependency on the loop or main thread ever regaining control — see ``_sigint_wait_loop``'s
-    docstring for why that independence is the entire point.
+    "Already seen" is tracked via ``sigint_seen`` — a plain ``threading.Event`` set immediately
+    here on the first delivery — rather than ``core.shutdown_event``. The latter only becomes
+    set once ``request_shutdown()`` actually runs on the loop thread via
+    ``call_soon_threadsafe``, which may not have happened yet if the loop is blocked by
+    *anything*, not only a stalled shutdown hook. Waiting on ``shutdown_event`` would make every
+    SIGINT delivered before the loop catches up look like "the first one," defeating the
+    second-Ctrl+C escalation exactly when it's most needed. The graceful path is still handed to
+    the loop via ``call_soon_threadsafe``, matching how ``request_shutdown`` is invoked
+    everywhere else; the force-exit path runs directly here, with no dependency on the loop or
+    main thread ever regaining control.
     """
-    if core.shutdown_event.is_set():
+    if sigint_seen.is_set():
         LOGGER.warning("second SIGINT received during shutdown; forcing immediate exit")
         os._exit(1)
 
+    sigint_seen.set()
     loop.call_soon_threadsafe(request_shutdown, core, "SIGINT received")
 
 
-def _sigint_wait_loop(core: Hassette, loop: asyncio.AbstractEventLoop) -> None:
+def _sigint_wait_loop(core: Hassette, loop: asyncio.AbstractEventLoop, sigint_seen: threading.Event) -> None:
     """Dedicated thread that synchronously waits for SIGINT via ``signal.sigwait()``.
 
     ``main()`` blocks SIGINT process-wide before this thread (or any other) is created, so
@@ -48,7 +54,7 @@ def _sigint_wait_loop(core: Hassette, loop: asyncio.AbstractEventLoop) -> None:
     """
     while True:
         signal.sigwait({signal.SIGINT})
-        _handle_sigint_signal(core, loop)
+        _handle_sigint_signal(core, loop, sigint_seen)
 
 
 async def main(config: HassetteConfig) -> None:
@@ -71,14 +77,15 @@ async def main(config: HassetteConfig) -> None:
     # Block SIGINT before any other thread exists, so every thread created later (the sync
     # executor pool, the logging QueueListener, etc. — all spawned during run_forever()'s
     # resource initialization, after this point) inherits the blocked mask — see
-    # _sigint_wait_loop's docstring. sigwait()/pthread_sigmask() are POSIX-only; on platforms
-    # without them (Windows), SIGINT falls back to Python's default handling, same as before
-    # this framework registered anything for it.
+    # _sigint_wait_loop's docstring. sigwait()/pthread_sigmask() are POSIX-only; hassette does
+    # not target Windows (see pyproject.toml — no Windows classifier), so no fallback is
+    # provided there.
+    sigint_seen = threading.Event()
     try:
         signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT})
     except AttributeError:
         LOGGER.warning("SIGINT handling via sigwait() is not supported on this platform")
     else:
-        threading.Thread(target=_sigint_wait_loop, args=(core, loop), daemon=True).start()
+        threading.Thread(target=_sigint_wait_loop, args=(core, loop, sigint_seen), daemon=True).start()
 
     await core.run_forever()

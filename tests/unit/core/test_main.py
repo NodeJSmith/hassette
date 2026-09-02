@@ -2,6 +2,7 @@
 
 import asyncio
 import signal
+import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
@@ -123,7 +124,7 @@ async def test_main_blocks_sigint_before_spawning_the_wait_thread() -> None:
 
 
 async def test_main_starts_sigint_wait_thread_as_daemon() -> None:
-    """main() starts a daemon thread running _sigint_wait_loop(core, loop)."""
+    """main() starts a daemon thread running _sigint_wait_loop(core, loop, sigint_seen)."""
     mock_core, mock_config = make_mock_core_and_config()
     loop = asyncio.get_running_loop()
 
@@ -132,7 +133,10 @@ async def test_main_starts_sigint_wait_thread_as_daemon() -> None:
 
     _, kwargs = mock_thread_cls.call_args
     assert kwargs["target"] is _sigint_wait_loop
-    assert kwargs["args"] == (mock_core, loop)
+    thread_core, thread_loop, thread_sigint_seen = kwargs["args"]
+    assert thread_core is mock_core
+    assert thread_loop is loop
+    assert isinstance(thread_sigint_seen, threading.Event)
     assert kwargs["daemon"] is True
 
 
@@ -159,27 +163,52 @@ async def test_handle_sigint_signal_requests_shutdown_on_first_call() -> None:
     mock_core.shutdown_event = asyncio.Event()
     mock_core.ready_event = asyncio.Event()
     loop = asyncio.get_running_loop()
+    sigint_seen = threading.Event()
 
     with patch("hassette.server.os._exit") as mock_exit:
-        _handle_sigint_signal(mock_core, loop)
+        _handle_sigint_signal(mock_core, loop, sigint_seen)
         mock_exit.assert_not_called()
+
+    assert sigint_seen.is_set()
 
     # call_soon_threadsafe only schedules request_shutdown — give the loop a turn to run it.
     await asyncio.sleep(0)
     assert mock_core.shutdown_event.is_set()
 
 
-async def test_handle_sigint_signal_force_exits_once_shutdown_already_requested() -> None:
-    """Once shutdown_event is already set, _handle_sigint_signal force-exits instead of no-op'ing."""
+async def test_handle_sigint_signal_force_exits_once_a_sigint_was_already_seen() -> None:
+    """Once sigint_seen is already set, _handle_sigint_signal force-exits instead of no-op'ing."""
     mock_core, _ = make_mock_core_and_config()
-    mock_core.shutdown_event = asyncio.Event()
-    mock_core.shutdown_event.set()
     loop = asyncio.get_running_loop()
+    sigint_seen = threading.Event()
+    sigint_seen.set()
 
     with patch("hassette.server.os._exit") as mock_exit:
-        _handle_sigint_signal(mock_core, loop)
+        _handle_sigint_signal(mock_core, loop, sigint_seen)
 
     mock_exit.assert_called_once_with(1)
+
+
+async def test_handle_sigint_signal_force_exits_even_if_shutdown_event_not_yet_set() -> None:
+    """Regression test: the force-exit decision must not depend on core.shutdown_event.
+
+    core.shutdown_event only becomes set once request_shutdown() actually runs on the loop
+    thread via call_soon_threadsafe — which may not have happened yet if the loop is blocked by
+    anything at all. A second SIGINT arriving in that window must still force-exit; deciding
+    based on core.shutdown_event.is_set() instead of sigint_seen would make every SIGINT before
+    the loop catches up look like "the first one" and never escalate.
+    """
+    mock_core, _ = make_mock_core_and_config()
+    mock_core.shutdown_event = asyncio.Event()  # deliberately never set — loop still "blocked"
+    loop = asyncio.get_running_loop()
+    sigint_seen = threading.Event()
+
+    with patch("hassette.server.os._exit") as mock_exit:
+        _handle_sigint_signal(mock_core, loop, sigint_seen)
+        mock_exit.assert_not_called()
+
+        _handle_sigint_signal(mock_core, loop, sigint_seen)
+        mock_exit.assert_called_once_with(1)
 
 
 def test_sigint_wait_loop_calls_handler_once_per_wakeup() -> None:
@@ -190,17 +219,18 @@ def test_sigint_wait_loop_calls_handler_once_per_wakeup() -> None:
 
     mock_core = MagicMock()
     mock_loop = MagicMock()
+    sigint_seen = threading.Event()
 
     with (
         patch("hassette.server.signal.sigwait", side_effect=[signal.SIGINT, _StopLoopError]) as mock_sigwait,
         patch("hassette.server._handle_sigint_signal") as mock_handle,
         pytest.raises(_StopLoopError),
     ):
-        _sigint_wait_loop(mock_core, mock_loop)
+        _sigint_wait_loop(mock_core, mock_loop, sigint_seen)
 
     assert mock_sigwait.call_count == 2
     mock_sigwait.assert_called_with({signal.SIGINT})
-    mock_handle.assert_called_once_with(mock_core, mock_loop)
+    mock_handle.assert_called_once_with(mock_core, mock_loop, sigint_seen)
 
 
 async def test_main_raises_fatal_error_when_token_is_none() -> None:
