@@ -25,6 +25,13 @@ if typing.TYPE_CHECKING:
 
 SERVICE_STATUS_PATH = "payload.data.status"
 
+_STATUS_EVENT_DISPATCH_TIMEOUT_SECONDS = 5.0
+"""Upper bound on how long dispatch_status_event_best_effort() waits for send_event() to accept
+a status event. send_event() awaits a bounded channel that can stay full indefinitely if nothing
+is draining it; every caller here has already committed to its state transition or shutdown
+before this runs, so a stalled channel must degrade to a logged, swallowed timeout rather than
+hang the caller the way an unguarded await would."""
+
 
 class RestartBudget:
     """Sliding-window restart budget tracker.
@@ -228,6 +235,35 @@ class ServiceWatcher(Resource):
             self.logger.debug("Restart admission blocked (fatal reason or shutdown requested), skipping %s", action)
         return True
 
+    async def dispatch_status_event_best_effort(
+        self, name: str, role: ResourceRole, event: HassetteServiceEvent
+    ) -> None:
+        """Send a service-status event without letting delivery failure -- or a stalled channel --
+        block the caller's already-decided state transition or shutdown call.
+
+        Event dispatch is telemetry, not the control path: every caller here has already recorded
+        the fatal reason, requested shutdown, or otherwise committed to its outcome before this is
+        called, so a ``send_event`` failure or hang must be logged and swallowed rather than left
+        to propagate (or block indefinitely) and abort whatever the caller does next. ``send_event``
+        awaits a bounded channel with no timeout of its own, so it is bounded here -- this timeout
+        is local to this method; other ``send_event`` call sites elsewhere in the codebase are not
+        bounded by it and remain a plain, unguarded await.
+        """
+        try:
+            await asyncio.wait_for(self.hassette.send_event(event), timeout=_STATUS_EVENT_DISPATCH_TIMEOUT_SECONDS)
+        except TimeoutError:
+            self.logger.error(
+                "%s '%s' timed out dispatching %s event after %.1fs",
+                role,
+                name,
+                event.payload.data.status.name,
+                _STATUS_EVENT_DISPATCH_TIMEOUT_SECONDS,
+            )
+        except Exception as exc:
+            self.logger.error(
+                "%s '%s' failed to dispatch %s event: %s", role, name, event.payload.data.status.name, exc
+            )
+
     async def handle_restart_refused(self, name: str, role: ResourceRole, error: RestartRefusedError) -> None:
         """Escalate a typed restart refusal to one fatal outcome.
 
@@ -255,10 +291,7 @@ class ServiceWatcher(Resource):
             exception=error,
             ready=False,
         )
-        try:
-            await self.hassette.send_event(crashed_event)
-        except Exception as exc:
-            self.logger.error("%s '%s' failed to dispatch CRASHED event after restart refusal: %s", role, name, exc)
+        await self.dispatch_status_event_best_effort(name, role, crashed_event)
 
     async def handle_exhaustion(
         self,
@@ -286,7 +319,7 @@ class ServiceWatcher(Resource):
                 previous_status=ResourceStatus.FAILED,
                 source_payload=status_payload,
             )
-            await self.hassette.send_event(crashed_event)
+            await self.dispatch_status_event_best_effort(name, role, crashed_event)
             await self.hassette.shutdown()
 
         elif spec.restart_type == RestartType.TRANSIENT:
@@ -306,7 +339,7 @@ class ServiceWatcher(Resource):
                 source_payload=status_payload,
                 retry_at=retry_at,
             )
-            await self.hassette.send_event(cooling_event)
+            await self.dispatch_status_event_best_effort(name, role, cooling_event)
             self.set_service_status(name, role, ResourceStatus.EXHAUSTED_COOLING)
             # Cancel existing cooldown for this service if any
             existing = self._cooldown_tasks.get(key)
@@ -331,7 +364,7 @@ class ServiceWatcher(Resource):
                 previous_status=ResourceStatus.FAILED,
                 source_payload=status_payload,
             )
-            await self.hassette.send_event(dead_event)
+            await self.dispatch_status_event_best_effort(name, role, dead_event)
             self.set_service_status(name, role, ResourceStatus.EXHAUSTED_DEAD)
 
     async def cooldown_and_retry(self, name: str, role: ResourceRole, key: str, spec: RestartSpec) -> None:
@@ -359,7 +392,7 @@ class ServiceWatcher(Resource):
                 status=ResourceStatus.EXHAUSTED_DEAD,
                 previous_status=ResourceStatus.EXHAUSTED_COOLING,
             )
-            await self.hassette.send_event(dead_event)
+            await self.dispatch_status_event_best_effort(name, role, dead_event)
             self.set_service_status(name, role, ResourceStatus.EXHAUSTED_DEAD, "cooldown cycle limit")
             return
 
@@ -438,7 +471,7 @@ class ServiceWatcher(Resource):
                 previous_status=ResourceStatus.FAILED,
                 source_payload=status_payload,
             )
-            await self.hassette.send_event(crashed_event)
+            await self.dispatch_status_event_best_effort(name, role, crashed_event)
             await self.hassette.shutdown()
             return
 
