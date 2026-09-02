@@ -225,7 +225,10 @@ reporting healthy would leave Hassette running with no path back to HA for the r
 process's life. `WebApiService` opts out for the same reason on the other side of the framework:
 it's the sole dashboard, REST API, and health-check interface, and a silent `EXHAUSTED_DEAD` there
 leaves no process exit for a supervisor to react to and no way for a human to notice short of
-trying to load the dashboard.
+trying to load the dashboard. `CommandExecutor` opts out for a different reason: its
+`execute_handler()`/`execute_job()` methods spawn user-configured error handlers on its own task
+bucket, and a sealed task bucket after `EXHAUSTED_DEAD` would make that spawn raise uncaught,
+silently breaking every app's error handlers rather than only losing telemetry.
 
 ??? note "Under the hood: how a service opts out"
     `WebsocketService` and `WebApiService` construct their `restart_spec` through

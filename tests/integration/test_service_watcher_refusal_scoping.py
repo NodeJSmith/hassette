@@ -14,6 +14,7 @@ from typing import ClassVar
 from unittest.mock import AsyncMock, patch
 
 from hassette import HassetteConfig
+from hassette.core.command_executor import CommandExecutor
 from hassette.core.service_watcher import ServiceWatcher
 from hassette.core.web_api_service import WebApiService
 from hassette.core.websocket_service import WebsocketService
@@ -315,6 +316,18 @@ def test_web_api_service_opts_out_of_confirmed_quiescent_degrade():
     """
     assert WebApiService.restart_spec.restart_type == RestartType.TRANSIENT
     assert WebApiService.restart_spec.allow_scoped_degradation is False
+
+
+def test_command_executor_opts_out_of_confirmed_quiescent_degrade():
+    """Ship-time review finding on PR #1782: CommandExecutor.execute_handler()/execute_job()
+    spawn user-configured error handlers via self.task_bucket.spawn(). Once degraded to
+    EXHAUSTED_DEAD, that bucket is sealed and the spawn() call raises RuntimeError uncaught,
+    silently breaking every app's error handlers -- not just telemetry, as design/specs/106
+    originally assumed. Must opt out of the degrade path the same way WebsocketService/
+    WebApiService do.
+    """
+    assert CommandExecutor.restart_spec.restart_type == RestartType.TRANSIENT
+    assert CommandExecutor.restart_spec.allow_scoped_degradation is False
 
 
 async def test_websocket_service_still_escalates_even_when_confirmed_dead(

@@ -117,9 +117,14 @@ class CommandExecutor(Service):
         restart_type=RestartType.TRANSIENT,
         budget_intensity=3,
         budget_period_seconds=120,
-        # Losing this service only drops telemetry records (see design/specs/106's
-        # "Known downstream degradation") -- nothing stops running, so it keeps the default.
-        allow_scoped_degradation=True,
+        # Despite the name, this service does more than persist telemetry: execute_handler()/
+        # execute_job() spawn user-configured error handlers via self.task_bucket.spawn() (see
+        # below). Once this service degrades to EXHAUSTED_DEAD, its task_bucket is sealed and
+        # that spawn() raises RuntimeError, which escapes the invocation path uncaught -- silently
+        # breaking every app's error handlers, not just telemetry. Opt out of scoped degradation
+        # so a restart refusal escalates to root shutdown instead (design/specs/106 originally
+        # allowed this on a since-corrected premise; see its Addendum).
+        allow_scoped_degradation=False,
     )
 
     _write_queue: asyncio.Queue[ExecutionRecord | RetryableBatch]
