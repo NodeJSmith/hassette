@@ -16,10 +16,11 @@ import contextlib
 import time
 from collections.abc import Coroutine
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 from hassette.core.block_io_guard import MonkeypatchEvent
 from hassette.core.command_executor import CommandExecutor
+from hassette.test_utils import make_controlled_clock
 from hassette.test_utils.factories import make_execution_record
 
 from .conftest import init_executor, make_invocation
@@ -223,10 +224,10 @@ async def test_emit_completion_events_warns_on_empty_app_key() -> None:
     racing the completion event) logs a WARNING.
     """
     executor = make_executor_with_send_event()
+    executor._clock = make_controlled_clock(start=1.0)
 
     unowned = make_execution_record(app_key="", source_tier="app")
-    with patch("hassette.core.command_executor.time.monotonic", return_value=1.0):
-        await CommandExecutor.emit_completion_events(executor, [unowned])
+    await CommandExecutor.emit_completion_events(executor, [unowned])
 
     assert executor._last_unowned_warn_ts == 1.0
 
@@ -234,12 +235,15 @@ async def test_emit_completion_events_warns_on_empty_app_key() -> None:
 async def test_emit_completion_events_unowned_warning_rate_limited() -> None:
     """Repeated empty-app_key batches within the suppression window log only once."""
     executor = make_executor_with_send_event()
+    clock = make_controlled_clock(start=100.0)
+    executor._clock = clock
     unowned = make_execution_record(app_key="", source_tier="app")
 
-    with patch("hassette.core.command_executor.time.monotonic", side_effect=[100.0, 101.0, 102.0]):
-        await CommandExecutor.emit_completion_events(executor, [unowned])
-        await CommandExecutor.emit_completion_events(executor, [unowned])  # suppressed
-        await CommandExecutor.emit_completion_events(executor, [unowned])  # still suppressed
+    await CommandExecutor.emit_completion_events(executor, [unowned])
+    clock.advance_to(101.0)
+    await CommandExecutor.emit_completion_events(executor, [unowned])  # suppressed
+    clock.advance_to(102.0)
+    await CommandExecutor.emit_completion_events(executor, [unowned])  # still suppressed
 
     assert executor._last_unowned_warn_ts == 100.0
 
@@ -247,15 +251,18 @@ async def test_emit_completion_events_unowned_warning_rate_limited() -> None:
 async def test_emit_completion_events_unowned_warning_fires_after_rate_limit_window() -> None:
     """A second empty-app_key batch after the suppression window elapses logs again."""
     executor = make_executor_with_send_event()
+    clock = make_controlled_clock(start=100.0)
+    executor._clock = clock
     unowned = make_execution_record(app_key="", source_tier="app")
 
-    with patch("hassette.core.command_executor.time.monotonic", side_effect=[100.0, 129.999, 130.0]):
-        await CommandExecutor.emit_completion_events(executor, [unowned])
-        assert executor._last_unowned_warn_ts == 100.0
+    await CommandExecutor.emit_completion_events(executor, [unowned])
+    assert executor._last_unowned_warn_ts == 100.0
 
-        await CommandExecutor.emit_completion_events(executor, [unowned])
-        assert executor._last_unowned_warn_ts == 100.0
+    clock.advance_to(129.999)
+    await CommandExecutor.emit_completion_events(executor, [unowned])
+    assert executor._last_unowned_warn_ts == 100.0
 
-        await CommandExecutor.emit_completion_events(executor, [unowned])
+    clock.advance_to(130.0)
+    await CommandExecutor.emit_completion_events(executor, [unowned])
 
     assert executor._last_unowned_warn_ts == 130.0
