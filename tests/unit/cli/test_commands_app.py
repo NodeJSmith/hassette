@@ -1,6 +1,9 @@
-"""Unit tests for hassette app, app health, app activity, app config, and app source commands."""
+"""Unit tests for hassette app, app health, app activity, app config, app source, and app
+start/stop/reload commands.
+"""
 
 from typing import Any
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -13,7 +16,10 @@ from hassette.cli.commands.app import (
     cmd_app_activity,
     cmd_app_config,
     cmd_app_health,
+    cmd_app_reload,
     cmd_app_source,
+    cmd_app_start,
+    cmd_app_stop,
 )
 from hassette.cli.output import now_epoch
 from hassette.test_utils.web_manifest_helpers import make_manifest_list_response, make_manifest_response
@@ -23,7 +29,7 @@ from hassette.test_utils.web_response_helpers import (
     make_app_source_response,
 )
 from hassette.test_utils.web_telemetry_helpers import make_activity_feed_entry
-from hassette.web.models import AppInstanceResponse, AppManifestListResponse
+from hassette.web.models import ActionResponse, AppInstanceResponse, AppManifestListResponse
 from tests.unit.cli.conftest import (
     SINCE_EPOCH,
     CLIClientFactory,
@@ -32,6 +38,16 @@ from tests.unit.cli.conftest import (
 
 runner = CommandRunner("hassette.cli.commands.app.make_client")
 ACTIVITY_ENDPOINT = "/api/telemetry/app/my-app/activity"
+
+
+def _spy_post(client: HassetteCLIClient) -> MagicMock:
+    """Wrap ``client.post`` with a MagicMock that still delegates to the real implementation.
+
+    Lets tests assert on the path a command posted to while still exercising the real
+    error handling and deserialization in ``HassetteCLIClient.post``.
+    """
+    return MagicMock(wraps=client.post)
+
 
 # cmd_app (bare — list all apps)
 
@@ -330,3 +346,218 @@ class TestCmdAppSource:
         assert parsed["app_key"] == "my-app"
         assert "content" in parsed
         assert parsed["line_count"] == 1
+
+
+# cmd_app_start / cmd_app_stop / cmd_app_reload
+
+
+def _action_response(app_key: str = "my_app", action: str = "start") -> ActionResponse:
+    return ActionResponse(app_key=app_key, action=action)
+
+
+class TestCmdAppStart:
+    def test_no_instance_hits_app_level_route(self, cli_client_factory: CLIClientFactory) -> None:
+        """Start without --instance sends POST /api/apps/{key}/start."""
+        client = cli_client_factory.build_with_routes(
+            [("POST", "/api/apps/my_app/start", 200, _action_response().model_dump())]
+        )
+        spy = _spy_post(client)
+        with patch.object(client, "post", spy):
+            runner.stdout(client, cmd_app_start, "my_app")
+
+        spy.assert_called_once_with("/api/apps/my_app/start")
+
+    def test_with_instance_resolves_and_hits_instance_route(self, cli_client_factory: CLIClientFactory) -> None:
+        """Start --instance 1 resolves the index and sends POST /api/apps/{key}/instances/1/start."""
+        client = cli_client_factory.build_with_routes(
+            [("POST", "/api/apps/my_app/instances/1/start", 200, _action_response().model_dump())]
+        )
+        spy = _spy_post(client)
+        with patch.object(client, "post", spy):
+            runner.stdout(client, cmd_app_start, "my_app", instance="1")
+
+        spy.assert_called_once_with("/api/apps/my_app/instances/1/start")
+
+    def test_does_not_prompt(self, cli_client_factory: CLIClientFactory) -> None:
+        """Start never calls input() — no confirmation is required."""
+        client = cli_client_factory.build_with_routes(
+            [("POST", "/api/apps/my_app/start", 200, _action_response().model_dump())]
+        )
+        with patch("builtins.input", side_effect=AssertionError("start must not prompt")):
+            runner.stdout(client, cmd_app_start, "my_app")
+
+    def test_success_message_app_level(self, cli_client_factory: CLIClientFactory) -> None:
+        """Start success message uses app-level text without --instance."""
+        client = cli_client_factory.build_with_routes(
+            [("POST", "/api/apps/my_app/start", 200, _action_response().model_dump())]
+        )
+        parsed = runner.json_output(client, cmd_app_start, "my_app")
+        assert parsed["message"] == "App 'my_app' started"
+
+    def test_success_message_instance_level(self, cli_client_factory: CLIClientFactory) -> None:
+        """Start success message includes the instance identifier when --instance is provided."""
+        client = cli_client_factory.build_with_routes(
+            [("POST", "/api/apps/my_app/instances/1/start", 200, _action_response().model_dump())]
+        )
+        parsed = runner.json_output(client, cmd_app_start, "my_app", instance="1")
+        assert parsed["message"] == "Instance '1' of 'my_app' started"
+
+    def test_error_on_404_surfaces_via_http_error(self, cli_client_factory: CLIClientFactory) -> None:
+        """Start against a non-existent app surfaces the 404 via the standard HTTP error path."""
+        client = cli_client_factory.build_with_routes(
+            [("POST", "/api/apps/missing/start", 404, {"detail": "App not found"})]
+        )
+        code, stderr = runner.usage_error(client, cmd_app_start, "missing")
+        assert code == 1
+        assert "App not found" in stderr
+
+
+class TestCmdAppStop:
+    def test_no_instance_hits_app_level_route(self, cli_client_factory: CLIClientFactory) -> None:
+        """Stop --yes without --instance sends POST /api/apps/{key}/stop."""
+        client = cli_client_factory.build_with_routes(
+            [("POST", "/api/apps/my_app/stop", 200, _action_response(action="stop").model_dump())]
+        )
+        spy = _spy_post(client)
+        with patch.object(client, "post", spy):
+            runner.stdout(client, cmd_app_stop, "my_app", yes=True)
+
+        spy.assert_called_once_with("/api/apps/my_app/stop")
+
+    def test_with_instance_resolves_and_hits_instance_route(self, cli_client_factory: CLIClientFactory) -> None:
+        """Stop --yes --instance 1 sends POST /api/apps/{key}/instances/1/stop."""
+        client = cli_client_factory.build_with_routes(
+            [("POST", "/api/apps/my_app/instances/1/stop", 200, _action_response(action="stop").model_dump())]
+        )
+        spy = _spy_post(client)
+        with patch.object(client, "post", spy):
+            runner.stdout(client, cmd_app_stop, "my_app", instance="1", yes=True)
+
+        spy.assert_called_once_with("/api/apps/my_app/instances/1/stop")
+
+    def test_prompts_for_confirmation(self, cli_client_factory: CLIClientFactory) -> None:
+        """Stop without --yes prompts for confirmation before posting."""
+        client = cli_client_factory.build_with_routes(
+            [("POST", "/api/apps/my_app/stop", 200, _action_response(action="stop").model_dump())]
+        )
+        with patch("builtins.input", return_value="y") as mock_input:
+            runner.stdout(client, cmd_app_stop, "my_app")
+
+        mock_input.assert_called_once()
+        assert "Stop app 'my_app'?" in mock_input.call_args[0][0]
+
+    @pytest.mark.parametrize("response", ["n", "", "no"], ids=["n", "empty", "no"])
+    def test_declining_confirmation_exits_without_posting(
+        self, cli_client_factory: CLIClientFactory, response: str
+    ) -> None:
+        """Answering anything but 'y' aborts before POSTing."""
+        client = cli_client_factory.build_with_routes(
+            [("POST", "/api/apps/my_app/stop", 200, _action_response(action="stop").model_dump())]
+        )
+        spy = _spy_post(client)
+        with (
+            patch("builtins.input", return_value=response),
+            patch.object(client, "post", spy),
+            patch(runner.make_client_path, return_value=client),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            cmd_app_stop("my_app")
+
+        assert exc_info.value.code == 0
+        spy.assert_not_called()
+
+    def test_yes_flag_skips_prompt(self, cli_client_factory: CLIClientFactory) -> None:
+        """Stop --yes skips the confirmation prompt entirely."""
+        client = cli_client_factory.build_with_routes(
+            [("POST", "/api/apps/my_app/stop", 200, _action_response(action="stop").model_dump())]
+        )
+        with patch("builtins.input", side_effect=AssertionError("must not prompt with --yes")):
+            runner.stdout(client, cmd_app_stop, "my_app", yes=True)
+
+    def test_success_message_instance_level(self, cli_client_factory: CLIClientFactory) -> None:
+        """Stop success message includes the instance identifier when --instance is provided."""
+        client = cli_client_factory.build_with_routes(
+            [("POST", "/api/apps/my_app/instances/2/stop", 200, _action_response(action="stop").model_dump())]
+        )
+        parsed = runner.json_output(client, cmd_app_stop, "my_app", instance="2", yes=True)
+        assert parsed["message"] == "Instance '2' of 'my_app' stopped"
+
+    def test_error_on_instance_out_of_range(self, cli_client_factory: CLIClientFactory) -> None:
+        """Stop against an out-of-range instance index surfaces the 404 via the HTTP error path."""
+        client = cli_client_factory.build_with_routes(
+            [("POST", "/api/apps/my_app/instances/9/stop", 404, {"detail": "Instance not found"})]
+        )
+        code, stderr = runner.usage_error(client, cmd_app_stop, "my_app", instance="9", yes=True)
+        assert code == 1
+        assert "Instance not found" in stderr
+
+
+class TestCmdAppReload:
+    def test_no_instance_hits_app_level_route(self, cli_client_factory: CLIClientFactory) -> None:
+        """Reload --yes without --instance sends POST /api/apps/{key}/reload."""
+        client = cli_client_factory.build_with_routes(
+            [("POST", "/api/apps/my_app/reload", 200, _action_response(action="reload").model_dump())]
+        )
+        spy = _spy_post(client)
+        with patch.object(client, "post", spy):
+            runner.stdout(client, cmd_app_reload, "my_app", yes=True)
+
+        spy.assert_called_once_with("/api/apps/my_app/reload")
+
+    def test_with_instance_resolves_and_hits_instance_route(self, cli_client_factory: CLIClientFactory) -> None:
+        """Reload --yes --instance 1 sends POST /api/apps/{key}/instances/1/reload."""
+        client = cli_client_factory.build_with_routes(
+            [("POST", "/api/apps/my_app/instances/1/reload", 200, _action_response(action="reload").model_dump())]
+        )
+        spy = _spy_post(client)
+        with patch.object(client, "post", spy):
+            runner.stdout(client, cmd_app_reload, "my_app", instance="1", yes=True)
+
+        spy.assert_called_once_with("/api/apps/my_app/instances/1/reload")
+
+    def test_prompts_for_confirmation_with_instance_name(self, cli_client_factory: CLIClientFactory) -> None:
+        """Reload --instance office prompts with the instance name in the message."""
+        instance_resp = AppInstanceResponse(
+            app_key="my_app",
+            index=1,
+            instance_name="office",
+            class_name="MyApp",
+            status="running",  # pyright: ignore[reportArgumentType]
+        )
+        manifest_resp = make_manifest_response(app_key="my_app", instances=[instance_resp])
+        manifest_list = make_manifest_list_response([manifest_resp])
+        client = cli_client_factory.build_with_routes(
+            [
+                ("GET", "/api/apps/manifests", 200, manifest_list.model_dump()),
+                ("POST", "/api/apps/my_app/instances/1/reload", 200, _action_response(action="reload").model_dump()),
+            ]
+        )
+        with patch("builtins.input", return_value="y") as mock_input:
+            runner.stdout(client, cmd_app_reload, "my_app", instance="office")
+
+        assert "Reload instance 'office' of 'my_app'?" in mock_input.call_args[0][0]
+
+    def test_declining_confirmation_exits_without_posting(self, cli_client_factory: CLIClientFactory) -> None:
+        """Declining the reload confirmation aborts before POSTing."""
+        client = cli_client_factory.build_with_routes(
+            [("POST", "/api/apps/my_app/reload", 200, _action_response(action="reload").model_dump())]
+        )
+        spy = _spy_post(client)
+        with (
+            patch("builtins.input", return_value="n"),
+            patch.object(client, "post", spy),
+            patch(runner.make_client_path, return_value=client),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            cmd_app_reload("my_app")
+
+        assert exc_info.value.code == 0
+        spy.assert_not_called()
+
+    def test_success_message_app_level(self, cli_client_factory: CLIClientFactory) -> None:
+        """Reload success message uses app-level text without --instance."""
+        client = cli_client_factory.build_with_routes(
+            [("POST", "/api/apps/my_app/reload", 200, _action_response(action="reload").model_dump())]
+        )
+        parsed = runner.json_output(client, cmd_app_reload, "my_app", yes=True)
+        assert parsed["message"] == "App 'my_app' reloaded"

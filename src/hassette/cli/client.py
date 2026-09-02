@@ -21,7 +21,7 @@ from hassette.cli.context import CLIContext
 from hassette.cli.target import resolve_cli_auth_token, resolve_server_target
 from hassette.config.config import HassetteConfig
 from hassette.exceptions import FatalError
-from hassette.web.models import AppManifestListResponse
+from hassette.web.models import ActionResponse, AppManifestListResponse
 
 DEFAULT_TIMEOUT = 10.0
 
@@ -146,6 +146,32 @@ class HassetteCLIClient:
             if is_tolerated_503:
                 self._handle_http_error(response)
             raise
+
+        self._echo_success_target_and_warnings()
+        return result
+
+    def post(self, path: str) -> ActionResponse:
+        """Perform a POST request to an app mutation endpoint, deserialize, and handle errors.
+
+        Action routes (start/stop/reload) take no request body or query params and always
+        respond with an :class:`~hassette.web.models.ActionResponse` on success.
+
+        Raises:
+            SystemExit: On HTTP 4xx/5xx (code 1) or network errors (code 2).
+        """
+        try:
+            response = self._client.post(path, timeout=self.timeout)
+        except httpx.ConnectError as exc:
+            self._handle_network_error(f"Connection refused: {self.base_url} ({exc})")
+        except httpx.TimeoutException:
+            self._handle_network_error(f"Request timed out after {self.timeout}s connecting to {self.base_url}")
+        except httpx.RequestError as exc:
+            self._handle_network_error(f"Network error: {exc}")
+
+        if not response.is_success:
+            self._handle_http_error(response)
+
+        result = ActionResponse.model_validate(response.json())
 
         self._echo_success_target_and_warnings()
         return result

@@ -27,6 +27,9 @@ class TestSubcommandRouting:
             pytest.param(["app", "activity", "test-app"], "cmd_app_activity", id="app-activity"),
             pytest.param(["app", "config", "test-app"], "cmd_app_config", id="app-config"),
             pytest.param(["app", "source", "test-app"], "cmd_app_source", id="app-source"),
+            pytest.param(["app", "start", "test-app"], "cmd_app_start", id="app-start"),
+            pytest.param(["app", "stop", "test-app"], "cmd_app_stop", id="app-stop"),
+            pytest.param(["app", "reload", "test-app"], "cmd_app_reload", id="app-reload"),
             pytest.param(["config"], "cmd_config", id="config"),
             pytest.param(["dashboard"], "cmd_dashboard", id="dashboard"),
             pytest.param(["execution", "some-uuid"], "cmd_execution", id="execution"),
@@ -95,6 +98,13 @@ class TestFlagCombinations:
 
         assert bound.arguments["instance"] == "office"
         assert bound.arguments["since"] == pytest.approx(NOW_EPOCH - 7 * SECONDS_PER_DAY, abs=1)
+
+    def test_app_stop_instance_and_yes(self) -> None:
+        cmd, bound, _ = app.parse_args(["app", "stop", "test-app", "--instance", "1", "--yes"])
+
+        assert cmd.__name__ == "cmd_app_stop"
+        assert bound.arguments["instance"] == "1"
+        assert bound.arguments["yes"] is True
 
     def test_execution_uuid_limit(self) -> None:
         _cmd, bound, _ = app.parse_args(["execution", "abc-123-def", "--limit", "100"])

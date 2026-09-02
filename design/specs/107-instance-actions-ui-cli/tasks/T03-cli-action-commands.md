@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Add CLI start/stop/reload commands with instance support"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#10", "FR#11", "FR#12", "FR#13", "FR#14", "AC#6", "AC#7", "AC#8", "AC#9", "AC#10"]
 ---
