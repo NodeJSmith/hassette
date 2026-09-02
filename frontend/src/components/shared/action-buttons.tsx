@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 
-import { reloadApp, startApp, stopApp } from "../../api/endpoints";
+import { reloadApp, reloadInstance, startApp, startInstance, stopApp, stopInstance } from "../../api/endpoints";
 import { useAsyncAction } from "../../hooks/use-async-action";
 import type { ActionButtonStatusKey } from "../../utils/status";
 import { CAN_START, CAN_STOP, isReloadableStatus } from "../../utils/status";
@@ -22,13 +22,18 @@ import { IconPlay, IconRefresh, IconSquare } from "./icons";
 
 // `verb` reads as "Failed to <verb>", `outcome` as "App "<key>" <outcome>".
 const ACTIONS = {
-  start: { request: startApp, verb: "start", outcome: "started" },
-  stop: { request: stopApp, verb: "stop", outcome: "stopped" },
-  reload: { request: reloadApp, verb: "reload", outcome: "reloaded" },
+  start: { request: startApp, instanceRequest: startInstance, verb: "start", outcome: "started" },
+  stop: { request: stopApp, instanceRequest: stopInstance, verb: "stop", outcome: "stopped" },
+  reload: { request: reloadApp, instanceRequest: reloadInstance, verb: "reload", outcome: "reloaded" },
 } as const;
 
 type ActionName = keyof typeof ACTIONS;
 type ButtonVariant = ComponentProps<typeof Button>["variant"];
+
+interface InstanceRef {
+  index: number;
+  name: string;
+}
 
 interface ActionButtonSpec {
   action: ActionName;
@@ -43,19 +48,35 @@ interface ActionButtonSpec {
 
 // The request returns 202 — the toast confirms the action was accepted, the
 // resulting status change arrives later over the WebSocket.
-async function performAction(appKey: string, name: ActionName) {
-  const { request, verb, outcome } = ACTIONS[name];
+async function performAction(appKey: string, name: ActionName, instance?: InstanceRef) {
+  const { request, instanceRequest, verb, outcome } = ACTIONS[name];
   try {
-    await request(appKey);
+    if (instance) {
+      await instanceRequest(appKey, instance.index);
+    } else {
+      await request(appKey);
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    toast.error(`Failed to ${verb} "${appKey}": ${message}`);
+    if (instance) {
+      toast.error(`Failed to ${verb} instance "${instance.name}" of "${appKey}": ${message}`);
+    } else {
+      toast.error(`Failed to ${verb} "${appKey}": ${message}`);
+    }
     throw err;
   }
-  toast.success(`App "${appKey}" ${outcome}`);
+  if (instance) {
+    toast.success(`Instance "${instance.name}" of "${appKey}" ${outcome}`);
+  } else {
+    toast.success(`App "${appKey}" ${outcome}`);
+  }
 }
 
-function buildButtonSpecs(status: ActionButtonStatusKey, handlers: Record<ActionName, () => void>): ActionButtonSpec[] {
+function buildButtonSpecs(
+  status: ActionButtonStatusKey,
+  handlers: Record<ActionName, () => void>,
+  instance?: InstanceRef,
+): ActionButtonSpec[] {
   return [
     {
       action: "start",
@@ -64,7 +85,7 @@ function buildButtonSpecs(status: ActionButtonStatusKey, handlers: Record<Action
       textVariant: "success",
       icon: <IconPlay />,
       label: "Start",
-      ariaLabel: "Start app",
+      ariaLabel: instance ? `Start instance '${instance.name}'` : "Start app",
       onClick: handlers.start,
     },
     {
@@ -74,7 +95,7 @@ function buildButtonSpecs(status: ActionButtonStatusKey, handlers: Record<Action
       textVariant: "outline",
       icon: <IconRefresh />,
       label: "Reload",
-      ariaLabel: "Reload app",
+      ariaLabel: instance ? `Reload instance '${instance.name}'` : "Reload app",
       onClick: handlers.reload,
     },
     {
@@ -84,7 +105,7 @@ function buildButtonSpecs(status: ActionButtonStatusKey, handlers: Record<Action
       textVariant: "danger",
       icon: <IconSquare />,
       label: "Stop",
-      ariaLabel: "Stop app",
+      ariaLabel: instance ? `Stop instance '${instance.name}'` : "Stop app",
       onClick: handlers.stop,
     },
   ];
@@ -95,14 +116,16 @@ interface ActionButtonProps {
   appKey: string;
   isIcon: boolean;
   disabled: boolean;
+  instance?: InstanceRef;
 }
 
-function ActionButton({ spec, appKey, isIcon, disabled }: ActionButtonProps) {
+function ActionButton({ spec, appKey, isIcon, disabled, instance }: ActionButtonProps) {
+  const testId = instance ? `btn-${spec.action}-${appKey}-${instance.index}` : `btn-${spec.action}-${appKey}`;
   return (
     <Button
       variant={isIcon ? spec.iconVariant : spec.textVariant}
       size={isIcon ? "icon" : "sm"}
-      data-testid={`btn-${spec.action}-${appKey}`}
+      data-testid={testId}
       disabled={disabled}
       onClick={spec.onClick}
       title={isIcon ? spec.label : undefined}
@@ -124,17 +147,22 @@ interface StopConfirmDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirm: () => void;
+  instanceName?: string;
 }
 
-function StopConfirmDialog({ appKey, open, onOpenChange, onConfirm }: StopConfirmDialogProps) {
+function StopConfirmDialog({ appKey, open, onOpenChange, onConfirm, instanceName }: StopConfirmDialogProps) {
+  const title = instanceName ? `Stop instance '${instanceName}'?` : "Stop app?";
+  const description = instanceName ? (
+    `Stop instance '${instanceName}' of '${appKey}'? It will stop processing events until restarted.`
+  ) : (
+    <>Stop &quot;{appKey}&quot;? It will stop processing events until restarted.</>
+  );
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Stop app?</AlertDialogTitle>
-          <AlertDialogDescription>
-            Stop &quot;{appKey}&quot;? It will stop processing events until restarted.
-          </AlertDialogDescription>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
@@ -154,13 +182,14 @@ interface Props {
   status: ActionButtonStatusKey;
   variant?: "icon" | "text";
   confirmStop?: boolean;
+  instance?: InstanceRef;
 }
 
-export function ActionButtons({ appKey, status, variant = "icon", confirmStop = false }: Props) {
+export function ActionButtons({ appKey, status, variant = "icon", confirmStop = false, instance }: Props) {
   const { loading, run } = useAsyncAction();
   const [showStopConfirm, setShowStopConfirm] = useState(false);
 
-  const exec = (name: ActionName) => run(() => performAction(appKey, name));
+  const exec = (name: ActionName) => run(() => performAction(appKey, name, instance));
 
   const handleStop = () => {
     if (confirmStop) {
@@ -171,11 +200,15 @@ export function ActionButtons({ appKey, status, variant = "icon", confirmStop = 
   };
 
   const isIcon = variant === "icon";
-  const buttons = buildButtonSpecs(status, {
-    start: () => void exec("start"),
-    reload: () => void exec("reload"),
-    stop: handleStop,
-  });
+  const buttons = buildButtonSpecs(
+    status,
+    {
+      start: () => void exec("start"),
+      reload: () => void exec("reload"),
+      stop: handleStop,
+    },
+    instance,
+  );
 
   return (
     <>
@@ -183,7 +216,14 @@ export function ActionButtons({ appKey, status, variant = "icon", confirmStop = 
         {buttons.map(
           (btn) =>
             btn.visible && (
-              <ActionButton key={btn.action} spec={btn} appKey={appKey} isIcon={isIcon} disabled={loading} />
+              <ActionButton
+                key={btn.action}
+                spec={btn}
+                appKey={appKey}
+                isIcon={isIcon}
+                disabled={loading}
+                instance={instance}
+              />
             ),
         )}
       </div>
@@ -195,6 +235,7 @@ export function ActionButtons({ appKey, status, variant = "icon", confirmStop = 
           onConfirm={() => {
             void exec("stop");
           }}
+          instanceName={instance?.name}
         />
       )}
     </>
