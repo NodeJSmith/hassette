@@ -22,6 +22,12 @@ if typing.TYPE_CHECKING:
 
 _QUEUE_LISTENER_STOP_TIMEOUT_SECONDS = 5.0
 
+# "py.warnings" mirrors "hassette" throughout this file's handler swaps so that captured
+# warnings.warn(...) calls (e.g. HassetteForgottenAwaitWarning) reach the same console/
+# capture/persistence pipeline as regular hassette logs, instead of a handler-less logger.
+# See enable_basic_logging() in logging_.py, which sets up the identical wiring for Phase 1.
+_MIRRORED_LOGGER_NAMES = ("hassette", "py.warnings")
+
 
 class LoggingService(Resource):
     """Owns the full async logging pipeline.
@@ -57,11 +63,12 @@ class LoggingService(Resource):
 
     async def on_initialize(self) -> None:
         """Upgrade logging from sync to async pipeline."""
-        hassette_logger = logging.getLogger("hassette")
+        mirrored_loggers = [logging.getLogger(name) for name in _MIRRORED_LOGGER_NAMES]
 
-        for h in list(hassette_logger.handlers):
-            if isinstance(h, logging.handlers.QueueHandler):
-                hassette_logger.removeHandler(h)
+        for logger in mirrored_loggers:
+            for h in list(logger.handlers):
+                if isinstance(h, logging.handlers.QueueHandler):
+                    logger.removeHandler(h)
         if self._queue_listener is not None:
             with contextlib.suppress(Exception):
                 await asyncio.to_thread(self._queue_listener.stop)
@@ -95,9 +102,11 @@ class LoggingService(Resource):
         listener = HassetteQueueListener(q, *handlers)
 
         # Atomic swap: add QueueHandler FIRST, then remove StreamHandler
-        hassette_logger.addHandler(queue_handler)
+        for logger in mirrored_loggers:
+            logger.addHandler(queue_handler)
         if self._stream_handler is not None:
-            hassette_logger.removeHandler(self._stream_handler)
+            for logger in mirrored_loggers:
+                logger.removeHandler(self._stream_handler)
 
         listener.start()
 
@@ -109,12 +118,14 @@ class LoggingService(Resource):
     async def on_shutdown(self) -> None:
         """Stop the async logging pipeline and restore synchronous console logging."""
         self.capture_handler.shutting_down = True
-        hassette_logger = logging.getLogger("hassette")
+        mirrored_loggers = [logging.getLogger(name) for name in _MIRRORED_LOGGER_NAMES]
 
         if self._queue_handler is not None:
-            hassette_logger.removeHandler(self._queue_handler)
+            for logger in mirrored_loggers:
+                logger.removeHandler(self._queue_handler)
         if self._stream_handler is not None:
-            hassette_logger.addHandler(self._stream_handler)
+            for logger in mirrored_loggers:
+                logger.addHandler(self._stream_handler)
 
         self.logger.warning("LoggingService shutting down — subsequent log records will be console-only")
 

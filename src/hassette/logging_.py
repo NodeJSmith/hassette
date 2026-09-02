@@ -448,8 +448,19 @@ def enable_basic_logging(
     stream_handler.setFormatter(formatter)
     logger.addHandler(stream_handler)
 
-    # Capture warnings.warn(...) and friends messages in logs.
+    # Capture warnings.warn(...) and friends messages in logs. Route "py.warnings" through
+    # the same handler as "hassette" — otherwise captured warnings (e.g.
+    # HassetteForgottenAwaitWarning) reach a logger with no handlers of its own and, via
+    # propagation to root's unformatted lastResort handler, bypass the console formatter
+    # and never reach the capture/persistence pipeline. LoggingService.on_initialize()/
+    # on_shutdown() (Phase 2) mirror this same wiring for the async pipeline.
     logging.captureWarnings(True)
+    warnings_logger = logging.getLogger("py.warnings")
+    warnings_logger.setLevel(logging.WARNING)
+    warnings_logger.propagate = False
+    warnings_logger.handlers.clear()
+    warnings_logger.filters.clear()
+    warnings_logger.addHandler(stream_handler)
 
     # Suppress overly verbose logs from libraries that aren't helpful
     logging.getLogger("requests").setLevel(logging.WARNING)
