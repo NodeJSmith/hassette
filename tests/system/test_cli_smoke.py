@@ -9,7 +9,6 @@ Run via: uv run nox -s system
 
 import asyncio
 import contextlib
-import socket
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -28,7 +27,14 @@ from hassette.web.models import (
     TelemetryStatusResponse,
 )
 
-from .conftest import HA_TOKEN, SystemTestConfig, make_web_system_config, startup_context, wait_for_web_server
+from .conftest import (
+    HA_TOKEN,
+    SystemTestConfig,
+    free_port,
+    make_web_system_config,
+    startup_context,
+    wait_for_web_server,
+)
 
 SYSTEM_APPS_DIR = Path(__file__).parent / "apps"
 
@@ -51,10 +57,7 @@ def _web_config_with_bus_app(ha_url: str, tmp_path: Path) -> tuple[SystemTestCon
     BusHandlerApp in tests/system/apps/ registers a listener for
     light.kitchen_lights — gives us an app with real listeners for filter tests.
     """
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.bind(("", 0))
-        port = sock.getsockname()[1]
+    port = free_port()
 
     config = SystemTestConfig(
         base_url=ha_url,
