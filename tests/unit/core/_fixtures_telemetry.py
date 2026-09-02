@@ -4,12 +4,14 @@ import shutil
 import time
 from collections.abc import AsyncIterator
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock
 
 import aiosqlite
 import pytest
 
 from hassette.core.telemetry.repository import TelemetryRepository
+from hassette.test_utils.sql_helpers import insert_execution_row
 
 # Minimal DDL for telemetry tests — intentionally omits many real columns.
 # See test_database_service_migrations.py for the canonical schema contract.
@@ -123,12 +125,9 @@ async def telemetry_repo(telemetry_db: aiosqlite.Connection) -> TelemetryReposit
 @pytest.fixture
 async def telemetry_session_id(telemetry_db: aiosqlite.Connection) -> int:
     """Insert a session row and return its ID (needed for FK constraints)."""
-    # dup-ignore-start: two tests in test_telemetry_repository.py (the once=True/previous-session
-    # reconciliation tests) deliberately insert a SECOND session row with this same SQL, distinct
-    # from the one this fixture provides, to simulate reconciliation running against a newer
-    # session. Promoting a shared helper out of this fixture for that one cross-file cluster is
-    # out of scope (see design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py
-    # helpers per task).
+    # dup-ignore-start: ``insert_new_session`` below deliberately repeats this SQL to insert a
+    # SECOND session row, distinct from the one this fixture provides, so the once=True/previous-
+    # session reconciliation tests can run reconciliation against a newer session.
     now = time.time()
     cursor = await telemetry_db.execute(
         "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'running')",
@@ -138,3 +137,42 @@ async def telemetry_session_id(telemetry_db: aiosqlite.Connection) -> int:
     assert cursor.lastrowid is not None
     # dup-ignore-end
     return cursor.lastrowid
+
+
+async def assert_listener_count(db: aiosqlite.Connection, listener_id: int, expected: int, message: str) -> None:
+    """Assert the number of listener rows with the given id matches expected."""
+    cursor = await db.execute("SELECT COUNT(*) AS count FROM listeners WHERE id = ?", (listener_id,))
+    row = await cursor.fetchone()
+    assert row["count"] == expected, message
+
+
+async def fetch_listener_field(db: aiosqlite.Connection, listener_id: int, field: str) -> Any:
+    """Return a single column value from the listeners row with the given id."""
+    cursor = await db.execute(f"SELECT {field} FROM listeners WHERE id = ?", (listener_id,))
+    row = await cursor.fetchone()
+    assert row is not None
+    return row[field]
+
+
+async def insert_committed_execution(db: aiosqlite.Connection, session_id: int, **kwargs: Any) -> None:
+    """Insert an execution row (1ms duration, current timestamp) and commit it."""
+    await insert_execution_row(db, session_id=session_id, execution_start_ts=time.time(), duration_ms=1.0, **kwargs)
+    await db.commit()
+
+
+async def insert_new_session(db: aiosqlite.Connection) -> int:
+    """Insert a second 'running' session row and return its id.
+
+    Simulates reconciliation running against a session distinct from the fixture-provided
+    ``telemetry_session_id`` — used by tests that verify once=True cleanup against a newer
+    session.
+    """
+    now = time.time()
+    cursor = await db.execute(
+        "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'running')",
+        (now, now),
+    )
+    await db.commit()
+    new_session_id = cursor.lastrowid
+    assert new_session_id is not None
+    return new_session_id

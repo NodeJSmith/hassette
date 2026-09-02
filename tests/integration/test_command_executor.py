@@ -79,7 +79,7 @@ async def test_restart_cancellation_persists_cancelled_row(
     await executor.drain_and_persist()
 
     # dup-ignore-start: shares the "fetch one row, assert count then fields" shape with
-    # tests/unit/core/test_telemetry_repository.py's persist_execution_batch() assertions —
+    # tests/unit/core/test_telemetry_repository_schema.py's persist_execution_batch() assertions —
     # different test tier (integration vs. unit) exercising unrelated code paths
     # (CommandExecutor.drain_and_persist here vs. TelemetryRepository.persist_execution_batch
     # there); not extractable across that boundary.
@@ -223,7 +223,7 @@ async def test_serve_drains_queue_to_db(executor: CommandExecutor, initialized_d
 
     # Verify it landed in DB
     # dup-ignore-start: shares the "fetch one row, assert count then fields" shape with
-    # tests/unit/core/test_telemetry_repository.py's persist_execution_batch() assertions —
+    # tests/unit/core/test_telemetry_repository_schema.py's persist_execution_batch() assertions —
     # different test tier (integration vs. unit) exercising unrelated code paths
     # (CommandExecutor.drain_and_persist here vs. TelemetryRepository.persist_execution_batch
     # there); not extractable across that boundary.
@@ -342,7 +342,7 @@ async def test_persist_batch_drops_presession_records(
     executor.hassette.try_session_id = MagicMock(return_value=session_id)
 
     # dup-ignore-start: shares the "fetch one row, assert count then fields" shape with
-    # tests/unit/core/test_telemetry_repository.py's persist_execution_batch() assertions —
+    # tests/unit/core/test_telemetry_repository_schema.py's persist_execution_batch() assertions —
     # different test tier (integration vs. unit) exercising unrelated code paths
     # (CommandExecutor.drain_and_persist here vs. TelemetryRepository.persist_execution_batch
     # there); not extractable across that boundary.
@@ -484,7 +484,7 @@ async def test_fk_preserved_across_restart(
 
     # Verify the execution still references the same listener
     # dup-ignore-start: shares the "fetch one row, assert count then fields" shape with
-    # tests/unit/core/test_telemetry_repository.py's persist_execution_batch() assertions —
+    # tests/unit/core/test_telemetry_repository_schema.py's persist_execution_batch() assertions —
     # different test tier (integration vs. unit) exercising unrelated code paths
     # (CommandExecutor.drain_and_persist here vs. TelemetryRepository.persist_execution_batch
     # there); not extractable across that boundary.
