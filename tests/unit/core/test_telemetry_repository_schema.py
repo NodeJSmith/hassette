@@ -19,6 +19,11 @@ from hassette.test_utils.factories import (
 )
 
 
+# dup-ignore-start: pytest test function signature — each test independently declares the
+# telemetry_repo/telemetry_db/telemetry_session_id fixtures it needs; Python has no way to share a
+# function signature between separate test functions, and bundling these three fixtures into one
+# object would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster
+# (see design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
 async def test_persist_execution_batch_inserts_handler_records(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,

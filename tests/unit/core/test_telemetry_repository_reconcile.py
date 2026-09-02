@@ -16,13 +16,12 @@ from hassette.test_utils.factories import (
 from hassette.test_utils.sql_helpers import insert_execution_row
 
 from .conftest import (
+    ONCE_LISTENER_NAME,
     assert_listener_count,
     fetch_listener_field,
     insert_committed_execution,
     insert_new_session,
 )
-
-ONCE_LISTENER_NAME = "test_app.on_event.once"
 
 
 async def test_reconcile_deletes_stale_without_history(
@@ -86,13 +85,8 @@ async def test_reconcile_preserves_live_listeners(
 
     await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [id_a], [])
 
-    cursor = await telemetry_db.execute("SELECT COUNT(*) AS count FROM listeners WHERE id = ?", (id_a,))
-    row = await cursor.fetchone()
-    assert row["count"] == 1, "Live listener should be preserved"
-
-    cursor = await telemetry_db.execute("SELECT COUNT(*) AS count FROM listeners WHERE id = ?", (id_b,))
-    row = await cursor.fetchone()
-    assert row["count"] == 0, "Stale listener without history should be deleted"
+    await assert_listener_count(telemetry_db, id_a, 1, "Live listener should be preserved")
+    await assert_listener_count(telemetry_db, id_b, 0, "Stale listener without history should be deleted")
 
 
 @pytest.mark.usefixtures("telemetry_session_id")
@@ -173,10 +167,8 @@ async def test_reconcile_resets_retired_at_on_reupsert(
     new_id = await telemetry_repo.register_listener(reg)
     assert new_id == listener_id, "Re-upsert should return the same ID"
 
-    cursor = await telemetry_db.execute("SELECT retired_at FROM listeners WHERE id = ?", (listener_id,))
-    row = await cursor.fetchone()
-    assert row is not None
-    assert row["retired_at"] is None, "retired_at should be reset to NULL after re-upsert"
+    retired_at = await fetch_listener_field(telemetry_db, listener_id, "retired_at")
+    assert retired_at is None, "retired_at should be reset to NULL after re-upsert"
 
 
 async def test_reconcile_deletes_stale_job_not_in_live_set(

@@ -29,6 +29,7 @@ from ._fixtures_command_executor import (
 )
 from ._fixtures_service_watcher import DummyService, TempService, make_watcher, make_watcher_hassette
 from ._fixtures_telemetry import (
+    ONCE_LISTENER_NAME,
     TELEMETRY_TEST_DDL,
     assert_listener_count,
     fetch_listener_field,
@@ -40,6 +41,7 @@ from ._fixtures_telemetry import (
 )
 
 __all__ = [
+    "ONCE_LISTENER_NAME",
     "TELEMETRY_TEST_DDL",
     "DummyService",
     "TempService",

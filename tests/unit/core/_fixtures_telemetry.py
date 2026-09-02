@@ -13,6 +13,9 @@ import pytest
 from hassette.core.telemetry.repository import TelemetryRepository
 from hassette.test_utils.sql_helpers import insert_execution_row
 
+#: Listener name used by the once=True reconciliation tests.
+ONCE_LISTENER_NAME = "test_app.on_event.once"
+
 # Minimal DDL for telemetry tests — intentionally omits many real columns.
 # See test_database_service_migrations.py for the canonical schema contract.
 TELEMETRY_TEST_DDL = """

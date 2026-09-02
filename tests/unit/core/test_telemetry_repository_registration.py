@@ -14,10 +14,9 @@ from hassette.test_utils.factories import (
 )
 
 from .conftest import (
+    ONCE_LISTENER_NAME,
     fetch_listener_field,
 )
-
-ONCE_LISTENER_NAME = "test_app.on_event.once"
 
 
 async def test_register_listener_inserts_and_returns_id(
@@ -263,10 +262,3 @@ async def test_upsert_with_name_overrides_key(
     id_a = await telemetry_repo.register_listener(reg_a)
     id_b = await telemetry_repo.register_listener(reg_b)
     assert id_a != id_b
-
-
-# dup-ignore-start: pytest test function signature — each test independently declares the
-# telemetry_repo/telemetry_db/telemetry_session_id fixtures it needs; Python has no way to share a
-# function signature between separate test functions, and bundling these three fixtures into one
-# object would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster
-# (see design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
