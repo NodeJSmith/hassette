@@ -19,7 +19,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 from hassette.core.block_io_guard import MonkeypatchEvent
-from hassette.core.command_executor import CommandExecutor
+from hassette.core.command_executor import _UNOWNED_WARN_RATE_LIMIT_SECS, CommandExecutor
 from hassette.test_utils import make_controlled_clock
 from hassette.test_utils.factories import make_execution_record
 
@@ -258,11 +258,11 @@ async def test_emit_completion_events_unowned_warning_fires_after_rate_limit_win
     await CommandExecutor.emit_completion_events(executor, [unowned])
     assert executor._last_unowned_warn_ts == 100.0
 
-    clock.advance_to(129.999)
+    clock.advance_to(100.0 + _UNOWNED_WARN_RATE_LIMIT_SECS - 0.001)
     await CommandExecutor.emit_completion_events(executor, [unowned])
     assert executor._last_unowned_warn_ts == 100.0
 
-    clock.advance_to(130.0)
+    clock.advance_to(100.0 + _UNOWNED_WARN_RATE_LIMIT_SECS)
     await CommandExecutor.emit_completion_events(executor, [unowned])
 
     assert executor._last_unowned_warn_ts == 130.0
