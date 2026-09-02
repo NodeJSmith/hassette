@@ -309,6 +309,46 @@ def test_multi_instance_parent_logs_tab(page: Page, base_url: str) -> None:
     expect(page.locator("[data-testid='logs-section']")).to_be_visible()
 
 
+def test_instance_detail_action_button_fires_instance_scoped_route(page: Page, base_url: str) -> None:
+    """Reloading a single instance from its detail view hits the instance-scoped route.
+
+    Navigates to the multi-instance app's instance overview, opens a single
+    instance's detail view via the instance card, then clicks Reload. The
+    request must go to /apps/{app_key}/instances/{index}/reload — not the
+    app-wide /apps/{app_key}/reload — proving the `instance` prop threaded
+    through app-detail-header reaches ActionButtons and the instance-level
+    endpoint is used.
+    """
+    reload_requests: list[str] = []
+
+    def _capture(request) -> None:
+        if "/reload" in request.url and "/apps/multi_app" in request.url:
+            reload_requests.append(request.url)
+
+    page.on("request", _capture)
+
+    page.goto(base_url + "/apps/multi_app")
+    page.wait_for_load_state("networkidle")
+
+    instance_card = page.locator("[data-testid='instance-card-1']")
+    expect(instance_card).to_be_visible()
+    instance_card.click()
+
+    switcher = page.locator("[data-testid='instance-switcher']")
+    expect(switcher).to_be_visible()
+
+    reload_btn = page.get_by_label("Reload instance 'MultiApp[1]'")
+    expect(reload_btn).to_be_visible()
+    reload_btn.click()
+
+    page.wait_for_timeout(ANIMATION_SETTLE_MS)
+
+    assert reload_requests, "No /reload request was captured"
+    assert all("/instances/1/reload" in url for url in reload_requests), (
+        f"Expected instance-scoped reload route, got: {reload_requests}"
+    )
+
+
 def test_manual_job_run_now_shows_execution_activity(page: Page, live_server_ws_inject) -> None:
     """A manual-only job is displayed, submitted via Run Now, and execution activity appears.
 

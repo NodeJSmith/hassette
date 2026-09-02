@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Wire instance prop into app-detail-header and apps-table-row"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#8", "FR#9", "AC#11", "AC#12"]
 ---

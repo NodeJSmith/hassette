@@ -63,7 +63,15 @@ export function AppDetailHeader({
           <Badge variant={statusToVariant(liveStatus)} size="sm" data-testid="app-status-pill">
             <StatusShape kind={statusToKind(liveStatus)} size={BADGE_STATUS_DOT_SIZE} /> {liveStatus}
           </Badge>
-          <ActionButtons appKey={appKey} status={liveStatus} variant="text" confirmStop />
+          <ActionButtons
+            appKey={appKey}
+            status={liveStatus}
+            variant="text"
+            confirmStop
+            {...(manifest && manifest.instance_count > 1 && !showParentOverview
+              ? { instance: { index: resolvedInstanceIndex, name: currentInstance?.instance_name ?? "" } }
+              : {})}
+          />
         </div>
       </div>
 

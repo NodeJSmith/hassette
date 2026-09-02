@@ -158,7 +158,7 @@ export function AppTableRow({
             compact && "hidden",
           )}
         >
-          <ActionButtons appKey={app.app_key} status={status} />
+          <ActionButtons appKey={app.app_key} status={status} confirmStop />
         </td>
       </tr>
       {isMulti &&
@@ -207,7 +207,12 @@ export function AppTableRow({
                   compact && "hidden",
                 )}
               >
-                <ActionButtons appKey={app.app_key} status={instStatus} />
+                <ActionButtons
+                  appKey={app.app_key}
+                  status={instStatus}
+                  confirmStop
+                  instance={{ index: inst.index, name: inst.instance_name }}
+                />
               </td>
             </tr>
           );
