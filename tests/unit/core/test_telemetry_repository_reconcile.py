@@ -46,8 +46,6 @@ async def test_reconcile_deletes_stale_without_history(
 # function signature between separate test functions, and bundling these three fixtures into one
 # object would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster
 # (see design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
-
-
 async def test_reconcile_retires_stale_with_history(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
@@ -110,8 +108,6 @@ async def test_reconcile_deletes_once_true_previous_session(
 # function signature between separate test functions, and bundling these three fixtures into one
 # object would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster
 # (see design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
-
-
 async def test_reconcile_preserves_once_true_with_current_executions(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
@@ -144,8 +140,6 @@ async def test_reconcile_empty_ids_no_crash(
 # function signature between separate test functions, and bundling these three fixtures into one
 # object would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster
 # (see design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
-
-
 async def test_reconcile_resets_retired_at_on_reupsert(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
@@ -195,8 +189,6 @@ async def test_reconcile_deletes_stale_job_not_in_live_set(
 # function signature between separate test functions, and bundling these three fixtures into one
 # object would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster
 # (see design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
-
-
 async def test_reconcile_retires_stale_job_with_history_non_empty_live_set(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,

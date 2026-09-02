@@ -13,7 +13,7 @@ surface stable; only the definitions moved.
 - `lifecycle_service` — `AppLifecycleService` built from the mocks above
 - `telemetry_db`, `telemetry_repo`, `telemetry_session_id` — SQLite-backed telemetry test chain
 
-## Shared helpers (module-level functions, not fixtures)
+## Shared helpers and constants (module-level, not fixtures)
 
 - `set_registry_apps(registry, apps)` — configures a `mock_registry`'s `__contains__`, `app_keys()`, `get_running_apps()`, and `get()` from an `apps`-shaped dict (`dict[str, dict[int, App]]`); use instead of assigning `mock_registry.apps = ...` directly (that attribute no longer exists on the real `AppRegistry`)
 - `make_executor(**kw)` — real `CommandExecutor` with dependencies mocked out

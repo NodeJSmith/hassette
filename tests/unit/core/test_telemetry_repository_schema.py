@@ -68,8 +68,6 @@ async def test_persist_execution_batch_inserts_handler_records(
 # function signature between separate test functions, and bundling these three fixtures into one
 # object would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster
 # (see design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
-
-
 async def test_persist_execution_batch_inserts_job_records(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
@@ -126,8 +124,6 @@ async def test_persist_execution_batch_handles_empty_list(
 # function signature between separate test functions, and bundling these three fixtures into one
 # object would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster
 # (see design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
-
-
 async def test_persist_execution_batch_unified(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
