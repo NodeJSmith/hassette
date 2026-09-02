@@ -39,12 +39,36 @@ from tests.unit.conftest import (
 
 _EXECUTOR_LOGGER = "hassette.task_bucket.interruptible_executor"
 
+#: Timeout for a join or shutdown that is expected to complete within it. Generous enough
+#: to absorb CI scheduling jitter, short enough that a genuinely stuck thread fails the
+#: test instead of hanging it.
+JOIN_BUDGET = 2.0
+
+#: Longer budget for joining a thread after ``async_raise``, which only takes effect once
+#: the target thread next executes Python bytecode.
+INTERRUPT_JOIN_BUDGET = 3.0
+
+#: Deliberately shorter than any worker's runtime, so the join always expires and the
+#: straggler/interrupt path under test is actually exercised.
+STRAGGLER_JOIN_TIMEOUT = 0.05
+
+#: Budget for a join or shutdown whose duration is not what the test asserts on — either
+#: the threads are already dead, or the test only checks that the call does not raise.
+BRIEF_JOIN_BUDGET = 0.5
+
+#: Upper bound on a call expected to return without waiting, so a regression that starts
+#: blocking (instead of short-circuiting) is actually caught.
+FAST_RETURN_LIMIT = 0.5
+
+#: Fraction of the shutdown budget allowed as overshoot for scheduling jitter.
+SHUTDOWN_JITTER_MARGIN = 1.2
+
 
 def interrupt_and_join(thread: threading.Thread) -> None:
     """Interrupt `thread` with async_raise(SystemExit) and assert it actually exits."""
     assert thread.ident is not None  # the thread has started, so ident is set
     async_raise(thread.ident, SystemExit)
-    thread.join(timeout=3.0)
+    thread.join(timeout=INTERRUPT_JOIN_BUDGET)
     assert not thread.is_alive(), "Thread should have been terminated by async_raise"
 
 
@@ -192,7 +216,7 @@ class TestJoinOrInterruptThreads:
         t.start()
         await_worker_ready(started)
 
-        joined = join_or_interrupt_threads({t}, timeout=2.0, log=False)
+        joined = join_or_interrupt_threads({t}, timeout=JOIN_BUDGET, log=False)
         assert t in joined
 
     def test_logs_straggler_name_before_interrupt(self) -> None:
@@ -200,9 +224,9 @@ class TestJoinOrInterruptThreads:
         t = start_busy_thread(name="test-straggler-thread")
 
         with capture_warnings() as records:
-            join_or_interrupt_threads({t}, timeout=0.05, log=True)
+            join_or_interrupt_threads({t}, timeout=STRAGGLER_JOIN_TIMEOUT, log=True)
 
-        t.join(timeout=2.0)
+        t.join(timeout=JOIN_BUDGET)
 
         messages = [r.getMessage() for r in records]
         assert any("test-straggler-thread" in m for m in messages), (
@@ -221,11 +245,11 @@ class TestJoinOrInterruptThreads:
 
         t = threading.Thread(target=quick, daemon=True)
         t.start()
-        assert done.wait(timeout=2.0), "worker did not signal done in time"
+        await_worker_ready(done)
         t.join()  # now dead
 
         # Should not raise — dead thread goes into joined set
-        joined = join_or_interrupt_threads({t}, timeout=0.5, log=False)
+        joined = join_or_interrupt_threads({t}, timeout=BRIEF_JOIN_BUDGET, log=False)
         assert t in joined
 
     def test_suppresses_system_error_from_async_raise(self) -> None:
@@ -237,7 +261,7 @@ class TestJoinOrInterruptThreads:
             side_effect=SystemError("simulated"),
         ):
             # Must not raise
-            join_or_interrupt_threads({t}, timeout=0.05, log=False)
+            join_or_interrupt_threads({t}, timeout=STRAGGLER_JOIN_TIMEOUT, log=False)
 
         # Clean up — t is still running because async_raise was patched to raise SystemError
         interrupt_and_join(t)
@@ -263,8 +287,8 @@ class TestInterruptibleThreadPoolExecutorShutdown:
         budget = 1.0
         elapsed = timed_shutdown(executor, budget)
 
-        # Allow a 20% margin over budget for scheduling jitter.
-        assert elapsed < budget * 1.2, f"shutdown() took {elapsed:.2f}s, expected < {budget * 1.2:.2f}s"
+        limit = budget * SHUTDOWN_JITTER_MARGIN
+        assert elapsed < limit, f"shutdown() took {elapsed:.2f}s, expected < {limit:.2f}s"
 
     def test_shutdown_does_not_raise(self) -> None:
         """shutdown() must never propagate an exception from the interrupt loop."""
@@ -272,7 +296,7 @@ class TestInterruptibleThreadPoolExecutorShutdown:
         submit_busy_worker(executor)
 
         # Must not raise — benign errors are suppressed
-        executor.shutdown(join_threads_or_timeout=True, timeout=0.5)
+        executor.shutdown(join_threads_or_timeout=True, timeout=BRIEF_JOIN_BUDGET)
 
     def test_python_busy_loop_worker_terminated_within_budget(self) -> None:
         """A Python busy-loop worker must be interrupted by async_raise(SystemExit)
@@ -293,7 +317,7 @@ class TestInterruptibleThreadPoolExecutorShutdown:
         submit_busy_worker(executor, reraise=True)
 
         with capture_warnings() as records:
-            executor.shutdown(join_threads_or_timeout=True, timeout=2.0)
+            executor.shutdown(join_threads_or_timeout=True, timeout=JOIN_BUDGET)
 
         messages = [r.getMessage() for r in records]
         assert any("is still running at shutdown" in m for m in messages), (
@@ -310,7 +334,7 @@ class TestInterruptibleThreadPoolExecutorShutdown:
         executor.shutdown(join_threads_or_timeout=False)
         elapsed = time.monotonic() - wall_start
 
-        assert elapsed < 0.5, f"Expected near-instant shutdown; took {elapsed:.2f}s"
+        assert elapsed < FAST_RETURN_LIMIT, f"Expected near-instant shutdown; took {elapsed:.2f}s"
 
     def test_join_threads_or_timeout_returns_early_when_all_joined(self) -> None:
         """join_threads_or_timeout() exits early once all threads have joined.
@@ -333,7 +357,7 @@ class TestInterruptibleThreadPoolExecutorShutdown:
 
         # Wait for all threads to finish
         for t in threads:
-            t.join(timeout=2.0)
+            t.join(timeout=JOIN_BUDGET)
         assert all(not t.is_alive() for t in threads)
 
         # Now call join_threads_or_timeout with already-dead threads injected directly.
@@ -348,7 +372,7 @@ class TestInterruptibleThreadPoolExecutorShutdown:
 
         # Must exit fast — all threads are already dead. Tight bound so a regression
         # that iterates unexpectedly (instead of early-exiting) is actually caught.
-        assert elapsed < 0.5, f"Expected early exit; took {elapsed:.2f}s"
+        assert elapsed < FAST_RETURN_LIMIT, f"Expected early exit; took {elapsed:.2f}s"
 
         # Clean up the real executor without the join loop
         executor.shutdown(join_threads_or_timeout=False)
@@ -367,7 +391,7 @@ class TestInterruptibleThreadPoolExecutorShutdown:
             side_effect=ValueError("Thread not found"),
         ):
             # Thread is alive, so async_raise IS invoked; its ValueError must be suppressed.
-            join_or_interrupt_threads({t}, timeout=0.05, log=False)
+            join_or_interrupt_threads({t}, timeout=STRAGGLER_JOIN_TIMEOUT, log=False)
 
         # Clean up: actually stop the live thread now that the real async_raise is back.
         interrupt_and_join(t)
@@ -383,7 +407,7 @@ class TestInterruptibleThreadPoolExecutorShutdown:
             side_effect=SystemError("simulated res>1"),
         ):
             # Must not raise
-            executor.shutdown(join_threads_or_timeout=True, timeout=0.5)
+            executor.shutdown(join_threads_or_timeout=True, timeout=BRIEF_JOIN_BUDGET)
 
         # Clean up — async_raise was patched throughout shutdown, so the busy-loop worker was
         # never actually interrupted and is still spinning. Unlike the raw threads used

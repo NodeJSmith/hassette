@@ -30,7 +30,6 @@ logger = logging.getLogger(__name__)
 
 COMPOSE_FILE = Path(__file__).parent / "docker-compose.yml"
 FIXTURE_DIR = Path(__file__).parent.parent / "fixtures" / "ha-config"
-HA_URL = "http://localhost:18123"
 
 # Single source of truth: scripts/docker/.env (tests/system/.env symlinks to it).
 _DEMO_ENV_PATH = Path(__file__).parent / ".env"
@@ -38,6 +37,13 @@ _DEMO_ENV = dotenv_values(_DEMO_ENV_PATH)
 HA_TOKEN = _DEMO_ENV.get("HA_ACCESS_TOKEN")
 if not HA_TOKEN:
     raise RuntimeError(f"HA_ACCESS_TOKEN not found in {_DEMO_ENV_PATH}")
+
+# docker-compose.yml publishes the container's 8123 on this same host port, interpolating
+# it from the same .env file — so the URL the tests poll cannot drift from the mapping.
+_HA_PORT = _DEMO_ENV.get("SYSTEM_HA_PORT")
+if not _HA_PORT:
+    raise RuntimeError(f"SYSTEM_HA_PORT not found in {_DEMO_ENV_PATH}")
+HA_URL = f"http://localhost:{_HA_PORT}"
 HA_CONTAINER_NAME = "hassette-system-ha"
 STARTUP_TIMEOUT = 60  # seconds
 SHUTDOWN_TIMEOUT = 30  # seconds — matches Hassette's total_shutdown_timeout_seconds
