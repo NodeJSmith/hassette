@@ -1,7 +1,6 @@
 import asyncio
 import typing
 import uuid
-from contextlib import suppress
 from logging import INFO, Filter, Logger, LogRecord, getLogger
 from typing import Any, ClassVar, TypeVar, final
 
@@ -32,7 +31,7 @@ from hassette.resources.teardown import (
     TeardownReport,
     merge_teardown_reports,
 )
-from hassette.types.enums import ResourceRole, ResourceStatus
+from hassette.types.enums import TERMINAL_STATUSES, ResourceRole, ResourceStatus
 from hassette.types.types import FRAMEWORK_APP_KEY_PREFIX, LOG_LEVEL_TYPE, SourceTier
 
 from .mixins import LifecycleMixin
@@ -388,7 +387,17 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         ):
             self._shutdown_task.cancel()
         self.task_bucket.cancel_all_sync()
-        self._status = ResourceStatus.STOPPED  # bypass setter to skip validation
+        if self._status in TERMINAL_STATUSES:
+            # Don't silently clobber a status this resource already reached on its own (e.g.
+            # EXHAUSTED_DEAD from the confirmed-quiescent restart-refusal path) -- overwriting it
+            # to STOPPED here would erase that evidence with no trace for post-incident triage.
+            self.logger.debug(
+                "%s: force-terminal called but status is already terminal (%s) -- leaving unchanged",
+                self.unique_name,
+                self._status.value,
+            )
+        else:
+            self._status = ResourceStatus.STOPPED  # bypass setter to skip validation
         mark_not_ready(self, "shutdown timed out")
         for child in self.children:
             child._force_terminal()
@@ -657,7 +666,22 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
 
         cancel(self)
         if self._init_task and not self._init_task.done():
-            with suppress(asyncio.CancelledError):
+            try:
                 await asyncio.wait_for(self._init_task, timeout=timeout)
+            except asyncio.CancelledError:  # noqa: ASYNC103 — re-raised below when this task's own cancellation is detected
+                # cancel(self) above cancels _init_task -- a different task object than the one
+                # running this coroutine -- so its CancelledError propagating here is expected
+                # and safe to swallow. But an external cancellation of *this* coroutine (e.g. the
+                # enclosing asyncio.timeout(cleanup_timeout) in _run_post_hook_shutdown_stage
+                # expiring while this await is suspended) raises CancelledError at this same
+                # point and is indistinguishable by exception type alone. current_task.cancelling()
+                # disambiguates: it is only nonzero when something called .cancel() on *this*
+                # task, which happens only in the latter case. Swallowing that case would prevent
+                # the enclosing asyncio.timeout() from ever observing its own expiration, silently
+                # losing the CLEANUP_TIMED_OUT evidence it depends on to convert the cancellation
+                # into a TimeoutError.
+                current_task = asyncio.current_task()
+                if current_task is not None and current_task.cancelling():
+                    raise
 
         self.logger.debug("Cleaned up resources")

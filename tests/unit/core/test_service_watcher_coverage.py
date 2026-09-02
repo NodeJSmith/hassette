@@ -7,6 +7,7 @@ listener registration, the BusService-recovery gate, on_service_running's early-
 guards, cooldown abort/failure paths, and service lookup.
 """
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
@@ -485,6 +486,35 @@ class TestHandleRestartRefused:
 
         hassette.record_fatal_reason.assert_called_once()
         mock_request_shutdown.assert_called_once()
+
+
+class TestDispatchStatusEventBestEffort:
+    async def test_bounds_a_hanging_send_event(self) -> None:
+        """A stalled event channel must not hang the caller's already-decided status transition --
+        the dispatch is bounded by a timeout and swallowed rather than blocking indefinitely.
+        """
+        hassette = make_watcher_hassette()
+        entered = asyncio.Event()
+
+        async def hang_forever(_event: HassetteServiceEvent) -> None:
+            entered.set()
+            await asyncio.Event().wait()  # never resolves on its own
+
+        hassette.send_event = AsyncMock(side_effect=hang_forever)
+        watcher = make_watcher(hassette)
+        event = watcher.emit_service_status_event(
+            PLACEHOLDER_SERVICE_NAME, ResourceRole.SERVICE, ResourceStatus.CRASHED, ResourceStatus.RUNNING
+        )
+
+        with patch("hassette.core.service_watcher._STATUS_EVENT_DISPATCH_TIMEOUT_SECONDS", 0.05):
+            # Deterministic bound on the test itself: if the fix regresses and the dispatch hangs
+            # again, this fails fast instead of stalling the suite.
+            await asyncio.wait_for(
+                watcher.dispatch_status_event_best_effort(PLACEHOLDER_SERVICE_NAME, ResourceRole.SERVICE, event),
+                timeout=2,
+            )
+
+        assert entered.is_set()
 
 
 class TestExecuteRestartCatchesRefusal:

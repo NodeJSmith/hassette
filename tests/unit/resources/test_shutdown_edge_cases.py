@@ -6,10 +6,15 @@ Verifies:
 - shutdown() skips the STOPPING transition when status is already terminal
 - _shutdown_body() swallows an exception raised by handle_stop()
 - _emit_readiness_event() swallows an exception raised while building/sending the event
+- cleanup() propagates an external cancellation of its own coroutine instead of mistaking it
+  for _init_task's own requested cancellation
 """
 
 import asyncio
+from contextlib import suppress
 from unittest.mock import AsyncMock, patch
+
+import pytest
 
 from hassette.resources.lifecycle import mark_ready
 from hassette.resources.teardown import TeardownCause
@@ -143,3 +148,53 @@ class TestEmitReadinessEventSwallowsException:
 
         # Must not raise despite send_event() blowing up.
         await resource._emit_readiness_event()
+
+
+class TestCleanupPropagatesExternalCancellation:
+    async def test_external_cancellation_is_not_swallowed_as_init_task_cancellation(self) -> None:
+        """cleanup() must not swallow a CancelledError caused by an external cancellation of its
+        own coroutine (e.g. an enclosing asyncio.timeout() expiring) as if it were _init_task's
+        own requested cancellation completing. Doing so would silently defeat the caller's
+        timeout: the CancelledError never propagates far enough for asyncio.timeout() to detect
+        its own expiration and convert it into a TimeoutError, and _run_post_hook_shutdown_stage()
+        would never record CLEANUP_TIMED_OUT.
+        """
+        # Sequence this test drives, mapped to the two CancelledErrors involved:
+        #   1. cleanup() calls cancel(self), which cancels _init_task -- this is the FIRST
+        #      cancellation the fake task below sees, and it deliberately ignores it (like a
+        #      real init task that doesn't unwind instantly), so _init_task stays "not done".
+        #   2. cleanup() is still suspended in `await asyncio.wait_for(self._init_task, ...)`
+        #      when the outer `asyncio.timeout(0.05)` below expires -- this is the SECOND,
+        #      "external" cancellation, delivered at that same await point. This is the one
+        #      the fix must let propagate rather than swallow as if it were _init_task's own.
+        hassette = make_mock_hassette(sealed=False)
+        resource = ConcreteResource(hassette=hassette)
+
+        entered = asyncio.Event()
+        never_resolves = asyncio.Event()  # deliberately never .set() — keeps the task suspended
+        has_ignored_one_cancel = False
+
+        async def stubborn_init_task() -> None:
+            nonlocal has_ignored_one_cancel
+            while True:
+                try:
+                    entered.set()
+                    await never_resolves.wait()
+                except asyncio.CancelledError:  # noqa: ASYNC103 — re-raised once one cancel has been ignored
+                    if has_ignored_one_cancel:
+                        raise
+                    # Ignore exactly cancel(self)'s cancellation (see step 1 above).
+                    has_ignored_one_cancel = True
+                    continue  # noqa: ASYNC104 — deliberate one-time swallow, see comment above
+
+        resource._init_task = asyncio.create_task(stubborn_init_task())
+        await asyncio.wait_for(entered.wait(), timeout=1)
+
+        try:
+            with pytest.raises(TimeoutError):
+                async with asyncio.timeout(0.05):
+                    await resource.cleanup(timeout=10)
+        finally:
+            resource._init_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await resource._init_task
