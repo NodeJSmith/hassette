@@ -6,8 +6,9 @@ import logging.handlers
 import queue
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
-from hassette.core.logging_service import _MIRRORED_LOGGER_NAMES, LoggingService
+from hassette.core.logging_service import LoggingService
 from hassette.logging_ import (
+    LOGGER_NAMES,
     HassetteQueueHandler,
     HassetteQueueListener,
     LogCaptureHandler,
@@ -18,7 +19,7 @@ from hassette.test_utils.mock_hassette import make_mock_hassette
 
 def remove_queue_handlers() -> None:
     """Remove all QueueHandlers from the hassette and py.warnings loggers."""
-    for logger_name in _MIRRORED_LOGGER_NAMES:
+    for logger_name in LOGGER_NAMES:
         logger = logging.getLogger(logger_name)
         for h in list(logger.handlers):
             if isinstance(h, logging.handlers.QueueHandler):
