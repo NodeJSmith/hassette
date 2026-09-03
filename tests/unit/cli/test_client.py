@@ -251,6 +251,78 @@ class TestTolerate503:
         assert exc_info.value.code == 1
 
 
+# Malformed or model-incompatible 2xx responses (issue #1852)
+#
+# A 200 response can still be unusable: a non-JSON body (wrong --server-url pointing at an
+# unrelated service, or a reverse proxy/LB serving an HTML page with a 200 status), or valid
+# JSON that doesn't match the expected model (CLI/server version skew). Both must exit cleanly
+# through the standard error surface instead of letting json.JSONDecodeError or pydantic's
+# ValidationError propagate as a raw traceback.
+
+
+class TestMalformedSuccessResponse:
+    def test_non_json_200_body_exits_code_1(self) -> None:
+        config = make_host_port_config()
+
+        def handler(_req: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, content=b"<html>not json</html>")
+
+        client = HassetteCLIClient(config, json_mode=False, transport=httpx.MockTransport(handler))
+        with pytest.raises(SystemExit) as exc_info:
+            client.get(HEALTH_ENDPOINT, SimpleModel)
+        assert exc_info.value.code == 1
+
+    def test_non_json_200_body_prints_clean_error_human_mode(self) -> None:
+        config = make_host_port_config()
+
+        def handler(_req: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, content=b"<html>not json</html>")
+
+        client = HassetteCLIClient(config, json_mode=False, transport=httpx.MockTransport(handler))
+        _code, stderr = get_expecting_exit(client)
+        assert "Error" in stderr
+        assert "not valid JSON" in stderr
+        assert "Traceback" not in stderr
+
+    def test_non_json_200_body_json_mode_error_envelope(self, capsys: pytest.CaptureFixture[str]) -> None:
+        config = make_host_port_config()
+
+        def handler(_req: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, content=b"<html>not json</html>")
+
+        client = HassetteCLIClient(config, json_mode=True, transport=httpx.MockTransport(handler))
+        parsed = get_json_error(client, capsys, expect_code=1)
+        assert parsed["error"] is True
+        assert parsed["status"] == 200
+        assert "not valid JSON" in parsed["detail"]
+
+    def test_valid_json_wrong_shape_200_exits_code_1(self) -> None:
+        config = make_host_port_config()
+        transport = make_transport(200, {"unexpected": "shape"})
+        client = HassetteCLIClient(config, json_mode=False, transport=transport)
+        with pytest.raises(SystemExit) as exc_info:
+            client.get(HEALTH_ENDPOINT, SimpleModel)
+        assert exc_info.value.code == 1
+
+    def test_valid_json_wrong_shape_200_prints_clean_error_human_mode(self) -> None:
+        config = make_host_port_config()
+        transport = make_transport(200, {"unexpected": "shape"})
+        client = HassetteCLIClient(config, json_mode=False, transport=transport)
+        _code, stderr = get_expecting_exit(client)
+        assert "Error" in stderr
+        assert "does not match the expected shape" in stderr
+        assert "Traceback" not in stderr
+
+    def test_valid_json_wrong_shape_200_json_mode_error_envelope(self, capsys: pytest.CaptureFixture[str]) -> None:
+        config = make_host_port_config()
+        transport = make_transport(200, {"unexpected": "shape"})
+        client = HassetteCLIClient(config, json_mode=True, transport=transport)
+        parsed = get_json_error(client, capsys, expect_code=1)
+        assert parsed["error"] is True
+        assert parsed["status"] == 200
+        assert "does not match the expected shape" in parsed["detail"]
+
+
 # HTTP error handling (human mode)
 
 
