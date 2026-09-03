@@ -111,6 +111,6 @@ The Tier 2 `fixtures.py` needs updated imports for the fixtures that depend on `
 
 ## Verify
 
-- [ ] FR#5: `python -c "from tests.support.fixtures import hassette_harness, hassette_with_bus"` succeeds (running from repo root, with `tests/` on the Python path)
+- [ ] FR#5: `python -c "from tests.support.fixtures import hassette_harness, hassette_with_bus, hassette_with_app_handler, hassette_with_file_watcher, hassette_with_mock_api, hassette_with_scheduler, hassette_with_state_proxy, run_hassette_startup_tasks, sync_executor"` succeeds (running from repo root, with `tests/` on the Python path). Note: full fixture discoverability within the test suite is proven when T03's AC#1 test run succeeds with the updated `pytest_plugins` entries.
 - [ ] FR#6: `grep -r "from tests.support" src/hassette/testing/` returns zero matches
-- [ ] FR#9: The file `tests/support/fixtures.py` contains the Tier 2 fixtures (`hassette_harness`, `hassette_with_bus`, etc.) and is importable
+- [ ] FR#9: `python -c "from tests.support.fixtures import hassette_harness, hassette_with_bus, hassette_with_app_handler, hassette_with_file_watcher, hassette_with_mock_api, hassette_with_scheduler, hassette_with_state_proxy, run_hassette_startup_tasks, sync_executor"` succeeds, confirming all 9 Tier 2 fixtures are importable from `tests/support/fixtures`
