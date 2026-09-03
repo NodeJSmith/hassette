@@ -397,6 +397,8 @@ No tests to remove. `test_public_api_surface.py` is updated, not removed.
 
 ## Impact
 
+<!-- Gap check 2026-09-03: 3 gaps included — codegen/sync_facade/ast_utils.py:24 docstring → T04 string cleanup, .claude/skills/doc-accuracy-review/references/briefing-template.md:53 → T04 string cleanup, .claude/skills/doc-coverage-review/REFERENCE.md:39 → T04 string cleanup -->
+
 ### Changed Files
 
 **Shared / cross-cutting (highest risk):**
