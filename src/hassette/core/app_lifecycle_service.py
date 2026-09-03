@@ -49,6 +49,9 @@ NOT_STARTED = ResourceStatus.NOT_STARTED
 # Deeper than the exception_utils.get_short_traceback default (1): init failures often
 # surface several frames deep (anyio.fail_after -> on_initialize -> nested awaits), and a
 # single frame is rarely enough to show the app's own code rather than just anyio internals.
+# Passed as a negative limit (see call sites below) so traceback.format_exc keeps the frames
+# closest to the raise — the app author's own code — instead of the frames closest to this
+# module's try block.
 INIT_FAILURE_TRACEBACK_LIMIT = 5
 
 # Per-manifest upsert timeout. A failed write degrades one app's dashboard row — it must
@@ -204,7 +207,7 @@ class AppLifecycleService(Resource):
                     "Timed out while starting app '%s' (%s):\n%s",
                     inst.app_config.instance_name,
                     class_name,
-                    get_short_traceback(INIT_FAILURE_TRACEBACK_LIMIT),
+                    get_short_traceback(-INIT_FAILURE_TRACEBACK_LIMIT),
                 )
                 inst.status = STOPPED
                 await self.cleanup_failed_instance(inst)
@@ -215,7 +218,7 @@ class AppLifecycleService(Resource):
                     "Failed to start app '%s' (%s):\n%s",
                     inst.app_config.instance_name,
                     class_name,
-                    get_short_traceback(INIT_FAILURE_TRACEBACK_LIMIT),
+                    get_short_traceback(-INIT_FAILURE_TRACEBACK_LIMIT),
                 )
                 inst.status = STOPPED
                 await self.cleanup_failed_instance(inst)
