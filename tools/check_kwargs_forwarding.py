@@ -105,25 +105,39 @@ def _is_forwarding_keyword(kw: ast.keyword, kwarg_name: str) -> bool:
     return kw.arg is None and isinstance(kw.value, ast.Name) and kw.value.id == kwarg_name
 
 
-def _own_scope_nodes(node: ast.AST) -> Iterator[ast.AST]:
-    """Yield every descendant of ``node`` in its own execution scope.
+def _binds_name(func: ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda, name: str) -> bool:
+    """True if ``func``'s own parameter list rebinds ``name`` as one of its own parameters."""
+    args = func.args
+    names = [a.arg for a in (*args.posonlyargs, *args.args, *args.kwonlyargs)]
+    if args.vararg:
+        names.append(args.vararg.arg)
+    if args.kwarg:
+        names.append(args.kwarg.arg)
+    return name in names
 
-    Recurses through control flow (``if``/``for``/``with``/``try``/...) but stops at nested
-    function/class/lambda boundaries — those introduce their own scope, with their own
-    parameters, so a same-named ``**kwargs`` inside one is a different variable, not the
-    outer function's. Without this boundary, a nested function's own (possibly safely-typed)
-    ``**kwargs`` forwarding gets misattributed to the outer function's ``object``/``Any``
-    parameter just because the names happen to match.
+
+def _own_scope_nodes(node: ast.AST, kwarg_name: str) -> Iterator[ast.AST]:
+    """Yield every descendant of ``node`` that still runs against ``kwarg_name``'s binding.
+
+    Recurses through control flow (``if``/``for``/``with``/``try``/...) and through nested
+    functions/lambdas that don't rebind ``kwarg_name`` — those close over the outer binding, so
+    a forwarding call inside one is still forwarding the same variable. Stops at a nested
+    function/lambda whose own parameter list rebinds ``kwarg_name`` (a different variable that
+    merely shares the name) and always stops at class boundaries, which get their own pass via
+    ``_iter_functions``.
     """
     for child in ast.iter_child_nodes(node):
         yield child
-        if not isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef | ast.Lambda):
-            yield from _own_scope_nodes(child)
+        if isinstance(child, ast.ClassDef):
+            continue
+        if isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda) and _binds_name(child, kwarg_name):
+            continue
+        yield from _own_scope_nodes(child, kwarg_name)
 
 
 def _forwarding_calls(node: ast.FunctionDef | ast.AsyncFunctionDef, kwarg_name: str) -> Iterator[ast.Call]:
     """Yield every call in ``node``'s own scope that forwards ``**kwarg_name`` onward."""
-    for inner in _own_scope_nodes(node):
+    for inner in _own_scope_nodes(node, kwarg_name):
         if not isinstance(inner, ast.Call):
             continue
         if any(_is_forwarding_keyword(kw, kwarg_name) for kw in inner.keywords):

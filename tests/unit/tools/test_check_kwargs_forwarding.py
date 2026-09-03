@@ -11,6 +11,10 @@ from pathlib import Path
 import pytest
 from check_kwargs_forwarding import check_file, iter_paths
 
+#: Every .py file under src/hassette, captured once so the not-empty guard and the
+#: parametrization below see the same collection.
+REPO_FILES = iter_paths()
+
 # Each case: (id, source, expected violations as [(lineno, message), ...]).
 CASES: list[tuple[str, str, list[tuple[int, str]]]] = [
     (
@@ -87,6 +91,16 @@ CASES: list[tuple[str, str, list[tuple[int, str]]]] = [
         [(3, "outer.inner: '**kwargs: object' forwarded blindly via '**kwargs' into Foo(...)")],
     ),
     (
+        "closure_over_outer_kwargs_flagged_not_missed",
+        """\
+        def outer(**kwargs: object) -> Callable[[], Foo]:
+            def inner() -> Foo:
+                return Foo(**kwargs)
+            return inner
+        """,
+        [(3, "outer: '**kwargs: object' forwarded blindly via '**kwargs' into Foo(...)")],
+    ),
+    (
         "self_recursive_super_call_not_flagged",
         """\
         class Base:
@@ -153,7 +167,12 @@ def test_guard_behavior(write_sample: Callable[[str], Path], source: str, expect
     assert check_file(write_sample(source)) == expected
 
 
-@pytest.mark.parametrize("path", iter_paths(), ids=lambda p: str(p))
+def test_repo_files_found() -> None:
+    """Guard against a misconfigured SCAN_DIRS silently yielding zero files to check."""
+    assert REPO_FILES
+
+
+@pytest.mark.parametrize("path", REPO_FILES, ids=lambda p: str(p))
 def test_real_repo_files_pass(path: Path) -> None:
     """The guard must stay green on the actual src/hassette source it polices."""
     assert check_file(path) == []
