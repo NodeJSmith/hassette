@@ -80,8 +80,11 @@ class AppManifestInfo:
     autostart: bool = True
     block_reason: str | None = None
     instance_count: int = 0
-    """Number of currently tracked instances (running or failed). 0 means none are tracked."""
+    """Number of configured instances, including ones not currently tracked (never started, or
+    independently stopped) — always ``len(instances)``."""
     instances: list[AppInstanceInfo] = field(default_factory=list)
+    """One entry per configured instance. An untracked instance (never started, or independently
+    stopped) is a synthetic ``ResourceStatus.STOPPED`` placeholder, not omitted."""
     error_message: str | None = None
     error_traceback: str | None = None
     in_current_config: bool = True

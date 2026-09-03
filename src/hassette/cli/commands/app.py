@@ -1,7 +1,11 @@
-"""App-related CLI commands: app list, health, activity, config, source."""
+"""App-related CLI commands: app list, health, activity, config, source, start/stop/reload."""
 
-from typing import Any
+import sys
+from typing import Annotated, Any
 
+from cyclopts import Parameter
+
+import hassette.cli.output as cli_output
 from hassette.cli.client import make_client, query_params
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
 from hassette.cli.output import (
@@ -12,9 +16,23 @@ from hassette.cli.output import (
     render_detail_dict,
     render_table,
 )
-from hassette.cli.types import InstanceArg, LimitArg, SinceArg, SourceTierArg
+from hassette.cli.types import InstanceActionArg, InstanceArg, LimitArg, SinceArg, SourceTierArg
 from hassette.schemas.execution_models import ActivityFeedEntry
 from hassette.web.models import AppConfigResponse, AppHealthResponse, AppManifestListResponse, AppSourceResponse
+
+#: Past-tense verb used in success messages, keyed by action name. Mirrors
+#: ``_ACTION_PAST_TENSE`` in ``hassette.web.routes.apps`` (same three actions, same shape), but
+#: intentionally lowercase here for CLI message construction vs. capitalized there for log lines.
+#: Not shared/imported: the web module lives in the route layer (pulls in FastAPI machinery), so
+#: importing its ``AppAction`` type here would be an awkward cross-layer dependency for a
+#: three-entry dict that changes in lockstep with the action set defined in this same file.
+_ACTION_PAST_TENSE: dict[str, str] = {"start": "started", "stop": "stopped", "reload": "reloaded"}
+
+#: Actions that require interactive confirmation before executing. Kept in sync by hand with the
+#: frontend's per-action `ACTIONS` map (``frontend/src/components/shared/action-buttons.tsx``,
+#: `CAN_START`/`CAN_STOP` in ``frontend/src/utils/status.ts``) — no shared source of truth across
+#: the CLI/frontend boundary for "which actions exist and what each one needs."
+_ACTIONS_REQUIRING_CONFIRMATION: frozenset[str] = frozenset({"stop", "reload"})
 
 APP_LIST_COLUMNS: list[Column] = [
     Column("app_key", "App Key", max_width=20),
@@ -125,3 +143,86 @@ def cmd_app_source(
     client = make_client(ctx)
     result = client.get(f"/api/apps/{key}/source", AppSourceResponse)
     render_detail(result, json_mode=ctx.json_mode)
+
+
+def _run_app_action(key: str, action: str, instance: str | None, yes: bool, ctx: CLIContextParam) -> None:
+    """Shared implementation for ``start``/``stop``/``reload``: confirm, POST, render result."""
+    client = make_client(ctx)
+    index: int | None = None
+    # Text for the prompt/message — the resolved instance_name when known, otherwise the
+    # raw --instance selector the operator typed. NOT guaranteed to be the actual
+    # instance_name: see resolve_instance_with_name's docstring for when it falls back.
+    instance_label: str | None = None
+    if instance is not None:
+        index, instance_name = client.resolve_instance_with_name(key, instance)
+        instance_label = instance_name if instance_name is not None else instance
+
+    if action in _ACTIONS_REQUIRING_CONFIRMATION and not yes:
+        if ctx.json_mode:
+            # input() always writes its prompt to stdout, which would corrupt the
+            # single-JSON-document stdout contract in --json mode. Require --yes instead of
+            # ever prompting when JSON output is requested.
+            client.error_usage(f"--yes is required to {action} in --json mode")
+        prompt = (
+            f"{action.capitalize()} instance {instance_label!r} of {key!r}?"
+            if instance_label is not None
+            else f"{action.capitalize()} app {key!r}?"
+        )
+        try:
+            response = input(f"{prompt} [y/N] ")
+        except EOFError:
+            response = ""
+        if response.strip().lower() != "y":
+            cli_output.stderr_console.print("Aborted.")
+            sys.exit(0)
+
+    result = client.post_with_instance_routing(key, action, index)
+    if index is not None and result.instance_index != index:
+        cli_output.stderr_console.print(
+            f"[bold yellow]Warning:[/bold yellow] requested instance {index} of {key!r} "
+            f"but server confirmed instance {result.instance_index!r}",
+            highlight=False,
+        )
+
+    verb = _ACTION_PAST_TENSE[action]
+    message = f"Instance {instance_label!r} of {key!r} {verb}" if instance_label is not None else f"App {key!r} {verb}"
+    detail = {
+        "status": result.status,
+        "app_key": result.app_key,
+        "action": result.action,
+        "instance_index": result.instance_index,
+        "message": message,
+    }
+    render_detail_dict(detail, "App Action", json_mode=ctx.json_mode)
+
+
+def cmd_app_start(
+    key: str,
+    instance: InstanceActionArg = None,
+    *,
+    ctx: CLIContextParam = DEFAULT_CLI_CONTEXT,
+) -> None:
+    """Start an app or app instance (POST /api/apps/{key}/start)."""
+    _run_app_action(key, "start", instance, yes=True, ctx=ctx)
+
+
+def cmd_app_stop(
+    key: str,
+    instance: InstanceActionArg = None,
+    yes: Annotated[bool, Parameter(name=["--yes"], help="Skip the confirmation prompt.", negative=[])] = False,
+    *,
+    ctx: CLIContextParam = DEFAULT_CLI_CONTEXT,
+) -> None:
+    """Stop an app or app instance (POST /api/apps/{key}/stop)."""
+    _run_app_action(key, "stop", instance, yes=yes, ctx=ctx)
+
+
+def cmd_app_reload(
+    key: str,
+    instance: InstanceActionArg = None,
+    yes: Annotated[bool, Parameter(name=["--yes"], help="Skip the confirmation prompt.", negative=[])] = False,
+    *,
+    ctx: CLIContextParam = DEFAULT_CLI_CONTEXT,
+) -> None:
+    """Reload an app or app instance (POST /api/apps/{key}/reload)."""
+    _run_app_action(key, "reload", instance, yes=yes, ctx=ctx)

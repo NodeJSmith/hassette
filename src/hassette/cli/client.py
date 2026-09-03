@@ -12,7 +12,7 @@ Wraps ``httpx2.Client`` (synchronous) with:
 import json
 import sys
 from pathlib import Path
-from typing import Any, NoReturn, TypeVar, overload
+from typing import Any, Literal, NoReturn, TypeVar, overload
 
 import httpx2 as httpx
 from pydantic import ValidationError
@@ -22,11 +22,20 @@ from hassette.cli.context import CLIContext
 from hassette.cli.target import resolve_cli_auth_token, resolve_server_target
 from hassette.config.config import HassetteConfig
 from hassette.exceptions import FatalError
-from hassette.web.models import AppManifestListResponse
+from hassette.web.models import ActionResponse, AppInstanceResponse, AppManifestListResponse
 
 DEFAULT_TIMEOUT = 10.0
 
 T = TypeVar("T")
+
+
+def _filter_instances(manifest_list: AppManifestListResponse, app_key: str) -> list[AppInstanceResponse]:
+    """Flatten the instance list for ``app_key`` out of a full manifest list response.
+
+    Shared by :meth:`HassetteCLIClient._fetch_instances` and
+    :meth:`HassetteCLIClient._try_fetch_instances` so the filter has one source of truth.
+    """
+    return [inst for manifest in manifest_list.manifests if manifest.app_key == app_key for inst in manifest.instances]
 
 
 def query_params(**values: Any) -> dict[str, Any]:
@@ -99,6 +108,28 @@ class HassetteCLIClient:
         self, path: str, model: type[T], params: dict[str, Any] | None = None, *, tolerate_503: bool = False
     ) -> T: ...
 
+    def _send(self, method: Literal["GET", "POST"], path: str, params: dict[str, Any] | None = None) -> httpx.Response:
+        """Perform an HTTP request, translating transport failures into a usage-error exit.
+
+        Shared by :meth:`get` and :meth:`post` — the only difference between the two verbs
+        is what happens to the response afterward (status/503 handling, deserialization
+        target), not how connection failures become a ``SystemExit``. :meth:`_try_fetch_instances`
+        is the one intentional exception: it needs failures to return ``None`` rather than exit,
+        so it calls ``self._client`` directly instead of going through this method.
+        """
+        try:
+            if method == "GET":
+                response = self._client.get(path, params=params, timeout=self.timeout)
+            else:
+                response = self._client.post(path, timeout=self.timeout)
+        except httpx.ConnectError as exc:
+            self._handle_network_error(f"Connection refused: {self.base_url} ({exc})")
+        except httpx.TimeoutException:
+            self._handle_network_error(f"Request timed out after {self.timeout}s connecting to {self.base_url}")
+        except httpx.RequestError as exc:
+            self._handle_network_error(f"Network error: {exc}")
+        return response
+
     def get(
         self,
         path: str,
@@ -122,14 +153,7 @@ class HassetteCLIClient:
                 ``model`` (code 1). A 503 is exempt from the error path when
                 ``tolerate_503=True``.
         """
-        try:
-            response = self._client.get(path, params=params, timeout=self.timeout)
-        except httpx.ConnectError as exc:
-            self._handle_network_error(f"Connection refused: {self.base_url} ({exc})")
-        except httpx.TimeoutException:
-            self._handle_network_error(f"Request timed out after {self.timeout}s connecting to {self.base_url}")
-        except httpx.RequestError as exc:
-            self._handle_network_error(f"Network error: {exc}")
+        response = self._send("GET", path, params=params)
 
         is_tolerated_503 = tolerate_503 and response.status_code == 503
         if not response.is_success and not is_tolerated_503:
@@ -159,6 +183,61 @@ class HassetteCLIClient:
 
         self._echo_success_target_and_warnings()
         return result
+
+    def post(self, path: str) -> ActionResponse:
+        """Perform a POST request to an app mutation endpoint, deserialize, and handle errors.
+
+        Action routes (start/stop/reload) take no request body or query params and always
+        respond with an :class:`~hassette.web.models.ActionResponse` on success.
+
+        Raises:
+            SystemExit: On HTTP 4xx/5xx (code 1), network errors (code 2), or a
+                successful-looking response whose body is not valid JSON or doesn't match
+                ``ActionResponse`` (code 1).
+        """
+        response = self._send("POST", path)
+
+        if not response.is_success:
+            self._handle_http_error(response)
+
+        try:
+            result = ActionResponse.model_validate(response.json())
+        except (json.JSONDecodeError, ValidationError, UnicodeDecodeError) as exc:
+            # Mirrors get()'s malformed-response handling above — a 2xx response we can't
+            # parse into an ActionResponse means the same thing there does: wrong
+            # --server-url, or CLI/server version skew.
+            self._handle_malformed_response(response, exc)
+
+        self._echo_success_target_and_warnings()
+        return result
+
+    def post_with_instance_routing(
+        self, app_key: str, action: str, instance_index: int | None = None
+    ) -> ActionResponse:
+        """Perform a POST to an app mutation endpoint, routing to the app- or instance-scoped path.
+
+        Mirrors :meth:`get_with_app_routing`'s app-level-vs-instance-scoped path selection, but
+        for POST action endpoints (start/stop/reload), which take an already-resolved instance
+        index rather than a raw selector string. Unlike the GET side, resolving the selector
+        can't happen inside this method: the caller needs the resolved index (and canonical
+        name, via :meth:`resolve_instance_with_name`) to build a confirmation prompt *before*
+        this mutating POST runs.
+
+        Args:
+            app_key: The app key to act on.
+            action: One of ``"start"``, ``"stop"``, ``"reload"``.
+            instance_index: The already-resolved instance index, or ``None`` for an app-level
+                action.
+
+        Returns:
+            The deserialized :class:`~hassette.web.models.ActionResponse`.
+        """
+        path = (
+            f"/api/apps/{app_key}/{action}"
+            if instance_index is None
+            else f"/api/apps/{app_key}/instances/{instance_index}/{action}"
+        )
+        return self.post(path)
 
     def get_with_app_routing(
         self,
@@ -203,6 +282,62 @@ class HassetteCLIClient:
 
         return self.get(path, model, params=params)
 
+    def _fetch_instances(self, app_key: str) -> list[AppInstanceResponse]:
+        """Fetch all manifests and return the instance list for ``app_key``."""
+        manifest_list = self.get("/api/apps/manifests", AppManifestListResponse)
+        return _filter_instances(manifest_list, app_key)
+
+    def _try_fetch_instances(self, app_key: str) -> list[AppInstanceResponse] | None:
+        """Best-effort variant of :meth:`_fetch_instances` that never exits the process.
+
+        ``/api/apps/manifests`` is a Category B endpoint that returns 503 when the
+        telemetry DB is unavailable. Resolving a numeric ``--instance`` selector to its
+        canonical name is a purely cosmetic lookup — the mutating start/stop/reload
+        action it supports has no telemetry dependency of its own — so a telemetry
+        outage must not block that action. Use this instead of :meth:`_fetch_instances`
+        wherever the caller has a numeric-index fallback available; any failure here
+        (network error, non-2xx status, unparseable body) returns ``None`` rather than
+        calling ``sys.exit``.
+        """
+        try:
+            response = self._client.get("/api/apps/manifests", timeout=self.timeout)
+        except httpx.RequestError:
+            return None
+
+        if not response.is_success:
+            return None
+
+        try:
+            manifest_list = AppManifestListResponse.model_validate(response.json())
+        except (json.JSONDecodeError, ValidationError, UnicodeDecodeError):
+            return None
+
+        return _filter_instances(manifest_list, app_key)
+
+    def _instance_not_found(self, app_key: str, instance: str, instances: list[AppInstanceResponse]) -> NoReturn:
+        names = ", ".join(repr(inst.instance_name) for inst in instances) if instances else "(none)"
+        self.error_usage(f"Instance {instance!r} not found for app {app_key!r}. Available instances: {names}")
+        raise AssertionError("unreachable")
+
+    def _find_by_name(
+        self, app_key: str, instances: list[AppInstanceResponse], name: str
+    ) -> AppInstanceResponse | None:
+        """Return the instance whose ``instance_name`` matches ``name``, or ``None``.
+
+        Config validation permits two configured instances to share an ``instance_name`` —
+        raises via ``error_usage()`` on more than one match rather than silently acting on
+        whichever one happens to come first, since that would stop/reload/start an arbitrary
+        sibling instance while reporting that the requested name was acted on.
+        """
+        matches = [inst for inst in instances if inst.instance_name == name]
+        if len(matches) > 1:
+            indices = ", ".join(str(inst.index) for inst in matches)
+            self.error_usage(
+                f"Instance name {name!r} is ambiguous for app {app_key!r} — matches indices "
+                f"{indices}. Use --instance <index> instead."
+            )
+        return matches[0] if matches else None
+
     def resolve_instance(self, app_key: str, instance: str) -> int:
         """Resolve an instance selector to an integer index.
 
@@ -221,22 +356,61 @@ class HassetteCLIClient:
         except ValueError:
             pass
 
-        # Name resolution — fetch all manifests and filter client-side for the given app_key
-        manifest_list = self.get("/api/apps/manifests", AppManifestListResponse)
-        for manifest in manifest_list.manifests:
-            if manifest.app_key != app_key:
-                continue
-            for inst in manifest.instances:
-                if inst.instance_name == instance:
-                    return inst.index
-
-        available = []
-        for manifest in manifest_list.manifests:
-            if manifest.app_key == app_key:
-                available.extend(inst.instance_name for inst in manifest.instances)
-        names = ", ".join(repr(n) for n in available) if available else "(none)"
-        self.error_usage(f"Instance {instance!r} not found for app {app_key!r}. Available instances: {names}")
+        instances = self._fetch_instances(app_key)
+        match = self._find_by_name(app_key, instances, instance)
+        if match is not None:
+            return match.index
+        self._instance_not_found(app_key, instance, instances)
         raise AssertionError("unreachable")
+
+    def resolve_instance_with_name(self, app_key: str, instance: str) -> tuple[int, str | None]:
+        """Resolve an instance selector to its index and, when known, its canonical ``instance_name``.
+
+        For a name selector, this always fetches the manifest — there is no fallback,
+        since without it there is no way to resolve which index the name refers to.
+
+        For a digit selector, the manifest name lookup is best-effort: it resolves to
+        the canonical ``instance_name`` when possible so a caller building a
+        human-facing message can report the same instance identity regardless of which
+        selector flavor the operator used, but it tolerates the manifest fetch failing
+        outright (e.g. a 503 from a degraded telemetry DB — see
+        :meth:`_try_fetch_instances`) the same way it already tolerates a manifest with
+        no matching index: both fall back to the raw selector. A numeric selector's
+        underlying mutating action (start/stop/reload) has no telemetry dependency of
+        its own, so a telemetry outage must not block it.
+
+        Args:
+            app_key: The app key to look up.
+            instance: Either a digit string (e.g. ``"1"``) or an instance name.
+
+        Returns:
+            ``(index, instance_name)``. For a name selector, ``instance_name`` is never
+            ``None`` — an unmatched name raises instead (see below). For a digit
+            selector, ``None`` means "resolved, but unverified against the current
+            manifest" — not "not found": the index is still returned as-is.
+
+        Raises:
+            SystemExit: If ``instance`` is a name that doesn't match any known instance.
+        """
+        try:
+            index = int(instance)
+        except ValueError:
+            instances = self._fetch_instances(app_key)
+            match = self._find_by_name(app_key, instances, instance)
+            if match is not None:
+                return match.index, match.instance_name
+            self._instance_not_found(app_key, instance, instances)
+            raise AssertionError("unreachable") from None
+        else:
+            instances = self._try_fetch_instances(app_key)
+            if instances is not None:
+                for inst in instances:
+                    if inst.index == index:
+                        return inst.index, inst.instance_name
+            # No manifest entry for this index (out-of-range, or a race with a manifest
+            # change), or the manifest fetch itself failed — resolved, not
+            # unverified-as-in-not-found; see Returns above.
+            return index, None
 
     def resolve_instance_or_none(self, app_key: str, instance: str | None) -> int | None:
         """Resolve an instance selector, passing ``None`` through unchanged.

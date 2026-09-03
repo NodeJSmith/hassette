@@ -37,9 +37,11 @@ Click any app row to open the App Detail view. The detail view shows health indi
 
 ### Multi-instance apps
 
-Apps with multiple instances show a parent row with a chevron and an instance count badge (e.g., "2 instances"). Click the chevron to expand into individual instance rows. Each instance row shows its own status dot, badge, and last error, plus the same whole-app action buttons as the parent row. Click an instance name to open that instance's detail view.
+Apps with multiple instances show a parent row with a chevron and an instance count badge (e.g., "2 instances"). Click the chevron to expand into individual instance rows. Each instance row shows its own status dot, badge, last error, and action buttons — Start, Stop, and Reload here target just that instance, not the whole app. Click an instance name to open that instance's detail view, where the header's action buttons target the same single instance.
 
-The REST API exposes per-instance start, stop, and reload endpoints (see [Start, Stop, and Reload](#start-stop-and-reload) below) — a sibling instance keeps running untouched when one instance restarts through the API. The dashboard's action buttons still act on the whole app; a dedicated per-instance control in the UI is a separate, not-yet-built feature. A config change to just one instance in `hassette.toml` already triggers a selective reload automatically: Hassette restarts only the instance whose config changed, not the whole app. Adding or removing an instance falls back to a full app restart, since the instance list itself changed. See [Passing Configuration](../core-concepts/apps/configuration.md#multiple-instances) for the config side of this behavior.
+![An expanded instance row with its own action buttons](../../_static/web_ui_instance_action_buttons.png)
+
+The REST API exposes the per-instance start, stop, and reload endpoints backing these buttons (see [Start, Stop, and Reload](#start-stop-and-reload) below) — a sibling instance keeps running untouched when one instance restarts. A config change to just one instance in `hassette.toml` already triggers a selective reload automatically: Hassette restarts only the instance whose config changed, not the whole app. Adding or removing an instance falls back to a full app restart, since the instance list itself changed. See [Passing Configuration](../core-concepts/apps/configuration.md#multiple-instances) for the config side of this behavior.
 
 ## Start, Stop, and Reload
 
@@ -55,7 +57,7 @@ Action buttons appear in the **ACTIONS** column and in the App Detail header. Wh
 
 **Reload** picks up changes to an app's Python file or its config in `hassette.toml`. Reloading one app does not affect other running apps. A full Hassette process restart is only needed for global settings, new integrations, or Hassette updates.
 
-These actions call the REST API — `POST /api/apps/{key}/start`, `/stop`, `/reload` for the whole app, or `POST /api/apps/{key}/instances/{index}/start`, `/stop`, `/reload` for a single instance. The CLI does not expose start/stop/reload subcommands. See [CLI Commands](../cli/commands.md) for what the CLI offers.
+These actions call the REST API — `POST /api/apps/{key}/start`, `/stop`, `/reload` for the whole app, or `POST /api/apps/{key}/instances/{index}/start`, `/stop`, `/reload` for a single instance. The CLI exposes the same three actions as `hassette app start|stop|reload`, with `--instance` routing to the per-instance endpoint. See [CLI Commands](../cli/commands.md) for the full command reference.
 
 ## Understand App States
 
@@ -66,7 +68,7 @@ The **STATUS** badge on each row reflects the app's current lifecycle state — 
 | `RUNNING` | The app is processing events normally. |
 | `STOPPED` | The app was stopped via the UI or REST API, or it has `autostart = false` and has not been started yet. It will not process events until started. Apps with `autostart = false` show a **no autostart** chip in the APP column. |
 | `FAILED` | The app encountered an unhandled error. Check the **LAST ERROR** column or the App Detail error banner for the traceback. |
-| `DEGRADED` | A multi-instance app has at least one running instance and at least one failed instance. The app is partially working — check which instance failed in the [Multi-instance apps](#multi-instance-apps) view below. |
+| `DEGRADED` | A multi-instance app has at least one running instance and at least one failed instance. The app is partially working — check which instance failed in the [Multi-instance apps](#multi-instance-apps) view above. |
 | `DISABLED` | The app has `enabled = false` in `hassette.toml`. **Start** enables it for this session. Setting `enabled = true` in config makes the change permanent. |
 | `BLOCKED` | Hassette is restricted to a different set of apps via [`hassette run --app <key>`](../core-concepts/apps/index.md#restricting-which-apps-run), so this app is excluded. The block lasts for the life of the process. |
 

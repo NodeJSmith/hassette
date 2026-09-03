@@ -245,6 +245,18 @@
   wait: 2000
   wait_for: "document.querySelector('[data-testid=\"instance-switcher\"]')"
 
+# JS expands the multi-instance row to reveal its per-instance action buttons. height
+# must be tall enough to contain the row in-viewport (a too-short viewport produced a
+# blank crop) even though the crop itself is tight to the row's bounding box.
+- url: "http://localhost:{port}/apps"
+  output: docs/_static/web_ui_instance_action_buttons.png
+  selector: "[data-testid='instance-row-motion_lights-0']"
+  width: 1400
+  height: 900
+  wait: 2000
+  javascript: "document.querySelector('[data-testid=\"app-row-motion_lights\"]')?.querySelector('[data-testid=\"app-row-expand\"]')?.click()"
+  wait_for: "document.querySelector('[data-testid=\"instance-row-motion_lights-0\"]')"
+
 - url: "http://localhost:{port}/logs"
   output: docs/_static/web_ui_detail_log_drawer.png
   selector: "[data-testid='log-detail-drawer']"

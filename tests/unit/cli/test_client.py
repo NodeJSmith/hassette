@@ -14,7 +14,7 @@ from pydantic import BaseModel
 from hassette.cli.client import HassetteCLIClient
 from hassette.config.config import HassetteConfig
 from hassette.config.models import WebApiConfig
-from hassette.web.models import AppInstanceResponse
+from hassette.web.models import ActionResponse, AppInstanceResponse
 from tests.support.web_manifest_helpers import make_manifest_list_response, make_manifest_response
 from tests.unit.cli.conftest import REMOTE_SERVER_URL, capture_stderr, make_cli_config
 
@@ -373,6 +373,64 @@ class TestMalformedSuccessResponse:
         assert '"unexpected"' in stderr
 
 
+class TestPostMalformedResponse:
+    """post() reuses get()'s _handle_malformed_response() path (see TestMalformedSuccessResponse
+    above) -- these tests just confirm post() itself routes into it correctly.
+    """
+
+    def test_invalid_json_body_exits_instead_of_crashing(self) -> None:
+        config = make_host_port_config()
+
+        def handler(_req: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, content=b"not json", headers={"content-type": "application/json"})
+
+        client = HassetteCLIClient(config, json_mode=False, transport=httpx.MockTransport(handler))
+        with pytest.raises(SystemExit) as exc_info:
+            client.post("/api/apps/my_app/stop")
+        assert exc_info.value.code == 1
+
+    def test_invalid_json_body_prints_clean_error_to_stderr(self) -> None:
+        config = make_host_port_config()
+
+        def handler(_req: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, content=b"not json", headers={"content-type": "application/json"})
+
+        client = HassetteCLIClient(config, json_mode=False, transport=httpx.MockTransport(handler))
+        with capture_stderr() as buf, pytest.raises(SystemExit):
+            client.post("/api/apps/my_app/stop")
+        assert "not valid JSON" in buf.getvalue()
+        assert "Traceback" not in buf.getvalue()
+
+    def test_schema_mismatch_exits_instead_of_crashing(self) -> None:
+        """A 2xx response whose JSON doesn't match ActionResponse also routes through the shared handler."""
+        config = make_host_port_config()
+        transport = make_transport(200, {"unexpected": "shape"})
+        client = HassetteCLIClient(config, json_mode=False, transport=transport)
+        with pytest.raises(SystemExit) as exc_info:
+            client.post("/api/apps/my_app/stop")
+        assert exc_info.value.code == 1
+
+    def test_schema_mismatch_json_mode_writes_error_doc(self, capsys: pytest.CaptureFixture[str]) -> None:
+        config = make_host_port_config()
+        transport = make_transport(200, {"unexpected": "shape"})
+        client = HassetteCLIClient(config, json_mode=True, transport=transport)
+        with pytest.raises(SystemExit) as exc_info:
+            client.post("/api/apps/my_app/stop")
+        assert exc_info.value.code == 1
+        parsed = json.loads(capsys.readouterr().out)
+        assert parsed["error"] is True
+
+    def test_valid_response_still_returns_action_response(self) -> None:
+        """Control case: a well-formed 2xx body still deserializes normally."""
+        config = make_host_port_config()
+        body = ActionResponse(app_key="my_app", action="stop", instance_index=None).model_dump()
+        transport = make_transport(200, body)
+        client = HassetteCLIClient(config, json_mode=False, transport=transport)
+        result = client.post("/api/apps/my_app/stop")
+        assert isinstance(result, ActionResponse)
+        assert result.app_key == "my_app"
+
+
 # HTTP error handling (human mode)
 
 
@@ -568,6 +626,73 @@ class TestInstanceRouting:
             route_listeners(client, app_key=None, instance="office")
         assert exc_info.value.code != 0
         assert "--app" in buf.getvalue()
+
+    def test_stopped_instance_still_resolves_by_name(self) -> None:
+        """A configured instance that isn't currently tracked (e.g. independently stopped)
+        still appears in the manifest's instance list and resolves normally — the CLI does
+        not filter by status, so a stopped instance stays addressable by name.
+        """
+        config = make_host_port_config()
+        instances = [
+            AppInstanceResponse(
+                app_key="my_app", index=0, instance_name="default", class_name="MyApp", status="running"
+            ),
+            AppInstanceResponse(
+                app_key="my_app", index=1, instance_name="office", class_name="MyApp", status="stopped"
+            ),
+        ]
+        manifest_list = make_manifest_list(instances)
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if MANIFESTS_ENDPOINT in str(request.url):
+                return httpx.Response(
+                    200,
+                    content=manifest_list.model_dump_json().encode(),
+                    headers={"content-type": "application/json"},
+                )
+            return httpx.Response(200, content=b"[]", headers={"content-type": "application/json"})
+
+        captured_urls: list[str] = []
+
+        def tracking_handler(request: httpx.Request) -> httpx.Response:
+            captured_urls.append(str(request.url))
+            return handler(request)
+
+        client = HassetteCLIClient(config, json_mode=False, transport=httpx.MockTransport(tracking_handler))
+        route_listeners(client, app_key="my_app", instance="office")
+        assert any("instance_index=1" in u for u in captured_urls)
+
+    def test_ambiguous_instance_name_exits_nonzero(self) -> None:
+        """Two configured instances sharing an ``instance_name`` (permitted by config
+        validation) must not silently resolve to whichever one comes first — the CLI
+        rejects the ambiguous selector and tells the operator to use --instance <index>.
+        """
+        config = make_host_port_config()
+        instances = [
+            AppInstanceResponse(
+                app_key="my_app", index=0, instance_name="office", class_name="MyApp", status="running"
+            ),
+            AppInstanceResponse(
+                app_key="my_app", index=1, instance_name="office", class_name="MyApp", status="stopped"
+            ),
+        ]
+        manifest_list = make_manifest_list(instances)
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if MANIFESTS_ENDPOINT in str(request.url):
+                return httpx.Response(
+                    200,
+                    content=manifest_list.model_dump_json().encode(),
+                    headers={"content-type": "application/json"},
+                )
+            return httpx.Response(200, content=b"[]", headers={"content-type": "application/json"})
+
+        client = HassetteCLIClient(config, json_mode=False, transport=httpx.MockTransport(handler))
+        with capture_stderr() as buf, pytest.raises(SystemExit) as exc_info:
+            route_listeners(client, app_key="my_app", instance="office")
+        assert exc_info.value.code != 0
+        assert "ambiguous" in buf.getvalue()
+        assert "--instance <index>" in buf.getvalue()
 
 
 # --debug flag

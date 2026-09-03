@@ -6,7 +6,16 @@ from typing import Annotated, Literal
 from cyclopts import App, Group, Parameter
 
 from hassette.app.app_config import AppConfig
-from hassette.cli.commands.app import cmd_app, cmd_app_activity, cmd_app_config, cmd_app_health, cmd_app_source
+from hassette.cli.commands.app import (
+    cmd_app,
+    cmd_app_activity,
+    cmd_app_config,
+    cmd_app_health,
+    cmd_app_reload,
+    cmd_app_source,
+    cmd_app_start,
+    cmd_app_stop,
+)
 from hassette.cli.commands.job import cmd_job
 from hassette.cli.commands.listener import cmd_listener
 from hassette.cli.commands.log import cmd_execution, cmd_log
@@ -98,6 +107,9 @@ apps_app.command(cmd_app_health, name="health")
 apps_app.command(cmd_app_activity, name="activity")
 apps_app.command(cmd_app_config, name="config")
 apps_app.command(cmd_app_source, name="source")
+apps_app.command(cmd_app_start, name="start")
+apps_app.command(cmd_app_stop, name="stop")
+apps_app.command(cmd_app_reload, name="reload")
 
 listener_app.default(cmd_listener)
 job_app.default(cmd_job)

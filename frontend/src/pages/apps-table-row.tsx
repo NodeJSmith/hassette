@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-import { ActionButtons } from "../components/shared/action-buttons";
+import { ActionButtons, getStableInstanceRef } from "../components/shared/action-buttons";
 import { AppLink } from "../components/shared/app-link";
 import { IconChevron } from "../components/shared/icons";
 import { MiniSparkline } from "../components/shared/mini-sparkline";
@@ -12,6 +12,7 @@ import { StatusShape } from "../components/shared/status-shape";
 import { useRelativeTime } from "../hooks/use-relative-time";
 import type { AppStatusEntry } from "../state/store";
 import { appLiveStatus, type AppRow, instanceLiveStatus } from "../utils/app-data";
+import { APP_ROW_STATUS_SHAPE_SIZE, INSTANCE_ROW_STATUS_SHAPE_SIZE } from "../utils/constants";
 import { formatTimestamp } from "../utils/format";
 import { onActivateKeyDown } from "../utils/keyboard";
 import { INACTIVE_STATUSES, statusToKind, statusToVariant } from "../utils/status";
@@ -68,7 +69,7 @@ export function AppTableRow({
                 </button>
               )}
             </span>
-            <StatusShape kind={kind} size={7} muted={muteStatus} />
+            <StatusShape kind={kind} size={APP_ROW_STATUS_SHAPE_SIZE} muted={muteStatus} />
             <AppLink appKey={app.app_key}>{app.display_name}</AppLink>
             <span className={cn("text-xs text-muted-foreground max-sidebar:hidden", compact && "hidden")}>
               {app.class_name}
@@ -158,7 +159,7 @@ export function AppTableRow({
             compact && "hidden",
           )}
         >
-          <ActionButtons appKey={app.app_key} status={status} />
+          <ActionButtons appKey={app.app_key} status={status} confirmStop />
         </td>
       </tr>
       {isMulti &&
@@ -166,6 +167,19 @@ export function AppTableRow({
         app.instances?.map((inst) => {
           const instStatus = instanceLiveStatus(appStatuses, app.app_key, inst);
           const instKind = statusToKind(instStatus);
+          // A blocked parent's not-yet-tracked instances still report a synthetic "stopped"
+          // status (see build_manifest_info()) so they stay addressable in the table — but
+          // that makes CAN_START key off "stopped" and show a Start button for an app the
+          // exclusive-app filter excluded. Force the action status to "blocked" in that case;
+          // the backend guards it too (AppLifecycleService rejects starts for blocked apps).
+          //
+          // Deliberately narrower than appLiveStatus()'s "disabled" | "blocked" override
+          // (configStatusOverride): the backend explicitly permits a transient start of a
+          // disabled app's instance (CAN_START.disabled is true on purpose), so once that
+          // instance is actually running, this must reflect its live status — not freeze on
+          // "disabled" and hide Stop/Reload forever. "blocked" has no such transient-start
+          // path; the backend rejects it outright, so the override never goes stale.
+          const instActionStatus = status === "blocked" ? "blocked" : instStatus;
           return (
             <tr
               key={`${app.app_key}-${inst.index}`}
@@ -177,7 +191,7 @@ export function AppTableRow({
                   <span className="ml-[calc(var(--spacing-4)+var(--spacing-0-5))] text-xs text-foreground-faint">
                     └
                   </span>
-                  <StatusShape kind={instKind} size={6} muted={muteStatus} />
+                  <StatusShape kind={instKind} size={INSTANCE_ROW_STATUS_SHAPE_SIZE} muted={muteStatus} />
                   <AppLink appKey={app.app_key} instanceIndex={inst.index}>
                     {inst.instance_name}
                   </AppLink>
@@ -207,7 +221,12 @@ export function AppTableRow({
                   compact && "hidden",
                 )}
               >
-                <ActionButtons appKey={app.app_key} status={instStatus} />
+                <ActionButtons
+                  appKey={app.app_key}
+                  status={instActionStatus}
+                  confirmStop
+                  instance={getStableInstanceRef(inst.index, inst.instance_name)}
+                />
               </td>
             </tr>
           );

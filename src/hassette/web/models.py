@@ -147,7 +147,8 @@ class AppManifestResponse(BaseModel):
     block_reason: str | None = None
     instance_count: int = Field(
         default=0,
-        description="Tracked instances (running/failed). 0 = none tracked (stopped/disabled).",
+        description="Configured instances, including ones not currently tracked (never started, "
+        "or independently stopped). Always len(instances).",
     )
     instances: list[AppInstanceResponse] = Field(default_factory=list)
     error_message: str | None = None
@@ -393,7 +394,8 @@ class DashboardAppGridEntry(BaseModel):
     display_name: str
     instance_count: int = Field(
         default=0,
-        description="Tracked instances (running/failed). 0 = none tracked (stopped/disabled).",
+        description="Configured instances, including ones not currently tracked (never started, "
+        "or independently stopped). Always len(instances).",
     )
     handler_count: int
     job_count: int
@@ -445,11 +447,18 @@ class TelemetryStatusResponse(BaseModel):
 
 
 class ActionResponse(BaseModel):
-    """Response for app mutation endpoints (start/stop/reload)."""
+    """Response for app mutation endpoints (start/stop/reload).
+
+    ``instance_index`` is the server-confirmed instance the action ran against — ``None`` for
+    an app-level action, the validated index for an instance-scoped one. Callers (the CLI and
+    the frontend toast) compare this against the index they requested rather than trusting
+    their own request data, since a routing bug would otherwise still look like a plain 202.
+    """
 
     status: Literal["accepted"] = "accepted"
     app_key: str
     action: str
+    instance_index: int | None
 
 
 class JobTriggerResponse(BaseModel):

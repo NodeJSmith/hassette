@@ -108,3 +108,16 @@ InstanceArg = Annotated[
         help="Filter by app instance (integer index or instance name). Requires --app.",
     ),
 ]
+
+# Separate from InstanceArg (not just a differently-worded help string): the read commands
+# InstanceArg serves (health, activity) filter via --app, so --instance "requires --app". The
+# action commands this serves (start/stop/reload) always take a required positional <key>
+# instead and never accept --app, so that requirement doesn't apply — hence the different help
+# text rather than reusing InstanceArg's.
+InstanceActionArg = Annotated[
+    str | None,
+    Parameter(
+        name=["--instance"],
+        help="Targets a specific app instance (index or name).",
+    ),
+]
