@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Create tests/support package with Tier 2 internals"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#5", "FR#6", "FR#9"]
 ---
