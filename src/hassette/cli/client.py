@@ -283,13 +283,24 @@ class HassetteCLIClient:
         self.error_usage(f"Instance {instance!r} not found for app {app_key!r}. Available instances: {names}")
         raise AssertionError("unreachable")
 
-    @staticmethod
-    def _find_by_name(instances: list[AppInstanceResponse], name: str) -> AppInstanceResponse | None:
-        """Return the instance whose ``instance_name`` matches ``name``, or ``None``."""
-        for inst in instances:
-            if inst.instance_name == name:
-                return inst
-        return None
+    def _find_by_name(
+        self, app_key: str, instances: list[AppInstanceResponse], name: str
+    ) -> AppInstanceResponse | None:
+        """Return the instance whose ``instance_name`` matches ``name``, or ``None``.
+
+        Config validation permits two configured instances to share an ``instance_name`` —
+        raises via ``error_usage()`` on more than one match rather than silently acting on
+        whichever one happens to come first, since that would stop/reload/start an arbitrary
+        sibling instance while reporting that the requested name was acted on.
+        """
+        matches = [inst for inst in instances if inst.instance_name == name]
+        if len(matches) > 1:
+            indices = ", ".join(str(inst.index) for inst in matches)
+            self.error_usage(
+                f"Instance name {name!r} is ambiguous for app {app_key!r} — matches indices "
+                f"{indices}. Use --instance <index> instead."
+            )
+        return matches[0] if matches else None
 
     def resolve_instance(self, app_key: str, instance: str) -> int:
         """Resolve an instance selector to an integer index.
@@ -310,7 +321,7 @@ class HassetteCLIClient:
             pass
 
         instances = self._fetch_instances(app_key)
-        match = self._find_by_name(instances, instance)
+        match = self._find_by_name(app_key, instances, instance)
         if match is not None:
             return match.index
         self._instance_not_found(app_key, instance, instances)
@@ -347,7 +358,7 @@ class HassetteCLIClient:
         try:
             index = int(instance)
         except ValueError:
-            match = self._find_by_name(instances, instance)
+            match = self._find_by_name(app_key, instances, instance)
             if match is not None:
                 return match.index, match.instance_name
             self._instance_not_found(app_key, instance, instances)

@@ -156,4 +156,27 @@ describe("AppDetailPage header", () => {
     expect(stopButton.getAttribute("aria-label")).toBe("Stop app");
     expect(queryByTestId("btn-stop-test_app-1")).toBeNull();
   });
+
+  it("keeps instance-scoped actions when a sibling instance is stopped (not app-level)", async () => {
+    // A sibling instance being stopped must not make instance_count drop below 2 — a
+    // stopped-but-still-configured instance stays a STOPPED entry in `instances`, not
+    // omitted. If instance_count fell to 1 here, Stop/Reload would silently fall through
+    // to the app-level endpoint and affect every configured instance, not just the one
+    // shown on this page.
+    const manifest = createManifest({
+      app_key: "test_app",
+      instance_count: 2,
+      instances: [
+        createInstance({ index: 0, instance_name: "primary", status: "running" }),
+        createInstance({ index: 1, instance_name: "backup", status: "stopped" }),
+      ],
+    });
+    setupApi(manifest);
+    mockSearchString = "instance=0";
+    const { findByTestId, queryByTestId } = renderPage({ key: "test_app" });
+    await findByTestId("app-title");
+    const stopButton = await findByTestId("btn-stop-test_app-0");
+    expect(stopButton.getAttribute("aria-label")).toBe("Stop instance 'primary'");
+    expect(queryByTestId("btn-stop-test_app")).toBeNull();
+  });
 });

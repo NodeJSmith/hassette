@@ -147,7 +147,8 @@ class AppManifestResponse(BaseModel):
     block_reason: str | None = None
     instance_count: int = Field(
         default=0,
-        description="Tracked instances (running/failed). 0 = none tracked (stopped/disabled).",
+        description="Configured instances, including ones not currently tracked (never started, "
+        "or independently stopped). Always len(instances).",
     )
     instances: list[AppInstanceResponse] = Field(default_factory=list)
     error_message: str | None = None
@@ -393,7 +394,8 @@ class DashboardAppGridEntry(BaseModel):
     display_name: str
     instance_count: int = Field(
         default=0,
-        description="Tracked instances (running/failed). 0 = none tracked (stopped/disabled).",
+        description="Configured instances, including ones not currently tracked (never started, "
+        "or independently stopped). Always len(instances).",
     )
     handler_count: int
     job_count: int

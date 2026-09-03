@@ -31,7 +31,7 @@ class InstanceEntry:
 
     No ``index`` field — the dict key ``_instances[app_key][index]`` is the single source of
     truth. No stored ``instance_name`` — callers read it off the ``App`` object directly
-    (``entry.app.app_config.instance_name``) or via ``_resolve_failed_instance_name()`` for
+    (``entry.app.app_config.instance_name``) or via ``_resolve_instance_name()`` for
     failed entries, which have no ``App``.
     """
 
@@ -195,8 +195,10 @@ class AppRegistry:
             if entry.app is None
         }
 
-    def _resolve_failed_instance_name(self, app_key: str, index: int, manifest: "AppManifest | None") -> str:
-        """Resolve the configured ``instance_name`` for a failed entry from manifest config."""
+    def _resolve_instance_name(self, app_key: str, index: int, manifest: "AppManifest | None") -> str:
+        """Resolve the configured ``instance_name`` for an index with no live ``App`` object —
+        a failed entry, or an index that isn't tracked in the registry at all.
+        """
         if manifest is None:
             return f"Unknown.{index}"
 
@@ -232,7 +234,7 @@ class AppRegistry:
         return AppInstanceInfo(
             app_key=app_key,
             index=index,
-            instance_name=self._resolve_failed_instance_name(app_key, index, manifest),
+            instance_name=self._resolve_instance_name(app_key, index, manifest),
             class_name=class_name,
             status=ResourceStatus.FAILED,
             error=entry.error,
@@ -266,6 +268,22 @@ class AppRegistry:
         )
 
     def build_manifest_info(self, app_key: str, manifest: "AppManifest") -> AppManifestInfo:
+        """Build a manifest snapshot whose ``instances`` covers every *configured* instance, not
+        just the ones currently tracked in the registry.
+
+        A configured index with no registry entry (never started, or independently stopped via
+        ``AppLifecycleService.stop_instance()``) gets a synthetic ``ResourceStatus.STOPPED``
+        placeholder so it stays addressable by the CLI and visible in the web UI instead of
+        silently disappearing from ``instances`` once its instance is no longer tracked. A
+        tracked index outside the current config range (an orphaned running instance mid config
+        shrink — see ``prune_stale_failed_indices``) is still included too: this is a union of
+        tracked and configured indices, never a plain ``range(configured_count)``, so a live
+        orphan is never dropped from view.
+
+        ``status`` (RUNNING/FAILED/DEGRADED/STOPPED/...) is derived from tracked registry entries
+        only, same as before — a configured-but-not-yet-started app is correctly STOPPED, not
+        DEGRADED, even though ``instances`` now lists its not-yet-tracked instances too.
+        """
         entries = self._instances.get(app_key, {})
         has_running = any(entry.app is not None for entry in entries.values())
         has_failed = any(entry.status == ResourceStatus.FAILED for entry in entries.values())
@@ -283,16 +301,29 @@ class AppRegistry:
         else:
             status = ManifestStatus.STOPPED
 
+        configured_count = len(AppFactory.normalize_configs(manifest.app_config))
+        all_indices = sorted(set(entries) | set(range(configured_count)))
+
         instances: list[AppInstanceInfo] = []
         error_message: str | None = None
         error_traceback: str | None = None
 
-        for index, entry in entries.items():
-            info = self._info_from_entry(app_key, index, entry, manifest)
+        for index in all_indices:
+            entry = entries.get(index)
+            if entry is not None:
+                info = self._info_from_entry(app_key, index, entry, manifest)
+                if entry.app is None and error_message is None:
+                    error_message = info.error_message
+                    error_traceback = info.error_traceback
+            else:
+                info = AppInstanceInfo(
+                    app_key=app_key,
+                    index=index,
+                    instance_name=self._resolve_instance_name(app_key, index, manifest),
+                    class_name=manifest.class_name,
+                    status=ResourceStatus.STOPPED,
+                )
             instances.append(info)
-            if entry.app is None and error_message is None:
-                error_message = info.error_message
-                error_traceback = info.error_traceback
 
         block_reason = self._blocked_apps.get(app_key)
 

@@ -876,7 +876,7 @@ export interface components {
             block_reason?: string | null;
             /**
              * Instance Count
-             * @description Tracked instances (running/failed). 0 = none tracked (stopped/disabled).
+             * @description Configured instances, including ones not currently tracked (never started, or independently stopped). Always len(instances).
              * @default 0
              */
             instance_count: number;
@@ -983,7 +983,7 @@ export interface components {
             display_name: string;
             /**
              * Instance Count
-             * @description Tracked instances (running/failed). 0 = none tracked (stopped/disabled).
+             * @description Configured instances, including ones not currently tracked (never started, or independently stopped). Always len(instances).
              * @default 0
              */
             instance_count: number;

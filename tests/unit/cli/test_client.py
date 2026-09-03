@@ -627,6 +627,73 @@ class TestInstanceRouting:
         assert exc_info.value.code != 0
         assert "--app" in buf.getvalue()
 
+    def test_stopped_instance_still_resolves_by_name(self) -> None:
+        """A configured instance that isn't currently tracked (e.g. independently stopped)
+        still appears in the manifest's instance list and resolves normally — the CLI does
+        not filter by status, so a stopped instance stays addressable by name.
+        """
+        config = make_host_port_config()
+        instances = [
+            AppInstanceResponse(
+                app_key="my_app", index=0, instance_name="default", class_name="MyApp", status="running"
+            ),
+            AppInstanceResponse(
+                app_key="my_app", index=1, instance_name="office", class_name="MyApp", status="stopped"
+            ),
+        ]
+        manifest_list = make_manifest_list(instances)
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if MANIFESTS_ENDPOINT in str(request.url):
+                return httpx.Response(
+                    200,
+                    content=manifest_list.model_dump_json().encode(),
+                    headers={"content-type": "application/json"},
+                )
+            return httpx.Response(200, content=b"[]", headers={"content-type": "application/json"})
+
+        captured_urls: list[str] = []
+
+        def tracking_handler(request: httpx.Request) -> httpx.Response:
+            captured_urls.append(str(request.url))
+            return handler(request)
+
+        client = HassetteCLIClient(config, json_mode=False, transport=httpx.MockTransport(tracking_handler))
+        route_listeners(client, app_key="my_app", instance="office")
+        assert any("instance_index=1" in u for u in captured_urls)
+
+    def test_ambiguous_instance_name_exits_nonzero(self) -> None:
+        """Two configured instances sharing an ``instance_name`` (permitted by config
+        validation) must not silently resolve to whichever one comes first — the CLI
+        rejects the ambiguous selector and tells the operator to use --instance <index>.
+        """
+        config = make_host_port_config()
+        instances = [
+            AppInstanceResponse(
+                app_key="my_app", index=0, instance_name="office", class_name="MyApp", status="running"
+            ),
+            AppInstanceResponse(
+                app_key="my_app", index=1, instance_name="office", class_name="MyApp", status="stopped"
+            ),
+        ]
+        manifest_list = make_manifest_list(instances)
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if MANIFESTS_ENDPOINT in str(request.url):
+                return httpx.Response(
+                    200,
+                    content=manifest_list.model_dump_json().encode(),
+                    headers={"content-type": "application/json"},
+                )
+            return httpx.Response(200, content=b"[]", headers={"content-type": "application/json"})
+
+        client = HassetteCLIClient(config, json_mode=False, transport=httpx.MockTransport(handler))
+        with capture_stderr() as buf, pytest.raises(SystemExit) as exc_info:
+            route_listeners(client, app_key="my_app", instance="office")
+        assert exc_info.value.code != 0
+        assert "ambiguous" in buf.getvalue()
+        assert "--instance <index>" in buf.getvalue()
+
 
 # --debug flag
 
