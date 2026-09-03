@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createManifest } from "../test/factories";
+import { createInstance, createManifest } from "../test/factories";
 import { createWouterMock } from "../test/mock-wouter";
 import { renderWithAppState } from "../test/render-helpers";
 import type { AppDetailTab } from "../utils/app-routes";
@@ -132,5 +132,28 @@ describe("AppDetailPage header", () => {
     const subtitleMeta = await findByTestId("app-subtitle-meta");
     expect(subtitleMeta.textContent).toContain("apps/test_app.py");
     expect(subtitleMeta.textContent).toContain("TestApp");
+  });
+
+  it("falls back to app-level action buttons when the requested instance is not in the manifest", async () => {
+    // instance_count=3 but the instances array is sparse (only 0 and 2 are tracked) — index 1
+    // is below instance_count so the out-of-range redirect never fires, yet it can't be
+    // resolved from the manifest either.
+    const manifest = createManifest({
+      app_key: "test_app",
+      instance_count: 3,
+      instances: [
+        createInstance({ index: 0, instance_name: "primary" }),
+        createInstance({ index: 2, instance_name: "backup" }),
+      ],
+    });
+    setupApi(manifest);
+    mockSearchString = "?instance=1";
+    const { findByTestId, queryByTestId } = renderPage({ key: "test_app" });
+    await findByTestId("app-title");
+    // App-level testid and aria-label (no instance suffix/name) — not the blank-name
+    // instance-scoped variant ("Stop instance ''").
+    const stopButton = await findByTestId("btn-stop-test_app");
+    expect(stopButton.getAttribute("aria-label")).toBe("Stop app");
+    expect(queryByTestId("btn-stop-test_app-1")).toBeNull();
   });
 });

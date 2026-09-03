@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ActionResponse } from "../../api/endpoints";
-import { ActionButtons } from "./action-buttons";
+import { ActionButtons, getStableInstanceRef } from "./action-buttons";
 
 // Mock the API endpoints — we test the component logic, not the network.
 vi.mock("../../api/endpoints", () => ({
@@ -108,7 +108,7 @@ describe("ActionButtons", () => {
       expect(btn.disabled).toBe(false);
     });
 
-    expect(toast.success).toHaveBeenCalledWith('App "my_app" started');
+    expect(toast.success).toHaveBeenCalledWith("App 'my_app' started");
   });
 
   it("calls stopApp when Stop is clicked", async () => {
@@ -124,7 +124,7 @@ describe("ActionButtons", () => {
       expect((getByTestId("btn-stop-my_app") as HTMLButtonElement).disabled).toBe(false);
     });
 
-    expect(toast.success).toHaveBeenCalledWith('App "my_app" stopped');
+    expect(toast.success).toHaveBeenCalledWith("App 'my_app' stopped");
   });
 
   it("calls reloadApp when Reload is clicked", async () => {
@@ -140,7 +140,7 @@ describe("ActionButtons", () => {
       expect((getByTestId("btn-reload-my_app") as HTMLButtonElement).disabled).toBe(false);
     });
 
-    expect(toast.success).toHaveBeenCalledWith('App "my_app" reloaded');
+    expect(toast.success).toHaveBeenCalledWith("App 'my_app' reloaded");
   });
 
   // -- Error handling --
@@ -158,7 +158,7 @@ describe("ActionButtons", () => {
       expect(btn.disabled).toBe(false);
     });
 
-    expect(toast.error).toHaveBeenCalledWith('Failed to start "my_app": Connection refused');
+    expect(toast.error).toHaveBeenCalledWith("Failed to start 'my_app': Connection refused");
     expect(toast.success).not.toHaveBeenCalled();
   });
 
@@ -175,7 +175,7 @@ describe("ActionButtons", () => {
       expect(btn.disabled).toBe(false);
     });
 
-    expect(toast.error).toHaveBeenCalledWith('Failed to start "my_app": raw string error');
+    expect(toast.error).toHaveBeenCalledWith("Failed to start 'my_app': raw string error");
   });
 
   it("ignores second click while first action is in-flight", async () => {
@@ -219,7 +219,7 @@ describe("ActionButtons", () => {
     await user.click(screen.getByTestId("btn-stop-my_app"));
 
     expect(screen.getByRole("alertdialog")).toBeDefined();
-    expect(screen.getByText('Stop "my_app"? It will stop processing events until restarted.')).toBeDefined();
+    expect(screen.getByText("Stop 'my_app'? It will stop processing events until restarted.")).toBeDefined();
     expect(stopApp).not.toHaveBeenCalled();
   });
 
@@ -236,7 +236,7 @@ describe("ActionButtons", () => {
     await waitFor(() => {
       expect(screen.queryByRole("alertdialog")).toBeNull();
     });
-    expect(toast.success).toHaveBeenCalledWith('App "my_app" stopped');
+    expect(toast.success).toHaveBeenCalledWith("App 'my_app' stopped");
   });
 
   it("does not call stopApp when the confirm dialog is cancelled", async () => {
@@ -298,6 +298,8 @@ describe("ActionButtons", () => {
     const btn = getByTestId("btn-start-my_app-1");
     expect(btn).toBeDefined();
     expect(btn.getAttribute("aria-label")).toBe("Start instance 'office'");
+    // Icon-button tooltip must match the accessible name, not a static per-action label.
+    expect(btn.getAttribute("title")).toBe("Start instance 'office'");
   });
 
   it("uses instance-aware toast text when instance prop is provided", async () => {
@@ -309,7 +311,7 @@ describe("ActionButtons", () => {
     await user.click(getByTestId("btn-reload-my_app-1"));
 
     await waitFor(() => {
-      expect(toast.success).toHaveBeenCalledWith('Instance "office" of "my_app" reloaded');
+      expect(toast.success).toHaveBeenCalledWith("Instance 'office' of 'my_app' reloaded");
     });
   });
 
@@ -322,8 +324,41 @@ describe("ActionButtons", () => {
     await user.click(getByTestId("btn-start-my_app-1"));
 
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith('Failed to start instance "office" of "my_app": Connection refused');
+      expect(toast.error).toHaveBeenCalledWith("Failed to start instance 'office' of 'my_app': Connection refused");
     });
+  });
+
+  it("warns when the server-confirmed instance_index disagrees with the requested one", async () => {
+    const user = userEvent.setup();
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    startInstance.mockResolvedValue({ status: "accepted", app_key: "my_app", action: "start", instance_index: 2 });
+
+    const { getByTestId } = render(<ActionButtons appKey="my_app" status="stopped" instance={instance} />);
+
+    await user.click(getByTestId("btn-start-my_app-1"));
+
+    await waitFor(() => {
+      expect(warnSpy).toHaveBeenCalledWith("Requested instance 1 of 'my_app' but server confirmed instance 2");
+    });
+
+    warnSpy.mockRestore();
+  });
+
+  it("does not warn when the server-confirmed instance_index matches the requested one", async () => {
+    const user = userEvent.setup();
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    startInstance.mockResolvedValue({ status: "accepted", app_key: "my_app", action: "start", instance_index: 1 });
+
+    const { getByTestId } = render(<ActionButtons appKey="my_app" status="stopped" instance={instance} />);
+
+    await user.click(getByTestId("btn-start-my_app-1"));
+
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalled();
+    });
+    expect(warnSpy).not.toHaveBeenCalled();
+
+    warnSpy.mockRestore();
   });
 
   it("shows instance name in stop confirm dialog title and description when instance prop is provided", async () => {
@@ -349,5 +384,21 @@ describe("ActionButtons", () => {
     await user.click(screen.getByTestId("confirm-btn-danger"));
 
     expect(stopInstance).toHaveBeenCalledWith("my_app", 1);
+  });
+});
+
+describe("getStableInstanceRef", () => {
+  it("returns the same object reference for the same index and name", () => {
+    const first = getStableInstanceRef(1, "office");
+    const second = getStableInstanceRef(1, "office");
+    expect(first).toBe(second);
+  });
+
+  it("returns distinct references for different index or name", () => {
+    const office = getStableInstanceRef(1, "office");
+    const otherIndex = getStableInstanceRef(2, "office");
+    const otherName = getStableInstanceRef(1, "warehouse");
+    expect(office).not.toBe(otherIndex);
+    expect(office).not.toBe(otherName);
   });
 });

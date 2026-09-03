@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import type { components } from "../../api/generated-types";
 import { BADGE_STATUS_DOT_SIZE, HEADING_STATUS_SHAPE_SIZE } from "../../utils/constants";
 import { statusToKind, statusToVariant } from "../../utils/status";
-import { ActionButtons } from "../shared/action-buttons";
+import { ActionButtons, getStableInstanceRef } from "../shared/action-buttons";
 import { AlertShell } from "../shared/alert-shell";
 import { ErrorBanner } from "../shared/error-banner";
 import { StatusShape } from "../shared/status-shape";
@@ -17,6 +17,11 @@ interface Props {
   appKey: string;
   liveStatus: ManifestStatus | ResourceStatus | "unknown";
   manifest: AppManifest | undefined;
+  // currentInstance is resolvedInstanceIndex looked up against the manifest's (possibly
+  // sparse) instances array — undefined when that lookup misses (e.g. an out-of-range URL
+  // query param). resolvedInstanceIndex is display-only (the "instance N" meta text) and
+  // always renders even on a miss; currentInstance gates the ActionButtons instance prop
+  // below so a miss falls back to app-level actions instead of a blank instance name.
   currentInstance: InstanceInfo | undefined;
   resolvedInstanceIndex: number;
   showParentOverview: boolean;
@@ -68,8 +73,8 @@ export function AppDetailHeader({
             status={liveStatus}
             variant="text"
             confirmStop
-            {...(manifest && manifest.instance_count > 1 && !showParentOverview
-              ? { instance: { index: resolvedInstanceIndex, name: currentInstance?.instance_name ?? "" } }
+            {...(manifest && manifest.instance_count > 1 && !showParentOverview && currentInstance
+              ? { instance: getStableInstanceRef(currentInstance.index, currentInstance.instance_name) }
               : {})}
           />
         </div>

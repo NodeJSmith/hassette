@@ -21,7 +21,7 @@ from hassette.cli.context import CLIContext
 from hassette.cli.target import resolve_cli_auth_token, resolve_server_target
 from hassette.config.config import HassetteConfig
 from hassette.exceptions import FatalError
-from hassette.web.models import ActionResponse, AppManifestListResponse
+from hassette.web.models import ActionResponse, AppInstanceResponse, AppManifestListResponse
 
 DEFAULT_TIMEOUT = 10.0
 
@@ -176,6 +176,34 @@ class HassetteCLIClient:
         self._echo_success_target_and_warnings()
         return result
 
+    def post_with_instance_routing(
+        self, app_key: str, action: str, instance_index: int | None = None
+    ) -> ActionResponse:
+        """Perform a POST to an app mutation endpoint, routing to the app- or instance-scoped path.
+
+        Mirrors :meth:`get_with_app_routing`'s app-level-vs-instance-scoped path selection, but
+        for POST action endpoints (start/stop/reload), which take an already-resolved instance
+        index rather than a raw selector string. Unlike the GET side, resolving the selector
+        can't happen inside this method: the caller needs the resolved index (and canonical
+        name, via :meth:`resolve_instance_with_name`) to build a confirmation prompt *before*
+        this mutating POST runs.
+
+        Args:
+            app_key: The app key to act on.
+            action: One of ``"start"``, ``"stop"``, ``"reload"``.
+            instance_index: The already-resolved instance index, or ``None`` for an app-level
+                action.
+
+        Returns:
+            The deserialized :class:`~hassette.web.models.ActionResponse`.
+        """
+        path = (
+            f"/api/apps/{app_key}/{action}"
+            if instance_index is None
+            else f"/api/apps/{app_key}/instances/{instance_index}/{action}"
+        )
+        return self.post(path)
+
     def get_with_app_routing(
         self,
         global_path: str,
@@ -219,6 +247,18 @@ class HassetteCLIClient:
 
         return self.get(path, model, params=params)
 
+    def _fetch_instances(self, app_key: str) -> list[AppInstanceResponse]:
+        """Fetch all manifests and return the instance list for ``app_key``."""
+        manifest_list = self.get("/api/apps/manifests", AppManifestListResponse)
+        return [
+            inst for manifest in manifest_list.manifests if manifest.app_key == app_key for inst in manifest.instances
+        ]
+
+    def _instance_not_found(self, app_key: str, instance: str, instances: list[AppInstanceResponse]) -> NoReturn:
+        names = ", ".join(repr(inst.instance_name) for inst in instances) if instances else "(none)"
+        self.error_usage(f"Instance {instance!r} not found for app {app_key!r}. Available instances: {names}")
+        raise AssertionError("unreachable")
+
     def resolve_instance(self, app_key: str, instance: str) -> int:
         """Resolve an instance selector to an integer index.
 
@@ -237,22 +277,56 @@ class HassetteCLIClient:
         except ValueError:
             pass
 
-        # Name resolution — fetch all manifests and filter client-side for the given app_key
-        manifest_list = self.get("/api/apps/manifests", AppManifestListResponse)
-        for manifest in manifest_list.manifests:
-            if manifest.app_key != app_key:
-                continue
-            for inst in manifest.instances:
-                if inst.instance_name == instance:
-                    return inst.index
-
-        available = []
-        for manifest in manifest_list.manifests:
-            if manifest.app_key == app_key:
-                available.extend(inst.instance_name for inst in manifest.instances)
-        names = ", ".join(repr(n) for n in available) if available else "(none)"
-        self.error_usage(f"Instance {instance!r} not found for app {app_key!r}. Available instances: {names}")
+        instances = self._fetch_instances(app_key)
+        for inst in instances:
+            if inst.instance_name == instance:
+                return inst.index
+        self._instance_not_found(app_key, instance, instances)
         raise AssertionError("unreachable")
+
+    def resolve_instance_with_name(self, app_key: str, instance: str) -> tuple[int, str | None]:
+        """Resolve an instance selector to its index and, when known, its canonical ``instance_name``.
+
+        Unlike :meth:`resolve_instance`, this always fetches the manifest — even when
+        ``instance`` is already a bare integer index — so a caller building a
+        human-facing message can report the same instance identity (the name)
+        regardless of which selector flavor the operator used.
+
+        A digit selector with no matching manifest entry (an out-of-range index, or a
+        race with a manifest change) still resolves — index range validation is the
+        server's job (``_require_valid_instance_index``), not this convenience lookup's
+        — but the returned name is ``None`` so the caller can fall back to displaying
+        the raw selector.
+
+        Args:
+            app_key: The app key to look up.
+            instance: Either a digit string (e.g. ``"1"``) or an instance name.
+
+        Returns:
+            ``(index, instance_name)``. For a name selector, ``instance_name`` is never
+            ``None`` — an unmatched name raises instead (see below). For a digit
+            selector, ``None`` means "resolved, but unverified against the current
+            manifest" — not "not found": the index is still returned as-is.
+
+        Raises:
+            SystemExit: If ``instance`` is a name that doesn't match any known instance.
+        """
+        instances = self._fetch_instances(app_key)
+        try:
+            index = int(instance)
+        except ValueError:
+            for inst in instances:
+                if inst.instance_name == instance:
+                    return inst.index, inst.instance_name
+            self._instance_not_found(app_key, instance, instances)
+            raise AssertionError("unreachable") from None
+        else:
+            for inst in instances:
+                if inst.index == index:
+                    return inst.index, inst.instance_name
+            # No manifest entry for this index (out-of-range, or a race with a manifest
+            # change) — resolved, not unverified-as-in-not-found; see Returns above.
+            return index, None
 
     def resolve_instance_or_none(self, app_key: str, instance: str | None) -> int | None:
         """Resolve an instance selector, passing ``None`` through unchanged.

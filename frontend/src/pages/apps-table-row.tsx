@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-import { ActionButtons } from "../components/shared/action-buttons";
+import { ActionButtons, getStableInstanceRef } from "../components/shared/action-buttons";
 import { AppLink } from "../components/shared/app-link";
 import { IconChevron } from "../components/shared/icons";
 import { MiniSparkline } from "../components/shared/mini-sparkline";
@@ -211,7 +211,7 @@ export function AppTableRow({
                   appKey={app.app_key}
                   status={instStatus}
                   confirmStop
-                  instance={{ index: inst.index, name: inst.instance_name }}
+                  instance={getStableInstanceRef(inst.index, inst.instance_name)}
                 />
               </td>
             </tr>

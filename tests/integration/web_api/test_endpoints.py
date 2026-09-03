@@ -158,6 +158,7 @@ class TestAppEndpoints:
         assert response.status_code == 202
         data = response.json()
         assert data["action"] == "start"
+        assert data["instance_index"] is None
 
     async def test_start_app_returns_retryable_conflict_before_release(
         self, client: "AsyncClient", mock_hassette: MagicMock
@@ -221,6 +222,7 @@ class TestAppInstanceEndpoints:
         assert response.status_code == 202
         data = response.json()
         assert data["action"] == "start"
+        assert data["instance_index"] == 0
         mock_hassette.app_handler.start_instance.assert_awaited_once_with("my_app", 0)
 
     async def test_stop_instance(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
@@ -232,6 +234,7 @@ class TestAppInstanceEndpoints:
         assert response.status_code == 202
         data = response.json()
         assert data["action"] == "stop"
+        assert data["instance_index"] == 1
         mock_hassette.app_handler.stop_instance.assert_awaited_once_with("my_app", 1)
 
     async def test_reload_instance(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
@@ -243,6 +246,7 @@ class TestAppInstanceEndpoints:
         assert response.status_code == 202
         data = response.json()
         assert data["action"] == "reload"
+        assert data["instance_index"] == 0
         mock_hassette.app_handler.reload_instance.assert_awaited_once_with("my_app", 0, force_reload=True)
 
     async def test_start_instance_out_of_range_returns_404(

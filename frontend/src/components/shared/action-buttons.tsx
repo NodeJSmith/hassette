@@ -14,25 +14,58 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 
+import type { ActionResponse } from "../../api/endpoints";
 import { reloadApp, reloadInstance, startApp, startInstance, stopApp, stopInstance } from "../../api/endpoints";
 import { useAsyncAction } from "../../hooks/use-async-action";
 import type { ActionButtonStatusKey } from "../../utils/status";
 import { CAN_START, CAN_STOP, isReloadableStatus } from "../../utils/status";
 import { IconPlay, IconRefresh, IconSquare } from "./icons";
 
-// `verb` reads as "Failed to <verb>", `outcome` as "App "<key>" <outcome>".
+interface ActionConfig {
+  request: (appKey: string) => Promise<ActionResponse>;
+  instanceRequest: (appKey: string, index: number) => Promise<ActionResponse>;
+  verb: string;
+  outcome: string;
+}
+
+// `verb` reads as "Failed to <verb>", `outcome` as "App '<key>' <outcome>". The `satisfies`
+// clause makes a missing/mis-shaped entry for any of the three actions a compile error rather
+// than a runtime surprise the first time that action's button is clicked.
 const ACTIONS = {
   start: { request: startApp, instanceRequest: startInstance, verb: "start", outcome: "started" },
   stop: { request: stopApp, instanceRequest: stopInstance, verb: "stop", outcome: "stopped" },
   reload: { request: reloadApp, instanceRequest: reloadInstance, verb: "reload", outcome: "reloaded" },
-} as const;
+} satisfies Record<"start" | "stop" | "reload", ActionConfig>;
 
 type ActionName = keyof typeof ACTIONS;
 type ButtonVariant = ComponentProps<typeof Button>["variant"];
 
-interface InstanceRef {
+export interface InstanceRef {
   index: number;
   name: string;
+}
+
+// Unbounded, process-lifetime, never evicted — deliberately: the key space is every
+// (index, name) pair across every app instance the running Hassette config defines, which
+// for a monitoring dashboard is small and static for the life of a browser tab. Revisit if
+// this pattern gets reused somewhere the key space can actually grow unbounded.
+const instanceRefCache = new Map<string, InstanceRef>();
+
+/**
+ * Returns a referentially-stable {index, name} object for one instance identity.
+ *
+ * Both call sites (`AppDetailHeader`, `AppTableRow`'s instance rows) build this prop from
+ * scratch on every render — one of them inside a `.map()`, where `useMemo` isn't an option.
+ * Interning by identity here means the reference stays stable regardless, so introducing
+ * `React.memo` on `ActionButtons` or a parent later won't be silently defeated by this prop.
+ */
+export function getStableInstanceRef(index: number, name: string): InstanceRef {
+  const key = `${index}:${name}`;
+  const cached = instanceRefCache.get(key);
+  if (cached) return cached;
+  const ref: InstanceRef = { index, name };
+  instanceRefCache.set(key, ref);
+  return ref;
 }
 
 interface ActionButtonSpec {
@@ -52,23 +85,28 @@ async function performAction(appKey: string, name: ActionName, instance?: Instan
   const { request, instanceRequest, verb, outcome } = ACTIONS[name];
   try {
     if (instance) {
-      await instanceRequest(appKey, instance.index);
+      const response = await instanceRequest(appKey, instance.index);
+      if (response.instance_index !== instance.index) {
+        console.warn(
+          `Requested instance ${instance.index} of '${appKey}' but server confirmed instance ${response.instance_index}`,
+        );
+      }
     } else {
       await request(appKey);
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     if (instance) {
-      toast.error(`Failed to ${verb} instance "${instance.name}" of "${appKey}": ${message}`);
+      toast.error(`Failed to ${verb} instance '${instance.name}' of '${appKey}': ${message}`);
     } else {
-      toast.error(`Failed to ${verb} "${appKey}": ${message}`);
+      toast.error(`Failed to ${verb} '${appKey}': ${message}`);
     }
     throw err;
   }
   if (instance) {
-    toast.success(`Instance "${instance.name}" of "${appKey}" ${outcome}`);
+    toast.success(`Instance '${instance.name}' of '${appKey}' ${outcome}`);
   } else {
-    toast.success(`App "${appKey}" ${outcome}`);
+    toast.success(`App '${appKey}' ${outcome}`);
   }
 }
 
@@ -128,7 +166,7 @@ function ActionButton({ spec, appKey, isIcon, disabled, instance }: ActionButton
       data-testid={testId}
       disabled={disabled}
       onClick={spec.onClick}
-      title={isIcon ? spec.label : undefined}
+      title={isIcon ? spec.ariaLabel : undefined}
       aria-label={spec.ariaLabel}
     >
       {isIcon ? (
@@ -155,7 +193,7 @@ function StopConfirmDialog({ appKey, open, onOpenChange, onConfirm, instanceName
   const description = instanceName ? (
     `Stop instance '${instanceName}' of '${appKey}'? It will stop processing events until restarted.`
   ) : (
-    <>Stop &quot;{appKey}&quot;? It will stop processing events until restarted.</>
+    <>Stop &apos;{appKey}&apos;? It will stop processing events until restarted.</>
   );
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>

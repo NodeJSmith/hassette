@@ -1,7 +1,7 @@
 # Design: Per-Instance Actions in Frontend and CLI
 
 **Date:** 2026-09-02
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 
 ## Problem
@@ -70,7 +70,7 @@ PR #1687 added backend API routes for per-instance app control (`start`, `stop`,
 - **FR#10** CLI command `hassette app start <key>` calls `POST /api/apps/{key}/start`.
 - **FR#11** CLI command `hassette app start <key> --instance <selector>` resolves the selector to an index and calls `POST /api/apps/{key}/instances/{index}/start`.
 - **FR#12** CLI commands `stop` and `reload` follow the same pattern as FR#10–FR#11 for their respective routes.
-- **FR#13** CLI action commands construct a human-readable success message on 202 and an error message on 4xx/5xx. When `--instance` is provided, the message includes the instance identifier (e.g., "Instance 'office' of 'my_app' reloaded"). Without `--instance`, the message uses app-level text (e.g., "App 'my_app' reloaded"). Built from client-side data (`--instance` value + `ActionResponse` fields), not from a backend `message` field.
+- **FR#13** CLI action commands construct a human-readable success message on 202 and an error message on 4xx/5xx. When `--instance` is provided, the message includes the instance's canonical name resolved from the manifest (e.g., "Instance 'office' of 'my_app' reloaded"), regardless of whether the operator selected the instance by name or by numeric index — a bare index falls back to displaying the raw selector only if the manifest has no matching entry (e.g. a stale/out-of-range index). Without `--instance`, the message uses app-level text (e.g., "App 'my_app' reloaded"). `ActionResponse.instance_index` echoes the server-confirmed instance the action actually ran against; if it disagrees with the requested index, the CLI prints a warning to stderr and the frontend logs a console warning — a cheap check against a silent routing bug.
 - **FR#14** CLI `stop` and `reload` commands prompt for interactive confirmation before executing (e.g., "Stop app 'my_app'? [y/N]" or "Reload instance 'office' of 'my_app'? [y/N]") at both app-level and instance-level. A `--yes` flag bypasses the prompt for scripted use. `start` does not require confirmation.
 
 ## Edge Cases
@@ -79,7 +79,7 @@ PR #1687 added backend API routes for per-instance app control (`start`, `stop`,
 - **Instance index out of range:** The backend returns 404; the frontend toast and CLI error message surface this clearly.
 - **App not found:** The backend returns 404; both surfaces surface the error.
 - **Action on a stopped instance:** Starting a stopped instance is valid. Stopping or reloading an already-stopped instance returns an appropriate error from the backend; both surfaces display it.
-- **Instance name resolution failure in CLI:** `resolve_instance()` already exits with a clear error listing available instance names.
+- **Instance name resolution failure in CLI:** `resolve_instance()`/`resolve_instance_with_name()` already exits with a clear error listing available instance names when a `--instance` *name* doesn't match. A numeric `--instance` selector that doesn't match any current manifest entry does not error client-side — it's passed through to the server, which is the authoritative source for range validation (`_require_valid_instance_index`); the CLI message falls back to the raw selector in that case since no name is known.
 
 ## Acceptance Criteria
 
@@ -100,7 +100,7 @@ PR #1687 added backend API routes for per-instance app control (`start`, `stop`,
 
 ## Key Constraints
 
-- Do not change any backend routes or models — the API contract is fixed.
+- Do not change any backend *routes* — the endpoint surface is fixed. `ActionResponse` gained one additive field (`instance_index: int | None`) during implementation to let callers confirm the server acted on the intended instance rather than trusting client-side request data alone — this is additive and does not change any route's contract.
 - Do not introduce a separate "restart" action — `reload` is the restart operation.
 - The `ActionButtons` component must remain backward-compatible: callers that don't pass `instance` must see no behavior change.
 
@@ -125,17 +125,19 @@ Same shape for `stopInstance` and `reloadInstance`.
 
 **ActionButtons** (`frontend/src/components/shared/action-buttons.tsx`): Add an optional `instance?: { index: number; name: string }` prop to `Props` (a single paired object, not two independent optional fields, so mismatch is structurally impossible). The `ACTIONS` map stays as-is (app-level). The `performAction` function gains an `instance` parameter: when present, it calls the instance endpoint and includes the instance name in toast text (e.g., "Instance 'office' of 'my_app' reloaded"); when absent, it calls the app endpoint with app-level wording. `buildButtonSpecs` gains `instance` so it can produce instance-aware `ariaLabel` values (e.g., "Start instance 'office'" vs. "Start app"); visibility logic is unchanged. When `instance` is present, `ActionButton` renders `data-testid={`btn-${action}-${appKey}-${instance.index}`}` and the instance-aware `aria-label`.
 
-**Wiring in app-detail-header** (`frontend/src/components/app-detail/app-detail-header.tsx`): When `manifest.instance_count > 1` and `!showParentOverview`, pass `instance={{ index: resolvedInstanceIndex, name: currentInstance?.instance_name ?? "" }}` to `ActionButtons`. When showing the parent overview or a single-instance app, no `instance` is passed (existing behavior).
+**Wiring in app-detail-header** (`frontend/src/components/app-detail/app-detail-header.tsx`): When `manifest.instance_count > 1`, `!showParentOverview`, and `currentInstance` actually resolved (an unresolved lookup — e.g. a sparse `instances` array or an out-of-range URL query param — falls back to app-level action semantics instead of emitting a blank instance name), pass `instance={getStableInstanceRef(currentInstance.index, currentInstance.instance_name)}` to `ActionButtons`. When showing the parent overview, a single-instance app, or an unresolved instance, no `instance` is passed (existing behavior).
 
-**Wiring in apps-table-row** (`frontend/src/pages/apps-table-row.tsx`): The instance sub-row at line 210 already has access to `inst.index` and `inst.instance_name`. Pass `instance={{ index: inst.index, name: inst.instance_name }}`. Pass `confirmStop` on both app-level rows (line 161) and instance sub-rows (line 210).
+**Wiring in apps-table-row** (`frontend/src/pages/apps-table-row.tsx`): The instance sub-row already has access to `inst.index` and `inst.instance_name`. Pass `instance={getStableInstanceRef(inst.index, inst.instance_name)}`. Pass `confirmStop` on both app-level rows and instance sub-rows.
+
+**Stable instance references** (`frontend/src/components/shared/action-buttons.tsx`): `getStableInstanceRef(index, name)` interns `{index, name}` objects in a module-level `Map` keyed by `${index}:${name}`, so both wiring sites (one of which builds the prop inside a `.map()`, where `useMemo` isn't available) get a referentially-stable object per instance identity — a safeguard against silently defeating a future `React.memo` on `ActionButtons` or its parent, since nothing in the tree is memoized today.
 
 **Stop confirmation dialog**: Parametrize both title and description — when `instance` is provided, title becomes "Stop instance '{name}'?" and description becomes "Stop instance '{name}' of '{appKey}'? It will stop processing events until restarted." Without `instance`, title stays "Stop app?" and description uses app-level text.
 
 ### CLI
 
-**Client post method** (`src/hassette/cli/client.py`): Add a `post()` method modeled after `get()`, calling `self._client.post()`. The action routes return `ActionResponse` (Pydantic model already importable from `hassette.web.models`).
+**Client post methods** (`src/hassette/cli/client.py`): `post()` (modeled after `get()`, calling `self._client.post()`) deserializes the action routes' `ActionResponse`. `post_with_instance_routing(app_key, action, instance_index)` mirrors `get_with_app_routing()`'s app-level-vs-instance-scoped path selection for the POST side, given an already-resolved index (resolution can't happen inside this method the way it does for GET, since the CLI needs the resolved instance identity to build the confirmation prompt *before* the mutating POST runs). `resolve_instance_with_name(app_key, instance)` resolves a selector to `(index, instance_name | None)` — unlike `resolve_instance()`, it always fetches the manifest (even for a bare index) so a numeric selector's canonical name is available for messages; `instance_name` comes back `None` only when a digit selector has no matching manifest entry, in which case the caller falls back to the raw selector rather than erroring (range validation stays the server's job).
 
-**Action commands** (`src/hassette/cli/commands/app.py`): Add `cmd_app_start`, `cmd_app_stop`, `cmd_app_reload`. Each takes `key: str`, `instance: InstanceArg = None`, and `ctx: CLIContextParam`. `cmd_app_stop` and `cmd_app_reload` additionally take `yes: Annotated[bool, Parameter(name=["--yes"])] = False` to bypass the interactive confirmation prompt. Without `--instance`, POST to `/api/apps/{key}/{action}`. With `--instance`, resolve via `client.resolve_instance()` and POST to `/api/apps/{key}/instances/{index}/{action}`. For `stop` and `reload`, prompt for confirmation before executing (e.g., "Stop app 'my_app'? [y/N]" or "Reload instance 'office' of 'my_app'? [y/N]"); `--yes` skips the prompt. `start` does not prompt. Construct a success message client-side using a past-tense mapping (start→started, stop→stopped, reload→reloaded). When `--instance` is provided, include the instance name (e.g., "Instance 'office' of 'my_app' reloaded"). Without `--instance`, use app-level text (e.g., "App 'my_app' reloaded").
+**Action commands** (`src/hassette/cli/commands/app.py`): Add `cmd_app_start`, `cmd_app_stop`, `cmd_app_reload`, all thin wrappers around a shared `_run_app_action(key, action, instance, yes, ctx)`. `cmd_app_stop` and `cmd_app_reload` take `yes: Annotated[bool, Parameter(name=["--yes"])] = False` to bypass the interactive confirmation prompt; `cmd_app_start` never prompts. `_run_app_action` resolves `instance` (if given) via `resolve_instance_with_name()` up front — before any prompt — so the confirmation text and the eventual success message both use the resolved name (or the raw selector as a fallback). It POSTs via `post_with_instance_routing()`, warns to stderr if the server-confirmed `instance_index` disagrees with the requested one, then constructs a success message client-side using a past-tense mapping (start→started, stop→stopped, reload→reloaded).
 
 **Command registration** (`src/hassette/cli/__init__.py`): Register the three new commands on `apps_app`:
 
@@ -236,6 +238,9 @@ apps_app.command(cmd_app_source, name="source")
 - CLI `stop`/`reload` prompt for confirmation, `--yes` bypasses (FR#14) — unit test
 - CLI error handling on 404 — unit test
 - E2E: instance detail view action buttons fire instance routes (FR#8) — Playwright
+- CLI success message resolves a numeric `--instance` selector to its canonical name, and falls back to the raw selector when unresolvable (FR#13) — unit test
+- CLI/frontend both warn when the server-confirmed `instance_index` disagrees with the requested one (FR#13) — unit test / component test
+- `getStableInstanceRef` returns the same object reference for the same `(index, name)` and distinct references otherwise — unit test
 
 ### Tests to Remove
 
@@ -260,15 +265,17 @@ No tests to remove.
 - **modify** `frontend/src/components/shared/action-buttons.tsx` — add `instance` prop (paired object), route to instance endpoints when present, instance-aware toast text/testid/aria-label/dialog title
 - **modify** `frontend/src/components/shared/action-buttons.test.tsx` — add instance-level test cases
 - **modify** `frontend/src/pages/apps-table-row.test.tsx` — update for `instance` prop and `confirmStop` on both row types
-- **modify** `frontend/src/components/app-detail/app-detail-header.tsx` — pass `instance` prop to `ActionButtons` in single-instance view
-- **modify** `frontend/src/pages/apps-table-row.tsx` — pass `instance` prop to `ActionButtons` in instance sub-rows; add `confirmStop` to both app-level and instance sub-rows
-- **modify** `src/hassette/cli/client.py` — add `post()` method
-- **modify** `src/hassette/cli/commands/app.py` — add `cmd_app_start`, `cmd_app_stop`, `cmd_app_reload` (stop/reload include `--yes` flag and confirmation prompt)
+- **modify** `frontend/src/components/app-detail/app-detail-header.tsx` — pass `instance` prop (via `getStableInstanceRef`) to `ActionButtons`, gated on `currentInstance` actually resolving
+- **modify** `frontend/src/pages/apps-table-row.tsx` — pass `instance` prop (via `getStableInstanceRef`) to `ActionButtons` in instance sub-rows; add `confirmStop` to both app-level and instance sub-rows
+- **modify** `src/hassette/cli/client.py` — add `post()`, `post_with_instance_routing()`, `resolve_instance_with_name()`
+- **modify** `src/hassette/cli/commands/app.py` — add `cmd_app_start`, `cmd_app_stop`, `cmd_app_reload` and shared `_run_app_action` (stop/reload include `--yes` flag and confirmation prompt; resolves instance name before prompting; warns on server-confirmed `instance_index` mismatch)
 - **modify** `src/hassette/cli/__init__.py` — register the three new commands
+- **modify** `src/hassette/web/models.py` — add `instance_index: int | None` to `ActionResponse`
+- **modify** `src/hassette/web/routes/apps.py` — thread `instance_index` through `_run_app_action` and the three instance-scoped routes
 - **modify** `docs/pages/cli/commands.md` — add new subcommands and update `--instance` flag scope
-- **modify** `frontend/openapi.json` — regenerated (may already contain instance routes)
-- **modify** `frontend/src/api/generated-types.ts` — regenerated
+- **modify** `frontend/openapi.json`, `frontend/src/api/generated-types.ts` — regenerated
 - **modify** `tests/unit/cli/test_commands_app.py` — add CLI action command tests (existing file covers `health`/`activity`/`config`/`source`)
+- **modify** `tests/integration/web_api/test_endpoints.py` — assert `instance_index` on app- and instance-scoped action responses
 - **create** one e2e test case (in existing test file or new)
 
 ### Behavioral Invariants

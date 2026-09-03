@@ -19,6 +19,7 @@ vi.mock("../components/shared/action-buttons", () => ({
       data-instance={props.instance ? JSON.stringify(props.instance) : ""}
     />
   ),
+  getStableInstanceRef: (index: number, name: string) => ({ index, name }),
 }));
 
 vi.mock("../components/shared/mini-sparkline", () => ({

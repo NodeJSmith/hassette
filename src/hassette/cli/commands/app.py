@@ -5,7 +5,8 @@ from typing import Annotated, Any
 
 from cyclopts import Parameter
 
-from hassette.cli.client import HassetteCLIClient, make_client, query_params
+import hassette.cli.output as cli_output
+from hassette.cli.client import make_client, query_params
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
 from hassette.cli.output import (
     Column,
@@ -14,9 +15,8 @@ from hassette.cli.output import (
     render_detail,
     render_detail_dict,
     render_table,
-    stderr_console,
 )
-from hassette.cli.types import InstanceArg, LimitArg, SinceArg, SourceTierArg
+from hassette.cli.types import InstanceActionArg, InstanceArg, LimitArg, SinceArg, SourceTierArg
 from hassette.schemas.execution_models import ActivityFeedEntry
 from hassette.web.models import AppConfigResponse, AppHealthResponse, AppManifestListResponse, AppSourceResponse
 
@@ -28,7 +28,10 @@ from hassette.web.models import AppConfigResponse, AppHealthResponse, AppManifes
 #: three-entry dict that changes in lockstep with the action set defined in this same file.
 _ACTION_PAST_TENSE: dict[str, str] = {"start": "started", "stop": "stopped", "reload": "reloaded"}
 
-#: Actions that require interactive confirmation before executing.
+#: Actions that require interactive confirmation before executing. Kept in sync by hand with the
+#: frontend's per-action `ACTIONS` map (``frontend/src/components/shared/action-buttons.tsx``,
+#: `CAN_START`/`CAN_STOP` in ``frontend/src/utils/status.ts``) — no shared source of truth across
+#: the CLI/frontend boundary for "which actions exist and what each one needs."
 _ACTIONS_REQUIRING_CONFIRMATION = {"stop", "reload"}
 
 APP_LIST_COLUMNS: list[Column] = [
@@ -142,59 +145,49 @@ def cmd_app_source(
     render_detail(result, json_mode=ctx.json_mode)
 
 
-def _action_route(client: HassetteCLIClient, key: str, action: str, instance: str | None) -> str:
-    """Build the POST path for an app action, resolving ``--instance`` to an index if given."""
-    if instance is None:
-        return f"/api/apps/{key}/{action}"
-    index = client.resolve_instance(key, instance)
-    return f"/api/apps/{key}/instances/{index}/{action}"
-
-
-def _confirm_action(prompt: str, yes: bool) -> bool:
-    """Prompt for confirmation unless ``yes`` bypasses it. Returns ``True`` to proceed."""
-    if yes:
-        return True
-    try:
-        response = input(f"{prompt} [y/N] ")
-    except EOFError:
-        return False
-    return response.strip().lower() == "y"
-
-
-def _action_prompt(key: str, action: str, instance: str | None) -> str:
-    """Build the human-readable confirmation prompt for a stop/reload action."""
-    if instance is not None:
-        return f"{action.capitalize()} instance {instance!r} of {key!r}?"
-    return f"{action.capitalize()} app {key!r}?"
-
-
-def _action_success_message(key: str, action: str, instance: str | None) -> str:
-    """Build the past-tense success message for a completed app action."""
-    verb = _ACTION_PAST_TENSE[action]
-    if instance is not None:
-        return f"Instance {instance!r} of {key!r} {verb}"
-    return f"App {key!r} {verb}"
-
-
 def _run_app_action(key: str, action: str, instance: str | None, yes: bool, ctx: CLIContextParam) -> None:
     """Shared implementation for ``start``/``stop``/``reload``: confirm, POST, render result."""
-    if action in _ACTIONS_REQUIRING_CONFIRMATION:
-        prompt = _action_prompt(key, action, instance)
-        if not _confirm_action(prompt, yes):
-            stderr_console.print("Aborted.")
+    client = make_client(ctx)
+    index: int | None = None
+    # Text for the prompt/message — the resolved instance_name when known, otherwise the
+    # raw --instance selector the operator typed. NOT guaranteed to be the actual
+    # instance_name: see resolve_instance_with_name's docstring for when it falls back.
+    instance_label: str | None = None
+    if instance is not None:
+        index, instance_name = client.resolve_instance_with_name(key, instance)
+        instance_label = instance_name if instance_name is not None else instance
+
+    if action in _ACTIONS_REQUIRING_CONFIRMATION and not yes:
+        prompt = (
+            f"{action.capitalize()} instance {instance_label!r} of {key!r}?"
+            if instance_label is not None
+            else f"{action.capitalize()} app {key!r}?"
+        )
+        try:
+            response = input(f"{prompt} [y/N] ")
+        except EOFError:
+            response = ""
+        if response.strip().lower() != "y":
+            cli_output.stderr_console.print("Aborted.")
             sys.exit(0)
 
-    client = make_client(ctx)
-    path = _action_route(client, key, action, instance)
-    result = client.post(path)
-    message = _action_success_message(key, action, instance)
+    result = client.post_with_instance_routing(key, action, index)
+    if index is not None and result.instance_index != index:
+        cli_output.stderr_console.print(
+            f"[bold yellow]Warning:[/bold yellow] requested instance {index} of {key!r} "
+            f"but server confirmed instance {result.instance_index!r}",
+            highlight=False,
+        )
+
+    verb = _ACTION_PAST_TENSE[action]
+    message = f"Instance {instance_label!r} of {key!r} {verb}" if instance_label is not None else f"App {key!r} {verb}"
     detail = {"status": result.status, "app_key": result.app_key, "action": result.action, "message": message}
     render_detail_dict(detail, "App Action", json_mode=ctx.json_mode)
 
 
 def cmd_app_start(
     key: str,
-    instance: InstanceArg = None,
+    instance: InstanceActionArg = None,
     *,
     ctx: CLIContextParam = DEFAULT_CLI_CONTEXT,
 ) -> None:
@@ -204,7 +197,7 @@ def cmd_app_start(
 
 def cmd_app_stop(
     key: str,
-    instance: InstanceArg = None,
+    instance: InstanceActionArg = None,
     yes: Annotated[bool, Parameter(name=["--yes"], help="Skip the confirmation prompt.", negative=[])] = False,
     *,
     ctx: CLIContextParam = DEFAULT_CLI_CONTEXT,
@@ -215,7 +208,7 @@ def cmd_app_stop(
 
 def cmd_app_reload(
     key: str,
-    instance: InstanceArg = None,
+    instance: InstanceActionArg = None,
     yes: Annotated[bool, Parameter(name=["--yes"], help="Skip the confirmation prompt.", negative=[])] = False,
     *,
     ctx: CLIContextParam = DEFAULT_CLI_CONTEXT,
