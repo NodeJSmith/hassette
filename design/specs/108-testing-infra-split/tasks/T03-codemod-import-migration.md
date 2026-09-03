@@ -57,7 +57,7 @@ Write a libcst codemod script (throwaway, in a temp location) that:
 1. **Transforms `from hassette.test_utils import X`** — looks up X in the manifest, rewrites to `from <new_module> import X`.
 2. **Transforms `from hassette.test_utils.<old_module> import X`** — maps `<old_module>` to its new location using the module mapping, rewrites accordingly.
 3. **Splits mixed-tier multi-line imports** — when a single `from hassette.test_utils import (X, Y)` contains both Tier 1 and Tier 2 symbols, split into two separate import statements targeting `hassette.testing` and `tests.support.<module>` respectively.
-4. **Handles `import hassette.test_utils as X`** — rewrite to `import hassette.testing as X`.
+4. **Handles `import hassette.test_utils as X`** — rewrite to `import hassette.testing as X` (preserving whatever alias `X` was). Note: `test_public_api_surface.py` uses `import hassette.test_utils as test_utils` — the codemod will produce `import hassette.testing as test_utils`. T05 will rewrite this file entirely, so the stale alias is fine as an intermediate state.
 
 Follow the import transformation rules in the design doc's `## Architecture → Codemod strategy` section.
 

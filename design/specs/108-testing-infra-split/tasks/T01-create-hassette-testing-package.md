@@ -72,7 +72,7 @@ These source modules move entirely to `hassette.testing/` as their destination n
 
 1. **`harness.py` → `_harness.py`**: Copy the entire file EXCEPT `preserve_config`. `preserve_config` goes to `tests/support/harness.py` (T02's job). The `_harness.py` file keeps `HassetteHarness`, `wait_for`, `build_harness`, and all supporting code. Update internal imports to reference `hassette.testing._reset`, `hassette.testing._server`, `hassette.testing._ws_mocks`.
 
-2. **`helpers.py` → `_factories.py`** (Tier 1 factories only): Extract these 8 functions into `_factories.py`: `create_state_change_event`, `create_call_service_event`, `make_state_dict`, `make_light_state_dict`, `make_sensor_state_dict`, `make_switch_state_dict`, `make_typed_state`, `make_full_state_change_event`. Include any imports and module-level constants these functions depend on.
+2. **`helpers.py` → `_factories.py`** (Tier 1 factories and their private dependencies): Extract these 8 public functions into `_factories.py`: `create_state_change_event`, `create_call_service_event`, `make_state_dict`, `make_light_state_dict`, `make_sensor_state_dict`, `make_switch_state_dict`, `make_typed_state`, `make_full_state_change_event`. Also include the private helper functions and constants these depend on — specifically: `create_hass_event` (called by `create_state_change_event`, `create_call_service_event`, and `make_full_state_change_event`), `split_state_kwargs` and `STATE_DICT_KEYS` (called by `make_light_state_dict`, `make_sensor_state_dict`, `make_switch_state_dict`). These private helpers are transitive dependencies that must ship in the wheel alongside the Tier 1 symbols to satisfy FR#6's one-way dependency invariant. Include any imports these functions depend on.
 
 3. **`simulation.py` → `_simulation.py`**: Copy the entire file. Additionally, fold in `create_component_loaded_event` and `create_service_registered_event` from `helpers.py` (these are ~16-line functions `_simulation.py` uses). This avoids an extra private module.
 
@@ -126,7 +126,7 @@ When creating each file, update imports that reference other modules *within the
 ## Focus
 
 - The `_harness.py` file is the most complex because it imports from `_reset`, `_server`, and `_ws_mocks`. Read `src/hassette/test_utils/harness.py` carefully to identify all its internal dependencies before creating `_harness.py`.
-- `app_harness.py` imports from `simulation`, `time_control`, `sync_facade`, `harness`, and `config`. All of these become `_simulation`, `_time_control`, `_sync_facade`, `_harness`, and `config` in the new package.
+- `app_harness.py` imports from `simulation`, `time_control`, `sync_facade`, `harness`, `config`, and `helpers` (for `make_state_dict`). These become `_simulation`, `_time_control`, `_sync_facade`, `_harness`, `config`, and `_factories` in the new package.
 - `fixtures.py` Tier 1 split: `build_harness` is a context manager that creates a `HassetteHarness`. It imports from `harness.py`. In the new package, it imports from `._harness`.
 - `recording_api.py` imports from `sync_facade` which becomes `_sync_facade`, and from `api_call` which stays `api_call`.
 - The `RecordingHelperClient` class in `recording_api.py` must ride along — it's part of the same module.

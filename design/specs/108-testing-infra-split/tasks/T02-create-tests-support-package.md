@@ -8,7 +8,7 @@ implements: ["FR#5", "FR#6", "FR#9"]
 
 ## Summary
 
-Create the `tests/support/` package with 14 modules containing all Tier 2 internal test helpers. These modules live outside `src/` and will not ship in the wheel. The package includes all web-layer factories, mock helpers, SQL utilities, uvicorn server helpers, and the Tier 2 pytest fixtures. The `tests/support/helpers.py` re-exports the two simulation event builders from `hassette.testing._simulation` for test convenience.
+Create the `tests/support/` package with 15 modules containing all Tier 2 internal test helpers. These modules live outside `src/` and will not ship in the wheel. The package includes all web-layer factories, mock helpers, SQL utilities, uvicorn server helpers, and the Tier 2 pytest fixtures. The `tests/support/helpers.py` re-exports the two simulation event builders from `hassette.testing._simulation` for test convenience.
 
 ## Target Files
 
@@ -41,6 +41,9 @@ Create the `tests/support/` package with 14 modules containing all Tier 2 intern
 - read: `src/hassette/test_utils/state_proxy_mocks.py`
 - read: `src/hassette/test_utils/fixtures.py`
 - read: `src/hassette/test_utils/harness.py`
+- read: `src/hassette/testing/_harness.py` (T01 output — verify exact import paths)
+- read: `src/hassette/testing/_simulation.py` (T01 output — verify event builder symbols)
+- read: `src/hassette/testing/config.py` (T01 output — verify symbol names)
 - read: `design/specs/108-testing-infra-split/design.md`
 
 ## Prompt

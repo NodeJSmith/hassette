@@ -50,7 +50,7 @@ Final validation and cleanup task. Updates `test_public_api_surface.py` to verif
 
 Rewrite `tests/unit/test_public_api_surface.py` to verify `hassette.testing` instead of `hassette.test_utils`:
 
-1. Change `import hassette.test_utils as test_utils` → `import hassette.testing as testing`
+1. Change the module import — after T03's codemod, this line will be `import hassette.testing as test_utils` (codemod preserved the alias). Change it to `import hassette.testing as testing`
 2. Update `TIER1_SYMBOLS` set to match the design doc's 21-symbol Tier 1 set:
    - Remove: `make_mock_hassette` (demoted)
    - Add: `EventCapture`, `HassetteHarness`, `wait_for`, `build_harness`, `make_full_state_change_event` (promoted)
