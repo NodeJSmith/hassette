@@ -1,4 +1,4 @@
-"""Unit tests for hassette.test_utils.reset."""
+"""Unit tests for hassette.testing._reset."""
 
 import logging
 import re

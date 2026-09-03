@@ -29,7 +29,7 @@ STANDARD_LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
 
 # Every builder below sets *only* the model's required fields and passes overrides straight
 # through, so a test can both feed an out-of-range value to the constrained type and read an
-# untouched optional field's default. The shared src/hassette/test_utils/web_*_helpers.py
+# untouched optional field's default. The shared tests/support/web_*_helpers.py
 # factories fill optional fields with realistic values, which would mask exactly those defaults.
 
 

@@ -24,7 +24,7 @@ from hassette_codegen.sync_facade.recording_transform import (
 )
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
-RECORDING_API_PATH = _REPO_ROOT / "src" / "hassette" / "test_utils" / "recording_api.py"
+RECORDING_API_PATH = _REPO_ROOT / "src" / "hassette" / "testing" / "recording_api.py"
 API_PATH = _REPO_ROOT / "src" / "hassette" / "api" / "api.py"
 
 

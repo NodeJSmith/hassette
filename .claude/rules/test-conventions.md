@@ -4,7 +4,7 @@ Closes the discovery gap for test infrastructure: this file is loaded on every s
 
 ## Before writing a local factory (BLOCKING)
 
-Before defining a local `make_*` or `build_*` function in a test file, check `src/hassette/test_utils/factories.py` and `src/hassette/test_utils/helpers.py` for an existing factory. Also check `src/hassette/test_utils/web_manifest_helpers.py`, `src/hassette/test_utils/web_job_helpers.py`, `src/hassette/test_utils/web_response_helpers.py`, and `src/hassette/test_utils/web_telemetry_helpers.py` for web-layer factories. A name match against the shared registry is treated as a duplicate even without an import — `tools/check_test_factories.py` (pre-commit hook) flags local `def make_*`/`def build_*` definitions that shadow a shared factory name, unless annotated `# factory-local: <reason>` for a genuinely different return type or purpose.
+Before defining a local `make_*` or `build_*` function in a test file, check `tests/support/factories.py` and `tests/support/helpers.py` for an existing factory. Also check `tests/support/web_manifest_helpers.py`, `tests/support/web_job_helpers.py`, `tests/support/web_response_helpers.py`, and `tests/support/web_telemetry_helpers.py` for web-layer factories. A name match against the shared registry is treated as a duplicate even without an import — `tools/check_test_factories.py` (pre-commit hook) flags local `def make_*`/`def build_*` definitions that shadow a shared factory name, unless annotated `# factory-local: <reason>` for a genuinely different return type or purpose.
 
 If a matching factory exists, import it instead of redefining it. If it doesn't exist and the same shape is needed in 3+ files, add it to `factories.py` (or the appropriate `web_*_helpers.py` submodule for web-layer models) rather than letting a fourth local copy accumulate.
 
@@ -18,7 +18,7 @@ Full decision table: `tests/TESTING.md` (Choosing a Mock Strategy, lines 27-37).
 
 ## Canonical factories and where they live
 
-`src/hassette/test_utils/factories.py` — registration dataclasses and command/job objects:
+`tests/support/factories.py` — registration dataclasses and command/job objects:
 
 - `make_listener_registration(**kw)` — `ListenerRegistration`
 - `make_job_registration(**kw)` — `ScheduledJobRegistration`
@@ -33,7 +33,7 @@ Full decision table: `tests/TESTING.md` (Choosing a Mock Strategy, lines 27-37).
 - `make_hass_event(event_type=..., data=..., origin=...)` — `Event` carrying a `HassPayload` (Home Assistant origin)
 - `make_mock_parent(**kw)` — `MagicMock` standing in for an owning App resource
 
-`src/hassette/test_utils/helpers.py` — event/state builders and misc test helpers:
+`tests/support/helpers.py` — event/state builders and misc test helpers:
 
 - `create_listener(**kw)`, `create_state_change_event(**kw)`, `create_call_service_event(**kw)`
 - `make_state_dict(**kw)`, `make_light_state_dict(**kw)`, `make_sensor_state_dict(**kw)`, `make_switch_state_dict(**kw)`
@@ -42,38 +42,39 @@ Full decision table: `tests/TESTING.md` (Choosing a Mock Strategy, lines 27-37).
 - `noop()` — sync no-op, default handler for `create_listener()` and scheduler job tests
 - `async_noop()` — async no-op, call it to get a coroutine object (e.g. `bucket.spawn(async_noop())`)
 
-`src/hassette/test_utils/web_manifest_helpers.py` — app manifest and snapshot models:
+`tests/support/web_manifest_helpers.py` — app manifest and snapshot models:
 
 - `make_manifest(**kw)` — `AppManifestInfo`; `make_full_snapshot(manifests)` — `AppFullSnapshot`
 - `make_manifest_db_row(app_key=..., **overrides)` — plain dict shaped like a row from `get_all_app_manifests()`/`get_app_manifest()` (10 fields), for mocking the telemetry query service in web-layer tests
 
-`src/hassette/test_utils/web_job_helpers.py` — job/scheduler web-layer models:
+`tests/support/web_job_helpers.py` — job/scheduler web-layer models:
 
 - `make_job(**kw)` — `SimpleNamespace` job stub for serialization tests
 - `make_real_job(**kw)` — real `Job` for web-layer behavior tests
 
-`src/hassette/test_utils/web_response_helpers.py` — system/app status and config response models
+`tests/support/web_response_helpers.py` — system/app status and config response models
 
-`src/hassette/test_utils/web_telemetry_helpers.py` — telemetry/execution response models
+`tests/support/web_telemetry_helpers.py` — telemetry/execution response models
 
 See `tests/TESTING.md` (`make_*/create_*/build_*` naming convention) for how to tell `make_scheduled_job`, `make_real_job`, and `make_job` apart — they build different things despite the similar names.
 
-## 10+ most-used `test_utils` symbols
+## 10+ most-used test-helper symbols
 
-Ranked by import count across `tests/`, with the shortest working import path:
+Ranked by import count across `tests/`, with the shortest working import path. Tier 1 symbols
+come from `hassette.testing` (public API); Tier 2 symbols come from `tests.support` (internal-only):
 
-1. `make_mock_hassette` — `from hassette.test_utils import make_mock_hassette`
-2. `HassetteHarness` — `from hassette.test_utils import HassetteHarness`
-3. `wait_for` — `from hassette.test_utils import wait_for`
-4. `create_listener` — `from hassette.test_utils import create_listener`
-5. `noop` — `from hassette.test_utils.helpers import noop`
-6. `make_state_dict` — `from hassette.test_utils import make_state_dict`
-7. `create_state_change_event` — `from hassette.test_utils import create_state_change_event`
-8. `make_scheduled_job` — `from hassette.test_utils import make_scheduled_job`
-9. `TEST_TOKEN` — `from hassette.test_utils.config import TEST_TOKEN`
-10. `AppTestHarness` — `from hassette.test_utils import AppTestHarness`
-11. `make_mock_parent` — `from hassette.test_utils import make_mock_parent`
-12. `TEST_SOURCE_LOCATION` — `from hassette.test_utils.config import TEST_SOURCE_LOCATION`
+1. `make_mock_hassette` — `from tests.support.mock_hassette import make_mock_hassette`
+2. `HassetteHarness` — `from hassette.testing import HassetteHarness`
+3. `wait_for` — `from hassette.testing import wait_for`
+4. `create_listener` — `from tests.support.helpers import create_listener`
+5. `noop` — `from tests.support.helpers import noop`
+6. `make_state_dict` — `from hassette.testing import make_state_dict`
+7. `create_state_change_event` — `from hassette.testing import create_state_change_event`
+8. `make_scheduled_job` — `from tests.support.factories import make_scheduled_job`
+9. `TEST_TOKEN` — `from hassette.testing.config import TEST_TOKEN`
+10. `AppTestHarness` — `from hassette.testing import AppTestHarness`
+11. `make_mock_parent` — `from tests.support.factories import make_mock_parent`
+12. `TEST_SOURCE_LOCATION` — `from hassette.testing.config import TEST_SOURCE_LOCATION`
 
 ## Directory-level pointers
 

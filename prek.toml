@@ -177,7 +177,7 @@ name = "Generate RecordingSyncFacade"
 language = "system"
 entry = "uv run python codegen/src/hassette_codegen/sync_facade/ --target recording"
 pass_filenames = false
-files = '(src/hassette/test_utils/recording_api\.py|src/hassette/api/(api|helpers)\.py|codegen/src/hassette_codegen/sync_facade/)'
+files = '(src/hassette/testing/recording_api\.py|src/hassette/api/(api|helpers)\.py|codegen/src/hassette_codegen/sync_facade/)'
 stages = ["pre-push"]
 
 [[repos.hooks]]
@@ -264,7 +264,7 @@ stages = ["pre-commit", "pre-push"]
 
 [[repos.hooks]]
 id = "check-module-boundaries"
-name = "Enforce import boundaries (test_utils isolation) in src"
+name = "Enforce import boundaries (test helper isolation) in src"
 language = "system"
 entry = "./tools/check_module_boundaries.py"
 files = '^src/.*\.py$'

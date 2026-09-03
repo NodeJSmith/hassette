@@ -21,7 +21,7 @@ STATE_CONVERSION_METHODS = frozenset({"get_state_value", "get_attribute"})
 """Methods whose ``RecordingApi``/``RecordingSyncFacade`` stub message redirects to ``get_state()``.
 
 Counterpart: ``RecordingApi._STATE_CONVERSION_METHODS`` in
-``src/hassette/test_utils/recording_api.py`` covers the same concept for the
+``src/hassette/testing/recording_api.py`` covers the same concept for the
 hand-authored async class. A new state-conversion method on ``Api`` usually
 needs an entry in both."""
 

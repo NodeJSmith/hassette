@@ -36,7 +36,7 @@ def test_api_protocol_matches_api_methods() -> None:
     assert not missing_from_protocol, (
         f"ApiProtocol is missing public async methods present in Api: "
         f"{sorted(missing_from_protocol)}. Add them to ApiProtocol in "
-        f"src/hassette/test_utils/recording_api.py."
+        f"src/hassette/testing/recording_api.py."
     )
 
 

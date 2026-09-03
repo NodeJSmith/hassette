@@ -73,7 +73,7 @@ val = self.cache.sync.get("temp")
 
 ## Test Isolation with DummyCache
 
-`DummyCache` is an in-memory implementation of the same interface. Pass it to `App.__init__` via the `cache` parameter — or use the `dummy_cache` pytest fixture from `hassette.test_utils` — to exercise cache-using code without touching disk. `DummyCache` supports the full API — `get`, `set`, `delete`, `get_or_set`, `clear`, `invalidate`, and `.sync` — with the same TTL semantics as the real cache.
+`DummyCache` is an in-memory implementation of the same interface. Pass it to `App.__init__` via the `cache` parameter — or use the `dummy_cache` pytest fixture from `hassette.testing` — to exercise cache-using code without touching disk. `DummyCache` supports the full API — `get`, `set`, `delete`, `get_or_set`, `clear`, `invalidate`, and `.sync` — with the same TTL semantics as the real cache.
 
 ## What Can Be Cached
 

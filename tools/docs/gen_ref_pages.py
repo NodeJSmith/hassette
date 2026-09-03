@@ -39,7 +39,7 @@ PUBLIC_MODULES: frozenset[str] = frozenset(
         # Tier B: curated additions beyond __all__
         "hassette.models.states.base",  # BaseState, StringBaseState, NumericBaseState, etc.
         "hassette.scheduler.classes",  # Job
-        "hassette.test_utils",  # AppTestHarness, RecordingApi, event factories, etc.
+        "hassette.testing",  # AppTestHarness, RecordingApi, event factories, etc.
         # Tier C: autoref targets in narrative docs
         "hassette.exceptions",  # HassetteError, EntityNotFoundError, InvalidAuthError, HassetteForgottenAwaitWarning
         # ForgottenAwaitBehavior, ResourceStatus, RestartType, and other framework enums
@@ -100,7 +100,7 @@ def write_overview_page(nav: mkdocs_gen_files.Nav) -> None:  # pyright: ignore[r
         "- **Type system** — [hassette.conversion](hassette/conversion/index.md)"
         " · [hassette.const](hassette/const/index.md)"
         " · [hassette.types.enums](hassette/types/enums.md)\n"
-        "- **Testing** — [hassette.test_utils](hassette/test_utils/index.md)\n"
+        "- **Testing** — [hassette.testing](hassette/testing/index.md)\n"
         "- **Utilities** — [hassette.task_bucket](hassette/task_bucket/index.md)"
         " · [hassette.exceptions](hassette/exceptions.md)\n"
     )

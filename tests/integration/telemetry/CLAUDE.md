@@ -8,7 +8,7 @@
 
 ## Shared helpers
 
-- `from hassette.test_utils.mock_hassette import make_mock_hassette` — base builder this directory's `db_hassette` wraps
+- `from tests.support.mock_hassette import make_mock_hassette` — base builder this directory's `db_hassette` wraps
 
 Everything else lives in this directory's `helpers.py`. Check it before writing a local helper:
 

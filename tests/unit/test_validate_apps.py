@@ -268,7 +268,7 @@ class TestValidateApps:
         """Two apps with different app_key but the same explicit cache_key log a WARNING."""
         # Some other test in this session may have left the "hassette" logger's propagate flag
         # set to False (e.g. via enable_basic_logging()); caplog relies on propagation to the
-        # root logger, so restore it here. See src/hassette/test_utils/harness.py:337-340 for
+        # root logger, so restore it here. See src/hassette/testing/_harness.py:337-340 for
         # the same workaround applied elsewhere.
         logging.getLogger("hassette").propagate = True
         app_dir = tmp_path / "test_apps"

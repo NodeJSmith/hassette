@@ -128,7 +128,7 @@ from typing import Any
 {imports}
 
 if typing.TYPE_CHECKING:
-    from hassette.test_utils.recording_api import RecordingApi, RecordingHelperClient
+    from hassette.testing.recording_api import RecordingApi, RecordingHelperClient
 {type_checking_imports}\
 RECORDED_API_METHODS = frozenset(
     {{
@@ -426,7 +426,7 @@ def generate_sync_recording(api_path: Path, recording_api_path: Path) -> str:
 
     Args:
         api_path: Path to src/hassette/api/api.py (source of truth for the Api method list).
-        recording_api_path: Path to src/hassette/test_utils/recording_api.py.
+        recording_api_path: Path to src/hassette/testing/recording_api.py.
 
     Returns:
         Complete Python source string for the generated sync_facade.py.

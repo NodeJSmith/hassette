@@ -1,13 +1,13 @@
 """Characterization tests for tools/check_module_boundaries.py.
 
-Pin the boundary rules in ``RULES`` (test_utils-isolation, api-no-core,
+Pin the boundary rules in ``RULES`` (test-helpers-isolation, api-no-core,
 utils-no-events, web-no-core, bus-no-core, resources-no-task_bucket,
 scheduler-no-core, state_manager-no-core, bus-no-ha-events): the governed layer must not import
 the forbidden package at runtime, while type-only imports under ``TYPE_CHECKING``
 and a layer importing itself are exempt.
 
 Also pin the private-attr reach-through rule (#1091): ``hassette._foo`` /
-``self.hassette._foo`` is flagged outside ``core/`` and ``test_utils/``, own-private
+``self.hassette._foo`` is flagged outside ``core/``, ``test_utils/``, and ``testing/``, own-private
 ``self._foo`` and non-private/dunder access are not, and ``PRIVATE_ATTR_ALLOWLIST``
 entries are suppressed by (path, attr). Ungoverned cross-layer imports still exist
 (e.g. ``conversion`` → ``models``, #892) but are not tested here.
@@ -22,42 +22,42 @@ def reach_through_msg(attr: str) -> str:
     return PRIVATE_ATTR_MSG_TEMPLATE.format(attr=attr)
 
 
-def test_production_import_of_test_utils_flagged() -> None:
-    src = "from hassette.test_utils import build_fake_ws\n"
+def test_production_import_of_testing_flagged() -> None:
+    src = "from hassette.testing import build_fake_ws\n"
     assert check_source(src, "core") == [
         (
             1,
-            "test_utils-isolation: imports hassette.test_utils — "
-            "production code must not import test helpers from hassette.test_utils",
+            "test-helpers-isolation: imports hassette.testing — "
+            "production code must not import test helpers from hassette.testing",
         )
     ]
 
 
 def test_submodule_import_flagged() -> None:
-    src = "import hassette.test_utils.ws_mocks\n"
+    src = "import hassette.testing.ws_mocks\n"
     assert check_source(src, "bus") == [
         (
             1,
-            "test_utils-isolation: imports hassette.test_utils.ws_mocks — "
-            "production code must not import test helpers from hassette.test_utils",
+            "test-helpers-isolation: imports hassette.testing.ws_mocks — "
+            "production code must not import test helpers from hassette.testing",
         )
     ]
 
 
-def test_test_utils_importing_itself_not_flagged() -> None:
-    src = "from hassette.test_utils.helpers import wire_up\n"
-    assert check_source(src, "test_utils") == []
+def test_testing_importing_itself_not_flagged() -> None:
+    src = "from hassette.testing.helpers import wire_up\n"
+    assert check_source(src, "testing") == []
 
 
-def test_bare_hassette_import_of_test_utils_flagged() -> None:
-    # ``from hassette import test_utils`` records "hassette" as the module — the
+def test_bare_hassette_import_of_testing_flagged() -> None:
+    # ``from hassette import testing`` records "hassette" as the module — the
     # imported alias is the real boundary target and must still be flagged.
-    src = "from hassette import test_utils\n"
+    src = "from hassette import testing\n"
     assert check_source(src, "core") == [
         (
             1,
-            "test_utils-isolation: imports hassette.test_utils — "
-            "production code must not import test helpers from hassette.test_utils",
+            "test-helpers-isolation: imports hassette.testing — "
+            "production code must not import test helpers from hassette.testing",
         )
     ]
 
@@ -68,7 +68,7 @@ def test_type_checking_import_exempt() -> None:
         from typing import TYPE_CHECKING
 
         if TYPE_CHECKING:
-            from hassette.test_utils import RecordingApi
+            from hassette.testing import RecordingApi
         """
     )
     assert check_source(src, "core") == []
@@ -83,60 +83,60 @@ def test_runtime_import_in_type_checking_else_not_exempt() -> None:
         if TYPE_CHECKING:
             pass
         else:
-            from hassette.test_utils import build_fake_ws
+            from hassette.testing import build_fake_ws
         """
     )
     assert check_source(src, "core") == [
         (
             6,
-            "test_utils-isolation: imports hassette.test_utils — "
-            "production code must not import test helpers from hassette.test_utils",
+            "test-helpers-isolation: imports hassette.testing — "
+            "production code must not import test helpers from hassette.testing",
         )
     ]
 
 
-def test_relative_import_of_test_utils_module_flagged() -> None:
-    # ``from ..test_utils import x`` inside hassette.core resolves to hassette.test_utils.
-    src = "from ..test_utils import build_fake_ws\n"
+def test_relative_import_of_testing_module_flagged() -> None:
+    # ``from ..testing import x`` inside hassette.core resolves to hassette.testing.
+    src = "from ..testing import build_fake_ws\n"
     assert check_source(src, "core", package="hassette.core") == [
         (
             1,
-            "test_utils-isolation: imports hassette.test_utils — "
-            "production code must not import test helpers from hassette.test_utils",
+            "test-helpers-isolation: imports hassette.testing — "
+            "production code must not import test helpers from hassette.testing",
         )
     ]
 
 
-def test_relative_bare_import_of_test_utils_flagged() -> None:
-    # ``from .. import test_utils`` inside hassette.core: the alias is the submodule.
-    src = "from .. import test_utils\n"
+def test_relative_bare_import_of_testing_flagged() -> None:
+    # ``from .. import testing`` inside hassette.core: the alias is the submodule.
+    src = "from .. import testing\n"
     assert check_source(src, "core", package="hassette.core") == [
         (
             1,
-            "test_utils-isolation: imports hassette.test_utils — "
-            "production code must not import test helpers from hassette.test_utils",
+            "test-helpers-isolation: imports hassette.testing — "
+            "production code must not import test helpers from hassette.testing",
         )
     ]
 
 
-def test_relative_import_to_sibling_test_utils_not_flagged() -> None:
-    # ``from .test_utils import x`` resolves to hassette.core.test_utils, a different
-    # package than the real hassette.test_utils — no false positive.
-    src = "from .test_utils import x\n"
+def test_relative_import_to_sibling_testing_not_flagged() -> None:
+    # ``from .testing import x`` resolves to hassette.core.testing, a different
+    # package than the real hassette.testing — no false positive.
+    src = "from .testing import x\n"
     assert check_source(src, "core", package="hassette.core") == []
 
 
 def test_relative_import_above_root_not_flagged() -> None:
-    # ``from ..test_utils import x`` from a single-component package climbs above the
+    # ``from ..testing import x`` from a single-component package climbs above the
     # root — invalid Python, so it resolves to nothing rather than a bogus match.
-    src = "from ..test_utils import build_fake_ws\n"
+    src = "from ..testing import build_fake_ws\n"
     assert check_source(src, "core", package="hassette") == []
 
 
 def test_relative_import_skipped_without_package() -> None:
     # With no package to anchor resolution, relative imports can't be resolved and
     # are skipped rather than guessed at.
-    src = "from ..test_utils import build_fake_ws\n"
+    src = "from ..testing import build_fake_ws\n"
     assert check_source(src, "core") == []
 
 

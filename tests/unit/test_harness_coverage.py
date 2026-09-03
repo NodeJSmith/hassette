@@ -2,7 +2,7 @@
 
 If this test fails, a new ``on_*`` method was added to ``Bus`` without a corresponding
 ``simulate_*`` method on ``AppTestHarness`` (via ``SimulationMixin``). Add the missing
-``simulate_*`` method to ``hassette.test_utils.simulation.SimulationMixin``.
+``simulate_*`` method to ``hassette.testing._simulation.SimulationMixin``.
 """
 
 import pytest

@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Update string references and documentation paths"
-status: "planned"
+status: "done"
 depends_on: ["T03"]
 implements: ["AC#5"]
 ---

@@ -98,7 +98,7 @@ async def watcher(hassette_with_bus, request: pytest.FixtureRequest) -> ServiceW
             # instance with an active shutdown task or a stored teardown report, and refuses
             # a fortiori once event streams are closed by a completed shutdown (see its
             # docstring and `_reject_if_active_or_reported()` in
-            # `hassette.test_utils.reset`). A test that lets a PERMANENT service exhaust its
+            # `hassette.testing._reset`). A test that lets a PERMANENT service exhaust its
             # restart budget (e.g. test_always_failing_service_stops_after_max_attempts)
             # causes ServiceWatcher to trigger a real, completed `hassette.shutdown()` --
             # reset is not possible in that case, and the shared `hassette_with_bus` harness
@@ -157,7 +157,7 @@ async def isolated_watcher(
     fixture), per its own docstring: ``__aexit__`` then runs inline in the test's own
     already-running Task, so there's no risk of pytest-asyncio resuming teardown as a *new* Task
     on the loop after this harness's own task factory has sealed shut -- see
-    ``_start_module_harness()``'s docstring in ``hassette.test_utils.fixtures`` for why that
+    ``_start_module_harness()``'s docstring in ``tests.support.fixtures`` for why that
     matters specifically for ``yield``-based *fixtures* shared across a session-scoped loop.
 
     Unlike the shared ``watcher`` fixture, no ``context.PROTECT_TASK`` is needed here:

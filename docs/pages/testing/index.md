@@ -35,7 +35,7 @@ Add this to your `pyproject.toml`:
 --8<-- "pages/testing/snippets/testing_quick_start.py"
 ```
 
-[`AppTestHarness`][hassette.test_utils.AppTestHarness] runs your app against a test environment. The harness wires in a `RecordingApi` automatically — it replaces the live HA connection and records every API call your app makes. You assert on those recordings via `harness.api_recorder`. The `config` dict maps to your `AppConfig` fields — the same keys you would set in `hassette.toml`.
+[`AppTestHarness`][hassette.testing.AppTestHarness] runs your app against a test environment. The harness wires in a `RecordingApi` automatically — it replaces the live HA connection and records every API call your app makes. You assert on those recordings via `harness.api_recorder`. The `config` dict maps to your `AppConfig` fields — the same keys you would set in `hassette.toml`.
 
 ```python
 --8<-- "pages/testing/snippets/testing_quick_start.py:harness_setup"

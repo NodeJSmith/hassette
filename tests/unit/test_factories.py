@@ -1,4 +1,4 @@
-"""Unit tests for the 7 shared factories added to hassette.test_utils.factories.
+"""Unit tests for the 7 shared factories added to tests.support.factories.
 
 Covers make_scheduled_job, make_mock_executor, make_mock_event,
 make_recording_api, make_hassette_event, make_hass_event, and make_mock_parent.

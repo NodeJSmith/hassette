@@ -2,7 +2,7 @@
 """CI guard: enforce architectural import boundaries between hassette subpackages.
 
 Hassette has layered subpackages (``types``, ``models``, ``config``, ``api``,
-``bus``, ``core``, ``app``, ``web``, ``test_utils``, …). Nothing in the type
+``bus``, ``core``, ``app``, ``web``, ``testing``, …). Nothing in the type
 checker or test suite stops a lower layer from importing a higher one, so
 boundary erosion compiles and passes silently. This guard fails such imports.
 
@@ -11,7 +11,7 @@ Detection is AST-based and considers runtime imports only — anything inside an
 runtime dependency.
 
 Import boundaries enforced today (``RULES``):
-- ``test_utils`` isolation — production code must not import test helpers.
+- ``testing`` isolation — production code must not import test helpers.
 - ``api → core`` — api is a service layer and must not import core at runtime.
 - ``utils → events`` — utils sits below events; ``is_event_type`` has moved to events/.
 - ``web → core`` — web-facing data types live in hassette.schemas, not core.
@@ -35,7 +35,7 @@ boundary to annotate.
 
 This guard also forbids **private-attribute reach-through** into the Hassette core
 object — ``hassette._foo`` / ``self.hassette._foo`` — anywhere outside ``core/``
-and the ``test_utils/`` test harness (#1091). Subsystems should read public
+and the ``testing/`` test harness (#1091). Subsystems should read public
 properties, not private slots: the audit found the reach-throughs guarded null
 state divergently and that ``python -O`` strips their ``assert`` guards. Unlike
 the import rules, the private-attr rule has an escape hatch — ``PRIVATE_ATTR_ALLOWLIST``
@@ -118,10 +118,10 @@ def forbids_package(pkg: str) -> Callable[[str], bool]:
 
 RULES: list[Rule] = [
     Rule(
-        name="test_utils-isolation",
-        applies=lambda layer: layer != "test_utils",
-        forbids=forbids_package("test_utils"),
-        reason="production code must not import test helpers from hassette.test_utils",
+        name="test-helpers-isolation",
+        applies=lambda layer: layer != "testing",
+        forbids=forbids_package("testing"),
+        reason="production code must not import test helpers from hassette.testing",
     ),
     Rule(
         name="api-no-core",
@@ -220,8 +220,8 @@ def resolved_from_module(node: ast.ImportFrom, package: str | None) -> str | Non
     """Resolve the ``from`` target of an ``ImportFrom`` to an absolute dotted module.
 
     Absolute imports return ``node.module`` unchanged. Relative imports are resolved
-    against ``package`` (``from ..test_utils import x`` inside ``hassette.core`` →
-    ``hassette.test_utils``). Returns None when there is no package to anchor a
+    against ``package`` (``from ..testing import x`` inside ``hassette.core`` →
+    ``hassette.testing``). Returns None when there is no package to anchor a
     relative import or the level climbs above the root.
     """
     if node.level == 0:
@@ -252,8 +252,8 @@ def runtime_imports(tree: ast.AST, package: str | None = None) -> list[tuple[int
         if isinstance(node, ast.ImportFrom) and not in_type_checking(node.lineno):
             module = resolved_from_module(node, package)
             if module == "hassette":
-                # Bare ``hassette`` target (``from hassette import test_utils`` or the
-                # relative ``from .. import test_utils``): the alias names are the
+                # Bare ``hassette`` target (``from hassette import testing`` or the
+                # relative ``from .. import testing``): the alias names are the
                 # submodules, so reassemble ``hassette.<name>`` per alias.
                 out.extend((node.lineno, f"hassette.{alias.name}") for alias in node.names if alias.name != "*")
             elif module and module.startswith("hassette."):

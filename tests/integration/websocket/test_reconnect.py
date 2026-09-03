@@ -271,7 +271,7 @@ def apply_early_drop_config(
 ) -> None:
     """Patch the four early-drop config knobs on ``websocket_service.hassette.config.websocket``.
 
-    Defaults match the shared test constants (``hassette.test_utils.config``); pass an override
+    Defaults match the shared test constants (``hassette.testing.config``); pass an override
     only for the value a given test needs to differ (e.g. proving retry-budget exhaustion).
     """
     config = websocket_service.hassette.config.websocket

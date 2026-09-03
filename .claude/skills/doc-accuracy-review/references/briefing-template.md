@@ -50,7 +50,7 @@ The inverse trap is the plausible-but-wrong finding: flagging a claim as WRONG b
 | `core-concepts/database-telemetry` | `src/hassette/core/database_service.py`, `src/hassette/migrations_sql/` |
 | `cli/*` | `src/hassette/cli/` |
 | `web-ui/*` | `src/hassette/web/` |
-| `testing/*` | `src/hassette/test_utils/` |
+| `testing/*` | `src/hassette/testing/` |
 | `operating/*` | `src/hassette/logging_.py`, `src/hassette/core/` |
 | `getting-started/*`, `recipes/*`, `migration/*`, `troubleshooting` | Cross-cutting — grep `src/hassette/` for the symbols the page mentions |
 
