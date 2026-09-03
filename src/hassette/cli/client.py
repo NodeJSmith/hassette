@@ -113,7 +113,9 @@ class HassetteCLIClient:
 
         Shared by :meth:`get` and :meth:`post` — the only difference between the two verbs
         is what happens to the response afterward (status/503 handling, deserialization
-        target), not how connection failures become a ``SystemExit``.
+        target), not how connection failures become a ``SystemExit``. :meth:`_try_fetch_instances`
+        is the one intentional exception: it needs failures to return ``None`` rather than exit,
+        so it calls ``self._client`` directly instead of going through this method.
         """
         try:
             if method == "GET":

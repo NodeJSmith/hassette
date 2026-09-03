@@ -319,6 +319,10 @@ def test_instance_detail_action_button_fires_instance_scoped_route(page: Page, b
     through app-detail-header reaches ActionButtons and the instance-level
     endpoint is used.
     """
+    # Two synchronization mechanisms, two different jobs: the listener below records every
+    # matching request so the final assertion can check ALL of them are instance-scoped, while
+    # expect_request() (used at the click site) only fixes the click/request race for the first
+    # matching request.
     reload_requests: list[str] = []
 
     def _capture(request) -> None:
