@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock
 from hassette.scheduler.classes import ScheduleStatus
 from hassette.scheduler.scheduler import Scheduler
 from hassette.scheduler.triggers import EntityTime
-from hassette.test_utils.helpers import noop
+from tests.support.helpers import noop
 
 
 async def test_schedule_with_unresolvable_entity_time_builds_waiting_job(patched_scheduler: Scheduler) -> None:

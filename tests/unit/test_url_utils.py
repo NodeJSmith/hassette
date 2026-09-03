@@ -5,7 +5,7 @@ from pydantic import SecretStr
 
 from hassette.config.config import HassetteConfig
 from hassette.exceptions import BaseUrlRequiredError, IPV6NotSupportedError, SchemeRequiredInBaseUrlError
-from hassette.test_utils.config import TEST_TOKEN
+from hassette.testing._harness import TEST_TOKEN
 from hassette.utils.url_utils import _parse_and_normalize_url, build_rest_url, build_ws_url
 
 

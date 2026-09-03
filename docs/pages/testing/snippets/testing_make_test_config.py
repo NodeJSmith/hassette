@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from hassette.test_utils import make_test_config
+from hassette.testing import make_test_config
 
 
 def test_config_defaults(tmp_path: Path):

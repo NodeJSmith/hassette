@@ -14,8 +14,8 @@ import pytest
 
 from hassette import context
 from hassette.config.config import HassetteConfig
-from hassette.test_utils import write_app
-from hassette.test_utils.config import make_test_config
+from hassette.testing import make_test_config
+from tests.support.helpers import write_app
 
 
 class TestValidateApps:

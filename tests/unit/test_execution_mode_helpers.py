@@ -17,7 +17,7 @@ from hassette.execution_mode import (
     run_through_guard,
     run_with_stall_watch,
 )
-from hassette.test_utils import wait_for
+from hassette.testing import wait_for
 from hassette.types.enums import ExecutionMode
 
 

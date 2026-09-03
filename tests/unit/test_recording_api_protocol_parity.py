@@ -17,7 +17,7 @@ inspection would always pass vacuously.
 from hassette_codegen.sync_facade import LIFECYCLE_METHODS
 
 from hassette.api.api import Api
-from hassette.test_utils.recording_api import ApiProtocol
+from hassette.testing.recording_api import ApiProtocol
 from tests.unit.conftest import public_async_methods
 
 

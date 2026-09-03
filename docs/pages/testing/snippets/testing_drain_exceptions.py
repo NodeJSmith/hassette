@@ -1,4 +1,4 @@
-from hassette.test_utils import AppTestHarness, DrainError, DrainFailure, DrainTimeout
+from hassette.testing import AppTestHarness, DrainError, DrainFailure, DrainTimeout
 
 from my_apps.motion_lights import MotionLights
 

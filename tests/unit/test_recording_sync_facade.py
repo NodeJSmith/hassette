@@ -14,15 +14,15 @@ import pytest
 from hassette.exceptions import EntityNotFoundError
 from hassette.models.entities.light import LightEntity
 from hassette.models.services import ServiceResponse
-from hassette.test_utils.factories import make_recording_api
-from hassette.test_utils.helpers import make_state_dict
-from hassette.test_utils.sync_facade import (
+from hassette.testing import make_state_dict
+from hassette.testing._sync_facade import (
     RECORDED_API_METHODS,
     STUB_MSG_GENERIC,
     STUB_MSG_STATE_CONVERSION,
     RecordingHelperClientSyncFacade,
     RecordingSyncFacade,
 )
+from tests.support.factories import make_recording_api
 
 
 async def test_recording_api_sync_is_recording_sync_facade():

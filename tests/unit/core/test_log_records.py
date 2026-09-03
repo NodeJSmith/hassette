@@ -16,7 +16,7 @@ from hassette.core.database_service import DatabaseService
 from hassette.core.migration_runner import run_migrations
 from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.schemas.log_models import LogRecord
-from hassette.test_utils.config import LATEST_MIGRATION_VERSION
+from hassette.testing.config import LATEST_MIGRATION_VERSION
 
 from .conftest import TELEMETRY_TEST_DDL as DDL
 

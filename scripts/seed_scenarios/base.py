@@ -17,12 +17,8 @@ from hassette.core.database_service import LOG_RECORD_COLUMNS
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.core.telemetry.repository import execution_insert_params, job_insert_params, listener_insert_params
-from hassette.test_utils.factories import (
-    make_execution_record,
-    make_job_registration,
-    make_listener_registration,
-)
 from hassette.types.types import LOG_LEVEL_TYPE, ExecutionStatus
+from tests.support.factories import make_execution_record, make_job_registration, make_listener_registration
 
 REFERENCE_INSTANT = Instant.from_utc(2026, 1, 15, 12, 0)
 """Deterministic reference point. All scenario timestamps are fixed offsets from this

@@ -17,7 +17,7 @@ from hassette.app.app_config import AppConfig
 from hassette.config.models import BlockingIODetectionConfig
 from hassette.core.block_io_guard import DEFAULT_BLOCKING_IO_BEHAVIOR, resolve_blocking_io_behavior
 from hassette.exceptions import HassetteBlockingIOWarning
-from hassette.test_utils import make_test_config
+from hassette.testing import make_test_config
 from hassette.types.enums import BlockingIOBehavior
 
 

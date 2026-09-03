@@ -2,7 +2,7 @@
 
 from hassette.scheduler.scheduler import Scheduler
 from hassette.scheduler.triggers import Every
-from hassette.test_utils.helpers import noop
+from tests.support.helpers import noop
 
 
 class TestSchedulePassesTimeout:

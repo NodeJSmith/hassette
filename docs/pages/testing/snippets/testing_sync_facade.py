@@ -1,4 +1,4 @@
-from hassette.test_utils import AppTestHarness
+from hassette.testing import AppTestHarness
 
 from my_apps.sync_app import SyncApp
 

@@ -15,7 +15,7 @@ import pytest
 from hassette.bus import Bus
 from hassette.core.app_change_detector import ChangeSet
 from hassette.core.app_lifecycle_service import AppAdmissionMode, AppLifecycleService
-from hassette.test_utils import EventCapture
+from hassette.testing import EventCapture
 from hassette.types import Topic
 
 from .conftest import set_registry_apps

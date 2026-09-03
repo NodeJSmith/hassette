@@ -6,7 +6,7 @@ import pytest
 from whenever import Instant
 
 from hassette.events import Event
-from hassette.test_utils import wait_for
+from hassette.testing import wait_for
 
 from .conftest import make_system_config, startup_context
 

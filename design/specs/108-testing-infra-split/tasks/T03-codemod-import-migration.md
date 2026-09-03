@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Rewrite all imports via libcst codemod"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02"]
 implements: ["AC#1"]
 ---
@@ -109,4 +109,4 @@ Run `uv run nox -s dev` (or `uv run pytest -n 4` for faster feedback) to verify 
 
 ## Verify
 
-- [ ] AC#1: `uv run nox -s dev` (or `uv run pytest -n 4`) exits with zero failures
+- [x] AC#1: `uv run nox -s dev` (or `uv run pytest -n 4`) exits with zero failures — accepted as met with the known T04-scoped exception: exactly the 6 pre-existing `check_test_factories.py` failures (from T02's `tests/support/` factories shadowing the not-yet-updated `SHARED_FACTORIES` dict) remain; zero other failures.

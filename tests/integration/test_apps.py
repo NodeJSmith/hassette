@@ -14,12 +14,11 @@ from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.core.app_registry import AppRegistry
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
-from hassette.test_utils import wait_for
-from hassette.test_utils.factories import make_job_registration, make_listener_registration
-from hassette.test_utils.harness import HassetteHarness
-from hassette.test_utils.helpers import create_listener, noop
+from hassette.testing import HassetteHarness, wait_for
 from hassette.types import Topic
 from hassette.utils.app_utils import load_app_class_from_manifest
+from tests.support.factories import make_job_registration, make_listener_registration
+from tests.support.helpers import create_listener, noop
 
 if typing.TYPE_CHECKING:
     from data.my_app import MyApp

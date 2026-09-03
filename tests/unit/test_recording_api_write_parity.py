@@ -9,7 +9,8 @@ from hassette_codegen.sync_facade import LIFECYCLE_METHODS
 
 from hassette.api.api import Api
 from hassette.api.helpers import HelperClient
-from hassette.test_utils.recording_api import RecordingApi, RecordingHelperClient
+from hassette.testing import RecordingApi
+from hassette.testing.recording_api import RecordingHelperClient
 from tests.unit.conftest import public_async_methods
 
 # Read-method names — these are excluded from the write-method derivation below.

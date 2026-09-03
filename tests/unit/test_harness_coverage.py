@@ -9,8 +9,8 @@ import pytest
 
 from hassette.bus import Bus
 from hassette.resources.base import Resource
-from hassette.test_utils.app_harness import AppTestHarness
-from hassette.test_utils.simulation import SimulationMixin
+from hassette.testing import AppTestHarness
+from hassette.testing._simulation import SimulationMixin
 from hassette.types import ResourceStatus
 
 SIMULATION_TIMEOUT_CASES: list[tuple[str, tuple, dict]] = [

@@ -8,7 +8,7 @@ from hassette import STATE_REGISTRY
 from hassette.api import Api
 from hassette.core import api_resource as api_resource_module
 from hassette.models.entities.light import LightEntity
-from hassette.test_utils import SimpleTestServer
+from hassette.testing._harness import SimpleTestServer
 from hassette.utils.request_utils import clean_kwargs
 
 

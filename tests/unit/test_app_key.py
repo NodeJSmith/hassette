@@ -12,8 +12,8 @@ from types import SimpleNamespace
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
 from hassette.events.hassette import HassetteAppStateEvent
-from hassette.test_utils import make_mock_hassette
 from hassette.types.enums import ResourceStatus
+from tests.support.factories import make_mock_hassette
 
 
 class TestAppKey:

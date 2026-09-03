@@ -14,10 +14,10 @@ from hassette.core.core import Hassette
 from hassette.core.scheduler_service import SchedulerService
 from hassette.core.web_api_service import WebApiService
 from hassette.exceptions import FatalError
-from hassette.test_utils import make_addrinfo, patch_loop_getaddrinfo
 from hassette.web.auth.tokens import TOKEN_FILENAME
 from hassette.web.auth.trusted_proxies import EMPTY_TRUSTED_PROXY_SET
 from tests.conftest import TestConfig as HassetteTestConfig  # aliased so pytest does not collect it
+from tests.support.helpers import make_addrinfo, patch_loop_getaddrinfo
 
 
 def _make_web_api_service(unused_tcp_port_factory, tmp_path, **web_api_overrides: Any) -> WebApiService:

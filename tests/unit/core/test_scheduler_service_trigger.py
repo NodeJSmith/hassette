@@ -21,8 +21,8 @@ import pytest
 import hassette.utils.date_utils as date_utils
 from hassette.commands import ExecuteJob
 from hassette.exceptions import JobRemovedError
-from hassette.test_utils.web_job_helpers import make_real_job
 from hassette.types.enums import ExecutionMode
+from tests.support.web_job_helpers import make_real_job
 
 from .conftest import make_scheduler_service
 from .test_scheduler_service_timeout import run_job_and_get_cmd

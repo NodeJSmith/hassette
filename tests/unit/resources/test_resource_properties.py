@@ -8,7 +8,7 @@ Verifies:
 
 from hassette.resources.base import Resource
 from hassette.resources.operations import register_task_bucket_factory
-from hassette.test_utils import make_mock_hassette
+from tests.support.factories import make_mock_hassette
 
 from .conftest import ConcreteResource
 

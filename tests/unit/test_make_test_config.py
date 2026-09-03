@@ -6,8 +6,8 @@ that the data_dir is passed through correctly.
 
 import pytest
 
-from hassette.test_utils import make_test_config
-from hassette.test_utils.config import TEST_TOKEN
+from hassette.testing import make_test_config
+from hassette.testing._harness import TEST_TOKEN
 
 
 def test_defaults(tmp_path) -> None:

@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock
 
 from hassette.commands import ExecuteJob
 from hassette.core.scheduler_service import SchedulerService
-from hassette.test_utils.config import TEST_CONFIG_TIMEOUT_SECONDS
-from hassette.test_utils.factories import make_scheduled_job
+from hassette.testing.config import TEST_CONFIG_TIMEOUT_SECONDS
+from tests.support.factories import make_scheduled_job
 
 from .conftest import make_scheduler_service
 

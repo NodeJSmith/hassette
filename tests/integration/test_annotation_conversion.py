@@ -12,7 +12,7 @@ from hassette.conversion import ANNOTATION_CONVERTER
 from hassette.events import Event, RawStateChangeEvent
 from hassette.exceptions import DependencyResolutionError
 from hassette.models import states
-from hassette.test_utils import make_full_state_change_event, make_light_state_dict
+from hassette.testing import make_full_state_change_event, make_light_state_dict
 from hassette.utils.type_utils import get_type_and_details, get_typed_signature
 
 

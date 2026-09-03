@@ -5,7 +5,7 @@ import asyncio
 import pytest
 
 from hassette.events import RawStateChangeEvent
-from hassette.test_utils import wait_for
+from hassette.testing import wait_for
 
 from .conftest import make_system_config, startup_context, toggle_and_capture
 

@@ -5,7 +5,7 @@ Covers the new None-guard behaviors only. Non-None token behavior
 """
 
 from hassette.config.config import HassetteConfig
-from hassette.test_utils.config import make_test_config
+from hassette.testing import make_test_config
 
 
 def test_token_none_instantiates_without_error(tmp_path) -> None:

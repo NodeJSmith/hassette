@@ -13,10 +13,10 @@ from typing import TYPE_CHECKING
 
 from hassette.bus.error_context import BusErrorContext
 from hassette.events.base import Event
-from hassette.test_utils import create_state_change_event, wait_for
+from hassette.testing import create_state_change_event, wait_for
 
 if TYPE_CHECKING:
-    from hassette.test_utils.harness import HassetteHarness
+    from hassette.testing import HassetteHarness
 
 
 async def test_predicate_failure_enqueues_error_record(hassette_with_bus: "HassetteHarness") -> None:

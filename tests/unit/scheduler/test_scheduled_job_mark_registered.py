@@ -6,9 +6,9 @@ so a double-registration anomaly is surfaced rather than silently swallowed.
 """
 
 from hassette.scheduler.classes import Job
-from hassette.test_utils.factories import make_scheduled_job
-from hassette.test_utils.helpers import noop
 from hassette.utils.date_utils import now
+from tests.support.factories import make_scheduled_job
+from tests.support.helpers import noop
 
 
 def test_mark_registered_sets_db_id() -> None:

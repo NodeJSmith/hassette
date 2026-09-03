@@ -15,8 +15,8 @@ import pytest
 
 from hassette import TaskBucket
 from hassette.bus.listeners import HandlerInvoker, ListenerOptions
-from hassette.test_utils.helpers import make_task_bucket
 from hassette.types import BusErrorHandlerType, HandlerType
+from tests.support.helpers import make_task_bucket
 
 
 async def simple_handler() -> None:

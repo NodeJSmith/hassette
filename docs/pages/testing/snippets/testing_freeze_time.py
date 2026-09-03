@@ -1,6 +1,6 @@
 from whenever import Instant, ZonedDateTime
 
-from hassette.test_utils import AppTestHarness
+from hassette.testing import AppTestHarness
 
 from my_apps.reminder import ReminderApp
 

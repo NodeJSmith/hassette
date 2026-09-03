@@ -23,13 +23,13 @@ import pytest
 from httpx2 import ASGITransport, AsyncClient, Response
 
 import hassette.web.app as web_app  # module alias so `stub_spa` can monkeypatch `_SPA_DIR`
-from hassette.test_utils import make_addrinfo, patch_loop_getaddrinfo
-from hassette.test_utils.config import TEST_SESSION_TTL, WEB_API_TEST_TOKEN
-from hassette.test_utils.web_mocks import create_hassette_stub, create_mock_runtime_query_service
+from hassette.testing.config import TEST_SESSION_TTL, WEB_API_TEST_TOKEN
 from hassette.web.app import create_fastapi_app
 from hassette.web.auth.session import SESSION_COOKIE_NAME, mint_session_cookie, verify_session_cookie
 from hassette.web.auth.trusted_proxies import refresh_trusted_proxies, resolve_trusted_proxies
 from hassette.web.middleware import FAILED_AUTH_THRESHOLD
+from tests.support.helpers import make_addrinfo, patch_loop_getaddrinfo
+from tests.support.web_mocks import create_hassette_stub, create_mock_runtime_query_service
 
 from .conftest import CONFIG_PATH, make_log_record
 

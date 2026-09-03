@@ -1,6 +1,6 @@
 from hassette import D
 from hassette.app import App, AppConfig
-from hassette.test_utils import AppTestHarness
+from hassette.testing import AppTestHarness
 
 
 class AuditConfig(AppConfig):

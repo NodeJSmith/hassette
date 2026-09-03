@@ -16,7 +16,7 @@ from fair_async_rlock import FairAsyncRLock
 
 from hassette.core.scheduler_service import HeapQueue, SchedulerService, _ScheduledJobQueue
 from hassette.scheduler.classes import ScheduleStatus
-from hassette.test_utils.factories import make_scheduled_job
+from tests.support.factories import make_scheduled_job
 
 from .conftest import make_scheduler_service
 

@@ -6,7 +6,7 @@ import pytest
 
 import hassette.utils.date_utils as date_utils
 from hassette.scheduler import EntityTime, ScheduleStatus
-from hassette.test_utils import wait_for
+from hassette.testing import wait_for
 
 from .conftest import make_system_config, startup_context
 

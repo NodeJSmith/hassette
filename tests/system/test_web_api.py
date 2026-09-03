@@ -10,8 +10,8 @@ import httpx2 as httpx
 import pytest
 from websockets import connect as ws_connect
 
-from hassette.test_utils import wait_for
-from hassette.test_utils.config import WEB_API_TEST_TOKEN
+from hassette.testing import wait_for
+from hassette.testing.config import WEB_API_TEST_TOKEN
 from hassette.web.config_view import MASK_SENTINEL
 
 from .conftest import HA_TOKEN, make_web_system_config, startup_context, toggle_and_capture, wait_for_web_server

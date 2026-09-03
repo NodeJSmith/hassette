@@ -11,8 +11,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from hassette.test_utils.helpers import make_crashed_event, make_unsafe_restart_refused_error
 from hassette.types.enums import ResourceRole
+from tests.support.helpers import make_crashed_event, make_unsafe_restart_refused_error
 
 from .conftest import make_watcher
 

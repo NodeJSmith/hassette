@@ -40,7 +40,7 @@ from hassette.logging_ import (
 from hassette.models.entities.light import LightEntity
 from hassette.models.states import LightState
 from hassette.task_bucket.interruptible_executor import InterruptibleThreadPoolExecutor
-from hassette.test_utils.factories import make_mock_parent
+from tests.support.factories import make_mock_parent
 
 if TYPE_CHECKING:
     from contextvars import Token

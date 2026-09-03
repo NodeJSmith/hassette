@@ -10,7 +10,7 @@ import pytest
 
 from hassette.resources.base import Resource
 from hassette.task_bucket import TaskBucket
-from hassette.test_utils import make_mock_hassette
+from tests.support.factories import make_mock_hassette
 
 from .conftest import ConcreteResource
 

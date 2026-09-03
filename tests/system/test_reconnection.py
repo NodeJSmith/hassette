@@ -6,7 +6,7 @@ import subprocess
 import pytest
 
 from hassette.events import RawStateChangeEvent
-from hassette.test_utils import wait_for
+from hassette.testing import wait_for
 
 from .conftest import HA_CONTAINER_NAME, make_system_config, startup_context, toggle_and_capture, wait_for_ha_ready
 

@@ -6,8 +6,8 @@ import pytest
 
 from hassette.exceptions import SchedulerNameRequiredError
 from hassette.scheduler.triggers import After, Every
-from hassette.test_utils.factories import make_scheduled_job, make_scheduler
-from hassette.test_utils.helpers import noop
+from tests.support.factories import make_scheduled_job, make_scheduler
+from tests.support.helpers import noop
 
 
 class TestJobNameUniqueness:

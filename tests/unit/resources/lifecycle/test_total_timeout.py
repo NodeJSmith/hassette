@@ -12,10 +12,10 @@ import asyncio
 from hassette.config.config import HassetteConfig
 from hassette.resources.base import FinalMeta, Resource
 from hassette.resources.teardown import TeardownCause, TeardownReport
-from hassette.test_utils import make_mock_hassette, make_task_bucket
-from hassette.test_utils.config import make_test_config
-from hassette.test_utils.helpers import SHORT_SHUTDOWN_TIMEOUT_SECONDS
+from hassette.testing import make_test_config
 from hassette.types.enums import ResourceStatus
+from tests.support.factories import make_mock_hassette
+from tests.support.helpers import SHORT_SHUTDOWN_TIMEOUT_SECONDS, make_task_bucket
 
 from .conftest import HangingChild, ShutdownCounter, SimpleParent
 

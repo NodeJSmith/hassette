@@ -1,5 +1,5 @@
 from hassette.models.helpers import InputBooleanRecord
-from hassette.test_utils import AppTestHarness
+from hassette.testing import AppTestHarness
 
 from myapp import VacationModeApp
 

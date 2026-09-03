@@ -11,7 +11,8 @@ import pytest
 from hassette.events.base import Event, HassettePayload, HassPayload
 from hassette.scheduler.classes import Job
 from hassette.scheduler.triggers import After
-from hassette.test_utils.factories import (
+from hassette.testing import RecordingApi, make_light_state_dict
+from tests.support.factories import (
     make_hass_event,
     make_hassette_event,
     make_mock_event,
@@ -20,8 +21,6 @@ from hassette.test_utils.factories import (
     make_recording_api,
     make_scheduled_job,
 )
-from hassette.test_utils.helpers import make_light_state_dict
-from hassette.test_utils.recording_api import RecordingApi
 
 
 class TestMakeScheduledJob:

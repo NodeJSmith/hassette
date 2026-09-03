@@ -16,7 +16,7 @@ from hassette.core.websocket_service import WebsocketService
 from hassette.events import RawStateChangeEvent
 from hassette.events.metadata import get_websocket_generation
 from hassette.exceptions import ConnectionClosedError, FailedMessageError
-from hassette.test_utils import build_fake_ws, mark_websocket_service_connected
+from hassette.testing._ws_mocks import build_fake_ws, mark_websocket_service_connected
 from hassette.types.enums import ConnectionState
 
 

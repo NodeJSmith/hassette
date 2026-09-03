@@ -22,11 +22,8 @@ from hassette.exceptions import (
     InvalidAuthError,
     RetryableConnectionClosedError,
 )
-from hassette.test_utils import (
-    EventCapture,
-    build_fake_ws,
-    make_task_bucket_spawn_stub,
-)
+from hassette.testing import EventCapture
+from hassette.testing._ws_mocks import build_fake_ws, make_task_bucket_spawn_stub
 from hassette.types import Topic
 from hassette.types.enums import ConnectionState
 

@@ -14,7 +14,7 @@ import pytest
 from hassette.events import HassStateDict
 from hassette.models.states.base import BaseState
 from hassette.state_manager import DomainStates
-from hassette.test_utils import FakeStateReader
+from tests.support.helpers import FakeStateReader
 
 if typing.TYPE_CHECKING:
     from hassette.types import StateReader

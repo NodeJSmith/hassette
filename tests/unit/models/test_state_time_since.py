@@ -6,7 +6,7 @@ import pytest
 from whenever import TimeDelta, ZonedDateTime
 
 from hassette.models.states.light import LightState
-from hassette.test_utils import make_light_state_dict
+from hassette.testing import make_light_state_dict
 
 FIXED_NOW = ZonedDateTime(2026, 7, 6, 12, 0, 0, tz="UTC")
 TEN_MINUTES_AGO = FIXED_NOW.subtract(minutes=10)

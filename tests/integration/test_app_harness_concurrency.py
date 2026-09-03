@@ -10,7 +10,7 @@ from typing import Any
 
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
-from hassette.test_utils.app_harness import AppTestHarness
+from hassette.testing import AppTestHarness
 
 
 class ConcurrencyConfig(AppConfig):

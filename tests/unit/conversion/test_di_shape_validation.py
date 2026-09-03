@@ -13,7 +13,7 @@ from hassette.conversion.state_registry import convert_state_dict_to_model
 from hassette.exceptions import SensorShapeMismatchError, UnableToConvertAnnotatedStateError
 from hassette.models.states.sensor import SensorState
 from hassette.models.states.sensor_shapes import EnumSensorState, NumericSensorState
-from hassette.test_utils.helpers import make_sensor_state_dict
+from hassette.testing import make_sensor_state_dict
 
 
 class TestShapeMismatchRaises:

@@ -18,8 +18,8 @@ import pytest
 
 from hassette.resources.lifecycle import mark_ready
 from hassette.resources.teardown import TeardownCause
-from hassette.test_utils import make_mock_hassette
 from hassette.types.enums import ResourceStatus
+from tests.support.factories import make_mock_hassette
 
 from .conftest import ConcreteResource
 

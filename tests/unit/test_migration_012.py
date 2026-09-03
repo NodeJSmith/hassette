@@ -11,8 +11,8 @@ from pathlib import Path
 import pytest
 
 from hassette.core.migration_runner import run_migrations
-from hassette.test_utils.config import TEST_SOURCE_LOCATION
-from hassette.test_utils.sql_helpers import insert_execution_row, sqlite_conn
+from tests.support.factories import TEST_SOURCE_LOCATION
+from tests.support.sql import insert_execution_row, sqlite_conn
 
 
 def _pre_migration_db(tmp_path: Path) -> Path:

@@ -16,7 +16,7 @@ from hassette.models.states import base
 from hassette.models.states import sensor_shapes as sensor_shapes_module
 
 if typing.TYPE_CHECKING:
-    from hassette.test_utils.harness import HassetteHarness
+    from hassette.testing import HassetteHarness
 
 logger = logging.getLogger(__name__)
 

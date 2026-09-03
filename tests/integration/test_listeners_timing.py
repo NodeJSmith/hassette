@@ -4,8 +4,8 @@ import asyncio
 
 from hassette.bus.rate_limiter import RateLimiter
 from hassette.task_bucket import TaskBucket
-from hassette.test_utils import make_controlled_clock, wait_for
-from hassette.test_utils.helpers import settle
+from hassette.testing import wait_for
+from tests.support.helpers import make_controlled_clock, settle
 
 
 class TestDebounceLogic:

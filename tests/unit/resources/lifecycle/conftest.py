@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock
 from hassette.resources.base import Resource
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
-from hassette.test_utils import make_mock_hassette
+from tests.support.factories import make_mock_hassette
 from tests.unit.resources.conftest import ConcreteResource, wait_for_running
 
 __all__ = [

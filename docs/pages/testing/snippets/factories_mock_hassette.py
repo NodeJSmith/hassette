@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from hassette.test_utils import make_mock_hassette
+from tests.support.factories import make_mock_hassette
 
 tmp_path = Path("/tmp/test")
 

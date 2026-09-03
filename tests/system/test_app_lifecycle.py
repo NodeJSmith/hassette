@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from hassette.config.config import HassetteConfig
-from hassette.test_utils import wait_for
+from hassette.testing import wait_for
 from hassette.types.enums import ResourceStatus
 
 from .conftest import make_system_config, startup_context

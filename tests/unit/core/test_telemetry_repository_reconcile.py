@@ -8,12 +8,8 @@ import pytest
 from hassette.core.telemetry.repository import (
     TelemetryRepository,
 )
-from hassette.test_utils.config import DEFAULT_TEST_APP_KEY
-from hassette.test_utils.factories import (
-    make_job_registration,
-    make_listener_registration,
-)
-from hassette.test_utils.sql_helpers import insert_execution_row
+from tests.support.factories import DEFAULT_TEST_APP_KEY, make_job_registration, make_listener_registration
+from tests.support.sql import insert_execution_row
 
 from .conftest import (
     ONCE_LISTENER_NAME,

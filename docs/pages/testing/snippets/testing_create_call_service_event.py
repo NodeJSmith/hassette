@@ -1,4 +1,4 @@
-from hassette.test_utils import create_call_service_event
+from hassette.testing import create_call_service_event
 
 event = create_call_service_event(
     domain="light",

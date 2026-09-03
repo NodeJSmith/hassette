@@ -20,7 +20,7 @@ from typing import Any
 
 from hassette.core.command_executor import _MAX_RETRY_COUNT, CommandExecutor, RetryableBatch
 from hassette.core.execution_record import ExecutionRecord
-from hassette.test_utils.factories import make_execution_record
+from tests.support.factories import make_execution_record
 
 from .conftest import init_executor, make_invocation
 

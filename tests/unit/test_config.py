@@ -13,9 +13,9 @@ from pydantic import SecretStr, ValidationError
 from hassette import HassetteConfig, context
 from hassette.config.classes import HassetteTomlConfigSettingsSource
 from hassette.config.defaults import AUTODETECT_EXCLUDE_DIRS_DEFAULT
-from hassette.test_utils import run_hassette_startup_tasks
-from hassette.test_utils.config import TEST_TOKEN
+from hassette.testing._harness import TEST_TOKEN
 from hassette.utils import app_utils
+from tests.support.fixtures import run_hassette_startup_tasks
 
 # Per-service log level nested attribute names under config.logging.*
 SERVICE_LOG_LEVEL_ATTRS = (

@@ -22,10 +22,10 @@ import httpx2
 import pytest
 from httpx2 import AsyncClient
 
-from hassette.test_utils.config import WEB_API_TEST_TOKEN
-from hassette.test_utils.uvicorn_server import start_uvicorn_server, stop_uvicorn_server
+from hassette.testing.config import WEB_API_TEST_TOKEN
 from hassette.web.body_limit import MAX_REQUEST_BODY_BYTES, RequestBodySizeLimitMiddleware
 from hassette.web.models import MAX_SESSION_TOKEN_LENGTH
+from tests.support.uvicorn import start_uvicorn_server, stop_uvicorn_server
 
 # `auth_hassette`, `auth_app`, and `auth_client` come from this directory's conftest.py.
 

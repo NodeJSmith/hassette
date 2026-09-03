@@ -19,7 +19,7 @@ from hassette.models.states.input import InputButtonState, InputDatetimeState, I
 from hassette.models.states.light import LightState
 from hassette.models.states.number import NumberState
 from hassette.models.states.sensor import SensorState
-from hassette.test_utils import make_state_dict, make_typed_state
+from hassette.testing import make_state_dict, make_typed_state
 
 
 class TestBoolValueTypeFamily:

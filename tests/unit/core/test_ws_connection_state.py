@@ -14,13 +14,13 @@ import pytest
 from hassette.core.websocket_service import WebsocketService
 from hassette.exceptions import InvalidAuthError, InvalidLifecycleTransitionError, RetryableConnectionClosedError
 from hassette.resources.lifecycle import mark_ready
-from hassette.test_utils import make_ws_hassette_stub
-from hassette.test_utils.config import (
+from hassette.testing.config import (
     TEST_EARLY_DROP_BACKOFF_INITIAL_SECONDS,
     TEST_EARLY_DROP_BACKOFF_MAX_SECONDS,
     TEST_EARLY_DROP_STABLE_WINDOW_SECONDS,
 )
 from hassette.types.enums import ConnectionState
+from tests.support.mock_hassette import make_ws_hassette_stub
 
 
 @pytest.fixture

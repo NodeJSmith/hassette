@@ -4,8 +4,9 @@ from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock
 
 from hassette.resources.lifecycle import handle_running, mark_ready
-from hassette.test_utils import EventCapture, make_mock_hassette
+from hassette.testing import EventCapture
 from hassette.types.enums import ResourceStatus
+from tests.support.factories import make_mock_hassette
 
 from .conftest import ConcreteResource
 

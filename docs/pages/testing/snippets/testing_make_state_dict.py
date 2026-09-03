@@ -1,4 +1,4 @@
-from hassette.test_utils import make_state_dict
+from hassette.testing import make_state_dict
 
 state = make_state_dict(
     "sensor.temperature",

@@ -35,9 +35,9 @@ from hassette.app.app_config import AppConfig
 from hassette.execution_mode import ExecutionModeGuard
 from hassette.scheduler import Job, ScheduleStatus, ScheduleStatusReason
 from hassette.scheduler.triggers import Every
-from hassette.test_utils.app_harness import AppTestHarness
-from hassette.test_utils.helpers import noop
+from hassette.testing import AppTestHarness
 from hassette.types.enums import ExecutionMode
+from tests.support.helpers import noop
 
 # App for one-shot mode tests: verifies mode= is accepted and fires exactly once
 

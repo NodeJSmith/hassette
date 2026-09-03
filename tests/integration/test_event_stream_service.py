@@ -7,8 +7,8 @@ from types import SimpleNamespace
 import pytest
 
 from hassette.core.event_stream_service import EventStreamService
-from hassette.test_utils import make_mock_hassette
-from hassette.test_utils.helpers import settle
+from tests.support.factories import make_mock_hassette
+from tests.support.helpers import settle
 
 
 @pytest.fixture

@@ -12,7 +12,7 @@ import pytest
 from hassette.core.app_change_detector import ChangeSet
 from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.exceptions import AppBootstrapNotReleasedError
-from hassette.test_utils import wait_for
+from hassette.testing import wait_for
 
 from .conftest import set_registry_apps
 

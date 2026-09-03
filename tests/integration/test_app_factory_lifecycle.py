@@ -15,7 +15,7 @@ from hassette.utils import app_utils
 
 if TYPE_CHECKING:
     from hassette.app.app import App, AppConfig
-    from hassette.test_utils.harness import HassetteHarness
+    from hassette.testing import HassetteHarness
 
 
 TEST_APPS_PATH = Path(__file__).parent.parent / "data" / "apps"

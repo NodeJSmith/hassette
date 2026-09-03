@@ -20,18 +20,12 @@ from hassette.events.hassette import ServiceStatusPayload
 from hassette.resources.lifecycle import mark_ready
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
-from hassette.test_utils import (
-    EventCapture,
-    HassetteHarness,
-    build_harness,
-    make_service_failed_event,
-    make_service_running_event,
-    preserve_config,
-    wait_for,
-)
-from hassette.test_utils.reset import reset_hassette_lifecycle
+from hassette.testing import EventCapture, HassetteHarness, build_harness, wait_for
+from hassette.testing._reset import reset_hassette_lifecycle
 from hassette.types import ResourceStatus, Topic
 from hassette.types.enums import RestartType
+from tests.support.harness import preserve_config
+from tests.support.helpers import make_service_failed_event, make_service_running_event
 
 AWAIT_TIMEOUT = 5.0
 

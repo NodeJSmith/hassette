@@ -9,7 +9,7 @@ import pytest
 
 from hassette.core.database_service import DatabaseService
 from hassette.core.session_manager import SessionManager
-from hassette.test_utils.helpers import make_crashed_event
+from tests.support.helpers import make_crashed_event
 
 
 @pytest.fixture

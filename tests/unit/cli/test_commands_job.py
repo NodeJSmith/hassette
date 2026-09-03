@@ -10,8 +10,8 @@ from hassette.cli.commands.job import (
     _next_run_display,
     cmd_job,
 )
-from hassette.test_utils.web_job_helpers import make_job_summary
-from hassette.test_utils.web_telemetry_helpers import make_execution
+from tests.support.web_job_helpers import make_job_summary
+from tests.support.web_telemetry_helpers import make_execution
 from tests.unit.cli.conftest import SINCE_EPOCH, CLIClientFactory, CommandRunner
 
 runner = CommandRunner("hassette.cli.commands.job.make_client")

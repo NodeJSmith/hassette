@@ -29,7 +29,7 @@ from hassette.models.states.catalog import restore_catalog, snapshot_catalog
 from hassette.task_bucket import TaskBucket
 
 if TYPE_CHECKING:
-    from hassette.test_utils.harness import HassetteHarness
+    from hassette.testing import HassetteHarness
 
 tracemalloc.start()
 
@@ -56,8 +56,9 @@ assert APPS_TOML_TEMPLATE.exists(), f"Apps TOML template {APPS_TOML_TEMPLATE} do
 # this wants package.nested_directories.final_file_name
 # do not include the name of the fixture
 pytest_plugins: list[str] = [
-    "hassette.test_utils.fixtures",
-    "hassette.test_utils.resource_tracker",
+    "hassette.testing.fixtures",
+    "tests.support.fixtures",
+    "tests.support.resource_tracker",
     # Saves each process's coverage during the run instead of leaving it to atexit, which xdist
     # may kill a worker before it reaches. Registered here rather than passed as `-p` from the
     # noxfile because pytest resolves `-p` before the repo root is on sys.path. No-ops unless
@@ -117,7 +118,7 @@ def build_websocket_config() -> WebSocketConfig:
     return WebSocketConfig(
         connection_timeout_seconds=1,
         authentication_timeout_seconds=1,
-        # Keep in sync with TEST_TOTAL_TIMEOUT_SECONDS in hassette.test_utils.config.
+        # Keep in sync with TEST_TOTAL_TIMEOUT_SECONDS in hassette.testing.config.
         total_timeout_seconds=30,
         response_timeout_seconds=1,
         heartbeat_interval_seconds=5,

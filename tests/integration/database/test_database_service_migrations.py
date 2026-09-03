@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 
 from hassette.core.database_service import DatabaseService
 from hassette.core.migration_runner import run_migrations
-from hassette.test_utils.config import LATEST_MIGRATION_VERSION
+from hassette.testing.config import LATEST_MIGRATION_VERSION
 
 EXPECTED_TABLES = {
     "sessions": {

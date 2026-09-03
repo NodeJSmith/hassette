@@ -6,7 +6,7 @@ import pytest
 
 from hassette.scheduler.scheduler import Scheduler
 from hassette.scheduler.triggers import Every
-from hassette.test_utils.helpers import noop
+from tests.support.helpers import noop
 
 from .conftest import make_scheduler
 

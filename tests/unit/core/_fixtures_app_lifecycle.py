@@ -10,8 +10,8 @@ import pytest
 
 from hassette.core.app_handler import AppHandler
 from hassette.core.app_lifecycle_service import AppLifecycleService
-from hassette.test_utils.mock_hassette import make_mock_hassette
 from hassette.types.enums import ResourceStatus
+from tests.support.factories import make_mock_hassette
 
 # Shared fixture/factory config values — named so re-tuning is a single-site edit.
 APP_STARTUP_TIMEOUT_SECONDS = 30

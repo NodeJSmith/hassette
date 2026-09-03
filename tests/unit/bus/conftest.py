@@ -8,14 +8,14 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from hassette.test_utils.factories import make_mock_parent
+from tests.support.factories import make_mock_parent
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
 
     from hassette import Hassette, HassetteConfig
     from hassette.bus.bus import Bus
-    from hassette.test_utils.harness import HassetteHarness
+    from hassette.testing import HassetteHarness
 
 
 @pytest.fixture

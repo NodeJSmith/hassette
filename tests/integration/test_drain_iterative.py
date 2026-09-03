@@ -21,8 +21,7 @@ import pytest
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
 from hassette.events import RawStateChangeEvent
-from hassette.test_utils.app_harness import AppTestHarness
-from hassette.test_utils.exceptions import DrainError, DrainTimeout
+from hassette.testing import AppTestHarness, DrainError, DrainTimeout
 
 
 class DrainTestConfig(AppConfig):

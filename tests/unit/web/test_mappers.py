@@ -4,8 +4,6 @@ from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, App
 from hassette.schemas.domain_models import SystemStatus
 from hassette.schemas.listener_models import ListenerSummary
 from hassette.schemas.live_counts import LiveCounts
-from hassette.test_utils.web_manifest_helpers import make_manifest
-from hassette.test_utils.web_telemetry_helpers import make_listener_summary
 from hassette.types.enums import ManifestStatus, ResourceStatus
 from hassette.web.mappers import (
     app_manifest_list_response_from,
@@ -26,6 +24,8 @@ from hassette.web.models import (
     ReadinessResponse,
     SystemStatusResponse,
 )
+from tests.support.web_manifest_helpers import make_manifest
+from tests.support.web_telemetry_helpers import make_listener_summary
 
 
 def make_instance(app_key: str, index: int, status: ResourceStatus) -> AppInstanceInfo:

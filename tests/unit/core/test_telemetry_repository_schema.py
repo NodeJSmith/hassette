@@ -11,8 +11,8 @@ from hassette.core.telemetry.repository import (
     _build_delete_query,
     _build_retire_query,
 )
-from hassette.test_utils.config import DEFAULT_TEST_APP_KEY
-from hassette.test_utils.factories import (
+from tests.support.factories import (
+    DEFAULT_TEST_APP_KEY,
     make_execution_record,
     make_job_registration,
     make_listener_registration,

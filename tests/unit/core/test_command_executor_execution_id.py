@@ -12,7 +12,7 @@ import uuid_utils
 from hassette.context import CURRENT_EXECUTION_ID
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.execution_record import SYNTHETIC_ORIGIN, ExecutionRecord
-from hassette.test_utils.factories import make_hass_event, make_hassette_event, make_invoke_handler_cmd
+from tests.support.factories import make_hass_event, make_hassette_event, make_invoke_handler_cmd
 
 from .conftest import make_execute_job_cmd, make_executor, make_mock_cmd_listener
 

@@ -21,8 +21,8 @@ from unittest.mock import MagicMock
 import pytest
 
 from hassette.bus.duration_timer import DurationTimer
-from hassette.test_utils import wait_for
-from hassette.test_utils.helpers import async_noop, create_listener, make_task_bucket
+from hassette.testing import wait_for
+from tests.support.helpers import async_noop, create_listener, make_task_bucket
 
 if TYPE_CHECKING:
     from hassette.events.base import Event

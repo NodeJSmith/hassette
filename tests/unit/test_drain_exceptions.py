@@ -12,7 +12,7 @@ the broader ``DrainFailure``).
 
 import pytest
 
-from hassette.test_utils import DrainError, DrainFailure, DrainTimeout
+from hassette.testing import DrainError, DrainFailure, DrainTimeout
 
 
 def test_drain_error_is_drain_failure() -> None:

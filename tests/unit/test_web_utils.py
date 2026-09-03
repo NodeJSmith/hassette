@@ -4,8 +4,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from hassette.test_utils.web_job_helpers import make_job_summary
 from hassette.web.utils import enrich_jobs_with_live_data
+from tests.support.web_job_helpers import make_job_summary
 
 
 class TestEnrichJobsWithLiveData:

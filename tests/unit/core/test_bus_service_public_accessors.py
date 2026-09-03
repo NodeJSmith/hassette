@@ -17,7 +17,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from hassette.core.bus_service import BusService
-from hassette.test_utils import make_mock_hassette
+from tests.support.factories import make_mock_hassette
 
 
 @pytest.fixture

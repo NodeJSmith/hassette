@@ -8,7 +8,7 @@ from hassette.bus.router import Router
 from hassette.core.bus_service import BusService, compute_elapsed, make_synthetic_state_event
 from hassette.core.event_filter import EventFilter
 from hassette.core.scheduler_service import SchedulerService
-from hassette.test_utils.config import TEST_CONFIG_TIMEOUT_SECONDS
+from hassette.testing.config import TEST_CONFIG_TIMEOUT_SECONDS
 
 
 def make_bus_service(

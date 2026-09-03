@@ -18,10 +18,9 @@ from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.telemetry.query_service import TelemetryQueryService
-from hassette.test_utils.config import TEST_TOKEN
-from hassette.test_utils.factories import make_job_registration, make_listener_registration
-from hassette.test_utils.harness import HassetteHarness
-from hassette.test_utils.mock_hassette import make_mock_hassette
+from hassette.testing import HassetteHarness
+from hassette.testing._harness import TEST_TOKEN
+from tests.support.factories import make_job_registration, make_listener_registration, make_mock_hassette
 
 
 @pytest.fixture

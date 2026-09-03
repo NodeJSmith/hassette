@@ -1,4 +1,4 @@
-from hassette.test_utils import create_state_change_event
+from hassette.testing import create_state_change_event
 
 event = create_state_change_event(
     entity_id="binary_sensor.motion",

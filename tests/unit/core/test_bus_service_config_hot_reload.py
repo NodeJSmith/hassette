@@ -7,7 +7,7 @@ is a live @property; this pins config_log_all_events to the same behavior.
 
 from hassette.core.bus_service import BusService
 from hassette.resources.base import Resource
-from hassette.test_utils import make_mock_hassette
+from tests.support.factories import make_mock_hassette
 
 
 def stub_bus_service() -> BusService:

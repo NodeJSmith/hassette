@@ -26,10 +26,9 @@ from hassette.resources.base import Resource
 from hassette.resources.teardown import TeardownCause, TeardownReport
 from hassette.scheduler.classes import Job
 from hassette.scheduler.scheduler import Scheduler
-from hassette.test_utils import make_mock_hassette
-from hassette.test_utils.factories import make_scheduled_job
-from hassette.test_utils.helpers import SHORT_SHUTDOWN_TIMEOUT_SECONDS
 from hassette.types.enums import ResourceStatus
+from tests.support.factories import make_mock_hassette, make_scheduled_job
+from tests.support.helpers import SHORT_SHUTDOWN_TIMEOUT_SECONDS
 
 from .conftest import HangingChild, ShutdownCounter, SimpleParent, make_running_simple_service
 

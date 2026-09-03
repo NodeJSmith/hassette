@@ -46,7 +46,7 @@ from hassette.core.command_executor import CommandExecutor, ExecutionMarker
 from hassette.core.database_service import DatabaseService
 from hassette.core.loop_watchdog import LoopWatchdog
 from hassette.exceptions import HassetteBlockingIOWarning
-from hassette.test_utils.config import make_test_config
+from hassette.testing import make_test_config
 from hassette.types.enums import BlockingIOBehavior
 
 from .helpers import DbFixture, drain_db_writes, fetch_blocking_events, open_db_with_session, running_command_executor

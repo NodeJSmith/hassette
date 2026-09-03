@@ -22,11 +22,11 @@ from hassette.event_handling.predicates import (
     StateDidChange,
 )
 from hassette.events.base import Event
-from hassette.test_utils import create_call_service_event, create_state_change_event, wait_for
+from hassette.testing import create_call_service_event, create_state_change_event, wait_for
 
 if TYPE_CHECKING:
     from hassette.bus import Bus
-    from hassette.test_utils.harness import HassetteHarness
+    from hassette.testing import HassetteHarness
 
 
 GLOB_CASES = [

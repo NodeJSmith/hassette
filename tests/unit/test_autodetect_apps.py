@@ -11,9 +11,9 @@ import pytest
 from hassette import context
 from hassette.config.config import HassetteConfig
 from hassette.config.defaults import AUTODETECT_EXCLUDE_DIRS_DEFAULT
-from hassette.test_utils import write_app
 from hassette.types.types import AppDict
 from hassette.utils.app_utils import autodetect_apps
+from tests.support.helpers import write_app
 
 
 def detect(app_dir: Path, known_paths: set[Path] | None = None) -> dict[str, AppDict]:

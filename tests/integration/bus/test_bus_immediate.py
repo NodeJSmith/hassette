@@ -11,9 +11,8 @@ import pytest
 from whenever import ZonedDateTime
 
 from hassette.events import RawStateChangeEvent
-from hassette.test_utils import make_state_dict, wait_for
-from hassette.test_utils.harness import HassetteHarness
-from hassette.test_utils.helpers import settle
+from hassette.testing import HassetteHarness, make_state_dict, wait_for
+from tests.support.helpers import settle
 
 from .conftest import (
     ASYNC_SAFETY_TIMEOUT,
