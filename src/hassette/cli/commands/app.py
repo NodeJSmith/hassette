@@ -32,7 +32,7 @@ _ACTION_PAST_TENSE: dict[str, str] = {"start": "started", "stop": "stopped", "re
 #: frontend's per-action `ACTIONS` map (``frontend/src/components/shared/action-buttons.tsx``,
 #: `CAN_START`/`CAN_STOP` in ``frontend/src/utils/status.ts``) — no shared source of truth across
 #: the CLI/frontend boundary for "which actions exist and what each one needs."
-_ACTIONS_REQUIRING_CONFIRMATION = {"stop", "reload"}
+_ACTIONS_REQUIRING_CONFIRMATION: frozenset[str] = frozenset({"stop", "reload"})
 
 APP_LIST_COLUMNS: list[Column] = [
     Column("app_key", "App Key", max_width=20),
