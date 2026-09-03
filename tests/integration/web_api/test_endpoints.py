@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from hassette.core.app_registry import AppRegistry
-from hassette.exceptions import AppBootstrapNotReleasedError
+from hassette.exceptions import AppBlockedError, AppBootstrapNotReleasedError
 from hassette.test_utils import create_app_manifest
 from hassette.test_utils.web_manifest_helpers import make_manifest_db_row
 from hassette.test_utils.web_telemetry_helpers import make_listener_summary
@@ -169,6 +169,20 @@ class TestAppEndpoints:
 
         assert response.status_code == 409
 
+    async def test_start_app_returns_conflict_for_blocked_app(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        """P2 follow-up finding on PR #1873: a blocked app's start must surface as a rejected
+        request, not a 202 "accepted" the registry silently no-op'd.
+        """
+        mock_hassette.app_handler.start_app = AsyncMock(
+            side_effect=AppBlockedError("App 'my_app' is blocked by the --app filter")
+        )
+
+        response = await client.post(APP_START_PATH)
+
+        assert response.status_code == 409
+
     async def test_stop_app(self, client: "AsyncClient") -> None:
         response = await client.post(APP_STOP_PATH)
         assert response.status_code == 202
@@ -191,6 +205,20 @@ class TestAppEndpoints:
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
         mock_hassette.app_handler.reload_app = AsyncMock(side_effect=AppBootstrapNotReleasedError("not released"))
+
+        response = await client.post(APP_RELOAD_PATH)
+
+        assert response.status_code == 409
+
+    async def test_reload_app_returns_conflict_for_blocked_app(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        """P2 follow-up finding on PR #1873 (also applies to reload, since reload is
+        stop-then-start): a blocked app's reload must surface as a rejected request.
+        """
+        mock_hassette.app_handler.reload_app = AsyncMock(
+            side_effect=AppBlockedError("App 'my_app' is blocked by the --app filter")
+        )
 
         response = await client.post(APP_RELOAD_PATH)
 
@@ -296,11 +324,41 @@ class TestAppInstanceEndpoints:
 
         assert response.status_code == 409
 
+    async def test_start_instance_returns_conflict_for_blocked_app(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        """P2 follow-up finding on PR #1873: a blocked app's instance start must surface as a
+        rejected request, not a 202 "accepted" the registry silently no-op'd.
+        """
+        self._seed_manifest(mock_hassette)
+        mock_hassette.app_handler.start_instance = AsyncMock(
+            side_effect=AppBlockedError("App 'my_app' is blocked by the --app filter")
+        )
+
+        response = await client.post(instance_action_path("my_app", 0, "start"))
+
+        assert response.status_code == 409
+
     async def test_reload_instance_returns_retryable_conflict_before_release(
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
         self._seed_manifest(mock_hassette)
         mock_hassette.app_handler.reload_instance = AsyncMock(side_effect=AppBootstrapNotReleasedError("not released"))
+
+        response = await client.post(instance_action_path("my_app", 0, "reload"))
+
+        assert response.status_code == 409
+
+    async def test_reload_instance_returns_conflict_for_blocked_app(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        """P2 follow-up finding on PR #1873 (also applies to reload, since reload is
+        stop-then-start): a blocked app's instance reload must surface as a rejected request.
+        """
+        self._seed_manifest(mock_hassette)
+        mock_hassette.app_handler.reload_instance = AsyncMock(
+            side_effect=AppBlockedError("App 'my_app' is blocked by the --app filter")
+        )
 
         response = await client.post(instance_action_path("my_app", 0, "reload"))
 

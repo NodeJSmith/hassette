@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, Mock
 import pytest
 
 from hassette.core.app_lifecycle_service import AppAdmissionMode, AppLifecycleService
-from hassette.exceptions import AppBootstrapNotReleasedError
+from hassette.exceptions import AppBlockedError, AppBootstrapNotReleasedError
 from hassette.schemas.app_snapshots import AppInstanceInfo
 from hassette.test_utils import EventCapture
 from hassette.types import Topic
@@ -141,11 +141,16 @@ class TestStartApp:
         exclusion — regression test for the P1 finding on PR #1873: the
         manifest for a blocked app still exists and still reports a configured instance count,
         so nothing else in start_app()/_start_app_unlocked() would otherwise stop it.
+
+        Raises AppBlockedError rather than silently no-op'ing (P2 follow-up finding on the
+        same PR) — a plain no-op would let the web route respond 202 "accepted" for a request
+        nothing acted on.
         """
         mock_registry.get_manifest = Mock(return_value=mock_manifest)
         mock_registry.is_blocked = Mock(return_value=True)
 
-        await lifecycle_service.start_app("blocked_app")
+        with pytest.raises(AppBlockedError):
+            await lifecycle_service.start_app("blocked_app")
 
         mock_factory.create_instances.assert_not_called()
 

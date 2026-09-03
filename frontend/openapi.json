@@ -196,7 +196,7 @@
             }
           },
           "409": {
-            "description": "App bootstrap prerequisites are not ready yet; retry later"
+            "description": "App bootstrap prerequisites are not ready yet (retry later), or the app is blocked by the --app filter (not retryable)"
           },
           "422": {
             "description": "Validation Error",
@@ -283,7 +283,7 @@
             }
           },
           "409": {
-            "description": "App bootstrap prerequisites are not ready yet; retry later"
+            "description": "App bootstrap prerequisites are not ready yet (retry later), or the app is blocked by the --app filter (not retryable)"
           },
           "422": {
             "description": "Validation Error",
@@ -340,7 +340,7 @@
             "description": "App is unknown, or instance index is out of range for the app's current config"
           },
           "409": {
-            "description": "App bootstrap prerequisites are not ready yet; retry later"
+            "description": "App bootstrap prerequisites are not ready yet (retry later), or the app is blocked by the --app filter (not retryable)"
           },
           "422": {
             "description": "Validation Error",
@@ -451,7 +451,7 @@
             "description": "App is unknown, or instance index is out of range for the app's current config"
           },
           "409": {
-            "description": "App bootstrap prerequisites are not ready yet; retry later"
+            "description": "App bootstrap prerequisites are not ready yet (retry later), or the app is blocked by the --app filter (not retryable)"
           },
           "422": {
             "description": "Validation Error",

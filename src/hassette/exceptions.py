@@ -258,6 +258,13 @@ class AppBootstrapNotReleasedError(HassetteError):
     """Raised when an app start/reload is requested before bootstrap release opens."""
 
 
+class AppBlockedError(HassetteError):
+    """Raised when a manual start/reload is requested for an app the exclusive-app filter
+    (``--app``) has blocked. Without this, the caller would get a lying 202 "accepted" for a
+    request the registry silently no-ops — see AppLifecycleService's blocked-app guards.
+    """
+
+
 class AppPrecheckFailedError(HassetteError):
     """Custom exception to indicate that one or more prechecks for an app failed."""
 

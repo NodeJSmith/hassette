@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException, Request, Response
 
 from hassette.app.app_config import AppConfig
 from hassette.config.classes import AppManifest
-from hassette.exceptions import AppBootstrapNotReleasedError, TelemetryUnavailableError
+from hassette.exceptions import AppBlockedError, AppBootstrapNotReleasedError, TelemetryUnavailableError
 from hassette.schemas.app_config_shape import normalize_app_config
 from hassette.schemas.app_snapshots import AppFullSnapshot, tally_manifest_statuses
 from hassette.web.auth.trusted_proxies import peer_address_or_unknown
@@ -128,6 +128,12 @@ async def _run_app_action(
     start/reload — ``stop_app`` never awaits bootstrap release — so the ``stop`` endpoint
     declares no 409 response.
 
+    ``AppBlockedError`` also maps to a non-retryable 409: the app is excluded by the ``--app``
+    filter, so start/reload was rejected outright (see ``AppLifecycleService``'s blocked-app
+    guards) rather than silently no-op'd — without this mapping the caller would get a 202
+    "accepted" for a request nothing acted on. Also only reachable from start/reload, for the
+    same reason as the bootstrap case above.
+
     ``instance_index`` is echoed back on the response as-is (already validated by
     ``_require_valid_instance_index`` before this function is called) so a caller can confirm
     the server acted on the instance it intended, not just that *some* 202 came back.
@@ -140,6 +146,8 @@ async def _run_app_action(
         raise HTTPException(
             status_code=409, detail="App bootstrap prerequisites are not ready yet; retry later"
         ) from exc
+    except AppBlockedError as exc:
+        raise HTTPException(status_code=409, detail=f"App {app_key!r} is blocked by the --app filter") from exc
     except (ValueError, RuntimeError) as exc:
         LOGGER.warning("Failed to %s app %s", action, app_key, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to {action} app") from exc
@@ -229,7 +237,12 @@ async def get_app_manifest(app_key: str, runtime: RuntimeDep, telemetry: Telemet
     "/apps/{app_key}/start",
     status_code=202,
     response_model=ActionResponse,
-    responses={409: {"description": "App bootstrap prerequisites are not ready yet; retry later"}},
+    responses={
+        409: {
+            "description": "App bootstrap prerequisites are not ready yet (retry later), "
+            "or the app is blocked by the --app filter (not retryable)"
+        }
+    },
 )
 async def start_app(app_key: str, hassette: HassetteDep, request: Request) -> ActionResponse:
     return await _run_app_action("start", app_key, hassette, request, lambda: hassette.app_handler.start_app(app_key))
@@ -244,7 +257,12 @@ async def stop_app(app_key: str, hassette: HassetteDep, request: Request) -> Act
     "/apps/{app_key}/reload",
     status_code=202,
     response_model=ActionResponse,
-    responses={409: {"description": "App bootstrap prerequisites are not ready yet; retry later"}},
+    responses={
+        409: {
+            "description": "App bootstrap prerequisites are not ready yet (retry later), "
+            "or the app is blocked by the --app filter (not retryable)"
+        }
+    },
 )
 async def reload_app(app_key: str, hassette: HassetteDep, request: Request) -> ActionResponse:
     # Always re-import from disk so a previously-failed app recovers once its
@@ -260,7 +278,10 @@ async def reload_app(app_key: str, hassette: HassetteDep, request: Request) -> A
     response_model=ActionResponse,
     responses={
         404: {"description": "App is unknown, or instance index is out of range for the app's current config"},
-        409: {"description": "App bootstrap prerequisites are not ready yet; retry later"},
+        409: {
+            "description": "App bootstrap prerequisites are not ready yet (retry later), "
+            "or the app is blocked by the --app filter (not retryable)"
+        },
     },
 )
 async def start_instance(app_key: str, index: int, hassette: HassetteDep, request: Request) -> ActionResponse:
@@ -299,7 +320,10 @@ async def stop_instance(app_key: str, index: int, hassette: HassetteDep, request
     response_model=ActionResponse,
     responses={
         404: {"description": "App is unknown, or instance index is out of range for the app's current config"},
-        409: {"description": "App bootstrap prerequisites are not ready yet; retry later"},
+        409: {
+            "description": "App bootstrap prerequisites are not ready yet (retry later), "
+            "or the app is blocked by the --app filter (not retryable)"
+        },
     },
 )
 async def reload_instance(app_key: str, index: int, hassette: HassetteDep, request: Request) -> ActionResponse:

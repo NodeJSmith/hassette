@@ -1853,7 +1853,7 @@ export interface operations {
                     "application/json": components["schemas"]["ActionResponse"];
                 };
             };
-            /** @description App bootstrap prerequisites are not ready yet; retry later */
+            /** @description App bootstrap prerequisites are not ready yet (retry later), or the app is blocked by the --app filter (not retryable) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -1922,7 +1922,7 @@ export interface operations {
                     "application/json": components["schemas"]["ActionResponse"];
                 };
             };
-            /** @description App bootstrap prerequisites are not ready yet; retry later */
+            /** @description App bootstrap prerequisites are not ready yet (retry later), or the app is blocked by the --app filter (not retryable) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -1968,7 +1968,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description App bootstrap prerequisites are not ready yet; retry later */
+            /** @description App bootstrap prerequisites are not ready yet (retry later), or the app is blocked by the --app filter (not retryable) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -2053,7 +2053,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description App bootstrap prerequisites are not ready yet; retry later */
+            /** @description App bootstrap prerequisites are not ready yet (retry later), or the app is blocked by the --app filter (not retryable) */
             409: {
                 headers: {
                     [name: string]: unknown;

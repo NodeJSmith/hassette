@@ -15,7 +15,12 @@ import hassette.event_handling.accessors as A
 from hassette.core.app_change_detector import AppChangeDetector, ChangeSet
 from hassette.core.app_factory import AppFactory
 from hassette.events.hassette import HassetteAppStateEvent, HassetteSimpleEvent
-from hassette.exceptions import AppBootstrapNotReleasedError, InvalidInheritanceError, UndefinedUserConfigError
+from hassette.exceptions import (
+    AppBlockedError,
+    AppBootstrapNotReleasedError,
+    InvalidInheritanceError,
+    UndefinedUserConfigError,
+)
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import handle_crash, mark_ready
 from hassette.types import ResourceStatus, Topic
@@ -509,9 +514,12 @@ class AppLifecycleService(Resource):
             # A blocked app's manifest still exists and still reports a configured instance
             # count, so it stays addressable by every check above this one — this is the only
             # thing standing between a manual start/reload and bypassing the exclusive-app
-            # filter that blocked it in the first place.
-            self.logger.debug("Skipping start for blocked app %s", app_key)
-            return
+            # filter that blocked it in the first place. Raises (rather than a silent no-op,
+            # like the sibling guards above) so the web route and CLI surface an actionable
+            # rejection instead of reporting success for a request nothing acted on; start_app()
+            # has no surrounding try/except so this propagates directly, and reload_app() special-
+            # cases this exception to re-raise past its otherwise-swallowing try/except.
+            raise AppBlockedError(f"App {app_key!r} is blocked by the --app filter")
 
         # A prior, larger config can leave failed entries at indices the *current* config no
         # longer has — e.g. an autostart=false app that wasn't auto-reconciled on the config
@@ -650,6 +658,12 @@ class AppLifecycleService(Resource):
                     return
 
                 await self._start_app_unlocked(app_key, app_manifest, force_reload)
+        except AppBlockedError:
+            # The stop above already ran — a blocked-but-running instance (e.g. left over
+            # from before this guard existed, or from an --app filter change that never
+            # auto-stops already-running apps) is still cleaned up. Only the restart is
+            # refused, and the caller must see that refusal rather than a lying "reloaded".
+            raise
         except Exception:
             self.logger.error("Failed to reload app %s:\n%s", app_key, get_short_traceback())
 
@@ -703,10 +717,15 @@ class AppLifecycleService(Resource):
         ``build_manifest_info()`` and stays addressable by index-range and already-running
         checks alone. Without this check, the web UI's per-instance Start button (and the CLI's
         ``app start --instance``) could start an instance the exclusive-app filter excluded.
+
+        Raises (rather than a silent no-op) so the web route and CLI surface an actionable
+        rejection instead of reporting success for a request nothing acted on — see
+        ``_start_app_unlocked``'s matching guard for the same reasoning. ``start_instance()``
+        and ``_reload_instance_unlocked()``'s caller (``reload_instance()``) both special-case
+        this exception to re-raise past their otherwise-swallowing try/except.
         """
         if self.registry.is_blocked(app_key):
-            self.logger.debug("Skipping start for instance %d of blocked app %s", index, app_key)
-            return
+            raise AppBlockedError(f"App {app_key!r} is blocked by the --app filter")
 
         app_class = self.factory.load_class(app_key, app_manifest, force_reload)
         if app_class is None:
@@ -784,6 +803,11 @@ class AppLifecycleService(Resource):
         try:
             async with self._get_app_key_lock(app_key):
                 await self._reload_instance_unlocked(app_key, index, force_reload)
+        except AppBlockedError:
+            # The stop half of the reload already ran (see _reload_instance_unlocked) — only
+            # the restart is refused, and the caller must see that refusal rather than a
+            # lying "reloaded". Mirrors reload_app()'s identical special-casing.
+            raise
         except Exception:
             self.logger.error("Failed to reload instance %d of app %s:\n%s", index, app_key, get_short_traceback())
 
@@ -864,6 +888,8 @@ class AppLifecycleService(Resource):
                     return
 
                 await self._create_instance_unlocked(app_key, index, app_manifest)
+        except AppBlockedError:
+            raise
         except Exception:
             self.logger.error("Failed to start instance %d of app %s:\n%s", index, app_key, get_short_traceback())
 
@@ -932,30 +958,49 @@ class AppLifecycleService(Resource):
         """
         self.logger.debug("Applying app changes: %s", changes)
 
+        # AppBlockedError from reload_app()/start_app()/_reload_app_or_changed_instances()
+        # below is caught per app_key in every loop, even though it should be structurally
+        # unreachable here: AppChangeDetector.detect_changes() filters every ChangeSet bucket
+        # by only_apps before this method ever sees app_key, and
+        # _fold_unblocked_apps_into_changes() only adds apps that were *just* unblocked. That
+        # invariant spans three files and isn't enforced at this boundary, so if it's ever
+        # violated, an uncaught raise here would abort the rest of this bucket and every
+        # bucket after it — not just the one blocked app_key.
         for app_key in changes.orphans:
             self.logger.debug("Stopping orphaned app %s", app_key)
             await self.stop_app(app_key)
 
         for app_key in changes.reimport_apps:
-            if self.should_auto_reconcile(app_key):
-                self.logger.debug("Reloading app %s due to file change", app_key)
-                await self.reload_app(app_key, force_reload=True)
-            else:
+            if not self.should_auto_reconcile(app_key):
                 self.logger.debug("Skipping reimport of autostart=false app %s (not running)", app_key)
+                continue
+
+            self.logger.debug("Reloading app %s due to file change", app_key)
+            try:
+                await self.reload_app(app_key, force_reload=True)
+            except AppBlockedError:
+                self.logger.error("Skipping reimport of blocked app %s — this should not be reachable", app_key)
 
         for app_key in changes.reload_apps:
             if not self.should_auto_reconcile(app_key):
                 self.logger.debug("Skipping reload of autostart=false app %s (not running)", app_key)
                 continue
 
-            await self._reload_app_or_changed_instances(app_key, original_config, current_config)
+            try:
+                await self._reload_app_or_changed_instances(app_key, original_config, current_config)
+            except AppBlockedError:
+                self.logger.error("Skipping reload of blocked app %s — this should not be reachable", app_key)
 
         for app_key in changes.new_apps:
-            if self.should_autostart(app_key):
-                self.logger.debug("Starting new app %s", app_key)
-                await self.start_app(app_key)
-            else:
+            if not self.should_autostart(app_key):
                 self.logger.debug("Skipping autostart of app %s (autostart=false)", app_key)
+                continue
+
+            self.logger.debug("Starting new app %s", app_key)
+            try:
+                await self.start_app(app_key)
+            except AppBlockedError:
+                self.logger.error("Skipping start of blocked app %s — this should not be reachable", app_key)
 
     async def _reload_app_or_changed_instances(
         self,

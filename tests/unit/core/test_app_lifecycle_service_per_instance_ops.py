@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, Mock
 import pytest
 
 from hassette.core.app_lifecycle_service import AppLifecycleService
+from hassette.exceptions import AppBlockedError
 from hassette.schemas.app_snapshots import AppInstanceInfo
 from hassette.test_utils import EventCapture, wait_for
 from hassette.types import Topic
@@ -271,13 +272,18 @@ class TestStartInstanceBehavior:
         CLI's ``app start --instance``) visible for an app the filter excluded. Nothing else in
         start_instance()/_create_instance_unlocked() checks blocked state, so this guard is the
         only thing that stops the bypass.
+
+        Raises AppBlockedError rather than silently no-op'ing (P2 follow-up finding on the
+        same PR) — a plain no-op would let the web route respond 202 "accepted" for a request
+        nothing acted on.
         """
         mock_manifest.app_config = [{"instance_name": "a"}]
         mock_registry.get_manifest = Mock(return_value=mock_manifest)
         mock_factory.normalize_configs = Mock(side_effect=lambda cfg: cfg)
         mock_registry.is_blocked = Mock(return_value=True)
 
-        await lifecycle_service.start_instance("test_app", 0)
+        with pytest.raises(AppBlockedError):
+            await lifecycle_service.start_instance("test_app", 0)
 
         mock_factory.create_single_instance.assert_not_called()
         mock_registry.is_blocked.assert_called_with("test_app")
@@ -534,6 +540,10 @@ class TestReloadInstanceUnlockedGuards:
         guard lives in the shared ``_create_instance_unlocked`` create step (see
         TestStartInstanceBehavior.test_blocked_app_skips_without_creating for the start-side
         regression test for the same P1 finding on PR #1873).
+
+        ``_create_instance_unlocked`` raises AppBlockedError (P2 follow-up finding on the same
+        PR) — called here directly (not through ``reload_instance()``), so the exception
+        propagates straight out rather than being caught and re-raised by a wrapper.
         """
         mock_manifest.app_config = [{"instance_name": "a"}]
         mock_registry.get_manifest = Mock(return_value=mock_manifest)
@@ -542,7 +552,8 @@ class TestReloadInstanceUnlockedGuards:
         mock_registry.get_failed_instance_infos = Mock(return_value={})
         mock_registry.unregister_app = Mock(return_value=None)
 
-        await lifecycle_service._reload_instance_unlocked("test_app", 0)
+        with pytest.raises(AppBlockedError):
+            await lifecycle_service._reload_instance_unlocked("test_app", 0)
 
         mock_factory.create_single_instance.assert_not_called()
 
@@ -564,6 +575,22 @@ class TestReloadInstanceFailure:
         await lifecycle_service.reload_instance("test_app", 0)  # must not raise
 
         lifecycle_service._reload_instance_unlocked.assert_awaited_once_with("test_app", 0, False)
+
+    async def test_reload_instance_reraises_blocked_error(
+        self,
+        lifecycle_service: AppLifecycleService,
+    ) -> None:
+        """Unlike other failures (see the test above), AppBlockedError from
+        _reload_instance_unlocked must propagate out of the public reload_instance() rather
+        than being swallowed — P2 follow-up finding on PR #1873: a swallowed rejection would
+        let the web route respond 202 "accepted" for a restart that was actually refused.
+        """
+        lifecycle_service._reload_instance_unlocked = AsyncMock(  # pyright: ignore[reportAttributeAccessIssue]
+            side_effect=AppBlockedError("App 'test_app' is blocked by the --app filter")
+        )
+
+        with pytest.raises(AppBlockedError):
+            await lifecycle_service.reload_instance("test_app", 0)
 
 
 class TestStopInstanceUnlockedShutdownFailure:

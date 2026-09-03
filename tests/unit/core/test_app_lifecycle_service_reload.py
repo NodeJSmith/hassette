@@ -11,7 +11,7 @@ import pytest
 
 from hassette.core.app_change_detector import ChangeSet
 from hassette.core.app_lifecycle_service import AppLifecycleService
-from hassette.exceptions import AppBootstrapNotReleasedError
+from hassette.exceptions import AppBlockedError, AppBootstrapNotReleasedError
 from hassette.test_utils import wait_for
 
 from .conftest import set_registry_apps
@@ -41,6 +41,39 @@ class TestApplyChanges:
         lifecycle_service.reload_app.assert_any_call("reimport_app", force_reload=True)
         lifecycle_service.reload_app.assert_any_call("reload_app")
         lifecycle_service.start_app.assert_called_once_with("new_app")
+
+    async def test_blocked_app_raise_does_not_abort_remaining_apps_in_bucket(
+        self, lifecycle_service: AppLifecycleService
+    ) -> None:
+        """Defensive isolation (code-review finding on PR #1873's P2 fix): AppBlockedError
+        from one app_key in the new_apps bucket must not abort the rest of that bucket, or
+        the reimport_apps/reload_apps buckets processed after it. This should be structurally
+        unreachable (AppChangeDetector.detect_changes() filters every bucket by only_apps
+        before apply_changes() ever sees an app_key), but the isolation must hold regardless.
+        """
+
+        async def _start_app(app_key: str) -> None:
+            if app_key == "blocked_app":
+                raise AppBlockedError(f"{app_key} blocked")
+
+        lifecycle_service.stop_app = AsyncMock()
+        lifecycle_service.reload_app = AsyncMock()
+        lifecycle_service.start_app = AsyncMock(side_effect=_start_app)
+        lifecycle_service.should_autostart = Mock(return_value=True)
+        lifecycle_service.should_auto_reconcile = Mock(return_value=True)
+
+        changes = ChangeSet(
+            orphans=frozenset(),
+            new_apps=frozenset({"blocked_app", "healthy_app"}),
+            reimport_apps=frozenset({"reimport_app"}),
+            reload_apps=frozenset(),
+        )
+
+        await lifecycle_service.apply_changes(changes, {}, {})  # must not raise
+
+        lifecycle_service.start_app.assert_any_call("blocked_app")
+        lifecycle_service.start_app.assert_any_call("healthy_app")
+        lifecycle_service.reload_app.assert_any_call("reimport_app", force_reload=True)
 
 
 class TestReloadApp:
@@ -89,13 +122,18 @@ class TestReloadApp:
         """A manual reload_app() for an app excluded by the --app filter stops the existing
         instances but must not recreate them — regression test for the P1 finding on PR #1873
         that also applies to reload, since reload is stop-then-start.
+
+        Re-raises AppBlockedError after the stop completes (P2 follow-up finding on the same
+        PR) rather than silently swallowing it — the stop side-effect is real and worth
+        keeping, but the caller must still see that the restart was refused.
         """
         mock_registry.unregister_app = Mock(return_value=None)
         mock_registry.get_manifest = Mock(return_value=mock_manifest)
         mock_registry.get_running_apps = Mock(return_value={})
         mock_registry.is_blocked = Mock(return_value=True)
 
-        await lifecycle_service.reload_app("test_app")
+        with pytest.raises(AppBlockedError):
+            await lifecycle_service.reload_app("test_app")
 
         mock_registry.unregister_app.assert_called_once_with("test_app")
         mock_factory.create_instances.assert_not_called()
