@@ -1,7 +1,6 @@
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
 import type { JobData } from "../../api/endpoints";
@@ -21,29 +20,20 @@ import { DetailStats } from "../shared/detail-stats";
 import { ErrorBanner } from "../shared/error-banner";
 import { IconPlay } from "../shared/icons";
 import { Spinner } from "../shared/spinner";
+import { type Chip, ChipsRow } from "./chips-row";
 import { DetailHeader } from "./detail-header";
 import { ExecutionSection } from "./execution-section";
 import { HandlerDetailLayout } from "./handler-detail-layout";
 import { jobHealthKind } from "./handler-list";
-import { HandlerModeChip } from "./handler-mode-chip";
 import { RegistrationFooter } from "./registration-footer";
 import { buildCommonStatCells, type CommonStatInput } from "./stat-cell-builders";
 
 function ScheduleChips({ job }: { job: JobData }) {
-  const chips: Array<{ label: string }> = [];
+  const chips: Chip[] = [];
   if (job.jitter) chips.push({ label: `±${job.jitter}s jitter` });
   if (job.group) chips.push({ label: `group: ${job.group}` });
 
-  return (
-    <div className="mb-3 flex flex-wrap gap-2" data-testid="schedule-chips">
-      <HandlerModeChip mode={job.mode} />
-      {chips.map((chip) => (
-        <Badge key={chip.label} variant="job">
-          {chip.label}
-        </Badge>
-      ))}
-    </div>
-  );
+  return <ChipsRow mode={job.mode} variant="job" testId="schedule-chips" chips={chips} />;
 }
 
 /** Max time to wait for an execution record after Run Now submission before showing the timeout fallback (FR#26). */
