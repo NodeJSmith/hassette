@@ -175,18 +175,6 @@ class SchedulerService(Service):
         await self.enqueue_job(job)
         self.logger.debug("Rescheduled job %s to %s", job, job.next_run)
 
-    async def _remove_jobs_by_owner(self, owner: str) -> None:
-        """Remove all jobs for an owner and wake the scheduler if necessary."""
-        removed = await self._job_queue.remove_owner(owner)
-
-        if removed:
-            self.kick()
-            # Release guards for all removed jobs.
-            for job in removed:
-                await job.guard.release()
-                drain_pending_done(job.pending_done)
-            self.fire_removal_callbacks(removed)
-
     def register_removal_callback(self, owner_id: str, callback: Callable[["Job"], None]) -> None:
         """Register a callback to be called whenever a job belonging to owner_id is removed.
 
@@ -794,14 +782,6 @@ class SchedulerService(Service):
             raise ValueError(f"Job {job_id} is not currently triggerable")
         return job
 
-    def remove_jobs_by_owner(self, owner: str) -> asyncio.Task[None]:
-        """Remove all jobs for a given owner.
-
-        Args:
-            owner: The owner of the jobs to remove.
-        """
-        return self.task_bucket.spawn(self._remove_jobs_by_owner(owner), name="scheduler:remove_jobs_by_owner")
-
     def _remove_from_live_state(self, job: "Job") -> bool:
         """Synchronous core of the unified removal operation: registry, heap, callbacks.
 
@@ -934,8 +914,8 @@ class SchedulerService(Service):
         Used by ``Scheduler.remove_all_jobs()`` for owner cleanup — the per-app ``Scheduler``
         already holds its owned jobs in ``_jobs_by_name``, including waiting, completed, and
         manual jobs that were never on the heap, so this targets exactly those objects instead
-        of scanning the full registry by owner string (as ``remove_jobs_by_owner`` does, which
-        only reaches heap-resident jobs).
+        of scanning the full registry by owner string, which would only reach heap-resident
+        jobs.
 
         Spawned on this service's own ``task_bucket`` (not the caller's) so the removal writes
         survive the caller resource's own shutdown/cancellation window — the same reasoning as

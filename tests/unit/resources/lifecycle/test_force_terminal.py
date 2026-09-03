@@ -54,7 +54,7 @@ async def test_scheduler_on_shutdown_dequeues_all_jobs():
     await scheduler.shutdown()
 
     # remove_jobs is called by remove_all_jobs with this scheduler's own owned jobs
-    # (including waiting/completed/manual jobs that remove_jobs_by_owner's heap-only scan
+    # (including waiting/completed/manual jobs that a heap-only scan by owner string
     # would miss), and it's on the mock service.
     hassette.scheduler_service.remove_jobs.assert_awaited_once_with([job])
 
