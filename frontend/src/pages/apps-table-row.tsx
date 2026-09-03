@@ -12,6 +12,7 @@ import { StatusShape } from "../components/shared/status-shape";
 import { useRelativeTime } from "../hooks/use-relative-time";
 import type { AppStatusEntry } from "../state/store";
 import { appLiveStatus, type AppRow, instanceLiveStatus } from "../utils/app-data";
+import { APP_ROW_STATUS_SHAPE_SIZE, INSTANCE_ROW_STATUS_SHAPE_SIZE } from "../utils/constants";
 import { formatTimestamp } from "../utils/format";
 import { onActivateKeyDown } from "../utils/keyboard";
 import { INACTIVE_STATUSES, statusToKind, statusToVariant } from "../utils/status";
@@ -68,7 +69,7 @@ export function AppTableRow({
                 </button>
               )}
             </span>
-            <StatusShape kind={kind} size={7} muted={muteStatus} />
+            <StatusShape kind={kind} size={APP_ROW_STATUS_SHAPE_SIZE} muted={muteStatus} />
             <AppLink appKey={app.app_key}>{app.display_name}</AppLink>
             <span className={cn("text-xs text-muted-foreground max-sidebar:hidden", compact && "hidden")}>
               {app.class_name}
@@ -177,7 +178,7 @@ export function AppTableRow({
                   <span className="ml-[calc(var(--spacing-4)+var(--spacing-0-5))] text-xs text-foreground-faint">
                     └
                   </span>
-                  <StatusShape kind={instKind} size={6} muted={muteStatus} />
+                  <StatusShape kind={instKind} size={INSTANCE_ROW_STATUS_SHAPE_SIZE} muted={muteStatus} />
                   <AppLink appKey={app.app_key} instanceIndex={inst.index}>
                     {inst.instance_name}
                   </AppLink>

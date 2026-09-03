@@ -12,7 +12,7 @@ Wraps ``httpx2.Client`` (synchronous) with:
 import json
 import sys
 from pathlib import Path
-from typing import Any, NoReturn, TypeVar, overload
+from typing import Any, Literal, NoReturn, TypeVar, overload
 
 import httpx2 as httpx
 
@@ -98,6 +98,26 @@ class HassetteCLIClient:
         self, path: str, model: type[T], params: dict[str, Any] | None = None, *, tolerate_503: bool = False
     ) -> T: ...
 
+    def _send(self, method: Literal["GET", "POST"], path: str, params: dict[str, Any] | None = None) -> httpx.Response:
+        """Perform an HTTP request, translating transport failures into a usage-error exit.
+
+        Shared by :meth:`get` and :meth:`post` — the only difference between the two verbs
+        is what happens to the response afterward (status/503 handling, deserialization
+        target), not how connection failures become a ``SystemExit``.
+        """
+        try:
+            if method == "GET":
+                response = self._client.get(path, params=params, timeout=self.timeout)
+            else:
+                response = self._client.post(path, timeout=self.timeout)
+        except httpx.ConnectError as exc:
+            self._handle_network_error(f"Connection refused: {self.base_url} ({exc})")
+        except httpx.TimeoutException:
+            self._handle_network_error(f"Request timed out after {self.timeout}s connecting to {self.base_url}")
+        except httpx.RequestError as exc:
+            self._handle_network_error(f"Network error: {exc}")
+        return response
+
     def get(
         self,
         path: str,
@@ -119,14 +139,7 @@ class HassetteCLIClient:
             SystemExit: On HTTP 4xx/5xx (code 1) or network errors (code 2). A 503 is
                 exempt from the error path when ``tolerate_503=True``.
         """
-        try:
-            response = self._client.get(path, params=params, timeout=self.timeout)
-        except httpx.ConnectError as exc:
-            self._handle_network_error(f"Connection refused: {self.base_url} ({exc})")
-        except httpx.TimeoutException:
-            self._handle_network_error(f"Request timed out after {self.timeout}s connecting to {self.base_url}")
-        except httpx.RequestError as exc:
-            self._handle_network_error(f"Network error: {exc}")
+        response = self._send("GET", path, params=params)
 
         is_tolerated_503 = tolerate_503 and response.status_code == 503
         if not response.is_success and not is_tolerated_503:
@@ -159,14 +172,7 @@ class HassetteCLIClient:
         Raises:
             SystemExit: On HTTP 4xx/5xx (code 1) or network errors (code 2).
         """
-        try:
-            response = self._client.post(path, timeout=self.timeout)
-        except httpx.ConnectError as exc:
-            self._handle_network_error(f"Connection refused: {self.base_url} ({exc})")
-        except httpx.TimeoutException:
-            self._handle_network_error(f"Request timed out after {self.timeout}s connecting to {self.base_url}")
-        except httpx.RequestError as exc:
-            self._handle_network_error(f"Network error: {exc}")
+        response = self._send("POST", path)
 
         if not response.is_success:
             self._handle_http_error(response)
@@ -259,6 +265,14 @@ class HassetteCLIClient:
         self.error_usage(f"Instance {instance!r} not found for app {app_key!r}. Available instances: {names}")
         raise AssertionError("unreachable")
 
+    @staticmethod
+    def _find_by_name(instances: list[AppInstanceResponse], name: str) -> AppInstanceResponse | None:
+        """Return the instance whose ``instance_name`` matches ``name``, or ``None``."""
+        for inst in instances:
+            if inst.instance_name == name:
+                return inst
+        return None
+
     def resolve_instance(self, app_key: str, instance: str) -> int:
         """Resolve an instance selector to an integer index.
 
@@ -278,9 +292,9 @@ class HassetteCLIClient:
             pass
 
         instances = self._fetch_instances(app_key)
-        for inst in instances:
-            if inst.instance_name == instance:
-                return inst.index
+        match = self._find_by_name(instances, instance)
+        if match is not None:
+            return match.index
         self._instance_not_found(app_key, instance, instances)
         raise AssertionError("unreachable")
 
@@ -315,9 +329,9 @@ class HassetteCLIClient:
         try:
             index = int(instance)
         except ValueError:
-            for inst in instances:
-                if inst.instance_name == instance:
-                    return inst.index, inst.instance_name
+            match = self._find_by_name(instances, instance)
+            if match is not None:
+                return match.index, match.instance_name
             self._instance_not_found(app_key, instance, instances)
             raise AssertionError("unreachable") from None
         else:
