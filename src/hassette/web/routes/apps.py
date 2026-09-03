@@ -1,5 +1,6 @@
 """App management endpoints."""
 
+import asyncio
 import re
 from collections.abc import Awaitable, Callable
 from logging import getLogger
@@ -428,7 +429,7 @@ async def get_app_source(app_key: str, hassette: HassetteDep) -> AppSourceRespon
         raise HTTPException(status_code=404, detail=f"Source file not found for app {app_key!r}")
 
     try:
-        content = resolved.read_text(encoding="utf-8")
+        content = await asyncio.to_thread(resolved.read_text, encoding="utf-8")
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=f"Source file not found for app {app_key!r}") from exc
     except (OSError, UnicodeDecodeError) as exc:

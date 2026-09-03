@@ -203,7 +203,7 @@ export function statusToKind(status: StatusKindMapKey): StatusKind {
 export function handlerKindLabel(
   kind: "listener" | "job",
   listenerKind: string | null | undefined,
-  triggerType: string | null | undefined,
+  triggerType: string | null | undefined = null,
 ): string {
   if (kind === "job") {
     return triggerType?.toLowerCase() || "schedule";

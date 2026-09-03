@@ -50,14 +50,10 @@ function parseQueryString(raw: string): Map<string, string> {
   if (!raw) return map;
   for (const part of raw.split("&")) {
     const eqIdx = part.indexOf("=");
-    if (eqIdx === -1) {
-      const key = decodeURIComponent(part);
-      if (key) map.set(key, "");
-    } else {
-      const key = decodeURIComponent(part.slice(0, eqIdx));
-      const value = decodeURIComponent(part.slice(eqIdx + 1));
-      if (key && value) map.set(key, value);
-    }
+    // A bare key (?foo) and an explicit empty value (?foo=) both mean "absent".
+    const key = decodeURIComponent(eqIdx === -1 ? part : part.slice(0, eqIdx));
+    const value = eqIdx === -1 ? "" : decodeURIComponent(part.slice(eqIdx + 1));
+    if (key && value) map.set(key, value);
   }
   return map;
 }

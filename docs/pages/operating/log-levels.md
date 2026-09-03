@@ -76,7 +76,7 @@ Each app sets its own log level with `log_level` in that app's config section.
 --8<-- "pages/operating/snippets/per_app_log_level.toml"
 ```
 
-The per-app `log_level` lives under `[hassette.apps.<key>]` — `<key>` is the app's section name in `hassette.toml`, the same key `hassette app` lists. Apps without an explicit `log_level` default to `INFO` (or the `HASSETTE__LOG_LEVEL` environment variable when set).
+The per-app `log_level` lives under `[hassette.apps.<key>]` — `<key>` is the app's section name in `hassette.toml`, the same key `hassette app` lists. Apps without an explicit `log_level` default to `INFO`.
 
 ## Runtime Log Level Changes
 

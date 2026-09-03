@@ -28,7 +28,6 @@ _SCHEDULER_SERVICE_PROTOCOL_MEMBERS = [
     "deregister_removal_callback",
     "mark_job_removed",
     "remove_job",
-    "remove_jobs_by_owner",
     "submit_job",
 ]
 

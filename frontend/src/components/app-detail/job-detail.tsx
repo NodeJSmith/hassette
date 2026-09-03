@@ -1,7 +1,6 @@
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
 import type { JobData } from "../../api/endpoints";
@@ -21,41 +20,25 @@ import { DetailStats } from "../shared/detail-stats";
 import { ErrorBanner } from "../shared/error-banner";
 import { IconPlay } from "../shared/icons";
 import { Spinner } from "../shared/spinner";
+import { type Chip, ChipsRow } from "./chips-row";
 import { DetailHeader } from "./detail-header";
 import { ExecutionSection } from "./execution-section";
 import { HandlerDetailLayout } from "./handler-detail-layout";
 import { jobHealthKind } from "./handler-list";
-import { HandlerModeChip } from "./handler-mode-chip";
 import { RegistrationFooter } from "./registration-footer";
 import { buildCommonStatCells, type CommonStatInput } from "./stat-cell-builders";
 
+/** Max time to wait for an execution record after Run Now submission before showing the timeout fallback. */
+const RUN_NOW_FEEDBACK_TIMEOUT_MS = 8000;
+
 function ScheduleChips({ job }: { job: JobData }) {
-  const chips: Array<{ label: string }> = [];
+  const chips: Chip[] = [];
   if (job.jitter) chips.push({ label: `±${job.jitter}s jitter` });
   if (job.group) chips.push({ label: `group: ${job.group}` });
 
-  return (
-    <div className="mb-3 flex flex-wrap gap-2" data-testid="schedule-chips">
-      <HandlerModeChip mode={job.mode} />
-      {chips.map((chip) => (
-        <Badge key={chip.label} variant="job">
-          {chip.label}
-        </Badge>
-      ))}
-    </div>
-  );
+  return <ChipsRow mode={job.mode} variant="job" testId="schedule-chips" chips={chips} />;
 }
 
-/** Max time to wait for an execution record after Run Now submission before showing the timeout fallback (FR#26). */
-const RUN_NOW_FEEDBACK_TIMEOUT_MS = 8000;
-
-/**
- * Watches the WebSocket `executionCompleted` stream for a record matching `jobId` after a Run
- * Now submission. Shows a success toast when a matching record appears, or a "No execution
- * recorded" fallback toast if none appears within `RUN_NOW_FEEDBACK_TIMEOUT_MS` — suppressed or
- * dropped invocations never produce an execution record, so the timeout is the only signal for
- * those outcomes (FR#26/AC#13).
- */
 interface RunNowFeedback {
   /** Arm the watcher before submitting, so a completion event racing the POST isn't missed. */
   startWatching: () => void;
@@ -63,6 +46,7 @@ interface RunNowFeedback {
   cancelWatching: () => void;
 }
 
+/** Suppressed/dropped invocations never emit an execution event, so a timeout fallback toast is the only signal for them. */
 function useRunNowFeedback(jobId: number): RunNowFeedback {
   const execution = useJobExecution(jobId);
   const watchingRef = useRef(false);
@@ -158,15 +142,26 @@ function scheduleStatusText(job: JobData, nextRunText: string | null): string | 
   return null;
 }
 
+function resolveLastCell(
+  statusText: string | null,
+  nextRunText: string | null,
+  lastExecutedLabel: string,
+): { label: string; fieldLabel: string } {
+  if (statusText) return { label: statusText, fieldLabel: "Schedule" };
+  if (nextRunText) return { label: nextRunText, fieldLabel: "Next" };
+  return { label: lastExecutedLabel || "—", fieldLabel: "Last" };
+}
+
 function buildJobStatsCells(job: JobData, lastExecutedLabel: string, nextRunText: string | null): DetailStatsCell[] {
   const statusText = scheduleStatusText(job, nextRunText);
+  const lastCell = resolveLastCell(statusText, nextRunText, lastExecutedLabel);
   const input: CommonStatInput = {
     totalLabel: "Runs",
     total: job.total_executions,
     failed: job.failed,
     avgDurationMs: job.avg_duration_ms,
-    lastLabel: statusText ?? nextRunText ?? (job.last_executed_at ? lastExecutedLabel || "—" : "—"),
-    lastFieldLabel: statusText ? "Schedule" : nextRunText ? "Next" : "Last",
+    lastLabel: lastCell.label,
+    lastFieldLabel: lastCell.fieldLabel,
     timedOut: job.timed_out,
     cancelled: job.cancelled,
     threadLeaked: job.thread_leaked,
@@ -199,6 +194,7 @@ export function JobDetail({ job, appKey, instanceQs, onSwitchToCode }: Props) {
 
   const kindLabel = handlerKindLabel("job", null, job.trigger_type);
   const jobKind = jobHealthKind(job);
+  const testId = `job-detail-${job.job_id}`;
   const predicateDescription = job.human_description || job.predicate_description || null;
 
   let nextRunText: string | null = null;
@@ -206,7 +202,7 @@ export function JobDetail({ job, appKey, instanceQs, onSwitchToCode }: Props) {
   else if (job.fire_at) nextRunText = `fire at ${fireAtLabel}`;
 
   return (
-    <HandlerDetailLayout testId={`job-detail-${job.job_id}`}>
+    <HandlerDetailLayout testId={testId}>
       <DetailHeader
         name={job.job_name}
         kindLabel={kindLabel}
@@ -256,7 +252,7 @@ export function JobDetail({ job, appKey, instanceQs, onSwitchToCode }: Props) {
 
       <RegistrationFooter
         kind="job"
-        testId={`job-detail-${job.job_id}`}
+        testId={testId}
         sourceLocation={job.source_location}
         registrationSource={job.registration_source}
         onViewCode={onSwitchToCode}

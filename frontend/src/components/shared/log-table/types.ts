@@ -41,6 +41,27 @@ export interface LogColumnMeta {
 
 export type RowKey = string;
 
-export function rowKey(entry: LogEntry): RowKey {
-  return entry.seq ? `${entry.timestamp}-${entry.seq}` : `${entry.timestamp}-${entry.logger_name}-${entry.lineno}`;
+/** The subset of `LogEntry` fields `rowKey` actually reads, so callers (and test fixtures) don't
+ * need a full `LogEntry` — just these four. */
+export type RowKeyInput = Pick<LogEntry, "timestamp" | "logger_name" | "lineno"> & {
+  seq?: LogEntry["seq"] | null;
+};
+
+export function rowKey(entry: RowKeyInput): RowKey {
+  // `seq` is always present (backend falls back to `seq: 0` for records that bypass
+  // CorrelationFilter — early-startup and third-party logger records). Check for
+  // presence with `!= null`, not truthiness, so a real `seq: 0` isn't mistaken for
+  // an absent value and pushed onto the weaker fallback key.
+  if (entry.seq === null || entry.seq === undefined) {
+    return `${entry.timestamp}-${entry.logger_name}-${entry.lineno}`;
+  }
+
+  // The stamped counter starts at 1, so `seq: 0` is the fallback marker and can repeat
+  // across concurrent records — add the logger/lineno discriminator to avoid collisions
+  // that a bare `${timestamp}-0` key would produce.
+  if (entry.seq === 0) {
+    return `${entry.timestamp}-0-${entry.logger_name}-${entry.lineno}`;
+  }
+
+  return `${entry.timestamp}-${entry.seq}`;
 }

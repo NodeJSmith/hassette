@@ -13,6 +13,7 @@ concrete implementation always in play at runtime — to access the mutable life
 
 import asyncio
 import dataclasses
+import logging
 import threading
 import typing
 from contextlib import suppress
@@ -27,7 +28,7 @@ from hassette.resources.teardown import (
     add_teardown_evidence,
     merge_teardown_reports,
 )
-from hassette.types.enums import TERMINAL_STATUSES, ResourceStatus
+from hassette.types.enums import TERMINAL_STATUSES, ResourceRole, ResourceStatus
 
 if typing.TYPE_CHECKING:
     from collections.abc import Coroutine
@@ -342,12 +343,19 @@ async def handle_stop(resource: _LifecycleHostP) -> None:
     await resource.hassette.send_event(event)
 
 
-async def handle_failed(resource: _LifecycleHostP, exception: BaseException) -> None:
+async def handle_failed(resource: _LifecycleHostP, exception: BaseException, *, log_level: int = logging.ERROR) -> None:
     """Transition the resource to FAILED and emit a status event.
 
     Args:
         resource: The resource that failed.
         exception: The exception that caused the failure.
+        log_level: Level for the "<resource> failed" traceback log below. Defaults to ERROR.
+            Callers pass ``logging.DEBUG`` when a strictly outer, decision-owning layer already
+            logs this same exception at ERROR -- see ``run_hooks()`` in
+            ``hassette.resources.operations``, which demotes this for app-role resources during
+            initialization (``AppLifecycleService.initialize_instances()`` is that outer layer)
+            but leaves it at ERROR for every other resource, since those have no other logger
+            for an initialization failure.
     """
     resource = typing.cast("LifecycleMixin", resource)
     if resource.status == ResourceStatus.FAILED:
@@ -375,7 +383,14 @@ async def handle_failed(resource: _LifecycleHostP, exception: BaseException) -> 
         )
         return
 
-    resource.logger.exception("%s failed: %s - %s", resource.unique_name, type(exception).__name__, str(exception))
+    resource.logger.log(
+        log_level,
+        "%s failed: %s - %s",
+        resource.unique_name,
+        type(exception).__name__,
+        str(exception),
+        exc_info=exception,
+    )
     resource.status = ResourceStatus.FAILED
     mark_not_ready(resource, "Failed")
     event = create_service_status_event(
@@ -594,12 +609,24 @@ def elapsed_since(start: float) -> float:
     return asyncio.get_running_loop().time() - start
 
 
-def _install_exception_observer(resource: _LifecycleHostP, task: asyncio.Task, label: str) -> None:
+def _install_exception_observer(
+    resource: _LifecycleHostP, task: asyncio.Task, label: str, *, log_level: int = logging.ERROR
+) -> None:
     """Attach a done callback that retrieves and logs any exception the task raised.
 
     Ensures every lifecycle coordinator/body task is exception-observed even when every
     external joiner cancels its own wait -- an unretrieved task exception would otherwise
     surface as an "exception was never retrieved" warning with no other observer.
+
+    Args:
+        resource: The resource that owns the observed task.
+        task: The lifecycle task to observe.
+        label: Human-readable name for the task, used in the log message.
+        log_level: Level for the "unhandled exception" log below. Defaults to ERROR.
+            ``coordinate_initialize()`` passes ``logging.DEBUG`` for app-role resources -- their
+            initialization exception is also caught and logged at ERROR by
+            ``AppLifecycleService.initialize_instances()``, the outer, decision-owning layer for
+            apps. Every other resource keeps ERROR here since it has no other logger.
     """
     resource = typing.cast("LifecycleMixin", resource)
 
@@ -608,7 +635,8 @@ def _install_exception_observer(resource: _LifecycleHostP, task: asyncio.Task, l
             return
         exc = t.exception()
         if exc is not None:
-            resource.logger.exception(
+            resource.logger.log(
+                log_level,
                 "%s: %s task %r finished with an unhandled exception",
                 resource.unique_name,
                 label,
@@ -652,7 +680,13 @@ async def coordinate_initialize(resource: _LifecycleHostP) -> None:
         init_task = create_lifecycle_task(
             resource._initialize_body(), name=f"resource:initialize:{resource.unique_name}"
         )
-        _install_exception_observer(resource, init_task, "initialization coordinator")
+        # App-role resources have an outer, decision-owning catch for this same exception --
+        # AppLifecycleService.initialize_instances()'s `await inst.initialize()` -- that already
+        # logs it at ERROR. Demoting here avoids a second stacked ERROR traceback for the exact
+        # same failure (see #1826). Every other resource (services, framework internals) has no
+        # such outer logger, so it keeps ERROR.
+        init_log_level = logging.DEBUG if resource.role == ResourceRole.APP else logging.ERROR
+        _install_exception_observer(resource, init_task, "initialization coordinator", log_level=init_log_level)
         resource._init_task = init_task
 
     await asyncio.shield(init_task)

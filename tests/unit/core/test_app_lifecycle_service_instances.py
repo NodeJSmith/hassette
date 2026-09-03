@@ -175,9 +175,9 @@ class TestCleanupFailedInstance:
         mock_hassette: MagicMock,
     ) -> None:
         """Scheduler jobs registered before the failure are removed via the same
-        registry-aware path as normal shutdown (Scheduler.remove_all_jobs), not the
-        heap-only SchedulerService.remove_jobs_by_owner (see the manual-job regression
-        test below, which covers a job that never touches the heap).
+        registry-aware path as normal shutdown (Scheduler.remove_all_jobs), not a
+        heap-only scan by owner string (see the manual-job regression test below, which
+        covers a job that never touches the heap).
         """
         mock_app_instance.initialize.side_effect = ValueError("boom")
         instances = {0: mock_app_instance}
@@ -265,8 +265,8 @@ class TestCleanupFailedInstance:
         must still be removed by cleanup_failed_instance().
 
         Uses a real Scheduler (not a mock) so the manual job actually lives only in
-        the scheduler's own registry, never on the heap — exactly the case the old
-        SchedulerService.remove_jobs_by_owner() (a heap-only scan) could not reach.
+        the scheduler's own registry, never on the heap — exactly the case a heap-only
+        scan by owner string could not reach.
         Asserting SchedulerService.remove_jobs() was awaited with the manual job proves
         cleanup now goes through the same identity-checked, registry-aware path as
         normal shutdown (Scheduler.remove_all_jobs), not the heap-only owner scan.

@@ -53,9 +53,7 @@ def enrich_jobs_with_live(
                             else None
                         ),
                         "next_run": live_job.next_run.timestamp() if live_job.next_run is not None else None,
-                        "fire_at": live_job.fire_at.timestamp()
-                        if live_job.jitter is not None and live_job.fire_at is not None
-                        else None,
+                        "fire_at": live_job.fire_at.timestamp() if live_job.fire_at is not None else None,
                         "jitter": live_job.jitter,
                         "suppressed_count": guard.suppressed,
                         "dropped_count": guard.dropped,
