@@ -466,6 +466,27 @@ def test_testing_dynamic_bare_import_literal_flagged() -> None:
     ]
 
 
+def test_testing_dynamic_import_bound_name_flagged() -> None:
+    # `from importlib import import_module` then calling the bound name has an ast.Name
+    # callee, not the ast.Attribute form `importlib.import_module(...)` matches — this is
+    # the same escape hatch, just via a different import form (PR #1881 review finding).
+    src = textwrap.dedent(
+        """\
+        from importlib import import_module
+
+        def f():
+            import_module("tests.support.mock_hassette")
+        """
+    )
+    assert check_source(src, "testing") == [
+        (
+            4,
+            "testing-isolation: imports tests.support.mock_hassette — "
+            "hassette.testing must not import tests.support (one-way dependency, #1333)",
+        )
+    ]
+
+
 def test_testing_dynamic_import_non_literal_arg_not_flagged() -> None:
     # A dynamic import whose target isn't a string literal can't be resolved statically —
     # not a false positive, just outside what an AST walker can verify.

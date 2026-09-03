@@ -255,18 +255,37 @@ def resolved_from_module(node: ast.ImportFrom, package: str | None) -> str | Non
     return ".".join([*anchor, *(node.module.split(".") if node.module else [])])
 
 
-def dynamic_import_target(node: ast.Call) -> str | None:
+def dynamic_import_aliases(tree: ast.AST) -> frozenset[str]:
+    """Return bound names introduced by ``from importlib import import_module`` (or
+    ``__import__``), honoring ``as`` aliasing.
+
+    ``from importlib import import_module`` then calling the bound name has an
+    ``ast.Name`` callee, not the ``ast.Attribute`` form ``importlib.import_module(...)``
+    — ``dynamic_import_target`` needs these names to recognize that form as the same
+    escape hatch (#1881 review finding).
+    """
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module == "importlib":
+            names.update(
+                alias.asname or alias.name for alias in node.names if alias.name in ("import_module", "__import__")
+            )
+    return frozenset(names)
+
+
+def dynamic_import_target(node: ast.Call, bound_names: frozenset[str]) -> str | None:
     """Return the literal target module of a dynamic-import call, or None.
 
-    Matches ``importlib.import_module("x")``, ``importlib.__import__("x")``, and bare
-    ``__import__("x")`` — the three ways to import a module by string name at runtime,
-    which bypass every static ``import``/``from`` form ``runtime_imports`` otherwise
-    looks for. Returns None for calls with no positional argument, a non-literal argument
-    (can't resolve statically — not flagged, since there's nothing to check), or a
-    different callee.
+    Matches ``importlib.import_module("x")``, ``importlib.__import__("x")``, bare
+    ``__import__("x")``, and a bound name from ``from importlib import import_module``
+    (``bound_names``, from `dynamic_import_aliases`) — the ways to import a module by
+    string name at runtime, which bypass every static ``import``/``from`` form
+    ``runtime_imports`` otherwise looks for. Returns None for calls with no positional
+    argument, a non-literal argument (can't resolve statically — not flagged, since
+    there's nothing to check), or a different callee.
     """
     func = node.func
-    is_dynamic_callee = (isinstance(func, ast.Name) and func.id == "__import__") or (
+    is_dynamic_callee = (isinstance(func, ast.Name) and (func.id == "__import__" or func.id in bound_names)) or (
         isinstance(func, ast.Attribute) and func.attr in ("import_module", "__import__")
     )
     if not is_dynamic_callee or not node.args:
@@ -286,6 +305,7 @@ def runtime_imports(tree: ast.AST, package: str | None = None) -> list[tuple[int
     dynamic import a static walker doesn't see is still a real runtime dependency.
     """
     tc_ranges = type_checking_ranges(tree)
+    bound_dynamic_names = dynamic_import_aliases(tree)
 
     def in_type_checking(lineno: int) -> bool:
         return any(start <= lineno <= end for start, end in tc_ranges)
@@ -307,7 +327,7 @@ def runtime_imports(tree: ast.AST, package: str | None = None) -> list[tuple[int
         elif isinstance(node, ast.Import) and not in_type_checking(node.lineno):
             out.extend((node.lineno, alias.name) for alias in node.names if is_watched(alias.name))
         elif isinstance(node, ast.Call) and not in_type_checking(node.lineno):
-            target = dynamic_import_target(node)
+            target = dynamic_import_target(node, bound_dynamic_names)
             if target and is_watched(target):
                 out.append((node.lineno, target))
     return out
