@@ -101,6 +101,29 @@ CASES: list[tuple[str, str, list[tuple[int, str]]]] = [
         [(3, "outer: '**kwargs: object' forwarded blindly via '**kwargs' into Foo(...)")],
     ),
     (
+        "local_reassignment_in_closure_not_misattributed_to_outer",
+        """\
+        def outer(**kwargs: object) -> RestartSpec:
+            def inner() -> Foo:
+                kwargs = {"a": 1}
+                return Foo(**kwargs)
+            return RestartSpec(**kwargs)
+        """,
+        [(5, "outer: '**kwargs: object' forwarded blindly via '**kwargs' into RestartSpec(...)")],
+    ),
+    (
+        "nonlocal_reassignment_in_closure_still_flagged",
+        """\
+        def outer(**kwargs: object) -> Foo:
+            def inner() -> Foo:
+                nonlocal kwargs
+                kwargs = {"a": 1}
+                return Foo(**kwargs)
+            return inner()
+        """,
+        [(5, "outer: '**kwargs: object' forwarded blindly via '**kwargs' into Foo(...)")],
+    ),
+    (
         "self_recursive_super_call_not_flagged",
         """\
         class Base:

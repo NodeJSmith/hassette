@@ -8,24 +8,23 @@ decorator's wrapped function, a cooperative ``super().__init_subclass__(**kwargs
 delegate calling its own same-named method) where there was never anything for pyright to
 check in the first place. It stops being fine the moment the forwarding target is a locally
 meaningful, field-typed constructor: a typo'd field name or a wrong-typed value then only
-surfaces at runtime, not from pyright. This happened for real —
-``single_point_of_failure_restart(**overrides: object) -> RestartSpec`` forwarded straight
-into ``RestartSpec(**overrides)`` behind a ``# pyright: ignore[reportArgumentType]``, and a
-throwaway repro confirmed pyright missed a typo'd field name before the fix (see #1780).
+surfaces at runtime, not from pyright (see #1780).
 
 Detection is AST-based. For every function/method whose ``**kwargs``-style parameter
 (``ast.arguments.kwarg``) is annotated ``object`` or ``Any`` (bare or ``typing.Any``), the
 body is scanned for a call that forwards it onward via ``**<same name>``. Only calls whose
-target name starts with an uppercase letter are flagged — the PEP 8 convention for a class,
-and the shape of the real incident above (``RestartSpec(...)``, not ``some_helper(...)``).
+target name starts with an uppercase letter are flagged — the PEP 8 convention for a class.
 This is a deliberate, narrower net than "any forwarding call": without it, this guard would
 also flag every legitimate transparent-proxy pattern already in this codebase (decorator
 wrappers forwarding into an ``Any``-typed wrapped callable, ``model_dump`` overrides calling
 ``super().model_dump(**kwargs)``, sync-facade methods delegating to their async twin,
 cooperative ``__init_subclass__``) — none of which lose anything to pyright, since their
-forwarding target was never field-typed to begin with. The narrower net does mean a
-dynamically-referenced class held in a lowercase variable (``child_class(**kwargs)``) is not
-caught — a known, accepted false negative, not a bug in the heuristic.
+forwarding target was never field-typed to begin with. The narrower net accepts two known
+false negatives, not bugs in the heuristic: a dynamically-referenced class held in a
+lowercase variable (``child_class(**kwargs)``), and forwarding mediated through an
+intermediate dict (``defaults.update(overrides); Ctor(**defaults)``) rather than a direct
+``**kwargs`` unpack — both require broader data-flow tracking than this guard's local,
+per-call AST check does.
 
 Fix guidance for a real hit: narrow the outer parameter list to explicit, named parameters
 (most callers only need to override a handful of fields), or — if the callee's full field set
@@ -59,8 +58,9 @@ SCAN_DIRS = ["src/hassette"]
 
 ANNOTATION = "# kwargs-forward-ok:"
 
-#: Matches the escape-hatch annotation followed by a non-empty reason.
-ANNOTATION_RE = re.compile(r"#\s*kwargs-forward-ok:\s*\S")
+#: Matches the escape-hatch annotation followed by a non-empty reason. Derived from ``ANNOTATION``
+#: so the two can't drift apart if the escape-hatch keyword is ever renamed.
+ANNOTATION_RE = re.compile(rf"{re.escape(ANNOTATION.lstrip('# ').rstrip(':'))}:\s*\S")
 
 FOOTER = (
     "A '**kwargs'/'**overrides' parameter typed 'object'/'Any' that is forwarded via\n"
@@ -68,8 +68,22 @@ FOOTER = (
     "every value the caller passes — a typo'd field name or a wrong-typed value only\n"
     "surfaces at runtime. Prefer explicit, named parameters on the outer function, or\n"
     "'**kwargs: Unpack[SomeTypedDict]' if the callee's full field set must stay overridable.\n"
-    f"Deliberate, unavoidable passthroughs may be annotated on the call's own line with\n"
+    "Deliberate, unavoidable passthroughs may be annotated on the call's own line with\n"
     f"'{ANNOTATION} <reason>' to suppress."
+)
+
+#: Node types that introduce their own scope for the names assigned inside them: a comprehension's
+#: loop variable never leaks into the enclosing function (walrus-in-comprehension's PEP 572
+#: exception to this is not modeled — a known, narrow gap).
+_OWN_SCOPE_TYPES = (
+    ast.FunctionDef,
+    ast.AsyncFunctionDef,
+    ast.ClassDef,
+    ast.Lambda,
+    ast.ListComp,
+    ast.SetComp,
+    ast.DictComp,
+    ast.GeneratorExp,
 )
 
 
@@ -116,13 +130,60 @@ def _binds_name(func: ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda, name:
     return name in names
 
 
-def _own_scope_nodes(node: ast.AST, kwarg_name: str) -> Iterator[ast.AST]:
+def _iter_own_scope_body(node: ast.AST) -> Iterator[ast.AST]:
+    """Yield every descendant of ``node`` still running in ``node``'s own scope.
+
+    Recurses through control flow (``if``/``for``/``with``/``try``/...) but stops unconditionally
+    at any nested scope boundary (see ``_OWN_SCOPE_TYPES``) — used to check whether ``node``
+    itself rebinds a name anywhere in its body, not to search for forwarding calls (see
+    ``_reachable_under_binding`` for that).
+    """
+    for child in ast.iter_child_nodes(node):
+        yield child
+        if not isinstance(child, _OWN_SCOPE_TYPES):
+            yield from _iter_own_scope_body(child)
+
+
+def _rebinds_name(func: ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda, name: str) -> bool:
+    """True if ``func``'s own scope creates a new local binding for ``name``.
+
+    Its parameter list obviously rebinds. So does a plain assignment target anywhere in its body
+    — Python scopes bind at function level, not block level, so ``name = ...`` three ``if``s deep
+    still shadows an enclosing function's same-named parameter for the rest of ``func``'s body —
+    unless ``func`` declares ``name`` ``nonlocal``/``global``, in which case the assignment
+    modifies the outer binding instead of creating a new local one. A lambda body is a single
+    expression, so it can only rebind via its own parameters.
+    """
+    if _binds_name(func, name):
+        return True
+    if isinstance(func, ast.Lambda):
+        return False
+
+    body = list(_iter_own_scope_body(func))
+    if any(isinstance(n, ast.Nonlocal | ast.Global) and name in n.names for n in body):
+        return False
+
+    for n in body:
+        targets: list[ast.expr] = []
+        if isinstance(n, ast.Assign):
+            targets = n.targets
+        elif isinstance(n, ast.AugAssign | ast.AnnAssign | ast.NamedExpr | ast.For | ast.AsyncFor):
+            targets = [n.target]
+        elif isinstance(n, ast.withitem) and n.optional_vars is not None:
+            targets = [n.optional_vars]
+        for target in targets:
+            if any(isinstance(leaf, ast.Name) and leaf.id == name for leaf in ast.walk(target)):
+                return True
+    return False
+
+
+def _reachable_under_binding(node: ast.AST, kwarg_name: str) -> Iterator[ast.AST]:
     """Yield every descendant of ``node`` that still runs against ``kwarg_name``'s binding.
 
     Recurses through control flow (``if``/``for``/``with``/``try``/...) and through nested
-    functions/lambdas that don't rebind ``kwarg_name`` — those close over the outer binding, so
-    a forwarding call inside one is still forwarding the same variable. Stops at a nested
-    function/lambda whose own parameter list rebinds ``kwarg_name`` (a different variable that
+    functions/lambdas that don't rebind ``kwarg_name`` (see ``_rebinds_name``) — those close over
+    the outer binding, so a forwarding call inside one is still forwarding the same variable.
+    Stops at a nested function/lambda that does rebind ``kwarg_name`` (a different variable that
     merely shares the name) and always stops at class boundaries, which get their own pass via
     ``_iter_functions``.
     """
@@ -130,14 +191,14 @@ def _own_scope_nodes(node: ast.AST, kwarg_name: str) -> Iterator[ast.AST]:
         yield child
         if isinstance(child, ast.ClassDef):
             continue
-        if isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda) and _binds_name(child, kwarg_name):
+        if isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda) and _rebinds_name(child, kwarg_name):
             continue
-        yield from _own_scope_nodes(child, kwarg_name)
+        yield from _reachable_under_binding(child, kwarg_name)
 
 
 def _forwarding_calls(node: ast.FunctionDef | ast.AsyncFunctionDef, kwarg_name: str) -> Iterator[ast.Call]:
     """Yield every call in ``node``'s own scope that forwards ``**kwarg_name`` onward."""
-    for inner in _own_scope_nodes(node, kwarg_name):
+    for inner in _reachable_under_binding(node, kwarg_name):
         if not isinstance(inner, ast.Call):
             continue
         if any(_is_forwarding_keyword(kw, kwarg_name) for kw in inner.keywords):
@@ -149,7 +210,11 @@ def _iter_functions(node: ast.AST, qualname: str = "") -> Iterator[tuple[ast.Fun
 
     Descends into classes (prefixing ``Class.``) and into nested functions (prefixing
     ``outer.``), so a decorator's inner ``wrapper`` or a factory's inner closure gets a
-    readable qualname in violation messages, not just its bare local name.
+    readable qualname in violation messages, not just its bare local name. A nested function with
+    its own ``**kwargs`` of the same name is checked twice — once as part of the outer function's
+    own scan (and skipped there via ``_rebinds_name``), once here as its own top-level entry — an
+    accepted, bounded re-walk rather than a bug, since ``check_source`` runs once per file, not
+    per line of source.
     """
     for child in ast.iter_child_nodes(node):
         if isinstance(child, ast.ClassDef):
