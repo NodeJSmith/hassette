@@ -192,13 +192,21 @@ def _rebinds_name(func: ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda, nam
             targets = [n.target]
         elif isinstance(n, ast.withitem) and n.optional_vars is not None:
             targets = [n.optional_vars]
+        elif isinstance(n, ast.Delete):
+            # ``del name`` makes ``name`` local to the enclosing function for its entire body,
+            # same as an assignment — CPython's compiler symbol-table analysis treats a bare-name
+            # delete target as a binding occurrence, not just a read. ``del kwargs["x"]``/
+            # ``del kwargs.attr`` don't count: those targets are Subscript/Attribute, not Name,
+            # so they fall through to the Load-context check below like any other mutation.
+            targets = n.targets
         for target in targets:
-            # Only a Name leaf in Store context is an actual rebind. A subscript or attribute
-            # mutation target (``kwargs["x"] = 1``, ``kwargs.attr = 1``) walks through a Name in
-            # Load context (it's read, then subscripted/attributed into, not rebound) — checking
-            # ctx here is what excludes mutation from being mistaken for rebinding.
+            # A Name leaf in Store or Del context is an actual rebind. A subscript or attribute
+            # mutation target (``kwargs["x"] = 1``, ``kwargs.attr = 1``, ``del kwargs["x"]``) walks
+            # through a Name in Load context (it's read, then subscripted/attributed into, not
+            # rebound) — checking ctx here is what excludes mutation from being mistaken for
+            # rebinding.
             if any(
-                isinstance(leaf, ast.Name) and leaf.id == name and isinstance(leaf.ctx, ast.Store)
+                isinstance(leaf, ast.Name) and leaf.id == name and isinstance(leaf.ctx, ast.Store | ast.Del)
                 for leaf in ast.walk(target)
             ):
                 return True
