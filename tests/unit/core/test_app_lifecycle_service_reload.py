@@ -79,6 +79,27 @@ class TestReloadApp:
         mock_registry.unregister_app.assert_called_once_with("test_app")
         mock_factory.create_instances.assert_called_once()
 
+    async def test_stops_but_does_not_restart_blocked_app(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        mock_manifest: MagicMock,
+        mock_factory: MagicMock,
+    ) -> None:
+        """A manual reload_app() for an app excluded by the --app filter stops the existing
+        instances but must not recreate them — regression test for the P1 finding on PR #1873
+        that also applies to reload, since reload is stop-then-start.
+        """
+        mock_registry.unregister_app = Mock(return_value=None)
+        mock_registry.get_manifest = Mock(return_value=mock_manifest)
+        mock_registry.get_running_apps = Mock(return_value={})
+        mock_registry.is_blocked = Mock(return_value=True)
+
+        await lifecycle_service.reload_app("test_app")
+
+        mock_registry.unregister_app.assert_called_once_with("test_app")
+        mock_factory.create_instances.assert_not_called()
+
 
 class TestReloadAppLocking:
     async def test_reload_app_acquires_app_key_lock_once(

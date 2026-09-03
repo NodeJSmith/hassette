@@ -105,6 +105,7 @@ def mock_registry() -> MagicMock:
     registry.prune_stale_failed_indices = Mock(return_value={})
     registry.block_app = Mock()
     registry.unblock_apps = Mock(return_value=set())
+    registry.is_blocked = Mock(return_value=False)
     return registry
 
 

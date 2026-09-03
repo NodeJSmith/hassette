@@ -78,6 +78,18 @@ export function toAppRow(entry: DashboardAppGridEntry): AppRow {
 export type AppSortKey = "name" | "status" | "error" | "runs" | "last";
 export type AppSortState = SortState<AppSortKey>;
 
+/** "disabled" and "blocked" are manifest-level configuration states, not derived from instance
+ *  activity, so they must override any live or synthetic per-instance status a caller uses to
+ *  decide what to render or which actions to allow — a leftover per-instance WS status, or a
+ *  not-yet-tracked configured index's synthetic "stopped" placeholder (see
+ *  AppRegistry.build_manifest_info() on the backend), would otherwise mask the app-level
+ *  config state. Single source of truth for this rule — `appLiveStatus` and the per-instance
+ *  action-button gating in `AppTableRow`/`AppDetailHeader` all call this instead of
+ *  reimplementing the `"disabled" | "blocked"` check inline. */
+export function configStatusOverride(status: ManifestStatus | ResourceStatus): "disabled" | "blocked" | undefined {
+  return status === "disabled" || status === "blocked" ? status : undefined;
+}
+
 /** Resolve the live status for an app row's parent view.
  *  Single-instance: WS status for index 0.
  *  Multi-instance: overlays live per-instance WS statuses (falling back to the snapshot's
@@ -108,7 +120,8 @@ export function appLiveStatus(
   appStatuses: Record<string, AppStatusEntry>,
   row: Pick<AppRow, "app_key" | "status"> & { instances?: AppRow["instances"] },
 ): ManifestStatus | ResourceStatus {
-  if (row.status === "disabled" || row.status === "blocked") return row.status;
+  const override = configStatusOverride(row.status);
+  if (override) return override;
   const instances = row.instances ?? [];
   const knownIndices = new Set(instances.map((inst) => inst.index));
   const maxKnownIndex = knownIndices.size > 0 ? Math.max(...knownIndices) : -1;

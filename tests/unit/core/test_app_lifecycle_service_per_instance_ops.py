@@ -257,6 +257,31 @@ class TestStartInstanceBehavior:
 
         mock_factory.create_single_instance.assert_not_called()
 
+    async def test_blocked_app_skips_without_creating(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        mock_factory: MagicMock,
+        mock_manifest: MagicMock,
+    ) -> None:
+        """A manual start_instance() for an app excluded by the --app filter must not bypass
+        that exclusion — regression test for the P1 finding on PR #1873:
+        build_manifest_info() now gives a blocked app's not-yet-tracked configured indices a
+        synthetic STOPPED status, which makes the web UI's per-instance Start button (and the
+        CLI's ``app start --instance``) visible for an app the filter excluded. Nothing else in
+        start_instance()/_create_instance_unlocked() checks blocked state, so this guard is the
+        only thing that stops the bypass.
+        """
+        mock_manifest.app_config = [{"instance_name": "a"}]
+        mock_registry.get_manifest = Mock(return_value=mock_manifest)
+        mock_factory.normalize_configs = Mock(side_effect=lambda cfg: cfg)
+        mock_registry.is_blocked = Mock(return_value=True)
+
+        await lifecycle_service.start_instance("test_app", 0)
+
+        mock_factory.create_single_instance.assert_not_called()
+        mock_registry.is_blocked.assert_called_with("test_app")
+
 
 class TestPerInstanceLifecycleLocking:
     async def test_reload_instance_acquires_app_key_lock_once(
@@ -496,6 +521,30 @@ class TestReloadInstanceUnlockedGuards:
 
         lifecycle_service._stop_instance_unlocked.assert_not_called()
         lifecycle_service._create_instance_unlocked.assert_not_called()
+
+    async def test_blocked_app_stops_but_does_not_recreate(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        mock_manifest: MagicMock,
+        mock_factory: MagicMock,
+    ) -> None:
+        """A manual reload_instance() for an app excluded by the --app filter stops the
+        existing instance but must not recreate it — reload is stop-then-create, and the
+        guard lives in the shared ``_create_instance_unlocked`` create step (see
+        TestStartInstanceBehavior.test_blocked_app_skips_without_creating for the start-side
+        regression test for the same P1 finding on PR #1873).
+        """
+        mock_manifest.app_config = [{"instance_name": "a"}]
+        mock_registry.get_manifest = Mock(return_value=mock_manifest)
+        mock_factory.normalize_configs = Mock(side_effect=lambda cfg: cfg)
+        mock_registry.is_blocked = Mock(return_value=True)
+        mock_registry.get_failed_instance_infos = Mock(return_value={})
+        mock_registry.unregister_app = Mock(return_value=None)
+
+        await lifecycle_service._reload_instance_unlocked("test_app", 0)
+
+        mock_factory.create_single_instance.assert_not_called()
 
 
 class TestReloadInstanceFailure:

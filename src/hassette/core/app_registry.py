@@ -133,6 +133,17 @@ class AppRegistry:
             del self._blocked_apps[k]
         return matching
 
+    def is_blocked(self, app_key: str) -> bool:
+        """Whether ``app_key`` is currently blocked (e.g. excluded by the ``--app`` filter).
+
+        The authoritative check for the manual start/reload actions in
+        ``AppLifecycleService`` — a blocked app's manifest still exists (and still has a
+        configured instance count), so it stays addressable by index-range and
+        already-running checks alone; only this check stops a manual start/reload from
+        bypassing the exclusive-app filter.
+        """
+        return app_key in self._blocked_apps
+
     def clear_all(self) -> None:
         """Clear all apps and blocked apps."""
         self._instances.clear()

@@ -505,6 +505,14 @@ class AppLifecycleService(Resource):
         without deadlocking on the non-reentrant ``asyncio.Lock`` (calling the public,
         lock-acquiring `start_app`/`stop_app` from inside an already-held lock would hang).
         """
+        if self.registry.is_blocked(app_key):
+            # A blocked app's manifest still exists and still reports a configured instance
+            # count, so it stays addressable by every check above this one — this is the only
+            # thing standing between a manual start/reload and bypassing the exclusive-app
+            # filter that blocked it in the first place.
+            self.logger.debug("Skipping start for blocked app %s", app_key)
+            return
+
         # A prior, larger config can leave failed entries at indices the *current* config no
         # longer has — e.g. an autostart=false app that wasn't auto-reconciled on the config
         # change (see should_auto_reconcile) and is now being started manually. Prune those
@@ -688,7 +696,18 @@ class AppLifecycleService(Resource):
         ``index`` is within the current manifest's instance count. Shared by
         ``_reload_instance_unlocked`` (after stopping the old instance) and ``start_instance``
         (nothing to stop first).
+
+        Also the authoritative guard against starting an instance of a blocked app: a blocked
+        app's manifest still exists and still reports a configured instance count, so a
+        not-yet-tracked index still gets a synthetic ``STOPPED`` placeholder in
+        ``build_manifest_info()`` and stays addressable by index-range and already-running
+        checks alone. Without this check, the web UI's per-instance Start button (and the CLI's
+        ``app start --instance``) could start an instance the exclusive-app filter excluded.
         """
+        if self.registry.is_blocked(app_key):
+            self.logger.debug("Skipping start for instance %d of blocked app %s", index, app_key)
+            return
+
         app_class = self.factory.load_class(app_key, app_manifest, force_reload)
         if app_class is None:
             load_error = self.factory.get_load_error(app_manifest)

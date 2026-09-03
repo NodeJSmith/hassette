@@ -12,9 +12,10 @@ import { AppTableRow } from "./apps-table-row";
 vi.mock("wouter", () => createWouterMock());
 
 vi.mock("../components/shared/action-buttons", () => ({
-  ActionButtons: (props: { confirmStop?: boolean; instance?: { index: number; name: string } }) => (
+  ActionButtons: (props: { status?: string; confirmStop?: boolean; instance?: { index: number; name: string } }) => (
     <div
       data-testid="action-buttons"
+      data-status={props.status ?? ""}
       data-confirm-stop={props.confirmStop ? "true" : "false"}
       data-instance={props.instance ? JSON.stringify(props.instance) : ""}
     />
@@ -364,6 +365,53 @@ describe("AppTableRow", () => {
       const actionButtons1 = within(row1).getByTestId("action-buttons");
       expect(actionButtons1.getAttribute("data-confirm-stop")).toBe("true");
       expect(actionButtons1.getAttribute("data-instance")).toBe(JSON.stringify({ index: 1, name: "my_app[1]" }));
+    });
+
+    it("passes the instance's own live status to ActionButtons when the parent app is not blocked", () => {
+      const app = createAppRow({
+        app_key: "my_app",
+        status: "degraded",
+        instance_count: 2,
+        instances: [
+          {
+            app_key: "my_app",
+            class_name: "MyApp",
+            index: 0,
+            instance_name: "my_app[0]",
+            status: "stopped",
+            error_message: null,
+          },
+        ],
+      });
+      const { getByTestId } = renderRow({ app, isExpanded: true });
+      const row0 = getByTestId("instance-row-my_app-0");
+      expect(within(row0).getByTestId("action-buttons").getAttribute("data-status")).toBe("stopped");
+    });
+
+    it("forces instance ActionButtons status to 'blocked' when the parent app is blocked", () => {
+      // Regression test for the P1 finding on PR #1873: a blocked
+      // app's not-yet-tracked instances still report a synthetic "stopped" status (see
+      // build_manifest_info()), which would otherwise make CAN_START show a Start button for
+      // an app the exclusive-app filter excluded. The backend guards this too
+      // (AppLifecycleService rejects starts for blocked apps) — this covers the UI side.
+      const app = createAppRow({
+        app_key: "my_app",
+        status: "blocked",
+        instance_count: 2,
+        instances: [
+          {
+            app_key: "my_app",
+            class_name: "MyApp",
+            index: 0,
+            instance_name: "my_app[0]",
+            status: "stopped",
+            error_message: null,
+          },
+        ],
+      });
+      const { getByTestId } = renderRow({ app, isExpanded: true });
+      const row0 = getByTestId("instance-row-my_app-0");
+      expect(within(row0).getByTestId("action-buttons").getAttribute("data-status")).toBe("blocked");
     });
   });
 });

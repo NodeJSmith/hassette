@@ -130,6 +130,25 @@ class TestStartApp:
 
         mock_factory.create_instances.assert_not_called()
 
+    async def test_skips_blocked_app(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        mock_manifest: MagicMock,
+        mock_factory: MagicMock,
+    ) -> None:
+        """A manual start_app() for an app excluded by the --app filter must not bypass that
+        exclusion — regression test for the P1 finding on PR #1873: the
+        manifest for a blocked app still exists and still reports a configured instance count,
+        so nothing else in start_app()/_start_app_unlocked() would otherwise stop it.
+        """
+        mock_registry.get_manifest = Mock(return_value=mock_manifest)
+        mock_registry.is_blocked = Mock(return_value=True)
+
+        await lifecycle_service.start_app("blocked_app")
+
+        mock_factory.create_instances.assert_not_called()
+
     async def test_prunes_stale_failed_indices_before_creating_instances(
         self,
         lifecycle_service: AppLifecycleService,

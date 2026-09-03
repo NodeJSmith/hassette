@@ -179,4 +179,43 @@ describe("AppDetailPage header", () => {
     expect(stopButton.getAttribute("aria-label")).toBe("Stop instance 'primary'");
     expect(queryByTestId("btn-stop-test_app")).toBeNull();
   });
+
+  it("hides the instance Start button when the parent app is blocked", async () => {
+    // Regression test for the P1 finding on PR #1873: a blocked app's not-yet-tracked
+    // instances still report a synthetic "stopped" status (see build_manifest_info()), which
+    // would otherwise make CAN_START show a Start button for an instance page for an app the
+    // exclusive-app filter excluded. The backend guards this too (AppLifecycleService rejects
+    // starts for blocked apps) — this covers the UI side.
+    const manifest = createManifest({
+      app_key: "test_app",
+      status: "blocked",
+      block_reason: "only_app",
+      instance_count: 2,
+      instances: [
+        createInstance({ index: 0, instance_name: "primary", status: "stopped" }),
+        createInstance({ index: 1, instance_name: "backup", status: "stopped" }),
+      ],
+    });
+    setupApi(manifest);
+    mockSearchString = "instance=0";
+    const { findByTestId, queryByTestId } = renderPage({ key: "test_app" });
+    await findByTestId("app-title");
+    expect(queryByTestId("btn-start-test_app-0")).toBeNull();
+  });
+
+  it("shows the instance Start button for a stopped instance when the parent app is not blocked", async () => {
+    const manifest = createManifest({
+      app_key: "test_app",
+      status: "degraded",
+      instance_count: 2,
+      instances: [
+        createInstance({ index: 0, instance_name: "primary", status: "stopped" }),
+        createInstance({ index: 1, instance_name: "backup", status: "running" }),
+      ],
+    });
+    setupApi(manifest);
+    mockSearchString = "instance=0";
+    const { findByTestId } = renderPage({ key: "test_app" });
+    expect(await findByTestId("btn-start-test_app-0")).toBeDefined();
+  });
 });

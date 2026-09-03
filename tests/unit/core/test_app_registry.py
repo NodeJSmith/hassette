@@ -594,6 +594,27 @@ class TestBlockedApps:
         assert registry.get_snapshot().failed_count == 0
         assert len(registry._blocked_apps) == 0
 
+    def test_is_blocked_true_for_blocked_app(self, registry: AppRegistry) -> None:
+        """is_blocked() reports True for an app blocked by any reason."""
+        registry.block_app("my_app", BlockReason.ONLY_APP)
+
+        assert registry.is_blocked("my_app") is True
+
+    def test_is_blocked_false_for_unblocked_or_unknown_app(self, registry: AppRegistry) -> None:
+        """is_blocked() reports False both for an unblocked known app and an unknown one."""
+        registry.block_app("other_app", BlockReason.ONLY_APP)
+
+        assert registry.is_blocked("my_app") is False
+
+    def test_is_blocked_false_after_unblock(self, registry: AppRegistry) -> None:
+        """is_blocked() reflects unblock_apps() — the authoritative check AppLifecycleService
+        relies on must never lag the registry's own blocked-set state.
+        """
+        registry.block_app("my_app", BlockReason.ONLY_APP)
+        registry.unblock_apps(BlockReason.ONLY_APP)
+
+        assert registry.is_blocked("my_app") is False
+
 
 class TestAppRegistryGetFullSnapshot:
     """Unit tests for get_full_snapshot() status derivation."""

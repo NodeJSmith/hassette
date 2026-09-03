@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 
 import type { components } from "../../api/generated-types";
+import { configStatusOverride } from "../../utils/app-data";
 import { BADGE_STATUS_DOT_SIZE, HEADING_STATUS_SHAPE_SIZE } from "../../utils/constants";
 import { statusToKind, statusToVariant } from "../../utils/status";
 import { ActionButtons, getStableInstanceRef } from "../shared/action-buttons";
@@ -49,6 +50,13 @@ export function AppDetailHeader({
   showParentOverview,
 }: Props) {
   const errorMsg = currentInstance?.error_message ?? manifest?.error_message ?? null;
+  // A blocked (or disabled) parent's not-yet-tracked instances still report a synthetic
+  // "stopped" status (see build_manifest_info()) so `liveStatus` can read "stopped" on an
+  // individual instance page even though the app itself is excluded by the exclusive-app
+  // filter. Gate the action buttons on the parent manifest's own config status in that case —
+  // same rule as appLiveStatus() and apps-table-row.tsx's per-instance gating. The backend
+  // guards the blocked case too (AppLifecycleService rejects starts for blocked apps).
+  const actionStatus = (manifest && configStatusOverride(manifest.status)) ?? liveStatus;
 
   return (
     <>
@@ -70,7 +78,7 @@ export function AppDetailHeader({
           </Badge>
           <ActionButtons
             appKey={appKey}
-            status={liveStatus}
+            status={actionStatus}
             variant="text"
             confirmStop
             {...(manifest && manifest.instance_count > 1 && !showParentOverview && currentInstance
