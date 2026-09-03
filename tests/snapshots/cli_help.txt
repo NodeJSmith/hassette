@@ -39,7 +39,10 @@ List and inspect apps.
 │ activity  Show recent activity for an app (GET /api/telemetry/app/{key}/activity).               │
 │ config    Show app configuration (GET /api/apps/{key}/config).                                   │
 │ health    Show health metrics for an app instance (GET /api/telemetry/app/{key}/health).         │
+│ reload    Reload an app or app instance (POST /api/apps/{key}/reload).                           │
 │ source    Show app source code (GET /api/apps/{key}/source).                                     │
+│ start     Start an app or app instance (POST /api/apps/{key}/start).                             │
+│ stop      Stop an app or app instance (POST /api/apps/{key}/stop).                               │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
 │ --config-file -c              Path to the TOML configuration file.                               │
@@ -125,6 +128,27 @@ Show health metrics for an app instance (GET /api/telemetry/app/{key}/health).
 │                               --no-verify-ssl to disable.                                        │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 
+$ hassette app reload --help
+Usage: hassette app reload [OPTIONS] KEY [ARGS]
+
+Reload an app or app instance (POST /api/apps/{key}/reload).
+
+╭─ Parameters ─────────────────────────────────────────────────────────────────────────────────────╮
+│ *  KEY --key            [required]                                                               │
+│    INSTANCE --instance  Targets a specific app instance (index or name).                         │
+│    YES --yes            Skip the confirmation prompt. [default: False]                           │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
+│ --config-file -c              Path to the TOML configuration file.                               │
+│ --env-file --env -e           Path to the .env file.                                             │
+│ --json                        Output results as JSON. [default: False]                           │
+│ --debug                       Show full HTTP response on CLI errors. [default: False]            │
+│ --server-url -s               Base URL of a remote Hassette instance to connect to.              │
+│ --token-file                  Path to a file containing the bearer credential to attach.         │
+│ --verify-ssl --no-verify-ssl  Verify TLS certificates for the resolved target. Pass              │
+│                               --no-verify-ssl to disable.                                        │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
 $ hassette app source --help
 Usage: hassette app source [OPTIONS] KEY
 
@@ -132,6 +156,47 @@ Show app source code (GET /api/apps/{key}/source).
 
 ╭─ Parameters ─────────────────────────────────────────────────────────────────────────────────────╮
 │ *  KEY --key  [required]                                                                         │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
+│ --config-file -c              Path to the TOML configuration file.                               │
+│ --env-file --env -e           Path to the .env file.                                             │
+│ --json                        Output results as JSON. [default: False]                           │
+│ --debug                       Show full HTTP response on CLI errors. [default: False]            │
+│ --server-url -s               Base URL of a remote Hassette instance to connect to.              │
+│ --token-file                  Path to a file containing the bearer credential to attach.         │
+│ --verify-ssl --no-verify-ssl  Verify TLS certificates for the resolved target. Pass              │
+│                               --no-verify-ssl to disable.                                        │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+$ hassette app start --help
+Usage: hassette app start [OPTIONS] KEY [ARGS]
+
+Start an app or app instance (POST /api/apps/{key}/start).
+
+╭─ Parameters ─────────────────────────────────────────────────────────────────────────────────────╮
+│ *  KEY --key            [required]                                                               │
+│    INSTANCE --instance  Targets a specific app instance (index or name).                         │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
+│ --config-file -c              Path to the TOML configuration file.                               │
+│ --env-file --env -e           Path to the .env file.                                             │
+│ --json                        Output results as JSON. [default: False]                           │
+│ --debug                       Show full HTTP response on CLI errors. [default: False]            │
+│ --server-url -s               Base URL of a remote Hassette instance to connect to.              │
+│ --token-file                  Path to a file containing the bearer credential to attach.         │
+│ --verify-ssl --no-verify-ssl  Verify TLS certificates for the resolved target. Pass              │
+│                               --no-verify-ssl to disable.                                        │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+$ hassette app stop --help
+Usage: hassette app stop [OPTIONS] KEY [ARGS]
+
+Stop an app or app instance (POST /api/apps/{key}/stop).
+
+╭─ Parameters ─────────────────────────────────────────────────────────────────────────────────────╮
+│ *  KEY --key            [required]                                                               │
+│    INSTANCE --instance  Targets a specific app instance (index or name).                         │
+│    YES --yes            Skip the confirmation prompt. [default: False]                           │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
 │ --config-file -c              Path to the TOML configuration file.                               │

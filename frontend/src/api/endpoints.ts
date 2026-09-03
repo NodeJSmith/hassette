@@ -51,6 +51,13 @@ export const startApp = (appKey: string) => apiPost<ActionResponse>(`/apps/${enc
 export const stopApp = (appKey: string) => apiPost<ActionResponse>(`/apps/${encodeURIComponent(appKey)}/stop`);
 export const reloadApp = (appKey: string) => apiPost<ActionResponse>(`/apps/${encodeURIComponent(appKey)}/reload`);
 
+export const startInstance = (appKey: string, index: number) =>
+  apiPost<ActionResponse>(`/apps/${encodeURIComponent(appKey)}/instances/${index}/start`);
+export const stopInstance = (appKey: string, index: number) =>
+  apiPost<ActionResponse>(`/apps/${encodeURIComponent(appKey)}/instances/${index}/stop`);
+export const reloadInstance = (appKey: string, index: number) =>
+  apiPost<ActionResponse>(`/apps/${encodeURIComponent(appKey)}/instances/${index}/reload`);
+
 export const getAppConfig = (appKey: string, signal?: AbortSignal) =>
   apiFetch<AppConfigData>(`/apps/${encodeURIComponent(appKey)}/config`, { signal });
 

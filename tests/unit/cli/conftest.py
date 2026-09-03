@@ -6,7 +6,7 @@ from contextlib import contextmanager
 from io import StringIO
 from pathlib import Path
 from typing import Any, TypedDict, Unpack
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import httpx2 as httpx
 import pytest
@@ -102,6 +102,17 @@ class GetSpy:
         params = call["params"]
         assert params is not None, f"GET {call['path']} was issued without query params"
         return dict(params)
+
+
+def make_post_spy(client: HassetteCLIClient) -> MagicMock:
+    """Wrap ``client.post`` with a MagicMock that still delegates to the real implementation.
+
+    Lets tests assert on the path a command posted to (via ``assert_called_once_with``) while
+    still exercising the real error handling and deserialization in ``HassetteCLIClient.post``
+    — the real ``httpx.MockTransport`` boundary is still exercised, this only adds call
+    recording on top of it.
+    """
+    return MagicMock(wraps=client.post)
 
 
 @contextmanager

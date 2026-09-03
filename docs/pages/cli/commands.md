@@ -26,7 +26,7 @@ hassette run
 
 All flags are optional. Values resolve from `hassette.toml` (see [Configuration](../core-concepts/configuration/index.md)) and environment variables when not provided on the command line.
 
-`--app` isolates one app during development without editing `hassette.toml` or the app's source. Every other enabled app is excluded and reports status `blocked` in [`hassette app`](#hassette-app) — that is the expected result of the flag, not a failure. Disabled apps remain `disabled`. Repeat the flag or pass a comma-separated list to keep more than one app running:
+`--app` isolates one app during development without editing `hassette.toml` or the app's source. Every other enabled app is excluded and reports status `blocked` in [`hassette app`](#hassette-app) — that is the expected result of the flag, not a failure. Disabled apps remain `disabled`. `app start` and `app reload` reject a blocked app outright rather than silently doing nothing — the isolation holds even if you target it directly. Repeat the flag or pass a comma-separated list to keep more than one app running:
 
 ```bash
 hassette run --app kitchen_lights --app porch_motion
@@ -96,6 +96,43 @@ $ hassette app
 | `hassette app activity <key>` | Recent activity feed.       | `GET /api/telemetry/app/{key}/activity` |
 | `hassette app config <key>`   | Resolved configuration.     | `GET /api/apps/{key}/config`            |
 | `hassette app source <key>`   | Source file path.           | `GET /api/apps/{key}/source`            |
+| `hassette app start <key>`    | Starts an app or instance.  | `POST /api/apps/{key}/start`            |
+| `hassette app stop <key>`     | Stops an app or instance.   | `POST /api/apps/{key}/stop`             |
+| `hassette app reload <key>`   | Reloads an app or instance. | `POST /api/apps/{key}/reload`           |
+
+The CLI routes `start`/`stop`/`reload` with `--instance` to a different endpoint: `POST /api/apps/{key}/instances/{index}/{start,stop,reload}` instead of the app-level path shown above.
+
+### `hassette app start <key>`
+
+Starts a stopped app, or a specific instance with `--instance`.
+
+```bash
+hassette app start my-app
+hassette app start my-app --instance office
+```
+
+### `hassette app stop <key>`
+
+Stops a running app, or a specific instance with `--instance`. Prompts for confirmation unless `--yes` is passed.
+
+```bash
+hassette app stop my-app
+hassette app stop my-app --yes
+```
+
+### `hassette app reload <key>`
+
+Reloads an app from disk, or a specific instance with `--instance`. Prompts for confirmation unless `--yes` is passed.
+
+```bash
+hassette app reload my-app --yes
+hassette app reload my-app --instance office --yes
+```
+
+!!! warning
+    `stop` and `reload` prompt for confirmation by default. In non-interactive
+    contexts (scripts, cron, CI) pass `--yes`, or the command exits 0 without
+    performing the action.
 
 ### `hassette app health <key>`
 
@@ -145,13 +182,14 @@ hassette app source my-app
 
 ### Flags
 
-| Flag            | Applies to           | Description                                              |
-| --------------- | -------------------- | -------------------------------------------------------- |
-| `--instance`    | `health`, `activity` | Filters to a specific app instance (index or name).      |
-| `--since`       | `health`, `activity` | Time window for metrics. See [formats](#--since-format). |
-| `--source-tier` | `health`             | Filters by source tier — `app` is your code, `framework` is Hassette internals. See [Shared Flags](#shared-flags). |
-| `--limit`       | `activity`           | Maximum records to return.                               |
-| `--json`        | all                  | Outputs as JSON.                                         |
+| Flag            | Applies to                        | Description                                              |
+| --------------- | ---------------------------------- | -------------------------------------------------------- |
+| `--instance`    | `health`, `activity`, `start`, `stop`, `reload` | Filters to (read commands) or targets (action commands) a specific app instance (index or name). |
+| `--since`       | `health`, `activity`               | Time window for metrics. See [formats](#--since-format). |
+| `--source-tier` | `health`                           | Filters by source tier — `app` is your code, `framework` is Hassette internals. See [Shared Flags](#shared-flags). |
+| `--limit`       | `activity`                         | Maximum records to return.                               |
+| `--yes`         | `stop`, `reload`                   | Skip confirmation prompt.                                 |
+| `--json`        | all                                 | Outputs as JSON.                                         |
 
 ## `hassette listener`
 
@@ -344,7 +382,7 @@ These flags appear across multiple commands.
 | Flag                   | Format                       | Commands                                                     | Description                                                                                                                                 |
 | ---------------------- | ---------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | `--app <key>`          | string                       | `listener`, `job`, `log`                                     | Filters results to a specific app key.                                                                                                      |
-| `--instance <n>`       | int or string                | `listener`, `job`, `app health`, `app activity`              | Filters to a specific app instance. Requires `--app` or a positional `<key>` argument.                                                      |
+| `--instance <n>`       | int or string                | `listener`, `job`, `app health`, `app activity`, `app start`, `app stop`, `app reload` | Filters to (read commands) or targets (action commands) a specific app instance (index or name). Requires `--app` for `listener`/`job`; requires the positional `<key>` for all `app` subcommands.         |
 | `--since <duration>`   | relative or absolute         | `listener`, `job`, `log`, `app health`, `app activity`       | Time window for filtering. See [`--since` format](#--since-format).                                                                         |
 | `--limit <n>`          | integer                      | `log`, `execution`, `app activity`, per-ID commands          | Maximum number of records to return.                                                                                                        |
 | `--source-tier <tier>` | `app`, `framework`, or `all` | `listener`, `job`, `log`, `app health`                       | Filters by source tier. `app` returns user automation records. `framework` returns internal Hassette component records. `all` returns both. |
@@ -393,7 +431,7 @@ Invalid values cause a non-zero exit with an error listing accepted formats.
 
 ### `--instance` resolution
 
-`--instance` requires `--app` (or a positional `<key>` argument on `app health` and `app activity`). It accepts:
+`--instance` requires `--app` (or a positional `<key>` argument on `app health`, `app activity`, `app start`, `app stop`, and `app reload`). It accepts:
 
 - **Integer index**, passed directly to the API as `instance_index`. Most apps have a single instance at index `0`.
 - **Instance name**, resolved to an index by fetching the app manifest. If no instance matches the name, the CLI exits non-zero and lists available instance names.

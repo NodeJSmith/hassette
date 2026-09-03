@@ -711,6 +711,11 @@ export interface components {
         /**
          * ActionResponse
          * @description Response for app mutation endpoints (start/stop/reload).
+         *
+         *     ``instance_index`` is the server-confirmed instance the action ran against — ``None`` for
+         *     an app-level action, the validated index for an instance-scoped one. Callers (the CLI and
+         *     the frontend toast) compare this against the index they requested rather than trusting
+         *     their own request data, since a routing bug would otherwise still look like a plain 202.
          */
         ActionResponse: {
             /**
@@ -723,6 +728,8 @@ export interface components {
             app_key: string;
             /** Action */
             action: string;
+            /** Instance Index */
+            instance_index: number | null;
         };
         /**
          * ActivityBucket
@@ -869,7 +876,7 @@ export interface components {
             block_reason?: string | null;
             /**
              * Instance Count
-             * @description Tracked instances (running/failed). 0 = none tracked (stopped/disabled).
+             * @description Configured instances, including ones not currently tracked (never started, or independently stopped). Always len(instances).
              * @default 0
              */
             instance_count: number;
@@ -976,7 +983,7 @@ export interface components {
             display_name: string;
             /**
              * Instance Count
-             * @description Tracked instances (running/failed). 0 = none tracked (stopped/disabled).
+             * @description Configured instances, including ones not currently tracked (never started, or independently stopped). Always len(instances).
              * @default 0
              */
             instance_count: number;
@@ -1846,7 +1853,7 @@ export interface operations {
                     "application/json": components["schemas"]["ActionResponse"];
                 };
             };
-            /** @description App bootstrap prerequisites are not ready yet; retry later */
+            /** @description App bootstrap prerequisites are not ready yet (retry later), or the app is blocked by the --app filter (not retryable) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -1915,7 +1922,7 @@ export interface operations {
                     "application/json": components["schemas"]["ActionResponse"];
                 };
             };
-            /** @description App bootstrap prerequisites are not ready yet; retry later */
+            /** @description App bootstrap prerequisites are not ready yet (retry later), or the app is blocked by the --app filter (not retryable) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -1961,7 +1968,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description App bootstrap prerequisites are not ready yet; retry later */
+            /** @description App bootstrap prerequisites are not ready yet (retry later), or the app is blocked by the --app filter (not retryable) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -2046,7 +2053,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description App bootstrap prerequisites are not ready yet; retry later */
+            /** @description App bootstrap prerequisites are not ready yet (retry later), or the app is blocked by the --app filter (not retryable) */
             409: {
                 headers: {
                     [name: string]: unknown;

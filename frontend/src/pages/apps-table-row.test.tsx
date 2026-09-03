@@ -1,3 +1,4 @@
+import { within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -11,7 +12,15 @@ import { AppTableRow } from "./apps-table-row";
 vi.mock("wouter", () => createWouterMock());
 
 vi.mock("../components/shared/action-buttons", () => ({
-  ActionButtons: () => <div data-testid="action-buttons" />,
+  ActionButtons: (props: { status?: string; confirmStop?: boolean; instance?: { index: number; name: string } }) => (
+    <div
+      data-testid="action-buttons"
+      data-status={props.status ?? ""}
+      data-confirm-stop={props.confirmStop ? "true" : "false"}
+      data-instance={props.instance ? JSON.stringify(props.instance) : ""}
+    />
+  ),
+  getStableInstanceRef: (index: number, name: string) => ({ index, name }),
 }));
 
 vi.mock("../components/shared/mini-sparkline", () => ({
@@ -311,6 +320,124 @@ describe("AppTableRow", () => {
       const { getByTestId } = renderRow({ app: createAppRow({ status: "running" }) });
       const row = getByTestId("app-row-my_app");
       expect(row.getAttribute("data-state")).toBe("active");
+    });
+  });
+
+  describe("ActionButtons instance/confirmStop wiring", () => {
+    it("app-level row passes confirmStop but does not pass instance", () => {
+      const { getByTestId } = renderRow({ app: createAppRow({ instance_count: 1 }) });
+      const actionButtons = getByTestId("action-buttons");
+      expect(actionButtons.getAttribute("data-confirm-stop")).toBe("true");
+      expect(actionButtons.getAttribute("data-instance")).toBe("");
+    });
+
+    it("instance sub-rows pass instance and confirmStop to ActionButtons", () => {
+      const app = createAppRow({
+        app_key: "my_app",
+        instance_count: 2,
+        instances: [
+          {
+            app_key: "my_app",
+            class_name: "MyApp",
+            index: 0,
+            instance_name: "my_app[0]",
+            status: "running",
+            error_message: null,
+          },
+          {
+            app_key: "my_app",
+            class_name: "MyApp",
+            index: 1,
+            instance_name: "my_app[1]",
+            status: "stopped",
+            error_message: null,
+          },
+        ],
+      });
+      const { getByTestId } = renderRow({ app, isExpanded: true });
+
+      const row0 = getByTestId("instance-row-my_app-0");
+      const actionButtons0 = within(row0).getByTestId("action-buttons");
+      expect(actionButtons0.getAttribute("data-confirm-stop")).toBe("true");
+      expect(actionButtons0.getAttribute("data-instance")).toBe(JSON.stringify({ index: 0, name: "my_app[0]" }));
+
+      const row1 = getByTestId("instance-row-my_app-1");
+      const actionButtons1 = within(row1).getByTestId("action-buttons");
+      expect(actionButtons1.getAttribute("data-confirm-stop")).toBe("true");
+      expect(actionButtons1.getAttribute("data-instance")).toBe(JSON.stringify({ index: 1, name: "my_app[1]" }));
+    });
+
+    it("passes the instance's own live status to ActionButtons when the parent app is not blocked", () => {
+      const app = createAppRow({
+        app_key: "my_app",
+        status: "degraded",
+        instance_count: 2,
+        instances: [
+          {
+            app_key: "my_app",
+            class_name: "MyApp",
+            index: 0,
+            instance_name: "my_app[0]",
+            status: "stopped",
+            error_message: null,
+          },
+        ],
+      });
+      const { getByTestId } = renderRow({ app, isExpanded: true });
+      const row0 = getByTestId("instance-row-my_app-0");
+      expect(within(row0).getByTestId("action-buttons").getAttribute("data-status")).toBe("stopped");
+    });
+
+    it("forces instance ActionButtons status to 'blocked' when the parent app is blocked", () => {
+      // Regression test for the P1 finding on PR #1873: a blocked
+      // app's not-yet-tracked instances still report a synthetic "stopped" status (see
+      // build_manifest_info()), which would otherwise make CAN_START show a Start button for
+      // an app the exclusive-app filter excluded. The backend guards this too
+      // (AppLifecycleService rejects starts for blocked apps) — this covers the UI side.
+      const app = createAppRow({
+        app_key: "my_app",
+        status: "blocked",
+        instance_count: 2,
+        instances: [
+          {
+            app_key: "my_app",
+            class_name: "MyApp",
+            index: 0,
+            instance_name: "my_app[0]",
+            status: "stopped",
+            error_message: null,
+          },
+        ],
+      });
+      const { getByTestId } = renderRow({ app, isExpanded: true });
+      const row0 = getByTestId("instance-row-my_app-0");
+      expect(within(row0).getByTestId("action-buttons").getAttribute("data-status")).toBe("blocked");
+    });
+
+    it("does not freeze a disabled app's transiently-running instance on the 'disabled' action status", () => {
+      // Regression test for the P2 finding on PR #1873 (follow-up to the blocked-app fix
+      // above): the backend explicitly permits a transient start of a disabled app's
+      // instance (CAN_START.disabled is true on purpose), unlike "blocked" which the backend
+      // rejects outright. Once that instance is running, ActionButtons must see "running" —
+      // not get stuck showing "disabled" (Start visible, Stop/Reload permanently hidden).
+      const app = createAppRow({
+        app_key: "my_app",
+        status: "disabled",
+        instance_count: 2,
+        instances: [
+          {
+            app_key: "my_app",
+            class_name: "MyApp",
+            index: 0,
+            instance_name: "my_app[0]",
+            status: "running",
+            error_message: null,
+          },
+        ],
+      });
+      const { getByTestId } = renderRow({ app, isExpanded: true });
+      const row0 = getByTestId("instance-row-my_app-0");
+      expect(within(row0).getByTestId("action-buttons").getAttribute("data-status")).toBe("running");
     });
   });
 });

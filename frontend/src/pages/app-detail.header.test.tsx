@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createManifest } from "../test/factories";
+import { createInstance, createManifest } from "../test/factories";
 import { createWouterMock } from "../test/mock-wouter";
 import { renderWithAppState } from "../test/render-helpers";
 import type { AppDetailTab } from "../utils/app-routes";
@@ -132,5 +132,112 @@ describe("AppDetailPage header", () => {
     const subtitleMeta = await findByTestId("app-subtitle-meta");
     expect(subtitleMeta.textContent).toContain("apps/test_app.py");
     expect(subtitleMeta.textContent).toContain("TestApp");
+  });
+
+  it("falls back to app-level action buttons when the requested instance is not in the manifest", async () => {
+    // instance_count=3 but the instances array is sparse (only 0 and 2 are tracked) — index 1
+    // is below instance_count so the out-of-range redirect never fires, yet it can't be
+    // resolved from the manifest either.
+    const manifest = createManifest({
+      app_key: "test_app",
+      instance_count: 3,
+      instances: [
+        createInstance({ index: 0, instance_name: "primary" }),
+        createInstance({ index: 2, instance_name: "backup" }),
+      ],
+    });
+    setupApi(manifest);
+    mockSearchString = "?instance=1";
+    const { findByTestId, queryByTestId } = renderPage({ key: "test_app" });
+    await findByTestId("app-title");
+    // App-level testid and aria-label (no instance suffix/name) — not the blank-name
+    // instance-scoped variant ("Stop instance ''").
+    const stopButton = await findByTestId("btn-stop-test_app");
+    expect(stopButton.getAttribute("aria-label")).toBe("Stop app");
+    expect(queryByTestId("btn-stop-test_app-1")).toBeNull();
+  });
+
+  it("keeps instance-scoped actions when a sibling instance is stopped (not app-level)", async () => {
+    // A sibling instance being stopped must not make instance_count drop below 2 — a
+    // stopped-but-still-configured instance stays a STOPPED entry in `instances`, not
+    // omitted. If instance_count fell to 1 here, Stop/Reload would silently fall through
+    // to the app-level endpoint and affect every configured instance, not just the one
+    // shown on this page.
+    const manifest = createManifest({
+      app_key: "test_app",
+      instance_count: 2,
+      instances: [
+        createInstance({ index: 0, instance_name: "primary", status: "running" }),
+        createInstance({ index: 1, instance_name: "backup", status: "stopped" }),
+      ],
+    });
+    setupApi(manifest);
+    mockSearchString = "instance=0";
+    const { findByTestId, queryByTestId } = renderPage({ key: "test_app" });
+    await findByTestId("app-title");
+    const stopButton = await findByTestId("btn-stop-test_app-0");
+    expect(stopButton.getAttribute("aria-label")).toBe("Stop instance 'primary'");
+    expect(queryByTestId("btn-stop-test_app")).toBeNull();
+  });
+
+  it("hides the instance Start button when the parent app is blocked", async () => {
+    // Regression test for the P1 finding on PR #1873: a blocked app's not-yet-tracked
+    // instances still report a synthetic "stopped" status (see build_manifest_info()), which
+    // would otherwise make CAN_START show a Start button for an instance page for an app the
+    // exclusive-app filter excluded. The backend guards this too (AppLifecycleService rejects
+    // starts for blocked apps) — this covers the UI side.
+    const manifest = createManifest({
+      app_key: "test_app",
+      status: "blocked",
+      block_reason: "only_app",
+      instance_count: 2,
+      instances: [
+        createInstance({ index: 0, instance_name: "primary", status: "stopped" }),
+        createInstance({ index: 1, instance_name: "backup", status: "stopped" }),
+      ],
+    });
+    setupApi(manifest);
+    mockSearchString = "instance=0";
+    const { findByTestId, queryByTestId } = renderPage({ key: "test_app" });
+    await findByTestId("app-title");
+    expect(queryByTestId("btn-start-test_app-0")).toBeNull();
+  });
+
+  it("shows the instance Start button for a stopped instance when the parent app is not blocked", async () => {
+    const manifest = createManifest({
+      app_key: "test_app",
+      status: "degraded",
+      instance_count: 2,
+      instances: [
+        createInstance({ index: 0, instance_name: "primary", status: "stopped" }),
+        createInstance({ index: 1, instance_name: "backup", status: "running" }),
+      ],
+    });
+    setupApi(manifest);
+    mockSearchString = "instance=0";
+    const { findByTestId } = renderPage({ key: "test_app" });
+    expect(await findByTestId("btn-start-test_app-0")).toBeDefined();
+  });
+
+  it("shows Stop (not Start) for a disabled app's transiently-running instance", async () => {
+    // Regression test for the P2 finding on PR #1873 (follow-up to the blocked-app fix
+    // above): the backend explicitly permits a transient start of a disabled app's instance
+    // (CAN_START.disabled is true on purpose), unlike "blocked" which the backend rejects
+    // outright. Once that instance is running, the action status must reflect "running" — not
+    // freeze on "disabled" and hide Stop/Reload forever.
+    const manifest = createManifest({
+      app_key: "test_app",
+      status: "disabled",
+      instance_count: 2,
+      instances: [
+        createInstance({ index: 0, instance_name: "primary", status: "running" }),
+        createInstance({ index: 1, instance_name: "backup", status: "stopped" }),
+      ],
+    });
+    setupApi(manifest);
+    mockSearchString = "instance=0";
+    const { findByTestId, queryByTestId } = renderPage({ key: "test_app" });
+    expect(await findByTestId("btn-stop-test_app-0")).toBeDefined();
+    expect(queryByTestId("btn-start-test_app-0")).toBeNull();
   });
 });

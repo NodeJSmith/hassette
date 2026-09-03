@@ -196,7 +196,7 @@
             }
           },
           "409": {
-            "description": "App bootstrap prerequisites are not ready yet; retry later"
+            "description": "App bootstrap prerequisites are not ready yet (retry later), or the app is blocked by the --app filter (not retryable)"
           },
           "422": {
             "description": "Validation Error",
@@ -283,7 +283,7 @@
             }
           },
           "409": {
-            "description": "App bootstrap prerequisites are not ready yet; retry later"
+            "description": "App bootstrap prerequisites are not ready yet (retry later), or the app is blocked by the --app filter (not retryable)"
           },
           "422": {
             "description": "Validation Error",
@@ -340,7 +340,7 @@
             "description": "App is unknown, or instance index is out of range for the app's current config"
           },
           "409": {
-            "description": "App bootstrap prerequisites are not ready yet; retry later"
+            "description": "App bootstrap prerequisites are not ready yet (retry later), or the app is blocked by the --app filter (not retryable)"
           },
           "422": {
             "description": "Validation Error",
@@ -451,7 +451,7 @@
             "description": "App is unknown, or instance index is out of range for the app's current config"
           },
           "409": {
-            "description": "App bootstrap prerequisites are not ready yet; retry later"
+            "description": "App bootstrap prerequisites are not ready yet (retry later), or the app is blocked by the --app filter (not retryable)"
           },
           "422": {
             "description": "Validation Error",
@@ -1840,15 +1840,27 @@
           "action": {
             "type": "string",
             "title": "Action"
+          },
+          "instance_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instance Index"
           }
         },
         "type": "object",
         "required": [
           "app_key",
-          "action"
+          "action",
+          "instance_index"
         ],
         "title": "ActionResponse",
-        "description": "Response for app mutation endpoints (start/stop/reload)."
+        "description": "Response for app mutation endpoints (start/stop/reload).\n\n``instance_index`` is the server-confirmed instance the action ran against \u2014 ``None`` for\nan app-level action, the validated index for an instance-scoped one. Callers (the CLI and\nthe frontend toast) compare this against the index they requested rather than trusting\ntheir own request data, since a routing bug would otherwise still look like a plain 202."
       },
       "ActivityBucket": {
         "properties": {
@@ -2219,7 +2231,7 @@
           "instance_count": {
             "type": "integer",
             "title": "Instance Count",
-            "description": "Tracked instances (running/failed). 0 = none tracked (stopped/disabled).",
+            "description": "Configured instances, including ones not currently tracked (never started, or independently stopped). Always len(instances).",
             "default": 0
           },
           "instances": {
@@ -2417,7 +2429,7 @@
           "instance_count": {
             "type": "integer",
             "title": "Instance Count",
-            "description": "Tracked instances (running/failed). 0 = none tracked (stopped/disabled).",
+            "description": "Configured instances, including ones not currently tracked (never started, or independently stopped). Always len(instances).",
             "default": 0
           },
           "handler_count": {

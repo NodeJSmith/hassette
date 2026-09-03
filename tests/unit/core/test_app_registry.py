@@ -594,6 +594,27 @@ class TestBlockedApps:
         assert registry.get_snapshot().failed_count == 0
         assert len(registry._blocked_apps) == 0
 
+    def test_is_blocked_true_for_blocked_app(self, registry: AppRegistry) -> None:
+        """is_blocked() reports True for an app blocked by any reason."""
+        registry.block_app("my_app", BlockReason.ONLY_APP)
+
+        assert registry.is_blocked("my_app") is True
+
+    def test_is_blocked_false_for_unblocked_or_unknown_app(self, registry: AppRegistry) -> None:
+        """is_blocked() reports False both for an unblocked known app and an unknown one."""
+        registry.block_app("other_app", BlockReason.ONLY_APP)
+
+        assert registry.is_blocked("my_app") is False
+
+    def test_is_blocked_false_after_unblock(self, registry: AppRegistry) -> None:
+        """is_blocked() reflects unblock_apps() — the authoritative check AppLifecycleService
+        relies on must never lag the registry's own blocked-set state.
+        """
+        registry.block_app("my_app", BlockReason.ONLY_APP)
+        registry.unblock_apps(BlockReason.ONLY_APP)
+
+        assert registry.is_blocked("my_app") is False
+
 
 class TestAppRegistryGetFullSnapshot:
     """Unit tests for get_full_snapshot() status derivation."""
@@ -721,8 +742,10 @@ class TestAppRegistryGetFullSnapshot:
 
         stopped_info = by_key["stopped_app"]
         assert stopped_info.status == "stopped"
-        assert stopped_info.instance_count == 0
-        assert stopped_info.instances == []
+        # A configured-but-never-started instance is a synthetic STOPPED placeholder, not
+        # omitted — instance_count reflects the configured count, not the tracked count.
+        assert stopped_info.instance_count == 1
+        assert stopped_info.instances[0].status == ResourceStatus.STOPPED
 
     def test_disabled_takes_priority_over_running(self) -> None:
         """Even if an app has running instances, disabled=False should win."""
@@ -860,11 +883,49 @@ class TestBuildManifestInfoStatusDerivation:
         assert info.error_message == "bad config"
 
     def test_stopped(self, registry: AppRegistry) -> None:
-        """No instances registered and no failures recorded — status is 'stopped'."""
+        """No instances registered and no failures recorded — status is 'stopped', but the
+        configured instance still appears as a STOPPED placeholder (not omitted).
+        """
         manifest = make_manifest_obj("my_app")
         info = registry.build_manifest_info("my_app", manifest)
         assert info.status == "stopped"
-        assert info.instance_count == 0
+        assert info.instance_count == 1
+        assert info.instances[0].status == ResourceStatus.STOPPED
+
+    def test_stopped_instance_kept_addressable_in_multi_instance_app(self, registry: AppRegistry) -> None:
+        """One instance of a 2-instance app is stopped (never started or independently
+        stopped) — it still appears in ``instances`` as a STOPPED placeholder, keeping
+        ``instance_count`` stable at the configured count and the instance resolvable by
+        name/index, instead of vanishing once it's no longer tracked in the registry.
+        """
+        manifest = make_manifest_obj("my_app", app_config=[{"instance_name": "office"}, {"instance_name": "kitchen"}])
+        registry.register_app("my_app", 0, make_app_instance("my_app", 0))
+        # index 1 ("kitchen") is configured but never started/tracked.
+
+        info = registry.build_manifest_info("my_app", manifest)
+
+        assert info.instance_count == 2
+        assert info.status == "running"
+        by_index = {inst.index: inst for inst in info.instances}
+        assert by_index[0].status == ResourceStatus.RUNNING
+        assert by_index[1].status == ResourceStatus.STOPPED
+        assert by_index[1].instance_name == "kitchen"
+
+    def test_orphaned_running_instance_beyond_configured_range_is_not_dropped(self, registry: AppRegistry) -> None:
+        """A running instance at an index outside the current config range (config shrunk
+        while it's running) is still included — the configured range and the tracked
+        entries are unioned, never a plain ``range(configured_count)``, so a live orphan is
+        never silently dropped from view.
+        """
+        manifest = make_manifest_obj("my_app", app_config=[{"instance_name": "only"}])
+        registry.register_app("my_app", 0, make_app_instance("my_app", 0))
+        registry.register_app("my_app", 1, make_app_instance("my_app", 1))  # orphaned, index >= configured_count
+
+        info = registry.build_manifest_info("my_app", manifest)
+
+        assert info.instance_count == 2
+        indices = {inst.index for inst in info.instances}
+        assert indices == {0, 1}
 
     def test_degraded_when_running_and_failed_coexist(self, registry: AppRegistry) -> None:
         """3 instances registered, index 0 fails — status is 'degraded'."""

@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import type { components } from "../../api/generated-types";
 import { BADGE_STATUS_DOT_SIZE, HEADING_STATUS_SHAPE_SIZE } from "../../utils/constants";
 import { statusToKind, statusToVariant } from "../../utils/status";
-import { ActionButtons } from "../shared/action-buttons";
+import { ActionButtons, getStableInstanceRef } from "../shared/action-buttons";
 import { AlertShell } from "../shared/alert-shell";
 import { ErrorBanner } from "../shared/error-banner";
 import { StatusShape } from "../shared/status-shape";
@@ -17,6 +17,11 @@ interface Props {
   appKey: string;
   liveStatus: ManifestStatus | ResourceStatus | "unknown";
   manifest: AppManifest | undefined;
+  // currentInstance is resolvedInstanceIndex looked up against the manifest's (possibly
+  // sparse) instances array — undefined when that lookup misses (e.g. an out-of-range URL
+  // query param). resolvedInstanceIndex is display-only (the "instance N" meta text) and
+  // always renders even on a miss; currentInstance gates the ActionButtons instance prop
+  // below so a miss falls back to app-level actions instead of a blank instance name.
   currentInstance: InstanceInfo | undefined;
   resolvedInstanceIndex: number;
   showParentOverview: boolean;
@@ -44,6 +49,19 @@ export function AppDetailHeader({
   showParentOverview,
 }: Props) {
   const errorMsg = currentInstance?.error_message ?? manifest?.error_message ?? null;
+  // A blocked parent's not-yet-tracked instances still report a synthetic "stopped" status
+  // (see build_manifest_info()) so `liveStatus` can read "stopped" on an individual instance
+  // page even though the app itself is excluded by the exclusive-app filter. Gate the action
+  // buttons on the parent manifest's own status in that case; the backend guards it too
+  // (AppLifecycleService rejects starts for blocked apps).
+  //
+  // Deliberately narrower than appLiveStatus()'s "disabled" | "blocked" override
+  // (configStatusOverride): the backend explicitly permits a transient start of a disabled
+  // app's instance (CAN_START.disabled is true on purpose), so once that instance is actually
+  // running, this must reflect its live status — not freeze on "disabled" and hide
+  // Stop/Reload forever. "blocked" has no such transient-start path; the backend rejects it
+  // outright, so the override never goes stale.
+  const actionStatus = manifest?.status === "blocked" ? "blocked" : liveStatus;
 
   return (
     <>
@@ -63,7 +81,15 @@ export function AppDetailHeader({
           <Badge variant={statusToVariant(liveStatus)} size="sm" data-testid="app-status-pill">
             <StatusShape kind={statusToKind(liveStatus)} size={BADGE_STATUS_DOT_SIZE} /> {liveStatus}
           </Badge>
-          <ActionButtons appKey={appKey} status={liveStatus} variant="text" confirmStop />
+          <ActionButtons
+            appKey={appKey}
+            status={actionStatus}
+            variant="text"
+            confirmStop
+            {...(manifest && manifest.instance_count > 1 && !showParentOverview && currentInstance
+              ? { instance: getStableInstanceRef(currentInstance.index, currentInstance.instance_name) }
+              : {})}
+          />
         </div>
       </div>
 
