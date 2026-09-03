@@ -14,7 +14,7 @@ import pytest
 from hassette.core.state_proxy import StateCacheFreshness, StateProxy
 from hassette.exceptions import ResourceNotReadyError
 from hassette.resources.base import Resource
-from tests.support.factories import make_mock_hassette
+from tests.support.mock_hassette import make_mock_hassette
 
 
 def stub_state_proxy() -> StateProxy:

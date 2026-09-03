@@ -2,7 +2,8 @@
 
 from hassette.testing import EventCapture
 from hassette.types import Topic
-from tests.support.factories import make_hassette_event, make_mock_hassette
+from tests.support.factories import make_hassette_event
+from tests.support.mock_hassette import make_mock_hassette
 
 
 class TestEventCaptureEmpty:

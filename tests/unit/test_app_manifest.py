@@ -12,8 +12,8 @@ from types import SimpleNamespace
 
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
-from tests.support.factories import make_mock_hassette
 from tests.support.helpers import create_app_manifest
+from tests.support.mock_hassette import make_mock_hassette
 
 
 class TestAppManifest:

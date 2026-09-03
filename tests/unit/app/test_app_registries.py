@@ -7,7 +7,7 @@ delegating to the parent Hassette instance rather than duplicating registry stat
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
 from hassette.conversion import StateRegistry, TypeRegistry
-from tests.support.factories import make_mock_hassette
+from tests.support.mock_hassette import make_mock_hassette
 
 
 def _make_app_config(name: str = "kitchen") -> AppConfig:

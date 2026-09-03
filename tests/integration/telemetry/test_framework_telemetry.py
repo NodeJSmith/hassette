@@ -20,7 +20,8 @@ from hassette.core.execution_record import ExecutionRecord
 from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.testing import HassetteHarness
 from hassette.testing._harness import TEST_TOKEN
-from tests.support.factories import make_job_registration, make_listener_registration, make_mock_hassette
+from tests.support.factories import make_job_registration, make_listener_registration
+from tests.support.mock_hassette import make_mock_hassette
 
 
 @pytest.fixture

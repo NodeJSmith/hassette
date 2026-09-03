@@ -19,7 +19,7 @@ import pytest
 from hassette.resources.lifecycle import mark_ready
 from hassette.resources.teardown import TeardownCause
 from hassette.types.enums import ResourceStatus
-from tests.support.factories import make_mock_hassette
+from tests.support.mock_hassette import make_mock_hassette
 
 from .conftest import ConcreteResource
 

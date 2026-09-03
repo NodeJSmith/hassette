@@ -4,7 +4,7 @@ import pytest
 
 from hassette.core.sync_executor import SyncExecutor
 from hassette.task_bucket.task_bucket import TaskBucket
-from tests.support.factories import make_mock_hassette
+from tests.support.mock_hassette import make_mock_hassette
 
 
 async def test_sync_fn_timeout_error_propagates_cleanly(sync_executor: SyncExecutor) -> None:

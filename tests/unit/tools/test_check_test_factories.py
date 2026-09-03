@@ -180,3 +180,23 @@ def test_same_name_in_different_file_still_flagged_as_shadow(tmp_path: Path, mon
 def test_real_repo_files_pass(path: Path) -> None:
     """The guard must stay green on the actual repo files it polices."""
     assert check_file(path) == []
+
+
+def test_shared_factories_registry_is_fresh() -> None:
+    """Every SHARED_FACTORIES entry must resolve to a real module attribute.
+
+    SHARED_FACTORIES is hand-maintained -- nothing else verifies it stays in sync with
+    tests/support/. A stale entry (a factory moved, this dict wasn't updated) would keep
+    flagging duplicates correctly while suggesting a broken import; this test fails fast
+    instead of letting that ship silently.
+    """
+    assert check_test_factories.check_shared_factories_freshness() == []
+
+
+def test_shared_factories_freshness_catches_stale_entry(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A registry entry naming a real module but a nonexistent attribute is reported."""
+    monkeypatch.setitem(check_test_factories.SHARED_FACTORIES, "make_totally_fake_factory", "tests.support.factories")
+
+    stale = check_test_factories.check_shared_factories_freshness()
+
+    assert stale == ["'make_totally_fake_factory': not found in 'tests.support.factories'"]

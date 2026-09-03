@@ -14,8 +14,8 @@ from hassette.resources.base import FinalMeta, Resource
 from hassette.resources.teardown import TeardownCause, TeardownReport
 from hassette.testing import make_test_config
 from hassette.types.enums import ResourceStatus
-from tests.support.factories import make_mock_hassette
 from tests.support.helpers import SHORT_SHUTDOWN_TIMEOUT_SECONDS, make_task_bucket
+from tests.support.mock_hassette import make_mock_hassette
 
 from .conftest import HangingChild, ShutdownCounter, SimpleParent
 

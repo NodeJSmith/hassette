@@ -14,7 +14,16 @@ without notice.
 Internal framework test infrastructure (web-layer factories, seed scenario
 helpers, codegen-only modules, etc.) lives in ``tests.support`` — outside
 ``src/`` and absent from the wheel.
+
+``dummy_cache`` is resolved lazily via module ``__getattr__`` rather than an
+eager top-level import: it's the only Tier 1 symbol backed by ``fixtures.py``,
+which imports ``pytest`` (an optional ``[test]``-extra dependency) at module
+level. An eager import would make every Tier 1 symbol -- not just
+``dummy_cache`` -- require ``pytest`` to be installed, just because they
+share this package's ``__init__.py``.
 """
+
+from typing import TYPE_CHECKING
 
 # Self-alias pattern (`X as X`) signals to ruff/pyright that these are intentional re-exports.
 from ._factories import create_call_service_event as create_call_service_event
@@ -30,14 +39,29 @@ from ._harness import wait_for as wait_for
 from .api_call import ApiCall as ApiCall
 from .app_harness import AppConfigurationError as AppConfigurationError
 from .app_harness import AppTestHarness as AppTestHarness
+from .build_harness import build_harness as build_harness
 from .config import make_test_config as make_test_config
 from .event_capture import EventCapture as EventCapture
 from .exceptions import DrainError as DrainError
 from .exceptions import DrainFailure as DrainFailure
 from .exceptions import DrainTimeout as DrainTimeout
-from .fixtures import build_harness as build_harness
-from .fixtures import dummy_cache as dummy_cache
 from .recording_api import RecordingApi as RecordingApi
+
+if TYPE_CHECKING:
+    # Type checkers see this as a normal import; __getattr__ below provides it at runtime
+    # without requiring `pytest` to be importable just to import this package.
+    from .fixtures import dummy_cache as dummy_cache
+
+
+def __getattr__(name: str) -> object:
+    if name == "dummy_cache":
+        # house-lint: ignore-next[HSL002] - deliberately lazy: defers the `pytest` import this
+        # module needs until `dummy_cache` is actually accessed, not on package import.
+        from .fixtures import dummy_cache
+
+        return dummy_cache
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = [
     "ApiCall",

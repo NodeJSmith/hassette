@@ -88,3 +88,40 @@ def test_tier1_in_all() -> None:
 ```
 
 Updated to verify `hassette.testing.__all__` instead.
+
+## BREAKING CHANGE Footer Draft (for `/mine-create-pr`)
+
+Captured at ship-time challenge (2026-09-03) so the exhaustive symbol mapping doesn't have to be
+re-derived from `design/research/2026-09-02-testing-infra-split/research.md:213` when the PR body
+is written. Copy this into the PR body's `BREAKING CHANGE:` footer, adjusting wording as needed.
+
+```
+BREAKING CHANGE: `hassette.test_utils` no longer exists. Test infrastructure is split into
+`hassette.testing` (public API, ships in the wheel) and `tests.support` (internal, hassette
+contributors only, not shipped). No compatibility shim or deprecation period — every import must
+be updated in the same release that adopts this version.
+
+#### Known external-consumer symbol mapping
+
+The following symbols move from `hassette.test_utils` (package-root or submodule-qualified) to
+`hassette.testing` (package-root import only — the new private submodule homes below are not a
+supported import path):
+
+- `AppTestHarness` — `from hassette.testing import AppTestHarness`
+- `HassetteHarness` — `from hassette.testing import HassetteHarness` (was importable from
+  `hassette.test_utils.harness`; new home `_harness.py` is private — do not import
+  `hassette.testing.harness` or `hassette.testing._harness` directly)
+- `wait_for` — `from hassette.testing import wait_for` (same private-submodule caveat as
+  `HassetteHarness` above)
+- `build_harness` — `from hassette.testing import build_harness`
+- `make_sensor_state_dict` — `from hassette.testing import make_sensor_state_dict`
+- `make_state_dict` — `from hassette.testing import make_state_dict`
+- `make_full_state_change_event` — `from hassette.testing import make_full_state_change_event`
+
+#### Full Tier 1 surface
+
+All 21 symbols in `hassette.testing.__all__` are importable directly from `hassette.testing` —
+see the design doc's `### Tier 1 symbol set` section for the complete list. Any other symbol
+previously importable from `hassette.test_utils` (e.g. `make_mock_hassette`) is gone; hassette
+contributors can find its new home in `tests/support/`, but it is not part of the public API.
+```

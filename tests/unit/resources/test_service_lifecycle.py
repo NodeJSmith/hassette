@@ -13,8 +13,8 @@ from hassette.resources.operations import restart
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.testing import wait_for
-from tests.support.factories import make_mock_hassette
 from tests.support.helpers import block_until_cancelled
+from tests.support.mock_hassette import make_mock_hassette
 from tests.unit.resources.conftest import wait_for_running
 from tests.unit.resources.lifecycle.conftest import make_running_simple_service
 

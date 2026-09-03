@@ -5,7 +5,7 @@ from unittest.mock import Mock
 from hassette.resources.base import Resource
 from hassette.testing import wait_for
 from hassette.types.enums import ResourceStatus
-from tests.support.factories import make_mock_hassette
+from tests.support.mock_hassette import make_mock_hassette
 
 
 class ConcreteResource(Resource):

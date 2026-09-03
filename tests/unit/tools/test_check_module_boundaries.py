@@ -429,6 +429,57 @@ def test_testing_bare_parent_import_of_tests_support_flagged() -> None:
     ]
 
 
+def test_testing_dynamic_import_module_literal_flagged() -> None:
+    # importlib.import_module("tests.support...") bypasses every static import/from form —
+    # runtime_imports()'s dynamic-import handling must still catch it (#1333 "no escape hatch").
+    src = textwrap.dedent(
+        """\
+        import importlib
+
+        def f():
+            importlib.import_module("tests.support.mock_hassette")
+        """
+    )
+    assert check_source(src, "testing") == [
+        (
+            4,
+            "testing-isolation: imports tests.support.mock_hassette — "
+            "hassette.testing must not import tests.support (one-way dependency, #1333)",
+        )
+    ]
+
+
+def test_testing_dynamic_bare_import_literal_flagged() -> None:
+    # Bare __import__("tests.support...") is the same escape hatch as importlib.import_module.
+    src = textwrap.dedent(
+        """\
+        def f():
+            __import__("tests.support.mock_hassette")
+        """
+    )
+    assert check_source(src, "testing") == [
+        (
+            2,
+            "testing-isolation: imports tests.support.mock_hassette — "
+            "hassette.testing must not import tests.support (one-way dependency, #1333)",
+        )
+    ]
+
+
+def test_testing_dynamic_import_non_literal_arg_not_flagged() -> None:
+    # A dynamic import whose target isn't a string literal can't be resolved statically —
+    # not a false positive, just outside what an AST walker can verify.
+    src = textwrap.dedent(
+        """\
+        import importlib
+
+        def f(mod_name):
+            importlib.import_module(mod_name)
+        """
+    )
+    assert check_source(src, "testing") == []
+
+
 def test_testing_isolation_type_checking_exempt() -> None:
     src = textwrap.dedent(
         """\

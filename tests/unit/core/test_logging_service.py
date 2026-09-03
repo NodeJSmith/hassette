@@ -14,7 +14,7 @@ from hassette.logging_ import (
     LogCaptureHandler,
     LogPersistenceHandler,
 )
-from tests.support.factories import make_mock_hassette
+from tests.support.mock_hassette import make_mock_hassette
 
 
 def remove_queue_handlers() -> None:

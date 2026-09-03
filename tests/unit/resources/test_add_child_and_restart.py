@@ -11,8 +11,8 @@ from hassette.exceptions import RestartRefusedError
 from hassette.resources.lifecycle import start
 from hassette.resources.operations import restart
 from hassette.types.enums import ResourceStatus
-from tests.support.factories import make_mock_hassette
 from tests.support.helpers import SHORT_SHUTDOWN_TIMEOUT_SECONDS
+from tests.support.mock_hassette import make_mock_hassette
 
 from .conftest import ConcreteResource, wait_for_running
 from .lifecycle.conftest import HangingChild, SimpleParent

@@ -5,7 +5,7 @@ from anyio import ClosedResourceError
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.types.enums import ResourceStatus
-from tests.support.factories import make_mock_hassette
+from tests.support.mock_hassette import make_mock_hassette
 
 
 class ClosedResourceService(Service):

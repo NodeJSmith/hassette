@@ -10,7 +10,7 @@ extracted to module-level functions yet.
 from hassette.app.app import _APP_PUBLIC_API, App, AppSync
 from hassette.app.app import _APPSYNC_HOOKS as _APPSYNC_HOOKS
 from hassette.app.app_config import AppConfig
-from tests.support.factories import make_mock_hassette
+from tests.support.mock_hassette import make_mock_hassette
 
 
 class TestAppDir:

@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from hassette.core.database_service import _RETENTION_TABLES, DatabaseService, RetentionTarget
-from tests.support.factories import make_mock_hassette
+from tests.support.mock_hassette import make_mock_hassette
 
 
 @pytest.fixture

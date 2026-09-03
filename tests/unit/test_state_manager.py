@@ -10,7 +10,7 @@ from hassette.exceptions import RegistryNotReadyError, UnableToConvertStateError
 from hassette.models.states import BaseState, DeviceTrackerState, LightState, PersonState, SensorState
 from hassette.state_manager.state_manager import DomainStates, StateManager
 from hassette.testing import make_light_state_dict, make_state_dict
-from tests.support.factories import make_mock_hassette
+from tests.support.mock_hassette import make_mock_hassette
 
 BAD_TIMESTAMP = "INVALID-TIMESTAMP"
 BAD_CONTEXT = {"id": None, "parent_id": None, "user_id": None}

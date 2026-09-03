@@ -40,7 +40,7 @@ from hassette.scheduler.scheduler import Scheduler
 from hassette.state_manager.state_manager import StateManager
 from hassette.task_bucket.task_bucket import TaskBucket
 from hassette.types.types import LOG_LEVEL_TYPE
-from tests.support.factories import make_mock_hassette
+from tests.support.mock_hassette import make_mock_hassette
 
 LOG_LEVEL_OVERRIDES = {
     "log_level": "INFO",

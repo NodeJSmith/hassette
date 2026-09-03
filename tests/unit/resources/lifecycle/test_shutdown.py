@@ -26,8 +26,8 @@ from hassette.resources.teardown import TeardownCause, TeardownReport
 from hassette.task_bucket import make_task_factory
 from hassette.testing import wait_for
 from hassette.types.enums import ResourceStatus
-from tests.support.factories import make_mock_hassette
 from tests.support.helpers import SHORT_SHUTDOWN_TIMEOUT_SECONDS
+from tests.support.mock_hassette import make_mock_hassette
 from tests.unit.resources.conftest import ConcreteResource, wait_for_running
 
 from .conftest import (

@@ -33,7 +33,7 @@ from hassette.task_bucket.task_bucket import TaskBucket
 from hassette.testing import AppConfigurationError, HassetteHarness, make_test_config
 from hassette.testing._harness import Timeouts
 from hassette.testing.app_harness import HERMETIC_CONFIG_CACHE, make_hermetic_config
-from tests.support.factories import make_mock_hassette
+from tests.support.mock_hassette import make_mock_hassette
 
 
 def build_mock_hassette():

@@ -39,6 +39,7 @@ themselves live in src/ and are not subject to this check.
 """
 
 import ast
+import importlib
 import re
 import sys
 from pathlib import Path
@@ -156,6 +157,40 @@ def check_file(path: Path) -> list[tuple[int, str]]:
     return sorted(violations)
 
 
+def check_shared_factories_freshness() -> list[str]:
+    """Return a description of every ``SHARED_FACTORIES`` entry whose module path is stale.
+
+    ``SHARED_FACTORIES`` is a hand-maintained registry -- nothing else in this file verifies
+    a value still resolves to a real module containing the named symbol. A future factory
+    move that forgets to update this dict would otherwise keep flagging duplicates correctly
+    while emitting a suggested import that itself raises ``ImportError`` if followed. Imports
+    each distinct module named in the registry once and checks every entry against it, so a
+    typo'd or stale path fails loudly here instead of silently shipping a broken suggestion.
+    """
+    # Standalone execution (``./tools/check_test_factories.py``, the pre-commit/pre-push entry
+    # point) puts only ``tools/`` on sys.path, not the repo root -- ``tests.support.*`` would
+    # otherwise fail to import here even though it resolves fine under pytest's rootdir-based
+    # discovery. Insert REPO_ROOT (idempotently) so both entry points resolve the same way.
+    repo_root_str = str(REPO_ROOT)
+    if repo_root_str not in sys.path:
+        sys.path.insert(0, repo_root_str)
+
+    modules: dict[str, object] = {}
+    stale: list[str] = []
+    for name, module_path in SHARED_FACTORIES.items():
+        module = modules.get(module_path)
+        if module is None:
+            try:
+                module = importlib.import_module(module_path)
+            except ImportError as exc:
+                stale.append(f"{name!r}: module {module_path!r} does not import ({exc})")
+                continue
+            modules[module_path] = module
+        if not hasattr(module, name):
+            stale.append(f"{name!r}: not found in {module_path!r}")
+    return stale
+
+
 def iter_paths() -> list[Path]:
     """Return every .py file under tests/, sorted for stable output.
 
@@ -167,7 +202,7 @@ def iter_paths() -> list[Path]:
 
 
 def main() -> int:
-    return run_check(
+    exit_code = run_check(
         iter_python_files(sys.argv[1:], SCAN_DIRS),
         REPO_ROOT,
         check_file,
@@ -179,6 +214,18 @@ def main() -> int:
             "'# factory-local: <reason>' (the reason is required)."
         ),
     )
+
+    # Registry-level, not per-file: always checked regardless of which files pre-commit
+    # staged, since a stale SHARED_FACTORIES entry isn't tied to editing any particular file.
+    stale = check_shared_factories_freshness()
+    if stale:
+        print(f"ERROR: {len(stale)} stale SHARED_FACTORIES entr{'y' if len(stale) == 1 else 'ies'}:")
+        print()
+        for message in stale:
+            print(f"  {message}")
+        exit_code = 1
+
+    return exit_code
 
 
 if __name__ == "__main__":

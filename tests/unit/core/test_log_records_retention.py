@@ -13,7 +13,7 @@ import pytest
 from hassette.const.misc import SECONDS_PER_DAY
 from hassette.core.database_service import DatabaseService
 from hassette.logging_ import LogPersistenceHandler
-from tests.support.factories import make_mock_hassette
+from tests.support.mock_hassette import make_mock_hassette
 
 from .conftest import TELEMETRY_TEST_DDL as DDL
 

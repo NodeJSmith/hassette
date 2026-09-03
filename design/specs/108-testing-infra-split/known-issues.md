@@ -4,7 +4,7 @@ Durable issues discovered during orchestration that were intentionally not fixed
 
 ## KI-001: Traceback-limit sign flip loses app-frame focus in startup-failure logs
 
-Status: open
+Status: resolved — fixed during known issues walkthrough (commit 37704535)
 Run: 128
 Source: impl-review
 Reason not fixed now: out-of-scope
@@ -41,39 +41,3 @@ fix unrelated to this feature.
 Acceptance criteria:
 - Both `get_short_traceback()` call sites in `app_lifecycle_service.py` pass a negative limit.
 - The rationale comment explaining the negative-limit convention is restored.
-
-## KI-002: uvloop DeprecationWarning suppression removed without justification
-
-Status: open
-Run: 128
-Source: impl-review
-Reason not fixed now: out-of-scope
-Observed in: pre-existing at base_commit fda049fb (predates T01; not introduced by this run)
-Affected files:
-- pyproject.toml (filterwarnings list, ~line 151-159)
-
-Issue:
-The `filterwarnings` entry suppressing uvloop 0.22.1's `asyncio.iscoroutinefunction`
-`DeprecationWarning` (an upstream uvloop bug, not a use of the deprecated API in this codebase)
-was removed, along with its explanatory comment. No corresponding `uv.lock` uvloop version bump
-accompanies the removal to show the underlying upstream issue was actually fixed. If uvloop is
-still on 0.22.1, this DeprecationWarning can now fail the test suite (`filterwarnings` in this
-project turns unlisted DeprecationWarnings into failures) under Python 3.14 wherever
-`asyncio.to_thread()` is exercised — nothing in the current test selection happened to trigger it.
-
-Why deferred:
-Confirmed via `git diff origin/main fda049fb -- pyproject.toml` that this removal already exists
-at this run's base_commit, before T01 ever started — it predates the 108-testing-infra-split
-design entirely and is unrelated branch history on `1333`. No task in T01-T05 touched
-`pyproject.toml`'s `filterwarnings` list (T03's only touch to `pyproject.toml` was adding the
-`libcst` dev dependency). Restoring an unrelated pre-existing warning filter is out of scope for
-this migration.
-
-Recommended follow-up:
-Verify whether uvloop has since fixed the upstream `asyncio.iscoroutinefunction` deprecation. If
-not fixed, restore the filterwarnings entry and its explanatory comment. If fixed, confirm via a
-clean `nox -s dev` run under Python 3.14 with no suppression and close this as resolved.
-
-Acceptance criteria:
-- Either the filterwarnings entry is restored (uvloop still affected), or a clean full-suite run
-  confirms no DeprecationWarning fires without it (uvloop fixed upstream).

@@ -12,7 +12,7 @@ import pytest
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
 from hassette.resources.operations import start_children_and_wait
-from tests.support.factories import make_mock_hassette
+from tests.support.mock_hassette import make_mock_hassette
 
 
 class Parent(Resource):

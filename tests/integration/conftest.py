@@ -18,8 +18,8 @@ from hassette.core.database_service import DatabaseService
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.sync_executor import SyncExecutor
 from hassette.types.enums import ExecutionMode
-from tests.support.factories import make_mock_hassette
 from tests.support.helpers import cleanup_hassette_streams
+from tests.support.mock_hassette import make_mock_hassette
 
 if TYPE_CHECKING:
     from hassette.testing import HassetteHarness

@@ -19,7 +19,6 @@ from hassette.resources.restart import RestartSpec
 from hassette.testing import wait_for
 from hassette.types import ResourceStatus, Topic
 from hassette.types.enums import ResourceRole, RestartType
-from tests.support.factories import make_mock_hassette
 from tests.support.helpers import (
     PLACEHOLDER_SERVICE_NAME,
     make_crashed_event,
@@ -27,6 +26,7 @@ from tests.support.helpers import (
     make_service_running_event,
     make_unsafe_restart_refused_error,
 )
+from tests.support.mock_hassette import make_mock_hassette
 
 from .conftest import DummyService, make_watcher, make_watcher_hassette
 

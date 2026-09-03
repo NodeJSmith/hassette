@@ -19,8 +19,9 @@ from hassette.app.app import App, AppSync
 from hassette.app.app_config import AppConfig
 from hassette.cache import AsyncCache, DummyCache
 from hassette.config.classes import AppManifest
-from tests.support.factories import make_mock_hassette, make_sync_executor
+from tests.support.factories import make_sync_executor
 from tests.support.fixtures import TEST_SYNC_EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS
+from tests.support.mock_hassette import make_mock_hassette
 
 
 def _make_app_config(name: str = "kitchen") -> AppConfig:
