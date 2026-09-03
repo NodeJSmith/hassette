@@ -339,9 +339,8 @@ def test_instance_detail_action_button_fires_instance_scoped_route(page: Page, b
 
     reload_btn = page.get_by_label("Reload instance 'MultiApp[1]'")
     expect(reload_btn).to_be_visible()
-    reload_btn.click()
-
-    page.wait_for_timeout(ANIMATION_SETTLE_MS)
+    with page.expect_request(lambda r: "/apps/multi_app/instances/1/reload" in r.url):
+        reload_btn.click()
 
     assert reload_requests, "No /reload request was captured"
     assert all("/instances/1/reload" in url for url in reload_requests), (
