@@ -11,7 +11,7 @@ import { MiniSparkline } from "../components/shared/mini-sparkline";
 import { StatusShape } from "../components/shared/status-shape";
 import { useRelativeTime } from "../hooks/use-relative-time";
 import type { AppStatusEntry } from "../state/store";
-import { appLiveStatus, type AppRow, configStatusOverride, instanceLiveStatus } from "../utils/app-data";
+import { appLiveStatus, type AppRow, instanceLiveStatus } from "../utils/app-data";
 import { APP_ROW_STATUS_SHAPE_SIZE, INSTANCE_ROW_STATUS_SHAPE_SIZE } from "../utils/constants";
 import { formatTimestamp } from "../utils/format";
 import { onActivateKeyDown } from "../utils/keyboard";
@@ -167,13 +167,19 @@ export function AppTableRow({
         app.instances?.map((inst) => {
           const instStatus = instanceLiveStatus(appStatuses, app.app_key, inst);
           const instKind = statusToKind(instStatus);
-          // A blocked (or disabled) parent's not-yet-tracked instances still report a
-          // synthetic "stopped" status (see build_manifest_info()) so they stay addressable
-          // in the table — but that makes CAN_START key off "stopped" and show a Start button
-          // for an app the exclusive-app filter excluded. Force the action status to the
-          // parent's config status in that case, same rule as appLiveStatus(); the backend
-          // guards the blocked case too (AppLifecycleService rejects starts for blocked apps).
-          const instActionStatus = configStatusOverride(status) ?? instStatus;
+          // A blocked parent's not-yet-tracked instances still report a synthetic "stopped"
+          // status (see build_manifest_info()) so they stay addressable in the table — but
+          // that makes CAN_START key off "stopped" and show a Start button for an app the
+          // exclusive-app filter excluded. Force the action status to "blocked" in that case;
+          // the backend guards it too (AppLifecycleService rejects starts for blocked apps).
+          //
+          // Deliberately narrower than appLiveStatus()'s "disabled" | "blocked" override
+          // (configStatusOverride): the backend explicitly permits a transient start of a
+          // disabled app's instance (CAN_START.disabled is true on purpose), so once that
+          // instance is actually running, this must reflect its live status — not freeze on
+          // "disabled" and hide Stop/Reload forever. "blocked" has no such transient-start
+          // path; the backend rejects it outright, so the override never goes stale.
+          const instActionStatus = status === "blocked" ? "blocked" : instStatus;
           return (
             <tr
               key={`${app.app_key}-${inst.index}`}

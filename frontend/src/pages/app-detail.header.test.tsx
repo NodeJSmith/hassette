@@ -218,4 +218,26 @@ describe("AppDetailPage header", () => {
     const { findByTestId } = renderPage({ key: "test_app" });
     expect(await findByTestId("btn-start-test_app-0")).toBeDefined();
   });
+
+  it("shows Stop (not Start) for a disabled app's transiently-running instance", async () => {
+    // Regression test for the P2 finding on PR #1873 (follow-up to the blocked-app fix
+    // above): the backend explicitly permits a transient start of a disabled app's instance
+    // (CAN_START.disabled is true on purpose), unlike "blocked" which the backend rejects
+    // outright. Once that instance is running, the action status must reflect "running" — not
+    // freeze on "disabled" and hide Stop/Reload forever.
+    const manifest = createManifest({
+      app_key: "test_app",
+      status: "disabled",
+      instance_count: 2,
+      instances: [
+        createInstance({ index: 0, instance_name: "primary", status: "running" }),
+        createInstance({ index: 1, instance_name: "backup", status: "stopped" }),
+      ],
+    });
+    setupApi(manifest);
+    mockSearchString = "instance=0";
+    const { findByTestId, queryByTestId } = renderPage({ key: "test_app" });
+    expect(await findByTestId("btn-stop-test_app-0")).toBeDefined();
+    expect(queryByTestId("btn-start-test_app-0")).toBeNull();
+  });
 });

@@ -1,7 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 
 import type { components } from "../../api/generated-types";
-import { configStatusOverride } from "../../utils/app-data";
 import { BADGE_STATUS_DOT_SIZE, HEADING_STATUS_SHAPE_SIZE } from "../../utils/constants";
 import { statusToKind, statusToVariant } from "../../utils/status";
 import { ActionButtons, getStableInstanceRef } from "../shared/action-buttons";
@@ -50,13 +49,19 @@ export function AppDetailHeader({
   showParentOverview,
 }: Props) {
   const errorMsg = currentInstance?.error_message ?? manifest?.error_message ?? null;
-  // A blocked (or disabled) parent's not-yet-tracked instances still report a synthetic
-  // "stopped" status (see build_manifest_info()) so `liveStatus` can read "stopped" on an
-  // individual instance page even though the app itself is excluded by the exclusive-app
-  // filter. Gate the action buttons on the parent manifest's own config status in that case —
-  // same rule as appLiveStatus() and apps-table-row.tsx's per-instance gating. The backend
-  // guards the blocked case too (AppLifecycleService rejects starts for blocked apps).
-  const actionStatus = (manifest && configStatusOverride(manifest.status)) ?? liveStatus;
+  // A blocked parent's not-yet-tracked instances still report a synthetic "stopped" status
+  // (see build_manifest_info()) so `liveStatus` can read "stopped" on an individual instance
+  // page even though the app itself is excluded by the exclusive-app filter. Gate the action
+  // buttons on the parent manifest's own status in that case; the backend guards it too
+  // (AppLifecycleService rejects starts for blocked apps).
+  //
+  // Deliberately narrower than appLiveStatus()'s "disabled" | "blocked" override
+  // (configStatusOverride): the backend explicitly permits a transient start of a disabled
+  // app's instance (CAN_START.disabled is true on purpose), so once that instance is actually
+  // running, this must reflect its live status — not freeze on "disabled" and hide
+  // Stop/Reload forever. "blocked" has no such transient-start path; the backend rejects it
+  // outright, so the override never goes stale.
+  const actionStatus = manifest?.status === "blocked" ? "blocked" : liveStatus;
 
   return (
     <>

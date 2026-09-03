@@ -413,5 +413,31 @@ describe("AppTableRow", () => {
       const row0 = getByTestId("instance-row-my_app-0");
       expect(within(row0).getByTestId("action-buttons").getAttribute("data-status")).toBe("blocked");
     });
+
+    it("does not freeze a disabled app's transiently-running instance on the 'disabled' action status", () => {
+      // Regression test for the P2 finding on PR #1873 (follow-up to the blocked-app fix
+      // above): the backend explicitly permits a transient start of a disabled app's
+      // instance (CAN_START.disabled is true on purpose), unlike "blocked" which the backend
+      // rejects outright. Once that instance is running, ActionButtons must see "running" —
+      // not get stuck showing "disabled" (Start visible, Stop/Reload permanently hidden).
+      const app = createAppRow({
+        app_key: "my_app",
+        status: "disabled",
+        instance_count: 2,
+        instances: [
+          {
+            app_key: "my_app",
+            class_name: "MyApp",
+            index: 0,
+            instance_name: "my_app[0]",
+            status: "running",
+            error_message: null,
+          },
+        ],
+      });
+      const { getByTestId } = renderRow({ app, isExpanded: true });
+      const row0 = getByTestId("instance-row-my_app-0");
+      expect(within(row0).getByTestId("action-buttons").getAttribute("data-status")).toBe("running");
+    });
   });
 });
