@@ -274,7 +274,7 @@ stages = ["pre-commit", "pre-push"]
 id = "check-test-factories"
 name = "Check test factory shadowing"
 language = "system"
-entry = "./tools/check_test_factories.py"
+entry = "uv run ./tools/check_test_factories.py"
 files = '^tests/.*\.py$'
 stages = ["pre-commit", "pre-push"]
 
