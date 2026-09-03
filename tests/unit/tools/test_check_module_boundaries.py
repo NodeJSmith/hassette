@@ -7,10 +7,14 @@ the forbidden package at runtime, while type-only imports under ``TYPE_CHECKING`
 and a layer importing itself are exempt.
 
 Also pin the private-attr reach-through rule (#1091): ``hassette._foo`` /
-``self.hassette._foo`` is flagged outside ``core/``, ``test_utils/``, and ``testing/``, own-private
+``self.hassette._foo`` is flagged outside ``core/`` and ``testing/``, own-private
 ``self._foo`` and non-private/dunder access are not, and ``PRIVATE_ATTR_ALLOWLIST``
 entries are suppressed by (path, attr). Ungoverned cross-layer imports still exist
 (e.g. ``conversion`` → ``models``, #892) but are not tested here.
+
+Also pins the ``testing-isolation`` rule (#1333): ``hassette.testing`` must never import
+``tests.support`` at runtime — the one-way dependency that keeps ``hassette.testing`` importable
+from an installed wheel where ``tests/support/`` does not exist.
 """
 
 import textwrap
@@ -244,11 +248,6 @@ def test_private_access_in_core_exempt() -> None:
     assert check_source("x = self.hassette._state_proxy\n", "core") == []
 
 
-def test_private_access_in_test_utils_exempt() -> None:
-    # The test harness assembles real components from private slots — that is its job.
-    assert check_source("x = hassette._loop_thread_id\n", "test_utils") == []
-
-
 def test_allowlisted_path_attr_suppressed() -> None:
     src = "x = self.hassette._should_skip_dependency_check()\n"
     assert check_source(src, "resources", rel_path="resources/base.py") == []
@@ -381,3 +380,74 @@ def test_bus_import_of_base_events_not_flagged() -> None:
     """Bus may import generic event types from hassette.events and hassette.events.base."""
     src = "from hassette.events.base import Event\n"
     assert check_source(src, "bus") == []
+
+
+def test_testing_import_of_tests_support_flagged() -> None:
+    src = "from tests.support.factories import make_scheduled_job\n"
+    assert check_source(src, "testing") == [
+        (
+            1,
+            "testing-isolation: imports tests.support.factories — "
+            "hassette.testing must not import tests.support (one-way dependency, #1333)",
+        )
+    ]
+
+
+def test_testing_bare_import_of_tests_support_flagged() -> None:
+    src = "import tests.support.helpers\n"
+    assert check_source(src, "testing") == [
+        (
+            1,
+            "testing-isolation: imports tests.support.helpers — "
+            "hassette.testing must not import tests.support (one-way dependency, #1333)",
+        )
+    ]
+
+
+def test_testing_import_of_bare_tests_support_flagged() -> None:
+    src = "from tests.support import factories\n"
+    assert check_source(src, "testing") == [
+        (
+            1,
+            "testing-isolation: imports tests.support — "
+            "hassette.testing must not import tests.support (one-way dependency, #1333)",
+        )
+    ]
+
+
+def test_testing_bare_parent_import_of_tests_support_flagged() -> None:
+    # ``from tests import support`` — the bare-parent form, analogous to ``from hassette
+    # import testing`` in runtime_imports() — must be caught even though ``node.module``
+    # resolves to ``"tests"``, not ``"tests.support"``.
+    src = "from tests import support\n"
+    assert check_source(src, "testing") == [
+        (
+            1,
+            "testing-isolation: imports tests.support — "
+            "hassette.testing must not import tests.support (one-way dependency, #1333)",
+        )
+    ]
+
+
+def test_testing_isolation_type_checking_exempt() -> None:
+    src = textwrap.dedent(
+        """\
+        from typing import TYPE_CHECKING
+
+        if TYPE_CHECKING:
+            from tests.support.factories import make_scheduled_job
+        """
+    )
+    assert check_source(src, "testing") == []
+
+
+def test_testing_import_of_private_module_not_flagged() -> None:
+    # hassette.testing importing its own private submodules is fine.
+    src = "from hassette.testing._factories import make_state_dict\n"
+    assert check_source(src, "testing") == []
+
+
+def test_testing_isolation_not_applied_outside_testing_layer() -> None:
+    # tests.support imports are only forbidden inside hassette.testing itself.
+    src = "from tests.support.factories import make_scheduled_job\n"
+    assert check_source(src, "core") == []

@@ -1,7 +1,7 @@
 ---
 task_id: "T05"
 title: "Validate, enforce boundary, delete old package"
-status: "planned"
+status: "done"
 depends_on: ["T03", "T04"]
 implements: ["FR#3", "FR#6", "FR#7", "AC#2", "AC#3", "AC#4", "AC#6"]
 ---

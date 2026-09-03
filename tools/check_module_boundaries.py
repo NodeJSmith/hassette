@@ -21,6 +21,8 @@ Import boundaries enforced today (``RULES``):
 - ``scheduler → core`` — scheduler consumes SchedulerService via SchedulerServiceProtocol in types (#1079).
 - ``state_manager → core`` — state_manager consumes StateProxy via StateReader in types (#1079).
 - ``models → conversion`` — models/states is a leaf below the codec; the conversion ↔ models cycle is resolved (#892).
+- ``testing → tests.support`` — hassette.testing ships in the wheel and tests.support does not;
+  the dependency is one-way (tests/support/ may import hassette.testing, never the reverse) (#1333).
 
 The full layer DAG is NOT enforced here yet. The two service-layer core cycles
 (``scheduler``↔``core`` and ``state_manager``↔``core``) are resolved via protocol
@@ -66,11 +68,9 @@ SCAN_DIRS: list[str] = [SRC.relative_to(REPO_ROOT).as_posix()]
 
 
 #: Layers that own or legitimately wire Hassette internals, so reading ``hassette._foo``
-#: there is not a reach-through. ``core`` is where ``Hassette`` lives; ``test_utils`` and
-#: ``testing`` are the old and new test harness locations during the migration between them
-#: (``test_utils`` is removed from this set once the old package is deleted), whose whole job
-#: is assembling real components from their private slots.
-PRIVATE_ATTR_EXEMPT_LAYERS = frozenset({"core", "test_utils", "testing"})
+#: there is not a reach-through. ``core`` is where ``Hassette`` lives; ``testing`` is the test
+#: harness location, whose whole job is assembling real components from their private slots.
+PRIVATE_ATTR_EXEMPT_LAYERS = frozenset({"core", "testing"})
 #: Reason shown for a private-attr reach-through violation.
 PRIVATE_ATTR_REASON = (
     "subsystem code must not read private attributes of the Hassette core object; "
@@ -91,6 +91,10 @@ PRIVATE_ATTR_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         ("resources/base.py", "_should_skip_dependency_check"),
     }
 )
+#: Dotted prefix that ``hassette.testing`` must never import at runtime. ``tests.support``
+#: lives outside ``src/`` and is absent from the wheel — an import from it in
+#: ``hassette.testing`` would work in the dev checkout but break for every installed consumer.
+TESTING_ISOLATION_FORBIDDEN_PREFIX = "tests.support"
 
 
 @dataclass(frozen=True)
@@ -263,6 +267,63 @@ def runtime_imports(tree: ast.AST, package: str | None = None) -> list[tuple[int
     return out
 
 
+def find_testing_isolation_violations(tree: ast.AST, package: str | None = None) -> list[tuple[int, str]]:
+    """Return (lineno, message) for runtime imports of ``tests.support`` in ``hassette.testing``.
+
+    Complements the grep-based check that also verifies this invariant by catching every
+    import form (``import tests.support.x``, ``from tests.support import x``, relative
+    forms) that a grep for the literal string ``from tests.support`` misses. Only called
+    for files in the ``testing`` layer — see ``check_source``.
+    """
+    tc_ranges = type_checking_ranges(tree)
+
+    def in_type_checking(lineno: int) -> bool:
+        return any(start <= lineno <= end for start, end in tc_ranges)
+
+    def is_forbidden(module: str) -> bool:
+        return module == TESTING_ISOLATION_FORBIDDEN_PREFIX or module.startswith(
+            f"{TESTING_ISOLATION_FORBIDDEN_PREFIX}."
+        )
+
+    out: list[tuple[int, str]] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and not in_type_checking(node.lineno):
+            module = resolved_from_module(node, package)
+            if module == "tests":
+                # Bare ``tests`` target (``from tests import support`` or the relative
+                # equivalent): the alias names are the submodules, so reassemble
+                # ``tests.<name>`` per alias, mirroring runtime_imports()'s handling of
+                # the analogous bare ``hassette`` case.
+                out.extend(
+                    (
+                        node.lineno,
+                        f"testing-isolation: imports tests.{alias.name} — "
+                        "hassette.testing must not import tests.support (one-way dependency, #1333)",
+                    )
+                    for alias in node.names
+                    if is_forbidden(f"tests.{alias.name}")
+                )
+            elif module and is_forbidden(module):
+                out.append(
+                    (
+                        node.lineno,
+                        f"testing-isolation: imports {module} — "
+                        "hassette.testing must not import tests.support (one-way dependency, #1333)",
+                    )
+                )
+        elif isinstance(node, ast.Import) and not in_type_checking(node.lineno):
+            out.extend(
+                (
+                    node.lineno,
+                    f"testing-isolation: imports {alias.name} — "
+                    "hassette.testing must not import tests.support (one-way dependency, #1333)",
+                )
+                for alias in node.names
+                if is_forbidden(alias.name)
+            )
+    return out
+
+
 def is_private_attr(name: str) -> bool:
     """True for a single-underscore private name (``_foo``), not a dunder or mangled name.
 
@@ -319,6 +380,7 @@ def check_source(
         for rule in RULES
         if rule.applies(layer) and rule.forbids(module)
     ]
+    testing_isolation = find_testing_isolation_violations(tree, package) if layer == "testing" else []
     private_violations = (
         [
             (lineno, PRIVATE_ATTR_MSG_TEMPLATE.format(attr=attr))
@@ -328,7 +390,7 @@ def check_source(
         if layer not in PRIVATE_ATTR_EXEMPT_LAYERS
         else []
     )
-    return sorted(import_violations + private_violations)
+    return sorted(import_violations + testing_isolation + private_violations)
 
 
 def check_file(path: Path) -> list[tuple[int, str]]:

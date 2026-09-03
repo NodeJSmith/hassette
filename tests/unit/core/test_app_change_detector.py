@@ -168,7 +168,7 @@ class TestAppChangeDetector:
 
     @pytest.fixture
     def make_manifest(self) -> Callable:  # factory-local: needs display_name/autostart overrides not in
-        # test_utils.helpers.create_app_manifest, and real (non-Mock) instances are required here --
+        # tests/support/helpers.py's create_app_manifest, and real (non-Mock) instances are required here --
         # DeepDiff cannot do attribute-level diffing on MagicMock objects (MagicMock auto-configures magic
         # methods like __iter__, which makes DeepDiff treat two mock instances as opaque and report a
         # whole-object type_changes entry instead of diffing individual attributes), so field-level

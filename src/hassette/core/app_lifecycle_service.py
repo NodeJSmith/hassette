@@ -255,7 +255,7 @@ class AppLifecycleService(Resource):
                     # miss those jobs and leak their entity-watch subscriptions.
                     #
                     # Also deregisters the removal callback, mirroring on_shutdown()'s second
-                    # statement — remove_all_jobs() itself never does this (test_utils/reset.py
+                    # statement — remove_all_jobs() itself never does this (hassette/testing/_reset.py
                     # calls it on a Scheduler instance meant to be reused across tests, where
                     # deregistering would silently break future job removals on that instance).
                     # A failed-init instance is discarded, not reused: Scheduler.__init__

@@ -23,7 +23,7 @@ async def hassette_with_bus(
     hassette_harness: "Callable[[HassetteConfig], HassetteHarness]",
     test_config: "HassetteConfig",
 ) -> "typing.AsyncIterator[Hassette]":
-    """Variant of test_utils.fixtures.hassette_with_bus scoped to function instead of module.
+    """Variant of tests.support.fixtures.hassette_with_bus scoped to function instead of module.
 
     Bus unit tests mutate listener state per-test (e.g. `bus.parent`, direct
     `add_listener` patching in `mock_add_listener`), so each test needs its own

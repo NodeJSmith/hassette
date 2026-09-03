@@ -273,7 +273,7 @@ class TestCleanupFailedInstance:
 
         Also asserts the removal callback registered by Scheduler.__init__ is
         deregistered afterward — cleanup_failed_instance() discards this Scheduler for
-        good (unlike test_utils.reset.reset_scheduler, which reuses its instance), so it
+        good (unlike hassette.testing._reset.reset_scheduler, which reuses its instance), so it
         must explicitly deregister rather than leak the stale callback.
         """
         hassette = make_mock_hassette(sealed=False)
