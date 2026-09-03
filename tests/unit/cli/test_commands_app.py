@@ -4,7 +4,7 @@ start/stop/reload commands.
 
 import json
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -37,6 +37,7 @@ from tests.unit.cli.conftest import (
     CLIClientFactory,
     CommandRunner,
     capture_json_stdout,
+    make_post_spy,
 )
 
 runner = CommandRunner("hassette.cli.commands.app.make_client")
@@ -49,15 +50,6 @@ _ACTION_CASES = [
     pytest.param(cmd_app_stop, "stop", "stopped", {"yes": True}, id="stop"),
     pytest.param(cmd_app_reload, "reload", "reloaded", {"yes": True}, id="reload"),
 ]
-
-
-def _spy_post(client: HassetteCLIClient) -> MagicMock:
-    """Wrap ``client.post`` with a MagicMock that still delegates to the real implementation.
-
-    Lets tests assert on the path a command posted to while still exercising the real
-    error handling and deserialization in ``HassetteCLIClient.post``.
-    """
-    return MagicMock(wraps=client.post)
 
 
 # cmd_app (bare — list all apps)
@@ -402,7 +394,7 @@ class TestCmdAppActionRouting:
         client = cli_client_factory.build_with_routes(
             [("POST", f"/api/apps/my_app/{action}", 200, _action_response(action=action).model_dump())]
         )
-        spy = _spy_post(client)
+        spy = make_post_spy(client)
         with patch.object(client, "post", spy):
             runner.stdout(client, cmd, "my_app", **extra)
 
@@ -424,7 +416,7 @@ class TestCmdAppActionRouting:
                 ),
             ]
         )
-        spy = _spy_post(client)
+        spy = make_post_spy(client)
         with patch.object(client, "post", spy):
             runner.stdout(client, cmd, "my_app", instance="1", **extra)
 
@@ -510,6 +502,29 @@ class TestCmdAppActionRouting:
         assert parsed["message"] == f"Instance '5' of 'my_app' {verb}"
 
     @pytest.mark.parametrize(("cmd", "action", "verb", "extra"), _ACTION_CASES)
+    def test_numeric_instance_succeeds_when_manifest_fetch_returns_503(
+        self, cli_client_factory: CLIClientFactory, cmd, action: str, verb: str, extra: dict[str, Any]
+    ) -> None:
+        """A numeric --instance still succeeds when /api/apps/manifests 503s (telemetry outage).
+
+        The manifest lookup is a best-effort name resolution — the mutating action itself
+        has no telemetry dependency, so a degraded telemetry DB must not block it.
+        """
+        client = cli_client_factory.build_with_routes(
+            [
+                ("GET", "/api/apps/manifests", 503, {"detail": "Telemetry store unavailable"}),
+                (
+                    "POST",
+                    f"/api/apps/my_app/instances/1/{action}",
+                    200,
+                    _action_response(action=action, instance_index=1).model_dump(),
+                ),
+            ]
+        )
+        parsed = runner.json_output(client, cmd, "my_app", instance="1", **extra)
+        assert parsed["message"] == f"Instance '1' of 'my_app' {verb}"
+
+    @pytest.mark.parametrize(("cmd", "action", "verb", "extra"), _ACTION_CASES)
     def test_warns_on_server_instance_index_mismatch(
         self, cli_client_factory: CLIClientFactory, cmd, action: str, verb: str, extra: dict[str, Any]
     ) -> None:
@@ -588,7 +603,7 @@ class TestCmdAppStop:
         client = cli_client_factory.build_with_routes(
             [("POST", "/api/apps/my_app/stop", 200, _action_response(action="stop").model_dump())]
         )
-        spy = _spy_post(client)
+        spy = make_post_spy(client)
         with (
             patch("builtins.input", return_value=response),
             patch.object(client, "post", spy),
@@ -614,7 +629,7 @@ class TestCmdAppStop:
             [("POST", "/api/apps/my_app/stop", 200, _action_response(action="stop").model_dump())],
             json_mode=True,
         )
-        spy = _spy_post(client)
+        spy = make_post_spy(client)
         with (
             patch("builtins.input", side_effect=AssertionError("must not prompt in --json mode")),
             patch.object(client, "post", spy),
@@ -682,7 +697,7 @@ class TestCmdAppReload:
             [("POST", "/api/apps/my_app/reload", 200, _action_response(action="reload").model_dump())],
             json_mode=True,
         )
-        spy = _spy_post(client)
+        spy = make_post_spy(client)
         with (
             patch("builtins.input", side_effect=AssertionError("must not prompt in --json mode")),
             patch.object(client, "post", spy),
@@ -703,7 +718,7 @@ class TestCmdAppReload:
         client = cli_client_factory.build_with_routes(
             [("POST", "/api/apps/my_app/reload", 200, _action_response(action="reload").model_dump())]
         )
-        spy = _spy_post(client)
+        spy = make_post_spy(client)
         with (
             patch("builtins.input", return_value="n"),
             patch.object(client, "post", spy),
