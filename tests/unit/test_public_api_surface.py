@@ -41,7 +41,7 @@ def test_tier1_in_all() -> None:
     assert set(testing.__all__) == TIER1_SYMBOLS
 
 
-def test_tier2_importable() -> None:
+def test_tier1_importable_from_testing() -> None:
     """Tier 1 symbols (e.g. HassetteHarness) are importable from hassette.testing."""
     assert HassetteHarness is not None
 
