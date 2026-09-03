@@ -43,6 +43,20 @@ describe("useQueryParams.get", () => {
     expect(result.current.get("filter")).toBeNull();
   });
 
+  it("returns null for a bare key with no equals sign", () => {
+    mockSearch = "filter";
+    const { result } = renderHook(() => useQueryParams());
+    expect(result.current.get("filter")).toBeNull();
+  });
+
+  it("parses normal params alongside empty forms", () => {
+    mockSearch = "bare&empty=&filter=running";
+    const { result } = renderHook(() => useQueryParams());
+    expect(result.current.get("bare")).toBeNull();
+    expect(result.current.get("empty")).toBeNull();
+    expect(result.current.get("filter")).toBe("running");
+  });
+
   it("decodes percent-encoded values on read", () => {
     mockSearch = "search=hello%20world";
     const { result } = renderHook(() => useQueryParams());

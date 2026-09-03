@@ -249,13 +249,13 @@ class AppLifecycleService(Resource):
                         exc_info=True,
                     )
                 try:
-                    # Goes straight to Scheduler.remove_all_jobs() rather than
-                    # SchedulerService.remove_jobs_by_owner() — the per-app Scheduler already
-                    # holds its owned jobs (including waiting, completed, and manual jobs that
-                    # never touch the heap) in _jobs_by_name, and remove_all_jobs() is the
-                    # same identity-checked, registry-aware path the normal shutdown uses
-                    # (Scheduler.on_shutdown). remove_jobs_by_owner()'s heap-only scan would
-                    # miss those jobs and leak their entity-watch subscriptions.
+                    # Goes straight to Scheduler.remove_all_jobs() rather than scanning the
+                    # full registry by owner string — the per-app Scheduler already holds its
+                    # owned jobs (including waiting, completed, and manual jobs that never
+                    # touch the heap) in _jobs_by_name, and remove_all_jobs() is the same
+                    # identity-checked, registry-aware path the normal shutdown uses
+                    # (Scheduler.on_shutdown). A heap-only scan would miss those jobs and leak
+                    # their entity-watch subscriptions.
                     #
                     # Also deregisters the removal callback, mirroring on_shutdown()'s second
                     # statement — remove_all_jobs() itself never does this (hassette/testing/_reset.py

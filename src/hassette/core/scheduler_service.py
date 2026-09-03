@@ -175,18 +175,6 @@ class SchedulerService(Service):
         await self.enqueue_job(job)
         self.logger.debug("Rescheduled job %s to %s", job, job.next_run)
 
-    async def _remove_jobs_by_owner(self, owner: str) -> None:
-        """Remove all jobs for an owner and wake the scheduler if necessary."""
-        removed = await self._job_queue.remove_owner(owner)
-
-        if removed:
-            self.kick()
-            # Release guards for all removed jobs.
-            for job in removed:
-                await job.guard.release()
-                drain_pending_done(job.pending_done)
-            self.fire_removal_callbacks(removed)
-
     def register_removal_callback(self, owner_id: str, callback: Callable[["Job"], None]) -> None:
         """Register a callback to be called whenever a job belonging to owner_id is removed.
 
@@ -794,14 +782,6 @@ class SchedulerService(Service):
             raise ValueError(f"Job {job_id} is not currently triggerable")
         return job
 
-    def remove_jobs_by_owner(self, owner: str) -> asyncio.Task[None]:
-        """Remove all jobs for a given owner.
-
-        Args:
-            owner: The owner of the jobs to remove.
-        """
-        return self.task_bucket.spawn(self._remove_jobs_by_owner(owner), name="scheduler:remove_jobs_by_owner")
-
     def _remove_from_live_state(self, job: "Job") -> bool:
         """Synchronous core of the unified removal operation: registry, heap, callbacks.
 
@@ -934,8 +914,8 @@ class SchedulerService(Service):
         Used by ``Scheduler.remove_all_jobs()`` for owner cleanup — the per-app ``Scheduler``
         already holds its owned jobs in ``_jobs_by_name``, including waiting, completed, and
         manual jobs that were never on the heap, so this targets exactly those objects instead
-        of scanning the full registry by owner string (as ``remove_jobs_by_owner`` does, which
-        only reaches heap-resident jobs).
+        of scanning the full registry by owner string, which would only reach heap-resident
+        jobs.
 
         Spawned on this service's own ``task_bucket`` (not the caller's) so the removal writes
         survive the caller resource's own shutdown/cancellation window — the same reasoning as
@@ -1075,18 +1055,6 @@ class _ScheduledJobQueue(Resource):
 
         return due_jobs, next_run
 
-    async def remove_owner(self, owner: str) -> "list[Job]":
-        """Remove all jobs belonging to the given owner. Returns the removed jobs."""
-        async with self._lock:
-            removed = self._queue.remove_where(lambda job: job.owner_id == owner)
-
-        if removed:
-            self.logger.debug("Removed %d jobs for owner '%s'", len(removed), owner)
-        else:
-            self.logger.debug("No jobs found for owner '%s' to remove", owner)
-
-        return removed
-
     async def remove_job(self, job: "Job") -> bool:
         """Remove a specific job if it exists.
 
@@ -1154,25 +1122,6 @@ class HeapQueue(Generic[T]):
     def is_empty(self) -> bool:
         """Check if the queue is empty."""
         return not self._queue
-
-    def remove_where(self, predicate: Callable[[T], bool]) -> list[T]:
-        """Remove all items matching the predicate, returning the removed items."""
-        if not self._queue:
-            return []
-
-        remaining: list[T] = []
-        removed: list[T] = []
-        for item in self._queue:
-            if predicate(item):
-                removed.append(item)
-            else:
-                remaining.append(item)
-
-        if removed:
-            self._queue = remaining
-            heapq.heapify(self._queue)  # pyright: ignore[reportArgumentType]
-
-        return removed
 
     def remove_item(self, item: T) -> bool:
         """Remove a specific item from the queue if present, by identity.

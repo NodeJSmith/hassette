@@ -43,7 +43,7 @@ export function itemErrorMessage(item: UnifiedItem): string | null {
 
 export function itemKindChip(item: UnifiedItem): string {
   if (item.kind === "listener") {
-    return handlerKindLabel("listener", item.data.listener_kind, null);
+    return handlerKindLabel("listener", item.data.listener_kind);
   }
   return handlerKindLabel("job", null, item.data.trigger_type);
 }

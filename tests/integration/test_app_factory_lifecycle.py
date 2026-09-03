@@ -1,5 +1,6 @@
 """Integration tests for AppFactory and AppLifecycleService."""
 
+import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -366,6 +367,67 @@ class TestAppLifecycleServiceIntegration:
         assert len(failed) == 1
         assert failed[0].index == 0
         assert "Intentional init failure" in failed[0].error_message
+
+    async def test_lifecycle_logs_init_failure_exactly_once(
+        self,
+        app_factory: AppFactory,
+        app_lifecycle: AppLifecycleService,
+        app_registry: AppRegistry,
+        caplog: pytest.LogCaptureFixture,
+    ):
+        """A single ``on_initialize()`` failure produces exactly one ERROR-level log record.
+
+        Regression test for #1826: the same exception used to be logged as three stacked
+        ERROR tracebacks -- ``run_hooks()``'s ``handle_failed()`` call, the initialization
+        coordinator's exception observer, and ``AppLifecycleService.initialize_instances()``'s
+        own catch -- even though only the outermost, decision-owning layer for apps
+        (``AppLifecycleService``) needs to surface at ERROR. The lower two are demoted to
+        DEBUG rather than removed, so the traceback stays available for anyone with DEBUG
+        logging enabled.
+        """
+        # caplog relies on propagation to the root logger; another test in the session may
+        # have left this False (see tests/integration/web_api/test_auth.py for the same
+        # workaround).
+        logging.getLogger("hassette").propagate = True
+
+        manifest = make_manifest("failing", "failing_init_app.py", "FailingInitApp")
+        app_registry.set_manifests({"failing": manifest})
+
+        app_factory.create_instances("failing", manifest)
+        instances = app_registry.get_running_apps("failing")
+
+        # Each Resource's own logger gets an explicit level set (INFO by default) in
+        # _setup_logger(), which shadows the ancestor "hassette" logger's level for
+        # isEnabledFor() checks -- caplog.at_level(logger="hassette") alone would not
+        # unblock DEBUG records from these specific loggers.
+        for inst in instances.values():
+            inst.logger.setLevel(logging.DEBUG)
+        app_lifecycle.logger.setLevel(logging.DEBUG)
+
+        with caplog.at_level(logging.DEBUG, logger="hassette"):
+            await app_lifecycle.initialize_instances("failing", instances, manifest)
+
+        error_records = [record for record in caplog.records if record.levelno == logging.ERROR]
+        assert len(error_records) == 1, (
+            f"expected exactly one ERROR record for the init failure, got {len(error_records)}: "
+            f"{[record.getMessage() for record in error_records]}"
+        )
+        surviving_message = error_records[0].getMessage()
+        assert "Intentional init failure" in surviving_message
+        # AppLifecycleService embeds the traceback as text (get_short_traceback()) rather than
+        # structured exc_info, but it must still carry enough of the stack to show the failing
+        # app's own file:line, not just framework frames.
+        assert "Traceback (most recent call last)" in surviving_message
+        assert "failing_init_app.py" in surviving_message
+
+        # The demoted lower-layer logs should still exist at DEBUG, not be silently dropped.
+        debug_messages = [record.getMessage() for record in caplog.records if record.levelno == logging.DEBUG]
+        assert any("failed" in message and "RuntimeError" in message for message in debug_messages), (
+            "run_hooks()'s handle_failed() log should be demoted to DEBUG, not removed entirely"
+        )
+        assert any("unhandled exception" in message for message in debug_messages), (
+            "the initialization coordinator's exception observer should be demoted to DEBUG, not removed entirely"
+        )
 
     async def test_lifecycle_continues_after_failed_instance(
         self, app_factory: AppFactory, app_lifecycle: AppLifecycleService, app_registry: AppRegistry

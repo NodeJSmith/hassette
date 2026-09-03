@@ -85,13 +85,33 @@ describe("resolveSortKey", () => {
 
 describe("rowKey", () => {
   it("uses timestamp-seq when seq is present", () => {
-    const e = { seq: 42, timestamp: 1000, logger_name: "test", lineno: 10 } as LogEntry;
+    const e = { seq: 42, timestamp: 1000, logger_name: "test", lineno: 10 };
     expect(rowKey(e)).toBe("1000-42");
   });
 
-  it("falls back to timestamp-logger-lineno when seq is 0", () => {
-    const e = { seq: 0, timestamp: 1000, logger_name: "hassette.apps.my_app", lineno: 55 } as LogEntry;
+  it("uses timestamp-seq-logger-lineno when seq is the 0 fallback marker", () => {
+    const e = { seq: 0, timestamp: 1000, logger_name: "hassette.apps.my_app", lineno: 55 };
+    expect(rowKey(e)).toBe("1000-0-hassette.apps.my_app-55");
+  });
+
+  it("falls back to timestamp-logger-lineno only when seq is genuinely absent", () => {
+    const e = { timestamp: 1000, logger_name: "hassette.apps.my_app", lineno: 55 };
     expect(rowKey(e)).toBe("1000-hassette.apps.my_app-55");
+  });
+
+  it("gives two seq-0 records with different logger/lineno distinct keys", () => {
+    const a = entry({ seq: 0, timestamp: 1000, logger_name: "third_party_a", lineno: 42 });
+    const b = entry({ seq: 0, timestamp: 1000, logger_name: "third_party_b", lineno: 99 });
+    expect(rowKey(a)).not.toBe(rowKey(b));
+  });
+
+  it("documents that two fully-identical seq-0 records still collide", () => {
+    // Same timestamp, logger, and line, both carrying the unstamped seq-0 fallback —
+    // rowKey has no remaining field to discriminate on. Accepted as an extremely rare
+    // edge case rather than a silent regression: it's a documented, deliberate limit.
+    const a = entry({ seq: 0, timestamp: 1000, logger_name: "third_party", lineno: 42 });
+    const b = entry({ seq: 0, timestamp: 1000, logger_name: "third_party", lineno: 42 });
+    expect(rowKey(a)).toBe(rowKey(b));
   });
 });
 

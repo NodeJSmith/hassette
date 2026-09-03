@@ -78,10 +78,27 @@ class TestAppJobsEnrichmentWithLiveMatch:
         # next_run and fire_at arrive as epoch floats, taken from the live job.
         assert row["next_run"] == pytest.approx(live_job.next_run.timestamp(), abs=0.01)
         assert isinstance(row["next_run"], float)
-        # fire_at is populated because jitter is not None.
+        # fire_at is populated because the live job carries a concrete fire_at value.
         assert row["fire_at"] == pytest.approx(live_job.fire_at.timestamp(), abs=0.01)
         assert isinstance(row["fire_at"], float)
         assert row["jitter"] == 15.0
+
+    async def test_next_run_fire_at_no_jitter_from_live(self, client: AsyncClient, mock_hassette) -> None:
+        """fire_at is populated even when the job has no jitter — it should equal next_run."""
+        live_job = make_live_job(43, "test_job_no_jitter")
+
+        row = await get_enriched_job_row(
+            client,
+            mock_hassette,
+            db_summary=make_job_summary(job_id=43, job_name="test_job_no_jitter", group="morning", next_run=None),
+            live_jobs=[live_job],
+        )
+
+        assert live_job.jitter is None
+        assert row["next_run"] == pytest.approx(live_job.next_run.timestamp(), abs=0.01)
+        assert row["fire_at"] == pytest.approx(live_job.fire_at.timestamp(), abs=0.01)
+        assert row["fire_at"] == pytest.approx(row["next_run"], abs=0.01)
+        assert row["jitter"] is None
 
 
 class TestAppJobsEnrichmentNoLiveMatch:

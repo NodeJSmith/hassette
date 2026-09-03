@@ -112,6 +112,17 @@ CASES: list[tuple[str, str, list[tuple[int, str]]]] = [
         [(5, "outer: '**kwargs: object' forwarded blindly via '**kwargs' into RestartSpec(...)")],
     ),
     (
+        "del_in_nested_function_not_misattributed_to_outer",
+        """\
+        def outer(**kwargs: object) -> RestartSpec:
+            def inner() -> Foo:
+                del kwargs
+                return Foo(**kwargs)
+            return RestartSpec(**kwargs)
+        """,
+        [(5, "outer: '**kwargs: object' forwarded blindly via '**kwargs' into RestartSpec(...)")],
+    ),
+    (
         "nonlocal_reassignment_in_closure_still_flagged",
         """\
         def outer(**kwargs: object) -> Foo:
@@ -181,6 +192,92 @@ CASES: list[tuple[str, str, list[tuple[int, str]]]] = [
             return Task(**kwargs)  # kwargs-forward-ok:
         """,
         [(2, "factory: '**kwargs: Any' forwarded blindly via '**kwargs' into Task(...)")],
+    ),
+    (
+        "subscript_mutation_of_captured_kwargs_still_flagged",
+        """\
+        def outer(**kwargs: object) -> Foo:
+            def inner() -> Foo:
+                kwargs["a"] = 1
+                return Foo(**kwargs)
+            return inner()
+        """,
+        [(4, "outer: '**kwargs: object' forwarded blindly via '**kwargs' into Foo(...)")],
+    ),
+    (
+        "attribute_mutation_of_captured_kwargs_still_flagged",
+        """\
+        def outer(**kwargs: object) -> Foo:
+            def inner() -> Foo:
+                kwargs.extra = 1
+                return Foo(**kwargs)
+            return inner()
+        """,
+        [(4, "outer: '**kwargs: object' forwarded blindly via '**kwargs' into Foo(...)")],
+    ),
+    (
+        "subscripted_generic_constructor_flagged",
+        """\
+        def make_model(**overrides: object) -> Model[int]:
+            return Model[int](**overrides)
+        """,
+        [(2, "make_model: '**overrides: object' forwarded blindly via '**overrides' into Model(...)")],
+    ),
+    (
+        "subscripted_screaming_case_registry_not_flagged",
+        """\
+        def dispatch(**overrides: object) -> str:
+            return HANDLERS[key](**overrides)
+        """,
+        [],
+    ),
+    (
+        "subscripted_screaming_case_registry_with_dotted_key_not_flagged",
+        """\
+        def dispatch(**overrides: object) -> str:
+            return CLI_FORMATTERS[meta.style](**overrides)
+        """,
+        [],
+    ),
+    (
+        "subscripted_acronym_class_not_flagged_known_false_negative",
+        """\
+        def make_url(**overrides: object) -> URL[int]:
+            return URL[int](**overrides)
+        """,
+        [],
+    ),
+    (
+        "shadowing_definition_time_default_not_flagged_known_false_negative",
+        """\
+        def outer(**kwargs: object) -> Callable[..., None]:
+            def inner(x=Foo(**kwargs), **kwargs: int) -> None:
+                pass
+            return inner
+        """,
+        [],
+    ),
+    (
+        "nested_class_method_capture_not_flagged_known_false_negative",
+        """\
+        def outer(**kwargs: object) -> type:
+            class Local:
+                def method(self) -> Foo:
+                    return Foo(**kwargs)
+            return Local
+        """,
+        [],
+    ),
+    (
+        "match_case_binding_misattributed_to_outer_known_false_positive",
+        """\
+        def outer(**kwargs: object) -> Foo:
+            match [1]:
+                case [kwargs]:
+                    return Foo(**kwargs)
+            return RestartSpec()
+        """,
+        [(4, "outer: '**kwargs: object' forwarded blindly via '**kwargs' into Foo(...)")],
     ),
 ]
 

@@ -344,6 +344,7 @@ class TestQueryParamForwarding:
             # ...and omitting it passes None rather than a default window.
             ("/api/telemetry/app/my_app/health", "get_app_health_aggregates", {"since": None}),
             ("/api/telemetry/listener/1/executions", "get_executions", {"since": None}),
+            ("/api/telemetry/app/my_app/activity", "get_app_recent_activity", {"since": None}),
             # limit= and source_tier= travel the same path.
             ("/api/telemetry/app/my_app/activity?limit=10", "get_app_recent_activity", {"limit": 10}),
             ("/api/telemetry/app/my_app/health?source_tier=all", "get_app_health_aggregates", {"source_tier": "all"}),
