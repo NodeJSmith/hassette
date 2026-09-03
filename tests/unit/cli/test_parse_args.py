@@ -106,6 +106,13 @@ class TestFlagCombinations:
         assert bound.arguments["instance"] == "1"
         assert bound.arguments["yes"] is True
 
+    def test_app_reload_instance_and_yes(self) -> None:
+        cmd, bound, _ = app.parse_args(["app", "reload", "test-app", "--instance", "1", "--yes"])
+
+        assert cmd.__name__ == "cmd_app_reload"
+        assert bound.arguments["instance"] == "1"
+        assert bound.arguments["yes"] is True
+
     def test_execution_uuid_limit(self) -> None:
         _cmd, bound, _ = app.parse_args(["execution", "abc-123-def", "--limit", "100"])
 
