@@ -2,7 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 import type { AppInstance } from "../../api/endpoints";
-import { STATUS_DOT_SIZE } from "../../utils/constants";
+import { BADGE_STATUS_DOT_SIZE, STATUS_DOT_SIZE } from "../../utils/constants";
 import { statusToKind, statusToVariant } from "../../utils/status";
 import { StatusShape } from "../shared/status-shape";
 
@@ -40,7 +40,7 @@ export function InstanceSwitcher({
               if (!isActive) onNavigate(instance.index);
             }}
           >
-            <StatusShape kind={statusToKind(instance.status)} size={8} />
+            <StatusShape kind={statusToKind(instance.status)} size={BADGE_STATUS_DOT_SIZE} />
             <span className="max-w-[140px] overflow-hidden text-ellipsis">{instance.instance_name}</span>
           </button>
         );
@@ -105,8 +105,8 @@ export function MultiInstanceOverview({
       </div>
       <code className="mb-4 block font-mono text-sm">{appKey}</code>
       <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4" data-testid="instance-grid">
-        {instances.map((inst) => (
-          <InstanceCard key={inst.index} instance={inst} onNavigate={onNavigate} />
+        {instances.map((instance) => (
+          <InstanceCard key={instance.index} instance={instance} onNavigate={onNavigate} />
         ))}
       </div>
     </div>

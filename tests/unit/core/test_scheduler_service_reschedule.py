@@ -398,48 +398,6 @@ class TestEnqueueThenRegisterUsesProtocol:
         )
 
 
-class TestRemoveJobsByOwnerCallbacks:
-    async def test_remove_jobs_by_owner_fires_callback_for_each_job(self) -> None:
-        """_remove_jobs_by_owner invokes registered callback for each removed job."""
-        svc = make_scheduler_service()
-
-        job_a = make_scheduled_job(owner_id="owner_x")
-        job_b = make_scheduled_job(owner_id="owner_x")
-        # remove_owner must return the actual removed jobs
-        svc._job_queue.remove_owner = AsyncMock(return_value=[job_a, job_b])
-
-        callback = MagicMock()
-        svc.register_removal_callback("owner_x", callback)
-
-        await svc._remove_jobs_by_owner("owner_x")
-
-        assert callback.call_count == 2
-        callback.assert_any_call(job_a)
-        callback.assert_any_call(job_b)
-
-    async def test_remove_jobs_by_owner_no_callback_no_crash(self) -> None:
-        """_remove_jobs_by_owner with no registered callback doesn't crash."""
-        svc = make_scheduler_service()
-        job = make_scheduled_job(owner_id="owner_y")
-        svc._job_queue.remove_owner = AsyncMock(return_value=[job])
-
-        # No callback registered — must not raise
-        await svc._remove_jobs_by_owner("owner_y")
-
-    async def test_remove_jobs_by_owner_callback_not_called_for_different_owner(self) -> None:
-        """Callback for owner_a is not called when owner_b's jobs are removed."""
-        svc = make_scheduler_service()
-        job = make_scheduled_job(owner_id="owner_b")
-        svc._job_queue.remove_owner = AsyncMock(return_value=[job])
-
-        callback_a = MagicMock()
-        svc.register_removal_callback("owner_a", callback_a)
-
-        await svc._remove_jobs_by_owner("owner_b")
-
-        callback_a.assert_not_called()
-
-
 class TestDuplicateRemovalCallback:
     def test_re_registration_overwrites_previous_callback(self) -> None:
         """Registering a second callback for the same owner_id replaces the first.

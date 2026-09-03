@@ -112,6 +112,17 @@ CASES: list[tuple[str, str, list[tuple[int, str]]]] = [
         [(5, "outer: '**kwargs: object' forwarded blindly via '**kwargs' into RestartSpec(...)")],
     ),
     (
+        "del_in_nested_function_not_misattributed_to_outer",
+        """\
+        def outer(**kwargs: object) -> RestartSpec:
+            def inner() -> Foo:
+                del kwargs
+                return Foo(**kwargs)
+            return RestartSpec(**kwargs)
+        """,
+        [(5, "outer: '**kwargs: object' forwarded blindly via '**kwargs' into RestartSpec(...)")],
+    ),
+    (
         "nonlocal_reassignment_in_closure_still_flagged",
         """\
         def outer(**kwargs: object) -> Foo:
@@ -256,6 +267,17 @@ CASES: list[tuple[str, str, list[tuple[int, str]]]] = [
             return Local
         """,
         [],
+    ),
+    (
+        "match_case_binding_misattributed_to_outer_known_false_positive",
+        """\
+        def outer(**kwargs: object) -> Foo:
+            match [1]:
+                case [kwargs]:
+                    return Foo(**kwargs)
+            return RestartSpec()
+        """,
+        [(4, "outer: '**kwargs: object' forwarded blindly via '**kwargs' into Foo(...)")],
     ),
 ]
 

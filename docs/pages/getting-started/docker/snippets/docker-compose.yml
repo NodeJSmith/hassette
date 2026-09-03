@@ -12,7 +12,7 @@ services:
     ports:
       - "8126:8126"
     environment:
-      - HASSETTE__LOG_LEVEL=info
+      - HASSETTE__LOGGING__LOG_LEVEL=info
       - TZ=America/New_York # Fallback timezone; HASSETTE__TIMEZONE in .env is preferred
     healthcheck:
       # Keep this pointed at /api/health/live — it stays healthy during HA outages.

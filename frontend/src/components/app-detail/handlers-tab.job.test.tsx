@@ -603,6 +603,28 @@ describe("HandlersTab job detail", () => {
       expect(statsRow.textContent).not.toContain("Timing unavailable.");
     });
 
+    it("falls back to the last-executed time for a status with no display text and no next run", async () => {
+      // schedule_status is typed as a plain string (not the ScheduleStatus literal union) so the
+      // frontend tolerates a value outside the four known statuses -- e.g. a legacy DB row, or a
+      // status a future backend adds before this frontend recognizes it. Neither the static
+      // display map nor the "scheduled"-specific fallback matches, so resolveLastCell falls
+      // through to the job's own last-executed time instead of showing nothing.
+      const job = createJob({
+        job_id: 87,
+        schedule_status: "unrecognized_status",
+        schedule_status_reason: null,
+        next_run: null,
+        fire_at: null,
+        last_executed_at: Date.now() / 1000 - 300,
+      });
+      const { getByTestId } = renderHandlersTab([], [job], "job/87");
+      await waitFor(() => getByTestId("job-stats-row"));
+      const statsRow = getByTestId("job-stats-row");
+      expect(statsRow.textContent).toContain("Last");
+      expect(statsRow.textContent).not.toContain("Timing unavailable.");
+      expect(statsRow.textContent).not.toContain("Schedule");
+    });
+
     it.each(["manual", "waiting", "completed"] as const)("Run Now stays available for status '%s'", async (status) => {
       const job = createJob({ job_id: 90, schedule_status: status, next_run: null, fire_at: null });
       const { getByTestId } = renderHandlersTab([], [job], "job/90");

@@ -74,7 +74,8 @@ class JobSummary(BaseModel):
     live timing available. A ``None`` value no longer implies the job is done; see
     ``schedule_status``/``schedule_status_reason`` for the reason timing is unavailable."""
     fire_at: float | None = None
-    """Unix epoch seconds of actual dispatch time when jitter applied; sourced from live heap."""
+    """Unix epoch seconds of the live job's dispatch time; sourced from live heap. Equals
+    ``next_run`` when no jitter is configured."""
     jitter: float | None = None
     """Seconds of random jitter offset; sourced from live heap."""
     last_error_message: str | None = None

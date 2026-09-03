@@ -34,7 +34,7 @@ export function OverviewHealthStrip({ listeners, jobs }: OverviewHealthStripProp
     },
     {
       label: "Error Rate",
-      value: totalRuns > 0 ? `${errorRate}%` : "0%",
+      value: `${errorRate}%`,
       tone: totalErrors > 0 ? "err" : undefined,
     },
   ];
