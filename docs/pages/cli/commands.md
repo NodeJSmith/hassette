@@ -100,7 +100,7 @@ $ hassette app
 | `hassette app stop <key>`     | Stops an app or instance.   | `POST /api/apps/{key}/stop`             |
 | `hassette app reload <key>`   | Reloads an app or instance. | `POST /api/apps/{key}/reload`           |
 
-Passing `--instance` routes `start`/`stop`/`reload` to a different endpoint: `POST /api/apps/{key}/instances/{index}/{start,stop,reload}` instead of the app-level path shown above.
+The CLI routes `start`/`stop`/`reload` with `--instance` to a different endpoint: `POST /api/apps/{key}/instances/{index}/{start,stop,reload}` instead of the app-level path shown above.
 
 ### `hassette app start <key>`
 
