@@ -456,7 +456,7 @@ class ActionResponse(BaseModel):
     status: Literal["accepted"] = "accepted"
     app_key: str
     action: str
-    instance_index: int | None = None
+    instance_index: int | None
 
 
 class JobTriggerResponse(BaseModel):

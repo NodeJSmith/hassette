@@ -66,6 +66,7 @@ export const handlers = [
       status: "accepted",
       app_key: String(params["app_key"]),
       action: "start",
+      instance_index: null,
     });
   }),
 
@@ -75,6 +76,7 @@ export const handlers = [
       status: "accepted",
       app_key: String(params["app_key"]),
       action: "stop",
+      instance_index: null,
     });
   }),
 
@@ -84,6 +86,7 @@ export const handlers = [
       status: "accepted",
       app_key: String(params["app_key"]),
       action: "reload",
+      instance_index: null,
     });
   }),
 

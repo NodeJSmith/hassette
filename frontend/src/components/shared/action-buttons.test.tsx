@@ -84,7 +84,12 @@ describe("ActionButtons", () => {
     // here: userEvent.click() internally awaits several microtask turns, so by the time it
     // resolves an already-settled mock promise would have flipped `loading` back to false
     // already, making the mid-flight "disabled while loading" state unobservable.
-    let resolveStart: (value: { status: "accepted"; app_key: string; action: string }) => void;
+    let resolveStart: (value: {
+      status: "accepted";
+      app_key: string;
+      action: string;
+      instance_index: number | null;
+    }) => void;
     startApp.mockImplementation(
       () =>
         new Promise((resolve) => {
@@ -101,7 +106,7 @@ describe("ActionButtons", () => {
     await waitFor(() => expect(btn.disabled).toBe(true));
     expect(startApp).toHaveBeenCalledWith("my_app");
 
-    resolveStart!({ status: "accepted", app_key: "my_app", action: "start" });
+    resolveStart!({ status: "accepted", app_key: "my_app", action: "start", instance_index: null });
     await clickPromise;
 
     await waitFor(() => {
@@ -113,7 +118,7 @@ describe("ActionButtons", () => {
 
   it("calls stopApp when Stop is clicked", async () => {
     const user = userEvent.setup();
-    stopApp.mockResolvedValue({ status: "accepted", app_key: "my_app", action: "stop" });
+    stopApp.mockResolvedValue({ status: "accepted", app_key: "my_app", action: "stop", instance_index: null });
 
     const { getByTestId } = render(<ActionButtons appKey="my_app" status="running" />);
 
@@ -129,7 +134,7 @@ describe("ActionButtons", () => {
 
   it("calls reloadApp when Reload is clicked", async () => {
     const user = userEvent.setup();
-    reloadApp.mockResolvedValue({ status: "accepted", app_key: "my_app", action: "reload" });
+    reloadApp.mockResolvedValue({ status: "accepted", app_key: "my_app", action: "reload", instance_index: null });
 
     const { getByTestId } = render(<ActionButtons appKey="my_app" status="running" />);
 
@@ -201,7 +206,7 @@ describe("ActionButtons", () => {
     expect(startApp).toHaveBeenCalledTimes(1);
 
     // Resolve the pending action to clean up
-    resolveAction({ status: "accepted", app_key: "my_app", action: "start" });
+    resolveAction({ status: "accepted", app_key: "my_app", action: "start", instance_index: null });
     await waitFor(() => {
       expect(btn.disabled).toBe(false);
     });
@@ -225,7 +230,7 @@ describe("ActionButtons", () => {
 
   it("calls stopApp when the confirm dialog's Stop action is confirmed", async () => {
     const user = userEvent.setup();
-    stopApp.mockResolvedValue({ status: "accepted", app_key: "my_app", action: "stop" });
+    stopApp.mockResolvedValue({ status: "accepted", app_key: "my_app", action: "stop", instance_index: null });
 
     render(<ActionButtons appKey="my_app" status="running" confirmStop />);
 
@@ -258,7 +263,7 @@ describe("ActionButtons", () => {
 
   it("calls startInstance (not startApp) when instance prop is provided", async () => {
     const user = userEvent.setup();
-    startInstance.mockResolvedValue({ status: "accepted", app_key: "my_app", action: "start" });
+    startInstance.mockResolvedValue({ status: "accepted", app_key: "my_app", action: "start", instance_index: 1 });
 
     const { getByTestId } = render(<ActionButtons appKey="my_app" status="stopped" instance={instance} />);
 
@@ -270,7 +275,7 @@ describe("ActionButtons", () => {
 
   it("calls stopInstance (not stopApp) when instance prop is provided", async () => {
     const user = userEvent.setup();
-    stopInstance.mockResolvedValue({ status: "accepted", app_key: "my_app", action: "stop" });
+    stopInstance.mockResolvedValue({ status: "accepted", app_key: "my_app", action: "stop", instance_index: 1 });
 
     const { getByTestId } = render(<ActionButtons appKey="my_app" status="running" instance={instance} />);
 
@@ -282,7 +287,7 @@ describe("ActionButtons", () => {
 
   it("calls reloadInstance (not reloadApp) when instance prop is provided", async () => {
     const user = userEvent.setup();
-    reloadInstance.mockResolvedValue({ status: "accepted", app_key: "my_app", action: "reload" });
+    reloadInstance.mockResolvedValue({ status: "accepted", app_key: "my_app", action: "reload", instance_index: 1 });
 
     const { getByTestId } = render(<ActionButtons appKey="my_app" status="running" instance={instance} />);
 
@@ -304,7 +309,7 @@ describe("ActionButtons", () => {
 
   it("uses instance-aware toast text when instance prop is provided", async () => {
     const user = userEvent.setup();
-    reloadInstance.mockResolvedValue({ status: "accepted", app_key: "my_app", action: "reload" });
+    reloadInstance.mockResolvedValue({ status: "accepted", app_key: "my_app", action: "reload", instance_index: 1 });
 
     const { getByTestId } = render(<ActionButtons appKey="my_app" status="running" instance={instance} />);
 
@@ -376,7 +381,7 @@ describe("ActionButtons", () => {
 
   it("calls stopInstance when the confirm dialog's Stop action is confirmed with instance prop", async () => {
     const user = userEvent.setup();
-    stopInstance.mockResolvedValue({ status: "accepted", app_key: "my_app", action: "stop" });
+    stopInstance.mockResolvedValue({ status: "accepted", app_key: "my_app", action: "stop", instance_index: 1 });
 
     render(<ActionButtons appKey="my_app" status="running" confirmStop instance={instance} />);
 

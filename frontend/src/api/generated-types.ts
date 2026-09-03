@@ -729,7 +729,7 @@ export interface components {
             /** Action */
             action: string;
             /** Instance Index */
-            instance_index?: number | null;
+            instance_index: number | null;
         };
         /**
          * ActivityBucket

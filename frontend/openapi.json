@@ -1856,7 +1856,8 @@
         "type": "object",
         "required": [
           "app_key",
-          "action"
+          "action",
+          "instance_index"
         ],
         "title": "ActionResponse",
         "description": "Response for app mutation endpoints (start/stop/reload).\n\n``instance_index`` is the server-confirmed instance the action ran against \u2014 ``None`` for\nan app-level action, the validated index for an instance-scoped one. Callers (the CLI and\nthe frontend toast) compare this against the index they requested rather than trusting\ntheir own request data, since a routing bug would otherwise still look like a plain 202."
