@@ -85,17 +85,17 @@ describe("resolveSortKey", () => {
 
 describe("rowKey", () => {
   it("uses timestamp-seq when seq is present", () => {
-    const e = { seq: 42, timestamp: 1000, logger_name: "test", lineno: 10 } as LogEntry;
+    const e = { seq: 42, timestamp: 1000, logger_name: "test", lineno: 10 };
     expect(rowKey(e)).toBe("1000-42");
   });
 
   it("uses timestamp-seq-logger-lineno when seq is the 0 fallback marker", () => {
-    const e = { seq: 0, timestamp: 1000, logger_name: "hassette.apps.my_app", lineno: 55 } as LogEntry;
+    const e = { seq: 0, timestamp: 1000, logger_name: "hassette.apps.my_app", lineno: 55 };
     expect(rowKey(e)).toBe("1000-0-hassette.apps.my_app-55");
   });
 
   it("falls back to timestamp-logger-lineno only when seq is genuinely absent", () => {
-    const e = { timestamp: 1000, logger_name: "hassette.apps.my_app", lineno: 55 } as unknown as LogEntry;
+    const e = { timestamp: 1000, logger_name: "hassette.apps.my_app", lineno: 55 };
     expect(rowKey(e)).toBe("1000-hassette.apps.my_app-55");
   });
 

@@ -41,7 +41,13 @@ export interface LogColumnMeta {
 
 export type RowKey = string;
 
-export function rowKey(entry: LogEntry): RowKey {
+/** The subset of `LogEntry` fields `rowKey` actually reads, so callers (and test fixtures) don't
+ * need a full `LogEntry` — just these four. */
+export type RowKeyInput = Pick<LogEntry, "timestamp" | "logger_name" | "lineno"> & {
+  seq?: LogEntry["seq"] | null;
+};
+
+export function rowKey(entry: RowKeyInput): RowKey {
   // `seq` is always present (backend falls back to `seq: 0` for records that bypass
   // CorrelationFilter — early-startup and third-party logger records). Check for
   // presence with `!= null`, not truthiness, so a real `seq: 0` isn't mistaken for
