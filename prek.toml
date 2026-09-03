@@ -286,3 +286,11 @@ entry = "./tools/check_coordinator_internal.py"
 pass_filenames = false
 files = '^tests/.*\.py$'
 stages = ["pre-commit", "pre-push"]
+
+[[repos.hooks]]
+id = "check-kwargs-forwarding"
+name = "Check for blind **kwargs forwarding typed object/Any"
+language = "system"
+entry = "./tools/check_kwargs_forwarding.py"
+files = '^src/hassette/.*\.py$'
+stages = ["pre-commit", "pre-push"]

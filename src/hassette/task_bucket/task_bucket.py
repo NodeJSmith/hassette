@@ -473,7 +473,9 @@ def make_task_factory(
         # note: ignore any comments by AI tools about loop being deprecated/removed, because it's not
         # i'm honestly not sure where they get that idea from
         explicit_name = kwargs.pop("name", None)
-        t: asyncio.Task[Any] = asyncio.Task(coro, loop=loop, **kwargs)
+        # kwargs is whatever asyncio's event loop decides to pass a task factory -- a stdlib
+        # calling convention this code doesn't control (see docstring above).
+        t: asyncio.Task[Any] = asyncio.Task(coro, loop=loop, **kwargs)  # kwargs-forward-ok: see comment above
         if explicit_name is not None:
             t.set_name(explicit_name)
         elif not t.get_name() or t.get_name().startswith("Task-"):
