@@ -158,6 +158,11 @@ def _run_app_action(key: str, action: str, instance: str | None, yes: bool, ctx:
         instance_label = instance_name if instance_name is not None else instance
 
     if action in _ACTIONS_REQUIRING_CONFIRMATION and not yes:
+        if ctx.json_mode:
+            # input() always writes its prompt to stdout, which would corrupt the
+            # single-JSON-document stdout contract in --json mode. Require --yes instead of
+            # ever prompting when JSON output is requested.
+            client.error_usage(f"--yes is required to {action} in --json mode")
         prompt = (
             f"{action.capitalize()} instance {instance_label!r} of {key!r}?"
             if instance_label is not None
@@ -181,7 +186,13 @@ def _run_app_action(key: str, action: str, instance: str | None, yes: bool, ctx:
 
     verb = _ACTION_PAST_TENSE[action]
     message = f"Instance {instance_label!r} of {key!r} {verb}" if instance_label is not None else f"App {key!r} {verb}"
-    detail = {"status": result.status, "app_key": result.app_key, "action": result.action, "message": message}
+    detail = {
+        "status": result.status,
+        "app_key": result.app_key,
+        "action": result.action,
+        "instance_index": result.instance_index,
+        "message": message,
+    }
     render_detail_dict(detail, "App Action", json_mode=ctx.json_mode)
 
 

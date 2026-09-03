@@ -2,6 +2,7 @@
 start/stop/reload commands.
 """
 
+import json
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -21,6 +22,7 @@ from hassette.cli.commands.app import (
     cmd_app_start,
     cmd_app_stop,
 )
+from hassette.cli.context import CLIContext
 from hassette.cli.output import now_epoch
 from hassette.test_utils.web_manifest_helpers import make_manifest_list_response, make_manifest_response
 from hassette.test_utils.web_response_helpers import (
@@ -34,6 +36,7 @@ from tests.unit.cli.conftest import (
     SINCE_EPOCH,
     CLIClientFactory,
     CommandRunner,
+    capture_json_stdout,
 )
 
 runner = CommandRunner("hassette.cli.commands.app.make_client")
@@ -458,6 +461,36 @@ class TestCmdAppActionRouting:
         assert parsed["message"] == f"Instance 'inst1' of 'my_app' {verb}"
 
     @pytest.mark.parametrize(("cmd", "action", "verb", "extra"), _ACTION_CASES)
+    def test_json_output_includes_instance_index_app_level(
+        self, cli_client_factory: CLIClientFactory, cmd, action: str, verb: str, extra: dict[str, Any]
+    ) -> None:
+        """App-level (no --instance) JSON output includes instance_index: null."""
+        client = cli_client_factory.build_with_routes(
+            [("POST", f"/api/apps/my_app/{action}", 200, _action_response(action=action).model_dump())]
+        )
+        parsed = runner.json_output(client, cmd, "my_app", **extra)
+        assert parsed["instance_index"] is None
+
+    @pytest.mark.parametrize(("cmd", "action", "verb", "extra"), _ACTION_CASES)
+    def test_json_output_includes_instance_index_instance_level(
+        self, cli_client_factory: CLIClientFactory, cmd, action: str, verb: str, extra: dict[str, Any]
+    ) -> None:
+        """Instance-scoped JSON output includes the server-confirmed instance_index."""
+        client = cli_client_factory.build_with_routes(
+            [
+                _manifest_route([_instance(1, "inst1")]),
+                (
+                    "POST",
+                    f"/api/apps/my_app/instances/1/{action}",
+                    200,
+                    _action_response(action=action, instance_index=1).model_dump(),
+                ),
+            ]
+        )
+        parsed = runner.json_output(client, cmd, "my_app", instance="1", **extra)
+        assert parsed["instance_index"] == 1
+
+    @pytest.mark.parametrize(("cmd", "action", "verb", "extra"), _ACTION_CASES)
     def test_success_message_falls_back_to_raw_selector_when_instance_unresolvable(
         self, cli_client_factory: CLIClientFactory, cmd, action: str, verb: str, extra: dict[str, Any]
     ) -> None:
@@ -575,6 +608,28 @@ class TestCmdAppStop:
         with patch("builtins.input", side_effect=AssertionError("must not prompt with --yes")):
             runner.stdout(client, cmd_app_stop, "my_app", yes=True)
 
+    def test_json_mode_without_yes_requires_yes_flag(self, cli_client_factory: CLIClientFactory) -> None:
+        """Stop --json without --yes never calls input() and exits via the JSON usage-error path."""
+        client = cli_client_factory.build_with_routes(
+            [("POST", "/api/apps/my_app/stop", 200, _action_response(action="stop").model_dump())],
+            json_mode=True,
+        )
+        spy = _spy_post(client)
+        with (
+            patch("builtins.input", side_effect=AssertionError("must not prompt in --json mode")),
+            patch.object(client, "post", spy),
+            patch(runner.make_client_path, return_value=client),
+            capture_json_stdout() as captured,
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            cmd_app_stop("my_app", ctx=CLIContext(json_mode=True))
+
+        assert exc_info.value.code == 1
+        spy.assert_not_called()
+        doc = json.loads("".join(captured))
+        assert doc["error"] is True
+        assert "--yes" in doc["detail"]
+
     def test_error_on_instance_out_of_range(self, cli_client_factory: CLIClientFactory) -> None:
         """Stop against an out-of-range instance index surfaces the 404 via the HTTP error path.
 
@@ -620,6 +675,28 @@ class TestCmdAppReload:
             runner.stdout(client, cmd_app_reload, "my_app", instance="office")
 
         assert "Reload instance 'office' of 'my_app'?" in mock_input.call_args[0][0]
+
+    def test_json_mode_without_yes_requires_yes_flag(self, cli_client_factory: CLIClientFactory) -> None:
+        """Reload --json without --yes never calls input() and exits via the JSON usage-error path."""
+        client = cli_client_factory.build_with_routes(
+            [("POST", "/api/apps/my_app/reload", 200, _action_response(action="reload").model_dump())],
+            json_mode=True,
+        )
+        spy = _spy_post(client)
+        with (
+            patch("builtins.input", side_effect=AssertionError("must not prompt in --json mode")),
+            patch.object(client, "post", spy),
+            patch(runner.make_client_path, return_value=client),
+            capture_json_stdout() as captured,
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            cmd_app_reload("my_app", ctx=CLIContext(json_mode=True))
+
+        assert exc_info.value.code == 1
+        spy.assert_not_called()
+        doc = json.loads("".join(captured))
+        assert doc["error"] is True
+        assert "--yes" in doc["detail"]
 
     def test_declining_confirmation_exits_without_posting(self, cli_client_factory: CLIClientFactory) -> None:
         """Declining the reload confirmation aborts before POSTing."""

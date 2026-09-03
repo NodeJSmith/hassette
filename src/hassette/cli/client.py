@@ -151,14 +151,16 @@ class HassetteCLIClient:
                 result: Any = data
             else:
                 result = model.model_validate(data)  # pyright: ignore[reportAttributeAccessIssue]
-        except ValueError:
+        except ValueError as exc:
             # A tolerated 503 can carry a body that isn't the expected status
             # payload — a proxy/LB HTML error page (non-JSON) or JSON of the wrong
             # shape. pydantic.ValidationError is a ValueError, so both land here.
-            # Route them to the normal error exit instead of crashing.
+            # Route them to the normal error exit instead of crashing. A plain 2xx
+            # response with an unparseable body gets the same treatment — see
+            # post()'s matching except clause below.
             if is_tolerated_503:
                 self._handle_http_error(response)
-            raise
+            self.error_usage(f"Invalid response from server: {exc}")
 
         self._echo_success_target_and_warnings()
         return result
@@ -177,7 +179,13 @@ class HassetteCLIClient:
         if not response.is_success:
             self._handle_http_error(response)
 
-        result = ActionResponse.model_validate(response.json())
+        try:
+            result = ActionResponse.model_validate(response.json())
+        except ValueError as exc:
+            # response.json() (invalid JSON) and model_validate() (schema mismatch) both raise
+            # ValueError subclasses here — either way, a 2xx response with a body we can't parse
+            # into an ActionResponse should exit cleanly, not crash with a traceback.
+            self.error_usage(f"Invalid response from server: {exc}")
 
         self._echo_success_target_and_warnings()
         return result

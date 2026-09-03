@@ -15,7 +15,7 @@ from hassette.cli.client import HassetteCLIClient
 from hassette.config.config import HassetteConfig
 from hassette.config.models import WebApiConfig
 from hassette.test_utils.web_manifest_helpers import make_manifest_list_response, make_manifest_response
-from hassette.web.models import AppInstanceResponse
+from hassette.web.models import ActionResponse, AppInstanceResponse
 from tests.unit.cli.conftest import REMOTE_SERVER_URL, capture_stderr, make_cli_config
 
 MANIFESTS_ENDPOINT = "/api/apps/manifests"
@@ -249,6 +249,99 @@ class TestTolerate503:
         with pytest.raises(SystemExit) as exc_info:
             client.get(TELEMETRY_STATUS_ENDPOINT, SimpleModel, tolerate_503=True)
         assert exc_info.value.code == 1
+
+
+# get(): malformed successful responses (non-tolerated-503 case)
+
+
+class TestGetMalformedResponse:
+    def test_invalid_json_body_exits_instead_of_crashing(self) -> None:
+        """A plain 2xx response with a non-JSON body routes through error_usage(), not a raw ValueError."""
+        config = make_host_port_config()
+
+        def handler(_req: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, content=b"not json", headers={"content-type": "application/json"})
+
+        client = HassetteCLIClient(config, json_mode=False, transport=httpx.MockTransport(handler))
+        with pytest.raises(SystemExit) as exc_info:
+            client.get(TELEMETRY_STATUS_ENDPOINT, SimpleModel)
+        assert exc_info.value.code == 1
+
+    def test_schema_mismatch_exits_instead_of_crashing(self) -> None:
+        """A plain 2xx response whose JSON doesn't match the model also routes through error_usage()."""
+        config = make_host_port_config()
+        transport = make_transport(200, {"unexpected": "shape"})
+        client = HassetteCLIClient(config, json_mode=False, transport=transport)
+        with pytest.raises(SystemExit) as exc_info:
+            client.get(TELEMETRY_STATUS_ENDPOINT, SimpleModel)
+        assert exc_info.value.code == 1
+
+    def test_schema_mismatch_json_mode_writes_error_doc(self, capsys: pytest.CaptureFixture[str]) -> None:
+        config = make_host_port_config()
+        transport = make_transport(200, {"unexpected": "shape"})
+        client = HassetteCLIClient(config, json_mode=True, transport=transport)
+        with pytest.raises(SystemExit) as exc_info:
+            client.get(TELEMETRY_STATUS_ENDPOINT, SimpleModel)
+        assert exc_info.value.code == 1
+        parsed = json.loads(capsys.readouterr().out)
+        assert parsed["error"] is True
+
+
+# post(): malformed successful responses
+
+
+class TestPostMalformedResponse:
+    def test_invalid_json_body_exits_instead_of_crashing(self) -> None:
+        """A 2xx response with a non-JSON body routes through error_usage(), not a raw ValueError."""
+        config = make_host_port_config()
+
+        def handler(_req: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, content=b"not json", headers={"content-type": "application/json"})
+
+        client = HassetteCLIClient(config, json_mode=False, transport=httpx.MockTransport(handler))
+        with pytest.raises(SystemExit) as exc_info:
+            client.post("/api/apps/my_app/stop")
+        assert exc_info.value.code == 1
+
+    def test_invalid_json_body_prints_usage_error_to_stderr(self) -> None:
+        config = make_host_port_config()
+
+        def handler(_req: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, content=b"not json", headers={"content-type": "application/json"})
+
+        client = HassetteCLIClient(config, json_mode=False, transport=httpx.MockTransport(handler))
+        with capture_stderr() as buf, pytest.raises(SystemExit):
+            client.post("/api/apps/my_app/stop")
+        assert "Usage error" in buf.getvalue()
+
+    def test_schema_mismatch_exits_instead_of_crashing(self) -> None:
+        """A 2xx response whose JSON doesn't match ActionResponse also routes through error_usage()."""
+        config = make_host_port_config()
+        transport = make_transport(200, {"unexpected": "shape"})
+        client = HassetteCLIClient(config, json_mode=False, transport=transport)
+        with pytest.raises(SystemExit) as exc_info:
+            client.post("/api/apps/my_app/stop")
+        assert exc_info.value.code == 1
+
+    def test_schema_mismatch_json_mode_writes_error_doc(self, capsys: pytest.CaptureFixture[str]) -> None:
+        config = make_host_port_config()
+        transport = make_transport(200, {"unexpected": "shape"})
+        client = HassetteCLIClient(config, json_mode=True, transport=transport)
+        with pytest.raises(SystemExit) as exc_info:
+            client.post("/api/apps/my_app/stop")
+        assert exc_info.value.code == 1
+        parsed = json.loads(capsys.readouterr().out)
+        assert parsed["error"] is True
+
+    def test_valid_response_still_returns_action_response(self) -> None:
+        """Control case: a well-formed 2xx body still deserializes normally."""
+        config = make_host_port_config()
+        body = ActionResponse(app_key="my_app", action="stop", instance_index=None).model_dump()
+        transport = make_transport(200, body)
+        client = HassetteCLIClient(config, json_mode=False, transport=transport)
+        result = client.post("/api/apps/my_app/stop")
+        assert isinstance(result, ActionResponse)
+        assert result.app_key == "my_app"
 
 
 # HTTP error handling (human mode)
