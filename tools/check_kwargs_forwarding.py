@@ -21,7 +21,7 @@ wrappers forwarding into an ``Any``-typed wrapped callable, ``model_dump`` overr
 cooperative ``__init_subclass__``) — none of which lose anything to pyright, since their
 forwarding target was never field-typed to begin with. The narrower net accepts known gaps,
 not bugs in the heuristic — each requires broader data-flow or scope tracking than this
-guard's local, per-call AST check does. Four are false negatives (a real violation goes
+guard's local, per-call AST check does. Five are false negatives (a real violation goes
 unflagged):
 
 - A dynamically-referenced class held in a lowercase variable (``child_class(**kwargs)``).
@@ -33,6 +33,10 @@ unflagged):
   still forward the outer, untyped mapping even though the inner function's body cannot.
 - A nested class's method closing over an outer function's ``**kwargs`` (traversal always
   stops at a ``ClassDef`` boundary; see ``_reachable_under_binding``).
+- A class-like name that is fully uppercase (an acronym class, e.g. ``URL``, or a single-letter
+  name) reached via subscript-unwrapping (``URL[int](**kwargs)``) — indistinguishable by naming
+  convention from a callable-map/dispatch-table registry (``HANDLERS[key](**kwargs)``), which
+  this guard must not flag (see ``_looks_like_constructor``).
 
 One is a false positive in the opposite direction (a non-violation gets flagged): a
 ``match``/``case`` binding pattern (``case [kwargs]:``, ``case {"a": kwargs}:``) creates a new
@@ -111,24 +115,42 @@ def _object_or_any(annotation: ast.expr) -> str | None:
     return None
 
 
-def _call_target_name(func_expr: ast.expr) -> str | None:
-    """Return the bare name a call targets, for ``Name``, ``Attribute``, and subscripted-generic forms.
+def _call_target_name(func_expr: ast.expr) -> tuple[str, bool] | None:
+    """Return (bare name, was reached via subscript) for ``Name``, ``Attribute``, and subscripted forms.
 
     A subscripted generic constructor call (``Model[int](**kwargs)``) has a ``Subscript`` func
-    expression whose ``.value`` is the actual callee — unwrap it before giving up.
+    expression whose ``.value`` is the actual callee — unwrap it before giving up. The same
+    ``Subscript`` shape also covers indexing into a callable-map/dispatch-table registry
+    (``HANDLERS[key](**kwargs)``), which is not a constructor call at all — the ``via_subscript``
+    flag lets ``_looks_like_constructor`` tell the two apart by naming convention.
     """
     if isinstance(func_expr, ast.Name):
-        return func_expr.id
+        return func_expr.id, False
     if isinstance(func_expr, ast.Attribute):
-        return func_expr.attr
+        return func_expr.attr, False
     if isinstance(func_expr, ast.Subscript):
-        return _call_target_name(func_expr.value)
+        inner = _call_target_name(func_expr.value)
+        if inner is None:
+            return None
+        return inner[0], True
     return None
 
 
-def _looks_like_constructor(name: str) -> bool:
-    """True for a PEP 8 class-shaped name (leading uppercase letter)."""
-    return name[:1].isupper()
+def _looks_like_constructor(name: str, via_subscript: bool) -> bool:
+    """True for a PEP 8 class-shaped name (leading uppercase letter).
+
+    A name reached through subscript-unwrapping that is uppercase throughout (``HANDLERS``,
+    ``CLI_FORMATTERS``) is excluded: PEP 8 reserves SCREAMING_SNAKE_CASE for module-level
+    constants, and the idiomatic use of an all-caps constant here is a callable-map/dispatch-table
+    registry — indexing one and calling the result (``HANDLERS[key](**kwargs)``) is the same
+    dynamic-dispatch pattern already excluded for a lowercase-held reference
+    (``child_class(**kwargs)``), not a constructor call. A mixed-case name reached the same way
+    (``Model`` in ``Model[int](**kwargs)``) still counts — PEP 8 classes are PascalCase, not
+    all-caps, so this only narrows the subscripted path.
+    """
+    if not name[:1].isupper():
+        return False
+    return not (via_subscript and name.isupper())
 
 
 def _is_forwarding_keyword(kw: ast.keyword, kwarg_name: str) -> bool:
@@ -270,8 +292,11 @@ def check_source(source: str) -> list[tuple[int, str]]:
             continue
 
         for call in _forwarding_calls(func, kwarg.arg):
-            target = _call_target_name(call.func)
-            if target is None or not _looks_like_constructor(target):
+            resolved = _call_target_name(call.func)
+            if resolved is None:
+                continue
+            target, via_subscript = resolved
+            if not _looks_like_constructor(target, via_subscript):
                 continue
             if ANNOTATION_RE.search(comments.get(call.lineno, "")):
                 continue

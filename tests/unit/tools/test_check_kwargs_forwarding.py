@@ -213,6 +213,30 @@ CASES: list[tuple[str, str, list[tuple[int, str]]]] = [
         [(2, "make_model: '**overrides: object' forwarded blindly via '**overrides' into Model(...)")],
     ),
     (
+        "subscripted_screaming_case_registry_not_flagged",
+        """\
+        def dispatch(**overrides: object) -> str:
+            return HANDLERS[key](**overrides)
+        """,
+        [],
+    ),
+    (
+        "subscripted_screaming_case_registry_with_dotted_key_not_flagged",
+        """\
+        def dispatch(**overrides: object) -> str:
+            return CLI_FORMATTERS[meta.style](**overrides)
+        """,
+        [],
+    ),
+    (
+        "subscripted_acronym_class_not_flagged_known_false_negative",
+        """\
+        def make_url(**overrides: object) -> URL[int]:
+            return URL[int](**overrides)
+        """,
+        [],
+    ),
+    (
         "shadowing_definition_time_default_not_flagged_known_false_negative",
         """\
         def outer(**kwargs: object) -> Callable[..., None]:
