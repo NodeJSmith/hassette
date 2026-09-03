@@ -1,7 +1,7 @@
 # Design: Separate Public and Internal Testing Infrastructure
 
 **Date:** 2026-09-02
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Research:** design/research/2026-09-02-testing-infra-split/research.md
 
