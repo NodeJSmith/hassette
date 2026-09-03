@@ -78,9 +78,9 @@ A blocking call made directly in a handler — `requests.get(...)`, a database d
 
     `run_on_loop_thread(fn, *args, **kwargs)` runs a synchronous function on the main event loop thread. Loop-affine code that must not run in a worker thread belongs here.
 
-    ### Creating Tasks from Any Context
+    ### Creating Tasks on the Loop
 
-    `create_task_on_loop(coro, *, name=None)` creates a task on the event loop from any thread context. The bucket tracks it like any other spawned task.
+    `create_task_on_loop(coro, *, name=None)` creates a task on the event loop. It must be called from the main event loop thread — unlike `spawn()`, it does no thread-safe dispatch. The bucket tracks it like any other spawned task.
 
 ## Shutdown
 
@@ -114,7 +114,7 @@ sync contexts. `seal()` and `is_sealed()` expose the bucket's admission state di
 teardown sequences and the [test harness](../../testing/harness.md) drain helpers use these.
 
 ??? note "Advanced: collecting task exceptions in test infrastructure"
-    `install_exception_recorder(fn)` registers a callback that receives every exception raised by a bucket task; `uninstall_exception_recorder()` removes it. The [test harness](../../testing/harness.md) uses this to surface handler failures as `DrainError`. Custom harnesses can do the same.
+    `install_exception_recorder(fn)` registers a callback that receives every non-cancellation exception raised by a bucket task — `asyncio.CancelledError` is excluded; `uninstall_exception_recorder()` removes it. The [test harness](../../testing/harness.md) uses this to surface handler failures as `DrainError`. Custom harnesses can do the same.
 
 ## See Also
 
