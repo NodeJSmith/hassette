@@ -322,6 +322,56 @@ class TestMalformedSuccessResponse:
         assert parsed["status"] == 200
         assert "does not match the expected shape" in parsed["detail"]
 
+    def test_non_loopback_shows_target(self, tmp_path: Path) -> None:
+        config = make_cli_config(data_dir=tmp_path, cli_server_url=REMOTE_SERVER_URL)
+        transport = make_transport(200, {"unexpected": "shape"})
+        client = HassetteCLIClient(config, json_mode=False, transport=transport)
+        _code, stderr = get_expecting_exit(client)
+        assert REMOTE_SERVER_URL in stderr
+
+    def test_non_utf8_200_body_prints_clean_error_human_mode(self) -> None:
+        """A tolerated-503/2xx body with malformed UTF-8 bytes raises UnicodeDecodeError from
+        response.json() (not JSONDecodeError) — must still route to the clean error path, not
+        let the raw traceback escape.
+        """
+        config = make_host_port_config()
+
+        def handler(_req: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                200, content=b'{"a": "\xff"}', headers={"content-type": "application/json; charset=utf-8"}
+            )
+
+        client = HassetteCLIClient(config, json_mode=False, transport=httpx.MockTransport(handler))
+        _code, stderr = get_expecting_exit(client)
+        assert "Error" in stderr
+        assert "not valid UTF-8" in stderr
+        assert "Traceback" not in stderr
+
+    def test_non_utf8_200_body_debug_mode_shows_body_without_crashing(self) -> None:
+        """The debug-mode body dump must decode leniently -- response.text would re-raise the
+        same UnicodeDecodeError the malformed-response handler was built to catch.
+        """
+        config = make_host_port_config()
+
+        def handler(_req: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                200, content=b'{"a": "\xff"}', headers={"content-type": "application/json; charset=utf-8"}
+            )
+
+        client = HassetteCLIClient(config, json_mode=False, debug_mode=True, transport=httpx.MockTransport(handler))
+        _code, stderr = get_expecting_exit(client)
+        assert "not valid UTF-8" in stderr
+        assert "Body" in stderr
+
+    def test_debug_mode_shows_url_and_body(self) -> None:
+        config = make_host_port_config()
+        transport = make_transport(200, {"unexpected": "shape"})
+        client = HassetteCLIClient(config, json_mode=False, debug_mode=True, transport=transport)
+        _code, stderr = get_expecting_exit(client)
+        assert "GET" in stderr
+        assert HEALTH_ENDPOINT in stderr
+        assert '"unexpected"' in stderr
+
 
 # HTTP error handling (human mode)
 
