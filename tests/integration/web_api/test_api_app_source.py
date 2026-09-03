@@ -113,5 +113,7 @@ class TestAppSourceEndpoint:
 
         assert response.status_code == 200
         assert len(calls) == 1
+        # The route resolves the path before reading, so compare against the resolved file.
         func = calls[0][0]
-        assert func == src_file.read_text or func.__name__ == "read_text"
+        assert func.__name__ == "read_text"
+        assert func.__self__ == src_file.resolve()

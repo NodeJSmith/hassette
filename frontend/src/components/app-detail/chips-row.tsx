@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 
 import { HandlerModeChip } from "./handler-mode-chip";
 
+/** Labels double as React keys, so a caller's chip list must use distinct labels. */
 export interface Chip {
   label: string;
   value?: string;

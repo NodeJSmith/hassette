@@ -1055,18 +1055,6 @@ class _ScheduledJobQueue(Resource):
 
         return due_jobs, next_run
 
-    async def remove_owner(self, owner: str) -> "list[Job]":
-        """Remove all jobs belonging to the given owner. Returns the removed jobs."""
-        async with self._lock:
-            removed = self._queue.remove_where(lambda job: job.owner_id == owner)
-
-        if removed:
-            self.logger.debug("Removed %d jobs for owner '%s'", len(removed), owner)
-        else:
-            self.logger.debug("No jobs found for owner '%s' to remove", owner)
-
-        return removed
-
     async def remove_job(self, job: "Job") -> bool:
         """Remove a specific job if it exists.
 
@@ -1134,25 +1122,6 @@ class HeapQueue(Generic[T]):
     def is_empty(self) -> bool:
         """Check if the queue is empty."""
         return not self._queue
-
-    def remove_where(self, predicate: Callable[[T], bool]) -> list[T]:
-        """Remove all items matching the predicate, returning the removed items."""
-        if not self._queue:
-            return []
-
-        remaining: list[T] = []
-        removed: list[T] = []
-        for item in self._queue:
-            if predicate(item):
-                removed.append(item)
-            else:
-                remaining.append(item)
-
-        if removed:
-            self._queue = remaining
-            heapq.heapify(self._queue)  # pyright: ignore[reportArgumentType]
-
-        return removed
 
     def remove_item(self, item: T) -> bool:
         """Remove a specific item from the queue if present, by identity.
