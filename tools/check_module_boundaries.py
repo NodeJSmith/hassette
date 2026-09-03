@@ -66,9 +66,11 @@ SCAN_DIRS: list[str] = [SRC.relative_to(REPO_ROOT).as_posix()]
 
 
 #: Layers that own or legitimately wire Hassette internals, so reading ``hassette._foo``
-#: there is not a reach-through. ``core`` is where ``Hassette`` lives; ``test_utils`` is the
-#: test harness, whose whole job is assembling real components from their private slots.
-PRIVATE_ATTR_EXEMPT_LAYERS = frozenset({"core", "test_utils"})
+#: there is not a reach-through. ``core`` is where ``Hassette`` lives; ``test_utils`` and
+#: ``testing`` are the old and new test harness locations during the migration between them
+#: (``test_utils`` is removed from this set once the old package is deleted), whose whole job
+#: is assembling real components from their private slots.
+PRIVATE_ATTR_EXEMPT_LAYERS = frozenset({"core", "test_utils", "testing"})
 #: Reason shown for a private-attr reach-through violation.
 PRIVATE_ATTR_REASON = (
     "subsystem code must not read private attributes of the Hassette core object; "

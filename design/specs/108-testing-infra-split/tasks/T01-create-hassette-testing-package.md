@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Create hassette.testing package with Tier 1 public API"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#1", "FR#2", "FR#4", "FR#8"]
 ---
