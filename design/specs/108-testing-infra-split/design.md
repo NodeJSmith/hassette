@@ -244,7 +244,7 @@ pytest_plugins = [
 
 ### Codemod strategy
 
-A throwaway libcst-based codemod (not committed) rewrites all 445 `from hassette.test_utils...` import statements. It reads a JSON symbol manifest mapping each symbol to its new module path. The transform is deterministic: each symbol maps to exactly one new location.
+A throwaway libcst-based codemod (not committed) rewrites all ~490 `from hassette.test_utils...` import statements. It reads a JSON symbol manifest mapping each symbol to its new module path. The transform is deterministic: each symbol maps to exactly one new location.
 
 **Import transformation rules:**
 

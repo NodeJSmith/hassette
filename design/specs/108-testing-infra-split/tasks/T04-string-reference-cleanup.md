@@ -30,6 +30,12 @@ Grep-based pass to update all non-Python string references to `hassette.test_uti
 - modify: `docs/pages/core-concepts/api/managing-helpers.md` (if references exist — check first)
 - modify: `.claude/skills/doc-accuracy-review/references/briefing-template.md` (source path mapping)
 - modify: `.claude/skills/doc-coverage-review/REFERENCE.md` (module reference)
+- modify: `tests/unit/bus/CLAUDE.md` (stale import path examples)
+- modify: `tests/integration/bus/CLAUDE.md` (stale import path examples)
+- modify: `tests/integration/telemetry/CLAUDE.md` (stale import path examples)
+- modify: `tests/integration/web_api/CLAUDE.md` (stale import path examples)
+- modify: `tests/integration/websocket/CLAUDE.md` (stale import path examples)
+- modify: `tests/unit/tools/test_generate_sync_facade.py` (hardcoded `test_utils/recording_api.py` path)
 - modify: `tests/unit/tools/test_check_module_boundaries.py` (string assertions referencing `hassette.test_utils` and `test_utils-isolation` rule name)
 - modify: `tests/unit/tools/test_check_test_factories.py` (string assertions referencing `hassette.test_utils` module paths)
 - delete: `docs/pages/testing/snippets/factories_mock_hassette.py` (orphan after make_mock_hassette section removal)
@@ -48,7 +54,7 @@ Work through the design doc's `## Architecture → String reference cleanup` tab
    - Factories that went to `hassette.testing._factories` (Tier 1) → `"hassette.testing._factories"` or `"hassette.testing"` depending on which path the factory is importable from. Check the __all__ in `hassette.testing.__init__.py` — Tier 1 factories in __all__ map to `"hassette.testing"`.
    Also update the module docstring.
 
-2. **`tools/check_module_boundaries.py`**: Update the 13 string references. The existing rule `name="test_utils-isolation"` must be renamed to `name="test-helpers-isolation"` (NOT `testing-isolation` — that name is reserved for the new FR#6 rule T05 will add). Update the rule's `reason=` to reference `hassette.testing` instead of `hassette.test_utils`, and update the `forbids=` and `applies=` to match the new package name. Also note: AC#6 requires adding a separate `testing-isolation` rule here — that's T05's job, not this task.
+2. **`tools/check_module_boundaries.py`**: Update the 13 string references. The existing rule `name="test_utils-isolation"` must be renamed to `name="test-helpers-isolation"` (NOT `testing-isolation` — that name is reserved for the new FR#6 rule T05 will add). Update the rule's `reason=` to reference `hassette.testing` instead of `hassette.test_utils`, and update the `forbids=` and `applies=` to match the new package name. **Also update `PRIVATE_ATTR_EXEMPT_LAYERS`** (line ~71): change `"test_utils"` to `"testing"` in the frozenset — `layer_of()` derives a file's layer from its subpackage name, so after the move `hassette/testing/` files get layer `"testing"`. Without this, `_harness.py`'s `self.hassette._foo` accesses (~15 occurrences) will be flagged as private-attr-reach-through violations by `prek -a` (AC#2). Also note: AC#6 requires adding a separate `testing-isolation` rule here — that's T05's job, not this task.
 
 3. **`tools/docs/gen_ref_pages.py`**: Update `"hassette.test_utils"` module path to `"hassette.testing"` and the nav link format.
 
@@ -62,7 +68,7 @@ Work through the design doc's `## Architecture → String reference cleanup` tab
 
 6. **`codegen/src/hassette_codegen/sync_facade/recording.py`**: The embedded import string `from hassette.test_utils.recording_api import RecordingApi, RecordingHelperClient` becomes `from hassette.testing.recording_api import RecordingApi, RecordingHelperClient`. Update the docstring path too.
 
-7. **`codegen/src/hassette_codegen/sync_facade/cli.py`**: Update default path from `hassette/test_utils/recording_api.py` to `hassette/testing/recording_api.py`.
+7. **`codegen/src/hassette_codegen/sync_facade/cli.py`**: Two default paths need updating: (a) `--recording-api-path` default from `hassette/test_utils/recording_api.py` to `hassette/testing/recording_api.py`, and (b) `--recording-out` default from `hassette/test_utils/sync_facade.py` to `hassette/testing/_sync_facade.py` (note the underscore prefix — per the module mapping table, `sync_facade.py` maps to `_sync_facade.py` as a private module).
 
 8. **`codegen/src/hassette_codegen/sync_facade/ast_utils.py`**: Update docstring path reference from `src/hassette/test_utils/recording_api.py` to `src/hassette/testing/recording_api.py`.
 
@@ -90,6 +96,12 @@ Work through the design doc's `## Architecture → String reference cleanup` tab
 
 19. **`tests/unit/tools/test_check_test_factories.py`**: Contains assertion strings like `"use 'from hassette.test_utils.factories import make_mock_event'"`. These must be updated to match the new paths that `check_test_factories.py` will emit after item 1's `SHARED_FACTORIES` update.
 
+#### Test directory CLAUDE.md files
+
+20. **`tests/unit/bus/CLAUDE.md`**, **`tests/integration/bus/CLAUDE.md`**, **`tests/integration/telemetry/CLAUDE.md`**, **`tests/integration/web_api/CLAUDE.md`**, **`tests/integration/websocket/CLAUDE.md`**: Each contains example import statements with `hassette.test_utils` paths. These are load-bearing per `.claude/rules/test-conventions.md` ("read it first — it lists that directory's actual fixtures"). Update all import path examples to use the new `hassette.testing` / `tests.support` paths.
+
+21. **`tests/unit/tools/test_generate_sync_facade.py`**: Line 27 hardcodes `RECORDING_API_PATH = _REPO_ROOT / "src" / "hassette" / "test_utils" / "recording_api.py"`. Update to `"testing"`. After T05 deletes `src/hassette/test_utils/`, this path would no longer exist and the test would fail.
+
 #### Gap-check files (not in design doc's original list)
 
 16. **`.claude/skills/doc-accuracy-review/references/briefing-template.md`**: Update `src/hassette/test_utils/` → `src/hassette/testing/` in the source path mapping.
@@ -110,6 +122,8 @@ Expected: zero matches outside of `src/hassette/test_utils/` itself (which still
 - After deleting `factories_mock_hassette.py`, run `tools/docs/check_snippet_orphans.py` to confirm no orphan. Also check if any `--8<--` directive in `factories.md` includes it.
 - `tests/TESTING.md` has a mix of `hassette.test_utils` (the importable module) and `src/hassette/test_utils/` (the directory path). Both need updating but to different targets.
 - Historical `design/` files and `CHANGELOG.md` are frozen — do NOT update them.
+- Several source files under `src/hassette/` have comments referencing `test_utils.reset`, `test_utils.factories`, etc. (e.g., `scheduler/sync.py`, `core/app_lifecycle_service.py`). Update these comments as well — the final grep in AC#5 will catch them if missed.
+- `tools/check_test_factories.py` has an inline comment at line ~51 referencing `test_utils` — update it along with the `SHARED_FACTORIES` dict.
 
 ## Verify
 
