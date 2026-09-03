@@ -1,5 +1,6 @@
 """Integration tests for GET /api/apps/{app_key}/source."""
 
+import asyncio
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -91,3 +92,28 @@ class TestAppSourceEndpoint:
         response = await client.get("/api/apps/!!bad!!/source")
 
         assert response.status_code == 400
+
+    async def test_read_is_routed_through_a_thread(self, client, mock_hassette, monkeypatch) -> None:
+        """The file read is dispatched via asyncio.to_thread, not called directly on the event loop."""
+        calls: list[tuple] = []
+        real_to_thread = asyncio.to_thread
+
+        async def spy_to_thread(func, *args, **kwargs):
+            calls.append((func, args, kwargs))
+            return await real_to_thread(func, *args, **kwargs)
+
+        monkeypatch.setattr("hassette.web.routes.apps.asyncio.to_thread", spy_to_thread)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app_dir = Path(tmpdir)
+            src_file = app_dir / "my_app.py"
+            src_file.write_text(SAMPLE_SOURCE)
+
+            response = await get_app_source(client, mock_hassette, app_dir=app_dir, full_path=src_file)
+
+        assert response.status_code == 200
+        assert len(calls) == 1
+        # The route resolves the path before reading, so compare against the resolved file.
+        func = calls[0][0]
+        assert func.__name__ == "read_text"
+        assert func.__self__ == src_file.resolve()

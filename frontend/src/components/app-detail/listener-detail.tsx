@@ -1,5 +1,3 @@
-import { Badge } from "@/components/ui/badge";
-
 import type { ListenerData } from "../../api/endpoints";
 import { getListenerExecutions } from "../../api/endpoints";
 import { useQueryInvalidator } from "../../hooks/use-query-invalidator";
@@ -8,21 +6,21 @@ import { isExecutionDefined, useListenerExecution } from "../../hooks/use-scoped
 import { useScopedQuery } from "../../hooks/use-scoped-query";
 import { queryKeys } from "../../lib/query-keys";
 import { DETAIL_FETCH_LIMIT } from "../../utils/constants";
-import { lastDotSegment, MS_PER_SECOND } from "../../utils/format";
+import { formatRate, lastDotSegment, MS_PER_SECOND } from "../../utils/format";
 import { handlerKindLabel } from "../../utils/status";
 import type { DetailStatsCell } from "../shared/detail-stats";
 import { DetailStats } from "../shared/detail-stats";
 import { ErrorBanner } from "../shared/error-banner";
+import { type Chip, ChipsRow } from "./chips-row";
 import { DetailHeader } from "./detail-header";
 import { ExecutionSection } from "./execution-section";
 import { HandlerDetailLayout } from "./handler-detail-layout";
 import { listenerHealthKind } from "./handler-list";
-import { HandlerModeChip } from "./handler-mode-chip";
 import { RegistrationFooter } from "./registration-footer";
 import { buildCommonStatCells, type CommonStatInput } from "./stat-cell-builders";
 
 function ModifierChips({ listener }: { listener: ListenerData }) {
-  const chips: Array<{ label: string; value?: string }> = [];
+  const chips: Chip[] = [];
   if (listener.debounce) chips.push({ label: "debounce", value: `${listener.debounce * MS_PER_SECOND}ms` });
   if (listener.throttle) chips.push({ label: "throttle", value: `${listener.throttle * MS_PER_SECOND}ms` });
   if (listener.once) chips.push({ label: "once" });
@@ -31,17 +29,7 @@ function ModifierChips({ listener }: { listener: ListenerData }) {
   if (listener.duration) chips.push({ label: "duration", value: `${listener.duration}s` });
   if (listener.backpressure === "drop_newest") chips.push({ label: "backpressure", value: "drop_newest" });
 
-  return (
-    <div className="mb-3 flex flex-wrap gap-2" data-testid="modifier-chips">
-      <HandlerModeChip mode={listener.mode} />
-      {chips.map((chip) => (
-        <Badge key={chip.label} variant="listener">
-          {chip.label}
-          {chip.value ? ` ${chip.value}` : ""}
-        </Badge>
-      ))}
-    </div>
-  );
+  return <ChipsRow mode={listener.mode} variant="listener" testId="modifier-chips" chips={chips} />;
 }
 
 function buildListenerStatsCells(listener: ListenerData, lastInvokedLabel: string): DetailStatsCell[] {
@@ -50,7 +38,7 @@ function buildListenerStatsCells(listener: ListenerData, lastInvokedLabel: strin
     total: listener.total_invocations,
     failed: listener.failed,
     avgDurationMs: listener.avg_duration_ms,
-    lastLabel: listener.last_invoked_at ? lastInvokedLabel || "—" : "—",
+    lastLabel: lastInvokedLabel || "—",
     timedOut: listener.timed_out,
     cancelled: listener.cancelled,
     threadLeaked: listener.thread_leaked,
@@ -61,8 +49,11 @@ function buildListenerStatsCells(listener: ListenerData, lastInvokedLabel: strin
   if (listener.backpressure_dropped_count > 0) {
     const dropped = listener.backpressure_dropped_count;
     const attempted = listener.total_invocations + dropped;
-    const pct = Math.round((100 * dropped) / attempted);
-    cells.push({ label: "Backpressure Dropped", value: `${dropped} (${pct}%)`, tone: "warn" });
+    cells.push({
+      label: "Backpressure Dropped",
+      value: `${dropped} (${formatRate(dropped, attempted)})`,
+      tone: "warn",
+    });
   }
   return cells;
 }
@@ -85,22 +76,23 @@ export function ListenerDetail({ listener, appKey, instanceQs, onSwitchToCode }:
 
   useQueryInvalidator(execution, isExecutionDefined, queryKeys.listenerExecutions(listener.listener_id));
 
-  const kindLabel = handlerKindLabel("listener", listener.listener_kind, null);
-  const listenerKind = listenerHealthKind(listener);
+  const kindLabel = handlerKindLabel("listener", listener.listener_kind);
+  const healthKind = listenerHealthKind(listener);
+  const testId = `listener-detail-${listener.listener_id}`;
 
   return (
-    <HandlerDetailLayout testId={`listener-detail-${listener.listener_id}`}>
+    <HandlerDetailLayout testId={testId}>
       <DetailHeader
         name={lastDotSegment(listener.handler_method)}
         kindLabel={kindLabel}
-        statusKind={listenerKind}
+        statusKind={healthKind}
         kind="handler"
         subtitle={listener.human_description}
       />
 
       <ModifierChips listener={listener} />
 
-      {listenerKind === "err" && (listener.last_error_message || listener.last_error_type) && (
+      {healthKind === "err" && (listener.last_error_message || listener.last_error_type) && (
         <ErrorBanner
           errorType={listener.last_error_type ?? null}
           errorMessage={listener.last_error_message ?? null}
@@ -125,7 +117,7 @@ export function ListenerDetail({ listener, appKey, instanceQs, onSwitchToCode }:
 
       <RegistrationFooter
         kind="handler"
-        testId={`listener-detail-${listener.listener_id}`}
+        testId={testId}
         sourceLocation={listener.source_location}
         registrationSource={listener.registration_source}
         onViewCode={onSwitchToCode}

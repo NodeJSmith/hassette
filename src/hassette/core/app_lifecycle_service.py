@@ -49,6 +49,9 @@ NOT_STARTED = ResourceStatus.NOT_STARTED
 # Deeper than the exception_utils.get_short_traceback default (1): init failures often
 # surface several frames deep (anyio.fail_after -> on_initialize -> nested awaits), and a
 # single frame is rarely enough to show the app's own code rather than just anyio internals.
+# Passed as a *negative* limit to get_short_traceback() below -- traceback.format_exc()'s
+# `limit` counts from the outermost (call site) end when positive and the innermost (raise
+# site) end when negative, and it's the innermost end that has the app's own file:line.
 INIT_FAILURE_TRACEBACK_LIMIT = 5
 
 # Per-manifest upsert timeout. A failed write degrades one app's dashboard row — it must
@@ -204,7 +207,7 @@ class AppLifecycleService(Resource):
                     "Timed out while starting app '%s' (%s):\n%s",
                     inst.app_config.instance_name,
                     class_name,
-                    get_short_traceback(INIT_FAILURE_TRACEBACK_LIMIT),
+                    get_short_traceback(-INIT_FAILURE_TRACEBACK_LIMIT),
                 )
                 inst.status = STOPPED
                 await self.cleanup_failed_instance(inst)
@@ -215,7 +218,7 @@ class AppLifecycleService(Resource):
                     "Failed to start app '%s' (%s):\n%s",
                     inst.app_config.instance_name,
                     class_name,
-                    get_short_traceback(INIT_FAILURE_TRACEBACK_LIMIT),
+                    get_short_traceback(-INIT_FAILURE_TRACEBACK_LIMIT),
                 )
                 inst.status = STOPPED
                 await self.cleanup_failed_instance(inst)
@@ -246,13 +249,13 @@ class AppLifecycleService(Resource):
                         exc_info=True,
                     )
                 try:
-                    # Goes straight to Scheduler.remove_all_jobs() rather than
-                    # SchedulerService.remove_jobs_by_owner() — the per-app Scheduler already
-                    # holds its owned jobs (including waiting, completed, and manual jobs that
-                    # never touch the heap) in _jobs_by_name, and remove_all_jobs() is the
-                    # same identity-checked, registry-aware path the normal shutdown uses
-                    # (Scheduler.on_shutdown). remove_jobs_by_owner()'s heap-only scan would
-                    # miss those jobs and leak their entity-watch subscriptions.
+                    # Goes straight to Scheduler.remove_all_jobs() rather than scanning the
+                    # full registry by owner string — the per-app Scheduler already holds its
+                    # owned jobs (including waiting, completed, and manual jobs that never
+                    # touch the heap) in _jobs_by_name, and remove_all_jobs() is the same
+                    # identity-checked, registry-aware path the normal shutdown uses
+                    # (Scheduler.on_shutdown). A heap-only scan would miss those jobs and leak
+                    # their entity-watch subscriptions.
                     #
                     # Also deregisters the removal callback, mirroring on_shutdown()'s second
                     # statement — remove_all_jobs() itself never does this (test_utils/reset.py

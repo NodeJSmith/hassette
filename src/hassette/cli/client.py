@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, NoReturn, TypeVar, overload
 
 import httpx2 as httpx
+from pydantic import ValidationError
 
 import hassette.cli.output as cli_output
 from hassette.cli.context import CLIContext
@@ -116,8 +117,10 @@ class HassetteCLIClient:
                 telemetry DB). The body is the source of truth, not the HTTP status.
 
         Raises:
-            SystemExit: On HTTP 4xx/5xx (code 1) or network errors (code 2). A 503 is
-                exempt from the error path when ``tolerate_503=True``.
+            SystemExit: On HTTP 4xx/5xx (code 1), network errors (code 2), or a
+                successful-looking response whose body is not valid JSON or doesn't match
+                ``model`` (code 1). A 503 is exempt from the error path when
+                ``tolerate_503=True``.
         """
         try:
             response = self._client.get(path, params=params, timeout=self.timeout)
@@ -138,14 +141,21 @@ class HassetteCLIClient:
                 result: Any = data
             else:
                 result = model.model_validate(data)  # pyright: ignore[reportAttributeAccessIssue]
-        except ValueError:
+        except (json.JSONDecodeError, ValidationError, UnicodeDecodeError) as exc:
             # A tolerated 503 can carry a body that isn't the expected status
             # payload — a proxy/LB HTML error page (non-JSON) or JSON of the wrong
-            # shape. pydantic.ValidationError is a ValueError, so both land here.
-            # Route them to the normal error exit instead of crashing.
+            # shape. Route it to the normal HTTP-error exit instead of crashing.
+            # UnicodeDecodeError covers a 2xx/tolerated-503 body that isn't valid UTF-8 —
+            # response.json() decodes before parsing, so malformed bytes raise this instead
+            # of JSONDecodeError.
             if is_tolerated_503:
                 self._handle_http_error(response)
-            raise
+            # Any other successful-looking response (2xx) with an unusable body means the
+            # CLI isn't actually talking to a compatible hassette instance — wrong
+            # --server-url (an unrelated service or reverse proxy answering with a 200), or
+            # CLI/server version skew. Surface that as a clean CLI error instead of letting
+            # the parse exception propagate as a raw traceback.
+            self._handle_malformed_response(response, exc)
 
         self._echo_success_target_and_warnings()
         return result
@@ -315,6 +325,48 @@ class HassetteCLIClient:
             if self.debug_mode:
                 cli_output.stderr_console.print(f"  [dim]URL:[/dim]    {response.request.method} {response.url}")
                 cli_output.stderr_console.print(f"  [dim]Body:[/dim]   {response.text}")
+        sys.exit(1)
+
+    def _handle_malformed_response(self, response: httpx.Response, exc: Exception) -> NoReturn:
+        """Print a clean error for a successful-status response whose body isn't usable.
+
+        Reached when the HTTP status looked successful (2xx, or a tolerated 503) but the body
+        is not valid JSON or doesn't match the expected model. Both point at the same root
+        cause: the CLI isn't actually talking to a compatible hassette instance — wrong
+        ``--server-url`` (a reverse proxy or unrelated service answering with a 200 HTML page)
+        or CLI/server version skew. Exits like any other error path instead of letting the
+        parse exception surface as a raw traceback.
+        """
+        if isinstance(exc, json.JSONDecodeError):
+            reason = "the response body is not valid JSON"
+        elif isinstance(exc, UnicodeDecodeError):
+            reason = "the response body is not valid UTF-8"
+        else:
+            reason = f"the response body does not match the expected shape ({exc})"
+        detail = (
+            f"response from {response.url} is not a valid hassette API response — {reason}. "
+            "Check --server-url and for CLI/server version skew."
+        )
+
+        target, tls_verified = self._target_and_tls_for_error()
+        # response.text re-triggers the same decode failure for a UnicodeDecodeError body, so the
+        # debug body dump below must not rely on it — decode leniently instead.
+        body = response.content.decode("utf-8", errors="replace")
+
+        if self.json_mode:
+            extra = (
+                {"url": str(response.url), "method": response.request.method, "body": body} if self.debug_mode else None
+            )
+            _write_json_error(response.status_code, detail, debug_extra=extra, target=target, tls_verified=tls_verified)
+        else:
+            cli_output.stderr_console.print(f"[bold red]Error:[/bold red] {detail}", highlight=False)
+            if target is not None:
+                cli_output.stderr_console.print(f"[dim]Target:[/dim] {target}", highlight=False)
+            if tls_verified is False:
+                self._print_tls_warning()
+            if self.debug_mode:
+                cli_output.stderr_console.print(f"  [dim]URL:[/dim]    {response.request.method} {response.url}")
+                cli_output.stderr_console.print(f"  [dim]Body:[/dim]   {body}")
         sys.exit(1)
 
     def _handle_network_error(self, message: str) -> NoReturn:

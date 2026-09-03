@@ -326,10 +326,10 @@ class BusService(Service):
         """Remove all listeners owned by a specific owner synchronously.
 
         Fires the per-owner removal callback for each removed listener, mirroring
-        SchedulerService._remove_jobs_by_owner. On the shutdown path Bus.remove_all_listeners
-        pre-clears _registered_listeners first, so the callbacks find nothing to pop and skip
-        the removed_at spawn; firing them here keeps this method correct for any future caller
-        that removes listeners without that pre-clear.
+        SchedulerService.remove_jobs's per-job removal callbacks. On the shutdown path
+        Bus.remove_all_listeners pre-clears _registered_listeners first, so the callbacks
+        find nothing to pop and skip the removed_at spawn; firing them here keeps this
+        method correct for any future caller that removes listeners without that pre-clear.
         """
         removed = self.router.clear_owner(owner)
         for listener in removed:

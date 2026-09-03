@@ -758,9 +758,9 @@ class SchedulerSyncFacade(Resource):
         """Remove all jobs for the owner of this scheduler.
 
         Passes this scheduler's own ``_jobs_by_name`` values to
-        ``SchedulerService.remove_jobs()`` rather than the owner-string-based
-        ``remove_jobs_by_owner()`` — the latter only finds heap-resident jobs, so it misses
-        waiting, completed, and manual jobs, which never have a heap entry.
+        ``SchedulerService.remove_jobs()`` rather than scanning the full registry by owner
+        string, which would only find heap-resident jobs and miss waiting, completed, and
+        manual jobs that never have a heap entry.
 
         Does NOT deregister this scheduler's removal callback (``register_removal_callback``,
         set in ``__init__``) — callers that reuse this ``Scheduler`` instance afterward (e.g.

@@ -151,6 +151,14 @@ filterwarnings = [
     # test_reconnection.py) so a crashed instance's tasks are reaped at loop teardown. Keeping
     # ResourceWarning fatal ensures the leak can't return silently.
     "default:Top-level \\[apps\\.\\*\\]:DeprecationWarning:hassette\\.config\\.classes",
+    # uvloop 0.22.1's run_in_executor() (used by every asyncio.to_thread() call) checks its
+    # argument with the now-deprecated asyncio.iscoroutinefunction instead of
+    # inspect.iscoroutinefunction, which Python 3.14 turns into a DeprecationWarning on first
+    # use. This is an upstream uvloop bug (no fixed release exists as of 0.22.1, the latest),
+    # not a use of the deprecated API in this codebase — grep confirms hassette itself only
+    # calls inspect.iscoroutinefunction. Scoped to the exact message so a real deprecated-API
+    # use elsewhere still fails the suite.
+    "default:'asyncio\\.iscoroutinefunction' is deprecated:DeprecationWarning",
 ]
 # Skip Docker/system/e2e tests by default (run explicitly: pytest -m docker / -m e2e / nox -s system).
 # e2e must not mix into ad-hoc runs: Playwright breaks the session-scoped asyncio loop for every

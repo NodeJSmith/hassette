@@ -11,7 +11,6 @@ from typing import TYPE_CHECKING, Annotated, Literal
 
 from fastapi import APIRouter, Query, Response
 
-from hassette.const.misc import SECONDS_PER_DAY
 from hassette.exceptions import TelemetryUnavailableError
 from hassette.schemas.execution_models import ActivityFeedEntry, AppLastError, Execution
 from hassette.schemas.job_models import JobSummary
@@ -177,14 +176,13 @@ async def app_activity(
     source_tier: SourceTierQuery = "app",
 ) -> list[ActivityFeedEntry]:
     """Recent handler invocations and job executions for a single app, merged and sorted by time."""
-    effective_since = since if since is not None else time.time() - SECONDS_PER_DAY
     activity: list[ActivityFeedEntry] = []
     with db_degrades_to(response):
         activity = await telemetry.get_app_recent_activity(
             app_key=app_key,
             instance_index=instance_index,
             limit=limit,
-            since=effective_since,
+            since=since,
             source_tier=source_tier,
         )
     return activity
