@@ -356,7 +356,7 @@ Unit tests only. This is a pure restructuring with no behavior change — the ex
 ### Existing Tests to Adapt
 
 - `tests/unit/test_public_api_surface.py` — update to verify `hassette.testing.__all__` instead of `hassette.test_utils.__all__`. Update `TIER1_SYMBOLS` set to reflect: `make_mock_hassette` demotion, `EventCapture`/`HassetteHarness`/`wait_for`/`build_harness` promotions. The existing `test_tier2_not_in_all` test explicitly asserts `HassetteHarness` and `wait_for` are NOT in `__all__` — these assertions must be flipped or removed since both are now Tier 1. The `test_tier2_importable` test asserts `HassetteHarness` is importable from `hassette.test_utils` as a Tier 2 symbol — this test's premise is invalidated (it's now Tier 1 importable from `hassette.testing`) and must be rewritten.
-- All 255 test files with `hassette.test_utils` imports — import paths updated by the codemod.
+- All ~260 test files with `hassette.test_utils` imports — import paths updated by the codemod.
 - 14 `conftest.py` files importing from `hassette.test_utils` — import paths updated.
 
 ### New Test Coverage
@@ -479,7 +479,7 @@ No tests to remove. `test_public_api_surface.py` is updated, not removed.
 - delete `src/hassette/test_utils/ws_mocks.py`
 
 **Modified test files (import paths only):**
-- modify 255 test files — `from hassette.test_utils` → `from hassette.testing` or `from tests.support`
+- modify ~260 test files — `from hassette.test_utils` → `from hassette.testing` or `from tests.support`
 - modify `tests/unit/test_public_api_surface.py` — verify `hassette.testing.__all__`
 
 **Documentation:**

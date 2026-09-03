@@ -126,7 +126,7 @@ When creating each file, update imports that reference other modules *within the
 ## Focus
 
 - The `_harness.py` file is the most complex because it imports from `_reset`, `_server`, and `_ws_mocks`. Read `src/hassette/test_utils/harness.py` carefully to identify all its internal dependencies before creating `_harness.py`.
-- `app_harness.py` imports from `simulation`, `time_control`, `sync_facade`, `harness`, `config`, and `helpers` (for `make_state_dict`). These become `_simulation`, `_time_control`, `_sync_facade`, `_harness`, `config`, and `_factories` in the new package.
+- `app_harness.py` imports from `simulation`, `time_control`, `recording_api`, `harness`, `config`, and `helpers` (for `make_state_dict`). These become `_simulation`, `_time_control`, `recording_api`, `_harness`, `config`, and `_factories` in the new package. (Note: `app_harness.py` does NOT import `sync_facade` directly — that's a transitive dependency of `recording_api.py`.)
 - `fixtures.py` Tier 1 split: `build_harness` is a context manager that creates a `HassetteHarness`. It imports from `harness.py`. In the new package, it imports from `._harness`.
 - `recording_api.py` imports from `sync_facade` which becomes `_sync_facade`, and from `api_call` which stays `api_call`.
 - The `RecordingHelperClient` class in `recording_api.py` must ride along — it's part of the same module.

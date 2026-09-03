@@ -30,6 +30,8 @@ Grep-based pass to update all non-Python string references to `hassette.test_uti
 - modify: `docs/pages/core-concepts/api/managing-helpers.md` (if references exist — check first)
 - modify: `.claude/skills/doc-accuracy-review/references/briefing-template.md` (source path mapping)
 - modify: `.claude/skills/doc-coverage-review/REFERENCE.md` (module reference)
+- modify: `tests/unit/tools/test_check_module_boundaries.py` (string assertions referencing `hassette.test_utils` and `test_utils-isolation` rule name)
+- modify: `tests/unit/tools/test_check_test_factories.py` (string assertions referencing `hassette.test_utils` module paths)
 - delete: `docs/pages/testing/snippets/factories_mock_hassette.py` (orphan after make_mock_hassette section removal)
 - read: `design/specs/108-testing-infra-split/design.md` (String reference cleanup table)
 
@@ -46,7 +48,7 @@ Work through the design doc's `## Architecture → String reference cleanup` tab
    - Factories that went to `hassette.testing._factories` (Tier 1) → `"hassette.testing._factories"` or `"hassette.testing"` depending on which path the factory is importable from. Check the __all__ in `hassette.testing.__init__.py` — Tier 1 factories in __all__ map to `"hassette.testing"`.
    Also update the module docstring.
 
-2. **`tools/check_module_boundaries.py`**: Update the 13 string references. The boundary rule message mentioning `hassette.test_utils` should reference `hassette.testing`. Also note: AC#6 requires adding a new `testing-isolation` rule here — that's T05's job, not this task.
+2. **`tools/check_module_boundaries.py`**: Update the 13 string references. The existing rule `name="test_utils-isolation"` must be renamed to `name="test-helpers-isolation"` (NOT `testing-isolation` — that name is reserved for the new FR#6 rule T05 will add). Update the rule's `reason=` to reference `hassette.testing` instead of `hassette.test_utils`, and update the `forbids=` and `applies=` to match the new package name. Also note: AC#6 requires adding a separate `testing-isolation` rule here — that's T05's job, not this task.
 
 3. **`tools/docs/gen_ref_pages.py`**: Update `"hassette.test_utils"` module path to `"hassette.testing"` and the nav link format.
 
@@ -81,6 +83,12 @@ Work through the design doc's `## Architecture → String reference cleanup` tab
 14. **`tests/TESTING.md`**: Update all 29 references. Change `hassette.test_utils` → `hassette.testing` for Tier 1 symbols, and `hassette.test_utils.<module>` → `tests.support.<module>` for Tier 2 symbols. Update the factory registry paths, mock strategy descriptions, and import examples.
 
 15. **`.claude/rules/test-conventions.md`**: Update ~20 references. Change factory paths, import examples, and `src/hassette/test_utils/` directory references.
+
+#### Tool characterization tests
+
+18. **`tests/unit/tools/test_check_module_boundaries.py`**: This file contains test functions whose fixture source-strings and expected output hard-code `hassette.test_utils`, the `test_utils-isolation` rule name, and the `"test_utils"` layer name. These are NOT Python imports — they are string data fed into `check_source()` assertions. The codemod cannot touch them. Update every `hassette.test_utils` string reference, and update the rule name from `test_utils-isolation` to `test-helpers-isolation` (matching the rename in item 2 above). Read the file first to find all occurrences.
+
+19. **`tests/unit/tools/test_check_test_factories.py`**: Contains assertion strings like `"use 'from hassette.test_utils.factories import make_mock_event'"`. These must be updated to match the new paths that `check_test_factories.py` will emit after item 1's `SHARED_FACTORIES` update.
 
 #### Gap-check files (not in design doc's original list)
 
