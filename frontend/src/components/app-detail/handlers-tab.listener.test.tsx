@@ -1,4 +1,4 @@
-import { waitFor } from "@testing-library/react";
+import { waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -35,18 +35,18 @@ describe("HandlersTab listener detail", () => {
     vi.clearAllMocks();
   });
 
-  it("shows listener detail pane when selectedHandler='listener/5'", () => {
+  it("handler detail: shows listener detail pane when selectedHandler='listener/5'", () => {
     const { getByTestId } = renderHandlersTab([createListener({ listener_id: 5 })], [], "listener/5");
     expect(getByTestId("listener-detail-5")).toBeDefined();
   });
 
-  it("uses a semantic heading for the selected handler name", () => {
+  it("handler detail: uses a semantic heading for the selected handler name", () => {
     const listener = createListener({ listener_id: 6, handler_method: "on_garage_opened" });
     const { getByRole } = renderHandlersTab([listener], [], "listener/6");
     expect(getByRole("heading", { level: 2, name: "on_garage_opened" })).toBeDefined();
   });
 
-  it("renders modifier chips for listener in detail pane", async () => {
+  it("handler detail: renders modifier chips for listener in detail pane", async () => {
     const listener = createListener({
       listener_id: 3,
       debounce: 0.5,
@@ -119,7 +119,6 @@ describe("HandlersTab listener detail", () => {
     const toggle = getByTestId("handler-registration-toggle");
     expect(toggle.getAttribute("aria-controls")).toBe("listener-detail-12-registration-source-panel");
     expect(toggle.textContent).toContain("show call");
-    // Registration is collapsed by default
     expect(queryByTestId("handler-registration-source")).toBeNull();
     await user.click(toggle);
     const registrationSource = getByTestId("handler-registration-source");
@@ -221,27 +220,23 @@ describe("HandlersTab listener detail", () => {
   it("handler error banner: shows expandable traceback when available", async () => {
     const user = userEvent.setup();
     const listener = createListener({
-      listener_id: 24,
+      listener_id: 26,
       failed: 1,
       last_error_type: "ValueError",
       last_error_message: "bad value",
       last_error_traceback: "Traceback (most recent call last):\n  File test.py line 1\nValueError: bad value",
     });
-    const { getByTestId } = renderHandlersTab([listener], [], "listener/24");
+    const { getByTestId } = renderHandlersTab([listener], [], "listener/26");
     await waitFor(() => getByTestId("handler-error-banner"));
     const banner = getByTestId("handler-error-banner");
-    // Traceback toggle button should be present
-    const toggle = banner.querySelector("[data-testid='traceback-toggle']");
-    expect(toggle).not.toBeNull();
-    // Traceback is initially collapsed
-    const tracebackContent = banner.querySelector("[data-testid='traceback-content']");
-    expect(tracebackContent).not.toBeNull();
-    // Expand it
-    await user.click(toggle!);
+    expect(within(banner).getByTestId("traceback-content")).toBeDefined();
+    const toggle = within(banner).getByTestId("traceback-toggle");
+    expect(banner.textContent).not.toContain("Traceback (most recent call last)");
+    await user.click(toggle);
     expect(banner.textContent).toContain("Traceback (most recent call last)");
   });
 
-  it("listener detail: shows mode chip", async () => {
+  it("handler detail: shows mode chip", async () => {
     const listener = createListener({ listener_id: 70, mode: "queued" });
     const { getByTestId } = renderHandlersTab([listener], [], "listener/70");
     await waitFor(() => getByTestId("listener-detail-70"));
