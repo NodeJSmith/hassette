@@ -1231,9 +1231,15 @@ class AppLifecycleService(Resource):
             await self._reconcile_changes(changes, original_apps_config, current_apps_config)
 
     async def refresh_config(self) -> tuple[dict[str, "AppManifest"], dict[str, "AppManifest"]]:
-        """Reload the configuration and return (original_apps_config, current_apps_config)."""
-        # Filter only by enabled status, NOT by the exclusive-app filter, so both configs are comparable
-        original_apps_config = {k: deepcopy(v) for k, v in self.registry.manifests.items() if v.enabled}
+        """Reload the configuration and return (original_apps_config, current_apps_config).
+
+        Both dicts include every manifest regardless of `enabled` status -- not filtered here,
+        and not by the exclusive-app filter either, so both configs stay directly comparable.
+        `AppChangeDetector.detect_changes()` derives its own enabled-only view internally for
+        lifecycle actions, but needs the full picture to also catch a metadata-only change to
+        an app that's disabled on both sides (see `ChangeSet.metadata_apps`).
+        """
+        original_apps_config = {k: deepcopy(v) for k, v in self.registry.manifests.items()}
 
         # Reinitialize config to pick up changes.
         # https://docs.pydantic.dev/latest/concepts/pydantic_settings/#in-place-reloading
@@ -1244,7 +1250,7 @@ class AppLifecycleService(Resource):
 
         self.set_apps_configs(self.hassette.config.apps.manifests)
         await self.persist_manifests()
-        current_apps_config = {k: deepcopy(v) for k, v in self.registry.manifests.items() if v.enabled}
+        current_apps_config = {k: deepcopy(v) for k, v in self.registry.manifests.items()}
 
         return original_apps_config, current_apps_config
 

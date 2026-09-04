@@ -116,8 +116,12 @@ class AppChangeDetector:
         """Calculate the difference between two configurations.
 
         Args:
-            original_config: The previous app configuration
-            current_config: The new app configuration
+            original_config: The previous app configuration, including disabled apps -- this
+                method derives its own enabled-only view internally for lifecycle actions
+                (orphans/new_apps/reimport/reload); callers must not pre-filter by `enabled`,
+                or a metadata-only change to an app that's disabled on both sides becomes
+                invisible to `metadata_apps` below.
+            current_config: The new app configuration, including disabled apps
             changed_file_paths: Paths of files that triggered the change (if any)
             only_apps: When non-empty, restrict change detection to these app keys only
 
@@ -166,11 +170,20 @@ class AppChangeDetector:
         # metadata_apps (any diff not already claimed by a lifecycle-actionable category).
         all_changed_keys = {item.get_root_key() for entries in config_diff.tree.values() for item in entries}
 
-        original_keys = set(original_config.keys())
-        current_keys = set(current_config.keys())
+        # Enabled-only key sets drive lifecycle actions -- disabling an app is treated as
+        # removal (it gets stopped), enabling one as addition (it gets started). A disabled
+        # app never appears in either set, whether or not its manifest changed.
+        original_keys = {k for k, v in original_config.items() if v.enabled}
+        current_keys = {k for k, v in current_config.items() if v.enabled}
+
+        # Unfiltered current keys, used below for metadata_apps -- a disabled app can still
+        # have a metadata-only change (e.g. display_name) worth broadcasting even though it
+        # never enters a lifecycle bucket.
+        current_keys_all = set(current_config.keys())
 
         if only_apps:
             current_keys = current_keys & only_apps
+            current_keys_all = current_keys_all & only_apps
 
         orphans = original_keys - current_keys
         new_apps = current_keys - original_keys
@@ -203,7 +216,7 @@ class AppChangeDetector:
         metadata_apps = {
             app_key
             for app_key in all_changed_keys
-            if app_key in current_keys
+            if app_key in current_keys_all
             and app_key not in new_apps
             and app_key not in orphans
             and app_key not in reimport_apps

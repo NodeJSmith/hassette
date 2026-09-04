@@ -202,6 +202,7 @@ class TestAppChangeDetector:
             class_name: str | None = None,
             app_dir: Path | None = None,
             cache_key: str | None = None,
+            enabled: bool = True,
         ) -> AppManifest:
             return AppManifest(
                 app_key=app_key,
@@ -213,6 +214,7 @@ class TestAppChangeDetector:
                 full_path=full_path or Path(f"/apps/{app_key}.py"),
                 autostart=autostart,
                 cache_key=cache_key or "",
+                enabled=enabled,
             )
 
         return _make
@@ -314,6 +316,43 @@ class TestAppChangeDetector:
         assert not changes.has_changes
         assert changes.metadata_apps == frozenset({"app1"})
         assert changes.has_any_change
+
+    def test_metadata_change_on_disabled_app_is_still_detected(
+        self, detector: AppChangeDetector, make_manifest: Callable
+    ) -> None:
+        """A display_name change on an app that's disabled on both sides must still surface as
+        a metadata change -- previously the caller pre-filtered both configs to enabled-only
+        apps before calling detect_changes(), so a disabled app's manifest was simply absent
+        from both dicts and its metadata changes were invisible (see PR #1899 review).
+        """
+        original = {"app1": make_manifest("app1", display_name="Old Name", enabled=False)}
+        current = {"app1": make_manifest("app1", display_name="New Name", enabled=False)}
+
+        changes = detector.detect_changes(original, current)
+
+        assert not changes.has_changes
+        assert changes.metadata_apps == frozenset({"app1"})
+        assert changes.has_any_change
+        assert "app1" not in changes.orphans
+        assert "app1" not in changes.new_apps
+        assert "app1" not in changes.reload_apps
+
+    def test_disabling_an_app_is_still_an_orphan_not_metadata(
+        self, detector: AppChangeDetector, make_manifest: Callable
+    ) -> None:
+        """Toggling an app to disabled must still stop it (orphans), not just broadcast metadata
+        -- the enabled-only lifecycle categorization must be unaffected by no longer pre-filtering
+        the configs passed into detect_changes().
+        """
+        original = {"app1": make_manifest("app1", enabled=True)}
+        current = {"app1": make_manifest("app1", enabled=False)}
+
+        changes = detector.detect_changes(original, current)
+
+        assert changes.orphans == frozenset({"app1"})
+        assert not changes.new_apps
+        assert not changes.reload_apps
+        assert "app1" not in changes.metadata_apps
 
     def test_app_config_change_triggers_reload(self, detector: AppChangeDetector, make_manifest: Callable) -> None:
         """An app_config change must still trigger a reload, even alongside a non-config change."""
