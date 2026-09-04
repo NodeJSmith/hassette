@@ -1,6 +1,7 @@
 """Unit tests for RuntimeQueryService."""
 
 import asyncio
+import typing
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, Mock, PropertyMock
 
@@ -12,13 +13,21 @@ from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.events.hassette import (
     HassetteExecutionCompletedEvent,
     HassetteServiceEvent,
+    HassetteSimpleEvent,
 )
 from hassette.schemas.app_snapshots import AppFullSnapshot, AppStatusSnapshot
 from hassette.schemas.domain_models import SystemStatus
-from hassette.types.enums import BlockReason, ResourceRole, ResourceStatus
+from hassette.testing import wait_for
+from hassette.types.enums import BlockReason, ResourceRole, ResourceStatus, Topic
 from tests.support.helpers import create_app_manifest
 from tests.support.mock_hassette import make_mock_hassette
 from tests.support.web_manifest_helpers import make_app_instance_info, make_manifest_db_row
+
+if typing.TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from hassette import HassetteConfig
+    from hassette.testing import HassetteHarness
 
 WS_QUEUE_MAX = 256
 
@@ -666,3 +675,48 @@ class TestAppManifestsChanged:
         assert len(broadcast_calls) == 1
         assert broadcast_calls[0]["type"] == "app_manifests_changed"
         assert broadcast_calls[0]["data"] == {}
+
+    async def test_on_initialize_wires_app_load_completed_to_broadcast(
+        self,
+        hassette_harness: "Callable[[HassetteConfig], HassetteHarness]",
+        test_config_class: "type[HassetteConfig]",
+        unused_tcp_port_factory: "Callable[[], int]",
+    ) -> None:
+        """The bus subscription registered in on_initialize() actually routes
+        Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED to on_app_manifests_changed.
+
+        Unlike the direct-call test above, this exercises the real registration on a real Bus
+        -- it would catch a wrong topic constant or a dropped registration in on_initialize(),
+        neither of which invoking on_app_manifests_changed() directly can detect. Builds its own
+        config (rather than the shared session-scoped `test_config` fixture) with
+        `web_api.run=True`, since `on_initialize()` returns early without registering anything
+        when the web API is disabled -- `TestConfig`'s default -- and mutating the shared
+        fixture's config in place would leak into every other test in the session.
+        """
+        config = test_config_class(web_api={"port": unused_tcp_port_factory(), "run": True})
+
+        async with hassette_harness(config).with_bus() as harness:
+            svc = RuntimeQueryService(harness.hassette)
+            broadcast_calls: list[dict] = []
+            svc.broadcast = AsyncMock(side_effect=lambda msg: broadcast_calls.append(msg))
+
+            # with_bus() doesn't call wire_services(), so hassette.logging_service is unset --
+            # on_initialize() only needs its capture_handler for the log-broadcast wiring, which
+            # is orthogonal to the bus registration this test exercises.
+            harness.hassette._logging_service = MagicMock()
+
+            await svc.on_initialize()
+            try:
+                await harness.hassette.send_event(
+                    HassetteSimpleEvent.from_topic(topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED)
+                )
+                await wait_for(
+                    lambda: any(call["type"] == "app_manifests_changed" for call in broadcast_calls),
+                    desc="app_manifests_changed broadcast",
+                )
+            finally:
+                await svc.on_shutdown()
+
+        manifest_calls = [call for call in broadcast_calls if call["type"] == "app_manifests_changed"]
+        assert len(manifest_calls) == 1
+        assert manifest_calls[0]["data"] == {}
