@@ -17,7 +17,7 @@ from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.types.enums import RestartType
 from hassette.types.types import LOG_LEVEL_TYPE
-from hassette.utils.aiosqlite_utils import stop_connection_sync
+from hassette.utils.aiosqlite_utils import connect_daemon, stop_connection_sync
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
@@ -116,21 +116,6 @@ _RETENTION_TABLES: list[RetentionTarget] = [
         failsafe_label="blocking events",
     ),
 ]
-
-
-async def _connect_daemon(database: str | Path, **kwargs: Any) -> aiosqlite.Connection:
-    """Open an aiosqlite connection whose worker thread is a daemon.
-
-    aiosqlite creates a non-daemon background thread per connection. If the connection
-    is not closed cleanly (e.g. CancelledError during shutdown), the thread blocks
-    interpreter exit indefinitely. Setting daemon=True before start() lets the interpreter
-    exit even if the thread is still alive.
-    """
-    conn = aiosqlite.connect(database, **kwargs)
-    # No public API exists for this — see aiosqlite#299.
-    # Verified against aiosqlite 0.20-0.22.x; re-check on version bumps.
-    conn._thread.daemon = True
-    return await conn
 
 
 class DatabaseService(Service):
@@ -233,12 +218,12 @@ class DatabaseService(Service):
         timeout = self.hassette.config.database.migration_timeout_seconds
         await asyncio.wait_for(asyncio.to_thread(self.run_migrations), timeout=timeout)
 
-        self._db = await _connect_daemon(self._db_path, isolation_level=None)
+        self._db = await connect_daemon(self._db_path, isolation_level=None)
         self._db.row_factory = aiosqlite.Row
 
         # Open a dedicated read connection on a separate WAL snapshot (F1).
         # This ensures read queries never block the write worker.
-        self._read_db = await _connect_daemon(self._db_path, isolation_level=None)
+        self._read_db = await connect_daemon(self._db_path, isolation_level=None)
         self._read_db.row_factory = aiosqlite.Row
         await self._read_db.execute("PRAGMA query_only = ON")
         await self._read_db.execute(f"PRAGMA busy_timeout = {_BUSY_TIMEOUT_MS}")

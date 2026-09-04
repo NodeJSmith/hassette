@@ -7,11 +7,11 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import aiosqlite
 import pytest
 
 from hassette.const.misc import SECONDS_PER_DAY
 from hassette.core.database_service import DatabaseService
+from hassette.utils.aiosqlite_utils import connect_daemon
 from tests.support.factories import TEST_SOURCE_LOCATION
 from tests.support.helpers import async_noop
 from tests.support.mock_hassette import make_mock_hassette
@@ -328,7 +328,7 @@ async def test_heartbeat_failure_counter_tracks_failures(initialized_service: Da
     assert initialized_service._consecutive_heartbeat_failures == 3
 
     # Restore a valid connection and verify recovery resets counter
-    initialized_service._db = await aiosqlite.connect(initialized_service._db_path)
+    initialized_service._db = await connect_daemon(initialized_service._db_path)
     await initialized_service.update_heartbeat()
 
     await initialized_service._db_write_queue.join()

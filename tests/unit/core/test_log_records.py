@@ -17,6 +17,7 @@ from hassette.core.migration_runner import run_migrations
 from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.schemas.log_models import LogRecord
 from hassette.testing.config import LATEST_MIGRATION_VERSION
+from hassette.utils.aiosqlite_utils import connect_daemon
 
 from .conftest import TELEMETRY_TEST_DDL as DDL
 
@@ -28,7 +29,7 @@ def run_migrations_to_head(db_path: str) -> None:
 @pytest.fixture
 async def db() -> AsyncIterator[aiosqlite.Connection]:
     """In-memory aiosqlite connection with log_records schema."""
-    conn = await aiosqlite.connect(":memory:")
+    conn = await connect_daemon(":memory:")
     conn.row_factory = aiosqlite.Row
     await conn.executescript(DDL)
     try:
