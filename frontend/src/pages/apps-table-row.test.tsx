@@ -255,6 +255,43 @@ describe("AppTableRow", () => {
     expect(row1.textContent).not.toContain("stopped");
   });
 
+  it("expanded instance rows overlay the live exception over a stale cached error", () => {
+    const app = createAppRow({
+      app_key: "my_app",
+      instance_count: 2,
+      instances: [
+        {
+          app_key: "my_app",
+          class_name: "MyApp",
+          index: 0,
+          instance_name: "my_app[0]",
+          status: "failed",
+          error_message: "boom",
+        },
+        {
+          app_key: "my_app",
+          class_name: "MyApp",
+          index: 1,
+          instance_name: "my_app[1]",
+          status: "running",
+          error_message: null,
+        },
+      ],
+    });
+    const appStatuses: Record<string, AppStatusEntry> = {
+      // Recovered: live status is "running" with a cleared exception — the cached "boom" must
+      // not keep showing.
+      [appStatusKey("my_app", 0)]: { status: "running", index: 0, exception: null },
+      // Newly failed: live status carries an exception the cached manifest never had.
+      [appStatusKey("my_app", 1)]: { status: "failed", index: 1, exception: "kaboom" },
+    };
+    const { getByTestId } = renderRow({ app, appStatuses, isExpanded: true });
+    const row0 = getByTestId("instance-row-my_app-0");
+    const row1 = getByTestId("instance-row-my_app-1");
+    expect(row0.textContent).not.toContain("boom");
+    expect(row1.textContent).toContain("kaboom");
+  });
+
   it("does not show instance rows when isExpanded is false", () => {
     const app = createAppRow({
       instance_count: 2,

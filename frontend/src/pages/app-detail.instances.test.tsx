@@ -113,6 +113,49 @@ describe("AppDetailPage instances", () => {
     expect(card0.textContent).not.toContain("running");
   });
 
+  it("instance grid card suppresses a stale cached error once the live status shows recovery", async () => {
+    // Reproduces a stale-error report: the manifest fetch cached inst_0's error_message from
+    // before it recovered, but a WS app_status_changed message (mirrored into the appStatus
+    // store) already reports it "running" with no exception. The grid must not keep showing
+    // the old error alongside the now-live "running" status.
+    const manifest = createManifest({
+      instance_count: 2,
+      instances: [
+        createInstance({ index: 0, instance_name: "inst_0", status: "failed", error_message: "boom" }),
+        createInstance({ index: 1, instance_name: "inst_1", status: "running" }),
+      ],
+    });
+    setupApi(manifest);
+    const { findByTestId } = renderPage(
+      { key: "test_app" },
+      { appStatus: { [appStatusKey("test_app", 0)]: { status: "running", index: 0, exception: null } } },
+    );
+
+    const card0 = await findByTestId("instance-card-0");
+    expect(card0.textContent).not.toContain("boom");
+  });
+
+  it("instance grid card shows a newly live exception the cached manifest never had", async () => {
+    // Reproduces the inverse: the manifest fetch cached inst_0 as healthy, but a WS
+    // app_status_changed message already reports it "failed" with a live exception. The grid
+    // must surface that exception, not the cached (empty) error_message.
+    const manifest = createManifest({
+      instance_count: 2,
+      instances: [
+        createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
+        createInstance({ index: 1, instance_name: "inst_1", status: "running" }),
+      ],
+    });
+    setupApi(manifest);
+    const { findByTestId } = renderPage(
+      { key: "test_app" },
+      { appStatus: { [appStatusKey("test_app", 0)]: { status: "failed", index: 0, exception: "kaboom" } } },
+    );
+
+    const card0 = await findByTestId("instance-card-0");
+    expect(card0.textContent).toContain("kaboom");
+  });
+
   it("instance switcher status dot reflects live appStatus over stale manifest status", async () => {
     const manifest = createManifest({
       instance_count: 2,

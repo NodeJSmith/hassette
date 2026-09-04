@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 
 import type { AppInstance } from "../../api/endpoints";
 import { useAppStore } from "../../state/store";
-import { instanceLiveStatus } from "../../utils/app-data";
+import { instanceLiveError, instanceLiveStatus } from "../../utils/app-data";
 import { BADGE_STATUS_DOT_SIZE, STATUS_DOT_SIZE } from "../../utils/constants";
 import { statusToKind, statusToVariant } from "../../utils/status";
 import { StatusShape } from "../shared/status-shape";
@@ -59,10 +59,12 @@ export function InstanceSwitcher({
 function InstanceCard({
   instance,
   liveStatus,
+  liveErrorMessage,
   onNavigate,
 }: {
   instance: AppInstance;
   liveStatus: AppInstance["status"];
+  liveErrorMessage: string | null | undefined;
   onNavigate: (index: number) => void;
 }) {
   return (
@@ -84,9 +86,9 @@ function InstanceCard({
           {liveStatus}
         </Badge>
       </div>
-      {instance.error_message && (
+      {liveErrorMessage && (
         <p className="overflow-hidden text-ellipsis whitespace-nowrap text-xs text-destructive italic">
-          {instance.error_message}
+          {liveErrorMessage}
         </p>
       )}
     </button>
@@ -127,6 +129,7 @@ export function MultiInstanceOverview({
             key={instance.index}
             instance={instance}
             liveStatus={instanceLiveStatus(appStatus, appKey, instance)}
+            liveErrorMessage={instanceLiveError(appStatus, appKey, instance)}
             onNavigate={onNavigate}
           />
         ))}
