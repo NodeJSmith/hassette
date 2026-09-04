@@ -9,7 +9,7 @@ from hassette.resources.base import Resource
 from hassette.resources.lifecycle import handle_failed as real_handle_failed
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
-from hassette.test_utils import make_mock_hassette
+from tests.support.mock_hassette import make_mock_hassette
 
 
 def build_hassette(

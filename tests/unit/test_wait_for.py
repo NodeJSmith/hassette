@@ -4,7 +4,7 @@ import asyncio
 
 import pytest
 
-from hassette.test_utils.harness import wait_for
+from hassette.testing import wait_for
 
 
 class TestWaitForSync:

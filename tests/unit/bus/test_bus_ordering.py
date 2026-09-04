@@ -18,7 +18,7 @@ import pytest
 
 if typing.TYPE_CHECKING:
     from hassette.bus import Bus
-    from hassette.test_utils.harness import HassetteHarness
+    from hassette.testing import HassetteHarness
 
 
 async def handler_alpha(event) -> None:

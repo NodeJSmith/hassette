@@ -12,8 +12,6 @@ from unittest.mock import MagicMock
 import pytest
 
 from hassette.logging_ import LogCaptureHandler, LogEntry
-from hassette.test_utils.uvicorn_server import start_uvicorn_server, stop_uvicorn_server
-from hassette.test_utils.web_mocks import create_hassette_stub, create_mock_runtime_query_service
 from hassette.web.app import create_fastapi_app
 from tests.e2e.mock_fixtures import (
     MANUAL_JOB_ID,
@@ -39,6 +37,8 @@ from tests.e2e.mock_fixtures import (
     wire_scheduler_trigger,
     wire_session_telemetry,
 )
+from tests.support.uvicorn import start_uvicorn_server, stop_uvicorn_server
+from tests.support.web_mocks import create_hassette_stub, create_mock_runtime_query_service
 
 # Shared viewport constants for e2e tests.
 # Mobile height 812 = iPhone X (safe-area / notch testing).

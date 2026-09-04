@@ -11,7 +11,7 @@ import aiosqlite
 import pytest
 
 from hassette.core.telemetry.repository import TelemetryRepository
-from hassette.test_utils.sql_helpers import insert_execution_row
+from tests.support.sql import insert_execution_row
 
 #: Listener name used by the once=True reconciliation tests.
 ONCE_LISTENER_NAME = "test_app.on_event.once"

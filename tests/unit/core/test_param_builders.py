@@ -16,11 +16,7 @@ from hassette.core.telemetry.repository import (
     job_insert_params,
     listener_insert_params,
 )
-from hassette.test_utils.factories import (
-    make_execution_record,
-    make_job_registration,
-    make_listener_registration,
-)
+from tests.support.factories import make_execution_record, make_job_registration, make_listener_registration
 
 # Columns present in the real schema but intentionally absent from the registration
 # dataclasses / param builders -- they are post-registration lifecycle state, set

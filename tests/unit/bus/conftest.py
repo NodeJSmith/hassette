@@ -8,14 +8,14 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from hassette.test_utils.factories import make_mock_parent
+from tests.support.factories import make_mock_parent
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
 
     from hassette import Hassette, HassetteConfig
     from hassette.bus.bus import Bus
-    from hassette.test_utils.harness import HassetteHarness
+    from hassette.testing import HassetteHarness
 
 
 @pytest.fixture
@@ -23,7 +23,7 @@ async def hassette_with_bus(
     hassette_harness: "Callable[[HassetteConfig], HassetteHarness]",
     test_config: "HassetteConfig",
 ) -> "typing.AsyncIterator[Hassette]":
-    """Variant of test_utils.fixtures.hassette_with_bus scoped to function instead of module.
+    """Variant of tests.support.fixtures.hassette_with_bus scoped to function instead of module.
 
     Bus unit tests mutate listener state per-test (e.g. `bus.parent`, direct
     `add_listener` patching in `mock_add_listener`), so each test needs its own

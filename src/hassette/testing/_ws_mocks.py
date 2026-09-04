@@ -18,7 +18,7 @@ from aiohttp import ClientWebSocketResponse
 
 from hassette.core.observer_list import ObserverList
 from hassette.resources.lifecycle import mark_ready
-from hassette.test_utils.config import TEST_TOTAL_TIMEOUT_SECONDS
+from hassette.testing.config import TEST_TOTAL_TIMEOUT_SECONDS
 from hassette.types.enums import ConnectionState
 
 LOGGER = getLogger(__name__)
@@ -94,7 +94,7 @@ def mark_websocket_service_connected(websocket_service: "WebsocketService", *, r
     """Mark a WebsocketService externally ready for tests.
 
     For a heavier-weight alternative that fires a real event through the bus, see
-    ``AppTestHarness.simulate_websocket_connected()`` in ``hassette.test_utils.simulation``.
+    ``AppTestHarness.simulate_websocket_connected()`` in ``hassette.testing._simulation``.
     """
     mark_ready(websocket_service, reason=reason)
     websocket_service._connection_state = ConnectionState.CONNECTED

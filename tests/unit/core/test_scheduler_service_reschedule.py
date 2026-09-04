@@ -29,7 +29,7 @@ import hassette.utils.date_utils as date_utils
 from hassette.core.scheduler_service import HeapQueue, SchedulerService, _ScheduledJobQueue
 from hassette.scheduler.classes import Job, ScheduleStatus, ScheduleStatusReason
 from hassette.scheduler.triggers import WAITING, Every, _WaitingSentinel
-from hassette.test_utils.factories import make_scheduled_job
+from tests.support.factories import make_scheduled_job
 
 from .conftest import make_scheduler_service
 

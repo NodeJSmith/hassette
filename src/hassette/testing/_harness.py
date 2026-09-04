@@ -39,10 +39,10 @@ from hassette.scheduler import Scheduler
 from hassette.scheduler.error_context import SchedulerErrorContext
 from hassette.state_manager import StateManager
 from hassette.task_bucket import TaskBucket, make_task_factory
-from hassette.test_utils.config import TEST_TOKEN, WAIT_FOR_READY_TIMEOUT_SECONDS
-from hassette.test_utils.reset import reset_app_handler, reset_bus, reset_mock_api, reset_scheduler, reset_state_proxy
-from hassette.test_utils.test_server import SimpleTestServer
-from hassette.test_utils.ws_mocks import configure_ready_websocket_mock
+from hassette.testing._reset import reset_app_handler, reset_bus, reset_mock_api, reset_scheduler, reset_state_proxy
+from hassette.testing._server import SimpleTestServer
+from hassette.testing._ws_mocks import configure_ready_websocket_mock
+from hassette.testing.config import TEST_TOKEN, WAIT_FOR_READY_TIMEOUT_SECONDS
 from hassette.types.enums import ResourceStatus
 from hassette.utils.func_utils import is_async_callable
 
@@ -97,8 +97,8 @@ class Timeouts:
 
     # How long HassetteHarness.start() waits for all children to become ready.
     # 5 s gives enough headroom for slow CI machines without masking real hangs.
-    # Shared with hassette.test_utils.reset via WAIT_FOR_READY_TIMEOUT_SECONDS in
-    # hassette.test_utils.config (that module, not this one, is the single source of truth —
+    # Shared with hassette.testing._reset via WAIT_FOR_READY_TIMEOUT_SECONDS in
+    # hassette.testing.config (that module, not this one, is the single source of truth —
     # see the comment there for why).
     WAIT_FOR_READY: float = WAIT_FOR_READY_TIMEOUT_SECONDS
 
@@ -173,7 +173,7 @@ async def _harness_dispatch(
             if inspect.isawaitable(result):
                 await result
         except Exception:
-            logging.getLogger("hassette.test_utils.harness").warning(
+            logging.getLogger("hassette.testing._harness").warning(
                 "Error handler raised during harness dispatch (%s)", log_label, exc_info=True
             )
 
@@ -232,27 +232,6 @@ class _TestableHassette(Hassette):
         ``AsyncMock(side_effect=lambda _: gate.wait())``.
         """
         return True
-
-
-@contextlib.contextmanager
-def preserve_config(config: HassetteConfig) -> Generator[None, None, None]:
-    """Snapshot and restore config values around a test.
-
-    Enables module-scoped hassette reuse when tests mutate config.
-
-    Uses :meth:`~pydantic.BaseModel.model_copy` with ``deep=True`` so that
-    ``SecretStr`` fields are preserved as their original objects rather than
-    being serialised to the masked placeholder (``"**********"``).  Restoring
-    via ``model_dump()`` would poison a ``SecretStr`` token to that masked
-    string, which Pydantic would then coerce back to a ``SecretStr`` holding
-    the wrong value under ``validate_assignment=True``.
-    """
-    snapshot = config.model_copy(deep=True)
-    try:
-        yield
-    finally:
-        for key in type(config).model_fields:
-            setattr(config, key, getattr(snapshot, key))
 
 
 def sort_harness_graph(graph: dict[str, set[str]]) -> list[str]:

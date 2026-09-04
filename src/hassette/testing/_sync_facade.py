@@ -23,11 +23,11 @@ from hassette.models.entities.base import BaseEntity
 from hassette.models.history import HistoryEntry
 from hassette.models.services import ServiceResponse
 from hassette.models.states.base import BaseState, Context
-from hassette.test_utils.api_call import ApiCall
+from hassette.testing.api_call import ApiCall
 
 if typing.TYPE_CHECKING:
     from hassette.events import HassStateDict
-    from hassette.test_utils.recording_api import RecordingApi, RecordingHelperClient
+    from hassette.testing.recording_api import RecordingApi, RecordingHelperClient
 RECORDED_API_METHODS = frozenset(
     {
         "call_service",

@@ -26,7 +26,7 @@ import pytest
 import seed_db
 import seed_scenarios
 
-from hassette.test_utils.factories import make_execution_record
+from tests.support.factories import make_execution_record
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 

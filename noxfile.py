@@ -60,6 +60,38 @@ def dev(session: "Session"):
     )
 
 
+@nox.session(python="3.11")
+def wheel_smoke(session: "Session"):
+    """Build the wheel and verify the hassette.testing / hassette.test_utils boundary.
+
+    Installs the built wheel into this session's isolated venv (no editable install, no
+    ``tests/`` on the path) and checks both directions of the boundary: Tier 1 symbols
+    are importable from ``hassette.testing``, and ``hassette.test_utils`` — deleted from
+    the source tree — is not importable at all.
+    """
+    dist_dir = Path("dist")
+    if dist_dir.exists():
+        for stale in dist_dir.glob("hassette-*.whl"):
+            stale.unlink()
+    session.run("uv", "build", "--wheel", external=True)
+    wheel = next(dist_dir.glob("hassette-*.whl"))
+    # ``[test]`` is the documented optional-dependency extra for app authors using
+    # hassette.testing — hassette.testing.fixtures imports pytest at module level.
+    session.install(f"{wheel}[test]")
+    session.run("python", "-c", "from hassette.testing import AppTestHarness")
+    session.run(
+        "python",
+        "-c",
+        "import importlib\n"
+        "try:\n"
+        "    importlib.import_module('hassette.test_utils')\n"
+        "except ModuleNotFoundError:\n"
+        "    pass\n"
+        "else:\n"
+        "    raise AssertionError('hassette.test_utils should not be importable')\n",
+    )
+
+
 @nox.session(python=["3.11", "3.12", "3.13", "3.14"])
 def tests(session: "Session"):
     session.run(

@@ -39,8 +39,8 @@ from hassette.resources.base import Resource
 from hassette.scheduler.scheduler import Scheduler
 from hassette.state_manager.state_manager import StateManager
 from hassette.task_bucket.task_bucket import TaskBucket
-from hassette.test_utils import make_mock_hassette
 from hassette.types.types import LOG_LEVEL_TYPE
+from tests.support.mock_hassette import make_mock_hassette
 
 LOG_LEVEL_OVERRIDES = {
     "log_level": "INFO",

@@ -113,13 +113,13 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument(
         "--recording-api-path",
         type=Path,
-        default=_REPO_ROOT / "src" / "hassette" / "test_utils" / "recording_api.py",
-        help="Path to recording_api.py (default: hassette/test_utils/recording_api.py)",
+        default=_REPO_ROOT / "src" / "hassette" / "testing" / "recording_api.py",
+        help="Path to recording_api.py (default: hassette/testing/recording_api.py)",
     )
     parser.add_argument(
         "--recording-out",
         type=Path,
-        default=_REPO_ROOT / "src" / "hassette" / "test_utils" / "sync_facade.py",
+        default=_REPO_ROOT / "src" / "hassette" / "testing" / "_sync_facade.py",
         help="Output path for the generated recording sync facade",
     )
     parser.add_argument(

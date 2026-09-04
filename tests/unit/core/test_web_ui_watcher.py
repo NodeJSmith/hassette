@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from hassette.core.web_ui_watcher import _WATCH_DIRS, _WEB_DIR, WebUiWatcherService, _change_kind
-from hassette.test_utils.mock_hassette import make_mock_hassette
+from tests.support.mock_hassette import make_mock_hassette
 
 
 @pytest.mark.parametrize(

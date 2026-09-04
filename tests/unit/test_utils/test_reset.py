@@ -1,4 +1,4 @@
-"""Unit tests for hassette.test_utils.reset."""
+"""Unit tests for hassette.testing._reset."""
 
 import logging
 import re
@@ -6,12 +6,8 @@ import re
 import pytest
 
 from hassette.resources.teardown import TeardownCause, TeardownReport
-from hassette.test_utils import make_mock_hassette
-from hassette.test_utils.reset import (
-    _reject_tree_if_active_or_reported,
-    reset_hassette_lifecycle,
-    reset_resource_flags,
-)
+from hassette.testing._reset import _reject_tree_if_active_or_reported, reset_hassette_lifecycle, reset_resource_flags
+from tests.support.mock_hassette import make_mock_hassette
 from tests.unit.resources.conftest import ConcreteResource
 
 

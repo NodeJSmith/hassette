@@ -18,7 +18,7 @@ Each of these lives at module scope in its own file, not in `conftest.py` — a 
     early-drop config knobs (`early_drop_max_retries`, `early_drop_stable_window_seconds`,
     `early_drop_backoff_initial_seconds`, `early_drop_backoff_max_seconds`) on
     `websocket_service.hassette.config.websocket`. Defaults match the shared constants in
-    `hassette.test_utils.config`; pass an override only for the value a given test needs to
+    `hassette.testing.config`; pass an override only for the value a given test needs to
     differ (e.g. proving retry-budget exhaustion).
   - `make_failing_recv_task(error)` — builds an `asyncio.Task` that immediately raises `error`,
     simulating a failed recv loop for tests that don't need `FailingConnection`'s full

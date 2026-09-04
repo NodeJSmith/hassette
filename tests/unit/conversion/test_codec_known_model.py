@@ -15,7 +15,7 @@ from hassette.exceptions import UnableToConvertStateError
 from hassette.models.states.binary_sensor import BinarySensorState
 from hassette.models.states.light import LightState
 from hassette.state_manager.state_manager import DomainStates
-from hassette.test_utils import make_light_state_dict, make_state_dict
+from hassette.testing import make_light_state_dict, make_state_dict
 from hassette.types import StateT
 
 

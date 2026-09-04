@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock
 from hassette.commands import ExecuteJob
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.execution_record import ExecutionRecord
-from hassette.test_utils.factories import make_execution_record
+from tests.support.factories import make_execution_record
 
 # Shared fixture/factory config values — named so re-tuning is a single-site edit.
 COMMAND_EXECUTOR_CAPACITY_WARN_THRESHOLD = 0.75

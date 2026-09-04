@@ -20,7 +20,16 @@ checks.
 
 import argparse
 import sqlite3
+import sys
 from pathlib import Path
+
+# The seed scenario generators pull deterministic factories from ``tests.support``
+# (outside ``src/``, absent from the installed wheel — see
+# design/specs/108-testing-infra-split/design.md). That package is only importable
+# when the repo root is on sys.path, which pytest arranges automatically but a plain
+# ``python scripts/seed_db.py`` invocation does not. Add it explicitly so this script
+# keeps working as documented (CLAUDE.md) outside of pytest.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from seed_scenarios import SCENARIOS, SeedContext, SeedIntegrityError
 

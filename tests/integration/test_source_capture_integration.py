@@ -15,7 +15,7 @@ from hassette.scheduler.triggers import Every
 if typing.TYPE_CHECKING:
     from hassette.bus import Bus
     from hassette.scheduler import Scheduler
-    from hassette.test_utils.harness import HassetteHarness
+    from hassette.testing import HassetteHarness
 
 
 THIS_FILE = str(Path(__file__).resolve())

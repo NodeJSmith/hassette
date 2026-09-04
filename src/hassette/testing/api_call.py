@@ -1,7 +1,7 @@
 """ApiCall — record of a single API method invocation.
 
 Extracted from recording_api.py to break the circular import that would otherwise
-exist between recording_api.py and sync_facade.py. Both modules import from here.
+exist between recording_api.py and _sync_facade.py. Both modules import from here.
 """
 
 from dataclasses import dataclass, field

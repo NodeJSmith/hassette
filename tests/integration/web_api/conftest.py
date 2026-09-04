@@ -8,10 +8,10 @@ from httpx2 import ASGITransport, AsyncClient
 
 from hassette.exceptions import TelemetryUnavailableError
 from hassette.schemas.app_snapshots import AppInstanceInfo, AppStatusSnapshot
-from hassette.test_utils.config import TEST_SESSION_TTL, WEB_API_TEST_TOKEN
-from hassette.test_utils.web_manifest_helpers import make_app_instance_info
-from hassette.test_utils.web_mocks import create_hassette_stub, create_mock_runtime_query_service
+from hassette.testing.config import TEST_SESSION_TTL, WEB_API_TEST_TOKEN
 from hassette.web.app import create_fastapi_app
+from tests.support.web_manifest_helpers import make_app_instance_info
+from tests.support.web_mocks import create_hassette_stub, create_mock_runtime_query_service
 
 _SEED_TIMESTAMP = "2024-01-01T00:00:00"
 

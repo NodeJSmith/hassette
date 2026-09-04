@@ -20,12 +20,12 @@ from hassette.scheduler.classes import ScheduleStatus, ScheduleStatusReason
 from hassette.scheduler.triggers import Every
 from hassette.schemas.domain_models import ServiceInfo, SystemStatus
 from hassette.schemas.job_models import JobSummary
-from hassette.test_utils.web_job_helpers import make_job_summary, make_real_job
-from hassette.test_utils.web_mocks import create_hassette_stub, create_mock_runtime_query_service
 from hassette.types.enums import ResourceRole, ResourceStatus
 from hassette.web.app import create_fastapi_app
 from hassette.web.mappers import system_status_response_from
 from hassette.web.models import ServiceInfoResponse
+from tests.support.web_job_helpers import make_job_summary, make_real_job
+from tests.support.web_mocks import create_hassette_stub, create_mock_runtime_query_service
 
 from .helpers import (
     SINCE_WINDOW_ERROR_ROWS,

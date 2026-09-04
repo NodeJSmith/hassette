@@ -1,8 +1,9 @@
 """Unit tests for the EventCapture test utility contract."""
 
-from hassette.test_utils import make_hassette_event, make_mock_hassette
-from hassette.test_utils.event_capture import EventCapture
+from hassette.testing import EventCapture
 from hassette.types import Topic
+from tests.support.factories import make_hassette_event
+from tests.support.mock_hassette import make_mock_hassette
 
 
 class TestEventCaptureEmpty:

@@ -18,8 +18,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from httpx2 import ASGITransport, AsyncClient
 
-from hassette.test_utils.web_manifest_helpers import make_manifest_db_row
 from hassette.web.app import create_fastapi_app
+from tests.support.web_manifest_helpers import make_manifest_db_row
 
 from .conftest import APP_GRID_PATH, TELEMETRY_STATUS_PATH, get_json, telemetry_error
 

@@ -13,9 +13,11 @@ import pytest
 from hassette.core.websocket_service import WebsocketService
 from hassette.exceptions import RetryableConnectionClosedError
 from hassette.resources.lifecycle import mark_ready
-from hassette.test_utils import EventCapture, make_task_bucket_spawn_stub, make_ws_hassette_stub
+from hassette.testing import EventCapture
+from hassette.testing._ws_mocks import make_task_bucket_spawn_stub
 from hassette.types import Topic
 from hassette.types.enums import ConnectionState
+from tests.support.mock_hassette import make_ws_hassette_stub
 
 
 @pytest.fixture

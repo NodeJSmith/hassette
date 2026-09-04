@@ -5,7 +5,7 @@ from unittest.mock import patch
 from whenever import PlainDateTime
 
 from hassette.api import Api
-from hassette.test_utils.test_server import SimpleTestServer
+from hassette.testing._harness import SimpleTestServer
 
 TEST_DATA_PATH = Path.cwd().joinpath("tests", "data", "api_responses")
 

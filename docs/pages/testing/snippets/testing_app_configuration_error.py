@@ -1,6 +1,6 @@
 import pytest
 
-from hassette.test_utils import AppConfigurationError, AppTestHarness
+from hassette.testing import AppConfigurationError, AppTestHarness
 
 from my_apps.motion_lights import MotionLights
 

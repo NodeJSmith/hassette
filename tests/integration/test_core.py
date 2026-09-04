@@ -37,7 +37,7 @@ from hassette.resources.base import Resource
 from hassette.resources.restart import RestartSpec
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
-from hassette.test_utils import wait_for
+from hassette.testing import wait_for
 from hassette.utils.service_utils import topological_sort, validate_dependency_graph
 
 if typing.TYPE_CHECKING:

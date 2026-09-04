@@ -12,8 +12,8 @@ from types import SimpleNamespace
 import pytest
 
 from hassette.event_handling.predicates import compare_value, normalize_where
-from hassette.test_utils.harness import wait_for
-from hassette.test_utils.helpers import create_listener
+from hassette.testing import wait_for
+from tests.support.helpers import create_listener
 
 
 class TestNormalizeWhereAsyncRejection:

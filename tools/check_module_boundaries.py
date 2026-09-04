@@ -2,7 +2,7 @@
 """CI guard: enforce architectural import boundaries between hassette subpackages.
 
 Hassette has layered subpackages (``types``, ``models``, ``config``, ``api``,
-``bus``, ``core``, ``app``, ``web``, ``test_utils``, …). Nothing in the type
+``bus``, ``core``, ``app``, ``web``, ``testing``, …). Nothing in the type
 checker or test suite stops a lower layer from importing a higher one, so
 boundary erosion compiles and passes silently. This guard fails such imports.
 
@@ -11,7 +11,7 @@ Detection is AST-based and considers runtime imports only — anything inside an
 runtime dependency.
 
 Import boundaries enforced today (``RULES``):
-- ``test_utils`` isolation — production code must not import test helpers.
+- ``testing`` isolation — production code must not import test helpers.
 - ``api → core`` — api is a service layer and must not import core at runtime.
 - ``utils → events`` — utils sits below events; ``is_event_type`` has moved to events/.
 - ``web → core`` — web-facing data types live in hassette.schemas, not core.
@@ -21,6 +21,8 @@ Import boundaries enforced today (``RULES``):
 - ``scheduler → core`` — scheduler consumes SchedulerService via SchedulerServiceProtocol in types (#1079).
 - ``state_manager → core`` — state_manager consumes StateProxy via StateReader in types (#1079).
 - ``models → conversion`` — models/states is a leaf below the codec; the conversion ↔ models cycle is resolved (#892).
+- ``testing → tests.support`` — hassette.testing ships in the wheel and tests.support does not;
+  the dependency is one-way (tests/support/ may import hassette.testing, never the reverse) (#1333).
 
 The full layer DAG is NOT enforced here yet. The two service-layer core cycles
 (``scheduler``↔``core`` and ``state_manager``↔``core``) are resolved via protocol
@@ -35,7 +37,7 @@ boundary to annotate.
 
 This guard also forbids **private-attribute reach-through** into the Hassette core
 object — ``hassette._foo`` / ``self.hassette._foo`` — anywhere outside ``core/``
-and the ``test_utils/`` test harness (#1091). Subsystems should read public
+and the ``testing/`` test harness (#1091). Subsystems should read public
 properties, not private slots: the audit found the reach-throughs guarded null
 state divergently and that ``python -O`` strips their ``assert`` guards. Unlike
 the import rules, the private-attr rule has an escape hatch — ``PRIVATE_ATTR_ALLOWLIST``
@@ -66,9 +68,9 @@ SCAN_DIRS: list[str] = [SRC.relative_to(REPO_ROOT).as_posix()]
 
 
 #: Layers that own or legitimately wire Hassette internals, so reading ``hassette._foo``
-#: there is not a reach-through. ``core`` is where ``Hassette`` lives; ``test_utils`` is the
-#: test harness, whose whole job is assembling real components from their private slots.
-PRIVATE_ATTR_EXEMPT_LAYERS = frozenset({"core", "test_utils"})
+#: there is not a reach-through. ``core`` is where ``Hassette`` lives; ``testing`` is the test
+#: harness location, whose whole job is assembling real components from their private slots.
+PRIVATE_ATTR_EXEMPT_LAYERS = frozenset({"core", "testing"})
 #: Reason shown for a private-attr reach-through violation.
 PRIVATE_ATTR_REASON = (
     "subsystem code must not read private attributes of the Hassette core object; "
@@ -89,6 +91,9 @@ PRIVATE_ATTR_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         ("resources/base.py", "_should_skip_dependency_check"),
     }
 )
+#: Top-level packages any ``Rule`` below might forbid. ``runtime_imports`` only collects
+#: imports rooted in one of these — everything else is noise no rule cares about.
+WATCHED_ROOTS: frozenset[str] = frozenset({"hassette", "tests"})
 
 
 @dataclass(frozen=True)
@@ -105,21 +110,31 @@ class Rule:
     reason: str
 
 
+def forbids_prefix(prefix: str) -> Callable[[str], bool]:
+    """Return a ``Rule.forbids`` predicate matching ``prefix`` or any submodule of it.
+
+    The general form ``forbids_package`` builds on — most rules forbid a ``hassette.*``
+    subpackage, but ``testing-isolation`` forbids ``tests.support``, which isn't one.
+    """
+    return lambda module: module == prefix or module.startswith(f"{prefix}.")
+
+
 def forbids_package(pkg: str) -> Callable[[str], bool]:
     """Return a ``Rule.forbids`` predicate matching ``hassette.<pkg>`` or any submodule of it.
 
-    Factored out because every rule below forbids exactly one ``hassette.*`` package —
-    either the bare package name or anything nested under it (``hassette.core.foo``).
+    Factored out because every ``hassette``-internal rule below forbids exactly one
+    ``hassette.*`` package — either the bare package name or anything nested under it
+    (``hassette.core.foo``).
     """
-    return lambda module: module == f"hassette.{pkg}" or module.startswith(f"hassette.{pkg}.")
+    return forbids_prefix(f"hassette.{pkg}")
 
 
 RULES: list[Rule] = [
     Rule(
-        name="test_utils-isolation",
-        applies=lambda layer: layer != "test_utils",
-        forbids=forbids_package("test_utils"),
-        reason="production code must not import test helpers from hassette.test_utils",
+        name="test-helpers-isolation",
+        applies=lambda layer: layer != "testing",
+        forbids=forbids_package("testing"),
+        reason="production code must not import test helpers from hassette.testing",
     ),
     Rule(
         name="api-no-core",
@@ -175,6 +190,12 @@ RULES: list[Rule] = [
         forbids=forbids_package("conversion"),
         reason="models/states is a leaf below the codec; conversion ↔ models cycle resolved (#892)",
     ),
+    Rule(
+        name="testing-isolation",
+        applies=lambda layer: layer == "testing",
+        forbids=forbids_prefix("tests.support"),
+        reason="hassette.testing must not import tests.support (one-way dependency, #1333)",
+    ),
 ]
 
 
@@ -218,8 +239,8 @@ def resolved_from_module(node: ast.ImportFrom, package: str | None) -> str | Non
     """Resolve the ``from`` target of an ``ImportFrom`` to an absolute dotted module.
 
     Absolute imports return ``node.module`` unchanged. Relative imports are resolved
-    against ``package`` (``from ..test_utils import x`` inside ``hassette.core`` →
-    ``hassette.test_utils``). Returns None when there is no package to anchor a
+    against ``package`` (``from ..testing import x`` inside ``hassette.core`` →
+    ``hassette.testing``). Returns None when there is no package to anchor a
     relative import or the level climbs above the root.
     """
     if node.level == 0:
@@ -234,30 +255,81 @@ def resolved_from_module(node: ast.ImportFrom, package: str | None) -> str | Non
     return ".".join([*anchor, *(node.module.split(".") if node.module else [])])
 
 
-def runtime_imports(tree: ast.AST, package: str | None = None) -> list[tuple[int, str]]:
-    """Return (lineno, imported hassette.* module) for every runtime import.
+def dynamic_import_aliases(tree: ast.AST) -> frozenset[str]:
+    """Return bound names introduced by ``from importlib import import_module`` (or
+    ``__import__``), honoring ``as`` aliasing.
 
-    ``package`` is the importing module's dotted package, used to resolve relative
-    imports; when omitted, relative imports are skipped.
+    ``from importlib import import_module`` then calling the bound name has an
+    ``ast.Name`` callee, not the ``ast.Attribute`` form ``importlib.import_module(...)``
+    — ``dynamic_import_target`` needs these names to recognize that form as the same
+    escape hatch (#1881 review finding).
+    """
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module == "importlib":
+            names.update(
+                alias.asname or alias.name for alias in node.names if alias.name in ("import_module", "__import__")
+            )
+    return frozenset(names)
+
+
+def dynamic_import_target(node: ast.Call, bound_names: frozenset[str]) -> str | None:
+    """Return the literal target module of a dynamic-import call, or None.
+
+    Matches ``importlib.import_module("x")``, ``importlib.__import__("x")``, bare
+    ``__import__("x")``, and a bound name from ``from importlib import import_module``
+    (``bound_names``, from `dynamic_import_aliases`) — the ways to import a module by
+    string name at runtime, which bypass every static ``import``/``from`` form
+    ``runtime_imports`` otherwise looks for. Returns None for calls with no positional
+    argument, a non-literal argument (can't resolve statically — not flagged, since
+    there's nothing to check), or a different callee.
+    """
+    func = node.func
+    is_dynamic_callee = (isinstance(func, ast.Name) and (func.id == "__import__" or func.id in bound_names)) or (
+        isinstance(func, ast.Attribute) and func.attr in ("import_module", "__import__")
+    )
+    if not is_dynamic_callee or not node.args:
+        return None
+    arg = node.args[0]
+    return arg.value if isinstance(arg, ast.Constant) and isinstance(arg.value, str) else None
+
+
+def runtime_imports(tree: ast.AST, package: str | None = None) -> list[tuple[int, str]]:
+    """Return (lineno, imported module) for every runtime import rooted in a watched package.
+
+    Watched roots are ``WATCHED_ROOTS`` (``hassette``, ``tests``) — the two namespaces any
+    ``Rule`` might forbid. ``package`` is the importing module's dotted package, used to
+    resolve relative imports; when omitted, relative imports are skipped. Covers static
+    ``import``/``from`` forms and the dynamic ``importlib.import_module()``/``__import__()``
+    forms (with a string-literal argument) — a rule with no escape hatch needs both, since a
+    dynamic import a static walker doesn't see is still a real runtime dependency.
     """
     tc_ranges = type_checking_ranges(tree)
+    bound_dynamic_names = dynamic_import_aliases(tree)
 
     def in_type_checking(lineno: int) -> bool:
         return any(start <= lineno <= end for start, end in tc_ranges)
+
+    def is_watched(module: str) -> bool:
+        return module.split(".", 1)[0] in WATCHED_ROOTS
 
     out: list[tuple[int, str]] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom) and not in_type_checking(node.lineno):
             module = resolved_from_module(node, package)
-            if module == "hassette":
-                # Bare ``hassette`` target (``from hassette import test_utils`` or the
-                # relative ``from .. import test_utils``): the alias names are the
-                # submodules, so reassemble ``hassette.<name>`` per alias.
-                out.extend((node.lineno, f"hassette.{alias.name}") for alias in node.names if alias.name != "*")
-            elif module and module.startswith("hassette."):
+            if module in WATCHED_ROOTS:
+                # Bare root target (``from hassette import testing`` / ``from tests import
+                # support``, or their relative equivalents): the alias names are the
+                # submodules, so reassemble ``<root>.<name>`` per alias.
+                out.extend((node.lineno, f"{module}.{alias.name}") for alias in node.names if alias.name != "*")
+            elif module and is_watched(module):
                 out.append((node.lineno, module))
         elif isinstance(node, ast.Import) and not in_type_checking(node.lineno):
-            out.extend((node.lineno, alias.name) for alias in node.names if alias.name.startswith("hassette."))
+            out.extend((node.lineno, alias.name) for alias in node.names if is_watched(alias.name))
+        elif isinstance(node, ast.Call) and not in_type_checking(node.lineno):
+            target = dynamic_import_target(node, bound_dynamic_names)
+            if target and is_watched(target):
+                out.append((node.lineno, target))
     return out
 
 

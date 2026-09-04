@@ -10,9 +10,9 @@ from hassette.resources.base import Resource
 from hassette.scheduler.classes import Job, ScheduleStatus
 from hassette.scheduler.scheduler import Scheduler
 from hassette.scheduler.triggers import After, Cron, Daily, Every, Once
-from hassette.test_utils.factories import make_mock_parent, make_scheduled_job, make_scheduler
-from hassette.test_utils.helpers import noop
 from hassette.utils.date_utils import now
+from tests.support.factories import make_mock_parent, make_scheduled_job, make_scheduler
+from tests.support.helpers import noop
 
 
 class TestScheduleEntryPoint:

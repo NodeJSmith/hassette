@@ -24,9 +24,10 @@ from hassette.resources.lifecycle import compute_shutdown_budget, start
 from hassette.resources.operations import ordered_children_for_shutdown
 from hassette.resources.teardown import TeardownCause, TeardownReport
 from hassette.task_bucket import make_task_factory
-from hassette.test_utils import make_mock_hassette, wait_for
-from hassette.test_utils.helpers import SHORT_SHUTDOWN_TIMEOUT_SECONDS
+from hassette.testing import wait_for
 from hassette.types.enums import ResourceStatus
+from tests.support.helpers import SHORT_SHUTDOWN_TIMEOUT_SECONDS
+from tests.support.mock_hassette import make_mock_hassette
 from tests.unit.resources.conftest import ConcreteResource, wait_for_running
 
 from .conftest import (

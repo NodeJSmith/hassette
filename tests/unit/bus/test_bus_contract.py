@@ -24,7 +24,7 @@ from hassette.events.base import Event
 if typing.TYPE_CHECKING:
     from hassette.bus import Bus
     from hassette.core.bus_service import BusService
-    from hassette.test_utils.harness import HassetteHarness
+    from hassette.testing import HassetteHarness
 
 
 async def handler_contract(event) -> None:

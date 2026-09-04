@@ -1,4 +1,4 @@
-"""Exception types for hassette.test_utils.
+"""Exception types for hassette.testing.
 
 Contains exceptions raised by the AppTestHarness drain mechanism.
 

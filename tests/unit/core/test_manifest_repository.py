@@ -11,7 +11,7 @@ import aiosqlite
 
 from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.core.telemetry.repository import TelemetryRepository, manifest_insert_params
-from hassette.test_utils import create_app_manifest
+from tests.support.helpers import create_app_manifest
 
 
 async def _table_columns(db: aiosqlite.Connection, table: str) -> set[str]:

@@ -9,23 +9,57 @@ import math
 from logging import getLogger
 from typing import TYPE_CHECKING, Any
 
+from hassette.events import ComponentLoadedEvent, ServiceRegisteredEvent
 from hassette.events.hassette import HassetteAppStateEvent, HassetteServiceEvent, HassetteSimpleEvent
-from hassette.test_utils.exceptions import DrainError, DrainTimeout
-from hassette.test_utils.helpers import (
+from hassette.testing._factories import (
     create_call_service_event,
-    create_component_loaded_event,
-    create_service_registered_event,
+    create_hass_event,
     create_state_change_event,
 )
+from hassette.testing.exceptions import DrainError, DrainTimeout
 from hassette.types import ResourceRole, ResourceStatus, Topic
 
 if TYPE_CHECKING:
     from hassette.app.app import App
     from hassette.core.bus_service import BusService
-    from hassette.test_utils.harness import HassetteHarness
+    from hassette.testing._harness import HassetteHarness
 
 LOGGER = getLogger(__name__)
 DEFAULT_SIMULATE_TIMEOUT = 2.0
+
+
+def create_component_loaded_event(
+    component: str,
+) -> ComponentLoadedEvent:
+    """Create a component_loaded event for testing.
+
+    Args:
+        component: The component name (e.g., "mqtt", "zwave").
+
+    Returns:
+        ComponentLoadedEvent instance.
+    """
+    event = create_hass_event("component_loaded", {"component": component})
+    assert isinstance(event, ComponentLoadedEvent)
+    return event
+
+
+def create_service_registered_event(
+    domain: str,
+    service: str,
+) -> ServiceRegisteredEvent:
+    """Create a service_registered event for testing.
+
+    Args:
+        domain: The service domain (e.g., "light").
+        service: The service name (e.g., "turn_on").
+
+    Returns:
+        ServiceRegisteredEvent instance.
+    """
+    event = create_hass_event("service_registered", {"domain": domain, "service": service})
+    assert isinstance(event, ServiceRegisteredEvent)
+    return event
 
 
 class SimulationMixin:
@@ -245,7 +279,7 @@ class SimulationMixin:
 
         Raises:
             DrainError: If any handler task raised a non-cancellation exception.
-            DrainTimeout: If the drain does not reach quiescence within ``timeout``.
+            DrainTimeout: If drain does not reach quiescence within ``timeout``.
         """
         self._validate_timeout(timeout)
         harness = self.require_harness()
@@ -380,7 +414,7 @@ class SimulationMixin:
 
         For a lighter-weight alternative that marks the service ready and records a
         prior successful connection without dispatching a bus event, see
-        ``mark_websocket_service_connected()`` in ``hassette.test_utils.ws_mocks``.
+        ``mark_websocket_service_connected()`` in ``hassette.testing._ws_mocks``.
 
         Args:
             timeout: Maximum seconds to wait for handlers to complete.

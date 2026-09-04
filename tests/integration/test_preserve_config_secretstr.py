@@ -4,8 +4,9 @@ preserve_config must restore a SecretStr token unchanged after a scope exits,
 without poisoning it to the masked placeholder (``"**********"``).
 """
 
-from hassette.test_utils.config import TEST_TOKEN, make_test_config
-from hassette.test_utils.harness import preserve_config
+from hassette.testing import make_test_config
+from hassette.testing._harness import TEST_TOKEN
+from tests.support.harness import preserve_config
 
 
 def test_preserve_config_round_trips_secretstr_token(tmp_path) -> None:

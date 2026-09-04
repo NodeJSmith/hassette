@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from hassette.core.app_lifecycle_service import AppAdmissionMode
 from hassette.resources.lifecycle import mark_ready
-from hassette.test_utils.config import WAIT_FOR_READY_TIMEOUT_SECONDS
+from hassette.testing.config import WAIT_FOR_READY_TIMEOUT_SECONDS
 from hassette.types.enums import ACTIVE_STATUSES, ResourceStatus
 
 if TYPE_CHECKING:
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from hassette.core.state_proxy import StateProxy
     from hassette.resources.base import Resource
     from hassette.scheduler.scheduler import Scheduler
-    from hassette.test_utils.test_server import SimpleTestServer
+    from hassette.testing._server import SimpleTestServer
 
 
 async def reset_state_proxy(proxy: "StateProxy", *, require_initial_state_capability: bool = True) -> None:

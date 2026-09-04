@@ -16,7 +16,7 @@ import hassette.cli.output as output_module
 from hassette.cli.client import HassetteCLIClient
 from hassette.cli.context import CLIContext
 from hassette.config.config import HassetteConfig
-from hassette.test_utils import make_test_config
+from hassette.testing import make_test_config
 
 SINCE_EPOCH = 1_700_000_000.0
 NOW_EPOCH = 1_748_000_000.0

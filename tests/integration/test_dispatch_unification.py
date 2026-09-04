@@ -22,8 +22,8 @@ from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.telemetry.repository import TelemetryRepository
-from hassette.test_utils.factories import make_mock_listener
-from hassette.test_utils.helpers import create_listener
+from tests.support.factories import make_mock_listener
+from tests.support.helpers import create_listener
 
 
 @pytest.fixture

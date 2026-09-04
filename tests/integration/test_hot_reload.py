@@ -15,7 +15,10 @@ from typing import TYPE_CHECKING
 import anyio
 import pytest
 
-from hassette.test_utils import (
+from hassette.testing import HassetteHarness
+from hassette.types import ResourceStatus
+from tests.support.harness import preserve_config
+from tests.support.helpers import (
     create_app_manifest,
     emit_file_change_event,
     wire_up_app_running_listener,
@@ -23,8 +26,6 @@ from hassette.test_utils import (
     write_app_toml,
     write_test_app_with_decorator,
 )
-from hassette.test_utils.harness import HassetteHarness, preserve_config
-from hassette.types import ResourceStatus
 
 if TYPE_CHECKING:
     from hassette.core.app_handler import AppHandler

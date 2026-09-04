@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from hassette.core.telemetry.query_service import TelemetryQueryService
-from hassette.test_utils.mock_hassette import make_mock_hassette
+from tests.support.mock_hassette import make_mock_hassette
 
 from .helpers import DbFixture, open_db_with_session
 

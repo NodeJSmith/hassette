@@ -12,7 +12,7 @@ from hassette.resources.lifecycle import handle_stop as real_handle_stop
 from hassette.types.enums import ResourceStatus
 
 if TYPE_CHECKING:
-    from hassette.test_utils.harness import HassetteHarness
+    from hassette.testing import HassetteHarness
 
 
 class TestHassetteShutdownSinglePass:

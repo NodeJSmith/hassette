@@ -32,7 +32,8 @@ from hassette.event_handling.predicates import (
     _summarize_predicate,
     compare_value,
 )
-from hassette.test_utils import create_attr_change_event, create_state_change_event
+from hassette.testing import create_state_change_event
+from tests.support.helpers import create_attr_change_event
 
 if typing.TYPE_CHECKING:
     from hassette.events import Event

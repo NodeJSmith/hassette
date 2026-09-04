@@ -18,8 +18,8 @@ import pytest
 
 from hassette.events import RawStateChangeEvent
 from hassette.execution_mode import DEFAULT_QUEUE_DEPTH
-from hassette.test_utils import wait_for
-from hassette.test_utils.factories import make_mock_parent
+from hassette.testing import wait_for
+from tests.support.factories import make_mock_parent
 
 from .conftest import DURATION
 from .helpers import ENTITY, fire, pump_event_loop, seed
@@ -27,7 +27,7 @@ from .helpers import ENTITY, fire, pump_event_loop, seed
 if typing.TYPE_CHECKING:
     from hassette import Hassette
     from hassette.bus import Bus
-    from hassette.test_utils.harness import HassetteHarness
+    from hassette.testing import HassetteHarness
 
 
 async def test_single_runs_once_and_suppresses_refire(

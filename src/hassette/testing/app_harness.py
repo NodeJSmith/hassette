@@ -39,12 +39,12 @@ from hassette.config.classes import AppManifest
 from hassette.resources.lifecycle import start
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
-from hassette.test_utils.config import make_test_config
-from hassette.test_utils.harness import HassetteHarness, Timeouts, wait_for
-from hassette.test_utils.helpers import make_state_dict
-from hassette.test_utils.recording_api import RECORD_TYPE_TO_DOMAIN, RecordingApi
-from hassette.test_utils.simulation import SimulationMixin
-from hassette.test_utils.time_control import TimeControlMixin
+from hassette.testing._factories import make_state_dict
+from hassette.testing._harness import HassetteHarness, Timeouts, wait_for
+from hassette.testing._simulation import SimulationMixin
+from hassette.testing._time_control import TimeControlMixin
+from hassette.testing.config import make_test_config
+from hassette.testing.recording_api import RECORD_TYPE_TO_DOMAIN, RecordingApi
 from hassette.types.enums import ResourceStatus
 
 if TYPE_CHECKING:

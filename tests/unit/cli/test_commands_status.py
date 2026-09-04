@@ -6,7 +6,7 @@ from hassette.cli.commands.status import (
     cmd_status,
     cmd_telemetry,
 )
-from hassette.test_utils.web_response_helpers import (
+from tests.support.web_response_helpers import (
     make_dashboard_app_grid_response,
     make_system_status_response,
     make_telemetry_status_response,

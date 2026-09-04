@@ -8,7 +8,7 @@ from httpx2 import Response
 from hassette.exceptions import JobRemovedError
 from hassette.scheduler.classes import Job
 from hassette.scheduler.triggers import Every
-from hassette.test_utils.web_job_helpers import make_real_job
+from tests.support.web_job_helpers import make_real_job
 
 if TYPE_CHECKING:
     from httpx2 import AsyncClient

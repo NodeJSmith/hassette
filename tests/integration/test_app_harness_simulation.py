@@ -10,13 +10,13 @@ from unittest.mock import Mock
 import pytest
 from whenever import Instant, ZonedDateTime
 
-import hassette.test_utils.time_control as time_control
+import hassette.testing._time_control as time_control
 import hassette.utils.date_utils as date_utils
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
 from hassette.events import RawStateChangeEvent
-from hassette.test_utils.app_harness import AppTestHarness
-from hassette.test_utils.time_control import TimeControlMixin
+from hassette.testing import AppTestHarness
+from hassette.testing._time_control import TimeControlMixin
 
 
 class SimConfig(AppConfig):

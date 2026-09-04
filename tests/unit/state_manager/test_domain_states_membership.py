@@ -16,7 +16,8 @@ from hassette.models.states import LightState, SensorState
 from hassette.models.states.sensor_shapes import NumericSensorState
 from hassette.state_manager import DomainStates
 from hassette.state_manager.state_manager import _NUMERIC_SENSOR_PREDICATE
-from hassette.test_utils import FakeStateReader, make_sensor_state_dict
+from hassette.testing import make_sensor_state_dict
+from tests.support.helpers import FakeStateReader
 
 
 def build_multi_shape_sensor_fixture() -> FakeStateReader:

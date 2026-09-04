@@ -40,8 +40,8 @@ from hassette.resources.lifecycle import (
     start,
 )
 from hassette.resources.mixins import LifecycleMixin
-from hassette.test_utils import make_mock_hassette
 from hassette.types.enums import ResourceStatus
+from tests.support.mock_hassette import make_mock_hassette
 from tests.unit.resources.conftest import ConcreteResource, wait_for_running
 from tests.unit.resources.lifecycle.conftest import make_running_simple_service
 

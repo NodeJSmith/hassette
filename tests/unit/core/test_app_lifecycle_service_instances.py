@@ -15,11 +15,12 @@ from unittest.mock import AsyncMock, MagicMock, Mock, call, patch
 from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.scheduler.classes import Job
 from hassette.scheduler.scheduler import Scheduler
-from hassette.test_utils import EventCapture, make_mock_hassette
-from hassette.test_utils.factories import make_mock_parent
-from hassette.test_utils.helpers import noop
+from hassette.testing import EventCapture
 from hassette.types import Topic
 from hassette.types.enums import ResourceStatus
+from tests.support.factories import make_mock_parent
+from tests.support.helpers import noop
+from tests.support.mock_hassette import make_mock_hassette
 
 from .conftest import make_mock_app_instance, set_registry_apps
 
@@ -89,6 +90,45 @@ class TestInitializeInstances:
 
         assert mock_app_instance.status == ResourceStatus.STOPPED
         mock_registry.record_failure.assert_called_once_with("test_app", 0, error)
+
+    async def test_exception_traceback_shows_app_frame_not_just_call_site(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_app_instance: AsyncMock,
+        mock_manifest: MagicMock,
+    ) -> None:
+        """Logged traceback includes the app's own deep frame, not just outer call-site frames.
+
+        ``get_short_traceback`` treats a positive limit as "closest to the call site" and a
+        negative limit as "closest to the raise" (stdlib ``traceback.format_exc`` semantics).
+        Init failures are logged with a limit sized for a nested on_initialize() call chain
+        specifically so the app author's own raising line is visible, not just framework
+        frames near ``anyio.fail_after`` — so the traceback limit must be negative.
+        """
+
+        async def level_5():
+            raise ValueError("app bug at level 5")
+
+        async def level_4():
+            await level_5()
+
+        async def level_3():
+            await level_4()
+
+        async def level_2():
+            await level_3()
+
+        async def level_1():
+            await level_2()
+
+        mock_app_instance.initialize.side_effect = level_1
+        instances = {0: mock_app_instance}
+
+        with patch.object(lifecycle_service, "logger") as mock_logger:
+            await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
+
+        traceback_arg = mock_logger.error.call_args[0][-1]
+        assert "level_5" in traceback_arg
 
     async def test_continues_after_failure(
         self, lifecycle_service: AppLifecycleService, mock_manifest: MagicMock, mock_registry: MagicMock
@@ -273,7 +313,7 @@ class TestCleanupFailedInstance:
 
         Also asserts the removal callback registered by Scheduler.__init__ is
         deregistered afterward — cleanup_failed_instance() discards this Scheduler for
-        good (unlike test_utils.reset.reset_scheduler, which reuses its instance), so it
+        good (unlike hassette.testing._reset.reset_scheduler, which reuses its instance), so it
         must explicitly deregister rather than leak the stale callback.
         """
         hassette = make_mock_hassette(sealed=False)

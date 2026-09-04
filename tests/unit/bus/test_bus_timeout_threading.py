@@ -3,7 +3,7 @@
 from unittest.mock import AsyncMock, MagicMock
 
 from hassette.bus.bus import Bus, Options
-from hassette.test_utils.factories import make_mock_parent
+from tests.support.factories import make_mock_parent
 
 
 def make_bus() -> Bus:

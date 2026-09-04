@@ -20,8 +20,8 @@ from hassette.core.migration_runner import (
     _set_auto_vacuum,
     run_migrations,
 )
-from hassette.test_utils.config import LATEST_MIGRATION_VERSION
-from hassette.test_utils.sql_helpers import insert_execution_row, sqlite_conn
+from hassette.testing.config import LATEST_MIGRATION_VERSION
+from tests.support.sql import insert_execution_row, sqlite_conn
 
 
 def _user_version(db_path: Path) -> int:

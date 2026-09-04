@@ -21,8 +21,8 @@ from hassette.core.database_service import DatabaseService
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.sync_executor import SyncExecutor
 from hassette.task_bucket.task_bucket import TaskBucket
-from hassette.test_utils.factories import make_listener_registration, make_mock_listener
-from hassette.test_utils.mock_hassette import make_mock_hassette
+from tests.support.factories import make_listener_registration, make_mock_listener
+from tests.support.mock_hassette import make_mock_hassette
 
 from .conftest import invoke_cmd, pop_execution_record
 

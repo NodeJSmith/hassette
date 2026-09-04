@@ -19,15 +19,14 @@ import pytest
 from hassette import C
 from hassette.events.hassette import HassetteAppStateEvent
 from hassette.exceptions import ListenerNameRequiredError
-from hassette.test_utils.helpers import (
+from hassette.testing import (
     create_call_service_event,
-    create_component_loaded_event,
-    create_service_registered_event,
     create_state_change_event,
     make_full_state_change_event,
     make_state_dict,
 )
 from hassette.types.enums import BackpressurePolicy, ExecutionMode, ResourceStatus
+from tests.support.helpers import create_component_loaded_event, create_service_registered_event
 
 from .conftest import mock_add_listener
 

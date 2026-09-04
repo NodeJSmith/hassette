@@ -10,15 +10,9 @@ from hassette.events import RawStateChangeEvent
 from hassette.events.metadata import stamp_websocket_generation
 from hassette.exceptions import ResourceNotReadyError
 from hassette.resources.lifecycle import mark_ready
-from hassette.test_utils import (
-    HassetteHarness,
-    build_harness,
-    make_full_state_change_event,
-    make_light_state_dict,
-    make_mock_hassette,
-)
-from hassette.test_utils.config import TEST_TOTAL_TIMEOUT_SECONDS
-from hassette.test_utils.ws_mocks import configure_ready_websocket_mock
+from hassette.testing import HassetteHarness, build_harness, make_full_state_change_event, make_light_state_dict
+from tests.support.mock_hassette import TEST_TOTAL_TIMEOUT_SECONDS, make_mock_hassette
+from tests.support.web_mocks import configure_ready_websocket_mock
 
 # Generous bound for deterministic gate/task waits below — long enough to absorb slow CI,
 # short enough to fail fast on a genuine hang instead of stalling the suite.

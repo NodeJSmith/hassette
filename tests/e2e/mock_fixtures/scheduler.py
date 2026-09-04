@@ -3,8 +3,8 @@
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
-from hassette.test_utils.web_job_helpers import make_job
 from tests.e2e.mock_fixtures.constants import APP_KEY_MY_APP
+from tests.support.web_job_helpers import make_job
 
 
 def build_scheduler_jobs() -> list[SimpleNamespace]:

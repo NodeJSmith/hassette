@@ -9,7 +9,7 @@ from hassette.app.app import App, AppSync
 from hassette.events.base import Event, HassettePayload
 
 if TYPE_CHECKING:
-    from hassette.test_utils.harness import HassetteHarness
+    from hassette.testing import HassetteHarness
 
 HANDLER_TIMEOUT = 2.0
 

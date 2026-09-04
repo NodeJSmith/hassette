@@ -1,10 +1,10 @@
 import typing
 
 from hassette.models.states import BaseState
-from hassette.test_utils import make_state_dict
+from hassette.testing import make_state_dict
 
 if typing.TYPE_CHECKING:
-    from hassette.test_utils.harness import HassetteHarness
+    from hassette.testing import HassetteHarness
 
 
 class CustomOuterDefinition(BaseState):

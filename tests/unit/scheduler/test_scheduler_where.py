@@ -14,7 +14,7 @@ from hassette.exceptions import DependencyInjectionError
 from hassette.scheduler.classes import Job
 from hassette.scheduler.scheduler import Scheduler, _build_predicate_invoker, _normalize_where
 from hassette.scheduler.triggers import Every
-from hassette.test_utils.helpers import noop
+from tests.support.helpers import noop
 
 from .conftest import make_scheduler
 

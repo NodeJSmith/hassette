@@ -30,10 +30,10 @@ from hassette.core.state_proxy import StateProxy
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
 from hassette.task_bucket.task_bucket import TaskBucket
-from hassette.test_utils import make_mock_hassette
-from hassette.test_utils.app_harness import HERMETIC_CONFIG_CACHE, AppConfigurationError, make_hermetic_config
-from hassette.test_utils.config import make_test_config
-from hassette.test_utils.harness import HassetteHarness, Timeouts
+from hassette.testing import AppConfigurationError, HassetteHarness, make_test_config
+from hassette.testing._harness import Timeouts
+from hassette.testing.app_harness import HERMETIC_CONFIG_CACHE, make_hermetic_config
+from tests.support.mock_hassette import make_mock_hassette
 
 
 def build_mock_hassette():

@@ -15,8 +15,9 @@ import hassette.resources.lifecycle as lifecycle_module
 from hassette.core.websocket_service import WebsocketService
 from hassette.exceptions import InvalidAuthError, RetryableConnectionClosedError
 from hassette.resources.base import ResourceStatus
-from hassette.test_utils import EventCapture, build_fake_ws, mark_websocket_service_connected
-from hassette.test_utils.config import (
+from hassette.testing import EventCapture
+from hassette.testing._ws_mocks import build_fake_ws, mark_websocket_service_connected
+from hassette.testing.config import (
     TEST_EARLY_DROP_BACKOFF_INITIAL_SECONDS,
     TEST_EARLY_DROP_BACKOFF_MAX_SECONDS,
     TEST_EARLY_DROP_MAX_RETRIES,
@@ -270,7 +271,7 @@ def apply_early_drop_config(
 ) -> None:
     """Patch the four early-drop config knobs on ``websocket_service.hassette.config.websocket``.
 
-    Defaults match the shared test constants (``hassette.test_utils.config``); pass an override
+    Defaults match the shared test constants (``hassette.testing.config``); pass an override
     only for the value a given test needs to differ (e.g. proving retry-budget exhaustion).
     """
     config = websocket_service.hassette.config.websocket

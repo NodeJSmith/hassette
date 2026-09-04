@@ -13,7 +13,7 @@ import pytest
 import hassette.core.telemetry.repository as telemetry_repository_module
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.telemetry.repository import TelemetryRepository
-from hassette.test_utils.factories import make_execution_record, make_job_registration, make_listener_registration
+from tests.support.factories import make_execution_record, make_job_registration, make_listener_registration
 
 
 async def forward_execute(

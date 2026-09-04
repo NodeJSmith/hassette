@@ -27,7 +27,7 @@ from hassette.config.models import (
     WebApiConfig,
     WebSocketConfig,
 )
-from hassette.test_utils.config import TEST_TOKEN
+from hassette.testing._harness import TEST_TOKEN
 
 
 @pytest.mark.parametrize(

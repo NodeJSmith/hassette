@@ -1,7 +1,7 @@
 """Unit tests for TelemetryQueryService module-level SQL helper functions."""
 
 from hassette.core.telemetry.helpers import handler_job_union_arms, since_clause
-from hassette.test_utils.config import TEST_EPOCH_B
+from tests.support.web_job_helpers import TEST_EPOCH_B
 
 
 class TestSinceClause:

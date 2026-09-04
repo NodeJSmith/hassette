@@ -1,7 +1,7 @@
 """Tests for the `extras` property and `extra()` method on AttributesBase and BaseState."""
 
 from hassette.models.states.light import LightAttributes, LightState
-from hassette.test_utils import make_light_state_dict
+from hassette.testing import make_light_state_dict
 
 
 class TestAttributesBaseExtras:

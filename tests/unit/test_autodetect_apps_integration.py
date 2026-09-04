@@ -12,8 +12,8 @@ import pytest
 
 from hassette import context
 from hassette.config.config import HassetteConfig
-from hassette.test_utils import write_app
-from hassette.test_utils.config import TEST_TOKEN
+from hassette.testing._harness import TEST_TOKEN
+from tests.support.helpers import write_app
 
 
 class TestAutoDetectIntegration:

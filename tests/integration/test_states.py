@@ -11,7 +11,7 @@ import pytest
 
 from hassette.models import states
 from hassette.state_manager import DomainStates, StateManager
-from hassette.test_utils import (
+from hassette.testing import (
     make_full_state_change_event,
     make_light_state_dict,
     make_sensor_state_dict,
@@ -21,7 +21,7 @@ from hassette.test_utils import (
 )
 
 if TYPE_CHECKING:
-    from hassette.test_utils.harness import HassetteHarness
+    from hassette.testing import HassetteHarness
 
 
 async def send_and_wait(

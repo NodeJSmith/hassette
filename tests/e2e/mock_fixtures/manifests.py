@@ -5,7 +5,6 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 from hassette.schemas.app_snapshots import AppManifestInfo, AppStatusSnapshot
-from hassette.test_utils.web_manifest_helpers import make_app_instance_info, make_manifest, make_manifest_db_row
 from hassette.types.enums import ManifestStatus, ResourceStatus
 from tests.e2e.mock_fixtures.constants import (
     APP_KEY_BROKEN_APP,
@@ -15,6 +14,7 @@ from tests.e2e.mock_fixtures.constants import (
     APP_KEY_NOSOURCE_APP,
     APP_KEY_OTHER_APP,
 )
+from tests.support.web_manifest_helpers import make_app_instance_info, make_manifest, make_manifest_db_row
 
 BROKEN_APP_ERROR = "Init error: bad config"
 BROKEN_APP_TRACEBACK = (

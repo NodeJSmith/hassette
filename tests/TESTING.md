@@ -5,7 +5,7 @@
 `HassetteHarness` provides a fluent builder for composing test environments. Dependencies are resolved automatically at startup.
 
 ```python
-from hassette.test_utils import HassetteHarness
+from hassette.testing import HassetteHarness
 
 # Builder chains — bus and scheduler are auto-added because state_proxy depends on both
 async with HassetteHarness(config).with_state_proxy() as harness:
@@ -41,7 +41,7 @@ Two parallel systems exist for different testing needs:
 Use when you need real event delivery, scheduling, or state propagation:
 
 ```python
-from hassette.test_utils import HassetteHarness
+from hassette.testing import HassetteHarness
 
 async with HassetteHarness(config).with_bus().with_scheduler() as harness:
     hassette = harness.hassette
@@ -53,7 +53,7 @@ async with HassetteHarness(config).with_bus().with_scheduler() as harness:
 Use when you only need HTTP/WS responses and don't care about internal wiring:
 
 ```python
-from hassette.test_utils.web_mocks import create_hassette_stub, create_mock_runtime_query_service
+from tests.support.web_mocks import create_hassette_stub, create_mock_runtime_query_service
 
 stub = create_hassette_stub(states={"light.kitchen": {...}})
 runtime = create_mock_runtime_query_service(stub)
@@ -62,16 +62,16 @@ app = create_fastapi_app(stub)
 
 ## Fixture Naming Conventions
 
-### Harness fixtures (`src/hassette/test_utils/fixtures.py`)
+### Harness fixtures (`hassette.testing.fixtures` + `tests/support/fixtures.py`)
 
-- `hassette_harness` — factory that creates a bare `HassetteHarness` with a fresh TCP port
-- `hassette_with_*` — pre-configured harness fixtures (e.g., `hassette_with_bus`, `hassette_with_state_proxy`); all yield `HassetteHarness` directly
+- `hassette_harness` — factory that creates a bare `HassetteHarness` with a fresh TCP port (`tests/support/fixtures.py`)
+- `hassette_with_*` — pre-configured harness fixtures (e.g., `hassette_with_bus`, `hassette_with_state_proxy`); all yield `HassetteHarness` directly (`tests/support/fixtures.py`)
 
   Exception: `hassette_with_mock_api` yields `tuple[Api, SimpleTestServer]` — a different pattern used only by API-level tests.
 
 ### Web mock fixtures
 
-- `mock_hassette` — in unit/integration non-web tests: lightweight hassette mock via `make_mock_hassette()` from `hassette.test_utils`; in web/API tests: MagicMock stub via `create_hassette_stub()` (defined locally per file, out of scope for consolidation)
+- `mock_hassette` — in unit/integration non-web tests: lightweight hassette mock via `make_mock_hassette()` from `tests.support.mock_hassette`; in web/API tests: MagicMock stub via `create_hassette_stub()` (defined locally per file, out of scope for consolidation)
 - `db_hassette` — database-backed hassette mock with `premigrated_db_path`, also via `make_mock_hassette()`
 - `runtime_query_service` — RuntimeQueryService wired to the mock, via `create_mock_runtime_query_service()` (shared in `tests/integration/web_api/conftest.py`)
 - `app` — FastAPI application instance (shared in `tests/integration/web_api/conftest.py`, can be overridden locally)
@@ -96,7 +96,7 @@ Module scope with autouse cleanup gives 5-10x speedup over function scope. Prefe
 ### `preserve_config()` — for config mutation in module-scoped fixtures
 
 ```python
-from hassette.test_utils import preserve_config
+from tests.support.harness import preserve_config
 
 with preserve_config(hassette.config):
     hassette.config.some_setting = "temporary"
@@ -140,7 +140,7 @@ StateProxy does not clear bus listeners or scheduler jobs, so each component is
 always reset explicitly when active. The cost is negligible (one
 `remove_all_listeners()` + one `_remove_all_jobs()` call per test at most).
 
-Reset functions are defined in `src/hassette/test_utils/reset.py`.
+Reset functions are defined in `src/hassette/testing/_reset.py`.
 
 ## Factory Naming Convention (`make_*` / `create_*` / `build_*`)
 
@@ -156,72 +156,72 @@ Similarly, `make_manifest()` in `web_manifest_helpers.py` returns `AppManifestIn
 
 ## Before Writing a New Factory
 
-1. Check `src/hassette/test_utils/factories.py` for an existing factory returning the type you need.
-2. Check `src/hassette/test_utils/helpers.py` for event/state builders and misc helpers.
-3. Check `src/hassette/test_utils/web_manifest_helpers.py`, `src/hassette/test_utils/web_job_helpers.py`, `src/hassette/test_utils/web_response_helpers.py`, and `src/hassette/test_utils/web_telemetry_helpers.py` for web/API response and snapshot factories.
+1. Check `tests/support/factories.py` for an existing factory returning the type you need.
+2. Check `tests/support/helpers.py` for event/state builders and misc helpers.
+3. Check `tests/support/web_manifest_helpers.py`, `tests/support/web_job_helpers.py`, `tests/support/web_response_helpers.py`, and `tests/support/web_telemetry_helpers.py` for web/API response and snapshot factories.
 4. If a matching factory exists, import it — don't redefine it locally, even with a different name for the same shape.
 5. If it doesn't exist and you need it in 3+ files, add it to the appropriate shared file instead of writing a fourth local copy.
 6. If the factory is genuinely local — a different return type, a narrower purpose than any shared factory with a similar name — annotate the `def` line with `# factory-local: <reason>` so `tools/check_test_factories.py` doesn't flag it as shadowing.
 
 ## Available Factories
 
-### `make_mock_hassette(**config_overrides)` — `test_utils/mock_hassette.py`
+### `make_mock_hassette(**config_overrides)` — `tests/support/mock_hassette.py`
 
 Builds a sealed `AsyncMock` hassette with real Pydantic-validated config via `make_test_config()`. Accepts any `HassetteConfig` field as a keyword override. Non-config attributes (`ready_event`, `shutdown_event`, service stubs, etc.) are wired automatically.
 
-### `make_ws_hassette_stub(**kwargs)` — `test_utils/mock_hassette.py`
+### `make_ws_hassette_stub(**kwargs)` — `tests/support/mock_hassette.py`
 
 Thin wrapper around `make_mock_hassette()` with WebSocket config fields pre-set to fast values for retry/timeout testing (sub-millisecond backoff waits, low-single-digit-second connection/heartbeat timeouts).
 
-### `create_hassette_stub(**kwargs)` — `test_utils/web_mocks.py`
+### `create_hassette_stub(**kwargs)` — `tests/support/web_mocks.py`
 
 Builds a fully-wired MagicMock Hassette stub for web/API tests. Handles all `hassette.<public> = hassette._<private>` wiring, state proxy side effects, and snapshot plumbing.
 
-### `create_mock_runtime_query_service(mock_hassette, **kwargs)` — `test_utils/web_mocks.py`
+### `create_mock_runtime_query_service(mock_hassette, **kwargs)` — `tests/support/web_mocks.py`
 
 Builds a RuntimeQueryService bypassing `__init__`. Use `use_real_lock=False` for session-scoped fixtures on Python 3.12+.
 
-### `create_test_fastapi_app(mock_hassette, *, log_handler=None)` — `test_utils/web_mocks.py`
+### `create_test_fastapi_app(mock_hassette, *, log_handler=None)` — `tests/support/web_mocks.py`
 
 Thin wrapper around `create_fastapi_app()` with optional log handler patch.
 
-### `make_manifest(**kwargs)` — `test_utils/web_manifest_helpers.py`
+### `make_manifest(**kwargs)` — `tests/support/web_manifest_helpers.py`
 
 Builds an `AppManifestInfo` with sensible defaults.
 
-### `make_full_snapshot(manifests)` — `test_utils/web_manifest_helpers.py`
+### `make_full_snapshot(manifests)` — `tests/support/web_manifest_helpers.py`
 
 Builds an `AppFullSnapshot` from a list of manifests with auto-computed status counts.
 
-### `make_job(**kwargs)` — `test_utils/web_job_helpers.py`
+### `make_job(**kwargs)` — `tests/support/web_job_helpers.py`
 
 Builds a `SimpleNamespace` scheduler job with sensible defaults (job_id, name, owner, next_run, repeat, trigger).
 
-### `make_real_job(**kwargs)` — `test_utils/web_job_helpers.py`
+### `make_real_job(**kwargs)` — `tests/support/web_job_helpers.py`
 
 Builds a real `ScheduledJob` with web-layer defaults (`app_key`, `instance_index`). Use for web-layer tests that exercise real `ScheduledJob` behavior; use `make_job()` instead for pure serialization tests.
 
-### `make_scheduled_job(**kwargs)` — `test_utils/factories.py`
+### `make_scheduled_job(**kwargs)` — `tests/support/factories.py`
 
 Builds a real `ScheduledJob` for unit/scheduler tests, with every field overridable (`job`, `name`, `owner_id`, `next_run`, `trigger`, `group`, `jitter`, `timeout`, `timeout_disabled`, `error_handler`, `mode`, `db_id`, `predicate`).
 
-### `make_mock_executor()` — `test_utils/factories.py`
+### `make_mock_executor()` — `tests/support/factories.py`
 
 Builds a `MagicMock` with `execute = AsyncMock()`, standing in for a `CommandExecutor`.
 
-### `make_mock_event()` — `test_utils/factories.py`
+### `make_mock_event()` — `tests/support/factories.py`
 
 Builds a `MagicMock(spec=Event)`.
 
-### `make_recording_api(states=None)` — `test_utils/factories.py`
+### `make_recording_api(states=None)` — `tests/support/factories.py`
 
 Builds a `RecordingApi` wired to an unsealed `make_mock_hassette()` (with the real `STATE_REGISTRY`) and an `AsyncMock(spec=StateProxy)` whose `.states` is seeded from `states` and `.is_ready()` returns `True`.
 
-### `make_hassette_event(topic="hassette.ready", data=None)` — `test_utils/factories.py`
+### `make_hassette_event(topic="hassette.ready", data=None)` — `tests/support/factories.py`
 
 Builds an `Event` carrying a `HassettePayload`.
 
-### `make_mock_parent(**kwargs)` — `test_utils/factories.py`
+### `make_mock_parent(**kwargs)` — `tests/support/factories.py`
 
 Builds a `MagicMock` standing in for an owning `App` resource, with `app_key`, `index`, `unique_name`, `source_tier`, `class_name`, and `app_config` all set. Callers that only care about a subset of these get harmless extra attributes.
 
@@ -323,12 +323,12 @@ Mock external boundaries and the method-under-test's collaborators — never the
 
 ### WebsocketService connection tests — `build_fake_ws`
 
-Connection-layer tests for `WebsocketService` run the real connection method against a fake aiohttp websocket. Import `build_fake_ws` from `hassette.test_utils` and construct the fake session inline:
+Connection-layer tests for `WebsocketService` run the real connection method against a fake aiohttp websocket. Import `build_fake_ws` from `hassette.testing._ws_mocks` and construct the fake session inline:
 
 ```python
 from unittest.mock import AsyncMock, MagicMock
 
-from hassette.test_utils import build_fake_ws
+from hassette.testing._ws_mocks import build_fake_ws
 
 
 async def test_connect_ws_sets_ws_and_authenticates(websocket_service):
@@ -343,7 +343,7 @@ async def test_connect_ws_sets_ws_and_authenticates(websocket_service):
     assert websocket_service._ws is fake_ws
 ```
 
-`build_fake_ws()` returns a thin `ClientWebSocketResponse` stub (a `SimpleNamespace` cast) whose `send_json` / `receive_json` / `receive` / `close` methods are `AsyncMock`s and carries no Home Assistant protocol knowledge. Mocking only `session.ws_connect` (the aiohttp boundary) keeps the real `connect_ws` running. The fake session is built inline per test — it is not exported from `hassette.test_utils`.
+`build_fake_ws()` returns a thin `ClientWebSocketResponse` stub (a `SimpleNamespace` cast) whose `send_json` / `receive_json` / `receive` / `close` methods are `AsyncMock`s and carries no Home Assistant protocol knowledge. Mocking only `session.ws_connect` (the aiohttp boundary) keeps the real `connect_ws` running. The fake session is built inline per test — it is not exported from `hassette.testing`'s public `__all__`.
 
 ---
 
@@ -595,7 +595,7 @@ For test-specific variants, write an inline app to `tmp_path` and point `config.
 
 - **All tests are async** — use `async def test_*`.
 - **`pytestmark = [pytest.mark.system]`** — every test file must declare this at module level so the marker is applied to all tests in the file.
-- **All polling via `wait_for`** — never use `asyncio.sleep` as a substitute for a readiness check. Use `wait_for(predicate, timeout=..., desc=...)` from `hassette.test_utils`.
+- **All polling via `wait_for`** — never use `asyncio.sleep` as a substitute for a readiness check. Use `wait_for(predicate, timeout=..., desc=...)` from `hassette.testing`.
 - **No caplog assertions** — test observable behavior (events received, state values, return values), not log output. Log messages are implementation details.
 - **Tests are independent of execution order** — each test creates its own `HassetteConfig` and `startup_context`. No shared mutable state between tests.
 - **Container name is `hassette-system-ha`** — used for `docker restart` in reconnection tests. Defined in `tests/system/docker-compose.yml`. We use `restart` instead of `pause`/`unpause` because `pause` freezes the process without closing TCP connections, requiring a WebSocket keepalive timeout before disconnect is detected. `restart` immediately closes the connection and is a more realistic failure scenario (HA restarting after an update).

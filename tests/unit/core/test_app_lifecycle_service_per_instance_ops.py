@@ -12,7 +12,7 @@ import pytest
 from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.exceptions import AppBlockedError
 from hassette.schemas.app_snapshots import AppInstanceInfo
-from hassette.test_utils import EventCapture, wait_for
+from hassette.testing import EventCapture, wait_for
 from hassette.types import Topic
 from hassette.types.enums import ResourceStatus
 

@@ -36,7 +36,7 @@ Your area is src/hassette/exceptions.py. Inventory: every exception class an app
 
 ## test-utils
 
-Your area is src/hassette/test_utils/. Inventory: everything in `__all__` — harness classes, factory functions, recording API, simulation methods (set_state, simulate_*, drain_task_bucket, freeze_time, advance_time, trigger_due_jobs), drain exceptions, config helpers. The testing docs section (docs/pages/testing/) is the expected home.
+Your area is src/hassette/testing/. Inventory: everything in `__all__` — harness classes, factory functions, recording API, simulation methods (set_state, simulate_*, drain_task_bucket, freeze_time, advance_time, trigger_due_jobs), drain exceptions, config helpers. The testing docs section (docs/pages/testing/) is the expected home.
 
 ## web
 

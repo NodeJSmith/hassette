@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """CI guard: detect local test factories that shadow a shared factory.
 
-The test suite has a shared factory registry (``hassette.test_utils.factories``,
+The test suite has a shared factory registry (``tests.support.factories``,
 the ``web_*_helpers`` modules, ``helpers``) built to absorb the same handful of conceptual
 objects — ``Job``, ``Event``, a mock ``CommandExecutor`` — that kept
 getting hand-rolled again in each new test file. Left unchecked, an LLM (or a
@@ -39,6 +39,7 @@ themselves live in src/ and are not subject to this check.
 """
 
 import ast
+import importlib
 import re
 import sys
 from pathlib import Path
@@ -48,45 +49,45 @@ from lint_helpers import REPO_ROOT, iter_python_files, run_check
 SCAN_DIRS = ["tests"]
 
 # Maps a shared factory's name to the module it lives in. Adding a new shared
-# factory to test_utils means adding one line here.
+# factory to tests/support means adding one line here.
 SHARED_FACTORIES = {
-    "make_scheduled_job": "hassette.test_utils.factories",
-    "make_mock_executor": "hassette.test_utils.factories",
-    "make_mock_event": "hassette.test_utils.factories",
-    "make_recording_api": "hassette.test_utils.factories",
-    "make_hassette_event": "hassette.test_utils.factories",
-    "make_hass_event": "hassette.test_utils.factories",
-    "make_mock_parent": "hassette.test_utils.factories",
-    "make_invoke_handler_cmd": "hassette.test_utils.factories",
-    "make_mock_listener": "hassette.test_utils.factories",
-    "make_scheduler": "hassette.test_utils.factories",
-    "make_execution_record": "hassette.test_utils.factories",
-    "make_manifest": "hassette.test_utils.web_manifest_helpers",
-    "make_app_instance_info": "hassette.test_utils.web_manifest_helpers",
-    "make_full_snapshot": "hassette.test_utils.web_manifest_helpers",
-    "make_manifest_response": "hassette.test_utils.web_manifest_helpers",
-    "make_manifest_list_response": "hassette.test_utils.web_manifest_helpers",
-    "make_job": "hassette.test_utils.web_job_helpers",
-    "make_real_job": "hassette.test_utils.web_job_helpers",
-    "make_job_summary": "hassette.test_utils.web_job_helpers",
-    "make_system_status_response": "hassette.test_utils.web_response_helpers",
-    "make_telemetry_status_response": "hassette.test_utils.web_response_helpers",
-    "make_dashboard_app_grid_entry": "hassette.test_utils.web_response_helpers",
-    "make_dashboard_app_grid_response": "hassette.test_utils.web_response_helpers",
-    "make_config_schema_response": "hassette.test_utils.web_response_helpers",
-    "make_app_health_response": "hassette.test_utils.web_response_helpers",
-    "make_app_config_response": "hassette.test_utils.web_response_helpers",
-    "make_app_source_response": "hassette.test_utils.web_response_helpers",
-    "make_activity_feed_entry": "hassette.test_utils.web_telemetry_helpers",
-    "make_listener_summary": "hassette.test_utils.web_telemetry_helpers",
-    "make_listener_with_summary": "hassette.test_utils.web_telemetry_helpers",
-    "make_execution": "hassette.test_utils.web_telemetry_helpers",
-    "make_log_entry_response": "hassette.test_utils.web_telemetry_helpers",
-    "make_logs_by_execution_response": "hassette.test_utils.web_telemetry_helpers",
-    "make_crashed_event": "hassette.test_utils.helpers",
-    "make_task_bucket": "hassette.test_utils.helpers",
-    "async_noop": "hassette.test_utils.helpers",
-    "noop": "hassette.test_utils.helpers",
+    "make_scheduled_job": "tests.support.factories",
+    "make_mock_executor": "tests.support.factories",
+    "make_mock_event": "tests.support.factories",
+    "make_recording_api": "tests.support.factories",
+    "make_hassette_event": "tests.support.factories",
+    "make_hass_event": "tests.support.factories",
+    "make_mock_parent": "tests.support.factories",
+    "make_invoke_handler_cmd": "tests.support.factories",
+    "make_mock_listener": "tests.support.factories",
+    "make_scheduler": "tests.support.factories",
+    "make_execution_record": "tests.support.factories",
+    "make_manifest": "tests.support.web_manifest_helpers",
+    "make_app_instance_info": "tests.support.web_manifest_helpers",
+    "make_full_snapshot": "tests.support.web_manifest_helpers",
+    "make_manifest_response": "tests.support.web_manifest_helpers",
+    "make_manifest_list_response": "tests.support.web_manifest_helpers",
+    "make_job": "tests.support.web_job_helpers",
+    "make_real_job": "tests.support.web_job_helpers",
+    "make_job_summary": "tests.support.web_job_helpers",
+    "make_system_status_response": "tests.support.web_response_helpers",
+    "make_telemetry_status_response": "tests.support.web_response_helpers",
+    "make_dashboard_app_grid_entry": "tests.support.web_response_helpers",
+    "make_dashboard_app_grid_response": "tests.support.web_response_helpers",
+    "make_config_schema_response": "tests.support.web_response_helpers",
+    "make_app_health_response": "tests.support.web_response_helpers",
+    "make_app_config_response": "tests.support.web_response_helpers",
+    "make_app_source_response": "tests.support.web_response_helpers",
+    "make_activity_feed_entry": "tests.support.web_telemetry_helpers",
+    "make_listener_summary": "tests.support.web_telemetry_helpers",
+    "make_listener_with_summary": "tests.support.web_telemetry_helpers",
+    "make_execution": "tests.support.web_telemetry_helpers",
+    "make_log_entry_response": "tests.support.web_telemetry_helpers",
+    "make_logs_by_execution_response": "tests.support.web_telemetry_helpers",
+    "make_crashed_event": "tests.support.helpers",
+    "make_task_bucket": "tests.support.helpers",
+    "async_noop": "tests.support.helpers",
+    "noop": "tests.support.helpers",
 }
 
 ANNOTATION = "# factory-local:"
@@ -125,18 +126,69 @@ def is_exempt(lines: list[str], lineno: int) -> bool:
     return bool(ANNOTATION_RE.search(line))
 
 
+def _dotted_module_path(path: Path) -> str | None:
+    """Return the dotted module path a file resolves to when imported, relative to REPO_ROOT.
+
+    ``tests/support/factories.py`` -> ``tests.support.factories``. Used to recognize when a
+    flagged ``def`` lives in the very file that ``SHARED_FACTORIES`` names as the canonical
+    source, so the checker doesn't flag the shared factory's own definition as a local shadow
+    of itself. Returns None for paths outside the repo (e.g. tmp files used in tests) — such
+    paths can never match a ``SHARED_FACTORIES`` value, so every def in them is still checked.
+    """
+    resolved = path.resolve()
+    if REPO_ROOT not in resolved.parents:
+        return None
+    rel = resolved.relative_to(REPO_ROOT).with_suffix("")
+    return ".".join(rel.parts)
+
+
 def check_file(path: Path) -> list[tuple[int, str]]:
     """Return a sorted list of (1-based line number, message) for un-exempt factory shadows."""
     source = path.read_text()
     lines = source.splitlines()
     flagged = _collect_module_level_shadows(ast.parse(source))
+    own_module = _dotted_module_path(path)
 
     violations = [
         (lineno, f"Local '{name}()' shadows shared factory — use 'from {SHARED_FACTORIES[name]} import {name}'")
         for name, lineno in flagged
-        if not is_exempt(lines, lineno)
+        if SHARED_FACTORIES[name] != own_module and not is_exempt(lines, lineno)
     ]
     return sorted(violations)
+
+
+def check_shared_factories_freshness() -> list[str]:
+    """Return a description of every ``SHARED_FACTORIES`` entry whose module path is stale.
+
+    ``SHARED_FACTORIES`` is a hand-maintained registry -- nothing else in this file verifies
+    a value still resolves to a real module containing the named symbol. A future factory
+    move that forgets to update this dict would otherwise keep flagging duplicates correctly
+    while emitting a suggested import that itself raises ``ImportError`` if followed. Imports
+    each distinct module named in the registry once and checks every entry against it, so a
+    typo'd or stale path fails loudly here instead of silently shipping a broken suggestion.
+    """
+    # Standalone execution (``./tools/check_test_factories.py``, the pre-commit/pre-push entry
+    # point) puts only ``tools/`` on sys.path, not the repo root -- ``tests.support.*`` would
+    # otherwise fail to import here even though it resolves fine under pytest's rootdir-based
+    # discovery. Insert REPO_ROOT (idempotently) so both entry points resolve the same way.
+    repo_root_str = str(REPO_ROOT)
+    if repo_root_str not in sys.path:
+        sys.path.insert(0, repo_root_str)
+
+    modules: dict[str, object] = {}
+    stale: list[str] = []
+    for name, module_path in SHARED_FACTORIES.items():
+        module = modules.get(module_path)
+        if module is None:
+            try:
+                module = importlib.import_module(module_path)
+            except ImportError as exc:
+                stale.append(f"{name!r}: module {module_path!r} does not import ({exc})")
+                continue
+            modules[module_path] = module
+        if not hasattr(module, name):
+            stale.append(f"{name!r}: not found in {module_path!r}")
+    return stale
 
 
 def iter_paths() -> list[Path]:
@@ -150,7 +202,7 @@ def iter_paths() -> list[Path]:
 
 
 def main() -> int:
-    return run_check(
+    exit_code = run_check(
         iter_python_files(sys.argv[1:], SCAN_DIRS),
         REPO_ROOT,
         check_file,
@@ -162,6 +214,18 @@ def main() -> int:
             "'# factory-local: <reason>' (the reason is required)."
         ),
     )
+
+    # Registry-level, not per-file: always checked regardless of which files pre-commit
+    # staged, since a stale SHARED_FACTORIES entry isn't tied to editing any particular file.
+    stale = check_shared_factories_freshness()
+    if stale:
+        print(f"ERROR: {len(stale)} stale SHARED_FACTORIES entr{'y' if len(stale) == 1 else 'ies'}:")
+        print()
+        for message in stale:
+            print(f"  {message}")
+        exit_code = 1
+
+    return exit_code
 
 
 if __name__ == "__main__":

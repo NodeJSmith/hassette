@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from hassette.core.migration_runner import run_migrations
-from hassette.test_utils.sql_helpers import sqlite_conn
+from tests.support.sql import sqlite_conn
 
 
 class TestScheduledJobsSchema:

@@ -1,7 +1,7 @@
 """Unit tests for hassette config command."""
 
 from hassette.cli.commands.misc import cmd_config
-from hassette.test_utils.web_response_helpers import make_config_schema_response
+from tests.support.web_response_helpers import make_config_schema_response
 from tests.unit.cli.conftest import CLIClientFactory, CommandRunner
 
 runner = CommandRunner("hassette.cli.commands.misc.make_client")

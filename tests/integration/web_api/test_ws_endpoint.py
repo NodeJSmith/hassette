@@ -14,15 +14,15 @@ from starlette.websockets import WebSocket
 
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.schemas.app_snapshots import AppStatusSnapshot
-from hassette.test_utils.config import TEST_SESSION_TTL, WEB_API_TEST_TOKEN
-from hassette.test_utils.uvicorn_server import start_uvicorn_server, stop_uvicorn_server
-from hassette.test_utils.web_manifest_helpers import make_app_instance_info
-from hassette.test_utils.web_mocks import create_hassette_stub, create_mock_runtime_query_service
+from hassette.testing.config import TEST_SESSION_TTL, WEB_API_TEST_TOKEN
 from hassette.types.enums import ResourceStatus
 from hassette.web.app import create_fastapi_app
 from hassette.web.auth.session import SESSION_COOKIE_NAME, mint_session_cookie
 from hassette.web.auth.trusted_proxies import resolve_trusted_proxies
 from hassette.web.routes.ws import _read_client, websocket_endpoint
+from tests.support.uvicorn import start_uvicorn_server, stop_uvicorn_server
+from tests.support.web_manifest_helpers import make_app_instance_info
+from tests.support.web_mocks import create_hassette_stub, create_mock_runtime_query_service
 
 from .conftest import set_app_status_snapshot, set_websocket_state
 

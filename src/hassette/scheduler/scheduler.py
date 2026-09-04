@@ -378,7 +378,7 @@ class Scheduler(Resource):
 
         Does NOT deregister this scheduler's removal callback (``register_removal_callback``,
         set in ``__init__``) — callers that reuse this ``Scheduler`` instance afterward (e.g.
-        ``test_utils.reset.reset_scheduler`` between tests) need it to stay wired so future
+        ``hassette.testing._reset.reset_scheduler`` between tests) need it to stay wired so future
         ``add_job``/``remove_job`` calls keep ``_jobs_by_name``/``_jobs_by_group`` in sync.
         A caller that is discarding this scheduler for good (``on_shutdown``,
         ``AppLifecycleService.cleanup_failed_instance``) must call

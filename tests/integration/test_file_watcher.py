@@ -9,7 +9,7 @@ from hassette.events.hassette import Event
 from hassette.types import Topic
 
 if typing.TYPE_CHECKING:
-    from hassette.test_utils.harness import HassetteHarness
+    from hassette.testing import HassetteHarness
 
 
 async def test_event_emitted_on_file_change(hassette_with_file_watcher: "HassetteHarness"):

@@ -16,9 +16,7 @@ from hassette.app.app_config import AppConfig
 from hassette.events import CallServiceEvent, RawStateChangeEvent
 from hassette.events.hassette import HassetteAppStateEvent, HassetteServiceEvent
 from hassette.models import states
-from hassette.test_utils.app_harness import AppConfigurationError, AppTestHarness
-from hassette.test_utils.harness import wait_for
-from hassette.test_utils.recording_api import RecordingApi
+from hassette.testing import AppConfigurationError, AppTestHarness, RecordingApi, wait_for
 from hassette.types.enums import ResourceStatus
 
 if TYPE_CHECKING:

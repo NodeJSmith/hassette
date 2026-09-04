@@ -11,9 +11,10 @@ import pytest
 from hassette.config.config import HassetteConfig
 from hassette.core.database_service import DatabaseService
 from hassette.core.migration_runner import run_migrations
-from hassette.test_utils.config import LATEST_MIGRATION_VERSION, TEST_TOKEN
-from hassette.test_utils.sql_helpers import insert_execution_row, sqlite_conn
+from hassette.testing._harness import TEST_TOKEN
+from hassette.testing.config import LATEST_MIGRATION_VERSION
 from hassette.types.types import SourceTier
+from tests.support.sql import insert_execution_row, sqlite_conn
 
 
 class TestSourceTierType:

@@ -16,10 +16,17 @@ from hassette.core.bus_service import BusService
 from hassette.events import HassetteServiceEvent
 from hassette.resources.lifecycle import mark_ready
 from hassette.resources.restart import RestartSpec
-from hassette.test_utils import make_mock_hassette, make_service_failed_event, make_service_running_event, wait_for
-from hassette.test_utils.helpers import PLACEHOLDER_SERVICE_NAME, make_crashed_event, make_unsafe_restart_refused_error
+from hassette.testing import wait_for
 from hassette.types import ResourceStatus, Topic
 from hassette.types.enums import ResourceRole, RestartType
+from tests.support.helpers import (
+    PLACEHOLDER_SERVICE_NAME,
+    make_crashed_event,
+    make_service_failed_event,
+    make_service_running_event,
+    make_unsafe_restart_refused_error,
+)
+from tests.support.mock_hassette import make_mock_hassette
 
 from .conftest import DummyService, make_watcher, make_watcher_hassette
 

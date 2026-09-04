@@ -19,9 +19,11 @@ from aiohttp.client_exceptions import ClientConnectorError
 from hassette.core.websocket_service import WebsocketService
 from hassette.exceptions import FailedMessageError, InvalidAuthError, RetryableConnectionClosedError
 from hassette.resources.service import Service
-from hassette.test_utils import EventCapture, build_fake_ws, make_ws_hassette_stub, mark_websocket_service_connected
+from hassette.testing import EventCapture
+from hassette.testing._ws_mocks import build_fake_ws, mark_websocket_service_connected
 from hassette.types import Topic
 from hassette.types.enums import ConnectionState
+from tests.support.mock_hassette import make_ws_hassette_stub
 
 
 @pytest.fixture

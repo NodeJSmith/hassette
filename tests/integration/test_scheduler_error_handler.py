@@ -6,12 +6,12 @@ from typing import TYPE_CHECKING
 import pytest
 
 from hassette.scheduler.error_context import SchedulerErrorContext
-from hassette.test_utils.helpers import settle
+from tests.support.helpers import settle
 
 if TYPE_CHECKING:
     from hassette import Hassette
     from hassette.scheduler import Scheduler
-    from hassette.test_utils.harness import HassetteHarness
+    from hassette.testing import HassetteHarness
 
 ERROR_TIMEOUT = 2.0
 """Seconds to wait for an error handler that fires without a duration timer in front of it."""

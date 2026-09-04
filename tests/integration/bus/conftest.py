@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from hassette.resources.lifecycle import mark_ready
-from hassette.test_utils.harness import HassetteHarness
+from hassette.testing import HassetteHarness
 
 if TYPE_CHECKING:
     from hassette import Hassette

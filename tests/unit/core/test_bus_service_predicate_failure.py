@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from hassette.bus.error_context import BusErrorContext
 from hassette.core.bus_service import BusService
 from hassette.events.base import Event
-from hassette.test_utils.helpers import create_listener
+from tests.support.helpers import create_listener
 
 if TYPE_CHECKING:
     from hassette.bus.listeners import Listener

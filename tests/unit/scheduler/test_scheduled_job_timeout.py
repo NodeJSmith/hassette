@@ -6,8 +6,8 @@ from typing import TYPE_CHECKING
 import pytest
 
 from hassette.scheduler.triggers import Every
-from hassette.test_utils.factories import make_scheduled_job
-from hassette.test_utils.helpers import noop
+from tests.support.factories import make_scheduled_job
+from tests.support.helpers import noop
 
 if TYPE_CHECKING:
     from hassette.scheduler.classes import Job

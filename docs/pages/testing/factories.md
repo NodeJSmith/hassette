@@ -1,6 +1,6 @@
 # Factories
 
-All factory functions listed here are exported from `hassette.test_utils`.
+All factory functions listed here are exported from `hassette.testing`.
 
 ```python
 --8<-- "pages/testing/snippets/testing_factory_imports.py"
@@ -108,26 +108,6 @@ When `old_value` or `new_value` is `None`, the corresponding state dict is `None
 | `domain` | required | Service domain, e.g. `"light"`. |
 | `service` | required | Service name, e.g. `"turn_on"`. |
 | `service_data` | `None` | Service data dict. Defaults to `{}`. |
-
-## `make_mock_hassette`
-
-`make_mock_hassette` returns a sealed `AsyncMock` with a real, Pydantic-validated [`HassetteConfig`][hassette.config.HassetteConfig]. It wires readiness events, scheduler service stubs, bus service stubs, and other standard attributes without running `Hassette.__init__`.
-
-```python
---8<-- "pages/testing/snippets/factories_mock_hassette.py"
-```
-
-`HassetteConfig` validates config overrides at construction time. An unrecognized field name or out-of-range value raises `pydantic.ValidationError` immediately. Nested group fields accept dicts or model instances.
-
-The mock is sealed by default. Accessing any attribute not wired by the factory raises `AttributeError`. `sealed=False` allows adding extra attributes after construction.
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `data_dir` | `tempfile.mkdtemp()` | Directory for Hassette data files. Tests needing DB isolation typically pass `tmp_path`. |
-| `set_ready` | `True` | Pre-sets `ready_event` so `wait_for_ready()` resolves immediately. |
-| `set_loop` | `True` | Sets `loop` to `asyncio.get_running_loop()`. `False` suits session-scoped fixtures running outside an event loop. |
-| `sealed` | `True` | Calls `seal()` after wiring. Unlisted attribute access raises `AttributeError`. |
-| `**config_overrides` | | Any `HassetteConfig` field, merged on top of test defaults. |
 
 ## `make_test_config`
 

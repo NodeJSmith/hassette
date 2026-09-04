@@ -1,5 +1,5 @@
 from hassette import App, AppConfig
-from hassette.test_utils import AppTestHarness
+from hassette.testing import AppTestHarness
 
 
 class MyApp(App[AppConfig]):

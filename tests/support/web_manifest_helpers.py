@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo, tally_manifest_statuses
-from hassette.test_utils.config import DEFAULT_TEST_APP_KEY, TEST_ISO_TIMESTAMP
+from hassette.testing.config import DEFAULT_TEST_APP_KEY, TEST_ISO_TIMESTAMP
 from hassette.types.enums import ManifestStatus, ResourceStatus
 from hassette.web.models import (
     AppInstanceResponse,

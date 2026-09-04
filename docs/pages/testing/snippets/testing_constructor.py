@@ -1,5 +1,5 @@
 from hassette import App
-from hassette.test_utils import AppTestHarness
+from hassette.testing import AppTestHarness
 
 AppTestHarness(
     app_cls=App,       # Replace with your App subclass

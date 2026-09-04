@@ -16,18 +16,20 @@ Tests cover:
 """
 
 from enum import StrEnum
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import pytest
 
 from hassette.exceptions import EntityNotFoundError
 from hassette.models.entities.light import LightEntity
 from hassette.models.services import ServiceResponse
-from hassette.test_utils import ApiCall as ApiCallFromInit
-from hassette.test_utils.api_call import ApiCall
-from hassette.test_utils.factories import make_recording_api
-from hassette.test_utils.helpers import make_state_dict
-from hassette.test_utils.recording_api import ApiProtocol, RecordingApi
+from hassette.testing import ApiCall as ApiCallFromInit
+from hassette.testing import RecordingApi, make_state_dict
+from hassette.testing.api_call import ApiCall
+from tests.support.factories import make_recording_api
+
+if TYPE_CHECKING:
+    from hassette.testing.recording_api import ApiProtocol
 
 
 async def test_turn_on_records_call():
@@ -545,7 +547,7 @@ async def test_getattr_default_message_for_other_methods():
 
 
 def test_apicall_import_from_api_call_module():
-    """ApiCall from hassette.test_utils.api_call is the same class as hassette.test_utils.ApiCall."""
+    """ApiCall from hassette.testing.api_call is the same class as hassette.testing.ApiCall."""
     assert ApiCall is ApiCallFromInit
 
 

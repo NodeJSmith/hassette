@@ -7,8 +7,8 @@ import pytest
 
 from hassette.core.telemetry.query_service import AppHealthAggregates
 from hassette.schemas.live_counts import LiveCounts
-from hassette.test_utils.web_manifest_helpers import make_manifest_db_row
-from hassette.test_utils.web_telemetry_helpers import make_execution, make_listener_summary
+from tests.support.web_manifest_helpers import make_manifest_db_row
+from tests.support.web_telemetry_helpers import make_execution, make_listener_summary
 
 from .conftest import APP_GRID_PATH, APP_HEALTH_PATH, TELEMETRY_STATUS_PATH, get_json, telemetry_error
 

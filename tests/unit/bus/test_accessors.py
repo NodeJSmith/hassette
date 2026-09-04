@@ -9,8 +9,9 @@ from types import SimpleNamespace
 
 from hassette.const import MISSING_VALUE
 from hassette.event_handling import accessors as A
-from hassette.test_utils import create_attr_change_event, create_call_service_event, create_state_change_event
-from hassette.test_utils.helpers import create_component_loaded_event, create_hass_event
+from hassette.testing import create_call_service_event, create_state_change_event
+from hassette.testing._factories import create_hass_event
+from tests.support.helpers import create_attr_change_event, create_component_loaded_event
 
 
 # get_state_object_* accessors

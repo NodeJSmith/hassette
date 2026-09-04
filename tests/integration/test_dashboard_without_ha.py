@@ -21,11 +21,11 @@ from httpx2 import ASGITransport, AsyncClient, Response
 
 from hassette import Hassette
 from hassette import context as hassette_context
-from hassette.test_utils import make_light_state_dict, wait_for
-from hassette.test_utils.config import TEST_TOTAL_TIMEOUT_SECONDS
-from hassette.test_utils.helpers import cleanup_hassette_streams
+from hassette.testing import make_light_state_dict, wait_for
 from hassette.types.enums import ConnectionState
 from hassette.web.app import create_fastapi_app
+from tests.support.helpers import cleanup_hassette_streams
+from tests.support.mock_hassette import TEST_TOTAL_TIMEOUT_SECONDS
 
 WEBAPI_READY_TIMEOUT = 10.0
 STARTUP_EVENT_TIMEOUT = 5

@@ -54,8 +54,8 @@ from hassette.models.services import ServiceResponse
 from hassette.models.states.base import BaseState, Context
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
-from hassette.test_utils.api_call import ApiCall
-from hassette.test_utils.sync_facade import RECORDED_API_METHODS, RecordingSyncFacade
+from hassette.testing._sync_facade import RECORDED_API_METHODS, RecordingSyncFacade
+from hassette.testing.api_call import ApiCall
 
 if TYPE_CHECKING:
     from hassette import Hassette

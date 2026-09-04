@@ -22,8 +22,8 @@ from unittest.mock import patch
 import pytest
 
 from hassette.task_bucket import TaskBucket
-from hassette.test_utils import make_mock_hassette
-from hassette.test_utils.helpers import async_noop
+from tests.support.helpers import async_noop
+from tests.support.mock_hassette import make_mock_hassette
 
 
 @pytest.fixture

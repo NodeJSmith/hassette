@@ -2,7 +2,7 @@
 
 AppDaemon has no official test harness. Testing AppDaemon apps means patching the `Hass` runtime, which is fragile and usually tests the mock rather than your code.
 
-Hassette ships `hassette.test_utils` with `AppTestHarness`, a test harness that wires your app into a real Hassette environment. Because Hassette apps are async, tests are async too — test functions are declared `async def`, and that's the main difference from testing synchronous code. `RecordingApi` replaces the live Home Assistant connection, recording every API call your app makes so you can assert against it — it's available in tests as `harness.api_recorder`.
+Hassette ships `hassette.testing` with `AppTestHarness`, a test harness that wires your app into a real Hassette environment. Because Hassette apps are async, tests are async too — test functions are declared `async def`, and that's the main difference from testing synchronous code. `RecordingApi` replaces the live Home Assistant connection, recording every API call your app makes so you can assert against it — it's available in tests as `harness.api_recorder`.
 
 ## Setup
 

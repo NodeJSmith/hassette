@@ -26,7 +26,7 @@ from .conftest import init_executor, make_invocation
 from .test_command_executor import make_result
 
 
-# Real InvokeHandler, unlike the shared make_invoke_handler_cmd() in test_utils/factories.py
+# Real InvokeHandler, unlike the shared make_invoke_handler_cmd() in tests/support/factories.py
 # which returns a MagicMock — build_record tests here assert on the constructed object's own
 # fields directly.
 def make_real_invoke_handler_cmd(*, listener_id: int = 5, source_tier: SourceTier = "app") -> InvokeHandler:

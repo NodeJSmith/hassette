@@ -11,7 +11,7 @@ import pytest
 from hassette.core.websocket_service import WebsocketService
 
 if TYPE_CHECKING:
-    from hassette.test_utils.harness import HassetteHarness
+    from hassette.testing import HassetteHarness
 
 
 @pytest.fixture

@@ -1,4 +1,4 @@
-"""Unit tests for the 7 shared factories added to hassette.test_utils.factories.
+"""Unit tests for the 7 shared factories added to tests.support.factories.
 
 Covers make_scheduled_job, make_mock_executor, make_mock_event,
 make_recording_api, make_hassette_event, make_hass_event, and make_mock_parent.
@@ -11,7 +11,8 @@ import pytest
 from hassette.events.base import Event, HassettePayload, HassPayload
 from hassette.scheduler.classes import Job
 from hassette.scheduler.triggers import After
-from hassette.test_utils.factories import (
+from hassette.testing import RecordingApi, make_light_state_dict
+from tests.support.factories import (
     make_hass_event,
     make_hassette_event,
     make_mock_event,
@@ -20,8 +21,6 @@ from hassette.test_utils.factories import (
     make_recording_api,
     make_scheduled_job,
 )
-from hassette.test_utils.helpers import make_light_state_dict
-from hassette.test_utils.recording_api import RecordingApi
 
 
 class TestMakeScheduledJob:

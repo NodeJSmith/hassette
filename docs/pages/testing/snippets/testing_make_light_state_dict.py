@@ -1,4 +1,4 @@
-from hassette.test_utils import make_light_state_dict
+from hassette.testing import make_light_state_dict
 
 state = make_light_state_dict(
     entity_id="light.kitchen",

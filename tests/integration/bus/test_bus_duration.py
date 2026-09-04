@@ -14,9 +14,7 @@ import asyncio
 from typing import TYPE_CHECKING
 
 from hassette.events import RawStateChangeEvent
-from hassette.test_utils import wait_for
-from hassette.test_utils.harness import HassetteHarness
-from hassette.test_utils.helpers import create_state_change_event
+from hassette.testing import HassetteHarness, create_state_change_event, wait_for
 from hassette.types import Topic
 
 from .conftest import (

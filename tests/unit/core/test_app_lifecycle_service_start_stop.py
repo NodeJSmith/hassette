@@ -12,7 +12,7 @@ import pytest
 from hassette.core.app_lifecycle_service import AppAdmissionMode, AppLifecycleService
 from hassette.exceptions import AppBlockedError, AppBootstrapNotReleasedError
 from hassette.schemas.app_snapshots import AppInstanceInfo
-from hassette.test_utils import EventCapture
+from hassette.testing import EventCapture
 from hassette.types import Topic
 from hassette.types.enums import ResourceStatus
 

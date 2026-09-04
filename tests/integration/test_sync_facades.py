@@ -22,7 +22,7 @@ from hassette.events import RawStateChangeEvent
 from hassette.events.base import Event
 from hassette.models.entities.cover import CoverEntity
 from hassette.models.states import CoverState
-from hassette.test_utils.app_harness import AppTestHarness
+from hassette.testing import AppTestHarness
 
 
 class SyncFacadeConfig(AppConfig):

@@ -2,15 +2,15 @@
 
 If this test fails, a new ``on_*`` method was added to ``Bus`` without a corresponding
 ``simulate_*`` method on ``AppTestHarness`` (via ``SimulationMixin``). Add the missing
-``simulate_*`` method to ``hassette.test_utils.simulation.SimulationMixin``.
+``simulate_*`` method to ``hassette.testing._simulation.SimulationMixin``.
 """
 
 import pytest
 
 from hassette.bus import Bus
 from hassette.resources.base import Resource
-from hassette.test_utils.app_harness import AppTestHarness
-from hassette.test_utils.simulation import SimulationMixin
+from hassette.testing import AppTestHarness
+from hassette.testing._simulation import SimulationMixin
 from hassette.types import ResourceStatus
 
 SIMULATION_TIMEOUT_CASES: list[tuple[str, tuple, dict]] = [

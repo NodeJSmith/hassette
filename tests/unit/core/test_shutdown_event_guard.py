@@ -3,7 +3,7 @@
 from types import SimpleNamespace
 
 from hassette.core.core import Hassette
-from hassette.test_utils.helpers import cleanup_hassette_streams
+from tests.support.helpers import cleanup_hassette_streams
 
 
 class TestSendEventAfterStreamsClosed:

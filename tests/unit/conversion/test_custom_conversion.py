@@ -16,7 +16,7 @@ from hassette.conversion import STATE_REGISTRY, TYPE_REGISTRY, convert_state_dic
 from hassette.conversion.type_registry import TypeRegistry
 from hassette.exceptions import UnableToConvertValueError
 from hassette.models.states.base import AttributesBase, BaseState, BoolBaseState, NumericBaseState, StringBaseState
-from hassette.test_utils import make_state_dict, make_typed_state
+from hassette.testing import make_state_dict, make_typed_state
 
 
 @pytest.fixture(autouse=True)

@@ -12,8 +12,8 @@ from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.schemas.execution_models import ActivityFeedEntry
-from hassette.test_utils.config import TEST_SOURCE_LOCATION
 from hassette.types.types import QuerySourceTier
+from tests.support.factories import TEST_SOURCE_LOCATION
 
 BASE_TS = 1_000_000.0
 

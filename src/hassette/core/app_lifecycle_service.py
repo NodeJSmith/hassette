@@ -54,9 +54,9 @@ NOT_STARTED = ResourceStatus.NOT_STARTED
 # Deeper than the exception_utils.get_short_traceback default (1): init failures often
 # surface several frames deep (anyio.fail_after -> on_initialize -> nested awaits), and a
 # single frame is rarely enough to show the app's own code rather than just anyio internals.
-# Passed as a *negative* limit to get_short_traceback() below -- traceback.format_exc()'s
-# `limit` counts from the outermost (call site) end when positive and the innermost (raise
-# site) end when negative, and it's the innermost end that has the app's own file:line.
+# Passed as a negative limit (see call sites below) so traceback.format_exc keeps the frames
+# closest to the raise — the app author's own code — instead of the frames closest to this
+# module's try block.
 INIT_FAILURE_TRACEBACK_LIMIT = 5
 
 # Per-manifest upsert timeout. A failed write degrades one app's dashboard row — it must
@@ -263,7 +263,7 @@ class AppLifecycleService(Resource):
                     # their entity-watch subscriptions.
                     #
                     # Also deregisters the removal callback, mirroring on_shutdown()'s second
-                    # statement — remove_all_jobs() itself never does this (test_utils/reset.py
+                    # statement — remove_all_jobs() itself never does this (hassette/testing/_reset.py
                     # calls it on a Scheduler instance meant to be reused across tests, where
                     # deregistering would silently break future job removals on that instance).
                     # A failed-init instance is discarded, not reused: Scheduler.__init__

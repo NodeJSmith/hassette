@@ -17,14 +17,14 @@ from hassette.app.app import App, AppSync
 from hassette.resources.base import Resource
 from hassette.resources.service import Service
 from hassette.scheduler.triggers import After
-from hassette.test_utils.factories import make_mock_parent, make_scheduler
-from hassette.test_utils.helpers import noop
 from hassette.types.enums import ExecutionMode
+from tests.support.factories import make_mock_parent, make_scheduler
+from tests.support.helpers import noop
 
 if typing.TYPE_CHECKING:
     from hassette import HassetteConfig
     from hassette.bus.bus import Bus
-    from hassette.test_utils.harness import HassetteHarness
+    from hassette.testing import HassetteHarness
 
 
 class TestResourceSourceTierDefaults:

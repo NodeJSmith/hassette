@@ -1,5 +1,5 @@
 from hassette.app import App, AppConfig
-from hassette.test_utils import AppTestHarness
+from hassette.testing import AppTestHarness
 from hassette.types.enums import ResourceStatus
 
 

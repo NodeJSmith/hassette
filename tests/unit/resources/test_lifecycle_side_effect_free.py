@@ -1,7 +1,7 @@
 """Tests verifying mark_ready/mark_not_ready remain side-effect-free."""
 
 from hassette.resources.lifecycle import mark_not_ready, mark_ready
-from hassette.test_utils import make_mock_hassette
+from tests.support.mock_hassette import make_mock_hassette
 
 from .conftest import ConcreteResource
 

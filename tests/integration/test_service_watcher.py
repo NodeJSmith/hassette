@@ -20,18 +20,12 @@ from hassette.events.hassette import ServiceStatusPayload
 from hassette.resources.lifecycle import mark_ready
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
-from hassette.test_utils import (
-    EventCapture,
-    HassetteHarness,
-    build_harness,
-    make_service_failed_event,
-    make_service_running_event,
-    preserve_config,
-    wait_for,
-)
-from hassette.test_utils.reset import reset_hassette_lifecycle
+from hassette.testing import EventCapture, HassetteHarness, build_harness, wait_for
+from hassette.testing._reset import reset_hassette_lifecycle
 from hassette.types import ResourceStatus, Topic
 from hassette.types.enums import RestartType
+from tests.support.harness import preserve_config
+from tests.support.helpers import make_service_failed_event, make_service_running_event
 
 AWAIT_TIMEOUT = 5.0
 
@@ -104,7 +98,7 @@ async def watcher(hassette_with_bus, request: pytest.FixtureRequest) -> ServiceW
             # instance with an active shutdown task or a stored teardown report, and refuses
             # a fortiori once event streams are closed by a completed shutdown (see its
             # docstring and `_reject_if_active_or_reported()` in
-            # `hassette.test_utils.reset`). A test that lets a PERMANENT service exhaust its
+            # `hassette.testing._reset`). A test that lets a PERMANENT service exhaust its
             # restart budget (e.g. test_always_failing_service_stops_after_max_attempts)
             # causes ServiceWatcher to trigger a real, completed `hassette.shutdown()` --
             # reset is not possible in that case, and the shared `hassette_with_bus` harness
@@ -163,7 +157,7 @@ async def isolated_watcher(
     fixture), per its own docstring: ``__aexit__`` then runs inline in the test's own
     already-running Task, so there's no risk of pytest-asyncio resuming teardown as a *new* Task
     on the loop after this harness's own task factory has sealed shut -- see
-    ``_start_module_harness()``'s docstring in ``hassette.test_utils.fixtures`` for why that
+    ``_start_module_harness()``'s docstring in ``tests.support.fixtures`` for why that
     matters specifically for ``yield``-based *fixtures* shared across a session-scoped loop.
 
     Unlike the shared ``watcher`` fixture, no ``context.PROTECT_TASK`` is needed here:

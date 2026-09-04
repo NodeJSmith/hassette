@@ -17,7 +17,7 @@ import pytest
 from hassette import context as ctx
 from hassette.core.sync_executor import SYNC_WORKER_HANDLE, SyncExecutor
 from hassette.task_bucket.task_bucket import TaskBucket
-from hassette.test_utils import make_mock_hassette
+from tests.support.mock_hassette import make_mock_hassette
 
 
 @pytest.fixture

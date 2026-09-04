@@ -7,7 +7,7 @@ from typing import assert_type
 
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
-from hassette.test_utils.app_harness import AppTestHarness
+from hassette.testing import AppTestHarness
 
 
 class ProbeConfig(AppConfig):

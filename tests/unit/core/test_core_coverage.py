@@ -24,9 +24,10 @@ from hassette.exceptions import AppPrecheckFailedError, FatalError
 from hassette.logging_ import HassetteQueueHandler, LogPersistenceHandler
 from hassette.resources.base import Resource
 from hassette.resources.teardown import TeardownCause, TeardownReport
-from hassette.test_utils import preserve_config, wait_for
+from hassette.testing import wait_for
 from hassette.types.enums import ResourceStatus
 from hassette.utils.url_utils import build_rest_url, build_ws_url
+from tests.support.harness import preserve_config
 
 # wire_services() creates anyio memory streams that are closed explicitly in the
 # fixture teardown. However, pytest holds internal references to fixture results,

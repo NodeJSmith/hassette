@@ -26,7 +26,7 @@ from hassette.models.states.sensor_shapes import (
     TimestampSensorState,
     classify_sensor_shape,
 )
-from hassette.test_utils.helpers import make_sensor_state_dict
+from hassette.testing import make_sensor_state_dict
 
 WORKTREE_ROOT = Path(__file__).resolve().parents[3]
 PYRIGHT_PROBE_DIR = WORKTREE_ROOT / "tests" / "pyright_probes" / "sensor_shape_probe"

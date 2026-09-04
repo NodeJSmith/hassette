@@ -81,6 +81,7 @@ dev = [
     "bcrypt>=4.0",
     "hassette-codegen",
     "house-lint>=0.1.1",
+    "libcst>=1.5.0",
     "pyright>=1.1.408",
     "shot-scraper>=1.5",
     "slotscheck>=0.19.1",

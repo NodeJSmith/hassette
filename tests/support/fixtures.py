@@ -1,5 +1,4 @@
 import asyncio
-import contextlib
 import json
 import os
 import random
@@ -11,15 +10,12 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from hassette.cache import DummyCache
 from hassette.core.core import Hassette
 from hassette.core.sync_executor import SyncExecutor
 from hassette.events import Event, RawStateChangeEvent, create_event_from_hass
-
-from .config import TEST_SYNC_EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS
-from .event_capture import EventCapture
-from .factories import make_sync_executor
-from .harness import HassetteHarness
+from hassette.testing import HassetteHarness
+from hassette.testing.config import TEST_SYNC_EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS
+from tests.support.factories import make_sync_executor
 
 LOGGER = getLogger(__name__)
 
@@ -28,25 +24,7 @@ if TYPE_CHECKING:
 
     from hassette import Api, HassetteConfig
     from hassette.events.hass.raw import HassEventEnvelopeDict
-    from hassette.test_utils.test_server import SimpleTestServer
-
-
-@contextlib.asynccontextmanager
-async def build_harness(harness: HassetteHarness) -> "AsyncIterator[HassetteHarness]":
-    """Start and stop a HassetteHarness, reloading config on exit.
-
-    Safe to use directly inside a test body (see e.g. ``tests/integration/test_apps_env.py``)
-    because ``__aexit__`` then runs inline in the test's own already-running Task rather than
-    being resumed later by pytest-asyncio. It is NOT safe to drive a ``yield``-based *fixture*
-    from this context manager -- see ``_start_module_harness()`` below and
-    ``tests/integration/conftest.py::hassette_instance`` for why.
-    """
-    try:
-        await harness.start()
-        yield harness
-    finally:
-        await harness.stop()
-        harness.config.reload()
+    from hassette.testing._server import SimpleTestServer
 
 
 async def _start_module_harness(harness: HassetteHarness, request: pytest.FixtureRequest) -> HassetteHarness:
@@ -87,21 +65,6 @@ async def _start_module_harness(harness: HassetteHarness, request: pytest.Fixtur
     # based async-generator fixture deadlocks for this specific fixture family.
     request.addfinalizer(_teardown)
     return harness
-
-
-@pytest.fixture
-def dummy_cache() -> DummyCache:
-    """A fresh `DummyCache` instance for injecting into an App's `cache=` constructor parameter.
-
-    Isolates cache state per test -- no temp directory management, no SQLite files.
-    """
-    return DummyCache()
-
-
-@pytest.fixture
-def event_capture() -> EventCapture:
-    """A fresh `EventCapture` for intercepting `send_event` calls. Call `install(target)` to arm it."""
-    return EventCapture()
 
 
 @pytest.fixture(scope="module")

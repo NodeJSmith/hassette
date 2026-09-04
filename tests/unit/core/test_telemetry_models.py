@@ -1,8 +1,9 @@
 """Unit tests for telemetry Pydantic models."""
 
 from hassette.schemas.job_models import JobSummary
-from hassette.test_utils.config import TEST_EPOCH_B, TEST_SOURCE_LOCATION
 from hassette.types.enums import DEFAULT_OVERLAP_MODE
+from tests.support.factories import TEST_SOURCE_LOCATION
+from tests.support.web_job_helpers import TEST_EPOCH_B
 
 
 def test_job_summary_new_fields_defaults() -> None:

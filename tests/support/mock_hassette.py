@@ -1,6 +1,6 @@
 """Shared mock hassette factory for unit and integration tests.
 
-Provides :func:`make_mock_hassette` (stable, end-user API) and
+Provides :func:`make_mock_hassette` (internal test-suite helper) and
 :func:`make_ws_hassette_stub` (internal WebSocket test preset).
 """
 
@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, Mock, seal
 
-from hassette.test_utils.config import TEST_TOTAL_TIMEOUT_SECONDS, TEST_WS_URL, make_test_config
+from hassette.testing.config import TEST_TOTAL_TIMEOUT_SECONDS, TEST_WS_URL, make_test_config
 
 
 def make_mock_hassette(
@@ -27,7 +27,7 @@ def make_mock_hassette(
     """Create a fully-wired :class:`unittest.mock.AsyncMock` that stands in for Hassette.
 
     The mock combines a real, Pydantic-validated :class:`~hassette.config.config.HassetteConfig`
-    (via :func:`~hassette.test_utils.config.make_test_config`) with ``AsyncMock`` shells for all
+    (via :func:`~hassette.testing.config.make_test_config`) with ``AsyncMock`` shells for all
     non-configuration attributes. This eliminates config drift across test files while keeping
     unit tests lightweight — no real Hassette ``__init__`` side effects.
 

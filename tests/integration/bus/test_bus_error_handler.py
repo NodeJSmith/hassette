@@ -6,11 +6,11 @@ from typing import TYPE_CHECKING
 
 from hassette.bus.error_context import BusErrorContext
 from hassette.events.base import Event
-from hassette.test_utils import create_call_service_event, wait_for
-from hassette.test_utils.helpers import settle
+from hassette.testing import create_call_service_event, wait_for
+from tests.support.helpers import settle
 
 if TYPE_CHECKING:
-    from hassette.test_utils.harness import HassetteHarness
+    from hassette.testing import HassetteHarness
 
 
 async def test_app_level_error_handler_called_on_failure(hassette_with_bus: "HassetteHarness") -> None:

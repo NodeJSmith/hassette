@@ -11,8 +11,8 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from hassette.exceptions import TrustedProxyConfigError
-from hassette.test_utils import make_addrinfo, patch_loop_getaddrinfo
 from hassette.web.auth.trusted_proxies import is_trusted_peer, refresh_trusted_proxies, resolve_trusted_proxies
+from tests.support.helpers import make_addrinfo, patch_loop_getaddrinfo
 
 
 class TestResolveTrustedProxiesLiteral:

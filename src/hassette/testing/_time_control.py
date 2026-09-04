@@ -15,7 +15,7 @@ from unittest.mock import patch
 from whenever import Instant, ZonedDateTime
 
 if TYPE_CHECKING:
-    from hassette.test_utils.harness import HassetteHarness
+    from hassette.testing._harness import HassetteHarness
 
 LOGGER = getLogger(__name__)
 

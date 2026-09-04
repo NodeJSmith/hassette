@@ -9,7 +9,7 @@ from hassette.cli.commands.log import (
     cmd_execution,
     cmd_log,
 )
-from hassette.test_utils.web_telemetry_helpers import make_log_entry_response, make_logs_by_execution_response
+from tests.support.web_telemetry_helpers import make_log_entry_response, make_logs_by_execution_response
 from tests.unit.cli.conftest import SINCE_EPOCH, CLIClientFactory, CommandRunner
 
 runner = CommandRunner("hassette.cli.commands.log.make_client")

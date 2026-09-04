@@ -20,8 +20,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 from hassette.core.block_io_guard import MonkeypatchEvent
 from hassette.core.command_executor import _UNOWNED_WARN_RATE_LIMIT_SECS, CommandExecutor
-from hassette.test_utils import make_controlled_clock
-from hassette.test_utils.factories import make_execution_record
+from tests.support.factories import make_execution_record
+from tests.support.helpers import make_controlled_clock
 
 from .conftest import init_executor, make_invocation
 

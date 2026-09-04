@@ -8,12 +8,8 @@ Tests:
 
 import pytest
 
-from hassette.test_utils.harness import (
-    COMPONENT_CLASS_MAP,
-    DEPENDENCIES,
-    HassetteHarness,
-    sort_harness_graph,
-)
+from hassette.testing import HassetteHarness
+from hassette.testing._harness import COMPONENT_CLASS_MAP, DEPENDENCIES, sort_harness_graph
 
 _starters = HassetteHarness._starters
 

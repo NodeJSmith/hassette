@@ -38,7 +38,8 @@ from hassette.event_handling.predicates import (
     ValueIs,
     summarize_top_level,
 )
-from hassette.test_utils import create_attr_change_event, create_call_service_event, create_state_change_event
+from hassette.testing import create_call_service_event, create_state_change_event
+from tests.support.helpers import create_attr_change_event
 
 
 # ValueIs tests
