@@ -1,8 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createWouterMock } from "../../test/mock-wouter";
-import { renderWithAppState } from "../../test/render-helpers";
-import { HandlersTab } from "./handlers-tab";
 import { renderHandlersTab } from "./handlers-tab.test-helpers";
 
 // Mock child components that make API calls
@@ -40,10 +38,7 @@ describe("HandlersTab rendering", () => {
   });
 
   it("renders empty state when no listeners or jobs", () => {
-    const { getByTestId } = renderWithAppState(
-      <HandlersTab listeners={[]} jobs={[]} selectedHandler={null} selectedExecId={null} appKey="test_app" />,
-      { storeOverrides: { uptimeSeconds: 120 } },
-    );
+    const { getByTestId } = renderHandlersTab([], []);
     expect(getByTestId("handlers-empty")).toBeDefined();
   });
 
