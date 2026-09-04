@@ -1198,7 +1198,23 @@ class AppLifecycleService(Resource):
             changes = self._fold_unblocked_apps_into_changes(changes)
 
             if not changes.has_changes:
-                self.logger.debug("%s changed but no app changes detected", changed_file_paths)
+                # A manifest can differ (e.g. display_name, autostart) without requiring any
+                # lifecycle action. That still means the persisted manifest is out of sync with
+                # what a connected dashboard last fetched -- refresh_config() already persisted
+                # it above -- so broadcast the same refetch signal apply_changes() would trigger
+                # below, without running apply_changes() itself. Gated on bootstrap release like
+                # every other broadcast here: while unreleased there's no running app state for a
+                # dashboard to have fetched yet, and the load-completed broadcast at the end of
+                # bootstrap covers it once release opens.
+                if changes.has_any_change and self.bootstrap_coordinator.is_released():
+                    self.logger.debug(
+                        "%s changed, metadata-only manifest changes detected - %s", changed_file_paths, changes
+                    )
+                    await self.hassette.send_event(
+                        HassetteSimpleEvent.from_topic(topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED),
+                    )
+                else:
+                    self.logger.debug("%s changed but no app changes detected", changed_file_paths)
                 return
 
             if not self.bootstrap_coordinator.is_released():
@@ -1257,7 +1273,16 @@ class AppLifecycleService(Resource):
             changes = self._fold_unblocked_apps_into_changes(changes)
 
             if not changes.has_changes:
-                self.logger.debug("Deferred app reconciliation produced no changes")
+                # Mirrors handle_change_event()'s no-lifecycle-change branch: a metadata-only
+                # change (e.g. display_name) queued before release still needs its broadcast
+                # once release opens, even though there's nothing for apply_changes() to do.
+                if changes.has_any_change:
+                    self.logger.debug("Deferred reconciliation produced metadata-only changes - %s", changes)
+                    await self.hassette.send_event(
+                        HassetteSimpleEvent.from_topic(topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED),
+                    )
+                else:
+                    self.logger.debug("Deferred app reconciliation produced no changes")
                 return
 
             await self.apply_changes(changes, original_apps_config, current_apps_config)
@@ -1363,6 +1388,7 @@ class AppLifecycleService(Resource):
             new_apps=changes.new_apps | frozenset(to_start),
             reimport_apps=changes.reimport_apps,
             reload_apps=changes.reload_apps - to_start,
+            metadata_apps=changes.metadata_apps,
         )
 
     def reconcile_blocked_apps(self) -> set[str]:

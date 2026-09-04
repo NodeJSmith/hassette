@@ -69,14 +69,34 @@ class ChangeSet:
     reload_apps: frozenset[str]
     """Apps needing config reload."""
 
+    metadata_apps: frozenset[str] = frozenset()
+    """Apps whose manifest changed in some way (e.g. ``display_name``, ``autostart``) that
+    doesn't require a reload, reimport, or lifecycle action -- but which still means the
+    persisted manifest differs from what any connected dashboard last fetched. See
+    `has_any_change`."""
+
     @property
     def has_changes(self) -> bool:
+        """Whether this changeset requires a lifecycle action (start, stop, reload, reimport)."""
         return bool(self.orphans or self.new_apps or self.reimport_apps or self.reload_apps)
+
+    @property
+    def has_any_change(self) -> bool:
+        """Whether any manifest attribute changed at all, including metadata-only changes.
+
+        A superset of `has_changes` -- true whenever the persisted manifest data differs from
+        before, even if nothing here requires starting, stopping, reloading, or reimporting an
+        app. Callers that only care about refreshing a cached view (e.g. broadcasting a
+        WebSocket refetch signal) should check this instead of `has_changes`, which a
+        metadata-only edit (e.g. `display_name`) never sets.
+        """
+        return bool(self.has_changes or self.metadata_apps)
 
     def __repr__(self) -> str:
         return (
             f"ChangeSet(orphans={set(self.orphans)}, new={set(self.new_apps)}, "
-            f"reimport={set(self.reimport_apps)}, reload={set(self.reload_apps)})"
+            f"reimport={set(self.reimport_apps)}, reload={set(self.reload_apps)}, "
+            f"metadata={set(self.metadata_apps)})"
         )
 
 
@@ -141,6 +161,11 @@ class AppChangeDetector:
             if REIMPORT_PATH_PATTERN.search(item.path())
         }
 
+        # Every app whose manifest differs in *any* way, regardless of which attribute --
+        # a superset of config_changed_keys/reimport_field_changed_keys used below to compute
+        # metadata_apps (any diff not already claimed by a lifecycle-actionable category).
+        all_changed_keys = {item.get_root_key() for entries in config_diff.tree.values() for item in entries}
+
         original_keys = set(original_config.keys())
         current_keys = set(current_config.keys())
 
@@ -172,9 +197,23 @@ class AppChangeDetector:
             and app_key not in reimport_apps
         }
 
+        # Apps whose manifest changed (e.g. display_name, autostart) but not in a way that
+        # requires a lifecycle action -- these still need a broadcast so connected dashboards
+        # refetch the persisted manifest instead of continuing to show stale data.
+        metadata_apps = {
+            app_key
+            for app_key in all_changed_keys
+            if app_key in current_keys
+            and app_key not in new_apps
+            and app_key not in orphans
+            and app_key not in reimport_apps
+            and app_key not in reload_apps
+        }
+
         return ChangeSet(
             orphans=frozenset(orphans),
             new_apps=frozenset(new_apps),
             reimport_apps=frozenset(reimport_apps),
             reload_apps=frozenset(reload_apps),
+            metadata_apps=frozenset(metadata_apps),
         )

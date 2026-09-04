@@ -221,6 +221,66 @@ class TestHandleChangeEventBranches:
         completed_calls = event_capture.by_topic(Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED)
         assert len(completed_calls) == 0
 
+    async def test_metadata_only_change_broadcasts_without_applying(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        mock_hassette: MagicMock,
+        event_capture: EventCapture,
+    ) -> None:
+        """A metadata-only manifest change (e.g. display_name) has no lifecycle action to take,
+        but a connected dashboard still needs to know to refetch -- apply_changes is skipped
+        while the broadcast still fires. Regression test for the Codex review finding that a
+        metadata-only edit was silently dropped before this fix (has_changes gated the broadcast
+        too, and metadata-only changes never set has_changes).
+        """
+        event_capture.install(mock_hassette)
+        mock_hassette.app_bootstrap_coordinator.is_released.return_value = True
+        lifecycle_service.change_detector.detect_changes = Mock(  # pyright: ignore[reportAttributeAccessIssue]
+            return_value=ChangeSet(
+                orphans=frozenset(),
+                new_apps=frozenset(),
+                reimport_apps=frozenset(),
+                reload_apps=frozenset(),
+                metadata_apps=frozenset({"app_a"}),
+            )
+        )
+        lifecycle_service.apply_changes = AsyncMock()
+
+        await lifecycle_service.handle_change_event()
+
+        lifecycle_service.apply_changes.assert_not_called()
+        completed_calls = event_capture.by_topic(Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED)
+        assert len(completed_calls) == 1
+
+    async def test_metadata_only_change_before_release_does_not_broadcast(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_hassette: MagicMock,
+        event_capture: EventCapture,
+    ) -> None:
+        """A metadata-only change detected before bootstrap release opens must not broadcast --
+        there's no running app state yet for a dashboard to have fetched, and the load-completed
+        broadcast at the end of bootstrap covers it once release opens.
+        """
+        event_capture.install(mock_hassette)
+        mock_hassette.app_bootstrap_coordinator.is_released.return_value = False
+        lifecycle_service.change_detector.detect_changes = Mock(  # pyright: ignore[reportAttributeAccessIssue]
+            return_value=ChangeSet(
+                orphans=frozenset(),
+                new_apps=frozenset(),
+                reimport_apps=frozenset(),
+                reload_apps=frozenset(),
+                metadata_apps=frozenset({"app_a"}),
+            )
+        )
+        lifecycle_service.apply_changes = AsyncMock()
+
+        await lifecycle_service.handle_change_event()
+
+        lifecycle_service.apply_changes.assert_not_called()
+        assert event_capture.by_topic(Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED) == []
+
     async def test_unblocked_apps_are_folded_into_new_apps(
         self,
         lifecycle_service: AppLifecycleService,
@@ -252,6 +312,29 @@ class TestHandleChangeEventBranches:
 
         completed_calls = event_capture.by_topic(Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED)
         assert len(completed_calls) == 1
+
+    def test_fold_unblocked_apps_preserves_metadata_apps(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+    ) -> None:
+        """_fold_unblocked_apps_into_changes rebuilds a new ChangeSet when apps are unblocked --
+        metadata_apps must survive that rebuild, not silently reset to empty.
+        """
+        lifecycle_service.reconcile_blocked_apps = Mock(return_value={"unblocked_app"})
+        set_registry_apps(mock_registry, {})
+        changes = ChangeSet(
+            orphans=frozenset(),
+            new_apps=frozenset(),
+            reimport_apps=frozenset(),
+            reload_apps=frozenset(),
+            metadata_apps=frozenset({"other_app"}),
+        )
+
+        folded = lifecycle_service._fold_unblocked_apps_into_changes(changes)
+
+        assert folded.new_apps == frozenset({"unblocked_app"})
+        assert folded.metadata_apps == frozenset({"other_app"})
 
     async def test_pre_release_changes_are_deferred_and_coalesced(
         self,
@@ -395,6 +478,65 @@ class TestHandleChangeEventBranches:
         first_task = await race.start_first(lifecycle_service.handle_change_event())
 
         await race.run_concurrent_call_and_assert_serialized(first_task)
+
+
+class TestReplayPreReleaseReconciliationBranches:
+    async def test_metadata_only_replay_broadcasts_without_applying(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_hassette: MagicMock,
+        event_capture: EventCapture,
+    ) -> None:
+        """A deferred reconciliation that replays as metadata-only (e.g. a display_name edit
+        queued before release opened) must still broadcast once replayed -- mirrors
+        handle_change_event()'s metadata-only branch, since this is its sibling per the shared
+        _fold_unblocked_apps_into_changes() docstring.
+        """
+        event_capture.install(mock_hassette)
+        lifecycle_service._pending_reconciliation = PendingReconciliation(
+            original_apps_config={}, current_apps_config={}, changed_paths=None
+        )
+        lifecycle_service.resolve_only_apps = AsyncMock()
+        lifecycle_service.change_detector.detect_changes = Mock(  # pyright: ignore[reportAttributeAccessIssue]
+            return_value=ChangeSet(
+                orphans=frozenset(),
+                new_apps=frozenset(),
+                reimport_apps=frozenset(),
+                reload_apps=frozenset(),
+                metadata_apps=frozenset({"app_a"}),
+            )
+        )
+        lifecycle_service.apply_changes = AsyncMock()
+
+        await lifecycle_service._replay_pre_release_reconciliation_if_needed()
+
+        lifecycle_service.apply_changes.assert_not_called()
+        completed_calls = event_capture.by_topic(Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED)
+        assert len(completed_calls) == 1
+
+    async def test_no_change_replay_does_not_broadcast(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_hassette: MagicMock,
+        event_capture: EventCapture,
+    ) -> None:
+        """A deferred reconciliation that replays as a genuine no-op must not broadcast."""
+        event_capture.install(mock_hassette)
+        lifecycle_service._pending_reconciliation = PendingReconciliation(
+            original_apps_config={}, current_apps_config={}, changed_paths=None
+        )
+        lifecycle_service.resolve_only_apps = AsyncMock()
+        lifecycle_service.change_detector.detect_changes = Mock(  # pyright: ignore[reportAttributeAccessIssue]
+            return_value=ChangeSet(
+                orphans=frozenset(), new_apps=frozenset(), reimport_apps=frozenset(), reload_apps=frozenset()
+            )
+        )
+        lifecycle_service.apply_changes = AsyncMock()
+
+        await lifecycle_service._replay_pre_release_reconciliation_if_needed()
+
+        lifecycle_service.apply_changes.assert_not_called()
+        assert event_capture.by_topic(Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED) == []
 
 
 class TestReplayPreReleaseReconciliationSerialization:
