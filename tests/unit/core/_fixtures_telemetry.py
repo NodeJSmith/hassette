@@ -157,6 +157,21 @@ async def fetch_listener_field(db: aiosqlite.Connection, listener_id: int, field
     return row[field]
 
 
+async def assert_job_count(db: aiosqlite.Connection, job_id: int, expected: int, message: str) -> None:
+    """Assert the number of scheduled_jobs rows with the given id matches expected."""
+    cursor = await db.execute("SELECT COUNT(*) AS count FROM scheduled_jobs WHERE id = ?", (job_id,))
+    row = await cursor.fetchone()
+    assert row["count"] == expected, message
+
+
+async def fetch_job_field(db: aiosqlite.Connection, job_id: int, field: str) -> Any:
+    """Return a single column value from the scheduled_jobs row with the given id."""
+    cursor = await db.execute(f'SELECT "{field}" FROM scheduled_jobs WHERE id = ?', (job_id,))
+    row = await cursor.fetchone()
+    assert row is not None
+    return row[field]
+
+
 async def insert_committed_execution(db: aiosqlite.Connection, session_id: int, **kwargs: Any) -> None:
     """Insert an execution row (1ms duration, current timestamp) and commit it."""
     await insert_execution_row(db, session_id=session_id, execution_start_ts=time.time(), duration_ms=1.0, **kwargs)
