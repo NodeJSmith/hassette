@@ -1,6 +1,6 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { act, render, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useAppStore } from "../../state/store";
 import { createListener } from "../../test/factories";
@@ -69,6 +69,10 @@ describe("HandlersTab rendering", () => {
     vi.clearAllMocks();
   });
 
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it("renders the master list container", () => {
     const { getByTestId } = renderHandlersTab();
     expect(getByTestId("handler-list")).toBeDefined();
@@ -130,7 +134,5 @@ describe("HandlersTab rendering", () => {
     });
 
     await waitFor(() => expect(getByTestId("back-to-list")).toBeDefined());
-
-    vi.unstubAllGlobals();
   });
 });
