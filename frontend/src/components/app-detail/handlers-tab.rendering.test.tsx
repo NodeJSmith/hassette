@@ -36,7 +36,7 @@ class MockResizeObserver {
   }
 
   trigger(width: number) {
-    this.cb([{ contentRect: { width } } as ResizeObserverEntry], this as unknown as ResizeObserver);
+    this.cb([{ contentRect: { width } } as ResizeObserverEntry], this);
   }
 }
 
