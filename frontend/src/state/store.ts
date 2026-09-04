@@ -82,6 +82,7 @@ export interface AppStore {
   errorHandlerFailures: number;
   updateAppStatus: (key: string, entry: AppStatusEntry) => void;
   updateServiceStatus: (name: string, entry: ServiceStatusEntry) => void;
+  clearAppStatus: () => void;
   clearServiceStatus: () => void;
   setExecutionCompleted: (data: WsExecutionCompletedPayload[]) => void;
   setTelemetryHealth: (data: Partial<TelemetryHealthFields>) => void;
@@ -123,6 +124,7 @@ export function initialState(): Omit<
   | "setConnection"
   | "updateAppStatus"
   | "updateServiceStatus"
+  | "clearAppStatus"
   | "clearServiceStatus"
   | "setExecutionCompleted"
   | "setTelemetryHealth"
@@ -179,7 +181,8 @@ export const useAppStore = create<AppStore>()((set, get) => ({
   updateAppStatus: (key, entry) => set((state) => ({ appStatus: { ...state.appStatus, [key]: entry } })),
   updateServiceStatus: (name, entry) => set((state) => ({ serviceStatus: { ...state.serviceStatus, [name]: entry } })),
   // Not called by handleWsConnected (see its comment) — kept as a standalone store primitive
-  // for callers that need to clear service status on its own, and exercised directly in tests.
+  // for callers that need to clear app/service status on its own, and exercised directly in tests.
+  clearAppStatus: () => set({ appStatus: {} }),
   clearServiceStatus: () => set({ serviceStatus: {} }),
   setExecutionCompleted: (data) => set({ executionCompleted: data }),
   setTelemetryHealth: (data) => set(data),
@@ -227,8 +230,8 @@ export const useAppStore = create<AppStore>()((set, get) => ({
     // Everything here must land in this single set() call. Splitting it across multiple set()s
     // (e.g. calling clearServiceStatus()/clearLogs()) would make atomicity depend on React's
     // batching rather than the shape of the code — a component could then observe an
-    // intermediate render where connection is "connected" but serviceStatus/logs are stale.
-    // The reconnect fields below duplicate what clearServiceStatus/clearLogs do (a fresh
+    // intermediate render where connection is "connected" but serviceStatus/appStatus/logs are
+    // stale. The reconnect fields below duplicate what clearServiceStatus/clearLogs do (a fresh
     // RingBuffer, not `.clear()`, since a new object is what a single object literal needs),
     // not a call to them.
     set((state) => ({
@@ -237,8 +240,15 @@ export const useAppStore = create<AppStore>()((set, get) => ({
       systemVersion: data.version ?? null,
       // `isReconnect && {...}` is `false` (spreads to nothing) on first connect, or the object
       // (spreads its fields in) on reconnect — clears stale data only when reconnecting.
+      // appStatus must clear here too: an instance's status/exception can change while
+      // disconnected (the missed app_status_changed event is never replayed), and
+      // instanceLiveStatus()/instanceLiveError() prefer any existing appStatus entry over the
+      // freshly-refetched manifest data (see the reconnect invalidateQueries() call in
+      // use-websocket.ts) for as long as it stays around -- so a stale entry can outlive the
+      // refetch it was supposed to be superseded by.
       ...(isReconnect && {
         serviceStatus: {},
+        appStatus: {},
         logBuffer: new RingBuffer<WsLogPayload>(LOG_BUFFER_CAPACITY),
         logVersion: state.logVersion + 1,
       }),

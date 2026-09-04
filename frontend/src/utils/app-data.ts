@@ -157,6 +157,20 @@ export function instanceLiveStatus(
   return appStatuses[appStatusKey(appKey, inst.index)]?.status ?? inst.status;
 }
 
+/** Resolve the live error message for a single instance row. Once a WS `app_status_changed`
+ *  event has been seen for this index, its `exception` field is authoritative — including
+ *  `null`, which means the instance recovered and the cached manifest's `error_message` (from
+ *  before the config reload that produced this row) must not keep showing. Only fall back to
+ *  the cached value when no live status has been observed for this index yet. */
+export function instanceLiveError(
+  appStatuses: Record<string, AppStatusEntry>,
+  appKey: string,
+  inst: { index: number; error_message?: string | null },
+): string | null | undefined {
+  const entry = appStatuses[appStatusKey(appKey, inst.index)];
+  return entry ? entry.exception : inst.error_message;
+}
+
 export function compareAppRows(
   a: AppRow,
   b: AppRow,

@@ -1,6 +1,7 @@
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { appStatusKey, type AppStore } from "../state/store";
 import { createInstance, createManifest } from "../test/factories";
 import { createWouterMock } from "../test/mock-wouter";
 import { renderWithAppState } from "../test/render-helpers";
@@ -47,8 +48,13 @@ vi.mock("../hooks/use-correct-url", () => ({
   useCorrectUrl: () => mockCorrectUrl,
 }));
 
-function renderPage(params: { key: string; tab?: AppDetailTab; handler?: string }) {
-  return renderWithAppState(<AppDetailPage params={params} />, { storeOverrides: { uptimeSeconds: 120 } });
+function renderPage(
+  params: { key: string; tab?: AppDetailTab; handler?: string },
+  storeOverrides: Partial<AppStore> = {},
+) {
+  return renderWithAppState(<AppDetailPage params={params} />, {
+    storeOverrides: { uptimeSeconds: 120, ...storeOverrides },
+  });
 }
 
 describe("AppDetailPage instances", () => {
@@ -83,6 +89,93 @@ describe("AppDetailPage instances", () => {
     const { findByTestId } = renderPage({ key: "test_app" });
     expect(await findByTestId("instance-card-0")).toBeDefined();
     expect(await findByTestId("instance-card-1")).toBeDefined();
+  });
+
+  it("instance grid card reflects live appStatus over stale manifest status", async () => {
+    // Reproduces a stale-status report: the manifest fetch says inst_0 is still "running",
+    // but a WS app_status_changed message (mirrored into the appStatus store) already marked
+    // it "stopped". The grid must show the live value, not the cached manifest snapshot.
+    const manifest = createManifest({
+      instance_count: 2,
+      instances: [
+        createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
+        createInstance({ index: 1, instance_name: "inst_1", status: "running" }),
+      ],
+    });
+    setupApi(manifest);
+    const { findByTestId } = renderPage(
+      { key: "test_app" },
+      { appStatus: { [appStatusKey("test_app", 0)]: { status: "stopped", index: 0 } } },
+    );
+
+    const card0 = await findByTestId("instance-card-0");
+    expect(card0.textContent).toContain("stopped");
+    expect(card0.textContent).not.toContain("running");
+  });
+
+  it("instance grid card suppresses a stale cached error once the live status shows recovery", async () => {
+    // Reproduces a stale-error report: the manifest fetch cached inst_0's error_message from
+    // before it recovered, but a WS app_status_changed message (mirrored into the appStatus
+    // store) already reports it "running" with no exception. The grid must not keep showing
+    // the old error alongside the now-live "running" status.
+    const manifest = createManifest({
+      instance_count: 2,
+      instances: [
+        createInstance({ index: 0, instance_name: "inst_0", status: "failed", error_message: "boom" }),
+        createInstance({ index: 1, instance_name: "inst_1", status: "running" }),
+      ],
+    });
+    setupApi(manifest);
+    const { findByTestId } = renderPage(
+      { key: "test_app" },
+      { appStatus: { [appStatusKey("test_app", 0)]: { status: "running", index: 0, exception: null } } },
+    );
+
+    const card0 = await findByTestId("instance-card-0");
+    expect(card0.textContent).not.toContain("boom");
+  });
+
+  it("instance grid card shows a newly live exception the cached manifest never had", async () => {
+    // Reproduces the inverse: the manifest fetch cached inst_0 as healthy, but a WS
+    // app_status_changed message already reports it "failed" with a live exception. The grid
+    // must surface that exception, not the cached (empty) error_message.
+    const manifest = createManifest({
+      instance_count: 2,
+      instances: [
+        createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
+        createInstance({ index: 1, instance_name: "inst_1", status: "running" }),
+      ],
+    });
+    setupApi(manifest);
+    const { findByTestId } = renderPage(
+      { key: "test_app" },
+      { appStatus: { [appStatusKey("test_app", 0)]: { status: "failed", index: 0, exception: "kaboom" } } },
+    );
+
+    const card0 = await findByTestId("instance-card-0");
+    expect(card0.textContent).toContain("kaboom");
+  });
+
+  it("instance switcher status dot reflects live appStatus over stale manifest status", async () => {
+    const manifest = createManifest({
+      instance_count: 2,
+      instances: [
+        createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
+        createInstance({ index: 1, instance_name: "inst_1", status: "running" }),
+      ],
+    });
+    setupApi(manifest);
+    mockSearchString = "instance=1";
+    const { findByTestId } = renderPage(
+      { key: "test_app" },
+      { appStatus: { [appStatusKey("test_app", 0)]: { status: "stopped", index: 0 } } },
+    );
+
+    const switcherBtn0 = await findByTestId("switcher-instance-0");
+    // StatusShape is a bare aria-hidden SVG with no status text or data attribute — "stopped"
+    // renders as a "mute" kind (stroke-only circle, fill="none"), "running" as "ok" (filled
+    // circle, fill="var(--ok-vivid)"). Assert on the fill to distinguish them.
+    expect(switcherBtn0.querySelector("svg circle")?.getAttribute("fill")).toBe("none");
   });
 
   it("renders instance count badge in parent overview header", async () => {

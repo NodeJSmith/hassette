@@ -11,7 +11,7 @@ import { MiniSparkline } from "../components/shared/mini-sparkline";
 import { StatusShape } from "../components/shared/status-shape";
 import { useRelativeTime } from "../hooks/use-relative-time";
 import type { AppStatusEntry } from "../state/store";
-import { appLiveStatus, type AppRow, instanceLiveStatus } from "../utils/app-data";
+import { appLiveStatus, type AppRow, instanceLiveError, instanceLiveStatus } from "../utils/app-data";
 import { APP_ROW_STATUS_SHAPE_SIZE, INSTANCE_ROW_STATUS_SHAPE_SIZE } from "../utils/constants";
 import { formatTimestamp } from "../utils/format";
 import { onActivateKeyDown } from "../utils/keyboard";
@@ -166,6 +166,7 @@ export function AppTableRow({
         isExpanded &&
         app.instances?.map((inst) => {
           const instStatus = instanceLiveStatus(appStatuses, app.app_key, inst);
+          const instErrorMessage = instanceLiveError(appStatuses, app.app_key, inst);
           const instKind = statusToKind(instStatus);
           // A blocked parent's not-yet-tracked instances still report a synthetic "stopped"
           // status (see build_manifest_info()) so they stay addressable in the table — but
@@ -205,9 +206,9 @@ export function AppTableRow({
               <td
                 className={cn("max-w-[200px] cursor-default whitespace-nowrap max-sidebar:hidden", compact && "hidden")}
               >
-                {inst.error_message ? (
-                  <span className="font-mono text-sm text-destructive" title={inst.error_message}>
-                    {inst.error_message}
+                {instErrorMessage ? (
+                  <span className="font-mono text-sm text-destructive" title={instErrorMessage}>
+                    {instErrorMessage}
                   </span>
                 ) : (
                   "—"

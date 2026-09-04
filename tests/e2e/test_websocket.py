@@ -232,3 +232,97 @@ def test_execution_completed_ws_message_triggers_activity_refetch(page: Page, li
         "execution_completed WS message, but none arrived within 6.5s "
         f"(initial fetches: {initial_count}, total after wait: {len(all_activity_requests)})"
     )
+
+
+def test_stopped_app_status_survives_back_navigation(page: Page, live_server_ws_inject) -> None:
+    """Stopping an app from its detail page shows 'stopped' in the apps grid after going back.
+
+    Reproduces a stale-status report: stop a running app from its detail page, navigate
+    back to the apps grid via the browser back button (client-side popstate, not a full
+    reload), and confirm the grid reflects 'stopped' rather than the pre-stop 'running'
+    snapshot. The apps grid overlays live status from the Zustand appStatus store (see
+    appLiveStatus() in utils/app-data.ts), which is populated by the app_status_changed WS
+    message a real backend broadcasts after RuntimeQueryService.on_app_state_changed fires —
+    this test injects that message directly via broadcast_sync, the same way
+    test_execution_completed_ws_message_triggers_activity_refetch injects execution_completed,
+    since the mock backend's stop_app() is a no-op MagicMock with no event-bus wiring.
+    """
+    base = live_server_ws_inject.url
+    broadcast_sync = live_server_ws_inject.broadcast_sync
+
+    page.goto(base + "/apps")
+    ws_indicator = page.locator("[data-testid='ws-indicator']")
+    expect(ws_indicator.first).to_have_text("Connected", timeout=10000)
+
+    my_app_row = page.locator("[data-testid='app-row-my_app']")
+    expect(my_app_row).to_be_visible(timeout=10000)
+    expect(my_app_row.locator("[data-testid='status-pill']")).to_have_text("running")
+
+    my_app_row.get_by_role("link").click()
+    expect(page).to_have_url(base + "/apps/my_app")
+
+    page.get_by_label("Stop app").click()
+    page.get_by_test_id("confirm-btn-danger").click()
+
+    # The confirm click fires the real POST /apps/my_app/stop (202, no-op on the mock
+    # backend). Simulate the app_status_changed broadcast a real backend would send once
+    # the stop actually completes.
+    broadcast_sync(
+        {
+            "type": "app_status_changed",
+            "data": {"app_key": "my_app", "index": 0, "status": "stopped"},
+            "timestamp": time.time(),
+        }
+    )
+
+    page.go_back()
+    expect(page).to_have_url(base + "/apps")
+    expect(my_app_row.locator("[data-testid='status-pill']")).to_have_text("stopped", timeout=5000)
+
+
+def test_multi_instance_overview_shows_live_instance_status_after_stop(page: Page, live_server_ws_inject) -> None:
+    """Stopping one instance of a multi-instance app updates its card on the parent overview.
+
+    This is the actual bug behind a stale-status report: stop a running instance from its
+    detail page, navigate back to the app's multi-instance parent overview
+    (/apps/multi_app, no ?instance= param), and confirm the instance card reflects
+    'stopped'. Unlike the single-instance app_status_changed flow (see
+    test_stopped_app_status_survives_back_navigation), MultiInstanceOverview's InstanceCard
+    and InstanceSwitcher previously rendered `instance.status` straight from the cached
+    manifest fetch and never applied the appStatus live overlay that every other status
+    consumer (apps grid, app-detail header) already used — so this view stayed stale
+    regardless of navigation timing, not just in a race window. Fixed by applying
+    instanceLiveStatus() in components/app-detail/multi-instance.tsx.
+    """
+    base = live_server_ws_inject.url
+    broadcast_sync = live_server_ws_inject.broadcast_sync
+
+    page.goto(base + "/apps/multi_app")
+    ws_indicator = page.locator("[data-testid='ws-indicator']")
+    expect(ws_indicator.first).to_have_text("Connected", timeout=10000)
+
+    card0 = page.locator("[data-testid='instance-card-0']")
+    expect(card0).to_be_visible(timeout=10000)
+    expect(card0).to_contain_text("running")
+
+    card0.click()
+    expect(page).to_have_url(base + "/apps/multi_app/overview?instance=0")
+
+    page.get_by_test_id("btn-stop-multi_app-0").click()
+    page.get_by_test_id("confirm-btn-danger").click()
+
+    # The confirm click fires the real POST /apps/multi_app/stop?instance=0 (202, no-op on
+    # the mock backend). Simulate the app_status_changed broadcast a real backend would send
+    # once the stop actually completes.
+    broadcast_sync(
+        {
+            "type": "app_status_changed",
+            "data": {"app_key": "multi_app", "index": 0, "status": "stopped"},
+            "timestamp": time.time(),
+        }
+    )
+
+    page.go_back()
+    expect(page).to_have_url(base + "/apps/multi_app")
+    expect(card0).to_contain_text("stopped", timeout=5000)
+    expect(card0).not_to_contain_text("running")

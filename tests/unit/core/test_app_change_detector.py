@@ -88,10 +88,27 @@ class TestChangeSet:
         )
 
         assert not changes.has_changes
+        assert not changes.has_any_change
         assert changes.orphans == frozenset()
         assert changes.new_apps == frozenset()
         assert changes.reimport_apps == frozenset()
         assert changes.reload_apps == frozenset()
+        assert changes.metadata_apps == frozenset()
+
+    def test_has_any_change_true_with_metadata_apps_only(self) -> None:
+        """has_any_change is True on a metadata-only changeset even though has_changes is False --
+        this is the distinction the broadcast-on-metadata-only-change fix relies on.
+        """
+        changes = ChangeSet(
+            orphans=frozenset(),
+            new_apps=frozenset(),
+            reimport_apps=frozenset(),
+            reload_apps=frozenset(),
+            metadata_apps=frozenset({"app1"}),
+        )
+
+        assert not changes.has_changes
+        assert changes.has_any_change
 
     def test_has_changes_with_orphans(self) -> None:
         """Test has_changes is True when there are orphans."""
@@ -185,6 +202,7 @@ class TestAppChangeDetector:
             class_name: str | None = None,
             app_dir: Path | None = None,
             cache_key: str | None = None,
+            enabled: bool = True,
         ) -> AppManifest:
             return AppManifest(
                 app_key=app_key,
@@ -196,6 +214,7 @@ class TestAppChangeDetector:
                 full_path=full_path or Path(f"/apps/{app_key}.py"),
                 autostart=autostart,
                 cache_key=cache_key or "",
+                enabled=enabled,
             )
 
         return _make
@@ -207,6 +226,8 @@ class TestAppChangeDetector:
         changes = detector.detect_changes(config, config)
 
         assert not changes.has_changes
+        assert not changes.has_any_change
+        assert not changes.metadata_apps
 
     def test_detect_orphans(self, detector: AppChangeDetector, make_manifest: Callable) -> None:
         """Test detecting removed apps (orphans)."""
@@ -266,7 +287,10 @@ class TestAppChangeDetector:
     def test_display_name_change_does_not_trigger_reload(
         self, detector: AppChangeDetector, make_manifest: Callable
     ) -> None:
-        """A display_name-only change is not an app_config change and must not trigger a reload."""
+        """A display_name-only change is not an app_config change and must not trigger a reload,
+        but it must still surface as a metadata change so a connected dashboard is told to
+        refetch (see test_app_lifecycle_service_coverage.py's metadata-broadcast tests).
+        """
         original = {"app1": make_manifest("app1", display_name="Old Name")}
         current = {"app1": make_manifest("app1", display_name="New Name")}
 
@@ -274,11 +298,15 @@ class TestAppChangeDetector:
 
         assert "app1" not in changes.reload_apps
         assert not changes.has_changes
+        assert changes.metadata_apps == frozenset({"app1"})
+        assert changes.has_any_change
 
     def test_autostart_change_does_not_trigger_reload(
         self, detector: AppChangeDetector, make_manifest: Callable
     ) -> None:
-        """An autostart-only change is not an app_config change and must not trigger a reload."""
+        """An autostart-only change is not an app_config change and must not trigger a reload,
+        but it must still surface as a metadata change (see display_name test above).
+        """
         original = {"app1": make_manifest("app1", autostart=True)}
         current = {"app1": make_manifest("app1", autostart=False)}
 
@@ -286,6 +314,97 @@ class TestAppChangeDetector:
 
         assert "app1" not in changes.reload_apps
         assert not changes.has_changes
+        assert changes.metadata_apps == frozenset({"app1"})
+        assert changes.has_any_change
+
+    def test_metadata_change_on_disabled_app_is_still_detected(
+        self, detector: AppChangeDetector, make_manifest: Callable
+    ) -> None:
+        """A display_name change on an app that's disabled on both sides must still surface as
+        a metadata change -- previously the caller pre-filtered both configs to enabled-only
+        apps before calling detect_changes(), so a disabled app's manifest was simply absent
+        from both dicts and its metadata changes were invisible (see PR #1899 review).
+        """
+        original = {"app1": make_manifest("app1", display_name="Old Name", enabled=False)}
+        current = {"app1": make_manifest("app1", display_name="New Name", enabled=False)}
+
+        changes = detector.detect_changes(original, current)
+
+        assert not changes.has_changes
+        assert changes.metadata_apps == frozenset({"app1"})
+        assert changes.has_any_change
+        assert "app1" not in changes.orphans
+        assert "app1" not in changes.new_apps
+        assert "app1" not in changes.reload_apps
+
+    def test_removed_disabled_app_still_triggers_metadata_broadcast(
+        self, detector: AppChangeDetector, make_manifest: Callable
+    ) -> None:
+        """An app disabled in the original config and deleted entirely from the current config
+        must still surface as a metadata change -- `orphans` can't see it (it's derived from the
+        enabled-only `original_keys`, which never contained a disabled app), so without a
+        metadata signal the removal would produce no broadcast at all and a dashboard's
+        persisted row for the deleted app would never refetch.
+        """
+        original = {"app1": make_manifest("app1", enabled=False)}
+        current: dict = {}
+
+        changes = detector.detect_changes(original, current)
+
+        assert not changes.has_changes
+        assert changes.metadata_apps == frozenset({"app1"})
+        assert changes.has_any_change
+        assert "app1" not in changes.orphans
+        assert "app1" not in changes.new_apps
+
+    def test_only_apps_does_not_hide_metadata_changes_outside_selection(
+        self, detector: AppChangeDetector, make_manifest: Callable
+    ) -> None:
+        """A metadata-only change to a disabled app excluded by `only_apps` must still surface
+        as a metadata change -- `only_apps` narrows which apps get lifecycle actions, not which
+        manifest changes are worth telling a connected dashboard about, since both configs
+        passed to `detect_changes()` already contain every manifest regardless of that scope.
+        """
+        original = {"app1": make_manifest("app1", display_name="Old Name", enabled=False)}
+        current = {"app1": make_manifest("app1", display_name="New Name", enabled=False)}
+
+        changes = detector.detect_changes(original, current, only_apps=frozenset({"app2"}))
+
+        assert not changes.has_changes
+        assert changes.metadata_apps == frozenset({"app1"})
+        assert changes.has_any_change
+
+    def test_only_apps_does_not_hide_new_app_metadata_outside_selection(
+        self, detector: AppChangeDetector, make_manifest: Callable
+    ) -> None:
+        """A newly added app outside `only_apps`'s selection is invisible to `new_apps` (it's
+        scoped out of lifecycle actions), but it must still surface as a metadata change so a
+        dashboard refetches the manifest the framework already persisted for it.
+        """
+        original: dict = {"app1": make_manifest("app1")}
+        current = {"app1": make_manifest("app1"), "app2": make_manifest("app2")}
+
+        changes = detector.detect_changes(original, current, only_apps=frozenset({"app1"}))
+
+        assert "app2" not in changes.new_apps
+        assert changes.metadata_apps == frozenset({"app2"})
+
+    def test_disabling_an_app_is_still_an_orphan_not_metadata(
+        self, detector: AppChangeDetector, make_manifest: Callable
+    ) -> None:
+        """Toggling an app to disabled must still stop it (orphans), not just broadcast metadata
+        -- the enabled-only lifecycle categorization must be unaffected by no longer pre-filtering
+        the configs passed into detect_changes().
+        """
+        original = {"app1": make_manifest("app1", enabled=True)}
+        current = {"app1": make_manifest("app1", enabled=False)}
+
+        changes = detector.detect_changes(original, current)
+
+        assert changes.orphans == frozenset({"app1"})
+        assert not changes.new_apps
+        assert not changes.reload_apps
+        assert "app1" not in changes.metadata_apps
 
     def test_app_config_change_triggers_reload(self, detector: AppChangeDetector, make_manifest: Callable) -> None:
         """An app_config change must still trigger a reload, even alongside a non-config change."""
@@ -299,6 +418,30 @@ class TestAppChangeDetector:
         changes = detector.detect_changes(original, current)
 
         assert changes.reload_apps == frozenset({"app1"})
+
+    def test_reload_app_not_also_in_metadata_apps(self, detector: AppChangeDetector, make_manifest: Callable) -> None:
+        """An app_config change alongside a display_name change lands only in reload_apps --
+        metadata_apps must not double-count an app already claimed by a lifecycle category.
+        """
+        original = {"app1": make_manifest("app1", app_config={"setting": "old"}, display_name="Old Name")}
+        current = {"app1": make_manifest("app1", app_config={"setting": "new"}, display_name="New Name")}
+
+        changes = detector.detect_changes(original, current)
+
+        assert changes.reload_apps == frozenset({"app1"})
+        assert "app1" not in changes.metadata_apps
+
+    def test_reimport_app_not_also_in_metadata_apps(self, detector: AppChangeDetector, make_manifest: Callable) -> None:
+        """A filename change alongside a display_name change lands only in reimport_apps --
+        metadata_apps must not double-count an app already claimed by a lifecycle category.
+        """
+        original = {"app1": make_manifest("app1", filename="old_app1.py", display_name="Old Name")}
+        current = {"app1": make_manifest("app1", filename="new_app1.py", display_name="New Name")}
+
+        changes = detector.detect_changes(original, current)
+
+        assert changes.reimport_apps == frozenset({"app1"})
+        assert "app1" not in changes.metadata_apps
 
     def test_new_app_not_in_reload(self, detector: AppChangeDetector, make_manifest: Callable) -> None:
         """Test that new apps are not also in reload_apps."""

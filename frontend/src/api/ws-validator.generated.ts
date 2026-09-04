@@ -11,6 +11,23 @@ export const validate = validate10;
 export default validate10;
 const schema11 = {
   $defs: {
+    AppManifestsChangedData: {
+      description:
+        'Payload for a manifest refresh broadcast over WebSocket.\n\nCarries no fields — it is a refetch signal, not a diff. The event that triggers it\n(``HASSETTE_EVENT_APP_LOAD_COMPLETED``) fires after a full bootstrap or reload pass over\nall apps, and also after a live config edit that only changes manifest metadata (e.g.\n``display_name``) with no lifecycle action to take. Either way it does not identify which\napp(s) changed, so clients should treat receipt as "manifest status may be stale, refetch"\nrather than inspect the payload for detail.',
+      properties: {},
+      title: "AppManifestsChangedData",
+      type: "object",
+    },
+    AppManifestsChangedWsMessage: {
+      properties: {
+        type: { const: "app_manifests_changed", title: "Type", type: "string" },
+        data: { $ref: "#/$defs/AppManifestsChangedData" },
+        timestamp: { title: "Timestamp", type: "number" },
+      },
+      required: ["type", "data", "timestamp"],
+      title: "AppManifestsChangedWsMessage",
+      type: "object",
+    },
     AppStatusChangedData: {
       description:
         "Payload for an app lifecycle state-change event broadcast over WebSocket.\n\nMirrors ``events.hassette.AppStateChangePayload`` exactly.",
@@ -215,6 +232,7 @@ const schema11 = {
     { $ref: "#/$defs/ConnectivityWsMessage" },
     { $ref: "#/$defs/ServiceStatusWsMessage" },
     { $ref: "#/$defs/ExecutionCompletedWsMessage" },
+    { $ref: "#/$defs/AppManifestsChangedWsMessage" },
   ],
 };
 const schema12 = {
@@ -3813,6 +3831,131 @@ function validate20(data, { instancePath = "", parentData, parentDataProperty, r
   validate20.errors = vErrors;
   return errors === 0;
 }
+const schema29 = {
+  properties: {
+    type: { const: "app_manifests_changed", title: "Type", type: "string" },
+    data: { $ref: "#/$defs/AppManifestsChangedData" },
+    timestamp: { title: "Timestamp", type: "number" },
+  },
+  required: ["type", "data", "timestamp"],
+  title: "AppManifestsChangedWsMessage",
+  type: "object",
+};
+const schema30 = {
+  description:
+    'Payload for a manifest refresh broadcast over WebSocket.\n\nCarries no fields — it is a refetch signal, not a diff. The event that triggers it\n(``HASSETTE_EVENT_APP_LOAD_COMPLETED``) fires after a full bootstrap or reload pass over\nall apps, and also after a live config edit that only changes manifest metadata (e.g.\n``display_name``) with no lifecycle action to take. Either way it does not identify which\napp(s) changed, so clients should treat receipt as "manifest status may be stale, refetch"\nrather than inspect the payload for detail.',
+  properties: {},
+  title: "AppManifestsChangedData",
+  type: "object",
+};
+function validate23(data, { instancePath = "", parentData, parentDataProperty, rootData = data } = {}) {
+  let vErrors = null;
+  let errors = 0;
+  if (errors === 0) {
+    if (data && typeof data == "object" && !Array.isArray(data)) {
+      let missing0;
+      if (
+        (data.type === undefined && (missing0 = "type")) ||
+        (data.data === undefined && (missing0 = "data")) ||
+        (data.timestamp === undefined && (missing0 = "timestamp"))
+      ) {
+        validate23.errors = [
+          {
+            instancePath,
+            schemaPath: "#/required",
+            keyword: "required",
+            params: { missingProperty: missing0 },
+            message: "must have required property '" + missing0 + "'",
+          },
+        ];
+        return false;
+      } else {
+        if (data.type !== undefined) {
+          let data0 = data.type;
+          const _errs1 = errors;
+          if (typeof data0 !== "string") {
+            validate23.errors = [
+              {
+                instancePath: instancePath + "/type",
+                schemaPath: "#/properties/type/type",
+                keyword: "type",
+                params: { type: "string" },
+                message: "must be string",
+              },
+            ];
+            return false;
+          }
+          if ("app_manifests_changed" !== data0) {
+            validate23.errors = [
+              {
+                instancePath: instancePath + "/type",
+                schemaPath: "#/properties/type/const",
+                keyword: "const",
+                params: { allowedValue: "app_manifests_changed" },
+                message: "must be equal to constant",
+              },
+            ];
+            return false;
+          }
+          var valid0 = _errs1 === errors;
+        } else {
+          var valid0 = true;
+        }
+        if (valid0) {
+          if (data.data !== undefined) {
+            let data1 = data.data;
+            const _errs3 = errors;
+            const _errs4 = errors;
+            if (errors === _errs4) {
+              if (!(data1 && typeof data1 == "object" && !Array.isArray(data1))) {
+                validate23.errors = [
+                  {
+                    instancePath: instancePath + "/data",
+                    schemaPath: "#/$defs/AppManifestsChangedData/type",
+                    keyword: "type",
+                    params: { type: "object" },
+                    message: "must be object",
+                  },
+                ];
+                return false;
+              }
+            }
+            var valid0 = _errs3 === errors;
+          } else {
+            var valid0 = true;
+          }
+          if (valid0) {
+            if (data.timestamp !== undefined) {
+              const _errs6 = errors;
+              if (!(typeof data.timestamp == "number")) {
+                validate23.errors = [
+                  {
+                    instancePath: instancePath + "/timestamp",
+                    schemaPath: "#/properties/timestamp/type",
+                    keyword: "type",
+                    params: { type: "number" },
+                    message: "must be number",
+                  },
+                ];
+                return false;
+              }
+              var valid0 = _errs6 === errors;
+            } else {
+              var valid0 = true;
+            }
+          }
+        }
+      }
+    } else {
+      validate23.errors = [
+        { instancePath, schemaPath: "#/type", keyword: "type", params: { type: "object" }, message: "must be object" },
+      ];
+      return false;
+    }
+  }
+  validate23.errors = vErrors;
+  return errors === 0;
+}
 function validate10(data, { instancePath = "", parentData, parentDataProperty, rootData = data } = {}) {
   let vErrors = null;
   let errors = 0;
@@ -3848,6 +3991,11 @@ function validate10(data, { instancePath = "", parentData, parentDataProperty, r
         } else if (tag0 === "execution_completed") {
           if (!validate20(data, { instancePath, parentData, parentDataProperty, rootData })) {
             vErrors = vErrors === null ? validate20.errors : vErrors.concat(validate20.errors);
+            errors = vErrors.length;
+          }
+        } else if (tag0 === "app_manifests_changed") {
+          if (!validate23(data, { instancePath, parentData, parentDataProperty, rootData })) {
+            vErrors = vErrors === null ? validate23.errors : vErrors.concat(validate23.errors);
             errors = vErrors.length;
           }
         } else {

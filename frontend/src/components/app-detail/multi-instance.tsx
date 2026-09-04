@@ -2,19 +2,25 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 import type { AppInstance } from "../../api/endpoints";
+import { useAppStore } from "../../state/store";
+import { instanceLiveError, instanceLiveStatus } from "../../utils/app-data";
 import { BADGE_STATUS_DOT_SIZE, STATUS_DOT_SIZE } from "../../utils/constants";
 import { statusToKind, statusToVariant } from "../../utils/status";
 import { StatusShape } from "../shared/status-shape";
 
 export function InstanceSwitcher({
+  appKey,
   instances,
   currentIndex,
   onNavigate,
 }: {
+  appKey: string;
   instances: AppInstance[];
   currentIndex: number;
   onNavigate: (index: number) => void;
 }) {
+  const appStatus = useAppStore((s) => s.appStatus);
+
   return (
     <div
       className="flex flex-wrap items-center gap-1"
@@ -24,6 +30,7 @@ export function InstanceSwitcher({
     >
       {instances.map((instance) => {
         const isActive = instance.index === currentIndex;
+        const liveStatus = instanceLiveStatus(appStatus, appKey, instance);
         return (
           <button
             key={instance.index}
@@ -40,7 +47,7 @@ export function InstanceSwitcher({
               if (!isActive) onNavigate(instance.index);
             }}
           >
-            <StatusShape kind={statusToKind(instance.status)} size={BADGE_STATUS_DOT_SIZE} />
+            <StatusShape kind={statusToKind(liveStatus)} size={BADGE_STATUS_DOT_SIZE} />
             <span className="max-w-[140px] overflow-hidden text-ellipsis">{instance.instance_name}</span>
           </button>
         );
@@ -49,7 +56,17 @@ export function InstanceSwitcher({
   );
 }
 
-function InstanceCard({ instance, onNavigate }: { instance: AppInstance; onNavigate: (index: number) => void }) {
+function InstanceCard({
+  instance,
+  liveStatus,
+  liveErrorMessage,
+  onNavigate,
+}: {
+  instance: AppInstance;
+  liveStatus: AppInstance["status"];
+  liveErrorMessage: string | null | undefined;
+  onNavigate: (index: number) => void;
+}) {
   return (
     <button
       type="button"
@@ -61,17 +78,17 @@ function InstanceCard({ instance, onNavigate }: { instance: AppInstance; onNavig
       aria-label={`View ${instance.instance_name}`}
     >
       <div className="flex flex-wrap items-center gap-2">
-        <StatusShape kind={statusToKind(instance.status)} size={STATUS_DOT_SIZE} />
+        <StatusShape kind={statusToKind(liveStatus)} size={STATUS_DOT_SIZE} />
         <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap font-medium">
           {instance.instance_name}
         </span>
-        <Badge variant={statusToVariant(instance.status)} size="sm" className="ml-auto shrink-0">
-          {instance.status}
+        <Badge variant={statusToVariant(liveStatus)} size="sm" className="ml-auto shrink-0">
+          {liveStatus}
         </Badge>
       </div>
-      {instance.error_message && (
+      {liveErrorMessage && (
         <p className="overflow-hidden text-ellipsis whitespace-nowrap text-xs text-destructive italic">
-          {instance.error_message}
+          {liveErrorMessage}
         </p>
       )}
     </button>
@@ -91,6 +108,8 @@ export function MultiInstanceOverview({
   instanceCount: number;
   onNavigate: (index: number) => void;
 }) {
+  const appStatus = useAppStore((s) => s.appStatus);
+
   return (
     <div className="py-4" data-testid="multi-instance-overview">
       <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -106,7 +125,13 @@ export function MultiInstanceOverview({
       <code className="mb-4 block font-mono text-sm">{appKey}</code>
       <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4" data-testid="instance-grid">
         {instances.map((instance) => (
-          <InstanceCard key={instance.index} instance={instance} onNavigate={onNavigate} />
+          <InstanceCard
+            key={instance.index}
+            instance={instance}
+            liveStatus={instanceLiveStatus(appStatus, appKey, instance)}
+            liveErrorMessage={instanceLiveError(appStatus, appKey, instance)}
+            onNavigate={onNavigate}
+          />
         ))}
       </div>
     </div>

@@ -117,6 +117,7 @@ def build_mock_hassette(*, is_ready: bool = True, auth_enabled: bool = False) ->
         is_ready=is_ready,
         websocket_connected=is_ready,
         auth_enabled=auth_enabled,
+        app_action_mocks=True,
     )
 
     # Wire telemetry seed data.

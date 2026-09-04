@@ -195,6 +195,7 @@ export function AppDetailPage({ params }: Props) {
       <div className="flex flex-col gap-3">
         {isMultiInstance && !showParentOverview && manifest?.instances && manifest.instances.length > 0 && (
           <InstanceSwitcher
+            appKey={appKey}
             instances={manifest.instances}
             currentIndex={resolvedInstanceIndex}
             onNavigate={(idx) => {

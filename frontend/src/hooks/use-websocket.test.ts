@@ -498,6 +498,20 @@ describe("useWebSocket", () => {
     expect(invalidateSpy).not.toHaveBeenCalled();
   });
 
+  it("invalidates every manifest-backed query on app_manifests_changed", () => {
+    const { ws, queryClient } = renderConnectedWebSocketHook();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    act(() => {
+      ws.simulateMessage({ type: "app_manifests_changed", data: {}, timestamp: 1000 });
+    });
+
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["manifests"] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["manifest"] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["dashboard-grid"] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["system-status"] });
+  });
+
   it("drops invalid messages without updating state", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { ws } = renderConnectedWebSocketHook();

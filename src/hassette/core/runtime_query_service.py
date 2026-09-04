@@ -18,6 +18,7 @@ from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
 from hassette.schemas.app_snapshots import AppManifestInfo, AppStatusSnapshot
 from hassette.schemas.domain_models import (
+    AppManifestsChangedData,
     AppStatusChangedData,
     BootIssue,
     ConnectivityData,
@@ -121,6 +122,15 @@ class RuntimeQueryService(Resource):
                 name="hassette.rqs.on_execution_completed",
             )
         )
+        # Named for its WS-layer effect (manifest data may have changed), not the backend
+        # event name — see on_app_manifests_changed's docstring.
+        self._subscriptions.append(
+            await self.bus.on(
+                topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED,
+                handler=self.on_app_manifests_changed,
+                name="hassette.rqs.on_app_manifests_changed",
+            )
+        )
 
         # Wire up log capture handler for WS broadcast
         handler = self.hassette.logging_service.capture_handler
@@ -183,6 +193,15 @@ class RuntimeQueryService(Resource):
             ready_phase=data.ready_phase,
         )
         await self.build_and_broadcast("service_status", payload)
+
+    async def on_app_manifests_changed(self) -> None:
+        """Broadcast a refetch signal after a full app load/reload pass.
+
+        The triggering event (``HASSETTE_EVENT_APP_LOAD_COMPLETED``) carries no data — see
+        ``AppManifestsChangedData`` — so this handler declares no ``event`` parameter;
+        ``ParameterInjector`` only injects what a handler's signature actually asks for.
+        """
+        await self.build_and_broadcast("app_manifests_changed", AppManifestsChangedData())
 
     async def on_ws_connected(self) -> None:
         await self.build_and_broadcast("connectivity", ConnectivityData(connected=True))

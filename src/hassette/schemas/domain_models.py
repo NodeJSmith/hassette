@@ -128,6 +128,18 @@ class ConnectivityData(BaseModel):
     connected: bool
 
 
+class AppManifestsChangedData(BaseModel):
+    """Payload for a manifest refresh broadcast over WebSocket.
+
+    Carries no fields — it is a refetch signal, not a diff. The event that triggers it
+    (``HASSETTE_EVENT_APP_LOAD_COMPLETED``) fires after a full bootstrap or reload pass over
+    all apps, and also after a live config edit that only changes manifest metadata (e.g.
+    ``display_name``) with no lifecycle action to take. Either way it does not identify which
+    app(s) changed, so clients should treat receipt as "manifest status may be stale, refetch"
+    rather than inspect the payload for detail.
+    """
+
+
 class ServiceStatusData(BaseModel):
     """Payload for an internal service status-change event broadcast over WebSocket.
 
