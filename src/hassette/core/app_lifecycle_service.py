@@ -1220,11 +1220,14 @@ class AppLifecycleService(Resource):
                     )
                 else:
                     # A metadata-only change (e.g. display_name) has nothing for apply_changes()
-                    # to redo later, so there's no reconciliation to defer -- and no running app
-                    # state yet for a dashboard to have fetched, so no broadcast is lost either;
-                    # the load-completed broadcast at the end of bootstrap covers it once release
-                    # opens.
+                    # to redo later, so there's no reconciliation to defer. But WebApiService can
+                    # already be serving manifests to a connected dashboard before bootstrap
+                    # release opens (see RuntimeQueryService.depends_on, which excludes
+                    # AppHandler), and release may not open for a long time -- or at all -- while
+                    # Home Assistant is unreachable. Broadcast now via _reconcile_changes(), which
+                    # skips apply_changes() since changes.has_changes is False here.
                     self.logger.debug("%s changed (metadata-only) before bootstrap release opened", changed_file_paths)
+                    await self._reconcile_changes(changes, original_apps_config, current_apps_config)
                 return
 
             self.logger.debug("%s changed, app changes detected - %s", changed_file_paths, changes)

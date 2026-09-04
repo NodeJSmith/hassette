@@ -252,15 +252,17 @@ class TestHandleChangeEventBranches:
         completed_calls = event_capture.by_topic(Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED)
         assert len(completed_calls) == 1
 
-    async def test_metadata_only_change_before_release_does_not_broadcast(
+    async def test_metadata_only_change_before_release_still_broadcasts(
         self,
         lifecycle_service: AppLifecycleService,
         mock_hassette: MagicMock,
         event_capture: EventCapture,
     ) -> None:
-        """A metadata-only change detected before bootstrap release opens must not broadcast --
-        there's no running app state yet for a dashboard to have fetched, and the load-completed
-        broadcast at the end of bootstrap covers it once release opens.
+        """A metadata-only change detected before bootstrap release opens must still broadcast --
+        WebApiService can already be serving manifests to a connected dashboard at this point
+        (RuntimeQueryService.depends_on excludes AppHandler), and release may not open for a long
+        time -- or at all -- while Home Assistant is unreachable, so waiting for the
+        bootstrap-completion broadcast would leave that dashboard stale indefinitely.
         """
         event_capture.install(mock_hassette)
         mock_hassette.app_bootstrap_coordinator.is_released.return_value = False
@@ -278,7 +280,8 @@ class TestHandleChangeEventBranches:
         await lifecycle_service.handle_change_event()
 
         lifecycle_service.apply_changes.assert_not_called()
-        assert event_capture.by_topic(Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED) == []
+        completed_calls = event_capture.by_topic(Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED)
+        assert len(completed_calls) == 1
 
     async def test_unblocked_apps_are_folded_into_new_apps(
         self,
