@@ -42,4 +42,4 @@ surface stable; only the definitions moved.
   whichever fixtures it needs (`telemetry_repo`, `telemetry_db`, `telemetry_session_id`, `tmp_path`,
   etc.) even when an adjacent test declares the identical set — `tools/check_duplicate_code.py`
   would otherwise flag that repetition. The marker's inline reason stays a one-line pointer back to
-  this note rather than repeating the full explanation at all 19+ sites.
+  this note rather than repeating the full explanation at all 19 sites.
