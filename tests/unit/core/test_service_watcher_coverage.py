@@ -252,7 +252,8 @@ class TestCooldownAndRetry:
         spec = RestartSpec(restart_type=RestartType.TRANSIENT, cooldown_seconds=0.001, max_cooldown_cycles=0)
 
         # Should not raise despite no matching service.
-        await watcher.cooldown_and_retry("GoneService", ResourceRole.SERVICE, "GoneService:Service", spec)
+        key = watcher.service_key("GoneService", ResourceRole.SERVICE)
+        await watcher.cooldown_and_retry("GoneService", ResourceRole.SERVICE, key, spec)
 
 
 class TestGetService:
