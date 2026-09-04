@@ -6,6 +6,7 @@ import { ApiError } from "../api/client";
 import { getSystemStatus, WS_PATH } from "../api/endpoints";
 import type { WsServerMessage } from "../api/ws-types";
 import { validateWsMessage, WsValidationError } from "../api/ws-validator";
+import { queryKeys } from "../lib/query-keys";
 import { appStatusKey, useAppStore } from "../state/store";
 import { LOGIN_PATH } from "../utils/app-routes";
 
@@ -150,6 +151,12 @@ export function useWebSocket(): void {
 
           case "connectivity":
             // Intentionally ignored — not consumed by the frontend UI.
+            break;
+
+          case "app_manifests_changed":
+            // Signal-only message (no payload) — a full app load/reload pass completed.
+            // Refetch manifest status instead of trusting whatever's cached.
+            void queryClient.invalidateQueries({ queryKey: queryKeys.manifests() });
             break;
 
           default: {

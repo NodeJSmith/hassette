@@ -4,7 +4,12 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from hassette.schemas.domain_models import AppStatusChangedData, ConnectivityData, ServiceStatusData
+from hassette.schemas.domain_models import (
+    AppManifestsChangedData,
+    AppStatusChangedData,
+    ConnectivityData,
+    ServiceStatusData,
+)
 from hassette.types.enums import (
     DEFAULT_BACKPRESSURE_POLICY,
     DEFAULT_OVERLAP_MODE,
@@ -282,6 +287,12 @@ class ServiceStatusWsMessage(BaseModel):
     timestamp: float
 
 
+class AppManifestsChangedWsMessage(BaseModel):
+    type: Literal["app_manifests_changed"]
+    data: AppManifestsChangedData
+    timestamp: float
+
+
 class ExecutionCompletedData(BaseModel):
     """Payload for execution_completed WebSocket messages.
 
@@ -313,7 +324,8 @@ WsServerMessage = Annotated[
     | ConnectedWsMessage
     | ConnectivityWsMessage
     | ServiceStatusWsMessage
-    | ExecutionCompletedWsMessage,
+    | ExecutionCompletedWsMessage
+    | AppManifestsChangedWsMessage,
     Field(discriminator="type"),
 ]
 

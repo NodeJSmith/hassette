@@ -266,6 +266,9 @@ def create_hassette_stub(
         hassette._app_handler.start_app = AsyncMock()
         hassette._app_handler.stop_app = AsyncMock()
         hassette._app_handler.reload_app = AsyncMock()
+        hassette._app_handler.start_instance = AsyncMock()
+        hassette._app_handler.stop_instance = AsyncMock()
+        hassette._app_handler.reload_instance = AsyncMock()
 
     hassette.bus_service = hassette._bus_service
     hassette.bus_service.live_execution_counts = MagicMock(return_value={})

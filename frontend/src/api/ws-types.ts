@@ -9,7 +9,8 @@ export type WsServerMessage =
   | ConnectedWsMessage
   | ConnectivityWsMessage
   | ServiceStatusWsMessage
-  | ExecutionCompletedWsMessage;
+  | ExecutionCompletedWsMessage
+  | AppManifestsChangedWsMessage;
 /**
  * Enumeration for resource status.
  */
@@ -144,6 +145,20 @@ export interface ExecutionCompletedData {
   job_id?: number | null;
   thread_leaked?: boolean;
 }
+export interface AppManifestsChangedWsMessage {
+  type: "app_manifests_changed";
+  data: AppManifestsChangedData;
+  timestamp: number;
+}
+/**
+ * Payload for a completed app load/reload pass broadcast over WebSocket.
+ *
+ * Carries no fields — it is a refetch signal, not a diff. The event that triggers it
+ * (``HASSETTE_EVENT_APP_LOAD_COMPLETED``) fires after a full bootstrap or reload pass over
+ * all apps and does not identify which app(s) changed, so clients should treat receipt as
+ * "manifest status may be stale, refetch" rather than inspect the payload for detail.
+ */
+export type AppManifestsChangedData = Record<string, never>;
 
 export type WsLogPayload = LogEntryResponse;
 export type WsExecutionCompletedPayload = ExecutionCompletedData;

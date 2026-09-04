@@ -87,7 +87,17 @@ async function main() {
 
   const ts = await compile(schema, "WsServerMessage", COMPILE_OPTIONS);
 
-  const output = `${BANNER}\n\n${ts}${COMPAT_ALIASES}`;
+  // A Pydantic model with no fields (e.g. a bare refetch-signal payload) compiles to
+  // `export interface X {}`, which ESLint's no-empty-object-type rule flags — an empty
+  // interface allows any non-nullish value, not just "no fields". Rewrite to the type
+  // form that actually means "no fields", so future empty-payload models stay lint-clean
+  // without a per-model exemption.
+  const tsWithEmptyTypesFixed = ts.replace(
+    /export interface (\w+) \{\}/g,
+    "export type $1 = Record<string, never>;",
+  );
+
+  const output = `${BANNER}\n\n${tsWithEmptyTypesFixed}${COMPAT_ALIASES}`;
   fs.writeFileSync(OUTPUT_PATH, output);
   console.log(`Wrote ${OUTPUT_PATH}`);
 }

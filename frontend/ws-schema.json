@@ -1,5 +1,34 @@
 {
   "$defs": {
+    "AppManifestsChangedData": {
+      "description": "Payload for a completed app load/reload pass broadcast over WebSocket.\n\nCarries no fields \u2014 it is a refetch signal, not a diff. The event that triggers it\n(``HASSETTE_EVENT_APP_LOAD_COMPLETED``) fires after a full bootstrap or reload pass over\nall apps and does not identify which app(s) changed, so clients should treat receipt as\n\"manifest status may be stale, refetch\" rather than inspect the payload for detail.",
+      "properties": {},
+      "title": "AppManifestsChangedData",
+      "type": "object"
+    },
+    "AppManifestsChangedWsMessage": {
+      "properties": {
+        "type": {
+          "const": "app_manifests_changed",
+          "title": "Type",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/AppManifestsChangedData"
+        },
+        "timestamp": {
+          "title": "Timestamp",
+          "type": "number"
+        }
+      },
+      "required": [
+        "type",
+        "data",
+        "timestamp"
+      ],
+      "title": "AppManifestsChangedWsMessage",
+      "type": "object"
+    },
     "AppStatusChangedData": {
       "description": "Payload for an app lifecycle state-change event broadcast over WebSocket.\n\nMirrors ``events.hassette.AppStateChangePayload`` exactly.",
       "properties": {
@@ -666,6 +695,7 @@
   },
   "discriminator": {
     "mapping": {
+      "app_manifests_changed": "#/$defs/AppManifestsChangedWsMessage",
       "app_status_changed": "#/$defs/AppStatusChangedWsMessage",
       "connected": "#/$defs/ConnectedWsMessage",
       "connectivity": "#/$defs/ConnectivityWsMessage",
@@ -693,6 +723,9 @@
     },
     {
       "$ref": "#/$defs/ExecutionCompletedWsMessage"
+    },
+    {
+      "$ref": "#/$defs/AppManifestsChangedWsMessage"
     }
   ]
 }

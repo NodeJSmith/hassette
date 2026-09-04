@@ -653,3 +653,16 @@ class TestServiceStatusMapping:
         data = broadcast_calls[0]["data"]
         assert data["ready"] is False
         assert data["ready_phase"] is None
+
+
+class TestAppManifestsChanged:
+    async def test_on_app_manifests_changed_broadcasts_signal(self, runtime: RuntimeQueryService) -> None:
+        """A full app load/reload pass broadcasts an empty-payload refetch signal."""
+        broadcast_calls: list[dict] = []
+        runtime.broadcast = AsyncMock(side_effect=lambda msg: broadcast_calls.append(msg))
+
+        await runtime.on_app_manifests_changed()
+
+        assert len(broadcast_calls) == 1
+        assert broadcast_calls[0]["type"] == "app_manifests_changed"
+        assert broadcast_calls[0]["data"] == {}
