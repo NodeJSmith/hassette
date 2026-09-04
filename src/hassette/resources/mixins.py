@@ -6,7 +6,7 @@ from typing import Any, Protocol
 
 from hassette.exceptions import InvalidLifecycleTransitionError
 from hassette.resources.teardown import TeardownReport
-from hassette.types.enums import ResourceStatus
+from hassette.types.enums import ResourceRole, ResourceStatus
 from hassette.types.types import CoroLikeT
 
 if typing.TYPE_CHECKING:
@@ -111,7 +111,7 @@ if typing.TYPE_CHECKING:
     class _LifecycleHostP(Protocol):
         logger: Logger
         hassette: _HassetteP
-        role: Any
+        role: ResourceRole
         class_name: str
         unique_name: str
         task_bucket: _TaskBucketP
