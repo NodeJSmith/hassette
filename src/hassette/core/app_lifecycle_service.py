@@ -442,7 +442,15 @@ class AppLifecycleService(Resource):
             self.logger.debug("No apps configured, skipping initialization")
             if admission_mode is AppAdmissionMode.WAIT_FOR_RELEASE:
                 await self.bootstrap_coordinator.wait_released()
-                await self._replay_pre_release_reconciliation_if_needed()
+                replayed = await self._replay_pre_release_reconciliation_if_needed()
+                # Matches the main branch below: a connected dashboard needs a refetch cue once
+                # this bootstrap sequence finishes, regardless of whether the replay above found
+                # anything to do -- but skip it if the replay already broadcast one itself, or
+                # this bootstrap pass would send the same signal twice.
+                if not replayed:
+                    await self.hassette.send_event(
+                        HassetteSimpleEvent.from_topic(topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED),
+                    )
             return
 
         try:
@@ -450,7 +458,7 @@ class AppLifecycleService(Resource):
             self.reconcile_blocked_apps()
             await self.persist_manifests()
             await self.start_apps(admission_mode=admission_mode)
-            await self._replay_pre_release_reconciliation_if_needed()
+            replayed = await self._replay_pre_release_reconciliation_if_needed()
             snapshot = self.registry.get_snapshot()
             if not snapshot.running_count and not snapshot.failed_count:
                 self.logger.warning("No apps were initialized (all apps may be disabled)")
@@ -461,9 +469,10 @@ class AppLifecycleService(Resource):
                     snapshot.failed_count,
                 )
 
-            await self.hassette.send_event(
-                HassetteSimpleEvent.from_topic(topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED),
-            )
+            if not replayed:
+                await self.hassette.send_event(
+                    HassetteSimpleEvent.from_topic(topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED),
+                )
         except Exception as exc:
             self.logger.exception("Failed to initialize apps")
             await handle_crash(self, exc)
@@ -1197,42 +1206,29 @@ class AppLifecycleService(Resource):
 
             changes = self._fold_unblocked_apps_into_changes(changes)
 
-            if not changes.has_changes:
-                # A manifest can differ (e.g. display_name, autostart) without requiring any
-                # lifecycle action. That still means the persisted manifest is out of sync with
-                # what a connected dashboard last fetched -- refresh_config() already persisted
-                # it above -- so broadcast the same refetch signal apply_changes() would trigger
-                # below, without running apply_changes() itself. Gated on bootstrap release like
-                # every other broadcast here: while unreleased there's no running app state for a
-                # dashboard to have fetched yet, and the load-completed broadcast at the end of
-                # bootstrap covers it once release opens.
-                if changes.has_any_change and self.bootstrap_coordinator.is_released():
-                    self.logger.debug(
-                        "%s changed, metadata-only manifest changes detected - %s", changed_file_paths, changes
-                    )
-                    await self.hassette.send_event(
-                        HassetteSimpleEvent.from_topic(topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED),
-                    )
-                else:
-                    self.logger.debug("%s changed but no app changes detected", changed_file_paths)
+            if not changes.has_any_change:
+                self.logger.debug("%s changed but no app changes detected", changed_file_paths)
                 return
 
             if not self.bootstrap_coordinator.is_released():
-                self.logger.debug("Deferring app reconciliation until bootstrap release opens")
-                self._record_pre_release_reconciliation(
-                    original_apps_config=original_apps_config,
-                    current_apps_config=current_apps_config,
-                    changed_file_paths=changed_file_paths,
-                )
+                if changes.has_changes:
+                    self.logger.debug("Deferring app reconciliation until bootstrap release opens")
+                    self._record_pre_release_reconciliation(
+                        original_apps_config=original_apps_config,
+                        current_apps_config=current_apps_config,
+                        changed_file_paths=changed_file_paths,
+                    )
+                else:
+                    # A metadata-only change (e.g. display_name) has nothing for apply_changes()
+                    # to redo later, so there's no reconciliation to defer -- and no running app
+                    # state yet for a dashboard to have fetched, so no broadcast is lost either;
+                    # the load-completed broadcast at the end of bootstrap covers it once release
+                    # opens.
+                    self.logger.debug("%s changed (metadata-only) before bootstrap release opened", changed_file_paths)
                 return
 
             self.logger.debug("%s changed, app changes detected - %s", changed_file_paths, changes)
-
-            await self.apply_changes(changes, original_apps_config, current_apps_config)
-
-            await self.hassette.send_event(
-                HassetteSimpleEvent.from_topic(topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED),
-            )
+            await self._reconcile_changes(changes, original_apps_config, current_apps_config)
 
     async def refresh_config(self) -> tuple[dict[str, "AppManifest"], dict[str, "AppManifest"]]:
         """Reload the configuration and return (original_apps_config, current_apps_config)."""
@@ -1252,17 +1248,25 @@ class AppLifecycleService(Resource):
 
         return original_apps_config, current_apps_config
 
-    async def _replay_pre_release_reconciliation_if_needed(self) -> None:
+    async def _replay_pre_release_reconciliation_if_needed(self) -> bool:
+        """Replay a deferred pre-release reconciliation, if one is queued.
+
+        Returns:
+            True if a queued reconciliation was replayed and broadcast a manifest-refetch
+            signal via ``_reconcile_changes`` -- callers that send their own unconditional
+            "bootstrap finished" broadcast afterward should skip it when this returns True,
+            or the same signal goes out twice for one bootstrap pass.
+        """
         # Shares _pending_reconciliation state with handle_change_event(), which serializes on
         # this same lock — without it, a file-watcher event arriving as bootstrap replays could
         # race the take/clear of that state.
         async with self._change_event_lock:
             if self._pending_reconciliation is None:
-                return
+                return False
 
             original_apps_config, current_apps_config, changed_file_paths = self._take_pre_release_reconciliation()
             if original_apps_config is None or current_apps_config is None:
-                return
+                return False
             self.logger.debug("Replaying deferred app reconciliation after bootstrap release opens")
             await self.resolve_only_apps()
 
@@ -1272,20 +1276,37 @@ class AppLifecycleService(Resource):
 
             changes = self._fold_unblocked_apps_into_changes(changes)
 
-            if not changes.has_changes:
-                # Mirrors handle_change_event()'s no-lifecycle-change branch: a metadata-only
-                # change (e.g. display_name) queued before release still needs its broadcast
-                # once release opens, even though there's nothing for apply_changes() to do.
-                if changes.has_any_change:
-                    self.logger.debug("Deferred reconciliation produced metadata-only changes - %s", changes)
-                    await self.hassette.send_event(
-                        HassetteSimpleEvent.from_topic(topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED),
-                    )
-                else:
-                    self.logger.debug("Deferred app reconciliation produced no changes")
-                return
+            if not changes.has_any_change:
+                self.logger.debug("Deferred app reconciliation produced no changes")
+                return False
 
-            await self.apply_changes(changes, original_apps_config, current_apps_config)
+            await self._reconcile_changes(changes, original_apps_config, current_apps_config)
+            return True
+
+    async def _reconcile_changes(
+        self,
+        changes: ChangeSet,
+        original_config: dict[str, "AppManifest"],
+        current_config: dict[str, "AppManifest"],
+    ) -> None:
+        """Apply a non-empty ``ChangeSet`` and broadcast a manifest-refetch signal.
+
+        The single place ``handle_change_event()`` and
+        ``_replay_pre_release_reconciliation_if_needed()`` route every ``ChangeSet``-driven
+        apply-then-broadcast decision through, rather than hand-rolling it at each call site's
+        own terminal branch -- a new branch that calls ``apply_changes()``/``send_event()``
+        directly instead of through here risks reintroducing the class of gap where one branch
+        applies changes (or persists metadata) but forgets to broadcast. Callers must already
+        have confirmed ``changes.has_any_change`` before calling. This is distinct from
+        ``bootstrap_apps()``'s own unconditional "bootstrap sequence finished" broadcast, which
+        isn't driven by a ``ChangeSet`` and stays a direct ``send_event()`` call there.
+        """
+        if changes.has_changes:
+            await self.apply_changes(changes, original_config, current_config)
+
+        await self.hassette.send_event(
+            HassetteSimpleEvent.from_topic(topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED),
+        )
 
     async def persist_manifests(self) -> None:
         """Upsert all current manifests into the ``app_manifests`` DB table concurrently.

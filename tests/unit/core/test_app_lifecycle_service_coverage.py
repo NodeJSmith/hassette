@@ -230,9 +230,8 @@ class TestHandleChangeEventBranches:
     ) -> None:
         """A metadata-only manifest change (e.g. display_name) has no lifecycle action to take,
         but a connected dashboard still needs to know to refetch -- apply_changes is skipped
-        while the broadcast still fires. Regression test for the Codex review finding that a
-        metadata-only edit was silently dropped before this fix (has_changes gated the broadcast
-        too, and metadata-only changes never set has_changes).
+        while the broadcast still fires. `has_changes` never sets on a metadata-only change, so
+        gating the broadcast on it (instead of `has_any_change`) would silently drop this signal.
         """
         event_capture.install(mock_hassette)
         mock_hassette.app_bootstrap_coordinator.is_released.return_value = True

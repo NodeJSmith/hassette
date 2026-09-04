@@ -110,8 +110,16 @@ class TestBootstrapAppsAdmission:
         lifecycle_service.start_apps.assert_awaited_once_with(admission_mode=AppAdmissionMode.WAIT_FOR_RELEASE)
 
     async def test_bootstrap_replays_deferred_reconciliation_after_startup(
-        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        mock_hassette: MagicMock,
+        event_capture: EventCapture,
     ) -> None:
+        """A replay that finds real changes must not also trigger bootstrap's own unconditional
+        completion broadcast -- one bootstrap pass, one refetch signal, not two.
+        """
+        event_capture.install(mock_hassette)
         manifest = MagicMock()
         original_manifest = MagicMock()
         mock_registry.manifests = {"app_a": manifest}
@@ -139,20 +147,26 @@ class TestBootstrapAppsAdmission:
         lifecycle_service.start_apps.assert_awaited_once_with(admission_mode=AppAdmissionMode.WAIT_FOR_RELEASE)
         lifecycle_service.apply_changes.assert_awaited_once()
         assert lifecycle_service._pending_reconciliation is None
+        completed_calls = event_capture.by_topic(Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED)
+        assert len(completed_calls) == 1
 
     async def test_bootstrap_replays_deferred_reconciliation_when_no_manifests(
         self,
         lifecycle_service: AppLifecycleService,
         mock_registry: MagicMock,
         mock_hassette: MagicMock,
+        event_capture: EventCapture,
     ) -> None:
         """The empty-manifest early return must still await release and replay a queued
         pre-release reconciliation rather than silently dropping it.
 
         `registry.manifests == {}` short-circuits bootstrap_apps() before start_apps() and
         the unconditional `_replay_pre_release_reconciliation_if_needed()` call that follows
-        it, so that replay must happen on this early-return path too.
+        it, so that replay must happen on this early-return path too. The replay's own
+        broadcast must also suppress the branch's unconditional one -- otherwise a replay
+        that found real changes broadcasts APP_LOAD_COMPLETED twice for one bootstrap pass.
         """
+        event_capture.install(mock_hassette)
         mock_registry.manifests = {}
         lifecycle_service.resolve_only_apps = AsyncMock()
         lifecycle_service.change_detector.detect_changes = Mock(
@@ -175,6 +189,8 @@ class TestBootstrapAppsAdmission:
         mock_hassette.app_bootstrap_coordinator.wait_released.assert_awaited_once()
         lifecycle_service.apply_changes.assert_awaited_once()
         assert lifecycle_service._pending_reconciliation is None
+        completed_calls = event_capture.by_topic(Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED)
+        assert len(completed_calls) == 1
 
 
 class TestAppLifecycleServiceProperties:
@@ -192,15 +208,37 @@ class TestAppLifecycleServiceProperties:
 
 
 class TestBootstrapApps:
-    async def test_skips_when_no_manifests(
-        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock, mock_hassette: MagicMock
+    async def test_skips_initialization_when_no_manifests(
+        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
     ) -> None:
-        """Returns early when no manifests are configured."""
+        """No apps configured means no instances get created -- but see
+        test_emits_load_completed_when_no_manifests for the broadcast this path still owes.
+        """
+        mock_registry.manifests = {}
+        lifecycle_service.start_apps = AsyncMock()
+
+        await lifecycle_service.bootstrap_apps(admission_mode=AppAdmissionMode.WAIT_FOR_RELEASE)
+
+        lifecycle_service.start_apps.assert_not_called()
+
+    async def test_emits_load_completed_when_no_manifests(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        mock_hassette: MagicMock,
+        event_capture: EventCapture,
+    ) -> None:
+        """The empty-manifest early-return path must still broadcast once bootstrap release
+        opens -- a dashboard connected before the first app is ever configured needs the same
+        refetch cue the non-empty path already sends unconditionally.
+        """
+        event_capture.install(mock_hassette)
         mock_registry.manifests = {}
 
         await lifecycle_service.bootstrap_apps(admission_mode=AppAdmissionMode.WAIT_FOR_RELEASE)
 
-        mock_hassette.send_event.assert_not_called()
+        completed_calls = event_capture.by_topic(Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED)
+        assert len(completed_calls) == 1
 
     async def test_emits_load_completed_event(
         self,
