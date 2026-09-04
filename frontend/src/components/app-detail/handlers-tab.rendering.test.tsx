@@ -6,7 +6,6 @@ import { useAppStore } from "../../state/store";
 import { createListener } from "../../test/factories";
 import { createWouterMock } from "../../test/mock-wouter";
 import { createTestQueryClient } from "../../test/query-test-utils";
-import { renderWithAppState } from "../../test/render-helpers";
 import { HandlersTab } from "./handlers-tab";
 import { renderHandlersTab } from "./handlers-tab.test-helpers";
 
@@ -79,10 +78,7 @@ describe("HandlersTab rendering", () => {
   });
 
   it("renders empty state when no listeners or jobs", () => {
-    const { getByTestId } = renderWithAppState(
-      <HandlersTab listeners={[]} jobs={[]} selectedHandler={null} selectedExecId={null} appKey="test_app" />,
-      { storeOverrides: { uptimeSeconds: 120 } },
-    );
+    const { getByTestId } = renderHandlersTab([], []);
     expect(getByTestId("handlers-empty")).toBeDefined();
   });
 

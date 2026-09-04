@@ -13,7 +13,9 @@ from tests.support.sql import insert_execution_row
 
 from .conftest import (
     ONCE_LISTENER_NAME,
+    assert_job_count,
     assert_listener_count,
+    fetch_job_field,
     fetch_listener_field,
     insert_committed_execution,
     insert_new_session,
@@ -31,10 +33,7 @@ async def test_reconcile_deletes_stale_without_history(
     await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [])
 
     await assert_listener_count(telemetry_db, listener_id, 0, "Stale listener without history should be deleted")
-
-    cursor = await telemetry_db.execute("SELECT COUNT(*) AS count FROM scheduled_jobs WHERE id = ?", (job_id,))
-    row = await cursor.fetchone()
-    assert row["count"] == 0, "Stale job without history should be deleted"
+    await assert_job_count(telemetry_db, job_id, 0, "Stale job without history should be deleted")
 
 
 # dup-ignore-start: pytest test function signature — each test independently declares the
@@ -61,10 +60,8 @@ async def test_reconcile_retires_stale_with_history(
     retired_at = await fetch_listener_field(telemetry_db, listener_id, "retired_at")
     assert retired_at is not None, "Stale listener with history should have retired_at set"
 
-    cursor = await telemetry_db.execute("SELECT retired_at FROM scheduled_jobs WHERE id = ?", (job_id,))
-    row = await cursor.fetchone()
-    assert row is not None
-    assert row["retired_at"] is not None, "Stale job with history should have retired_at set"
+    job_retired_at = await fetch_job_field(telemetry_db, job_id, "retired_at")
+    assert job_retired_at is not None, "Stale job with history should have retired_at set"
 
 
 async def test_reconcile_preserves_live_listeners(
@@ -171,13 +168,10 @@ async def test_reconcile_deletes_stale_job_not_in_live_set(
 
     await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [job_id_a])
 
-    cursor = await telemetry_db.execute("SELECT COUNT(*) AS count FROM scheduled_jobs WHERE id = ?", (job_id_a,))
-    row = await cursor.fetchone()
-    assert row["count"] == 1, "Live job should be preserved"
-
-    cursor = await telemetry_db.execute("SELECT COUNT(*) AS count FROM scheduled_jobs WHERE id = ?", (job_id_b,))
-    row = await cursor.fetchone()
-    assert row["count"] == 0, "Stale job without history should be deleted (non-empty live_job_ids branch)"
+    await assert_job_count(telemetry_db, job_id_a, 1, "Live job should be preserved")
+    await assert_job_count(
+        telemetry_db, job_id_b, 0, "Stale job without history should be deleted (non-empty live_job_ids branch)"
+    )
 
 
 # dup-ignore-start: pytest test function signature — each test independently declares the
@@ -207,17 +201,11 @@ async def test_reconcile_retires_stale_job_with_history_non_empty_live_set(
 
     await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [job_id_a])
 
-    cursor = await telemetry_db.execute("SELECT retired_at FROM scheduled_jobs WHERE id = ?", (job_id_b,))
-    row = await cursor.fetchone()
-    assert row is not None
-    assert row["retired_at"] is not None, (
-        "Stale job with history should have retired_at set (non-empty live_job_ids branch)"
-    )
+    retired_at_b = await fetch_job_field(telemetry_db, job_id_b, "retired_at")
+    assert retired_at_b is not None, "Stale job with history should have retired_at set (non-empty live_job_ids branch)"
 
-    cursor = await telemetry_db.execute("SELECT retired_at FROM scheduled_jobs WHERE id = ?", (job_id_a,))
-    row = await cursor.fetchone()
-    assert row is not None
-    assert row["retired_at"] is None, "Live job should not be retired"
+    retired_at_a = await fetch_job_field(telemetry_db, job_id_a, "retired_at")
+    assert retired_at_a is None, "Live job should not be retired"
 
 
 async def test_reconcile_once_true_delete_non_empty_live_listener_ids(
@@ -342,14 +330,12 @@ async def test_reconcile_scopes_job_deletion_by_instance_index(
 
     await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [], instance_index=0)
 
-    cursor = await telemetry_db.execute(
-        "SELECT COUNT(*) AS count FROM scheduled_jobs WHERE id = ?", (stale_job_instance_0,)
+    await assert_job_count(
+        telemetry_db, stale_job_instance_0, 0, "Stale job for the target instance_index should be deleted"
     )
-    row = await cursor.fetchone()
-    assert row["count"] == 0, "Stale job for the target instance_index should be deleted"
-
-    cursor = await telemetry_db.execute(
-        "SELECT COUNT(*) AS count FROM scheduled_jobs WHERE id = ?", (stale_job_instance_1,)
+    await assert_job_count(
+        telemetry_db,
+        stale_job_instance_1,
+        1,
+        "Sibling instance's job should be unaffected by scoped reconciliation",
     )
-    row = await cursor.fetchone()
-    assert row["count"] == 1, "Sibling instance's job should be unaffected by scoped reconciliation"

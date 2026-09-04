@@ -27,6 +27,8 @@ surface stable; only the definitions moved.
 - `make_marker_executor(**kw)` — mock executor with `ExecutionMarker` on `current_execution`
 - `assert_listener_count(db, listener_id, expected, message)` — assert the number of `listeners` rows with that id
 - `fetch_listener_field(db, listener_id, field)` — read one column from a `listeners` row
+- `assert_job_count(db, job_id, expected, message)` — assert the number of `scheduled_jobs` rows with that id
+- `fetch_job_field(db, job_id, field)` — read one column from a `scheduled_jobs` row (handles reserved-word columns like `group` by quoting the column name)
 - `insert_committed_execution(db, session_id, **kw)` — insert and commit an `executions` row (1ms, now)
 - `insert_new_session(db)` — insert a second `running` session row and return its id, for the once=True/previous-session reconciliation tests
 - `ONCE_LISTENER_NAME` — listener name shared by the once=True reconciliation tests in `test_telemetry_repository_reconcile.py` and `test_telemetry_repository_registration.py`
