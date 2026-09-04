@@ -337,6 +337,58 @@ class TestAppChangeDetector:
         assert "app1" not in changes.new_apps
         assert "app1" not in changes.reload_apps
 
+    def test_removed_disabled_app_still_triggers_metadata_broadcast(
+        self, detector: AppChangeDetector, make_manifest: Callable
+    ) -> None:
+        """An app disabled in the original config and deleted entirely from the current config
+        must still surface as a metadata change -- `orphans` can't see it (it's derived from the
+        enabled-only `original_keys`, which never contained a disabled app), so without a
+        metadata signal the removal would produce no broadcast at all and a dashboard's
+        persisted row for the deleted app would never refetch.
+        """
+        original = {"app1": make_manifest("app1", enabled=False)}
+        current: dict = {}
+
+        changes = detector.detect_changes(original, current)
+
+        assert not changes.has_changes
+        assert changes.metadata_apps == frozenset({"app1"})
+        assert changes.has_any_change
+        assert "app1" not in changes.orphans
+        assert "app1" not in changes.new_apps
+
+    def test_only_apps_does_not_hide_metadata_changes_outside_selection(
+        self, detector: AppChangeDetector, make_manifest: Callable
+    ) -> None:
+        """A metadata-only change to a disabled app excluded by `only_apps` must still surface
+        as a metadata change -- `only_apps` narrows which apps get lifecycle actions, not which
+        manifest changes are worth telling a connected dashboard about, since both configs
+        passed to `detect_changes()` already contain every manifest regardless of that scope.
+        """
+        original = {"app1": make_manifest("app1", display_name="Old Name", enabled=False)}
+        current = {"app1": make_manifest("app1", display_name="New Name", enabled=False)}
+
+        changes = detector.detect_changes(original, current, only_apps=frozenset({"app2"}))
+
+        assert not changes.has_changes
+        assert changes.metadata_apps == frozenset({"app1"})
+        assert changes.has_any_change
+
+    def test_only_apps_does_not_hide_new_app_metadata_outside_selection(
+        self, detector: AppChangeDetector, make_manifest: Callable
+    ) -> None:
+        """A newly added app outside `only_apps`'s selection is invisible to `new_apps` (it's
+        scoped out of lifecycle actions), but it must still surface as a metadata change so a
+        dashboard refetches the manifest the framework already persisted for it.
+        """
+        original: dict = {"app1": make_manifest("app1")}
+        current = {"app1": make_manifest("app1"), "app2": make_manifest("app2")}
+
+        changes = detector.detect_changes(original, current, only_apps=frozenset({"app1"}))
+
+        assert "app2" not in changes.new_apps
+        assert changes.metadata_apps == frozenset({"app2"})
+
     def test_disabling_an_app_is_still_an_orphan_not_metadata(
         self, detector: AppChangeDetector, make_manifest: Callable
     ) -> None:
