@@ -1,7 +1,7 @@
 # Design: Decompose command_executor.py into focused modules
 
 **Date:** 2026-09-04
-**Status:** draft
+**Status:** archived
 **Mode:** sketch
 
 ## Problem
