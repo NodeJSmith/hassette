@@ -11,6 +11,7 @@ from tests.support.factories import DEFAULT_TEST_APP_KEY, make_job_registration,
 
 from .conftest import (
     ONCE_LISTENER_NAME,
+    fetch_job_field,
     fetch_listener_field,
 )
 
@@ -26,11 +27,10 @@ async def test_register_listener_inserts_and_returns_id(
     assert isinstance(listener_id, int)
     assert listener_id > 0
 
-    cursor = await telemetry_db.execute("SELECT id, app_key, topic FROM listeners WHERE id = ?", (listener_id,))
-    row = await cursor.fetchone()
-    assert row is not None
-    assert row["app_key"] == DEFAULT_TEST_APP_KEY
-    assert row["topic"] == "hass.event.state_changed"
+    app_key = await fetch_listener_field(telemetry_db, listener_id, "app_key")
+    topic = await fetch_listener_field(telemetry_db, listener_id, "topic")
+    assert app_key == DEFAULT_TEST_APP_KEY
+    assert topic == "hass.event.state_changed"
 
 
 async def test_register_job_inserts_and_returns_id(
@@ -44,11 +44,10 @@ async def test_register_job_inserts_and_returns_id(
     assert isinstance(job_id, int)
     assert job_id > 0
 
-    cursor = await telemetry_db.execute("SELECT id, app_key, job_name FROM scheduled_jobs WHERE id = ?", (job_id,))
-    row = await cursor.fetchone()
-    assert row is not None
-    assert row["app_key"] == DEFAULT_TEST_APP_KEY
-    assert row["job_name"] == "test_job"
+    app_key = await fetch_job_field(telemetry_db, job_id, "app_key")
+    job_name = await fetch_job_field(telemetry_db, job_id, "job_name")
+    assert app_key == DEFAULT_TEST_APP_KEY
+    assert job_name == "test_job"
 
 
 async def test_register_job_persists_group(
@@ -59,10 +58,8 @@ async def test_register_job_persists_group(
     reg = make_job_registration(job_name="morning_job", group="morning")
     job_id = await telemetry_repo.register_job(reg)
 
-    cursor = await telemetry_db.execute('SELECT "group" FROM scheduled_jobs WHERE id = ?', (job_id,))
-    row = await cursor.fetchone()
-    assert row is not None
-    assert row["group"] == "morning", f"Expected group='morning', got {row['group']!r}"
+    group = await fetch_job_field(telemetry_db, job_id, "group")
+    assert group == "morning", f"Expected group='morning', got {group!r}"
 
 
 async def test_register_job_persists_null_group(
@@ -73,10 +70,8 @@ async def test_register_job_persists_null_group(
     reg = make_job_registration()
     job_id = await telemetry_repo.register_job(reg)
 
-    cursor = await telemetry_db.execute('SELECT "group" FROM scheduled_jobs WHERE id = ?', (job_id,))
-    row = await cursor.fetchone()
-    assert row is not None
-    assert row["group"] is None, f"Expected group=None, got {row['group']!r}"
+    group = await fetch_job_field(telemetry_db, job_id, "group")
+    assert group is None, f"Expected group=None, got {group!r}"
 
 
 async def test_mark_job_removed_sets_removed_at(
@@ -87,22 +82,16 @@ async def test_mark_job_removed_sets_removed_at(
     reg = make_job_registration(job_name="removable_job")
     job_id = await telemetry_repo.register_job(reg)
 
-    cursor = await telemetry_db.execute("SELECT removed_at FROM scheduled_jobs WHERE id = ?", (job_id,))
-    row = await cursor.fetchone()
-    assert row is not None
-    assert row["removed_at"] is None, "removed_at should be NULL before removal"
+    removed_at = await fetch_job_field(telemetry_db, job_id, "removed_at")
+    assert removed_at is None, "removed_at should be NULL before removal"
 
     before_ts = time.time()
     await telemetry_repo.mark_job_removed(job_id)
     after_ts = time.time()
 
-    cursor = await telemetry_db.execute("SELECT removed_at FROM scheduled_jobs WHERE id = ?", (job_id,))
-    row = await cursor.fetchone()
-    assert row is not None
-    assert row["removed_at"] is not None, "removed_at should be set after mark_job_removed()"
-    assert before_ts <= row["removed_at"] <= after_ts, (
-        f"removed_at={row['removed_at']} should be between {before_ts} and {after_ts}"
-    )
+    removed_at = await fetch_job_field(telemetry_db, job_id, "removed_at")
+    assert removed_at is not None, "removed_at should be set after mark_job_removed()"
+    assert before_ts <= removed_at <= after_ts, f"removed_at={removed_at} should be between {before_ts} and {after_ts}"
 
 
 async def test_mark_job_status_updates_status_and_reason(
@@ -115,24 +104,18 @@ async def test_mark_job_status_updates_status_and_reason(
 
     await telemetry_repo.mark_job_status(job_id, "waiting", None)
 
-    cursor = await telemetry_db.execute(
-        "SELECT schedule_status, schedule_status_reason FROM scheduled_jobs WHERE id = ?", (job_id,)
-    )
-    row = await cursor.fetchone()
-    assert row is not None
-    assert row["schedule_status"] == "waiting"
-    assert row["schedule_status_reason"] is None
+    schedule_status = await fetch_job_field(telemetry_db, job_id, "schedule_status")
+    schedule_status_reason = await fetch_job_field(telemetry_db, job_id, "schedule_status_reason")
+    assert schedule_status == "waiting"
+    assert schedule_status_reason is None
 
     await telemetry_repo.mark_job_status(job_id, "completed", "trigger_error")
 
-    cursor = await telemetry_db.execute(
-        "SELECT schedule_status, schedule_status_reason FROM scheduled_jobs WHERE id = ?", (job_id,)
-    )
-    row = await cursor.fetchone()
-    assert row is not None
-    assert row["schedule_status"] == "completed"
-    assert row["schedule_status_reason"] == "trigger_error", (
-        f"Expected schedule_status_reason='trigger_error', got {row['schedule_status_reason']!r}"
+    schedule_status = await fetch_job_field(telemetry_db, job_id, "schedule_status")
+    schedule_status_reason = await fetch_job_field(telemetry_db, job_id, "schedule_status_reason")
+    assert schedule_status == "completed"
+    assert schedule_status_reason == "trigger_error", (
+        f"Expected schedule_status_reason='trigger_error', got {schedule_status_reason!r}"
     )
 
 
@@ -172,10 +155,8 @@ async def test_register_listener_clears_removed_at_on_reregistration(
     new_id = await telemetry_repo.register_listener(reg)
     assert new_id == listener_id, "Re-registration must preserve the row id"
 
-    cursor = await telemetry_db.execute("SELECT removed_at FROM listeners WHERE id = ?", (listener_id,))
-    row = await cursor.fetchone()
-    assert row is not None
-    assert row["removed_at"] is None, "removed_at should be cleared to NULL after re-registration"
+    removed_at = await fetch_listener_field(telemetry_db, listener_id, "removed_at")
+    assert removed_at is None, "removed_at should be cleared to NULL after re-registration"
 
 
 async def test_upsert_same_natural_key_returns_same_id(
@@ -209,10 +190,8 @@ async def test_upsert_updates_mutable_fields(
     new_id = await telemetry_repo.register_listener(updated_reg)
     assert new_id == listener_id
 
-    cursor = await telemetry_db.execute("SELECT debounce FROM listeners WHERE id = ?", (listener_id,))
-    row = await cursor.fetchone()
-    assert row is not None
-    assert row["debounce"] == 5.0
+    debounce = await fetch_listener_field(telemetry_db, listener_id, "debounce")
+    assert debounce == 5.0
 
 
 async def test_once_true_upserts_by_name_topic(
@@ -243,10 +222,8 @@ async def test_upsert_does_not_update_human_description(
     new_id = await telemetry_repo.register_listener(reg2)
     assert new_id == listener_id
 
-    cursor = await telemetry_db.execute("SELECT human_description FROM listeners WHERE id = ?", (listener_id,))
-    row = await cursor.fetchone()
-    assert row is not None
-    assert row["human_description"] == "entity light.kitchen"
+    human_description = await fetch_listener_field(telemetry_db, listener_id, "human_description")
+    assert human_description == "entity light.kitchen"
 
 
 async def test_upsert_with_name_overrides_key(
