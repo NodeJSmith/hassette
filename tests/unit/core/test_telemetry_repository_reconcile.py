@@ -36,11 +36,8 @@ async def test_reconcile_deletes_stale_without_history(
     await assert_job_count(telemetry_db, job_id, 0, "Stale job without history should be deleted")
 
 
-# dup-ignore-start: pytest test function signature — each test independently declares the
-# telemetry_repo/telemetry_db/telemetry_session_id fixtures it needs; Python has no way to share a
-# function signature between separate test functions, and bundling these three fixtures into one
-# object would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster
-# (see design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
+# dup-ignore-start: pytest test function signature — Python has no way to share a function
+# signature between separate test functions (see tests/unit/core/CLAUDE.md).
 async def test_reconcile_retires_stale_with_history(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
@@ -96,11 +93,8 @@ async def test_reconcile_deletes_once_true_previous_session(
     await assert_listener_count(telemetry_db, once_id, 0, "once=True listener from previous session should be deleted")
 
 
-# dup-ignore-start: pytest test function signature — each test independently declares the
-# telemetry_repo/telemetry_db/telemetry_session_id fixtures it needs; Python has no way to share a
-# function signature between separate test functions, and bundling these three fixtures into one
-# object would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster
-# (see design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
+# dup-ignore-start: pytest test function signature — Python has no way to share a function
+# signature between separate test functions (see tests/unit/core/CLAUDE.md).
 async def test_reconcile_preserves_once_true_with_current_executions(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
@@ -128,11 +122,8 @@ async def test_reconcile_empty_ids_no_crash(
     await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [])
 
 
-# dup-ignore-start: pytest test function signature — each test independently declares the
-# telemetry_repo/telemetry_db/telemetry_session_id fixtures it needs; Python has no way to share a
-# function signature between separate test functions, and bundling these three fixtures into one
-# object would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster
-# (see design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
+# dup-ignore-start: pytest test function signature — Python has no way to share a function
+# signature between separate test functions (see tests/unit/core/CLAUDE.md).
 async def test_reconcile_resets_retired_at_on_reupsert(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
@@ -174,11 +165,8 @@ async def test_reconcile_deletes_stale_job_not_in_live_set(
     )
 
 
-# dup-ignore-start: pytest test function signature — each test independently declares the
-# telemetry_repo/telemetry_db/telemetry_session_id fixtures it needs; Python has no way to share a
-# function signature between separate test functions, and bundling these three fixtures into one
-# object would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster
-# (see design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
+# dup-ignore-start: pytest test function signature — Python has no way to share a function
+# signature between separate test functions (see tests/unit/core/CLAUDE.md).
 async def test_reconcile_retires_stale_job_with_history_non_empty_live_set(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,

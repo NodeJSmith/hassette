@@ -81,11 +81,8 @@ async def test_manifest_insert_params_schema_parity(
     assert set(params) == expected_keys
 
 
-# dup-ignore-start: pytest test function signature — each test independently declares the
-# telemetry_repo/telemetry_db/tmp_path fixtures it needs; Python has no way to share a function
-# signature between separate test functions, and bundling these three fixtures into one object
-# would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster (see
-# design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
+# dup-ignore-start: pytest test function signature — Python has no way to share a function
+# signature between separate test functions (see tests/unit/core/CLAUDE.md).
 async def test_upsert_app_manifest_creates_new_row(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
@@ -111,11 +108,8 @@ async def test_upsert_app_manifest_creates_new_row(
     assert row["filename"] == manifest.filename
 
 
-# dup-ignore-start: pytest test function signature — each test independently declares the
-# telemetry_repo/telemetry_db/tmp_path fixtures it needs; Python has no way to share a function
-# signature between separate test functions, and bundling these three fixtures into one object
-# would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster (see
-# design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
+# dup-ignore-start: pytest test function signature — Python has no way to share a function
+# signature between separate test functions (see tests/unit/core/CLAUDE.md).
 async def test_upsert_app_manifest_updates_existing_row_preserves_id(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
@@ -143,11 +137,8 @@ async def test_upsert_app_manifest_updates_existing_row_preserves_id(
     assert row["count"] == 1, "Upsert should produce a single row, not two inserts"
 
 
-# dup-ignore-start: pytest test function signature — each test independently declares the
-# telemetry_repo/telemetry_db/tmp_path fixtures it needs; Python has no way to share a function
-# signature between separate test functions, and bundling these three fixtures into one object
-# would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster (see
-# design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
+# dup-ignore-start: pytest test function signature — Python has no way to share a function
+# signature between separate test functions (see tests/unit/core/CLAUDE.md).
 async def test_upsert_app_manifest_refreshes_updated_at_on_conflict(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
@@ -182,11 +173,8 @@ async def test_upsert_app_manifest_refreshes_updated_at_on_conflict(
     )
 
 
-# dup-ignore-start: pytest test function signature — each test independently declares the
-# telemetry_repo/telemetry_db/tmp_path fixtures it needs; Python has no way to share a function
-# signature between separate test functions, and bundling these three fixtures into one object
-# would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster (see
-# design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
+# dup-ignore-start: pytest test function signature — Python has no way to share a function
+# signature between separate test functions (see tests/unit/core/CLAUDE.md).
 async def test_get_all_app_manifests_returns_all_rows(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
@@ -206,11 +194,8 @@ async def test_get_all_app_manifests_returns_all_rows(
     assert app_keys == {manifest_a.app_key, manifest_b.app_key}
 
 
-# dup-ignore-start: pytest test function signature — each test independently declares the
-# telemetry_repo/telemetry_db/tmp_path fixtures it needs; Python has no way to share a function
-# signature between separate test functions, and bundling these three fixtures into one object
-# would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster (see
-# design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
+# dup-ignore-start: pytest test function signature — Python has no way to share a function
+# signature between separate test functions (see tests/unit/core/CLAUDE.md).
 async def test_get_app_manifest_returns_single_row_or_none(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,

@@ -47,11 +47,8 @@ async def test_reconcile_rollback_on_exception(
         await telemetry_repo.reconcile_registrations("test_app", [], [])
 
 
-# dup-ignore-start: pytest test function signature — each test independently declares the
-# telemetry_repo/telemetry_db/telemetry_session_id fixtures it needs; Python has no way to share a
-# function signature between separate test functions, and bundling these three fixtures into one
-# object would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster
-# (see design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
+# dup-ignore-start: pytest test function signature — Python has no way to share a function
+# signature between separate test functions (see tests/unit/core/CLAUDE.md).
 async def test_persist_execution_batch_with_fk_fallback_success_path(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
@@ -94,11 +91,8 @@ async def test_persist_execution_batch_with_fk_fallback_success_path(
     assert row[1] == "job"
 
 
-# dup-ignore-start: pytest test function signature — each test independently declares the
-# telemetry_repo/telemetry_db/telemetry_session_id fixtures it needs; Python has no way to share a
-# function signature between separate test functions, and bundling these three fixtures into one
-# object would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster
-# (see design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
+# dup-ignore-start: pytest test function signature — Python has no way to share a function
+# signature between separate test functions (see tests/unit/core/CLAUDE.md).
 async def test_persist_execution_batch_with_fk_fallback_drops_on_listener_fk_violation(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
@@ -130,11 +124,8 @@ async def test_persist_execution_batch_with_fk_fallback_drops_on_listener_fk_vio
     assert row[0] == 0, "Row should be dropped — null FK violates CHECK constraint"
 
 
-# dup-ignore-start: pytest test function signature — each test independently declares the
-# telemetry_repo/telemetry_db/telemetry_session_id fixtures it needs; Python has no way to share a
-# function signature between separate test functions, and bundling these three fixtures into one
-# object would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster
-# (see design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
+# dup-ignore-start: pytest test function signature — Python has no way to share a function
+# signature between separate test functions (see tests/unit/core/CLAUDE.md).
 async def test_persist_execution_batch_with_fk_fallback_drops_on_job_fk_violation(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
@@ -166,11 +157,8 @@ async def test_persist_execution_batch_with_fk_fallback_drops_on_job_fk_violatio
     assert row[0] == 0, "Row should be dropped — null FK violates CHECK constraint"
 
 
-# dup-ignore-start: pytest test function signature — each test independently declares the
-# telemetry_repo/telemetry_db/telemetry_session_id fixtures it needs; Python has no way to share a
-# function signature between separate test functions, and bundling these three fixtures into one
-# object would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster
-# (see design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
+# dup-ignore-start: pytest test function signature — Python has no way to share a function
+# signature between separate test functions (see tests/unit/core/CLAUDE.md).
 async def test_persist_execution_batch_with_fk_fallback_drops_row_on_second_failure(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
@@ -207,11 +195,8 @@ async def test_persist_execution_batch_with_fk_fallback_drops_row_on_second_fail
     assert dropped == 1, "Row that fails even with null FK should be counted as dropped"
 
 
-# dup-ignore-start: pytest test function signature — each test independently declares the
-# telemetry_repo/telemetry_db/telemetry_session_id fixtures it needs; Python has no way to share a
-# function signature between separate test functions, and bundling these three fixtures into one
-# object would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster
-# (see design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
+# dup-ignore-start: pytest test function signature — Python has no way to share a function
+# signature between separate test functions (see tests/unit/core/CLAUDE.md).
 async def test_persist_execution_batch_with_fk_fallback_drops_job_row_on_second_failure(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
@@ -256,11 +241,8 @@ async def test_persist_execution_batch_with_fk_fallback_empty_list(
     assert dropped == 0
 
 
-# dup-ignore-start: pytest test function signature — each test independently declares the
-# telemetry_repo/telemetry_db/telemetry_session_id fixtures it needs; Python has no way to share a
-# function signature between separate test functions, and bundling these three fixtures into one
-# object would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster
-# (see design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
+# dup-ignore-start: pytest test function signature — Python has no way to share a function
+# signature between separate test functions (see tests/unit/core/CLAUDE.md).
 async def test_persist_execution_batch_with_fk_fallback_rollback_on_exception(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
@@ -292,11 +274,8 @@ async def test_persist_execution_batch_with_fk_fallback_rollback_on_exception(
         await telemetry_repo.persist_execution_batch_with_fk_fallback([record])
 
 
-# dup-ignore-start: pytest test function signature — each test independently declares the
-# telemetry_repo/telemetry_db/telemetry_session_id fixtures it needs; Python has no way to share a
-# function signature between separate test functions, and bundling these three fixtures into one
-# object would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster
-# (see design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
+# dup-ignore-start: pytest test function signature — Python has no way to share a function
+# signature between separate test functions (see tests/unit/core/CLAUDE.md).
 async def test_persist_execution_batch_rollback_on_exception(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
