@@ -155,8 +155,10 @@ export function useWebSocket(): void {
 
           case "app_manifests_changed":
             // Signal-only message (no payload) — a full app load/reload pass completed.
-            // Refetch manifest status instead of trusting whatever's cached.
+            // Refetch every manifest-backed query instead of trusting whatever's cached.
             void queryClient.invalidateQueries({ queryKey: queryKeys.manifests() });
+            void queryClient.invalidateQueries({ queryKey: queryKeys.manifest.prefix() });
+            void queryClient.invalidateQueries({ queryKey: queryKeys.dashboardGrid() });
             break;
 
           default: {
