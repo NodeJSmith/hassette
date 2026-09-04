@@ -1,8 +1,8 @@
 """Unit tests for TelemetryRepository execution batch persistence, schema shape, and query builders.
 
-Kept as a single file rather than split by concern: no name shorter than the docstring covers all
-three areas, and splitting would trade one imperfect file name for two or three others sharing the
-same fixtures and setup. A reader who searches for `persist_execution_batch`, `_build_delete_query`,
+Kept as a single file rather than split by concern: no shorter filename covers all three areas, and
+splitting would trade one imperfect file name for two or three others sharing the same fixtures and
+setup. A reader who searches for `persist_execution_batch`, `_build_delete_query`,
 or `_build_retire_query` and doesn't find them by name should check this file next.
 """
 
