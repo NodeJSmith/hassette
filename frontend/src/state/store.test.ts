@@ -54,7 +54,7 @@ describe("useAppStore", () => {
   });
 
   describe("handleWsConnected", () => {
-    it("on first connect, does not clear serviceStatus/logBuffer/logVersion", () => {
+    it("on first connect, does not clear serviceStatus/appStatus/logBuffer/logVersion", () => {
       useAppStore.setState({
         serviceStatus: {
           svc: {
@@ -67,6 +67,9 @@ describe("useAppStore", () => {
             ready: true,
             ready_phase: null,
           },
+        },
+        appStatus: {
+          "app-a:0": { status: "running", index: 0 },
         },
       });
       useAppStore.getState().pushLog(createLogEntry(1));
@@ -77,11 +80,12 @@ describe("useAppStore", () => {
       const state = useAppStore.getState();
       expect(state.connection).toBe("connected");
       expect(state.serviceStatus).toHaveProperty("svc");
+      expect(state.appStatus).toHaveProperty("app-a:0");
       expect(state.logBuffer.toArray()).toHaveLength(1);
       expect(state.logVersion).toBe(versionBeforeConnect);
     });
 
-    it("on reconnect, clears serviceStatus/logBuffer and resets logVersion", () => {
+    it("on reconnect, clears serviceStatus/appStatus/logBuffer and resets logVersion", () => {
       useAppStore.setState({
         serviceStatus: {
           svc: {
@@ -95,6 +99,9 @@ describe("useAppStore", () => {
             ready_phase: null,
           },
         },
+        appStatus: {
+          "app-a:0": { status: "running", index: 0 },
+        },
       });
       useAppStore.getState().pushLog(createLogEntry(1));
       const versionBeforeReconnect = useAppStore.getState().logVersion;
@@ -103,6 +110,7 @@ describe("useAppStore", () => {
 
       const state = useAppStore.getState();
       expect(state.connection).toBe("connected");
+      expect(state.appStatus).toEqual({});
       expect(state.serviceStatus).toEqual({});
       expect(state.logBuffer.toArray()).toHaveLength(0);
       expect(state.logVersion).toBeGreaterThan(versionBeforeReconnect);
@@ -202,7 +210,7 @@ describe("useAppStore", () => {
     });
   });
 
-  describe("updateAppStatus / updateServiceStatus / clearServiceStatus", () => {
+  describe("updateAppStatus / updateServiceStatus / clearAppStatus / clearServiceStatus", () => {
     it("updateAppStatus merges a new entry without clobbering existing ones", () => {
       useAppStore.getState().updateAppStatus("app-a:0", { status: "running", index: 0 });
       useAppStore.getState().updateAppStatus("app-b:0", { status: "stopped", index: 0 });
@@ -210,6 +218,14 @@ describe("useAppStore", () => {
       const state = useAppStore.getState();
       expect(state.appStatus["app-a:0"].status).toBe("running");
       expect(state.appStatus["app-b:0"].status).toBe("stopped");
+    });
+
+    it("clearAppStatus resets appStatus to an empty record", () => {
+      useAppStore.getState().updateAppStatus("app-a:0", { status: "running", index: 0 });
+      expect(Object.keys(useAppStore.getState().appStatus)).toHaveLength(1);
+
+      useAppStore.getState().clearAppStatus();
+      expect(useAppStore.getState().appStatus).toEqual({});
     });
 
     it("clearServiceStatus resets serviceStatus to an empty record", () => {
