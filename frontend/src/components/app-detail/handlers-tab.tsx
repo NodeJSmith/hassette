@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 
 import { Button } from "@/components/ui/button";
@@ -84,11 +84,14 @@ export function HandlersTab({
   const correctUrl = useCorrectUrl();
 
   // ResizeObserver instead of useMediaQuery: breakpoint is relative to this container's width, not the viewport.
+  // Callback ref (not useRef + useEffect) so the observer attaches/detaches whenever the root node changes,
+  // regardless of which contentMode branch renders it.
   const [isMobile, setIsMobile] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
 
-  useEffect(() => {
-    const el = containerRef.current;
+  const containerRef = useCallback((el: HTMLDivElement | null) => {
+    resizeObserverRef.current?.disconnect();
+    resizeObserverRef.current = null;
     if (!el) return;
 
     const ro = new ResizeObserver((entries) => {
@@ -97,7 +100,7 @@ export function HandlersTab({
       }
     });
     ro.observe(el);
-    return () => ro.disconnect();
+    resizeObserverRef.current = ro;
   }, []);
 
   const hasItems = listeners.length > 0 || jobs.length > 0;
@@ -139,7 +142,7 @@ export function HandlersTab({
 
     case "empty":
       return (
-        <div data-testid="handlers-empty">
+        <div ref={containerRef} data-testid="handlers-empty">
           <EmptyState title="no handlers or scheduled jobs registered." />
         </div>
       );
@@ -157,7 +160,6 @@ export function HandlersTab({
             <Button
               variant="ghost"
               size="sm"
-              className="mb-3"
               data-testid="back-to-list"
               onClick={() => navigate(appHandlersPath(appKey, { instance: instanceIndex }))}
               aria-label="Back to handler list"
