@@ -159,6 +159,7 @@ export function useWebSocket(): void {
             void queryClient.invalidateQueries({ queryKey: queryKeys.manifests() });
             void queryClient.invalidateQueries({ queryKey: queryKeys.manifest.prefix() });
             void queryClient.invalidateQueries({ queryKey: queryKeys.dashboardGrid() });
+            void queryClient.invalidateQueries({ queryKey: queryKeys.systemStatus() });
             break;
 
           default: {

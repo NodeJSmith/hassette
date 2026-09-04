@@ -509,6 +509,7 @@ describe("useWebSocket", () => {
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["manifests"] });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["manifest"] });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["dashboard-grid"] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["system-status"] });
   });
 
   it("drops invalid messages without updating state", () => {
