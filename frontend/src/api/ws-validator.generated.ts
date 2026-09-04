@@ -13,7 +13,7 @@ const schema11 = {
   $defs: {
     AppManifestsChangedData: {
       description:
-        'Payload for a completed app load/reload pass broadcast over WebSocket.\n\nCarries no fields — it is a refetch signal, not a diff. The event that triggers it\n(``HASSETTE_EVENT_APP_LOAD_COMPLETED``) fires after a full bootstrap or reload pass over\nall apps and does not identify which app(s) changed, so clients should treat receipt as\n"manifest status may be stale, refetch" rather than inspect the payload for detail.',
+        'Payload for a manifest refresh broadcast over WebSocket.\n\nCarries no fields — it is a refetch signal, not a diff. The event that triggers it\n(``HASSETTE_EVENT_APP_LOAD_COMPLETED``) fires after a full bootstrap or reload pass over\nall apps, and also after a live config edit that only changes manifest metadata (e.g.\n``display_name``) with no lifecycle action to take. Either way it does not identify which\napp(s) changed, so clients should treat receipt as "manifest status may be stale, refetch"\nrather than inspect the payload for detail.',
       properties: {},
       title: "AppManifestsChangedData",
       type: "object",
@@ -3843,7 +3843,7 @@ const schema29 = {
 };
 const schema30 = {
   description:
-    'Payload for a completed app load/reload pass broadcast over WebSocket.\n\nCarries no fields — it is a refetch signal, not a diff. The event that triggers it\n(``HASSETTE_EVENT_APP_LOAD_COMPLETED``) fires after a full bootstrap or reload pass over\nall apps and does not identify which app(s) changed, so clients should treat receipt as\n"manifest status may be stale, refetch" rather than inspect the payload for detail.',
+    'Payload for a manifest refresh broadcast over WebSocket.\n\nCarries no fields — it is a refetch signal, not a diff. The event that triggers it\n(``HASSETTE_EVENT_APP_LOAD_COMPLETED``) fires after a full bootstrap or reload pass over\nall apps, and also after a live config edit that only changes manifest metadata (e.g.\n``display_name``) with no lifecycle action to take. Either way it does not identify which\napp(s) changed, so clients should treat receipt as "manifest status may be stale, refetch"\nrather than inspect the payload for detail.',
   properties: {},
   title: "AppManifestsChangedData",
   type: "object",
