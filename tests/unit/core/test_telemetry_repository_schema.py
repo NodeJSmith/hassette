@@ -1,4 +1,10 @@
-"""Unit tests for TelemetryRepository execution batch persistence, schema shape, and query builders."""
+"""Unit tests for TelemetryRepository execution batch persistence, schema shape, and query builders.
+
+Kept as a single file rather than split by concern: no shorter filename covers all three areas, and
+splitting would trade one imperfect file name for two or three others sharing the same fixtures and
+setup. A reader who searches for `persist_execution_batch`, `_build_delete_query`,
+or `_build_retire_query` and doesn't find them by name should check this file next.
+"""
 
 import time
 
@@ -19,11 +25,8 @@ from tests.support.factories import (
 )
 
 
-# dup-ignore-start: pytest test function signature — each test independently declares the
-# telemetry_repo/telemetry_db/telemetry_session_id fixtures it needs; Python has no way to share a
-# function signature between separate test functions, and bundling these three fixtures into one
-# object would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster
-# (see design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
+# dup-ignore-start: pytest test function signature — Python has no way to share a function
+# signature between separate test functions (see tests/unit/core/CLAUDE.md).
 async def test_persist_execution_batch_inserts_handler_records(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
@@ -63,11 +66,8 @@ async def test_persist_execution_batch_inserts_handler_records(
     assert rows[1]["kind"] == "handler"
 
 
-# dup-ignore-start: pytest test function signature — each test independently declares the
-# telemetry_repo/telemetry_db/telemetry_session_id fixtures it needs; Python has no way to share a
-# function signature between separate test functions, and bundling these three fixtures into one
-# object would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster
-# (see design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
+# dup-ignore-start: pytest test function signature — Python has no way to share a function
+# signature between separate test functions (see tests/unit/core/CLAUDE.md).
 async def test_persist_execution_batch_inserts_job_records(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
@@ -119,11 +119,8 @@ async def test_persist_execution_batch_handles_empty_list(
     assert row["count"] == 0
 
 
-# dup-ignore-start: pytest test function signature — each test independently declares the
-# telemetry_repo/telemetry_db/telemetry_session_id fixtures it needs; Python has no way to share a
-# function signature between separate test functions, and bundling these three fixtures into one
-# object would require a new tests/unit/core/conftest.py fixture, out of scope for this cluster
-# (see design/specs/099-dedupe-tests-unit-core/design.md — no new conftest.py helpers per task).
+# dup-ignore-start: pytest test function signature — Python has no way to share a function
+# signature between separate test functions (see tests/unit/core/CLAUDE.md).
 async def test_persist_execution_batch_unified(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,

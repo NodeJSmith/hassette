@@ -36,3 +36,10 @@ surface stable; only the definitions moved.
 ## Key conventions
 
 - Service factories (`make_bus_service`, `make_scheduler_service`, `make_watcher`) bypass `__init__` via `__new__` — set every attribute the real `__init__` would set.
+- `# dup-ignore-start: pytest test function signature` markers precede most test functions in this
+  directory's `test_telemetry_repository_*.py` and `test_manifest_repository.py` files. Python has
+  no way to share a function signature between separate test functions, so every test re-declares
+  whichever fixtures it needs (`telemetry_repo`, `telemetry_db`, `telemetry_session_id`, `tmp_path`,
+  etc.) even when an adjacent test declares the identical set — `tools/check_duplicate_code.py`
+  would otherwise flag that repetition. The marker's inline reason stays a one-line pointer back to
+  this note rather than repeating the full explanation at all 19 sites.
