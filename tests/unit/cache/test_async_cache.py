@@ -222,6 +222,42 @@ async def test_close_closes_both_connections(cache: AsyncCache) -> None:
         _ = cache._read_conn
 
 
+async def test_close_handles_cancelled_error_and_still_closes_both(cache: AsyncCache) -> None:
+    """CancelledError during the first connection's close() must not skip the second.
+
+    A leaked connection triggers Connection.__del__ ResourceWarning under
+    filterwarnings=error and skips the clean WAL checkpoint (#923, #1900).
+    """
+    write_conn = cache._write
+    read_conn = cache._read
+    assert write_conn is not None
+    assert read_conn is not None
+
+    original_read_close = read_conn.close
+    read_close_called = False
+
+    async def cancelled_write_close() -> None:
+        raise asyncio.CancelledError()
+
+    async def tracking_read_close() -> None:
+        nonlocal read_close_called
+        read_close_called = True
+        await original_read_close()
+
+    write_conn.close = cancelled_write_close  # pyright: ignore[reportAttributeAccessIssue]
+    read_conn.close = tracking_read_close  # pyright: ignore[reportAttributeAccessIssue]
+
+    try:
+        with pytest.raises(asyncio.CancelledError):
+            await cache.close()
+
+        assert read_close_called, "read connection must still be closed when write close is cancelled"
+        assert cache._write is None
+        assert cache._read is None
+    finally:
+        stop_connection_sync(write_conn)
+
+
 async def test_close_attempts_both_connections_and_raises_first_error(cache: AsyncCache) -> None:
     """close() must not swallow a connection-close failure -- App.cleanup() relies on it
     propagating so the shutdown coordinator can record CLEANUP_FAILED instead of reporting a

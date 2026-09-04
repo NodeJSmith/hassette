@@ -13,6 +13,7 @@ import pytest
 from hassette.const.misc import SECONDS_PER_DAY
 from hassette.core.database_service import DatabaseService
 from hassette.logging_ import LogPersistenceHandler
+from hassette.utils.aiosqlite_utils import connect_daemon
 from tests.support.mock_hassette import make_mock_hassette
 
 from .conftest import TELEMETRY_TEST_DDL as DDL
@@ -55,7 +56,7 @@ def mock_hassette_for_db(tmp_path: Path) -> MagicMock:
 @pytest.fixture
 async def db() -> aiosqlite.Connection:
     """In-memory aiosqlite connection with log_records schema."""
-    conn = await aiosqlite.connect(":memory:")
+    conn = await connect_daemon(":memory:")
     conn.row_factory = aiosqlite.Row
     await conn.executescript(DDL)
     try:

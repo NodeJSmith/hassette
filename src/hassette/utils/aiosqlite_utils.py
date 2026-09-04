@@ -1,9 +1,9 @@
-"""Synchronous aiosqlite connection teardown for paths that cannot ``await`` anything."""
+"""aiosqlite lifecycle helpers: daemon-thread connection opening and synchronous teardown."""
 
-import typing
+from pathlib import Path
+from typing import Any
 
-if typing.TYPE_CHECKING:
-    import aiosqlite
+import aiosqlite
 
 STOP_JOIN_TIMEOUT_SECONDS = 0.1
 """Bound on ``Thread.join()`` while stopping a connection synchronously.
@@ -15,7 +15,22 @@ duration.
 """
 
 
-def stop_connection_sync(conn: "aiosqlite.Connection | None") -> None:
+async def connect_daemon(database: str | Path, **kwargs: Any) -> aiosqlite.Connection:
+    """Open an aiosqlite connection whose worker thread is a daemon.
+
+    aiosqlite creates a non-daemon background thread per connection. If the connection
+    is not closed cleanly (e.g. CancelledError during shutdown), the thread blocks
+    interpreter exit indefinitely. Setting daemon=True before start() lets the interpreter
+    exit even if the thread is still alive.
+
+    No public API exists for this — see aiosqlite#299.
+    """
+    conn = aiosqlite.connect(database, **kwargs)
+    conn._thread.daemon = True
+    return await conn
+
+
+def stop_connection_sync(conn: aiosqlite.Connection | None) -> None:
     """Synchronously stop an aiosqlite connection's background thread, bypassing the async close protocol.
 
     ``Connection.stop()`` (unlike ``close()``) is synchronous -- it queues a close on the

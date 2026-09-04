@@ -15,6 +15,7 @@ import pytest
 from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.exceptions import TelemetryUnavailableError
 from hassette.schemas.summary_models import SessionRecord
+from hassette.utils.aiosqlite_utils import connect_daemon
 from tests.support.mock_hassette import make_mock_hassette
 
 from .helpers import BASE_TS, DbFixture, open_db_with_session
@@ -84,7 +85,7 @@ class TestCheckHealth:
                 await query_service.check_health()
         finally:
             # Restore so fixture teardown doesn't crash
-            db_svc._read_db = await aiosqlite.connect(db_svc._db_path, isolation_level=None)
+            db_svc._read_db = await connect_daemon(db_svc._db_path, isolation_level=None)
             db_svc._read_db.row_factory = aiosqlite.Row
 
 

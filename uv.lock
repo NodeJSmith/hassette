@@ -1054,7 +1054,7 @@ test = [
 [package.metadata]
 requires-dist = [
     { name = "aiohttp", specifier = ">=3.14.3" },
-    { name = "aiosqlite", specifier = ">=0.20" },
+    { name = "aiosqlite", specifier = ">=0.22.1" },
     { name = "anyio", specifier = ">=4.10.0" },
     { name = "croniter", specifier = ">=6.0.0" },
     { name = "cyclopts", specifier = ">=4.0,<5.0" },
