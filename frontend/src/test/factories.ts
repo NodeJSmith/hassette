@@ -11,6 +11,7 @@
 
 import type { components } from "../api/generated-types";
 import type { WsExecutionCompletedPayload } from "../api/ws-types";
+import type { ExecutionKind } from "../components/shared/execution-table";
 import type { ServiceStatusEntry } from "../state/store";
 import type { UnifiedRow } from "../utils/handler-rows";
 
@@ -283,7 +284,7 @@ export function createSystemStatus(overrides: Partial<SystemStatusResponse> = {}
   } satisfies SystemStatusResponse;
 }
 
-export function createExecution(kind: "handler" | "job", overrides: Partial<Execution> = {}): Execution {
+export function createExecution(kind: ExecutionKind, overrides: Partial<Execution> = {}): Execution {
   const kindFields =
     kind === "handler"
       ? { kind: "handler" as const, listener_id: 1, job_id: null, duration_ms: 50 }

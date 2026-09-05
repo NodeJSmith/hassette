@@ -9,11 +9,12 @@ import { useAppStore } from "../../state/store";
 import { createExecutionCompletedPayload } from "../../test/factories";
 import { renderWithAppState } from "../../test/render-helpers";
 import { server } from "../../test/server";
+import type { ExecutionKind } from "../shared/execution-table";
 import { RecentActivitySection } from "./recent-activity-section";
 
 type ActivityFeedEntry = components["schemas"]["ActivityFeedEntry"];
 
-function makeExecution(appKey: string, kind: "handler" | "job"): WsExecutionCompletedPayload {
+function makeExecution(appKey: string, kind: ExecutionKind): WsExecutionCompletedPayload {
   return createExecutionCompletedPayload({ kind, app_key: appKey });
 }
 
