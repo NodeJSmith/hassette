@@ -15,7 +15,14 @@ from hassette.resources.service import Service
 from hassette.types import ResourceStatus
 from hassette.types.enums import ResourceRole, RestartType
 
-from .conftest import DummyService, TempService, make_watcher, make_watcher_hassette
+from .conftest import (
+    COOLDOWN_NEVER_REACHED_SECONDS,
+    FAST_COOLDOWN_SECONDS,
+    DummyService,
+    TempService,
+    make_watcher,
+    make_watcher_hassette,
+)
 
 
 def make_failed_payload(service: Service) -> ServiceStatusPayload:
@@ -41,7 +48,7 @@ async def test_exhausted_cooling_sets_status_on_instance():
     hassette.children = [service]
 
     watcher = make_watcher(hassette)
-    spec = RestartSpec(restart_type=RestartType.TRANSIENT, cooldown_seconds=9999)
+    spec = RestartSpec(restart_type=RestartType.TRANSIENT, cooldown_seconds=COOLDOWN_NEVER_REACHED_SECONDS)
     payload = make_failed_payload(service)
 
     spawned_coros: list = []
@@ -105,7 +112,7 @@ async def test_cooldown_exceeded_sets_exhausted_dead():
     watcher = make_watcher(hassette)
     spec = RestartSpec(
         restart_type=RestartType.TRANSIENT,
-        cooldown_seconds=0.001,
+        cooldown_seconds=FAST_COOLDOWN_SECONDS,
         max_cooldown_cycles=1,
     )
     key = f"{service.class_name}:{service.role}"
@@ -166,7 +173,9 @@ async def test_cooldown_and_retry_proceeds_when_not_admission_blocked():
     hassette.children = [service]
 
     watcher = make_watcher(hassette)
-    spec = RestartSpec(restart_type=RestartType.TRANSIENT, cooldown_seconds=0.001, max_cooldown_cycles=0)
+    spec = RestartSpec(
+        restart_type=RestartType.TRANSIENT, cooldown_seconds=FAST_COOLDOWN_SECONDS, max_cooldown_cycles=0
+    )
     key = f"{service.class_name}:{service.role}"
     budget = watcher.get_budget(key, spec)
     budget.record_restart()

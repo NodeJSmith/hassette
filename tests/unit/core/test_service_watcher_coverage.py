@@ -28,15 +28,13 @@ from tests.support.helpers import (
 )
 from tests.support.mock_hassette import make_mock_hassette
 
-from .conftest import DummyService, make_watcher, make_watcher_hassette
-
-FAST_COOLDOWN_SECONDS = 0.001
-"""Cooldown value for tests where cooldown_and_retry's sleep is expected to actually complete."""
-
-COOLDOWN_NEVER_REACHED_SECONDS = 999
-"""Cooldown value for tests where restart admission is blocked before the sleep is ever reached --
-the number itself is irrelevant to timing, just large enough that a guard regression letting
-execution fall through to the sleep would hang the test instead of passing by accident."""
+from .conftest import (
+    COOLDOWN_NEVER_REACHED_SECONDS,
+    FAST_COOLDOWN_SECONDS,
+    DummyService,
+    make_watcher,
+    make_watcher_hassette,
+)
 
 
 class TestConfigLogLevel:
