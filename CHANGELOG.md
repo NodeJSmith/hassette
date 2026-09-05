@@ -24,13 +24,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * re-attach ResizeObserver in HandlersTab when container node changes ([#1886](https://github.com/NodeJSmith/hassette/issues/1886)) ([a5e3598](https://github.com/NodeJSmith/hassette/commit/a5e3598caa3c46240d9c4c0351ac8e52829c166c))
 * retype loose role annotations in lifecycle Protocol and watcher tests ([#1888](https://github.com/NodeJSmith/hassette/issues/1888)) ([7244b95](https://github.com/NodeJSmith/hassette/commit/7244b95b2c1594c049ee6542f75ced4e182065ca)), closes [#1792](https://github.com/NodeJSmith/hassette/issues/1792)
 
-
-### Refactoring
-
-* centralize duplicated handler/job execution kind union ([#1914](https://github.com/NodeJSmith/hassette/issues/1914)) ([78f79fe](https://github.com/NodeJSmith/hassette/commit/78f79fe73cb63511173e6be459993a40ba5682cd)), closes [#1685](https://github.com/NodeJSmith/hassette/issues/1685)
-* dedupe class strings and flatten branching in config-tab ([#1913](https://github.com/NodeJSmith/hassette/issues/1913)) ([cc334a6](https://github.com/NodeJSmith/hassette/commit/cc334a6d9ceff23ec5adfef6b94b746328721814)), closes [#1634](https://github.com/NodeJSmith/hassette/issues/1634)
-* finish ExecutionKind migration in test factories ([#1916](https://github.com/NodeJSmith/hassette/issues/1916)) ([80065c6](https://github.com/NodeJSmith/hassette/commit/80065c66209a35bfd0235eb6b77b06ef7a2a2f95))
-
 ## [0.53.0](https://github.com/NodeJSmith/hassette/compare/v0.52.0...v0.53.0) (2026-09-04)
 
 
