@@ -216,4 +216,27 @@ the behavior being moved.
 
 ## Addendum
 
-[None yet — sketch is in draft.]
+**2026-09-05 — Bound-method delegation removed after the first commit.** FR#1, FR#5, and the
+"Calling convention" section above describe the architecture as first implemented: thin
+delegating methods (`build_record`, `drain_and_persist`, `flush_queue`, `persist_batch`,
+`handle_fk_violation`, `emit_completion_events`) kept on `CommandExecutor`, with every internal
+call — including calls among the extracted functions themselves — going through
+`self.<method>(...)`/`executor.<method>(...)` bound-method lookup specifically to preserve six
+tests that monkeypatch those methods as instance attributes.
+
+Two follow-up commits on this same branch removed that indirection instead. The six wrapper
+methods had no callers left outside `command_executor.py`/`execution_pipeline.py` once the split
+landed, so they were deleted; `CommandExecutor.serve()`/`_execute()` now call
+`execution_pipeline`/`execution_record_builder` functions directly, and the pipeline's internal
+cross-calls (e.g. `persist_batch` calling `emit_completion_events`) are plain module-level calls.
+The six tests this design flagged as load-bearing for the wrapper (FR#8) were updated to
+monkeypatch the module attribute instead (e.g. `monkeypatch.setattr(execution_pipeline,
+"persist_batch", fake_persist)`) — the "zero test modifications" goal (FR#8, AC#3) held for the
+first commit only, not the branch as shipped. `enqueue_record` is the one exception: it stays a
+`CommandExecutor` method because `bus_service.py`/`scheduler_service.py` call it from outside this
+module, so a bound method is a real external contract there, not internal-only indirection.
+
+This document's body is left as written above (see the terminal-status-design-doc convention) —
+it's an accurate record of the sketch and its resolved sketch-time challenge findings, just not of
+the code as it ultimately shipped. The PR description for the split (#810) has the final
+rationale.
