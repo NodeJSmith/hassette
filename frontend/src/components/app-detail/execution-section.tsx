@@ -1,11 +1,11 @@
 import type { HandlerKind } from "../../utils/app-routes";
-import { type ExecutionRecord, ExecutionTable } from "../shared/execution-table";
+import { type ExecutionKind, type ExecutionRecord, ExecutionTable } from "../shared/execution-table";
 import { Spinner } from "../shared/spinner";
 
 interface ExecutionSectionProps {
   heading: string;
   records: ExecutionRecord[] | undefined;
-  kind: "handler" | "job";
+  kind: ExecutionKind;
   tableId: string;
   loading: boolean;
   appKey?: string;

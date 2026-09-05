@@ -147,7 +147,7 @@ const columns: ColumnDef<ExecutionRecord, unknown>[] = [
   },
 ];
 
-type ExecutionKind = "handler" | "job";
+export type ExecutionKind = "handler" | "job";
 
 interface ExecutionTableProps {
   records: ExecutionRecord[];

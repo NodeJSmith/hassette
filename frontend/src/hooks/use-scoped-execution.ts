@@ -1,4 +1,5 @@
 import type { WsExecutionCompletedPayload } from "../api/ws-types";
+import type { ExecutionKind } from "../components/shared/execution-table";
 import { useAppStore } from "../state/store";
 
 /**
@@ -30,7 +31,7 @@ export function isExecutionDefined(execution: WsExecutionCompletedPayload | unde
 }
 
 /** This app's first completion in the latest batch, optionally narrowed to one completion kind. */
-export function useAppExecution(appKey: string, kind?: "handler" | "job"): WsExecutionCompletedPayload | undefined {
+export function useAppExecution(appKey: string, kind?: ExecutionKind): WsExecutionCompletedPayload | undefined {
   return useScopedExecution((e) => e.app_key === appKey && (kind === undefined || e.kind === kind));
 }
 
