@@ -7,6 +7,7 @@ from typing import Annotated, Any
 
 from cyclopts import Parameter
 
+from hassette.cli.client import emit_usage_error
 from hassette.config.config import HassetteConfig
 from hassette.exceptions import AppPrecheckFailedError, FatalError
 from hassette.server import main as run_server
@@ -59,7 +60,7 @@ def cmd_run(
     if app:
         only = split_app_keys(app)
         if not only:
-            raise SystemExit("error: --app requires at least one non-empty app key")
+            emit_usage_error("--app requires at least one non-empty app key")
         init_kwargs["only_apps"] = only
 
     config = HassetteConfig(**init_kwargs)
