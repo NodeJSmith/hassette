@@ -827,10 +827,14 @@ async def test_shutdown_coordinator_bounds_body_wait_by_remaining_budget(monkeyp
     try:
         assert report.is_restart_safe is False
         # Correct behavior passes total_deadline_remaining() -- the shared deadline minus
-        # whatever the observe phase actually consumed. The bug this guards against passes a
-        # fresh `total_timeout_seconds` instead, ignoring that consumption entirely; the two
-        # differ by `observe_timer.actual_elapsed`, comfortably above the epsilon below.
-        expected_wait_timeout = total_timeout_seconds - observe_timer.actual_elapsed
+        # whatever the observe phase actually consumed, clamped to zero the same way production
+        # clamps it (lifecycle.py's total_deadline_remaining()). With this test's fixed
+        # `observe_seconds`/`total_timeout_seconds` the clamp never actually engages -- it exists
+        # so this expectation stays correct (rather than going negative) if scheduling delays ever
+        # push the real observe-phase sleep past the total budget. The bug this guards against
+        # passes a fresh `total_timeout_seconds` instead, ignoring that consumption entirely; the
+        # two differ by `observe_timer.actual_elapsed`, comfortably above the epsilon below.
+        expected_wait_timeout = max(0.0, total_timeout_seconds - observe_timer.actual_elapsed)
         assert wait_capture.timeout == pytest.approx(expected_wait_timeout, abs=wait_timeout_epsilon_seconds), (
             "outer body wait must be bounded by the remaining shared deadline, not a fresh "
             f"timeout -- captured {wait_capture.timeout}, expected ~{expected_wait_timeout:.3f}"
