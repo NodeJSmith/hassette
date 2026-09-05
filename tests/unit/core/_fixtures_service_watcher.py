@@ -12,6 +12,14 @@ from hassette.types.enums import ResourceStatus, RestartType
 from tests.support.helpers import block_until_cancelled
 from tests.support.mock_hassette import make_mock_hassette
 
+FAST_COOLDOWN_SECONDS = 0.001
+"""Cooldown value for tests where cooldown_and_retry's sleep is expected to actually complete."""
+
+COOLDOWN_NEVER_REACHED_SECONDS = 999
+"""Cooldown value for tests where restart admission is blocked before the sleep is ever reached --
+the number itself is irrelevant to timing, just large enough that a guard regression letting
+execution fall through to the sleep would hang the test instead of passing by accident."""
+
 
 class DummyService(Service):
     """Minimal concrete Service for watcher-level tests."""
