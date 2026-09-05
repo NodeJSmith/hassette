@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.54.0](https://github.com/NodeJSmith/hassette/compare/v0.53.0...v0.54.0) (2026-09-05)
+
+
+### ⚠ BREAKING CHANGES
+
+* `VacuumEntityFeature.BATTERY`, `VacuumAttributes.battery_icon`, `VacuumAttributes.battery_level`, and `VacuumAttributes.supports_battery` have been removed, mirroring their removal from Home Assistant core's base vacuum entity in 2026.9.0. Code reading vacuum battery state directly from these fields must switch to the entity's own battery sensor (e.g. a paired `sensor.*_battery` entity), which is how HA core itself now exposes this data.
+
+### Features
+
+* regenerate typed models for Home Assistant 2026.9.0 ([#1908](https://github.com/NodeJSmith/hassette/issues/1908)) ([de7ea95](https://github.com/NodeJSmith/hassette/commit/de7ea9574b779a214b808da88295b620e777ffb3))
+
+
+### Bug Fixes
+
+* broadcast app manifest changes over websocket to fix stale status ([#1899](https://github.com/NodeJSmith/hassette/issues/1899)) ([e786542](https://github.com/NodeJSmith/hassette/commit/e786542a185bdca0e3902fecfa3456562985f5fe))
+* close leaked aiosqlite connections on CancelledError during cache shutdown ([#1903](https://github.com/NodeJSmith/hassette/issues/1903)) ([64e009c](https://github.com/NodeJSmith/hassette/commit/64e009c850a37da07827c787161c984d4084c881))
+* re-attach ResizeObserver in HandlersTab when container node changes ([#1886](https://github.com/NodeJSmith/hassette/issues/1886)) ([a5e3598](https://github.com/NodeJSmith/hassette/commit/a5e3598caa3c46240d9c4c0351ac8e52829c166c))
+* retype loose role annotations in lifecycle Protocol and watcher tests ([#1888](https://github.com/NodeJSmith/hassette/issues/1888)) ([7244b95](https://github.com/NodeJSmith/hassette/commit/7244b95b2c1594c049ee6542f75ced4e182065ca)), closes [#1792](https://github.com/NodeJSmith/hassette/issues/1792)
+
+
+### Refactoring
+
+* centralize duplicated handler/job execution kind union ([#1914](https://github.com/NodeJSmith/hassette/issues/1914)) ([78f79fe](https://github.com/NodeJSmith/hassette/commit/78f79fe73cb63511173e6be459993a40ba5682cd)), closes [#1685](https://github.com/NodeJSmith/hassette/issues/1685)
+* dedupe class strings and flatten branching in config-tab ([#1913](https://github.com/NodeJSmith/hassette/issues/1913)) ([cc334a6](https://github.com/NodeJSmith/hassette/commit/cc334a6d9ceff23ec5adfef6b94b746328721814)), closes [#1634](https://github.com/NodeJSmith/hassette/issues/1634)
+* finish ExecutionKind migration in test factories ([#1916](https://github.com/NodeJSmith/hassette/issues/1916)) ([80065c6](https://github.com/NodeJSmith/hassette/commit/80065c66209a35bfd0235eb6b77b06ef7a2a2f95))
+
 ## [0.53.0](https://github.com/NodeJSmith/hassette/compare/v0.52.0...v0.53.0) (2026-09-04)
 
 
