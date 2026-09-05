@@ -30,7 +30,6 @@ class VacuumEntityFeature(IntFlag):
     STOP = 8
     RETURN_HOME = 16
     FAN_SPEED = 32
-    BATTERY = 64
     STATUS = 128
     SEND_COMMAND = 256
     LOCATE = 512
@@ -42,8 +41,6 @@ class VacuumEntityFeature(IntFlag):
 
 
 class VacuumAttributes(AttributesBase):
-    battery_icon: str | None = Field(default=None)
-    battery_level: int | None = Field(default=None)
     fan_speed: str | None = Field(default=None)
     fan_speed_list: list[str] | None = Field(default=None)
     activity: VacuumActivity | None = Field(default=None)
@@ -71,10 +68,6 @@ class VacuumAttributes(AttributesBase):
     @property
     def supports_fan_speed(self) -> bool:
         return self.has_feature(VacuumEntityFeature.FAN_SPEED)
-
-    @property
-    def supports_battery(self) -> bool:
-        return self.has_feature(VacuumEntityFeature.BATTERY)
 
     @property
     def supports_status(self) -> bool:

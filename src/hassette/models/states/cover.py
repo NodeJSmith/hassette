@@ -6,6 +6,10 @@ from pydantic import Field
 from .base import AttributesBase, StringBaseState
 
 
+class CoverEntityCapabilityAttribute(StrEnum):
+    SUPPORTED_SPEEDS = "supported_speeds"
+
+
 class CoverEntityStateAttribute(StrEnum):
     IS_CLOSED = "is_closed"
     CURRENT_POSITION = "current_position"
@@ -41,6 +45,7 @@ class CoverEntityFeature(IntFlag):
     CLOSE_TILT = 32
     STOP_TILT = 64
     SET_TILT_POSITION = 128
+    SPEED = 256
 
 
 class CoverAttributes(AttributesBase):
@@ -50,6 +55,7 @@ class CoverAttributes(AttributesBase):
     is_closed: bool | None = Field(default=None)
     is_closing: bool | None = Field(default=None)
     is_opening: bool | None = Field(default=None)
+    supported_speeds: list[str] | None = Field(default=None)
 
     @property
     def supports_open(self) -> bool:
@@ -82,6 +88,10 @@ class CoverAttributes(AttributesBase):
     @property
     def supports_set_tilt_position(self) -> bool:
         return self.has_feature(CoverEntityFeature.SET_TILT_POSITION)
+
+    @property
+    def supports_speed(self) -> bool:
+        return self.has_feature(CoverEntityFeature.SPEED)
 
 
 class CoverState(StringBaseState):

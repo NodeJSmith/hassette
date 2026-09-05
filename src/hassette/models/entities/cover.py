@@ -17,20 +17,38 @@ class CoverEntity(BaseEntity[CoverState, str]):
         """Return the typed synchronous facade for this entity."""
         return self._get_or_create_sync(CoverEntitySyncFacade)
 
-    def open_cover(self) -> Coroutine[Any, Any, None]:
-        """Opens a cover."""
+    def open_cover(
+        self,
+        *,
+        speed: str | None = None,
+    ) -> Coroutine[Any, Any, None]:
+        """Opens a cover.
+
+        Args:
+            speed: Speed at which to open the cover.
+        """
         return self.api.call_service(
             domain=self.domain,
             service="open_cover",
             target={"entity_id": self.entity_id},
+            speed=speed,
         )
 
-    def close_cover(self) -> Coroutine[Any, Any, None]:
-        """Closes a cover."""
+    def close_cover(
+        self,
+        *,
+        speed: str | None = None,
+    ) -> Coroutine[Any, Any, None]:
+        """Closes a cover.
+
+        Args:
+            speed: Speed at which to close the cover.
+        """
         return self.api.call_service(
             domain=self.domain,
             service="close_cover",
             target={"entity_id": self.entity_id},
+            speed=speed,
         )
 
     def toggle(self) -> Coroutine[Any, Any, None]:
@@ -45,17 +63,20 @@ class CoverEntity(BaseEntity[CoverState, str]):
         self,
         *,
         position: int | float,
+        speed: str | None = None,
     ) -> Coroutine[Any, Any, None]:
         """Moves a cover to a specific position.
 
         Args:
             position: Target position.
+            speed: Speed at which to move the cover.
         """
         return self.api.call_service(
             domain=self.domain,
             service="set_cover_position",
             target={"entity_id": self.entity_id},
             position=position,
+            speed=speed,
         )
 
     def stop_cover(self) -> Coroutine[Any, Any, None]:
@@ -119,20 +140,38 @@ class CoverEntity(BaseEntity[CoverState, str]):
 class CoverEntitySyncFacade(BaseEntitySyncFacade[CoverState, str]):
     """Synchronous facade for CoverEntity service methods."""
 
-    def open_cover(self) -> None:
-        """Opens a cover."""
+    def open_cover(
+        self,
+        *,
+        speed: str | None = None,
+    ) -> None:
+        """Opens a cover.
+
+        Args:
+            speed: Speed at which to open the cover.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="open_cover",
             target={"entity_id": self.entity.entity_id},
+            speed=speed,
         )
 
-    def close_cover(self) -> None:
-        """Closes a cover."""
+    def close_cover(
+        self,
+        *,
+        speed: str | None = None,
+    ) -> None:
+        """Closes a cover.
+
+        Args:
+            speed: Speed at which to close the cover.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="close_cover",
             target={"entity_id": self.entity.entity_id},
+            speed=speed,
         )
 
     def toggle(self) -> None:
@@ -147,17 +186,20 @@ class CoverEntitySyncFacade(BaseEntitySyncFacade[CoverState, str]):
         self,
         *,
         position: int | float,
+        speed: str | None = None,
     ) -> None:
         """Moves a cover to a specific position.
 
         Args:
             position: Target position.
+            speed: Speed at which to move the cover.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="set_cover_position",
             target={"entity_id": self.entity.entity_id},
             position=position,
+            speed=speed,
         )
 
     def stop_cover(self) -> None:
